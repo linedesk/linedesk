@@ -1,36 +1,30 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Callfront
 
-## Getting Started
+The open-source AI front desk. Every call answered, every caller handled.
 
-First, run the development server:
+This repo is the **first UX mock-up** (phone + calendar only). All data is dummy data for a fictional plumbing company in Portland; nothing talks to a backend yet. Types and flows mirror the planned implementation in [docs/architecture.md](docs/architecture.md).
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Screens
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Route | What it shows |
+| --- | --- |
+| `/inbox` | Calls triaged into Needs you / Booked / Handled / Spam / Done. Summary, extracted fields, booking, recording with synced transcript, contact panel. A live call streams in and books itself. |
+| `/bookings` | Week view of the connected calendar: what Maya booked vs. events from your own calendars. |
+| `/receptionist` | Name & voice, greeting (AI disclosure locked on), business knowledge, booking types, urgent & transfer rules, test call. |
+| `/settings` | Phone number & forwarding codes, calendars (check conflicts / book into), team, notifications, voice & AI providers, privacy, usage. |
+| `/onboarding` | 5 steps: website import → calendar → voice → phone forwarding → test call → live. |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Keyboard
 
-## Learn More
+`J`/`K` move · `E` done · `Z` undo · `B` book · `H` snooze · `A` assign · `C` call back · `L`/`T` listen / take over a live call · `1`–`5` tabs · `Space` play recording · `⌘K` command palette · `G` then `I`/`B`/`R`/`S` navigate · `?` all shortcuts
 
-To learn more about Next.js, take a look at the following resources:
+## Docs
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [docs/research.md](docs/research.md): what an AI receptionist must do well
+- [docs/design-principles.md](docs/design-principles.md): Apple HIG + clean-product rules we follow
+- [docs/architecture.md](docs/architecture.md): backend design (Telnyx → LiveKit SIP → LiveKit Agents, Google/Microsoft calendars, data model)

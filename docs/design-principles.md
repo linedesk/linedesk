@@ -1,0 +1,28 @@
+# Design principles
+
+Callfront should feel like a calm, native tool, not a dashboard. These rules are distilled from Apple's Human Interface Guidelines and from products that get "clean" right (Linear, Things 3, Superhuman, Stripe, Vercel), and applied to an inbox of phone calls.
+
+## What we take from Apple
+
+- **Hierarchy.** One clear focal point per screen. Typography and spacing create order before any line, box or colour does.
+- **Deference.** The UI steps back so content leads: the call summary, the caller, the time slot. Chrome stays quiet.
+- **Clarity.** Every word, icon and control earns its place. If removing it changes nothing, remove it.
+- **Consistency.** Same action, same place, same shortcut, everywhere.
+- **Depth sparingly.** Elevation (shadow, blur) only for things that float above the page: palette, dialogs, toasts.
+
+## What we take from clean products
+
+- **Linear:** monochrome base, one accent, hairline borders, dense but never cramped.
+- **Things 3:** generous whitespace, typography-led hierarchy, delightful but rare motion.
+- **Superhuman:** speed is the feature. Keyboard first, one decision per screen, auto-advance after every action, undo instead of confirm dialogs.
+- **Stripe / Vercel:** precise copy, numbers that mean something, settings as quiet grouped rows.
+
+## Rules in this codebase
+
+1. **One accent (blue)** for the primary action and the current selection only. **Red** only for urgent, **green** only for live. Everything else is greyscale.
+2. **No decorative colour.** Avatars are neutral initials, statuses are plain text, tags are grey.
+3. **Borders before shadows, whitespace before borders.** Content sections (summary, fields, transcript) are separated by space, not cards. Cards exist only for real objects (a booking, a setting group).
+4. **Shortcuts are discoverable, not loud.** They live in tooltips, the command palette (⌘K) and the `?` sheet. Only the primary action shows its key.
+5. **Never ask "are you sure?".** Act instantly and offer undo (Z).
+6. **Calm by default.** Notifications only for what needs a human. The default state of the inbox is "nothing needs you".
+7. **Copy is short and human.** "Nothing needs you. Maya has it." beats "No items found".
