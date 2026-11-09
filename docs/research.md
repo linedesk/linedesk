@@ -19,7 +19,7 @@ Notes behind the mock-up. Sources at the end.
 | Setup | Website import, calendar connect, forwarding codes per carrier, test call, under 10 minutes | Self-serve without sales (product strategy) |
 | Calendar | Conflict calendars vs. booking calendar, working hours, appointment types with duration/buffer/min notice | Without this the agent can't book safely and double-books |
 | Call handling | Returning-caller recognition, emergency escalation with warm transfer, message taking | Covers ~all inbound call types of service businesses |
-| Inbox | Process tabs (To do / Updates / All calls / Spam), one-key actions, undo, snooze, command palette | Superhuman model: speed is the product |
+| Inbox | Process tabs (Needs you / Handled by Maya / All calls / Spam), one-key actions, undo, snooze, command palette | Superhuman model: speed is the product |
 | Call card | One-line title, summary, extracted fields, action items, booking card, recording synced to transcript, tool events inline | Understand a call without listening to it |
 | Live | Live transcript, Listen, Take over | Control and trust |
 | Value | Weekly counter: answered, booked, ≈ booked work | Makes the price obvious, is our marketing |

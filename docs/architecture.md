@@ -157,17 +157,17 @@ UsagePeriod(workspace_id, period, answered_seconds, cost_cents)
 Tabs are derived, not stored. They answer one question, "does a person still have to act?";
 what Maya did (the outcome) is a column and a filter, not a tab.
 
-- **To do**: open calls a person has to act on: every `status = live` call, `urgency = urgent`,
+- **Needs you**: open calls a person has to act on: every `status = live` call, `urgency = urgent`,
   and outcomes `callback | message | hangup` (a hang-up is often a lost lead). Sorted by priority:
   live, urgent, new-caller callbacks, other callbacks, messages, hang-ups; newest first within each.
-- **Updates**: open calls Maya finished on her own (`booked | rescheduled | cancelled | answered | transferred`).
+- **Handled by Maya**: open calls Maya finished on her own (`booked | rescheduled | cancelled | answered | transferred`).
   Skim and clear with `E`.
 - **All calls**: the full log except spam, newest first, including `inbox_state = done`.
   The filter also matches the outcome label ("booked", "transferred").
 - **Spam**: outcome `spam`, kept out of every other view.
 
 `E` marks done, `Z` undoes, `H` snoozes (a job re-opens the card). Later: an optional
-"confirm new-customer bookings" setting would route those bookings to To do instead of Updates.
+"confirm new-customer bookings" setting would route those bookings to Needs you instead of Handled by Maya.
 
 The value counter in the sidebar ("answered · booked · ≈ booked work") is
 `count(calls)`, `count(bookings)` and `count(bookings) × avg_job_value` for the current week.
