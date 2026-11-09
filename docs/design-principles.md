@@ -22,7 +22,7 @@ Callfront should feel like a calm, native tool, not a dashboard. These rules are
 1. **One accent (blue)** for the primary action and the current selection only. **Red** only for urgent, **green** only for live. Everything else is greyscale.
 2. **No decorative colour.** Avatars are neutral initials, statuses are plain text, tags are grey.
 3. **Borders before shadows, whitespace before borders.** Content sections (summary, fields, transcript) are separated by space, not cards. Cards exist only for real objects (a booking, a setting group).
-4. **Shortcuts are discoverable, not loud.** Like Superhuman, hovering any control shows a dark tooltip with the action and its key (`data-tip` / `data-kbd`, one global `TooltipLayer`). The first tooltip waits ~450 ms, the next ones appear instantly. Shortcuts also live in ⌘K and the `?` sheet. Only the primary action shows its key inline.
+4. **Shortcuts are discoverable, not loud.** Like Superhuman, hovering any control shows a dark tooltip with the action and its key (`data-tip` / `data-kbd`, one global `TooltipLayer`). Every tooltip waits 600 ms; moving on to the next one takes only 120 ms. Shortcuts also live in ⌘K and the `?` sheet. Only the primary action shows its key inline.
 5. **Never ask "are you sure?".** Act instantly and offer undo (Z).
 6. **Calm by default.** Notifications only for what needs a human. The default state of the inbox is "nothing needs you".
 7. **No permanent sidebar.** Like Superhuman, navigation hides behind ☰ (or `M`) and slides in over the page. Day to day you move with `G` chords and ⌘K, so the screen belongs to the calls.
