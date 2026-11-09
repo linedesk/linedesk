@@ -154,14 +154,20 @@ UsagePeriod(workspace_id, period, answered_seconds, cost_cents)
 
 ### Inbox semantics
 
-Tabs are derived, not stored:
+Tabs are derived, not stored. They answer one question, "does a person still have to act?";
+what Maya did (the outcome) is a column and a filter, not a tab.
 
-- **Needs you**: `inbox_state = open` and (`urgency = urgent` or outcome in
-  `callback | message`), plus every `status = live` call.
-- **Booked**: open calls with outcome `booked | rescheduled | cancelled`.
-- **Handled**: open calls the AI fully resolved (`answered | transferred | hangup`).
-- **Spam**: outcome `spam` (auto-archived, kept for review).
-- **Done**: `inbox_state = done`. `E` marks done, `Z` undoes, `H` snoozes (job re-opens the card).
+- **To do**: open calls a person has to act on: every `status = live` call, `urgency = urgent`,
+  and outcomes `callback | message | hangup` (a hang-up is often a lost lead). Sorted by priority:
+  live, urgent, new-caller callbacks, other callbacks, messages, hang-ups; newest first within each.
+- **Updates**: open calls Maya finished on her own (`booked | rescheduled | cancelled | answered | transferred`).
+  Skim and clear with `E`.
+- **All calls**: the full log except spam, newest first, including `inbox_state = done`.
+  The filter also matches the outcome label ("booked", "transferred").
+- **Spam**: outcome `spam`, kept out of every other view.
+
+`E` marks done, `Z` undoes, `H` snoozes (a job re-opens the card). Later: an optional
+"confirm new-customer bookings" setting would route those bookings to To do instead of Updates.
 
 The value counter in the sidebar ("answered · booked · ≈ booked work") is
 `count(calls)`, `count(bookings)` and `count(bookings) × avg_job_value` for the current week.

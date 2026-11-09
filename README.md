@@ -13,7 +13,7 @@ npm run dev
 
 | Route | What it shows |
 | --- | --- |
-| `/inbox` | List of calls (caller, summary, booked appointment, duration, time) triaged into Needs you / Booked / Handled / Spam / Done. `Enter` opens one call in focus ("2 of 4", J/K), `E` marks done and jumps to the next, `Esc` back to the list. Summary, extracted fields, booking, recording with synced transcript, contact panel. A live call streams in and books itself. |
+| `/inbox` | List of calls (caller, summary, booked appointment, duration, time) in four views: To do (sorted by priority) / Updates (what Maya finished) / All calls / Spam. `Enter` opens one call in focus ("2 of 4", J/K), `E` marks done and jumps to the next, `Esc` back to the list. Summary, extracted fields, booking, recording with synced transcript, contact panel. A live call streams in and books itself. |
 | `/bookings` | Week view of the connected calendar: what Maya booked vs. events from your own calendars. |
 | `/receptionist` | Name & voice, greeting (AI disclosure locked on), business knowledge, booking types, urgent & transfer rules, test call. |
 | `/settings` | Phone number & forwarding codes, calendars (check conflicts / book into), team, notifications, voice & AI providers, privacy, usage. |
