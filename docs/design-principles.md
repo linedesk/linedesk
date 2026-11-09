@@ -25,4 +25,5 @@ Callfront should feel like a calm, native tool, not a dashboard. These rules are
 4. **Shortcuts are discoverable, not loud.** Like Superhuman, hovering any control shows a dark tooltip with the action and its key (`data-tip` / `data-kbd`, one global `TooltipLayer`). The first tooltip waits ~450 ms, the next ones appear instantly. Shortcuts also live in ⌘K and the `?` sheet. Only the primary action shows its key inline.
 5. **Never ask "are you sure?".** Act instantly and offer undo (Z).
 6. **Calm by default.** Notifications only for what needs a human. The default state of the inbox is "nothing needs you".
-7. **Copy is short and human.** "Nothing needs you. Maya has it." beats "No items found".
+7. **No permanent sidebar.** Like Superhuman, navigation hides behind ☰ (or `M`) and slides in over the page. Day to day you move with `G` chords and ⌘K, so the screen belongs to the calls.
+8. **Copy is short and human.** "Nothing needs you. Maya has it." beats "No items found".

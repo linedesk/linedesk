@@ -21,7 +21,7 @@ npm run dev
 
 ## Keyboard
 
-`J`/`K` move · `E` done · `Z` undo · `B` book · `H` snooze · `A` assign · `C` call back · `L`/`T` listen / take over a live call · `1`–`5` tabs · `Space` play recording · `⌘K` command palette · `G` then `I`/`B`/`R`/`S` navigate · `?` all shortcuts
+`J`/`K` move · `E` done · `Z` undo · `B` book · `H` snooze · `A` assign · `C` call back · `L`/`T` listen / take over a live call · `1`–`5` tabs · `Space` play recording · `M` menu · `⌘K` command palette · `G` then `I`/`B`/`R`/`S` navigate · `?` all shortcuts
 
 ## Docs
 
