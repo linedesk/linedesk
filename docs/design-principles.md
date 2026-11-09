@@ -27,4 +27,4 @@ Callfront should feel like a calm, native tool, not a dashboard. These rules are
 6. **Calm by default.** Notifications only for what needs a human. The default state of the inbox is "nothing needs you".
 7. **No permanent sidebar.** Like Superhuman, navigation hides behind ☰ (or `M`) and slides in over the page. Day to day you move with `G` chords and ⌘K, so the screen belongs to the calls.
 8. **One call at a time.** The inbox opens as a plain list. `Enter` or a click puts one call in focus, full width, with only "2 of 4" and up/down at the top. `E` finishes it and moves straight to the next one; when the list is empty you land back on it. `Esc` always goes back to the list.
-8. **Copy is short and human.** "Nothing needs you. Maya has it." beats "No items found".
+9. **Copy is short and human.** "Nothing needs you. Maya has it." beats "No items found".
