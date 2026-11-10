@@ -109,6 +109,13 @@ export function AdminMode({ currentUserId, onExit }: Props) {
       let handled = true
       if (e.key === 'Escape') place.id ? go({ section: place.section, id: null }) : onExit()
       else if (section) go({ section: section.id, id: null })
+      // Tab moves between sections, as it moves between views in the inbox; it never walks focus.
+      else if (e.key === 'Tab') {
+        const at = adminSections.findIndex(s => s.id === place.section)
+        const next = adminSections[(at + (e.shiftKey ? adminSections.length - 1 : 1)) % adminSections.length]!
+        ;(document.activeElement as HTMLElement | null)?.blur()
+        go({ section: next.id, id: null })
+      }
       // Z only ever undoes here: the inbox's undo would act on a call out of sight.
       else if (e.key === 'z') void undo()
       // M and ? would open the inbox's menu and help, / its search: here / searches the list.

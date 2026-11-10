@@ -135,3 +135,14 @@ button.me:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; 
 
 /* Assistant instructions: room for a few paragraphs. */
 .ta.ta-tall { min-height: 260px; }
+
+/* Selecting several calls: a checkbox replaces the unread dot on hover and while anything is selected. */
+.r-dot { position: relative; }
+.r-check { position: absolute; inset: 0; display: none; place-items: center; cursor: pointer; }
+.r-check input { width: 14px; height: 14px; margin: 0; accent-color: var(--action); cursor: pointer; }
+.row:hover .r-check, .ib-list.is-selecting .r-check { display: grid; }
+.row:hover .r-dot > i, .ib-list.is-selecting .r-dot > i { visibility: hidden; }
+.row.is-selected { background: var(--highlight); }
+.ib-bulk { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.ib-bulk > b { font-size: 13px; font-weight: 600; margin-right: 4px; white-space: nowrap; }
+.ib-bulk-acts { display: flex; align-items: center; gap: 2px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }

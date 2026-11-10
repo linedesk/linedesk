@@ -4,6 +4,7 @@ import type { SegmentsByCall } from '../call/segments.ts'
 import type { InboxTab } from '../inbox-model.ts'
 import { dayLabel, parseTs } from '../time.ts'
 import { cx, Icon, Kbd } from '../ui/kit.tsx'
+import type { BulkActions } from './BulkBar.tsx'
 import { InboxHead, type InboxHeadProps } from './InboxHead.tsx'
 import { InboxZero } from './InboxZero.tsx'
 import { Row, type RowHandlers } from './Row.tsx'
@@ -15,6 +16,8 @@ type Props = InboxHeadProps & RowHandlers & {
   leaving: string | null
   entering: string | null
   menu?: ReactNode
+  selected: ReadonlySet<string>
+  bulk: BulkActions
 }
 
 const emptyTitle: Record<InboxTab, string> = { you: 'Nothing needs you', ai: 'Nothing here yet', spam: 'No spam', done: 'Nothing done yet', reminders: 'No reminders' }
@@ -48,7 +51,7 @@ function Hints({ tab }: { tab: InboxTab }) {
 }
 
 /** The list of calls for one view, grouped by day. */
-export function Inbox({ list, segments, cursor, leaving, entering, menu, ...rest }: Props) {
+export function Inbox({ list, segments, cursor, leaving, entering, menu, selected, bulk, ...rest }: Props) {
   const { tab, search, counts } = rest
   const listRef = useRef<HTMLDivElement>(null)
   useEffect(() => { if (cursor) listRef.current?.querySelector('.is-cursor')?.scrollIntoView({ block: 'nearest' }) }, [cursor])
@@ -58,12 +61,12 @@ export function Inbox({ list, segments, cursor, leaving, entering, menu, ...rest
 
   return (
     <div className="cv">
-      <InboxHead {...rest} resultCount={list.length} menu={menu} />
-      <div className={cx('ib-list', zero && 'is-zero')} ref={listRef} role="list">
+      <InboxHead {...rest} resultCount={list.length} menu={menu} bulk={bulk} />
+      <div className={cx('ib-list', zero && 'is-zero', selected.size > 0 && 'is-selecting')} ref={listRef} role="list">
         {list.map((c, i) => (
           <Fragment key={c.id}>
             {groupByDay && (i === 0 || day(list[i - 1]!) !== day(c)) && <div className="ib-day" role="presentation">{day(c)}</div>}
-            <Row {...rest} call={c} segments={segments.get(c.id) ?? []} isCursor={cursor === c.id}
+            <Row {...rest} call={c} segments={segments.get(c.id) ?? []} isCursor={cursor === c.id} selected={selected.has(c.id)}
               motion={leaving === c.id ? 'leaving' : entering === c.id ? 'entering' : null} />
           </Fragment>
         ))}

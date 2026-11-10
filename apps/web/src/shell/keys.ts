@@ -34,6 +34,13 @@ export type KeyContext = {
   openRemind: (call: Call) => void
   clearReminder: (call: Call) => void
   undo: () => void
+  /** Calls picked for a bulk action; call keys then apply to all of them. */
+  selectionCount: number
+  toggleSelect: (call: Call) => void
+  /** ⇧J / ⇧K: add the cursor's call and the next one to the selection. */
+  extendSelect: (by: number) => void
+  selectAll: () => void
+  clearSelection: () => void
 }
 
 /** A page other than the inbox can take the list keys (J, K, arrows, Enter, O, /, Esc) while it is shown. Returns true when it handled the key. */
@@ -65,6 +72,7 @@ function onEscape(el: HTMLElement, c: KeyContext) {
   if (isTyping(el)) return el.blur()
   if (!c.onInbox) return void pageKeys?.('Escape')
   if (c.isCallOpen) return c.back()
+  if (c.selectionCount) return c.clearSelection()
   if (c.searching) return c.closeSearch()
   if (!splits.includes(c.tab as never)) c.setTab('you')
 }
@@ -98,8 +106,10 @@ function onInboxTab(el: HTMLElement, back: boolean, c: KeyContext): boolean {
 
 /** List and view keys of the inbox. Returns false when the key is not one of them. */
 function onInboxKey(k: string, c: KeyContext): boolean {
-  if (k === 'j' || k === 'J') c.step(1)
+  if ((k === 'J' || k === 'K') && !c.isCallOpen) c.extendSelect(k === 'J' ? 1 : -1)
+  else if (k === 'j' || k === 'J') c.step(1)
   else if (k === 'k' || k === 'K') c.step(-1)
+  else if (k === 'x' && !c.isCallOpen && c.target) c.toggleSelect(c.target)
   else if ((k === 'ArrowDown' || k === 'ArrowUp') && !c.isCallOpen) c.step(k === 'ArrowDown' ? 1 : -1) // arrows scroll an open call
   else if ((k === 'Enter' || k === 'o') && !c.isCallOpen && c.target) c.open(c.target)
   else if (viewByKey[k] && !c.isCallOpen) c.setTab(viewByKey[k])
@@ -113,6 +123,8 @@ export function handleKey(e: KeyboardEvent, c: KeyContext): boolean {
   const k = e.shiftKey && e.key.length === 1 ? e.key.toUpperCase() : e.key // ⇧E is 'E' whatever the layout reports
   if ((e.metaKey || e.ctrlKey) && k.toLowerCase() === 'k') { c.setOverlay(c.overlay === 'commands' ? null : 'commands'); return true }
   if (k === 'Escape') { onEscape(el, c); return false }
+  // ⌘A on the list selects every call in the view (in text fields it stays the browser's select-all).
+  if ((e.metaKey || e.ctrlKey) && k.toLowerCase() === 'a' && c.onInbox && !c.isCallOpen && !c.overlay && !c.navOpen && !isTyping(el)) { c.selectAll(); return true }
   if (c.overlay) { if (c.overlay === 'help' && k === '?' && !isTyping(el)) c.setOverlay(null); return false }
   if (isTyping(el) || activatesControl(k, el) || e.metaKey || e.ctrlKey || e.altKey) return false
   // The open navigation is the topmost layer: list and call keys stay with it (it has its own arrows and Tab).

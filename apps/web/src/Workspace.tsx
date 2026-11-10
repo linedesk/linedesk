@@ -8,6 +8,7 @@ import { ContactSide } from './call/ContactSide.tsx'
 import { togglePlayback } from './call/playback.ts'
 import { Inbox } from './inbox/Inbox.tsx'
 import type { ReminderOption } from './inbox/remind.ts'
+import { useSelection } from './inbox/selection.ts'
 import { useCallActions } from './inbox/useCallActions.ts'
 import { useInboxView } from './inbox/useInboxView.ts'
 import { callerName, callTitle, type InboxTab } from './inbox-model.ts'
@@ -37,7 +38,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   const assistantName = useAssistantName()
   const [overlay, setOverlay] = useState<Overlay>(null)
   const [navOpen, setNavOpen] = useState(false)
-  const remindFor = useRef<{ call: Call; source: Source } | null>(null)
+  const remindFor = useRef<{ calls: Call[]; source: Source } | null>(null)
   const signOut = useSignOut({ workspaceId: me.workspace!.id, onSignedOut, toast: toaster.show })
   const { list, tab, search, openCall, target } = view
   const isInstanceAdmin = me.permissions.includes('instance:admin')
@@ -45,29 +46,52 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   const actions = useCallActions({
     list, tab, searching: search !== null, openId: openCall?.id ?? null, setTab: view.setTabState, setCursor: view.setCursor, showCall: view.showById, toaster,
   })
+  const selection = useSelection(list)
+  // A new view or search starts with nothing selected.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: clear when the view changes, not when the clear function does
+  useEffect(() => selection.clear(), [tab, search])
   const open = (call: Call) => { setOverlay(null); view.open(call) }
   const openSearch = () => { setOverlay(null); setNavOpen(false); view.openSearch() }
   const goPage = (to: PageRoute) => { setOverlay(null); nav.go(to) }
+  const bulk = selection.count > 0 && !openCall
+  /** With calls selected, an action applies to all of them and the selection ends. */
+  const each = (one: (call: Call) => void, many: (calls: Call[]) => void) => (call: Call) => {
+    if (!bulk) return one(call)
+    many(selection.calls)
+    selection.clear()
+  }
   function openRemind(call: Call) {
-    if (!actions.isTriageable(call)) return
-    remindFor.current = { call, source: toaster.currentSource() }
+    const calls = bulk ? selection.calls : [call]
+    if (!bulk && !actions.isTriageable(call)) return
+    remindFor.current = { calls, source: toaster.currentSource() }
     setOverlay('remind')
   }
   function pickReminder(option: ReminderOption) {
     setOverlay(null)
     const pending = remindFor.current
-    if (pending) toaster.via(pending.source, () => actions.remind(pending.call, option))
+    if (!pending) return
+    toaster.via(pending.source, () => (pending.calls.length > 1 || bulk ? actions.many.remind(pending.calls, option) : actions.remind(pending.calls[0]!, option)))
+    if (bulk) selection.clear()
   }
   const toggleDone = (call: Call) => (call.inbox_state === 'done' ? actions.markNotDone(call) : actions.markDone(call))
 
   const callHandlers = {
-    markDone: actions.markDone, markNotDone: actions.markNotDone, toggleUnread: actions.toggleUnread,
-    remove: actions.remove, clearReminder: actions.clearReminder, undo: actions.undo, openRemind,
+    markDone: each(actions.markDone, actions.many.markDone), markNotDone: each(actions.markNotDone, actions.many.markNotDone),
+    toggleUnread: each(actions.toggleUnread, actions.many.toggleUnread), remove: each(actions.remove, actions.many.remove),
+    clearReminder: each(actions.clearReminder, actions.many.clearReminder), undo: actions.undo, openRemind,
+  }
+  function extendSelect(by: number) {
+    if (!target) return
+    const i = list.indexOf(target)
+    const next = list[i + by]
+    selection.add(target.id, ...(next ? [next.id] : []))
+    view.step(by)
   }
   useKeyboard({
     ...callHandlers, overlay, setOverlay, navOpen, setNavOpen, onInbox: view.onInbox, tab, searching: search !== null, target,
     step: view.step, setTab: view.setTab, openSearch, closeSearch: view.closeSearch, open, isCallOpen: !!openCall, back: view.back,
     togglePlayback,
+    selectionCount: bulk ? selection.count : 0, toggleSelect: c => selection.toggle(c.id), extendSelect, selectAll: selection.all, clearSelection: selection.clear,
     goChord: key => {
       if (key === 'd' && isInstanceAdmin) goPage('admin')
       else if (chordPages[key]) goPage(chordPages[key])
@@ -107,7 +131,8 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   }, [rejection, clearRejection, toaster.show])
 
   const commands = commandGroups({
-    ...callHandlers, target, targetName: target ? callerName(target, target.contact_id ? view.contacts.get(target.contact_id) : undefined) : '',
+    ...callHandlers, target,
+    targetName: bulk ? `${selection.count} selected calls` : target ? callerName(target, target.contact_id ? view.contacts.get(target.contact_id) : undefined) : '',
     goInbox: view.setTab, goPage, isInstanceAdmin, openSearch, signOut: () => void signOut(),
     openHelp: () => setOverlay('help'), openNav: () => setNavOpen(true),
   })
@@ -149,9 +174,17 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
             side={<ContactSide call={openCall} onOpen={open} toast={toaster.show} />} />
         ) : (
           <Inbox list={list} segments={view.segments} cursor={target?.id ?? null} leaving={actions.leaving} entering={actions.entering} menu={menu}
+            selected={selection.ids} onSelect={(c, range) => (range ? selection.range(c.id) : selection.toggle(c.id))}
+            bulk={{
+              count: selection.count, inDone: tab === 'done',
+              onDone: () => (tab === 'done' ? callHandlers.markNotDone : callHandlers.markDone)(selection.calls[0]!),
+              onRemind: () => openRemind(selection.calls[0]!), onToggleRead: () => callHandlers.toggleUnread(selection.calls[0]!),
+              onDelete: () => callHandlers.remove(selection.calls[0]!), onCommands: () => setOverlay('commands'),
+              onSelectAll: selection.all, onClear: selection.clear,
+            }}
             tab={tab} setTab={view.setTab} counts={view.counts} liveCall={view.liveCall} onOpen={open}
             search={search} onSearch={openSearch} onSearchChange={view.changeSearch} onSearchClose={view.closeSearch}
-            onHover={c => view.setCursor(c.id)} onToggleDone={toggleDone} onToggleUnread={actions.toggleUnread}
+            onHover={c => view.setCursor(c.id)} onToggleDone={toggleDone} onToggleUnread={callHandlers.toggleUnread}
             onRemind={openRemind} onClearReminder={actions.clearReminder}
             onCommands={c => { view.setCursor(c.id); setOverlay('commands') }} />
         )}

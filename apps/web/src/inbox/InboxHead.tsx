@@ -5,6 +5,7 @@ import { useAssistantName, useContact, useRows } from '../store.tsx'
 import { clock, parseTs } from '../time.ts'
 import { Button, Icon } from '../ui/kit.tsx'
 import { useElapsed } from '../ui/LiveIndicator.tsx'
+import { BulkBar, type BulkActions } from './BulkBar.tsx'
 
 export type InboxHeadProps = {
   tab: InboxTab
@@ -80,8 +81,9 @@ function Presence({ liveCall, onOpen }: Pick<InboxHeadProps, 'liveCall' | 'onOpe
   return hasNumber ? <span className="ib-maya"><span className="ib-dot" />{assistant} is answering</span> : null
 }
 
-export function InboxHead({ resultCount, menu, ...p }: InboxHeadProps & { resultCount: number; menu?: ReactNode }) {
+export function InboxHead({ resultCount, menu, bulk, ...p }: InboxHeadProps & { resultCount: number; menu?: ReactNode; bulk?: BulkActions }) {
   const mode = modeTitle[p.tab]
+  if (bulk && bulk.count > 0) return <div className="ib-head">{menu}<BulkBar {...bulk} /></div>
   return (
     <div className="ib-head">
       {menu}

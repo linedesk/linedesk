@@ -7,6 +7,7 @@ const context = (over: Partial<KeyContext> = {}) => ({
   overlay: null, tab: 'you', searching: false, target: call, isCallOpen: false, open: vi.fn(), back: vi.fn(),
   onInbox: true, navOpen: false, setOverlay: vi.fn(), setNavOpen: vi.fn(), togglePlayback: vi.fn(() => true), openSearch: vi.fn(), closeSearch: vi.fn(), setTab: vi.fn(), step: vi.fn(), goChord: vi.fn(() => true),
   markDone: vi.fn(), markNotDone: vi.fn(), toggleUnread: vi.fn(), remove: vi.fn(), openRemind: vi.fn(), clearReminder: vi.fn(), undo: vi.fn(),
+  selectionCount: 0, toggleSelect: vi.fn(), extendSelect: vi.fn(), selectAll: vi.fn(), clearSelection: vi.fn(),
   ...over,
 }) satisfies KeyContext
 const press = (key: string, c: KeyContext, over: Partial<KeyboardEvent> & { tagName?: string; id?: string; type?: string } = {}) =>
@@ -229,5 +230,29 @@ describe('page keys', () => {
     press('j', context({ onInbox: false }), { tagName: 'INPUT' })
     press('j', context({ onInbox: false, overlay: 'help' }))
     expect(page).not.toHaveBeenCalled()
+  })
+})
+
+describe('selection', () => {
+  it('picks the cursor call with X and extends with shift J and K', () => {
+    const c = context()
+    press('x', c)
+    expect(c.toggleSelect).toHaveBeenCalledWith(call)
+    press('j', c, { shiftKey: true }); press('k', c, { shiftKey: true })
+    expect(vi.mocked(c.extendSelect).mock.calls).toEqual([[1], [-1]])
+    expect(c.step).not.toHaveBeenCalled()
+  })
+  it('selects every call with cmd A, but not while typing or with a call open', () => {
+    const c = context()
+    expect(press('a', c, { metaKey: true })).toBe(true)
+    press('a', c, { metaKey: true, tagName: 'INPUT' })
+    press('a', context({ isCallOpen: true }), { metaKey: true })
+    expect(c.selectAll).toHaveBeenCalledTimes(1)
+  })
+  it('clears the selection with Esc before leaving the view', () => {
+    const c = context({ selectionCount: 3, tab: 'done' })
+    press('Escape', c)
+    expect(c.clearSelection).toHaveBeenCalled()
+    expect(c.setTab).not.toHaveBeenCalled()
   })
 })

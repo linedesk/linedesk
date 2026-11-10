@@ -16,6 +16,8 @@ export type RowHandlers = {
   onRemind: (call: Call) => void
   onClearReminder: (call: Call) => void
   onCommands?: (call: Call) => void
+  /** Tick or untick a call; with shift, everything from the last ticked call to this one. */
+  onSelect?: (call: Call, range: boolean) => void
 }
 
 type Props = RowHandlers & {
@@ -25,6 +27,7 @@ type Props = RowHandlers & {
   segments: TranscriptSegment[]
   isCursor: boolean
   motion: 'leaving' | 'entering' | null
+  selected?: boolean
 }
 
 const stop = (run: () => void) => (e: MouseEvent) => { e.stopPropagation(); run() }
@@ -57,16 +60,25 @@ function Summary({ call, search, segments }: Pick<Props, 'call' | 'search' | 'se
   )
 }
 
-export function Row({ call, tab, search, segments, isCursor, motion, ...on }: Props) {
+function SelectBox({ call, selected, onSelect }: { call: Call; selected: boolean; onSelect: (call: Call, range: boolean) => void }) {
+  return (
+    <span className="r-check" title="Select (X)">
+      <input type="checkbox" checked={selected} tabIndex={-1} aria-label={selected ? 'Selected, unselect' : 'Select'}
+        onClick={e => { e.stopPropagation(); onSelect(call, e.shiftKey) }} onChange={() => {}} />
+    </span>
+  )
+}
+
+export function Row({ call, tab, search, segments, isCursor, motion, selected = false, ...on }: Props) {
   const contact = useContact(call.contact_id)
   const live = call.status === 'live'
   const done = call.inbox_state === 'done'
   const reminded = tabOf(call) === 'reminders'
   return (
-    <div role="listitem" className={cx('row', motion && `is-${motion}`, isCursor && 'is-cursor', (call.unread || live) && 'unread', done && search !== null && 'is-done')}
+    <div role="listitem" className={cx('row', motion && `is-${motion}`, isCursor && 'is-cursor', selected && 'is-selected', (call.unread || live) && 'unread', done && search !== null && 'is-done')}
       onClick={() => on.onOpen?.(call)} onMouseMove={() => { if (!isCursor) on.onHover(call) }}>
       <span className={cx('r-dot', call.unread && 'is-unread')} role="button" title={`${call.unread ? 'Mark read' : 'Mark unread'} (U)`}
-        aria-label={call.unread ? 'Unread, mark read' : 'Read, mark unread'} onClick={stop(() => on.onToggleUnread(call))}><i /></span>
+        aria-label={call.unread ? 'Unread, mark read' : 'Read, mark unread'} onClick={stop(() => on.onToggleUnread(call))}><i />{on.onSelect && <SelectBox call={call} selected={selected} onSelect={on.onSelect} />}</span>
       <span className="r-name"><span>{highlight(callerName(call, contact), search)}</span></span>
       <Summary call={call} search={search} segments={segments} />
       <span className="r-status"><Status call={call} tab={tab} markDone={done && search !== null} /></span>
