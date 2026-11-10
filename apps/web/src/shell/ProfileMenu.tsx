@@ -1,9 +1,24 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { fetchAuthMethods, type LegalLinks } from '../auth.ts'
 import { Avatar, Icon } from '../ui/kit.tsx'
 import type { IconName } from '../ui/icons.ts'
 
 /** `onAdmin` is set for instance admins only: Admin then leads the menu. */
 type Props = { name: string; workspaceName: string; navOpen: boolean; onAdmin?: () => void; onAccount: () => void; onSignOut: () => void }
+
+/** This install's terms, privacy and support links; none until loaded, and none that are not set. */
+function useLegalLinks(): LegalLinks | null {
+  const [links, setLinks] = useState<LegalLinks | null>(null)
+  useEffect(() => {
+    fetchAuthMethods({ attempts: 1 }).then(m => setLinks(m.links), () => setLinks(null))
+  }, [])
+  return links
+}
+
+function LinkItem({ label, icon, href }: { label: string; icon: IconName; href: string }) {
+  const external = !href.startsWith('mailto:')
+  return <a role="menuitem" className="nav-item" href={href} target={external ? '_blank' : undefined} rel={external ? 'noreferrer' : undefined}><Icon name={icon} size={15} /><span className="lbl">{label}</span></a>
+}
 
 function Item({ label, icon, onClick }: { label: string; icon: IconName; onClick: () => void }) {
   return <button type="button" role="menuitem" className="nav-item" onClick={onClick}><Icon name={icon} size={15} /><span className="lbl">{label}</span></button>
@@ -12,6 +27,8 @@ function Item({ label, icon, onClick }: { label: string; icon: IconName; onClick
 /** The profile row at the bottom of the navigation. Clicking it opens a small menu above it. */
 export function ProfileMenu({ name, workspaceName, navOpen, onAdmin, onAccount, onSignOut }: Props) {
   const [open, setOpen] = useState(false)
+  const links = useLegalLinks()
+  const hasLinks = !!(links?.terms || links?.privacy || links?.supportEmail)
   useEffect(() => { if (!navOpen) setOpen(false) }, [navOpen]) // the menu never outlives the navigation
   const root = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -41,6 +58,10 @@ export function ProfileMenu({ name, workspaceName, navOpen, onAdmin, onAccount, 
         <div className="me-menu" role="menu" aria-label="Account" onKeyDown={onKeyDown}>
           {onAdmin && <Item label="Admin" icon="gear" onClick={choose(onAdmin)} />}
           <Item label="Account settings" icon="user" onClick={choose(onAccount)} />
+          {hasLinks && <hr />}
+          {links?.supportEmail && <LinkItem label="Help" icon="mail" href={`mailto:${links.supportEmail}`} />}
+          {links?.terms && <LinkItem label="Terms" icon="globe" href={links.terms} />}
+          {links?.privacy && <LinkItem label="Privacy" icon="globe" href={links.privacy} />}
           <hr />
           <Item label="Sign out" icon="arrow-up-right" onClick={choose(onSignOut)} />
         </div>

@@ -1,7 +1,7 @@
 // Sign-in. Shows what this install offers (GET /v1/auth-methods): SSO buttons, a code sent by
 // email, and a password. New people are signed up on first sign-in, unless sign-up is closed.
 import { type FormEvent, useEffect, useRef, useState } from 'react'
-import { type AuthMethods, auth, fetchAuthMethods, requestSignInCode, signInWithCode, startSso, takeRedirectError } from './auth.ts'
+import { type AuthMethods, auth, type LegalLinks, fetchAuthMethods, requestSignInCode, signInWithCode, startSso, takeRedirectError } from './auth.ts'
 import { authErrorMessage, authFormError, CODE_LENGTH, codeErrorMessage, normalizeCode, RESEND_AFTER_S } from './sign-in-code.ts'
 import { AuthPage } from './ui/kit.tsx'
 
@@ -112,9 +112,21 @@ export function Login({ onDone }: { onDone: () => void }) {
           </button>
         )}
         <LoginSwitches step={step} methods={methods} onStep={s => { setStep(s); setError(null) }} />
+        <LegalFooter links={methods.links} />
       </form>
     </AuthPage>
   )
+}
+
+/** Terms, privacy and help under the sign-in card, each only when this install set it. */
+function LegalFooter({ links }: { links: LegalLinks }) {
+  const items = [
+    links.terms && <a key="terms" href={links.terms} target="_blank" rel="noreferrer">Terms</a>,
+    links.privacy && <a key="privacy" href={links.privacy} target="_blank" rel="noreferrer">Privacy</a>,
+    links.supportEmail && <a key="help" href={`mailto:${links.supportEmail}`}>Help</a>,
+  ].filter(Boolean)
+  if (!items.length) return null
+  return <nav className="auth-legal" aria-label="Legal and help">{items}</nav>
 }
 
 type CodeStepProps = { email: string; onDone: () => void; onDifferentEmail: () => void }
@@ -192,7 +204,12 @@ function LoginSwitches({ step, methods, onStep }: { step: Step; methods: AuthMet
       {step === 'password' && methods.emailCode && link('email', 'Forgot your password? Email me a code')}
       {step === 'signUp' && methods.emailCode && link('email', 'Email me a code instead')}
       {step === 'password' && methods.signUp !== false && link('signUp', 'New here? Create an account')}
-      {methods.signUp === false && <p className="auth-note">Sign-up is closed on this server. Ask your administrator for an account.</p>}
+      {methods.signUp === false && (
+        <p className="auth-note">
+          Ask your administrator for an account.
+          {methods.links.supportEmail && <> Or write to <a className="k-link" href={`mailto:${methods.links.supportEmail}`}>{methods.links.supportEmail}</a>.</>}
+        </p>
+      )}
       {step === 'signUp' && link('password', 'Already have an account? Sign in')}
     </>
   )

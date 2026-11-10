@@ -225,6 +225,9 @@ button.me:focus-visible {
   background: var(--surface-raised);
   box-shadow: var(--shadow-popover);
 }
+.me-menu a.nav-item {
+  text-decoration: none;
+}
 .me-menu hr {
   width: auto;
   margin: 3px 4px;
@@ -418,6 +421,22 @@ button.me:focus-visible {
   margin-left: 10px;
   color: var(--ink-muted);
   font-size: 12px;
+}
+
+/* Terms, privacy and help under the sign-in card. */
+.auth-legal {
+  display: flex;
+  gap: 14px;
+  padding-top: 4px;
+  font-size: 12px;
+}
+.auth-legal a {
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+.auth-legal a:hover {
+  color: var(--ink);
+  text-decoration: underline;
 }
 
 /* Closed sign-up: a quiet line under the sign-in options. */

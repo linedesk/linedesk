@@ -1,6 +1,6 @@
 // Which ways to sign in this install offers. Everything except the password is switched on by
 // setting its env vars, so a self-hosted install works with none of them.
-import type { AuthMethods, SsoMethod } from './auth-types.ts'
+import type { AuthMethods, LegalLinks, SsoMethod } from './auth-types.ts'
 
 type Env = Record<string, string | undefined>
 
@@ -14,9 +14,10 @@ export function readAuthConfig(env: Env) {
   const microsoftKeys = pair(env.MICROSOFT_CLIENT_ID, env.MICROSOFT_CLIENT_SECRET)
   const microsoft = microsoftKeys && { ...microsoftKeys, tenantId: env.MICROSOFT_TENANT_ID || 'common' }
   const oidcKeys = pair(env.OIDC_CLIENT_ID, env.OIDC_CLIENT_SECRET)
-  const oidc = oidcKeys && env.OIDC_DISCOVERY_URL
-    ? { ...oidcKeys, discoveryUrl: env.OIDC_DISCOVERY_URL, label: env.OIDC_DISPLAY_NAME || 'Single sign-on' }
-    : null
+  const oidc =
+    oidcKeys && env.OIDC_DISCOVERY_URL
+      ? { ...oidcKeys, discoveryUrl: env.OIDC_DISCOVERY_URL, label: env.OIDC_DISPLAY_NAME || 'Single sign-on' }
+      : null
   // A trusted provider's sign-in joins the account with the same email without asking the provider
   // whether that email is verified. Google verifies every address. Microsoft is only safe when the
   // app is limited to one tenant: on a shared tenant any directory can assert any address.
@@ -33,8 +34,24 @@ export function readAuthConfig(env: Env) {
       microsoft && { id: 'microsoft', label: 'Microsoft' },
       oidc && { id: 'oidc', label: oidc.label },
     ].filter(Boolean) as SsoMethod[],
+    links: readLegalLinks(env),
   }
   return { google, microsoft, oidc, trustedProviders, methods }
+}
+
+const httpUrl = (value?: string) => {
+  const url = value?.trim()
+  if (!url) return null
+  if (!/^https?:\/\/\S+$/i.test(url)) throw new Error(`${url} is not an http(s) URL (TERMS_URL / PRIVACY_URL)`)
+  return url
+}
+
+/** Links the sign-in page and the profile menu show. A malformed value fails at start, not silently. */
+export function readLegalLinks(env: Env): LegalLinks {
+  const supportEmail = env.SUPPORT_EMAIL?.trim() || null
+  if (supportEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(supportEmail))
+    throw new Error(`SUPPORT_EMAIL ${supportEmail} is not an email address`)
+  return { terms: httpUrl(env.TERMS_URL), privacy: httpUrl(env.PRIVACY_URL), supportEmail }
 }
 
 /** How email leaves this install. Printing it to the log is for development and must be asked for. */

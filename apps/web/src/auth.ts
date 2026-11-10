@@ -1,8 +1,8 @@
 import { emailOTPClient, organizationClient } from 'better-auth/client/plugins'
-import type { AuthMethods, SsoMethod } from '@callfront/api/auth-types'
+import type { AuthMethods, LegalLinks, SsoMethod } from '@callfront/api/auth-types'
 import { createAuthClient } from 'better-auth/react'
 
-export type { AuthMethods, SsoMethod }
+export type { AuthMethods, LegalLinks, SsoMethod }
 
 export const auth = createAuthClient({
   // Same origin as the page (the API is proxied). Not read at import time, so tests can load this module without a browser.
