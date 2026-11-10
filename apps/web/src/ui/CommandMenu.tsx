@@ -52,6 +52,8 @@ type Props<T extends CommandItem> = {
   numbered?: boolean
   /** Items made from what was typed (a reminder time), shown first and never filtered away. */
   fromQuery?: (query: string) => CommandGroup<T> | null
+  /** The dialog's name for screen readers. */
+  label?: string
 }
 
 export function CommandMenu<T extends CommandItem>({
@@ -60,6 +62,7 @@ export function CommandMenu<T extends CommandItem>({
   placeholder = 'Type a command…',
   numbered,
   fromQuery,
+  label = 'Commands',
 }: Props<T>) {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
@@ -88,7 +91,7 @@ export function CommandMenu<T extends CommandItem>({
 
   let n = -1
   return (
-    <div className="k-cmd" role="dialog" aria-modal="true" aria-label="Commands">
+    <div className="k-cmd" role="dialog" aria-modal="true" aria-label={label}>
       <div className="k-cmd-search">
         <Icon name="search" />
         <input

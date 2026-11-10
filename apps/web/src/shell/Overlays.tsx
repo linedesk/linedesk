@@ -22,6 +22,7 @@ export function Overlays({ overlay, commands, onClose, onCommand, onReminder }: 
       {overlay === 'remind' && (
         <CommandMenu
           numbered
+          label="Remind me"
           placeholder="Remind me… or type a time: fri 2pm, in 3 hours"
           groups={[{ label: 'Bring this call back', items: reminderOptions() }]}
           fromQuery={query => {

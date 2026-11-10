@@ -1,5 +1,5 @@
 import type { Call } from '@callfront/db/types'
-import { Fragment, useEffect, useRef, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { SegmentsByCall } from '../call/segments.ts'
 import type { CallGroups, InboxTab } from '../inbox-model.ts'
 import { dayLabel, parseTs } from '../time.ts'
@@ -89,12 +89,20 @@ export function Inbox({ list, segments, cursor, leaving, entering, menu, selecte
   }, [cursor])
   const day = (c: Call) => dayLabel(parseTs(c.started_at))
   const zero = !list.length && tab === 'you' && search === null
+  // Screen readers hear the call under the cursor as J and K move it (the rows themselves never take focus).
+  const [spoken, setSpoken] = useState('')
+  useEffect(() => {
+    setSpoken(cursor ? (listRef.current?.querySelector('.is-cursor')?.getAttribute('aria-label') ?? '') : '')
+  }, [cursor])
   const groupByDay = tab !== 'reminders' || search !== null // reminders are ordered by when they come back, not by call day
 
   return (
     <div className="cv">
       <h1 className="sr-only">{search !== null ? 'Search calls' : viewHeading[tab]}</h1>
       <InboxHead {...rest} resultCount={list.length} menu={menu} bulk={bulk} />
+      <div className="sr-only" aria-live="polite">
+        {spoken}
+      </div>
       <div
         className={cx(
           'ib-list',

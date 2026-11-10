@@ -159,7 +159,7 @@ body,
   box-sizing: content-box;
 }
 .fact-input::placeholder {
-  color: var(--ink-disabled);
+  color: var(--ink-muted); /* 4.5:1 on white; --ink-disabled was 2.5:1 */
   opacity: 1;
 }
 .fact-input:hover {
@@ -548,20 +548,19 @@ button.me:focus-visible {
 .r-check {
   position: absolute;
   inset: 0;
-  display: none;
+  display: grid;
+  opacity: 0;
   place-items: center;
   cursor: pointer;
 }
-.r-check input {
+.r-check .k-check-box {
   width: 14px;
   height: 14px;
-  margin: 0;
-  accent-color: var(--action);
-  cursor: pointer;
+  border-radius: 4px;
 }
 .row:hover .r-check,
 .ib-list.is-selecting .r-check {
-  display: grid;
+  opacity: 1;
 }
 .row:hover .r-dot > i,
 .ib-list.is-selecting .r-dot > i {
@@ -909,4 +908,36 @@ a.k-btn {
 }
 .st-defaults > p {
   margin: 0 0 4px;
+}
+
+/* Keyboard focus is always visible: a ring for any control that has no focus style of its own. */
+:where(
+  button,
+  a[href],
+  input,
+  select,
+  textarea,
+  [tabindex]:not([tabindex="-1"]),
+  [role="button"],
+  [role="slider"]
+):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Reduced motion: no animation or transition anywhere (the per-component rules above only cover some). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* While calls are selected, shift-click picks calls, not the text between them. */
+.ib-list.is-selecting {
+  user-select: none;
 }

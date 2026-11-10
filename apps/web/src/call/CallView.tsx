@@ -37,6 +37,7 @@ type Props = CallViewActions & {
 }
 
 const STICK_TO_BOTTOM_PX = 140
+const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 type BarProps = Omit<Props, 'segments' | 'search' | 'side' | 'repeatCount'> & {
   sideOpen: boolean
@@ -48,7 +49,7 @@ function Bar({ call, index, count, menu, sideOpen, onToggleSide, ...on }: BarPro
   const done = call.inbox_state === 'done'
   const reminded = hasReminder(call) && !done
   return (
-    <div className="cv-bar">
+    <div className="cv-bar" role="toolbar" aria-label="Call">
       {menu}
       <Button
         size="sm"
@@ -257,7 +258,7 @@ export function CallView({ call, segments, search, side, repeatCount = 1, ...bar
   // When the call ends, title and summary appear at the top: bring them into view.
   const wasLive = useRef(live)
   useEffect(() => {
-    if (wasLive.current && !live) scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+    if (wasLive.current && !live) scrollRef.current?.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' })
     wasLive.current = live
   }, [live, scrollRef])
   useEffect(() => {

@@ -4,6 +4,7 @@ import { callerName, callTitle, statusLabel, tabOf, type InboxTab } from '../inb
 import { useAssistantName, useContact } from '../store.tsx'
 import { clock, parseTs, shortDuration, timeLabel, timeUnderDay } from '../time.ts'
 import type { IconName } from '../ui/icons.ts'
+import { Checkbox } from '../ui/controls.tsx'
 import { Badge, cx, Icon } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { highlight, searchHit } from './search.tsx'
@@ -110,19 +111,19 @@ function SelectBox({
   selected: boolean
   onSelect: (call: Call, range: boolean) => void
 }) {
+  // A click selects (with shift: a range) and never reaches the row. The box is shown, not operated: the label's own toggle is cancelled.
   return (
-    <span className="r-check" title="Select (X)">
-      <input
-        type="checkbox"
-        checked={selected}
-        tabIndex={-1}
-        aria-label={selected ? 'Selected, unselect' : 'Select'}
-        onClick={e => {
-          e.stopPropagation()
-          onSelect(call, e.shiftKey)
-        }}
-        onChange={() => {}}
-      />
+    // biome-ignore lint/a11y/noStaticElementInteractions: the checkbox inside is the control; this only reads shift from its click
+    <span
+      className="r-check"
+      title="Select (X)"
+      onClick={e => {
+        e.stopPropagation()
+        e.preventDefault() // the label would toggle the box a second time
+        onSelect(call, e.shiftKey)
+      }}
+    >
+      <Checkbox checked={selected} label={selected ? 'Selected, unselect' : 'Select'} onChange={() => {}} />
     </span>
   )
 }
@@ -136,6 +137,15 @@ export function Row({ call, tab, search, segments, isCursor, motion, selected = 
   return (
     <div
       role="listitem"
+      aria-label={[
+        callerName(call, contact),
+        callTitle(call),
+        group && `${group.length} calls`,
+        unread && 'unread',
+        done && 'done',
+      ]
+        .filter(Boolean)
+        .join(', ')}
       className={cx(
         'row',
         motion && `is-${motion}`,
@@ -152,6 +162,7 @@ export function Row({ call, tab, search, segments, isCursor, motion, selected = 
       <span
         className={cx('r-dot', unread && 'is-unread')}
         role="button"
+        tabIndex={-1}
         title={`${unread ? 'Mark read' : 'Mark unread'} (U)`}
         aria-label={unread ? 'Unread, mark read' : 'Read, mark unread'}
         onClick={stop(() => on.onToggleUnread(call))}
