@@ -52,6 +52,6 @@ export function buildInstructions(assistant: Assistant | null, hours?: BusinessH
     `How to handle calls:\n${callRulesOf(assistant?.call_rules)}`,
     'When you use a tool, say your reply in the same response as the tool call instead of waiting for its result: the caller should never wait in silence.',
     'Use take_message once per call, when you have what the team needs; do not save the same request twice.',
-    'When the caller has nothing else, say goodbye briefly.',
+    'When the caller has nothing else, say goodbye briefly. After the caller has said goodbye too, say a short goodbye and use end_call in the same response; never keep talking after both of you said goodbye.',
   ].filter(Boolean).join('\n\n')
 }

@@ -14,6 +14,7 @@ import { checkReadiness, declineCall, describeReadiness } from './not-ready.ts'
 import { createPipeline, summaryLlm, warmUpLlm } from './pipeline.ts'
 import { logTurnMetrics } from './turn-metrics.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
+import { hangUpAfterSpeech, speakingOf } from './hang-up.ts'
 import { buildInstructions, FALLBACK_GREETING } from './prompt.ts'
 import { describeRecording, livekitRecorder, saveRecording, startRecording, stopRecording } from './recording.ts'
 import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from './counterpart.ts'
@@ -37,7 +38,7 @@ function endTestCallLater(ctx: JobContext) {
   ctx.addShutdownCallback(async () => clearTimeout(timer))
 }
 
-function assistantTools(api: ApiClient, call: CallSession, log: CallLog) {
+function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: () => void) {
   const { callId, workspaceId } = call
   return {
     take_message: llm.tool({
@@ -48,6 +49,14 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog) {
         log.messages.push(message)
         log.record('system', 'Took a message', callTakeMessage.name)
         return 'The message is saved. Tell the caller the team will get back to them.'
+      },
+    }),
+    end_call: llm.tool({
+      description: 'Hang up. Use it only after you and the caller have both said goodbye, in the same response as your goodbye.',
+      // No result: the call ends after the goodbye has played, without another reply.
+      execute: async () => {
+        endCall()
+        return undefined
       },
     }),
     flag_urgent: llm.tool({
@@ -71,7 +80,7 @@ function recordConversation(session: voice.AgentSession, log: CallLog) {
 }
 
 /** Tools whose result the caller need not hear: no extra LLM round when the assistant already spoke. */
-const QUIET_TOOLS = new Set(['take_message', 'flag_urgent'])
+const QUIET_TOOLS = new Set(['take_message', 'flag_urgent', 'end_call'])
 
 /** Greets the caller and runs the conversation until the session closes. */
 async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClient, config: AgentConfig, call: CallSession, log: CallLog, onClose: () => void) {
@@ -83,7 +92,7 @@ async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClie
   const instructions = buildInstructions(call.assistant, call.businessHours)
   void warmUpLlm(config.llm, instructions)
   await session.start({
-    agent: new voice.Agent({ instructions, tools: assistantTools(api, call, log) }),
+    agent: new voice.Agent({ instructions, tools: assistantTools(api, call, log, () => hangUpAfterSpeech(speakingOf(session), () => void ctx.deleteRoom().catch(() => {}))) }),
     room: ctx.room,
     inputOptions: { participantIdentity: caller.identity, participantKinds: ALL_PARTICIPANT_KINDS, closeOnDisconnect: true },
   })
