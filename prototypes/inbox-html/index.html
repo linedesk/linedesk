@@ -1512,6 +1512,18 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
 .lvc-bars i { background: #16a34a; }
 /* booking types: readable number fields */
 .st input[type=number], [class*="st-"] input[type=number] { min-width: 4ch; }
+
+/* Call header: title is the issue, caller below (from Callfront) */
+.cv-who { align-items: flex-start; }
+.cv-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-muted); }
+.cv-meta > span + span::before, .cv-line > * + *::before { content: '·'; margin-right: 6px; color: var(--ink-disabled); }
+.cv-who h1 { font-size: 22px; line-height: 28px; letter-spacing: -0.02em; margin: 6px 0 4px; }
+.cv-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-size: 13px; color: var(--ink-muted); }
+.cv-line b { color: var(--ink); font-weight: 600; }
+.cv-line .sub { font-family: var(--font-mono); font-size: 12px; }
+.cv-urgent { color: var(--danger); font-weight: 500; }
+@media (min-width: 1100px) { .cv-line .sub, .cv-line .sub + * ::before { display: none; } }
+@media (max-width: 719px) { .cv-who h1 { font-size: 18px; line-height: 24px; } }
 </style>
 <div id="app"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
@@ -2083,7 +2095,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
   }
   function SummaryCard(p) {
     return h('section', { className: 'sumcard', 'aria-label': 'Summary' },
-      h('div', { className: 'sum-h' }, h('b', null, p.live ? 'Live summary' : 'Summary'), p.intent ? h(K.Badge, { tone: 'info', dot: true }, p.intent) : null),
+      h('div', { className: 'sum-h' }, h('b', null, p.live ? 'Live summary' : 'Summary')),
       h('p', { className: 'sum-text' }, p.text),
       p.fields ? h('div', { className: 'sum-grid' },
         h('div', { className: 'sum-col' }, h('span', { className: 'sum-label' }, 'Key facts'),
@@ -2271,9 +2283,15 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
       h('div', { className: 'cv-scroll', ref: scRef },
         h('div', { className: 'cv-col' },
           h('div', { className: 'cv-who' },
-            h('div', { className: 'cv-who-t' }, h('h1', null, c.name + (c.company && c.company !== 'Private' && c.company !== c.name ? ' · ' + c.company : '')), h('span', { className: 'sub' }, (c.name === c.number ? 'Unknown caller' : c.number) + ' · ' + (c.direction === 'out' ? 'outbound' : 'inbound') + ' · ' + c.time)),
-            h(K.LiveIndicator, { state: isLive ? 'live' : 'ended', seconds: isLive ? L.elapsed : (duration || null) }),
-            c.snoozed ? h(K.Badge, { tone: 'neutral' }, 'Reminder: ' + c.snoozed) : null),
+            h('div', { className: 'cv-who-t' },
+              h('div', { className: 'cv-meta' }, isLive ? h(K.LiveIndicator, { state: 'live', seconds: L.elapsed }) : h('span', null, c.time), isLive ? null : h('span', null, duration ? fmt(duration) : '—'), h('span', null, c.status === 'missed' ? 'Missed' : c.direction === 'out' ? 'Outbound call by Maya' : c.status === 'spam' ? 'Blocked by Maya' : 'Answered by Maya')),
+              h('h1', null, callSubject(c, L)),
+              h('div', { className: 'cv-line' },
+                h('b', null, c.name === c.number ? 'Unknown caller' : c.name + (c.company && c.company !== 'Private' && c.company !== c.name ? ' · ' + c.company : '')),
+                h('span', { className: 'sub' }, c.number),
+                c.priority === 1 || (c.id === 'live' && L.elapsed >= 28) ? h('span', { className: 'cv-urgent' }, 'Urgent') : null,
+                apptFor(c, L) ? h('span', null, 'Booked') : null,
+                c.snoozed ? h('span', null, 'Reminder: ' + c.snoozed) : null))),
           c.status === 'missed'
             ? h('div', { className: 'empty' }, h(K.Icon, { name: 'phone-missed', size: 24 }), h('b', null, 'Hung up before the greeting'), h('span', null, 'No recording and no transcript. The number is not linked to a customer.'),
                 h(K.Button, { icon: 'phone-out', onClick: function () { p.toast('Maya is calling back…'); } }, 'Have the assistant call back'))
