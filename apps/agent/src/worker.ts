@@ -8,8 +8,9 @@ import { z } from 'zod'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log.ts'
 import { startCall, type CallSession } from './call-session.ts'
-import { loadAgentConfig, type AgentConfig } from './config.ts'
+import type { AgentConfig } from './config.ts'
 import { AGENT_NAME, requireEnv, requireLivekitEnv } from './env.ts'
+import { checkReadiness, declineCall, describeReadiness } from './not-ready.ts'
 import { createPipeline, loadVad, summaryLlm, type Vad } from './pipeline.ts'
 import { buildInstructions, FALLBACK_GREETING } from './prompt.ts'
 import { describeRecording, livekitRecorder, saveRecording, startRecording, stopRecording } from './recording.ts'
@@ -41,7 +42,7 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog) {
         await api.run(callFlagUrgent, { callId }, workspaceId)
         log.urgent = true
         log.record('system', 'Flagged as urgent', callFlagUrgent.name)
-        return 'The call is flagged as urgent. Tell the caller someone will call back as soon as possible.'
+        return 'The call is flagged as urgent for the team. Take a message now; do not promise a response time.'
       },
     }),
   }
@@ -72,8 +73,15 @@ async function entry(ctx: JobContext) {
   await ctx.connect()
   const caller = await ctx.waitForParticipant()
   const api = apiClientFromEnv()
-  const config = await loadAgentConfig()
   const call = await startCall(api, { ...callNumbers(caller.attributes), room: ctx.room.name })
+
+  // Checked at every call: until the providers are configured the call is logged as missed and ended.
+  const readiness = await checkReadiness()
+  if (!readiness.ready) {
+    await declineCall(call, readiness.reason, () => ctx.deleteRoom())
+    return ctx.shutdown('assistant not set up')
+  }
+  const { config } = readiness
   const log = new CallLog(call)
 
   // From here on the call exists and must be finished: on hang-up (session close), on any error
@@ -104,14 +112,14 @@ export default defineAgent({
 
 async function main() {
   try {
+    // The worker cannot run without LiveKit and the API; it can run without speech and LLM keys.
     requireEnv(['AGENT_API_TOKEN'])
     requireLivekitEnv()
-    const { stt, llm, tts } = await loadAgentConfig()
-    console.log(`speech to text: ${stt.provider} ${stt.model}; LLM: ${llm.provider} ${llm.model}; text to speech: ${tts.provider}`)
   } catch (e) {
     console.error(e instanceof Error ? e.message : e)
     process.exit(1)
   }
+  console.log(describeReadiness(await checkReadiness()))
   console.log(describeRecording())
   cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: AGENT_NAME }))
 }

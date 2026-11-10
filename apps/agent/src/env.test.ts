@@ -21,18 +21,38 @@ test('the development LiveKit secret is refused outside local development', () =
   expect(() => requireLivekitEnv({ LIVEKIT_URL: 'ws://localhost:7880' })).toThrow('Missing environment variables: LIVEKIT_API_KEY, LIVEKIT_API_SECRET.')
 })
 
-test('the system prompt carries the assistant name and business profile', () => {
-  const assistant = {
-    name: 'Maya', disclose_ai: true,
-    business_profile: { description: 'Family-run plumbing company in Portland.', services: ['Leak repair', 'Water heaters'], hours: 'Mon–Fri 7 am – 6 pm', faqs: [{ q: 'Do you serve Lake Oswego?', a: 'Yes.' }] },
-  } as Assistant
-  const prompt = buildInstructions(assistant)
+const assistant = {
+  name: 'Maya', disclose_ai: true, greeting: 'Thanks for calling Brightwater. This is Maya. How can I help?',
+  business_profile: { description: 'Family-run plumbing company in Portland.', services: ['Leak repair', 'Water heaters'], hours: 'Mon–Fri 7 am – 6 pm', faqs: [{ q: 'Do you serve Lake Oswego?', a: 'Yes.' }] },
+} as Assistant
+
+test('the system prompt is built from name, greeting and the free-text instructions', () => {
+  const instructions = 'We are a plumbing company in Portland. We do not work on Sundays.\nAlways ask for the address.'
+  const prompt = buildInstructions({ ...assistant, business_profile: { ...assistant.business_profile, instructions } } as Assistant)
   expect(prompt).toContain('You are Maya')
-  expect(prompt).toContain('About: Family-run plumbing company in Portland.')
-  expect(prompt).toContain('Services: Leak repair, Water heaters')
-  expect(prompt).toContain('Q: Do you serve Lake Oswego?\nA: Yes.')
+  expect(prompt).toContain('You have already opened the call with: "Thanks for calling Brightwater. This is Maya. How can I help?"')
+  expect(prompt).toContain(`What the business wants you to know and do:\n${instructions}`)
+  expect(prompt).not.toContain('Services: Leak repair') // the free text replaces the structured fields
+})
+
+test('without instructions the prompt falls back to the structured business profile', () => {
+  for (const instructions of [undefined, '', '   ']) {
+    const prompt = buildInstructions({ ...assistant, business_profile: { ...assistant.business_profile, instructions } } as Assistant)
+    expect(prompt).toContain('About: Family-run plumbing company in Portland.')
+    expect(prompt).toContain('Services: Leak repair, Water heaters')
+    expect(prompt).toContain('Q: Do you serve Lake Oswego?\nA: Yes.')
+    expect(prompt).not.toContain('Address:')
+  }
+})
+
+test('the prompt holds the product rules: messages only, no transfer, no booking, urgent is a flag', () => {
+  const prompt = buildInstructions(assistant)
   expect(prompt).toContain('you are an AI assistant')
-  expect(prompt).not.toContain('Address:')
   expect(buildInstructions({ ...assistant, disclose_ai: false })).not.toContain('you are an AI assistant')
+  expect(prompt).toContain('asks for a person, you cannot transfer the call: take a message')
+  expect(prompt).toContain('wants an appointment, you cannot book it: ask which day and time they prefer and take a message')
+  expect(prompt).toContain('use the flag_urgent tool right away')
+  expect(prompt).not.toMatch(/record/i) // no recording notice for now
   expect(buildInstructions(null)).toContain('take_message')
+  expect(buildInstructions({ ...assistant, greeting: '' })).not.toContain('already opened the call')
 })

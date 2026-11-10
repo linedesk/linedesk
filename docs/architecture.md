@@ -141,6 +141,12 @@ Target latencies: answer < 1 ring after forward, first agent word < 1.2 s, turn 
 - `forward_all`: Linedesk answers every call.
 - `new` / `ported`: a new local number, or the existing number ported in.
 
+**Connecting a number** (`phoneNumber.setup`, owner or admin, carrier from `TELEPHONY_PROVIDER`):
+
+- `{ e164 }` attaches a number that already exists in the carrier account and buys nothing; a number that is not there is rejected.
+- `{ areaCode, purchase: true }` or `{ e164, purchase: true }` buys a number. This costs money and happens only with `purchase: true`; if a later step fails, the bought number is released.
+- Either way the carrier is pointed at LiveKit SIP (`LIVEKIT_SIP_ENDPOINT`) and the `phone_numbers` row is stored. Afterwards `pnpm --filter @callfront/agent setup-sip <all numbers>` makes LiveKit accept the number.
+
 US practical notes: outbound needs a SIP trunk; Twilio needs Trust Hub + SHAKEN/STIR for A attestation; cold transfer needs SIP REFER on the trunk.
 
 **Calendar:**
