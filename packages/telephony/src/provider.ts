@@ -65,6 +65,12 @@ export interface TelephonyProvider {
   buyNumber(e164: string): Promise<OwnedNumber>
   /** Sends the number's inbound calls to a SIP endpoint (host of LiveKit SIP). Safe to repeat; a changed endpoint replaces the old one. */
   routeToSip(number: OwnedNumber, sipEndpoint: string): Promise<void>
+  /**
+   * Stops sending the number's calls to LiveKit, for a number that stays with the business (an attached
+   * number). Only undoes Linedesk's own routing (its connection or trunk); a number routed elsewhere is left
+   * as it is. Safe to repeat.
+   */
+  unrouteNumber(number: OwnedNumber): Promise<void>
   releaseNumber(number: OwnedNumber): Promise<void>
   /** Verifies and parses a status webhook. Throws TelephonyError if the signature is not valid. */
   parseWebhook(request: WebhookRequest): CallStatusEvent

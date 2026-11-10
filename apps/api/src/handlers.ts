@@ -369,7 +369,8 @@ const handlers: Record<string, Handler> = {
     return { rows: { phone_numbers: rows } }
   },
 
-  // Detaches the number from the workspace; a number Linedesk bought also goes back to the carrier.
+  // Detaches the number from the workspace; a number Linedesk bought also goes back to the carrier, an
+  // attached one is taken off Linedesk's routing there (its other settings at the carrier stay).
   // The carrier is asked last, right before the commit: if it refuses, nothing changes here.
   'phoneNumber.release': async ({ tx, actor, telephony }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
@@ -378,16 +379,28 @@ const handlers: Record<string, Handler> = {
     if (!number) throw new Reject('phone number not found')
     if (!confirmsNumber(input.confirm, number.e164)) throw new Reject(`type the number ${number.e164} to confirm`)
     await tx.delete(phone_numbers).where(eq(phone_numbers.id, number.id))
-    if (number.purchased && number.provider !== 'dev') {
+    const owned = number.provider_ref ? { e164: number.e164, providerRef: number.provider_ref } : null
+    let releasedAtCarrier = false
+    let unroutedAtCarrier = false
+    if (number.provider !== 'dev') {
       const provider = telephony ?? (await configuredProvider(tx))
-      if (provider.name !== number.provider) {
-        throw new Reject(`${number.e164} is at ${number.provider}, but ${provider.name} is the carrier in use: release it there, or switch the carrier back first`)
+      if (number.purchased) {
+        // A bought number goes back to the carrier: only at the carrier that has it.
+        if (provider.name !== number.provider) {
+          throw new Reject(`${number.e164} is at ${number.provider}, but ${provider.name} is the carrier in use: release it there, or switch the carrier back first`)
+        }
+        if (!owned) throw new Reject(`${number.e164} has no carrier reference: release it at ${number.provider}`)
+        await atCarrier(() => provider.releaseNumber(owned))
+        releasedAtCarrier = true
+      } else if (provider.name === number.provider && owned) {
+        // An attached number stays the business's but stops reaching Linedesk. At another carrier than the
+        // one in use, or without a reference, there is nothing Linedesk can reach: it is only detached here.
+        await atCarrier(() => provider.unrouteNumber(owned))
+        unroutedAtCarrier = true
       }
-      if (!number.provider_ref) throw new Reject(`${number.e164} has no carrier reference: release it at ${number.provider}`)
-      await atCarrier(() => provider.releaseNumber({ e164: number.e164, providerRef: number.provider_ref! }))
     }
     // No rows: the delete reaches browsers through read sync (a returned row would be written back locally).
-    return { rows: {}, data: { releasedAtCarrier: number.purchased && number.provider !== 'dev' } }
+    return { rows: {}, data: { releasedAtCarrier, unroutedAtCarrier } }
   },
 }
 

@@ -55,11 +55,15 @@ export function createTwilioProvider({ accountSid, authToken, fetch: doFetch = f
     return (incoming_phone_numbers as Json[] | undefined)?.find(n => n.phone_number === e164)?.sid
   }
 
+  /** Linedesk's Elastic SIP trunk to LiveKit SIP, if the account has one. */
+  async function findTrunk(): Promise<string | undefined> {
+    const { trunks } = await request('list trunks', 'GET', `${TRUNKING}/Trunks?PageSize=1000`)
+    return (trunks as Json[] | undefined)?.find(t => t.friendly_name === TRUNK_NAME)?.sid
+  }
+
   /** The Elastic SIP trunk that forwards to LiveKit SIP, looked up by name and created if missing. */
   async function ensureTrunk(): Promise<string> {
-    const { trunks } = await request('list trunks', 'GET', `${TRUNKING}/Trunks?PageSize=1000`)
-    const existing = (trunks as Json[] | undefined)?.find(t => t.friendly_name === TRUNK_NAME)
-    return existing?.sid ?? (await request('create trunk', 'POST', `${TRUNKING}/Trunks`, { FriendlyName: TRUNK_NAME })).sid
+    return (await findTrunk()) ?? (await request('create trunk', 'POST', `${TRUNKING}/Trunks`, { FriendlyName: TRUNK_NAME })).sid
   }
 
   /** Makes the trunk forward to exactly this endpoint: adds it if missing, removes any other. */
@@ -115,6 +119,15 @@ export function createTwilioProvider({ accountSid, authToken, fetch: doFetch = f
       const trunkSid = await ensureTrunk()
       await ensureOrigination(trunkSid, sipEndpoint)
       await attachNumber(trunkSid, number.providerRef)
+    },
+
+    async unrouteNumber(number) {
+      const trunkSid = await findTrunk()
+      if (!trunkSid) return
+      const numbers = `${TRUNKING}/Trunks/${trunkSid}/PhoneNumbers`
+      const attached = ((await request('list trunk numbers', 'GET', `${numbers}?PageSize=1000`)).phone_numbers ?? []) as Json[]
+      // Only Linedesk's own trunk lets go of the number; its voice settings elsewhere stay untouched.
+      if (attached.some(n => n.sid === number.providerRef)) await request('detach number from trunk', 'DELETE', `${numbers}/${number.providerRef}`)
     },
 
     async releaseNumber(number) {

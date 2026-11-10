@@ -26,7 +26,7 @@ function mockTelnyx(routes: Route) {
   return { provider, calls }
 }
 
-type Account = { owned?: boolean; connection?: boolean; fqdns?: { id: string; connection_id: string; fqdn: string }[] }
+type Account = { owned?: boolean; connection?: boolean; routedTo?: string | null; fqdns?: { id: string; connection_id: string; fqdn: string }[] }
 
 /** A Telnyx account in memory: the order puts the number on the account, connections and FQDNs persist. */
 const telnyxAccount = (account: Account = {}): Route => ({ method, path, body }) => {
@@ -55,7 +55,11 @@ const telnyxAccount = (account: Account = {}): Route => ({ method, path, body })
     account.fqdns = account.fqdns?.filter(f => `/fqdns/${f.id}` !== path)
     return { json: { data: {} } }
   }
-  if (method === 'PATCH' && path === '/phone_numbers/num_1') return { json: { data: { id: 'num_1' } } }
+  if (method === 'GET' && path === '/phone_numbers/num_1') return { json: { data: { id: 'num_1', connection_id: account.routedTo ?? null } } }
+  if (method === 'PATCH' && path === '/phone_numbers/num_1') {
+    account.routedTo = body.connection_id
+    return { json: { data: { id: 'num_1' } } }
+  }
   if (method === 'DELETE' && path === '/phone_numbers/num_1') {
     account.owned = false
     return { json: { data: { id: 'num_1' } } }
@@ -143,6 +147,26 @@ describe('telnyx adapter', () => {
 
     await mockTelnyx(base).provider.routeToSip(routed, SIP)
     expect(account.fqdns?.map(f => f.fqdn)).toEqual([SIP])
+  })
+
+  test('unroutes a number from Linedesk\'s connection only', async () => {
+    const account: Account = { owned: true, connection: true, routedTo: 'conn_1' }
+    const ours = mockTelnyx(telnyxAccount(account))
+    await ours.provider.unrouteNumber(routed)
+    expect(steps(ours.calls)).toEqual(['GET /fqdn_connections', 'GET /phone_numbers/num_1', 'PATCH /phone_numbers/num_1'])
+    expect(ours.calls[2]!.body).toEqual({ connection_id: null })
+    expect(account.routedTo).toBeNull()
+
+    const elsewhere: Account = { owned: true, connection: true, routedTo: 'conn_other' }
+    const other = mockTelnyx(telnyxAccount(elsewhere))
+    await other.provider.unrouteNumber(routed)
+    expect(other.calls.some(c => c.method === 'PATCH')).toBe(false)
+    expect(elsewhere.routedTo).toBe('conn_other')
+
+    // No Linedesk connection on the account: nothing to undo, nothing created.
+    const none = mockTelnyx(telnyxAccount({ owned: true, routedTo: 'conn_other' }))
+    await none.provider.unrouteNumber(routed)
+    expect(steps(none.calls)).toEqual(['GET /fqdn_connections'])
   })
 
   test('releases a number', async () => {

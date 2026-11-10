@@ -14,6 +14,7 @@ export const devProvider: TelephonyProvider = {
     return { e164, providerRef: `dev_${e164}` }
   },
   async routeToSip() {},
+  async unrouteNumber() {},
   async releaseNumber() {},
   parseWebhook({ rawBody }) {
     return JSON.parse(rawBody) as CallStatusEvent

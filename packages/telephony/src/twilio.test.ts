@@ -62,6 +62,10 @@ function mockTwilio(account: Account = {}, fail?: (call: Call) => { status: numb
       return new Response(null, { status: 204 })
     }
     if (method === 'GET' && path === '/v1/Trunks/TK1/PhoneNumbers') return json({ phone_numbers: state.attached.map(sid => ({ sid })) })
+    if (method === 'DELETE' && path.startsWith('/v1/Trunks/TK1/PhoneNumbers/')) {
+      state.attached = state.attached.filter(sid => !path.endsWith(`/${sid}`))
+      return new Response(null, { status: 204 })
+    }
     if (method === 'POST' && path === '/v1/Trunks/TK1/PhoneNumbers') {
       state.attached.push(form!.PhoneNumberSid!)
       return json({ sid: form!.PhoneNumberSid }, 201)
@@ -181,5 +185,16 @@ describe('twilio adapter', () => {
     expect(() => provider.parseWebhook({ ...good, headers: { 'x-twilio-signature': 'AAAA' } })).toThrow('signature is not valid')
     expect(() => provider.parseWebhook(signed(fields, 'https://evil.test/hook'))).toThrow('signature is not valid')
     expect(() => provider.parseWebhook({ ...good, url: undefined })).toThrow('webhook URL is needed')
+  })
+
+  test('unroutes a number from Linedesk\'s trunk only, and never creates one', async () => {
+    const { provider, calls, state } = mockTwilio({ trunks: [{ sid: 'TK1', friendly_name: 'callfront-livekit' }], attached: ['PN1', 'PN2'] })
+    await provider.unrouteNumber(routed)
+    expect(steps(calls)).toEqual(['GET /v1/Trunks', 'GET /v1/Trunks/TK1/PhoneNumbers', 'DELETE /v1/Trunks/TK1/PhoneNumbers/PN1'])
+    expect(state.attached).toEqual(['PN2'])
+
+    const none = mockTwilio()
+    await none.provider.unrouteNumber(routed)
+    expect(steps(none.calls)).toEqual(['GET /v1/Trunks'])
   })
 })

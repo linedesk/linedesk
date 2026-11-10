@@ -30,7 +30,7 @@ function carrier(owned: string[] = [], overrides: Partial<TelephonyProvider> = {
   }
   return {
     ...base, account,
-    findNumber: vi.fn(base.findNumber), buyNumber: vi.fn(base.buyNumber), routeToSip: vi.fn(base.routeToSip), releaseNumber: vi.fn(base.releaseNumber),
+    findNumber: vi.fn(base.findNumber), buyNumber: vi.fn(base.buyNumber), routeToSip: vi.fn(base.routeToSip), unrouteNumber: vi.fn(base.unrouteNumber), releaseNumber: vi.fn(base.releaseNumber),
   }
 }
 
@@ -137,12 +137,19 @@ describe('telephony handlers', () => {
   const telnyx = (owned: string[] = [], overrides: Partial<TelephonyProvider> = {}) => Object.assign(carrier(owned, overrides), { name: 'telnyx' as const })
   const stillThere = async (tx: Tx, id: string) => (await tx.select().from(phone_numbers).where(eq(phone_numbers.id, id))).length === 1
 
-  test('release: an attached number is only detached; the carrier keeps it', () => inRollback(async tx => {
+  test('release: an attached number stays with the business but is taken off Linedesk\'s routing', () => inRollback(async tx => {
     const row = await numberRow(tx, '+15035550881')
     const account = telnyx(['+15035550881'])
     const { data } = await run(tx, owner, 'phoneNumber.release', { phoneNumberId: row.id, confirm: '(503) 555-0881' }, account)
-    expect(data).toEqual({ releasedAtCarrier: false })
+    expect(data).toEqual({ releasedAtCarrier: false, unroutedAtCarrier: true })
     expect(account.releaseNumber).not.toHaveBeenCalled()
+    expect(account.unrouteNumber).toHaveBeenCalledWith({ e164: '+15035550881', providerRef: 'ref_+15035550881' })
+    expect(account.account.has('+15035550881')).toBe(true)
+    // At another carrier than the one in use: only detached here, never touched at the wrong carrier.
+    const elsewhere = await numberRow(tx, '+15035550886', { provider: 'twilio' })
+    const other = await run(tx, owner, 'phoneNumber.release', { phoneNumberId: elsewhere.id, confirm: '5035550886' }, account)
+    expect(other.data).toEqual({ releasedAtCarrier: false, unroutedAtCarrier: false })
+    expect(account.unrouteNumber).toHaveBeenCalledOnce()
     expect(await stillThere(tx, row.id)).toBe(false)
   }))
 
@@ -150,7 +157,8 @@ describe('telephony handlers', () => {
     const row = await numberRow(tx, '+15035550882', { purchased: true, mode: 'new' })
     const account = telnyx(['+15035550882'])
     const { data } = await run(tx, owner, 'phoneNumber.release', { phoneNumberId: row.id, confirm: '+1 503 555 0882' }, account)
-    expect(data).toEqual({ releasedAtCarrier: true })
+    expect(data).toEqual({ releasedAtCarrier: true, unroutedAtCarrier: false })
+    expect(account.unrouteNumber).not.toHaveBeenCalled()
     expect(account.releaseNumber).toHaveBeenCalledWith({ e164: '+15035550882', providerRef: 'ref_+15035550882' })
     expect(account.account.has('+15035550882')).toBe(false)
     expect(await stillThere(tx, row.id)).toBe(false)

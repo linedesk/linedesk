@@ -53,11 +53,16 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
     return data?.[0]?.id
   }
 
+  /** Linedesk's FQDN connection to LiveKit SIP, if the account has one. */
+  async function findConnection(): Promise<string | undefined> {
+    const { data } = await request('GET', `/fqdn_connections?filter[connection_name][contains]=${CONNECTION_NAME}`)
+    return (data as Json[] | undefined)?.find(c => c.connection_name === CONNECTION_NAME)?.id
+  }
+
   /** The FQDN connection that forwards to LiveKit SIP, looked up by name and created if missing. */
   async function ensureConnection(): Promise<string> {
-    const { data } = await request('GET', `/fqdn_connections?filter[connection_name][contains]=${CONNECTION_NAME}`)
-    const existing = (data as Json[] | undefined)?.find(c => c.connection_name === CONNECTION_NAME)
-    if (existing) return existing.id
+    const existing = await findConnection()
+    if (existing) return existing
     const created = await request('POST', '/fqdn_connections', {
       active: true,
       anchorsite_override: 'Latency',
@@ -126,6 +131,15 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
       const connection_id = await ensureConnection()
       await ensureFqdn(connection_id, sipEndpoint)
       await request('PATCH', `/phone_numbers/${number.providerRef}`, { connection_id })
+    },
+
+    async unrouteNumber(number) {
+      const ours = await findConnection()
+      if (!ours) return
+      const { data } = await request('GET', `/phone_numbers/${number.providerRef}`)
+      // Only Linedesk's own connection is taken off; a number on any other connection stays untouched.
+      if (String(data?.connection_id ?? '') !== String(ours)) return
+      await request('PATCH', `/phone_numbers/${number.providerRef}`, { connection_id: null })
     },
 
     async releaseNumber(number) {
