@@ -1,6 +1,6 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
 import { actions, confirmsNumber, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type FindSlotsData } from '@callfront/actions'
-import { findSlots, type FindSlotsInput, type Interval } from '@callfront/calendar'
+import { businessHoursContext, type BusinessHoursContext, findSlots, type FindSlotsInput, type Interval } from '@callfront/calendar'
 import {
   appointment_types, assistants, availability_exceptions, availability_rules, bookings, calls, contacts, organization, phone_numbers, syncedTables,
   transcript_segments, workspace_settings, type Tx,
@@ -158,6 +158,22 @@ const releaseBought = (provider: TelephonyProvider, number: { e164: string; prov
   }
 }
 
+/**
+ * The workspace's business hours for the voice agent: open now or not, when that changes, and a
+ * sentence it can use ("Closed now; opens tomorrow at 7:00 AM"). null when no hours are set.
+ */
+async function businessHoursFor(tx: Tx, workspace_id: string, now: string): Promise<BusinessHoursContext | null> {
+  const rules = await tx.select().from(availability_rules).where(eq(availability_rules.workspace_id, workspace_id))
+  if (!rules.length) return null
+  const [settings] = await tx.select({ timezone: workspace_settings.timezone }).from(workspace_settings).where(eq(workspace_settings.workspace_id, workspace_id))
+  try {
+    return businessHoursContext(rules, settings?.timezone ?? DEFAULT_TIME_ZONE, Date.parse(now))
+  } catch (e) {
+    console.warn(`business hours of ${workspace_id} could not be read: ${errorMessage(e)}`)
+    return null
+  }
+}
+
 type OpenCall = { from: string; to: string; room?: string; source?: 'phone' | 'test'; label: string }
 
 /** Registers a live call in a workspace: finds or creates the caller, opens the call, and does the per-call upkeep. */
@@ -182,9 +198,10 @@ async function openCall({ tx, now, recordings }: Pick<HandlerCtx, 'tx' | 'now' |
     ...(blocked ? blockedCall(now) : {}),
   }).returning()
   const [assistant] = await tx.select().from(assistants).where(eq(assistants.workspace_id, workspace_id))
+  const businessHours = await businessHoursFor(tx, workspace_id, now)
   const stale = await completeStaleCalls(tx, workspace_id, now)
   const linked = await linkOrphanRecordings(tx, workspace_id, now, recordings)
-  return { rows: { calls: [call!, ...stale, ...linked], contacts: [contact!] }, data: { callId: id, workspaceId: workspace_id, isNewContact, contact: contact!, assistant: assistant ?? null, blocked } }
+  return { rows: { calls: [call!, ...stale, ...linked], contacts: [contact!] }, data: { callId: id, workspaceId: workspace_id, isNewContact, contact: contact!, assistant: assistant ?? null, blocked, businessHours } }
 }
 
 /** A call from a blocked number: over before it began, read, in Spam. */

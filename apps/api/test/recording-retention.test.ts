@@ -46,11 +46,11 @@ const fileExists = async (key: string) =>
 describe('workspace.getSettings and workspace.updateSettings', () => {
   test('a new workspace keeps recordings 90 days; owners change it, members only read it', async () => {
     const ws = await createWorkspace('Retention Settings Plumbing')
-    expect((await act(ws.owner, 'workspace.getSettings', {})).body.data).toEqual({ recordingRetentionDays: 90 })
+    expect((await act(ws.owner, 'workspace.getSettings', {})).body.data).toMatchObject({ recordingRetentionDays: 90 })
     expect((await act(ws.owner, 'workspace.updateSettings', { recordingRetentionDays: 30 })).status).toBe(200)
-    expect((await act(ws.owner, 'workspace.getSettings', {})).body.data).toEqual({ recordingRetentionDays: 30 })
+    expect((await act(ws.owner, 'workspace.getSettings', {})).body.data).toMatchObject({ recordingRetentionDays: 30 })
     const member = await addMember(ws.id, 'member')
-    expect((await act(member, 'workspace.getSettings', {})).body.data).toEqual({ recordingRetentionDays: 30 })
+    expect((await act(member, 'workspace.getSettings', {})).body.data).toMatchObject({ recordingRetentionDays: 30 })
     expect((await act(member, 'workspace.updateSettings', { recordingRetentionDays: null })).status).toBe(403)
     expect((await act(ws.owner, 'workspace.updateSettings', { recordingRetentionDays: 45 })).status).toBe(422)
   })
@@ -59,7 +59,7 @@ describe('workspace.getSettings and workspace.updateSettings', () => {
     const ws = await createWorkspace('Retention Mine')
     const other = await createWorkspace('Retention Theirs')
     await act(ws.owner, 'workspace.updateSettings', { recordingRetentionDays: null })
-    expect((await act(other.owner, 'workspace.getSettings', {})).body.data).toEqual({ recordingRetentionDays: 90 })
+    expect((await act(other.owner, 'workspace.getSettings', {})).body.data).toMatchObject({ recordingRetentionDays: 90 })
   })
 })
 

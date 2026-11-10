@@ -105,7 +105,23 @@ export const recordingRetentionChoices = [30, 60, 90, 180, 365] as const
 export const DEFAULT_RECORDING_RETENTION_DAYS = 90
 
 /** `data` of `workspace.getSettings`. */
-export type WorkspaceSettingsData = { recordingRetentionDays: number | null }
+export type BusinessHoursSpan = { weekday: number; start: string; end: string }
+/** `data` of `workspace.getSettings`. `businessHours` empty: no hours set (the assistant says nothing about them). */
+export type WorkspaceSettingsData = { recordingRetentionDays: number | null; timeZone: string; businessHours: BusinessHoursSpan[] }
+
+const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$|^24:00$/, 'a time like 07:00')
+
+export const businessHoursSet = defineAction({
+  name: 'businessHours.set',
+  description:
+    'Set the business hours: per weekday (0 = Sunday … 6 = Saturday) when the office is open, wall-clock times in the workspace time zone. Replaces all hours; an empty list means no hours. The assistant uses them to tell callers whether the office is open and when someone calls back.',
+  input: z.object({
+    hours: z
+      .array(z.object({ weekday: z.number().int().min(0).max(6), start: clockTime, end: clockTime }).refine(h => h.end > h.start, { message: 'end must be after start' }))
+      .max(21),
+  }),
+  permission: 'settings:write',
+})
 
 export const workspaceGetSettings = defineAction({
   name: 'workspace.getSettings',

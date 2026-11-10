@@ -991,3 +991,15 @@ a.k-btn {
 .st-release .auth-error {
   margin: 0;
 }
+
+/* Settings › Assistant, Business hours */
+.st-hours-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.st-hours-foot > .help {
+  margin-right: auto;
+}

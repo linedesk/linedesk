@@ -8,6 +8,7 @@ import { Button } from '../ui/kit.tsx'
 import { type Draft, callRulesToSave, staleGreetingName, draftOf, draftProblem, isDefaultCallRules, isDirty, keepDraft, keptDraft, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure } from './assistantDraft.ts'
 import { Field, Section, SwitchRow, TextArea, TextInput } from './fields.tsx'
 import { renameInGreeting } from '../onboarding/flow.ts'
+import { BusinessHours } from './BusinessHours.tsx'
 import { TestCall } from './TestCall.tsx'
 
 type SectionProps = { draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void }
@@ -115,6 +116,7 @@ function Form({ assistant, canEdit, toast }: Props & { assistant: Assistant }) {
       <fieldset className="st-fields" disabled={!canEdit}>
         <Greeting draft={draft} set={set} savedName={saved.name} />
         <Instructions draft={draft} set={set} />
+        <BusinessHours canEdit={canEdit} toast={toast} />
         <CallRules draft={draft} set={set} />
       </fieldset>
       <div className="save-bar st-save">

@@ -49,6 +49,7 @@ const all = [
   settings.assistantStartTestCall,
   settings.workspaceGetSettings,
   settings.workspaceUpdateSettings,
+  settings.businessHoursSet,
   notifications.notificationsGet,
   notifications.notificationsUpdate,
   notifications.notificationsSetDefaults,
