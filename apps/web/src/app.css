@@ -952,3 +952,14 @@ a.k-btn {
   padding-left: var(--row-lead);
   padding-right: var(--gutter);
 }
+
+/* A grey block while something loads (ui/LoadStates.tsx Skeleton) */
+.sk-block {
+  background: var(--surface-hover);
+  border-radius: var(--radius-sm);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sk-block {
+    animation: sk 1.2s ease-in-out infinite;
+  }
+}

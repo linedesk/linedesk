@@ -5,11 +5,11 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { Toast } from '../shell/Toast.tsx'
 import type { IconName } from '../ui/icons.ts'
 import { Icon, Kbd } from '../ui/kit.tsx'
+import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
 import type { ListKeys } from './AdminList.tsx'
 import { type AdminData, loadAdminData } from './api.ts'
 import { errorText, type Notify } from './notify.ts'
 import { Overview } from './Overview.tsx'
-import { ListSkeleton, LoadError } from './parts.tsx'
 import { Providers } from './Providers.tsx'
 import { type AdminSection, adminSections, useAdminPlace } from './route.ts'
 import { System } from './System.tsx'
@@ -145,7 +145,8 @@ export function AdminMode({ currentUserId, onExit }: Props) {
     if (place.section === 'overview') return <Overview onOpen={section => go({ section, id: null })} />
     if (!data)
       return error ? (
-        <LoadError
+        <LoadProblem
+          className="adm-card"
           what="Admin"
           message={error}
           onRetry={() => {
@@ -154,7 +155,9 @@ export function AdminMode({ currentUserId, onExit }: Props) {
           }}
         />
       ) : (
-        <ListSkeleton />
+        <div className="adm-card adm-listcard">
+          <SkeletonRows label="Loading" />
+        </div>
       )
     if (place.id && !detailTitle) return <p className="adm-notice">Not found. It may have been removed.</p>
     switch (place.section) {

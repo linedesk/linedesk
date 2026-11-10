@@ -1,5 +1,5 @@
-// Shared pieces of the admin area: a sortable column head, an inline confirmation, dates, and the
-// loading and error states every admin page uses.
+// Shared pieces of the admin tables: a sortable column head, an inline confirmation, dates.
+// Loading and error states are the app's own (ui/LoadStates.tsx).
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { dateTimeLabel } from '../time.ts'
 import { Button } from '../ui/kit.tsx'
@@ -104,43 +104,5 @@ export function Confirm({ text, action, typed, onConfirm, onCancel }: ConfirmPro
         </span>
       )}
     </form>
-  )
-}
-
-/** A grey placeholder in the shape of what is loading. */
-export function Skeleton({ className, lines = 0 }: { className?: string; lines?: number }) {
-  return (
-    <div className={`adm-skel ${className ?? ''}`} aria-hidden="true">
-      {Array.from({ length: lines }, (_, i) => `line-${i}`).map(key => (
-        <span key={key} className="adm-skel-line" />
-      ))}
-    </div>
-  )
-}
-
-/** The rows of an admin list while it loads. */
-export function ListSkeleton() {
-  return (
-    <div className="adm-card adm-listcard" role="status" aria-busy="true" aria-label="Loading">
-      <Skeleton className="adm-skel-rows" lines={6} />
-    </div>
-  )
-}
-
-/** Plain words when the server cannot be reached, and a way to try again. The server's reason is small print. */
-export function LoadError({ what, message, onRetry }: { what: string; message: string; onRetry: () => void }) {
-  const unreachable = /server answered 5\d\d|failed to fetch|networkerror|load failed/i.test(message)
-  return (
-    <div className="adm-card adm-error-card" role="alert">
-      <b>{what} could not be loaded.</b>
-      <span className="help">
-        {unreachable ? 'The server did not answer. It may be restarting; try again in a moment.' : message}
-      </span>
-      <div>
-        <Button size="sm" onClick={onRetry}>
-          Try again
-        </Button>
-      </div>
-    </div>
   )
 }

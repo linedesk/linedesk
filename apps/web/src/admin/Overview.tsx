@@ -4,8 +4,8 @@
 import { providerCategories } from '@callfront/actions'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { Button } from '../ui/kit.tsx'
+import { LoadProblem, Skeleton } from '../ui/LoadStates.tsx'
 import { type AdminHealth, type AdminOverview, loadHealth, loadOverview, type ServiceStatus } from './api.ts'
-import { LoadError, Skeleton } from './parts.tsx'
 
 const money = (usd: number) => (usd < 0.01 && usd > 0 ? '< $0.01' : `$${usd.toFixed(2)}`)
 const count = (n: number) => n.toLocaleString('en-US')
@@ -100,7 +100,7 @@ function Health() {
       }
     >
       {health.error ? (
-        <LoadError what="Health" message={health.error} onRetry={() => void health.retry()} />
+        <LoadProblem what="Health" message={health.error} onRetry={() => void health.retry()} />
       ) : (
         <div className="adm-health" aria-live="polite">
           {healthRows.map(row => (
@@ -164,7 +164,7 @@ export function Overview({ onOpen }: Props) {
   const overview = useLoad(loadOverview)
   const o = overview.value
   if (overview.error)
-    return <LoadError what="The overview" message={overview.error} onRetry={() => void overview.retry()} />
+    return <LoadProblem className="adm-card" what="The overview" message={overview.error} onRetry={() => void overview.retry()} />
   return (
     <>
       <div className="adm-stats">

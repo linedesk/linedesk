@@ -684,53 +684,22 @@
   outline-offset: 2px;
 }
 
-/* Loading and error states */
-.adm-skel {
-  display: grid;
-  gap: 14px;
-}
-.adm-skel.adm-stat,
-.adm-skel-card {
+/* Loading and error states (ui/LoadStates.tsx) inside admin cards */
+.adm-stats .sk-block {
   min-height: 74px;
-  background: var(--surface-hover);
-  box-shadow: none;
+  border-radius: var(--radius-lg);
 }
 .adm-skel-card {
   min-height: 220px;
+  box-shadow: none;
 }
-.adm-skel-rows {
-  padding: 12px;
+.adm-listcard .sk-row {
+  padding: 0 12px;
 }
-.adm-skel-line {
-  display: block;
-  height: 14px;
-  border-radius: var(--radius-xs);
-  background: var(--surface-hover);
-}
-.adm-skel-line:nth-child(odd) {
-  width: 72%;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .adm-skel-line,
-  .adm-skel.adm-stat,
-  .adm-skel-card {
-    animation: adm-pulse 1.2s ease-in-out infinite alternate;
-  }
-}
-@keyframes adm-pulse {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0.55;
-  }
-}
-.adm-error-card {
-  gap: 6px;
-}
-.adm-error-card b {
-  font-size: 14px;
-  font-weight: 600;
+.adm-card.load-problem {
+  max-width: none;
+  margin: 0;
+  padding: 28px 20px;
 }
 @media (max-width: 719px) {
   .adm-health-row {
