@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Me } from './auth.ts'
 import { CallView } from './call/CallView.tsx'
 import { CustomerSide } from './call/CustomerSide.tsx'
+import { togglePlayback } from './call/playback.ts'
 import { Inbox } from './inbox/Inbox.tsx'
 import type { ReminderOption } from './inbox/remind.ts'
 import { useCallActions } from './inbox/useCallActions.ts'
@@ -62,6 +63,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   useKeyboard({
     ...callHandlers, overlay, setOverlay, navOpen, setNavOpen, onInbox: view.onInbox, tab, searching: search !== null, target,
     step: view.step, setTab: view.setTab, openSearch, closeSearch: view.closeSearch, open, isCallOpen: !!openCall, back: view.back,
+    togglePlayback,
     goChord: key => {
       if (key === 'a') goPage('assistant')
       else if (chordTabs[key]) view.setTab(chordTabs[key])

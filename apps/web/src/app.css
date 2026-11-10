@@ -50,3 +50,12 @@ button.me:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; 
 .fact-copy { padding: 0; border: 0; background: none; color: inherit; font-family: var(--font-mono); font-size: 11px; cursor: copy; }
 .fact-copy:hover { text-decoration: underline; text-underline-offset: 2px; }
 .fact-copy:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Recording player: a plain track instead of a waveform (there is no audio analysis). */
+.vn-track { position: relative; display: flex; align-items: center; height: 26px; cursor: pointer; touch-action: none; border-radius: var(--radius-xs); }
+.vn-track:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.vn-line { flex: 1; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.vn-played { display: block; height: 100%; background: var(--ink); }
+.vn-track:hover .vn-knob { transform: scale(1.35); }
+.vn-time { flex: none; font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); white-space: nowrap; }
+.vn-btn:disabled { opacity: 0.4; cursor: default; }

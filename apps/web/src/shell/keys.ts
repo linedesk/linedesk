@@ -25,6 +25,8 @@ export type KeyContext = {
   setTab: (tab: InboxTab) => void
   step: (by: number) => void
   goChord: (key: string) => boolean
+  /** Play or pause the open call's recording; false when there is none on screen. */
+  togglePlayback: () => boolean
   markDone: (call: Call) => void
   markNotDone: (call: Call) => void
   toggleUnread: (call: Call) => void
@@ -37,8 +39,9 @@ export type KeyContext = {
 const CHORD_MS = 1200
 let chordUntil = 0
 
-/** Enter on a focused button or link activates that control, not the selected call. */
-const activatesControl = (key: string, el: HTMLElement) => key === 'Enter' && /^(BUTTON|A)$/.test(el.tagName)
+/** Enter or Space on a focused button, link or checkbox activates that control, not the app's shortcut. */
+const activatesControl = (key: string, el: HTMLElement) =>
+  (key === 'Enter' && /^(BUTTON|A)$/.test(el.tagName)) || (key === ' ' && /^(BUTTON|A|INPUT)$/.test(el.tagName))
 
 const NOT_TEXT_INPUTS = /^(checkbox|radio|button|submit|reset|range|file|color|image)$/
 
@@ -112,6 +115,7 @@ export function handleKey(e: KeyboardEvent, c: KeyContext): boolean {
   else if (k === 'm' || k === 'M') c.setNavOpen(!c.navOpen)
   else if (k === '/') c.openSearch()
   else if (k === 'z') c.undo()
+  else if (k === ' ') return c.onInbox && c.isCallOpen && c.togglePlayback()
   else return c.onInbox && onInboxKey(k, c)
   return true
 }

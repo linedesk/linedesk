@@ -5,7 +5,7 @@ import { handleKey, type KeyContext } from './keys.ts'
 const call = { id: 'c1' } as Call
 const context = (over: Partial<KeyContext> = {}) => ({
   overlay: null, tab: 'you', searching: false, target: call, isCallOpen: false, open: vi.fn(), back: vi.fn(),
-  onInbox: true, navOpen: false, setOverlay: vi.fn(), setNavOpen: vi.fn(), openSearch: vi.fn(), closeSearch: vi.fn(), setTab: vi.fn(), step: vi.fn(), goChord: vi.fn(() => true),
+  onInbox: true, navOpen: false, setOverlay: vi.fn(), setNavOpen: vi.fn(), togglePlayback: vi.fn(() => true), openSearch: vi.fn(), closeSearch: vi.fn(), setTab: vi.fn(), step: vi.fn(), goChord: vi.fn(() => true),
   markDone: vi.fn(), markNotDone: vi.fn(), toggleUnread: vi.fn(), remove: vi.fn(), openRemind: vi.fn(), clearReminder: vi.fn(), undo: vi.fn(),
   ...over,
 }) satisfies KeyContext
@@ -157,5 +157,22 @@ describe('shell keys', () => {
     expect(press('1', c)).toBe(false)
     expect(c.step).not.toHaveBeenCalled()
     expect(c.setTab).not.toHaveBeenCalled()
+  })
+})
+
+describe('recording keys', () => {
+  it('toggles playback with Space in an open call', () => {
+    const c = context({ isCallOpen: true })
+    expect(press(' ', c)).toBe(true)
+    expect(c.togglePlayback).toHaveBeenCalledOnce()
+  })
+  it('leaves Space alone without a recording, in the list, in fields and on focused controls', () => {
+    expect(press(' ', context({ isCallOpen: true, togglePlayback: vi.fn(() => false) }))).toBe(false)
+    const c = context({ isCallOpen: true })
+    expect(press(' ', context())).toBe(false)
+    expect(press(' ', c, { tagName: 'TEXTAREA' })).toBe(false)
+    expect(press(' ', c, { tagName: 'BUTTON' })).toBe(false)
+    expect(press(' ', c, { tagName: 'INPUT', type: 'checkbox' })).toBe(false)
+    expect(c.togglePlayback).not.toHaveBeenCalled()
   })
 })
