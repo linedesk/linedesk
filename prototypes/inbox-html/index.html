@@ -2295,7 +2295,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
     return h('div', { className: 'cv' },
       h('div', { className: 'cv-bar' },
         p.menu,
-        h(K.Button, { size: 'sm', variant: 'ghost', shortcut: ['esc'], title: 'Back to calls (esc)', onClick: p.onBack, 'aria-label': 'Back to calls' }, h(Ic, { name: 'left', size: 14 }), 'Calls'),
+        h(K.Button, { size: 'sm', variant: 'ghost', className: 'k-btn-icon', title: 'Back to calls (esc)', onClick: p.onBack, 'aria-label': 'Back to calls' }, h(Ic, { name: 'left', size: 16 })),
         h(K.Button, { size: 'sm', variant: 'ghost', title: 'Previous call (K)', 'aria-label': 'Previous call', disabled: p.index <= 0, onClick: function () { p.onStep(-1); } }, h(Ic, { name: 'up', size: 16 })),
         h(K.Button, { size: 'sm', variant: 'ghost', title: 'Next call (J)', 'aria-label': 'Next call', disabled: p.index >= p.count - 1, onClick: function () { p.onStep(1); } }, h(Ic, { name: 'down', size: 16 })),
         p.index > -1 ? h('span', { className: 'cv-pos' }, (p.index + 1) + ' of ' + p.count) : null,
