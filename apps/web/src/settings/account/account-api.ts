@@ -17,7 +17,7 @@ function unwrap<T>(result: Result<T>, fallback: string): T {
 export type Account = { user: { name: string; email: string }; accounts: LinkedAccount[]; methods: AuthMethods }
 
 export async function loadAccount(): Promise<Account> {
-  const [session, accounts, methods] = await Promise.all([auth.getSession(), auth.listAccounts(), fetchAuthMethods()])
+  const [session, accounts, methods] = await Promise.all([auth.getSession(), auth.listAccounts(), fetchAuthMethods({ attempts: 3 })])
   const current = unwrap(session, 'You are signed out.')
   return {
     user: { name: current.user.name, email: current.user.email },

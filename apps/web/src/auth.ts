@@ -24,13 +24,16 @@ export async function isSignedIn(): Promise<boolean> {
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-/** Keeps trying while the API is unreachable (for example during a restart), so the screen recovers by itself. */
-export async function fetchAuthMethods(retryMs = [500, 1000, 2000, 4000, 8000]): Promise<AuthMethods> {
-  for (let attempt = 0; ; attempt++) {
+/**
+ * Keeps trying while the API is unreachable (for example during a restart), so the screen recovers by itself.
+ * With `attempts`, gives up after that many tries and throws, so a page can show its error instead.
+ */
+export async function fetchAuthMethods({ retryMs = [500, 1000, 2000, 4000, 8000], attempts = Number.POSITIVE_INFINITY } = {}): Promise<AuthMethods> {
+  for (let attempt = 1; ; attempt++) {
     const res = await fetch('/v1/auth-methods').catch(() => null)
     if (res?.ok) return (await res.json()) as AuthMethods
-    const delay = retryMs[Math.min(attempt, retryMs.length - 1)] ?? 8000
-    await wait(delay)
+    if (attempt >= attempts) throw new Error('Could not reach the server. Try again in a moment.')
+    await wait(retryMs[Math.min(attempt - 1, retryMs.length - 1)] ?? 8000)
   }
 }
 
