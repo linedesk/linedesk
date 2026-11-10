@@ -10,7 +10,7 @@ export const auth = createAuthClient({
   plugins: [organizationClient(), magicLinkClient()],
 })
 
-export type Me = { actorId: string; role: string; permissions: string[]; workspace: { id: string; name: string } | null }
+export type Me = { actorId: string; role: string; permissions: string[]; workspace: { id: string; name: string; disabled?: boolean } | null }
 
 /** Who am I and which workspace am I in? null when signed out or without a workspace. */
 export async function fetchMe(): Promise<Me | null> {

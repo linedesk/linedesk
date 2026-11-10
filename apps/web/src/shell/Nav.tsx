@@ -3,7 +3,7 @@ import { auth } from '../auth.ts'
 import type { InboxTab } from '../inbox-model.ts'
 import type { IconName } from '../ui/icons.ts'
 import { Button, Icon, Kbd } from '../ui/kit.tsx'
-import { pages, type Route } from './pages.tsx'
+import { pages, type PageRoute, type Route } from './pages.tsx'
 import { useFocusTrap } from '../ui/useFocusTrap.ts'
 import { ProfileMenu } from './ProfileMenu.tsx'
 
@@ -15,7 +15,8 @@ type Props = {
   reminderCount: number
   workspaceName: string
   onInbox: (tab: InboxTab) => void
-  onPage: (route: 'assistant' | 'account') => void
+  onPage: (route: PageRoute) => void
+  isInstanceAdmin: boolean
   onHelp: () => void
   onSignOut: () => void
   onClose: () => void
@@ -30,7 +31,7 @@ function NavItem({ label, icon, keys, current, sub, badge, onClick }: { label: s
 }
 
 /** Slide-in navigation: opens from ☰ or M; closes with Esc, the close button, a click outside or after choosing. */
-export function Nav({ open, route, tab, unreadCount, reminderCount, workspaceName, onClose, ...on }: Props) {
+export function Nav({ open, route, tab, unreadCount, reminderCount, workspaceName, isInstanceAdmin, onClose, ...on }: Props) {
   const ref = useRef<HTMLElement>(null)
   useFocusTrap(ref, open) // focus moves in when it opens and back when it closes
   const userName = auth.useSession().data?.user.name ?? ''
@@ -48,6 +49,7 @@ export function Nav({ open, route, tab, unreadCount, reminderCount, workspaceNam
         badge={reminderCount ? <span className="nav-n">{reminderCount}</span> : null} />
       <NavItem sub label="Done" icon="check" keys={['G', 'E']} current={onCalls && tab === 'done'} onClick={go(() => on.onInbox('done'))} />
       <NavItem label={pages.assistant.title} icon="waveform" keys={['G', 'A']} current={route === 'assistant'} onClick={go(() => on.onPage('assistant'))} />
+      {isInstanceAdmin && <NavItem label={pages.admin.title} icon="gear" current={route === 'admin'} onClick={go(() => on.onPage('admin'))} />}
       <div className="nav-foot">
         <NavItem label="Keyboard shortcuts" icon="keyboard" keys={['?']} onClick={go(on.onHelp)} />
         <ProfileMenu navOpen={open} name={userName} workspaceName={workspaceName} onAccount={go(() => on.onPage('account'))} onSignOut={go(on.onSignOut)} />

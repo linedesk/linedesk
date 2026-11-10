@@ -1,0 +1,253 @@
+/* Admin page: plain tables inside the settings cards. Greyscale; red only on the confirming button. */
+.adm-page {
+  max-width: 1080px;
+}
+.adm-index {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.adm-scroll {
+  overflow-x: auto;
+  margin: 0 -18px;
+  padding: 0 18px;
+}
+.adm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.adm-table th,
+.adm-table td {
+  padding: 8px 12px 8px 0;
+  text-align: left;
+  vertical-align: top;
+  border-top: 1px solid var(--line);
+  white-space: nowrap;
+}
+.adm-table thead th {
+  border-top: 0;
+  padding-top: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.adm-table tbody th {
+  font-weight: 500;
+}
+.adm-table tbody th .k-badge {
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+.adm-table .adm-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.adm-table th:last-child,
+.adm-table td:last-child {
+  padding-right: 0;
+}
+.adm-off > th,
+.adm-off > td:not(.adm-actions) {
+  color: var(--ink-muted);
+}
+.adm-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.adm-sort:hover {
+  color: var(--ink);
+}
+.adm-sort:focus-visible,
+.adm-index:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+.adm-sort span {
+  width: 8px;
+}
+.adm-sub {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+.adm-sub-inline {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.adm-line {
+  display: block;
+}
+.adm-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.adm-actions {
+  text-align: right;
+}
+.adm-actions .k-btn,
+.adm-actions .help {
+  margin-left: 4px;
+}
+.adm-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.adm-confirm-row > td {
+  border-top: 0;
+  padding-top: 0;
+  white-space: normal;
+}
+.adm-confirm {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  font-size: 13px;
+}
+.adm-confirm-text {
+  flex: 1 1 260px;
+}
+.adm-confirm-typed {
+  width: 220px;
+  height: 28px;
+}
+.adm-error {
+  flex-basis: 100%;
+  font-size: 12.5px;
+  color: var(--danger);
+}
+.adm-notice {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  font-size: 13px;
+}
+.adm-notice code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.adm-provs {
+  display: grid;
+}
+.adm-prov {
+  display: grid;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.adm-prov:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.adm-prov:last-child {
+  padding-bottom: 0;
+}
+.adm-prov-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.adm-prov-head b {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.adm-prov-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+.adm-prov-fields {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  font-size: 13px;
+}
+.adm-prov-fields > div {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 8px;
+}
+.adm-prov-fields dt {
+  color: var(--ink-muted);
+}
+.adm-prov-fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.adm-test {
+  margin: 0;
+  font-size: 13px;
+}
+.adm-test b {
+  font-weight: 600;
+}
+.adm-keys {
+  display: grid;
+  gap: 10px;
+  max-width: 520px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+}
+.adm-keys-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.adm-keys-foot .help {
+  margin-right: auto;
+}
+
+.adm-cat {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.adm-cat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.adm-cat-head h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
+  text-transform: none;
+}
+.adm-cat-head .k-btn {
+  margin-left: auto;
+}
+.adm-cat .adm-provs {
+  padding-left: 0;
+}
+
+/* Provider secrets: masked without type=password, so browsers do not offer to save them. */
+.adm-secret {
+  -webkit-text-security: disc;
+}
