@@ -1,5 +1,5 @@
 // Creates the LiveKit SIP inbound trunk and the dispatch rule: every inbound call gets its own
-// room and the Callfront agent is dispatched into it. Safe to run again; it replaces both.
+// room and the Linedesk agent is dispatched into it. Safe to run again; it replaces both.
 // Usage: pnpm --filter @callfront/agent setup-sip [+15035550142 ...]
 import { RoomAgentDispatch, RoomConfiguration, SipClient } from 'livekit-server-sdk'
 import { AGENT_NAME, livekitHttpUrl, requireLivekitEnv, runScript } from './env.ts'

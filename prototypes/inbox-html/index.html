@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>Callfront</title>
+<title>Linedesk</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
@@ -1513,7 +1513,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
 /* booking types: readable number fields */
 .st input[type=number], [class*="st-"] input[type=number] { min-width: 4ch; }
 
-/* Call header: title is the issue, caller below (from Callfront) */
+/* Call header: title is the issue, caller below (from Linedesk) */
 .cv-who { align-items: flex-start; }
 .cv-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-muted); }
 .cv-meta > span + span::before, .cv-line > * + *::before { content: '·'; margin-right: 6px; color: var(--ink-disabled); }
@@ -1558,7 +1558,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
 <script>
-/* @ds-bundle: {"format":4,"namespace":"Callfront","components":[{"name":"Button"},{"name":"Kbd"},{"name":"Input"},{"name":"Badge"},{"name":"Avatar"},{"name":"MessageBubble"},{"name":"DayDivider"},{"name":"Composer"},{"name":"ChatListItem"},{"name":"CommandMenu"},{"name":"LiveIndicator"},{"name":"CallTimeline"},{"name":"CallEvent"},{"name":"CallListItem"},{"name":"CallSummary"}]} */
+/* @ds-bundle: {"format":4,"namespace":"Linedesk","components":[{"name":"Button"},{"name":"Kbd"},{"name":"Input"},{"name":"Badge"},{"name":"Avatar"},{"name":"MessageBubble"},{"name":"DayDivider"},{"name":"Composer"},{"name":"ChatListItem"},{"name":"CommandMenu"},{"name":"LiveIndicator"},{"name":"CallTimeline"},{"name":"CallEvent"},{"name":"CallListItem"},{"name":"CallSummary"}]} */
 (function () {
   var React = window.React;
   var h = React.createElement;
@@ -1858,13 +1858,13 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
   }
 
   var api = { icons: ICONS, Button: Button, Kbd: Kbd, Input: Input, Badge: Badge, Avatar: Avatar, MessageBubble: MessageBubble, DayDivider: DayDivider, Composer: Composer, ChatListItem: ChatListItem, CommandMenu: CommandMenu, LiveIndicator: LiveIndicator, CallTimeline: CallTimeline, CallEvent: CallEvent, CallListItem: CallListItem, CallSummary: CallSummary, Icon: Icon };
-  window.Callfront = Object.assign(window.Callfront || {}, api);
+  window.Linedesk = Object.assign(window.Linedesk || {}, api);
 })();
 
 </script>
 <script>
 (function () {
-  var K = window.Callfront, h = React.createElement;
+  var K = window.Linedesk, h = React.createElement;
   var useState = React.useState, useEffect = React.useEffect, useRef = React.useRef;
 
   /* ---------- helpers ---------- */
@@ -2830,7 +2830,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
     function pick(x) { setMode(x); setVerified(x === 'new'); ver.reset(); }
     return h(StSec, { id: 'st-phone', title: 'Phone number & forwarding', desc: 'Keep the number your customers already know.' },
       h('div', { className: 'st-number' },
-        h('div', null, h('span', { className: 'help' }, 'Your Callfront number'), h('b', { className: 'st-mono' }, ST_NUMBER)),
+        h('div', null, h('span', { className: 'help' }, 'Your Linedesk number'), h('b', { className: 'st-mono' }, ST_NUMBER)),
         h('div', null, h('span', { className: 'help' }, 'Office line · Verizon'), h('b', { className: 'st-mono' }, ST_OFFICE)),
         verified ? h(K.Badge, { tone: 'signal', dot: true }, mode === 'new' ? 'Active' : 'Forwarding verified') : h(K.Badge, { tone: 'warning', dot: true }, 'Not verified')),
       h('div', { className: 'opts', role: 'radiogroup', 'aria-label': 'Forwarding mode' }, ST_FWD_MODES.map(function (o) {
@@ -2962,7 +2962,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
   function StProviders(p) {
     var s = useState({ tel: 'telnyx', sip: '', stt: 'Deepgram Flux', llm: 'gpt-5.4-mini', tts: 'Cartesia Sonic' }), v = s[0], setV = s[1];
     function upd(k) { return function (x) { setV(stSet(v, k, x)); }; }
-    return h(StSec, { id: 'st-providers', title: 'Providers', desc: 'Callfront picks fast, US-hosted defaults. Swap any part of the pipeline.' },
+    return h(StSec, { id: 'st-providers', title: 'Providers', desc: 'Linedesk picks fast, US-hosted defaults. Swap any part of the pipeline.' },
       h('div', { className: 'field' }, h('label', null, 'Telephony'),
         h('div', { className: 'opts', role: 'radiogroup', 'aria-label': 'Telephony' }, ST_TELEPHONY.map(function (o) {
           return h('label', { key: o[0], className: cx('opt', v.tel === o[0] && 'on'), htmlFor: 'tel-' + o[0] },
@@ -3201,7 +3201,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
     var d = OB_DRILL[Math.min(o.drill, OB_DRILL.length - 1)];
     var pc = o.practice[o.cur];
     return h('div', { className: 'ob-body' },
-      h('h1', null, 'Callfront is fastest with the keyboard.'),
+      h('h1', null, 'Linedesk is fastest with the keyboard.'),
       h('div', { className: cx('ob-prompt', o.flash && 'shake', o.drillDone && 'ok') },
         o.drillDone ? h(React.Fragment, null, h(K.Icon, { name: 'check', size: 16 }), h('span', null, 'That is the whole workflow. Press ? anytime to see every shortcut.'))
           : h(React.Fragment, null, h('span', null, d.text), h('button', { type: 'button', className: 'ob-key', 'aria-label': 'Press ' + d.label.join(' '), onClick: function () { o.hit(d.key); } }, h(K.Kbd, { keys: d.label })))),
@@ -3388,9 +3388,9 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
     var body = [obStepWebsite, obStepCalendar, obStepVoice, obStepPhone, obStepTest, obStepKeys, obStepLive][step](o);
     var progress = (step + (canNext ? 1 : step === OB_KEYS_STEP ? drill / OB_DRILL.length : 0)) / OB_STEPS.length * 100;
 
-    return h('div', { className: 'ob', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Set up Callfront' },
+    return h('div', { className: 'ob', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Set up Linedesk' },
       h('div', { className: 'ob-top' },
-        h('span', { className: 'ws-mark' }, h(K.Icon, { name: 'spark', size: 13 })), h('b', null, 'Callfront'),
+        h('span', { className: 'ws-mark' }, h(K.Icon, { name: 'spark', size: 13 })), h('b', null, 'Linedesk'),
         h('span', { className: 'ob-count' }, 'Step ' + (step + 1) + ' of ' + OB_STEPS.length + ' · ' + OB_STEPS[step]),
         step < last ? h(K.Button, { size: 'sm', variant: 'ghost', onClick: p.onDone }, 'Skip setup') : null),
       h('div', { className: 'ob-bar' }, h('span', { style: { width: progress + '%' } })),
@@ -4169,7 +4169,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
     }
     function navAct(label, icon, keys, fn) { return h('button', { key: label, type: 'button', className: 'nav-item', onClick: function () { setNavOpen(false); fn(); } }, h(Ic, { name: icon, size: 15 }), h('span', { className: 'lbl' }, label), keys ? h(K.Kbd, { keys: keys }) : null); }
     var nav = h('nav', { className: 'nav', 'aria-label': 'Main', onMouseEnter: function () { clearTimeout(navLeaveRef.current); }, onMouseLeave: function () { clearTimeout(navLeaveRef.current); navLeaveRef.current = setTimeout(function () { setNavOpen(false); }, 200); } },
-      h('div', { className: 'ws' }, h('span', { className: 'ws-mark' }, h(K.Icon, { name: 'spark', size: 13 })), h('b', null, 'Callfront'), h(K.Button, { size: 'sm', variant: 'ghost', 'aria-label': 'Close menu', title: 'Close (esc)', onClick: function () { setNavOpen(false); } }, h(Ic, { name: 'left', size: 14 }))),
+      h('div', { className: 'ws' }, h('span', { className: 'ws-mark' }, h(K.Icon, { name: 'spark', size: 13 })), h('b', null, 'Linedesk'), h(K.Button, { size: 'sm', variant: 'ghost', 'aria-label': 'Close menu', title: 'Close (esc)', onClick: function () { setNavOpen(false); } }, h(Ic, { name: 'left', size: 14 }))),
       navItem('calls', 'Calls', 'phone', ['G', 'I'], unreadCount ? h('span', { className: 'k-count' }, unreadCount) : null),
       navTab('reminders', 'Reminders', 'clock', ['G', 'H'], allCalls.filter(function (c) { return matchTab('reminders', c); }).length),
       navTab('done', 'Done', 'check', ['G', 'E']),

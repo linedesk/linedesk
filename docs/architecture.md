@@ -1,10 +1,10 @@
-# Callfront architecture
+# Linedesk architecture
 
-Status: decided, 2026-11-10. This is the single source of truth for how Callfront works. Why each piece was chosen (research, spikes, costs) lives in [stack.md](stack.md); product decisions in [decisions.md](decisions.md); the plan and workstreams in [plan.md](plan.md).
+Status: decided, 2026-11-10. This is the single source of truth for how Linedesk works. Why each piece was chosen (research, spikes, costs) lives in [stack.md](stack.md); product decisions in [decisions.md](decisions.md); the plan and workstreams in [plan.md](plan.md).
 
 ## 1. What v1 does
 
-A US service business (demo: a plumber in Portland) keeps its existing phone number and forwards calls it can't take to Callfront. An AI assistant ("Maya" by default, renamable) answers, understands the request, books appointments into the business's calendar, takes messages, escalates emergencies to a person, and turns every call into an item in a keyboard-first inbox.
+A US service business (demo: a plumber in Portland) keeps its existing phone number and forwards calls it can't take to Linedesk. An AI assistant ("Maya" by default, renamable) answers, understands the request, books appointments into the business's calendar, takes messages, escalates emergencies to a person, and turns every call into an item in a keyboard-first inbox.
 
 v1 = phone + calendar. It is built on the platform foundation (action registry, local-first sync, provider adapters) so WhatsApp, SMS and email can follow without rework.
 
@@ -21,7 +21,7 @@ Out of scope for v1: messaging channels, outbound campaigns, multi-location rout
 ## 3. System overview
 
 ```
- Caller ──PSTN──▶ Business number ──(conditional forward)──▶ Callfront DID (Telnyx, default)
+ Caller ──PSTN──▶ Business number ──(conditional forward)──▶ Linedesk DID (Telnyx, default)
                                                                    │ SIP
                                                                    ▼
                                                        LiveKit SIP service
@@ -109,7 +109,7 @@ Reads are defined once as named queries and exposed to the UI (live via sync), R
 
 ## 7. Call lifecycle
 
-1. **Ring.** The caller dials the business. If nobody answers within N rings (or the line is busy), the carrier forwards to the workspace's Callfront number.
+1. **Ring.** The caller dials the business. If nobody answers within N rings (or the line is busy), the carrier forwards to the workspace's Linedesk number.
 2. **Ingress.** The provider sends the call over SIP to LiveKit SIP. A dispatch rule maps the DID to a workspace and creates room `call_<id>`. The API creates `Call { status: live }`; it appears at the top of Needs you with a live indicator.
 3. **Caller lookup.** First tool: `contact.lookup(phone)` → contact, past calls, upcoming bookings, so returning customers are greeted by name.
 4. **Greeting.** Configurable greeting; AI disclosure on by default (configurable, §10).
@@ -137,8 +137,8 @@ Target latencies: answer < 1 ring after forward, first agent word < 1.2 s, turn 
 
 **Phone number modes** (`PhoneNumber.mode`):
 
-- `forward_conditional` (default): unanswered/busy calls go to Callfront. Setup = dialing a carrier code (Verizon `*71<number>`, AT&T/T-Mobile `**004*<number>#`), verified with a test call.
-- `forward_all`: Callfront answers every call.
+- `forward_conditional` (default): unanswered/busy calls go to Linedesk. Setup = dialing a carrier code (Verizon `*71<number>`, AT&T/T-Mobile `**004*<number>#`), verified with a test call.
+- `forward_all`: Linedesk answers every call.
 - `new` / `ported`: a new local number, or the existing number ported in.
 
 US practical notes: outbound needs a SIP trunk; Twilio needs Trust Hub + SHAKEN/STIR for A attestation; cold transfer needs SIP REFER on the trunk.

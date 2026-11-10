@@ -17,9 +17,9 @@ const allowLinkFor = createRateLimiter({ max: 5, windowMs: 10 * 60_000 })
 
 async function sendMagicLink({ email, url }: { email: string; url: string }) {
   if (!allowLinkFor(email.toLowerCase())) throw new APIError('TOO_MANY_REQUESTS', { message: 'Too many sign-in links for this email. Try again in a few minutes.' })
-  const text = `Open this link to sign in to Callfront:\n\n${url}\n\nThe link works once and expires in 10 minutes. If you did not ask for it, you can ignore this email.`
+  const text = `Open this link to sign in to Linedesk:\n\n${url}\n\nThe link works once and expires in 10 minutes. If you did not ask for it, you can ignore this email.`
   try {
-    await emailSender.send({ to: email, subject: 'Your Callfront sign-in link', text })
+    await emailSender.send({ to: email, subject: 'Your Linedesk sign-in link', text })
   } catch (err) {
     console.error('sign-in email failed', err)
     throw new APIError('INTERNAL_SERVER_ERROR', { message: 'Could not send the email. Try again in a moment.' })

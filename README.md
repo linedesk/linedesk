@@ -1,4 +1,4 @@
-# Callfront
+# Linedesk
 
 The open-source AI front desk. Every call answered, every caller handled.
 
@@ -16,7 +16,7 @@ All data is fictional (Brightwater Plumbing & Heating, Portland; assistant "Maya
 
 ## Docs
 
-- [docs/architecture.md](docs/architecture.md): how Callfront works (single source of truth)
+- [docs/architecture.md](docs/architecture.md): how Linedesk works (single source of truth)
 - [docs/stack.md](docs/stack.md): why this stack: research, spikes, costs per minute
 - [docs/plan.md](docs/plan.md): principles, open-source readiness, workstreams
 - [docs/decisions.md](docs/decisions.md): decisions log

@@ -25,7 +25,7 @@ const noSender: EmailSender = {
 
 export function createEmailSender(env: Record<string, string | undefined>): EmailSender {
   const delivery = emailDelivery(env)
-  if (delivery === 'smtp') return smtpSender(env.SMTP_URL!, env.EMAIL_FROM || 'Callfront <no-reply@localhost>')
+  if (delivery === 'smtp') return smtpSender(env.SMTP_URL!, env.EMAIL_FROM || 'Linedesk <no-reply@localhost>')
   return delivery === 'log' ? logSender : noSender
 }
 

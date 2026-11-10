@@ -24,7 +24,7 @@ async function createToken(env: ReturnType<typeof requireLivekitEnv>) {
 
 const page = (url: string, room: string, token: string) => `<!doctype html>
 <meta charset="utf-8">
-<title>Callfront: talk to the assistant</title>
+<title>Linedesk: talk to the assistant</title>
 <body style="font: 16px system-ui; max-width: 32rem; margin: 4rem auto; padding: 0 1rem">
 <h1 style="font-size: 1.25rem">Talk to the assistant</h1>
 <p>Room <code>${room}</code>, calling <code>${TO}</code> from <code>${FROM}</code>.</p>

@@ -39,7 +39,7 @@ export function Nav({ open, route, tab, unreadCount, reminderCount, workspaceNam
   return (
     <nav className="nav" aria-label="Main" ref={ref} inert={!open}>
       <div className="ws">
-        <span className="ws-mark"><Icon name="spark" size={13} /></span><b>Callfront</b>
+        <span className="ws-mark"><Icon name="spark" size={13} /></span><b>Linedesk</b>
         <Button size="sm" variant="ghost" icon="left" aria-label="Close menu" title="Close (esc)" onClick={onClose} />
       </div>
       <NavItem label="Inbox" icon="phone" keys={['G', 'I']} current={onCalls && tab !== 'reminders' && tab !== 'done'} onClick={go(() => on.onInbox('you'))}

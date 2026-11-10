@@ -78,7 +78,7 @@ export function Login({ onDone }: { onDone: () => void }) {
   return (
     <main className="auth">
       <form className="auth-card" onSubmit={submit}>
-        <h1>{step === 'signUp' ? 'Create your account' : 'Sign in to Callfront'}</h1>
+        <h1>{step === 'signUp' ? 'Create your account' : 'Sign in to Linedesk'}</h1>
         <p>Your calls, handled.</p>
         {methods.sso.map(m => (
           <button key={m.id} type="button" className="k-btn k-btn-secondary" disabled={busy} onClick={() => attempt(async () => fail(await startSso(m)))}>

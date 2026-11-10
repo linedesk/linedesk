@@ -1,6 +1,6 @@
 # Design principles
 
-Callfront should feel like a calm, native tool, not a dashboard. These rules come from Apple's Human Interface Guidelines and products that get "clean" right (Superhuman, Linear, Things 3, Stripe), applied to an inbox of phone calls. The reference implementation is [`prototypes/inbox-html`](../prototypes/inbox-html).
+Linedesk should feel like a calm, native tool, not a dashboard. These rules come from Apple's Human Interface Guidelines and products that get "clean" right (Superhuman, Linear, Things 3, Stripe), applied to an inbox of phone calls. The reference implementation is [`prototypes/inbox-html`](../prototypes/inbox-html).
 
 ## What we take from Apple
 
