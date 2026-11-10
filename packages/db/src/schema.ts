@@ -57,6 +57,8 @@ export const assistants = pgTable('assistants', {
   record_calls: boolean('record_calls').notNull().default(true),
   voice: jsonb('voice').$type<AssistantVoice>().notNull().default({ provider: 'elevenlabs', voice_id: '' }),
   business_profile: jsonb('business_profile').$type<BusinessProfile>().notNull().default({}),
+  /** How to handle calls, as the owner wrote it; null: the default rules (DEFAULT_CALL_RULES in @callfront/actions). */
+  call_rules: text('call_rules'),
   created_at: createdAt(),
   version: version(),
 })

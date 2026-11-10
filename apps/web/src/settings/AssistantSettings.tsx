@@ -1,11 +1,11 @@
 // Assistant settings: name, greeting, AI disclosure and the business's free-text instructions.
 // Edits are a local draft; Save runs assistant.update through the outbox.
-import { INSTRUCTIONS_MAX } from '@callfront/actions'
+import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX } from '@callfront/actions'
 import type { Assistant } from '@callfront/db/types'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useAssistant, useRun } from '../store.tsx'
 import { Button } from '../ui/kit.tsx'
-import { type Draft, draftOf, draftProblem, isDirty, keepDraft, keptDraft, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure } from './assistantDraft.ts'
+import { type Draft, callRulesToSave, draftOf, draftProblem, isDefaultCallRules, isDirty, keepDraft, keptDraft, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure } from './assistantDraft.ts'
 import { Field, Section, SwitchRow, TextArea, TextInput } from './fields.tsx'
 import { TestCall } from './TestCall.tsx'
 
@@ -35,11 +35,30 @@ function Instructions({ draft, set }: SectionProps) {
   const name = draft.name.trim() || 'the assistant'
   return (
     <Section id="as-instructions" title="Instructions" description={`What ${name} should know about the business and how to handle calls. Write it like you would tell a new hire.`}>
-      <Field id="as-instr" label="Instructions" help="Services, service area, hours, prices you quote, answers to common questions, what counts as urgent.">
+      <Field id="as-instr" label="Instructions" help="Services, service area, hours, answers to common questions, what counts as urgent.">
         <TextArea id="as-instr" tall value={draft.instructions} onChange={v => set('instructions', v)}
           placeholder={'We are a family-run plumbing company in Portland.\nServices: leak repair, water heaters, drain cleaning.\nHours: Mon–Fri 7 am – 6 pm, emergencies 24/7.'} />
         <span className="help">{draft.instructions.trim().length.toLocaleString('en-US')} of {INSTRUCTIONS_MAX.toLocaleString('en-US')} characters</span>
       </Field>
+    </Section>
+  )
+}
+
+function CallRules({ draft, set }: SectionProps) {
+  const name = draft.name.trim() || 'the assistant'
+  return (
+    <Section id="as-rules" title="How to handle calls" description={`The rules ${name} follows on every call. ${name} always takes a message and always says it is an AI when asked.`}>
+      <Field id="as-rules-text" label="Rules">
+        <TextArea id="as-rules-text" tall value={draft.call_rules} onChange={v => set('call_rules', v)} />
+        <span className="help">
+          {isDefaultCallRules(draft) ? 'The default rules.' : 'Your own rules.'} {draft.call_rules.trim().length.toLocaleString('en-US')} of {CALL_RULES_MAX.toLocaleString('en-US')} characters
+        </span>
+      </Field>
+      <div>
+        <Button size="sm" variant="ghost" disabled={isDefaultCallRules(draft)} onClick={() => set('call_rules', DEFAULT_CALL_RULES)} title="Replace the rules with the default">
+          Reset to default
+        </Button>
+      </div>
     </Section>
   )
 }
@@ -69,7 +88,7 @@ function Form({ assistant, canEdit, toast }: Props & { assistant: Assistant }) {
     const clean = normalized(draft)
     void run('assistant.update', {
       assistantId: assistant.id, name: clean.name, greeting: clean.greeting, disclose_ai: clean.disclose_ai,
-      business_profile: profileOf(clean),
+      business_profile: profileOf(clean), call_rules: callRulesToSave(clean),
     })
     setDraft(clean) // the form shows what was saved, so it is not "dirty" any more
     toast('Assistant settings saved.')
@@ -82,6 +101,7 @@ function Form({ assistant, canEdit, toast }: Props & { assistant: Assistant }) {
       <fieldset className="st-fields" disabled={!canEdit}>
         <Greeting draft={draft} set={set} />
         <Instructions draft={draft} set={set} />
+        <CallRules draft={draft} set={set} />
       </fieldset>
       <div className="save-bar st-save">
         <span className="help">{!canEdit ? 'Only owners and admins can change these settings.' : dirty ? 'Unsaved changes. They stay here until you save or discard them.' : 'Changes apply to the next call.'}</span>

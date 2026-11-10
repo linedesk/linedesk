@@ -51,6 +51,10 @@ test('recordings: the agent only names the call, the key is derived, the setting
   expect(update.input.safeParse({ assistantId: 'as_1', record_calls: false }).success).toBe(true)
   expect(update.input.safeParse({ assistantId: 'as_1', record_calls: 'no' }).success).toBe(false)
   expect(update.patch!.set({ assistantId: 'as_1', record_calls: false }, '')).toEqual({ record_calls: false })
+  // call_rules: the owner's text, or null for the default rules
+  expect(update.patch!.set({ assistantId: 'as_1', call_rules: null }, '')).toEqual({ call_rules: null })
+  expect(update.input.safeParse({ assistantId: 'as_1', call_rules: 'Ask for the address.' }).success).toBe(true)
+  expect(update.input.safeParse({ assistantId: 'as_1', call_rules: 'x'.repeat(10_001) }).success).toBe(false)
 })
 
 test('onboarding.setStep: registered, owners and admins only, known steps only', () => {

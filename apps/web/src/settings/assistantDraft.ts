@@ -1,9 +1,9 @@
 // The editable copy of the assistant's settings: how it is read from the row, merged with
 // changes that arrive through sync, checked and turned back into what assistant.update takes.
-import { INSTRUCTIONS_MAX } from '@callfront/actions'
+import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX, callRulesOf } from '@callfront/actions'
 import type { Assistant, BusinessProfile } from '@callfront/db/types'
 
-export type Draft = { name: string; greeting: string; disclose_ai: boolean; instructions: string }
+export type Draft = { name: string; greeting: string; disclose_ai: boolean; instructions: string; call_rules: string }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 const line = (label: string, value?: string) => (value?.trim() ? `${label}: ${value.trim()}` : null)
@@ -27,7 +27,10 @@ export function foldProfile(p: BusinessProfile): string {
 export function draftOf(a: Assistant): Draft {
   const p = a.business_profile
   // Same rule as the voice agent: empty instructions mean the older fields still apply, so show those.
-  return { name: a.name, greeting: a.greeting, disclose_ai: a.disclose_ai, instructions: p.instructions?.trim() ? p.instructions : foldProfile(p) }
+  return {
+    name: a.name, greeting: a.greeting, disclose_ai: a.disclose_ai, instructions: p.instructions?.trim() ? p.instructions : foldProfile(p),
+    call_rules: callRulesOf(a.call_rules), // none stored: the default rules, shown so they can be edited
+  }
 }
 
 /** After a synced change: fields the user has not touched follow the server, touched fields keep the user's edit. */
@@ -40,7 +43,7 @@ export function mergeDraft(draft: Draft, previousSaved: Draft, nextSaved: Draft)
 }
 
 /** What would be saved: trimmed. */
-export const normalized = (d: Draft): Draft => ({ ...d, name: d.name.trim(), greeting: d.greeting.trim(), instructions: d.instructions.trim() })
+export const normalized = (d: Draft): Draft => ({ ...d, name: d.name.trim(), greeting: d.greeting.trim(), instructions: d.instructions.trim(), call_rules: d.call_rules.trim() })
 
 /** Something to save: spaces around a value are not a change. */
 export const isDirty = (draft: Draft, saved: Draft) => !same(normalized(draft), normalized(saved))
@@ -85,8 +88,18 @@ export function draftProblem(draft: Draft): string | null {
   if (!draft.greeting.trim()) return 'The greeting cannot be empty: it is the first thing callers hear.'
   const length = draft.instructions.trim().length
   if (length > INSTRUCTIONS_MAX) return `The instructions are too long: ${length.toLocaleString('en-US')} of ${INSTRUCTIONS_MAX.toLocaleString('en-US')} characters.`
+  const rules = draft.call_rules.trim().length
+  if (rules > CALL_RULES_MAX) return `How to handle calls is too long: ${rules.toLocaleString('en-US')} of ${CALL_RULES_MAX.toLocaleString('en-US')} characters.`
   return null
 }
 
 /** The profile to save: the instructions replace the older fields they were folded from. */
 export const profileOf = (d: Draft): BusinessProfile => ({ instructions: d.instructions.trim() })
+
+/** The rules to save: null when they are the default (or empty), so a better default reaches this assistant later. */
+export const callRulesToSave = (d: Draft): string | null => {
+  const rules = d.call_rules.trim()
+  return rules && rules !== DEFAULT_CALL_RULES ? rules : null
+}
+
+export const isDefaultCallRules = (d: Draft) => callRulesToSave(d) === null

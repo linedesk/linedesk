@@ -92,6 +92,13 @@
       "when": 1794335620809,
       "tag": "0012_call_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794344672251,
+      "tag": "0013_assistant_call_rules",
+      "breakpoints": true
     }
   ]
 }

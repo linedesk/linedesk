@@ -1,3 +1,4 @@
+import { CALL_RULES_MAX } from './assistant-prompt.ts'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 
@@ -73,12 +74,14 @@ export const INSTRUCTIONS_MAX = 20_000
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
-    'Update the assistant: name, greeting, voice, whether calls are recorded and what it knows about the business.',
+    'Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default).',
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().min(1).optional(),
     greeting: z.string().optional(),
     disclose_ai: z.boolean().optional(),
+    /** null goes back to the default rules. */
+    call_rules: z.string().max(CALL_RULES_MAX).nullable().optional(),
     record_calls: z.boolean().optional(),
     voice: z.object({ provider: z.string(), voice_id: z.string() }).optional(),
     business_profile: z

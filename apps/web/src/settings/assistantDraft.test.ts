@@ -1,6 +1,7 @@
 import type { Assistant } from '@callfront/db/types'
 import { describe, expect, it } from 'vitest'
-import { disclosesAi, draftOf, draftProblem, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure } from './assistantDraft.ts'
+import { DEFAULT_CALL_RULES } from '@callfront/actions'
+import { callRulesToSave, disclosesAi, draftOf, isDefaultCallRules, draftProblem, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure } from './assistantDraft.ts'
 
 const oldProfile = { description: 'Plumbing', services: ['Leak repair', ' ', 'Drains'], service_area: 'Portland', address: '1 Main St', hours: 'Mon–Fri', faqs: [{ q: 'Estimates?', a: 'Free.' }, { q: '', a: '' }] }
 const assistant = (over: Partial<Assistant> = {}) => ({ id: 'as1', name: 'Maya', greeting: 'Hello', disclose_ai: true, business_profile: oldProfile, ...over }) as Assistant
@@ -65,5 +66,21 @@ describe('AI disclosure in the greeting', () => {
     expect(withDisclosure('', 'Maya')).toBe('This is Maya, the AI assistant.')
     expect(withDisclosure(greeting, 'Maya')).toBe(greeting)
     expect(withoutDisclosure('Hi, this is Maya, a virtual assistant.')).toBe('Hi, this is Maya.')
+  })
+})
+
+describe('call rules', () => {
+  it('shows the default rules when none are stored and saves null for them, so a better default arrives later', () => {
+    const draft = draftOf(assistant({ call_rules: null }))
+    expect(draft.call_rules).toBe(DEFAULT_CALL_RULES)
+    expect(isDefaultCallRules(draft)).toBe(true)
+    expect(callRulesToSave({ ...draft, call_rules: `${DEFAULT_CALL_RULES}\n` })).toBeNull()
+    expect(callRulesToSave({ ...draft, call_rules: '  ' })).toBeNull()
+  })
+  it('saves the owner\'s own rules, trimmed, and refuses them over the limit', () => {
+    const draft = draftOf(assistant({ call_rules: 'Ask for the address.' }))
+    expect(draft.call_rules).toBe('Ask for the address.')
+    expect(callRulesToSave({ ...draft, call_rules: ' Ask twice. ' })).toBe('Ask twice.')
+    expect(draftProblem({ ...draft, call_rules: 'x'.repeat(10_001) })).toBe('How to handle calls is too long: 10,001 of 10,000 characters.')
   })
 })

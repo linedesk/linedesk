@@ -31,7 +31,7 @@ test('the system prompt is built from name, greeting and the free-text instructi
   const prompt = buildInstructions({ ...assistant, business_profile: { ...assistant.business_profile, instructions } } as Assistant)
   expect(prompt).toContain('You are Maya')
   expect(prompt).toContain('You have already opened the call with: "Thanks for calling Brightwater. This is Maya. How can I help?"')
-  expect(prompt).toContain(`What the business wants you to know and do:\n${instructions}`)
+  expect(prompt).toContain(`What the business wants you to know:\n${instructions}`)
   expect(prompt).not.toContain('Services: Leak repair') // the free text replaces the structured fields
 })
 
@@ -47,11 +47,13 @@ test('without instructions the prompt falls back to the structured business prof
 
 test('the prompt holds the product rules: messages only, no transfer, no booking, urgent is a flag', () => {
   const prompt = buildInstructions(assistant)
-  expect(prompt).toContain('you are an AI assistant')
-  expect(buildInstructions({ ...assistant, disclose_ai: false })).not.toContain('you are an AI assistant')
-  expect(prompt).toContain('asks for a person, you cannot transfer the call: take a message')
-  expect(prompt).toContain('wants an appointment, you cannot book it: ask which day and time they prefer and take a message')
-  expect(prompt).toContain('use the flag_urgent tool right away')
+  expect(prompt).toContain('say truthfully that you are an AI assistant')
+  // Asked, it always says it is an AI; disclose_ai only changes the greeting (in the settings page).
+  expect(buildInstructions({ ...assistant, disclose_ai: false })).toContain('say truthfully that you are an AI assistant')
+  expect(prompt).toContain('You cannot book appointments, transfer calls')
+  expect(prompt).toContain('take a message for them and say they will call back')
+  expect(prompt).toContain('Appointments: you cannot book them. Ask which day and time suit the caller')
+  expect(prompt).toContain('flag the call as urgent right away')
   expect(prompt).toContain('say your reply in the same response as the tool call')
   expect(prompt).not.toMatch(/record/i) // no recording notice for now
   expect(buildInstructions(null)).toContain('take_message')

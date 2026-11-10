@@ -9,6 +9,7 @@ import * as team from './team.ts'
 
 export * from './define.ts'
 export * from './admin.ts'
+export * from './assistant-prompt.ts'
 export * from './calendar.ts'
 export * from './calls.ts'
 export * from './notifications.ts'
