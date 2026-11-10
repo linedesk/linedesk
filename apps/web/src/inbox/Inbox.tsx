@@ -9,18 +9,25 @@ import { InboxHead, type InboxHeadProps } from './InboxHead.tsx'
 import { InboxZero } from './InboxZero.tsx'
 import { Row, type RowHandlers } from './Row.tsx'
 
-type Props = InboxHeadProps & RowHandlers & {
-  list: Call[]
-  segments: SegmentsByCall
-  cursor: string | null
-  leaving: string | null
-  entering: string | null
-  menu?: ReactNode
-  selected: ReadonlySet<string>
-  bulk: BulkActions
-}
+type Props = InboxHeadProps &
+  RowHandlers & {
+    list: Call[]
+    segments: SegmentsByCall
+    cursor: string | null
+    leaving: string | null
+    entering: string | null
+    menu?: ReactNode
+    selected: ReadonlySet<string>
+    bulk: BulkActions
+  }
 
-const emptyTitle: Record<InboxTab, string> = { you: 'Nothing needs you', ai: 'Nothing here yet', spam: 'No spam', done: 'Nothing done yet', reminders: 'No reminders' }
+const emptyTitle: Record<InboxTab, string> = {
+  you: 'Nothing needs you',
+  ai: 'Nothing here yet',
+  spam: 'No spam',
+  done: 'Nothing done yet',
+  reminders: 'No reminders',
+}
 const emptyHelp: Record<InboxTab, string> = {
   you: 'Calls that need a person land here.',
   ai: 'Calls the assistant resolved on its own land here.',
@@ -41,11 +48,26 @@ function Empty({ tab, search }: { tab: InboxTab; search: string | null }) {
 
 function Hints({ tab }: { tab: InboxTab }) {
   const done: [string[], string] = tab === 'done' ? [['⇧', 'E'], 'not done'] : [['E'], 'done']
-  const hints: [string[], string][] = [[['⏎'], 'open'], done, [['tab'], 'switch'], [['⌘', 'K'], 'commands'], [['?'], 'all shortcuts']]
+  const hints: [string[], string][] = [
+    [['⏎'], 'open'],
+    done,
+    [['tab'], 'switch'],
+    [['⌘', 'K'], 'commands'],
+    [['?'], 'all shortcuts'],
+  ]
   return (
     <div className="ib-hint">
-      <span><Kbd keys={['J']} /><Kbd keys={['K']} />move</span>
-      {hints.map(([keys, label]) => <span key={label}><Kbd keys={keys} />{label}</span>)}
+      <span>
+        <Kbd keys={['J']} />
+        <Kbd keys={['K']} />
+        move
+      </span>
+      {hints.map(([keys, label]) => (
+        <span key={label}>
+          <Kbd keys={keys} />
+          {label}
+        </span>
+      ))}
     </div>
   )
 }
@@ -54,7 +76,9 @@ function Hints({ tab }: { tab: InboxTab }) {
 export function Inbox({ list, segments, cursor, leaving, entering, menu, selected, bulk, ...rest }: Props) {
   const { tab, search, counts } = rest
   const listRef = useRef<HTMLDivElement>(null)
-  useEffect(() => { if (cursor) listRef.current?.querySelector('.is-cursor')?.scrollIntoView({ block: 'nearest' }) }, [cursor])
+  useEffect(() => {
+    if (cursor) listRef.current?.querySelector('.is-cursor')?.scrollIntoView({ block: 'nearest' })
+  }, [cursor])
   const day = (c: Call) => dayLabel(parseTs(c.started_at))
   const zero = !list.length && tab === 'you' && search === null
   const groupByDay = tab !== 'reminders' || search !== null // reminders are ordered by when they come back, not by call day
@@ -62,15 +86,38 @@ export function Inbox({ list, segments, cursor, leaving, entering, menu, selecte
   return (
     <div className="cv">
       <InboxHead {...rest} resultCount={list.length} menu={menu} bulk={bulk} />
-      <div className={cx('ib-list', zero && 'is-zero', selected.size > 0 && 'is-selecting')} ref={listRef} role="list">
+      <div
+        className={cx(
+          'ib-list',
+          zero && 'is-zero',
+          selected.size > 0 && 'is-selecting',
+          (tab === 'done' || tab === 'spam') && search === null && 'is-quiet',
+        )}
+        ref={listRef}
+        role="list"
+      >
         {list.map((c, i) => (
           <Fragment key={c.id}>
-            {groupByDay && (i === 0 || day(list[i - 1]!) !== day(c)) && <div className="ib-day" role="presentation">{day(c)}</div>}
-            <Row {...rest} call={c} segments={segments.get(c.id) ?? []} isCursor={cursor === c.id} selected={selected.has(c.id)}
-              motion={leaving === c.id ? 'leaving' : entering === c.id ? 'entering' : null} />
+            {groupByDay && (i === 0 || day(list[i - 1]!) !== day(c)) && (
+              <div className="ib-day" role="presentation">
+                {day(c)}
+              </div>
+            )}
+            <Row
+              {...rest}
+              call={c}
+              segments={segments.get(c.id) ?? []}
+              isCursor={cursor === c.id}
+              selected={selected.has(c.id)}
+              motion={leaving === c.id ? 'leaving' : entering === c.id ? 'entering' : null}
+            />
           </Fragment>
         ))}
-        {zero ? <InboxZero handledCount={counts.ai} hasAnyCalls={Object.values(counts).some(n => n > 0)} /> : !list.length && <Empty tab={tab} search={search} />}
+        {zero ? (
+          <InboxZero handledCount={counts.ai} hasAnyCalls={Object.values(counts).some(n => n > 0)} />
+        ) : (
+          !list.length && <Empty tab={tab} search={search} />
+        )}
       </div>
       {list.length ? <Hints tab={tab} /> : null}
     </div>

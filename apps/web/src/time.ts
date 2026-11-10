@@ -17,15 +17,24 @@ export function timeLabel(date: Date, now = new Date()): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+/** A row's time under a day label ("Today", "Yesterday"): the clock time, so the day is not said twice. */
+export function timeUnderDay(date: Date, now = new Date()): string {
+  return dayLabel(date, now) === 'Yesterday'
+    ? date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    : timeLabel(date, now)
+}
+
 /** "1m 20s" for lists. */
 export function shortDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60), s = Math.round(seconds % 60)
+  const m = Math.floor(seconds / 60),
+    s = Math.round(seconds % 60)
   return m ? `${m}m${s ? ` ${s}s` : ''}` : `${s}s`
 }
 
 /** "1 min 20 sec" for the call header. */
 export function longDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60), s = Math.round(seconds % 60)
+  const m = Math.floor(seconds / 60),
+    s = Math.round(seconds % 60)
   return m ? `${m} min${s ? ` ${s} sec` : ''}` : `${s} sec`
 }
 
@@ -41,7 +50,9 @@ export function dateTimeLabel(date: Date, now = new Date()): string {
   const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
   const day = dayLabel(date, now)
   if (day === 'Today') return time
-  return day === 'Yesterday' ? `Yesterday ${time}` : `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${time}`
+  return day === 'Yesterday'
+    ? `Yesterday ${time}`
+    : `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${time}`
 }
 
 /** When a reminder comes back: "Today 6:30 PM", "Tomorrow 8:00 AM", "Fri 8:00 AM", "Dec 10, 8:00 AM". */

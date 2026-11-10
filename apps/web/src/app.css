@@ -1,149 +1,681 @@
 /* Additions on top of the prototype's styles (styles.css is copied from prototypes/inbox-html). */
-html, body, #root { height: 100%; }
+html,
+body,
+#root {
+  height: 100%;
+}
 
-.auth { min-height: 100%; display: grid; place-items: center; padding: 24px; }
-.auth-card { width: min(360px, 100%); display: flex; flex-direction: column; gap: 12px; padding: 28px; background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
-.auth-card h1 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; }
-.auth-card p { margin: 0 0 4px; color: var(--ink-muted); }
-.auth-card label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink-muted); }
-.auth-card input { height: 34px; padding: 0 10px; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line-control); border-radius: var(--radius-sm); }
-.auth-card input:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
-.auth-card .k-btn { justify-content: center; height: 36px; }
-.auth-error { color: var(--danger); font-size: 12.5px; }
-.auth-switch { border: 0; padding: 0; background: none; font: inherit; color: var(--ink-muted); cursor: pointer; text-align: left; }
-.auth-switch:hover { color: var(--ink); }
+.auth {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.auth-card {
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 28px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+.auth-card h1 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+.auth-card p {
+  margin: 0 0 4px;
+  color: var(--ink-muted);
+}
+.auth-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.auth-card input {
+  height: 34px;
+  padding: 0 10px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-sm);
+}
+.auth-card input:focus {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 1px var(--focus);
+}
+.auth-card .k-btn {
+  justify-content: center;
+  height: 36px;
+}
+.auth-error {
+  color: var(--danger);
+  font-size: 12.5px;
+}
+.auth-switch {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink-muted);
+  cursor: pointer;
+  text-align: left;
+}
+.auth-switch:hover {
+  color: var(--ink);
+}
 
-.auth-or { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--ink-muted); }
-.auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.auth-or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.auth-or::before,
+.auth-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
 
 /* Offline bar: the last row of the app, so it never covers the list; the toast moves up while it shows. */
-.sync-bar { flex: none; display: flex; align-items: center; justify-content: center; height: 30px; padding: 0 16px; border-top: 1px solid var(--line); background: var(--surface-hover); color: var(--ink-muted); font-size: 12.5px; }
-.app:has(.sync-bar) .toast { bottom: calc(50px + env(safe-area-inset-bottom, 0px)); }
+.sync-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  padding: 0 16px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-hover);
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+.app:has(.sync-bar) .toast {
+  bottom: calc(50px + env(safe-area-inset-bottom, 0px));
+}
 
 /* Real next steps can be longer than the status column: clip them like the summary. */
-.r-status { overflow: hidden; }
-.r-next, .r-quiet { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.r-status {
+  overflow: hidden;
+}
+.r-next,
+.r-quiet {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* The backdrop's click target sits behind the panel. */
-.overlay-dismiss { position: absolute; inset: 0; border: 0; padding: 0; background: none; cursor: default; }
-.overlay > :not(.overlay-dismiss) { position: relative; }
+.overlay-dismiss {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: default;
+}
+.overlay > :not(.overlay-dismiss) {
+  position: relative;
+}
 
 /* Contact facts edit in place: they read as text until hovered or focused. */
-.fact-input { width: 100%; margin: -2px -4px; padding: 2px 4px; border: 0; border-radius: var(--radius-xs); background: transparent; font: inherit; color: inherit; resize: none; box-sizing: content-box; }
-.fact-input::placeholder { color: var(--ink-disabled); opacity: 1; }
-.fact-input:hover { background: var(--surface-hover); }
-.fact-input:focus { outline: none; background: var(--surface); box-shadow: 0 0 0 1px var(--focus); }
+.fact-input {
+  width: 100%;
+  margin: -2px -4px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  resize: none;
+  box-sizing: content-box;
+}
+.fact-input::placeholder {
+  color: var(--ink-disabled);
+  opacity: 1;
+}
+.fact-input:hover {
+  background: var(--surface-hover);
+}
+.fact-input:focus {
+  outline: none;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--focus);
+}
 
 /* Settings: the fieldset only groups (and disables) the sections. */
-.st-fields { display: contents; border: 0; margin: 0; padding: 0; min-width: 0; }
+.st-fields {
+  display: contents;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
 
 /* Navigation: the scrim is a button, the profile row opens a small menu above it. */
-.scrim { border: 0; padding: 0; }
-.me-wrap { position: relative; }
-button.me { width: 100%; padding: 6px 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.me-chevron { flex: none; margin-left: auto; color: var(--ink-muted); }
-button.me:hover, button.me[aria-expanded="true"] { background: var(--surface-hover); }
-button.me:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.me-menu { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 5; display: grid; gap: 1px; padding: 4px; border-radius: var(--radius-md); background: var(--surface-raised); box-shadow: var(--shadow-popover); }
-.me-menu hr { width: auto; margin: 3px 4px; border: 0; border-top: 1px solid var(--line); }
-.fact-copy { padding: 0; border: 0; background: none; color: inherit; font-family: var(--font-mono); font-size: 11px; cursor: copy; }
-.fact-copy:hover { text-decoration: underline; text-underline-offset: 2px; }
-.fact-copy:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.scrim {
+  border: 0;
+  padding: 0;
+}
+.me-wrap {
+  position: relative;
+}
+button.me {
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.me-chevron {
+  flex: none;
+  margin-left: auto;
+  color: var(--ink-muted);
+}
+button.me:hover,
+button.me[aria-expanded="true"] {
+  background: var(--surface-hover);
+}
+button.me:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.me-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 5;
+  display: grid;
+  gap: 1px;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-popover);
+}
+.me-menu hr {
+  width: auto;
+  margin: 3px 4px;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.fact-copy {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: copy;
+}
+.fact-copy:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.fact-copy:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
 
 /* Recording player: a plain track instead of a waveform (there is no audio analysis). */
-.vn-track { position: relative; display: flex; align-items: center; height: 26px; cursor: pointer; touch-action: none; border-radius: var(--radius-xs); }
-.vn-track:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.vn-line { flex: 1; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
-.vn-played { display: block; height: 100%; background: var(--ink); }
-.vn-track:hover .vn-knob { transform: scale(1.35); }
-.vn-time { flex: none; font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); white-space: nowrap; }
-.vn-btn:disabled { opacity: 0.4; cursor: default; }
-.auth-wait { color: var(--ink-muted); font-size: 13px; }
+.vn-track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 26px;
+  cursor: pointer;
+  touch-action: none;
+  border-radius: var(--radius-xs);
+}
+.vn-track:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.vn-line {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.vn-played {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}
+.vn-track:hover .vn-knob {
+  transform: scale(1.35);
+}
+.vn-time {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.vn-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.auth-wait {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
 
 /* Account settings: forms inside a section, value + action on one line, the session list. */
-.ac-form { display: grid; gap: 10px; }
-.ac-divided { padding-top: 14px; border-top: 1px solid var(--line); }
-.ac-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.ac-inline .k-input { flex: 1; max-width: 340px; }
-.ac-value { font-size: 13.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.ac-actions, .ac-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
-.ac-badges { display: flex; flex-wrap: wrap; gap: 6px; }
-.ac-error { color: var(--danger); font-size: 12.5px; }
-.ac-list { list-style: none; margin: 0; padding: 0; display: grid; }
-.ac-session { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 48px; padding: 8px 0; border-top: 1px solid var(--line); }
-.ac-session:first-child { border-top: 0; padding-top: 0; }
-.ac-session > div:first-child { display: grid; gap: 2px; min-width: 0; }
-.ac-session b { font-size: 13.5px; font-weight: 500; }
-
+.ac-form {
+  display: grid;
+  gap: 10px;
+}
+.ac-divided {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.ac-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ac-inline .k-input {
+  flex: 1;
+  max-width: 340px;
+}
+.ac-value {
+  font-size: 13.5px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ac-actions,
+.ac-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.ac-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ac-error {
+  color: var(--danger);
+  font-size: 12.5px;
+}
+.ac-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.ac-session {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 48px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.ac-session:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.ac-session > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.ac-session b {
+  font-size: 13.5px;
+  font-weight: 500;
+}
 
 /* The hidden attribute always wins, also over classes that set display (the tooltip is inline-flex). */
-[hidden] { display: none !important; }
+[hidden] {
+  display: none !important;
+}
 
 /* Before the local store is open: a quiet line (after a moment, so a fast start shows nothing), or the error. */
-.boot { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px; text-align: center; color: var(--ink-muted); font-size: 13px; }
-.boot b { font-size: 15px; font-weight: 600; color: var(--ink); }
-.boot .k-btn { margin-top: 8px; }
-.boot-loading { animation: boot-in 200ms ease-out 500ms both; }
-@keyframes boot-in { from { opacity: 0; } to { opacity: 1; } }
+.boot {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+.boot b {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.boot .k-btn {
+  margin-top: 8px;
+}
+.boot-loading {
+  animation: boot-in 200ms ease-out 500ms both;
+}
+@keyframes boot-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 
 /* A neutral badge keeps its shape on the selected row (both are grey otherwise). */
-.row.is-cursor .k-badge-neutral { background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+.row.is-cursor .k-badge-neutral {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
 
 /* Search lists every call: done ones read as done. */
-.row.is-done .r-name, .row.is-done .r-topic { color: var(--ink-muted); font-weight: 500; }
-.k-cmd-hint { margin-left: 10px; color: var(--ink-muted); font-size: 12px; }
+.row.is-done .r-name,
+.row.is-done .r-topic {
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+.k-cmd-hint {
+  margin-left: 10px;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
 
 /* Closed sign-up: a quiet line under the sign-in options. */
-.auth-note { margin: 0; font-size: 12.5px; color: var(--ink-muted); }
-.team-inv-actions { display: flex; gap: 2px; }
+.auth-note {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.team-inv-actions {
+  display: flex;
+  gap: 2px;
+}
 /* Unread rows read heavier than read ones (the dot is not the only difference). */
-.row .r-name, .row.is-cursor .r-name { font-weight: 500; }
-.row.unread .r-name { font-weight: 650; }
-.row.unread .r-sum .r-topic { font-weight: 600; }
+.row .r-name,
+.row.is-cursor .r-name {
+  font-weight: 500;
+}
+.row.unread .r-name {
+  font-weight: 650;
+}
+.row.unread .r-sum .r-topic {
+  font-weight: 600;
+}
 
 /* Very wide windows: the list keeps a readable width, centred. */
 @media (min-width: 1440px) {
-  .cv > .ib-head, .ib-list .row, .ib-list .ib-day, .ib-hint { padding-left: calc((100% - 1360px) / 2); padding-right: calc((100% - 1360px) / 2); }
-  .ib-list .row .r-acts { right: calc((100% - 1360px) / 2); }
+  .cv > .ib-head,
+  .ib-list .row,
+  .ib-list .ib-day,
+  .ib-hint {
+    padding-left: calc((100% - 1360px) / 2);
+    padding-right: calc((100% - 1360px) / 2);
+  }
+  .ib-list .row .r-acts {
+    right: calc((100% - 1360px) / 2);
+  }
 }
 
 /* After keys were used, a resting mouse does not make a second row look selected. */
-[data-input="keys"] .row:hover:not(.is-cursor) { background: transparent; }
-[data-input="keys"] .row:hover:not(.is-cursor) .r-acts { display: none; }
-[data-input="keys"] .row:hover:not(.is-cursor) .r-dur, [data-input="keys"] .row:hover:not(.is-cursor) .r-time { visibility: visible; }
+[data-input="keys"] .row:hover:not(.is-cursor) {
+  background: transparent;
+}
+[data-input="keys"] .row:hover:not(.is-cursor) .r-acts {
+  display: none;
+}
+[data-input="keys"] .row:hover:not(.is-cursor) .r-dur,
+[data-input="keys"] .row:hover:not(.is-cursor) .r-time {
+  visibility: visible;
+}
 
 /* Narrow windows: the caller panel opens as a sheet from the call view's bar. */
-.cv-caller-btn { display: none; }
+.cv-caller-btn {
+  display: none;
+}
 @media (max-width: 1099px) {
-  .cv-caller-btn { display: inline-flex; }
-  .cv-main[data-side="open"] .cv-side { display: flex; position: fixed; z-index: 40; top: 48px; right: 0; bottom: 0; width: min(320px, 100%); box-shadow: var(--shadow-popover); }
+  .cv-caller-btn {
+    display: inline-flex;
+  }
+  .cv-main[data-side="open"] .cv-side {
+    display: flex;
+    position: fixed;
+    z-index: 40;
+    top: 48px;
+    right: 0;
+    bottom: 0;
+    width: min(320px, 100%);
+    box-shadow: var(--shadow-popover);
+  }
 }
 
 /* Phones: Remind stays in the call view, and every row keeps its "All commands" button (Remind, Done, Delete…). */
 @media (max-width: 719px) {
-  .cv-act { display: inline-flex; }
-  .row .r-acts, .row:hover .r-acts, .row.is-cursor .r-acts { display: flex; position: static; transform: none; grid-area: status; justify-self: end; align-self: center; padding: 0; background: transparent; }
-  .row .r-acts .r-act:not(:last-child) { display: none; }
-  .row .r-status { padding-right: 32px; }
-  .cv-main[data-side="open"] .cv-side { top: auto; left: 0; width: auto; max-height: 70vh; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+  .cv-act {
+    display: inline-flex;
+  }
+  .row .r-acts,
+  .row:hover .r-acts,
+  .row.is-cursor .r-acts {
+    display: flex;
+    position: static;
+    transform: none;
+    grid-area: status;
+    justify-self: end;
+    align-self: center;
+    padding: 0;
+    background: transparent;
+  }
+  .row .r-acts .r-act:not(:last-child) {
+    display: none;
+  }
+  .row .r-status {
+    padding-right: 32px;
+  }
+  .cv-main[data-side="open"] .cv-side {
+    top: auto;
+    left: 0;
+    width: auto;
+    max-height: 70vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
 }
 
 /* Sign-in code: one field for six digits, large and spaced so it reads like the code in the email. */
-.auth-card input.auth-code { height: 48px; font-family: var(--font-mono); font-size: 24px; letter-spacing: .35em; text-align: center; }
+.auth-card input.auth-code {
+  height: 48px;
+  font-family: var(--font-mono);
+  font-size: 24px;
+  letter-spacing: 0.35em;
+  text-align: center;
+}
 /* Toast: centred text when there is no Undo button; the tighter right edge only next to the button. */
-.toast { padding: 6px 12px; }
-.toast.has-undo { padding: 6px 6px 6px 12px; }
+.toast {
+  padding: 6px 12px;
+}
+.toast.has-undo {
+  padding: 6px 6px 6px 12px;
+}
 
 /* Assistant instructions: room for a few paragraphs. */
-.ta.ta-tall { min-height: 260px; }
+.ta.ta-tall {
+  min-height: 260px;
+}
 
 /* Selecting several calls: a checkbox replaces the unread dot on hover and while anything is selected. */
-.r-dot { position: relative; }
-.r-check { position: absolute; inset: 0; display: none; place-items: center; cursor: pointer; }
-.r-check input { width: 14px; height: 14px; margin: 0; accent-color: var(--action); cursor: pointer; }
-.row:hover .r-check, .ib-list.is-selecting .r-check { display: grid; }
-.row:hover .r-dot > i, .ib-list.is-selecting .r-dot > i { visibility: hidden; }
-.row.is-selected { background: var(--highlight); }
-.ib-bulk { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
-.ib-bulk > b { font-size: 13px; font-weight: 600; margin-right: 4px; white-space: nowrap; }
-.ib-bulk-acts { display: flex; align-items: center; gap: 2px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+.r-dot {
+  position: relative;
+}
+.r-check {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center;
+  cursor: pointer;
+}
+.r-check input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--action);
+  cursor: pointer;
+}
+.row:hover .r-check,
+.ib-list.is-selecting .r-check {
+  display: grid;
+}
+.row:hover .r-dot > i,
+.ib-list.is-selecting .r-dot > i {
+  visibility: hidden;
+}
+.row.is-selected {
+  background: var(--highlight);
+}
+.ib-bulk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.ib-bulk > b {
+  font-size: 13px;
+  font-weight: 600;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+.ib-bulk-acts {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* ---- Page widths: one set for the whole app ----
+   --w-list: inbox and contacts lists · --w-read: one call · --w-page: settings-style pages.
+   Content is centred in its width; hover, the cursor bar, the unread dot and the checkbox sit inside
+   the row, never at the window edge. */
+:root {
+  --w-list: 1120px;
+  --w-read: 760px;
+  --w-page: 820px;
+  --gutter: 20px;
+  --row-lead: 42px;
+}
+@media (max-width: 719px) {
+  :root {
+    --gutter: 12px;
+    --row-lead: 30px;
+  }
+}
+
+/* Header bar and shortcut hints line up with the list. */
+.cv > .ib-head,
+.ib-hint {
+  padding-left: max(14px, calc((100% - var(--w-list)) / 2));
+  padding-right: max(14px, calc((100% - var(--w-list)) / 2));
+}
+@media (max-width: 719px) {
+  .cv > .ib-head {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+}
+
+/* Rows and day labels: centred in --w-list; the row's left padding is the gutter for dot and checkbox. */
+.ib-list .row,
+.ib-list .ib-day {
+  width: 100%;
+  max-width: var(--w-list);
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+.ib-list .row:not(.cust-row) {
+  padding-left: var(--row-lead);
+  padding-right: var(--gutter);
+  grid-template-columns: minmax(110px, 180px) minmax(0, 1fr) minmax(104px, 240px) 44px 64px;
+}
+.ib-list .ib-day {
+  padding-left: var(--row-lead);
+  padding-right: var(--gutter);
+}
+.ib-list .row .r-dot {
+  left: calc(var(--row-lead) - 28px);
+  width: 18px;
+}
+.ib-list .row .r-acts {
+  right: 14px;
+}
+@media (max-width: 719px) {
+  .ib-list .row:not(.cust-row) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .ib-list .row .r-dot {
+    left: 6px;
+    top: 8px;
+    height: 22px;
+    transform: none;
+  }
+}
+
+/* Contacts: the same width and gutter as the inbox. */
+.ib-list .row.cust-row.ct-row {
+  padding-left: var(--row-lead);
+  padding-right: var(--gutter);
+}
+
+/* One call: the reading width. */
+.cv-col {
+  max-width: var(--w-read);
+}
+
+/* Done and Spam are finished work: their badges are quiet, never red. */
+.ib-list.is-quiet .r-status .k-badge {
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-muted);
+  padding: 0;
+}
+
+/* The toast floats above the shortcut hints instead of covering them. */
+.app:has(.ib-hint) .toast {
+  bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Narrow windows: the selection bar keeps one line; labels give way to icons, the rest is under ⋯. */
+@media (max-width: 719px) {
+  .ib-bulk-acts {
+    flex-wrap: nowrap;
+  }
+  .ib-bulk .ib-bulk-wide,
+  .ib-bulk .ib-bulk-label > span,
+  .ib-bulk .ib-bulk-clear .k-kbds {
+    display: none;
+  }
+}
