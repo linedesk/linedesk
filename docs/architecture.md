@@ -46,10 +46,10 @@ Out of scope for v1: messaging channels, outbound campaigns, multi-location rout
 
 | Component | Choice | Notes |
 |---|---|---|
-| Phone numbers + PSTN | **Telnyx** (default); Twilio, Plivo, bring-your-own SIP as adapters; LiveKit Phone Numbers for zero-config hosted inbound | One `TelephonyProvider` interface: search/buy/port numbers, SIP trunk to LiveKit, outbound, transfer, status webhooks |
+| Phone numbers + PSTN | **Twilio** (default, Elastic SIP Trunking); Telnyx as second adapter; Plivo, bring-your-own SIP later; LiveKit Phone Numbers for zero-config hosted inbound | One `TelephonyProvider` interface: search/buy/port numbers, SIP trunk to LiveKit, outbound, transfer, status webhooks |
 | Media / SIP bridge | **LiveKit** server + LiveKit SIP (self-hosted); LiveKit Cloud (US region) for the hosted version | Rooms make listen-in and take-over trivial |
 | Voice agent | **LiveKit Agents, TypeScript** (agents-js); Python/Pipecat as fallback adapter | Imports the registry's Zod schemas; audio turn detector, tool calling, DTMF, noise cancellation |
-| Voice pipeline | **Cascaded** by default: Deepgram Flux (STT) → gpt-5.4-mini (LLM) → Cartesia Sonic (TTS); speech-to-speech (gpt-realtime-mini / Gemini Live) as option | All behind adapters; final defaults after a latency test on real calls |
+| Voice pipeline | **Cascaded** by default, each stage chosen by config: Deepgram Flux (STT) → an OpenAI mini model through OpenRouter (LLM; OpenAI direct as alternative) → ElevenLabs (TTS; Cartesia as alternative); speech-to-speech (gpt-realtime-mini / Gemini Live) as option | All behind adapters; final defaults after a latency test on real calls |
 | API | **Hono** + `@hono/zod-openapi` + Zod, own `defineAction()` | One definition → REST, OpenAPI, MCP, client command |
 | MCP | Official MCP TypeScript SDK v2, Streamable HTTP, stateless | API keys first, OAuth via Better Auth later |
 | Database | **Postgres** + **Drizzle** (schema + migrations) | Source of truth |

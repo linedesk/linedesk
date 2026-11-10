@@ -36,6 +36,13 @@
       "when": 1794318963566,
       "tag": "0004_tidy_ultimo",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794322166222,
+      "tag": "0005_salty_magneto",
+      "breakpoints": true
     }
   ]
 }

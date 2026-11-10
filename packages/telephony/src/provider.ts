@@ -1,6 +1,6 @@
 // What the core needs from a phone carrier. Vendor APIs live only in their adapter.
 
-export type ProviderName = 'telnyx' | 'dev'
+export type ProviderName = 'twilio' | 'telnyx' | 'dev'
 
 export interface NumberSearch {
   /** ISO 3166-1 alpha-2, e.g. "US". */
@@ -24,9 +24,6 @@ export interface OwnedNumber {
   providerRef: string
 }
 
-/** `purchased` is false when the account owned the number before, so nothing new is being paid for. */
-export type BoughtNumber = OwnedNumber & { purchased: boolean }
-
 export type CallStatus = 'initiated' | 'answered' | 'hangup'
 
 /** A provider status webhook in one shape. `status` is null for events the core does not use. */
@@ -44,6 +41,8 @@ export interface WebhookRequest {
   headers: Record<string, string | undefined>
   /** The body exactly as received; signatures cover the raw bytes. */
   rawBody: string
+  /** The full URL the provider called, as it called it. Some providers sign it (Twilio). */
+  url?: string
 }
 
 export class TelephonyError extends Error {
@@ -55,8 +54,10 @@ export class TelephonyError extends Error {
 export interface TelephonyProvider {
   readonly name: ProviderName
   searchNumbers(search: NumberSearch): Promise<AvailableNumber[]>
-  /** Buys the number. Returns it without buying again if the account already owns it, so a failed setup can be repeated. */
-  buyNumber(e164: string): Promise<BoughtNumber>
+  /** The number if the account already owns it, else null. Never buys anything. */
+  findNumber(e164: string): Promise<OwnedNumber | null>
+  /** Buys the number: this costs money. Only for a number `findNumber` did not find. */
+  buyNumber(e164: string): Promise<OwnedNumber>
   /** Sends the number's inbound calls to a SIP endpoint (host of LiveKit SIP). Safe to repeat; a changed endpoint replaces the old one. */
   routeToSip(number: OwnedNumber, sipEndpoint: string): Promise<void>
   releaseNumber(number: OwnedNumber): Promise<void>

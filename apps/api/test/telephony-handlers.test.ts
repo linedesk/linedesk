@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm'
 import { describe, expect, test, vi } from 'vitest'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
-import { Reject, runHandler } from '../src/handlers.ts'
+import { Reject, runHandler, type Undo } from '../src/handlers.ts'
 
 const WORKSPACE = `ws_test_${crypto.randomUUID().slice(0, 8)}`
 const owner: Actor = { actorId: 'user_test', role: 'owner', workspaceId: WORKSPACE, permissions: rolePermissions.owner }
@@ -15,10 +15,23 @@ const agent: Actor = { actorId: 'agent', role: 'agent', workspaceId: null, permi
 
 class Rollback extends Error {}
 
-/** The dev provider with spies, and overrides for the step that should fail. */
-const provider = (overrides: Partial<TelephonyProvider> = {}) => {
-  const spied = { ...devProvider, ...overrides }
-  return { ...spied, buyNumber: vi.fn(spied.buyNumber), routeToSip: vi.fn(spied.routeToSip), releaseNumber: vi.fn(spied.releaseNumber) }
+/** A carrier account in memory, with spies: `owned` are the numbers already in it. Overrides make a step fail. */
+function carrier(owned: string[] = [], overrides: Partial<TelephonyProvider> = {}) {
+  const account = new Set(owned)
+  const base: TelephonyProvider = {
+    ...devProvider,
+    findNumber: async e164 => (account.has(e164) ? { e164, providerRef: `ref_${e164}` } : null),
+    buyNumber: async e164 => {
+      account.add(e164)
+      return { e164, providerRef: `ref_${e164}` }
+    },
+    releaseNumber: async number => void account.delete(number.e164),
+    ...overrides,
+  }
+  return {
+    ...base, account,
+    findNumber: vi.fn(base.findNumber), buyNumber: vi.fn(base.buyNumber), routeToSip: vi.fn(base.routeToSip), releaseNumber: vi.fn(base.releaseNumber),
+  }
 }
 
 describe('telephony handlers', () => {
@@ -34,44 +47,99 @@ describe('telephony handlers', () => {
     })
   }
 
-  test('phoneNumber.setup stores a number from the provider', () => inRollback(async tx => {
-    const { rows } = await run(tx, owner, 'phoneNumber.setup', { e164: '+15035550999' })
-    expect(rows.phone_numbers).toMatchObject([{ workspace_id: WORKSPACE, e164: '+15035550999', provider: 'dev', mode: 'new', provider_ref: 'dev_+15035550999' }])
-    const again = provider()
-    await expect(run(tx, owner, 'phoneNumber.setup', { e164: '+15035550999' }, again)).rejects.toThrow('already set up')
-    expect(again.buyNumber).not.toHaveBeenCalled()
+  /** Runs phoneNumber.setup like the API does: undos registered by the handler run when it fails. */
+  async function setup(tx: Tx, input: unknown, telephony: TelephonyProvider, actor: Actor = owner) {
+    const undos: Undo[] = []
+    const def = actions.get('phoneNumber.setup')!
+    try {
+      return await runHandler({ tx, actor, now: new Date().toISOString(), telephony, onRollback: undo => undos.push(undo) }, def, def.input.parse(input))
+    } catch (e) {
+      const notes = await Promise.all(undos.map(undo => undo()))
+      throw Object.assign(e as Error, { notes })
+    }
+  }
+
+  test('attaches a number that is in the carrier account, and never buys', () => inRollback(async tx => {
+    const twilio = carrier(['+15035550999'])
+    const { rows } = await setup(tx, { e164: '+15035550999' }, twilio)
+    expect(rows.phone_numbers).toMatchObject([{ workspace_id: WORKSPACE, e164: '+15035550999', provider: 'dev', mode: 'forward_conditional', provider_ref: 'ref_+15035550999', verified_at: null }])
+    expect(twilio.routeToSip).toHaveBeenCalledWith({ e164: '+15035550999', providerRef: 'ref_+15035550999' }, expect.any(String))
+    expect(twilio.buyNumber).not.toHaveBeenCalled()
+
+    await expect(setup(tx, { e164: '+15035550999' }, twilio)).rejects.toThrow('already set up')
+    expect((await setup(tx, { e164: '+15035550990', mode: 'ported' }, carrier(['+15035550990']))).rows.phone_numbers?.[0]?.mode).toBe('ported')
   }))
 
-  test('phoneNumber.setup picks a number by area code and needs a workspace', () => inRollback(async tx => {
-    const { rows } = await run(tx, owner, 'phoneNumber.setup', { areaCode: '971' })
-    expect(rows.phone_numbers?.[0]?.e164).toMatch(/^\+1971/)
-    await expect(run(tx, agent, 'phoneNumber.setup', { areaCode: '971' })).rejects.toThrow('no workspace')
-    await expect(run(tx, owner, 'phoneNumber.setup', { areaCode: '971' }, provider({ searchNumbers: async () => [] }))).rejects.toThrow('no number available in area code 971')
-  }))
-
-  test('phoneNumber.setup releases a number it bought when routing fails', () => inRollback(async tx => {
-    const failing = provider({ routeToSip: async () => { throw new TelephonyError('dev', 'SIP connection refused') } })
-    const error = await run(tx, owner, 'phoneNumber.setup', { e164: '+15035550997' }, failing).catch(e => e)
+  test('a number that is not in the account is rejected, not bought: a typo costs nothing', () => inRollback(async tx => {
+    const twilio = carrier(['+15035550999'])
+    const error = await setup(tx, { e164: '+15035550998' }, twilio).catch(e => e)
     expect(error).toBeInstanceOf(Reject)
-    expect(error.message).toBe('dev: SIP connection refused; +15035550997 was released')
-    expect(failing.releaseNumber).toHaveBeenCalledWith({ e164: '+15035550997', providerRef: 'dev_+15035550997', purchased: true })
+    expect(error.message).toBe('+15035550998 is not in the dev account. Check the number; to buy it, pass purchase: true')
+    expect(twilio.buyNumber).not.toHaveBeenCalled()
+    expect(twilio.routeToSip).not.toHaveBeenCalled()
   }))
 
-  test('phoneNumber.setup keeps a number the account already owned, and says so when release fails', () => inRollback(async tx => {
+  test('buys only with purchase: true, by number or by area code', () => inRollback(async tx => {
+    const twilio = carrier()
+    const bought = await setup(tx, { e164: '+15035550997', purchase: true }, twilio)
+    expect(bought.rows.phone_numbers).toMatchObject([{ e164: '+15035550997', mode: 'new', provider_ref: 'ref_+15035550997' }])
+    expect(bought.rows.phone_numbers?.[0]?.verified_at).toBeTruthy()
+    expect(twilio.buyNumber).toHaveBeenCalledWith('+15035550997')
+
+    const byArea = await setup(tx, { areaCode: '971', purchase: true }, twilio)
+    expect(byArea.rows.phone_numbers?.[0]?.e164).toMatch(/^\+1971/)
+    expect(twilio.buyNumber).toHaveBeenCalledTimes(2)
+
+    const owned = carrier(['+15035550996'])
+    await setup(tx, { e164: '+15035550996', purchase: true }, owned) // already ours: attach, do not buy again
+    expect(owned.buyNumber).not.toHaveBeenCalled()
+
+    const def = actions.get('phoneNumber.setup')!
+    expect(def.input.safeParse({ areaCode: '971' }).success).toBe(false) // an area code alone would mean buying
+    expect(def.input.safeParse({}).success).toBe(false)
+    await expect(setup(tx, { areaCode: '971', purchase: true }, carrier([], { searchNumbers: async () => [] }))).rejects.toThrow('no number available in area code 971')
+    await expect(setup(tx, { e164: '+15035550995' }, carrier(['+15035550995']), agent)).rejects.toThrow('no workspace')
+  }))
+
+  test('a bought number is released when a later step fails; an attached one is left alone', () => inRollback(async tx => {
     const routeFails = async () => { throw new TelephonyError('dev', 'SIP connection refused') }
-    const preOwned = provider({ routeToSip: routeFails, buyNumber: async e164 => ({ e164, providerRef: 'ref_1', purchased: false }) })
-    await expect(run(tx, owner, 'phoneNumber.setup', { e164: '+15035550996' }, preOwned)).rejects.toThrow('+15035550996 stays on the carrier account, set it up again to finish')
-    expect(preOwned.releaseNumber).not.toHaveBeenCalled()
+    const buying = carrier([], { routeToSip: routeFails })
+    const error = await setup(tx, { e164: '+15035550994', purchase: true }, buying).catch(e => e)
+    expect(error).toBeInstanceOf(Reject)
+    expect(error.message).toBe('dev: SIP connection refused')
+    expect(error.notes).toEqual(['+15035550994 was released'])
+    expect(buying.releaseNumber).toHaveBeenCalledWith({ e164: '+15035550994', providerRef: 'ref_+15035550994' })
+    expect(buying.account.has('+15035550994')).toBe(false)
 
-    const stuck = provider({ routeToSip: routeFails, releaseNumber: async () => { throw new TelephonyError('dev', 'release refused') } })
-    await expect(run(tx, owner, 'phoneNumber.setup', { e164: '+15035550996' }, stuck)).rejects.toThrow('releasing +15035550996 failed too (dev: release refused)')
+    const attaching = carrier(['+15035550993'], { routeToSip: routeFails })
+    const attachError = await setup(tx, { e164: '+15035550993' }, attaching).catch(e => e)
+    expect(attachError.notes).toEqual([])
+    expect(attaching.releaseNumber).not.toHaveBeenCalled()
+
+    const stuck = carrier([], { routeToSip: routeFails, releaseNumber: async () => { throw new TelephonyError('dev', 'release refused') } })
+    const stuckError = await setup(tx, { e164: '+15035550992', purchase: true }, stuck).catch(e => e)
+    expect(stuckError.notes).toEqual(['releasing +15035550992 failed (dev: release refused): release it at the carrier, or set it up again'])
   }))
 
-  test('phoneNumber.setup: a failed or pending purchase is a rejection and stores nothing', () => inRollback(async tx => {
-    const pending = provider({ buyNumber: async () => { throw new TelephonyError('dev', 'number order o1 is still pending') } })
-    await expect(run(tx, owner, 'phoneNumber.setup', { e164: '+15035550995' }, pending)).rejects.toThrow(Reject)
-    expect(pending.routeToSip).not.toHaveBeenCalled()
-    expect(pending.releaseNumber).not.toHaveBeenCalled()
+  test('a failed purchase is a rejection, stores nothing and has nothing to release', () => inRollback(async tx => {
+    const failing = carrier([], { buyNumber: async () => { throw new TelephonyError('dev', 'number order o1 failed') } })
+    const error = await setup(tx, { e164: '+15035550991', purchase: true }, failing).catch(e => e)
+    expect(error).toBeInstanceOf(Reject)
+    expect(error.notes).toEqual([])
+    expect(failing.routeToSip).not.toHaveBeenCalled()
+  }))
+
+  test('a carrier that is selected but not configured is a rejection naming what is missing', () => inRollback(async tx => {
+    const saved = { ...process.env }
+    const unconfigured = () => runHandler({ tx, actor: owner, now: new Date().toISOString() }, actions.get('phoneNumber.setup')!, { e164: '+15035550993', purchase: false })
+    try {
+      Object.assign(process.env, { TELEPHONY_PROVIDER: 'twilio', TWILIO_ACCOUNT_SID: '', TWILIO_AUTH_TOKEN: '' })
+      await expect(unconfigured()).rejects.toThrow('phone setup is not configured: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN not set')
+      Object.assign(process.env, { TELEPHONY_PROVIDER: 'nobody' })
+      await expect(unconfigured()).rejects.toThrow(Reject)
+    } finally {
+      Object.assign(process.env, saved)
+    }
   }))
 
   test('a call on the new number: takeMessage appends action items, flagUrgent sets urgency', () => inRollback(async tx => {

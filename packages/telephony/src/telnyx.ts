@@ -1,6 +1,6 @@
 // Telnyx adapter, REST API v2 with plain fetch. https://developers.telnyx.com/api
 import { createPublicKey, verify } from 'node:crypto'
-import { TelephonyError, type AvailableNumber, type CallStatus, type CallStatusEvent, type BoughtNumber, type TelephonyProvider } from './provider.ts'
+import { TelephonyError, type AvailableNumber, type CallStatus, type CallStatusEvent, type OwnedNumber, type TelephonyProvider } from './provider.ts'
 
 const API = 'https://api.telnyx.com/v2'
 const CONNECTION_NAME = 'callfront-livekit'
@@ -101,17 +101,19 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
       })
     },
 
-    async buyNumber(e164): Promise<BoughtNumber> {
-      // A number that is already on the account is not ordered again, so a failed setup can be repeated.
-      const owned = await findNumberId(e164)
-      if (owned) return { e164, providerRef: owned, purchased: false }
+    async findNumber(e164): Promise<OwnedNumber | null> {
+      const id = await findNumberId(e164)
+      return id ? { e164, providerRef: id } : null
+    },
+
+    async buyNumber(e164): Promise<OwnedNumber> {
       const { data } = await request('POST', '/number_orders', { phone_numbers: [{ phone_number: e164 }] })
       if (data.status === 'failure') throw fail(`number order ${data.id} for ${e164} failed`)
       // The order completes asynchronously; the number has an id once it is on the account.
       for (let attempt = 0; attempt < ORDER_LOOKUPS; attempt++) {
         await wait(1000)
         const id = await findNumberId(e164)
-        if (id) return { e164, providerRef: id, purchased: true }
+        if (id) return { e164, providerRef: id }
       }
       throw fail(`number order ${data.id} for ${e164} is still pending at the carrier; set up ${e164} again in a minute to finish`)
     },

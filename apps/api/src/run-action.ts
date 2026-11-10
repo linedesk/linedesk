@@ -6,11 +6,18 @@ import { commands } from '@callfront/db'
 import { eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
-import { Reject, runHandler } from './handlers.ts'
+import { Reject, runHandler, type Undo } from './handlers.ts'
 
 export type RunResult = { status: 200 | 403 | 404 | 409 | 422; body: ActionResult | ActionRejection }
 
 const rejection = (status: RunResult['status'], error: string): RunResult => ({ status, body: { ok: false, error } })
+
+/** Runs every undo, newest first; each reports in a few words what it did, or that it failed. */
+async function runUndos(undos: Undo[]): Promise<string[]> {
+  const notes: string[] = []
+  for (const undo of undos.reverse()) notes.push(await undo().catch(e => `undo failed: ${e instanceof Error ? e.message : e}`))
+  return notes
+}
 
 async function runReadOnly(def: ActionDef, input: unknown, actor: Actor): Promise<RunResult> {
   try {
@@ -37,16 +44,24 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   }
 
   const record = { id: commandId, workspace_id: actor.workspaceId, actor_id: actor.actorId, action: name, input: parsed.data as object }
+  // What handlers did outside the database (a bought phone number) is undone whenever the
+  // transaction does not commit: the handler threw, the command could not be logged, or the commit failed.
+  const undos: Undo[] = []
   try {
     const body = await db.transaction(async tx => {
-      const result: ActionResult = { ok: true, ...(await runHandler({ tx, actor, now: new Date().toISOString() }, def, parsed.data)) }
+      const ctx = { tx, actor, now: new Date().toISOString(), onRollback: (undo: Undo) => undos.push(undo) }
+      const result: ActionResult = { ok: true, ...(await runHandler(ctx, def, parsed.data)) }
       await tx.insert(commands).values({ ...record, result })
       return result
     })
     return { status: 200, body }
   } catch (e) {
-    if (!(e instanceof Reject)) throw e // unexpected: 500, the client retries
-    const body: ActionRejection = { ok: false, error: e.message }
+    const undone = await runUndos(undos)
+    if (!(e instanceof Reject)) {
+      if (undone.length) console.error(`${name} failed after it had side effects: ${undone.join('; ')}`)
+      throw e // unexpected: 500, the client retries
+    }
+    const body: ActionRejection = { ok: false, error: [e.message, ...undone].join('; ') }
     await db.insert(commands).values({ ...record, result: body, rejected: true }).onConflictDoNothing()
     return { status: 409, body }
   }

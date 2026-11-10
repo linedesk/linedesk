@@ -35,6 +35,9 @@ importers:
       '@livekit/agents-plugin-deepgram':
         specifier: ^1.9.5
         version: 1.9.5(@livekit/agents@1.9.5(@livekit/rtc-node@1.2.2)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)
+      '@livekit/agents-plugin-elevenlabs':
+        specifier: ^1.9.5
+        version: 1.9.5(@livekit/agents@1.9.5(@livekit/rtc-node@1.2.2)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)
       '@livekit/agents-plugin-openai':
         specifier: ^1.9.5
         version: 1.9.5(@livekit/agents@1.9.5(@livekit/rtc-node@1.2.2)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)(zod@4.6.7)
@@ -998,6 +1001,12 @@ packages:
 
   '@livekit/agents-plugin-deepgram@1.9.5':
     resolution: {integrity: sha512-71Hhy53h39KJ5nt4IFH6mwM+HlsuO4j0rDr6ORfAitt/6FavlqD5EEC7twcjyYCsNkvs0f/kKjjBoRFUa2ce6w==}
+    peerDependencies:
+      '@livekit/agents': 1.9.5
+      '@livekit/rtc-node': ^1.1.0
+
+  '@livekit/agents-plugin-elevenlabs@1.9.5':
+    resolution: {integrity: sha512-EwlTVINC73Eb7m5RS2qjcEH9nB5D2g9ueiCwAFat0fL34DdopJ+g9RZQlAox0idtb5LEfZ5gBJsPLFmMPv8WSA==}
     peerDependencies:
       '@livekit/agents': 1.9.5
       '@livekit/rtc-node': ^1.1.0
@@ -3179,6 +3188,16 @@ snapshots:
   '@livekit/agents-plugin-deepgram@1.9.5(@livekit/agents@1.9.5(@livekit/rtc-node@1.2.2)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)':
     dependencies:
       '@livekit/agents': 1.9.5(@livekit/rtc-node@1.2.2)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)
+      '@livekit/rtc-node': 1.2.2
+      ws: 8.22.2
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  '@livekit/agents-plugin-elevenlabs@1.9.5(@livekit/agents@1.9.5(@livekit/rtc-node@1.2.2)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)':
+    dependencies:
+      '@livekit/agents': 1.9.5(@livekit/rtc-node@1.2.2)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)
+      '@livekit/mutex': 1.1.1
       '@livekit/rtc-node': 1.2.2
       ws: 8.22.2
     transitivePeerDependencies:

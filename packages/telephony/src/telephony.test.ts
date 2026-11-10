@@ -1,7 +1,8 @@
 // Contract: every provider behaves the same through TelephonyProvider. Telnyx runs against mocked HTTP.
 import { generateKeyPairSync, sign } from 'node:crypto'
 import { describe, expect, test } from 'vitest'
-import { createTelnyxProvider, devProvider, telephonyProviderFromEnv, TelephonyError, type TelephonyProvider } from './index.ts'
+import { describeProviderContract } from './contract.ts'
+import { createTelnyxProvider, devProvider, telephonyProviderFromEnv, TelephonyError } from './index.ts'
 
 type Call = { method: string; path: string; body?: any; auth: string }
 type Route = (call: Call) => { status?: number; json: unknown } | undefined
@@ -67,22 +68,10 @@ function signedWebhook(body: object, timestamp = NOW / 1000) {
   return { rawBody, headers: { 'telnyx-timestamp': String(timestamp), 'telnyx-signature-ed25519': signature } }
 }
 
-const providers: [string, () => TelephonyProvider][] = [
-  ['dev', () => devProvider],
-  ['telnyx', () => mockTelnyx(telnyxAccount()).provider],
-]
-
-describe.each(providers)('%s provider contract', (_name, make) => {
-  test('search, buy, route to SIP, release', async () => {
-    const provider = make()
-    const [found] = await provider.searchNumbers({ country: 'US', areaCode: '503', limit: 1 })
-    expect(found!.e164).toMatch(/^\+1503\d{7}$/)
-    const owned = await provider.buyNumber(found!.e164)
-    expect(owned.e164).toBe(found!.e164)
-    expect(owned.providerRef).toBeTruthy()
-    await expect(provider.routeToSip(owned, SIP)).resolves.toBeUndefined()
-    await expect(provider.releaseNumber(owned)).resolves.toBeUndefined()
-  })
+describeProviderContract('dev', () => devProvider)
+describeProviderContract('telnyx', () => {
+  const account = telnyxAccount()
+  return mockTelnyx(account).provider
 })
 
 describe('telnyx adapter', () => {
@@ -96,16 +85,18 @@ describe('telnyx adapter', () => {
 
   test('buys a number with an order and returns the phone number id', async () => {
     const { provider, calls } = mockTelnyx(telnyxAccount())
-    expect(await provider.buyNumber(NUMBER)).toEqual({ e164: NUMBER, providerRef: 'num_1', purchased: true })
-    expect(calls.map(c => `${c.method} ${c.path.split('?')[0]}`)).toEqual(['GET /phone_numbers', 'POST /number_orders', 'GET /phone_numbers'])
-    expect(calls[1]!.body).toEqual({ phone_numbers: [{ phone_number: NUMBER }] })
-    expect(calls[2]!.path).toBe(`/phone_numbers?filter[phone_number]=${NUMBER}`)
+    expect(await provider.buyNumber(NUMBER)).toEqual({ e164: NUMBER, providerRef: 'num_1' })
+    expect(calls.map(c => `${c.method} ${c.path.split('?')[0]}`)).toEqual(['POST /number_orders', 'GET /phone_numbers'])
+    expect(calls[0]!.body).toEqual({ phone_numbers: [{ phone_number: NUMBER }] })
+    expect(calls[1]!.path).toBe(`/phone_numbers?filter[phone_number]=${NUMBER}`)
   })
 
-  test('does not order a number the account already owns, so setup can be repeated', async () => {
-    const { provider, calls } = mockTelnyx(telnyxAccount({ owned: true }))
-    expect(await provider.buyNumber(NUMBER)).toEqual({ e164: NUMBER, providerRef: 'num_1', purchased: false })
-    expect(calls.some(c => c.path === '/number_orders')).toBe(false)
+  test('findNumber looks the number up and never orders', async () => {
+    const owned = mockTelnyx(telnyxAccount({ owned: true }))
+    expect(await owned.provider.findNumber(NUMBER)).toEqual({ e164: NUMBER, providerRef: 'num_1' })
+    const missing = mockTelnyx(telnyxAccount())
+    expect(await missing.provider.findNumber(NUMBER)).toBeNull()
+    expect([...owned.calls, ...missing.calls].every(c => c.method === 'GET')).toBe(true)
   })
 
   test('fails when the order fails or never completes', async () => {
@@ -188,10 +179,14 @@ describe('telnyx adapter', () => {
 })
 
 describe('telephonyProviderFromEnv', () => {
-  test('defaults to dev, selects telnyx, names what is missing', () => {
+  test('is dev unless a carrier is chosen, and names what is missing', () => {
     expect(telephonyProviderFromEnv({}).name).toBe('dev')
+    expect(telephonyProviderFromEnv({ TELEPHONY_PROVIDER: '' }).name).toBe('dev')
+    expect(telephonyProviderFromEnv({ TELEPHONY_PROVIDER: 'twilio', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't' }).name).toBe('twilio')
+    expect(() => telephonyProviderFromEnv({ TELEPHONY_PROVIDER: 'twilio', TWILIO_ACCOUNT_SID: 'AC1' })).toThrow('TWILIO_AUTH_TOKEN not set')
+    expect(() => telephonyProviderFromEnv({ TELEPHONY_PROVIDER: 'twilio' })).toThrow('TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN not set')
     expect(telephonyProviderFromEnv({ TELEPHONY_PROVIDER: 'telnyx', TELNYX_API_KEY: 'k' }).name).toBe('telnyx')
     expect(() => telephonyProviderFromEnv({ TELEPHONY_PROVIDER: 'telnyx' })).toThrow('TELNYX_API_KEY is not set')
-    expect(() => telephonyProviderFromEnv({ TELEPHONY_PROVIDER: 'twilio' })).toThrow('unknown TELEPHONY_PROVIDER')
+    expect(() => telephonyProviderFromEnv({ TELEPHONY_PROVIDER: 'plivo' })).toThrow('unknown TELEPHONY_PROVIDER')
   })
 })

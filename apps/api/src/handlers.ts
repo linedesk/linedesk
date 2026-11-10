@@ -5,7 +5,7 @@ import {
   appointment_types, assistants, availability_exceptions, availability_rules, bookings, calls, contacts, phone_numbers, syncedTables,
   transcript_segments, workspace_settings, type Tx,
 } from '@callfront/db'
-import { TelephonyError, telephonyProviderFromEnv, type BoughtNumber, type TelephonyProvider } from '@callfront/telephony'
+import { TelephonyError, telephonyProviderFromEnv, type TelephonyProvider } from '@callfront/telephony'
 import { and, desc, eq, gt, gte, isNull, lt, lte, ne, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { recordingStoreFromEnv, type RecordingStore } from './recording-store.ts'
@@ -13,8 +13,14 @@ import { recordingStoreFromEnv, type RecordingStore } from './recording-store.ts
 /** A business-rule rejection: the command is final, clients must not retry it. */
 export class Reject extends Error {}
 
-/** `telephony` and `recordings` override what env selects (tests). */
-export type HandlerCtx = { tx: Tx; actor: Actor; now: string; telephony?: TelephonyProvider; recordings?: RecordingStore }
+/** Reverses something a handler did outside the database; resolves to a short note on what it did. */
+export type Undo = () => Promise<string>
+
+/**
+ * `telephony` and `recordings` override what env selects (tests). `onRollback` registers an undo
+ * that runs if the action's transaction does not commit, for whatever reason.
+ */
+export type HandlerCtx = { tx: Tx; actor: Actor; now: string; telephony?: TelephonyProvider; recordings?: RecordingStore; onRollback?: (undo: Undo) => void }
 type Handler = (ctx: HandlerCtx, input: any) => Promise<Omit<ActionResult, 'ok'>>
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
@@ -114,6 +120,15 @@ async function linkOrphanRecordings(tx: Tx, workspace_id: string, now: string, r
 
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
+/** A carrier that is selected but not configured is the operator's to fix: say what is missing. */
+function configuredProvider(): TelephonyProvider {
+  try {
+    return telephonyProviderFromEnv(process.env)
+  } catch (e) {
+    throw new Reject(`phone setup is not configured: ${errorMessage(e)}`)
+  }
+}
+
 /** Carrier failures are final for the command: the user sees the reason, the client does not retry. */
 async function atCarrier<T>(request: () => Promise<T>): Promise<T> {
   try {
@@ -123,16 +138,14 @@ async function atCarrier<T>(request: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Setup failed after the purchase: give a number we just bought back, so nothing is paid for without a row. */
-async function undoPurchase(provider: TelephonyProvider, number: BoughtNumber, cause: unknown): Promise<never> {
-  const reason = errorMessage(cause)
-  if (!number.purchased) throw new Reject(`${reason}; ${number.e164} stays on the carrier account, set it up again to finish`)
+/** Gives a number that this command bought back to the carrier, so nothing is paid for without a row. */
+const releaseBought = (provider: TelephonyProvider, number: { e164: string; providerRef: string }): Undo => async () => {
   try {
     await provider.releaseNumber(number)
+    return `${number.e164} was released`
   } catch (e) {
-    throw new Reject(`${reason}; releasing ${number.e164} failed too (${errorMessage(e)}), set it up again or release it at the carrier`)
+    return `releasing ${number.e164} failed (${errorMessage(e)}): release it at the carrier, or set it up again`
   }
-  throw new Reject(`${reason}; ${number.e164} was released`)
 }
 
 const handlers: Record<string, Handler> = {
@@ -216,26 +229,34 @@ const handlers: Record<string, Handler> = {
     return { rows: { calls: await tx.update(calls).set({ action_items }).where(eq(calls.id, call.id)).returning() } }
   },
 
-  'phoneNumber.setup': async ({ tx, actor, now, telephony }, input) => {
+  'phoneNumber.setup': async ({ tx, actor, now, telephony, onRollback }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     const workspace_id = actor.workspaceId
-    const provider = telephony ?? telephonyProviderFromEnv(process.env)
+    const provider = telephony ?? configuredProvider()
     const sipEndpoint = process.env.LIVEKIT_SIP_ENDPOINT ?? ''
-    if (provider.name !== 'dev' && !sipEndpoint) throw new Error('LIVEKIT_SIP_ENDPOINT is not set')
+    if (provider.name !== 'dev' && !sipEndpoint) throw new Reject('phone setup is not configured: LIVEKIT_SIP_ENDPOINT is not set')
 
+    // Only a purchase may search: attaching always names the number.
     const e164: string | undefined = input.e164 ?? (await atCarrier(() => provider.searchNumbers({ country: 'US', areaCode: input.areaCode, limit: 1 })))[0]?.e164
     if (!e164) throw new Reject(`no number available in area code ${input.areaCode}`)
     const [taken] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, e164))
     if (taken) throw new Reject(`${e164} is already set up`)
 
-    const number = await atCarrier(() => provider.buyNumber(e164))
-    const rows = await (async () => {
-      await provider.routeToSip(number, sipEndpoint)
-      return tx.insert(phone_numbers).values({
-        id: newId('pn'), workspace_id, e164, provider: provider.name,
-        mode: 'new', provider_ref: number.providerRef, verified_at: now,
-      }).returning()
-    })().catch(e => undoPurchase(provider, number, e))
+    const existing = await atCarrier(() => provider.findNumber(e164))
+    if (!existing && !input.purchase) {
+      throw new Reject(`${e164} is not in the ${provider.name} account. Check the number; to buy it, pass purchase: true`)
+    }
+    const number = existing ?? (await atCarrier(() => provider.buyNumber(e164)))
+    if (!existing) onRollback?.(releaseBought(provider, number))
+
+    await atCarrier(() => provider.routeToSip(number, sipEndpoint))
+    const rows = await tx.insert(phone_numbers).values({
+      id: newId('pn'), workspace_id, e164, provider: provider.name, provider_ref: number.providerRef,
+      // A bought number is the business's new number; an attached one is taken as a forwarding
+      // target, the product's default, and counts as verified only after a test call.
+      mode: input.mode ?? (existing ? 'forward_conditional' : 'new'),
+      verified_at: existing ? null : now,
+    }).returning()
     return { rows: { phone_numbers: rows } }
   },
 }

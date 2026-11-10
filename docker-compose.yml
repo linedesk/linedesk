@@ -64,7 +64,8 @@ services:
           address: redis:6379
         sip_port: 5060
         rtp_port: 10000-10100
-        use_external_ip: false
+        # true on a server that carriers reach from the internet: SIP then announces the public IP
+        use_external_ip: ${LIVEKIT_SIP_USE_EXTERNAL_IP:-false}
     depends_on: [livekit, redis]
 
   # Call recordings (optional): `docker compose --profile recording up -d`, or `pnpm recording:up`.

@@ -1,39 +1,57 @@
-// The speech and language vendors, all in one place: Deepgram Flux (speech to text),
-// OpenAI (conversation and call summary), Cartesia Sonic (text to speech), Silero (voice activity).
+// The speech and language vendors, all in one place. Which ones are used comes from AgentConfig:
+// speech to text Deepgram; LLM any OpenAI-compatible API (OpenRouter by default, OpenAI direct);
+// text to speech ElevenLabs or Cartesia; voice activity Silero (local).
 // The worker only sees LiveKit's interfaces and `CompleteJson`.
 import type { voice } from '@livekit/agents'
 import * as cartesia from '@livekit/agents-plugin-cartesia'
 import * as deepgram from '@livekit/agents-plugin-deepgram'
+import * as elevenlabs from '@livekit/agents-plugin-elevenlabs'
 import * as openai from '@livekit/agents-plugin-openai'
 import * as silero from '@livekit/agents-plugin-silero'
+import type { AssistantVoice } from '@callfront/db/types'
+import type { AgentConfig } from './config.ts'
 import type { CompleteJson } from './summary.ts'
 
-export const pipelineEnv = ['DEEPGRAM_API_KEY', 'OPENAI_API_KEY', 'CARTESIA_API_KEY'] as const
-
 const SUMMARY_TIMEOUT_MS = 15_000
-const llmModel = () => process.env.OPENAI_MODEL ?? 'gpt-5.4-mini'
 
 export type Vad = Awaited<ReturnType<typeof silero.VAD.load>>
 
 /** Loaded once per worker process, before the first call. */
 export const loadVad = (): Promise<Vad> => silero.VAD.load()
 
-/** Session options for one call. `voiceId` is the assistant's configured voice, if any. */
-export function createPipeline(vad: Vad, voiceId?: string): voice.AgentSessionOptions {
+/** The assistant's own voice if it was picked for the provider in use, else the configured default (or the provider's). */
+export function voiceFor(tts: AgentConfig['tts'], assistantVoice?: AssistantVoice | null): string | undefined {
+  return assistantVoice?.provider === tts.provider && assistantVoice.voice_id ? assistantVoice.voice_id : tts.voiceId
+}
+
+function createStt({ apiKey, model }: AgentConfig['stt']) {
+  // Deepgram's Flux models speak a different protocol than Nova.
+  return model.startsWith('flux') ? new deepgram.STTv2({ apiKey, model }) : new deepgram.STT({ apiKey, model })
+}
+
+function createTts(tts: AgentConfig['tts'], assistantVoice?: AssistantVoice | null) {
+  const voiceId = voiceFor(tts, assistantVoice)
+  const model = tts.model ? { model: tts.model } : {}
+  if (tts.provider === 'cartesia') return new cartesia.TTS({ apiKey: tts.apiKey, ...model, ...(voiceId ? { voice: voiceId } : {}) })
+  return new elevenlabs.TTS({ apiKey: tts.apiKey, ...model, ...(voiceId ? { voiceId } : {}) })
+}
+
+/** Session options for one call. */
+export function createPipeline(vad: Vad, config: AgentConfig, assistantVoice?: AssistantVoice | null): voice.AgentSessionOptions {
   return {
     vad,
-    stt: new deepgram.STTv2({ model: 'flux-general-en' }),
-    llm: new openai.LLM({ model: llmModel() }),
-    tts: new cartesia.TTS(voiceId ? { voice: voiceId } : {}),
+    stt: createStt(config.stt),
+    llm: new openai.LLM({ apiKey: config.llm.apiKey, baseURL: config.llm.baseUrl, model: config.llm.model }),
+    tts: createTts(config.tts, assistantVoice),
     // Local turn handling: no dependency on LiveKit Cloud inference when self-hosting.
     turnHandling: { turnDetection: 'vad', interruption: { mode: 'vad' } },
   }
 }
 
-/** CompleteJson backed by OpenAI's chat completions API. Gives up after `timeoutMs`. */
-export function openAiJson(apiKey: string, model: string, doFetch: typeof fetch = fetch, timeoutMs = SUMMARY_TIMEOUT_MS): CompleteJson {
+/** CompleteJson backed by an OpenAI-compatible chat completions API. Gives up after `timeoutMs`. */
+export function chatJson({ apiKey, baseUrl, model }: AgentConfig['llm'], doFetch: typeof fetch = fetch, timeoutMs = SUMMARY_TIMEOUT_MS): CompleteJson {
   return async (system, user) => {
-    const res = await doFetch('https://api.openai.com/v1/chat/completions', {
+    const res = await doFetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
@@ -43,12 +61,12 @@ export function openAiJson(apiKey: string, model: string, doFetch: typeof fetch 
       signal: AbortSignal.timeout(timeoutMs),
     })
     const body = (await res.json().catch(() => null)) as { choices?: { message?: { content?: string } }[]; error?: { message?: string } } | null
-    if (!res.ok) throw new Error(`OpenAI summary request failed (${res.status}): ${body?.error?.message ?? res.statusText}`)
+    if (!res.ok) throw new Error(`summary request failed (${res.status}): ${body?.error?.message ?? res.statusText}`)
     const content = body?.choices?.[0]?.message?.content
-    if (!content) throw new Error('OpenAI summary response was empty')
+    if (!content) throw new Error('summary response was empty')
     return content
   }
 }
 
-/** The LLM call used for the post-call summary. */
-export const summaryLlm = (): CompleteJson => openAiJson(process.env.OPENAI_API_KEY ?? '', llmModel())
+/** The LLM call used for the post-call summary: the same LLM as the conversation. */
+export const summaryLlm = (config: AgentConfig): CompleteJson => chatJson(config.llm)

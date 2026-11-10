@@ -34,7 +34,7 @@ export const assistants = pgTable('assistants', {
   greeting: text('greeting').notNull().default(''),
   disclose_ai: boolean('disclose_ai').notNull().default(true),
   record_calls: boolean('record_calls').notNull().default(true),
-  voice: jsonb('voice').$type<AssistantVoice>().notNull().default({ provider: 'cartesia', voice_id: '' }),
+  voice: jsonb('voice').$type<AssistantVoice>().notNull().default({ provider: 'elevenlabs', voice_id: '' }),
   business_profile: jsonb('business_profile').$type<BusinessProfile>().notNull().default({}),
   created_at: createdAt(),
   version: version(),

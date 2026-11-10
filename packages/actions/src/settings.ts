@@ -41,12 +41,21 @@ export const assistantUpdate = defineAction({
   patch: { table: 'assistants', id: i => i.assistantId, set: ({ assistantId: _id, ...rest }) => defined(rest) },
 })
 
+export const phoneNumberModes = ['forward_conditional', 'forward_all', 'new', 'ported'] as const
+
 export const phoneNumberSetup = defineAction({
   name: 'phoneNumber.setup',
-  description: 'Get a phone number for the workspace from the telephony provider and route its calls to the assistant. Buys `e164`, or the first available number in `areaCode`. Repeating it for the same `e164` finishes a setup that failed halfway.',
+  description:
+    'Connect a phone number to the workspace and route its calls to the assistant. By default it attaches `e164`, a number that already exists in the carrier account, and buys nothing. With `purchase: true` it buys `e164`, or the first free number in `areaCode`, which costs money. Repeating it for the same number finishes a setup that failed halfway.',
   input: z.object({
     e164: z.string().regex(/^\+[1-9]\d{6,14}$/).optional(),
     areaCode: z.string().regex(/^\d{3}$/).optional(),
-  }).refine(i => i.e164 || i.areaCode, { message: 'give a number (e164) or an area code' }),
+    /** Buying is never implied: without this, a number that is not in the account is rejected. */
+    purchase: z.boolean().default(false),
+    /** How the business uses the number. Default: `new` for a bought number, `forward_conditional` for an attached one. */
+    mode: z.enum(phoneNumberModes).optional(),
+  })
+    .refine(i => i.e164 || i.areaCode, { message: 'give a number (e164) or an area code' })
+    .refine(i => i.e164 || i.purchase, { message: 'an area code alone means buying a number: pass purchase: true, or give the number (e164) to attach' }),
   permission: 'settings:write',
 })
