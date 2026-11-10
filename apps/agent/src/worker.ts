@@ -18,7 +18,7 @@ import { logTurnMetrics } from './turn-metrics.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
 import { hangUpAfterSpeech, speakingOf } from './hang-up.ts'
 import { buildInstructions, FALLBACK_GREETING } from './prompt.ts'
-import { describeRecording, livekitRecorder, saveRecording, startRecording, stopRecording } from './recording.ts'
+import { describeRecording, livekitRecorder, resolveRecording, saveRecording, startRecording, stopRecording } from './recording.ts'
 import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from './counterpart.ts'
 import { runTestCaller } from './test-caller/caller.ts'
 import { parseTestCallerMetadata, type TestCallerMetadata } from './test-caller/scenarios.ts'
@@ -186,7 +186,7 @@ async function entry(ctx: JobContext) {
 
   // From here on the call exists and must be finished: on hang-up (session close), on any error
   // while setting up the conversation, and at job shutdown as the last resort.
-  const recorder = livekitRecorder()
+  const recorder = livekitRecorder(config.recording)
   const recording = startRecording(recorder, call, ctx.room.name ?? call.callId)
   const finish = () => hangUp({
     stopRecording: async () => stopRecording(recorder, await recording),
@@ -251,8 +251,9 @@ async function main() {
     console.error(reason)
     process.exit(1)
   }
-  console.log(describeReadiness(await checkReadiness(loadAgentConfig)))
-  console.log(describeRecording())
+  const readiness = await checkReadiness(loadAgentConfig)
+  console.log(describeReadiness(readiness))
+  console.log(describeRecording(readiness.ready ? readiness.config.recording : resolveRecording(null)))
   // Processes kept warm for the next call. Three by default: a call takes one, and a phone call test two
   // (the test caller and the business), while the next one starts (a new process needs ~2 s of CPU).
   const numIdleProcesses = Number(process.env.AGENT_IDLE_PROCESSES) || 3

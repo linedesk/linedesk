@@ -80,7 +80,7 @@ describe('deleteExpiredRecordings', () => {
 
     const store = createFileRecordingStore(dir)
     // Other test files leave recordings too; run until nothing of ours is left to delete.
-    for (let i = 0; i < 20 && (await getCall(old.id))?.recording_key; i++) await deleteExpiredRecordings(db, store, NOW)
+    for (let i = 0; i < 20 && (await getCall(old.id))?.recording_key; i++) await deleteExpiredRecordings(db, () => store, NOW)
 
     expect((await getCall(old.id))?.recording_key).toBeNull()
     expect(await fileExists(old.key)).toBe(false)
@@ -102,7 +102,7 @@ describe('deleteExpiredRecordings', () => {
         throw new Error('disk is read-only')
       },
     }
-    const result = await deleteExpiredRecordings(db, broken, NOW)
+    const result = await deleteExpiredRecordings(db, () => broken, NOW)
     expect(result.failed).toBeGreaterThan(0)
     expect((await getCall(call.id))?.recording_key).toBe(call.key)
   })

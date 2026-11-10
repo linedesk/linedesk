@@ -286,7 +286,9 @@ const handlers: Record<string, Handler> = {
   'call.setRecording': async ({ tx, actor }, input) => {
     const call = await loadCall(tx, actor, input.callId)
     const recording_key = recordingKey(call.workspace_id, call.id, input.format)
-    return { rows: { calls: await tx.update(calls).set({ recording_key }).where(eq(calls.id, call.id)).returning() } }
+    // An agent that does not say (older versions) recorded into the store RECORDING_STORE names: null.
+    const recording_store = input.store ?? null
+    return { rows: { calls: await tx.update(calls).set({ recording_key, recording_store }).where(eq(calls.id, call.id)).returning() } }
   },
 
   'call.takeMessage': async ({ tx, actor }, input) => {

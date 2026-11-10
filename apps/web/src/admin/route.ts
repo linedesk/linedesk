@@ -18,7 +18,8 @@ export const adminSections = [
   {
     id: 'providers',
     label: 'Providers',
-    description: 'Keys for telephony, speech and the language model, for the whole install.',
+    description:
+      'Keys for telephony, speech, the language model and where recordings are stored, for the whole install.',
   },
   {
     id: 'system',

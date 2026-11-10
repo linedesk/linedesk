@@ -3,6 +3,7 @@
 // stage by stage; for a stage that is not set up there, the agent's own environment.
 // `createConfigLoader()` builds the cached loader the worker uses (`loadAgentConfig` in worker.ts).
 import { z } from 'zod'
+import { recordingSettings, resolveRecording, type RecordingConfig } from './recording.ts'
 
 export interface AgentConfig {
   stt: { provider: 'deepgram'; apiKey: string; model: string }
@@ -22,6 +23,8 @@ export interface AgentConfig {
   }
   /** `voiceId` is the default voice; an assistant can bring its own for the same provider. */
   tts: { provider: 'elevenlabs' | 'cartesia'; apiKey: string; model?: string; voiceId?: string }
+  /** Where calls are recorded (holds the S3 secret: never log it). Not a stage: `off` does not stop calls. */
+  recording: RecordingConfig
 }
 
 type Env = Record<string, string | undefined>
@@ -47,7 +50,8 @@ const entry = z.object({
   summary_model: z.string().nullish(),
   voice_id: z.string().nullish(),
 }).nullable()
-const providerSettings = z.object({ stt: entry, llm: entry, tts: entry })
+// `recording` is missing from an API older than the agent: the environment applies then.
+const providerSettings = z.object({ stt: entry, llm: entry, tts: entry, recording: recordingSettings })
 export type ProviderSettings = z.infer<typeof providerSettings>
 type Entry = z.infer<typeof entry>
 
@@ -62,7 +66,7 @@ const stages = {
   stt: { stage: 'speech recognition', providerEnv: 'STT_PROVIDER', fallback: 'deepgram', providers: { deepgram: 'DEEPGRAM_API_KEY' } },
   llm: { stage: 'language model', providerEnv: 'LLM_PROVIDER', fallback: 'openrouter', providers: { openrouter: 'OPENROUTER_API_KEY', openai: 'OPENAI_API_KEY' } },
   tts: { stage: 'voice', providerEnv: 'TTS_PROVIDER', fallback: 'elevenlabs', providers: { elevenlabs: 'ELEVENLABS_API_KEY', cartesia: 'CARTESIA_API_KEY' } },
-} as const satisfies Record<keyof ProviderSettings, { stage: Stage; providerEnv: string; fallback: string; providers: Record<string, string> }>
+} as const satisfies Record<'stt' | 'llm' | 'tts', { stage: Stage; providerEnv: string; fallback: string; providers: Record<string, string> }>
 type StageKey = keyof typeof stages
 
 const modelEnv = { stt: 'STT_MODEL', llm: 'LLM_MODEL', tts: 'TTS_MODEL' } as const
@@ -139,6 +143,7 @@ export function resolveAgentConfig(settings: ProviderSettings | null, env: Env =
       summaryModel: summaryModel!, summaryFallbacks: withFallbacks ? summaryFallbacks : [],
     },
     tts: { provider: tts.provider as AgentConfig['tts']['provider'], apiKey: tts.api_key!, model: tts.model || undefined, voiceId: tts.voice_id || undefined },
+    recording: resolveRecording(settings?.recording, env),
   }
 }
 

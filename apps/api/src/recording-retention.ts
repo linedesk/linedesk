@@ -4,7 +4,11 @@
 import { DEFAULT_RECORDING_RETENTION_DAYS } from '@callfront/actions'
 import { calls, type Tx, workspace_settings } from '@callfront/db'
 import { and, eq, isNotNull, lt, sql } from 'drizzle-orm'
+import type { RecordingStoreName } from '@callfront/actions'
 import type { RecordingStore } from './recording-store.ts'
+
+/** The store a recording is in, by calls.recording_store (null: recorded before stores were per call). */
+export type StoreFor = (name: RecordingStoreName | null) => Promise<RecordingStore> | RecordingStore
 
 /** Per run; a backlog is worked off over the next days instead of in one long run. */
 const BATCH = 500
@@ -18,7 +22,7 @@ function expiredRecordings(db: Tx, now: string, limit: number) {
     number | null
   >`case when ${workspace_settings.workspace_id} is null then ${DEFAULT_RECORDING_RETENTION_DAYS} else ${workspace_settings.recording_retention_days} end`
   return db
-    .select({ id: calls.id, key: calls.recording_key })
+    .select({ id: calls.id, key: calls.recording_key, store: calls.recording_store })
     .from(calls)
     .leftJoin(workspace_settings, eq(workspace_settings.workspace_id, calls.workspace_id))
     .where(
@@ -34,18 +38,21 @@ function expiredRecordings(db: Tx, now: string, limit: number) {
     .limit(limit)
 }
 
-/** One call at a time: the file first, then the key, so a failed delete is retried on the next run. */
+/**
+ * One call at a time: the file first, then the key, so a failed delete is retried on the next run.
+ * Each recording is deleted from the store it is in, not the one new calls go to.
+ */
 export async function deleteExpiredRecordings(
   db: Tx,
-  store: RecordingStore,
+  storeFor: StoreFor,
   now = new Date().toISOString(),
   limit = BATCH,
 ): Promise<CleanupResult> {
   const result: CleanupResult = { deleted: 0, failed: 0 }
-  for (const { id, key } of await expiredRecordings(db, now, limit)) {
+  for (const { id, key, store } of await expiredRecordings(db, now, limit)) {
     try {
-      await store.delete(key!)
-      await db.update(calls).set({ recording_key: null }).where(eq(calls.id, id))
+      await (await storeFor(store)).delete(key!)
+      await db.update(calls).set({ recording_key: null, recording_store: null }).where(eq(calls.id, id))
       result.deleted++
     } catch (e) {
       result.failed++

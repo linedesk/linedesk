@@ -121,6 +121,8 @@ export const calls = pgTable(
       .notNull()
       .default('ai'),
     recording_key: text('recording_key'),
+    /** The recording store that holds `recording_key` (file or s3); null: recorded before stores were per call, so RECORDING_STORE names it. */
+    recording_store: text('recording_store', { enum: ['file', 's3'] }),
     room: text('room'),
     inbox_state: text('inbox_state', { enum: ['open', 'done'] })
       .notNull()

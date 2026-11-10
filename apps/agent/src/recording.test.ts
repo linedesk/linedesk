@@ -2,13 +2,13 @@ import { expect, test, vi } from 'vitest'
 import type { ApiClient } from './api-client.ts'
 import { hangUp } from './call-log.ts'
 import type { CallSession } from './call-session.ts'
-import { describeRecording, livekitRecorder, recordingMode, recordingOutput, saveRecording, startRecording, stopRecording, type CallRecorder } from './recording.ts'
+import { describeRecording, livekitRecorder, recordingOutput, resolveRecording, saveRecording, startRecording, stopRecording, type CallRecorder, type RecordingConfig } from './recording.ts'
 
 const call = (record_calls?: boolean) =>
   ({ callId: 'call_1', workspaceId: 'ws_1', assistant: record_calls === undefined ? null : { record_calls } }) as unknown as CallSession
-const recorder = (over: Partial<CallRecorder> = {}) => ({
-  start: vi.fn(async () => 'EG_1'), stop: vi.fn(async () => {}), waitUntilFinal: vi.fn(async () => true), ...over,
-}) satisfies CallRecorder
+const recorder = (over: Partial<CallRecorder> = {}): CallRecorder => ({
+  store: 'file' as const, start: vi.fn(async () => 'EG_1'), stop: vi.fn(async () => {}), waitUntilFinal: vi.fn(async () => true), ...over,
+})
 const fakeApi = () => ({ run: vi.fn(async () => ({ ok: true as const, rows: {} })), providerSettings: vi.fn() }) satisfies ApiClient
 
 test('records into the key derived from workspace and call', async () => {
@@ -32,12 +32,12 @@ test('a recording that cannot start or stop does not fail the call', async () =>
   await expect(stopRecording(null, null)).resolves.toBeUndefined()
 })
 
-test('reports the recording once the file is final, sending only the call id', async () => {
+test('reports the recording once the file is final, sending the call id and the store', async () => {
   const api = fakeApi()
-  const rec = recorder()
+  const rec = recorder({ store: 's3' })
   await saveRecording(api, call(true), rec, 'EG_1', 15_000, { wait: async () => {} })
   expect(rec.waitUntilFinal).toHaveBeenCalledWith('EG_1', 15_000)
-  expect(api.run).toHaveBeenCalledWith(expect.objectContaining({ name: 'call.setRecording' }), { callId: 'call_1' }, 'ws_1')
+  expect(api.run).toHaveBeenCalledWith(expect.objectContaining({ name: 'call.setRecording' }), { callId: 'call_1', store: 's3' }, 'ws_1')
 
   const notFinal = fakeApi()
   await saveRecording(notFinal, call(true), recorder({ waitUntilFinal: async () => false }), 'EG_1', 15_000)
@@ -65,26 +65,43 @@ test('hang-up is cut off when it does not fit the budget', async () => {
   await expect(hangUp({ stopRecording: async () => {}, finishCall: never, saveRecording: async () => {} }, 20)).rejects.toThrow('gave up after 0.02 s')
 })
 
-test('recording is off unless a store is named, and says so in one line', () => {
-  expect(recordingMode({})).toBe('off')
-  expect(recordingMode({ RECORDING_STORE: '' })).toBe('off')
-  expect(recordingMode({ RECORDING_STORE: 'file' })).toBe('file')
-  expect(livekitRecorder({})).toBeNull()
-  expect(describeRecording({})).toContain('call recording is off')
-  expect(describeRecording({ RECORDING_STORE: 'file' })).toContain('shared recordings directory')
-  expect(describeRecording({ RECORDING_STORE: 's3', S3_BUCKET: 'recs' })).toContain('S3 bucket recs')
+const s3Settings = { provider: 's3', endpoint: 'https://acct.r2.cloudflarestorage.com', region: 'auto', bucket: 'calls', access_key_id: 'k', secret_access_key: 'topsecret', prefix: 'linedesk/', force_path_style: null }
+
+test('the store: Linedesk settings first, else RECORDING_STORE; off unless one is named', () => {
+  expect(resolveRecording(null, {})).toEqual({ store: 'off' })
+  expect(resolveRecording(undefined, { RECORDING_STORE: '' })).toEqual({ store: 'off' })
+  expect(resolveRecording(null, { RECORDING_STORE: 'file' })).toEqual({ store: 'file' })
+  expect(resolveRecording({ provider: 'file' }, { RECORDING_STORE: 's3' })).toEqual({ store: 'file' })
+  expect(resolveRecording(s3Settings, { RECORDING_STORE: 'file' })).toEqual({
+    store: 's3', s3: { endpoint: 'https://acct.r2.cloudflarestorage.com', region: 'auto', bucket: 'calls', accessKeyId: 'k', secretAccessKey: 'topsecret', prefix: 'linedesk/', forcePathStyle: true },
+  })
+  expect(resolveRecording(null, { RECORDING_STORE: 's3', S3_BUCKET: 'env', S3_FORCE_PATH_STYLE: 'false' })).toMatchObject({ store: 's3', s3: { bucket: 'env', forcePathStyle: false } })
+  expect(resolveRecording({ provider: 'minio' }, {})).toEqual({ store: 'off' })
+  expect(livekitRecorder({ store: 'off' }, {})).toBeNull()
 })
 
-test('egress writes into the shared directory, or uploads to S3 by env', () => {
-  expect(recordingOutput('ws_1/call_1.ogg', { RECORDING_STORE: 'file' })).toMatchObject({ filepath: '/recordings/ws_1/call_1.ogg', output: { case: undefined } })
-  expect(recordingOutput('ws_1/call_1.ogg', { RECORDING_STORE: 'file', RECORDINGS_EGRESS_DIR: '/mnt/rec' }).filepath).toBe('/mnt/rec/ws_1/call_1.ogg')
+test('says in one line where calls go, never a key', () => {
+  expect(describeRecording({ store: 'off' })).toContain('call recording is off')
+  expect(describeRecording({ store: 'file' })).toContain('shared recordings directory')
+  const s3 = describeRecording(resolveRecording(s3Settings))
+  expect(s3).toContain('S3 bucket calls')
+  expect(s3).not.toContain('topsecret')
+})
 
-  const s3 = { RECORDING_STORE: 's3', S3_ENDPOINT: 'https://s3.test', S3_BUCKET: 'recordings', S3_ACCESS_KEY_ID: 'k', S3_SECRET_ACCESS_KEY: 's' }
-  expect(recordingOutput('ws_1/call_1.ogg', s3)).toMatchObject({
-    filepath: 'ws_1/call_1.ogg',
-    output: { case: 's3', value: { endpoint: 'https://s3.test', bucket: 'recordings', accessKey: 'k', secret: 's', region: 'us-east-1', forcePathStyle: true } },
+test('egress writes into the shared directory, or uploads to S3 with the keys in the request', () => {
+  const file: RecordingConfig = { store: 'file' }
+  expect(recordingOutput('ws_1/call_1.ogg', file, {})).toMatchObject({ filepath: '/recordings/ws_1/call_1.ogg', output: { case: undefined } })
+  expect(recordingOutput('ws_1/call_1.ogg', file, { RECORDINGS_EGRESS_DIR: '/mnt/rec' }).filepath).toBe('/mnt/rec/ws_1/call_1.ogg')
+
+  expect(recordingOutput('ws_1/call_1.ogg', resolveRecording(s3Settings))).toMatchObject({
+    filepath: 'linedesk/ws_1/call_1.ogg',
+    output: { case: 's3', value: { endpoint: 'https://acct.r2.cloudflarestorage.com', bucket: 'calls', accessKey: 'k', secret: 'topsecret', region: 'auto', forcePathStyle: true } },
   })
-  expect(() => recordingOutput('k', { RECORDING_STORE: 's3', S3_ENDPOINT: 'https://s3.test' })).toThrow('Missing environment variables: S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY.')
+  const hetzner = resolveRecording({ ...s3Settings, prefix: null, region: null, force_path_style: 'false' })
+  expect(recordingOutput('ws_1/call_1.ogg', hetzner)).toMatchObject({ filepath: 'ws_1/call_1.ogg', output: { value: { region: 'us-east-1', forcePathStyle: false } } })
+  const missing = () => recordingOutput('k', resolveRecording({ provider: 's3', endpoint: 'https://s3.test', secret_access_key: 'topsecret' }))
+  expect(missing).toThrow('S3 recording storage is missing: bucket, access key ID')
+  expect(missing).not.toThrow('topsecret')
 })
 
 test('a recording that fails to start is tried once more', async () => {

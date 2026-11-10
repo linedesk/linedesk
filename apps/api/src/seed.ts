@@ -20,7 +20,7 @@ import { asc, eq } from 'drizzle-orm'
 import { auth } from './auth.ts'
 import { db, pool } from './db.ts'
 import { demoRecordingWav, writeDemoRecording } from './demo-recording.ts'
-import { recordingsDirFromEnv } from './recording-store.ts'
+import { recordingsDir } from './recording-store.ts'
 
 export const DEMO = { email: 'mike@brightwater.example', password: 'brightwater-demo', number: '+15035550142' }
 
@@ -263,12 +263,12 @@ async function seedBusinessHours(workspace_id: string) {
     .onConflictDoNothing()
 }
 
-/** The quote call gets a stand-in recording, so the player can be tried (file store only; S3 is left alone). */
+/** The quote call gets a stand-in recording on the local disk, so the player can be tried whatever store records new calls. */
 async function seedDemoRecording(workspace_id: string) {
-  const dir = recordingsDirFromEnv(process.env)
+  const dir = recordingsDir(process.env)
   const callId = id('call', 2)
   const [call] = await db.select().from(calls).where(eq(calls.id, callId))
-  if (!dir || !call?.duration_sec) return
+  if (!call?.duration_sec) return
   const key = recordingKey(workspace_id, callId, 'wav')
   const turns = await db
     .select({ at_ms: transcript_segments.at_ms, speaker: transcript_segments.speaker })
@@ -280,7 +280,7 @@ async function seedDemoRecording(workspace_id: string) {
     turns.map(t => ({ atSec: t.at_ms / 1000, speaker: t.speaker })),
   )
   await writeDemoRecording(dir, key, wav)
-  await db.update(calls).set({ recording_key: key }).where(eq(calls.id, callId))
+  await db.update(calls).set({ recording_key: key, recording_store: 'file' }).where(eq(calls.id, callId))
 }
 
 async function seedCallsAndContacts(workspace_id: string) {

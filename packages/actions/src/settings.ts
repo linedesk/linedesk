@@ -107,7 +107,7 @@ export const DEFAULT_RECORDING_RETENTION_DAYS = 90
 /** `data` of `workspace.getSettings`. */
 export type BusinessHoursSpan = { weekday: number; start: string; end: string }
 /** `data` of `workspace.getSettings`. `businessHours` empty: no hours set (the assistant says nothing about them). */
-/** `recordingOn`: this server records calls (RECORDING_STORE is file or s3, the same switch the voice agent reads). */
+/** `recordingOn`: this server records calls (a recording store is picked under Providers, or RECORDING_STORE names one; the voice agent gets the same setting). */
 export type WorkspaceSettingsData = { recordingRetentionDays: number | null; timeZone: string; businessHours: BusinessHoursSpan[]; recordingOn: boolean }
 
 const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$|^24:00$/, 'a time like 07:00')

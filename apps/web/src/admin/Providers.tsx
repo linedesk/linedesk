@@ -7,9 +7,11 @@ import {
   providers as providerSpecs,
   type ProviderCategory,
   type ProviderName,
+  type ProviderPreset,
   type ProviderTestData,
 } from '@callfront/actions'
 import { useState, type FormEvent } from 'react'
+import { Checkbox } from '../ui/controls.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
 import { type ActiveProviders, type ProviderField, type ProviderStatus, runAdmin, testProvider } from './api.ts'
 import { CopyButton } from '../onboarding/Frame.tsx'
@@ -17,8 +19,17 @@ import { fieldValueText, providerState, SHORT_VALUE_MAX, shortValue, stateLabel 
 import { Confirm, when } from './parts.tsx'
 import { errorText, type Notify } from './notify.ts'
 
-const envName = (provider: ProviderStatus, field: ProviderField) =>
-  (providerSpecs[provider.provider].fields as Record<string, { env: string }>)[field.field]?.env ?? ''
+type SpecView = {
+  fields: Record<string, { env: string; switch?: true }>
+  help?: string
+  presets?: readonly ProviderPreset[]
+}
+/** The registry's entry, with the optional parts every provider may have. */
+const specOf = (provider: ProviderStatus) => providerSpecs[provider.provider] as SpecView
+const envName = (provider: ProviderStatus, field: ProviderField) => specOf(provider).fields[field.field]?.env ?? ''
+const isSwitch = (provider: ProviderStatus, field: ProviderField) => !!specOf(provider).fields[field.field]?.switch
+/** A switch is on unless it says "false" (force path style: on by default). */
+const switchText = (field: ProviderField) => (field.source ? (field.value === 'false' ? 'Off' : 'On') : 'Not set (on)')
 
 function fieldNote(provider: ProviderStatus, field: ProviderField): string {
   if (field.source === 'env') return `from ${envName(provider, field)}`
@@ -32,7 +43,9 @@ function KeysForm({ provider, onSaved, onCancel }: FormProps) {
   const [values, setValues] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [preset, setPreset] = useState<ProviderPreset | null>(null)
   const filled = Object.fromEntries(Object.entries(values).filter(([, value]) => value.trim()))
+  const presets = specOf(provider).presets ?? []
 
   async function save(e: FormEvent) {
     e.preventDefault()
@@ -50,8 +63,43 @@ function KeysForm({ provider, onSaved, onCancel }: FormProps) {
 
   return (
     <form className="adm-keys" onSubmit={save} onKeyDown={e => e.key === 'Escape' && onCancel()}>
+      {presets.length > 0 && (
+        <div className="adm-presets">
+          <span className="help">Fill in for</span>
+          {presets.map(p => (
+            <Button
+              key={p.label}
+              size="sm"
+              variant="ghost"
+              aria-pressed={preset === p}
+              onClick={() => {
+                setPreset(p)
+                setValues(current => ({ ...current, ...p.values }))
+              }}
+            >
+              {p.label}
+            </Button>
+          ))}
+          {preset && <p className="help adm-preset-help">{preset.help}</p>}
+        </div>
+      )}
       {provider.fields.map((field, i) => {
         const id = `adm-${provider.provider}-${field.field}`
+        if (isSwitch(provider, field)) {
+          const on = (values[field.field] ?? field.value ?? 'true') !== 'false'
+          return (
+            <div key={field.field} className="field">
+              <Checkbox
+                className="adm-check"
+                checked={on}
+                onChange={checked => setValues(current => ({ ...current, [field.field]: String(checked) }))}
+              >
+                {field.label}
+              </Checkbox>
+              {field.hint && <span className="help">{field.hint}</span>}
+            </div>
+          )
+        }
         return (
           <div key={field.field} className="field">
             <label htmlFor={id}>{field.label}</label>
@@ -106,6 +154,9 @@ function ProviderRow({ provider, inUse, canStore, toast, reload }: RowProps) {
   const [mode, setMode] = useState<'idle' | 'edit' | 'clear'>('idle')
   const [test, setTest] = useState<ProviderTestData | 'running' | null>(null)
   const state = providerState(provider)
+  // The local disk: nothing to enter, but its directory can still be tested.
+  const noKeys = provider.fields.length === 0
+  const help = specOf(provider).help
 
   async function runTest() {
     setTest('running')
@@ -129,26 +180,28 @@ function ProviderRow({ provider, inUse, canStore, toast, reload }: RowProps) {
     <div className="adm-prov">
       <div className="adm-prov-head">
         <b>{provider.label}</b>
-        <Badge>{stateLabel[state]}</Badge>
+        <Badge>{noKeys ? 'No keys needed' : stateLabel[state]}</Badge>
         {inUse && <Badge>In use</Badge>}
         <span className="adm-prov-actions">
           <Button
             size="sm"
             variant="ghost"
-            disabled={state === 'none' || test === 'running'}
+            disabled={(state === 'none' && !noKeys) || test === 'running'}
             onClick={() => void runTest()}
           >
             Test connection
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={!canStore}
-            aria-expanded={mode === 'edit'}
-            onClick={() => setMode('edit')}
-          >
-            Edit
-          </Button>
+          {!noKeys && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={!canStore}
+              aria-expanded={mode === 'edit'}
+              onClick={() => setMode('edit')}
+            >
+              Edit
+            </Button>
+          )}
           {state === 'app' && (
             <Button size="sm" variant="ghost" aria-expanded={mode === 'clear'} onClick={() => setMode('clear')}>
               Clear
@@ -156,25 +209,28 @@ function ProviderRow({ provider, inUse, canStore, toast, reload }: RowProps) {
           )}
         </span>
       </div>
-      <dl className="adm-prov-fields">
-        {provider.fields.map(field => (
-          <div key={field.field}>
-            <dt>{field.label}</dt>
-            <dd>
-              <span
-                className={field.secret || !field.source ? undefined : 'adm-mono'}
-                title={field.secret ? undefined : (field.value ?? undefined)}
-              >
-                {shortValue(fieldValueText(field))}
-              </span>{' '}
-              {!field.secret && field.value && field.value.length > SHORT_VALUE_MAX && (
-                <CopyButton text={field.value} label="Copy" />
-              )}{' '}
-              <span className="help">{fieldNote(provider, field)}</span>
-            </dd>
-          </div>
-        ))}
-      </dl>
+      {help && <p className="help adm-prov-help">{help}</p>}
+      {!noKeys && (
+        <dl className="adm-prov-fields">
+          {provider.fields.map(field => (
+            <div key={field.field}>
+              <dt>{field.label}</dt>
+              <dd>
+                <span
+                  className={field.secret || !field.source ? undefined : 'adm-mono'}
+                  title={field.secret ? undefined : (field.value ?? undefined)}
+                >
+                  {isSwitch(provider, field) ? switchText(field) : shortValue(fieldValueText(field))}
+                </span>{' '}
+                {!field.secret && field.value && field.value.length > SHORT_VALUE_MAX && (
+                  <CopyButton text={field.value} label="Copy" />
+                )}{' '}
+                {provider.category !== 'recording' && <span className="help">{fieldNote(provider, field)}</span>}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
       {test && (
         <p className="adm-test" role="status">
           {test === 'running' ? (
@@ -210,19 +266,25 @@ type Props = {
 }
 
 /** What a category uses without a pick, matching the API and the voice agent. */
-const defaultNote = (category: ProviderCategory) =>
-  category === 'telephony'
-    ? 'Default: TELEPHONY_PROVIDER from the environment, else the first carrier that is set up (Telnyx before Twilio), else no carrier.'
-    : `Default: ${categoryEnv[category]} from the environment, else the first provider that is set up.`
+function defaultNote(category: ProviderCategory): string {
+  if (category === 'telephony')
+    return 'Default: TELEPHONY_PROVIDER from the environment, else the first carrier that is set up (Telnyx before Twilio), else no carrier.'
+  if (category === 'recording') return 'Default: as set on the server, else off.'
+  return `Default: ${categoryEnv[category]} from the environment, else the first provider that is set up.`
+}
 
 /** Says in one line which provider a category uses; the rule behind the default is in the tooltip. */
 function categoryNote(category: ProviderCategory, chosen: boolean, inUse: ProviderStatus | undefined): string {
   if (!chosen) {
-    if (!inUse)
-      return category === 'telephony' ? 'Uses: no carrier (development mode).' : 'Uses: nothing yet. Add keys below.'
+    if (!inUse) {
+      if (category === 'telephony') return 'Uses: no carrier (development mode).'
+      if (category === 'recording') return 'Off.'
+      return 'Uses: nothing yet. Add keys below.'
+    }
+    if (category === 'recording') return `Uses: ${inUse.label}.`
     return `Uses: ${inUse.label}${providerState(inUse) === 'env' ? ' (from server environment)' : ''}.`
   }
-  if (inUse && providerState(inUse) === 'none')
+  if (inUse && inUse.fields.length > 0 && providerState(inUse) === 'none')
     return `Picked here, but ${inUse.label} has no keys yet: set them below, or pick Default.`
   return 'Picked here.'
 }

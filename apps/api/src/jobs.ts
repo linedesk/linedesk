@@ -8,7 +8,7 @@ import { notifyCallFinished } from './call-notifications.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { deleteExpiredRecordings } from './recording-retention.ts'
-import { recordingStoreFromEnv } from './recording-store.ts'
+import { recordingStoreCache } from './recording-store.ts'
 
 type Env = Record<string, string | undefined>
 
@@ -26,7 +26,7 @@ export const jobQueue = () => boss
 async function runJobs(instance: PgBoss, env: Env) {
   await instance.schedule(RECORDING_CLEANUP, RECORDING_CLEANUP_CRON)
   await instance.work(RECORDING_CLEANUP, async () => {
-    const result = await deleteExpiredRecordings(db, recordingStoreFromEnv(env))
+    const result = await deleteExpiredRecordings(db, recordingStoreCache(db, env))
     if (result.deleted || result.failed)
       console.log(`recordings cleanup: ${result.deleted} deleted, ${result.failed} failed`)
     return result

@@ -1,14 +1,16 @@
 // The admin area: actions for the operator of the install. All need `instance:admin`, which no
 // workspace role has. They change tables that are not synced, so none has a `patch`.
 import { z } from 'zod'
+import { isRecordingPrefix } from './calls.ts'
 import { defineAction } from './define.ts'
 
-export type ProviderCategory = 'telephony' | 'stt' | 'llm' | 'tts'
+export type ProviderCategory = 'telephony' | 'stt' | 'llm' | 'tts' | 'recording'
 export const providerCategories: Record<ProviderCategory, string> = {
   telephony: 'Telephony',
   stt: 'Speech to text',
   llm: 'Language model',
   tts: 'Voice',
+  recording: 'Recording storage',
 }
 /** The variable that picks a category's provider when none is picked in the admin area. */
 export const categoryEnv: Record<ProviderCategory, string> = {
@@ -16,15 +18,26 @@ export const categoryEnv: Record<ProviderCategory, string> = {
   stt: 'STT_PROVIDER',
   llm: 'LLM_PROVIDER',
   tts: 'TTS_PROVIDER',
+  recording: 'RECORDING_STORE',
 }
 export const categoryNames = Object.keys(providerCategories) as [ProviderCategory, ...ProviderCategory[]]
 
 /**
  * `env` is the variable used when nothing is stored in the app. `optional` fields are not needed for a
- * connection. `hint` says what an empty field means (shown in the empty input).
+ * connection. `hint` says what an empty field means (shown in the empty input). `switch` fields hold
+ * "true" or "false" and show as a checkbox.
  */
-type ProviderField = { label: string; env: string; secret: boolean; optional?: true; hint?: string }
-type ProviderSpec = { label: string; category: ProviderCategory; fields: Record<string, ProviderField> }
+type ProviderField = { label: string; env: string; secret: boolean; optional?: true; hint?: string; switch?: true }
+/** Values the edit form can fill in for a known service (`<...>` parts are the operator's to replace). */
+export type ProviderPreset = { label: string; values: Record<string, string>; help: string }
+/** `help` is shown on the provider's card. */
+type ProviderSpec = {
+  label: string
+  category: ProviderCategory
+  fields: Record<string, ProviderField>
+  help?: string
+  presets?: readonly ProviderPreset[]
+}
 
 const apiKey = (env: string): ProviderField => ({ label: 'API key', env, secret: true })
 const model = (env: string): ProviderField => ({ label: 'Model', env, secret: false, optional: true })
@@ -65,8 +78,17 @@ export const providers = {
     category: 'llm',
     fields: {
       api_key: apiKey('OPENROUTER_API_KEY'),
-      model: { ...model('LLM_MODEL'), hint: 'google/gemini-2.5-flash-lite, openai/gpt-4.1-mini (fallbacks after a comma)' },
-      summary_model: { label: 'Summary model', env: 'SUMMARY_MODEL', secret: false, optional: true, hint: 'google/gemini-2.5-flash, openai/gpt-5.4-mini' },
+      model: {
+        ...model('LLM_MODEL'),
+        hint: 'google/gemini-2.5-flash-lite, openai/gpt-4.1-mini (fallbacks after a comma)',
+      },
+      summary_model: {
+        label: 'Summary model',
+        env: 'SUMMARY_MODEL',
+        secret: false,
+        optional: true,
+        hint: 'google/gemini-2.5-flash, openai/gpt-5.4-mini',
+      },
     },
   },
   openai: {
@@ -75,7 +97,13 @@ export const providers = {
     fields: {
       api_key: apiKey('OPENAI_API_KEY'),
       model: { ...model('LLM_MODEL'), hint: 'gpt-4.1-mini' },
-      summary_model: { label: 'Summary model', env: 'SUMMARY_MODEL', secret: false, optional: true, hint: 'gpt-4.1-mini' },
+      summary_model: {
+        label: 'Summary model',
+        env: 'SUMMARY_MODEL',
+        secret: false,
+        optional: true,
+        hint: 'gpt-4.1-mini',
+      },
     },
   },
   elevenlabs: {
@@ -84,6 +112,77 @@ export const providers = {
     fields: { api_key: apiKey('ELEVENLABS_API_KEY'), ...voiceFields },
   },
   cartesia: { label: 'Cartesia', category: 'tts', fields: { api_key: apiKey('CARTESIA_API_KEY'), ...voiceFields } },
+  // Recording storage: where LiveKit egress writes call audio and the API reads it. Not a paid API, but
+  // the same model: one active store, keys stored encrypted, env as fallback. No first-set-up fallback:
+  // without a pick or RECORDING_STORE, calls are not recorded (apps/api/src/provider-settings.ts).
+  file: {
+    label: 'Local disk',
+    category: 'recording',
+    fields: {},
+    help: 'Recordings stay on this server.',
+  },
+  s3: {
+    label: 'S3-compatible',
+    category: 'recording',
+    fields: {
+      endpoint: {
+        label: 'Endpoint URL',
+        env: 'S3_ENDPOINT',
+        secret: false,
+        hint: 'https://s3.us-east-1.amazonaws.com',
+      },
+      region: { label: 'Region', env: 'S3_REGION', secret: false, optional: true, hint: 'us-east-1' },
+      bucket: { label: 'Bucket', env: 'S3_BUCKET', secret: false },
+      access_key_id: { label: 'Access key ID', env: 'S3_ACCESS_KEY_ID', secret: false },
+      secret_access_key: { label: 'Secret access key', env: 'S3_SECRET_ACCESS_KEY', secret: true },
+      prefix: {
+        label: 'Path prefix',
+        env: 'S3_PREFIX',
+        secret: false,
+        optional: true,
+        hint: 'Optional',
+      },
+      force_path_style: {
+        label: 'Force path style',
+        env: 'S3_FORCE_PATH_STYLE',
+        secret: false,
+        optional: true,
+        switch: true,
+      },
+    },
+    help: 'AWS S3, Cloudflare R2, Hetzner, Backblaze B2, MinIO or any S3-compatible bucket.',
+    presets: [
+      {
+        label: 'AWS S3',
+        values: { endpoint: 'https://s3.<region>.amazonaws.com', region: '<region>', force_path_style: 'false' },
+        help: 'Replace <region>, e.g. us-east-1.',
+      },
+      {
+        label: 'Cloudflare R2',
+        values: { endpoint: 'https://<account-id>.r2.cloudflarestorage.com', region: 'auto', force_path_style: 'true' },
+        help: 'Replace <account-id> with your Cloudflare account ID.',
+      },
+      {
+        label: 'Hetzner',
+        values: {
+          endpoint: 'https://<location>.your-objectstorage.com',
+          region: '<location>',
+          force_path_style: 'false',
+        },
+        help: 'Replace <location>: fsn1, nbg1 or hel1.',
+      },
+      {
+        label: 'Backblaze B2',
+        values: { endpoint: 'https://s3.<region>.backblazeb2.com', region: '<region>', force_path_style: 'false' },
+        help: 'Replace <region>, e.g. us-west-004.',
+      },
+      {
+        label: 'MinIO',
+        values: { endpoint: 'http://<host>:9000', region: 'us-east-1', force_path_style: 'true' },
+        help: 'Replace <host> with your MinIO server.',
+      },
+    ],
+  },
 } as const satisfies Record<string, ProviderSpec>
 
 export type ProviderName = keyof typeof providers
@@ -105,8 +204,22 @@ export const providerSetKeys = defineAction({
       if (!names.length) ctx.addIssue({ code: 'custom', message: 'give at least one value' })
       // Messages name the field, never the value.
       for (const name of names) {
-        if (!fields[name]) ctx.addIssue({ code: 'custom', message: `${provider} has no field ${name}` })
+        const field = fields[name]
+        if (!field) ctx.addIssue({ code: 'custom', message: `${provider} has no field ${name}` })
+        else if (field.switch && !['true', 'false'].includes(values[name]!))
+          ctx.addIssue({ code: 'custom', message: `${name} must be true or false` })
       }
+      if (
+        provider === 's3' &&
+        values.endpoint !== undefined &&
+        !/^https?:\/\/[^\s/]+(\/[^\s]*)?$/.test(values.endpoint)
+      )
+        ctx.addIssue({
+          code: 'custom',
+          message: 'endpoint must be an http(s) URL, e.g. https://s3.us-east-1.amazonaws.com',
+        })
+      if (provider === 's3' && values.prefix !== undefined && !isRecordingPrefix(values.prefix))
+        ctx.addIssue({ code: 'custom', message: 'prefix may only hold letters, digits, - _ . and /' })
     }),
   permission: 'instance:admin',
   sensitive: ['values'],

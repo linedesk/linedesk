@@ -2,14 +2,20 @@
 // Instance admins and provider keys are global to the database, so every test that creates
 // them lives in this one file (files run in parallel, tests in a file do not).
 import { randomBytes } from 'node:crypto'
-import { actions, REDACTED } from '@callfront/actions'
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { actions, REDACTED, recordingKey } from '@callfront/actions'
 import { calls, commands, instance_settings, organization, provider_settings, session, user } from '@callfront/db'
-import { eq, sql } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { emailSender } from '../src/email.ts'
 import { db } from '../src/db.ts'
 import { grantFirstUser, instanceAdminHooks, refuseUnverifiedAdminAddress } from '../src/instance-admin.ts'
 import { telephonyProvider } from '../src/provider-settings.ts'
+import { deleteExpiredRecordings } from '../src/recording-retention.ts'
+import { recordingStoreCache } from '../src/recording-store.ts'
+import { fakeS3 } from './fake-s3.ts'
 import {
   act,
   addMember,
@@ -222,7 +228,7 @@ describe('provider keys', () => {
     expect(await fieldOf('openai', 'api_key')).toMatchObject({ source: null, last4: null, updated_at: null })
     const config = () => request(agent(), 'GET', AGENT_ROUTE)
     // Nothing set up: the agent can start and gets nothing to work with yet.
-    expect((await config()).body).toEqual({ stt: null, llm: null, tts: null })
+    expect((await config()).body).toEqual({ stt: null, llm: null, tts: null, recording: null })
 
     process.env.OPENAI_API_KEY = 'env-openai-key-0123456789'
     process.env.LLM_MODEL = 'model-from-env'
@@ -233,11 +239,17 @@ describe('provider keys', () => {
       stt: null,
       llm: { provider: 'openai', api_key: 'env-openai-key-0123456789', model: 'model-from-env', summary_model: null },
       tts: null,
+      recording: null,
     })
 
     await act(operator, 'provider.setKeys', { provider: 'openai', values: { api_key: SECRET } })
     expect(await fieldOf('openai', 'api_key')).toMatchObject({ source: 'app', last4: 'abcd' })
-    expect((await config()).body.llm).toEqual({ provider: 'openai', api_key: SECRET, model: 'model-from-env', summary_model: null })
+    expect((await config()).body.llm).toEqual({
+      provider: 'openai',
+      api_key: SECRET,
+      model: 'model-from-env',
+      summary_model: null,
+    })
 
     expect((await act(operator, 'provider.clearKeys', { provider: 'openai' })).status).toBe(200)
     expect(await fieldOf('openai', 'api_key')).toMatchObject({ source: 'env' })
@@ -252,6 +264,7 @@ describe('provider keys', () => {
       stt: { provider: null, chosen: false },
       llm: { provider: null, chosen: false },
       tts: { provider: null, chosen: false },
+      recording: { provider: null, chosen: false },
     })
 
     // Only OpenAI is set up: it is used although OpenRouter comes first in the registry.
@@ -424,6 +437,8 @@ describe('provider keys', () => {
       'openai',
       'elevenlabs',
       'cartesia',
+      'file',
+      's3',
     ])
     process.env.LIVEKIT_URL = 'ws://livekit.env.test:7880'
     process.env.LIVEKIT_API_KEY = 'APImadeup'
@@ -444,6 +459,245 @@ describe('provider keys', () => {
       },
     })
     expect(JSON.stringify(system.body)).not.toContain('made-up-livekit-secret')
+  })
+})
+
+describe('recording storage', () => {
+  const S3_SECRET = 's3-secret-made-up-0123456789'
+  const s3Keys = {
+    endpoint: 'https://s3.test',
+    region: 'auto',
+    bucket: 'calls',
+    access_key_id: 'AKIA-made-up-key-id',
+    secret_access_key: S3_SECRET,
+    prefix: 'linedesk',
+  }
+  const envBefore = { ...process.env }
+  let dir: string
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'callfront-recording-admin-'))
+  })
+  afterEach(async () => {
+    process.env = { ...envBefore }
+    vi.unstubAllGlobals()
+    await clearAll()
+  })
+  afterAll(() => rm(dir, { recursive: true, force: true }))
+
+  const agentConfig = async () => (await request(agent(), 'GET', AGENT_ROUTE)).body
+  const recordingOn = async (who: Caller = home.owner) =>
+    (await act(who, 'workspace.getSettings', {})).body.data.recordingOn
+  /** A finished call of `home` with a recording in `store` (null: recorded before stores were per call). */
+  async function recordedCall(store: 'file' | 's3' | null) {
+    const id = `call_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
+    const key = recordingKey(home.id, id)
+    await db.insert(calls).values({
+      id,
+      workspace_id: home.id,
+      from_number: '+15035550100',
+      to_number: home.number,
+      status: 'completed',
+      recording_key: key,
+      recording_store: store,
+    })
+    if (store !== 's3') {
+      await mkdir(join(dir, home.id), { recursive: true })
+      await writeFile(join(dir, key), `audio of ${id}`)
+    }
+    return { id, key }
+  }
+  const play = (callId: string) => appRequest(`/v1/calls/${callId}/recording`, { headers: home.owner.headers })
+
+  test('off until a store is picked or RECORDING_STORE names one; the local disk needs no keys', async () => {
+    expect((await providers()).active.recording).toEqual({ provider: null, chosen: false })
+    expect((await agentConfig()).recording).toBeNull()
+    expect(await recordingOn()).toBe(false)
+
+    process.env.RECORDING_STORE = 'file'
+    expect((await providers()).active.recording).toEqual({ provider: 'file', chosen: false })
+    expect((await agentConfig()).recording).toEqual({ provider: 'file' })
+    expect(await recordingOn()).toBe(true)
+
+    delete process.env.RECORDING_STORE
+    expect((await act(operator, 'provider.setActive', { category: 'recording', provider: 'file' })).status).toBe(200)
+    expect((await agentConfig()).recording).toEqual({ provider: 'file' })
+    expect(await recordingOn()).toBe(true)
+    expect((await act(operator, 'provider.setActive', { category: 'recording', provider: 'openai' })).status).toBe(422)
+  })
+
+  test('S3 settings: the stored value wins over S3_*, the env is the fallback; a picked S3 that is not set up records nothing', async () => {
+    await act(operator, 'provider.setActive', { category: 'recording', provider: 's3' })
+    expect((await agentConfig()).recording).toBeNull()
+
+    Object.assign(process.env, {
+      S3_ENDPOINT: 'https://env.s3.test',
+      S3_BUCKET: 'env-bucket',
+      S3_ACCESS_KEY_ID: 'env-key-id',
+      S3_SECRET_ACCESS_KEY: 'env-secret-0123456789',
+    })
+    expect((await agentConfig()).recording).toEqual({
+      provider: 's3',
+      endpoint: 'https://env.s3.test',
+      region: null,
+      bucket: 'env-bucket',
+      access_key_id: 'env-key-id',
+      secret_access_key: 'env-secret-0123456789',
+      prefix: null,
+      force_path_style: null,
+    })
+    expect(await fieldOf('s3', 'secret_access_key')).toMatchObject({ source: 'env', value: null, last4: null })
+
+    expect((await act(operator, 'provider.setKeys', { provider: 's3', values: s3Keys })).status).toBe(200)
+    expect((await agentConfig()).recording).toEqual({ provider: 's3', ...s3Keys, force_path_style: null })
+    expect(await fieldOf('s3', 'bucket')).toMatchObject({ source: 'app', value: 'calls' })
+    expect(await fieldOf('s3', 'secret_access_key')).toMatchObject({ source: 'app', value: null, last4: '6789' })
+  })
+
+  test('the S3 secret goes to the agent token only, and is redacted in the command log', async () => {
+    const key = crypto.randomUUID()
+    await act(operator, 'provider.setKeys', { provider: 's3', values: s3Keys }, key)
+    await act(operator, 'provider.setActive', { category: 'recording', provider: 's3' })
+    for (const who of [operator, other.owner, member]) {
+      const res = await request(who, 'GET', AGENT_ROUTE)
+      expect(res.status).toBe(403)
+      expect(JSON.stringify(res.body)).not.toContain(S3_SECRET)
+    }
+    expect(JSON.stringify(await providers())).not.toContain(S3_SECRET)
+    const [command] = await db.select().from(commands).where(eq(commands.id, key))
+    expect(JSON.stringify(command?.input)).not.toContain(S3_SECRET)
+    expect(JSON.stringify(await db.select().from(provider_settings))).not.toContain(S3_SECRET)
+    expect((await agentConfig()).recording.secret_access_key).toBe(S3_SECRET)
+  })
+
+  test('setKeys checks the switch, the endpoint and the prefix without echoing them', async () => {
+    const wrong = [{ force_path_style: 'yes' }, { endpoint: `ftp://${S3_SECRET}` }, { prefix: `../${S3_SECRET}` }]
+    for (const values of wrong) {
+      const res = await act(operator, 'provider.setKeys', { provider: 's3', values })
+      expect(res.status).toBe(422)
+      expect(JSON.stringify(res.body)).not.toContain(S3_SECRET)
+    }
+    expect(
+      (await act(operator, 'provider.setKeys', { provider: 's3', values: { force_path_style: 'false' } })).status,
+    ).toBe(200)
+  })
+
+  test('test connection: puts, reads back and deletes an object; a refusal names the step, never a key', async () => {
+    await act(operator, 'provider.setKeys', { provider: 's3', values: s3Keys })
+    const s3 = fakeS3()
+    vi.stubGlobal('fetch', s3.fetch)
+    expect((await act(operator, 'provider.test', { provider: 's3' })).body.data).toEqual({
+      ok: true,
+      message: 'Connected',
+    })
+    expect(s3.log.map(([method]) => method)).toEqual(['PUT', 'GET', 'DELETE'])
+    expect(s3.log[0]![1]).toMatch(/^https:\/\/s3\.test\/calls\/linedesk\/\.linedesk-probe-/)
+    expect(s3.objects.size).toBe(0)
+
+    vi.stubGlobal('fetch', fakeS3({ status: 403, code: 'SignatureDoesNotMatch' }).fetch)
+    const refused = (await act(operator, 'provider.test', { provider: 's3' })).body.data
+    expect(refused.ok).toBe(false)
+    expect(refused.message).toBe('Keys rejected (HTTP 403)')
+    expect(refused.message).not.toContain(s3Keys.access_key_id)
+
+    vi.stubGlobal('fetch', fakeS3({ status: 404, code: 'NoSuchBucket' }).fetch)
+    expect((await act(operator, 'provider.test', { provider: 's3' })).body.data.message).toBe('Bucket not found')
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Promise.reject(new TypeError('fetch failed', { cause: { message: `bad ${S3_SECRET}` } }))),
+    )
+    const unreachable = (await act(operator, 'provider.test', { provider: 's3' })).body.data
+    expect(unreachable).toEqual({ ok: false, message: 'Could not reach the storage: bad [redacted]' })
+
+    await act(operator, 'provider.clearKeys', { provider: 's3' })
+    expect((await act(operator, 'provider.test', { provider: 's3' })).body.data.message).toBe(
+      'Not set: Endpoint URL, Bucket, Access key ID, Secret access key',
+    )
+
+    process.env.RECORDINGS_DIR = join(dir, 'probe')
+    const file = (await act(operator, 'provider.test', { provider: 'file' })).body.data
+    expect(file).toEqual({ ok: true, message: 'Connected' })
+  })
+
+  test('after switching to S3, older recordings still play from the local disk; new ones from the bucket', async () => {
+    process.env.RECORDINGS_DIR = dir
+    const fileCall = await recordedCall('file')
+    const legacyCall = await recordedCall(null) // RECORDING_STORE is unset: the local disk
+    await act(operator, 'provider.setActive', { category: 'recording', provider: 'file' })
+    expect((await play(fileCall.id)).status).toBe(200)
+
+    await act(operator, 'provider.setKeys', { provider: 's3', values: s3Keys })
+    await act(operator, 'provider.setActive', { category: 'recording', provider: 's3' })
+    expect((await agentConfig()).recording.provider).toBe('s3')
+    for (const old of [fileCall, legacyCall]) {
+      const res = await play(old.id)
+      expect(res.status).toBe(200)
+      expect(await res.text()).toBe(`audio of ${old.id}`)
+    }
+    const s3Call = await recordedCall('s3')
+    const res = await play(s3Call.id)
+    expect(res.status).toBe(302)
+    const location = new URL(res.headers.get('location')!)
+    expect(location.origin + location.pathname).toBe(`https://s3.test/calls/linedesk/${s3Call.key}`)
+    expect(location.search).not.toContain(S3_SECRET)
+
+    // Switching back leaves the S3 recording playable from the bucket.
+    await act(operator, 'provider.setActive', { category: 'recording', provider: 'file' })
+    expect((await play(s3Call.id)).status).toBe(302)
+  })
+
+  test('the agent says which store it recorded into; an agent that does not leaves it to RECORDING_STORE', async () => {
+    const call = await recordedCall(null)
+    await db.update(calls).set({ recording_key: null }).where(eq(calls.id, call.id))
+    const set = await act(agent(home.id), 'call.setRecording', { callId: call.id, store: 's3' })
+    expect(set.body.rows.calls[0]).toMatchObject({ recording_key: call.key, recording_store: 's3' })
+    await act(agent(home.id), 'call.setRecording', { callId: call.id })
+    expect((await db.select().from(calls).where(eq(calls.id, call.id)))[0]?.recording_store).toBeNull()
+    expect((await act(agent(home.id), 'call.setRecording', { callId: call.id, store: 'ftp' })).status).toBe(422)
+  })
+
+  test('retention deletes each recording from the store it is in', async () => {
+    process.env.RECORDINGS_DIR = dir
+    const fileCall = await recordedCall('file')
+    await act(operator, 'provider.setKeys', { provider: 's3', values: s3Keys })
+    const s3 = fakeS3()
+    vi.stubGlobal('fetch', s3.fetch)
+    const s3Call = await recordedCall('s3')
+    const old = new Date(Date.now() - 400 * 86_400_000).toISOString()
+    await db
+      .update(calls)
+      .set({ started_at: old, ended_at: old })
+      .where(inArray(calls.id, [fileCall.id, s3Call.id]))
+    // Only ours: recordings of test files running alongside fail here and keep their key.
+    const real = recordingStoreCache(db)
+    const ours = new Set([fileCall.key, s3Call.key])
+    const deleted: [string | null, string][] = []
+    const storeFor = async (name: 'file' | 's3' | null) => {
+      const store = await real(name)
+      return {
+        ...store,
+        delete: async (key: string) => {
+          if (!ours.has(key)) throw new Error('a recording of another test file')
+          deleted.push([name, key])
+          await store.delete(key)
+        },
+      }
+    }
+    for (let i = 0; i < 5 && deleted.length < 2; i++) await deleteExpiredRecordings(db, storeFor)
+    expect(deleted.sort()).toEqual([
+      ['file', fileCall.key],
+      ['s3', s3Call.key],
+    ])
+    expect(s3.log).toContainEqual(['DELETE', `https://s3.test/calls/linedesk/${s3Call.key}`])
+    expect(await readdir(join(dir, home.id))).not.toContain(fileCall.key.split('/')[1])
+    const rows = await db
+      .select()
+      .from(calls)
+      .where(inArray(calls.id, [fileCall.id, s3Call.id]))
+    expect(rows.map(r => [r.recording_key, r.recording_store])).toEqual([
+      [null, null],
+      [null, null],
+    ])
   })
 })
 

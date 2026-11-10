@@ -1,13 +1,17 @@
 // Workspace settings that live in workspace_settings (not synced to browsers): read and change them
 // through the registry. One row per workspace; a workspace without one gets it on the first change.
 import { DEFAULT_RECORDING_RETENTION_DAYS, type WorkspaceSettingsData } from '@callfront/actions'
-import { availability_rules, workspace_settings } from '@callfront/db'
+import { availability_rules, type Tx, workspace_settings } from '@callfront/db'
 import { eq } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
+import { activeProvider } from './provider-settings.ts'
 
-/** Whether calls are recorded on this server: the voice agent records only with RECORDING_STORE file or s3. */
-export const recordingOn = (env: Record<string, string | undefined>) =>
-  env.RECORDING_STORE === 'file' || env.RECORDING_STORE === 's3'
+/**
+ * Whether calls are recorded on this server: a recording store is picked in the admin area (and set
+ * up), or RECORDING_STORE names one. The voice agent gets the same answer from GET /v1/agent/provider-config.
+ */
+export const recordingOn = async (tx: Tx, env: Record<string, string | undefined> = process.env) =>
+  (await activeProvider(tx, 'recording', env).catch(() => null)) !== null
 
 /** Used until a workspace has stored its own time zone (same default as onboarding). */
 const DEFAULT_TIME_ZONE = 'America/New_York'
@@ -29,7 +33,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       businessHours: rules
         .map(r => ({ weekday: r.weekday, start: r.start_time.slice(0, 5), end: r.end_time.slice(0, 5) }))
         .sort((a, b) => a.weekday - b.weekday || a.start.localeCompare(b.start)),
-      recordingOn: recordingOn(process.env),
+      recordingOn: await recordingOn(tx),
     }
     return { rows: {}, data }
   },

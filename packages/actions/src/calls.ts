@@ -180,6 +180,9 @@ export const callFlagUrgent = defineAction({
 /** `ogg` from LiveKit egress; `wav` for the demo recording the seed makes. */
 export const recordingFormats = ['ogg', 'wav'] as const
 export type RecordingFormat = (typeof recordingFormats)[number]
+/** The recording stores (providers of the `recording` category in admin.ts); a call keeps which one holds its recording. */
+export const recordingStores = ['file', 's3'] as const
+export type RecordingStoreName = (typeof recordingStores)[number]
 
 /** Where the recording of a call lives in the recording store: `<workspace>/<call>.<format>`. */
 export const recordingKey = (workspaceId: string, callId: string, format: RecordingFormat = 'ogg') =>
@@ -189,11 +192,26 @@ const KEY_PATTERN = new RegExp(`^[A-Za-z0-9_-]+/[A-Za-z0-9_-]+\\.(${recordingFor
 /** True for keys of the shape `recordingKey` builds: two plain segments, no dots or slashes inside them. */
 export const isRecordingKey = (key: string) => KEY_PATTERN.test(key)
 
+const PREFIX_PATTERN = /^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)*$/
+/** True for an S3 path prefix such as `linedesk/recordings` (plain segments, no `.` or `..` segment). Slashes around it are ignored. */
+export const isRecordingPrefix = (prefix: string) => {
+  const trimmed = prefix.replace(/^\/+|\/+$/g, '')
+  return !trimmed || (PREFIX_PATTERN.test(trimmed) && !trimmed.split('/').some(part => part === '.' || part === '..'))
+}
+/** The object key in an S3 bucket: the optional prefix, then the recording key. Egress writes it, the API reads it. */
+export function recordingObjectKey(prefix: string | null | undefined, key: string): string {
+  if (!isRecordingKey(key)) throw new Error(`not a recording key: ${key}`)
+  if (prefix && !isRecordingPrefix(prefix)) throw new Error('the S3 path prefix may only hold letters, digits, - _ . and /')
+  const trimmed = (prefix ?? '').replace(/^\/+|\/+$/g, '')
+  return trimmed ? `${trimmed}/${key}` : key
+}
+
 // The agent reports that the recording of a call is final; the server derives the key. Members play
 // it through GET /v1/calls/<id>/recording.
 export const callSetRecording = defineAction({
   name: 'call.setRecording',
-  description: 'Mark the recording of a call as final. The server derives where it is stored.',
-  input: callId.extend({ format: z.enum(recordingFormats).default('ogg') }),
+  description:
+    'Mark the recording of a call as final. The server derives its key; `store` says which recording store holds it (missing: the one RECORDING_STORE names).',
+  input: callId.extend({ format: z.enum(recordingFormats).default('ogg'), store: z.enum(recordingStores).optional() }),
   permission: 'agent',
 })

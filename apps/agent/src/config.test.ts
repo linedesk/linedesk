@@ -17,6 +17,7 @@ test('env defaults: Deepgram, OpenRouter with a fast live model and a stronger s
       summaryModel: 'google/gemini-2.5-flash', summaryFallbacks: ['openai/gpt-5.4-mini'],
     },
     tts: { provider: 'elevenlabs', apiKey: 'el', model: undefined, voiceId: undefined },
+    recording: { store: 'off' },
   })
 })
 
@@ -36,6 +37,7 @@ test('settings stored in Linedesk win over the environment, stage by stage', () 
     stt: { provider: 'deepgram', apiKey: 'dg-app', model: 'flux-general-en' },
     llm: { provider: 'openai', apiKey: 'oa-app', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4', fallbacks: [], summaryModel: 'gpt-4.1-mini', summaryFallbacks: [] },
     tts: { provider: 'elevenlabs', apiKey: 'el-app', model: undefined, voiceId: 'voice_app' },
+    recording: { store: 'off' },
   })
   // A stage that is not set up in Linedesk comes from the environment.
   const partly = resolveAgentConfig({ ...stored, llm: null }, keys)
@@ -154,4 +156,13 @@ test('models are lists: "model, fallback, ..." for live turns and the summary, b
   expect(app.llm).toMatchObject({ model: 'x/one', fallbacks: [], summaryModel: 'y/two', summaryFallbacks: ['z/three'] })
   // OpenAI's API takes no fallback list: only the first model is used.
   expect((await configFromEnv({ ...keys, OPENAI_API_KEY: 'oa', LLM_PROVIDER: 'openai', LLM_MODEL: 'gpt-a, gpt-b' })).llm).toMatchObject({ model: 'gpt-a', fallbacks: [] })
+})
+
+test('recording storage comes with the provider settings; without it (an older API, or null) the environment decides', () => {
+  const s3 = { provider: 's3', endpoint: 'https://s3.test', region: null, bucket: 'calls', access_key_id: 'k', secret_access_key: 's', prefix: null, force_path_style: 'true' }
+  const parsed = parseProviderSettings({ ...stored, recording: s3 })
+  expect(resolveAgentConfig(parsed, { ...keys, RECORDING_STORE: 'file' }).recording).toMatchObject({ store: 's3', s3: { bucket: 'calls', secretAccessKey: 's' } })
+  expect(resolveAgentConfig(parseProviderSettings(stored), { ...keys, RECORDING_STORE: 'file' }).recording).toEqual({ store: 'file' })
+  expect(resolveAgentConfig({ ...stored, recording: null }, keys).recording).toEqual({ store: 'off' })
+  expect(() => parseProviderSettings({ ...stored, recording: { provider: 's3', bucket: 42 } })).toThrow('unexpected shape')
 })

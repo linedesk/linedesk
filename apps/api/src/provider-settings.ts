@@ -80,13 +80,20 @@ function providerFromEnv(category: ProviderCategory, env: Env): ProviderName | n
 }
 
 /**
+ * Whether a category without a pick uses the first provider that is set up. Not recording storage:
+ * the local disk needs no settings, so it would always be "set up" and every install would record
+ * calls without being asked to. Recording is on once a store is picked or RECORDING_STORE names one.
+ */
+const autoPicks = (category: ProviderCategory) => category !== 'recording'
+
+/**
  * The provider a category uses and its config: the one picked in the admin area,
  * else the one its variable names, else the first in the registry with every needed field. null
  * when there is none, or when the picked or named one is not set up yet (no silent switch).
  */
 export async function activeProvider(tx: Tx, category: ProviderCategory, env: Env = process.env) {
   const named = (await chosenProvider(tx, category)) ?? providerFromEnv(category, env)
-  for (const provider of named ? [named] : providersIn(category)) {
+  for (const provider of named ? [named] : autoPicks(category) ? providersIn(category) : []) {
     const config = await resolveProvider(tx, provider, env)
     if (Object.keys(providerSpec(provider).fields).every(field => config[field] || isOptional(provider, field))) {
       return { provider, config }
@@ -117,8 +124,10 @@ export async function telephonyProvider(tx: Tx, env: Env = process.env): Promise
 }
 
 const voiceCategories = ['stt', 'llm', 'tts'] as const satisfies readonly ProviderCategory[]
+/** What the agent gets: the voice stages, and where to record calls. */
+const agentCategories = [...voiceCategories, 'recording'] as const satisfies readonly ProviderCategory[]
 type VoiceEntry = { provider: ProviderName } & Record<string, string | null>
-export type VoiceProviderConfig = Record<(typeof voiceCategories)[number], VoiceEntry | null>
+export type VoiceProviderConfig = Record<(typeof agentCategories)[number], VoiceEntry | null>
 
 /**
  * Whether the server has what the voice agent needs to answer a call: LiveKit in env and a speech,
@@ -137,11 +146,13 @@ export async function voiceReady(tx: Tx, env: Env = process.env): Promise<boolea
 
 /**
  * What the voice agent needs for a call: per category the active provider with its values in
- * clear, or null when none is set up. Only ever sent to the agent token.
+ * clear, or null when none is set up (`recording`: null means not recorded, unless the agent's own
+ * RECORDING_STORE says otherwise). Holds secrets, the S3 secret access key included: only ever
+ * sent to the agent token.
  */
 export async function voiceProviderConfig(tx: Tx): Promise<VoiceProviderConfig> {
   const config = {} as VoiceProviderConfig
-  for (const category of voiceCategories) {
+  for (const category of agentCategories) {
     const active = await activeProvider(tx, category)
     config[category] = active && {
       provider: active.provider,
@@ -197,7 +208,12 @@ export async function providerStatus(tx: Tx, env: Env = process.env) {
     fields: Object.entries(providerSpec(provider).fields).map(([field, spec]) => {
       const row = rows.find(r => r.provider === provider && r.field === field)
       const fromEnv = env[spec.env]
-      const base = { field, label: spec.label, secret: spec.secret, hint: ('hint' in spec ? spec.hint : undefined) ?? null }
+      const base = {
+        field,
+        label: spec.label,
+        secret: spec.secret,
+        hint: ('hint' in spec ? spec.hint : undefined) ?? null,
+      }
       if (row) {
         return {
           ...base,
@@ -226,7 +242,9 @@ export async function providerStatus(tx: Tx, env: Env = process.env) {
     const chosen = await chosenProvider(tx, category)
     // TELEPHONY_PROVIDER=dev means no carrier, even when a carrier is set up.
     const noCarrier = category === 'telephony' && env.TELEPHONY_PROVIDER === 'dev'
-    const firstSetUp = providers.find(p => p.category === category && isSetUp(p))?.provider ?? null
+    const firstSetUp = autoPicks(category)
+      ? (providers.find(p => p.category === category && isSetUp(p))?.provider ?? null)
+      : null
     const fallback = noCarrier ? null : (providerFromEnv(category, env) ?? firstSetUp)
     active[category] = { provider: chosen ?? fallback, chosen: !!chosen }
   }

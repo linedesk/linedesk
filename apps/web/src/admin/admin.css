@@ -181,6 +181,23 @@
   border-radius: var(--radius-sm);
   background: var(--surface-hover);
 }
+.adm-presets {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.adm-presets > .help:first-child {
+  margin-right: 4px;
+}
+.adm-preset-help {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+}
+.adm-prov-help {
+  margin: 0;
+  max-width: 640px;
+}
 .adm-keys-foot {
   display: flex;
   align-items: center;

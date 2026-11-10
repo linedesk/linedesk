@@ -1,6 +1,7 @@
 // GET /v1/calls/:id/recording: the audio of a call, for members of the call's workspace only.
 // A file store is streamed from here, with Range support so players can seek; an S3 store gets
-// a redirect to a short-lived signed link.
+// a redirect to a short-lived signed link. The store is the one the call's recording went to
+// (calls.recording_store), resolved on each request: settings changed in the admin area apply at once.
 import { createReadStream } from 'node:fs'
 import { Readable } from 'node:stream'
 import { isRecordingKey, recordingFormats, recordingKey } from '@callfront/actions'
@@ -8,7 +9,8 @@ import { calls } from '@callfront/db'
 import { and, eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
-import { RecordingConfigError, recordingStoreFromEnv } from './recording-store.ts'
+import { RecordingConfigError, recordingStoreNamed } from './recording-store.ts'
+import { SecretsKeyError } from './secrets.ts'
 
 const SIGNED_URL_TTL_SEC = 300
 const contentType = (key: string) =>
@@ -56,13 +58,19 @@ function ownKey(call: { id: string; workspace_id: string; recording_key: string 
 export async function serveRecording(actor: Actor, callId: string, rangeHeader: string | undefined): Promise<Response> {
   if (!actor.workspaceId || !actor.permissions.includes('call:read')) return error(403, 'missing permission call:read')
   const [call] = await db
-    .select({ id: calls.id, workspace_id: calls.workspace_id, recording_key: calls.recording_key })
+    .select({
+      id: calls.id,
+      workspace_id: calls.workspace_id,
+      recording_key: calls.recording_key,
+      recording_store: calls.recording_store,
+    })
     .from(calls)
     .where(and(eq(calls.id, callId), eq(calls.workspace_id, actor.workspaceId)))
   const key = call && ownKey(call)
   if (!key) return error(404, 'no recording for this call')
   try {
-    const location = await recordingStoreFromEnv(process.env).locate(key, SIGNED_URL_TTL_SEC)
+    const store = await recordingStoreNamed(db, call.recording_store)
+    const location = await store.locate(key, SIGNED_URL_TTL_SEC)
     if (!location) return error(404, 'no recording for this call')
     if ('url' in location)
       return new Response(null, {
@@ -72,6 +80,7 @@ export async function serveRecording(actor: Actor, callId: string, rangeHeader: 
     return fileResponse(location.path, location.size, contentType(key), rangeHeader)
   } catch (e) {
     if (e instanceof RecordingConfigError) return error(409, `recording storage is not set up: ${e.message}`)
+    if (e instanceof SecretsKeyError) return error(409, `recording storage keys cannot be read: ${e.message}`)
     throw e
   }
 }

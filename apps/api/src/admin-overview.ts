@@ -20,6 +20,9 @@ export const pricePerMinute: Record<ProviderName, number> = {
   openai: 0.003,
   elevenlabs: 0.018,
   cartesia: 0.018,
+  // Recording storage is billed per stored byte, not per call minute: not part of this estimate.
+  file: 0,
+  s3: 0,
 }
 
 export type ProviderCost = {
@@ -83,7 +86,7 @@ function people(tx: Tx) {
 export async function adminOverview(tx: Tx): Promise<AdminOverview> {
   const [t, p] = await Promise.all([callTotals(tx), people(tx)])
   const costs: ProviderCost[] = []
-  for (const category of categoryNames) {
+  for (const category of categoryNames.filter(c => c !== 'recording')) {
     const active = await activeProvider(tx, category).catch(() => null)
     // A carrier only bills phone calls; speech, language model and voice also run in browser test calls.
     const [sec7d, secMonth] = category === 'telephony' ? [t.phone_sec_7d, t.phone_sec_month] : [t.sec_7d, t.sec_month]

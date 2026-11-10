@@ -9,7 +9,7 @@ import { afterAll, beforeAll, expect, test } from 'vitest'
 import { app } from '../src/app.ts'
 import { db } from '../src/db.ts'
 import { linkOrphanRecordings } from '../src/orphan-recordings.ts'
-import { recordingStoreFromEnv } from '../src/recording-store.ts'
+import { createFileRecordingStore } from '../src/recording-store.ts'
 import { act, agent, anonymous, createWorkspace, getCall, randomNumber, type Caller, type Workspace } from './helpers.ts'
 
 const audio = Uint8Array.from({ length: 1000 }, (_, i) => i % 256)
@@ -107,10 +107,11 @@ test('the sweep links a recording file that was never reported, and nothing else
   const { body } = await start()
   expect(body.rows.calls.map((c: { id: string }) => c.id)).toEqual([body.data.callId]) // not on the call's path
   expect((await getCall(lost))?.recording_key).toBeNull()
-  const linked = await linkOrphanRecordings(db, recordingStoreFromEnv(process.env))
+  const linked = await linkOrphanRecordings(db, { name: 'file', store: createFileRecordingStore(dir) })
   expect(linked).toContain(lost)
   expect(linked).not.toContain(reported)
   expect((await getCall(lost))?.recording_key).toBe(`${other.id}/${lost}.ogg`)
+  expect((await getCall(lost))?.recording_store).toBe('file')
   expect((await getCall(reported))?.recording_key).toBeNull()
   expect((await getCall(live))?.recording_key).toBeNull()
   expect((await recording(other.owner, lost)).status).toBe(200)
@@ -122,7 +123,8 @@ test('with an S3 store the route redirects to a short-lived signed link', async 
     const res = await recording(ws.owner, ws.call.id)
     expect(res.status).toBe(302)
     const location = new URL(res.headers.get('location')!)
-    expect(location.origin + location.pathname).toBe(`https://s3.test/recordings/${key}`)
+    // S3 settings stored by admin.test (same database, running alongside) win over these env values: only the key is fixed.
+    expect(location.pathname.endsWith(`/${key}`)).toBe(true)
     expect(location.searchParams.get('X-Amz-Expires')).toBe('300')
     expect((await recording(other.owner, ws.call.id)).status).toBe(404)
   } finally {
@@ -132,11 +134,12 @@ test('with an S3 store the route redirects to a short-lived signed link', async 
 
 test('a recording store that is not configured is a rejection, and does not break call.start', async () => {
   const saved = { ...process.env }
-  Object.assign(process.env, { RECORDING_STORE: 's3', S3_ENDPOINT: '', S3_BUCKET: '', S3_ACCESS_KEY_ID: '', S3_SECRET_ACCESS_KEY: '' })
+  // A store named only by env (S3 settings may be stored by admin.test in the same database meanwhile).
+  process.env.RECORDING_STORE = 'minio'
   try {
     const res = await recording(ws.owner, ws.call.id)
     expect(res.status).toBe(409)
-    expect(await res.json()).toEqual({ ok: false, error: 'recording storage is not set up: S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY not set (needed for RECORDING_STORE=s3)' })
+    expect(await res.json()).toEqual({ ok: false, error: 'recording storage is not set up: unknown RECORDING_STORE "minio" (use file or s3)' })
     expect((await act(agent(), 'call.start', { from: randomNumber(), to: other.number })).status).toBe(200)
   } finally {
     Object.assign(process.env, saved)
