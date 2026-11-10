@@ -5,14 +5,16 @@ import type { Assistant } from '@callfront/db/types'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useAssistant, useRun } from '../store.tsx'
 import { Button } from '../ui/kit.tsx'
-import { type Draft, callRulesToSave, draftOf, draftProblem, isDefaultCallRules, isDirty, keepDraft, keptDraft, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure } from './assistantDraft.ts'
+import { type Draft, callRulesToSave, staleGreetingName, draftOf, draftProblem, isDefaultCallRules, isDirty, keepDraft, keptDraft, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure } from './assistantDraft.ts'
 import { Field, Section, SwitchRow, TextArea, TextInput } from './fields.tsx'
+import { renameInGreeting } from '../onboarding/flow.ts'
 import { TestCall } from './TestCall.tsx'
 
 type SectionProps = { draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void }
 
-function Greeting({ draft, set }: SectionProps) {
+function Greeting({ draft, set, savedName }: SectionProps & { savedName: string }) {
   const name = draft.name.trim() || 'The assistant'
+  const stale = staleGreetingName(draft.greeting, savedName, draft.name)
   /** The switch and the greeting say the same thing: turning it on or off adds or removes the disclosure. */
   function disclose(on: boolean) {
     set('disclose_ai', on)
@@ -20,10 +22,22 @@ function Greeting({ draft, set }: SectionProps) {
   }
   return (
     <Section id="as-greeting" title="Greeting" description="The first sentence of every call.">
-      <div className="row2"><Field id="as-name" label="Assistant name"><TextInput id="as-name" value={draft.name} onChange={v => set('name', v)} /></Field></div>
+      <div className="row2">
+        <Field id="as-name" label="Assistant name">
+          <TextInput id="as-name" value={draft.name} onChange={v => set('name', v)} />
+          {!draft.name.trim() && <span className="field-error" role="alert">Give your assistant a name. Callers hear it in the greeting.</span>}
+        </Field>
+      </div>
       <Field id="as-greet" label="Greeting">
         <TextArea id="as-greet" value={draft.greeting} onChange={v => set('greeting', v)} />
         <span className="help">{draft.greeting.trim().length} characters · {spokenLength(draft.greeting)}</span>
+        {!draft.greeting.trim() && <span className="field-error" role="alert">The greeting is the first thing callers hear: it cannot be empty.</span>}
+        {stale && (
+          <span className="help as-stale">
+            The greeting still says "{stale}".{' '}
+            <Button size="sm" variant="ghost" onClick={() => set('greeting', renameInGreeting(draft.greeting, stale, draft.name.trim()))}>Use {draft.name.trim()} in the greeting</Button>
+          </span>
+        )}
       </Field>
       <SwitchRow title="Tell callers it's an AI assistant" on={draft.disclose_ai} onChange={disclose}
         description={draft.disclose_ai ? `${name} says it is an AI assistant in the greeting.` : 'Some states require disclosure. We recommend leaving this on.'} />
@@ -99,7 +113,7 @@ function Form({ assistant, canEdit, toast }: Props & { assistant: Assistant }) {
       <div className="page-head"><div><h1>Assistant</h1><p>How {draft.name || 'your assistant'} answers your phone.</p></div></div>
       <TestCall canStart={canEdit} />
       <fieldset className="st-fields" disabled={!canEdit}>
-        <Greeting draft={draft} set={set} />
+        <Greeting draft={draft} set={set} savedName={saved.name} />
         <Instructions draft={draft} set={set} />
         <CallRules draft={draft} set={set} />
       </fieldset>

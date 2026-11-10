@@ -12,7 +12,8 @@ import {
 import { useState, type FormEvent } from 'react'
 import { Badge, Button } from '../ui/kit.tsx'
 import { type ActiveProviders, type ProviderField, type ProviderStatus, runAdmin, testProvider } from './api.ts'
-import { fieldValueText, providerState, stateLabel } from './model.ts'
+import { CopyButton } from '../onboarding/Frame.tsx'
+import { fieldValueText, providerState, SHORT_VALUE_MAX, shortValue, stateLabel } from './model.ts'
 import { Confirm, when } from './parts.tsx'
 import { errorText, type Notify } from './notify.ts'
 
@@ -160,7 +161,15 @@ function ProviderRow({ provider, inUse, canStore, toast, reload }: RowProps) {
           <div key={field.field}>
             <dt>{field.label}</dt>
             <dd>
-              <span className={field.secret || !field.source ? undefined : 'adm-mono'}>{fieldValueText(field)}</span>{' '}
+              <span
+                className={field.secret || !field.source ? undefined : 'adm-mono'}
+                title={field.secret ? undefined : (field.value ?? undefined)}
+              >
+                {shortValue(fieldValueText(field))}
+              </span>{' '}
+              {!field.secret && field.value && field.value.length > SHORT_VALUE_MAX && (
+                <CopyButton text={field.value} label="Copy" />
+              )}{' '}
               <span className="help">{fieldNote(provider, field)}</span>
             </dd>
           </div>
@@ -206,9 +215,13 @@ const defaultNote = (category: ProviderCategory) =>
     ? 'Default: TELEPHONY_PROVIDER from the environment, else the first carrier that is set up (Telnyx before Twilio), else no carrier.'
     : `Default: ${categoryEnv[category]} from the environment, else the first provider that is set up.`
 
-/** Says which provider a category uses, and warns when the picked one cannot work yet. */
+/** Says in one line which provider a category uses; the rule behind the default is in the tooltip. */
 function categoryNote(category: ProviderCategory, chosen: boolean, inUse: ProviderStatus | undefined): string {
-  if (!chosen) return defaultNote(category)
+  if (!chosen) {
+    if (!inUse)
+      return category === 'telephony' ? 'Uses: no carrier (development mode).' : 'Uses: nothing yet. Add keys below.'
+    return `Uses: ${inUse.label}${providerState(inUse) === 'env' ? ' (from server environment)' : ''}.`
+  }
   if (inUse && providerState(inUse) === 'none')
     return `Picked here, but ${inUse.label} has no keys yet: set them below, or pick Default.`
   return 'Picked here.'
@@ -245,7 +258,7 @@ export function Providers({ providers, active, canStore, notify, reload }: Props
             <div className="adm-cat-head">
               <div>
                 <h2>{providerCategories[category]}</h2>
-                <p className="help">
+                <p className="help" title={defaultNote(category)}>
                   {categoryNote(
                     category,
                     chosen,

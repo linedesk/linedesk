@@ -963,3 +963,15 @@ a.k-btn {
     animation: sk 1.2s ease-in-out infinite;
   }
 }
+
+/* A field that cannot be saved as it is: says why, right under it */
+.field-error {
+  font-size: 12px;
+  color: var(--danger);
+}
+.as-stale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}

@@ -59,3 +59,8 @@ export function fieldValueText(field: ProviderField): string {
   if (field.source === 'env') return 'Set'
   return field.last4 ? `••••${field.last4}` : '••••'
 }
+
+/** Longer values (a webhook public key) are cut in the middle so a row stays one line; Copy has the whole value. */
+export const SHORT_VALUE_MAX = 32
+export const shortValue = (value: string) =>
+  value.length > SHORT_VALUE_MAX ? `${value.slice(0, 14)}…${value.slice(-8)}` : value

@@ -7,7 +7,7 @@ import type { IconName } from '../ui/icons.ts'
 import { Icon, Kbd } from '../ui/kit.tsx'
 import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
 import type { ListKeys } from './AdminList.tsx'
-import { type AdminData, loadAdminData } from './api.ts'
+import { type AdminData, type AdminHealth, loadAdminData, loadHealth } from './api.ts'
 import { errorText, type Notify } from './notify.ts'
 import { Overview } from './Overview.tsx'
 import { Providers } from './Providers.tsx'
@@ -74,6 +74,39 @@ function useAdminToast() {
   return { toast, notify, undo }
 }
 
+const partNames: Record<keyof AdminHealth, string> = {
+  api: 'API',
+  livekit: 'LiveKit',
+  sip: 'Phone (SIP)',
+  agent: 'Voice agent',
+  email: 'Email',
+}
+
+/** The parts of the install that report a problem, checked when admin opens and every few minutes. */
+function useHealthProblems(): string[] {
+  const [problems, setProblems] = useState<string[]>([])
+  useEffect(() => {
+    let live = true
+    const check = () =>
+      loadHealth().then(
+        health => {
+          if (live)
+            setProblems(
+              (Object.keys(partNames) as (keyof AdminHealth)[]).filter(k => !health[k].ok).map(k => partNames[k]),
+            )
+        },
+        () => {}, // the overview says when health cannot be read
+      )
+    void check()
+    const timer = setInterval(check, 5 * 60_000)
+    return () => {
+      live = false
+      clearInterval(timer)
+    }
+  }, [])
+  return problems
+}
+
 type Props = { currentUserId: string; onExit: () => void }
 
 export function AdminMode({ currentUserId, onExit }: Props) {
@@ -82,6 +115,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   const [error, setError] = useState<string | null>(null)
   const { toast, notify, undo } = useAdminToast()
   const listKeys = useRef<ListKeys | null>(null)
+  const problems = useHealthProblems()
 
   const reload = useCallback(async () => {
     try {
@@ -208,6 +242,14 @@ export function AdminMode({ currentUserId, onExit }: Props) {
           >
             <Icon name={icons[s.id]} size={15} />
             <span className="lbl">{s.label}</span>
+            {s.id === 'overview' && problems.length > 0 && (
+              <span
+                className="adm-nav-dot"
+                role="img"
+                aria-label={`Problem: ${problems.join(', ')}`}
+                title={`Problem: ${problems.join(', ')}`}
+              />
+            )}
             <Kbd keys={[String(i + 1)]} />
           </button>
         ))}

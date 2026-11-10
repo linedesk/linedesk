@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import type { ProviderField, ProviderStatus } from './api.ts'
 import {
   fieldValueText,
+  shortValue,
   formatMinutes,
   monthLabel,
   nextSort,
@@ -76,4 +77,10 @@ test('a secret shows at most its last four characters', () => {
   expect(fieldValueText(field({ secret: false, source: 'env', value: 'ws://localhost:7880' }))).toBe(
     'ws://localhost:7880',
   )
+})
+
+test('long values are cut in the middle, short ones stay whole', () => {
+  expect(shortValue('openai/gpt-5.4-mini')).toBe('openai/gpt-5.4-mini')
+  const key = 'MCowBQYDK2VwAyEAbcdefghijklmnopqrstuvwxyz0123456789='
+  expect(shortValue(key)).toBe('MCowBQYDK2VwAy…3456789=')
 })

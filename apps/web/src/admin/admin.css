@@ -709,3 +709,15 @@
     grid-column: 2;
   }
 }
+
+/* Admin navigation: a red dot on Overview while a part of the install has a problem */
+.adm-nav-dot {
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-radius: var(--radius-full);
+  background: var(--danger);
+}
+.adm-nav-dot + .k-kbds {
+  margin-left: 6px;
+}

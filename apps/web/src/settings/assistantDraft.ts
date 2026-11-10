@@ -2,6 +2,7 @@
 // changes that arrive through sync, checked and turned back into what assistant.update takes.
 import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX, callRulesOf } from '@callfront/actions'
 import type { Assistant, BusinessProfile } from '@callfront/db/types'
+import { renameInGreeting } from '../onboarding/flow.ts'
 
 export type Draft = { name: string; greeting: string; disclose_ai: boolean; instructions: string; call_rules: string }
 
@@ -103,3 +104,10 @@ export const callRulesToSave = (d: Draft): string | null => {
 }
 
 export const isDefaultCallRules = (d: Draft) => callRulesToSave(d) === null
+
+/** The greeting still names the assistant by its saved name after a rename ("This is Maya" → Ava). */
+export function staleGreetingName(greeting: string, savedName: string, name: string): string | null {
+  const next = name.trim()
+  if (!next || !savedName || next === savedName) return null
+  return renameInGreeting(greeting, savedName, next) === greeting ? null : savedName
+}

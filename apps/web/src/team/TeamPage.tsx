@@ -113,6 +113,7 @@ export function TeamPage({ toast }: { toast: (text: string) => void }) {
         </Section>
         {(data.canManage || data.invitations.length > 0) && (
           <Section id="team-invites" title="Invitations" description="Invited people join when they open the link in their email. Links work for 7 days.">
+            {data.invitations.length === 0 && <p className="help">No pending invitations.</p>}
             {data.invitations.length > 0 && <div className="st-list">{data.invitations.map(i => <InvitationRow key={i.invitationId} invite={i} canManage={data.canManage} run={run} />)}</div>}
             {data.canManage && <InviteForm data={data} run={run} toast={toast} />}
           </Section>

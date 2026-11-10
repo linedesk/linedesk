@@ -1,7 +1,7 @@
 import type { Assistant } from '@callfront/db/types'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_CALL_RULES } from '@callfront/actions'
-import { callRulesToSave, disclosesAi, draftOf, isDefaultCallRules, draftProblem, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure } from './assistantDraft.ts'
+import { callRulesToSave, disclosesAi, draftOf, isDefaultCallRules, draftProblem, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure, staleGreetingName } from './assistantDraft.ts'
 
 const oldProfile = { description: 'Plumbing', services: ['Leak repair', ' ', 'Drains'], service_area: 'Portland', address: '1 Main St', hours: 'Mon–Fri', faqs: [{ q: 'Estimates?', a: 'Free.' }, { q: '', a: '' }] }
 const assistant = (over: Partial<Assistant> = {}) => ({ id: 'as1', name: 'Maya', greeting: 'Hello', disclose_ai: true, business_profile: oldProfile, ...over }) as Assistant
@@ -83,4 +83,11 @@ describe('call rules', () => {
     expect(callRulesToSave({ ...draft, call_rules: ' Ask twice. ' })).toBe('Ask twice.')
     expect(draftProblem({ ...draft, call_rules: 'x'.repeat(10_001) })).toBe('How to handle calls is too long: 10,001 of 10,000 characters.')
   })
+})
+
+it('a renamed assistant whose greeting still says the old name is noticed', () => {
+  expect(staleGreetingName('Thanks for calling. This is Maya, the AI assistant.', 'Maya', 'Ava')).toBe('Maya')
+  expect(staleGreetingName('Thanks for calling. This is Ava.', 'Maya', 'Ava')).toBeNull()
+  expect(staleGreetingName('This is Maya.', 'Maya', 'Maya')).toBeNull()
+  expect(staleGreetingName('This is Maya.', 'Maya', '  ')).toBeNull()
 })
