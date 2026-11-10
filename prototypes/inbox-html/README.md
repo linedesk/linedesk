@@ -1,8 +1,8 @@
-# Inbox HTML prototype (from Relay)
+# Inbox prototype (chosen design)
 
-Single-file React prototype of the call inbox, imported from the archived `relay-cx/relay` repo. Fictional data (working name "Kontor", insurance-broker examples). Nothing talks to a backend.
+Single-file React prototype of Callfront: the reference for the real web app. Relay design (black primary, Superhuman-style), with Callfront's features rebuilt in it. Fictional data: Brightwater Plumbing & Heating (Portland), assistant "Maya", owner Mike Brennan. Nothing talks to a backend.
 
-Shows: split inbox with Done and Reminders, inline search over callers and transcripts, call view with player, summary and transcript, customer side panel, Customers page, Assistant Settings with capability tiles, ⌘K with fuzzy search, undo stack, Superhuman-style keys and tooltips, onboarding key drill.
+Shows: inbox (Needs you / Handled by Maya / Spam, Reminders, Done, day groups, unread dot, search over transcripts), call view (issue as title, player, summary, booking card, live call card, transcript with tool events, customer panel), bookings week view, customers, assistant settings (greeting, voice, knowledge, booking types, hours, rules, capabilities), onboarding, ⌘K, `?` shortcut sheet, undo, tooltips, key tips after mouse use.
 
 ## Run
 

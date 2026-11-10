@@ -2,29 +2,25 @@
 
 The open-source AI front desk. Every call answered, every caller handled.
 
-This repo is the **first UX mock-up** (phone + calendar only). All data is dummy data for a fictional plumbing company in Portland; nothing talks to a backend yet. Types and flows mirror the planned implementation in [docs/architecture.md](docs/architecture.md).
+Status: prototypes and architecture; the backend is next. Private until the first public release.
 
-```bash
-npm install
-npm run dev
-```
+## What's here
 
-## Screens
-
-| Route | What it shows |
+| Path | What it is |
 | --- | --- |
-| `/inbox` | List of calls (caller, summary, booked appointment, duration, time) in four views: Needs you (sorted by priority) / Handled by Maya / All calls / Spam. `Enter` opens one call in focus ("2 of 4", J/K), `E` marks done and jumps to the next, `Esc` back to the list. Summary, extracted fields, booking, recording with synced transcript, contact panel. A live call streams in and books itself. |
-| `/bookings` | Week view of the connected calendar: what Maya booked vs. events from your own calendars. |
-| `/receptionist` | Name & voice, greeting (AI disclosure locked on), business knowledge, booking types, urgent & transfer rules, test call. |
-| `/settings` | Phone number & forwarding codes, calendars (check conflicts / book into), team, notifications, voice & AI providers, privacy, usage. |
-| `/onboarding` | 5 steps: website import → calendar → voice → phone forwarding → test call → live. |
+| [`prototypes/inbox-html/`](prototypes/inbox-html) | The chosen design: single-file clickable prototype (inbox, call view, bookings, customers, assistant settings, onboarding). Run: `cd prototypes/inbox-html && python3 -m http.server 4173` |
+| `src/` (root) | Janik's Next.js UX mock-up with the same scenario. Run: `npm install && npm run dev`. Moves to `prototypes/callfront-next/` when the monorepo is created. |
+| [`docs/`](docs) | Architecture, stack, plan, decisions, research, design principles |
 
-## Keyboard
-
-`J`/`K` move · `E` done · `Z` undo · `B` book · `H` snooze · `A` assign · `C` call back · `L`/`T` listen / take over a live call · `1`–`5` tabs · `Space` play recording · `M` menu · `⌘K` command palette · `G` then `I`/`B`/`R`/`S` navigate · `?` all shortcuts
+All data is fictional (Brightwater Plumbing & Heating, Portland; assistant "Maya"). Nothing talks to a backend yet.
 
 ## Docs
 
-- [docs/research.md](docs/research.md): what an AI receptionist must do well
-- [docs/design-principles.md](docs/design-principles.md): Apple HIG + clean-product rules we follow
-- [docs/architecture.md](docs/architecture.md): backend design (Telnyx → LiveKit SIP → LiveKit Agents, Google/Microsoft calendars, data model)
+- [docs/architecture.md](docs/architecture.md): how Callfront works (single source of truth)
+- [docs/stack.md](docs/stack.md): why this stack: research, spikes, costs per minute
+- [docs/plan.md](docs/plan.md): principles, open-source readiness, workstreams
+- [docs/decisions.md](docs/decisions.md): decisions log
+- [docs/research.md](docs/research.md): what an AI front desk must do well
+- [docs/design-principles.md](docs/design-principles.md): UI rules
+
+Working on the code: read [CLAUDE.md](CLAUDE.md) first.

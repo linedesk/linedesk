@@ -19,11 +19,11 @@ Notes behind the mock-up. Sources at the end.
 | Setup | Website import, calendar connect, forwarding codes per carrier, test call, under 10 minutes | Self-serve without sales (product strategy) |
 | Calendar | Conflict calendars vs. booking calendar, working hours, appointment types with duration/buffer/min notice | Without this the agent can't book safely and double-books |
 | Call handling | Returning-caller recognition, emergency escalation with warm transfer, message taking | Covers ~all inbound call types of service businesses |
-| Inbox | Process tabs (Needs you / Handled by Maya / All calls / Spam), one-key actions, undo, snooze, command palette | Superhuman model: speed is the product |
+| Inbox | Views by who has to act (Needs you / Handled by Maya / Spam, plus Reminders and Done), search over all calls, one-key actions, undo, reminders, command palette | Superhuman model: speed is the product |
 | Call card | One-line title, summary, extracted fields, action items, booking card, recording synced to transcript, tool events inline | Understand a call without listening to it |
 | Live | Live transcript, Listen, Take over | Control and trust |
 | Value | Weekly counter: answered, booked, ≈ booked work | Makes the price obvious, is our marketing |
-| Compliance | Mandatory AI disclosure, recording notice, retention, data region | Legal in US two-party-consent states and EU |
+| Compliance | AI disclosure on by default; recording notice, retention, data region configurable (not enforced in v1) | Add guardrails once the starting states are known |
 | Open source | Providers page for own keys (telephony, models) | Self-hosting must be first-class |
 
 ## Design principles
@@ -32,7 +32,7 @@ Notes behind the mock-up. Sources at the end.
   the button; `⌘K` reaches everything.
 - **One screen, one decision.** The detail pane leads with what to do next, then the evidence.
 - **Calm by default, loud when it matters.** Neutral greys; colour only for state
-  (live = green, urgent = red/amber, booked = blue).
+  (live and unread = green, urgent = red; black is the primary colour).
 - **Instant.** Optimistic updates, no spinners for local actions, motion under 200 ms.
 - **Opinionated.** No flow builder, no prompt editor; settings are plain-language fields with good
   defaults.

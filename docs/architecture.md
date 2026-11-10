@@ -1,188 +1,230 @@
-# Callfront: backend architecture (v1 = phone + calendar)
+# Callfront architecture
 
-This document describes how the product shown in the mock-up would actually work. The frontend
-types in `src/lib/types.ts` mirror the data model below 1:1, so every screen maps to a real
-backend capability.
+Status: decided, 2026-11-10. This is the single source of truth for how Callfront works. Why each piece was chosen (research, spikes, costs) lives in [stack.md](stack.md); product decisions in [decisions.md](decisions.md); the plan and workstreams in [plan.md](plan.md).
 
 ## 1. What v1 does
 
-A business keeps its existing phone number and forwards calls it can't take to Callfront.
-An AI receptionist answers, understands the request, books appointments into the business's
-calendar, takes messages, escalates emergencies to a human, and turns every call into a card in
-a keyboard-first inbox.
+A US service business (demo: a plumber in Portland) keeps its existing phone number and forwards calls it can't take to Callfront. An AI assistant ("Maya" by default, renamable) answers, understands the request, books appointments into the business's calendar, takes messages, escalates emergencies to a person, and turns every call into an item in a keyboard-first inbox.
 
-Out of scope for v1: WhatsApp, SMS, outbound campaigns, multi-location routing.
+v1 = phone + calendar. It is built on the platform foundation (action registry, local-first sync, provider adapters) so WhatsApp, SMS and email can follow without rework.
 
-## 2. System overview
+Out of scope for v1: messaging channels, outbound campaigns, multi-location routing, enforced compliance guardrails (kept configurable, see §10).
+
+## 2. Principles that shape the architecture
+
+1. **One action, every surface.** Every user or agent action is defined once and exposed as UI command, REST endpoint, MCP tool, ⌘K entry and voice-agent tool.
+2. **Instant and offline.** The UI applies every action locally at once and syncs in the background; it keeps working offline.
+3. **Adapters with a recommended default.** Telephony, speech, LLM, calendar and sync providers are swappable behind interfaces; setup always suggests one.
+4. **Easy to self-host, able to scale.** `docker compose up` gives a working install; the same images scale horizontally.
+5. **Open-source ready.** No secrets or customer data in the repo; paid-only code lives in `ee/`.
+
+## 3. System overview
 
 ```
- Caller ──PSTN──▶ Business number ──(conditional forward)──▶ Callfront DID (Telnyx)
-                                                                    │ SIP
-                                                                    ▼
-                                                        LiveKit SIP service
-                                                                    │ joins room
-                                                                    ▼
-                                    ┌──────────── LiveKit room (one per call) ────────────┐
-                                    │  caller (SIP participant)                            │
-                                    │  agent worker (LiveKit Agents, Python)               │
-                                    │  owner (optional: browser or SIP when taking over)   │
-                                    └──────────────────────────────────────────────────────┘
-                                         │ tool calls (HTTPS)        │ transcript events
-                                         ▼                           ▼
-                                   Callfront API  ◀────────────▶  Postgres
-                                   (TypeScript)                   + object storage (recordings)
-                                         │                         + job queue
-                         ┌───────────────┼──────────────────┐
-                         ▼               ▼                  ▼
-                 Google Calendar   Microsoft Graph     Web app (Next.js)
-                                                       realtime via WebSocket
+ Caller ──PSTN──▶ Business number ──(conditional forward)──▶ Callfront DID (Telnyx, default)
+                                                                   │ SIP
+                                                                   ▼
+                                                       LiveKit SIP service
+                                                                   │ joins room
+                                                                   ▼
+                                ┌─────────── LiveKit room (one per call) ───────────┐
+                                │  caller (SIP participant)                          │
+                                │  voice agent (LiveKit Agents, TypeScript)          │
+                                │  owner (optional: browser or phone when taking over)│
+                                └────────────────────────────────────────────────────┘
+                                        │ agent tools = registry actions
+                                        ▼
+  Web app (Vite SPA) ─commands─▶  API (Hono): action registry ──▶ Postgres ◀── worker (pg-boss jobs)
+   local store + outbox  ◀─reads──  read-sync adapter (Electric)       │
+                                        │                              └── object storage (recordings)
+                     REST + OpenAPI · MCP server · webhooks
+                                        │
+                         Google Calendar · Microsoft Graph
 ```
 
-### Components
+## 4. Components
 
-| Component | Choice | Why | Self-host alternative |
-|---|---|---|---|
-| Phone numbers + PSTN | **Telnyx** (default), Twilio as second adapter | Own network, cheaper per minute than Twilio, SIP trunking, numbers in 100+ countries, number lookup and STIR/SHAKEN attestation for spam scoring | Any SIP trunk ("bring your own SIP") |
-| Media server / SIP bridge | **LiveKit** server + LiveKit SIP | Open source (Apache 2.0), handles SIP ↔ WebRTC, rooms make listen-in and take-over trivial, Egress records calls | Same, self-hosted |
-| Agent runtime | **LiveKit Agents (Python)** | Mature turn detection, interruption handling, tool calling, provider plugins | Pipecat as fallback adapter |
-| Voice pipeline (default) | **Speech-to-speech realtime model** (e.g. OpenAI `gpt-realtime-mini`) | Lowest latency (~500–800 ms), natural barge-in, ~2–4 ¢/min | — |
-| Voice pipeline (alternative) | **Cascaded**: Deepgram (STT) → LLM (Claude / GPT) → Cartesia or ElevenLabs (TTS) | More control, better tool reliability, any voice/language | Whisper + local LLM + Kokoro/Piper (quality trade-off) |
-| Turn detection / VAD | Silero VAD + LiveKit turn-detector model | Avoids cutting callers off mid-sentence | Same |
-| Calendar | **Google Calendar API**, **Microsoft Graph** (Outlook/365); CalDAV (iCloud, Fastmail) later | Covers the vast majority of small businesses | CalDAV |
-| API | TypeScript (Hono or Next.js route handlers) | One language with the web app | Same |
-| Database | **Postgres** | Relational data, `LISTEN/NOTIFY` for realtime | Same |
-| Jobs | Postgres-backed queue (graphile-worker / pg-boss) | No extra infra for self-hosters | Redis + BullMQ at scale |
-| Recordings | S3-compatible storage (R2 / S3) | Cheap, signed URLs | MinIO |
-| Realtime to UI | WebSocket (server) fed by Postgres NOTIFY + LiveKit data messages | Live transcript, new cards appear instantly | Same |
-| Post-call AI | LLM with structured output (JSON schema) | Summary, outcome, urgency, extracted fields | Local LLM |
-| Billing (cloud only) | Stripe metered billing on answered minutes | Pass-through pricing with transparent markup | n/a |
-| Auth | Email magic link + Google/Microsoft SSO | The same OAuth consent can grant calendar access | Same |
+| Component | Choice | Notes |
+|---|---|---|
+| Phone numbers + PSTN | **Telnyx** (default); Twilio, Plivo, bring-your-own SIP as adapters; LiveKit Phone Numbers for zero-config hosted inbound | One `TelephonyProvider` interface: search/buy/port numbers, SIP trunk to LiveKit, outbound, transfer, status webhooks |
+| Media / SIP bridge | **LiveKit** server + LiveKit SIP (self-hosted); LiveKit Cloud (US region) for the hosted version | Rooms make listen-in and take-over trivial |
+| Voice agent | **LiveKit Agents, TypeScript** (agents-js); Python/Pipecat as fallback adapter | Imports the registry's Zod schemas; audio turn detector, tool calling, DTMF, noise cancellation |
+| Voice pipeline | **Cascaded** by default: Deepgram Flux (STT) → gpt-5.4-mini (LLM) → Cartesia Sonic (TTS); speech-to-speech (gpt-realtime-mini / Gemini Live) as option | All behind adapters; final defaults after a latency test on real calls |
+| API | **Hono** + `@hono/zod-openapi` + Zod, own `defineAction()` | One definition → REST, OpenAPI, MCP, client command |
+| MCP | Official MCP TypeScript SDK v2, Streamable HTTP, stateless | API keys first, OAuth via Better Auth later |
+| Database | **Postgres** + **Drizzle** (schema + migrations) | Source of truth |
+| Sync to clients | Own **outbox** for writes + `ReadSyncAdapter` for reads; **Electric** default, PowerSync tested swap, LISTEN/NOTIFY + WebSocket possible | See §6 |
+| Jobs | **pg-boss** | Post-call summaries, notifications, calendar sync, reminders, webhooks |
+| Auth | **Better Auth**: email magic link + Google/Microsoft SSO, organizations, API keys, OAuth provider for MCP | Same OAuth consent can grant calendar access |
+| Calendar | Own **Google Calendar** + **Microsoft Graph** adapters; CalDAV later | See §8 |
+| Recordings | S3-compatible storage (MinIO self-hosted, R2/S3 hosted) | Signed URLs |
+| Web app | **React SPA (Vite)** with local store, outbox, service worker | Built from the merged prototype (`prototypes/inbox-html`, Relay design) |
+| Monorepo | **pnpm + Turborepo** | Layout in §11 |
+| Billing (hosted only) | Stripe metered billing on answered minutes | Lives in `ee/` |
 
-## 3. Call lifecycle
+## 5. Action registry
 
-1. **Ring.** Caller dials the business. If nobody answers within N rings (or the line is busy),
-   the carrier forwards to the workspace's Callfront number (`PhoneNumber.e164`).
-2. **Ingress.** Telnyx sends the call over SIP to LiveKit SIP. A dispatch rule maps the DID to a
-   workspace and creates a room `call_<id>`. The API creates `Call { status: "live" }` and pushes
-   it to the inbox (it appears at the top with a live indicator).
-3. **Caller lookup.** The agent's first tool call, `lookup_caller(phone)`, returns the contact, past
-   calls and upcoming bookings, so returning customers are greeted by name.
-4. **Greeting.** Mandatory AI disclosure + optional recording notice (jurisdiction-dependent),
-   then the configured greeting.
-5. **Conversation.** The agent follows the receptionist config (business knowledge, services,
-   service area, FAQs, booking rules, escalation rules). Tools available to the agent:
+Every action is defined once:
+
+```ts
+defineAction({
+  name: 'call.markDone',
+  input: z.object({ callId: z.string() }),
+  permission: 'call:write',
+  apply: (store, input) => { /* optimistic local change, runs in the browser */ },
+  handler: async (ctx, input) => { /* authoritative, runs on the server, writes Postgres */ },
+  event: 'call.done',
+})
+```
+
+From that definition we generate:
+
+| Surface | Generated |
+|---|---|
+| Web app | instant local mutation (`apply`) + outbox command, ⌘K entry |
+| REST | `POST /v1/actions/<name>` + OpenAPI spec |
+| MCP | one tool per action, same schema and permission |
+| Voice agent | tool with the same schema (e.g. `appointment.book`) |
+| Events | webhook / internal event per action |
+
+Reads are defined once as named queries and exposed to the UI (live via sync), REST and MCP.
+
+### v1 actions (initial set)
+
+| Area | Actions |
+|---|---|
+| Calls | `call.markDone`, `call.markNotDone`, `call.remind`, `call.clearReminder`, `call.markRead`, `call.markUnread`, `call.assign`, `call.callBack`, `call.delete` |
+| Live call | `call.listen`, `call.takeOver`, `call.hangUp` |
+| Bookings | `calendar.findSlots`, `appointment.book`, `appointment.reschedule`, `appointment.cancel` |
+| Contacts | `contact.lookup`, `contact.update` |
+| Agent-only | `call.takeMessage`, `call.transfer`, `call.end`, `call.flagUrgent` |
+| Settings | `assistant.update`, `appointmentType.upsert`, `calendar.connect`, `calendar.setFlags`, `phoneNumber.setup`, `phoneNumber.verifyForwarding` |
+
+## 6. Sync: "commands up, data down"
+
+- **Writes:** every registry call from the web app is a command. The client applies it to its local store immediately, persists it in an IndexedDB outbox and replays it in order to `POST /v1/actions/<name>` (idempotent per command id). The server is authoritative; a rejection rolls the local change back and shows a toast.
+- **Reads:** Postgres → local store through our `ReadSyncAdapter` interface, scoped per workspace and permission. Default adapter: Electric. Swapping the provider touches only the adapter file, not the UI.
+- **Offline:** reads and queued writes survive a reload; a service worker serves the app shell.
+- **Live calls:** transcript segments are rows like any other, so they arrive through the same read sync (target < 1 s).
+
+## 7. Call lifecycle
+
+1. **Ring.** The caller dials the business. If nobody answers within N rings (or the line is busy), the carrier forwards to the workspace's Callfront number.
+2. **Ingress.** The provider sends the call over SIP to LiveKit SIP. A dispatch rule maps the DID to a workspace and creates room `call_<id>`. The API creates `Call { status: live }`; it appears at the top of Needs you with a live indicator.
+3. **Caller lookup.** First tool: `contact.lookup(phone)` → contact, past calls, upcoming bookings, so returning customers are greeted by name.
+4. **Greeting.** Configurable greeting; AI disclosure on by default (configurable, §10).
+5. **Conversation.** The agent follows the assistant config (business knowledge, services, service area, FAQs, booking types, urgent and transfer rules). Its tools are registry actions:
 
    | Tool | Effect |
    |---|---|
-   | `lookup_caller(phone)` | Contact + history |
-   | `check_availability(appointment_type, window)` | Free slots = working hours ∩ free/busy of conflict calendars − buffers − min notice |
-   | `book_appointment(type, start, contact, details)` | Creates the event in the booking calendar, stores `Booking`, links the call |
-   | `reschedule_appointment(booking_id, new_start)` / `cancel_appointment(booking_id)` | Updates the calendar event |
-   | `take_message(subject, details, callback_requested)` | Creates an action item on the card |
-   | `transfer_to_human(reason)` | Warm transfer: dials the escalation number via LiveKit SIP, whispers a summary, bridges the caller; on no answer returns to the AI, which takes a message and flags the card urgent |
-   | `end_call(reason)` | Hangs up politely |
+   | `contact.lookup` | Contact + history |
+   | `calendar.findSlots(type, window)` | Free slots = working hours ∩ free/busy of conflict calendars − buffers − min notice |
+   | `appointment.book` / `.reschedule` / `.cancel` | Writes the calendar event, stores `Booking`, links the call |
+   | `call.takeMessage` | Adds an action item to the call |
+   | `call.flagUrgent` | Marks urgent (e.g. "leak", "gas smell"), triggers notification |
+   | `call.transfer(reason)` | Warm transfer via LiveKit SIP; on no answer the agent takes a message and flags urgent |
+   | `call.end` | Hangs up politely |
 
-   Every tool call is also written into the transcript as an event (shown in the UI as small
-   system rows such as "Checked availability · 3 slots").
-6. **Live view.** Transcript segments stream to the UI over WebSocket. The owner can **Listen**
-   (joins the room muted via WebRTC) or **Take over** (joins with mic, or LiveKit dials the
-   owner's phone; the agent drops out after a hand-off line).
-7. **Hang-up.** LiveKit Egress finalises the recording → object storage.
-8. **Post-call job.** An LLM pass over the full transcript returns structured JSON:
-   `title`, `summary`, `outcome`, `urgency`, `intent`, `actionItems[]`, `fields[]` (template-driven,
-   e.g. address, issue, access notes), `spam` score (combined with carrier attestation). The card
-   moves from "live" into the right inbox tab.
-9. **Notify.** Push / email to the owner for `urgency = urgent` or `outcome = callback`. Daily
-   digest for the rest. (SMS/WhatsApp confirmations to the caller come with the messaging
-   channels in v1.5.)
+   Every tool call is also written to the transcript as a system event ("Checked availability · 3 slots").
+6. **Live view.** Transcript streams to the web app. The owner can **Listen** (joins muted) or **Take over** (joins with mic, or LiveKit dials the owner's phone; the agent hands off).
+7. **Hang-up.** Recording finalised to object storage.
+8. **Post-call job.** An LLM pass returns structured JSON: `title`, `summary`, `outcome`, `urgency`, `intent`, `actionItems[]`, `fields[]`, spam score. The call moves to the right view.
+9. **Notify.** Push / email for urgent and callback-needed calls; daily digest for the rest.
 
-Target latencies: answer < 1 ring after forward, first agent word < 1.2 s, turn latency
-< 800 ms, card ready < 10 s after hang-up.
+Target latencies: answer < 1 ring after forward, first agent word < 1.2 s, turn latency < 800 ms, call summary ready < 10 s after hang-up.
 
-## 4. Phone number setup
+## 8. Phone setup and calendar
 
-Three modes, all represented in `PhoneNumber.mode`:
+**Phone number modes** (`PhoneNumber.mode`):
 
-- `forward_conditional` (default, recommended): the business keeps its number and only
-  unanswered / busy / unreachable calls go to Callfront. Setup = dialling a carrier code, e.g.
-  US mobile carriers on GSM: `**004*<callfront number>#`; Verizon: `*71<number>`. We verify by
-  placing a test call to the business number and checking that it arrives on the DID.
-- `forward_all`: Callfront answers every call (front desk replacement).
-- `new` / `ported`: a new local number from Telnyx, or the existing number ported in.
+- `forward_conditional` (default): unanswered/busy calls go to Callfront. Setup = dialing a carrier code (Verizon `*71<number>`, AT&T/T-Mobile `**004*<number>#`), verified with a test call.
+- `forward_all`: Callfront answers every call.
+- `new` / `ported`: a new local number, or the existing number ported in.
 
-## 5. Calendar integration
+US practical notes: outbound needs a SIP trunk; Twilio needs Trust Hub + SHAKEN/STIR for A attestation; cold transfer needs SIP REFER on the trunk.
 
-- OAuth scopes: Google `calendar.events` + `calendar.freebusy` (or `calendar.readonly` +
-  `calendar.events`), Microsoft `Calendars.ReadWrite`.
-- Per connected calendar two flags: **check for conflicts** (read free/busy) and **book into**
-  (exactly one booking target per workspace in v1).
-- **Availability engine** (in the API, not in the calendar): working hours per weekday + date
-  exceptions, appointment types (duration, buffer before/after, min notice, max days ahead,
-  location type), free/busy from all conflict calendars, existing Callfront bookings.
-- Events are created with title `<Type> · <Caller name>`, description containing the AI summary,
-  phone number, address and a deep link back to the call card.
-- Sync: Google push notifications (`events.watch`) / Graph subscriptions update `Booking` when the
-  owner moves or deletes an event in their own calendar.
+**Calendar:**
 
-## 6. Data model
+- OAuth scopes: Google `calendar.events` + `calendar.freebusy` (not restricted, no CASA audit; never Gmail/Drive), Microsoft `Calendars.ReadWrite`.
+- Per calendar two flags: **check conflicts** and **book into** (exactly one booking calendar per workspace in v1).
+- Availability engine in the API: working hours + exceptions, appointment types (duration, buffer, min notice, max days ahead, location), free/busy of all conflict calendars, existing bookings.
+- Events: title `<Type> · <Caller>`, description with summary, phone, address and a deep link to the call.
+- Sync back: Google `events.watch` / Graph subscriptions update `Booking` when the owner moves or deletes an event.
+
+## 9. Data model
 
 ```
 Workspace(id, name, timezone, locale, avg_job_value, plan, region)
 Member(id, workspace_id, name, email, role[owner|admin|member], phone)
-PhoneNumber(id, workspace_id, e164, provider[telnyx|twilio|byo_sip], mode, forwarded_from,
-            verified_at)
-Receptionist(id, workspace_id, name, voice{provider, voice_id}, languages[], greeting,
-             disclose_ai=true, recording_notice, pipeline{mode[realtime|cascaded], llm, stt, tts},
-             business_profile{description, services[], service_area, address, hours, faqs[]},
-             escalation{transfer_to_member_id, urgent_keywords[], when[]})
+PhoneNumber(id, workspace_id, e164, provider[telnyx|twilio|plivo|byo_sip], mode, forwarded_from, verified_at)
+Assistant(id, workspace_id, name, voice{provider, voice_id}, languages[], greeting,
+          disclose_ai=true, recording_notice, pipeline{mode[cascaded|realtime], stt, llm, tts},
+          business_profile{description, services[], service_area, address, hours, faqs[], never_say[]},
+          escalation{transfer_to_member_id, urgent_keywords[], rules[]}, capabilities{...})
 CalendarConnection(id, workspace_id, provider[google|microsoft|caldav], account_email, status)
 Calendar(id, connection_id, external_id, name, color, check_conflicts, book_into)
 AvailabilityRule(id, workspace_id, weekday, start, end) + AvailabilityException(date, ...)
 AppointmentType(id, workspace_id, name, duration_min, buffer_min, min_notice_hours,
                 max_days_ahead, location[on_site|office|phone|video], enabled)
-Contact(id, workspace_id, name, phone, email, address, tags[], note)
-Call(id, workspace_id, contact_id, from, to, started_at, ended_at, duration_sec,
+Contact(id, workspace_id, name, company, phone, email, address, tags[], note)
+Call(id, workspace_id, contact_id, from, to, direction[in|out], started_at, ended_at, duration_sec,
      status[live|completed], outcome[booked|rescheduled|cancelled|callback|message|answered|
      transferred|hangup|spam], urgency[urgent|normal|low], intent, title, summary,
      action_items[], fields[], language, answered_by[ai|human], recording_key,
-     inbox_state[open|done|snoozed], snoozed_until, assignee_id, billed_seconds)
+     inbox_state[open|done], reminder_at, reminder_label, unread, assignee_id,
+     deleted_at, billed_seconds)
 TranscriptSegment(id, call_id, speaker[agent|caller|human|system], text, at_ms, tool_event?)
 Booking(id, workspace_id, call_id, contact_id, appointment_type_id, start, end,
         status[confirmed|rescheduled|cancelled], calendar_id, external_event_id)
+Command(id, workspace_id, member_id, action, input, status, created_at)   -- outbox replay log, idempotency
 UsagePeriod(workspace_id, period, answered_seconds, cost_cents)
 ```
 
 ### Inbox semantics
 
-Tabs are derived, not stored. They answer one question, "does a person still have to act?";
-what Maya did (the outcome) is a column and a filter, not a tab.
+Views are derived, not stored. They answer one question: does a person still have to act?
 
-- **Needs you**: open calls a person has to act on: every `status = live` call, `urgency = urgent`,
-  and outcomes `callback | message | hangup` (a hang-up is often a lost lead). Sorted by priority:
-  live, urgent, new-caller callbacks, other callbacks, messages, hang-ups; newest first within each.
-- **Handled by Maya**: open calls Maya finished on her own (`booked | rescheduled | cancelled | answered | transferred`).
-  Skim and clear with `E`.
-- **All calls**: the full log except spam, newest first, including `inbox_state = done`.
-  The filter also matches the outcome label ("booked", "transferred").
-- **Spam**: outcome `spam`, kept out of every other view.
+- **Needs you:** open calls a person has to act on: live calls, `urgency = urgent`, outcomes `callback | message | hangup`. Priority order inside each day: live, urgent, new-caller callbacks, other callbacks, messages, hang-ups.
+- **Handled by Maya:** open calls the assistant finished (`booked | rescheduled | cancelled | answered | transferred`). Skim and clear with E.
+- **Spam:** outcome `spam`, kept out of every other view, never deleted silently.
+- **Reminders:** calls with `reminder_at` in the future; they return to their view when it passes.
+- **Done:** `inbox_state = done`.
+- **Search** (`/`) covers all calls, including transcripts.
 
-`E` marks done, `Z` undoes, `H` snoozes (a job re-opens the card). Later: an optional
-"confirm new-customer bookings" setting would route those bookings to Needs you instead of Handled by Maya.
+E marks done (Z undoes), H sets a reminder. The sidebar value counter is `count(calls)`, `count(bookings)` and `count(bookings) × avg_job_value` for the current week.
 
-The value counter in the sidebar ("answered · booked · ≈ booked work") is
-`count(calls)`, `count(bookings)` and `count(bookings) × avg_job_value` for the current week.
+## 10. Compliance (configurable, not enforced in v1)
 
-## 7. Open source and hosting
+US first. Guardrails come once we know the starting states and use cases; the design keeps them easy to add:
 
-- Monorepo: `apps/web` (Next.js), `apps/api` (TypeScript), `apps/agent` (Python worker),
-  `packages/schema` (shared types generated from the DB schema).
-- `docker compose up` brings Postgres, MinIO, LiveKit, LiveKit SIP, API, worker and web. The
-  self-hoster enters their own Telnyx/Twilio and model API keys in **Settings → Providers**.
-- Callfront Cloud runs the same code with managed numbers and pass-through minute pricing.
+- AI disclosure in the greeting: on by default, configurable.
+- Recording notice, outbound-call consent (TCPA), retention, data region: settings fields exist or are planned; nothing is enforced yet.
+- Spam scoring uses carrier attestation + number reputation.
 
-## 8. Privacy and compliance
+## 11. Repository and deployment
 
-- AI disclosure in every greeting (cannot be turned off).
-- Recording notice configurable per jurisdiction; two-party-consent US states and EU default on.
-- Retention for recordings and transcripts (30 / 90 / 365 days), data region (US / EU).
-- Spam scoring uses carrier attestation + number reputation; spam is never deleted silently.
+**Target monorepo layout** (created by the foundation workstream):
+
+```
+apps/
+  web/        Vite SPA (local store, outbox, service worker)
+  api/        Hono server: registry, REST, OpenAPI, MCP, webhooks
+  worker/     pg-boss jobs (same image as api)
+  agent/      LiveKit Agents (TypeScript)
+packages/
+  actions/    defineAction(), registry, shared Zod schemas
+  db/         Drizzle schema + migrations
+  sync/       outbox, ReadSyncAdapter, Electric/PowerSync adapters
+  telephony/  TelephonyProvider + Telnyx/Twilio/Plivo/BYO-SIP adapters
+  calendar/   Google / Microsoft adapters, availability engine
+  ui/         shared components from the prototype
+ee/           hosted-only features (billing, SSO)
+prototypes/   clickable prototypes (no backend)
+docs/
+```
+
+Janik's Next.js mock-up currently lives at the repo root (`src/`); it moves to `prototypes/callfront-next/` when the monorepo is created.
+
+**Default `docker compose`:** caddy, app (web + API + MCP), worker, voice agent, postgres, electric, livekit-server, livekit-sip, redis/valkey (needed by LiveKit SIP); optional livekit-egress and minio profiles. App, worker and agent are stateless replicas; LiveKit scales via Redis; Postgres can be managed.
+
+**Hosted version:** same code, LiveKit Cloud (US), managed numbers, US East region, pass-through minute pricing.
