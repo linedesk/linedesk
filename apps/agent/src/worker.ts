@@ -78,7 +78,7 @@ async function entry(ctx: JobContext) {
   // Checked at every call: until the providers are configured the call is logged as missed and ended.
   const readiness = await checkReadiness()
   if (!readiness.ready) {
-    await declineCall(call, readiness.reason, () => ctx.deleteRoom())
+    await declineCall(call, readiness, () => ctx.deleteRoom())
     return ctx.shutdown('assistant not set up')
   }
   const { config } = readiness

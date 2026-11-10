@@ -3,17 +3,19 @@
 // call is logged as missed in the inbox and the caller is hung up on. The config is read again
 // at every call, so the first call after the keys exist is answered without a restart.
 import type { CallResult, CallSession } from './call-session.ts'
-import { loadAgentConfig, type AgentConfig } from './config.ts'
+import { AgentConfigError, loadAgentConfig, type AgentConfig, type Stage } from './config.ts'
 import { withRetry, type RetryOptions } from './retry.ts'
 
-export type Readiness = { ready: true; config: AgentConfig } | { ready: false; reason: string }
+/** `reason` is for the operator's log; `stages` names what is missing in words the business may see. */
+export type Readiness = { ready: true; config: AgentConfig } | { ready: false; reason: string; stages: Stage[] }
 
 /** The effective config, or why the agent cannot take calls. Never throws. */
 export async function checkReadiness(load: () => Promise<AgentConfig> = loadAgentConfig): Promise<Readiness> {
   try {
     return { ready: true, config: await load() }
   } catch (e) {
-    return { ready: false, reason: e instanceof Error ? e.message : String(e) }
+    const stages = e instanceof AgentConfigError ? e.stages : []
+    return { ready: false, reason: e instanceof Error ? e.message : String(e), stages }
   }
 }
 
@@ -24,20 +26,29 @@ export function describeReadiness(readiness: Readiness): string {
   return `answering calls. Speech to text: ${stt.provider} ${stt.model}; LLM: ${llm.provider} ${llm.model}; text to speech: ${tts.provider}`
 }
 
-/** What the business sees in the inbox. The operator's detail (which key is missing) stays in the log. */
-export const missedResult: CallResult = {
-  outcome: 'hangup',
-  title: 'Missed call: assistant not set up',
-  summary: 'The call was not answered because the assistant is not set up yet: its speech and language providers are not configured.',
-  actionItems: [{ text: 'Call back' }],
+const listed = (items: string[]) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`)
+
+/**
+ * What the business sees in the inbox: what is missing (speech recognition, language model, voice),
+ * never which key or provider. The operator's detail stays in the worker log.
+ */
+export function missedResult(stages: Stage[]): CallResult {
+  const missing = stages.length ? `No ${listed(stages)} provider is configured yet.` : 'Its providers are not configured yet.'
+  return {
+    outcome: 'hangup',
+    title: 'Missed call: assistant not set up yet',
+    summary: `Linedesk did not answer this call because the assistant is not set up yet. ${missing} Add them under Settings, Providers.`,
+    actionItems: [{ text: 'Call back' }],
+    fields: [{ label: 'Not set up', value: stages.length ? listed(stages) : 'providers' }],
+  }
 }
 
 /** Logs the call as missed and ends it. `hangUp` disconnects the caller. Never throws. */
-export async function declineCall(call: CallSession, reason: string, hangUp: () => Promise<void>, retry?: RetryOptions) {
-  console.warn(`call ${call.callId} not answered: ${reason}`)
+export async function declineCall(call: CallSession, readiness: { reason: string; stages: Stage[] }, hangUp: () => Promise<void>, retry?: RetryOptions) {
+  console.warn(`call ${call.callId} not answered: ${readiness.reason}`)
   const logged = (async () => {
     await call.append('system', 'Not answered: the assistant is not set up yet')
-    await withRetry(() => call.finish(missedResult), retry)
+    await withRetry(() => call.finish(missedResult(readiness.stages)), retry)
   })().catch(e => console.error(`could not log missed call ${call.callId}: ${e instanceof Error ? e.message : e}`))
   await Promise.all([logged, hangUp().catch(() => {})])
 }

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { loadAgentConfig } from './config.ts'
+import { AgentConfigError, loadAgentConfig } from './config.ts'
 
 const keys = { DEEPGRAM_API_KEY: 'dg', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' }
 
@@ -32,4 +32,11 @@ test('an unknown provider is an error, not a silent default', async () => {
   await expect(loadAgentConfig({ ...keys, LLM_PROVIDER: 'mistral' })).rejects.toThrow('unknown LLM_PROVIDER "mistral" (use openrouter or openai)')
   await expect(loadAgentConfig({ ...keys, TTS_PROVIDER: 'polly' })).rejects.toThrow('unknown TTS_PROVIDER "polly"')
   await expect(loadAgentConfig({ ...keys, STT_PROVIDER: 'whisper' })).rejects.toThrow('unknown STT_PROVIDER "whisper"')
+})
+
+test('the error says which stages are missing, for the inbox', async () => {
+  const error = await loadAgentConfig({ DEEPGRAM_API_KEY: 'dg' }).catch(e => e)
+  expect(error).toBeInstanceOf(AgentConfigError)
+  expect(error.stages).toEqual(['language model', 'voice'])
+  expect((await loadAgentConfig({ ...keys, LLM_PROVIDER: 'x' }).catch(e => e)).stages).toEqual(['language model'])
 })

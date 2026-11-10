@@ -19,21 +19,35 @@ const llmProviders = {
 const ttsProviders = { elevenlabs: { key: 'ELEVENLABS_API_KEY' }, cartesia: { key: 'CARTESIA_API_KEY' } } as const
 const STT_KEY = 'DEEPGRAM_API_KEY'
 
-function choose<T extends string>(variable: string, value: string | undefined, fallback: T, allowed: readonly T[]): T {
+/** A pipeline stage, in the words the business sees (inbox, settings). */
+export type Stage = 'speech recognition' | 'language model' | 'voice'
+
+/** The agent cannot take calls. `message` is for the operator's log; `stages` is safe to show the business. */
+export class AgentConfigError extends Error {
+  constructor(message: string, readonly stages: Stage[]) {
+    super(message)
+  }
+}
+
+function choose<T extends string>(stage: Stage, variable: string, value: string | undefined, fallback: T, allowed: readonly T[]): T {
   const chosen = (value || fallback) as T
-  if (!allowed.includes(chosen)) throw new Error(`unknown ${variable} "${value}" (use ${allowed.join(' or ')})`)
+  if (!allowed.includes(chosen)) throw new AgentConfigError(`unknown ${variable} "${value}" (use ${allowed.join(' or ')})`, [stage])
   return chosen
 }
 
-/** The effective agent config. Throws one error naming every key that is missing for the chosen providers. */
+/** The effective agent config. Throws one AgentConfigError naming every key that is missing for the chosen providers. */
 export async function loadAgentConfig(env: Env = process.env): Promise<AgentConfig> {
-  choose('STT_PROVIDER', env.STT_PROVIDER, 'deepgram', ['deepgram'])
-  const llm = choose('LLM_PROVIDER', env.LLM_PROVIDER, 'openrouter', ['openrouter', 'openai'])
-  const tts = choose('TTS_PROVIDER', env.TTS_PROVIDER, 'elevenlabs', ['elevenlabs', 'cartesia'])
-  const keys = [STT_KEY, llmProviders[llm].key, ttsProviders[tts].key]
-  const missing = keys.filter(name => !env[name])
+  choose('speech recognition', 'STT_PROVIDER', env.STT_PROVIDER, 'deepgram', ['deepgram'])
+  const llm = choose('language model', 'LLM_PROVIDER', env.LLM_PROVIDER, 'openrouter', ['openrouter', 'openai'])
+  const tts = choose('voice', 'TTS_PROVIDER', env.TTS_PROVIDER, 'elevenlabs', ['elevenlabs', 'cartesia'])
+  const keys: [Stage, string][] = [['speech recognition', STT_KEY], ['language model', llmProviders[llm].key], ['voice', ttsProviders[tts].key]]
+  const missing = keys.filter(([, name]) => !env[name])
   if (missing.length) {
-    throw new Error(`Missing environment variable${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}. Set ${missing.length > 1 ? 'them' : 'it'} in .env (see .env.example).`)
+    const names = missing.map(([, name]) => name)
+    throw new AgentConfigError(
+      `Missing environment variable${names.length > 1 ? 's' : ''}: ${names.join(', ')}. Set ${names.length > 1 ? 'them' : 'it'} in .env (see .env.example).`,
+      missing.map(([stage]) => stage),
+    )
   }
   return {
     stt: { provider: 'deepgram', apiKey: env[STT_KEY]!, model: env.STT_MODEL || 'flux-general-en' },
