@@ -750,6 +750,17 @@ a.k-btn {
 .app:has(.ib-hint) .toast {
   bottom: calc(52px + env(safe-area-inset-bottom, 0px));
 }
+/* Hints and the offline bar together: above both (phones hide the hints, so the offline bar alone counts). */
+@media (min-width: 720px) {
+  .app:has(.ib-hint):has(.sync-bar) .toast {
+    bottom: calc(82px + env(safe-area-inset-bottom, 0px));
+  }
+}
+@media (max-width: 719px) {
+  .app:has(.sync-bar) .toast {
+    bottom: calc(50px + env(safe-area-inset-bottom, 0px));
+  }
+}
 
 /* Narrow windows: the selection bar keeps one line; labels give way to icons, the rest is under ⋯. */
 @media (max-width: 719px) {
