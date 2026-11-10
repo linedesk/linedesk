@@ -41,6 +41,8 @@ export const phone_numbers = pgTable(
       .default('forward_conditional'),
     forwarded_from: text('forwarded_from'),
     provider_ref: text('provider_ref'),
+    /** Bought through Linedesk (phoneNumber.setup with purchase): only these are released at the carrier. */
+    purchased: boolean('purchased').notNull().default(false),
     verified_at: ts('verified_at'),
     created_at: createdAt(),
     version: version(),

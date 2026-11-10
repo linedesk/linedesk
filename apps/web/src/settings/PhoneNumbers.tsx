@@ -15,6 +15,7 @@ import {
   priceNote,
   type PhoneChoice,
 } from '../onboarding/flow.ts'
+import { confirmsNumber } from '@callfront/actions'
 import { useAssistantName, useRejection, useRows, useRun } from '../store.tsx'
 import { RadioCard } from '../ui/controls.tsx'
 import { Badge, Button, cx } from '../ui/kit.tsx'
@@ -43,7 +44,7 @@ export function PhoneNumbers({ canEdit, status, isInstanceAdmin }: Props) {
       {numbers.length > 0 && (
         <div className="st-list">
           {numbers.map(n => (
-            <NumberRow key={n.id} number={n} />
+            <NumberRow key={n.id} number={n} canEdit={canEdit} />
           ))}
         </div>
       )}
@@ -88,9 +89,10 @@ function Unavailable({ detail, isInstanceAdmin }: { detail: string | null; isIns
   )
 }
 
-function NumberRow({ number }: { number: PhoneNumber }) {
+function NumberRow({ number, canEdit }: { number: PhoneNumber; canEdit: boolean }) {
   const forwards = number.mode === 'forward_conditional' || number.mode === 'forward_all'
   const [open, setOpen] = useState(false)
+  const [releasing, setReleasing] = useState(false)
   return (
     <div className="st-li st-pn">
       <div className="st-pn-head">
@@ -107,10 +109,105 @@ function NumberRow({ number }: { number: PhoneNumber }) {
             {open ? 'Hide forwarding' : 'Forwarding codes'}
           </Button>
         )}
+        {canEdit && !releasing && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setReleasing(true)}
+            title={number.purchased ? 'Release this number' : 'Disconnect this number'}
+          >
+            {number.purchased ? 'Release…' : 'Disconnect…'}
+          </Button>
+        )}
       </div>
       {forwards && open && <Forwarding e164={number.e164} />}
+      {releasing && <ReleaseNumber number={number} onCancel={() => setReleasing(false)} />}
     </div>
   )
+}
+
+/**
+ * Disconnecting a number is the one place Settings asks first: a released number cannot be bought
+ * back, so the number has to be typed. The row disappears through sync once the server is done.
+ */
+function ReleaseNumber({ number, onCancel }: { number: PhoneNumber; onCancel: () => void }) {
+  const run = useRun()
+  const name = useAssistantName()
+  const { rejection } = useRejection()
+  const [typed, setTyped] = useState('')
+  const [sent, setSent] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
+  const carrier = carrierName(number.provider) ?? 'the carrier'
+  const formatted = formatNumber(number.e164)
+  useEffect(() => {
+    if (!sent || rejection?.action !== 'phoneNumber.release') return
+    setSent(false)
+    setProblem(releaseErrorText(rejection.error))
+  }, [rejection, sent])
+
+  function release() {
+    if (!confirmsNumber(typed, number.e164) || sent) return
+    setProblem(null)
+    setSent(true)
+    void run('phoneNumber.release', { phoneNumberId: number.id, confirm: typed })
+  }
+  const bought = number.purchased && number.provider !== 'dev'
+  return (
+    <form
+      className="st-release"
+      role="alertdialog"
+      aria-labelledby={`rel-${number.id}`}
+      onSubmit={e => {
+        e.preventDefault()
+        release()
+      }}
+      onKeyDown={e => {
+        if (e.key === 'Escape') {
+          e.stopPropagation()
+          onCancel()
+        }
+      }}
+    >
+      <b id={`rel-${number.id}`}>{bought ? `Release ${formatted}?` : `Disconnect ${formatted}?`}</b>
+      <span className="help">
+        {bought
+          ? `${name} stops answering it and the number goes back to ${carrier}. Its monthly cost stops, and you cannot get the number back.`
+          : `${name} stops answering it. The number stays in your ${carrier === 'the carrier' ? 'carrier' : carrier} account.${number.mode === 'forward_conditional' || number.mode === 'forward_all' ? ' Turn off call forwarding on your business phone too.' : ''}`}
+      </span>
+      <Field id={`rel-in-${number.id}`} label="Type the number to confirm">
+        <TextInput
+          id={`rel-in-${number.id}`}
+          value={typed}
+          onChange={v => {
+            setTyped(v)
+            setProblem(null)
+          }}
+          placeholder={formatted}
+        />
+      </Field>
+      {problem && (
+        <p className="auth-error" role="alert">
+          {problem}
+        </p>
+      )}
+      <div className="st-connect-foot">
+        <Button size="sm" variant="ghost" onClick={onCancel} disabled={sent}>
+          Cancel
+        </Button>
+        <Button type="submit" size="sm" variant="danger" disabled={sent || !confirmsNumber(typed, number.e164)}>
+          {sent ? (bought ? 'Releasing…' : 'Disconnecting…') : bought ? 'Release number' : 'Disconnect number'}
+        </Button>
+      </div>
+    </form>
+  )
+}
+
+/** A `phoneNumber.release` refusal in plain words. */
+function releaseErrorText(error: string): string {
+  if (/is the carrier in use/i.test(error))
+    return 'This number belongs to another carrier than the one this Linedesk uses now. Ask whoever runs your Linedesk.'
+  if (/to confirm/i.test(error)) return 'The number you typed does not match.'
+  return `The carrier did not release the number. Nothing changed. (${error})`
 }
 
 /** Conditional call forwarding codes per carrier, to dial from the business line. */

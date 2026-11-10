@@ -45,6 +45,7 @@ const all = [
   settings.contactRestore,
   settings.assistantUpdate,
   settings.phoneNumberSetup,
+  settings.phoneNumberRelease,
   settings.assistantStartTestCall,
   settings.workspaceGetSettings,
   settings.workspaceUpdateSettings,

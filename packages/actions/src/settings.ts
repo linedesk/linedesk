@@ -154,6 +154,24 @@ export const phoneNumberSetup = defineAction({
   permission: 'settings:write',
 })
 
+export const phoneNumberRelease = defineAction({
+  name: 'phoneNumber.release',
+  description:
+    'Disconnect a phone number from the workspace: the assistant stops answering it. A number bought through Linedesk is also released at the carrier (its monthly cost stops, and the number may go to someone else); a number that was attached from the carrier account stays there. `confirm` must repeat the number.',
+  input: z.object({
+    phoneNumberId: z.string().min(1),
+    /** The number as the person typed it to confirm; compared by digits with the stored number. */
+    confirm: z.string().min(1).max(40),
+  }),
+  permission: 'settings:write',
+})
+
+/** Whether what was typed is the number (spaces, dashes, brackets and a leading +1 do not matter). */
+export function confirmsNumber(typed: string, e164: string): boolean {
+  const digits = (value: string) => value.replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '')
+  return digits(typed).length > 0 && digits(typed) === digits(e164)
+}
+
 // Talking to the assistant from the web app. Read-only for the action runner: it writes no rows,
 // and its result (a LiveKit token) must not be kept in the command log.
 export const assistantStartTestCall = defineAction({

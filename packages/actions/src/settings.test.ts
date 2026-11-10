@@ -8,6 +8,8 @@ import {
   contactUnblock,
   workspaceGetSettings,
   workspaceUpdateSettings,
+  confirmsNumber,
+  phoneNumberRelease,
 } from './settings.ts'
 
 describe('assistant.update', () => {
@@ -31,13 +33,27 @@ describe('contact.block and contact.unblock', () => {
 
 describe('workspace.updateSettings', () => {
   it('takes one of the offered retention periods, or null to keep recordings', () => {
-    for (const days of [30, 60, 90, 180, 365, null]) expect(workspaceUpdateSettings.input.safeParse({ recordingRetentionDays: days }).success).toBe(true)
-    for (const days of [0, 7, 91, -1, '90']) expect(workspaceUpdateSettings.input.safeParse({ recordingRetentionDays: days }).success).toBe(false)
+    for (const days of [30, 60, 90, 180, 365, null])
+      expect(workspaceUpdateSettings.input.safeParse({ recordingRetentionDays: days }).success).toBe(true)
+    for (const days of [0, 7, 91, -1, '90'])
+      expect(workspaceUpdateSettings.input.safeParse({ recordingRetentionDays: days }).success).toBe(false)
   })
 
   it('only owners and admins change it; every member reads it', () => {
     expect(rolePermissions.member).not.toContain(workspaceUpdateSettings.permission)
     expect(rolePermissions.admin).toContain(workspaceUpdateSettings.permission)
-    for (const role of ['owner', 'admin', 'member'] as const) expect(rolePermissions[role]).toContain(workspaceGetSettings.permission)
+    for (const role of ['owner', 'admin', 'member'] as const)
+      expect(rolePermissions[role]).toContain(workspaceGetSettings.permission)
+  })
+})
+
+describe('phoneNumber.release', () => {
+  it('is for owners and admins, and the typed number is compared by its digits', () => {
+    expect(rolePermissions.member).not.toContain(phoneNumberRelease.permission)
+    expect(rolePermissions.owner).toContain(phoneNumberRelease.permission)
+    for (const typed of ['+15035550142', '(503) 555-0142', '503.555.0142', '1 503 555 0142', '+1 503 555 0142'])
+      expect(confirmsNumber(typed, '+15035550142')).toBe(true)
+    for (const typed of ['503 555 0143', '555 0142', '', 'yes'])
+      expect(confirmsNumber(typed, '+15035550142')).toBe(false)
   })
 })

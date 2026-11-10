@@ -975,3 +975,19 @@ a.k-btn {
   align-items: center;
   gap: 4px;
 }
+
+/* Settings, Phone numbers: disconnecting or releasing a number, with the number typed to confirm */
+.st-release {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+}
+.st-release > b {
+  font-size: 13px;
+  font-weight: 600;
+}
+.st-release .auth-error {
+  margin: 0;
+}

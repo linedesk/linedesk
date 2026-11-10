@@ -1,5 +1,5 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type FindSlotsData } from '@callfront/actions'
+import { actions, confirmsNumber, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type FindSlotsData } from '@callfront/actions'
 import { findSlots, type FindSlotsInput, type Interval } from '@callfront/calendar'
 import {
   appointment_types, assistants, availability_exceptions, availability_rules, bookings, calls, contacts, organization, phone_numbers, syncedTables,
@@ -346,9 +346,31 @@ const handlers: Record<string, Handler> = {
       // A bought number is the business's new number; an attached one is taken as a forwarding
       // target, the product's default, and counts as verified only after a test call.
       mode: input.mode ?? (existing ? 'forward_conditional' : 'new'),
+      purchased: !existing,
       verified_at: existing ? null : now,
     }).returning()
     return { rows: { phone_numbers: rows } }
+  },
+
+  // Detaches the number from the workspace; a number Linedesk bought also goes back to the carrier.
+  // The carrier is asked last, right before the commit: if it refuses, nothing changes here.
+  'phoneNumber.release': async ({ tx, actor, telephony }, input) => {
+    if (!actor.workspaceId) throw new Reject('no workspace')
+    const [number] = await tx.select().from(phone_numbers)
+      .where(and(eq(phone_numbers.id, input.phoneNumberId), eq(phone_numbers.workspace_id, actor.workspaceId)))
+    if (!number) throw new Reject('phone number not found')
+    if (!confirmsNumber(input.confirm, number.e164)) throw new Reject(`type the number ${number.e164} to confirm`)
+    await tx.delete(phone_numbers).where(eq(phone_numbers.id, number.id))
+    if (number.purchased && number.provider !== 'dev') {
+      const provider = telephony ?? (await configuredProvider(tx))
+      if (provider.name !== number.provider) {
+        throw new Reject(`${number.e164} is at ${number.provider}, but ${provider.name} is the carrier in use: release it there, or switch the carrier back first`)
+      }
+      if (!number.provider_ref) throw new Reject(`${number.e164} has no carrier reference: release it at ${number.provider}`)
+      await atCarrier(() => provider.releaseNumber({ e164: number.e164, providerRef: number.provider_ref! }))
+    }
+    // No rows: the delete reaches browsers through read sync (a returned row would be written back locally).
+    return { rows: {}, data: { releasedAtCarrier: number.purchased && number.provider !== 'dev' } }
   },
 }
 

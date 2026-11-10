@@ -1,7 +1,7 @@
 // Handlers whose outcome depends on the carrier or on time: they run directly, with the provider
 // passed in, inside a transaction that is rolled back. Part of the Postgres-backed API suite.
 import { actions, rolePermissions } from '@callfront/actions'
-import { calls, type Tx } from '@callfront/db'
+import { calls, phone_numbers, type Tx } from '@callfront/db'
 import { devProvider, TelephonyError, type TelephonyProvider } from '@callfront/telephony'
 import { eq } from 'drizzle-orm'
 import { describe, expect, test, vi } from 'vitest'
@@ -127,6 +127,61 @@ describe('telephony handlers', () => {
     expect(error).toBeInstanceOf(Reject)
     expect(error.notes).toEqual([])
     expect(failing.routeToSip).not.toHaveBeenCalled()
+  }))
+
+  /** A number row as phoneNumber.setup leaves it; `purchased` says whether Linedesk bought it. */
+  async function numberRow(tx: Tx, e164: string, values: Partial<typeof phone_numbers.$inferInsert> = {}) {
+    const [row] = await tx.insert(phone_numbers).values({ id: `pn_${crypto.randomUUID().slice(0, 12)}`, workspace_id: WORKSPACE, e164, provider: 'telnyx', provider_ref: `ref_${e164}`, ...values }).returning()
+    return row!
+  }
+  const telnyx = (owned: string[] = [], overrides: Partial<TelephonyProvider> = {}) => Object.assign(carrier(owned, overrides), { name: 'telnyx' as const })
+  const stillThere = async (tx: Tx, id: string) => (await tx.select().from(phone_numbers).where(eq(phone_numbers.id, id))).length === 1
+
+  test('release: an attached number is only detached; the carrier keeps it', () => inRollback(async tx => {
+    const row = await numberRow(tx, '+15035550881')
+    const account = telnyx(['+15035550881'])
+    const { data } = await run(tx, owner, 'phoneNumber.release', { phoneNumberId: row.id, confirm: '(503) 555-0881' }, account)
+    expect(data).toEqual({ releasedAtCarrier: false })
+    expect(account.releaseNumber).not.toHaveBeenCalled()
+    expect(await stillThere(tx, row.id)).toBe(false)
+  }))
+
+  test('release: a number Linedesk bought goes back to the carrier', () => inRollback(async tx => {
+    const row = await numberRow(tx, '+15035550882', { purchased: true, mode: 'new' })
+    const account = telnyx(['+15035550882'])
+    const { data } = await run(tx, owner, 'phoneNumber.release', { phoneNumberId: row.id, confirm: '+1 503 555 0882' }, account)
+    expect(data).toEqual({ releasedAtCarrier: true })
+    expect(account.releaseNumber).toHaveBeenCalledWith({ e164: '+15035550882', providerRef: 'ref_+15035550882' })
+    expect(account.account.has('+15035550882')).toBe(false)
+    expect(await stillThere(tx, row.id)).toBe(false)
+  }))
+
+  test('release: the typed number must match; other workspaces, the agent and another carrier are refused', () => inRollback(async tx => {
+    const row = await numberRow(tx, '+15035550883', { purchased: true })
+    const account = telnyx(['+15035550883'])
+    await expect(run(tx, owner, 'phoneNumber.release', { phoneNumberId: row.id, confirm: '503 555 0884' }, account)).rejects.toThrow('type the number +15035550883 to confirm')
+    const stranger: Actor = { ...owner, workspaceId: `ws_other_${crypto.randomUUID().slice(0, 8)}` }
+    await expect(run(tx, stranger, 'phoneNumber.release', { phoneNumberId: row.id, confirm: '5035550883' }, account)).rejects.toThrow('phone number not found')
+    await expect(run(tx, agent, 'phoneNumber.release', { phoneNumberId: row.id, confirm: '5035550883' }, account)).rejects.toThrow('no workspace')
+    // Bought at Telnyx while Twilio is in use: never released at the wrong carrier.
+    const twilio = Object.assign(carrier(['+15035550883']), { name: 'twilio' as const })
+    await expect(run(tx, owner, 'phoneNumber.release', { phoneNumberId: row.id, confirm: '5035550883' }, twilio)).rejects.toThrow('telnyx, but twilio is the carrier in use')
+    expect(twilio.releaseNumber).not.toHaveBeenCalled()
+    expect(account.releaseNumber).not.toHaveBeenCalled()
+    expect(rolePermissions.member).not.toContain(actions.get('phoneNumber.release')!.permission)
+  }))
+
+  test('release: when the carrier refuses, the release is rejected (and the transaction keeps the number)', () => inRollback(async tx => {
+    const row = await numberRow(tx, '+15035550885', { purchased: true })
+    const refusing = telnyx(['+15035550885'], { releaseNumber: async () => { throw new TelephonyError('telnyx', 'number has an open port request') } })
+    const error = await run(tx, owner, 'phoneNumber.release', { phoneNumberId: row.id, confirm: '5035550885' }, refusing).catch(e => e)
+    expect(error).toBeInstanceOf(Reject)
+    expect(error.message).toBe('telnyx: number has an open port request')
+  }))
+
+  test('setup marks bought numbers as purchased and attached ones not', () => inRollback(async tx => {
+    expect((await setup(tx, { e164: '+15035550886', purchase: true }, carrier())).rows.phone_numbers?.[0]?.purchased).toBe(true)
+    expect((await setup(tx, { e164: '+15035550887' }, carrier(['+15035550887']))).rows.phone_numbers?.[0]?.purchased).toBe(false)
   }))
 
   test('a carrier that is selected but not configured is a rejection naming what is missing', () => inRollback(async tx => {

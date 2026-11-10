@@ -14,6 +14,7 @@ const verbs: Record<string, string> = {
   'contact.update': 'save the contact',
   'assistant.update': 'save the assistant settings',
   'onboarding.setStep': 'save your setup progress',
+  'phoneNumber.release': 'release the number',
   'notifications.update': 'save your notification settings',
   'notifications.setDefaults': 'save the notification defaults',
   'workspace.updateSettings': 'save the workspace settings',
