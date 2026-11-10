@@ -6,6 +6,7 @@ import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from
 import { type AuthMethods, auth, fetchAuthMethods, requestSignInCode } from '../auth.ts'
 import { CodeStep } from '../Login.tsx'
 import { previewInvitation } from './team-api.ts'
+import { AuthPage } from '../ui/kit.tsx'
 
 const INVITE_PARAM = 'invite'
 
@@ -25,7 +26,7 @@ const fail = (res: Result) => {
 const here = () => window.location.href
 
 function Card({ title, children }: { title: string; children: ReactNode }) {
-  return <main className="auth"><div className="auth-card"><h1>{title}</h1>{children}</div></main>
+  return <AuthPage><div className="auth-card"><h1>{title}</h1>{children}</div></AuthPage>
 }
 
 export function AcceptInvite({ invitationId, onDone }: { invitationId: string; onDone: () => void }) {
@@ -60,7 +61,7 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
   }
 
   const errorLine = error && <div className="auth-error" role="alert">{error}</div>
-  if (!invite || account === undefined || !methods) return <main className="auth">{errorLine}</main>
+  if (!invite || account === undefined || !methods) return <AuthPage>{errorLine}</AuthPage>
   if (invite.status !== 'pending') {
     return (
       <Card title={invite.status === 'expired' ? 'This invitation has expired' : 'This invitation is no longer valid'}>
@@ -137,7 +138,7 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
   }
 
   return (
-    <main className="auth">
+    <AuthPage>
       <form className="auth-card" onSubmit={submit}>
         <h1>{title}</h1>
         {lead}
@@ -169,6 +170,6 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
         )}
         {error}
       </form>
-    </main>
+    </AuthPage>
   )
 }

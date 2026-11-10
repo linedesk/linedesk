@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from 'react'
 import { auth, createWorkspace } from './auth.ts'
+import { AuthPage } from './ui/kit.tsx'
 
 /** First sign-in: name the business. Creates the workspace and its assistant. */
 export function CreateWorkspace({ onDone }: { onDone: () => void }) {
@@ -21,7 +22,7 @@ export function CreateWorkspace({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <main className="auth">
+    <AuthPage>
       <form className="auth-card" onSubmit={submit}>
         <h1>Name your business</h1>
         <p>Your assistant uses it when it answers the phone.</p>
@@ -33,6 +34,6 @@ export function CreateWorkspace({ onDone }: { onDone: () => void }) {
         <button type="submit" className="k-btn k-btn-primary" disabled={busy}>Continue</button>
         <button type="button" className="auth-switch" onClick={() => auth.signOut().then(onDone)}>Use a different account</button>
       </form>
-    </main>
+    </AuthPage>
   )
 }

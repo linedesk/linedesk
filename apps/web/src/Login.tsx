@@ -2,13 +2,14 @@
 // email, and a password. New people are signed up on first sign-in, unless sign-up is closed.
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { type AuthMethods, auth, fetchAuthMethods, requestSignInCode, signInWithCode, startSso, takeRedirectError } from './auth.ts'
-import { CODE_LENGTH, codeErrorMessage, normalizeCode, RESEND_AFTER_S } from './sign-in-code.ts'
+import { authErrorMessage, CODE_LENGTH, codeErrorMessage, normalizeCode, RESEND_AFTER_S } from './sign-in-code.ts'
+import { AuthPage } from './ui/kit.tsx'
 
 type Step = 'email' | 'code' | 'password' | 'signUp'
-type Result = { error: { message?: string; code?: string } | null }
+type Result = { error: { message?: string; code?: string; status?: number } | null }
 
 const fail = (res: Result) => {
-  if (res.error) throw new Error(res.error.message ?? 'That did not work')
+  if (res.error) throw new Error(authErrorMessage(res.error))
 }
 
 export function Login({ onDone }: { onDone: () => void }) {
@@ -60,7 +61,7 @@ export function Login({ onDone }: { onDone: () => void }) {
     if (step !== 'code') void attempt(actions[step])
   }
 
-  if (!methods) return <main className="auth">{error ? <div className="auth-error" role="alert">{error}</div> : <p className="auth-wait">Connecting…</p>}</main>
+  if (!methods) return <AuthPage>{error ? <div className="auth-error" role="alert">{error}</div> : <p className="auth-wait">Connecting…</p>}</AuthPage>
 
   if (step === 'code') {
     return (
@@ -72,7 +73,7 @@ export function Login({ onDone }: { onDone: () => void }) {
   const withPassword = step !== 'email'
   const withEmail = methods.emailCode || methods.password
   return (
-    <main className="auth">
+    <AuthPage>
       <form className="auth-card" onSubmit={submit}>
         <h1>{step === 'signUp' ? 'Create your account' : 'Sign in to Linedesk'}</h1>
         <p>Your calls, handled.</p>
@@ -109,7 +110,7 @@ export function Login({ onDone }: { onDone: () => void }) {
         )}
         <LoginSwitches step={step} methods={methods} onStep={s => { setStep(s); setError(null) }} />
       </form>
-    </main>
+    </AuthPage>
   )
 }
 
@@ -151,12 +152,12 @@ export function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
     setCode('')
     setWaitS(RESEND_AFTER_S)
     const res = await requestSignInCode(email)
-    if (res.error) setError(res.error.message ?? 'Could not send a new code.')
+    if (res.error) setError(authErrorMessage(res.error))
     input.current?.focus()
   }
 
   return (
-    <main className="auth">
+    <AuthPage>
       <form className="auth-card" onSubmit={e => { e.preventDefault(); if (code.length === CODE_LENGTH) void check(code) }}>
         <h1>Check your email</h1>
         <p>We sent a {CODE_LENGTH}-digit code to {email}. It expires in 10 minutes.</p>
@@ -175,7 +176,7 @@ export function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
           : <button type="button" className="auth-switch" onClick={() => void resend()}>Resend code</button>}
         <button type="button" className="auth-switch" onClick={onDifferentEmail}>Use a different email</button>
       </form>
-    </main>
+    </AuthPage>
   )
 }
 
@@ -183,8 +184,10 @@ function LoginSwitches({ step, methods, onStep }: { step: Step; methods: AuthMet
   const link = (to: Step, text: string) => <button type="button" className="auth-switch" onClick={() => onStep(to)}>{text}</button>
   return (
     <>
+      {step === 'email' && methods.signUp !== false && <p className="auth-note">New to Linedesk? The same code creates your account.</p>}
       {step === 'email' && methods.password && link('password', 'Use a password instead')}
-      {step !== 'email' && methods.emailCode && link('email', 'Email me a code instead')}
+      {step === 'password' && methods.emailCode && link('email', 'Forgot your password? Email me a code')}
+      {step === 'signUp' && methods.emailCode && link('email', 'Email me a code instead')}
       {step === 'password' && methods.signUp !== false && link('signUp', 'New here? Create an account')}
       {methods.signUp === false && <p className="auth-note">Sign-up is closed on this server. Ask your administrator for an account.</p>}
       {step === 'signUp' && link('password', 'Already have an account? Sign in')}
