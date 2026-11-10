@@ -28,6 +28,8 @@ We plan to offer a hosted version for businesses that do not want to run servers
 
 Until the code is public, the most useful thing is to tell us about your use case: open a [feature request](../../issues/new?template=feature_request.yml) and describe how calls work in your business today.
 
+For anything else, write to [hello@linedesk.ai](mailto:hello@linedesk.ai).
+
 ## License
 
 [AGPL-3.0](LICENSE). "Linedesk" and the Linedesk logo are trademarks; see [TRADEMARK.md](TRADEMARK.md).

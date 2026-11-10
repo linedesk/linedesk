@@ -6,6 +6,6 @@ In short: be respectful, be patient with newcomers, criticise ideas and not peop
 
 ## Reporting
 
-If someone behaves in a way that breaks this code, contact the maintainers privately through the repository's "Report a vulnerability" form on the Security tab (it reaches the maintainers only), or reach out to a maintainer directly. Reports are handled confidentially.
+If someone behaves in a way that breaks this code, email [conduct@linedesk.ai](mailto:conduct@linedesk.ai). Reports are handled confidentially.
 
 Maintainers may remove comments, commits and contributions that break this code, and may ban contributors temporarily or permanently.

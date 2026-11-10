@@ -4,7 +4,7 @@ Linedesk handles phone calls, recordings and customer data, so we take security 
 
 ## Reporting a vulnerability
 
-Please do not open a public issue. Use GitHub's private reporting instead: on the repository's **Security** tab choose **Report a vulnerability**. The report is visible to the maintainers only.
+Please do not open a public issue. Use GitHub's private reporting instead: on the repository's **Security** tab choose **Report a vulnerability**. The report is visible to the maintainers only. If you cannot use GitHub, email [security@linedesk.ai](mailto:security@linedesk.ai).
 
 Include what you found, how to reproduce it and what an attacker could do with it. We aim to answer within three working days and will keep you informed until the fix is released. We are happy to credit you in the release notes if you wish.
 
