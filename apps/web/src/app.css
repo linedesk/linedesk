@@ -59,3 +59,4 @@ button.me:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; 
 .vn-track:hover .vn-knob { transform: scale(1.35); }
 .vn-time { flex: none; font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); white-space: nowrap; }
 .vn-btn:disabled { opacity: 0.4; cursor: default; }
+.auth-wait { color: var(--ink-muted); font-size: 13px; }

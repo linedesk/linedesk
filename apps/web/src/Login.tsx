@@ -59,7 +59,7 @@ export function Login({ onDone }: { onDone: () => void }) {
     if (step !== 'linkSent') void attempt(actions[step])
   }
 
-  if (!methods) return <main className="auth">{error && <div className="auth-error" role="alert">{error}</div>}</main>
+  if (!methods) return <main className="auth">{error ? <div className="auth-error" role="alert">{error}</div> : <p className="auth-wait">Connecting…</p>}</main>
 
   if (step === 'linkSent') {
     return (

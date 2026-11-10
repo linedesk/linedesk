@@ -21,10 +21,16 @@ export async function isSignedIn(): Promise<boolean> {
   return Boolean((await auth.getSession()).data)
 }
 
-export async function fetchAuthMethods(): Promise<AuthMethods> {
-  const res = await fetch('/v1/auth-methods')
-  if (!res.ok) throw new Error('Could not load sign-in options')
-  return (await res.json()) as AuthMethods
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+/** Keeps trying while the API is unreachable (for example during a restart), so the screen recovers by itself. */
+export async function fetchAuthMethods(retryMs = [500, 1000, 2000, 4000, 8000]): Promise<AuthMethods> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch('/v1/auth-methods').catch(() => null)
+    if (res?.ok) return (await res.json()) as AuthMethods
+    const delay = retryMs[Math.min(attempt, retryMs.length - 1)] ?? 8000
+    await wait(delay)
+  }
 }
 
 export async function createWorkspace(name: string) {
