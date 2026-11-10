@@ -1543,6 +1543,14 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
   .row .r-dot { left: 46px; }
   .ib-day { padding-left: 62px; }
 }
+
+/* Toasts: smaller, quieter; Undo reads as a button */
+.toast { gap: 10px; padding: 6px 6px 6px 12px; font-size: 12px; line-height: 16px; border-radius: var(--radius-sm); background: rgb(28 25 23 / 0.88); color: rgb(250 250 248 / 0.92); box-shadow: 0 4px 14px -4px rgb(28 25 23 / 0.25); backdrop-filter: blur(6px); }
+.toast-undo { border-left: 0; padding: 3px 8px; border-radius: var(--radius-xs); background: rgb(255 255 255 / 0.12); color: #fff; font-size: 12px; font-weight: 500; gap: 5px; cursor: pointer; }
+.toast-undo:hover { background: rgb(255 255 255 / 0.22); }
+.toast-undo:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+.toast { bottom: calc(44px + env(safe-area-inset-bottom, 0px)); }
+.toast-undo .k-kbd { height: 16px; min-width: 16px; font-size: 10px; background: transparent; border-color: rgb(255 255 255 / 0.35); color: inherit; }
 </style>
 <div id="app"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
