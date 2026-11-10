@@ -2255,7 +2255,6 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
           : h(K.Button, { key: 'd', size: 'sm', variant: 'primary', shortcut: ['E'], className: 'cv-done', title: 'Mark done (E)', onClick: p.onDone }, 'Done')];
       if (!c.done && c.status !== 'spam') acts.splice(acts.length - 1, 0,
         h(K.Button, { key: 'cb', size: 'sm', variant: 'ghost', icon: 'phone-out', className: 'cv-act', 'aria-label': 'Call back', title: 'Call back (C)', onClick: p.onCallBack }),
-        h(K.Button, { key: 'bk', size: 'sm', variant: 'ghost', icon: 'calendar', className: 'cv-act', 'aria-label': 'Book', title: 'Book (B)', onClick: p.onBook }),
         h(K.Button, { key: 'as', size: 'sm', variant: 'ghost', icon: 'user', className: cx('cv-act', p.assigneeName && 'is-set'), 'aria-label': 'Assign', title: (p.assigneeName ? 'Assigned to ' + p.assigneeName : 'Assign') + ' (A)', onClick: p.onAssign }),
         c.snoozed ? null : h(K.Button, { key: 'rm', size: 'sm', variant: 'ghost', icon: 'clock', className: 'cv-act', 'aria-label': 'Remind me', title: 'Remind me (H)', onClick: p.onRemind }));
     }
