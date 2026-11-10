@@ -11,7 +11,8 @@ import { callOrigin, parseTestMetadata, startCall, type CallSession } from './ca
 import { createConfigLoader, parseProviderSettings, type AgentConfig } from './config.ts'
 import { AGENT_NAME, requireEnv, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness } from './not-ready.ts'
-import { createPipeline, summaryLlm, warmUpLlm } from './pipeline.ts'
+import { createPipeline, createTts, summaryLlm, ttsModelOf, voiceFor, warmUpLlm } from './pipeline.ts'
+import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
 import { logTurnMetrics } from './turn-metrics.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
 import { hangUpAfterSpeech, speakingOf } from './hang-up.ts'
@@ -82,9 +83,41 @@ function recordConversation(session: voice.AgentSession, log: CallLog) {
 /** Tools whose result the caller need not hear: no extra LLM round when the assistant already spoke. */
 const QUIET_TOOLS = new Set(['take_message', 'flag_urgent', 'end_call'])
 
+const greetingCache = createGreetingCache()
+
+/**
+ * Starts the greeting: the stored audio when there is some for this text and voice, else the voice
+ * provider live, while the audio is made and stored for the next call.
+ */
+async function greet(session: voice.AgentSession, config: AgentConfig, call: CallSession, cached: Promise<Awaited<ReturnType<typeof greetingCache.get>>>, key: string) {
+  const text = call.assistant?.greeting || FALLBACK_GREETING
+  const audio = await cached
+  if (audio) {
+    session.say(text, { audio: audioStream(audio) })
+    return 'cached'
+  }
+  session.say(text)
+  void synthesize(createTts(config.tts, call.assistant?.voice), text)
+    .then(synthesized => greetingCache.put(key, synthesized))
+    .catch(e => console.warn(`could not store the greeting audio: ${e instanceof Error ? e.message : String(e)}`))
+  return 'synthesized'
+}
+
 /** Greets the caller and runs the conversation until the session closes. */
-async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClient, config: AgentConfig, call: CallSession, log: CallLog, onClose: () => void) {
+async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClient, config: AgentConfig, call: CallSession, log: CallLog, onClose: () => void, setup: SetupTimer) {
+  const key = greetingKey({
+    provider: config.tts.provider, model: ttsModelOf(config.tts), voiceId: voiceFor(config.tts, call.assistant?.voice),
+    text: call.assistant?.greeting || FALLBACK_GREETING,
+  })
+  const cachedGreeting = greetingCache.get(key) // read while the session starts
   const session = new voice.AgentSession(createPipeline(config, call.assistant?.voice))
+  const onSpeaking = ({ newState }: { newState: string }) => {
+    if (newState !== 'speaking') return
+    session.off(voice.AgentSessionEventTypes.AgentStateChanged, onSpeaking)
+    setup.mark('greeting audio')
+    setup.log(call.callId)
+  }
+  session.on(voice.AgentSessionEventTypes.AgentStateChanged, onSpeaking)
   recordConversation(session, log)
   logTurnMetrics(session, call.callId)
   skipQuietToolReplies(session, QUIET_TOOLS)
@@ -96,7 +129,22 @@ async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClie
     room: ctx.room,
     inputOptions: { participantIdentity: caller.identity, participantKinds: ALL_PARTICIPANT_KINDS, closeOnDisconnect: true },
   })
-  session.say(call.assistant?.greeting || FALLBACK_GREETING)
+  setup.mark('session')
+  setup.note(await greet(session, config, call, cachedGreeting, key))
+}
+
+/** Times from the caller joining to each setup step, logged once per call. */
+type SetupTimer = ReturnType<typeof setupTimer>
+function setupTimer(startedAt = Date.now()) {
+  const marks: string[] = []
+  let detail = ''
+  return {
+    mark: (step: string) => void marks.push(`${step} +${Date.now() - startedAt} ms`),
+    note(text: string) {
+      detail = text
+    },
+    log: (callId: string) => console.log(`setup ${callId}: ${marks.join(', ')}${detail ? ` (greeting ${detail})` : ''}`),
+  }
 }
 
 async function entry(ctx: JobContext) {
@@ -111,7 +159,9 @@ async function entry(ctx: JobContext) {
   const caller = parseTestMetadata(ctx.job.metadata) ? await waitForCounterpart(ctx) : await ctx.waitForParticipant()
   const api = apiClientFromEnv()
   const origin = callOrigin(ctx.job.metadata, caller.attributes, ctx.room.name ?? '')
+  const setup = setupTimer()
   const call = await startCall(api, origin)
+  setup.mark('registered')
   if (call.blocked) {
     await ctx.deleteRoom() // blocked caller: the API already filed the call in Spam
     return ctx.shutdown('blocked caller')
@@ -121,6 +171,7 @@ async function entry(ctx: JobContext) {
     await declineCall(call, readiness, () => ctx.deleteRoom())
     return ctx.shutdown('assistant not set up')
   }
+  setup.mark('providers')
   const { config } = readiness
   const log = new CallLog(call)
 
@@ -136,7 +187,7 @@ async function entry(ctx: JobContext) {
   const finishOnce = once(finish, `could not finish call ${call.callId}`)
   ctx.addShutdownCallback(finishOnce)
   try {
-    await converse(ctx, caller, api, config, call, log, finishOnce)
+    await converse(ctx, caller, api, config, call, log, finishOnce, setup)
     if (origin.kind === 'test') endTestCallLater(ctx)
   } catch (e) {
     await finishOnce()

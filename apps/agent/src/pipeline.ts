@@ -32,7 +32,10 @@ function createStt({ apiKey, model }: AgentConfig['stt']) {
   return model.startsWith('flux') ? new deepgram.STTv2({ apiKey, model, eagerEotThreshold: EAGER_END_OF_TURN }) : new deepgram.STT({ apiKey, model })
 }
 
-function createTts(tts: AgentConfig['tts'], assistantVoice?: AssistantVoice | null) {
+/** The model the voice provider is asked for (ElevenLabs gets its fast default). */
+export const ttsModelOf = (tts: AgentConfig['tts']) => tts.model ?? (tts.provider === 'elevenlabs' ? ELEVENLABS_DEFAULT_MODEL : undefined)
+
+export function createTts(tts: AgentConfig['tts'], assistantVoice?: AssistantVoice | null) {
   const voiceId = voiceFor(tts, assistantVoice)
   if (tts.provider === 'cartesia') return new cartesia.TTS({ apiKey: tts.apiKey, ...(tts.model ? { model: tts.model } : {}), ...(voiceId ? { voice: voiceId } : {}) })
   return new elevenlabs.TTS({ apiKey: tts.apiKey, model: tts.model ?? ELEVENLABS_DEFAULT_MODEL, ...(voiceId ? { voiceId } : {}) })
