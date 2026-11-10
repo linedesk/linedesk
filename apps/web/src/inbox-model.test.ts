@@ -1,5 +1,6 @@
 import type { Call } from '@callfront/db/types'
 import { describe, expect, it } from 'vitest'
+import { whenLabel } from './time.ts'
 import { countsFor, listFor, resolveCursor, statusLabel, tabOf } from './inbox-model.ts'
 
 const now = new Date('2026-11-10T12:00:00Z')
@@ -62,7 +63,7 @@ describe('order inside a day', () => {
 describe('status column', () => {
   const label = (over: Partial<Call>, tab: 'you' | 'ai' = 'you') => statusLabel(call(over), tab, 'Maya', now)
   it('shows what matters most', () => {
-    expect(label({ outcome: 'callback', reminder_at: '2026-11-10T13:00:00.000Z', reminder_label: 'Later today' })).toEqual({ text: 'Later today', tone: 'neutral' })
+    expect(label({ outcome: 'callback', reminder_at: '2026-11-10T13:00:00.000Z', reminder_label: 'Later today' })).toEqual({ text: whenLabel(new Date('2026-11-10T13:00:00.000Z'), now), tone: 'neutral' }) // the time, not the label it was set with
     expect(label({ outcome: 'callback', urgency: 'urgent' })).toEqual({ text: 'Urgent callback', tone: 'danger' })
     expect(label({ outcome: 'hangup' })).toEqual({ text: 'Missed', tone: 'danger' })
     expect(label({ outcome: 'spam' })).toEqual({ text: 'Blocked', tone: 'neutral' })
@@ -100,5 +101,17 @@ describe('cursor', () => {
     expect(resolveCursor(['a', 'b'], null, [])).toBe('a')
     expect(resolveCursor(['x', 'y'], 'gone', before)).toBe('x')
     expect(resolveCursor([], 'a', before)).toBeNull()
+  })
+})
+
+describe('reminders view', () => {
+  it('lists reminders by when they come back, soonest first', () => {
+    const calls = [
+      call({ id: 'next-week', outcome: 'callback', reminder_at: '2026-11-16T16:00:00.000Z', started_at: '2026-11-10 11:00:00+00' }),
+      call({ id: 'later-today', outcome: 'message', reminder_at: '2026-11-10T15:00:00.000Z', started_at: '2026-11-03 09:00:00+00' }),
+      call({ id: 'tomorrow', outcome: 'booked', reminder_at: '2026-11-11T16:00:00.000Z', started_at: '2026-11-09 09:00:00+00' }),
+      call({ id: 'passed', outcome: 'callback', reminder_at: '2026-11-10T09:00:00.000Z' }),
+    ]
+    expect(listFor(calls, 'reminders', now).map(c => c.id)).toEqual(['later-today', 'tomorrow', 'next-week'])
   })
 })

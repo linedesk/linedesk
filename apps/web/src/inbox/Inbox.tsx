@@ -36,8 +36,9 @@ function Empty({ tab, search }: { tab: InboxTab; search: string | null }) {
   )
 }
 
-function Hints() {
-  const hints: [string[], string][] = [[['⏎'], 'open'], [['E'], 'done'], [['tab'], 'switch'], [['⌘', 'K'], 'commands'], [['?'], 'all shortcuts']]
+function Hints({ tab }: { tab: InboxTab }) {
+  const done: [string[], string] = tab === 'done' ? [['⇧', 'E'], 'not done'] : [['E'], 'done']
+  const hints: [string[], string][] = [[['⏎'], 'open'], done, [['tab'], 'switch'], [['⌘', 'K'], 'commands'], [['?'], 'all shortcuts']]
   return (
     <div className="ib-hint">
       <span><Kbd keys={['J']} /><Kbd keys={['K']} />move</span>
@@ -53,6 +54,7 @@ export function Inbox({ list, segments, cursor, leaving, entering, menu, ...rest
   useEffect(() => { if (cursor) listRef.current?.querySelector('.is-cursor')?.scrollIntoView({ block: 'nearest' }) }, [cursor])
   const day = (c: Call) => dayLabel(parseTs(c.started_at))
   const zero = !list.length && tab === 'you' && search === null
+  const groupByDay = tab !== 'reminders' || search !== null // reminders are ordered by when they come back, not by call day
 
   return (
     <div className="cv">
@@ -60,14 +62,14 @@ export function Inbox({ list, segments, cursor, leaving, entering, menu, ...rest
       <div className={cx('ib-list', zero && 'is-zero')} ref={listRef} role="list">
         {list.map((c, i) => (
           <Fragment key={c.id}>
-            {(i === 0 || day(list[i - 1]!) !== day(c)) && <div className="ib-day" role="presentation">{day(c)}</div>}
+            {groupByDay && (i === 0 || day(list[i - 1]!) !== day(c)) && <div className="ib-day" role="presentation">{day(c)}</div>}
             <Row {...rest} call={c} segments={segments.get(c.id) ?? []} isCursor={cursor === c.id}
               motion={leaving === c.id ? 'leaving' : entering === c.id ? 'entering' : null} />
           </Fragment>
         ))}
-        {zero ? <InboxZero handledCount={counts.ai} /> : !list.length && <Empty tab={tab} search={search} />}
+        {zero ? <InboxZero handledCount={counts.ai} hasAnyCalls={Object.values(counts).some(n => n > 0)} /> : !list.length && <Empty tab={tab} search={search} />}
       </div>
-      {list.length ? <Hints /> : null}
+      {list.length ? <Hints tab={tab} /> : null}
     </div>
   )
 }

@@ -72,6 +72,14 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
     },
   }, toaster.via)
 
+  // A hash that leads nowhere shows the inbox, says so once and is cleaned up.
+  const lost = !nav.known ? 'That page does not exist.' : view.missingCall ? 'Call not found.' : null
+  useEffect(() => {
+    if (!lost) return
+    toaster.show(lost)
+    nav.backToInbox()
+  }, [lost, toaster.show, nav.backToInbox])
+
   const { rejection, clearRejection } = useRejection()
   useEffect(() => {
     if (!rejection) return

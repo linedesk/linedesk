@@ -3,7 +3,8 @@ import { useId, useState, type KeyboardEvent } from 'react'
 import type { IconName } from './icons.ts'
 import { Icon, Kbd } from './kit.tsx'
 
-export type CommandItem = { label: string; icon?: IconName; shortcut?: string[] }
+/** `hint` is a quiet detail after the label, for example the time behind "Tomorrow morning". */
+export type CommandItem = { label: string; icon?: IconName; shortcut?: string[]; hint?: string }
 export type CommandGroup<T extends CommandItem = CommandItem> = { label: string | null; items: T[] }
 export type SelectVia = 'key' | 'mouse'
 
@@ -75,7 +76,7 @@ export function CommandMenu<T extends CommandItem>({ groups, onSelect, placehold
               return (
                 <div key={it.label} id={optionId(me)} className="k-cmd-item" role="option" aria-selected={me === index} onMouseEnter={() => setActive(me)} onClick={() => onSelect(it, 'mouse')}>
                   {it.icon && <Icon name={it.icon} />}
-                  <span>{it.label}</span>
+                  <span>{it.label}{it.hint && <small className="k-cmd-hint">{it.hint}</small>}</span>
                   {it.shortcut ? <Kbd keys={it.shortcut} /> : numbered && me < 9 ? <Kbd keys={[String(me + 1)]} /> : null}
                 </div>
               )

@@ -1,6 +1,6 @@
 // What the inbox shows and what is selected: the view, the search, the list, the cursor and the open call.
 import type { Call } from '@callfront/db/types'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useSegmentsByCall } from '../call/segments.ts'
 import { countsFor, listFor, sortForList, tabOf, type InboxTab } from '../inbox-model.ts'
 import { useNow } from '../shell/useNow.ts'
@@ -17,8 +17,8 @@ export function useInboxView(nav: RouteApi) {
   const assistantName = useAssistantName()
   const now = useNow()
   const run = useRun()
-  const [tab, setTabState] = useState<InboxTab>('you')
-  const [search, setSearch] = useState<string | null>(null)
+  const { tab, search } = nav // the view and the search live in the URL, so a reload keeps them
+  const setTabState = (next: InboxTab) => nav.setView({ tab: next, search })
 
   const list = useMemo(() => {
     if (search === null) return listFor(calls, tab, now)
@@ -31,6 +31,15 @@ export function useInboxView(nav: RouteApi) {
   const onInbox = nav.route === 'calls'
   const openCall = onInbox && nav.callId ? calls.find(c => c.id === nav.callId && !c.deleted_at) : undefined
   const target = onInbox ? openCall ?? list.find(c => c.id === cursorId) : undefined
+
+  // A reloaded search keeps its query in the URL; put the caret back into the field.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only on the first render
+  useEffect(() => {
+    if (search !== null && onInbox && !nav.callId) document.getElementById(SEARCH_INPUT_ID)?.focus()
+  }, [])
+
+  /** The hash names a call that is not there (deleted, another workspace, a typo). Rows are known once any call is loaded. */
+  const missingCall = onInbox && !!nav.callId && calls.length > 0 && !openCall
 
   /** Show a call full width and mark it read. */
   function show(call: Call) {
@@ -57,22 +66,21 @@ export function useInboxView(nav: RouteApi) {
   function setTab(next: InboxTab) {
     if (nav.callId) nav.closeCall()
     else if (!onInbox) nav.go('calls')
-    setTabState(next)
-    setSearch(null)
+    nav.setView({ tab: next, search: null })
     setCursor(null)
   }
   function openSearch() {
     if (nav.callId) nav.closeCall()
     else if (!onInbox) nav.go('calls')
-    setSearch(s => s ?? '')
+    nav.setView({ tab, search: search ?? '' })
     setTimeout(() => { const el = document.getElementById(SEARCH_INPUT_ID) as HTMLInputElement | null; el?.focus(); el?.select() }, 0)
   }
 
   return {
-    calls, contacts, segments, list, counts, liveCall, tab, search, cursorId, openCall, target, onInbox,
+    calls, contacts, segments, list, counts, liveCall, tab, search, cursorId, openCall, target, onInbox, missingCall,
     setTab, setTabState, setCursor, open, showById, step, openSearch, back: nav.closeCall,
-    changeSearch: (query: string) => { setSearch(query); setCursor(null) },
-    closeSearch: () => { setSearch(null); setCursor(null) },
+    changeSearch: (query: string) => { nav.setView({ tab, search: query }); setCursor(null) },
+    closeSearch: () => { nav.setView({ tab, search: null }); setCursor(null) },
   }
 }
 export type InboxView = ReturnType<typeof useInboxView>

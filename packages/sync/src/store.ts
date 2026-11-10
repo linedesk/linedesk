@@ -16,13 +16,16 @@ export interface StoreOptions {
   dbName: string
   adapter: ReadSyncAdapter
   onReject?: (r: Rejection) => void
+  /** The local database was taken away by another tab (it signed out). The store has stopped. */
+  onLocalDbLost?: () => void
   retryMs?: number
 }
 
 const emptyTables = () => Object.fromEntries(tableNames.map(t => [t, new Map()])) as unknown as LocalTables
 
 export async function createStore(opts: StoreOptions) {
-  const local = await openLocalDb(opts.dbName)
+  let stopped = false
+  const local = await openLocalDb(opts.dbName, { onLost: () => { stop(); opts.onLocalDbLost?.() } })
   const confirmed = emptyTables()
   for (const t of tableNames) {
     for (const [, row] of await local.all<AnyRow>(t)) (confirmed[t] as Map<string, AnyRow>).set(row.id, row)
@@ -52,19 +55,21 @@ export async function createStore(opts: StoreOptions) {
   }
 
   const sinkFor = <T extends TableName>(table: T): TableSink<T> => ({
-    upsert(rows) { confirm(table, rows as AnyRow[]); recompute() },
+    upsert(rows) { if (!stopped) { confirm(table, rows as AnyRow[]); recompute() } },
     remove(ids) {
+      if (stopped) return
       for (const id of ids) confirmed[table].delete(id)
       void local.write(table, s => ids.forEach(id => s.delete(id)))
       recompute()
     },
     replaceAll(rows) {
+      if (stopped) return
       confirmed[table] = new Map((rows as AnyRow[]).map(r => [r.id, r])) as never
       void local.write(table, s => { s.clear(); (rows as AnyRow[]).forEach(r => s.put(r, r.id)) })
       recompute()
     },
     loadCursor: async () => (await local.all('meta')).find(([k]) => k === `cursor:${table}`)?.[1],
-    saveCursor: cursor => void local.write('meta', s => s.put(cursor, `cursor:${table}`)),
+    saveCursor: cursor => stopped ? undefined : void local.write('meta', s => s.put(cursor, `cursor:${table}`)),
   })
 
   async function drop(c: Command) {
@@ -82,22 +87,27 @@ export async function createStore(opts: StoreOptions) {
   let retry: ReturnType<typeof setTimeout> | undefined
   const retryLater = () => { clearTimeout(retry); retry = setTimeout(() => void flush(), opts.retryMs ?? 2000) }
 
-  /** Replay pending commands in order. Stops at the first transient failure to keep order. */
+  /**
+   * Replay pending commands in order. Stops at the first transient failure to keep order.
+   * Always takes the oldest command still waiting, so one added while a request is in flight is sent too.
+   */
   async function flush() {
-    if (flushing) return
+    if (flushing || stopped) return
     flushing = true
     try {
-      for (const c of [...outbox]) {
+      for (let c = outbox[0]; c; c = outbox[0]) {
         let res: Response
         try {
           res = await fetch(`${opts.api}/v1/actions/${c.name}`, {
             method: 'POST', credentials: 'include', body: JSON.stringify(c.input),
             headers: { 'content-type': 'application/json', 'idempotency-key': c.id },
           })
-        } catch { setOnline(false); return retryLater() }
+        } catch { if (stopped) return; setOnline(false); return retryLater() }
+        if (stopped) return // answered after stop(): the next start replays the command (same idempotency key)
         if (res.status >= 500 || res.status === 401) { setOnline(res.status === 401); return retryLater() }
         setOnline(true)
         const body = (await res.json()) as ActionResult | { ok: false; error: string }
+        if (stopped) return
         if (body.ok) {
           for (const [table, rows] of Object.entries(body.rows)) confirm(table as TableName, rows as AnyRow[])
         } else {
@@ -120,9 +130,18 @@ export async function createStore(opts: StoreOptions) {
     void flush()
   }
 
-  recompute()
-  const stops = tableNames.map(t => opts.adapter.start(t, sinkFor(t)))
   const onOnline = () => void flush()
+  function stop() {
+    if (stopped) return
+    stopped = true
+    stops.forEach(s => s())
+    clearTimeout(retry)
+    globalThis.removeEventListener?.('online', onOnline)
+    local.close()
+  }
+
+  recompute()
+  const stops: (() => void)[] = tableNames.map(t => opts.adapter.start(t, sinkFor(t)))
   globalThis.addEventListener?.('online', onOnline)
   void flush()
 
@@ -132,12 +151,7 @@ export async function createStore(opts: StoreOptions) {
     subscribe: (l: () => void) => { listeners.add(l); return () => { listeners.delete(l) } },
     getSnapshot: () => snapshot,
     rows: <T extends TableName>(table: T): Tables[T][] => [...snapshot.tables[table].values()],
-    stop() {
-      stops.forEach(stop => stop())
-      clearTimeout(retry)
-      globalThis.removeEventListener?.('online', onOnline)
-      local.close()
-    },
+    stop,
   }
 }
 export type Store = Awaited<ReturnType<typeof createStore>>

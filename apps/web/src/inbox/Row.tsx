@@ -33,9 +33,10 @@ function RowAction({ title, icon, onClick }: { title: string; icon: IconName; on
   return <button type="button" className="r-act" title={title} aria-label={title.replace(/ \(.*\)$/, '')} onClick={stop(onClick)}><Icon name={icon} size={14} /></button>
 }
 
-function Status({ call, tab }: { call: Call; tab: InboxTab }) {
+function Status({ call, tab, markDone }: { call: Call; tab: InboxTab; markDone: boolean }) {
   const assistant = useAssistantName()
   if (call.status === 'live') return <LiveIndicator since={parseTs(call.started_at)} />
+  if (markDone) return <span className="r-quiet">Done</span> // search lists every call, done ones included
   const { text, tone } = statusLabel(call, tab, assistant)
   if (tone === 'next' || tone === 'quiet') return <span className={`r-${tone}`}>{text}</span>
   return <Badge tone={tone}>{text}</Badge>
@@ -62,13 +63,13 @@ export function Row({ call, tab, search, segments, isCursor, motion, ...on }: Pr
   const done = call.inbox_state === 'done'
   const reminded = tabOf(call) === 'reminders'
   return (
-    <div role="listitem" className={cx('row', motion && `is-${motion}`, isCursor && 'is-cursor', (call.unread || live) && 'unread')}
+    <div role="listitem" className={cx('row', motion && `is-${motion}`, isCursor && 'is-cursor', (call.unread || live) && 'unread', done && search !== null && 'is-done')}
       onClick={() => on.onOpen?.(call)} onMouseMove={() => { if (!isCursor) on.onHover(call) }}>
       <span className={cx('r-dot', call.unread && 'is-unread')} role="button" title={`${call.unread ? 'Mark read' : 'Mark unread'} (U)`}
         aria-label={call.unread ? 'Unread, mark read' : 'Read, mark unread'} onClick={stop(() => on.onToggleUnread(call))}><i /></span>
       <span className="r-name"><span>{highlight(callerName(call, contact), search)}</span></span>
       <Summary call={call} search={search} segments={segments} />
-      <span className="r-status"><Status call={call} tab={tab} /></span>
+      <span className="r-status"><Status call={call} tab={tab} markDone={done && search !== null} /></span>
       <span className="r-dur">{live || !call.duration_sec ? '—' : shortDuration(call.duration_sec)}</span>
       <span className="r-time">{timeLabel(parseTs(call.started_at))}</span>
       <span className="r-acts">

@@ -1,5 +1,8 @@
 // The times offered by "Remind me" (H). Mornings are 8:00 local time.
-export type ReminderOption = { label: string; icon: 'calendar'; at: Date }
+import { whenLabel } from '../time.ts'
+
+/** `hint` is the actual time, shown next to the label in the menu. */
+export type ReminderOption = { label: string; icon: 'calendar'; at: Date; hint: string }
 
 const MORNING_HOUR = 8
 const LATER_TODAY_HOURS = 3
@@ -24,5 +27,5 @@ export function reminderOptions(now = new Date()): ReminderOption[] {
     ['Next week', morning(now, daysToMonday)],
     ['In a month', inAMonth(now)],
   ]
-  return times.map(([label, at]) => ({ label, icon: 'calendar', at }))
+  return times.map(([label, at]) => ({ label, icon: 'calendar', at, hint: whenLabel(at, now) }))
 }

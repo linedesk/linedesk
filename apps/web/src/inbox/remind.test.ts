@@ -31,3 +31,12 @@ describe('reminder edge cases', () => {
     expect(reminderOptions(new Date(2026, 10, 10, 22)).map(o => o.label)).toEqual(['Tomorrow morning', 'In two days', 'Next week', 'In a month'])
   })
 })
+
+describe('reminder menu', () => {
+  it('shows the actual time next to each label', () => {
+    const options = reminderOptions(new Date(2026, 10, 10, 15, 30))
+    expect(options.map(o => [o.label, o.hint])).toEqual([
+      ['Later today', 'Today 6:30 PM'], ['Tomorrow morning', 'Tomorrow 8:00 AM'], ['In two days', 'Thu 8:00 AM'], ['Next week', 'Mon 8:00 AM'], ['In a month', 'Dec 10, 8:00 AM'],
+    ])
+  })
+})

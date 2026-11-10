@@ -43,3 +43,14 @@ export function dateTimeLabel(date: Date, now = new Date()): string {
   if (day === 'Today') return time
   return day === 'Yesterday' ? `Yesterday ${time}` : `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${time}`
 }
+
+/** When a reminder comes back: "Today 6:30 PM", "Tomorrow 8:00 AM", "Fri 8:00 AM", "Dec 10, 8:00 AM". */
+export function whenLabel(date: Date, now = new Date()): string {
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const days = Math.round((startOfDay(date) - startOfDay(now)) / 86_400_000)
+  const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  if (days === 0) return `Today ${time}`
+  if (days === 1) return `Tomorrow ${time}`
+  if (days > 1 && days < 7) return `${date.toLocaleDateString('en-US', { weekday: 'short' })} ${time}`
+  return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${time}`
+}

@@ -1,6 +1,6 @@
 // Inbox views are derived, never stored: does a person still have to act? (architecture §9)
 import type { Call, Contact } from '@callfront/db/types'
-import { parseTs } from './time.ts'
+import { parseTs, whenLabel } from './time.ts'
 
 export type InboxTab = 'you' | 'ai' | 'spam' | 'reminders' | 'done'
 /** The three splits Tab cycles through. Reminders and Done are modes outside the cycle. */
@@ -55,7 +55,10 @@ export function sortForList(calls: Call[], byPriority: boolean, all: Call[] = ca
 
 export function listFor(calls: Call[], tab: InboxTab, now = new Date()): Call[] {
   const visible = calls.filter(c => !c.deleted_at)
-  return sortForList(visible.filter(c => tabOf(c, now) === tab), tab === 'you', visible)
+  const inTab = visible.filter(c => tabOf(c, now) === tab)
+  // Reminders read as a schedule: the one that comes back first is on top.
+  if (tab === 'reminders') return inTab.sort((a, b) => parseTs(a.reminder_at!).getTime() - parseTs(b.reminder_at!).getTime())
+  return sortForList(inTab, tab === 'you', visible)
 }
 
 export function countsFor(calls: Call[], now = new Date()): Record<InboxTab, number> {
@@ -77,7 +80,7 @@ export type StatusLabel = { text: string; tone: 'danger' | 'neutral' | 'info' | 
 /** The status column of a row (a live call shows the live indicator instead). */
 export function statusLabel(call: Call, tab: InboxTab, assistantName: string, now = new Date()): StatusLabel {
   const next = call.action_items.find(i => !i.done)?.text
-  if (call.reminder_label && hasReminder(call, now) && call.inbox_state === 'open') return { text: call.reminder_label, tone: 'neutral' }
+  if (hasReminder(call, now) && call.inbox_state === 'open') return { text: whenLabel(parseTs(call.reminder_at!), now), tone: 'neutral' }
   if (call.outcome === 'booked') return { text: 'Booked', tone: 'neutral' }
   if (call.urgency === 'urgent') return { text: 'Urgent callback', tone: 'danger' }
   if (call.outcome === 'transferred') return { text: 'Transferred', tone: 'info' }

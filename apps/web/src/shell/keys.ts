@@ -78,12 +78,12 @@ function onCallKey(key: string, call: Call, c: KeyContext): boolean {
 }
 
 /**
- * Tab in the inbox belongs to the views: it switches between them and never moves the focus,
- * so no row or button gets a focus ring. In an open call it does nothing. Text fields, the
- * menus and the other pages keep the browser's Tab (the caller never gets here for those).
+ * Tab on the inbox list belongs to the views: it switches between them and never moves the
+ * focus, so no row or button gets a focus ring. Everywhere else Tab is the browser's: in an
+ * open call (next steps, caller fields, previous calls), in text fields, menus and other pages.
  */
-function onInboxTab(el: HTMLElement, back: boolean, c: KeyContext): true {
-  if (c.isCallOpen) return true
+function onInboxTab(el: HTMLElement, back: boolean, c: KeyContext): boolean {
+  if (c.isCallOpen) return false
   if (el.tagName !== 'BODY') el.blur() // a tab or row clicked with the mouse must not show a ring now
   c.setTab(nextSplit(c.tab, back))
   return true

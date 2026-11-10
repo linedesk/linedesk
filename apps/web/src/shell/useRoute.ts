@@ -1,52 +1,91 @@
 // Where the app is, kept in the URL hash so reload and the browser's Back work:
-// `#calls` (the list), `#call/<id>` (one call), `#assistant`, `#account`.
+// `#calls` (Needs you), `#calls/done` (another view), `#calls?q=leak` (search),
+// `#call/<id>` (one call), `#assistant`, `#account`.
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { InboxTab } from '../inbox-model.ts'
 import { isPageRoute, type Route } from './pages.tsx'
 
-export type Location = { route: Route; callId: string | null }
+export type InboxPlace = { tab: InboxTab; search: string | null }
+/** `known` is false when the hash names nothing the app has; the inbox shows instead. */
+export type Location = InboxPlace & { route: Route; callId: string | null; known: boolean }
 
 const CALL_PREFIX = 'call/'
-export const callHash = (id: string) => `#${CALL_PREFIX}${id}`
+const tabs: readonly InboxTab[] = ['you', 'ai', 'spam', 'reminders', 'done']
+const HOME: InboxPlace = { tab: 'you', search: null }
 
-export function parseHash(hash: string): Location {
-  const value = hash.replace(/^#/, '')
-  if (value.startsWith(CALL_PREFIX) && value.length > CALL_PREFIX.length) return { route: 'calls', callId: value.slice(CALL_PREFIX.length) }
-  return { route: isPageRoute(value) ? value : 'calls', callId: null }
+export const callHash = (id: string) => `#${CALL_PREFIX}${id}`
+export function listHash({ tab, search }: InboxPlace): string {
+  return `#calls${tab === 'you' ? '' : `/${tab}`}${search === null ? '' : `?q=${encodeURIComponent(search)}`}`
 }
+
+function decode(value: string): string {
+  try { return decodeURIComponent(value) } catch { return value }
+}
+
+/** `last` is the inbox view to keep while a call or another page is open (they do not carry it in the hash). */
+export function parseHash(hash: string, last: InboxPlace = HOME): Location {
+  const [path = '', query] = hash.replace(/^#/, '').split('?')
+  if (path.startsWith(CALL_PREFIX) && path.length > CALL_PREFIX.length) return { ...last, route: 'calls', callId: path.slice(CALL_PREFIX.length), known: true }
+  if (isPageRoute(path)) return { ...last, route: path, callId: null, known: true }
+  const [head, view = 'you', ...rest] = path.split('/')
+  const isList = (head === 'calls' || path === '') && tabs.includes(view as InboxTab) && rest.length === 0
+  if (!isList) return { ...HOME, route: 'calls', callId: null, known: false }
+  const q = query?.startsWith('q=') ? decode(query.slice(2)) : null
+  return { route: 'calls', callId: null, tab: view as InboxTab, search: q, known: true }
+}
+
+/** A new history entry. */
+const push = (hash: string) => { window.location.hash = hash }
+/** The same history entry, so Back skips it. */
+const replace = (hash: string) => window.history.replaceState(null, '', hash)
 
 export function useRoute() {
   const [location, setLocation] = useState(() => parseHash(window.location.hash))
+  /** The latest location, also between a change and the next render (several changes can happen in one handler). */
+  const current = useRef(location)
   /** True when the open call was reached from the list in this tab, so closing it is a step back. */
   const openedFromList = useRef(false)
+  const apply = useCallback((next: Location) => { current.current = next; setLocation(next) }, [])
+
   useEffect(() => {
-    const onHash = () => setLocation(parseHash(window.location.hash))
+    const onHash = () => apply(parseHash(window.location.hash, current.current))
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
-  }, [])
+  }, [apply])
 
-  const replace = useCallback((hash: string) => {
-    window.history.replaceState(null, '', hash)
-    setLocation(parseHash(hash))
-  }, [])
   const go = useCallback((to: Route) => {
-    window.location.hash = to
-    setLocation({ route: to, callId: null })
-  }, [])
+    const now = current.current
+    push(to === 'calls' ? listHash(now) : `#${to}`)
+    apply({ ...now, route: to, callId: null, known: true })
+  }, [apply])
+  /** Change the inbox view or search. Replaces the entry: Back leaves the inbox, it does not step through views. */
+  const setView = useCallback((place: InboxPlace) => {
+    const now = current.current
+    if (now.route === 'calls' && !now.callId) replace(listHash(place))
+    apply({ ...now, ...place })
+  }, [apply])
   /** Opening from the list adds a history entry; moving between calls replaces it, so Back returns to the list. */
   const openCall = useCallback((id: string) => {
-    const current = parseHash(window.location.hash)
-    if (current.callId) return replace(callHash(id))
-    openedFromList.current = current.route === 'calls'
-    window.location.hash = callHash(id)
-    setLocation({ route: 'calls', callId: id })
-  }, [replace])
+    const now = current.current
+    if (now.callId) replace(callHash(id))
+    else { openedFromList.current = now.route === 'calls'; push(callHash(id)) }
+    apply({ ...now, route: 'calls', callId: id, known: true })
+  }, [apply])
   const closeCall = useCallback(() => {
-    if (!parseHash(window.location.hash).callId) return
-    if (!openedFromList.current) return replace('#calls')
+    const now = current.current
+    if (!now.callId) return
+    if (openedFromList.current) { openedFromList.current = false; window.history.back() } // the hash follows on `hashchange`
+    else replace(listHash(now))
+    apply({ ...now, callId: null }) // at once, so nothing renders a call that is already closed
+  }, [apply])
+  /** Drop a hash that leads nowhere (an unknown page or a call that does not exist). */
+  const backToInbox = useCallback(() => {
+    const now = current.current
     openedFromList.current = false
-    window.history.back()
-  }, [replace])
+    replace(listHash(now))
+    apply({ ...now, route: 'calls', callId: null, known: true })
+  }, [apply])
 
-  return { ...location, go, openCall, closeCall }
+  return { ...location, go, setView, openCall, closeCall, backToInbox }
 }
 export type RouteApi = ReturnType<typeof useRoute>

@@ -5,7 +5,7 @@ import { type Change, clearReminderChange, deleteChange, doneChange, isNoOp, not
 const call = (over: Partial<Call> = {}) => ({
   id: 'c1', status: 'completed', inbox_state: 'open', unread: true, reminder_at: null, reminder_label: null, deleted_at: null, ...over,
 }) as Call
-const option = { label: 'Tomorrow morning', icon: 'calendar' as const, at: new Date('2026-11-11T16:00:00.000Z') }
+const option = { label: 'Tomorrow morning', icon: 'calendar' as const, at: new Date('2026-11-11T16:00:00.000Z'), hint: 'Tomorrow 8:00 AM' }
 const state = (c: Call) => ({ inbox_state: c.inbox_state, unread: c.unread, deleted_at: c.deleted_at, reminder_label: c.reminder_label, reminder_at: c.reminder_at && new Date(c.reminder_at).toISOString() })
 /** Apply the change and then its inverse, as E followed by Z does. */
 const roundTrip = (c: Call, change: Change) => state(preview(preview(c, change.steps), change.inverse))

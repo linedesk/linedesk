@@ -1,5 +1,6 @@
 import { isChangeMessage, isControlMessage, ShapeStream, type Row } from '@electric-sql/client'
 import type { ReadSyncAdapter } from './adapter.ts'
+import { inOrder, type RowChange } from './ordered.ts'
 
 type Cursor = { offset: string; handle: string }
 const json = (v: string) => JSON.parse(v) as unknown
@@ -23,12 +24,12 @@ export const electricAdapter = (api: string): ReadSyncAdapter => ({
       let refetching = false
       let buffer: Row<unknown>[] = []
       stream.subscribe(messages => {
-        const upserts: Row<unknown>[] = []
-        const removals: string[] = []
+        const changes: RowChange<Row<unknown>>[] = []
         for (const m of messages) {
           if (isChangeMessage(m)) {
-            if (m.headers.operation === 'delete') removals.push(m.value.id as string)
-            else (refetching ? buffer : upserts).push(m.value)
+            if (m.headers.operation === 'delete') changes.push({ op: 'remove', id: m.value.id as string })
+            else if (refetching) buffer.push(m.value)
+            else changes.push({ op: 'upsert', row: m.value })
           } else if (isControlMessage(m) && m.headers.control === 'must-refetch') {
             refetching = true
             buffer = []
@@ -37,8 +38,11 @@ export const electricAdapter = (api: string): ReadSyncAdapter => ({
             if (stream.shapeHandle) sink.saveCursor({ offset: stream.lastOffset, handle: stream.shapeHandle } satisfies Cursor)
           }
         }
-        if (upserts.length) sink.upsert(upserts as never)
-        if (removals.length) sink.remove(removals)
+        // In message order: "delete, then insert" for one id (a call restored after a delete) must leave the row.
+        for (const run of inOrder(changes)) {
+          if (run.op === 'upsert') sink.upsert(run.rows as never)
+          else sink.remove(run.ids)
+        }
       })
     })
     return () => abort.abort()

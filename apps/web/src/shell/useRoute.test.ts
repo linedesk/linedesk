@@ -1,18 +1,35 @@
 import { describe, expect, it } from 'vitest'
-import { callHash, parseHash } from './useRoute.ts'
+import { callHash, listHash, parseHash } from './useRoute.ts'
+
+const list = { route: 'calls', callId: null, tab: 'you', search: null, known: true }
 
 describe('route parsing', () => {
-  it('reads the list, a call and the pages from the hash', () => {
-    expect(parseHash('')).toEqual({ route: 'calls', callId: null })
-    expect(parseHash('#calls')).toEqual({ route: 'calls', callId: null })
-    expect(parseHash('#call/call_demo_02')).toEqual({ route: 'calls', callId: 'call_demo_02' })
-    expect(parseHash(callHash('abc'))).toEqual({ route: 'calls', callId: 'abc' })
-    expect(parseHash('#assistant')).toEqual({ route: 'assistant', callId: null })
-    expect(parseHash('#account')).toEqual({ route: 'account', callId: null })
+  it('reads the list, a view, a search, a call and the pages from the hash', () => {
+    expect(parseHash('')).toEqual(list)
+    expect(parseHash('#calls')).toEqual(list)
+    expect(parseHash('#calls/done')).toEqual({ ...list, tab: 'done' })
+    expect(parseHash('#calls/ai?q=burst%20pipe')).toEqual({ ...list, tab: 'ai', search: 'burst pipe' })
+    expect(parseHash('#calls?q=')).toEqual({ ...list, search: '' })
+    expect(parseHash('#call/call_demo_02')).toEqual({ ...list, callId: 'call_demo_02' })
+    expect(parseHash(callHash('abc'))).toEqual({ ...list, callId: 'abc' })
+    expect(parseHash('#assistant')).toEqual({ ...list, route: 'assistant' })
+    expect(parseHash('#account')).toEqual({ ...list, route: 'account' })
   })
-  it('falls back to the list for unknown and inherited names', () => {
-    for (const hash of ['#nope', '#toString', '#constructor', '#__proto__', '#hasOwnProperty', '#call/']) {
-      expect(parseHash(hash)).toEqual({ route: 'calls', callId: null })
+  it('keeps the inbox view while a call or another page is open', () => {
+    const last = { tab: 'done', search: 'leak' } as const
+    expect(parseHash('#call/c1', last)).toMatchObject({ callId: 'c1', tab: 'done', search: 'leak' })
+    expect(parseHash('#assistant', last)).toMatchObject({ route: 'assistant', tab: 'done', search: 'leak' })
+    expect(parseHash('#calls/spam', last)).toMatchObject({ tab: 'spam', search: null })
+  })
+  it('marks unknown and inherited names as unknown and shows the inbox', () => {
+    for (const hash of ['#nope', '#bogus/route', '#toString', '#constructor', '#__proto__', '#call/', '#calls/nope', '#calls/done/extra']) {
+      expect(parseHash(hash)).toEqual({ ...list, known: false })
     }
+  })
+  it('writes the hash for a view and a search', () => {
+    expect(listHash({ tab: 'you', search: null })).toBe('#calls')
+    expect(listHash({ tab: 'reminders', search: null })).toBe('#calls/reminders')
+    expect(listHash({ tab: 'you', search: 'a b' })).toBe('#calls?q=a%20b')
+    expect(parseHash(listHash({ tab: 'done', search: '50%' }))).toMatchObject({ tab: 'done', search: '50%' })
   })
 })

@@ -54,7 +54,7 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     if (call.status === 'live') return toaster.show(LIVE_NOTE)
     if (isNoOp(call, steps)) return // nothing to send, nothing to undo
     const after = preview(call, steps)
-    const leaves = searching ? !!after.deleted_at : tabOf(after) !== tab
+    const leaves = !!after.deleted_at || (!searching && tabOf(after) !== tab) // a deleted call leaves every view
     const wasOpen = openId === call.id
     const cancelWrite = write(call.id, steps, leaves && !wasOpen)
     if (leaves) {
@@ -83,7 +83,7 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     leaving,
     entering,
     undo,
-    markDone: (call: Call) => act(call, doneChange(call)),
+    markDone: (call: Call) => (call.inbox_state === 'done' ? toaster.show('Already done.') : act(call, doneChange(call))),
     markNotDone: (call: Call) => (call.inbox_state === 'done' ? act(call, notDoneChange(call)) : toaster.show('This call is not done.')),
     toggleUnread: (call: Call) => act(call, unreadChange(call)),
     remind: (call: Call, option: ReminderOption) => act(call, remindChange(call, option)),

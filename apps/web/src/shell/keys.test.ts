@@ -129,10 +129,12 @@ describe('shell keys', () => {
     expect(vi.mocked(c.setTab).mock.calls).toEqual([['ai'], ['spam'], ['ai']])
     expect(blur).toHaveBeenCalled()
   })
-  it('swallows Tab in an open call without doing anything', () => {
+  it('leaves Tab to the browser in an open call, so next steps, caller fields and previous calls are reachable', () => {
     const c = context({ isCallOpen: true })
-    expect(press('Tab', c)).toBe(true)
-    expect(press('Tab', c, { tagName: 'INPUT', type: 'checkbox' })).toBe(true)
+    expect(press('Tab', c)).toBe(false)
+    expect(press('Tab', c, { shiftKey: true })).toBe(false)
+    expect(press('Tab', c, { tagName: 'INPUT', type: 'checkbox' })).toBe(false)
+    expect(press('Tab', c, { tagName: 'BUTTON' })).toBe(false)
     expect(c.setTab).not.toHaveBeenCalled()
   })
   it('leaves Tab to the browser in text fields, overlays, the menu and on other pages', () => {

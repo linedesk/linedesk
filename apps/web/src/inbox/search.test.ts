@@ -23,3 +23,18 @@ describe('search query', () => {
     expect(searchHit(item, ' sink  ')?.field).toBe('Summary')
   })
 })
+
+describe('search matching', () => {
+  it('finds a number however it is written', () => {
+    for (const q of ['(503) 555-0111', '503-555-0111', '503.555.0111', '+1 503 555 0111', '5035550111', '555 0111']) expect(matchesSearch(item, q)).toBe(true)
+    expect(matchesSearch(item, '(503) 555-0199')).toBe(false)
+  })
+  it('matches all words in any order, across caller and content', () => {
+    expect(matchesSearch(item, 'carter emily')).toBe(true)
+    expect(matchesSearch(item, 'flooding emily')).toBe(true) // transcript word and caller name
+    expect(matchesSearch(item, 'emily boiler')).toBe(false) // every word has to be there
+  })
+  it('points at the text that holds a word when the whole query is nowhere in one piece', () => {
+    expect(searchHit(item, 'emily flooding')).toEqual({ field: 'Emily Carter', text: 'The basement is flooding', atMs: 65_000 })
+  })
+})

@@ -8,18 +8,37 @@ const StoreContext = createContext<Ctx | null>(null)
 
 export const localDbName = (workspaceId: string) => `callfront-${workspaceId}`
 
+type Boot = { state: 'loading' } | { state: 'failed'; error: string } | { state: 'ready'; store: Store }
+
+/** Opens the local store. While it opens a quiet loading line shows; if it cannot open, an error with Reload: never a blank page. */
 export function StoreProvider({ workspaceId, children }: { workspaceId: string; children: ReactNode }) {
-  const [store, setStore] = useState<Store | null>(null)
+  const [boot, setBoot] = useState<Boot>({ state: 'loading' })
   const [rejection, setRejection] = useState<Rejection | null>(null)
   useEffect(() => {
     let live = true
     let created: Store | undefined
-    void createStore({ api: '', dbName: localDbName(workspaceId), adapter: electricAdapter(window.location.origin), onReject: setRejection })
-      .then(s => { created = s; if (live) setStore(s); else s.stop() })
-    return () => { live = false; created?.stop(); setStore(null) }
+    createStore({
+      api: '', dbName: localDbName(workspaceId), adapter: electricAdapter(window.location.origin), onReject: setRejection,
+      onLocalDbLost: () => window.location.reload(), // another tab signed out and removed the local data
+    }).then(
+      store => { created = store; if (live) setBoot({ state: 'ready', store }); else store.stop() },
+      (error: unknown) => { if (live) setBoot({ state: 'failed', error: error instanceof Error ? error.message : String(error) }) },
+    )
+    return () => { live = false; created?.stop(); setBoot({ state: 'loading' }) }
   }, [workspaceId])
+  const store = boot.state === 'ready' ? boot.store : null
   const value = useMemo(() => store && { store, rejection, clearRejection: () => setRejection(null) }, [store, rejection])
-  return value ? <StoreContext.Provider value={value}>{children}</StoreContext.Provider> : null
+  if (value) return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
+  if (boot.state === 'failed') {
+    return (
+      <div className="boot" role="alert">
+        <b>Your calls could not be loaded</b>
+        <span>{boot.error}</span>
+        <button type="button" className="k-btn k-btn-primary k-btn-md" onClick={() => window.location.reload()}>Reload</button>
+      </div>
+    )
+  }
+  return <div className="boot boot-loading" role="status">Loading your calls…</div>
 }
 
 function useCtx() {

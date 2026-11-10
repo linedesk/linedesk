@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clock, dateTimeLabel, longDuration, parseTs, shortDuration } from './time.ts'
+import { clock, dateTimeLabel, longDuration, parseTs, shortDuration, whenLabel } from './time.ts'
 
 describe('time labels', () => {
   const now = new Date(2026, 10, 10, 15, 0)
@@ -18,5 +18,12 @@ describe('time labels', () => {
   })
   it('parses Postgres and ISO timestamps to the same instant', () => {
     expect(parseTs('2026-11-10 12:00:00+00').getTime()).toBe(parseTs('2026-11-10T12:00:00.000Z').getTime())
+  })
+  it('says when a reminder comes back', () => {
+    expect(whenLabel(new Date(2026, 10, 10, 18, 30), now)).toBe('Today 6:30 PM')
+    expect(whenLabel(new Date(2026, 10, 11, 8, 0), now)).toBe('Tomorrow 8:00 AM')
+    expect(whenLabel(new Date(2026, 10, 13, 8, 0), now)).toBe('Fri 8:00 AM')
+    expect(whenLabel(new Date(2026, 10, 16, 8, 0), now)).toBe('Mon 8:00 AM')
+    expect(whenLabel(new Date(2026, 11, 10, 8, 0), now)).toBe('Dec 10, 8:00 AM')
   })
 })

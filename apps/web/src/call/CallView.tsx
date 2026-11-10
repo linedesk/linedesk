@@ -2,7 +2,7 @@ import type { Call, TranscriptSegment } from '@callfront/db/types'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { callTitle, formatPhone, hasReminder } from '../inbox-model.ts'
 import { useAssistantName, useContact } from '../store.tsx'
-import { dateTimeLabel, longDuration, parseTs } from '../time.ts'
+import { dateTimeLabel, longDuration, parseTs, whenLabel } from '../time.ts'
 import { Button, Icon } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { LiveCard } from './LiveCard.tsx'
@@ -78,7 +78,7 @@ function Header({ call }: { call: Call }) {
         <div className="cv-line">
           <b>{contact?.name ? `${contact.name}${contact.company ? ` · ${contact.company}` : ''}` : 'Unknown caller'}</b>
           <span className="sub">{formatPhone(call.from_number)}</span>
-          {hasReminder(call) && call.reminder_label && <span>Reminder: {call.reminder_label}</span>}
+          {hasReminder(call) && <span>Reminder: {whenLabel(parseTs(call.reminder_at!))}</span>}
         </div>
       </div>
     </div>
