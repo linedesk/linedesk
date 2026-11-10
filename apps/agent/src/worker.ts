@@ -8,12 +8,19 @@ import { z } from 'zod'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log.ts'
 import { startCall, type CallSession } from './call-session.ts'
-import type { AgentConfig } from './config.ts'
+import { createConfigLoader, parseProviderSettings, type AgentConfig } from './config.ts'
 import { AGENT_NAME, requireEnv, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness } from './not-ready.ts'
 import { createPipeline, loadVad, summaryLlm, type Vad } from './pipeline.ts'
 import { buildInstructions, FALLBACK_GREETING } from './prompt.ts'
 import { describeRecording, livekitRecorder, saveRecording, startRecording, stopRecording } from './recording.ts'
+
+let configLoader: (() => Promise<AgentConfig>) | undefined
+/** The effective provider config: Linedesk's provider settings first, the environment as fallback, cached briefly per process. */
+function loadAgentConfig(): Promise<AgentConfig> {
+  configLoader ??= createConfigLoader({ fetchSettings: async () => parseProviderSettings(await apiClientFromEnv().providerSettings()) })
+  return configLoader()
+}
 
 /** Caller and dialled number. LiveKit SIP sets these attributes; the browser test page sets the same ones. */
 export function callNumbers(attributes: Record<string, string>) {
@@ -76,7 +83,7 @@ async function entry(ctx: JobContext) {
   const call = await startCall(api, { ...callNumbers(caller.attributes), room: ctx.room.name })
 
   // Checked at every call: until the providers are configured the call is logged as missed and ended.
-  const readiness = await checkReadiness()
+  const readiness = await checkReadiness(loadAgentConfig)
   if (!readiness.ready) {
     await declineCall(call, readiness, () => ctx.deleteRoom())
     return ctx.shutdown('assistant not set up')
@@ -119,7 +126,7 @@ async function main() {
     console.error(e instanceof Error ? e.message : e)
     process.exit(1)
   }
-  console.log(describeReadiness(await checkReadiness()))
+  console.log(describeReadiness(await checkReadiness(loadAgentConfig)))
   console.log(describeRecording())
   cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: AGENT_NAME }))
 }

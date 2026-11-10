@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest'
 import type { CallSession } from './call-session.ts'
-import { loadAgentConfig } from './config.ts'
+import { configFromEnv } from './config.ts'
 import { checkReadiness, declineCall, describeReadiness, missedResult } from './not-ready.ts'
 
 const keys = { DEEPGRAM_API_KEY: 'dg', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' }
@@ -8,25 +8,25 @@ const fakeCall = (over: Partial<CallSession> = {}) =>
   ({ callId: 'call_1', workspaceId: 'ws_1', append: vi.fn(async () => {}), finish: vi.fn(async () => {}), ...over }) as unknown as CallSession & { append: ReturnType<typeof vi.fn>; finish: ReturnType<typeof vi.fn> }
 
 test('without keys the agent is not ready, and says in one line what is missing', async () => {
-  const readiness = await checkReadiness(() => loadAgentConfig({}))
+  const readiness = await checkReadiness(() => configFromEnv({}))
   expect(readiness).toEqual({
     ready: false, stages: ['speech recognition', 'language model', 'voice'],
-    reason: 'Missing environment variables: DEEPGRAM_API_KEY, OPENROUTER_API_KEY, ELEVENLABS_API_KEY. Set them in .env (see .env.example).',
+    reason: expect.stringMatching(/^Not set up: speech recognition: no API key for deepgram .*DEEPGRAM_API_KEY.*OPENROUTER_API_KEY.*ELEVENLABS_API_KEY in \.env\)\.$/),
   })
   const line = describeReadiness(readiness)
-  expect(line).toContain('not answering calls yet: Missing environment variables: DEEPGRAM_API_KEY, OPENROUTER_API_KEY, ELEVENLABS_API_KEY.')
+  expect(line).toContain('not answering calls yet: Not set up: speech recognition: no API key for deepgram')
   expect(line).toContain('checked again at every call')
   expect(line).not.toContain('\n')
 })
 
 test('a wrong provider name is also "not ready", not a crash', async () => {
-  const readiness = await checkReadiness(() => loadAgentConfig({ ...keys, TTS_PROVIDER: 'polly' }))
-  expect(readiness).toMatchObject({ ready: false, stages: ['voice'], reason: expect.stringContaining('unknown TTS_PROVIDER "polly"') })
+  const readiness = await checkReadiness(() => configFromEnv({ ...keys, TTS_PROVIDER: 'polly' }))
+  expect(readiness).toMatchObject({ ready: false, stages: ['voice'], reason: expect.stringContaining('voice: unknown provider "polly"') })
 })
 
 test('readiness is checked anew each time: ready as soon as the config loads', async () => {
   const env: Record<string, string> = {}
-  const load = () => loadAgentConfig(env)
+  const load = () => configFromEnv(env)
   expect((await checkReadiness(load)).ready).toBe(false)
   Object.assign(env, keys)
   const readiness = await checkReadiness(load)

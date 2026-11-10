@@ -46,7 +46,7 @@ Out of scope for v1: messaging channels, outbound campaigns, multi-location rout
 
 | Component | Choice | Notes |
 |---|---|---|
-| Phone numbers + PSTN | **Twilio** (default, Elastic SIP Trunking); Telnyx as second adapter; Plivo, bring-your-own SIP later; LiveKit Phone Numbers for zero-config hosted inbound | One `TelephonyProvider` interface: search/buy/port numbers, SIP trunk to LiveKit, outbound, transfer, status webhooks |
+| Phone numbers + PSTN | **Telnyx** (default: FQDN connection to LiveKit SIP); Twilio as second adapter (Elastic SIP Trunking); Plivo, bring-your-own SIP later; LiveKit Phone Numbers for zero-config hosted inbound | One `TelephonyProvider` interface: search/buy/port numbers, SIP trunk to LiveKit, outbound, transfer, status webhooks |
 | Media / SIP bridge | **LiveKit** server + LiveKit SIP (self-hosted); LiveKit Cloud (US region) for the hosted version | Rooms make listen-in and take-over trivial |
 | Voice agent | **LiveKit Agents, TypeScript** (agents-js); Python/Pipecat as fallback adapter | Imports the registry's Zod schemas; audio turn detector, tool calling, DTMF, noise cancellation |
 | Voice pipeline | **Cascaded** by default, each stage chosen by config: Deepgram Flux (STT) → an OpenAI mini model through OpenRouter (LLM; OpenAI direct as alternative) → ElevenLabs (TTS; Cartesia as alternative); speech-to-speech (gpt-realtime-mini / Gemini Live) as option | All behind adapters; final defaults after a latency test on real calls |
@@ -264,7 +264,7 @@ Better Auth's admin plugin was not used: it adds impersonation, user creation, p
 
 **Admin reads** cross workspaces, so they are plain routes instead of read sync, all behind `instance:admin`: `GET /v1/admin/workspaces`, `/v1/admin/users`, `/v1/admin/usage?months=6` (calls and minutes from `calls.duration_sec` per workspace and UTC calendar month) and `/v1/admin/providers`.
 
-**Voice agent config.** `GET /v1/agent/provider-config` with the agent token (`Authorization: Bearer $AGENT_API_TOKEN`) returns, per speech and LLM category, the active provider and its values in clear. The agent is meant to ask at the start of each call, so an install can come up without keys and start answering once the operator has entered them; until `apps/agent/src/config.ts` reads it (telephony session), the agent still uses env only. Members, instance admins included, get 403. A category is `null` when no provider is set up for it (or the picked one is not); optional fields such as `model` are `null` when unset. 409 `{ ok: false, error }` when stored keys cannot be decrypted. The keys inside a category are the provider's field names from the registry.
+**Voice agent config.** `GET /v1/agent/provider-config` with the agent token (`Authorization: Bearer $AGENT_API_TOKEN`) returns, per speech and LLM category, the active provider and its values in clear. The agent asks at the start of each call (`apps/agent/src/config.ts`, cached for 30 s per worker process), so an install can come up without keys and start answering once the operator has entered them. For a category that is `null`, or when the API cannot be reached, the agent uses its own env variables; a failure to reach the API is logged once, never with values. Members, instance admins included, get 403. A category is `null` when no provider is set up for it (or the picked one is not); optional fields such as `model` are `null` when unset. 409 `{ ok: false, error }` when stored keys cannot be decrypted. The keys inside a category are the provider's field names from the registry.
 
 ```json
 {
@@ -274,4 +274,4 @@ Better Auth's admin plugin was not used: it adds impersonation, user creation, p
 }
 ```
 
-For `apps/agent/src/config.ts`: `stt.model`, `llm.model`, `tts.model` and `tts.voice_id` are the stored values or the agent's variables; when `null`, the agent keeps its own defaults (model ids, `baseUrl` per LLM provider).
+For `apps/agent/src/config.ts`: `stt.model`, `llm.model`, `tts.model` and `tts.voice_id` are the stored values or the API's environment variables; when `null`, the agent keeps its own defaults (model ids, `baseUrl` per LLM provider).

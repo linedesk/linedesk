@@ -9,7 +9,7 @@ const call = (record_calls?: boolean) =>
 const recorder = (over: Partial<CallRecorder> = {}) => ({
   start: vi.fn(async () => 'EG_1'), stop: vi.fn(async () => {}), waitUntilFinal: vi.fn(async () => true), ...over,
 }) satisfies CallRecorder
-const fakeApi = () => ({ run: vi.fn(async () => ({ ok: true as const, rows: {} })) }) satisfies ApiClient
+const fakeApi = () => ({ run: vi.fn(async () => ({ ok: true as const, rows: {} })), providerSettings: vi.fn() }) satisfies ApiClient
 
 test('records into the key derived from workspace and call', async () => {
   const rec = recorder()

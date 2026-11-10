@@ -26,5 +26,5 @@ export function telephonyProviderFromEnv(env: Env): TelephonyProvider {
     if (!env.TELNYX_API_KEY) throw new Error('TELNYX_API_KEY is not set')
     return createTelnyxProvider({ apiKey: env.TELNYX_API_KEY, publicKey: env.TELNYX_PUBLIC_KEY })
   }
-  throw new Error(`unknown TELEPHONY_PROVIDER "${name}" (use twilio, telnyx or dev)`)
+  throw new Error(`unknown TELEPHONY_PROVIDER "${name}" (use telnyx, twilio or dev)`)
 }

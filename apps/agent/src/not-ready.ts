@@ -3,14 +3,14 @@
 // call is logged as missed in the inbox and the caller is hung up on. The config is read again
 // at every call, so the first call after the keys exist is answered without a restart.
 import type { CallResult, CallSession } from './call-session.ts'
-import { AgentConfigError, loadAgentConfig, type AgentConfig, type Stage } from './config.ts'
+import { AgentConfigError, type AgentConfig, type Stage } from './config.ts'
 import { withRetry, type RetryOptions } from './retry.ts'
 
 /** `reason` is for the operator's log; `stages` names what is missing in words the business may see. */
 export type Readiness = { ready: true; config: AgentConfig } | { ready: false; reason: string; stages: Stage[] }
 
 /** The effective config, or why the agent cannot take calls. Never throws. */
-export async function checkReadiness(load: () => Promise<AgentConfig> = loadAgentConfig): Promise<Readiness> {
+export async function checkReadiness(load: () => Promise<AgentConfig>): Promise<Readiness> {
   try {
     return { ready: true, config: await load() }
   } catch (e) {

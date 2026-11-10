@@ -1,4 +1,5 @@
-// The agent's only way to write: POST /v1/actions/<name> with the agent token.
+// The agent's only way to the API: POST /v1/actions/<name> to write, and its one read,
+// GET /v1/agent/provider-config. Always with the agent token.
 import type { ActionDef, ActionRejection, ActionResult } from '@callfront/actions'
 import type { z } from 'zod'
 
@@ -20,6 +21,8 @@ export interface ApiClientOptions {
 export interface ApiClient {
   /** Runs one registry action. `workspaceId` scopes the agent once `call.start` has resolved it. */
   run<S extends z.ZodType>(def: ActionDef<S, any>, input: z.input<S>, workspaceId?: string): Promise<ActionResult>
+  /** The speech and LLM providers set up in Linedesk, with their keys. The body is never put into an error. */
+  providerSettings(): Promise<unknown>
 }
 
 export function createApiClient({ baseUrl, token, fetch: doFetch = fetch }: ApiClientOptions): ApiClient {
@@ -38,6 +41,15 @@ export function createApiClient({ baseUrl, token, fetch: doFetch = fetch }: ApiC
       })
       const body = (await res.json().catch(() => null)) as ActionResult | ActionRejection | null
       if (!res.ok || !body?.ok) throw new ActionError(def.name, res.status, body && !body.ok ? body.error : res.statusText)
+      return body
+    },
+    async providerSettings() {
+      const res = await doFetch(new URL('/v1/agent/provider-config', baseUrl), {
+        headers: { authorization: `Bearer ${token}`, accept: 'application/json' },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      })
+      const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
+      if (!res.ok) throw new ActionError('provider-config', res.status, typeof body?.error === 'string' ? body.error : res.statusText)
       return body
     },
   }
