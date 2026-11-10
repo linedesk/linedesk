@@ -3,9 +3,8 @@ import { account, session } from '@callfront/db'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, test } from 'vitest'
 import { RECENT_SIGN_IN_MS, SIGN_IN_AGAIN, signedInRecently } from '../src/account.ts'
-import { app } from '../src/app.ts'
 import { db } from '../src/db.ts'
-import { anonymous, type Caller, randomIp, request, signUp, type User } from './helpers.ts'
+import { anonymous, type Caller, randomIp, request, signUp, type User, FROM, appRequest } from './helpers.ts'
 
 const ORIGIN = 'http://localhost:5173'
 const PATH = '/v1/account/password'
@@ -21,9 +20,9 @@ async function memberWithoutPassword(): Promise<User> {
 const isSignedIn = async (who: Caller) => Boolean((await request(who, 'GET', '/api/auth/get-session')).body)
 
 async function signIn(email: string, password: string) {
-  const res = await app.request('/api/auth/sign-in/email', {
+  const res = await appRequest('/api/auth/sign-in/email', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', origin: ORIGIN, 'x-forwarded-for': randomIp() },
+    headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },
     body: JSON.stringify({ email, password }),
   })
   const cookie = res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')

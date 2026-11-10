@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { describeDevice, hasPassword, orderSessions, passwordProblem, signInMethodLabels } from './account-model.ts'
 
 const sso = [{ id: 'google', label: 'Google' }, { id: 'oidc', label: 'Acme SSO' }]
-const on = { password: true, magicLink: true, sso }
-const off = { password: true, magicLink: false, sso: [] }
+const on = { password: true, emailCode: true, sso }
+const off = { password: true, emailCode: false, sso: [] }
 
 describe('sign-in methods', () => {
   it('knows whether a password is set', () => {
@@ -17,13 +17,13 @@ describe('sign-in methods', () => {
   })
 
   it('adds the email link when this install sends them', () => {
-    expect(signInMethodLabels([], on)).toEqual(['Email link'])
-    expect(signInMethodLabels([{ providerId: 'credential' }], on)).toEqual(['Password', 'Email link'])
+    expect(signInMethodLabels([], on)).toEqual(['Email code'])
+    expect(signInMethodLabels([{ providerId: 'credential' }], on)).toEqual(['Password', 'Email code'])
     expect(signInMethodLabels([{ providerId: 'microsoft' }], off)).toEqual(['Microsoft'])
   })
 
   it('leaves out a password that this install does not accept', () => {
-    expect(signInMethodLabels([{ providerId: 'credential' }], { ...on, password: false })).toEqual(['Email link'])
+    expect(signInMethodLabels([{ providerId: 'credential' }], { ...on, password: false })).toEqual(['Email code'])
   })
 })
 

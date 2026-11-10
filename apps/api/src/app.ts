@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { setFirstPassword } from './account.ts'
 import { registerAdminRoutes } from './admin-routes.ts'
+import { withClientIp } from './client-ip.ts'
 import { authMethods } from './auth-methods.ts'
 import { auth, WORKSPACE_LIMIT } from './auth.ts'
 import { resolveActor, type Actor } from './context.ts'
@@ -23,7 +24,7 @@ app.onError((err, c) => {
 })
 
 app.get('/healthz', c => c.json({ ok: true }))
-app.on(['GET', 'POST'], '/api/auth/*', c => auth.handler(c.req.raw))
+app.on(['GET', 'POST'], '/api/auth/*', c => auth.handler(withClientIp(c)))
 
 // Public: the sign-in screen asks which methods this install offers.
 app.get('/v1/auth-methods', c => c.json(authMethods))

@@ -9,7 +9,7 @@ const PASSWORD = 'credential'
 
 export const hasPassword = (accounts: LinkedAccount[]) => accounts.some(a => a.providerId === PASSWORD)
 
-/** Every way this member can sign in on this install, in a fixed order: "Password", "Google", ..., "Email link". */
+/** Every way this member can sign in on this install, in a fixed order: "Password", "Google", ..., "Email code". */
 export function signInMethodLabels(accounts: LinkedAccount[], methods: AuthMethods): string[] {
   const names: Record<string, string> = {
     [PASSWORD]: 'Password', google: 'Google', microsoft: 'Microsoft',
@@ -18,7 +18,7 @@ export function signInMethodLabels(accounts: LinkedAccount[], methods: AuthMetho
   const linked = new Set(accounts.map(a => a.providerId))
   const usable = (id: string) => linked.has(id) && (id !== PASSWORD || methods.password)
   const labels = Object.keys(names).filter(usable).map(id => names[id]!)
-  return methods.magicLink ? [...labels, 'Email link'] : labels
+  return methods.emailCode ? [...labels, 'Email code'] : labels
 }
 
 const browsers: [RegExp, string][] = [[/Edg\//, 'Edge'], [/OPR\//, 'Opera'], [/Firefox\//, 'Firefox'], [/Chrome\//, 'Chrome'], [/Safari\//, 'Safari']]

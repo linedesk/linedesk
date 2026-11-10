@@ -1,4 +1,4 @@
-// Creates an account and emails a sign-in link (action user.invite). The way people get in
+// Creates an account and emails the person how to sign in (action user.invite). The way people get in
 // while sign-up is closed.
 import { type FormEvent, useState } from 'react'
 import { Button } from '../ui/kit.tsx'
@@ -32,8 +32,8 @@ export function InviteUser({ toast, reload }: Props) {
       await reload()
       toast(
         data.delivery === 'log'
-          ? `Account created. The sign-in link is in the API log.`
-          : `Account created. A sign-in link is on its way to ${form.email}.`,
+          ? `Account created. The welcome email is in the API log.`
+          : `Account created. ${form.email} gets an email on how to sign in.`,
       )
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -88,7 +88,7 @@ export function InviteUser({ toast, reload }: Props) {
       </label>
       <div className="adm-keys-foot">
         <span className="help">
-          They get an email with a sign-in link. Workspace membership comes from a workspace invitation.
+          They get an email: they sign in with this address and a code. Workspace membership comes from a workspace invitation.
         </span>
         <Button size="sm" variant="ghost" onClick={close}>
           Cancel

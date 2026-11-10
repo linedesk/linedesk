@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fetchAuthMethods } from './auth.ts'
 
-const methods = { password: true, magicLink: false, sso: [] }
+const methods = { password: true, emailCode: false, sso: [] }
 const ok = () => new Response(JSON.stringify(methods), { status: 200 })
 const down = () => Promise.reject(new TypeError('fetch failed'))
 

@@ -2,7 +2,8 @@
 import type { ProviderName } from '@callfront/actions'
 import { organization, session, type Tx, user } from '@callfront/db'
 import { emailDelivery } from './auth-methods.ts'
-import { auth, expectWelcome } from './auth.ts'
+import { WEB_ORIGIN } from './auth.ts'
+import { emailSender } from './email.ts'
 import { db } from './db.ts'
 import { eq, sql } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
@@ -45,6 +46,12 @@ async function setWorkspaceDisabled(tx: Tx, workspaceId: string, disabledAt: Dat
   return { rows: {}, data: { workspaceId, disabled_at: disabledAt?.toISOString() ?? null } }
 }
 
+/** No code in it: codes expire in 10 minutes, an invite may be read later. The sign-in page sends one. */
+export const welcomeEmail = (name: string) => ({
+  subject: 'Your Linedesk account',
+  text: `Hello ${name},\n\nan account on Linedesk was created for you. To sign in, open ${WEB_ORIGIN} and enter this email address: you get a sign-in code by email.`,
+})
+
 export const adminHandlers: Record<string, Handler> = {
   'provider.setKeys': async ({ tx, actor, now }, input) => {
     await withSecretsKey(() => setProviderKeys(tx, input.provider, input.values, actor.actorId, now))
@@ -70,13 +77,13 @@ export const adminHandlers: Record<string, Handler> = {
     const delivery = emailDelivery(process.env)
     if (delivery === 'none') {
       throw new Reject(
-        'Email is not set up, so the new user cannot get a sign-in link: set SMTP_URL (or EMAIL_TO_LOG=true in development).',
+        'Email is not set up, so the new user cannot get sign-in codes: set SMTP_URL (or EMAIL_TO_LOG=true in development).',
       )
     }
     const email = input.email.trim().toLowerCase()
     const [taken] = await db.select({ id: user.id }).from(user).where(sql`lower(${user.email}) = ${email}`)
     if (taken) throw new Reject(`${email} already has an account`)
-    // Committed at once, outside the command's transaction: the sign-in link is only sent to an
+    // Committed at once, outside the command's transaction, so the welcome email only goes to an
     // account that exists. If the command does not commit, the account is removed again.
     const account = {
       id: crypto.randomUUID().replaceAll('-', ''),
@@ -101,11 +108,10 @@ export const adminHandlers: Record<string, Handler> = {
       return `the account for ${email} was removed again`
     })
     try {
-      expectWelcome(email)
-      await auth.api.signInMagicLink({ body: { email, name: input.name }, headers: new Headers() })
+      await emailSender.send({ to: email, ...welcomeEmail(input.name) })
     } catch (e) {
       throw new Reject(
-        `the account was not created: the sign-in email could not be sent (${e instanceof Error ? e.message : e})`,
+        `the account was not created: the welcome email could not be sent (${e instanceof Error ? e.message : e})`,
       )
     }
     return { rows: {}, data: { userId: created!.id, email, delivery } }

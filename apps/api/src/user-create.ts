@@ -1,7 +1,7 @@
-// Creates an account by hand and emails a sign-in link, for installs with closed sign-up.
+// Creates an account by hand and emails the person how to sign in, for installs with closed sign-up.
 // pnpm --filter @callfront/api user:create --email ann@example.com --name "Ann Lee" [--admin]
 // Runs the registry action user.invite as the operator. Without SMTP_URL, set EMAIL_TO_LOG=true
-// (also for the API) and the link is printed here instead of sent.
+// and the email is printed here instead of sent.
 import { parseArgs } from 'node:util'
 import type { Actor } from './context.ts'
 import { pool } from './db.ts'
@@ -20,9 +20,9 @@ async function main() {
     operator,
   )
   if (!body.ok) throw new Error(body.error)
-  const where = body.data?.delivery === 'log' ? 'printed above (EMAIL_TO_LOG)' : `emailed to ${body.data?.email}`
+  const where = body.data?.delivery === 'log' ? 'printed above (EMAIL_TO_LOG)' : `sent to ${body.data?.email}`
   console.log(
-    `Created ${body.data?.email}${values.admin ? ' as instance admin' : ''} (${status}). Sign-in link ${where}.`,
+    `Created ${body.data?.email}${values.admin ? ' as instance admin' : ''} (${status}). Welcome email ${where}.`,
   )
 }
 

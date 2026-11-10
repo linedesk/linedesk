@@ -13,13 +13,27 @@ export const randomNumber = () => `+1503${Math.floor(1e6 + Math.random() * 9e6)}
 /** Auth requests are rate limited per client address; each fixture user comes from its own. */
 export const randomIp = () => `10.${[0, 0, 0].map(() => Math.floor(Math.random() * 256)).join('.')}`
 
+/**
+ * Where a test request comes from. The API takes the client address from the connection, not
+ * from headers, so tests pass it as the connection the Node server would see.
+ */
+export const FROM = 'x-test-connection-address'
+
+/** `app.request` with the address in FROM moved from the headers to the simulated connection. */
+export function appRequest(path: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers)
+  const address = headers.get(FROM) ?? '127.0.0.1'
+  headers.delete(FROM)
+  return app.request(path, { ...init, headers }, { incoming: { socket: { remoteAddress: address, remotePort: 0, remoteFamily: 'IPv4' } } })
+}
+
 export type Caller = { headers: Record<string, string> }
 export type User = Caller & { userId: string }
 
 export async function signUp(): Promise<User> {
-  const res = await app.request('/api/auth/sign-up/email', {
+  const res = await appRequest('/api/auth/sign-up/email', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', origin: ORIGIN, 'x-forwarded-for': randomIp() },
+    headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },
     body: JSON.stringify({ name: 'Test User', email: `${uid('user')}@callfront.test`, password: 'test-password-1234' }),
   })
   if (!res.ok) throw new Error(`sign-up failed: ${res.status} ${await res.text()}`)
@@ -43,7 +57,7 @@ export async function request(
   body?: unknown,
   extra: Record<string, string> = {},
 ) {
-  const res = await app.request(path, {
+  const res = await appRequest(path, {
     method,
     headers: { ...who.headers, ...extra, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
     body: body === undefined ? undefined : JSON.stringify(body),

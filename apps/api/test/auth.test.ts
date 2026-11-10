@@ -1,8 +1,7 @@
 // Sign-in hardening that only shows on the running app: limits on auth requests and on workspaces.
 import { describe, expect, test } from 'vitest'
-import { app } from '../src/app.ts'
 import { auth, WORKSPACE_LIMIT } from '../src/auth.ts'
-import { randomIp, request, signUp } from './helpers.ts'
+import { randomIp, request, signUp, FROM, appRequest } from './helpers.ts'
 
 // Several password hashes or workspaces in one test: slow when the files run in parallel.
 const SLOW = 30_000
@@ -10,9 +9,9 @@ const SLOW = 30_000
 const ORIGIN = 'http://localhost:5173'
 
 function signIn(ip: string) {
-  return app.request('/api/auth/sign-in/email', {
+  return appRequest('/api/auth/sign-in/email', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', origin: ORIGIN, 'x-forwarded-for': ip },
+    headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: ip },
     body: JSON.stringify({ email: 'nobody@callfront.test', password: 'wrong-password-1234' }),
   })
 }

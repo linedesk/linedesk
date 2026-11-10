@@ -33,7 +33,7 @@ Then open `PUBLIC_URL` and create your account: the first account is the instanc
 
 The API applies database migrations on every start.
 
-Sign-in links by email need a mail server: set `SMTP_URL` and `EMAIL_FROM`, and remove `EMAIL_TO_LOG=true` (it prints sign-in links to the API log and is for development only).
+Sign-in by email works with a 6-digit code (no links) and needs a mail server: set `SMTP_URL` and `EMAIL_FROM`, and remove `EMAIL_TO_LOG=true` (it prints the codes to the API log and is for development only).
 
 ### Three ways to put it on the web
 
@@ -61,7 +61,8 @@ front.example.com {
 | `POSTGRES_PASSWORD` | Database password. Required; set it before the first start (letters and digits only). Changing it later does not change the password of an existing database. |
 | `SECRETS_KEY` | Encrypts the provider keys stored in the admin area. Keep it: without the same key they cannot be read. |
 | `PUBLIC_URL`, `CALLFRONT_HTTP_BIND`, `COMPOSE_FILE` | See the table above. |
-| `AUTH_SIGNUP_ENABLED` | `false` closes sign-up (see above). |
+| `AUTH_SIGNUP_ENABLED` | `false` closes sign-up (see above): an instance admin creates accounts with Invite user or `pnpm --filter @callfront/api user:create --email … --name … [--admin]`. While sign-up is closed, workspace owners can still invite people into their own workspace. |
+| `TRUSTED_PROXIES` | Addresses or ranges of the proxies in front of the API, for rate limits. Compose sets Docker's private ranges (only Caddy and the agent reach the API); change it only if you publish the API port yourself. |
 | `AGENT_API_TOKEN` | Token the voice agent uses to call the API. While it is empty or the placeholder, agent access is off and the agent idles. |
 | `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Required. Shared by LiveKit, the SIP bridge and the agent. The API and the agent refuse the development values from `.env.example`. |
 | `LIVEKIT_NODE_IP` | The machine's public IP: the address callers and browsers send audio to. |

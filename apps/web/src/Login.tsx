@@ -1,10 +1,11 @@
-// Sign-in. Shows what this install offers (GET /v1/auth-methods): SSO buttons, an email
-// sign-in link, and a password. New people are signed up on first sign-in, unless sign-up is closed.
-import { type FormEvent, useEffect, useState } from 'react'
-import { type AuthMethods, auth, fetchAuthMethods, requestSignInLink, startSso, takeRedirectError } from './auth.ts'
+// Sign-in. Shows what this install offers (GET /v1/auth-methods): SSO buttons, a code sent by
+// email, and a password. New people are signed up on first sign-in, unless sign-up is closed.
+import { type FormEvent, useEffect, useRef, useState } from 'react'
+import { type AuthMethods, auth, fetchAuthMethods, requestSignInCode, signInWithCode, startSso, takeRedirectError } from './auth.ts'
+import { CODE_LENGTH, codeErrorMessage, normalizeCode, RESEND_AFTER_S } from './sign-in-code.ts'
 
-type Step = 'email' | 'password' | 'signUp' | 'linkSent'
-type Result = { error: { message?: string } | null }
+type Step = 'email' | 'code' | 'password' | 'signUp'
+type Result = { error: { message?: string; code?: string } | null }
 
 const fail = (res: Result) => {
   if (res.error) throw new Error(res.error.message ?? 'That did not work')
@@ -22,7 +23,7 @@ export function Login({ onDone }: { onDone: () => void }) {
     fetchAuthMethods()
       .then(m => {
         setMethods(m)
-        if (!m.magicLink && m.password) setStep('password')
+        if (!m.emailCode && m.password) setStep('password')
       })
       .catch(err => setError(String(err.message ?? err)))
   }, [])
@@ -39,10 +40,10 @@ export function Login({ onDone }: { onDone: () => void }) {
     }
   }
 
-  const actions: Record<Exclude<Step, 'linkSent'>, () => Promise<void>> = {
+  const actions: Record<Exclude<Step, 'code'>, () => Promise<void>> = {
     email: async () => {
-      fail(await requestSignInLink(form.email))
-      setStep('linkSent')
+      fail(await requestSignInCode(form.email))
+      setStep('code')
     },
     password: async () => {
       fail(await auth.signIn.email({ email: form.email, password: form.password }))
@@ -56,25 +57,20 @@ export function Login({ onDone }: { onDone: () => void }) {
 
   function submit(e: FormEvent) {
     e.preventDefault()
-    if (step !== 'linkSent') void attempt(actions[step])
+    if (step !== 'code') void attempt(actions[step])
   }
 
   if (!methods) return <main className="auth">{error ? <div className="auth-error" role="alert">{error}</div> : <p className="auth-wait">Connecting…</p>}</main>
 
-  if (step === 'linkSent') {
+  if (step === 'code') {
     return (
-      <main className="auth">
-        <div className="auth-card">
-          <h1>Check your email</h1>
-          <p>We sent a sign-in link to {form.email}. It works once and expires in 10 minutes.</p>
-          <button type="button" className="auth-switch" onClick={() => setStep('email')}>Use a different email</button>
-        </div>
-      </main>
+      <CodeStep email={form.email} onDone={onDone}
+        onDifferentEmail={() => { setStep('email'); setError(null) }} />
     )
   }
 
   const withPassword = step !== 'email'
-  const withEmail = methods.magicLink || methods.password
+  const withEmail = methods.emailCode || methods.password
   return (
     <main className="auth">
       <form className="auth-card" onSubmit={submit}>
@@ -108,10 +104,76 @@ export function Login({ onDone }: { onDone: () => void }) {
         {error && <div className="auth-error" role="alert">{error}</div>}
         {withEmail && (
           <button type="submit" className="k-btn k-btn-primary" disabled={busy}>
-            {step === 'email' ? 'Email me a sign-in link' : step === 'signUp' ? 'Create account' : 'Sign in'}
+            {step === 'email' ? 'Email me a code' : step === 'signUp' ? 'Create account' : 'Sign in'}
           </button>
         )}
         <LoginSwitches step={step} methods={methods} onStep={s => { setStep(s); setError(null) }} />
+      </form>
+    </main>
+  )
+}
+
+type CodeStepProps = { email: string; onDone: () => void; onDifferentEmail: () => void }
+
+/** One field for the six digits: typing, pasting the whole code or the OS's one-time-code fill all work; the sixth digit submits. */
+function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
+  const [code, setCode] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [waitS, setWaitS] = useState(RESEND_AFTER_S)
+  const input = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (waitS <= 0) return
+    const timer = setTimeout(() => setWaitS(s => s - 1), 1000)
+    return () => clearTimeout(timer)
+  }, [waitS])
+
+  async function check(value: string) {
+    setBusy(true)
+    setError(null)
+    const res = await signInWithCode(email, value)
+    setBusy(false)
+    if (!res.error) return onDone()
+    setError(codeErrorMessage(res.error))
+    setCode('')
+    input.current?.focus()
+  }
+
+  function change(value: string) {
+    const digits = normalizeCode(value)
+    setCode(digits)
+    if (digits.length === CODE_LENGTH && !busy) void check(digits)
+  }
+
+  async function resend() {
+    setError(null)
+    setCode('')
+    setWaitS(RESEND_AFTER_S)
+    const res = await requestSignInCode(email)
+    if (res.error) setError(res.error.message ?? 'Could not send a new code.')
+    input.current?.focus()
+  }
+
+  return (
+    <main className="auth">
+      <form className="auth-card" onSubmit={e => { e.preventDefault(); if (code.length === CODE_LENGTH) void check(code) }}>
+        <h1>Check your email</h1>
+        <p>We sent a {CODE_LENGTH}-digit code to {email}. It expires in 10 minutes.</p>
+        <label>
+          Sign-in code
+          <input ref={input} className="auth-code" value={code} onChange={e => change(e.target.value)} disabled={busy}
+            inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={CODE_LENGTH + 6} autoFocus
+            aria-describedby={error ? 'code-error' : undefined} />
+        </label>
+        {error && <div className="auth-error" role="alert" id="code-error">{error}</div>}
+        <button type="submit" className="k-btn k-btn-primary" disabled={busy || code.length < CODE_LENGTH}>
+          {busy ? 'Checking…' : 'Sign in'}
+        </button>
+        {waitS > 0
+          ? <p className="auth-note">You can ask for a new code in {waitS} s.</p>
+          : <button type="button" className="auth-switch" onClick={() => void resend()}>Resend code</button>}
+        <button type="button" className="auth-switch" onClick={onDifferentEmail}>Use a different email</button>
       </form>
     </main>
   )
@@ -122,7 +184,7 @@ function LoginSwitches({ step, methods, onStep }: { step: Step; methods: AuthMet
   return (
     <>
       {step === 'email' && methods.password && link('password', 'Use a password instead')}
-      {step !== 'email' && methods.magicLink && link('email', 'Email me a sign-in link instead')}
+      {step !== 'email' && methods.emailCode && link('email', 'Email me a code instead')}
       {step === 'password' && methods.signUp !== false && link('signUp', 'New here? Create an account')}
       {methods.signUp === false && <p className="auth-note">Sign-up is closed on this server. Ask your administrator for an account.</p>}
       {step === 'signUp' && link('password', 'Already have an account? Sign in')}

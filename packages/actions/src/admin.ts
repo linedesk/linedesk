@@ -136,7 +136,7 @@ const adminAction = <S extends z.ZodType>(name: string, description: string, inp
 
 export const userInvite = defineAction({
   name: 'user.invite',
-  description: 'Create an account for someone and email them a sign-in link. Works while sign-up is closed.',
+  description: 'Create an account for someone and email them how to sign in. Works while sign-up is closed.',
   input: z.object({
     email: z.email().max(254),
     name: z.string().trim().min(1).max(80),

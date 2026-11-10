@@ -1,4 +1,4 @@
-import { magicLinkClient, organizationClient } from 'better-auth/client/plugins'
+import { emailOTPClient, organizationClient } from 'better-auth/client/plugins'
 import type { AuthMethods, SsoMethod } from '@callfront/api/auth-types'
 import { createAuthClient } from 'better-auth/react'
 
@@ -7,7 +7,7 @@ export type { AuthMethods, SsoMethod }
 export const auth = createAuthClient({
   // Same origin as the page (the API is proxied). Not read at import time, so tests can load this module without a browser.
   baseURL: typeof window === 'undefined' ? undefined : window.location.origin,
-  plugins: [organizationClient(), magicLinkClient()],
+  plugins: [organizationClient(), emailOTPClient()],
 })
 
 /** Whether this server can set up phone numbers: the carrier it would use, or why it cannot. */
@@ -60,8 +60,14 @@ export async function createWorkspace(name: string) {
 // A successful sign-in returns to the page it started from (`#account` after "Sign in again").
 const back = () => ({ callbackURL: window.location.origin + window.location.pathname + window.location.hash, errorCallbackURL: window.location.origin })
 
-export function requestSignInLink(email: string) {
-  return auth.signIn.magicLink({ email, ...back() })
+/** Emails a sign-in code. The answer is the same whether or not the address has an account. */
+export function requestSignInCode(email: string) {
+  return auth.emailOtp.sendVerificationOtp({ email, type: 'sign-in' })
+}
+
+/** Signs in (or, where sign-up is open, signs up) with the emailed code. */
+export function signInWithCode(email: string, otp: string) {
+  return auth.signIn.emailOtp({ email, otp })
 }
 
 /** Leaves the page for the provider; the session exists when the browser comes back. */
@@ -70,12 +76,11 @@ export function startSso(method: SsoMethod) {
 }
 
 const redirectErrors: Record<string, string> = {
-  INVALID_TOKEN: 'That sign-in link has expired or was already used. Request a new one.',
   access_denied: 'Sign-in was cancelled.',
-  account_not_linked: 'This email already has an account. Sign in with an email link once, then this works too.',
+  account_not_linked: 'This email already has an account. Sign in with an email code once, then this works too.',
 }
 
-/** Reads and clears the `?error=` a failed link or SSO redirect leaves in the address bar. */
+/** Reads and clears the `?error=` a failed SSO redirect leaves in the address bar. */
 export function takeRedirectError(): string | null {
   const url = new URL(window.location.href)
   const code = url.searchParams.get('error')

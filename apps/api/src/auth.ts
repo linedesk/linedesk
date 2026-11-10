@@ -1,13 +1,14 @@
 import { betterAuth } from 'better-auth'
-import { APIError } from 'better-auth/api'
+import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { genericOAuth, magicLink, organization } from 'better-auth/plugins'
+import { emailOTP, genericOAuth, organization } from 'better-auth/plugins'
 import { authConfig } from './auth-methods.ts'
+import { CLIENT_IP_HEADER } from './client-ip.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
-import { maySendSignInLink } from './signup-gate.ts'
+import { maySendSignInCode } from './signup-gate.ts'
 
 const { google, microsoft, oidc, trustedProviders, methods } = authConfig
 
@@ -17,44 +18,45 @@ export const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
 /** A member can create this many workspaces. */
 export const WORKSPACE_LIMIT = 5
 
-// Link requests per address, on top of Better Auth's limit per IP: 5 in 10 minutes (a link's lifetime).
-const allowLinkFor = createRateLimiter({ max: 5, windowMs: 10 * 60_000 })
+// Per address, on top of Better Auth's limit per IP: 5 codes in 10 minutes (a code's lifetime), and
+// 10 sign-in tries in an hour across codes, since a new code starts its own 3 tries.
+const allowCodeFor = createRateLimiter({ max: 5, windowMs: 10 * 60_000 })
+const allowTryFor = createRateLimiter({ max: 10, windowMs: 60 * 60_000 })
 
 /**
- * Addresses that user.invite just created an account for: their next link gets the welcome text.
- * Decided on the server; nothing the client sends can choose it.
+ * Runs before the email-code endpoints, so a refused request creates no code and leaves the
+ * current one (and its tries) as it is. Only sign-in codes exist here.
  */
-const welcomeNext = new Set<string>()
-export const expectWelcome = (email: string) => welcomeNext.add(email.toLowerCase())
+const limitEmailCodes = createAuthMiddleware(async ctx => {
+  const email = typeof ctx.body?.email === 'string' ? ctx.body.email.trim().toLowerCase() : ''
+  if (ctx.path === '/email-otp/send-verification-otp') {
+    if (ctx.body?.type !== 'sign-in') throw new APIError('BAD_REQUEST', { message: 'Only sign-in codes are offered.' })
+    if (!allowCodeFor(email)) throw new APIError('TOO_MANY_REQUESTS', { message: 'Too many codes for this email. Try again in a few minutes.' })
+  }
+  if (ctx.path === '/sign-in/email-otp' && !allowTryFor(email)) {
+    throw new APIError('TOO_MANY_REQUESTS', { message: 'Too many tries for this email. Try again later.' })
+  }
+})
 
-function signInEmail(email: string, url: string) {
-  if (welcomeNext.delete(email.toLowerCase())) {
-    return {
-      subject: 'Your Linedesk account',
-      text: `An account on Linedesk was created for you. Open this link to sign in:\n\n${url}\n\nThe link works once and expires in 10 minutes. After that, ask for a new link on the sign-in page with this email address.`,
-    }
-  }
-  return {
-    subject: 'Your Linedesk sign-in link',
-    text: `Open this link to sign in to Linedesk:\n\n${url}\n\nThe link works once and expires in 10 minutes. If you did not ask for it, you can ignore this email.`,
-  }
-}
+/** The plugin's endpoints for password reset, email change and plain verification are not offered. */
+const UNUSED_EMAIL_CODE_PATHS = [
+  '/email-otp/request-password-reset', '/forget-password/email-otp', '/email-otp/reset-password', '/email-otp/verify-email',
+  '/email-otp/check-verification-otp', '/email-otp/request-email-change', '/email-otp/change-email',
+]
 
-async function sendMagicLink({ email, url }: { email: string; url: string }) {
-  if (!allowLinkFor(email.toLowerCase())) throw new APIError('TOO_MANY_REQUESTS', { message: 'Too many sign-in links for this email. Try again in a few minutes.' })
-  // Closed sign-up: no mail to an address that has no account. The screen says the same either way.
-  if (!(await maySendSignInLink(db, email))) return
-  const message = { to: email, ...signInEmail(email, url) }
-  // An invite waits for the email, so the admin hears when it fails. A sign-in from the screen does
-  // not: waiting for SMTP only for real accounts would tell anyone which addresses have one.
-  if (message.subject === 'Your Linedesk account') {
-    await emailSender.send(message).catch(err => {
-      console.error('welcome email failed', err)
-      throw new APIError('INTERNAL_SERVER_ERROR', { message: 'Could not send the email.' })
-    })
-    return
-  }
-  void emailSender.send(message).catch(err => console.error('sign-in email failed', err))
+/** The sign-in email: the code in the subject and the body, no link. */
+export const signInCodeEmail = (otp: string) => ({
+  subject: `${otp} is your Linedesk sign-in code`,
+  text: `${otp} is your Linedesk sign-in code.\n\nEnter it on the sign-in page. It works once and expires in 10 minutes. If you did not ask for it, you can ignore this email.`,
+})
+
+/** Only sign-in codes are sent; the plugin's other code types (password reset, email change) are not offered. */
+async function sendSignInCode({ email, otp, type }: { email: string; otp: string; type: string }) {
+  if (type !== 'sign-in') return
+  // Closed sign-up: no code to an address that cannot sign in.
+  if (!(await maySendSignInCode(db, email))) return
+  // Not awaited: waiting for SMTP only for real accounts would tell anyone which addresses have one.
+  void emailSender.send({ to: email, ...signInCodeEmail(otp) }).catch(err => console.error('sign-in email failed', err))
 }
 
 // Workspace = Better Auth organization. Sign-in methods: see auth-methods.ts.
@@ -74,9 +76,16 @@ export const auth = betterAuth({
   account: { accountLinking: { enabled: true, trustedProviders } },
   // On in every environment, not only when NODE_ENV says production.
   rateLimit: { enabled: true },
+  // The client address comes from our own header (client-ip.ts), never from one the client sets.
+  advanced: { ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] } },
+  disabledPaths: UNUSED_EMAIL_CODE_PATHS,
+  hooks: { before: limitEmailCodes },
   plugins: [
     organization({ organizationLimit: WORKSPACE_LIMIT }),
-    ...(methods.magicLink ? [magicLink({ sendMagicLink, expiresIn: 600, storeToken: 'hashed' })] : []),
+    // Email sign-in by a typed code: 6 digits, 10 minutes, 3 tries per code, stored hashed, at most 3 requests a minute per IP.
+    ...(methods.emailCode
+      ? [emailOTP({ sendVerificationOTP: sendSignInCode, otpLength: 6, expiresIn: 600, allowedAttempts: 3, storeOTP: 'hashed', rateLimit: { window: 60, max: 3 } })]
+      : []),
     ...(oidc ? [genericOAuth({ config: [{ providerId: 'oidc', clientId: oidc.clientId, clientSecret: oidc.clientSecret, discoveryUrl: oidc.discoveryUrl, scopes: ['openid', 'profile', 'email'], pkce: true }] })] : []),
   ],
 })

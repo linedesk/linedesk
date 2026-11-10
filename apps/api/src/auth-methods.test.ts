@@ -3,14 +3,14 @@ import { readAuthConfig } from './auth-methods.ts'
 
 describe('readAuthConfig', () => {
   it('offers only the password with no env set', () => {
-    expect(readAuthConfig({}).methods).toEqual({ password: true, magicLink: false, signUp: true, sso: [] })
+    expect(readAuthConfig({}).methods).toEqual({ password: true, emailCode: false, signUp: true, sso: [] })
   })
 
   it('offers the email link with SMTP, or with log delivery when asked for, whatever NODE_ENV says', () => {
-    expect(readAuthConfig({ SMTP_URL: 'smtp://mail.example.com' }).methods.magicLink).toBe(true)
-    expect(readAuthConfig({ EMAIL_TO_LOG: 'true' }).methods.magicLink).toBe(true)
-    expect(readAuthConfig({ NODE_ENV: 'development' }).methods.magicLink).toBe(false)
-    expect(readAuthConfig({ EMAIL_TO_LOG: 'yes' }).methods.magicLink).toBe(false)
+    expect(readAuthConfig({ SMTP_URL: 'smtp://mail.example.com' }).methods.emailCode).toBe(true)
+    expect(readAuthConfig({ EMAIL_TO_LOG: 'true' }).methods.emailCode).toBe(true)
+    expect(readAuthConfig({ NODE_ENV: 'development' }).methods.emailCode).toBe(false)
+    expect(readAuthConfig({ EMAIL_TO_LOG: 'yes' }).methods.emailCode).toBe(false)
   })
 
   it('turns the password off only with AUTH_PASSWORD_ENABLED=false', () => {

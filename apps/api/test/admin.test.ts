@@ -6,23 +6,11 @@ import { actions, REDACTED } from '@callfront/actions'
 import { calls, commands, instance_settings, organization, provider_settings, session, user } from '@callfront/db'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
-import { auth } from '../src/auth.ts'
+import { emailSender } from '../src/email.ts'
 import { db } from '../src/db.ts'
 import { grantFirstUser, instanceAdminHooks, refuseUnverifiedAdminAddress } from '../src/instance-admin.ts'
 import { telephonyProvider } from '../src/provider-settings.ts'
-import {
-  act,
-  addMember,
-  agent,
-  anonymous,
-  type Caller,
-  createWorkspace,
-  randomIp,
-  request,
-  signUp,
-  type User,
-  type Workspace,
-} from './helpers.ts'
+import { act, addMember, agent, anonymous, type Caller, createWorkspace, randomIp, request, signUp, type User, type Workspace, FROM } from './helpers.ts'
 
 const SECRET = 'KEY-made-up-0123456789-abcd'
 const adminRoutes = [
@@ -49,7 +37,7 @@ const signIn = async (who: User) =>
     'POST',
     '/api/auth/sign-in/email',
     { email: await emailOf(who), password: 'test-password-1234' },
-    { origin: 'http://localhost:5173', 'x-forwarded-for': randomIp() },
+    { origin: 'http://localhost:5173', [FROM]: randomIp() },
   )
 const providers = async (who: Caller = operator) => (await request(who, 'GET', '/v1/admin/providers')).body
 const fieldOf = async (provider: string, field: string) =>
@@ -655,7 +643,7 @@ describe('instance admins', () => {
         'POST',
         '/api/auth/sign-up/email',
         { name: 'Not The Operator', email: address, password: 'test-password-1234' },
-        { origin: 'http://localhost:5173', 'x-forwarded-for': randomIp() },
+        { origin: 'http://localhost:5173', [FROM]: randomIp() },
       )
     const refused = await signUpAs(email)
     expect(refused.status).toBe(403)
@@ -699,44 +687,46 @@ describe('user.invite', () => {
   const accountOf = async (email: string) => (await db.select().from(user).where(eq(user.email, email)))[0]
   afterEach(() => {
     delete process.env.AUTH_SIGNUP_ENABLED
-    delete process.env.EMAIL_TO_LOG
-  })
-
-  // Email links are off in the test environment: stand in for the endpoint that sends one.
-  const realSend = (auth.api as unknown as Record<string, unknown>).signInMagicLink
-  afterAll(() => {
-    ;(auth.api as unknown as Record<string, unknown>).signInMagicLink = realSend
-  })
-  const stubLink = (impl: () => Promise<unknown> = async () => ({ status: true })) => {
-    const send = vi.fn(impl)
-    ;(auth.api as unknown as Record<string, unknown>).signInMagicLink = send
-    return send
-  }
-
-  test('creates the account, unverified, and sends a welcome sign-in link; works while sign-up is closed', async () => {
-    process.env.AUTH_SIGNUP_ENABLED = 'false'
     process.env.EMAIL_TO_LOG = 'true'
-    const send = stubLink()
+    vi.restoreAllMocks()
+  })
+  const spySend = (impl: () => Promise<void> = async () => {}) => vi.spyOn(emailSender, 'send').mockImplementation(impl)
+
+  test('creates the account, unverified, and emails how to sign in, without a code or link; works while sign-up is closed', async () => {
+    process.env.AUTH_SIGNUP_ENABLED = 'false'
+    const send = spySend()
     const email = address('invitee')
-    const res = await act(operator, 'user.invite', {
-      email: `  ${email.toUpperCase()} `.trim(),
-      name: 'Tim',
-      admin: true,
-    })
+    const res = await act(operator, 'user.invite', { email: email.toUpperCase(), name: 'Tim', admin: true })
     expect(res).toMatchObject({ status: 200, body: { data: { email: email.toLowerCase(), delivery: 'log' } } })
-    expect(await accountOf(email.toLowerCase())).toMatchObject({
-      name: 'Tim',
-      emailVerified: false,
-      instanceAdmin: true,
-    })
-    expect(send).toHaveBeenCalledWith(expect.objectContaining({ body: { email: email.toLowerCase(), name: 'Tim' } }))
-    expect(await act(operator, 'user.invite', { email, name: 'Tim again' })).toMatchObject({
+    expect(await accountOf(email.toLowerCase())).toMatchObject({ name: 'Tim', emailVerified: false, instanceAdmin: true })
+    expect(send).toHaveBeenCalledTimes(1)
+    const [mail] = send.mock.calls[0]!
+    expect(mail).toMatchObject({ to: email.toLowerCase(), subject: 'Your Linedesk account' })
+    expect(mail.text).toContain('enter this email address')
+    expect(mail.text).not.toMatch(/\d{6}|token=/)
+  })
+
+  test('an address that already has an account is refused', async () => {
+    spySend()
+    const email = address('twice')
+    expect((await act(operator, 'user.invite', { email, name: 'Once' })).status).toBe(200)
+    expect(await act(operator, 'user.invite', { email: email.toUpperCase(), name: 'Twice' })).toMatchObject({
       status: 409,
-      body: { error: `${email.toLowerCase()} already has an account` },
+      body: { error: `${email} already has an account` },
     })
+  })
+
+  test('an invite does not use up the sign-in code limit of that address', async () => {
+    const send = spySend()
+    const email = address('limit')
+    for (let i = 0; i < 6; i++) await request(anonymous, 'POST', '/api/auth/email-otp/send-verification-otp', { email, type: 'sign-in' }, { origin: 'http://localhost:5173', [FROM]: randomIp() })
+    send.mockClear()
+    expect((await act(operator, 'user.invite', { email, name: 'After Many Codes' })).status).toBe(200)
+    expect(send).toHaveBeenCalledTimes(1)
   })
 
   test('without email it is refused and nothing is created', async () => {
+    delete process.env.EMAIL_TO_LOG
     const email = address('noemail')
     const res = await act(operator, 'user.invite', { email, name: 'No Email' })
     expect(res.status).toBe(409)
@@ -744,19 +734,20 @@ describe('user.invite', () => {
     expect(await accountOf(email)).toBeUndefined()
   })
 
-  test('when the link cannot be sent the account is removed again and the command is logged as rejected', async () => {
-    process.env.EMAIL_TO_LOG = 'true'
-    stubLink(async () => {
+  test('when the email cannot be sent the account is removed again and the command is logged as rejected', async () => {
+    spySend(async () => {
       throw new Error('SMTP said no')
     })
     const email = address('bounce')
     const key = crypto.randomUUID()
     const res = await act(operator, 'user.invite', { email, name: 'Bounce' }, key)
     expect(res.status).toBe(409)
-    expect(res.body.error).toMatch(
-      /the sign-in email could not be sent \(SMTP said no\); the account for .* was removed again/,
-    )
+    expect(res.body.error).toMatch(/the welcome email could not be sent \(SMTP said no\); the account for .* was removed again/)
     expect(await accountOf(email)).toBeUndefined()
     expect((await db.select().from(commands).where(eq(commands.id, key)))[0]).toMatchObject({ rejected: true })
+  })
+
+  test('a workspace owner who is not an instance admin cannot invite', async () => {
+    expect(await act(other.owner, 'user.invite', { email: address('x'), name: 'X' })).toMatchObject({ status: 403, body: { error: 'missing permission instance:admin' } })
   })
 })

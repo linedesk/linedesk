@@ -34,6 +34,9 @@ export default defineConfig(async () => {
         ELECTRIC_URL: 'http://electric.test',
         // Tests must never reach a carrier, whatever .env selects.
         TELEPHONY_PROVIDER: 'dev',
+        // Email sign-in by code is on, as on a real server; tests read the codes from a spy on the sender.
+        EMAIL_TO_LOG: 'true',
+        SMTP_URL: '',
         // A fresh key per run: provider keys are only ever stored in the run's own database.
         SECRETS_KEY: randomBytes(32).toString('base64'),
         // No admins or provider keys from the developer's .env.

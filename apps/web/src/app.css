@@ -127,6 +127,8 @@ button.me:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; 
   .cv-main[data-side="open"] .cv-side { top: auto; left: 0; width: auto; max-height: 70vh; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
 }
 
+/* Sign-in code: one field for six digits, large and spaced so it reads like the code in the email. */
+.auth-card input.auth-code { height: 48px; font-family: var(--font-mono); font-size: 24px; letter-spacing: .35em; text-align: center; }
 /* Toast: centred text when there is no Undo button; the tighter right edge only next to the button. */
 .toast { padding: 6px 12px; }
 .toast.has-undo { padding: 6px 6px 6px 12px; }

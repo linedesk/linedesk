@@ -26,7 +26,7 @@ export function readAuthConfig(env: Env) {
   ].filter(Boolean) as string[]
   const methods: AuthMethods = {
     password: env.AUTH_PASSWORD_ENABLED !== 'false',
-    magicLink: emailDelivery(env) !== 'none',
+    emailCode: emailDelivery(env) !== 'none',
     signUp: env.AUTH_SIGNUP_ENABLED !== 'false',
     sso: [
       google && { id: 'google', label: 'Google' },
