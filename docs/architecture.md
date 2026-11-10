@@ -154,7 +154,7 @@ US practical notes: outbound needs a SIP trunk; Twilio needs Trust Hub + SHAKEN/
 ## 9. Data model
 
 ```
-Workspace(id, name, timezone, locale, avg_job_value, plan, region)
+Workspace(id, name, locale, avg_job_value, plan, region)
 Member(id, workspace_id, name, email, role[owner|admin|member], phone)
 PhoneNumber(id, workspace_id, e164, provider[telnyx|twilio|plivo|byo_sip], mode, forwarded_from, verified_at)
 Assistant(id, workspace_id, name, voice{provider, voice_id}, languages[], greeting,
@@ -163,7 +163,9 @@ Assistant(id, workspace_id, name, voice{provider, voice_id}, languages[], greeti
           escalation{transfer_to_member_id, urgent_keywords[], rules[]}, capabilities{...})
 CalendarConnection(id, workspace_id, provider[google|microsoft|caldav], account_email, status)
 Calendar(id, connection_id, external_id, name, color, check_conflicts, book_into)
-AvailabilityRule(id, workspace_id, weekday, start, end) + AvailabilityException(date, ...)
+WorkspaceSettings(workspace_id, timezone)   -- table workspace_settings; IANA zone, default America/New_York when missing
+AvailabilityRule(id, workspace_id, weekday[0=Sunday..6], start_time, end_time)   -- wall clock, end after start, 24:00 allowed
+AvailabilityException(id, workspace_id, date, start_time?, end_time?)   -- replaces the day's hours; no times = closed
 AppointmentType(id, workspace_id, name, duration_min, buffer_min, min_notice_hours,
                 max_days_ahead, location[on_site|office|phone|video], enabled)
 Contact(id, workspace_id, name, company, phone, email, address, tags[], note)
@@ -174,7 +176,7 @@ Call(id, workspace_id, contact_id, from, to, direction[in|out], started_at, ende
      inbox_state[open|done], reminder_at, reminder_label, unread, assignee_id,
      deleted_at, billed_seconds)
 TranscriptSegment(id, call_id, speaker[agent|caller|human|system], text, at_ms, tool_event?)
-Booking(id, workspace_id, call_id, contact_id, appointment_type_id, start, end,
+Booking(id, workspace_id, call_id, contact_id, appointment_type_id, start_at, end_at,
         status[confirmed|rescheduled|cancelled], calendar_id, external_event_id)
 Command(id, workspace_id, member_id, action, input, status, created_at)   -- outbox replay log, idempotency
 UsagePeriod(workspace_id, period, answered_seconds, cost_cents)

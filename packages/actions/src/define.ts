@@ -4,14 +4,14 @@
 import type { TableName, Tables } from '@callfront/db/types'
 import type { z } from 'zod'
 
-export type Permission = 'call:write' | 'contact:write' | 'settings:write' | 'agent'
+export type Permission = 'call:write' | 'contact:write' | 'settings:write' | 'calendar:read' | 'agent'
 export type Role = 'owner' | 'admin' | 'member' | 'agent'
 
 export const rolePermissions: Record<Role, readonly Permission[]> = {
-  owner: ['call:write', 'contact:write', 'settings:write'],
-  admin: ['call:write', 'contact:write', 'settings:write'],
-  member: ['call:write', 'contact:write'],
-  agent: ['call:write', 'contact:write', 'agent'],
+  owner: ['call:write', 'contact:write', 'settings:write', 'calendar:read'],
+  admin: ['call:write', 'contact:write', 'settings:write', 'calendar:read'],
+  member: ['call:write', 'contact:write', 'calendar:read'],
+  agent: ['call:write', 'contact:write', 'calendar:read', 'agent'],
 }
 
 export interface PatchSpec<I, T extends TableName = TableName> {
@@ -27,6 +27,8 @@ export interface ActionDef<S extends z.ZodType = z.ZodType, T extends TableName 
   input: S
   permission: Permission
   patch?: PatchSpec<z.infer<S>, T>
+  /** The action changes nothing: the API neither logs it as a command nor makes it idempotent. */
+  readOnly?: true
 }
 
 export const defineAction = <S extends z.ZodType, T extends TableName>(def: ActionDef<S, T>) => def

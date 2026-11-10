@@ -1,6 +1,7 @@
-// The one write path. Validate, authorize, run in a transaction, record the command.
+// The one path for actions. Validate, authorize, run in a transaction, record the command.
 // Idempotent per command id: a replayed command returns its first result.
-import { actions, type ActionRejection, type ActionResult } from '@callfront/actions'
+// Read-only actions skip the command log: nothing to replay, nothing to audit.
+import { actions, type ActionDef, type ActionRejection, type ActionResult } from '@callfront/actions'
 import { commands } from '@callfront/db'
 import { eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
@@ -11,12 +12,22 @@ export type RunResult = { status: 200 | 403 | 404 | 409 | 422; body: ActionResul
 
 const rejection = (status: RunResult['status'], error: string): RunResult => ({ status, body: { ok: false, error } })
 
+async function runReadOnly(def: ActionDef, input: unknown, actor: Actor): Promise<RunResult> {
+  try {
+    return { status: 200, body: { ok: true, ...(await runHandler({ tx: db, actor, now: new Date().toISOString() }, def, input)) } }
+  } catch (e) {
+    if (!(e instanceof Reject)) throw e
+    return rejection(409, e.message)
+  }
+}
+
 export async function runAction(name: string, rawInput: unknown, actor: Actor, commandId: string = crypto.randomUUID()): Promise<RunResult> {
   const def = actions.get(name)
   if (!def) return rejection(404, `unknown action ${name}`)
   if (!actor.permissions.includes(def.permission)) return rejection(403, `missing permission ${def.permission}`)
   const parsed = def.input.safeParse(rawInput)
   if (!parsed.success) return rejection(422, parsed.error.message)
+  if (def.readOnly) return runReadOnly(def, parsed.data, actor)
 
   const [seen] = await db.select().from(commands).where(eq(commands.id, commandId))
   if (seen) return { status: seen.rejected ? 409 : 200, body: seen.result as RunResult['body'] }

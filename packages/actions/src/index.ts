@@ -1,8 +1,10 @@
+import * as calendar from './calendar.ts'
 import * as calls from './calls.ts'
 import type { ActionDef } from './define.ts'
 import * as settings from './settings.ts'
 
 export * from './define.ts'
+export * from './calendar.ts'
 export * from './calls.ts'
 export * from './settings.ts'
 
@@ -11,6 +13,7 @@ const all = [
   calls.callClearReminder, calls.callDelete, calls.callRestore,
   calls.callStart, calls.callAppendTranscript, calls.callFinish,
   settings.contactUpdate, settings.assistantUpdate,
+  calendar.calendarFindSlots,
 ] as ActionDef[]
 
 /** The registry: every action by name. */

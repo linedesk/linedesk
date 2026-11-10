@@ -1,6 +1,9 @@
 // Demo workspace: Brightwater Plumbing & Heating (Portland), assistant Maya, owner Mike Brennan.
-// Idempotent: does nothing if the demo user already exists.
-import { assistants, calls, contacts, phone_numbers, transcript_segments, user } from '@callfront/db'
+// Idempotent: the base data is created once; the calendar setup is added to an existing demo too.
+import {
+  appointment_types, assistants, availability_exceptions, availability_rules, calls, contacts, organization, phone_numbers,
+  transcript_segments, user, workspace_settings,
+} from '@callfront/db'
 import { eq } from 'drizzle-orm'
 import { auth } from './auth.ts'
 import { db, pool } from './db.ts'
@@ -80,13 +83,37 @@ const seedCalls: SeedCall[] = [
 
 const id = (prefix: string, n: number) => `${prefix}_demo_${String(n).padStart(2, '0')}`
 
+const DEMO_SLUG = 'brightwater'
+
+// Mon–Fri 7 am – 6 pm Pacific, closed on two holidays, three things callers can book.
+async function seedCalendar(workspace_id: string) {
+  await db.insert(workspace_settings).values({ workspace_id, timezone: 'America/Los_Angeles' }).onConflictDoNothing()
+  await db.insert(availability_rules).values([1, 2, 3, 4, 5].map(weekday => (
+    { id: id('ar', weekday), workspace_id, weekday, start_time: '07:00', end_time: '18:00' }
+  ))).onConflictDoNothing()
+  await db.insert(availability_exceptions).values([
+    { id: id('ae', 0), workspace_id, date: '2026-11-26' }, // Thanksgiving
+    { id: id('ae', 1), workspace_id, date: '2026-12-25' },
+  ]).onConflictDoNothing()
+  await db.insert(appointment_types).values([
+    { id: 'at_demo_service', workspace_id, name: 'Service visit', duration_min: 90, buffer_min: 30, min_notice_hours: 2, max_days_ahead: 30, location: 'on_site' },
+    { id: 'at_demo_estimate', workspace_id, name: 'On-site estimate', duration_min: 60, buffer_min: 30, min_notice_hours: 24, max_days_ahead: 30, location: 'on_site' },
+    { id: 'at_demo_phone', workspace_id, name: 'Phone consultation', duration_min: 15, buffer_min: 0, min_notice_hours: 1, max_days_ahead: 14, location: 'phone' },
+  ]).onConflictDoNothing()
+}
+
 async function seed() {
   const [existing] = await db.select().from(user).where(eq(user.email, DEMO.email))
-  if (existing) return console.log('demo data already there')
+  if (existing) {
+    const [workspace] = await db.select().from(organization).where(eq(organization.slug, DEMO_SLUG))
+    if (!workspace) throw new Error(`demo user exists but workspace "${DEMO_SLUG}" does not`)
+    await seedCalendar(workspace.id)
+    return console.log('demo data already there (calendar setup checked)')
+  }
 
   const signUp = await auth.api.signUpEmail({ body: { name: 'Mike Brennan', email: DEMO.email, password: DEMO.password }, returnHeaders: true })
   const cookie = signUp.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
-  const org = await auth.api.createOrganization({ body: { name: 'Brightwater Plumbing & Heating', slug: 'brightwater' }, headers: new Headers({ cookie }) })
+  const org = await auth.api.createOrganization({ body: { name: 'Brightwater Plumbing & Heating', slug: DEMO_SLUG }, headers: new Headers({ cookie }) })
   const workspace_id = org!.id
 
   await db.insert(assistants).values({
@@ -116,6 +143,7 @@ async function seed() {
       tool_event: speaker === 'system' ? { tool: 'system', label: text } : null,
     })))
   }
+  await seedCalendar(workspace_id)
   console.log(`seeded ${seedCalls.length} calls. Sign in: ${DEMO.email} / ${DEMO.password}`)
 }
 

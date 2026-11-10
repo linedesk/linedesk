@@ -3,7 +3,7 @@
 // workspace_id is the Better Auth organization id; every synced table carries it and a `version`
 // (global sequence, bumped by trigger on every write) so clients can order row versions.
 import { sql } from 'drizzle-orm'
-import { bigint, boolean, index, integer, jsonb, pgSequence, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { bigint, boolean, check, date, index, integer, jsonb, pgSequence, pgTable, text, time, timestamp } from 'drizzle-orm/pg-core'
 import type { ActionItem, AssistantVoice, BusinessProfile, CallField, ToolEvent } from './types.ts'
 
 export const rowVersion = pgSequence('row_version')
@@ -91,6 +91,85 @@ export const transcript_segments = pgTable('transcript_segments', {
   tool_event: jsonb('tool_event').$type<ToolEvent>(),
   version: version(),
 }, t => [index('segments_call').on(t.call_id, t.at_ms)])
+
+// Per-workspace settings that Better Auth's organization table does not hold. One row per workspace.
+export const workspace_settings = pgTable('workspace_settings', {
+  workspace_id: text('workspace_id').primaryKey(),
+  /** IANA time zone; working hours and exceptions are wall-clock times in it. */
+  timezone: text('timezone').notNull(),
+  created_at: createdAt(),
+  version: version(),
+})
+
+// Weekly working hours: wall-clock times in the workspace time zone. Several rows per weekday are allowed.
+// Hours cannot cross midnight; `24:00` is a valid end.
+export const availability_rules = pgTable('availability_rules', {
+  id: id(),
+  workspace_id: workspaceId(),
+  /** 0 = Sunday … 6 = Saturday. */
+  weekday: integer('weekday').notNull(),
+  start_time: time('start_time').notNull(),
+  end_time: time('end_time').notNull(),
+  created_at: createdAt(),
+  version: version(),
+}, t => [
+  index('availability_rules_ws').on(t.workspace_id),
+  check('availability_rules_weekday', sql`${t.weekday} between 0 and 6`),
+  check('availability_rules_times', sql`${t.end_time} > ${t.start_time}`),
+])
+
+// Replaces the weekly hours on one date. Without times the day is closed.
+export const availability_exceptions = pgTable('availability_exceptions', {
+  id: id(),
+  workspace_id: workspaceId(),
+  date: date('date', { mode: 'string' }).notNull(),
+  start_time: time('start_time'),
+  end_time: time('end_time'),
+  created_at: createdAt(),
+  version: version(),
+}, t => [
+  index('availability_exceptions_ws_date').on(t.workspace_id, t.date),
+  check('availability_exceptions_times', sql`(${t.start_time} is null and ${t.end_time} is null) or coalesce(${t.end_time} > ${t.start_time}, false)`),
+])
+
+export const appointment_types = pgTable('appointment_types', {
+  id: id(),
+  workspace_id: workspaceId(),
+  name: text('name').notNull(),
+  duration_min: integer('duration_min').notNull(),
+  buffer_min: integer('buffer_min').notNull().default(0),
+  min_notice_hours: integer('min_notice_hours').notNull().default(0),
+  max_days_ahead: integer('max_days_ahead').notNull().default(60),
+  location: text('location', { enum: ['on_site', 'office', 'phone', 'video'] }).notNull().default('on_site'),
+  enabled: boolean('enabled').notNull().default(true),
+  created_at: createdAt(),
+  version: version(),
+}, t => [
+  index('appointment_types_ws').on(t.workspace_id),
+  check('appointment_types_duration', sql`${t.duration_min} > 0`),
+  check('appointment_types_buffer', sql`${t.buffer_min} >= 0`),
+  check('appointment_types_min_notice', sql`${t.min_notice_hours} >= 0`),
+  check('appointment_types_max_days', sql`${t.max_days_ahead} > 0`),
+])
+
+export const bookings = pgTable('bookings', {
+  id: id(),
+  workspace_id: workspaceId(),
+  call_id: text('call_id').references(() => calls.id, { onDelete: 'set null' }),
+  contact_id: text('contact_id').references(() => contacts.id),
+  appointment_type_id: text('appointment_type_id').references(() => appointment_types.id),
+  start_at: ts('start_at').notNull(),
+  end_at: ts('end_at').notNull(),
+  status: text('status', { enum: ['confirmed', 'rescheduled', 'cancelled'] }).notNull().default('confirmed'),
+  /** Set once calendar providers exist: the calendar the event was written to and its id there. */
+  calendar_id: text('calendar_id'),
+  external_event_id: text('external_event_id'),
+  created_at: createdAt(),
+  version: version(),
+}, t => [
+  index('bookings_ws_start').on(t.workspace_id, t.start_at),
+  check('bookings_times', sql`${t.end_at} > ${t.start_at}`),
+])
 
 // Every command the API accepted or rejected: idempotency per command id + audit log.
 export const commands = pgTable('commands', {
