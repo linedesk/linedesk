@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "worker": "tsx --env-file=../../.env src/worker.ts start",
+    "setup-sip": "tsx --env-file=../../.env src/setup-sip.ts",
+    "talk": "tsx --env-file=../../.env src/talk.ts",
     "simulate": "tsx --env-file=../../.env src/simulate.ts",
     "typecheck": "tsc -p .",
     "test": "vitest run"
@@ -10,7 +13,18 @@
   "dependencies": {
     "@callfront/actions": "workspace:*",
     "@callfront/db": "workspace:*",
+    "@livekit/agents": "^1.9.5",
+    "@livekit/agents-plugin-cartesia": "^1.9.5",
+    "@livekit/agents-plugin-deepgram": "^1.9.5",
+    "@livekit/agents-plugin-openai": "^1.9.5",
+    "@livekit/agents-plugin-silero": "^1.9.5",
+    "@livekit/rtc-node": "^1.2.2",
+    "livekit-server-sdk": "^2.19.3",
     "zod": "^4.6.7"
   },
-  "devDependencies": { "@types/node": "^26.6.6", "tsx": "^4.23.15", "vitest": "^5.1.0" }
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "vitest": "^5.1.0"
+  }
 }

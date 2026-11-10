@@ -39,3 +39,13 @@ export const assistantUpdate = defineAction({
   permission: 'settings:write',
   patch: { table: 'assistants', id: i => i.assistantId, set: ({ assistantId: _id, ...rest }) => defined(rest) },
 })
+
+export const phoneNumberSetup = defineAction({
+  name: 'phoneNumber.setup',
+  description: 'Get a phone number for the workspace from the telephony provider and route its calls to the assistant. Buys `e164`, or the first available number in `areaCode`. Repeating it for the same `e164` finishes a setup that failed halfway.',
+  input: z.object({
+    e164: z.string().regex(/^\+[1-9]\d{6,14}$/).optional(),
+    areaCode: z.string().regex(/^\d{3}$/).optional(),
+  }).refine(i => i.e164 || i.areaCode, { message: 'give a number (e164) or an area code' }),
+  permission: 'settings:write',
+})

@@ -5,13 +5,15 @@ import {
   appointment_types, assistants, availability_exceptions, availability_rules, bookings, calls, contacts, phone_numbers, syncedTables,
   transcript_segments, workspace_settings, type Tx,
 } from '@callfront/db'
-import { and, eq, gt, gte, lt, lte, ne } from 'drizzle-orm'
+import { TelephonyError, telephonyProviderFromEnv, type BoughtNumber, type TelephonyProvider } from '@callfront/telephony'
+import { and, eq, gt, gte, lt, lte, ne, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 
 /** A business-rule rejection: the command is final, clients must not retry it. */
 export class Reject extends Error {}
 
-type HandlerCtx = { tx: Tx; actor: Actor; now: string }
+/** `telephony` overrides the provider selected by env (tests). */
+export type HandlerCtx = { tx: Tx; actor: Actor; now: string; telephony?: TelephonyProvider }
 type Handler = (ctx: HandlerCtx, input: any) => Promise<Omit<ActionResult, 'ok'>>
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
@@ -29,9 +31,11 @@ async function runPatch({ tx, actor, now }: HandlerCtx, def: ActionDef, input: u
   return { rows: { [patch.table]: rows } }
 }
 
+/** Only `call.start` may run without a workspace: it is the action that resolves it. */
 async function loadCall(tx: Tx, actor: Actor, callId: string) {
-  const [call] = await tx.select().from(calls).where(eq(calls.id, callId))
-  if (!call || (actor.workspaceId && call.workspace_id !== actor.workspaceId)) throw new Reject('call not found')
+  if (!actor.workspaceId) throw new Reject('no workspace (send x-workspace-id)')
+  const [call] = await tx.select().from(calls).where(and(eq(calls.id, callId), eq(calls.workspace_id, actor.workspaceId)))
+  if (!call) throw new Reject('call not found')
   return call
 }
 
@@ -67,6 +71,40 @@ function findSlotsOrReject(input: FindSlotsInput) {
     if (e instanceof RangeError) throw new Reject(`calendar setup is invalid: ${e.message}`)
     throw e
   }
+}
+
+/** A call that is still live after this long lost its agent; nobody will finish it. */
+const STALE_LIVE_CALL_MS = 2 * 60 * 60 * 1000
+
+function completeStaleCalls(tx: Tx, workspace_id: string, now: string) {
+  const cutoff = new Date(Date.parse(now) - STALE_LIVE_CALL_MS).toISOString()
+  return tx.update(calls).set({
+    status: 'completed', ended_at: now,
+    outcome: sql`coalesce(${calls.outcome}, 'answered')`, title: sql`coalesce(${calls.title}, 'Call ended without a summary')`,
+  }).where(and(eq(calls.workspace_id, workspace_id), eq(calls.status, 'live'), lt(calls.started_at, cutoff))).returning()
+}
+
+const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
+
+/** Carrier failures are final for the command: the user sees the reason, the client does not retry. */
+async function atCarrier<T>(request: () => Promise<T>): Promise<T> {
+  try {
+    return await request()
+  } catch (e) {
+    throw e instanceof TelephonyError ? new Reject(e.message) : e
+  }
+}
+
+/** Setup failed after the purchase: give a number we just bought back, so nothing is paid for without a row. */
+async function undoPurchase(provider: TelephonyProvider, number: BoughtNumber, cause: unknown): Promise<never> {
+  const reason = errorMessage(cause)
+  if (!number.purchased) throw new Reject(`${reason}; ${number.e164} stays on the carrier account, set it up again to finish`)
+  try {
+    await provider.releaseNumber(number)
+  } catch (e) {
+    throw new Reject(`${reason}; releasing ${number.e164} failed too (${errorMessage(e)}), set it up again or release it at the carrier`)
+  }
+  throw new Reject(`${reason}; ${number.e164} was released`)
 }
 
 const handlers: Record<string, Handler> = {
@@ -107,7 +145,8 @@ const handlers: Record<string, Handler> = {
       started_at: now, room: input.room ?? id,
     }).returning()
     const [assistant] = await tx.select().from(assistants).where(eq(assistants.workspace_id, workspace_id))
-    return { rows: { calls: [call!], contacts: [contact!] }, data: { callId: id, workspaceId: workspace_id, isNewContact, contact: contact!, assistant: assistant ?? null } }
+    const stale = await completeStaleCalls(tx, workspace_id, now)
+    return { rows: { calls: [call!, ...stale], contacts: [contact!] }, data: { callId: id, workspaceId: workspace_id, isNewContact, contact: contact!, assistant: assistant ?? null } }
   },
 
   'call.appendTranscript': async ({ tx, actor }, input) => {
@@ -134,6 +173,35 @@ const handlers: Record<string, Handler> = {
       if (contact && !contact.name) rows.contacts = await tx.update(contacts).set({ name: input.callerName }).where(eq(contacts.id, contact.id)).returning()
     }
     return { rows }
+  },
+
+  'call.takeMessage': async ({ tx, actor }, input) => {
+    const call = await loadCall(tx, actor, input.callId)
+    const action_items = [...call.action_items, { text: input.message }]
+    return { rows: { calls: await tx.update(calls).set({ action_items }).where(eq(calls.id, call.id)).returning() } }
+  },
+
+  'phoneNumber.setup': async ({ tx, actor, now, telephony }, input) => {
+    if (!actor.workspaceId) throw new Reject('no workspace')
+    const workspace_id = actor.workspaceId
+    const provider = telephony ?? telephonyProviderFromEnv(process.env)
+    const sipEndpoint = process.env.LIVEKIT_SIP_ENDPOINT ?? ''
+    if (provider.name !== 'dev' && !sipEndpoint) throw new Error('LIVEKIT_SIP_ENDPOINT is not set')
+
+    const e164: string | undefined = input.e164 ?? (await atCarrier(() => provider.searchNumbers({ country: 'US', areaCode: input.areaCode, limit: 1 })))[0]?.e164
+    if (!e164) throw new Reject(`no number available in area code ${input.areaCode}`)
+    const [taken] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, e164))
+    if (taken) throw new Reject(`${e164} is already set up`)
+
+    const number = await atCarrier(() => provider.buyNumber(e164))
+    const rows = await (async () => {
+      await provider.routeToSip(number, sipEndpoint)
+      return tx.insert(phone_numbers).values({
+        id: newId('pn'), workspace_id, e164, provider: provider.name,
+        mode: 'new', provider_ref: number.providerRef, verified_at: now,
+      }).returning()
+    })().catch(e => undoPurchase(provider, number, e))
+    return { rows: { phone_numbers: rows } }
   },
 }
 

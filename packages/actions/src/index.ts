@@ -11,8 +11,8 @@ export * from './settings.ts'
 const all = [
   calls.callMarkDone, calls.callMarkNotDone, calls.callMarkRead, calls.callMarkUnread, calls.callRemind,
   calls.callClearReminder, calls.callDelete, calls.callRestore, calls.callSetActionItems,
-  calls.callStart, calls.callAppendTranscript, calls.callFinish,
-  settings.contactUpdate, settings.assistantUpdate,
+  calls.callStart, calls.callAppendTranscript, calls.callFinish, calls.callTakeMessage, calls.callFlagUrgent,
+  settings.contactUpdate, settings.assistantUpdate, settings.phoneNumberSetup,
   calendar.calendarFindSlots,
 ] as ActionDef[]
 

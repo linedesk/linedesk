@@ -7,12 +7,13 @@
     "start": "tsx --env-file=../../.env src/server.ts",
     "seed": "tsx --env-file=../../.env src/seed.ts",
     "typecheck": "tsc -p .",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {
     "@callfront/actions": "workspace:*",
     "@callfront/calendar": "workspace:*",
     "@callfront/db": "workspace:*",
+    "@callfront/telephony": "workspace:*",
     "@hono/node-server": "^2.1.6",
     "better-auth": "^1.7.19",
     "drizzle-orm": "^0.45.4",

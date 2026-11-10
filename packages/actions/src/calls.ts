@@ -74,3 +74,18 @@ export const callFinish = defineAction({
   }),
   permission: 'agent',
 })
+
+// Tools the assistant can use during a call.
+export const callTakeMessage = defineAction({
+  name: 'call.takeMessage',
+  description: 'Take a message for the business: adds an action item to the call.',
+  input: callId.extend({ message: z.string().min(1).max(500) }),
+  permission: 'agent',
+})
+export const callFlagUrgent = defineAction({
+  name: 'call.flagUrgent',
+  description: 'Flag a call as urgent, for emergencies that need a person right away.',
+  input: callId,
+  permission: 'agent',
+  patch: { table: 'calls', id: i => i.callId, set: () => ({ urgency: 'urgent' }) } satisfies PatchSpec<CallId, 'calls'>,
+})

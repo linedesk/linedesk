@@ -22,5 +22,50 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
 
+  # Voice: LiveKit server, its SIP bridge and the Redis-compatible store they share.
+  # The default key and secret are for local development only; the agent refuses them anywhere else.
+  redis:
+    image: valkey/valkey:8.1.11-alpine
+
+  livekit:
+    image: livekit/livekit-server:v1.13.11
+    # The address clients are told to send media to. 127.0.0.1 for local development;
+    # the server's public IP when carriers and browsers connect from outside.
+    command: ["--node-ip", "${LIVEKIT_NODE_IP:-127.0.0.1}"]
+    environment:
+      LIVEKIT_CONFIG: |
+        port: 7880
+        rtc:
+          tcp_port: 7881
+          udp_port: 7882
+          use_external_ip: false
+        redis:
+          address: redis:6379
+        keys:
+          ${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-devsecret-change-me-at-least-32-chars}
+    ports:
+      - "7880:7880"       # API + WebSocket signalling
+      - "7881:7881"       # WebRTC over TCP
+      - "7882:7882/udp"   # WebRTC over UDP
+      - "5060:5060/udp"   # SIP (served by livekit-sip, which shares this network namespace)
+      - "5060:5060/tcp"
+      - "10000-10100:10000-10100/udp" # SIP media (RTP)
+    depends_on: [redis]
+
+  livekit-sip:
+    image: livekit/sip:v1.23.0
+    network_mode: "service:livekit" # so it reaches LiveKit media on the advertised node IP
+    environment:
+      SIP_CONFIG_BODY: |
+        api_key: ${LIVEKIT_API_KEY:-devkey}
+        api_secret: ${LIVEKIT_API_SECRET:-devsecret-change-me-at-least-32-chars}
+        ws_url: ws://localhost:7880
+        redis:
+          address: redis:6379
+        sip_port: 5060
+        rtp_port: 10000-10100
+        use_external_ip: false
+    depends_on: [livekit, redis]
+
 volumes:
   pgdata:

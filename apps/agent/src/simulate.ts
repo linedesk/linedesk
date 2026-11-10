@@ -3,9 +3,10 @@
 import { pathToFileURL } from 'node:url'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { startCall } from './call-session.ts'
+import { runScript } from './env.ts'
+import { FALLBACK_GREETING } from './prompt.ts'
 import { simScripts, type SimLine, type SimScript } from './sim-scripts.ts'
 
-const FALLBACK_GREETING = 'Thanks for calling. How can I help?'
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 /** Roughly how long it takes to say a line: 2 to 6 seconds. */
@@ -47,9 +48,4 @@ async function main() {
   })
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  main().catch(e => {
-    console.error(e instanceof Error ? e.message : e)
-    process.exit(1)
-  })
-}
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) runScript(main)
