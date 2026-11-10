@@ -31,8 +31,12 @@ export function describeDevice(userAgent?: string | null): string {
   const browser = firstMatch(browsers, userAgent)
   const system = firstMatch(systems, userAgent)
   if (browser && system) return `${browser} on ${system}`
-  return browser ?? system ?? userAgent.split(/[/\s]/)[0] ?? 'Unknown device'
+  // Neither a browser nor a system: a script or tool (curl, an SDK) signed in with the API.
+  return browser ?? system ?? 'API client'
 }
+
+/** How many sessions the list shows before "Show N more". */
+export const SESSIONS_SHOWN = 5
 
 /** This device first, then the most recently used. */
 export function orderSessions(sessions: SessionRow[]): SessionRow[] {

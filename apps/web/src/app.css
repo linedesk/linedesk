@@ -865,3 +865,19 @@ a.k-btn {
 .boot-mark {
   margin: 0 0 4px;
 }
+
+/* Account, Sessions: grey lines while the list loads */
+.ac-skel {
+  display: grid;
+  gap: 6px;
+}
+.ac-skel span {
+  display: block;
+  height: 12px;
+  width: 40%;
+  border-radius: var(--radius-xs);
+  background: var(--surface-hover);
+}
+.ac-skel span + span {
+  width: 25%;
+}

@@ -6,7 +6,7 @@ import { dateTimeLabel } from '../../time.ts'
 import { Badge, Button } from '../../ui/kit.tsx'
 import { Field, Section, TextInput } from '../fields.tsx'
 import { type Account, changeName, changePassword, loadAccount, loadSessions, setFirstPassword, SignInAgain, signOutOtherSessions, signOutSession } from './account-api.ts'
-import { hasPassword, orderSessions, passwordProblem, type SessionRow, signInMethodLabels } from './account-model.ts'
+import { hasPassword, orderSessions, passwordProblem, type SessionRow, SESSIONS_SHOWN, signInMethodLabels } from './account-model.ts'
 
 type SectionProps = { account: Account; reload: () => Promise<void> }
 
@@ -151,6 +151,7 @@ function Sessions() {
   const [list, setList] = useState<SessionList>({ state: 'loading' })
   /** A session id, or 'others'. */
   const [confirming, setConfirming] = useState<string | null>(null)
+  const [showAll, setShowAll] = useState(false)
   const request = useRequest()
   const load = useCallback(async () => {
     try {
@@ -178,10 +179,15 @@ function Sessions() {
           <SignInAgainButton />
         </div>
       )}
+      {list.state === 'loading' && (
+        <ul className="ac-list" aria-busy="true" aria-label="Loading sessions">
+          {['a', 'b', 'c'].map(key => <li key={key} className="ac-session ac-skel"><span /><span /></li>)}
+        </ul>
+      )}
       {list.state === 'failed' && <div className="ac-error" role="alert">{list.error}</div>}
       {list.state === 'ready' && (
         <ul className="ac-list">
-          {list.sessions.map(s => (
+          {(showAll ? list.sessions : list.sessions.slice(0, SESSIONS_SHOWN)).map(s => (
             <li key={s.id} className="ac-session">
               <div><b>{s.device}</b><span className="help">Last active {dateTimeLabel(s.lastActive)}</span></div>
               <div className="ac-row-actions">
@@ -192,6 +198,9 @@ function Sessions() {
             </li>
           ))}
         </ul>
+      )}
+      {list.state === 'ready' && !showAll && list.sessions.length > SESSIONS_SHOWN && (
+        <div><Button size="sm" variant="ghost" onClick={() => setShowAll(true)}>Show {list.sessions.length - SESSIONS_SHOWN} more</Button></div>
       )}
       <FormStatus request={request} />
       {others > 0 && (
