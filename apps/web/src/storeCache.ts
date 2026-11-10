@@ -3,7 +3,12 @@
 // moment and both sent the same command.
 import { createStore, electricAdapter, type Rejection, type Store } from '@callfront/sync'
 
-type Entry = { ready: Promise<Store>; users: number; stopTimer?: ReturnType<typeof setTimeout>; onReject: Set<(r: Rejection) => void> }
+type Entry = {
+  ready: Promise<Store>
+  users: number
+  stopTimer?: ReturnType<typeof setTimeout>
+  onReject: Set<(r: Rejection) => void>
+}
 const open = new Map<string, Entry>()
 
 export type StoreLease = { ready: Promise<Store>; release: () => void }
@@ -14,9 +19,13 @@ export function leaseStore(dbName: string, onReject: (r: Rejection) => void): St
   if (!entry) {
     const listeners = new Set<(r: Rejection) => void>()
     const created: Entry = {
-      users: 0, onReject: listeners,
+      users: 0,
+      onReject: listeners,
       ready: createStore({
-        api: '', dbName, adapter: electricAdapter(window.location.origin),
+        api: '',
+        dbName,
+        adapter: electricAdapter(window.location.origin),
+        appVersion: import.meta.env.VITE_APP_BUILD,
         onReject: r => listeners.forEach(l => l(r)),
         onLocalDbLost: () => window.location.reload(), // another tab signed out and removed the local data
       }),
@@ -40,7 +49,10 @@ export function leaseStore(dbName: string, onReject: (r: Rejection) => void): St
       mine.stopTimer = setTimeout(() => {
         if (mine.users > 0) return
         open.delete(dbName)
-        void mine.ready.then(store => store.stop(), () => {})
+        void mine.ready.then(
+          store => store.stop(),
+          () => {},
+        )
       }, 0)
     },
   }
@@ -52,6 +64,10 @@ export async function stopAllStores() {
   open.clear()
   for (const e of entries) {
     clearTimeout(e.stopTimer)
-    try { (await e.ready).stop() } catch { /* never opened */ }
+    try {
+      ;(await e.ready).stop()
+    } catch {
+      /* never opened */
+    }
   }
 }

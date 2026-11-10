@@ -5,7 +5,7 @@
 import { actions, applyLocally, type ActionResult, type LocalTables } from '@callfront/actions'
 import { tableNames, type TableName, type Tables } from '@callfront/db/types'
 import type { ReadSyncAdapter, TableSink } from './adapter.ts'
-import { openLocalDb } from './idb.ts'
+import { type LocalDb, openLocalDb } from './idb.ts'
 import { browserTabLink, type Command, type TabLink, type TabMessage } from './tabs.ts'
 
 type AnyRow = { id: string; version: number }
@@ -20,6 +20,8 @@ export interface StoreOptions {
   /** The local database was taken away by another tab (it signed out). The store has stopped. */
   onLocalDbLost?: () => void
   retryMs?: number
+  /** The app's build. When it changes (a new deploy), every table loads afresh: read-sync cursors are dropped, pending writes kept. */
+  appVersion?: string
   /** How this store finds the other tabs of the workspace. Default: Web Lock and BroadcastChannel named after the database. */
   tabs?: TabLink
 }
@@ -30,15 +32,36 @@ const seqOf = (c: Command) => c.seq ?? Date.parse(c.at) * 1000
 /** Oldest first. Within a tab `seq` never repeats; between tabs the id breaks ties, so every tab agrees on the order. */
 const byAge = (a: Command, b: Command) => seqOf(a) - seqOf(b) || a.id.localeCompare(b.id)
 
+const VERSION_KEY = 'appVersion'
+
+/** A new build may sync a different shape of the tables: drop the read-sync cursors so each table loads again. */
+export async function forgetCursorsOnNewVersion(local: LocalDb, version: string): Promise<boolean> {
+  const meta = await local.all<unknown>('meta')
+  if (meta.find(([key]) => key === VERSION_KEY)?.[1] === version) return false
+  await local.write('meta', s => {
+    for (const [key] of meta) if (String(key).startsWith('cursor:')) s.delete(key)
+    s.put(version, VERSION_KEY)
+  })
+  return true
+}
+
 export async function createStore(opts: StoreOptions) {
   let stopped = false
   let leading = false
   const tabs = opts.tabs ?? browserTabLink(`callfront-tabs:${opts.dbName}`)
   const early: TabMessage[] = [] // messages that arrive while the database is still loading
-  let receive = (message: TabMessage) => { early.push(message) }
+  let receive = (message: TabMessage) => {
+    early.push(message)
+  }
   tabs.onMessage(message => receive(message))
 
-  const local = await openLocalDb(opts.dbName, { onLost: () => { stop(); opts.onLocalDbLost?.() } })
+  const local = await openLocalDb(opts.dbName, {
+    onLost: () => {
+      stop()
+      opts.onLocalDbLost?.()
+    },
+  })
+  if (opts.appVersion) await forgetCursorsOnNewVersion(local, opts.appVersion)
   const confirmed = emptyTables()
   let outbox: Command[] = []
   /** The key each command is stored under: its id (older versions stored a per-tab counter). */
@@ -51,7 +74,12 @@ export async function createStore(opts: StoreOptions) {
   const listeners = new Set<() => void>()
 
   async function loadFromDisk() {
-    for (const t of tableNames) confirm(t, (await local.all<AnyRow>(t)).map(([, row]) => row), false)
+    for (const t of tableNames)
+      confirm(
+        t,
+        (await local.all<AnyRow>(t)).map(([, row]) => row),
+        false,
+      )
     const stored = await local.all<Command>('outbox')
     for (const [key, c] of stored) storedKey.set(c.id, key)
     const known = new Set(outbox.map(c => c.id))
@@ -59,7 +87,9 @@ export async function createStore(opts: StoreOptions) {
   }
 
   function recompute() {
-    const tables = Object.fromEntries(tableNames.map(t => [t, new Map(confirmed[t] as Map<string, AnyRow>)])) as unknown as LocalTables
+    const tables = Object.fromEntries(
+      tableNames.map(t => [t, new Map(confirmed[t] as Map<string, AnyRow>)]),
+    ) as unknown as LocalTables
     for (const c of outbox) {
       const def = actions.get(c.name)
       if (def) applyLocally(tables, def, c.input, c.at)
@@ -81,7 +111,11 @@ export async function createStore(opts: StoreOptions) {
   }
   function replaceRows(table: TableName, rows: AnyRow[], persist = true) {
     confirmed[table] = new Map(rows.map(r => [r.id, r])) as never
-    if (persist) void local.write(table, s => { s.clear(); rows.forEach(r => s.put(r, r.id)) })
+    if (persist)
+      void local.write(table, s => {
+        s.clear()
+        rows.forEach(r => s.put(r, r.id))
+      })
   }
 
   /** Read sync runs in the leading tab only; what it brings is passed on to the other tabs. */
@@ -105,7 +139,7 @@ export async function createStore(opts: StoreOptions) {
       recompute()
     },
     loadCursor: async () => (await local.all('meta')).find(([k]) => k === `cursor:${table}`)?.[1],
-    saveCursor: cursor => stopped ? undefined : void local.write('meta', s => s.put(cursor, `cursor:${table}`)),
+    saveCursor: cursor => (stopped ? undefined : void local.write('meta', s => s.put(cursor, `cursor:${table}`))),
   })
 
   function forget(id: string) {
@@ -130,7 +164,10 @@ export async function createStore(opts: StoreOptions) {
 
   let flushing = false
   let retry: ReturnType<typeof setTimeout> | undefined
-  const retryLater = () => { clearTimeout(retry); retry = setTimeout(() => void flush(), opts.retryMs ?? 2000) }
+  const retryLater = () => {
+    clearTimeout(retry)
+    retry = setTimeout(() => void flush(), opts.retryMs ?? 2000)
+  }
 
   /**
    * Send pending commands in order (the leading tab only). Stops at the first transient failure to keep order.
@@ -144,12 +181,21 @@ export async function createStore(opts: StoreOptions) {
         let res: Response
         try {
           res = await fetch(`${opts.api}/v1/actions/${c.name}`, {
-            method: 'POST', credentials: 'include', body: JSON.stringify(c.input),
+            method: 'POST',
+            credentials: 'include',
+            body: JSON.stringify(c.input),
             headers: { 'content-type': 'application/json', 'idempotency-key': c.id },
           })
-        } catch { if (stopped) return; setOnline(false); return retryLater() }
+        } catch {
+          if (stopped) return
+          setOnline(false)
+          return retryLater()
+        }
         if (stopped) return // answered after stop(): the next leader replays the command (same idempotency key)
-        if (res.status >= 500 || res.status === 401) { setOnline(res.status === 401); return retryLater() }
+        if (res.status >= 500 || res.status === 401) {
+          setOnline(res.status === 401)
+          return retryLater()
+        }
         setOnline(true)
         const body = (await res.json()) as ActionResult | { ok: false; error: string }
         if (stopped) return
@@ -160,7 +206,9 @@ export async function createStore(opts: StoreOptions) {
         }
         await settle(c, body.ok ? { rows: body.rows } : { error: body.error })
       }
-    } finally { flushing = false }
+    } finally {
+      flushing = false
+    }
   }
 
   /** Run an action: applied locally at once, sent to the server in the background (by the leading tab). */
@@ -169,7 +217,13 @@ export async function createStore(opts: StoreOptions) {
     if (!def) throw new Error(`unknown action ${name}`)
     const now = Date.now()
     lastSeq = Math.max(now * 1000, lastSeq + 1, ...outbox.map(seqOf).map(s => s + 1)) // two commands in one millisecond keep their order
-    const command: Command = { id: crypto.randomUUID(), name, input: def.input.parse(input), at: new Date(now).toISOString(), seq: lastSeq }
+    const command: Command = {
+      id: crypto.randomUUID(),
+      name,
+      input: def.input.parse(input),
+      at: new Date(now).toISOString(),
+      seq: lastSeq,
+    }
     mine.add(command.id)
     outbox.push(command)
     recompute()
@@ -187,7 +241,8 @@ export async function createStore(opts: StoreOptions) {
     } else if (m.type === 'settled') {
       const command = outbox.find(c => c.id === m.id)
       for (const [table, rows] of Object.entries(m.rows ?? {})) confirm(table as TableName, rows as AnyRow[], false)
-      if (command && m.error && mine.has(m.id)) opts.onReject?.({ action: command.name, input: command.input, error: m.error })
+      if (command && m.error && mine.has(m.id))
+        opts.onReject?.({ action: command.name, input: command.input, error: m.error })
       forget(m.id)
     } else if (m.type === 'upsert') confirm(m.table, m.rows, false)
     else if (m.type === 'replace') replaceRows(m.table, m.rows, false)
@@ -232,7 +287,12 @@ export async function createStore(opts: StoreOptions) {
   return {
     run,
     flush,
-    subscribe: (l: () => void) => { listeners.add(l); return () => { listeners.delete(l) } },
+    subscribe: (l: () => void) => {
+      listeners.add(l)
+      return () => {
+        listeners.delete(l)
+      }
+    },
     getSnapshot: () => snapshot,
     rows: <T extends TableName>(table: T): Tables[T][] => [...snapshot.tables[table].values()],
     stop,
