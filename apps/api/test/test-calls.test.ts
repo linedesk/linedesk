@@ -113,3 +113,23 @@ test('a phone call is still filed as a phone call', async () => {
   const [call] = await db.select().from(calls).where(eq(calls.id, body.data.callId))
   expect(call?.source).toBe('phone')
 })
+
+test('call.findForTest finds the newest call between two numbers since a moment, for the agent only', async () => {
+  const since = new Date(Date.now() - 1000).toISOString()
+  const from = '+15035550192'
+  const none = await act(agent(), 'call.findForTest', { from, to: ws.number, since })
+  expect(none.body.data).toEqual({ workspaceId: ws.id, call: null, turns: { caller: 0, agent: 0, system: 0 } })
+
+  const { body } = await act(agent(), 'call.start', { from, to: ws.number })
+  const callId = body.data.callId
+  await act(agent(ws.id), 'call.appendTranscript', { callId, speaker: 'agent', text: 'Hello', atMs: 0 })
+  await act(agent(ws.id), 'call.appendTranscript', { callId, speaker: 'caller', text: 'Hi', atMs: 900 })
+  await act(agent(ws.id), 'call.finish', { callId, outcome: 'message', title: 'Test', summary: 'A test.' })
+  const found = await act(agent(), 'call.findForTest', { from, to: ws.number, since })
+  expect(found.body.data).toMatchObject({ workspaceId: ws.id, call: { id: callId, status: 'completed', outcome: 'message', title: 'Test' }, turns: { caller: 1, agent: 1, system: 0 } })
+
+  const later = await act(agent(), 'call.findForTest', { from, to: ws.number, since: new Date(Date.now() + 60_000).toISOString() })
+  expect(later.body.data.call).toBeNull()
+  expect((await act(agent(), 'call.findForTest', { from, to: '+15550000000', since })).status).toBe(409)
+  expect((await act(ws.owner, 'call.findForTest', { from, to: ws.number, since })).status).toBe(403)
+})

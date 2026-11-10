@@ -6,6 +6,7 @@ import { createTwilioProvider } from './twilio.ts'
 export * from './provider.ts'
 export { devProvider } from './dev.ts'
 export { createTelnyxProvider, type TelnyxOptions } from './telnyx.ts'
+export { createTelnyxOutbound, sipUserName, type OutboundSip, type TelnyxOutboundOptions } from './telnyx-outbound.ts'
 export { createTwilioProvider, type TwilioOptions } from './twilio.ts'
 
 type Env = Record<string, string | undefined>

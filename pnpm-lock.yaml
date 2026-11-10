@@ -26,6 +26,9 @@ importers:
       '@callfront/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@callfront/telephony':
+        specifier: workspace:*
+        version: link:../../packages/telephony
       '@livekit/agents':
         specifier: ^1.9.5
         version: 1.9.5(@livekit/rtc-node@1.2.2)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)
@@ -44,6 +47,9 @@ importers:
       '@livekit/agents-plugin-silero':
         specifier: ^1.9.5
         version: 1.9.5(@livekit/agents@1.9.5(@livekit/rtc-node@1.2.2)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)
+      '@livekit/protocol':
+        specifier: 1.53.0
+        version: 1.53.0
       '@livekit/rtc-node':
         specifier: ^1.2.2
         version: 1.2.2

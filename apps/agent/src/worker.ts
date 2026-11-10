@@ -14,6 +14,8 @@ import { checkReadiness, declineCall, describeReadiness } from './not-ready.ts'
 import { createPipeline, loadVad, summaryLlm, type Vad } from './pipeline.ts'
 import { buildInstructions, FALLBACK_GREETING } from './prompt.ts'
 import { describeRecording, livekitRecorder, saveRecording, startRecording, stopRecording } from './recording.ts'
+import { runTestCaller } from './test-caller/caller.ts'
+import { parseTestCallerMetadata } from './test-caller/scenarios.ts'
 
 let configLoader: (() => Promise<AgentConfig>) | undefined
 /** The effective provider config: Linedesk's provider settings first, the environment as fallback, cached briefly per process. */
@@ -80,6 +82,9 @@ async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClie
 
 async function entry(ctx: JobContext) {
   await ctx.connect()
+  // A room the call-test command dialled out of: this agent plays the caller, not the business.
+  const testCaller = parseTestCallerMetadata(ctx.job.metadata)
+  if (testCaller) return runAsTestCaller(ctx, testCaller.scenario)
   const caller = await ctx.waitForParticipant()
   const api = apiClientFromEnv()
   const origin = callOrigin(ctx.job.metadata, caller.attributes, ctx.room.name ?? '')
@@ -112,6 +117,15 @@ async function entry(ctx: JobContext) {
     await finishOnce()
     throw e
   }
+}
+
+async function runAsTestCaller(ctx: JobContext, scenario: Parameters<typeof runTestCaller>[1]) {
+  const readiness = await checkReadiness(loadAgentConfig)
+  if (!readiness.ready) {
+    console.error(`test caller cannot call: ${readiness.reason}`)
+    return ctx.deleteRoom()
+  }
+  await runTestCaller(ctx, scenario, readiness.config, ctx.proc.userData.vad as Vad)
 }
 
 export default defineAgent({

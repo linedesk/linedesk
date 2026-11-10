@@ -58,6 +58,21 @@ export const callStartTest = defineAction({
   input: z.object({ room: z.string().min(1).max(128) }),
   permission: 'agent',
 })
+/** For the phone-to-phone call test: the newest call from `from` to `to` since a moment, and how far it got. */
+export const callFindForTest = defineAction({
+  name: 'call.findForTest',
+  description: 'Find the call the call test placed: the newest call from one number to a business number since a moment.',
+  input: z.object({ from: z.string().min(3), to: z.string().min(3), since: z.iso.datetime({ offset: true }) }),
+  permission: 'agent',
+  readOnly: true,
+})
+/** `data` of `call.findForTest`. `call` is null while no such call exists. */
+export type CallTestFinding = {
+  workspaceId: string
+  call: { id: string; status: string; outcome: string | null; urgency: string; title: string | null; summary: string | null; recording_key: string | null; duration_sec: number | null } | null
+  turns: { caller: number; agent: number; system: number }
+}
+
 export const callAppendTranscript = defineAction({
   name: 'call.appendTranscript',
   description: 'Append one transcript segment to a live call.',

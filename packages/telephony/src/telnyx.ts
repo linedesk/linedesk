@@ -29,20 +29,24 @@ const statusByEvent: Record<string, CallStatus> = {
 
 const fail = (message: string, status?: number) => new TelephonyError('telnyx', message, status)
 
-export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider {
-  const { apiKey, publicKey, fetch: doFetch = fetch, now = Date.now } = options
-  const wait = options.wait ?? ((ms: number) => new Promise(resolve => setTimeout(resolve, ms)))
-
-  async function request(method: string, path: string, body?: Json): Promise<Json> {
+/** One authenticated Telnyx API call; errors carry the status and Telnyx's own reason, never the key. */
+export function telnyxRequest(apiKey: string, doFetch: typeof fetch = fetch) {
+  return async function request(method: string, path: string, body?: Json): Promise<Json> {
     const res = await doFetch(`${API}${path}`, {
       method,
       headers: { authorization: `Bearer ${apiKey}`, accept: 'application/json', ...(body ? { 'content-type': 'application/json' } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     })
     const json = (await res.json().catch(() => ({}))) as Json
-    if (!res.ok) throw fail(`${method} ${path}: ${json.errors?.[0]?.detail ?? json.errors?.[0]?.title ?? res.statusText}`, res.status)
+    if (!res.ok) throw fail(`${method} ${path.split('?')[0]}: ${json.errors?.[0]?.detail ?? json.errors?.[0]?.title ?? res.statusText}`, res.status)
     return json
   }
+}
+
+export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider {
+  const { apiKey, publicKey, fetch: doFetch = fetch, now = Date.now } = options
+  const wait = options.wait ?? ((ms: number) => new Promise(resolve => setTimeout(resolve, ms)))
+  const request = telnyxRequest(apiKey, doFetch)
 
   async function findNumberId(e164: string): Promise<string | undefined> {
     const { data } = await request('GET', `/phone_numbers?filter[phone_number]=${encodeURIComponent(e164)}`)

@@ -1,5 +1,5 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, recordingKey, testCallContact, type ActionDef, type ActionResult, type FindSlotsData } from '@callfront/actions'
+import { actions, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type FindSlotsData } from '@callfront/actions'
 import { findSlots, type FindSlotsInput, type Interval } from '@callfront/calendar'
 import {
   appointment_types, assistants, availability_exceptions, availability_rules, bookings, calls, contacts, organization, phone_numbers, syncedTables,
@@ -217,6 +217,22 @@ const handlers: Record<string, Handler> = {
   'call.startTest': async ({ tx, actor, now, recordings }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace (send x-workspace-id)')
     return openCall({ tx, now, recordings }, actor.workspaceId, { from: testCallContact.phone, to: testCallContact.phone, room: input.room, source: 'test', label: 'this test call' })
+  },
+
+  'call.findForTest': async ({ tx }, input) => {
+    const [number] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, input.to))
+    if (!number) throw new Reject(`${input.to} is not set up in any workspace`)
+    const [call] = await tx.select().from(calls).where(and(
+      eq(calls.workspace_id, number.workspace_id), eq(calls.from_number, input.from), eq(calls.to_number, input.to), gte(calls.started_at, input.since),
+    )).orderBy(desc(calls.started_at)).limit(1)
+    const segments = call ? await tx.select({ speaker: transcript_segments.speaker }).from(transcript_segments).where(eq(transcript_segments.call_id, call.id)) : []
+    const count = (speaker: string) => segments.filter(s => s.speaker === speaker).length
+    const data: CallTestFinding = {
+      workspaceId: number.workspace_id,
+      call: call ? { id: call.id, status: call.status, outcome: call.outcome, urgency: call.urgency, title: call.title, summary: call.summary, recording_key: call.recording_key, duration_sec: call.duration_sec } : null,
+      turns: { caller: count('caller'), agent: count('agent'), system: count('system') },
+    }
+    return { rows: {}, data }
   },
 
   'assistant.startTestCall': async ({ actor }) => ({ rows: {}, data: startTestCall(actor) }),
