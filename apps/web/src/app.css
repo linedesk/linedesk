@@ -1081,3 +1081,68 @@ a.k-btn {
     display: none;
   }
 }
+
+/* Signed in as another user (shell/ImpersonationBar.tsx): the app sits above a dark bar. The app's
+   own fixed layers (toasts, overlays, the menu, onboarding) are placed inside the app's area
+   (`contain: layout` makes it their containing block), so the bar never covers them nor they it. */
+.imp-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.imp-content {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  contain: layout;
+}
+.imp-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px 16px;
+  min-height: 40px;
+  padding: 6px max(16px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px))
+    max(16px, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
+  background: #1c1917;
+  color: #fafaf8;
+  font-size: 13px;
+  line-height: 18px;
+}
+.imp-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.imp-text b {
+  font-weight: 600;
+}
+.imp-wide,
+.imp-left {
+  color: #d6d3d1;
+}
+.imp-warning {
+  color: #fafaf8;
+  font-size: 12.5px;
+}
+.imp-bar .imp-back {
+  flex: none;
+  background: #fafaf8;
+  color: #1c1917;
+  border-color: transparent;
+}
+.imp-bar .imp-back:focus-visible {
+  outline: 2px solid #fafaf8;
+  outline-offset: 2px;
+}
+@media (max-width: 719px) {
+  .imp-wide {
+    display: none;
+  }
+  .imp-bar {
+    flex-wrap: wrap;
+  }
+}

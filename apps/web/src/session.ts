@@ -7,7 +7,7 @@ import { reach, Unreachable } from './retry.ts'
 export type Session =
   | { state: 'loading' }
   | { state: 'signedOut' }
-  | { state: 'needsWorkspace' }
+  | { state: 'needsWorkspace'; impersonation: Me['impersonation'] }
   /** `offline`: opened from what this device remembers, while the server is unreachable. */
   | { state: 'ready'; me: Me; offline: boolean }
   | { state: 'unreachable' }
@@ -38,7 +38,8 @@ export async function loadSession(): Promise<Session> {
     if (me?.workspace) { remember(me); return { state: 'ready', me, offline: false } }
     remember(null)
     // Signed in through a link or SSO for the first time: no workspace yet.
-    return (await isSignedIn()) ? { state: 'needsWorkspace' } : { state: 'signedOut' }
+    if (me) return { state: 'needsWorkspace', impersonation: me.impersonation ?? null }
+    return (await isSignedIn()) ? { state: 'needsWorkspace', impersonation: null } : { state: 'signedOut' }
   } catch (error) {
     if (!(error instanceof Unreachable)) throw error
     const me = remembered()

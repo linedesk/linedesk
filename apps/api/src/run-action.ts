@@ -44,7 +44,15 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   }
 
   // The command log never holds a secret: sensitive input fields are stored redacted.
-  const record = { id: commandId, workspace_id: actor.workspaceId, actor_id: actor.actorId, action: name, input: redactInput(def, parsed.data) as object }
+  // While an instance admin is signed in as a user, the command is the user's, done by that admin.
+  const record = {
+    id: commandId,
+    workspace_id: actor.workspaceId,
+    actor_id: actor.actorId,
+    impersonated_by: actor.impersonation?.by ?? null,
+    action: name,
+    input: redactInput(def, parsed.data) as object,
+  }
   // What handlers did outside the database (a bought phone number) is undone whenever the
   // transaction does not commit: the handler threw, the command could not be logged, or the commit failed.
   const undos: Undo[] = []

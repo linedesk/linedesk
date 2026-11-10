@@ -47,6 +47,6 @@ describe('session at load', () => {
   it('asks for a workspace when signed in without one', async () => {
     vi.mocked(isSignedIn).mockResolvedValue(true)
     vi.stubGlobal('fetch', vi.fn(async () => json(200, { ...me, workspace: null })))
-    expect(await loadSession()).toEqual({ state: 'needsWorkspace' })
+    expect(await loadSession()).toEqual({ state: 'needsWorkspace', impersonation: null })
   })
 })

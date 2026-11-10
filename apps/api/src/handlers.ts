@@ -8,6 +8,7 @@ import {
 import { TelephonyError, type TelephonyProvider } from '@callfront/telephony'
 import { and, asc, desc, eq, gt, gte, lt, lte, ne } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
+import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, Reject, type Undo } from './handler-context.ts'
 import { telephonyProvider } from './provider-settings.ts'
@@ -175,6 +176,7 @@ const blockedCall = (now: string) => ({
 
 const handlers: Record<string, Handler> = {
   ...adminHandlers,
+  ...impersonationHandlers,
   ...teamHandlers,
   ...workspaceSettingsHandlers,
   ...notificationHandlers,

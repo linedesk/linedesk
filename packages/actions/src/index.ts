@@ -65,6 +65,8 @@ const all = [
   admin.workspaceEnable,
   admin.instanceAdminGrant,
   admin.instanceAdminRevoke,
+  admin.userImpersonate,
+  admin.impersonationStop,
   team.teamList,
   team.teamInvite,
   team.teamResendInvite,

@@ -8,6 +8,7 @@ import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { refuseExistingMember, sendVerificationEmail } from './invitations.ts'
 import { createRateLimiter } from './rate-limit.ts'
+import { refuseWhileImpersonating } from './impersonation-guard.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
 import { maySendSignInCode } from './signup-gate.ts'
 
@@ -28,7 +29,7 @@ const allowTryFor = createRateLimiter({ max: 10, windowMs: 60 * 60_000 })
  * Runs before the email-code endpoints, so a refused request creates no code and leaves the
  * current one (and its tries) as it is. Only sign-in codes exist here.
  */
-const limitEmailCodes = createAuthMiddleware(async ctx => {
+const limitEmailCodes = async (ctx: Parameters<typeof refuseWhileImpersonating>[0]) => {
   const email = typeof ctx.body?.email === 'string' ? ctx.body.email.trim().toLowerCase() : ''
   if (ctx.path === '/email-otp/send-verification-otp') {
     if (ctx.body?.type !== 'sign-in') throw new APIError('BAD_REQUEST', { message: 'Only sign-in codes are offered.' })
@@ -37,6 +38,11 @@ const limitEmailCodes = createAuthMiddleware(async ctx => {
   if (ctx.path === '/sign-in/email-otp' && !allowTryFor(email)) {
     throw new APIError('TOO_MANY_REQUESTS', { message: 'Too many tries for this email. Try again later.' })
   }
+}
+
+const beforeAuthEndpoints = createAuthMiddleware(async ctx => {
+  await limitEmailCodes(ctx)
+  await refuseWhileImpersonating(ctx)
 })
 
 /** The plugin's endpoints for password reset, email change and plain verification are not offered. */
@@ -84,7 +90,9 @@ export const auth = betterAuth({
   // Members and invitations change only through the team.* actions (team.ts), which apply the
   // workspace's rules (last owner, who may change an owner). Accepting stays Better Auth's endpoint.
   disabledPaths: [...UNUSED_EMAIL_CODE_PATHS, ...TEAM_WRITE_PATHS],
-  hooks: { before: limitEmailCodes },
+  hooks: { before: beforeAuthEndpoints },
+  // Set by user.impersonate only (impersonation.ts); `input: false` keeps clients from setting it.
+  session: { additionalFields: { impersonatedBy: { type: 'string', required: false, input: false } } },
   plugins: [
     organization({
       organizationLimit: WORKSPACE_LIMIT,

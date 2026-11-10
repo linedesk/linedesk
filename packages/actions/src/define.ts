@@ -4,8 +4,11 @@
 import type { TableName, Tables } from '@callfront/db/types'
 import type { z } from 'zod'
 
-/** `instance:admin` belongs to no role: the API adds it for users who operate the install, in any workspace. */
-export type Permission = 'call:read' | 'call:write' | 'contact:write' | 'settings:write' | 'calendar:read' | 'team:read' | 'team:write' | 'agent' | 'instance:admin'
+/**
+ * `instance:admin` belongs to no role: the API adds it for users who operate the install, in any workspace.
+ * `impersonation:stop` belongs to no role either: the API adds it only to a session an instance admin started as another user.
+ */
+export type Permission = 'call:read' | 'call:write' | 'contact:write' | 'settings:write' | 'calendar:read' | 'team:read' | 'team:write' | 'agent' | 'instance:admin' | 'impersonation:stop'
 export type Role = 'owner' | 'admin' | 'member' | 'agent'
 
 export const rolePermissions: Record<Role, readonly Permission[]> = {

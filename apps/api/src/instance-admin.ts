@@ -4,6 +4,7 @@ import { type Tx, user } from '@callfront/db'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { APIError } from 'better-auth/api'
 import { db } from './db.ts'
+import { keepImpersonationExpiry } from './impersonation-guard.ts'
 import { refuseClosedSignUp } from './signup-gate.ts'
 
 type Account = { email: string; emailVerified: boolean; instanceAdmin: boolean }
@@ -84,11 +85,13 @@ export const instanceAdminHooks = {
   },
   session: {
     create: {
-      before: async (session: { userId: string }) => {
+      before: async (session: { userId: string; impersonatedBy?: string | null }) => {
         const [account] = await db.select({ disabledAt: user.disabledAt }).from(user).where(eq(user.id, session.userId))
         if (account?.disabledAt) throw new APIError('FORBIDDEN', { message: 'This account is disabled.' })
-        await db.update(user).set({ lastSignInAt: new Date() }).where(eq(user.id, session.userId))
+        // An admin signing in as the user is not the user signing in.
+        if (!session.impersonatedBy) await db.update(user).set({ lastSignInAt: new Date() }).where(eq(user.id, session.userId))
       },
     },
+    update: { before: async (data: { expiresAt?: Date }, ctx: unknown) => keepImpersonationExpiry(data, ctx as Parameters<typeof keepImpersonationExpiry>[1]) },
   },
 }

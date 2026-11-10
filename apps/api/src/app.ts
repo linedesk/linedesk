@@ -1,5 +1,5 @@
 import { actions } from '@callfront/actions'
-import { assistants, organization, workspace_settings, tableNames, type TableName } from '@callfront/db'
+import { assistants, organization, user, workspace_settings, tableNames, type TableName } from '@callfront/db'
 import { APIError } from 'better-auth/api'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -10,6 +10,8 @@ import { authMethods } from './auth-methods.ts'
 import { auth, WORKSPACE_LIMIT } from './auth.ts'
 import { resolveActor, type Actor } from './context.ts'
 import { db } from './db.ts'
+import { COOKIE_ACTIONS } from './impersonation.ts'
+import { registerImpersonationRoutes } from './impersonation-routes.ts'
 import { previewInvitation } from './invitations.ts'
 import { newAssistant, newWorkspaceSettings, onboardingFor, phoneSetupFor } from './onboarding.ts'
 import { voiceReady } from './provider-settings.ts'
@@ -98,8 +100,17 @@ app.get('/v1/me', async c => {
     workspace: workspace ? { id: workspace.id, name: workspace.name, disabled: Boolean(workspace.disabledAt) } : null,
     onboarding: workspace ? await onboardingFor(actor) : null,
     phoneSetup: workspace ? await phoneSetupFor(actor) : null,
+    impersonation: await impersonationOf(actor),
   })
 })
+
+/** Who is signed in as this user, for the banner while impersonating. */
+async function impersonationOf({ actorId, impersonation }: Actor) {
+  if (!impersonation) return null
+  const person = (id: string) => db.select({ id: user.id, name: user.name, email: user.email }).from(user).where(eq(user.id, id))
+  const [[by], [as]] = await Promise.all([person(impersonation.by), person(actorId)])
+  return by && as ? { by, user: as, expiresAt: impersonation.expiresAt.toISOString() } : null
+}
 
 // For the inbox header: can the assistant answer calls at all? Members see whether, never which key is missing.
 app.get('/v1/assistant/status', async c => {
@@ -108,12 +119,16 @@ app.get('/v1/assistant/status', async c => {
 })
 
 registerAdminRoutes(app)
+registerImpersonationRoutes(app)
 
 app.get('/v1/actions', c =>
   c.json([...actions.values()].map(a => ({ name: a.name, description: a.description, permission: a.permission }))),
 )
 
 app.post('/v1/actions/:name', async c => {
+  // These change which session the browser holds, so only their own routes run them.
+  if (COOKIE_ACTIONS.includes(c.req.param('name')))
+    return c.json({ ok: false, error: 'use POST /v1/impersonation/start or /v1/impersonation/stop' }, 400)
   const input = await c.req.json().catch(() => ({}))
   const { status, body } = await runAction(c.req.param('name'), input, c.get('actor'), c.req.header('idempotency-key'))
   return c.json(body, status)

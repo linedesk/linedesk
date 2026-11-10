@@ -51,12 +51,14 @@ type ConfirmProps = {
   action: string
   /** Set for the heaviest actions: the button unlocks once this is typed. */
   typed?: string
+  /** Red for destructive actions (the default); `primary` for one that destroys nothing. */
+  variant?: 'danger' | 'primary'
   onConfirm: () => Promise<void>
   onCancel: () => void
 }
 
 /** The second step of a destructive action, in place: says what will happen, Esc or Cancel backs out. */
-export function Confirm({ text, action, typed, onConfirm, onCancel }: ConfirmProps) {
+export function Confirm({ text, action, typed, variant = 'danger', onConfirm, onCancel }: ConfirmProps) {
   const [entered, setEntered] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -92,7 +94,7 @@ export function Confirm({ text, action, typed, onConfirm, onCancel }: ConfirmPro
           />
         </label>
       )}
-      <Button type="submit" size="sm" variant="danger" disabled={!unlocked || busy}>
+      <Button type="submit" size="sm" variant={variant} disabled={!unlocked || busy}>
         {action}
       </Button>
       <Button size="sm" variant="ghost" className="adm-confirm-cancel" onClick={onCancel}>

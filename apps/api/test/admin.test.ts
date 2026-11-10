@@ -13,6 +13,7 @@ import { telephonyProvider } from '../src/provider-settings.ts'
 import {
   act,
   addMember,
+  appRequest,
   agent,
   anonymous,
   type Caller,
@@ -93,7 +94,7 @@ describe('access', () => {
     expect((await request(anonymous, 'GET', path)).status).toBe(401)
   })
 
-  test('the registry has the eleven admin actions', () => {
+  test('the registry has the twelve admin actions', () => {
     expect(adminActions.map(def => def.name).sort()).toEqual([
       'instanceAdmin.grant',
       'instanceAdmin.revoke',
@@ -103,13 +104,15 @@ describe('access', () => {
       'provider.test',
       'user.disable',
       'user.enable',
+      'user.impersonate',
       'user.invite',
       'workspace.disable',
       'workspace.enable',
     ])
   })
 
-  test.each(adminActions.map(def => def.name))(
+  // user.impersonate only runs through its own route: see describe('impersonation').
+  test.each(adminActions.map(def => def.name).filter(name => name !== 'user.impersonate'))(
     '%s: 403 for a workspace owner, a member and the agent, and nothing changes',
     async name => {
       const input = {
@@ -819,5 +822,242 @@ describe('user.invite', () => {
       status: 403,
       body: { error: 'missing permission instance:admin' },
     })
+  })
+})
+
+describe('impersonation', () => {
+  const SESSION = 'better-auth.session_token'
+  const ADMIN_SESSION = 'better-auth.admin_session'
+  const DONT_REMEMBER = 'better-auth.dont_remember'
+  let target: User // a member of `other`, signed in with a password
+  afterEach(() => {
+    process.env.INSTANCE_ADMIN_EMAILS = ''
+  })
+  beforeAll(async () => {
+    target = await addMember(other.id, 'member')
+  })
+
+  const cookiesOf = (caller: Caller) =>
+    new Map(
+      (caller.headers.cookie ?? '')
+        .split('; ')
+        .filter(Boolean)
+        .map(pair => [pair.slice(0, pair.indexOf('=')), pair.slice(pair.indexOf('=') + 1)]),
+    )
+  const callerWith = (caller: Caller, jar: Map<string, string>): Caller => ({
+    headers: { ...caller.headers, cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; ') },
+  })
+  /** The caller as the browser would be after the response: its Set-Cookie headers applied. */
+  function afterResponse(caller: Caller, res: Response): Caller {
+    const jar = cookiesOf(caller)
+    for (const line of res.headers.getSetCookie()) {
+      const [pair = ''] = line.split(';')
+      const name = pair.slice(0, pair.indexOf('='))
+      if (/max-age=0\b/i.test(line) || pair.endsWith('=')) jar.delete(name)
+      else jar.set(name, pair.slice(pair.indexOf('=') + 1))
+    }
+    return callerWith(caller, jar)
+  }
+  const withCookie = (caller: Caller, name: string, value: string | null): Caller => {
+    const jar = cookiesOf(caller)
+    if (value === null) jar.delete(name)
+    else jar.set(name, value)
+    return callerWith(caller, jar)
+  }
+  const post = (who: Caller, path: string, body: unknown = {}) =>
+    appRequest(path, {
+      method: 'POST',
+      headers: { ...who.headers, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  async function start(who: Caller, userId: string) {
+    const res = await post(who, '/v1/impersonation/start', { userId })
+    return { status: res.status, body: await res.json(), as: afterResponse(who, res) }
+  }
+  async function stop(who: Caller) {
+    const res = await post(who, '/v1/impersonation/stop')
+    return { status: res.status, body: await res.json(), as: afterResponse(who, res) }
+  }
+  const sessionsOf = (userId: string) => db.select().from(session).where(eq(session.userId, userId))
+  const impersonations = async () => (await sessionsOf(target.userId)).filter(s => s.impersonatedBy)
+  const getSession = async (who: Caller) =>
+    (await request(who, 'GET', '/api/auth/get-session')).body as {
+      user: { id: string }
+      session: { impersonatedBy?: string }
+    } | null
+
+  test('a workspace owner or member who is no instance admin cannot start it, and no session is made', async () => {
+    for (const who of [other.owner, member]) {
+      expect(await start(who, target.userId)).toMatchObject({
+        status: 403,
+        body: { error: 'missing permission instance:admin' },
+      })
+    }
+    expect(await impersonations()).toEqual([])
+  })
+
+  test('the generic action route refuses both actions: they only run through their own routes', async () => {
+    expect((await act(operator, 'user.impersonate', { userId: target.userId })).status).toBe(400)
+    expect((await act(operator, 'impersonation.stop', {})).status).toBe(400)
+    expect(await impersonations()).toEqual([])
+  })
+
+  test('refused for yourself, another instance admin (also by INSTANCE_ADMIN_EMAILS), a disabled and an unknown user', async () => {
+    const reason = async (userId: string) => {
+      const res = await start(operator, userId)
+      expect(res.status).toBe(409)
+      expect(res.as.headers.cookie).toBe(operator.headers.cookie) // no cookie changed
+      return res.body.error as string
+    }
+    expect(await reason(operator.userId)).toMatch(/yourself/)
+    const admin = await signUp()
+    await setAdmin(admin, true)
+    expect(await reason(admin.userId)).toMatch(/another instance admin/)
+    await setAdmin(admin, false)
+    const envAdmin = await signUp()
+    await db.update(user).set({ emailVerified: true }).where(eq(user.id, envAdmin.userId))
+    process.env.INSTANCE_ADMIN_EMAILS = await emailOf(envAdmin)
+    expect(await reason(envAdmin.userId)).toMatch(/another instance admin/)
+    const disabled = await signUp()
+    await db.update(user).set({ disabledAt: new Date() }).where(eq(user.id, disabled.userId))
+    expect(await reason(disabled.userId)).toMatch(/disabled/)
+    expect(await reason('no-such-user')).toMatch(/not found/)
+    expect(await db.select().from(session).where(eq(session.impersonatedBy, operator.userId))).toEqual([])
+  })
+
+  test('starts a Better Auth session for the user: impersonated_by, one hour, their first workspace; the cookie is accepted', async () => {
+    const before = Date.now()
+    const { status, body, as } = await start(operator, target.userId)
+    expect(status).toBe(200)
+    const [started] = await impersonations()
+    expect(started).toMatchObject({
+      id: body.data.sessionId,
+      impersonatedBy: operator.userId,
+      activeOrganizationId: other.id,
+    })
+    const lifetime = started!.expiresAt.getTime() - before
+    expect(lifetime).toBeGreaterThan(59 * 60_000)
+    expect(lifetime).toBeLessThanOrEqual(60 * 60_000 + 5_000)
+    // An admin signing in as the user is not the user's last sign-in.
+    expect((await db.select().from(user).where(eq(user.id, target.userId)))[0]!.lastSignInAt?.getTime() ?? 0).toBeLessThan(before)
+    expect(await getSession(as)).toMatchObject({
+      user: { id: target.userId },
+      session: { impersonatedBy: operator.userId },
+    })
+    expect(cookiesOf(as).get(ADMIN_SESSION)).toBeTruthy()
+    await stop(as)
+  })
+
+  test("while impersonating: the user's permissions, never instance:admin, no admin routes, no starting another", async () => {
+    const { as } = await start(operator, target.userId)
+    const me = (await request(as, 'GET', '/v1/me')).body
+    expect(me).toMatchObject({ actorId: target.userId, role: 'member', workspace: { id: other.id } })
+    expect(me.permissions).toEqual(expect.arrayContaining(['call:read', 'call:write', 'impersonation:stop']))
+    expect(me.permissions).not.toContain('instance:admin')
+    expect(me.impersonation).toMatchObject({ by: { id: operator.userId, email: await emailOf(operator) } })
+    expect(Date.parse(me.impersonation.expiresAt)).toBeGreaterThan(Date.now() + 59 * 60_000)
+    for (const path of adminRoutes) expect((await request(as, 'GET', path)).status, path).toBe(403)
+    expect((await start(as, member.userId)).status).toBe(403)
+    const memberSessions = await db.select().from(session).where(eq(session.userId, member.userId))
+    expect(memberSessions.every(s => !s.impersonatedBy)).toBe(true)
+    expect((await request(operator, 'GET', '/v1/me')).body.impersonation).toBeNull()
+    await stop(as)
+  })
+
+  test("nothing that changes the account's credentials or security works while impersonating", async () => {
+    const { as } = await start(operator, target.userId)
+    const authCall = (path: string, body?: unknown) =>
+      request(as, body === undefined ? 'GET' : 'POST', `/api/auth${path}`, body)
+    const refused = [
+      await authCall('/change-password', { currentPassword: 'test-password-1234', newPassword: 'another-password-5678' }),
+      await authCall('/change-email', { newEmail: 'taken-over@callfront.test' }),
+      await authCall('/delete-user', {}),
+      await authCall('/revoke-other-sessions', {}),
+      await authCall('/revoke-sessions', {}),
+      await authCall('/list-sessions'),
+      await authCall('/list-accounts'),
+      await authCall('/unlink-account', { providerId: 'credential' }),
+    ]
+    for (const res of refused) {
+      expect(res).toMatchObject({ status: 403, body: { message: 'Not possible while signed in as another user.' } })
+    }
+    expect(
+      (await request(as, 'POST', '/v1/account/password', { newPassword: 'another-password-5678' })).status,
+    ).toBe(403)
+    // Still the same account, email and password.
+    expect((await db.select().from(user).where(eq(user.id, target.userId)))[0]!.email).toBe(await emailOf(target))
+    expect((await signIn(target)).status).toBe(200)
+    await stop(as)
+  })
+
+  test('normal actions run as the user and the command log names the admin; it cannot outlast its hour', async () => {
+    const { as } = await start(operator, target.userId)
+    const key = crypto.randomUUID()
+    expect((await act(as, 'call.markRead', { callId: other.call.id }, key)).status).toBe(200)
+    expect((await db.select().from(commands).where(eq(commands.id, key)))[0]).toMatchObject({
+      actor_id: target.userId,
+      impersonated_by: operator.userId,
+      workspace_id: other.id,
+    })
+    // Without the "not remembered" cookie Better Auth would extend a used session to 7 days: it keeps its expiry.
+    const [started] = await impersonations()
+    expect((await getSession(withCookie(as, DONT_REMEMBER, null)))?.user.id).toBe(target.userId)
+    expect((await impersonations())[0]!.expiresAt).toEqual(started!.expiresAt)
+    // An hour after it started, the session is refused whatever its expiry says.
+    await db
+      .update(session)
+      .set({ createdAt: new Date(Date.now() - 61 * 60_000), expiresAt: new Date(Date.now() + 7 * 864e5) })
+      .where(eq(session.id, started!.id))
+    expect((await request(as, 'GET', '/v1/me')).status).toBe(401)
+    await db.delete(session).where(eq(session.id, started!.id))
+  })
+
+  test('stop: deletes the impersonation session and signs the admin back in to their own session; both commands are logged', async () => {
+    const { as, body } = await start(operator, target.userId)
+    const back = await stop(as)
+    expect(back).toMatchObject({ status: 200, body: { ok: true, resumed: true } })
+    expect(await db.select().from(session).where(eq(session.id, body.data.sessionId))).toEqual([])
+    expect(cookiesOf(back.as).has(ADMIN_SESSION)).toBe(false)
+    expect(cookiesOf(back.as).get(SESSION)).toBe(cookiesOf(operator).get(SESSION))
+    const me = (await request(back.as, 'GET', '/v1/me')).body
+    expect(me).toMatchObject({ actorId: operator.userId, impersonation: null })
+    expect(me.permissions).toContain('instance:admin')
+    const log = await db
+      .select()
+      .from(commands)
+      .where(sql`${commands.action} in ('user.impersonate', 'impersonation.stop') and ${commands.rejected} = false`)
+    const started = log.find(
+      c => c.action === 'user.impersonate' && (c.result as { data: { sessionId: string } }).data.sessionId === body.data.sessionId,
+    )
+    expect(started).toMatchObject({ actor_id: operator.userId, impersonated_by: null, input: { userId: target.userId } })
+    expect(log.filter(c => c.action === 'impersonation.stop').at(-1)).toMatchObject({
+      actor_id: target.userId,
+      impersonated_by: operator.userId,
+    })
+    // No session token ever lands in the command log.
+    for (const row of log) expect(JSON.stringify(row)).not.toMatch(/token/i)
+  })
+
+  test('stop with a tampered, foreign or missing admin cookie only signs out; the admin session is left alone', async () => {
+    const foreign = (await sessionsOf(other.owner.userId))[0]!
+    const cases: ((as: Caller) => Caller)[] = [
+      as => withCookie(as, ADMIN_SESSION, `${cookiesOf(as).get(ADMIN_SESSION)!.slice(0, -9)}AAAAAA%3D`),
+      as => withCookie(as, ADMIN_SESSION, encodeURIComponent(`${foreign.token}:.forged`)),
+      as => withCookie(as, ADMIN_SESSION, null),
+    ]
+    for (const tamper of cases) {
+      const { as, body } = await start(operator, target.userId)
+      const back = await stop(tamper(as))
+      expect(back).toMatchObject({ status: 200, body: { resumed: false } })
+      expect(cookiesOf(back.as).has(SESSION)).toBe(false)
+      expect(await getSession(back.as)).toBeNull()
+      expect(await db.select().from(session).where(eq(session.id, body.data.sessionId))).toEqual([])
+    }
+    expect((await request(operator, 'GET', '/v1/me')).body.permissions).toContain('instance:admin')
+  })
+
+  test('stop is refused for a session that is no impersonation', async () => {
+    expect((await stop(operator)).status).toBe(403)
+    expect((await stop(target)).status).toBe(403)
   })
 })

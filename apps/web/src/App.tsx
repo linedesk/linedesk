@@ -4,6 +4,7 @@ import { Login } from './Login.tsx'
 import { backoffMs } from './retry.ts'
 import { loadSession, type Session } from './session.ts'
 import { Onboarding } from './onboarding/Onboarding.tsx'
+import { ImpersonationFrame } from './shell/ImpersonationBar.tsx'
 import { StoreProvider } from './store.tsx'
 import { Workspace } from './Workspace.tsx'
 import { AcceptInvite, clearInviteId, readInviteId } from './team/AcceptInvite.tsx'
@@ -64,14 +65,22 @@ export function App() {
   if (session.state === 'loading') return <BootScreen line="Opening Linedesk…" />
   if (session.state === 'unreachable') return <Unreachable />
   if (session.state === 'signedOut') return <Login onDone={refresh} />
-  if (session.state === 'needsWorkspace') return <CreateWorkspace onDone={refresh} />
+  if (session.state === 'needsWorkspace') {
+    return (
+      <ImpersonationFrame impersonation={session.impersonation}>
+        <CreateWorkspace onDone={refresh} />
+      </ImpersonationFrame>
+    )
+  }
   return (
-    <StoreProvider workspaceId={session.me.workspace!.id}>
-      {session.me.onboarding && !onboarded ? (
-        <Onboarding me={session.me} state={session.me.onboarding} onDone={() => setOnboarded(true)} />
-      ) : (
-        <Workspace me={session.me} onSignedOut={refresh} />
-      )}
-    </StoreProvider>
+    <ImpersonationFrame impersonation={session.me.impersonation ?? null}>
+      <StoreProvider workspaceId={session.me.workspace!.id}>
+        {session.me.onboarding && !onboarded ? (
+          <Onboarding me={session.me} state={session.me.onboarding} onDone={() => setOnboarded(true)} />
+        ) : (
+          <Workspace me={session.me} onSignedOut={refresh} />
+        )}
+      </StoreProvider>
+    </ImpersonationFrame>
   )
 }

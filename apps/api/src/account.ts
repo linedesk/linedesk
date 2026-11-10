@@ -5,6 +5,7 @@ import { APIError } from 'better-auth/api'
 import type { Context } from 'hono'
 import { authMethods } from './auth-methods.ts'
 import { auth, WEB_ORIGIN } from './auth.ts'
+import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { createRateLimiter } from './rate-limit.ts'
 
 export const RECENT_SIGN_IN_MS = 10 * 60_000
@@ -23,6 +24,7 @@ export async function setFirstPassword(c: Context) {
   const headers = c.req.raw.headers
   const session = await auth.api.getSession({ headers })
   if (!session) return refuse(401, 'not signed in')
+  if (session.session.impersonatedBy) return refuse(403, NOT_WHILE_IMPERSONATING)
   if (!allowAttempt(session.user.id)) return refuse(429, 'Too many attempts. Try again in a few minutes.')
   if (!signedInRecently(session.session.createdAt)) return refuse(403, 'Sign in again to set a password.', SIGN_IN_AGAIN)
   const { newPassword } = await c.req.json<{ newPassword?: unknown }>().catch(() => ({ newPassword: undefined }))

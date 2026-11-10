@@ -280,6 +280,8 @@ export const commands = pgTable('commands', {
   input: jsonb('input').notNull(),
   result: jsonb('result').notNull(),
   rejected: boolean('rejected').notNull().default(false),
+  /** The instance admin who did this while signed in as `actor_id` (impersonation); null otherwise. */
+  impersonated_by: text('impersonated_by'),
   created_at: createdAt(),
 })
 

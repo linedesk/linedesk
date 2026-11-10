@@ -179,3 +179,25 @@ export const instanceAdminRevoke = adminAction(
   'Take instance admin away from a user. The last instance admin stays.',
   userId,
 )
+
+/** How long an impersonation lasts; it is never extended. */
+export const IMPERSONATION_MINUTES = 60
+
+/**
+ * Starts a session as another user. Only through `POST /v1/impersonation/start`, which sets the
+ * session cookie; the generic action route refuses it, since an action cannot set cookies.
+ */
+export const userImpersonate = adminAction(
+  'user.impersonate',
+  `Sign in as a user to see Linedesk as they do, for ${IMPERSONATION_MINUTES} minutes. Not yourself, another instance admin or a disabled user.`,
+  userId,
+)
+export type UserImpersonateData = { sessionId: string; userId: string; workspaceId: string | null; expiresAt: string }
+
+/** Ends an impersonation. Only through `POST /v1/impersonation/stop`, which restores the admin's own session cookie. */
+export const impersonationStop = defineAction({
+  name: 'impersonation.stop',
+  description: 'Stop signing in as another user and return to your own session.',
+  input: z.object({}).strict(),
+  permission: 'impersonation:stop',
+})

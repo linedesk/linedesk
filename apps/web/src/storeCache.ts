@@ -58,6 +58,29 @@ export function leaseStore(dbName: string, onReject: (r: Rejection) => void): St
   }
 }
 
+/**
+ * Sends what every open store still has waiting, for up to `ms`; returns how many changes are still
+ * unsent. Before the browser changes to another user's session (impersonation), so that no change
+ * goes out under the wrong session.
+ */
+export async function flushAllStores(ms = 2000, pollMs = 150): Promise<number> {
+  const stores = await Promise.all([...open.values()].map(e => e.ready.catch(() => null)))
+  const pending = () => stores.reduce((sum, s) => sum + (s?.getSnapshot().pending ?? 0), 0)
+  const deadline = Date.now() + ms
+  while (pending() > 0 && stores.every(s => !s || s.getSnapshot().online) && Date.now() < deadline) {
+    await Promise.all(stores.map(s => s?.flush()))
+    await new Promise(resolve => setTimeout(resolve, pollMs))
+  }
+  return pending()
+}
+
+/** Stops every store and deletes their local databases: the rows belong to the session that is ending. */
+export async function forgetAllStores() {
+  const names = [...open.keys()]
+  await stopAllStores()
+  for (const name of names) indexedDB.deleteDatabase(name)
+}
+
 /** Stop every store now (sign-out deletes the database right after). */
 export async function stopAllStores() {
   const entries = [...open.values()]

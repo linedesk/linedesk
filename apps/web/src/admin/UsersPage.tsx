@@ -1,5 +1,6 @@
 // Users: a searchable list with Invite user; a click opens the user with their workspaces and actions.
 import { useState } from 'react'
+import { confirmText, startImpersonation } from '../impersonation.ts'
 import { Badge, Button } from '../ui/kit.tsx'
 import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
 import { type AdminUser, runAdmin } from './api.ts'
@@ -63,7 +64,7 @@ export function UsersList({ users, onOpen, keysRef, notify, reload }: ListProps)
   )
 }
 
-type Step = 'disable' | 'grant' | 'revoke'
+type Step = 'disable' | 'grant' | 'revoke' | 'impersonate'
 type DetailProps = { user: AdminUser; currentUserId: string; notify: Notify; reload: () => Promise<void> }
 
 export function UserDetail({ user: u, currentUserId, notify, reload }: DetailProps) {
@@ -78,7 +79,14 @@ export function UserDetail({ user: u, currentUserId, notify, reload }: DetailPro
     setStep(null)
     notify(done)
   }
-  const steps: Record<Step, { text: string; action: string; run: () => Promise<void> }> = {
+  const steps: Record<Step, { text: string; action: string; variant?: 'primary'; run: () => Promise<void> }> = {
+    impersonate: {
+      text: confirmText(label(u)),
+      action: `Sign in as ${label(u)}`,
+      variant: 'primary',
+      // Reloads into the app as this user; throws with the reason when refused.
+      run: () => startImpersonation(u.id),
+    },
     disable: {
       text: `${label(u)} is signed out everywhere and cannot sign in again until enabled.`,
       action: 'Disable user',
@@ -131,6 +139,17 @@ export function UserDetail({ user: u, currentUserId, notify, reload }: DetailPro
           <Confirm {...steps[step]} onConfirm={steps[step].run} onCancel={() => setStep(null)} />
         ) : (
           <>
+            {!isSelf && !u.instance_admin && !u.disabled_at && (
+              <ActionRow
+                title="Sign in as this user"
+                text="See Linedesk exactly as they do, for up to an hour. Recorded as done by you."
+                button={
+                  <Button size="sm" title={`Sign in as ${label(u)}`} onClick={() => setStep('impersonate')}>
+                    Sign in as {label(u)}…
+                  </Button>
+                }
+              />
+            )}
             {!u.instance_admin && !u.disabled_at && (
               <ActionRow
                 title="Make instance admin"

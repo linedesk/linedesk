@@ -2,6 +2,8 @@ import { emailOTPClient, organizationClient } from 'better-auth/client/plugins'
 import type { AuthMethods, LegalLinks, SsoMethod } from '@callfront/api/auth-types'
 import { createAuthClient } from 'better-auth/react'
 
+import type { Impersonation } from './impersonation.ts'
+
 export type { AuthMethods, LegalLinks, SsoMethod }
 
 export const auth = createAuthClient({
@@ -20,6 +22,8 @@ export type Me = {
   onboarding: OnboardingState | null
   /** null for members who cannot change settings. */
   phoneSetup: PhoneSetupStatus | null
+  /** Set while an instance admin is signed in as this user. */
+  impersonation: Impersonation | null
 }
 
 /** Who am I and which workspace am I in? null when signed out or without a workspace. */

@@ -41,6 +41,8 @@ export const session = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     activeOrganizationId: text("active_organization_id"),
+    // Not Better Auth's admin plugin: set on a session an instance admin started as this user (docs/architecture.md §12).
+    impersonatedBy: text("impersonated_by").references(() => user.id, { onDelete: "cascade" }),
   },
   (table) => [index("session_userId_idx").on(table.userId)],
 );
