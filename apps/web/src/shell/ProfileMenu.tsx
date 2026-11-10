@@ -4,7 +4,7 @@ import { Avatar, Icon } from '../ui/kit.tsx'
 import type { IconName } from '../ui/icons.ts'
 
 /** `onAdmin` is set for instance admins only: Admin then leads the menu. */
-type Props = { name: string; workspaceName: string; navOpen: boolean; onAdmin?: () => void; onAccount: () => void; onSignOut: () => void }
+type Props = { name: string; workspaceName: string; navOpen: boolean; onAdmin?: () => void; onAccount: () => void; onTeam: () => void; onSignOut: () => void }
 
 /** This install's terms, privacy and support links; none until loaded, and none that are not set. */
 function useLegalLinks(): LegalLinks | null {
@@ -25,7 +25,7 @@ function Item({ label, icon, onClick }: { label: string; icon: IconName; onClick
 }
 
 /** The profile row at the bottom of the navigation. Clicking it opens a small menu above it. */
-export function ProfileMenu({ name, workspaceName, navOpen, onAdmin, onAccount, onSignOut }: Props) {
+export function ProfileMenu({ name, workspaceName, navOpen, onAdmin, onAccount, onTeam, onSignOut }: Props) {
   const [open, setOpen] = useState(false)
   const links = useLegalLinks()
   const hasLinks = !!(links?.terms || links?.privacy || links?.supportEmail)
@@ -58,6 +58,7 @@ export function ProfileMenu({ name, workspaceName, navOpen, onAdmin, onAccount, 
         <div className="me-menu" role="menu" aria-label="Account" onKeyDown={onKeyDown}>
           {onAdmin && <Item label="Admin" icon="gear" onClick={choose(onAdmin)} />}
           <Item label="Account settings" icon="user" onClick={choose(onAccount)} />
+          <Item label="Team" icon="users" onClick={choose(onTeam)} />
           {hasLinks && <hr />}
           {links?.supportEmail && <LinkItem label="Help" icon="mail" href={`mailto:${links.supportEmail}`} />}
           {links?.terms && <LinkItem label="Terms" icon="globe" href={links.terms} />}
