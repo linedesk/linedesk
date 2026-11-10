@@ -121,6 +121,21 @@ type VoiceEntry = { provider: ProviderName } & Record<string, string | null>
 export type VoiceProviderConfig = Record<(typeof voiceCategories)[number], VoiceEntry | null>
 
 /**
+ * Whether the server has what the voice agent needs to answer a call: LiveKit in env and a speech,
+ * language model and voice provider. Says nothing about whether the worker runs. Never throws.
+ */
+export async function voiceReady(tx: Tx, env: Env = process.env): Promise<boolean> {
+  if (!env.LIVEKIT_URL || !env.LIVEKIT_API_KEY || !env.LIVEKIT_API_SECRET) return false
+  try {
+    for (const category of voiceCategories) if (!(await activeProvider(tx, category, env))) return false
+    return true
+  } catch (e) {
+    console.error('voice readiness check failed', e)
+    return false
+  }
+}
+
+/**
  * What the voice agent needs for a call: per category the active provider with its values in
  * clear, or null when none is set up. Only ever sent to the agent token.
  */

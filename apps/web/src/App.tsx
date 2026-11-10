@@ -7,6 +7,7 @@ import { Onboarding } from './onboarding/Onboarding.tsx'
 import { StoreProvider } from './store.tsx'
 import { Workspace } from './Workspace.tsx'
 import { AcceptInvite, clearInviteId, readInviteId } from './team/AcceptInvite.tsx'
+import { BootScreen } from './ui/BootScreen.tsx'
 
 /** Shown when the server is unreachable and this device has nothing to open offline. It retries on its own. */
 function Unreachable() {
@@ -24,7 +25,9 @@ export function App() {
   // Finishing onboarding is a queued command; the app moves on without waiting for it.
   const [onboarded, setOnboarded] = useState(false)
   const refresh = useCallback(async () => setSession(await loadSession()), [])
-  useEffect(() => { void refresh() }, [refresh])
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
 
   // While the server cannot be reached, keep asking with growing pauses; also right away when the browser is back online.
   const waiting = session.state === 'unreachable' || (session.state === 'ready' && session.offline)
@@ -34,28 +37,41 @@ export function App() {
     let timer: ReturnType<typeof setTimeout>
     const tryAgain = async () => {
       const next = await loadSession()
-      if (next.state === 'unreachable' || (next.state === 'ready' && next.offline)) timer = setTimeout(tryAgain, backoffMs(++attempt))
+      if (next.state === 'unreachable' || (next.state === 'ready' && next.offline))
+        timer = setTimeout(tryAgain, backoffMs(++attempt))
       else setSession(next)
     }
     timer = setTimeout(tryAgain, backoffMs(attempt))
-    const now = () => { clearTimeout(timer); void tryAgain() }
+    const now = () => {
+      clearTimeout(timer)
+      void tryAgain()
+    }
     window.addEventListener('online', now)
-    return () => { clearTimeout(timer); window.removeEventListener('online', now) }
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('online', now)
+    }
   }, [waiting])
 
   if (inviteId) {
-    const leaveInvite = () => { clearInviteId(); setInviteId(null); void refresh() }
+    const leaveInvite = () => {
+      clearInviteId()
+      setInviteId(null)
+      void refresh()
+    }
     return <AcceptInvite invitationId={inviteId} onDone={leaveInvite} />
   }
-  if (session.state === 'loading') return null
+  if (session.state === 'loading') return <BootScreen line="Opening Linedesk…" />
   if (session.state === 'unreachable') return <Unreachable />
   if (session.state === 'signedOut') return <Login onDone={refresh} />
   if (session.state === 'needsWorkspace') return <CreateWorkspace onDone={refresh} />
   return (
     <StoreProvider workspaceId={session.me.workspace!.id}>
-      {session.me.onboarding && !onboarded
-        ? <Onboarding me={session.me} state={session.me.onboarding} onDone={() => setOnboarded(true)} />
-        : <Workspace me={session.me} onSignedOut={refresh} />}
+      {session.me.onboarding && !onboarded ? (
+        <Onboarding me={session.me} state={session.me.onboarding} onDone={() => setOnboarded(true)} />
+      ) : (
+        <Workspace me={session.me} onSignedOut={refresh} />
+      )}
     </StoreProvider>
   )
 }

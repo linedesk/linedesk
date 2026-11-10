@@ -12,6 +12,8 @@
     "@callfront/actions": "workspace:*",
     "@callfront/db": "workspace:*",
     "@callfront/sync": "workspace:*",
+    "@fontsource/geist": "5.3.0",
+    "@fontsource/geist-mono": "5.3.0",
     "better-auth": "^1.7.19",
     "livekit-client": "^2.23.0",
     "react": "^19.3.1",

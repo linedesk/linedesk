@@ -1,0 +1,10 @@
+{
+  "name": "Linedesk",
+  "short_name": "Linedesk",
+  "description": "Your phone front desk: calls answered, summarized and ready to act on.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fafaf8",
+  "theme_color": "#fafaf8",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

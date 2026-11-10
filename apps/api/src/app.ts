@@ -12,6 +12,7 @@ import { resolveActor, type Actor } from './context.ts'
 import { db } from './db.ts'
 import { previewInvitation } from './invitations.ts'
 import { newAssistant, newWorkspaceSettings, onboardingFor } from './onboarding.ts'
+import { voiceReady } from './provider-settings.ts'
 import { serveRecording } from './recording-route.ts'
 import { runAction } from './run-action.ts'
 
@@ -39,15 +40,25 @@ app.get('/v1/invitations/:id', async c => c.json(await previewInvitation(c.req.p
 app.post('/v1/workspaces', async c => {
   const headers = c.req.raw.headers
   if (!(await auth.api.getSession({ headers }))) return c.json({ ok: false, error: 'not signed in' }, 401)
-  const body = await c.req.json<{ name?: unknown; timeZone?: unknown }>().catch(() => ({ name: undefined, timeZone: undefined }))
+  const body = await c.req
+    .json<{ name?: unknown; timeZone?: unknown }>()
+    .catch(() => ({ name: undefined, timeZone: undefined }))
   const name = typeof body.name === 'string' ? body.name.trim() : ''
   if (!name || name.length > 80) return c.json({ ok: false, error: 'name is required (80 characters at most)' }, 422)
-  const slug = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${crypto.randomUUID().slice(0, 6)}`
+  const slug = `${name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')}-${crypto.randomUUID().slice(0, 6)}`
   // Refused by Better Auth when signed out or at the workspace limit (auth.ts).
   const org = await auth.api.createOrganization({ body: { name, slug }, headers }).catch(err => {
     if (!(err instanceof APIError)) throw err
     const atLimit = err.body?.code === 'YOU_HAVE_REACHED_THE_MAXIMUM_NUMBER_OF_ORGANIZATIONS'
-    return { refused: atLimit ? `You can create up to ${WORKSPACE_LIMIT} workspaces.` : err.message || 'Could not create the workspace', status: err.statusCode }
+    return {
+      refused: atLimit
+        ? `You can create up to ${WORKSPACE_LIMIT} workspaces.`
+        : err.message || 'Could not create the workspace',
+      status: err.statusCode,
+    }
   })
   if (!org) return c.json({ ok: false, error: 'not signed in' }, 401)
   if ('refused' in org) return c.json({ ok: false, error: org.refused }, org.status === 401 ? 401 : 403)
@@ -59,7 +70,9 @@ app.post('/v1/workspaces', async c => {
     throw err
   }
   // Not essential: without an active workspace the member's first one is used (context.ts).
-  await auth.api.setActiveOrganization({ body: { organizationId: org.id }, headers }).catch(err => console.error('set active workspace failed', err))
+  await auth.api
+    .setActiveOrganization({ body: { organizationId: org.id }, headers })
+    .catch(err => console.error('set active workspace failed', err))
   return c.json({ ok: true, workspace: { id: org.id, name: org.name } })
 })
 
@@ -75,17 +88,29 @@ app.use('/v1/*', async (c, next) => {
 
 app.get('/v1/me', async c => {
   const actor = c.get('actor')
-  const [workspace] = actor.workspaceId ? await db.select().from(organization).where(eq(organization.id, actor.workspaceId)) : []
+  const [workspace] = actor.workspaceId
+    ? await db.select().from(organization).where(eq(organization.id, actor.workspaceId))
+    : []
   return c.json({
-    actorId: actor.actorId, role: actor.role, permissions: actor.permissions,
+    actorId: actor.actorId,
+    role: actor.role,
+    permissions: actor.permissions,
     workspace: workspace ? { id: workspace.id, name: workspace.name, disabled: Boolean(workspace.disabledAt) } : null,
     onboarding: workspace ? await onboardingFor(actor) : null,
   })
 })
 
+// For the inbox header: can the assistant answer calls at all? Members see whether, never which key is missing.
+app.get('/v1/assistant/status', async c => {
+  c.header('cache-control', 'no-store')
+  return c.json({ voiceReady: await voiceReady(db) })
+})
+
 registerAdminRoutes(app)
 
-app.get('/v1/actions', c => c.json([...actions.values()].map(a => ({ name: a.name, description: a.description, permission: a.permission }))))
+app.get('/v1/actions', c =>
+  c.json([...actions.values()].map(a => ({ name: a.name, description: a.description, permission: a.permission }))),
+)
 
 app.post('/v1/actions/:name', async c => {
   const input = await c.req.json().catch(() => ({}))

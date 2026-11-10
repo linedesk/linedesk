@@ -695,3 +695,45 @@ button.me:focus-visible {
   line-height: 16px;
   text-align: center;
 }
+
+/* Assistant status in the inbox header: green only while calls are really answered, grey otherwise. */
+.ib-maya.is-off .ib-dot {
+  background: var(--line-control);
+}
+.ib-maya-fix {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* Narrow windows keep the status as a dot (its words are in the tooltip); a live call keeps its text. */
+@media (max-width: 1099px) {
+  .ib-maya:not(.is-live) {
+    display: inline-flex;
+  }
+  .ib-maya:not(.is-live) .ib-maya-t {
+    display: none;
+  }
+}
+@media (max-width: 719px) {
+  .ib-maya:not(.is-live) {
+    display: inline-flex;
+    padding: 0 6px;
+  }
+  /* One header line on phones: the views scroll sideways, status and search keep their place. */
+  .cv > .ib-head {
+    flex-wrap: nowrap;
+  }
+  .cv > .ib-head .ib-tabs {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .cv > .ib-head .ib-right {
+    flex: none;
+    gap: 2px;
+  }
+}
+
+/* Boot screen: the mark above the quiet line. */
+.boot-mark {
+  margin: 0 0 4px;
+}

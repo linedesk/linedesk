@@ -3,6 +3,7 @@ import type { TableName, Tables } from '@callfront/db/types'
 import type { Rejection, Store } from '@callfront/sync'
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { leaseStore } from './storeCache.ts'
+import { BootScreen } from './ui/BootScreen.tsx'
 
 type Ctx = { store: Store; rejection: Rejection | null; clearRejection: () => void }
 const StoreContext = createContext<Ctx | null>(null)
@@ -19,24 +20,37 @@ export function StoreProvider({ workspaceId, children }: { workspaceId: string; 
     let live = true
     const lease = leaseStore(localDbName(workspaceId), setRejection)
     lease.ready.then(
-      store => { if (live) setBoot({ state: 'ready', store }) },
-      (error: unknown) => { if (live) setBoot({ state: 'failed', error: error instanceof Error ? error.message : String(error) }) },
+      store => {
+        if (live) setBoot({ state: 'ready', store })
+      },
+      (error: unknown) => {
+        if (live) setBoot({ state: 'failed', error: error instanceof Error ? error.message : String(error) })
+      },
     )
-    return () => { live = false; lease.release(); setBoot({ state: 'loading' }) }
+    return () => {
+      live = false
+      lease.release()
+      setBoot({ state: 'loading' })
+    }
   }, [workspaceId])
   const store = boot.state === 'ready' ? boot.store : null
-  const value = useMemo(() => store && { store, rejection, clearRejection: () => setRejection(null) }, [store, rejection])
+  const value = useMemo(
+    () => store && { store, rejection, clearRejection: () => setRejection(null) },
+    [store, rejection],
+  )
   if (value) return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
   if (boot.state === 'failed') {
     return (
       <div className="boot" role="alert">
         <b>Your calls could not be loaded</b>
         <span>{boot.error}</span>
-        <button type="button" className="k-btn k-btn-primary k-btn-md" onClick={() => window.location.reload()}>Reload</button>
+        <button type="button" className="k-btn k-btn-primary k-btn-md" onClick={() => window.location.reload()}>
+          Reload
+        </button>
       </div>
     )
   }
-  return <div className="boot boot-loading" role="status">Loading your calls…</div>
+  return <BootScreen line="Loading your calls…" />
 }
 
 function useCtx() {

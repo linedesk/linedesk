@@ -338,6 +338,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
             counts={view.counts}
             liveCall={view.liveCall}
             onOpen={open}
+            canFixVoice={isInstanceAdmin}
             search={search}
             onSearch={openSearch}
             onSearchChange={view.changeSearch}
