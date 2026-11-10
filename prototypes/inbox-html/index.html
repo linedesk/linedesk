@@ -2290,8 +2290,6 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
               h('div', { className: 'cv-line' },
                 h('b', null, c.name === c.number ? 'Unknown caller' : c.name + (c.company && c.company !== 'Private' && c.company !== c.name ? ' · ' + c.company : '')),
                 h('span', { className: 'sub' }, c.number),
-                c.priority === 1 || (c.id === 'live' && L.elapsed >= 28) ? h('span', { className: 'cv-urgent' }, 'Urgent') : null,
-                apptFor(c, L) ? h('span', null, 'Booked') : null,
                 c.snoozed ? h('span', null, 'Reminder: ' + c.snoozed) : null))),
           c.status === 'missed'
             ? h('div', { className: 'empty' }, h(K.Icon, { name: 'phone-missed', size: 24 }), h('b', null, 'Hung up before the greeting'), h('span', null, 'No recording and no transcript. The number is not linked to a customer.'),
