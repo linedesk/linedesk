@@ -3,7 +3,7 @@ import { readAuthConfig } from './auth-methods.ts'
 
 describe('readAuthConfig', () => {
   it('offers only the password with no env set', () => {
-    expect(readAuthConfig({}).methods).toEqual({ password: true, magicLink: false, sso: [] })
+    expect(readAuthConfig({}).methods).toEqual({ password: true, magicLink: false, signUp: true, sso: [] })
   })
 
   it('offers the email link with SMTP, or with log delivery when asked for, whatever NODE_ENV says', () => {

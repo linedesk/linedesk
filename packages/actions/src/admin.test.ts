@@ -19,6 +19,7 @@ test('every admin area action needs instance:admin, which no role has', () => {
     'provider.test',
     'user.disable',
     'user.enable',
+    'user.invite',
     'workspace.disable',
     'workspace.enable',
     'instanceAdmin.grant',

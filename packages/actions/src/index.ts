@@ -18,7 +18,7 @@ const all = [
   settings.contactUpdate, settings.assistantUpdate, settings.phoneNumberSetup,
   calendar.calendarFindSlots,
   admin.providerSetKeys, admin.providerClearKeys, admin.providerSetActive, admin.providerTest,
-  admin.userDisable, admin.userEnable, admin.workspaceDisable, admin.workspaceEnable,
+  admin.userInvite, admin.userDisable, admin.userEnable, admin.workspaceDisable, admin.workspaceEnable,
   admin.instanceAdminGrant, admin.instanceAdminRevoke,
 ] as ActionDef[]
 

@@ -27,6 +27,7 @@ export function readAuthConfig(env: Env) {
   const methods: AuthMethods = {
     password: env.AUTH_PASSWORD_ENABLED !== 'false',
     magicLink: emailDelivery(env) !== 'none',
+    signUp: env.AUTH_SIGNUP_ENABLED !== 'false',
     sso: [
       google && { id: 'google', label: 'Google' },
       microsoft && { id: 'microsoft', label: 'Microsoft' },

@@ -1,5 +1,5 @@
 // Sign-in. Shows what this install offers (GET /v1/auth-methods): SSO buttons, an email
-// sign-in link, and a password. New people are signed up on first sign-in.
+// sign-in link, and a password. New people are signed up on first sign-in, unless sign-up is closed.
 import { type FormEvent, useEffect, useState } from 'react'
 import { type AuthMethods, auth, fetchAuthMethods, requestSignInLink, startSso, takeRedirectError } from './auth.ts'
 
@@ -123,7 +123,8 @@ function LoginSwitches({ step, methods, onStep }: { step: Step; methods: AuthMet
     <>
       {step === 'email' && methods.password && link('password', 'Use a password instead')}
       {step !== 'email' && methods.magicLink && link('email', 'Email me a sign-in link instead')}
-      {step === 'password' && link('signUp', 'New here? Create an account')}
+      {step === 'password' && methods.signUp !== false && link('signUp', 'New here? Create an account')}
+      {methods.signUp === false && <p className="auth-note">Sign-up is closed on this server. Ask your administrator for an account.</p>}
       {step === 'signUp' && link('password', 'Already have an account? Sign in')}
     </>
   )

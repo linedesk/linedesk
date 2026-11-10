@@ -1,7 +1,10 @@
 // Server handlers of the admin area actions (packages/actions/src/admin.ts).
 import type { ProviderName } from '@callfront/actions'
 import { organization, session, type Tx, user } from '@callfront/db'
-import { eq } from 'drizzle-orm'
+import { emailDelivery } from './auth-methods.ts'
+import { auth, expectWelcome } from './auth.ts'
+import { db } from './db.ts'
+import { eq, sql } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 import { anotherAdminRemains, isEnvAdmin, isInstanceAdmin } from './instance-admin.ts'
 import {
@@ -61,6 +64,51 @@ export const adminHandlers: Record<string, Handler> = {
   'provider.test': async ({ tx }, input) => {
     const config = await withSecretsKey(() => resolveProvider(tx, input.provider))
     return { rows: {}, data: await testProvider(input.provider, config) }
+  },
+
+  'user.invite': async ({ onRollback }, input) => {
+    const delivery = emailDelivery(process.env)
+    if (delivery === 'none') {
+      throw new Reject(
+        'Email is not set up, so the new user cannot get a sign-in link: set SMTP_URL (or EMAIL_TO_LOG=true in development).',
+      )
+    }
+    const email = input.email.trim().toLowerCase()
+    const [taken] = await db.select({ id: user.id }).from(user).where(sql`lower(${user.email}) = ${email}`)
+    if (taken) throw new Reject(`${email} already has an account`)
+    // Committed at once, outside the command's transaction: the sign-in link is only sent to an
+    // account that exists. If the command does not commit, the account is removed again.
+    const account = {
+      id: crypto.randomUUID().replaceAll('-', ''),
+      name: input.name,
+      email,
+      emailVerified: false,
+      instanceAdmin: input.admin ?? false,
+    }
+    // A sign-up for the same address can land between the check and the insert.
+    const [created] = await db
+      .insert(user)
+      .values(account)
+      .returning({ id: user.id })
+      .catch(e => {
+        throw (e as { code?: string; cause?: { code?: string } }).code === '23505' ||
+          (e as { cause?: { code?: string } }).cause?.code === '23505'
+          ? new Reject(`${email} already has an account`)
+          : e
+      })
+    onRollback?.(async () => {
+      await db.delete(user).where(eq(user.id, created!.id))
+      return `the account for ${email} was removed again`
+    })
+    try {
+      expectWelcome(email)
+      await auth.api.signInMagicLink({ body: { email, name: input.name }, headers: new Headers() })
+    } catch (e) {
+      throw new Reject(
+        `the account was not created: the sign-in email could not be sent (${e instanceof Error ? e.message : e})`,
+      )
+    }
+    return { rows: {}, data: { userId: created!.id, email, delivery } }
   },
 
   'user.disable': async ({ tx, actor, now }, input) => {

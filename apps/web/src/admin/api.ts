@@ -98,6 +98,7 @@ type AdminInputs = {
   'provider.clearKeys': { provider: ProviderName }
   'provider.setActive': { category: ProviderCategory; provider: ProviderName | null }
   'provider.test': { provider: ProviderName }
+  'user.invite': { email: string; name: string; admin?: boolean }
   'user.disable': { userId: string }
   'user.enable': { userId: string }
   'workspace.disable': { workspaceId: string }

@@ -251,3 +251,14 @@
 .adm-secret {
   -webkit-text-security: disc;
 }
+
+/* Invite user: the key form's frame, a little wider; the admin checkbox on one line. */
+.adm-invite {
+  max-width: 640px;
+}
+.adm-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}

@@ -6,6 +6,7 @@ import { actions, REDACTED } from '@callfront/actions'
 import { calls, commands, instance_settings, organization, provider_settings, session, user } from '@callfront/db'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
+import { auth } from '../src/auth.ts'
 import { db } from '../src/db.ts'
 import { grantFirstUser, instanceAdminHooks, refuseUnverifiedAdminAddress } from '../src/instance-admin.ts'
 import { telephonyProvider } from '../src/provider-settings.ts'
@@ -89,7 +90,7 @@ describe('access', () => {
     expect((await request(anonymous, 'GET', path)).status).toBe(401)
   })
 
-  test('the registry has the ten admin actions', () => {
+  test('the registry has the eleven admin actions', () => {
     expect(adminActions.map(def => def.name).sort()).toEqual([
       'instanceAdmin.grant',
       'instanceAdmin.revoke',
@@ -99,6 +100,7 @@ describe('access', () => {
       'provider.test',
       'user.disable',
       'user.enable',
+      'user.invite',
       'workspace.disable',
       'workspace.enable',
     ])
@@ -689,5 +691,72 @@ describe('instance admins', () => {
       .catch(e => {
         if (!(e instanceof Rollback)) throw e
       })
+  })
+})
+
+describe('user.invite', () => {
+  const address = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}@callfront.test`
+  const accountOf = async (email: string) => (await db.select().from(user).where(eq(user.email, email)))[0]
+  afterEach(() => {
+    delete process.env.AUTH_SIGNUP_ENABLED
+    delete process.env.EMAIL_TO_LOG
+  })
+
+  // Email links are off in the test environment: stand in for the endpoint that sends one.
+  const realSend = (auth.api as unknown as Record<string, unknown>).signInMagicLink
+  afterAll(() => {
+    ;(auth.api as unknown as Record<string, unknown>).signInMagicLink = realSend
+  })
+  const stubLink = (impl: () => Promise<unknown> = async () => ({ status: true })) => {
+    const send = vi.fn(impl)
+    ;(auth.api as unknown as Record<string, unknown>).signInMagicLink = send
+    return send
+  }
+
+  test('creates the account, unverified, and sends a welcome sign-in link; works while sign-up is closed', async () => {
+    process.env.AUTH_SIGNUP_ENABLED = 'false'
+    process.env.EMAIL_TO_LOG = 'true'
+    const send = stubLink()
+    const email = address('invitee')
+    const res = await act(operator, 'user.invite', {
+      email: `  ${email.toUpperCase()} `.trim(),
+      name: 'Tim',
+      admin: true,
+    })
+    expect(res).toMatchObject({ status: 200, body: { data: { email: email.toLowerCase(), delivery: 'log' } } })
+    expect(await accountOf(email.toLowerCase())).toMatchObject({
+      name: 'Tim',
+      emailVerified: false,
+      instanceAdmin: true,
+    })
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ body: { email: email.toLowerCase(), name: 'Tim' } }))
+    expect(await act(operator, 'user.invite', { email, name: 'Tim again' })).toMatchObject({
+      status: 409,
+      body: { error: `${email.toLowerCase()} already has an account` },
+    })
+  })
+
+  test('without email it is refused and nothing is created', async () => {
+    const email = address('noemail')
+    const res = await act(operator, 'user.invite', { email, name: 'No Email' })
+    expect(res.status).toBe(409)
+    expect(res.body.error).toMatch(/^Email is not set up/)
+    expect(await accountOf(email)).toBeUndefined()
+  })
+
+  test('when the link cannot be sent the account is removed again and the command is logged as rejected', async () => {
+    process.env.EMAIL_TO_LOG = 'true'
+    stubLink(async () => {
+      throw new Error('SMTP said no')
+    })
+    const email = address('bounce')
+    const key = crypto.randomUUID()
+    const res = await act(operator, 'user.invite', { email, name: 'Bounce' }, key)
+    expect(res.status).toBe(409)
+    expect(res.body.error).toMatch(
+      /the sign-in email could not be sent \(SMTP said no\); the account for .* was removed again/,
+    )
+    expect(await accountOf(email)).toBeUndefined()
+    expect((await db.select().from(commands).where(eq(commands.id, key)))[0]).toMatchObject({ rejected: true })
   })
 })

@@ -4,6 +4,7 @@ import { type Tx, user } from '@callfront/db'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { APIError } from 'better-auth/api'
 import { db } from './db.ts'
+import { refuseClosedSignUp } from './signup-gate.ts'
 
 type Account = { email: string; emailVerified: boolean; instanceAdmin: boolean }
 
@@ -73,6 +74,7 @@ export const instanceAdminHooks = {
   user: {
     create: {
       before: async (created: { email: string; emailVerified?: boolean }) => {
+        await refuseClosedSignUp(db, created)
         await refuseUnverifiedAdminAddress(db, created)
       },
       after: async (created: { id: string }) => {

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Badge, Button } from '../ui/kit.tsx'
 import { Section } from '../settings/fields.tsx'
 import { type AdminUser, runAdmin } from './api.ts'
+import { InviteUser } from './InviteUser.tsx'
 import { sortRows } from './model.ts'
 import { Confirm, day, runAndToast, SortTh, useSort, when } from './parts.tsx'
 
@@ -54,6 +55,7 @@ export function Users({ users, currentUserId, toast, reload }: Props) {
 
   return (
     <Section id="adm-users" title="Users" description="Everyone with an account, in any workspace.">
+      <InviteUser toast={toast} reload={reload} />
       <div className="adm-scroll">
         <table className="adm-table">
           <thead>

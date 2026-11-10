@@ -134,6 +134,18 @@ const workspaceId = z.object({ workspaceId: z.string().min(1) })
 const adminAction = <S extends z.ZodType>(name: string, description: string, input: S) =>
   defineAction({ name, description, input, permission: 'instance:admin' })
 
+export const userInvite = defineAction({
+  name: 'user.invite',
+  description: 'Create an account for someone and email them a sign-in link. Works while sign-up is closed.',
+  input: z.object({
+    email: z.email().max(254),
+    name: z.string().trim().min(1).max(80),
+    admin: z.boolean().optional(),
+  }),
+  permission: 'instance:admin',
+})
+export type UserInviteData = { userId: string; email: string; delivery: 'smtp' | 'log' }
+
 export const userDisable = adminAction(
   'user.disable',
   'Disable a user: their sessions end and they cannot sign in.',
