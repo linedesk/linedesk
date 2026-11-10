@@ -1,23 +1,25 @@
 // The speech and language vendors, all in one place. Which ones are used comes from AgentConfig:
 // speech to text Deepgram; LLM any OpenAI-compatible API (OpenRouter by default, OpenAI direct);
-// text to speech ElevenLabs or Cartesia; voice activity Silero (local).
+// text to speech ElevenLabs or Cartesia. Turns are detected by Deepgram Flux, not by a local
+// voice-activity model: that saves the CPU a small server does not have, and the endpointing delay.
 // The worker only sees LiveKit's interfaces and `CompleteJson`.
 import type { voice } from '@livekit/agents'
 import * as cartesia from '@livekit/agents-plugin-cartesia'
 import * as deepgram from '@livekit/agents-plugin-deepgram'
 import * as elevenlabs from '@livekit/agents-plugin-elevenlabs'
 import * as openai from '@livekit/agents-plugin-openai'
-import * as silero from '@livekit/agents-plugin-silero'
 import type { AssistantVoice } from '@callfront/db/types'
 import type { AgentConfig } from './config.ts'
 import type { CompleteJson } from './summary.ts'
 
 const SUMMARY_TIMEOUT_MS = 15_000
 
-export type Vad = Awaited<ReturnType<typeof silero.VAD.load>>
-
-/** Loaded once per worker process, before the first call. */
-export const loadVad = (): Promise<Vad> => silero.VAD.load()
+/** ElevenLabs' lowest-latency model, unless another is configured. */
+export const ELEVENLABS_DEFAULT_MODEL = 'eleven_flash_v2_5'
+/** Flux decides when a turn ends; this only waits briefly for a last word on top. */
+const ENDPOINTING = { minDelay: 100, maxDelay: 1000 }
+/** Flux reports a likely end of turn this early, so the reply can be prepared while it confirms. */
+const EAGER_END_OF_TURN = 0.5
 
 /** The assistant's own voice if it was picked for the provider in use, else the configured default (or the provider's). */
 export function voiceFor(tts: AgentConfig['tts'], assistantVoice?: AssistantVoice | null): string | undefined {
@@ -26,25 +28,25 @@ export function voiceFor(tts: AgentConfig['tts'], assistantVoice?: AssistantVoic
 
 function createStt({ apiKey, model }: AgentConfig['stt']) {
   // Deepgram's Flux models speak a different protocol than Nova.
-  return model.startsWith('flux') ? new deepgram.STTv2({ apiKey, model }) : new deepgram.STT({ apiKey, model })
+  return model.startsWith('flux') ? new deepgram.STTv2({ apiKey, model, eagerEotThreshold: EAGER_END_OF_TURN }) : new deepgram.STT({ apiKey, model })
 }
 
 function createTts(tts: AgentConfig['tts'], assistantVoice?: AssistantVoice | null) {
   const voiceId = voiceFor(tts, assistantVoice)
-  const model = tts.model ? { model: tts.model } : {}
-  if (tts.provider === 'cartesia') return new cartesia.TTS({ apiKey: tts.apiKey, ...model, ...(voiceId ? { voice: voiceId } : {}) })
-  return new elevenlabs.TTS({ apiKey: tts.apiKey, ...model, ...(voiceId ? { voiceId } : {}) })
+  if (tts.provider === 'cartesia') return new cartesia.TTS({ apiKey: tts.apiKey, ...(tts.model ? { model: tts.model } : {}), ...(voiceId ? { voice: voiceId } : {}) })
+  return new elevenlabs.TTS({ apiKey: tts.apiKey, model: tts.model ?? ELEVENLABS_DEFAULT_MODEL, ...(voiceId ? { voiceId } : {}) })
 }
 
 /** Session options for one call. */
-export function createPipeline(vad: Vad, config: AgentConfig, assistantVoice?: AssistantVoice | null): voice.AgentSessionOptions {
+export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVoice | null): voice.AgentSessionOptions {
+  // Flux turn detection needs Flux; with another Deepgram model the session falls back to its own detection.
+  const fluxTurns = config.stt.model.startsWith('flux')
   return {
-    vad,
+    vad: null,
     stt: createStt(config.stt),
     llm: new openai.LLM({ apiKey: config.llm.apiKey, baseURL: config.llm.baseUrl, model: config.llm.model }),
     tts: createTts(config.tts, assistantVoice),
-    // Local turn handling: no dependency on LiveKit Cloud inference when self-hosting.
-    turnHandling: { turnDetection: 'vad', interruption: { mode: 'vad' } },
+    turnHandling: { turnDetection: fluxTurns ? 'stt' : undefined, endpointing: ENDPOINTING, preemptiveGeneration: { enabled: true } },
   }
 }
 

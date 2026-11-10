@@ -54,8 +54,9 @@ type StageKey = keyof typeof stages
 
 const modelEnv = { stt: 'STT_MODEL', llm: 'LLM_MODEL', tts: 'TTS_MODEL' } as const
 const llmDefaults = {
-  openrouter: { baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-5.4-mini' },
-  openai: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4-mini' },
+  // Non-reasoning models answer within about a second; reasoning models (gpt-5.x) often take 2 to 5.
+  openrouter: { baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' },
+  openai: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini' },
 } as const
 
 /** One stage from the environment, in the API's shape; the provider is named even when its key is missing. */

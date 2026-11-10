@@ -45,7 +45,7 @@ test('readiness is checked anew each time: ready as soon as the config loads', a
   const readiness = await checkReadiness(load)
   expect(readiness.ready).toBe(true)
   expect(describeReadiness(readiness)).toBe(
-    'answering calls. Speech to text: deepgram flux-general-en; LLM: openrouter openai/gpt-5.4-mini; text to speech: elevenlabs',
+    'answering calls. Speech to text: deepgram flux-general-en; LLM: openrouter openai/gpt-4.1-mini; text to speech: elevenlabs',
   )
 })
 

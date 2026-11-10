@@ -1,6 +1,7 @@
 // The report of a call test, from what the business's side recorded: transcript, summary,
 // pass/fail per check, and how quickly the assistant answered.
 import type { CallTestFinding } from '@callfront/actions'
+import type { LatencySample } from './latency.ts'
 import type { Scenario } from './scenarios.ts'
 
 export type Check = { ok: boolean; label: string; detail: string }
@@ -57,7 +58,22 @@ export function latencyOf(lines: Line[]): Latency {
 
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`
 
-export function formatReport(finding: CallTestFinding, checks: Check[]): string {
+/** The value below which `p` percent of the samples fall (nearest rank). */
+export function percentile(samples: number[], p: number): number | null {
+  if (!samples.length) return null
+  const sorted = [...samples].sort((a, b) => a - b)
+  return sorted[Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1)]!
+}
+
+/** What the caller heard: time to the greeting and from the end of each caller turn to the reply. */
+export function formatCallerLatency(sample: LatencySample | null): string {
+  if (!sample) return 'Latency heard by the caller: not measured'
+  const replies = sample.replyMs
+  const stats = replies.length ? `p50 ${seconds(percentile(replies, 50)!)}, p90 ${seconds(percentile(replies, 90)!)}, max ${seconds(Math.max(...replies))} over ${replies.length} replies (${replies.map(seconds).join(', ')})` : 'no replies'
+  return `Latency heard by the caller: greeting after ${sample.greetingMs === null ? 'none' : seconds(sample.greetingMs)}; reply ${stats}`
+}
+
+export function formatReport(finding: CallTestFinding, checks: Check[], heard: LatencySample | null = null): string {
   const out: string[] = []
   if (finding.lines.length) {
     out.push('Transcript:', ...finding.lines.map(l => `  [${seconds(l.at_ms)}] ${l.speaker === 'agent' ? 'assistant' : l.speaker}: ${l.text}`))
@@ -66,8 +82,9 @@ export function formatReport(finding: CallTestFinding, checks: Check[]): string 
   const { greetingMs, replyGapsMs } = latencyOf(finding.lines)
   if (greetingMs !== null) {
     const gaps = replyGapsMs.length ? `${replyGapsMs.map(seconds).join(', ')} (median ${seconds([...replyGapsMs].sort((a, b) => a - b)[Math.floor(replyGapsMs.length / 2)]!)})` : 'none'
-    out.push(`Latency (approximate): greeting after ${seconds(greetingMs)}; caller turn to next assistant line: ${gaps}`)
+    out.push(`Transcript timing (lines are written after each turn, so this includes speaking time): greeting ${seconds(greetingMs)}; caller turn to next assistant line: ${gaps}`)
   }
+  out.push(formatCallerLatency(heard))
   out.push('Checks:', ...checks.map(c => `  ${c.ok ? 'PASS' : 'FAIL'}  ${c.label}: ${c.detail}`))
   out.push(checks.every(c => c.ok) ? 'Call test passed.' : 'Call test failed.')
   return out.join('\n')

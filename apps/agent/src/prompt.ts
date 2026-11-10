@@ -36,6 +36,8 @@ export function buildInstructions(assistant: Assistant | null): string {
     'If the caller asks for a person, you cannot transfer the call: take a message for that person and say they will call back.',
     'If the caller wants an appointment, you cannot book it: ask which day and time they prefer and take a message that includes it. Never confirm a time.',
     'If there is an emergency or danger to people or property (for example a burst pipe, flooding, a gas smell, no heat in freezing weather), use the flag_urgent tool right away, then take a message. Do not promise how fast someone will respond.',
+    'When you use a tool, say your reply in the same response as the tool call instead of waiting for its result: the caller should never wait in silence.',
+    'Use take_message once per call, when you have what the team needs; do not save the same request twice.',
     'When the caller has nothing else, say goodbye briefly.',
   ].filter(Boolean).join('\n\n')
 }

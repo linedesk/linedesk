@@ -7,10 +7,11 @@
 // Needs: the agent worker running, CALL_TEST_TO (the business number; it names the workspace),
 // LiveKit env, AGENT_API_TOKEN and CALLFRONT_API_URL.
 import { callFindForTest, type CallTestFinding } from '@callfront/actions'
-import { AgentDispatchClient } from 'livekit-server-sdk'
+import { AgentDispatchClient, RoomServiceClient } from 'livekit-server-sdk'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { AGENT_NAME, livekitHttpUrl, requireEnv, requireLivekitEnv, runScript } from './env.ts'
 import { CALLEE_IDENTITY } from './test-caller/caller.ts'
+import { LATENCY_ATTRIBUTE, type LatencySample } from './test-caller/latency.ts'
 import { evaluateCall, formatReport } from './test-caller/report.ts'
 import { isScenario, scenarioNames, scenarios, type CallTestMode, type ScenarioName, type TestCallerMetadata } from './test-caller/scenarios.ts'
 import { findOutboundTrunk, sipClient } from './test-caller/trunk.ts'
@@ -23,13 +24,31 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 type Run = { name: ScenarioName; mode: CallTestMode; to: string; room: string; since: string; api: ApiClient }
 
-async function waitForFinishedCall(find: () => Promise<CallTestFinding>, deadline: number): Promise<CallTestFinding> {
+async function waitForFinishedCall(find: () => Promise<CallTestFinding>, deadline: number, poll: () => Promise<void>): Promise<CallTestFinding> {
   let finding = await find()
   while (Date.now() < deadline && finding.call?.status !== 'completed') {
-    await sleep(5000)
+    await sleep(3000)
+    await poll()
     finding = await find()
   }
   return finding
+}
+
+/** Reads the test caller's latency attribute while its room exists; keeps the last value seen. */
+function latencyReader(room: string) {
+  const livekit = requireLivekitEnv()
+  const rooms = new RoomServiceClient(livekitHttpUrl(livekit.LIVEKIT_URL), livekit.LIVEKIT_API_KEY, livekit.LIVEKIT_API_SECRET)
+  let last: LatencySample | null = null
+  return {
+    get: () => last,
+    async poll() {
+      const participants = await rooms.listParticipants(room).catch(() => [])
+      for (const p of participants) {
+        const value = p.attributes[LATENCY_ATTRIBUTE]
+        if (value) last = JSON.parse(value) as LatencySample
+      }
+    },
+  }
 }
 
 function dispatcher() {
@@ -76,9 +95,10 @@ async function main() {
 
   const lookup = from ? { from } : { room: run.room }
   const find = async () => (await run.api.run(callFindForTest, { to, since: run.since, ...lookup })).data as CallTestFinding
-  const finding = await waitForFinishedCall(find, Date.now() + MAX_CALL_SEC * 1000 + RESULT_WAIT_MS)
+  const latency = latencyReader(run.room)
+  const finding = await waitForFinishedCall(find, Date.now() + MAX_CALL_SEC * 1000 + RESULT_WAIT_MS, latency.poll)
   const checks = evaluateCall(finding, scenarios[name], { expectRecording: args.includes('--expect-recording') })
-  console.log(formatReport(finding, checks))
+  console.log(formatReport(finding, checks, latency.get()))
   if (!checks.every(c => c.ok)) process.exitCode = 1
 }
 

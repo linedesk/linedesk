@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import type { CallTestFinding } from '@callfront/actions'
-import { evaluateCall, formatReport, latencyOf } from './report.ts'
+import { createLatencyLog, createOnsetDetector, rms } from './latency.ts'
+import { evaluateCall, formatCallerLatency, formatReport, latencyOf, percentile } from './report.ts'
 import { callerInstructions, parseTestCallerMetadata, scenarioNames, scenarios } from './scenarios.ts'
 
 const lines = [
@@ -41,7 +42,8 @@ test('a finished burst-pipe call passes, with transcript, summary and latency in
   const report = formatReport(finished, checks)
   expect(report).toContain('  [6.0 s] caller: A pipe burst under my sink.')
   expect(report).toContain('Summary: Burst pipe: Dana needs a plumber now.')
-  expect(report).toContain('Latency (approximate): greeting after 1.8 s; caller turn to next assistant line: 3.5 s, 2.5 s (median 3.5 s)')
+  expect(report).toContain('greeting 1.8 s; caller turn to next assistant line: 3.5 s, 2.5 s (median 3.5 s)')
+  expect(report).toContain('Latency heard by the caller: not measured')
   expect(report).toMatch(/PASS {2}message taken: 1 action item\n {2}PASS {2}recording: none \(not expected\)\nCall test passed\.$/)
 })
 
@@ -74,4 +76,32 @@ test('what the assistant says: AI disclosure when asked, no prices, no booked ti
 test('a silent caller passes with a greeting and no caller turns', () => {
   const silent = { ...finished, call: { ...finished.call!, outcome: 'hangup', urgency: 'low' }, turns: { caller: 0, agent: 1, system: 0 }, lines: [lines[0]!] }
   expect(evaluateCall(silent, scenarios.silence).every(c => c.ok)).toBe(true)
+})
+
+test('speech onsets: a new utterance after 400 ms of quiet, not on a short click', () => {
+  const onset = createOnsetDetector()
+  const feed = (level: number, from: number, to: number) => { const hits = []; for (let t = from; t < to; t += 10) if (onset(level, t)) hits.push(t); return hits }
+  expect(feed(2000, 0, 40)).toEqual([]) // 40 ms click
+  expect(feed(0, 40, 600)).toEqual([])
+  expect(feed(2000, 600, 1500)).toEqual([660]) // speech, detected after 60 ms
+  expect(feed(0, 1500, 1800)).toEqual([]) // a pause of 300 ms is the same utterance
+  expect(feed(2000, 1800, 2000)).toEqual([])
+  expect(feed(0, 2000, 2500)).toEqual([])
+  expect(feed(2000, 2500, 2700)).toEqual([2560]) // after 500 ms of quiet: a new one
+  expect(rms(Int16Array.from([3, -4]))).toBeCloseTo(Math.sqrt(12.5))
+})
+
+test('greeting from the start, replies from the end of each caller turn', () => {
+  const log = createLatencyLog(1000)
+  log.businessStarted(2560) // greeting starts at 2500
+  log.callerStopped(9000)
+  log.businessStarted(10_260)
+  log.businessStarted(12_000) // the assistant goes on talking: not a reply
+  log.callerStopped(20_000)
+  log.businessStarted(20_960)
+  expect(log.sample).toEqual({ greetingMs: 1500, replyMs: [1200, 900] })
+  expect(formatCallerLatency(log.sample)).toBe('Latency heard by the caller: greeting after 1.5 s; reply p50 0.9 s, p90 1.2 s, max 1.2 s over 2 replies (1.2 s, 0.9 s)')
+  expect(percentile([5, 1, 3, 2, 4], 50)).toBe(3)
+  expect(percentile([5, 1, 3, 2, 4, 6, 7, 8, 9, 10], 90)).toBe(9)
+  expect(percentile([], 90)).toBeNull()
 })

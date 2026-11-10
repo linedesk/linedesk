@@ -11,7 +11,7 @@ const stored: ProviderSettings = {
 test('env defaults: Deepgram, OpenRouter with an OpenAI mini model, ElevenLabs', async () => {
   expect(await configFromEnv(keys)).toEqual({
     stt: { provider: 'deepgram', apiKey: 'dg', model: 'flux-general-en' },
-    llm: { provider: 'openrouter', apiKey: 'or', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-5.4-mini' },
+    llm: { provider: 'openrouter', apiKey: 'or', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' },
     tts: { provider: 'elevenlabs', apiKey: 'el', model: undefined, voiceId: undefined },
   })
 })

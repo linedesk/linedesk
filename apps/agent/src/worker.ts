@@ -2,7 +2,7 @@
 // Which speech and language vendors are used is decided in pipeline.ts.
 import { fileURLToPath } from 'node:url'
 import { callFlagUrgent, callTakeMessage } from '@callfront/actions'
-import { cli, defineAgent, llm, ServerOptions, voice, type JobContext, type JobProcess } from '@livekit/agents'
+import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant } from '@livekit/rtc-node'
 import { z } from 'zod'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
@@ -11,7 +11,7 @@ import { callOrigin, parseTestMetadata, startCall, type CallSession } from './ca
 import { createConfigLoader, parseProviderSettings, type AgentConfig } from './config.ts'
 import { AGENT_NAME, requireEnv, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness } from './not-ready.ts'
-import { createPipeline, loadVad, summaryLlm, type Vad } from './pipeline.ts'
+import { createPipeline, summaryLlm } from './pipeline.ts'
 import { buildInstructions, FALLBACK_GREETING } from './prompt.ts'
 import { describeRecording, livekitRecorder, saveRecording, startRecording, stopRecording } from './recording.ts'
 import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from './counterpart.ts'
@@ -70,7 +70,7 @@ function recordConversation(session: voice.AgentSession, log: CallLog) {
 
 /** Greets the caller and runs the conversation until the session closes. */
 async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClient, config: AgentConfig, call: CallSession, log: CallLog, onClose: () => void) {
-  const session = new voice.AgentSession(createPipeline(ctx.proc.userData.vad as Vad, config, call.assistant?.voice))
+  const session = new voice.AgentSession(createPipeline(config, call.assistant?.voice))
   recordConversation(session, log)
   session.on(voice.AgentSessionEventTypes.Close, onClose)
   await session.start({
@@ -86,14 +86,15 @@ async function entry(ctx: JobContext) {
   // A room the call-test command dialled out of: this agent plays the caller, not the business.
   const testCaller = parseTestCallerMetadata(ctx.job.metadata)
   if (testCaller) return runAsTestCaller(ctx, testCaller)
+  // Checked at every call: until the providers are configured the call is logged as missed and ended.
+  // Started now, so the config lookup overlaps with waiting for the caller and registering the call.
+  const ready = checkReadiness(loadAgentConfig)
   // A test call's caller may be our own test-caller agent (no-phone call test), which LiveKit's own wait skips.
   const caller = parseTestMetadata(ctx.job.metadata) ? await waitForCounterpart(ctx) : await ctx.waitForParticipant()
   const api = apiClientFromEnv()
   const origin = callOrigin(ctx.job.metadata, caller.attributes, ctx.room.name ?? '')
   const call = await startCall(api, origin)
-
-  // Checked at every call: until the providers are configured the call is logged as missed and ended.
-  const readiness = await checkReadiness(loadAgentConfig)
+  const readiness = await ready
   if (!readiness.ready) {
     await declineCall(call, readiness, () => ctx.deleteRoom())
     return ctx.shutdown('assistant not set up')
@@ -127,13 +128,10 @@ async function runAsTestCaller(ctx: JobContext, scenario: TestCallerMetadata) {
     console.error(`test caller cannot call: ${readiness.reason}`)
     return ctx.deleteRoom()
   }
-  await runTestCaller(ctx, scenario, readiness.config, ctx.proc.userData.vad as Vad)
+  await runTestCaller(ctx, scenario, readiness.config)
 }
 
 export default defineAgent({
-  prewarm: async (proc: JobProcess) => {
-    proc.userData.vad = await loadVad()
-  },
   entry,
 })
 
@@ -164,7 +162,10 @@ async function main() {
   console.log(describeRecording())
   // Processes kept warm for the next call; the library's default is one per CPU core (up to four).
   const numIdleProcesses = Number(process.env.AGENT_IDLE_PROCESSES) || undefined
-  cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: AGENT_NAME, numIdleProcesses }))
+  // LiveKit stops giving a worker jobs above this CPU load (0.7 by default in production). On a small
+  // single-box install that refuses calls, and the second job of a call test, while one call runs.
+  const loadThreshold = Number(process.env.AGENT_LOAD_THRESHOLD) || 0.95
+  cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: AGENT_NAME, numIdleProcesses, loadThreshold }))
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) void main()

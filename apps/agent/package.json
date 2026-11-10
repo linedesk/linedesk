@@ -21,7 +21,6 @@
     "@livekit/agents-plugin-deepgram": "^1.9.5",
     "@livekit/agents-plugin-elevenlabs": "^1.9.5",
     "@livekit/agents-plugin-openai": "^1.9.5",
-    "@livekit/agents-plugin-silero": "^1.9.5",
     "@livekit/protocol": "1.53.0",
     "@livekit/rtc-node": "^1.2.2",
     "livekit-server-sdk": "^2.19.3",

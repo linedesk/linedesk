@@ -52,6 +52,7 @@ test('the prompt holds the product rules: messages only, no transfer, no booking
   expect(prompt).toContain('asks for a person, you cannot transfer the call: take a message')
   expect(prompt).toContain('wants an appointment, you cannot book it: ask which day and time they prefer and take a message')
   expect(prompt).toContain('use the flag_urgent tool right away')
+  expect(prompt).toContain('say your reply in the same response as the tool call')
   expect(prompt).not.toMatch(/record/i) // no recording notice for now
   expect(buildInstructions(null)).toContain('take_message')
   expect(buildInstructions({ ...assistant, greeting: '' })).not.toContain('already opened the call')
