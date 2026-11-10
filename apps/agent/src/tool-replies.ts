@@ -3,13 +3,15 @@
 // - the assistant already spoke in the same reply: nothing more to say;
 // - it only called tools and a message was saved: a ready confirmation is spoken instead, which starts
 //   with the voice's first audio (~0.15 s) instead of another LLM round (~0.6 to 1 s).
-// Otherwise (an urgent flag alone, without words) the model still answers, since what to ask next
-// depends on the conversation.
+// - it only flagged the call as urgent: a ready line says so and asks for the number, which every
+//   message needs.
+// Other tools (end_call alone) keep the model's answer.
 import { voice } from '@livekit/agents'
 
 type ToolsExecuted = { functionCalls: { name: string }[]; cancelToolReply(): void }
 
 export const MESSAGE_SAVED_REPLY = "Thanks, I've passed your message on, and the team will get back to you. Is there anything else I can help with?"
+export const URGENT_FLAGGED_REPLY = "I've marked this as urgent for the team. Is the number you're calling from the best way to reach you?"
 
 /**
  * Tracks whether the assistant has spoken since the caller's last line and returns the handler for
@@ -26,10 +28,10 @@ export function quietToolReplies(quietTools: ReadonlySet<string>, say: (text: st
       const names = event.functionCalls.map(call => call.name)
       if (!names.length || !names.every(name => quietTools.has(name))) return
       if (spokeSinceCaller) return event.cancelToolReply()
-      if (names.includes('take_message')) {
-        event.cancelToolReply()
-        say(MESSAGE_SAVED_REPLY)
-      }
+      const reply = names.includes('take_message') ? MESSAGE_SAVED_REPLY : names.includes('flag_urgent') ? URGENT_FLAGGED_REPLY : null
+      if (!reply) return
+      event.cancelToolReply()
+      say(reply)
     },
   }
 }
