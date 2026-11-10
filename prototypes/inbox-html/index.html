@@ -1974,7 +1974,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
       intent: 'Repipe estimate', text: 'Karen manages a 12-unit building with recurring low water pressure and wants an estimate for repiping. She asked for a site visit next week.',
       fields: [['Caller', 'Karen Ruiz, property manager'], ['Building', '905 SW Alder St, 12 units'], ['Request', 'Repipe estimate, site visit']],
       items: [E(0, 'phone-in', 'Incoming call, Maya answered', { time: '9:15 AM' }), S('ai', 0, 6, GREET), S('caller', 7, 10, 'Hi, I manage a 12-unit building on Alder Street. We keep having low water pressure and I\'d like a quote for repiping.'), S('ai', 18, 8, 'Happy to help. A repipe needs an on-site estimate. Would early next week work?'), E(27, 'calendar', 'Checked availability · Free estimate · 4 slots'), S('caller', 28, 6, 'I need to check with the owner first. Can someone call me back?'), S('ai', 35, 8, 'Of course. I\'ve noted it, and Mike will call you back today.'), E(53, 'phone-off', 'Call ended')] },
-    { id: 'c-missed', next: 'Try calling back', afterHours: true, name: '+1 503 555 0145', number: '+1 503 555 0145', direction: 'in', status: 'missed', time: 'Yesterday', duration: 6, priority: 4, intent: 'Hung up', text: 'Caller hung up during the greeting. The number is not linked to a customer.', items: [] },
+    { id: 'c-missed', next: 'Try calling back', afterHours: true, name: '+1 503 555 0145', number: '+1 503 555 0145', direction: 'in', status: 'missed', time: 'Yesterday', duration: 6, priority: 4, intent: 'Hung up', text: 'Caller hung up during the greeting. The number is not linked to a contact.', items: [] },
     { id: 'c-ferguson', next: 'Read message', name: 'Ferguson Supply', customer: 'ferguson', number: '+1 503 555 0150', direction: 'in', time: '8:52 AM', duration: 31, priority: 5,
       intent: 'Special order update', text: 'Ferguson\'s Clackamas branch called: the special-order water heater part for the Kim job arrives Wednesday.',
       fields: [['Caller', 'Ferguson Supply'], ['Order', 'Rheem gas valve, special order'], ['Arrives', 'Wednesday']],
@@ -2011,14 +2011,14 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
     var c = p.call, cu = c.customer ? cust(c.customer) : null;
     if (!cu) return h('aside', { className: 'cv-side', 'aria-label': 'Caller' },
       h('div', { className: 'side-who' }, h(K.Avatar, { name: '?', size: 32 }), h('div', null, h('b', null, 'Unknown caller'), h('span', { className: 'mono' }, c.number))),
-      h('span', { className: 'help' }, 'This number is not linked to a customer.'),
-      h(K.Button, { size: 'sm', icon: 'user', onClick: function () { p.toast('Linking is not available in this prototype.'); } }, 'Link to customer'),
+      h('span', { className: 'help' }, 'This number is not linked to a contact.'),
+      h(K.Button, { size: 'sm', icon: 'user', onClick: function () { p.toast('Linking is not available in this prototype.'); } }, 'Link to contact'),
       h('div', { className: 'side-sec' }, h('h2', null, 'Previous calls'), h('span', { className: 'help' }, 'No earlier calls from this number.')));
     var related = p.calls.filter(function (x) { return x.customer === c.customer && x.id !== c.id && !x.deleted; });
     var past = PAST[c.customer] || [];
-    return h('aside', { className: 'cv-side', 'aria-label': 'Customer' },
+    return h('aside', { className: 'cv-side', 'aria-label': 'Contact' },
       h('div', { className: 'side-who' }, h(K.Avatar, { name: cu.name, size: 32 }), h('div', null, h('b', null, cu.contact), h('span', null, cu.name !== cu.contact ? cu.name : cu.line)),
-        h(K.Button, { size: 'sm', variant: 'ghost', className: 'k-btn-icon side-open', title: 'Open customer record', 'aria-label': 'Open customer record', onClick: function () { p.onCustomer(cu.id); } }, h(Ic, { name: 'arrow-up-right', size: 14 }))),
+        h(K.Button, { size: 'sm', variant: 'ghost', className: 'k-btn-icon side-open', title: 'Open contact record', 'aria-label': 'Open contact record', onClick: function () { p.onCustomer(cu.id); } }, h(Ic, { name: 'arrow-up-right', size: 14 }))),
       h(K.Badge, { tone: cu.status[0], dot: true }, cu.status[1]),
       h('dl', { className: 'facts side-facts' }, h('dt', null, 'Phone'), h('dd', { className: 'mono copy', title: 'Copy', onClick: function () { (navigator.clipboard ? navigator.clipboard.writeText(cu.phone) : Promise.reject()).then(function () { p.toast('Copied ' + cu.phone); }, function () { p.toast('Copy failed. Select the number instead.'); }); } }, cu.phone), h('dt', null, 'Email'), h('dd', { className: 'copy', title: 'Copy', onClick: function () { (navigator.clipboard ? navigator.clipboard.writeText(cu.email) : Promise.reject()).then(function () { p.toast('Copied ' + cu.email); }, function () { p.toast('Copy failed. Select the email instead.'); }); } }, cu.email), h('dt', null, 'Service'), h('dd', null, cu.line), h('dt', null, 'Next visit'), h('dd', null, cu.until), h('dt', null, 'Lifetime'), h('dd', null, cu.vol), h('dt', null, 'Since'), h('dd', null, cu.since)),
       h('div', { className: 'side-sec' }, h('h2', null, 'Previous calls'),
@@ -2029,7 +2029,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
   var LIVE_INFO = { id: 'live', name: 'Emily Carter', customer: 'emily', number: '+1 503 555 0164', direction: 'in', time: '10:23 AM', priority: 0 };
 
   var ROUTES = ['calls', 'bookings', 'customers', 'assistant', 'preferences'];
-  var TITLES = { calls: 'Calls', bookings: 'Bookings', customers: 'Customers', assistant: 'Assistant Settings', preferences: 'Settings' };
+  var TITLES = { calls: 'Calls', bookings: 'Bookings', customers: 'Contacts', assistant: 'Assistant Settings', preferences: 'Settings' };
   function readHash() { var r = (location.hash || '').replace('#', ''); return ROUTES.indexOf(r) > -1 ? r : 'calls'; }
 
   var TABS = [['you', 'Needs you', ['1']], ['ai', 'Handled by Maya', ['2']], ['spam', 'Spam', ['3']]];
@@ -2322,7 +2322,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
                 h('span', { className: 'sub' }, c.number),
                 c.snoozed ? h('span', null, 'Reminder: ' + c.snoozed) : null))),
           c.status === 'missed'
-            ? h('div', { className: 'empty' }, h(K.Icon, { name: 'phone-missed', size: 24 }), h('b', null, 'Hung up before the greeting'), h('span', null, 'No recording and no transcript. The number is not linked to a customer.'),
+            ? h('div', { className: 'empty' }, h(K.Icon, { name: 'phone-missed', size: 24 }), h('b', null, 'Hung up before the greeting'), h('span', null, 'No recording and no transcript. The number is not linked to a contact.'),
                 h(K.Button, { icon: 'phone-out', onClick: function () { p.toast('Maya is calling back…'); } }, 'Have the assistant call back'))
             : h(React.Fragment, null,
                 h(VoiceNote, { items: items, live: isLive, elapsed: L.elapsed, duration: duration, position: pos, playing: playing, speed: speed, callerName: c.name, listening: p.listening,
@@ -2360,11 +2360,11 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
   var SHORTCUTS = [
     { group: 'Navigate', rows: [['Next call', ['J']], ['Next call', ['↓']], ['Previous call', ['K']], ['Previous call', ['↑']], ['Open call', ['⏎']], ['Open call', ['O']], ['Back to list, close', ['esc']], ['Next split', ['tab']], ['Previous split', ['⇧', 'tab']], ['Needs you · Handled · Spam · Reminders · Done', ['1', '–', '5']], ['Filter calls', ['F']]] },
     { group: 'Triage', rows: [['Mark done', ['E']], ['Mark not done', ['⇧', 'E']], ['Remind me', ['H']], ['Clear reminder', ['⇧', 'H']], ['Assign', ['A']], ['Book appointment', ['B']], ['Call back', ['C']], ['Pick in a menu', ['1', '–', '9']], ['Mark read or unread', ['U']], ['Delete', ['#']], ['Undo', ['Z']]] },
-    { group: 'Go to', rows: [['Calls', ['G', 'I']], ['Done', ['G', 'E']], ['Reminders', ['G', 'H']], ['Bookings', ['G', 'B']], ['Customers', ['G', 'C']], ['Assistant Settings', ['G', 'A']], ['Settings', ['⌘', ',']]] },
+    { group: 'Go to', rows: [['Calls', ['G', 'I']], ['Done', ['G', 'E']], ['Reminders', ['G', 'H']], ['Bookings', ['G', 'B']], ['Contacts', ['G', 'C']], ['Assistant Settings', ['G', 'A']], ['Settings', ['⌘', ',']]] },
     { group: 'Live call', rows: [['Take over', ['⌘', '⏎']], ['Listen in', ['L']]] },
     { group: 'Recording', rows: [['Play or pause', ['space']], ['Forward 5 seconds', ['→']], ['Back 5 seconds', ['←']], ['Jump to start / end', ['Home', 'End']]] },
     { group: 'Bookings', rows: [['Next / previous booking', ['J', 'K']], ['Open booking', ['⏎']], ['Previous / next week', ['[', ']']], ['This week', ['T']]] },
-    { group: 'General', rows: [['Search calls, filter customers', ['/']], ['Commands', ['⌘', 'K']], ['Keyboard shortcuts', ['?']], ['Open menu', ['M']]] }
+    { group: 'General', rows: [['Search calls, filter contacts', ['/']], ['Commands', ['⌘', 'K']], ['Keyboard shortcuts', ['?']], ['Open menu', ['M']]] }
   ];
   function HelpSheet() {
     var qs = useState(''), q = qs[0], setQ = qs[1];
@@ -2400,14 +2400,14 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
         p.menu,
         h('div', { className: 'ib-search' },
           h(K.Icon, { name: 'search', size: 15 }),
-          h('input', { id: 'filter-customers', value: p.query, placeholder: 'Filter customers', 'aria-label': 'Filter customers', autoComplete: 'off',
+          h('input', { id: 'filter-customers', value: p.query, placeholder: 'Filter contacts', 'aria-label': 'Filter contacts', autoComplete: 'off',
             onChange: function (e) { p.setQuery(e.target.value); },
             onKeyDown: function (e) { if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); e.target.blur(); } } }),
-          h('span', { className: 'ib-search-n' }, p.query ? rows.length + ' of ' + CUSTOMERS.length : CUSTOMERS.length + ' customers'))),
+          h('span', { className: 'ib-search-n' }, p.query ? rows.length + ' of ' + CUSTOMERS.length : CUSTOMERS.length + ' contacts'))),
       h('div', { className: cx('cv-main', 'cust-main', c && 'has-rec') },
         h('div', { className: 'cv-center' },
-          h('div', { className: 'ib-list', ref: listRef, role: 'list', 'aria-label': 'Customers' },
-            rows.length ? h('div', { className: 'ib-cols cust-row', 'aria-hidden': 'true' }, h('span', null, 'Customer'), h('span', null, 'Phone'), h('span', null, 'Last contact summary'), h('span', { className: 'num' }, 'Last contact')) : null,
+          h('div', { className: 'ib-list', ref: listRef, role: 'list', 'aria-label': 'Contacts' },
+            rows.length ? h('div', { className: 'ib-cols cust-row', 'aria-hidden': 'true' }, h('span', null, 'Contact'), h('span', null, 'Phone'), h('span', null, 'Last contact summary'), h('span', { className: 'num' }, 'Last contact')) : null,
             rows.length ? rows.map(function (r) {
               var latest = latestCallFor(r.id);
               return h('div', { key: r.id, role: 'listitem', className: cx('row', 'cust-row', p.cursor === r.id && 'is-cursor'), onClick: function () { p.setCursor(r.id); p.setCustomerId(r.id); }, onMouseMove: function () { if (p.cursor !== r.id) p.setCursor(r.id); } },
@@ -2418,10 +2418,10 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
                 h('span', { className: 'r-acts' },
                   latest ? rowAct('Latest call', 'phone-in', function () { p.openCall(latest); }) : null,
                   rowAct('Have assistant call', 'phone-out', assistantCall)));
-            }) : h('div', { className: 'empty' }, h(Ic, { name: 'users', size: 22 }), h('b', null, 'No customer matches “' + p.query + '”'), h('span', null, 'Try a company, a contact person or a phone number.')))),
-        c ? h('aside', { className: 'cv-side cust-side', 'aria-label': 'Customer record' },
+            }) : h('div', { className: 'empty' }, h(Ic, { name: 'users', size: 22 }), h('b', null, 'No contact matches “' + p.query + '”'), h('span', null, 'Try a company, a contact person or a phone number.')))),
+        c ? h('aside', { className: 'cv-side cust-side', 'aria-label': 'Contact record' },
           h('div', { className: 'side-who' }, h(K.Avatar, { name: c.name, size: 32 }), h('div', null, h('b', null, c.name), h('span', null, c.line + ' · since ' + c.since)),
-            h(K.Button, { size: 'sm', variant: 'ghost', className: 'k-btn-icon side-open', 'aria-label': 'Close customer record', title: 'Close (esc)', onClick: function () { p.setCustomerId(null); } }, h(Ic, { name: 'left', size: 14 }))),
+            h(K.Button, { size: 'sm', variant: 'ghost', className: 'k-btn-icon side-open', 'aria-label': 'Close contact record', title: 'Close (esc)', onClick: function () { p.setCustomerId(null); } }, h(Ic, { name: 'left', size: 14 }))),
           h(K.Badge, { tone: c.status[0], dot: true }, c.status[1]),
           h('dl', { className: 'facts side-facts' }, h('dt', null, 'Contact'), h('dd', null, c.contact), h('dt', null, 'Phone'), h('dd', { className: 'mono' }, c.phone), h('dt', null, 'Email'), h('dd', null, c.email), h('dt', null, 'Next visit'), h('dd', null, c.until), h('dt', null, 'Lifetime'), h('dd', null, c.vol)),
           h('div', { className: 'side-acts' },
@@ -2444,7 +2444,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
     ['leo', 'Leo', 'Friendly, relaxed', 'OpenAI']
   ];
   var ST_CAPS = [
-    ['crm', 'user', 'Look up customers', 'Recognizes callers and knows their history'],
+    ['crm', 'user', 'Look up contacts', 'Recognizes callers and knows their history'],
     ['book', 'calendar', 'Book appointments', 'Uses free slots in your calendar'],
     ['transfer', 'phone-out', 'Transfer calls', 'Hands urgent calls to a person right away'],
     ['after', 'clock', 'Answer after hours', 'Takes the request and flags the call'],
@@ -3796,7 +3796,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
     return h('aside', { className: 'cv-side bk-side', 'aria-label': 'Booking' },
       h('div', { className: 'bk-side-top' }, close, h('span', { className: 'bk-side-k' }, 'Booking')),
       h('div', { className: 'side-who' }, h(K.Avatar, { name: b.name, size: 32 }), h('div', null, h('b', null, b.name), h('span', null, BK_TYPES[b.type])),
-        h(K.Button, { size: 'sm', variant: 'ghost', className: 'k-btn-icon side-open', title: 'Open customer record', 'aria-label': 'Open customer record', onClick: function () { p.openCustomer(b.customer); } }, h(Ic, { name: 'arrow-up-right', size: 14 }))),
+        h(K.Button, { size: 'sm', variant: 'ghost', className: 'k-btn-icon side-open', title: 'Open contact record', 'aria-label': 'Open contact record', onClick: function () { p.openCustomer(b.customer); } }, h(Ic, { name: 'arrow-up-right', size: 14 }))),
       bkStatusBadge(b.status),
       when,
       b.note ? h('div', { className: 'side-sec' }, h('h2', null, 'Note from the call'), h('span', { className: 'bk-note' }, b.note)) : null,
@@ -4175,7 +4175,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
       navTab('reminders', 'Reminders', 'clock', ['G', 'H'], allCalls.filter(function (c) { return matchTab('reminders', c); }).length),
       navTab('done', 'Done', 'check', ['G', 'E']),
       navItem('bookings', 'Bookings', 'calendar', ['G', 'B']),
-      navItem('customers', 'Customers', 'users', ['G', 'C']),
+      navItem('customers', 'Contacts', 'users', ['G', 'C']),
       navItem('assistant', 'Assistant Settings', 'waveform', ['G', 'A']),
       h('div', { className: 'nav-week' }, h('span', { className: 'nav-week-l' }, 'This week'), h('b', null, '≈$7,140'), h('span', null, 'booked from 17 jobs · 46 calls answered · 0 missed')),
       h('div', { className: 'nav-foot' },
@@ -4210,7 +4210,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
     var cmdGroups = [
       callItems ? { label: 'Selected call · ' + targetCall.name, items: callItems } : null,
       liveOn ? { label: 'Live call', items: [{ label: 'Take over live call', icon: 'phone', shortcut: ['⌘', '⏎'] }, { label: 'Listen in', icon: 'headset', shortcut: ['L'] }, { label: 'Hang up', icon: 'phone-off' }] } : null,
-      { label: 'Go to', items: [{ label: 'Go to Calls', icon: 'phone', shortcut: ['G', 'I'] }, { label: 'Go to Done', icon: 'check', shortcut: ['G', 'E'] }, { label: 'Go to Reminders', icon: 'clock', shortcut: ['G', 'H'] }, { label: 'Go to Bookings', icon: 'calendar', shortcut: ['G', 'B'] }, { label: 'Go to Customers', icon: 'users', shortcut: ['G', 'C'] }, { label: 'Go to Assistant Settings', icon: 'waveform', shortcut: ['G', 'A'] }, { label: 'Open settings', icon: 'gear', shortcut: ['⌘', ','] }] },
+      { label: 'Go to', items: [{ label: 'Go to Calls', icon: 'phone', shortcut: ['G', 'I'] }, { label: 'Go to Done', icon: 'check', shortcut: ['G', 'E'] }, { label: 'Go to Reminders', icon: 'clock', shortcut: ['G', 'H'] }, { label: 'Go to Bookings', icon: 'calendar', shortcut: ['G', 'B'] }, { label: 'Go to Contacts', icon: 'users', shortcut: ['G', 'C'] }, { label: 'Go to Assistant Settings', icon: 'waveform', shortcut: ['G', 'A'] }, { label: 'Open settings', icon: 'gear', shortcut: ['⌘', ','] }] },
       { label: 'App', items: [{ label: 'Undo', icon: 'restart', shortcut: ['Z'] }, { label: 'Search calls', icon: 'search', shortcut: ['/'] }, { label: 'Show keyboard shortcuts', icon: 'keyboard', shortcut: ['?'] }, { label: 'Open menu', icon: 'menu', shortcut: ['M'] }, { label: 'Filter calls', icon: 'search', shortcut: ['F'] }, { label: 'Restart demo call', icon: 'restart' }, { label: 'Run setup again', icon: 'spark' }] }
     ].filter(Boolean);
     /* Recent: last 5 executed commands that are available right now */
@@ -4233,7 +4233,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
         'Mark read or unread': function () { needCall(doUnread); }, 'Delete call': function () { needCall(doDelete); }, 'Undo': undo,
         'Take over live call': function () { open('live'); takeover(); }, 'Listen in': function () { open('live'); listen(); }, 'Hang up': hangup,
         'Go to Calls': function () { goTab('you'); }, 'Go to Done': function () { goTab('done'); }, 'Go to Reminders': function () { goTab('reminders'); },
-        'Go to Bookings': function () { go('bookings'); }, 'Go to Customers': function () { go('customers'); }, 'Go to Assistant Settings': function () { go('assistant'); }, 'Open settings': function () { go('preferences'); },
+        'Go to Bookings': function () { go('bookings'); }, 'Go to Contacts': function () { go('customers'); }, 'Go to Assistant Settings': function () { go('assistant'); }, 'Open settings': function () { go('preferences'); },
         'Search calls': openSearch, 'Show keyboard shortcuts': function () { setOverlay('help'); }, 'Open menu': function () { setNavOpen(true); },
         'Restart demo call': restart,
         'Run setup again': function () { setObOpen(true); }
