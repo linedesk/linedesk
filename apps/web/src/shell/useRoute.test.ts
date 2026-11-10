@@ -14,6 +14,8 @@ describe('route parsing', () => {
     expect(parseHash(callHash('abc'))).toEqual({ ...list, callId: 'abc' })
     expect(parseHash('#assistant')).toEqual({ ...list, route: 'assistant' })
     expect(parseHash('#account')).toEqual({ ...list, route: 'account' })
+    expect(parseHash('#admin')).toEqual({ ...list, route: 'admin' })
+    expect(parseHash('#admin/users/u1')).toEqual({ ...list, route: 'admin' })
   })
   it('keeps the inbox view while a call or another page is open', () => {
     const last = { tab: 'done', search: 'leak' } as const

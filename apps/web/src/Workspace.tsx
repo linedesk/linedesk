@@ -1,6 +1,7 @@
 // The signed-in app: composes the inbox, the pages, the navigation, overlays and toasts.
 import type { Call } from '@callfront/db/types'
 import { useEffect, useRef, useState } from 'react'
+import { AdminMode } from './admin/AdminMode.tsx'
 import type { Me } from './auth.ts'
 import { CallView } from './call/CallView.tsx'
 import { CustomerSide } from './call/CustomerSide.tsx'
@@ -66,9 +67,10 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
     step: view.step, setTab: view.setTab, openSearch, closeSearch: view.closeSearch, open, isCallOpen: !!openCall, back: view.back,
     togglePlayback,
     goChord: key => {
-      if (key === 'a') goPage('assistant')
+      if (key === 'd' && isInstanceAdmin) goPage('admin')
+      else if (key === 'a') goPage('assistant')
       else if (chordTabs[key]) view.setTab(chordTabs[key])
-      return key === 'a' || !!chordTabs[key]
+      return key === 'a' || !!chordTabs[key] || (key === 'd' && isInstanceAdmin)
     },
   }, toaster.via)
 
@@ -95,6 +97,16 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   function runCommand(command: Command, via: SelectVia) {
     setOverlay(null)
     setTimeout(() => toaster.via(via === 'key' ? 'menu-key' : 'mouse', command.run), 0) // after the palette has closed
+  }
+
+  // Admin mode replaces the whole app; leaving it returns to where the user was.
+  const beforeAdmin = useRef('#calls')
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-read the hash whenever the place in the app changes
+  useEffect(() => {
+    if (nav.route !== 'admin') beforeAdmin.current = window.location.hash || '#calls'
+  }, [nav.route, nav.callId, nav.tab, nav.search])
+  if (nav.route === 'admin' && isInstanceAdmin) {
+    return <AdminMode currentUserId={me.actorId} onExit={() => { window.location.hash = beforeAdmin.current }} />
   }
 
   const menu = <MenuButton open={navOpen} onOpen={() => setNavOpen(true)} />

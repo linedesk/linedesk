@@ -2,14 +2,15 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { Avatar, Icon } from '../ui/kit.tsx'
 import type { IconName } from '../ui/icons.ts'
 
-type Props = { name: string; workspaceName: string; navOpen: boolean; onAccount: () => void; onSignOut: () => void }
+/** `onAdmin` is set for instance admins only: Admin then leads the menu. */
+type Props = { name: string; workspaceName: string; navOpen: boolean; onAdmin?: () => void; onAccount: () => void; onSignOut: () => void }
 
 function Item({ label, icon, onClick }: { label: string; icon: IconName; onClick: () => void }) {
   return <button type="button" role="menuitem" className="nav-item" onClick={onClick}><Icon name={icon} size={15} /><span className="lbl">{label}</span></button>
 }
 
 /** The profile row at the bottom of the navigation. Clicking it opens a small menu above it. */
-export function ProfileMenu({ name, workspaceName, navOpen, onAccount, onSignOut }: Props) {
+export function ProfileMenu({ name, workspaceName, navOpen, onAdmin, onAccount, onSignOut }: Props) {
   const [open, setOpen] = useState(false)
   useEffect(() => { if (!navOpen) setOpen(false) }, [navOpen]) // the menu never outlives the navigation
   const root = useRef<HTMLDivElement>(null)
@@ -38,6 +39,7 @@ export function ProfileMenu({ name, workspaceName, navOpen, onAccount, onSignOut
     <div className="me-wrap" ref={root}>
       {open && (
         <div className="me-menu" role="menu" aria-label="Account" onKeyDown={onKeyDown}>
+          {onAdmin && <Item label="Admin" icon="gear" onClick={choose(onAdmin)} />}
           <Item label="Account settings" icon="user" onClick={choose(onAccount)} />
           <hr />
           <Item label="Sign out" icon="arrow-up-right" onClick={choose(onSignOut)} />

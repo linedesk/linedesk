@@ -1,7 +1,6 @@
 // LiveKit is part of the install: its keys are set in env at install time, so this is a
 // read-only status, loaded on its own because a server that is down takes seconds to say so.
 import { useCallback, useEffect, useState } from 'react'
-import { Section } from '../settings/fields.tsx'
 import { Button } from '../ui/kit.tsx'
 import { type LivekitStatus, loadLivekitStatus, type ServiceStatus } from './api.ts'
 
@@ -39,11 +38,7 @@ export function System() {
   useEffect(() => void check(), [check])
 
   return (
-    <Section
-      id="adm-system"
-      title="System"
-      description="Services that are part of this install. They are set up in the environment, not here."
-    >
+    <div className="adm-card">
       <div className="adm-prov">
         <div className="adm-prov-head">
           <b>LiveKit</b>
@@ -68,6 +63,6 @@ export function System() {
           </dl>
         )}
       </div>
-    </Section>
+    </div>
   )
 }

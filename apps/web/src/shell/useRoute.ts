@@ -1,6 +1,6 @@
 // Where the app is, kept in the URL hash so reload and the browser's Back work:
 // `#calls` (Needs you), `#calls/done` (another view), `#calls?q=leak` (search),
-// `#call/<id>` (one call), `#assistant`, `#account`.
+// `#call/<id>` (one call), `#assistant`, `#account`, `#admin/<section>`.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { InboxTab } from '../inbox-model.ts'
 import { isPageRoute, type Route } from './pages.tsx'
@@ -27,6 +27,8 @@ export function parseHash(hash: string, last: InboxPlace = HOME): Location {
   const [path = '', query] = hash.replace(/^#/, '').split('?')
   if (path.startsWith(CALL_PREFIX) && path.length > CALL_PREFIX.length) return { ...last, route: 'calls', callId: path.slice(CALL_PREFIX.length), known: true }
   if (isPageRoute(path)) return { ...last, route: path, callId: null, known: true }
+  // Admin mode has sections of its own (`#admin/users/<id>`); admin/route.ts reads them.
+  if (path.startsWith('admin/')) return { ...last, route: 'admin', callId: null, known: true }
   const [head, view = 'you', ...rest] = path.split('/')
   const isList = (head === 'calls' || path === '') && tabs.includes(view as InboxTab) && rest.length === 0
   if (!isList) return { ...HOME, route: 'calls', callId: null, known: false }
@@ -55,6 +57,7 @@ export function useRoute() {
 
   const go = useCallback((to: Route) => {
     const now = current.current
+    openedFromList.current = false // a page in between: closing a call later must not step back into it
     push(to === 'calls' ? listHash(now) : `#${to}`)
     apply({ ...now, route: to, callId: null, known: true })
   }, [apply])

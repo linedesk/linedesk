@@ -6,16 +6,16 @@ import {
   providerCategories,
   providers as providerSpecs,
   type ProviderCategory,
+  type ProviderName,
   type ProviderTestData,
 } from '@callfront/actions'
 import { useState, type FormEvent } from 'react'
-import { Section } from '../settings/fields.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
 import { type ActiveProviders, type ProviderField, type ProviderStatus, runAdmin, testProvider } from './api.ts'
 import { fieldValueText, providerState, stateLabel } from './model.ts'
-import { Confirm, runAndToast, when } from './parts.tsx'
+import { Confirm, when } from './parts.tsx'
+import { errorText, type Notify } from './notify.ts'
 
-const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err))
 const envName = (provider: ProviderStatus, field: ProviderField) =>
   (providerSpecs[provider.provider].fields as Record<string, { env: string }>)[field.field]?.env ?? ''
 
@@ -96,14 +96,12 @@ type RowProps = {
   provider: ProviderStatus
   /** The category uses this provider. */
   inUse: boolean
-  /** Shown when the category has another provider to switch from. */
-  onUse?: () => void
   canStore: boolean
   toast: (text: string) => void
   reload: () => Promise<void>
 }
 
-function ProviderRow({ provider, inUse, onUse, canStore, toast, reload }: RowProps) {
+function ProviderRow({ provider, inUse, canStore, toast, reload }: RowProps) {
   const [mode, setMode] = useState<'idle' | 'edit' | 'clear'>('idle')
   const [test, setTest] = useState<ProviderTestData | 'running' | null>(null)
   const state = providerState(provider)
@@ -133,11 +131,6 @@ function ProviderRow({ provider, inUse, onUse, canStore, toast, reload }: RowPro
         <Badge>{stateLabel[state]}</Badge>
         {inUse && <Badge>In use</Badge>}
         <span className="adm-prov-actions">
-          {!inUse && onUse && (
-            <Button size="sm" variant="ghost" title={`Use ${provider.label} for this category`} onClick={onUse}>
-              Use
-            </Button>
-          )}
           <Button
             size="sm"
             variant="ghost"
@@ -153,7 +146,7 @@ function ProviderRow({ provider, inUse, onUse, canStore, toast, reload }: RowPro
             aria-expanded={mode === 'edit'}
             onClick={() => setMode('edit')}
           >
-            {state === 'app' ? 'Replace keys' : 'Set keys'}
+            Edit
           </Button>
           {state === 'app' && (
             <Button size="sm" variant="ghost" aria-expanded={mode === 'clear'} onClick={() => setMode('clear')}>
@@ -203,7 +196,7 @@ type Props = {
   providers: ProviderStatus[]
   active: ActiveProviders
   canStore: boolean
-  toast: (text: string) => void
+  notify: Notify
   reload: () => Promise<void>
 }
 
@@ -217,26 +210,27 @@ const defaultNote = (category: ProviderCategory) =>
 function categoryNote(category: ProviderCategory, chosen: boolean, inUse: ProviderStatus | undefined): string {
   if (!chosen) return defaultNote(category)
   if (inUse && providerState(inUse) === 'none')
-    return `Picked here, but ${inUse.label} has no keys yet: set them, or use the default.`
+    return `Picked here, but ${inUse.label} has no keys yet: set them below, or pick Default.`
   return 'Picked here.'
 }
 
-export function Providers({ providers, active, canStore, toast, reload }: Props) {
-  const use = (category: ProviderCategory, provider: ProviderStatus | null) =>
-    runAndToast(
-      () => runAdmin('provider.setActive', { category, provider: provider?.provider ?? null }),
-      provider
-        ? `${providerCategories[category]} uses ${provider.label} now.`
-        : `${providerCategories[category]} uses the default again.`,
-      toast,
-      reload,
-    )
+export function Providers({ providers, active, canStore, notify, reload }: Props) {
+  async function use(category: ProviderCategory, provider: ProviderName | null) {
+    const before = active[category].chosen ? active[category].provider : null
+    const set = async (next: ProviderName | null) => {
+      await runAdmin('provider.setActive', { category, provider: next })
+      await reload()
+    }
+    try {
+      await set(provider)
+      const label = provider ? providers.find(p => p.provider === provider)!.label : 'the default'
+      notify(`${providerCategories[category]} uses ${label} now.`, () => set(before))
+    } catch (err) {
+      notify(errorText(err))
+    }
+  }
   return (
-    <Section
-      id="adm-providers"
-      title="Providers"
-      description="Keys for telephony, speech and the language model, for the whole install. A key set here wins over the environment."
-    >
+    <>
       {!canStore && (
         <p className="adm-notice" role="note">
           Keys cannot be stored yet: <code>SECRETS_KEY</code> is not set. Generate one with{' '}
@@ -247,38 +241,53 @@ export function Providers({ providers, active, canStore, toast, reload }: Props)
         const inCategory = providers.filter(p => p.category === category)
         const { provider: inUse, chosen } = active[category]
         return (
-          <div key={category} className="adm-cat">
+          <section key={category} className="adm-card adm-cat" aria-label={providerCategories[category]}>
             <div className="adm-cat-head">
-              <h3>{providerCategories[category]}</h3>
-              <span className="help">
-                {categoryNote(
-                  category,
-                  chosen,
-                  inCategory.find(p => p.provider === inUse),
-                )}
-              </span>
-              {chosen && (
-                <Button size="sm" variant="ghost" onClick={() => void use(category, null)}>
-                  Use default
-                </Button>
+              <div>
+                <h2>{providerCategories[category]}</h2>
+                <p className="help">
+                  {categoryNote(
+                    category,
+                    chosen,
+                    inCategory.find(p => p.provider === inUse),
+                  )}
+                </p>
+              </div>
+              {inCategory.length > 1 && (
+                <div className="adm-seg" role="radiogroup" aria-label={`${providerCategories[category]} provider`}>
+                  {[{ id: null, label: 'Default' }, ...inCategory.map(p => ({ id: p.provider, label: p.label }))].map(
+                    option => {
+                      const on = option.id === null ? !chosen : chosen && inUse === option.id
+                      return (
+                        <button
+                          key={option.label}
+                          type="button"
+                          role="radio"
+                          aria-checked={on}
+                          className="adm-seg-opt"
+                          onClick={() => !on && void use(category, option.id)}
+                        >
+                          {option.label}
+                        </button>
+                      )
+                    },
+                  )}
+                </div>
               )}
             </div>
-            <div className="adm-provs">
-              {inCategory.map(p => (
-                <ProviderRow
-                  key={p.provider}
-                  provider={p}
-                  inUse={inUse === p.provider}
-                  onUse={inCategory.length > 1 ? () => void use(category, p) : undefined}
-                  canStore={canStore}
-                  toast={toast}
-                  reload={reload}
-                />
-              ))}
-            </div>
-          </div>
+            {inCategory.map(p => (
+              <ProviderRow
+                key={p.provider}
+                provider={p}
+                inUse={inUse === p.provider}
+                canStore={canStore}
+                toast={notify}
+                reload={reload}
+              />
+            ))}
+          </section>
         )
       })}
-    </Section>
+    </>
   )
 }

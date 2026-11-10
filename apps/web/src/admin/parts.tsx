@@ -105,19 +105,3 @@ export function Confirm({ text, action, typed, onConfirm, onCancel }: ConfirmPro
     </form>
   )
 }
-
-/** Runs an action that needs no confirmation and reports the outcome in a toast. */
-export async function runAndToast(
-  run: () => Promise<unknown>,
-  done: string,
-  toast: (text: string) => void,
-  reload: () => Promise<void>,
-) {
-  try {
-    await run()
-    await reload()
-    toast(done)
-  } catch (err) {
-    toast(err instanceof Error ? err.message : String(err))
-  }
-}

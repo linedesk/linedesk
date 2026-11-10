@@ -49,10 +49,9 @@ export function Nav({ open, route, tab, unreadCount, reminderCount, workspaceNam
         badge={reminderCount ? <span className="nav-n">{reminderCount}</span> : null} />
       <NavItem sub label="Done" icon="check" keys={['G', 'E']} current={onCalls && tab === 'done'} onClick={go(() => on.onInbox('done'))} />
       <NavItem label={pages.assistant.title} icon="waveform" keys={['G', 'A']} current={route === 'assistant'} onClick={go(() => on.onPage('assistant'))} />
-      {isInstanceAdmin && <NavItem label={pages.admin.title} icon="gear" current={route === 'admin'} onClick={go(() => on.onPage('admin'))} />}
       <div className="nav-foot">
         <NavItem label="Keyboard shortcuts" icon="keyboard" keys={['?']} onClick={go(on.onHelp)} />
-        <ProfileMenu navOpen={open} name={userName} workspaceName={workspaceName} onAccount={go(() => on.onPage('account'))} onSignOut={go(on.onSignOut)} />
+        <ProfileMenu navOpen={open} name={userName} workspaceName={workspaceName} onAdmin={isInstanceAdmin ? go(() => on.onPage('admin')) : undefined} onAccount={go(() => on.onPage('account'))} onSignOut={go(on.onSignOut)} />
       </div>
     </nav>
   )

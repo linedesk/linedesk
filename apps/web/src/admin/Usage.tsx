@@ -1,4 +1,3 @@
-import { Section } from '../settings/fields.tsx'
 import type { AdminWorkspace, UsageRow } from './api.ts'
 import { formatMinutes, monthLabel, recentMonths, sortRows, usageByWorkspace } from './model.ts'
 import { SortTh, useSort } from './parts.tsx'
@@ -15,11 +14,7 @@ export function Usage({ workspaces, usage, months }: Props) {
   const rows = sortRows(workspaces, sort.key === 'name' ? w => w.name : current, sort.dir)
 
   return (
-    <Section
-      id="adm-usage"
-      title="Usage"
-      description="Answered minutes per month, from the length of each call. Months are in UTC."
-    >
+    <div className="adm-card">
       <div className="adm-scroll">
         <table className="adm-table">
           <thead>
@@ -66,6 +61,6 @@ export function Usage({ workspaces, usage, months }: Props) {
           </tbody>
         </table>
       </div>
-    </Section>
+    </div>
   )
 }
