@@ -670,6 +670,13 @@ button.me:focus-visible {
 .cv-col {
   max-width: var(--w-read);
 }
+/* Contact panel actions: Call back, Block, and the Blocked badge on one line. */
+.side-acts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
 /* A link drawn as a button (Call back) reads as a button. */
 a.k-btn {
   text-decoration: none;

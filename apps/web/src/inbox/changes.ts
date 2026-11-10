@@ -1,6 +1,6 @@
 // What each triage action sends and how it is undone: registry actions and their inverses.
 import { actions } from '@callfront/actions'
-import type { Call } from '@callfront/db/types'
+import type { Call, Contact } from '@callfront/db/types'
 import { parseTs } from '../time.ts'
 import type { ReminderOption } from './remind.ts'
 
@@ -72,6 +72,26 @@ export function remindChange(call: Call, option: ReminderOption): Change {
 }
 
 /** Spam or not (!): a sales call that got through goes to Spam; a real caller misfiled as spam goes back to Needs you. */
+/** Block the caller's number (⇧B), which also files this call in Spam; or unblock it. */
+export function blockChange(call: Call, contact: Contact): Change {
+  const contactId = { contactId: contact.id }
+  if (contact.blocked_at) {
+    return {
+      steps: [['contact.unblock', contactId]],
+      inverse: [['contact.block', contactId]],
+      label: 'Number unblocked.',
+      key: '⇧B',
+    }
+  }
+  const toSpam = call.outcome === 'spam' ? null : spamChange(call)
+  return {
+    steps: [['contact.block', contactId], ...(toSpam?.steps ?? [])],
+    inverse: [['contact.unblock', contactId], ...(toSpam?.inverse ?? [])],
+    label: 'Number blocked: its calls go to Spam.',
+    key: '⇧B',
+  }
+}
+
 export function spamChange(call: Call): Change {
   if (call.outcome !== 'spam') {
     return {

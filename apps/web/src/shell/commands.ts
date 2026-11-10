@@ -16,6 +16,9 @@ export type CommandContext = {
   toggleUnread: (call: Call) => void
   remove: (call: Call) => void
   toggleSpam: (call: Call) => void
+  toggleBlock: (call: Call) => void
+  /** Whether the call's number is blocked. */
+  isBlocked: (call: Call) => boolean
   /** Selecting calls in the list; null when the list is not on screen (a call or another page is open). */
   selection: { count: number; toggle: () => void; all: () => void; clear: () => void } | null
   goInbox: (tab: 'you' | 'done' | 'reminders') => void
@@ -67,6 +70,13 @@ function callCommands(call: Call, c: CommandContext): Command[] {
           shortcut: ['!'],
           run: () => c.toggleSpam(call),
         },
+    {
+      label: c.isBlocked(call) ? 'Unblock number' : 'Block number',
+      keywords: 'blocklist robocall spam caller',
+      icon: 'phone-off',
+      shortcut: ['⇧', 'B'],
+      run: () => c.toggleBlock(call),
+    },
     { label: 'Delete call', keywords: 'remove trash', icon: 'trash', shortcut: ['#'], run: () => c.remove(call) },
   ]
 }
@@ -118,7 +128,13 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
         { label: 'Go to Contacts', icon: 'users', shortcut: ['G', 'C'], run: () => c.goPage('contacts') },
         { label: 'Go to Assistant', icon: 'waveform', shortcut: ['G', 'A'], run: () => c.goPage('assistant') },
         { label: 'Go to Team', icon: 'users', shortcut: ['G', 'T'], run: () => c.goPage('team') },
-        { label: 'Go to Settings', keywords: 'phone number notifications recordings', icon: 'gear', shortcut: ['G', 'S'], run: () => c.goPage('settings') },
+        {
+          label: 'Go to Settings',
+          keywords: 'phone number notifications recordings',
+          icon: 'gear',
+          shortcut: ['G', 'S'],
+          run: () => c.goPage('settings'),
+        },
         ...(c.isInstanceAdmin
           ? [
               {

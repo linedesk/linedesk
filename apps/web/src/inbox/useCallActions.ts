@@ -4,7 +4,7 @@ import type { Call } from '@callfront/db/types'
 import { useRef, useState } from 'react'
 import { tabOf, type InboxTab } from '../inbox-model.ts'
 import type { Toaster } from '../shell/useToast.ts'
-import { useRun } from '../store.tsx'
+import { useRun, useSnapshot } from '../store.tsx'
 import {
   type Change,
   clearReminderChange,
@@ -14,6 +14,7 @@ import {
   notDoneChange,
   preview,
   remindChange,
+  blockChange,
   spamChange,
   type Step,
   unreadChange,
@@ -42,6 +43,7 @@ type Context = {
 
 export function useCallActions({ list, tab, searching, openId, setTab, setCursor, showCall, toaster }: Context) {
   const run = useRun()
+  const contacts = useSnapshot().tables.contacts
   const undoStack = useRef<UndoEntry[]>([])
   const [leaving, setLeaving] = useState<string | null>(null)
   const [entering, setEntering] = useState<string | null>(null)
@@ -160,6 +162,11 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
       tabOf(call) === 'reminders' ? act(call, clearReminderChange(call)) : toaster.show('No reminder on this call.'),
     remove: (call: Call) => act(call, deleteChange(call)),
     toggleSpam: (call: Call) => act(call, spamChange(call)),
+    toggleBlock: (call: Call) => {
+      const contact = call.contact_id ? contacts.get(call.contact_id) : undefined
+      if (!contact) return toaster.show('This number has no contact, so it cannot be blocked.')
+      act(call, blockChange(call, contact))
+    },
     many: {
       markDone: (list: Call[]) =>
         actMany(

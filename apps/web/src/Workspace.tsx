@@ -112,6 +112,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
     toggleUnread: each(actions.toggleUnread, actions.many.toggleUnread),
     remove: each(actions.remove, actions.many.remove),
     toggleSpam: each(actions.toggleSpam, actions.many.toggleSpam),
+    toggleBlock: actions.toggleBlock,
     clearReminder: each(actions.clearReminder, actions.many.clearReminder),
     undo: actions.undo,
     openRemind,
@@ -211,6 +212,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
 
   const commands = commandGroups({
     ...callHandlers,
+    isBlocked: call => !!(call.contact_id && view.contacts.get(call.contact_id)?.blocked_at),
     target,
     targetName: bulk
       ? `${selection.count} selected calls`
@@ -276,7 +278,9 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
       />
       <button type="button" className="scrim" aria-label="Close menu" tabIndex={-1} onClick={() => setNavOpen(false)} />
       <main className="main">
-        {nav.route !== 'settings' && <SetupBanner canEdit={me.permissions.includes('settings:write')} onConnect={() => goPage('settings')} />}
+        {nav.route !== 'settings' && (
+          <SetupBanner canEdit={me.permissions.includes('settings:write')} onConnect={() => goPage('settings')} />
+        )}
         {page ? (
           <>
             {!page.ownHeader && (
@@ -325,7 +329,14 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
             onClearReminder={actions.clearReminder}
             onCommands={() => setOverlay('commands')}
             onToggleSpam={callHandlers.toggleSpam}
-            side={<ContactSide call={openCall} onOpen={open} toast={toaster.show} />}
+            side={
+              <ContactSide
+                call={openCall}
+                onOpen={open}
+                toast={toaster.show}
+                onToggleBlock={callHandlers.toggleBlock}
+              />
+            }
           />
         ) : (
           <Inbox

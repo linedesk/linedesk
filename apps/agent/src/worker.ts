@@ -96,6 +96,10 @@ async function entry(ctx: JobContext) {
   const api = apiClientFromEnv()
   const origin = callOrigin(ctx.job.metadata, caller.attributes, ctx.room.name ?? '')
   const call = await startCall(api, origin)
+  if (call.blocked) {
+    await ctx.deleteRoom() // blocked caller: the API already filed the call in Spam
+    return ctx.shutdown('blocked caller')
+  }
   const readiness = await ready
   if (!readiness.ready) {
     await declineCall(call, readiness, () => ctx.deleteRoom())

@@ -2,10 +2,15 @@ import type { Call, Contact } from '@callfront/db/types'
 import { callTitle, formatPhone } from '../inbox-model.ts'
 import { useContact, useRows, useRun } from '../store.tsx'
 import { parseTs, shortDuration, timeLabel } from '../time.ts'
-import { Avatar, Icon } from '../ui/kit.tsx'
+import { Avatar, Badge, Button, Icon } from '../ui/kit.tsx'
 import { EditableFact } from './EditableFact.tsx'
 
-type Props = { call: Call; onOpen: (call: Call) => void; toast: (text: string) => void }
+type Props = {
+  call: Call
+  onOpen: (call: Call) => void
+  toast: (text: string) => void
+  onToggleBlock?: (call: Call) => void
+}
 type Editable = 'name' | 'company' | 'email' | 'address' | 'note'
 
 function copy(text: string, toast: (text: string) => void) {
@@ -84,7 +89,7 @@ function PastCalls({ call, onOpen }: Pick<Props, 'call' | 'onOpen'>) {
 }
 
 /** The caller next to the call: who they are (editable) and what they called about before. */
-export function ContactSide({ call, onOpen, toast }: Props) {
+export function ContactSide({ call, onOpen, toast, onToggleBlock }: Props) {
   const contact = useContact(call.contact_id)
   return (
     <aside className="cv-side" aria-label="Contact">
@@ -95,7 +100,20 @@ export function ContactSide({ call, onOpen, toast }: Props) {
           <span>{contact?.company ?? formatPhone(call.from_number)}</span>
         </div>
       </div>
-      {call.from_number.startsWith('+') && <CallBackLink number={call.from_number} />}
+      <div className="side-acts">
+        {call.from_number.startsWith('+') && <CallBackLink number={call.from_number} />}
+        {contact && onToggleBlock && (
+          <Button
+            size="sm"
+            variant="ghost"
+            title={contact.blocked_at ? 'Unblock number (⇧B)' : 'Block number (⇧B)'}
+            onClick={() => onToggleBlock(call)}
+          >
+            {contact.blocked_at ? 'Unblock' : 'Block'}
+          </Button>
+        )}
+        {contact?.blocked_at && <Badge>Blocked</Badge>}
+      </div>
       {contact ? (
         <Facts contact={contact} toast={toast} />
       ) : (

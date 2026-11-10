@@ -35,6 +35,8 @@ const all = [
   calls.callFindForTest,
   calls.callSetRecording,
   settings.contactUpdate,
+  settings.contactBlock,
+  settings.contactUnblock,
   settings.assistantUpdate,
   settings.phoneNumberSetup,
   settings.assistantStartTestCall,

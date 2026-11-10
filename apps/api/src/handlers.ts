@@ -171,14 +171,23 @@ async function openCall({ tx, now, recordings }: Pick<HandlerCtx, 'tx' | 'now' |
     ;[contact] = await tx.insert(contacts).values({ id: newId('ct'), workspace_id, phone: from, name }).returning()
   }
   const id = newId('call')
+  // A blocked caller is not answered: the call is filed quietly in Spam and the agent hangs up (`blocked`).
+  const blocked = source === 'phone' && !!contact!.blocked_at
   const [call] = await tx.insert(calls).values({
     id, workspace_id, contact_id: contact!.id, from_number: from, to_number: to, source, started_at: now, room: room ?? id,
+    ...(blocked ? blockedCall(now) : {}),
   }).returning()
   const [assistant] = await tx.select().from(assistants).where(eq(assistants.workspace_id, workspace_id))
   const stale = await completeStaleCalls(tx, workspace_id, now)
   const linked = await linkOrphanRecordings(tx, workspace_id, now, recordings)
-  return { rows: { calls: [call!, ...stale, ...linked], contacts: [contact!] }, data: { callId: id, workspaceId: workspace_id, isNewContact, contact: contact!, assistant: assistant ?? null } }
+  return { rows: { calls: [call!, ...stale, ...linked], contacts: [contact!] }, data: { callId: id, workspaceId: workspace_id, isNewContact, contact: contact!, assistant: assistant ?? null, blocked } }
 }
+
+/** A call from a blocked number: over before it began, read, in Spam. */
+const blockedCall = (now: string) => ({
+  status: 'completed' as const, ended_at: now, duration_sec: 0, outcome: 'spam' as const, unread: false,
+  title: 'Blocked caller', summary: 'This number is blocked, so the call was not answered.',
+})
 
 const handlers: Record<string, Handler> = {
   ...adminHandlers,

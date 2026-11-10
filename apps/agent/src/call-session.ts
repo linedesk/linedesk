@@ -12,11 +12,13 @@ export interface CallSession {
   workspaceId: string
   assistant: Assistant | null
   contact: Contact
+  /** The caller's number is blocked: the API filed the call in Spam; hang up without answering. */
+  blocked: boolean
   append(speaker: Speaker, text: string, toolEvent?: ToolEvent): Promise<void>
   finish(result: CallResult): Promise<void>
 }
 
-type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'contact'>
+type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'contact'> & { blocked?: boolean }
 
 /** Where a call comes from: a phone (the workspace is the dialled number's) or a test from the web app. */
 export type CallOrigin = { kind: 'phone'; from: string; to: string; room?: string } | { kind: 'test'; workspaceId: string; room: string }
@@ -25,10 +27,10 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   const { data } = origin.kind === 'phone'
     ? await api.run(callStart, { from: origin.from, to: origin.to, room: origin.room })
     : await api.run(callStartTest, { room: origin.room }, origin.workspaceId)
-  const { callId, workspaceId, assistant, contact } = data as StartData
+  const { callId, workspaceId, assistant, contact, blocked = false } = data as StartData
   const startedAt = Date.now()
   return {
-    callId, workspaceId, assistant, contact,
+    callId, workspaceId, assistant, contact, blocked,
     async append(speaker, text, toolEvent) {
       await api.run(callAppendTranscript, { callId, speaker, text, atMs: Date.now() - startedAt, toolEvent }, workspaceId)
     },

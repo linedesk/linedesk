@@ -29,6 +29,7 @@ export const SHORTCUTS: Group[] = [
       ['Pick in a menu', ['1', '–', '9']],
       ['Mark read or unread', ['U']],
       ['Spam, or not spam', ['!']],
+      ['Block or unblock the number', ['⇧', 'B']],
       ['Delete', ['#']],
       ['Undo', ['Z']],
     ],

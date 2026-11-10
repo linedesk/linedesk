@@ -27,6 +27,7 @@ const context = (over: Partial<KeyContext> = {}) =>
     toggleUnread: vi.fn(),
     remove: vi.fn(),
     toggleSpam: vi.fn(),
+    toggleBlock: vi.fn(),
     openRemind: vi.fn(),
     clearReminder: vi.fn(),
     undo: vi.fn(),
@@ -71,7 +72,17 @@ describe('inbox keys', () => {
     press('u', c)
     press('#', c)
     press('!', c, { shiftKey: true })
-    for (const fn of [c.markDone, c.markNotDone, c.openRemind, c.clearReminder, c.toggleUnread, c.remove, c.toggleSpam])
+    press('b', c, { shiftKey: true })
+    for (const fn of [
+      c.markDone,
+      c.markNotDone,
+      c.openRemind,
+      c.clearReminder,
+      c.toggleUnread,
+      c.remove,
+      c.toggleSpam,
+      c.toggleBlock,
+    ])
       expect(fn).toHaveBeenCalledExactlyOnceWith(call)
   })
   it('treats shift plus a letter as the capital, whatever the layout reports', () => {
