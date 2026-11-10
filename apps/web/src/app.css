@@ -461,20 +461,6 @@ button.me:focus-visible {
   font-weight: 600;
 }
 
-/* Very wide windows: the list keeps a readable width, centred. */
-@media (min-width: 1440px) {
-  .cv > .ib-head,
-  .ib-list .row,
-  .ib-list .ib-day,
-  .ib-hint {
-    padding-left: calc((100% - 1360px) / 2);
-    padding-right: calc((100% - 1360px) / 2);
-  }
-  .ib-list .row .r-acts {
-    right: calc((100% - 1360px) / 2);
-  }
-}
-
 /* After keys were used, a resting mouse does not make a second row look selected. */
 [data-input="keys"] .row:hover:not(.is-cursor) {
   background: transparent;
@@ -1145,4 +1131,52 @@ a.k-btn {
   .imp-bar {
     flex-wrap: wrap;
   }
+}
+
+/* Workspaces in the profile dropdown; from WORKSPACE_FILTER_FROM on, a filter field and a scrolling list. */
+.me-ws {
+  display: grid;
+  gap: 1px;
+  padding-bottom: 3px;
+  margin-bottom: 3px;
+  border-bottom: 1px solid var(--line);
+}
+.me-ws-head {
+  padding: 4px 8px 2px;
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+.me-ws-filter {
+  margin: 2px 4px 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+.me-ws-list {
+  display: grid;
+  gap: 1px;
+}
+.me-ws-list.is-scroll {
+  max-height: 220px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.me-ws .lbl {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.me-ws-mark {
+  opacity: 0;
+}
+.me-ws-busy,
+.me-ws-none {
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+.me-ws-none {
+  padding: 6px 8px;
 }

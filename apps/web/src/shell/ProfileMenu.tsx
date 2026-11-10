@@ -2,9 +2,10 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { fetchAuthMethods, type LegalLinks } from '../auth.ts'
 import { Avatar, Icon } from '../ui/kit.tsx'
 import type { IconName } from '../ui/icons.ts'
+import { WorkspaceSwitcher } from './WorkspaceSwitcher.tsx'
 
 /** `onAdmin` is set for instance admins only: Admin then leads the menu. */
-type Props = { name: string; workspaceName: string; navOpen: boolean; onAdmin?: () => void; onAccount: () => void; onTeam: () => void; onSignOut: () => void }
+type Props = { name: string; workspaceName: string; workspaceId: string; onError: (message: string) => void; navOpen: boolean; onAdmin?: () => void; onAccount: () => void; onTeam: () => void; onSignOut: () => void }
 
 /** This install's terms, privacy and support links; none until loaded, and none that are not set. */
 function useLegalLinks(): LegalLinks | null {
@@ -25,18 +26,18 @@ function Item({ label, icon, onClick }: { label: string; icon: IconName; onClick
 }
 
 /** The profile row at the bottom of the navigation. Clicking it opens a small menu above it. */
-export function ProfileMenu({ name, workspaceName, navOpen, onAdmin, onAccount, onTeam, onSignOut }: Props) {
+export function ProfileMenu({ name, workspaceName, workspaceId, onError, navOpen, onAdmin, onAccount, onTeam, onSignOut }: Props) {
   const [open, setOpen] = useState(false)
   const links = useLegalLinks()
   const hasLinks = !!(links?.terms || links?.privacy || links?.supportEmail)
   useEffect(() => { if (!navOpen) setOpen(false) }, [navOpen]) // the menu never outlives the navigation
   const root = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
-  const items = () => [...(root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])]
+  const items = () => [...(root.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])]
 
   useEffect(() => {
     if (!open) return
-    root.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
+    root.current?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus()
     const onMouseDown = (e: MouseEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false) }
     document.addEventListener('mousedown', onMouseDown)
     return () => document.removeEventListener('mousedown', onMouseDown)
@@ -56,6 +57,7 @@ export function ProfileMenu({ name, workspaceName, navOpen, onAdmin, onAccount, 
     <div className="me-wrap" ref={root}>
       {open && (
         <div className="me-menu" role="menu" aria-label="Account" onKeyDown={onKeyDown}>
+          <WorkspaceSwitcher currentId={workspaceId} onError={m => { setOpen(false); onError(m) }} />
           {onAdmin && <Item label="Admin" icon="gear" onClick={choose(onAdmin)} />}
           <Item label="Account settings" icon="user" onClick={choose(onAccount)} />
           <Item label="Team" icon="users" onClick={choose(onTeam)} />

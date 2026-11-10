@@ -10,7 +10,6 @@ export type BulkActions = {
   onToggleRead: () => void
   onDelete: () => void
   onCommands: () => void
-  onSelectAll: () => void
   onClear: () => void
 }
 
@@ -18,10 +17,7 @@ export function BulkBar(b: BulkActions) {
   return (
     <div className="ib-bulk" role="toolbar" aria-label="Selected calls">
       <b>{b.count} selected</b>
-      <Button size="sm" variant="ghost" className="ib-bulk-wide" title="Select all (⌘ A)" onClick={b.onSelectAll}>
-        Select all
-      </Button>
-      {/* Narrow windows show the icons only (ib-bulk-label); Select all and Read / unread are then under ⋯. */}
+      {/* Narrow windows show the icons only (ib-bulk-label); Read / unread is then under ⋯. Select all is ⌘A. */}
       <span className="ib-bulk-acts">
         <Button
           size="sm"

@@ -283,6 +283,8 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
         unreadCount={view.unreadNeedsYou}
         reminderCount={view.counts.reminders}
         workspaceName={me.workspace!.name}
+        workspaceId={me.workspace!.id}
+        onError={toaster.show}
         isInstanceAdmin={isInstanceAdmin}
         onInbox={view.setTab}
         onPage={goPage}
@@ -372,7 +374,6 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
               onToggleRead: () => callHandlers.toggleUnread(selection.calls[0]!),
               onDelete: () => callHandlers.remove(selection.calls[0]!),
               onCommands: () => setOverlay('commands'),
-              onSelectAll: selection.all,
               onClear: selection.clear,
             }}
             tab={tab}
