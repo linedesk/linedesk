@@ -125,7 +125,7 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
         { label: 'Go to Inbox', icon: 'phone', shortcut: ['G', 'I'], run: () => c.goInbox('you') },
         { label: 'Go to Done', icon: 'check', shortcut: ['G', 'E'], run: () => c.goInbox('done') },
         { label: 'Go to Reminders', icon: 'clock', shortcut: ['G', 'H'], run: () => c.goInbox('reminders') },
-        { label: 'Go to Contacts', icon: 'users', shortcut: ['G', 'C'], run: () => c.goPage('contacts') },
+        { label: 'Go to Contacts', icon: 'contact', shortcut: ['G', 'C'], run: () => c.goPage('contacts') },
         { label: 'Go to Assistant', icon: 'waveform', shortcut: ['G', 'A'], run: () => c.goPage('assistant') },
         { label: 'Go to Team', icon: 'users', shortcut: ['G', 'T'], run: () => c.goPage('team') },
         {
@@ -139,7 +139,7 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
           ? [
               {
                 label: 'Go to Admin',
-                icon: 'gear',
+                icon: 'shield',
                 shortcut: ['G', 'D'],
                 run: () => c.goPage('admin'),
               } satisfies Command,

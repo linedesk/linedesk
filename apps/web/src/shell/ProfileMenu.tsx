@@ -58,7 +58,7 @@ export function ProfileMenu({ name, workspaceName, workspaceId, onError, navOpen
       {open && (
         <div className="me-menu" role="menu" aria-label="Account" onKeyDown={onKeyDown}>
           <WorkspaceSwitcher currentId={workspaceId} onError={m => { setOpen(false); onError(m) }} />
-          {onAdmin && <Item label="Admin" icon="gear" onClick={choose(onAdmin)} />}
+          {onAdmin && <Item label="Admin" icon="shield" onClick={choose(onAdmin)} />}
           <Item label="Account settings" icon="user" onClick={choose(onAccount)} />
           <Item label="Team" icon="users" onClick={choose(onTeam)} />
           {hasLinks && <hr />}

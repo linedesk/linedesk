@@ -1,4 +1,5 @@
 // Icon paths from the reference UI (prototypes/inbox-html). 24px grid, 1.75 stroke.
+// gear, shield and contact follow Lucide (ISC license).
 type Part = [tag: 'path' | 'circle' | 'rect' | 'ellipse', attrs: Record<string, string | number>]
 export const icons = {
   sun: [['circle',{cx:12,cy:12,r:4}],['path',{d:'M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'}]],
@@ -10,7 +11,9 @@ export const icons = {
   plug: [['path',{d:'M9 3.5v4M15 3.5v4M6.5 7.5h11V10a5.5 5.5 0 0 1-11 0z M12 15.5v5'}]],
   users: [['circle',{cx:9,cy:8,r:3.5}],['path',{d:'M2.5 20a6.5 6.5 0 0 1 13 0'}],['path',{d:'M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6'}]],
   tasks: [['rect',{x:3.5,y:3.5,width:17,height:17,rx:3}],['path',{d:'M8 12.5l2.8 2.8L16.5 9'}]],
-  gear: [['circle',{cx:12,cy:12,r:3}],['path',{d:'M12 2.5v2.5M12 19v2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M2.5 12H5M19 12h2.5M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8'}]],
+  gear: [['path',{d:'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z'}],['circle',{cx:12,cy:12,r:3}]],
+  shield: [['path',{d:'M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z'}],['path',{d:'M9 12l2 2 4-4'}]],
+  contact: [['rect',{x:3,y:4,width:18,height:18,rx:2}],['path',{d:'M16 2v2M8 2v2M7 21v-1a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1'}],['circle',{cx:12,cy:11,r:3}]],
   left: [['path',{d:'M15 5l-7 7 7 7'}]],
   'arrow-up-right': [['path',{d:'M7 17L17 7M8 7h9v9'}]],
   waveform: [['path',{d:'M4 10v4M8 7v10M12 4v16M16 8v8M20 10.5v3'}]],
