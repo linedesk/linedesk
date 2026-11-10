@@ -117,18 +117,34 @@ export default defineAgent({
   entry,
 })
 
+/**
+ * A self-hosted stack starts the agent with everything else. Until it is configured it waits
+ * instead of exiting, so the container stays up; it takes calls after a restart with the settings.
+ */
+function idle(reason: string) {
+  console.log(`Voice agent is idle: ${reason} Calls are not answered until this is set and the agent is restarted.`)
+  process.on('SIGTERM', () => process.exit(0))
+  process.on('SIGINT', () => process.exit(0))
+  setInterval(() => {}, 2 ** 30)
+}
+
 async function main() {
   try {
     // The worker cannot run without LiveKit and the API; it can run without speech and LLM keys.
     requireEnv(['AGENT_API_TOKEN'])
+    if (process.env.AGENT_API_TOKEN === 'change-me') throw new Error('AGENT_API_TOKEN is still the placeholder from .env.example.')
     requireLivekitEnv()
   } catch (e) {
-    console.error(e instanceof Error ? e.message : e)
+    const reason = e instanceof Error ? e.message : String(e)
+    if (process.env.NODE_ENV === 'production') return idle(reason)
+    console.error(reason)
     process.exit(1)
   }
   console.log(describeReadiness(await checkReadiness(loadAgentConfig)))
   console.log(describeRecording())
-  cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: AGENT_NAME }))
+  // Processes kept warm for the next call; the library's default is one per CPU core (up to four).
+  const numIdleProcesses = Number(process.env.AGENT_IDLE_PROCESSES) || undefined
+  cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: AGENT_NAME, numIdleProcesses }))
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) void main()

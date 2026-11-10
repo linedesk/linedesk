@@ -1,0 +1,42 @@
+# Web entry point: the web app, /api and /v1 proxied to the API, /rtc to LiveKit.
+# Default: plain HTTP on port 80 for any host name (directly, or behind another reverse proxy that
+# terminates TLS). With SITE_ADDRESS=https://your.domain Caddy gets the certificate itself.
+{$SITE_ADDRESS::80} {
+	@api path /api/* /v1/*
+	handle @api {
+		# Flush at once: /v1/shape/* responses are long-lived streams.
+		reverse_proxy {$API_UPSTREAM:api:3100} {
+			flush_interval -1
+		}
+	}
+
+	# LiveKit signalling (WebSocket) on the same address: browsers need no extra port or certificate.
+	@livekit path /rtc /rtc/*
+	handle @livekit {
+		reverse_proxy {$LIVEKIT_UPSTREAM:livekit:7880}
+	}
+
+	root * /srv
+	encode zstd gzip
+
+	# Built assets have a content hash in their name: cache them for good. Only files that exist,
+	# so a missing asset (an old tab after an update) is a 404 and never a cached index.html.
+	@asset {
+		path /assets/*
+		file
+	}
+	handle @asset {
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+	handle /assets/* {
+		respond "Not found" 404
+	}
+
+	# Everything else is the app shell: always revalidated, so an update is picked up at once.
+	handle {
+		header Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}

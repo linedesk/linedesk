@@ -19,8 +19,11 @@ export type Stage = 'speech recognition' | 'language model' | 'voice'
 
 /** The agent cannot take calls. `message` is for the operator's log; `stages` is safe to show the business. */
 export class AgentConfigError extends Error {
-  constructor(message: string, readonly stages: Stage[]) {
+  readonly stages: Stage[]
+
+  constructor(message: string, stages: Stage[]) {
     super(message)
+    this.stages = stages
   }
 }
 

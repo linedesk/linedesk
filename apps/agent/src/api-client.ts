@@ -7,8 +7,13 @@ import type { z } from 'zod'
 const REQUEST_TIMEOUT_MS = 5000
 
 export class ActionError extends Error {
-  constructor(readonly action: string, readonly status: number, message: string) {
+  readonly action: string
+  readonly status: number
+
+  constructor(action: string, status: number, message: string) {
     super(`${action} failed (${status}): ${message}`)
+    this.action = action
+    this.status = status
   }
 }
 

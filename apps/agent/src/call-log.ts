@@ -12,7 +12,11 @@ export class CallLog {
   urgent = false
   private pending: Promise<unknown>[] = []
 
-  constructor(private call: CallSession) {}
+  private call: CallSession
+
+  constructor(call: CallSession) {
+    this.call = call
+  }
 
   record(speaker: Speaker, text: string, tool?: string) {
     this.lines.push({ speaker, text })

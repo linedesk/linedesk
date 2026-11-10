@@ -1,0 +1,18 @@
+# Development additions to docker-compose.yml: local ports for the apps that run on the host
+# (`pnpm dev`, the agent worker, the test page) and the recordings directory the host API reads.
+# Used by `pnpm db:up`, `pnpm voice:up` and `pnpm recording:up`; never on a server.
+services:
+  postgres:
+    ports: ["127.0.0.1:5433:5432"]
+
+  electric:
+    ports: ["127.0.0.1:3001:3000"]
+
+  livekit:
+    ports: ["127.0.0.1:7880:7880"] # API + WebSocket signalling
+
+  livekit-egress:
+    volumes: ["${RECORDINGS_DIR:-./data/recordings}:/recordings"]
+
+  recordings-init:
+    volumes: ["${RECORDINGS_DIR:-./data/recordings}:/recordings"]

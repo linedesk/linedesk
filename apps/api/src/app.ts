@@ -89,6 +89,18 @@ app.get('/v1/calls/:id/recording', c => serveRecording(c.get('actor'), c.req.par
 
 // Read sync: proxy to Electric. The server picks the table and adds the workspace filter;
 // the client only controls the stream position.
+/**
+ * Shape responses hold one workspace's rows, but the URL is the same for every workspace.
+ * Keeps Electric's lifetimes for the browser's own cache and forbids shared caches (proxies, CDNs).
+ */
+export function privateCacheControl(upstream: string | null) {
+  const kept = (upstream ?? '')
+    .split(',')
+    .map(directive => directive.trim())
+    .filter(directive => directive && !/^(public|private|s-maxage)\b/i.test(directive))
+  return ['private', ...kept].join(', ')
+}
+
 const streamParams = ['offset', 'handle', 'live', 'cursor', 'live_sse', 'experimental_live_sse']
 app.get('/v1/shape/:table', async c => {
   const table = c.req.param('table') as TableName
@@ -104,5 +116,7 @@ app.get('/v1/shape/:table', async c => {
   const headers = new Headers(res.headers)
   headers.delete('content-encoding')
   headers.delete('content-length')
+  headers.set('cache-control', privateCacheControl(res.headers.get('cache-control')))
+  headers.append('vary', 'Cookie, Authorization')
   return new Response(res.body, { status: res.status, headers })
 })

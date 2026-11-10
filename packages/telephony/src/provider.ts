@@ -46,8 +46,13 @@ export interface WebhookRequest {
 }
 
 export class TelephonyError extends Error {
-  constructor(readonly provider: ProviderName, message: string, readonly status?: number) {
+  readonly provider: ProviderName
+  readonly status?: number
+
+  constructor(provider: ProviderName, message: string, status?: number) {
     super(`${provider}: ${message}`)
+    this.provider = provider
+    this.status = status
   }
 }
 
