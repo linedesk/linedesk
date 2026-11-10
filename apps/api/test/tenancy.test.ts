@@ -91,6 +91,7 @@ describe('agent-facing actions', () => {
     ['call.finish', { callId, summary: 'taken over' }],
     ['call.takeMessage', { callId, message: 'taken over' }],
     ['call.flagUrgent', { callId }],
+    ['call.setRecording', { callId }],
   ]
 
   test('the list above covers every agent-only action except call.start', () => {

@@ -57,7 +57,7 @@ Out of scope for v1: messaging channels, outbound campaigns, multi-location rout
 | Jobs | **pg-boss** | Post-call summaries, notifications, calendar sync, reminders, webhooks |
 | Auth | **Better Auth**: email magic link + Google/Microsoft SSO, organizations, API keys, OAuth provider for MCP | Same OAuth consent can grant calendar access |
 | Calendar | Own **Google Calendar** + **Microsoft Graph** adapters; CalDAV later | See §8 |
-| Recordings | S3-compatible storage (MinIO self-hosted, R2/S3 hosted) | Signed URLs |
+| Recordings | LiveKit egress into a `RecordingStore`: a shared directory (default, self-hosted) or any S3-compatible bucket (R2/S3 hosted) | Played through an authenticated API route; signed URLs with S3 |
 | Web app | **React SPA (Vite)** with local store, outbox, service worker | Built from the merged prototype (`prototypes/inbox-html`, Relay design) |
 | Monorepo | **pnpm + Turborepo** | Layout in §11 |
 | Billing (hosted only) | Stripe metered billing on answered minutes | Lives in `ee/` |
@@ -227,6 +227,6 @@ docs/
 
 Janik's Next.js mock-up currently lives at the repo root (`src/`); it moves to `prototypes/callfront-next/` when the monorepo is created.
 
-**Default `docker compose`:** caddy, app (web + API + MCP), worker, voice agent, postgres, electric, livekit-server, livekit-sip, redis/valkey (needed by LiveKit SIP); optional livekit-egress and minio profiles. App, worker and agent are stateless replicas; LiveKit scales via Redis; Postgres can be managed.
+**Default `docker compose`:** caddy, app (web + API + MCP), worker, voice agent, postgres, electric, livekit-server, livekit-sip, redis/valkey (needed by LiveKit SIP); optional `recording` profile (livekit-egress writing to a shared directory; no storage server). App, worker and agent are stateless replicas; LiveKit scales via Redis; Postgres can be managed.
 
 **Hosted version:** same code, LiveKit Cloud (US), managed numbers, US East region, pass-through minute pricing.

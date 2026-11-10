@@ -10,7 +10,7 @@ export interface RetryOptions {
 /** A rejection (4xx) is the API's final answer; only transport errors and 5xx are worth retrying. */
 const isFinal = (e: unknown) => e instanceof ActionError && e.status < 500
 
-export async function withRetry<T>(run: () => Promise<T>, { attempts = 5, baseDelayMs = 500, wait }: RetryOptions = {}): Promise<T> {
+export async function withRetry<T>(run: () => Promise<T>, { attempts = 4, baseDelayMs = 500, wait }: RetryOptions = {}): Promise<T> {
   const pause = wait ?? ((ms: number) => new Promise(resolve => setTimeout(resolve, ms)))
   for (let attempt = 1; ; attempt++) {
     try {

@@ -11,6 +11,7 @@
     "test": "turbo run test",
     "db:up": "docker compose up -d postgres electric",
     "voice:up": "docker compose up -d redis livekit livekit-sip",
+    "recording:up": "docker compose --profile recording up -d redis livekit livekit-egress",
     "db:generate": "pnpm --filter @callfront/db generate",
     "db:migrate": "pnpm --filter @callfront/db migrate",
     "db:seed": "pnpm --filter @callfront/api seed"

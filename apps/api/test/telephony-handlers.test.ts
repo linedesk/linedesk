@@ -1,14 +1,14 @@
-// Runs the handlers against Postgres inside a transaction that is always rolled back.
-// Skipped when no database is configured. The telephony provider is always passed in:
-// these tests can never reach a carrier, whatever .env selects.
+// Handlers whose outcome depends on the carrier or on time: they run directly, with the provider
+// passed in, inside a transaction that is rolled back. Part of the Postgres-backed API suite.
 import { actions, rolePermissions } from '@callfront/actions'
 import { calls, type Tx } from '@callfront/db'
 import { devProvider, TelephonyError, type TelephonyProvider } from '@callfront/telephony'
 import { eq } from 'drizzle-orm'
-import { afterAll, describe, expect, test, vi } from 'vitest'
-import type { Actor } from './context.ts'
+import { describe, expect, test, vi } from 'vitest'
+import type { Actor } from '../src/context.ts'
+import { db } from '../src/db.ts'
+import { Reject, runHandler } from '../src/handlers.ts'
 
-const hasDb = Boolean(process.env.DATABASE_URL)
 const WORKSPACE = `ws_test_${crypto.randomUUID().slice(0, 8)}`
 const owner: Actor = { actorId: 'user_test', role: 'owner', workspaceId: WORKSPACE, permissions: rolePermissions.owner }
 const agent: Actor = { actorId: 'agent', role: 'agent', workspaceId: null, permissions: rolePermissions.agent }
@@ -21,11 +21,7 @@ const provider = (overrides: Partial<TelephonyProvider> = {}) => {
   return { ...spied, buyNumber: vi.fn(spied.buyNumber), routeToSip: vi.fn(spied.routeToSip), releaseNumber: vi.fn(spied.releaseNumber) }
 }
 
-describe.skipIf(!hasDb)('handlers', async () => {
-  const { db, pool } = hasDb ? await import('./db.ts') : ({} as typeof import('./db.ts'))
-  const { runHandler, Reject } = await import('./handlers.ts')
-  afterAll(() => pool?.end())
-
+describe('telephony handlers', () => {
   const run = (tx: Tx, actor: Actor, name: string, input: unknown, telephony: TelephonyProvider = devProvider) =>
     runHandler({ tx, actor, now: new Date().toISOString(), telephony }, actions.get(name)!, actions.get(name)!.input.parse(input))
 

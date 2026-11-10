@@ -10,7 +10,7 @@ import type { CompleteJson } from './summary.ts'
 
 export const pipelineEnv = ['DEEPGRAM_API_KEY', 'OPENAI_API_KEY', 'CARTESIA_API_KEY'] as const
 
-const SUMMARY_TIMEOUT_MS = 20_000
+const SUMMARY_TIMEOUT_MS = 15_000
 const llmModel = () => process.env.OPENAI_MODEL ?? 'gpt-5.4-mini'
 
 export type Vad = Awaited<ReturnType<typeof silero.VAD.load>>

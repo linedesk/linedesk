@@ -20,12 +20,13 @@ export const contactUpdate = defineAction({
 
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
-  description: 'Update the assistant: name, greeting, voice and what it knows about the business.',
+  description: 'Update the assistant: name, greeting, voice, whether calls are recorded and what it knows about the business.',
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().min(1).optional(),
     greeting: z.string().optional(),
     disclose_ai: z.boolean().optional(),
+    record_calls: z.boolean().optional(),
     voice: z.object({ provider: z.string(), voice_id: z.string() }).optional(),
     business_profile: z.object({
       description: z.string().optional(),

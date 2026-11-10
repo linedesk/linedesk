@@ -6,11 +6,12 @@ import { cli, defineAgent, llm, ServerOptions, voice, type JobContext, type JobP
 import type { RemoteParticipant } from '@livekit/rtc-node'
 import { z } from 'zod'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
-import { CallLog, finishCall, once } from './call-log.ts'
+import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log.ts'
 import { startCall, type CallSession } from './call-session.ts'
 import { AGENT_NAME, requireEnv, requireLivekitEnv } from './env.ts'
 import { createPipeline, loadVad, pipelineEnv, summaryLlm, type Vad } from './pipeline.ts'
 import { buildInstructions, FALLBACK_GREETING } from './prompt.ts'
+import { describeRecording, livekitRecorder, saveRecording, startRecording, stopRecording } from './recording.ts'
 
 /** Caller and dialled number. LiveKit SIP sets these attributes; the browser test page sets the same ones. */
 export function callNumbers(attributes: Record<string, string>) {
@@ -75,7 +76,14 @@ async function entry(ctx: JobContext) {
 
   // From here on the call exists and must be finished: on hang-up (session close), on any error
   // while setting up the conversation, and at job shutdown as the last resort.
-  const finishOnce = once(() => finishCall(call, log, summaryLlm()), `could not finish call ${call.callId}`)
+  const recorder = livekitRecorder()
+  const recording = startRecording(recorder, call, ctx.room.name ?? call.callId)
+  const finish = () => hangUp({
+    stopRecording: async () => stopRecording(recorder, await recording),
+    finishCall: () => finishCall(call, log, summaryLlm()),
+    saveRecording: async () => saveRecording(api, call, recorder, await recording, RECORDING_WAIT_MS),
+  })
+  const finishOnce = once(finish, `could not finish call ${call.callId}`)
   ctx.addShutdownCallback(finishOnce)
   try {
     await converse(ctx, caller, api, call, log, finishOnce)
@@ -100,5 +108,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.error(e instanceof Error ? e.message : e)
     process.exit(1)
   }
+  console.log(describeRecording())
   cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: AGENT_NAME }))
 }

@@ -89,3 +89,23 @@ export const callFlagUrgent = defineAction({
   permission: 'agent',
   patch: { table: 'calls', id: i => i.callId, set: () => ({ urgency: 'urgent' }) } satisfies PatchSpec<CallId, 'calls'>,
 })
+
+// Recordings. The key is never taken from a client: both sides derive it from the workspace and the call.
+export const recordingFormats = ['ogg'] as const
+export type RecordingFormat = (typeof recordingFormats)[number]
+
+/** Where the recording of a call lives in the recording store: `<workspace>/<call>.<format>`. */
+export const recordingKey = (workspaceId: string, callId: string, format: RecordingFormat = 'ogg') => `${workspaceId}/${callId}.${format}`
+
+const KEY_PATTERN = new RegExp(`^[A-Za-z0-9_-]+/[A-Za-z0-9_-]+\\.(${recordingFormats.join('|')})$`)
+/** True for keys of the shape `recordingKey` builds: two plain segments, no dots or slashes inside them. */
+export const isRecordingKey = (key: string) => KEY_PATTERN.test(key)
+
+// The agent reports that the recording of a call is final; the server derives the key. Members play
+// it through GET /v1/calls/<id>/recording.
+export const callSetRecording = defineAction({
+  name: 'call.setRecording',
+  description: 'Mark the recording of a call as final. The server derives where it is stored.',
+  input: callId.extend({ format: z.enum(recordingFormats).default('ogg') }),
+  permission: 'agent',
+})

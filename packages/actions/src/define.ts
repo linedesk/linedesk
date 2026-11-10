@@ -4,13 +4,13 @@
 import type { TableName, Tables } from '@callfront/db/types'
 import type { z } from 'zod'
 
-export type Permission = 'call:write' | 'contact:write' | 'settings:write' | 'calendar:read' | 'agent'
+export type Permission = 'call:read' | 'call:write' | 'contact:write' | 'settings:write' | 'calendar:read' | 'agent'
 export type Role = 'owner' | 'admin' | 'member' | 'agent'
 
 export const rolePermissions: Record<Role, readonly Permission[]> = {
-  owner: ['call:write', 'contact:write', 'settings:write', 'calendar:read'],
-  admin: ['call:write', 'contact:write', 'settings:write', 'calendar:read'],
-  member: ['call:write', 'contact:write', 'calendar:read'],
+  owner: ['call:read', 'call:write', 'contact:write', 'settings:write', 'calendar:read'],
+  admin: ['call:read', 'call:write', 'contact:write', 'settings:write', 'calendar:read'],
+  member: ['call:read', 'call:write', 'contact:write', 'calendar:read'],
   agent: ['call:write', 'contact:write', 'calendar:read', 'agent'],
 }
 

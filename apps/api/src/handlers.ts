@@ -1,19 +1,20 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, type ActionDef, type ActionResult, type FindSlotsData } from '@callfront/actions'
+import { actions, recordingKey, type ActionDef, type ActionResult, type FindSlotsData } from '@callfront/actions'
 import { findSlots, type FindSlotsInput, type Interval } from '@callfront/calendar'
 import {
   appointment_types, assistants, availability_exceptions, availability_rules, bookings, calls, contacts, phone_numbers, syncedTables,
   transcript_segments, workspace_settings, type Tx,
 } from '@callfront/db'
 import { TelephonyError, telephonyProviderFromEnv, type BoughtNumber, type TelephonyProvider } from '@callfront/telephony'
-import { and, eq, gt, gte, lt, lte, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, gte, isNull, lt, lte, ne, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
+import { recordingStoreFromEnv, type RecordingStore } from './recording-store.ts'
 
 /** A business-rule rejection: the command is final, clients must not retry it. */
 export class Reject extends Error {}
 
-/** `telephony` overrides the provider selected by env (tests). */
-export type HandlerCtx = { tx: Tx; actor: Actor; now: string; telephony?: TelephonyProvider }
+/** `telephony` and `recordings` override what env selects (tests). */
+export type HandlerCtx = { tx: Tx; actor: Actor; now: string; telephony?: TelephonyProvider; recordings?: RecordingStore }
 type Handler = (ctx: HandlerCtx, input: any) => Promise<Omit<ActionResult, 'ok'>>
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
@@ -84,6 +85,33 @@ function completeStaleCalls(tx: Tx, workspace_id: string, now: string) {
   }).where(and(eq(calls.workspace_id, workspace_id), eq(calls.status, 'live'), lt(calls.started_at, cutoff))).returning()
 }
 
+/** How far back, and how many calls, the reconciliation below looks at per `call.start`. */
+const ORPHAN_RECORDING_WINDOW_MS = 2 * 60 * 60 * 1000
+const ORPHAN_RECORDING_LIMIT = 5
+
+/**
+ * Links recordings whose file exists but was never reported: the agent died or ran out of time
+ * after hang-up. The key is derived, so this is a lookup per recently finished call.
+ * Never fails the call that triggered it.
+ */
+async function linkOrphanRecordings(tx: Tx, workspace_id: string, now: string, recordings?: RecordingStore) {
+  const since = new Date(Date.parse(now) - ORPHAN_RECORDING_WINDOW_MS).toISOString()
+  const unlinked = await tx.select({ id: calls.id }).from(calls).where(and(
+    eq(calls.workspace_id, workspace_id), eq(calls.status, 'completed'), isNull(calls.recording_key), gt(calls.ended_at, since),
+  )).orderBy(desc(calls.ended_at)).limit(ORPHAN_RECORDING_LIMIT)
+  if (!unlinked.length) return []
+  try {
+    const store = recordings ?? recordingStoreFromEnv(process.env)
+    const found = await Promise.all(unlinked.map(async ({ id }) => ((await store.exists(recordingKey(workspace_id, id))) ? id : null)))
+    const linked = await Promise.all(found.filter(id => id !== null).map(id =>
+      tx.update(calls).set({ recording_key: recordingKey(workspace_id, id) }).where(eq(calls.id, id)).returning()))
+    return linked.flat()
+  } catch (e) {
+    console.warn(`could not look for unlinked recordings: ${e instanceof Error ? e.message : e}`)
+    return []
+  }
+}
+
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /** Carrier failures are final for the command: the user sees the reason, the client does not retry. */
@@ -132,7 +160,7 @@ const handlers: Record<string, Handler> = {
     return { rows: {}, data: { appointmentTypeId: type.id, timeZone, slots } satisfies FindSlotsData }
   },
 
-  'call.start': async ({ tx, now }, input) => {
+  'call.start': async ({ tx, now, recordings }, input) => {
     const [number] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, input.to))
     if (!number) throw new Reject(`no workspace for number ${input.to}`)
     const workspace_id = number.workspace_id
@@ -146,7 +174,8 @@ const handlers: Record<string, Handler> = {
     }).returning()
     const [assistant] = await tx.select().from(assistants).where(eq(assistants.workspace_id, workspace_id))
     const stale = await completeStaleCalls(tx, workspace_id, now)
-    return { rows: { calls: [call!, ...stale], contacts: [contact!] }, data: { callId: id, workspaceId: workspace_id, isNewContact, contact: contact!, assistant: assistant ?? null } }
+    const linked = await linkOrphanRecordings(tx, workspace_id, now, recordings)
+    return { rows: { calls: [call!, ...stale, ...linked], contacts: [contact!] }, data: { callId: id, workspaceId: workspace_id, isNewContact, contact: contact!, assistant: assistant ?? null } }
   },
 
   'call.appendTranscript': async ({ tx, actor }, input) => {
@@ -173,6 +202,12 @@ const handlers: Record<string, Handler> = {
       if (contact && !contact.name) rows.contacts = await tx.update(contacts).set({ name: input.callerName }).where(eq(contacts.id, contact.id)).returning()
     }
     return { rows }
+  },
+
+  'call.setRecording': async ({ tx, actor }, input) => {
+    const call = await loadCall(tx, actor, input.callId)
+    const recording_key = recordingKey(call.workspace_id, call.id, input.format)
+    return { rows: { calls: await tx.update(calls).set({ recording_key }).where(eq(calls.id, call.id)).returning() } }
   },
 
   'call.takeMessage': async ({ tx, actor }, input) => {

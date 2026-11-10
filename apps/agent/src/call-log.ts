@@ -38,6 +38,45 @@ export async function finishCall(call: CallSession, log: CallLog, complete: Comp
   await withRetry(() => call.finish(mergeToolResults(summary, log)), retry)
 }
 
+/**
+ * Everything after the caller is gone has to fit into the worker's shutdown window (60 s by default):
+ *   stop the recording                      at once, so the file has no trailing audio
+ *   summary                                 at most 15 s (the LLM request's timeout), then finish without one
+ *   call.finish                             4 attempts of at most 5 s each, 3.5 s of backoff in between
+ *   wait for the recording file, report it  at most RECORDING_WAIT_MS, then call.setRecording
+ * The whole sequence is cut off after HANGUP_BUDGET_MS. What did not fit is repaired by the API:
+ * it completes calls that stay live and links recording files that were never reported.
+ */
+export const HANGUP_BUDGET_MS = 50_000
+export const RECORDING_WAIT_MS = 15_000
+
+export interface HangUpSteps {
+  stopRecording(): Promise<void>
+  finishCall(): Promise<void>
+  saveRecording(): Promise<void>
+}
+
+/** The order of things at hang-up. The recording is saved even if finishing the call failed. */
+export async function hangUp(steps: HangUpSteps, budgetMs = HANGUP_BUDGET_MS) {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const outOfTime = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(`gave up after ${budgetMs / 1000} s`)), budgetMs)
+  })
+  const sequence = async () => {
+    await steps.stopRecording()
+    try {
+      await steps.finishCall()
+    } finally {
+      await steps.saveRecording()
+    }
+  }
+  try {
+    await Promise.race([sequence(), outOfTime])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** Runs `finish` at most once, however many paths (hang-up, error, shutdown) ask for it. Never rejects. */
 export function once(finish: () => Promise<void>, describe: string): () => Promise<void> {
   let done: Promise<void> | undefined

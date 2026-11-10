@@ -2,6 +2,9 @@
 import type { ActionDef, ActionRejection, ActionResult } from '@callfront/actions'
 import type { z } from 'zod'
 
+/** No action takes long; a hung request must not hold up a call or its hang-up. */
+const REQUEST_TIMEOUT_MS = 5000
+
 export class ActionError extends Error {
   constructor(readonly action: string, readonly status: number, message: string) {
     super(`${action} failed (${status}): ${message}`)
@@ -31,6 +34,7 @@ export function createApiClient({ baseUrl, token, fetch: doFetch = fetch }: ApiC
           ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
         },
         body: JSON.stringify(input),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
       const body = (await res.json().catch(() => null)) as ActionResult | ActionRejection | null
       if (!res.ok || !body?.ok) throw new ActionError(def.name, res.status, body && !body.ok ? body.error : res.statusText)

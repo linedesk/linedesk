@@ -7,6 +7,7 @@ import { authMethods } from './auth-methods.ts'
 import { auth, WORKSPACE_LIMIT } from './auth.ts'
 import { resolveActor, type Actor } from './context.ts'
 import { db } from './db.ts'
+import { serveRecording } from './recording-route.ts'
 import { runAction } from './run-action.ts'
 
 const ELECTRIC_URL = process.env.ELECTRIC_URL ?? 'http://localhost:3001'
@@ -76,6 +77,8 @@ app.post('/v1/actions/:name', async c => {
   const { status, body } = await runAction(c.req.param('name'), input, c.get('actor'), c.req.header('idempotency-key'))
   return c.json(body, status)
 })
+
+app.get('/v1/calls/:id/recording', c => serveRecording(c.get('actor'), c.req.param('id'), c.req.header('range')))
 
 // Read sync: proxy to Electric. The server picks the table and adds the workspace filter;
 // the client only controls the stream position.
