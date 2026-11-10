@@ -14,6 +14,7 @@ import {
   notDoneChange,
   preview,
   remindChange,
+  spamChange,
   type Step,
   unreadChange,
 } from './changes.ts'
@@ -158,6 +159,7 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     clearReminder: (call: Call) =>
       tabOf(call) === 'reminders' ? act(call, clearReminderChange(call)) : toaster.show('No reminder on this call.'),
     remove: (call: Call) => act(call, deleteChange(call)),
+    toggleSpam: (call: Call) => act(call, spamChange(call)),
     many: {
       markDone: (list: Call[]) =>
         actMany(
@@ -193,6 +195,15 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
           n => `Reminder cleared on ${calls(n)}.`,
         ),
       remove: (list: Call[]) => actMany(list, deleteChange, n => `${calls(n)} deleted.`),
+      /** All to Spam, unless all of them are spam already: then all back to Needs you. */
+      toggleSpam: (list: Call[]) => {
+        const toSpam = list.some(c => c.outcome !== 'spam')
+        actMany(
+          list,
+          c => ((c.outcome === 'spam') === toSpam ? null : spamChange(c)),
+          n => (toSpam ? `${calls(n)} moved to Spam.` : `${calls(n)} back in Needs you.`),
+        )
+      },
     },
     isTriageable: (call: Call) => {
       if (call.status === 'live') toaster.show(LIVE_NOTE)

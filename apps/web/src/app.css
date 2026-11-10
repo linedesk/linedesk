@@ -670,6 +670,15 @@ button.me:focus-visible {
 .cv-col {
   max-width: var(--w-read);
 }
+/* A link drawn as a button (Call back) reads as a button. */
+a.k-btn {
+  text-decoration: none;
+}
+/* Next steps: a ticked step reads as done. */
+.sum-task.is-done .k-check-text {
+  color: var(--ink-muted);
+  text-decoration: line-through;
+}
 /* Caller and number under the title on every width (principle 9), not only on narrow screens. */
 @media (min-width: 1100px) {
   .cv-who .sub {

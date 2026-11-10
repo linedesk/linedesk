@@ -15,6 +15,7 @@ export type CommandContext = {
   clearReminder: (call: Call) => void
   toggleUnread: (call: Call) => void
   remove: (call: Call) => void
+  toggleSpam: (call: Call) => void
   /** Selecting calls in the list; null when the list is not on screen (a call or another page is open). */
   selection: { count: number; toggle: () => void; all: () => void; clear: () => void } | null
   goInbox: (tab: 'you' | 'done' | 'reminders') => void
@@ -51,6 +52,21 @@ function callCommands(call: Call, c: CommandContext): Command[] {
       shortcut: ['U'],
       run: () => c.toggleUnread(call),
     },
+    call.outcome === 'spam'
+      ? {
+          label: 'Not spam',
+          keywords: 'rescue real caller',
+          icon: 'restart',
+          shortcut: ['!'],
+          run: () => c.toggleSpam(call),
+        }
+      : {
+          label: 'Move to Spam',
+          keywords: 'junk sales robocall',
+          icon: 'phone-off',
+          shortcut: ['!'],
+          run: () => c.toggleSpam(call),
+        },
     { label: 'Delete call', keywords: 'remove trash', icon: 'trash', shortcut: ['#'], run: () => c.remove(call) },
   ]
 }

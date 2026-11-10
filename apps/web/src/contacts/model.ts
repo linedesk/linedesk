@@ -21,7 +21,8 @@ function nextStepOf(calls: Call[]): string | null {
   return open?.action_items.find(i => !i.done)?.text ?? null
 }
 
-/** Every contact with its calls, sorted by the most recent call; contacts without calls come last, newest first. */
+/** Every contact with its calls, sorted by the most recent call that was about something (numbers that only hung up
+ * come after them), then by the most recent call; contacts without calls come last, newest first. */
 export function contactRows(contacts: Iterable<Contact>, calls: Iterable<Call>): ContactRow[] {
   const byContact = new Map<string, Call[]>()
   for (const call of calls) {
@@ -37,7 +38,14 @@ export function contactRows(contacts: Iterable<Contact>, calls: Iterable<Call>):
   return rows.sort(byRecentCall)
 }
 
+/** The newest call that was about something: hang-ups alone do not lift a contact to the top. */
+const lastMeaningful = (row: ContactRow) => row.calls.find(c => c.outcome !== 'hangup')
+
 function byRecentCall(a: ContactRow, b: ContactRow): number {
+  const ma = lastMeaningful(a),
+    mb = lastMeaningful(b)
+  if (ma && mb) return startedMs(mb) - startedMs(ma)
+  if (ma || mb) return ma ? -1 : 1
   if (a.lastCall && b.lastCall) return startedMs(b.lastCall) - startedMs(a.lastCall)
   if (a.lastCall || b.lastCall) return a.lastCall ? -1 : 1
   return parseTs(b.contact.created_at).getTime() - parseTs(a.contact.created_at).getTime()
@@ -51,7 +59,10 @@ const PHONE_QUERY = /^[\d\s()+.-]+$/
 export function matchesContact(contact: Contact, query: string): boolean {
   const q = query.trim().toLowerCase()
   if (!q) return true
-  const text = [contact.name, contact.company, contact.email, contact.phone, formatPhone(contact.phone)].filter(Boolean).join('\n').toLowerCase()
+  const text = [contact.name, contact.company, contact.email, contact.phone, formatPhone(contact.phone)]
+    .filter(Boolean)
+    .join('\n')
+    .toLowerCase()
   if (text.includes(q)) return true
   const digits = digitsOf(q)
   return PHONE_QUERY.test(q) && digits.length > 0 && digitsOf(contact.phone).includes(digits)

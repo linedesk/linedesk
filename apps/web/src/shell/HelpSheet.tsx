@@ -28,6 +28,7 @@ export const SHORTCUTS: Group[] = [
       ['Clear reminder', ['⇧', 'H']],
       ['Pick in a menu', ['1', '–', '9']],
       ['Mark read or unread', ['U']],
+      ['Spam, or not spam', ['!']],
       ['Delete', ['#']],
       ['Undo', ['Z']],
     ],

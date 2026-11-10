@@ -14,13 +14,44 @@ const callPatch = (name: string, description: string, set: (now: string) => Part
     patch: { table: 'calls', id: i => i.callId, set: (_i, now) => set(now) } satisfies PatchSpec<CallId, 'calls'>,
   })
 
-export const callMarkDone = callPatch('call.markDone', 'Mark a call as done.', () => ({ inbox_state: 'done', unread: false }))
-export const callMarkNotDone = callPatch('call.markNotDone', 'Move a done call back to the inbox.', () => ({ inbox_state: 'open' }))
+export const callMarkDone = callPatch('call.markDone', 'Mark a call as done.', () => ({
+  inbox_state: 'done',
+  unread: false,
+}))
+export const callMarkNotDone = callPatch('call.markNotDone', 'Move a done call back to the inbox.', () => ({
+  inbox_state: 'open',
+}))
 export const callMarkRead = callPatch('call.markRead', 'Mark a call as read.', () => ({ unread: false }))
 export const callMarkUnread = callPatch('call.markUnread', 'Mark a call as unread.', () => ({ unread: true }))
-export const callClearReminder = callPatch('call.clearReminder', 'Remove the reminder from a call.', () => ({ reminder_at: null, reminder_label: null }))
+export const callClearReminder = callPatch('call.clearReminder', 'Remove the reminder from a call.', () => ({
+  reminder_at: null,
+  reminder_label: null,
+}))
 export const callDelete = callPatch('call.delete', 'Delete a call.', now => ({ deleted_at: now }))
 export const callRestore = callPatch('call.restore', 'Restore a deleted call.', () => ({ deleted_at: null }))
+export const callMarkSpam = callPatch('call.markSpam', 'File a call as spam (a sales call or robocall).', () => ({
+  outcome: 'spam',
+  unread: false,
+}))
+/** `outcome`: what the call was before it was filed as spam (undo); without it a callback, so a person looks at it. */
+const notSpamInput = z.object({
+  callId: z.string().min(1),
+  outcome: z
+    .enum(['booked', 'rescheduled', 'cancelled', 'callback', 'message', 'answered', 'transferred', 'hangup'])
+    .optional(),
+})
+export const callMarkNotSpam = defineAction({
+  name: 'call.markNotSpam',
+  description:
+    'Take a call out of spam: it was a real caller, so it goes back to the open inbox (as a callback unless an outcome is given).',
+  input: notSpamInput,
+  permission: 'call:write',
+  patch: {
+    table: 'calls',
+    id: i => i.callId,
+    set: i => ({ outcome: i.outcome ?? 'callback', inbox_state: 'open' }),
+  } satisfies PatchSpec<z.infer<typeof notSpamInput>, 'calls'>,
+})
 
 export const callRemind = defineAction({
   name: 'call.remind',
@@ -40,7 +71,17 @@ export const callSetActionItems = defineAction({
 
 // Written by the voice agent (and the dev simulator). Server handlers live in apps/api.
 const speaker = z.enum(['agent', 'caller', 'human', 'system'])
-export const outcome = z.enum(['booked', 'rescheduled', 'cancelled', 'callback', 'message', 'answered', 'transferred', 'hangup', 'spam'])
+export const outcome = z.enum([
+  'booked',
+  'rescheduled',
+  'cancelled',
+  'callback',
+  'message',
+  'answered',
+  'transferred',
+  'hangup',
+  'spam',
+])
 export const urgency = z.enum(['urgent', 'normal', 'low'])
 
 export const callStart = defineAction({
@@ -54,14 +95,16 @@ export const testCallContact = { phone: 'test', name: 'Test call' } as const
 
 export const callStartTest = defineAction({
   name: 'call.startTest',
-  description: 'Register a test call a member started from the web app. The workspace is the agent\'s x-workspace-id, taken from the dispatch the API created.',
+  description:
+    "Register a test call a member started from the web app. The workspace is the agent's x-workspace-id, taken from the dispatch the API created.",
   input: z.object({ room: z.string().min(1).max(128) }),
   permission: 'agent',
 })
 /** For the phone-to-phone call test: the newest call from `from` to `to` since a moment, and how far it got. */
 export const callFindForTest = defineAction({
   name: 'call.findForTest',
-  description: 'Find the call the call test placed in the workspace of a business number: by caller number or by room, the newest since a moment.',
+  description:
+    'Find the call the call test placed in the workspace of a business number: by caller number or by room, the newest since a moment.',
   input: z.object({
     /** The business number: it names the workspace. */
     to: z.string().min(3),
@@ -76,7 +119,17 @@ export const callFindForTest = defineAction({
 /** `data` of `call.findForTest`. `call` is null while no such call exists. */
 export type CallTestFinding = {
   workspaceId: string
-  call: { id: string; status: string; outcome: string | null; urgency: string; title: string | null; summary: string | null; recording_key: string | null; duration_sec: number | null; action_items: number } | null
+  call: {
+    id: string
+    status: string
+    outcome: string | null
+    urgency: string
+    title: string | null
+    summary: string | null
+    recording_key: string | null
+    duration_sec: number | null
+    action_items: number
+  } | null
   turns: { caller: number; agent: number; system: number }
   /** The transcript in order; `at_ms` is when each line was written, from the start of the call. */
   lines: { speaker: string; text: string; at_ms: number }[]
@@ -128,7 +181,8 @@ export const recordingFormats = ['ogg'] as const
 export type RecordingFormat = (typeof recordingFormats)[number]
 
 /** Where the recording of a call lives in the recording store: `<workspace>/<call>.<format>`. */
-export const recordingKey = (workspaceId: string, callId: string, format: RecordingFormat = 'ogg') => `${workspaceId}/${callId}.${format}`
+export const recordingKey = (workspaceId: string, callId: string, format: RecordingFormat = 'ogg') =>
+  `${workspaceId}/${callId}.${format}`
 
 const KEY_PATTERN = new RegExp(`^[A-Za-z0-9_-]+/[A-Za-z0-9_-]+\\.(${recordingFormats.join('|')})$`)
 /** True for keys of the shape `recordingKey` builds: two plain segments, no dots or slashes inside them. */

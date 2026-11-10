@@ -109,6 +109,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
     markNotDone: each(actions.markNotDone, actions.many.markNotDone),
     toggleUnread: each(actions.toggleUnread, actions.many.toggleUnread),
     remove: each(actions.remove, actions.many.remove),
+    toggleSpam: each(actions.toggleSpam, actions.many.toggleSpam),
     clearReminder: each(actions.clearReminder, actions.many.clearReminder),
     undo: actions.undo,
     openRemind,
@@ -319,6 +320,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
             onRemind={openRemind}
             onClearReminder={actions.clearReminder}
             onCommands={() => setOverlay('commands')}
+            onToggleSpam={callHandlers.toggleSpam}
             side={<ContactSide call={openCall} onOpen={open} toast={toaster.show} />}
           />
         ) : (

@@ -19,6 +19,8 @@ export type CallViewActions = {
   onClearReminder: (call: Call) => void
   /** ⌘K: the rest of the call's actions (Mark unread, Delete…), as ⋯ does on a row. */
   onCommands?: () => void
+  /** Takes a spam call back to Needs you (the only way out of Spam besides Done). */
+  onToggleSpam?: (call: Call) => void
 }
 
 type Props = CallViewActions & {
@@ -122,6 +124,17 @@ function Bar({ call, index, count, menu, sideOpen, onToggleSide, ...on }: BarPro
               title="Remind me (H)"
               onClick={() => on.onRemind(call)}
             />
+          )}
+          {call.outcome === 'spam' && on.onToggleSpam && (
+            <Button
+              size="sm"
+              variant="ghost"
+              shortcut={['!']}
+              title="Not spam: back to Needs you (!)"
+              onClick={() => on.onToggleSpam!(call)}
+            >
+              Not spam
+            </Button>
           )}
           {done ? (
             <Button

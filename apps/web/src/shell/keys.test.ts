@@ -3,15 +3,57 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { handleKey, setPageKeys, type KeyContext } from './keys.ts'
 
 const call = { id: 'c1' } as Call
-const context = (over: Partial<KeyContext> = {}) => ({
-  overlay: null, tab: 'you', searching: false, target: call, isCallOpen: false, open: vi.fn(), back: vi.fn(),
-  onInbox: true, navOpen: false, setOverlay: vi.fn(), setNavOpen: vi.fn(), togglePlayback: vi.fn(() => true), openSearch: vi.fn(), closeSearch: vi.fn(), setTab: vi.fn(), step: vi.fn(), goChord: vi.fn(() => true),
-  markDone: vi.fn(), markNotDone: vi.fn(), toggleUnread: vi.fn(), remove: vi.fn(), openRemind: vi.fn(), clearReminder: vi.fn(), undo: vi.fn(),
-  selectionCount: 0, toggleSelect: vi.fn(), extendSelect: vi.fn(), selectAll: vi.fn(), clearSelection: vi.fn(),
-  ...over,
-}) satisfies KeyContext
-const press = (key: string, c: KeyContext, over: Partial<KeyboardEvent> & { tagName?: string; id?: string; type?: string } = {}) =>
-  handleKey({ key, shiftKey: false, metaKey: false, ctrlKey: false, altKey: false, target: { tagName: over.tagName ?? 'BODY', id: over.id ?? '', type: over.type ?? 'text', blur: vi.fn() }, ...over } as unknown as KeyboardEvent, c)
+const context = (over: Partial<KeyContext> = {}) =>
+  ({
+    overlay: null,
+    tab: 'you',
+    searching: false,
+    target: call,
+    isCallOpen: false,
+    open: vi.fn(),
+    back: vi.fn(),
+    onInbox: true,
+    navOpen: false,
+    setOverlay: vi.fn(),
+    setNavOpen: vi.fn(),
+    togglePlayback: vi.fn(() => true),
+    openSearch: vi.fn(),
+    closeSearch: vi.fn(),
+    setTab: vi.fn(),
+    step: vi.fn(),
+    goChord: vi.fn(() => true),
+    markDone: vi.fn(),
+    markNotDone: vi.fn(),
+    toggleUnread: vi.fn(),
+    remove: vi.fn(),
+    toggleSpam: vi.fn(),
+    openRemind: vi.fn(),
+    clearReminder: vi.fn(),
+    undo: vi.fn(),
+    selectionCount: 0,
+    toggleSelect: vi.fn(),
+    extendSelect: vi.fn(),
+    selectAll: vi.fn(),
+    clearSelection: vi.fn(),
+    ...over,
+  }) satisfies KeyContext
+const press = (
+  key: string,
+  c: KeyContext,
+  over: Partial<KeyboardEvent> & { tagName?: string; id?: string; type?: string } = {},
+) =>
+  handleKey(
+    {
+      key,
+      shiftKey: false,
+      metaKey: false,
+      ctrlKey: false,
+      altKey: false,
+      target: { tagName: over.tagName ?? 'BODY', id: over.id ?? '', type: over.type ?? 'text', blur: vi.fn() },
+      ...over,
+    } as unknown as KeyboardEvent,
+    c,
+  )
 
 describe('inbox keys', () => {
   it('moves with J, K and the arrows', () => {
@@ -22,8 +64,15 @@ describe('inbox keys', () => {
   })
   it('acts on the selected call', () => {
     const c = context()
-    press('e', c); press('E', c); press('h', c); press('H', c); press('u', c); press('#', c)
-    for (const fn of [c.markDone, c.markNotDone, c.openRemind, c.clearReminder, c.toggleUnread, c.remove]) expect(fn).toHaveBeenCalledExactlyOnceWith(call)
+    press('e', c)
+    press('E', c)
+    press('h', c)
+    press('H', c)
+    press('u', c)
+    press('#', c)
+    press('!', c, { shiftKey: true })
+    for (const fn of [c.markDone, c.markNotDone, c.openRemind, c.clearReminder, c.toggleUnread, c.remove, c.toggleSpam])
+      expect(fn).toHaveBeenCalledExactlyOnceWith(call)
   })
   it('treats shift plus a letter as the capital, whatever the layout reports', () => {
     const c = context()
@@ -39,7 +88,10 @@ describe('inbox keys', () => {
   })
   it('switches views with Tab and the number keys', () => {
     const c = context({ tab: 'spam' })
-    press('Tab', c); press('Tab', c, { shiftKey: true }); press('4', c); press('5', c)
+    press('Tab', c)
+    press('Tab', c, { shiftKey: true })
+    press('4', c)
+    press('5', c)
     expect(vi.mocked(c.setTab).mock.calls).toEqual([['you'], ['ai'], ['reminders'], ['done']])
   })
   it('leaves keys alone while typing, with a modifier or under an overlay', () => {
@@ -51,7 +103,8 @@ describe('inbox keys', () => {
   })
   it('opens search with /, undoes with Z and starts a chord with G', () => {
     const c = context()
-    press('/', c); press('z', c)
+    press('/', c)
+    press('z', c)
     expect(press('g', c)).toBe(true)
     press('h', c)
     expect(c.openSearch).toHaveBeenCalled()
@@ -60,8 +113,12 @@ describe('inbox keys', () => {
     expect(c.openRemind).not.toHaveBeenCalled() // the H belonged to the chord
   })
   it('closes things with Escape in order: overlay, search, mode', () => {
-    const overlay = context({ overlay: 'remind' }), searching = context({ searching: true }), mode = context({ tab: 'done' })
-    press('Escape', overlay); press('Escape', searching); press('Escape', mode)
+    const overlay = context({ overlay: 'remind' }),
+      searching = context({ searching: true }),
+      mode = context({ tab: 'done' })
+    press('Escape', overlay)
+    press('Escape', searching)
+    press('Escape', mode)
     expect(overlay.setOverlay).toHaveBeenCalledWith(null)
     expect(searching.closeSearch).toHaveBeenCalled()
     expect(mode.setTab).toHaveBeenCalledWith('you')
@@ -71,12 +128,14 @@ describe('inbox keys', () => {
 describe('call view keys', () => {
   it('opens the selected call with Enter or O', () => {
     const c = context()
-    press('Enter', c); press('o', c)
+    press('Enter', c)
+    press('o', c)
     expect(c.open).toHaveBeenCalledTimes(2)
   })
   it('steps with J and K but leaves the arrows for scrolling, and Escape goes back', () => {
     const c = context({ isCallOpen: true })
-    press('j', c); press('k', c)
+    press('j', c)
+    press('k', c)
     expect(press('ArrowDown', c)).toBe(false)
     press('Escape', c)
     expect(vi.mocked(c.step).mock.calls).toEqual([[1], [-1]])
@@ -99,7 +158,8 @@ describe('shell keys', () => {
   })
   it('opens the shortcut sheet with ? and the menu with M, and Escape closes the menu first', () => {
     const c = context()
-    press('?', c); press('m', c)
+    press('?', c)
+    press('m', c)
     expect(c.setOverlay).toHaveBeenCalledWith('help')
     expect(c.setNavOpen).toHaveBeenCalledWith(true)
   })
@@ -126,7 +186,9 @@ describe('shell keys', () => {
     const blur = vi.fn()
     expect(press('Tab', c)).toBe(true)
     expect(press('Tab', c, { shiftKey: true })).toBe(true)
-    expect(handleKey({ key: 'Tab', shiftKey: false, target: { tagName: 'BUTTON', blur } } as unknown as KeyboardEvent, c)).toBe(true)
+    expect(
+      handleKey({ key: 'Tab', shiftKey: false, target: { tagName: 'BUTTON', blur } } as unknown as KeyboardEvent, c),
+    ).toBe(true)
     expect(vi.mocked(c.setTab).mock.calls).toEqual([['ai'], ['spam'], ['ai']])
     expect(blur).toHaveBeenCalled()
   })
@@ -183,7 +245,8 @@ describe('recording keys', () => {
 describe('topmost layer', () => {
   it('keeps list and call keys away from the list while the navigation is open', () => {
     const c = context({ navOpen: true })
-    for (const key of ['j', 'k', 'e', 'E', 'h', 'u', '#', 'Enter', 'Tab', '1', '/', 'z']) expect(press(key, c)).toBe(false)
+    for (const key of ['j', 'k', 'e', 'E', 'h', 'u', '#', 'Enter', 'Tab', '1', '/', 'z'])
+      expect(press(key, c)).toBe(false)
     expect(c.step).not.toHaveBeenCalled()
     expect(c.markDone).not.toHaveBeenCalled()
     expect(c.open).not.toHaveBeenCalled()
@@ -191,7 +254,7 @@ describe('topmost layer', () => {
     press('m', c)
     expect(c.setNavOpen).toHaveBeenCalledWith(false)
   })
-  it('lets you type ? in the shortcut sheet\'s search field', () => {
+  it("lets you type ? in the shortcut sheet's search field", () => {
     const c = context({ overlay: 'help' })
     expect(press('?', c, { tagName: 'INPUT' })).toBe(false)
     expect(c.setOverlay).not.toHaveBeenCalled()
@@ -238,7 +301,8 @@ describe('selection', () => {
     const c = context()
     press('x', c)
     expect(c.toggleSelect).toHaveBeenCalledWith(call)
-    press('j', c, { shiftKey: true }); press('k', c, { shiftKey: true })
+    press('j', c, { shiftKey: true })
+    press('k', c, { shiftKey: true })
     expect(vi.mocked(c.extendSelect).mock.calls).toEqual([[1], [-1]])
     expect(c.step).not.toHaveBeenCalled()
   })

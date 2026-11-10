@@ -15,16 +15,47 @@ export * from './settings.ts'
 export * from './team.ts'
 
 const all = [
-  calls.callMarkDone, calls.callMarkNotDone, calls.callMarkRead, calls.callMarkUnread, calls.callRemind,
-  calls.callClearReminder, calls.callDelete, calls.callRestore, calls.callSetActionItems,
-  calls.callStart, calls.callAppendTranscript, calls.callFinish, calls.callTakeMessage, calls.callFlagUrgent, calls.callStartTest, calls.callFindForTest,
+  calls.callMarkDone,
+  calls.callMarkNotDone,
+  calls.callMarkRead,
+  calls.callMarkUnread,
+  calls.callRemind,
+  calls.callClearReminder,
+  calls.callDelete,
+  calls.callRestore,
+  calls.callMarkSpam,
+  calls.callMarkNotSpam,
+  calls.callSetActionItems,
+  calls.callStart,
+  calls.callAppendTranscript,
+  calls.callFinish,
+  calls.callTakeMessage,
+  calls.callFlagUrgent,
+  calls.callStartTest,
+  calls.callFindForTest,
   calls.callSetRecording,
-  settings.contactUpdate, settings.assistantUpdate, settings.phoneNumberSetup, settings.assistantStartTestCall,
+  settings.contactUpdate,
+  settings.assistantUpdate,
+  settings.phoneNumberSetup,
+  settings.assistantStartTestCall,
   calendar.calendarFindSlots,
-  admin.providerSetKeys, admin.providerClearKeys, admin.providerSetActive, admin.providerTest,
-  admin.userInvite, admin.userDisable, admin.userEnable, admin.workspaceDisable, admin.workspaceEnable,
-  admin.instanceAdminGrant, admin.instanceAdminRevoke,
-  team.teamList, team.teamInvite, team.teamResendInvite, team.teamRevokeInvite, team.teamSetRole, team.teamRemoveMember,
+  admin.providerSetKeys,
+  admin.providerClearKeys,
+  admin.providerSetActive,
+  admin.providerTest,
+  admin.userInvite,
+  admin.userDisable,
+  admin.userEnable,
+  admin.workspaceDisable,
+  admin.workspaceEnable,
+  admin.instanceAdminGrant,
+  admin.instanceAdminRevoke,
+  team.teamList,
+  team.teamInvite,
+  team.teamResendInvite,
+  team.teamRevokeInvite,
+  team.teamSetRole,
+  team.teamRemoveMember,
   onboarding.onboardingSetStep,
 ] as ActionDef[]
 
@@ -32,5 +63,9 @@ const all = [
 export const actions: ReadonlyMap<string, ActionDef> = new Map(all.map(a => [a.name, a]))
 
 /** What `POST /v1/actions/<name>` returns on success: the rows the action wrote. */
-export type ActionResult = { ok: true; rows: Partial<Record<import('@callfront/db/types').TableName, Record<string, unknown>[]>>; data?: Record<string, unknown> }
+export type ActionResult = {
+  ok: true
+  rows: Partial<Record<import('@callfront/db/types').TableName, Record<string, unknown>[]>>
+  data?: Record<string, unknown>
+}
 export type ActionRejection = { ok: false; error: string }
