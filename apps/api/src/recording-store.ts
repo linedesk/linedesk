@@ -2,7 +2,7 @@
 // Two adapters behind one interface: `file` (a directory shared with egress, the default) and
 // `s3` (any S3-compatible bucket). Selected by RECORDING_STORE.
 // Keys are always `recordingKey(workspace, call)`; both adapters refuse anything else.
-import { realpath, stat } from 'node:fs/promises'
+import { realpath, stat, unlink } from 'node:fs/promises'
 import { resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isRecordingKey } from '@callfront/actions'
@@ -15,6 +15,8 @@ export interface RecordingStore {
   exists(key: string): Promise<boolean>
   /** Null when there is no such file. A `url` is signed and stops working after `expiresInSec`. */
   locate(key: string, expiresInSec: number): Promise<RecordingLocation | null>
+  /** Removes the recording; a key with no file is fine (already gone). */
+  delete(key: string): Promise<void>
 }
 
 /** The recording store is selected or configured wrongly: the operator's problem, not a server bug. */
@@ -38,6 +40,10 @@ export function createFileRecordingStore(root: string): RecordingStore {
   return {
     exists: async key => (await find(key)) !== null,
     locate: key => find(key),
+    async delete(key) {
+      const file = await find(key)
+      if (file) await unlink(file.path)
+    },
   }
 }
 
@@ -76,6 +82,10 @@ export function createS3RecordingStore({
     async locate(key, expiresInSec) {
       const signed = await aws.sign(`${objectUrl(key)}?X-Amz-Expires=${expiresInSec}`, { aws: { signQuery: true } })
       return { url: signed.url }
+    },
+    async delete(key) {
+      const res = await doFetch(await aws.sign(objectUrl(key), { method: 'DELETE' }))
+      if (!res.ok && res.status !== 404) throw new Error(`recording store: DELETE ${key} failed (${res.status})`)
     },
   }
 }

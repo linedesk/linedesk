@@ -64,6 +64,13 @@
       "when": 1794327942391,
       "tag": "0008_fast_black_knight",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794332200513,
+      "tag": "0009_recording_retention",
+      "breakpoints": true
     }
   ]
 }

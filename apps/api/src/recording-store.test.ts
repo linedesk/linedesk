@@ -23,6 +23,14 @@ describe('file store', async () => {
     expect(await store.locate('ws_1/call_2.ogg', 300)).toBeNull()
   })
 
+  test('deletes a recording; deleting a missing one is fine', async () => {
+    await writeFile(join(root, 'ws_1/call_9.ogg'), 'x')
+    await store.delete('ws_1/call_9.ogg')
+    expect(await store.exists('ws_1/call_9.ogg')).toBe(false)
+    await expect(store.delete('ws_1/call_9.ogg')).resolves.toBeUndefined()
+    await expect(store.delete('../secret.ogg')).rejects.toThrow('not a recording key')
+  })
+
   test.each(badKeys)('refuses the key %j', async key => {
     await expect(store.locate(key, 300)).rejects.toThrow('not a recording key')
     await expect(store.exists(key)).rejects.toThrow('not a recording key')
@@ -62,6 +70,17 @@ describe('s3 store (mocked HTTP)', () => {
     await expect(store.locate(key, 300)).rejects.toThrow('not a recording key')
     await expect(store.exists(key)).rejects.toThrow('not a recording key')
     expect(fakeFetch).not.toHaveBeenCalled()
+  })
+
+  test('delete is a signed DELETE; a missing object is fine, anything else is an error', async () => {
+    const fakeFetch = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }))
+    await createS3RecordingStore({ ...options, fetch: fakeFetch }).delete('ws_1/call_1.ogg')
+    const request = fakeFetch.mock.calls[0]![0] as Request
+    expect([request.method, request.url]).toEqual(['DELETE', 'https://s3.test/recordings/ws_1/call_1.ogg'])
+    const answer = (status: number) => createS3RecordingStore({ ...options, fetch: vi.fn<typeof fetch>(async () => new Response(null, { status })) })
+    await expect(answer(404).delete('ws_1/call_1.ogg')).resolves.toBeUndefined()
+    await expect(answer(403).delete('ws_1/call_1.ogg')).rejects.toThrow('DELETE ws_1/call_1.ogg failed (403)')
+    await expect(answer(204).delete('../x/y.ogg')).rejects.toThrow('not a recording key')
   })
 
   test('exists is a signed HEAD: 200 yes, 404 no, anything else is an error', async () => {

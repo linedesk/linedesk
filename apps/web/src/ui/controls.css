@@ -161,7 +161,7 @@
   position: absolute;
   z-index: 30;
   top: calc(100% + 4px);
-  right: 0;
+  left: 0;
   min-width: max(100%, 240px);
   max-height: 280px;
   overflow-y: auto;
@@ -173,6 +173,10 @@
   background: var(--surface);
   box-shadow: var(--shadow-popover);
   outline: none;
+}
+.k-select-end .k-select-list {
+  left: auto;
+  right: 0;
 }
 .k-select-opt {
   display: flex;

@@ -45,6 +45,30 @@ export const assistantUpdate = defineAction({
   patch: { table: 'assistants', id: i => i.assistantId, set: ({ assistantId: _id, ...rest }) => defined(rest) },
 })
 
+/** How long recordings may be kept; null keeps them until the call is deleted. */
+export const recordingRetentionChoices = [30, 60, 90, 180, 365] as const
+export const DEFAULT_RECORDING_RETENTION_DAYS = 90
+
+/** `data` of `workspace.getSettings`. */
+export type WorkspaceSettingsData = { recordingRetentionDays: number | null }
+
+export const workspaceGetSettings = defineAction({
+  name: 'workspace.getSettings',
+  description: 'Read the workspace settings that are not synced to the browser: how many days call recordings are kept.',
+  input: z.object({}),
+  permission: 'call:read',
+  readOnly: true,
+})
+
+export const workspaceUpdateSettings = defineAction({
+  name: 'workspace.updateSettings',
+  description: 'Change workspace settings: `recordingRetentionDays` (30, 60, 90, 180 or 365; null keeps recordings). Older recordings are deleted by the daily cleanup.',
+  input: z.object({
+    recordingRetentionDays: z.union([z.literal(recordingRetentionChoices), z.null()]).optional(),
+  }),
+  permission: 'settings:write',
+})
+
 export const phoneNumberModes = ['forward_conditional', 'forward_all', 'new', 'ported'] as const
 
 export const phoneNumberSetup = defineAction({

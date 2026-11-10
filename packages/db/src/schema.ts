@@ -102,6 +102,8 @@ export const workspace_settings = pgTable('workspace_settings', {
   timezone: text('timezone').notNull(),
   /** Where the owner is in onboarding. null: a workspace from before onboarding existed, treated as finished. */
   onboarding_step: text('onboarding_step', { enum: ['business', 'phone', 'test_call', 'done', 'skipped'] }),
+  /** Recordings older than this many days are deleted by the daily cleanup job. null: keep them. */
+  recording_retention_days: integer('recording_retention_days').default(90),
   created_at: createdAt(),
   version: version(),
 })

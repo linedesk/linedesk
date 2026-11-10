@@ -38,6 +38,8 @@ const all = [
   settings.assistantUpdate,
   settings.phoneNumberSetup,
   settings.assistantStartTestCall,
+  settings.workspaceGetSettings,
+  settings.workspaceUpdateSettings,
   calendar.calendarFindSlots,
   admin.providerSetKeys,
   admin.providerClearKeys,

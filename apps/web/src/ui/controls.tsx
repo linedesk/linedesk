@@ -100,6 +100,8 @@ type SelectProps<T extends string> = {
   id?: string
   disabled?: boolean
   size?: 'sm' | 'md'
+  /** Which edge of the button the open list lines up with; `end` for a select at the right of a row. */
+  align?: 'start' | 'end'
 }
 
 /** A button that opens a short list. Arrow keys move, Enter or Space picks, Esc closes. */
@@ -111,6 +113,7 @@ export function Select<T extends string>({
   id,
   disabled,
   size = 'md',
+  align = 'start',
 }: SelectProps<T>) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
@@ -170,7 +173,7 @@ export function Select<T extends string>({
   }
 
   return (
-    <div className={cx('k-select', `k-select-${size}`, open && 'open')} ref={root}>
+    <div className={cx('k-select', `k-select-${size}`, align === 'end' && 'k-select-end', open && 'open')} ref={root}>
       <button
         ref={button}
         id={id}

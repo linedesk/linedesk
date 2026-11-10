@@ -17,7 +17,7 @@ type Run = (work: () => Promise<unknown>, done: string) => Promise<boolean>
 
 function RoleSelect({ value, label, onChange }: { value: AssignableRole; label: string; onChange: (role: AssignableRole) => void }) {
   return (
-    <Select size="sm" value={value} label={label} onChange={onChange} options={assignableRoles.map(r => ({ value: r, label: roleLabel(r), description: roleHelp[r] }))} />
+    <Select size="sm" align="end" value={value} label={label} onChange={onChange} options={assignableRoles.map(r => ({ value: r, label: roleLabel(r), description: roleHelp[r] }))} />
   )
 }
 
