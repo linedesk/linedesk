@@ -90,7 +90,8 @@ function PastCalls({ call, onOpen }: Pick<Props, 'call' | 'onOpen'>) {
 
 /** The caller next to the call: who they are (editable) and what they called about before. */
 export function ContactSide({ call, onOpen, toast, onToggleBlock }: Props) {
-  const contact = useContact(call.contact_id)
+  const linked = useContact(call.contact_id)
+  const contact = linked?.deleted_at ? undefined : linked // a deleted contact reads as an unknown caller
   return (
     <aside className="cv-side" aria-label="Contact">
       <div className="side-who">

@@ -78,6 +78,13 @@
       "when": 1794332993000,
       "tag": "0010_contact_blocked",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794333272728,
+      "tag": "0011_contact_deleted",
+      "breakpoints": true
     }
   ]
 }

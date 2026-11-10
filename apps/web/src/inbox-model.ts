@@ -130,7 +130,9 @@ export function answeredByLabel(call: Call, segments: TranscriptSegment[], assis
   return status === 'hungUp' ? `Answered by ${who}, caller hung up` : `Answered by ${who}`
 }
 
-export const callerName = (call: Call, contact?: Contact) => contact?.name || formatPhone(call.from_number)
+/** A deleted contact no longer names the call: the number does. */
+export const callerName = (call: Call, contact?: Contact) =>
+  (!contact?.deleted_at && contact?.name) || formatPhone(call.from_number)
 export const callTitle = (call: Call) => call.title ?? (call.status === 'live' ? 'Call in progress' : 'Call')
 
 export function formatPhone(e164: string): string {

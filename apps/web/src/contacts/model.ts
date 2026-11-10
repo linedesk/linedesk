@@ -31,10 +31,12 @@ export function contactRows(contacts: Iterable<Contact>, calls: Iterable<Call>):
     list.push(call)
     byContact.set(call.contact_id, list)
   }
-  const rows = [...contacts].map(contact => {
-    const own = (byContact.get(contact.id) ?? []).sort((a, b) => startedMs(b) - startedMs(a))
-    return { contact, calls: own, lastCall: own[0], nextStep: nextStepOf(own) }
-  })
+  const rows = [...contacts]
+    .filter(contact => !contact.deleted_at)
+    .map(contact => {
+      const own = (byContact.get(contact.id) ?? []).sort((a, b) => startedMs(b) - startedMs(a))
+      return { contact, calls: own, lastCall: own[0], nextStep: nextStepOf(own) }
+    })
   return rows.sort(byRecentCall)
 }
 

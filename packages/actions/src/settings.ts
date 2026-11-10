@@ -38,6 +38,35 @@ export const contactUnblock = defineAction({
   patch: { table: 'contacts', id: i => i.contactId, set: () => ({ blocked_at: null }) },
 })
 
+/** Add someone by hand. A number that belonged to a deleted contact brings that contact back (with its calls). */
+export const contactCreate = defineAction({
+  name: 'contact.create',
+  description: 'Add a contact by hand: a phone number in E.164 (+15035550142), and optionally a name and company.',
+  input: z.object({
+    phone: z.string().regex(/^\+[1-9]\d{6,14}$/, 'a phone number in E.164, like +15035550142'),
+    name: z.string().trim().min(1).optional(),
+    company: z.string().trim().min(1).optional(),
+  }),
+  permission: 'contact:write',
+})
+
+/** Contacts leave the list but keep their calls; contact.restore undoes it. */
+export const contactDelete = defineAction({
+  name: 'contact.delete',
+  description: 'Delete a contact. Their calls stay in the inbox, shown by number.',
+  input: contactId,
+  permission: 'contact:write',
+  patch: { table: 'contacts', id: i => i.contactId, set: (_i, now) => ({ deleted_at: now }) },
+})
+
+export const contactRestore = defineAction({
+  name: 'contact.restore',
+  description: 'Bring back a deleted contact.',
+  input: contactId,
+  permission: 'contact:write',
+  patch: { table: 'contacts', id: i => i.contactId, set: () => ({ deleted_at: null }) },
+})
+
 /** Longest free-text instructions an assistant takes (characters). */
 export const INSTRUCTIONS_MAX = 20_000
 
@@ -77,7 +106,8 @@ export type WorkspaceSettingsData = { recordingRetentionDays: number | null }
 
 export const workspaceGetSettings = defineAction({
   name: 'workspace.getSettings',
-  description: 'Read the workspace settings that are not synced to the browser: how many days call recordings are kept.',
+  description:
+    'Read the workspace settings that are not synced to the browser: how many days call recordings are kept.',
   input: z.object({}),
   permission: 'call:read',
   readOnly: true,
@@ -85,7 +115,8 @@ export const workspaceGetSettings = defineAction({
 
 export const workspaceUpdateSettings = defineAction({
   name: 'workspace.updateSettings',
-  description: 'Change workspace settings: `recordingRetentionDays` (30, 60, 90, 180 or 365; null keeps recordings). Older recordings are deleted by the daily cleanup.',
+  description:
+    'Change workspace settings: `recordingRetentionDays` (30, 60, 90, 180 or 365; null keeps recordings). Older recordings are deleted by the daily cleanup.',
   input: z.object({
     recordingRetentionDays: z.union([z.literal(recordingRetentionChoices), z.null()]).optional(),
   }),

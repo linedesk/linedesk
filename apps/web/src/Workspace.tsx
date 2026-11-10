@@ -308,6 +308,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
                 menu,
                 openCall: open,
                 phoneSetup: me.phoneSetup,
+                runUndoable: actions.runUndoable,
               })}
             </ErrorBoundary>
           </>

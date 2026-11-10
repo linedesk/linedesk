@@ -10,6 +10,10 @@ const call = (over: Partial<Call>) => ({
 }) as Call
 
 describe('contact rows', () => {
+  it('leaves deleted contacts out', () => {
+    const rows = contactRows([contact({ id: 'kept' }), contact({ id: 'gone', deleted_at: '2026-11-10 10:00:00+00' })], [])
+    expect(rows.map(r => r.contact.id)).toEqual(['kept'])
+  })
   it('sorts by the most recent call, contacts without calls last (newest first)', () => {
     const contacts = [
       contact({ id: 'quiet-old', created_at: '2026-11-01 10:00:00+00' }),

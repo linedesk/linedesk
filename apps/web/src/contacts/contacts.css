@@ -51,3 +51,32 @@
     grid-area: count;
   }
 }
+
+/* New contact: a short form in the record panel. */
+.ct-new {
+  display: grid;
+  gap: 10px;
+}
+.ct-new > b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.ct-new label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.ct-new-problem {
+  color: var(--danger);
+  font-size: 12.5px;
+}
+.ct-new-acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.cv-side .ct-delete {
+  margin-top: auto;
+  color: var(--ink-muted);
+}

@@ -73,6 +73,8 @@ export const contacts = pgTable(
     note: text('note'),
     /** Calls from a blocked number are not answered; they are filed quietly in Spam. */
     blocked_at: ts('blocked_at'),
+    /** A deleted contact leaves Contacts; its calls keep the link. A new call from the number brings it back. */
+    deleted_at: ts('deleted_at'),
     created_at: createdAt(),
     version: version(),
   },

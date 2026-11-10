@@ -22,7 +22,15 @@ import {
 import type { ReminderOption } from './remind.ts'
 
 /** `cancelWrite` stops a write that is still waiting for the fade; true when it had not been sent yet. */
-type UndoEntry = { steps: Step[]; callId: string; tab: InboxTab; wasOpen: boolean; cancelWrite: () => boolean }
+/** `page`: a change made on a page (not a call); undoing it stays on that page. */
+type UndoEntry = {
+  steps: Step[]
+  callId: string
+  tab: InboxTab
+  wasOpen: boolean
+  cancelWrite: () => boolean
+  page?: true
+}
 
 const LEAVE_MS = 170
 const ENTER_MS = 260
@@ -138,6 +146,7 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     if (!entry) return toaster.show('Nothing to undo.')
     const neverSent = entry.cancelWrite()
     if (!neverSent) runAll(entry.steps)
+    if (entry.page) return toaster.show(toaster.withTip('Undone.', 'Z'))
     setTab(entry.tab)
     setCursor(entry.callId)
     if (entry.wasOpen) showCall(entry.callId)
@@ -148,10 +157,21 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     toaster.show(toaster.withTip('Undone.', 'Z'))
   }
 
+  /** A change outside the inbox (a contact deleted on the Contacts page): sent now, one toast, undone with Z. */
+  function runUndoable(steps: Step[], inverse: Step[], label: string, key: string) {
+    runAll(steps)
+    undoStack.current = [
+      ...undoStack.current,
+      { steps: inverse, callId: '', tab, wasOpen: false, cancelWrite: () => false, page: true as const },
+    ].slice(-UNDO_DEPTH)
+    toaster.show(toaster.withTip(label, key), true)
+  }
+
   return {
     leaving,
     entering,
     undo,
+    runUndoable,
     markDone: (call: Call) =>
       call.inbox_state === 'done' ? toaster.show('Already done.') : act(call, doneChange(call)),
     markNotDone: (call: Call) =>

@@ -5,9 +5,15 @@ import { formatPhone } from '../inbox-model.ts'
 import { Avatar, Button } from '../ui/kit.tsx'
 import { contactLabel, type ContactRow } from './model.ts'
 
-type Props = { row: ContactRow; toast: (text: string) => void; onOpenCall: (call: Call) => void; onClose: () => void }
+type Props = {
+  row: ContactRow
+  toast: (text: string) => void
+  onOpenCall: (call: Call) => void
+  onClose: () => void
+  onDelete: (contactId: string) => void
+}
 
-export function ContactDetail({ row, toast, onOpenCall, onClose }: Props) {
+export function ContactDetail({ row, toast, onOpenCall, onClose, onDelete }: Props) {
   const { contact, calls } = row
   const label = contactLabel(contact)
   return (
@@ -35,6 +41,16 @@ export function ContactDetail({ row, toast, onOpenCall, onClose }: Props) {
         <SideCalls calls={calls} onOpen={onOpenCall} />
         {!calls.length && <span className="help">No calls yet.</span>}
       </div>
+      <Button
+        size="sm"
+        variant="ghost"
+        icon="trash"
+        className="ct-delete"
+        title="Delete contact (#)"
+        onClick={() => onDelete(contact.id)}
+      >
+        Delete contact
+      </Button>
     </aside>
   )
 }

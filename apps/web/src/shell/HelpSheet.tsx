@@ -47,6 +47,13 @@ export const SHORTCUTS: Group[] = [
     ],
   },
   {
+    group: 'Contacts',
+    rows: [
+      ['New contact', ['N']],
+      ['Delete contact', ['#']],
+    ],
+  },
+  {
     group: 'Go to',
     rows: [
       ['Inbox', ['G', 'I']],

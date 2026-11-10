@@ -165,6 +165,8 @@ async function openCall({ tx, now, recordings }: Pick<HandlerCtx, 'tx' | 'now' |
   if (!workspace && source === 'test') throw new Reject('no such workspace')
   if (workspace?.disabledAt) throw new Reject(`the workspace of ${label} is disabled`)
   let [contact] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, workspace_id), eq(contacts.phone, from)))
+  // A deleted contact who calls again is back in Contacts.
+  if (contact?.deleted_at) [contact] = await tx.update(contacts).set({ deleted_at: null }).where(eq(contacts.id, contact.id)).returning()
   const isNewContact = !contact
   if (!contact) {
     const name = source === 'test' ? testCallContact.name : null
@@ -216,6 +218,17 @@ const handlers: Record<string, Handler> = {
       limit: input.limit,
     })
     return { rows: {}, data: { appointmentTypeId: type.id, timeZone, slots } satisfies FindSlotsData }
+  },
+
+  'contact.create': async ({ tx, actor }, input) => {
+    if (!actor.workspaceId) throw new Reject('no workspace')
+    const [existing] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, actor.workspaceId), eq(contacts.phone, input.phone)))
+    if (existing && !existing.deleted_at) throw new Reject(`${input.phone} is already a contact`)
+    const fields = { name: input.name ?? null, company: input.company ?? null }
+    const [contact] = existing
+      ? await tx.update(contacts).set({ ...fields, deleted_at: null }).where(eq(contacts.id, existing.id)).returning()
+      : await tx.insert(contacts).values({ id: newId('ct'), workspace_id: actor.workspaceId, phone: input.phone, ...fields }).returning()
+    return { rows: { contacts: [contact!] }, data: { contactId: contact!.id } }
   },
 
   'call.start': async ({ tx, now, recordings }, input) => {
