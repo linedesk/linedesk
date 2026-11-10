@@ -55,6 +55,22 @@ export type ProviderStatus = {
 export type ActiveProviders = Record<ProviderCategory, { provider: ProviderName | null; chosen: boolean }>
 
 export type ServiceStatus = { ok: boolean; message: string }
+
+export type AdminOverview = {
+  calls: { today: number; last7d: number; month: number }
+  minutes: { today: number; last7d: number; month: number }
+  costs: {
+    category: ProviderCategory
+    provider: ProviderName | null
+    label: string | null
+    minutes7d: number
+    cost7d: number
+    costMonth: number
+  }[]
+  workspaces: { total: number; disabled: number; new7d: number }
+  users: { total: number; disabled: number; new7d: number }
+}
+export type AdminHealth = Record<'api' | 'livekit' | 'sip' | 'agent' | 'email', ServiceStatus>
 export type LivekitStatus = { url: string | null; server: ServiceStatus; sip: ServiceStatus }
 
 export type AdminData = {
@@ -123,3 +139,7 @@ export const testProvider = async (provider: ProviderName) =>
 
 /** LiveKit is part of the install: its status is read-only. Can take a few seconds when the server is down. */
 export const loadLivekitStatus = async () => (await get<{ livekit: LivekitStatus }>('/v1/admin/system')).livekit
+
+export const loadOverview = () => get<AdminOverview>('/v1/admin/overview')
+/** Waits for LiveKit and the mail server: can take a few seconds. */
+export const loadHealth = () => get<AdminHealth>('/v1/admin/health')

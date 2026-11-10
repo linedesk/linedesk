@@ -10,7 +10,20 @@ import { emailSender } from '../src/email.ts'
 import { db } from '../src/db.ts'
 import { grantFirstUser, instanceAdminHooks, refuseUnverifiedAdminAddress } from '../src/instance-admin.ts'
 import { telephonyProvider } from '../src/provider-settings.ts'
-import { act, addMember, agent, anonymous, type Caller, createWorkspace, randomIp, request, signUp, type User, type Workspace, FROM } from './helpers.ts'
+import {
+  act,
+  addMember,
+  agent,
+  anonymous,
+  type Caller,
+  createWorkspace,
+  randomIp,
+  request,
+  signUp,
+  type User,
+  type Workspace,
+  FROM,
+} from './helpers.ts'
 
 const SECRET = 'KEY-made-up-0123456789-abcd'
 const adminRoutes = [
@@ -19,6 +32,8 @@ const adminRoutes = [
   '/v1/admin/usage',
   '/v1/admin/providers',
   '/v1/admin/system',
+  '/v1/admin/overview',
+  '/v1/admin/health',
 ] as const
 const AGENT_ROUTE = '/v1/agent/provider-config'
 const adminActions = [...actions.values()].filter(def => def.permission === 'instance:admin')
@@ -574,6 +589,43 @@ describe('workspaces', () => {
   })
 })
 
+describe('overview', () => {
+  test('counts calls, minutes and people, and estimates cost per provider in use', async () => {
+    const before = (await request(operator, 'GET', '/v1/admin/overview')).body
+    expect(before.costs.map((c: { category: string }) => c.category)).toEqual(['telephony', 'stt', 'llm', 'tts'])
+    const [call] = await db
+      .insert(calls)
+      .values({
+        id: `call_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
+        workspace_id: home.id,
+        from_number: '+15035550100',
+        to_number: home.number,
+        status: 'completed',
+        duration_sec: 600,
+      })
+      .returning()
+    const after = (await request(operator, 'GET', '/v1/admin/overview')).body
+    expect(after.calls.today).toBe(before.calls.today + 1)
+    expect(after.calls.last7d).toBe(before.calls.last7d + 1)
+    expect(after.minutes.last7d).toBeCloseTo(before.minutes.last7d + 10, 1)
+    expect(after.workspaces.total).toBeGreaterThanOrEqual(2)
+    expect(after.users.total).toBeGreaterThanOrEqual(3)
+    for (const cost of after.costs) {
+      if (cost.provider) expect(cost.cost7d).toBeGreaterThanOrEqual(0)
+      else expect(cost).toMatchObject({ provider: null, cost7d: 0, costMonth: 0 })
+    }
+    await db.delete(calls).where(eq(calls.id, call!.id))
+  })
+
+  test('health names each part; the agent shows up once it has asked for its settings', async () => {
+    const before = (await request(operator, 'GET', '/v1/admin/health')).body
+    expect(Object.keys(before).sort()).toEqual(['agent', 'api', 'email', 'livekit', 'sip'])
+    expect(before.api.ok).toBe(true)
+    await request(agent(), 'GET', AGENT_ROUTE)
+    expect((await request(operator, 'GET', '/v1/admin/health')).body.agent).toMatchObject({ ok: true })
+  })
+})
+
 describe('instance admins', () => {
   afterEach(() => {
     process.env.INSTANCE_ADMIN_EMAILS = ''
@@ -698,7 +750,11 @@ describe('user.invite', () => {
     const email = address('invitee')
     const res = await act(operator, 'user.invite', { email: email.toUpperCase(), name: 'Tim', admin: true })
     expect(res).toMatchObject({ status: 200, body: { data: { email: email.toLowerCase(), delivery: 'log' } } })
-    expect(await accountOf(email.toLowerCase())).toMatchObject({ name: 'Tim', emailVerified: false, instanceAdmin: true })
+    expect(await accountOf(email.toLowerCase())).toMatchObject({
+      name: 'Tim',
+      emailVerified: false,
+      instanceAdmin: true,
+    })
     expect(send).toHaveBeenCalledTimes(1)
     const [mail] = send.mock.calls[0]!
     expect(mail).toMatchObject({ to: email.toLowerCase(), subject: 'Your Linedesk account' })
@@ -719,7 +775,14 @@ describe('user.invite', () => {
   test('an invite does not use up the sign-in code limit of that address', async () => {
     const send = spySend()
     const email = address('limit')
-    for (let i = 0; i < 6; i++) await request(anonymous, 'POST', '/api/auth/email-otp/send-verification-otp', { email, type: 'sign-in' }, { origin: 'http://localhost:5173', [FROM]: randomIp() })
+    for (let i = 0; i < 6; i++)
+      await request(
+        anonymous,
+        'POST',
+        '/api/auth/email-otp/send-verification-otp',
+        { email, type: 'sign-in' },
+        { origin: 'http://localhost:5173', [FROM]: randomIp() },
+      )
     send.mockClear()
     expect((await act(operator, 'user.invite', { email, name: 'After Many Codes' })).status).toBe(200)
     expect(send).toHaveBeenCalledTimes(1)
@@ -742,12 +805,17 @@ describe('user.invite', () => {
     const key = crypto.randomUUID()
     const res = await act(operator, 'user.invite', { email, name: 'Bounce' }, key)
     expect(res.status).toBe(409)
-    expect(res.body.error).toMatch(/the welcome email could not be sent \(SMTP said no\); the account for .* was removed again/)
+    expect(res.body.error).toMatch(
+      /the welcome email could not be sent \(SMTP said no\); the account for .* was removed again/,
+    )
     expect(await accountOf(email)).toBeUndefined()
     expect((await db.select().from(commands).where(eq(commands.id, key)))[0]).toMatchObject({ rejected: true })
   })
 
   test('a workspace owner who is not an instance admin cannot invite', async () => {
-    expect(await act(other.owner, 'user.invite', { email: address('x'), name: 'X' })).toMatchObject({ status: 403, body: { error: 'missing permission instance:admin' } })
+    expect(await act(other.owner, 'user.invite', { email: address('x'), name: 'X' })).toMatchObject({
+      status: 403,
+      body: { error: 'missing permission instance:admin' },
+    })
   })
 })

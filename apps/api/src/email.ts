@@ -11,6 +11,8 @@ export interface Email {
 export interface EmailSender {
   kind: 'smtp' | 'log' | 'none'
   send(email: Email): Promise<void>
+  /** Whether email can go out, for the admin overview. SMTP: connects and logs in, nothing is sent. */
+  check(): Promise<{ ok: boolean; message: string }>
 }
 
 /** How long one email may take. A blocked port (465 behind some firewalls) otherwise hangs forever. */
@@ -71,6 +73,14 @@ function smtpSender(url: string, from: string, timeouts: SmtpTimeouts): EmailSen
         throw sendError(e, host)
       }
     },
+    check: async () => {
+      try {
+        await withDeadline(transport.verify(), timeouts.connectMs * 2, host)
+        return { ok: true, message: `Sends through ${host}.` }
+      } catch (e) {
+        return { ok: false, message: sendError(e, host).message }
+      }
+    },
   }
 }
 
@@ -80,6 +90,10 @@ const logSender: EmailSender = {
     console.log(
       `\n[email, not sent: EMAIL_TO_LOG is on]\nTo: ${email.to}\nSubject: ${email.subject}\n\n${email.text}\n`,
     ),
+  check: async () => ({
+    ok: true,
+    message: 'Printed to the API log (EMAIL_TO_LOG), not sent. Set SMTP_URL on a real server.',
+  }),
 }
 
 const noSender: EmailSender = {
@@ -87,6 +101,10 @@ const noSender: EmailSender = {
   send: async () => {
     throw new Error('Email is not set up: set SMTP_URL')
   },
+  check: async () => ({
+    ok: false,
+    message: 'Not set up: set SMTP_URL. Sign-in codes, invitations and call emails cannot go out.',
+  }),
 }
 
 export function createEmailSender(

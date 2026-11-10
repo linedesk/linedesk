@@ -8,6 +8,8 @@ import { Icon, Kbd } from '../ui/kit.tsx'
 import type { ListKeys } from './AdminList.tsx'
 import { type AdminData, loadAdminData } from './api.ts'
 import { errorText, type Notify } from './notify.ts'
+import { Overview } from './Overview.tsx'
+import { ListSkeleton, LoadError } from './parts.tsx'
 import { Providers } from './Providers.tsx'
 import { type AdminSection, adminSections, useAdminPlace } from './route.ts'
 import { System } from './System.tsx'
@@ -17,6 +19,7 @@ import { WorkspaceDetail, WorkspacesList } from './WorkspacesPage.tsx'
 import './admin.css'
 
 const icons: Record<AdminSection, IconName> = {
+  overview: 'waveform',
   workspaces: 'database',
   users: 'users',
   usage: 'clock',
@@ -138,13 +141,20 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   const detailTitle = workspace?.name ?? (user ? user.name || user.email : null)
 
   function page(): ReactNode {
+    // The overview loads its own numbers, so it shows while the lists are still on their way.
+    if (place.section === 'overview') return <Overview onOpen={section => go({ section, id: null })} />
     if (!data)
       return error ? (
-        <p className="adm-notice" role="alert">
-          Admin could not be loaded: {error}
-        </p>
+        <LoadError
+          what="Admin"
+          message={error}
+          onRetry={() => {
+            setError(null)
+            void reload()
+          }}
+        />
       ) : (
-        <div aria-busy="true" />
+        <ListSkeleton />
       )
     if (place.id && !detailTitle) return <p className="adm-notice">Not found. It may have been removed.</p>
     switch (place.section) {

@@ -6,6 +6,7 @@ import { type AdminWorkspace, runAdmin } from './api.ts'
 import { formatMinutes } from './model.ts'
 import { errorText, type Notify } from './notify.ts'
 import { Confirm, day, when } from './parts.tsx'
+import { formatNumber } from '../onboarding/flow.ts'
 
 const columns: Column<AdminWorkspace>[] = [
   {
@@ -25,7 +26,7 @@ const columns: Column<AdminWorkspace>[] = [
     wide: true,
     render: w => (
       <span className="adm-mono">
-        {w.phone_numbers[0] ?? '–'}
+        {w.phone_numbers[0] ? formatNumber(w.phone_numbers[0]) : '–'}
         {w.phone_numbers.length > 1 && ` +${w.phone_numbers.length - 1}`}
       </span>
     ),
@@ -94,7 +95,7 @@ export function WorkspaceDetail({ workspace: w, notify, reload }: DetailProps) {
         <dl className="adm-facts">
           <Fact label="Status">{w.disabled_at ? `Disabled ${when(w.disabled_at)}` : 'Active'}</Fact>
           <Fact label="Phone numbers">
-            <span className="adm-mono">{w.phone_numbers.join(', ') || 'None'}</span>
+            <span className="adm-mono">{w.phone_numbers.map(formatNumber).join(', ') || 'None'}</span>
           </Fact>
           <Fact label="Members">{w.members}</Fact>
           <Fact label="Calls, last 30 days">{w.calls_30d}</Fact>

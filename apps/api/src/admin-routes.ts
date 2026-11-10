@@ -4,6 +4,7 @@ import type { Permission } from '@callfront/actions'
 import type { Tx } from '@callfront/db'
 import { sql } from 'drizzle-orm'
 import type { Context, Hono, Next } from 'hono'
+import { adminHealth, adminOverview, noteAgentSeen } from './admin-overview.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { isEnvAdmin } from './instance-admin.ts'
@@ -92,6 +93,11 @@ export function registerAdminRoutes(app: Hono<Env>) {
     return c.json({ months, usage })
   })
 
+  // Numbers for the overview: calls, minutes, estimated provider cost, workspaces and users.
+  app.get('/v1/admin/overview', async c => c.json(await adminOverview(db)))
+  // Health of the parts of the install; can take a few seconds (LiveKit, SMTP).
+  app.get('/v1/admin/health', async c => c.json(await adminHealth()))
+
   app.get('/v1/admin/providers', async c => c.json(await providerStatus(db)))
 
   // LiveKit is part of the install (keys in env): read-only status of the server and its SIP service.
@@ -100,6 +106,7 @@ export function registerAdminRoutes(app: Hono<Env>) {
   // For the voice agent: the active speech and LLM providers with their keys, in clear. Agent token only;
   // no member, not even an instance admin. The agent asks at the start of each call.
   app.get('/v1/agent/provider-config', requirePermission('agent'), async c => {
+    noteAgentSeen()
     try {
       c.header('cache-control', 'no-store')
       return c.json(await voiceProviderConfig(db))

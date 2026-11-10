@@ -3,6 +3,11 @@
 import { useEffect, useState } from 'react'
 
 export const adminSections = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    description: 'How this install is used, roughly what it costs, and whether its parts work.',
+  },
   { id: 'workspaces', label: 'Workspaces', description: 'Every business on this install.' },
   { id: 'users', label: 'Users', description: 'Everyone with an account, in any workspace.' },
   {
@@ -26,10 +31,10 @@ export type AdminPlace = { section: AdminSection; id: string | null }
 
 const isSection = (value: string): value is AdminSection => adminSections.some(s => s.id === value)
 
-/** `#admin`, `#admin/users`, `#admin/users/<id>`. Anything else in admin mode is the first section. */
+/** `#admin`, `#admin/users`, `#admin/users/<id>`. Anything else in admin mode is the overview. */
 export function parseAdminHash(hash: string): AdminPlace {
   const [, section = '', id = ''] = hash.replace(/^#/, '').split('?')[0]!.split('/')
-  if (!isSection(section)) return { section: 'workspaces', id: null }
+  if (!isSection(section)) return { section: 'overview', id: null }
   return { section, id: id ? decodeURIComponent(id) : null }
 }
 

@@ -575,3 +575,168 @@
     display: none;
   }
 }
+
+/* Overview: stat tiles, health, provider cost, people. */
+.adm-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+.adm-stat {
+  display: grid;
+  gap: 2px;
+  min-height: 74px;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+.adm-stat > span {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.adm-stat b {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.adm-stat small {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+.adm-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.adm-card-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.adm-card-head p {
+  margin: 2px 0 0;
+}
+.adm-health {
+  display: grid;
+}
+.adm-health-row {
+  display: grid;
+  grid-template-columns: 10px 110px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.adm-health-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.adm-health-row b {
+  font-weight: 500;
+}
+.adm-health-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--line-control);
+  transform: translateY(-1px);
+}
+.adm-health-dot.ok {
+  background: var(--ink);
+}
+.adm-health-dot.bad {
+  background: var(--danger);
+}
+.adm-scroll {
+  overflow-x: auto;
+}
+.adm-total th,
+.adm-total td {
+  font-weight: 600;
+}
+.adm-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+.adm-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.adm-link:hover b,
+.adm-link:hover {
+  text-decoration: underline;
+}
+.adm-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Loading and error states */
+.adm-skel {
+  display: grid;
+  gap: 14px;
+}
+.adm-skel.adm-stat,
+.adm-skel-card {
+  min-height: 74px;
+  background: var(--surface-hover);
+  box-shadow: none;
+}
+.adm-skel-card {
+  min-height: 220px;
+}
+.adm-skel-rows {
+  padding: 12px;
+}
+.adm-skel-line {
+  display: block;
+  height: 14px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-hover);
+}
+.adm-skel-line:nth-child(odd) {
+  width: 72%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .adm-skel-line,
+  .adm-skel.adm-stat,
+  .adm-skel-card {
+    animation: adm-pulse 1.2s ease-in-out infinite alternate;
+  }
+}
+@keyframes adm-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.55;
+  }
+}
+.adm-error-card {
+  gap: 6px;
+}
+.adm-error-card b {
+  font-size: 14px;
+  font-weight: 600;
+}
+@media (max-width: 719px) {
+  .adm-health-row {
+    grid-template-columns: 10px minmax(0, 1fr);
+  }
+  .adm-health-row .help {
+    grid-column: 2;
+  }
+}
