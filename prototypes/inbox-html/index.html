@@ -1,0 +1,2323 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Kontor Prototype White</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Sage palette from an earlier project (apps/web/src/app/globals.css). Light only.
+   Sidebars on warm grey-beige, page on the lighter tone, everything with text on white. */
+:root {
+  color-scheme: light;
+  --bg: #fafaf8; --surface: #ffffff; --surface-raised: #ffffff; --surface-hover: #f3f2ee;
+  --line: #e7e4de; --line-control: #d8d3cb;
+  --ink: #1c1917; --ink-muted: #645d57; --ink-disabled: #a8a29e;
+  --action: #1c1917; --on-action: #fafaf8;
+  --signal: #1c1917; --signal-soft: #f0efeb; --on-signal: #fafaf8;
+  --bubble-out: #f3f2ee; --bubble-in: #ffffff; --bubble-caller: #1c1917;
+  --info: #4a5f7a; --info-soft: #edf0f4; --read-tick: #4a5f7a; --focus: #1c1917;
+  --warning: #b45309; --warning-soft: #fbf1e4;
+  --danger: #b42318; --danger-soft: #fdecea; --on-danger: #ffffff; --live: #b42318;
+  --speaker-caller: #1c1917; --speaker-ai: #8a827b; --speaker-agent: #4a5f7a;
+  --sidebar: #f4f3ef; --sidebar-muted: #5f5852; --highlight: #f0efeb; --highlight-ink: #1c1917;
+  --shadow-popover: 0 12px 32px -8px rgb(41 37 36 / 0.18), 0 2px 6px rgb(41 37 36 / 0.06);
+  --shadow-dialog: 0 12px 32px -8px rgb(41 37 36 / 0.18), 0 2px 6px rgb(41 37 36 / 0.06);
+  --shadow-card: 0 1px 2px rgb(41 37 36 / 0.05), 0 2px 8px -2px rgb(41 37 36 / 0.06);
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+  --radius-xs: 6px; --radius-sm: 8px; --radius-md: 10px; --radius-lg: 12px; --radius-bubble: 16px; --radius-full: 9999px;
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+body { background: var(--bg); color: var(--ink); }
+
+/* Kontor components */
+
+body { margin: 0; font-family: var(--font-sans); background: var(--bg); color: var(--ink); font-size: 14px; line-height: 20px; -webkit-font-smoothing: antialiased; }
+.k-icon { display: block; flex: none; }
+
+/* Kbd */
+.k-kbds { display: inline-flex; gap: var(--space-1); }
+.k-kbd { box-sizing: border-box; display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1; color: var(--ink-muted); background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-xs); }
+
+/* Button */
+.k-btn { box-sizing: border-box; display: inline-flex; align-items: center; gap: var(--space-2); height: 32px; padding: 0 var(--space-3); font: inherit; font-size: 13px; font-weight: 500; line-height: 1; border: 1px solid transparent; border-radius: var(--radius-sm); cursor: pointer; white-space: nowrap; }
+.k-btn:focus-visible, .k-send:focus-visible, .k-chat:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.k-btn-primary { background: var(--action); color: var(--on-action); }
+.k-btn-primary:hover { opacity: .88; }
+.k-btn-primary .k-kbd, .k-btn-danger .k-kbd { background: transparent; border-color: currentColor; color: inherit; opacity: .72; }
+.k-btn-secondary { background: var(--surface-raised); color: var(--ink); border-color: var(--line); }
+.k-btn-secondary:hover { background: var(--surface-hover); }
+.k-btn-ghost { background: transparent; color: var(--ink-muted); }
+.k-btn-ghost:hover { background: var(--surface-hover); color: var(--ink); }
+.k-btn-danger { background: var(--danger); color: var(--on-danger); }
+.k-btn-sm { height: 28px; padding: 0 10px; font-size: 12.5px; gap: 6px; }
+.k-btn-sm .k-kbd { height: 18px; min-width: 18px; }
+.k-btn-icon { width: 32px; padding: 0; justify-content: center; }
+.k-btn-sm.k-btn-icon { width: 28px; }
+.k-btn:disabled { background: var(--surface-hover); color: var(--ink-disabled); border-color: transparent; cursor: not-allowed; opacity: 1; }
+
+/* Input */
+.k-input { box-sizing: border-box; display: flex; align-items: center; gap: var(--space-2); height: 32px; padding: 0 var(--space-2) 0 10px; background: var(--surface); border: 1px solid var(--line-control); border-radius: var(--radius-sm); color: var(--ink-muted); }
+.k-input:focus-within { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
+.k-input input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; font-size: 13.5px; color: var(--ink); padding: 0; }
+.k-input input::placeholder, .k-composer-input::placeholder, .k-cmd-search input::placeholder { color: var(--ink-muted); opacity: 1; }
+
+/* Badge */
+.k-badge { box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 var(--space-2); border-radius: var(--radius-full); font-size: 12px; font-weight: 500; line-height: 1; white-space: nowrap; }
+.k-badge-dot::before { content: ""; width: 6px; height: 6px; border-radius: var(--radius-full); background: currentColor; }
+.k-badge-neutral { background: var(--surface-hover); color: var(--ink-muted); }
+.k-badge-signal { background: var(--signal-soft); color: var(--signal); }
+.k-badge-info { background: var(--info-soft); color: var(--info); }
+.k-badge-warning { background: var(--warning-soft); color: var(--warning); }
+.k-badge-danger { background: var(--danger-soft); color: var(--danger); }
+
+/* Avatar */
+.k-avatar { position: relative; display: inline-grid; place-items: center; flex: none; border-radius: var(--radius-full); background: var(--surface-hover); color: var(--ink); font-weight: 600; letter-spacing: .01em; }
+.k-avatar-24 { width: 24px; height: 24px; font-size: 10px; }
+.k-avatar-32 { width: 32px; height: 32px; font-size: 12px; }
+.k-avatar-40 { width: 40px; height: 40px; font-size: 14px; }
+.k-avatar-ai { background: var(--signal-soft); color: var(--signal); }
+.k-presence { position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: var(--radius-full); box-shadow: 0 0 0 2px var(--bg); }
+.k-avatar-24 .k-presence { width: 8px; height: 8px; }
+.k-presence-online { background: var(--signal); }
+.k-presence-away { background: var(--warning); }
+
+/* Day divider */
+.k-day { display: flex; justify-content: center; padding: var(--space-2) 0; }
+.k-day span { font-size: 12px; font-weight: 500; line-height: 16px; color: var(--ink-muted); background: var(--surface-raised); border: 1px solid var(--line); padding: 2px 10px; border-radius: var(--radius-full); }
+
+/* Message bubble */
+.k-msg { display: flex; padding: 1px 0; }
+.k-msg-me { justify-content: flex-end; }
+.k-msg-tail { margin-top: var(--space-2); }
+.k-bubble { position: relative; box-sizing: border-box; max-width: min(72%, 520px); padding: 6px 10px 7px; border-radius: var(--radius-bubble); font-size: 14.5px; line-height: 20px; overflow-wrap: anywhere; }
+.k-msg-them .k-bubble { background: var(--bubble-in); border: 1px solid var(--line); }
+.k-msg-me .k-bubble { background: var(--bubble-out); color: var(--ink); }
+.k-msg-them.k-msg-tail .k-bubble { border-top-left-radius: var(--radius-xs); }
+.k-msg-me.k-msg-tail .k-bubble { border-top-right-radius: var(--radius-xs); }
+.k-msg-author { font-size: 12.5px; font-weight: 600; line-height: 18px; color: var(--signal); }
+.k-meta-space { display: inline-block; width: 40px; height: 1px; }
+.k-msg-me .k-meta-space { width: 60px; }
+.k-meta { position: absolute; right: 10px; bottom: 6px; display: inline-flex; align-items: center; gap: 3px; font-family: var(--font-mono); font-size: 11px; line-height: 1; color: var(--ink-muted); }
+.k-ticks { display: inline-flex; color: var(--ink-muted); }
+.k-ticks-read { color: var(--read-tick); }
+
+/* Composer */
+.k-composer { box-sizing: border-box; display: flex; align-items: center; gap: 6px; padding: 6px; background: var(--surface); border: 1px solid var(--line-control); border-radius: var(--radius-md); }
+.k-composer:focus-within { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
+.k-composer-input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; font-size: 14.5px; line-height: 20px; color: var(--ink); padding: 6px 4px; }
+.k-composer-hint { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-muted); white-space: nowrap; }
+.k-send { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border: 0; border-radius: var(--radius-sm); background: var(--signal); color: var(--on-signal); cursor: pointer; }
+.k-send:disabled { background: var(--surface-hover); color: var(--ink-disabled); cursor: default; }
+
+/* Chat list item */
+.k-chat { box-sizing: border-box; display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: var(--space-2) var(--space-3); border: 0; border-radius: var(--radius-md); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.k-chat:hover, .k-chat.is-active { background: var(--surface-hover); }
+.k-chat-body { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.k-chat-top, .k-chat-bottom { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-width: 0; }
+.k-chat-name { font-size: 14px; font-weight: 500; line-height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k-chat-time { flex: none; font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); }
+.k-chat-preview { font-size: 13px; line-height: 18px; color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k-chat.is-unread .k-chat-name { font-weight: 600; }
+.k-chat.is-unread .k-chat-time { color: var(--signal); }
+.k-chat.is-unread .k-chat-preview { color: var(--ink); }
+.k-chat-typing { color: var(--signal); }
+.k-count { box-sizing: border-box; flex: none; display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--radius-full); background: var(--signal); color: var(--on-signal); font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Command menu */
+.k-cmd { box-sizing: border-box; width: 100%; max-width: 560px; background: var(--surface-raised); border-radius: var(--radius-lg); box-shadow: var(--shadow-dialog); overflow: hidden; }
+.k-cmd-search { display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 14px; border-bottom: 1px solid var(--line); color: var(--ink-muted); }
+.k-cmd-search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; font-size: 15px; color: var(--ink); }
+.k-cmd-list { padding: 6px; max-height: 300px; overflow: auto; }
+.k-cmd-group { padding: 8px 10px 4px; font-size: 12px; font-weight: 500; line-height: 16px; color: var(--ink-muted); }
+.k-cmd-item { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: var(--radius-sm); font-size: 13.5px; color: var(--ink); cursor: pointer; }
+.k-cmd-item .k-icon { color: var(--ink-muted); }
+.k-cmd-item[aria-selected="true"] { background: var(--surface-hover); }
+.k-cmd-item[aria-selected="true"] .k-icon { color: var(--ink); }
+.k-cmd-item .k-kbds { margin-left: auto; }
+.k-cmd-empty { padding: var(--space-6) var(--space-3); text-align: center; font-size: 13px; color: var(--ink-muted); }
+.k-cmd-foot { display: flex; flex-wrap: wrap; gap: var(--space-4); padding: var(--space-2) 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-muted); }
+.k-cmd-foot span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Message bubble: call variants */
+.k-msg-me .k-msg-author { color: var(--ink-muted); }
+.k-bubble.k-tone-signal { background: var(--bubble-caller); border-color: transparent; }
+.k-bubble.k-tone-neutral { background: var(--bubble-in); border: 1px solid var(--line); }
+.k-bubble.k-tone-signal .k-msg-author { color: var(--signal); }
+.k-bubble.k-tone-neutral .k-msg-author { color: var(--ink-muted); }
+.k-caret { display: inline-block; width: 2px; height: 16px; margin-left: 3px; vertical-align: -3px; background: currentColor; border-radius: 1px; }
+
+/* Live indicator */
+.k-livei { box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 var(--space-2); border-radius: var(--radius-full); font-size: 12px; font-weight: 500; line-height: 1; white-space: nowrap; }
+.k-livei time { font-family: var(--font-mono); font-size: 11px; font-variant-numeric: tabular-nums; }
+.k-livei-dot { display: inline-block; width: 6px; height: 6px; border-radius: var(--radius-full); background: currentColor; }
+.k-livei-live { background: var(--danger-soft); color: var(--live); }
+.k-livei-ringing { background: var(--warning-soft); color: var(--warning); }
+.k-livei-hold { background: var(--info-soft); color: var(--info); }
+.k-livei-ended { background: var(--surface-hover); color: var(--ink-muted); }
+.k-chat-top .k-livei { height: 20px; }
+
+/* Call timeline */
+.k-tl { box-sizing: border-box; display: grid; gap: 6px; padding: var(--space-3) var(--space-4) 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.k-tl-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); font-size: 12px; line-height: 16px; color: var(--ink-muted); }
+.k-tl-key { display: inline-flex; align-items: center; gap: 6px; }
+.k-tl-key::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--k); }
+.k-tl-key.caller { --k: var(--speaker-caller); }
+.k-tl-key.ai { --k: var(--speaker-ai); }
+.k-tl-key.agent { --k: var(--speaker-agent); }
+.k-tl-key b { font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+.k-tl-time { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.k-tl-time .k-livei-dot { color: var(--live); }
+.k-tl-row { display: flex; align-items: center; gap: var(--space-3); }
+.k-play { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border: 0; border-radius: var(--radius-full); background: var(--action); color: var(--on-action); cursor: pointer; }
+.k-play:focus-visible, .k-tl-track:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.k-tl-track { position: relative; flex: 1; min-width: 0; height: 40px; display: flex; align-items: center; gap: 2px; cursor: pointer; border-radius: var(--radius-xs); }
+.k-tl-track.is-live { cursor: default; }
+.k-tl-bar { position: relative; z-index: 1; flex: 1; min-width: 1px; border-radius: 1px; }
+.k-tl-bar.caller { background: var(--speaker-caller); }
+.k-tl-bar.ai { background: var(--speaker-ai); }
+.k-tl-bar.agent { background: var(--speaker-agent); }
+.k-tl-bar.none { height: 2px; background: var(--line); }
+.k-tl-played { position: absolute; z-index: 0; left: 0; top: -4px; bottom: -4px; background: var(--surface-hover); border-radius: var(--radius-xs); }
+.k-tl-ph { position: absolute; z-index: 2; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--ink); border-radius: 1px; }
+.k-tl-axis { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10.5px; line-height: 14px; color: var(--ink-muted); }
+.k-tl-axis.has-play { padding-left: 44px; }
+
+/* Call event */
+.k-event { display: flex; align-items: center; gap: 10px; padding: var(--space-2) 0; font-size: 12px; line-height: 16px; color: var(--ink-muted); }
+.k-event::before, .k-event::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
+.k-event-in { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.k-event-in time { font-family: var(--font-mono); font-size: 11px; }
+
+/* Call list item (extends .k-chat) */
+.k-call-sum { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13px; line-height: 18px; color: var(--ink-muted); }
+.k-call-sum span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k-call-dur { flex: none; font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); }
+.k-call.is-missed .k-call-sum .k-icon, .k-call.is-missed .k-chat-time { color: var(--danger); }
+
+/* Call summary */
+.k-summary { box-sizing: border-box; display: grid; align-content: start; gap: 14px; padding: var(--space-4); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.k-summary-h { display: flex; align-items: center; gap: var(--space-2); }
+.k-summary-h .k-icon { color: var(--signal); }
+.k-summary-h b { font-size: 14px; font-weight: 600; }
+.k-summary-h small { margin-left: auto; font-size: 12px; color: var(--ink-muted); }
+.k-summary p { margin: 0; font-size: 13px; line-height: 19px; }
+.k-summary dl { display: grid; grid-template-columns: auto 1fr; gap: 6px var(--space-3); margin: 0; font-size: 13px; line-height: 18px; }
+.k-summary dt { color: var(--ink-muted); }
+.k-summary dd { margin: 0; }
+.k-summary-tasks { display: grid; gap: var(--space-2); }
+.k-summary-label { font-size: 12px; font-weight: 500; color: var(--ink-muted); }
+.k-task { display: flex; align-items: flex-start; gap: var(--space-2); font-size: 13px; line-height: 18px; cursor: pointer; }
+.k-task input { flex: none; width: 14px; height: 14px; margin: 2px 0 0; accent-color: var(--signal); }
+.k-summary-a { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .k-livei-live .k-livei-dot, .k-tl-time .k-livei-dot { animation: k-pulse 1.4s ease-out infinite; }
+  .k-caret { animation: k-blink 1s steps(1) infinite; }
+}
+@keyframes k-pulse { 0% { box-shadow: 0 0 0 0 currentColor; } 100% { box-shadow: 0 0 0 5px transparent; } }
+@keyframes k-blink { 50% { opacity: 0; } }
+
+/* Preview helpers */
+
+
+
+/* Prototype */
+/* Layout: permanent icon rail 56px | main. Calls work like Superhuman: full-width list, Enter opens the call full width, Esc goes back. Tokens from the Kontor design system above. */
+html, body { height: 100%; }
+body { overflow: hidden; }
+#app { height: 100%; }
+button { font: inherit; }
+.k-btn > span { display: inline-flex; align-items: center; gap: 6px; }
+
+.app { display: grid; grid-template-columns: 56px minmax(0, 1fr); height: 100%; background: var(--bg); color: var(--ink); }
+
+/* Rail */
+.nav { position: relative; z-index: 20; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 8px; padding-left: max(8px, env(safe-area-inset-left, 0px)); background: var(--surface); border-right: 1px solid var(--line); min-height: 0; }
+.ws-mark { width: 28px; height: 28px; border-radius: var(--radius-sm); background: var(--signal); color: var(--on-signal); display: grid; place-items: center; margin-bottom: 10px; flex: none; }
+
+
+
+.row:focus-visible, .r-act:focus-visible, .ib-tab:focus-visible, .sw:focus-visible, .opt:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+
+.nav-foot { margin-top: auto; display: grid; gap: 2px; justify-items: center; padding-top: 8px; }
+
+
+.nav-live { display: block; width: 8px; height: 8px; border-radius: var(--radius-full); background: var(--live); box-shadow: 0 0 0 2px var(--surface); }
+
+
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
+
+/* Inbox */
+.ib-head { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; min-height: 52px; padding: 8px 24px; border-bottom: 1px solid var(--line); flex: none; }
+
+.ib-tabs { display: flex; gap: 2px; flex-wrap: wrap; }
+.ib-tab { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink-muted); font-size: 13.5px; font-weight: 500; cursor: pointer; }
+.ib-tab:hover { color: var(--ink); }
+.ib-tab[aria-selected="true"] { color: var(--ink); background: var(--surface-hover); }
+.ib-tab .n { font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); }
+.ib-right { margin-left: auto; display: flex; gap: 6px; }
+.ib-list { flex: 1; overflow: auto; min-height: 0; padding: 6px 0 24px; }
+.row { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 24px; cursor: pointer; }
+.row:hover { background: var(--surface); }
+.row.is-cursor { background: var(--surface-hover); }
+.r-dir { flex: none; color: var(--ink-muted); display: grid; }
+.r-dir.missed { color: var(--danger); }
+
+.r-name { flex: 0 0 190px; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; color: var(--ink-muted); }
+.r-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row.unread .r-name { color: var(--ink); font-weight: 600; }
+
+
+
+
+.r-dur, .r-time { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-muted); font-variant-numeric: tabular-nums; text-align: right; }
+.r-dur { min-width: 36px; }
+.r-time { min-width: 52px; }
+.row.unread .r-time { color: var(--ink); }
+.r-acts { display: none; gap: 2px; }
+.row:hover .r-acts, .row.is-cursor .r-acts { display: flex; }
+.row:hover .r-dur, .row:hover .r-time, .row.is-cursor .r-dur, .row.is-cursor .r-time { display: none; }
+.r-act { width: 28px; height: 28px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink-muted); display: grid; place-items: center; cursor: pointer; }
+.r-act:hover { background: var(--surface-raised); color: var(--ink); }
+.ib-hint { flex: none; display: flex; justify-content: center; gap: 4px 12px; flex-wrap: wrap; padding: 6px 24px 8px; font-size: 10.5px; line-height: 14px; color: var(--ink-muted); }
+.ib-hint span { display: inline-flex; align-items: center; gap: 4px; }
+.ib-hint .k-kbds { gap: 2px; }
+.ib-hint .k-kbd { height: 15px; min-width: 15px; padding: 0 3px; font-size: 9.5px; }
+
+/* Call view */
+.cv { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.cv-bar { display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 16px; border-bottom: 1px solid var(--line); flex: none; }
+.cv-pos { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-muted); padding: 0 4px; white-space: nowrap; }
+.cv-acts { margin-left: auto; display: flex; gap: 6px; }
+.cv-scroll { flex: 1; overflow: auto; min-height: 0; padding: 20px 24px 32px; }
+.cv-col { max-width: 820px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.cv-who { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-bottom: 4px; }
+.cv-who-t { display: grid; min-width: 0; }
+.cv-who h1 { font-size: 20px; line-height: 28px; font-weight: 600; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.cv-who .sub { font-family: var(--font-mono); font-size: 12px; color: var(--ink-muted); }
+.compose { padding: 0 24px 16px; flex: none; }
+.compose-inner { max-width: 820px; margin: 0 auto; display: grid; gap: 6px; }
+.compose small { font-size: 12px; color: var(--ink-muted); }
+
+.vn { display: flex; align-items: center; gap: 14px; padding: 12px 14px 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-bubble); border-top-left-radius: var(--radius-xs); }
+.vn-btn { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border: 0; border-radius: var(--radius-full); background: var(--action); color: var(--on-action); cursor: pointer; }
+.vn-btn.live { background: var(--danger-soft); color: var(--live); }
+.vn-btn.live[aria-pressed="true"] { background: var(--live); color: var(--on-danger); }
+.vn-btn:focus-visible, .vn-wave:focus-visible, .vn-speed:focus-visible, .seek:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.vn-body { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.vn-wave { position: relative; height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 1px; cursor: pointer; border-radius: var(--radius-xs); }
+.vn-wave.is-live { cursor: default; }
+.vn-wave i { flex: 0 1 3px; min-width: 1.5px; border-radius: 2px; }
+.vn-wave i.caller { background: var(--speaker-caller); }
+.vn-wave i.ai { background: var(--speaker-ai); }
+.vn-wave i.agent { background: var(--speaker-agent); }
+.vn-wave i.none { height: 3px; background: var(--line); }
+.vn-knob { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: var(--radius-full); background: var(--ink); box-shadow: 0 0 0 3px var(--surface); pointer-events: none; }
+
+
+
+
+
+  
+
+.vn-speed { flex: none; height: 26px; min-width: 44px; padding: 0 8px; border: 1px solid var(--line); border-radius: var(--radius-full); background: var(--surface-raised); color: var(--ink); font-family: var(--font-mono); font-size: 12px; cursor: pointer; }
+.vn-speed:hover { background: var(--surface-hover); }
+
+.sumcard { display: grid; gap: 16px; padding: 18px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.sum-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sum-h .k-icon { color: var(--signal); }
+.sum-h > b { font-size: 13px; font-weight: 600; }
+.sum-h small { margin-left: auto; font-size: 12px; color: var(--ink-muted); }
+.sum-text { margin: 0; font-size: 16px; line-height: 24px; text-wrap: pretty; }
+.sum-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px 24px; }
+.sum-col { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.sum-label { font-size: 12px; font-weight: 500; color: var(--ink-muted); }
+
+
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0; font-size: 13px; line-height: 18px; }
+.facts dt { color: var(--ink-muted); }
+.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.facts dd.mono { font-family: var(--font-mono); font-size: 12px; }
+.tr-h { display: flex; align-items: center; gap: 8px; padding: 12px 0 0; }
+.tr-h b { font-size: 13px; font-weight: 600; }
+.tr-h span { font-size: 12px; color: var(--ink-muted); }
+.tr-h .k-btn { margin-left: auto; }
+.seek { cursor: pointer; border-radius: var(--radius-bubble); }
+.k-msg.is-now .k-bubble { box-shadow: 0 0 0 2px var(--focus); }
+.empty { margin: auto; max-width: 380px; text-align: center; display: grid; gap: 10px; justify-items: center; padding: 48px 16px; color: var(--ink-muted); font-size: 13.5px; }
+.empty b { color: var(--ink); font-size: 15px; font-weight: 600; }
+
+/* Pages */
+.page { flex: 1; overflow: auto; min-height: 0; }
+.page-in { max-width: 1080px; margin: 0 auto; padding: 24px 24px 48px; display: grid; gap: 20px; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.page-head h1 { font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+.page-head p { margin: 2px 0 0; color: var(--ink-muted); font-size: 13.5px; }
+
+
+span.mono { font-family: var(--font-mono); font-size: 12px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.sec { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 16px 18px; display: grid; gap: 14px; }
+.sec h2 { font-size: 15px; font-weight: 600; margin: 0; }
+.sec > p { margin: -8px 0 0; font-size: 13px; color: var(--ink-muted); }
+.field { display: grid; gap: 6px; }
+.field label { font-size: 13px; font-weight: 500; }
+.help { font-size: 12px; color: var(--ink-muted); }
+.ta { font: inherit; font-size: 13.5px; line-height: 20px; padding: 8px 10px; border: 1px solid var(--line-control); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); resize: vertical; min-height: 72px; }
+.ta:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
+.row2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.opt { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-raised); cursor: pointer; }
+.opt.on { border-color: var(--ink); }
+.opt input { margin: 3px 0 0; accent-color: var(--signal); }
+.opt b { display: block; font-size: 13.5px; font-weight: 500; }
+.opt span { font-size: 12px; color: var(--ink-muted); }
+.swrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.swrow div { display: grid; gap: 2px; min-width: 0; }
+.swrow b { font-size: 13.5px; font-weight: 500; }
+.sw { position: relative; flex: none; width: 34px; height: 20px; border: 0; border-radius: var(--radius-full); background: var(--line-control); cursor: pointer; padding: 0; }
+.sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: var(--radius-full); background: var(--surface-raised); }
+.sw[aria-checked="true"] { background: var(--signal); }
+.sw[aria-checked="true"]::after { left: 17px; background: var(--on-signal); }
+.save-bar { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Overlays */
+.overlay { position: fixed; inset: 0; z-index: 50; display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; background: rgba(5, 6, 8, 0.55); }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.help-foot { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 8px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-muted); flex: none; }
+.help-foot span { display: inline-flex; align-items: center; gap: 6px; }
+.help-sheet { width: min(900px, 100%); max-height: 78vh; display: flex; flex-direction: column; background: var(--surface-raised); border-radius: var(--radius-lg); box-shadow: var(--shadow-dialog); overflow: hidden; }
+.help-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); flex: none; }
+.help-head b { font-size: 15px; font-weight: 600; }
+.help-head .k-input { margin-left: auto; width: min(260px, 50%); }
+.help-body { overflow: auto; padding: 16px 20px 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px 32px; align-content: start; }
+.help-group h3 { font-size: 12px; font-weight: 500; color: var(--ink-muted); margin: 0 0 4px; }
+.help-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 30px; font-size: 13px; border-bottom: 1px solid var(--line); }
+.help-empty { padding: 24px 0; font-size: 13px; color: var(--ink-muted); }
+.toast { position: fixed; z-index: 60; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; align-items: center; gap: 12px; max-width: calc(100% - 32px); padding: 10px 14px; border-radius: var(--radius-md); background: var(--ink); color: var(--bg); font-size: 13px; line-height: 18px; box-shadow: var(--shadow-popover); }
+.toast-undo { display: inline-flex; align-items: center; gap: 6px; border: 0; padding: 0 0 0 12px; border-left: 1px solid currentColor; background: transparent; color: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+
+
+@media (max-width: 719px) {
+  .ib-head { padding: 8px 12px; }
+  .ib-hint { display: none; }
+  .ib-right .k-btn > span:not(.k-kbds), .ib-right .k-kbds { display: none; }
+  .row:hover .r-acts, .row.is-cursor .r-acts { display: none; }
+  .cv-bar { padding: 0 8px; gap: 4px; }
+  .cv-acts .k-btn > span:not(.k-kbds), .cv-acts .k-kbds, .cv-bar > .k-btn .k-kbds { display: none; }
+  .cv-acts .k-btn { padding: 0 8px; }
+  .cv-scroll { padding: 16px 12px 24px; }
+  .compose { padding: 0 12px 12px; }
+  .sum-grid { grid-template-columns: minmax(0, 1fr); }
+  .vn { gap: 10px; padding: 10px 10px 8px; }
+  .sumcard { padding: 16px; }
+  .sum-text { font-size: 15px; line-height: 22px; }
+  .page-in { padding: 16px 12px 40px; }
+  
+}
+
+/* ===== Density pass: Superhuman-sized ===== */
+body { font-size: 13px; }
+.app { grid-template-columns: 48px minmax(0, 1fr); }
+.nav { padding: 10px 6px; }
+.ws-mark { width: 24px; height: 24px; margin-bottom: 8px; }
+
+
+
+.nav-live { width: 7px; height: 7px; }
+
+
+.ib-head { min-height: 44px; padding: 6px 20px; gap: 6px 12px; }
+
+.ib-tab { height: 24px; padding: 0 8px; font-size: 12.5px; }
+.ib-list { padding: 0 0 16px; }
+.ib-cols, .row { display: grid; grid-template-columns: 14px minmax(110px, 160px) minmax(0, 1fr) 104px 44px 64px; align-items: center; column-gap: 14px; padding: 0 20px; }
+.ib-cols { position: sticky; top: 0; z-index: 2; height: 28px; background: var(--bg); border-bottom: 1px solid var(--line); font-size: 11px; font-weight: 500; color: var(--ink-muted); }
+.ib-cols .num, .r-dur, .r-time { text-align: right; }
+.row { position: relative; min-height: 34px; gap: 0 14px; font-size: 13px; line-height: 18px; }
+.row:hover { background: var(--surface); }
+.row.is-cursor { background: var(--surface-hover); }
+.r-dir { display: grid; }
+.r-name, .r-topic, .r-sum { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.r-name { display: flex; align-items: center; gap: 5px; flex: none; font-size: 13px; font-weight: 500; color: var(--ink-muted); }
+.row.unread .r-name { color: var(--ink); font-weight: 600; }
+.r-topic { color: var(--ink); font-weight: 500; }
+.row.unread .r-topic { font-weight: 600; }
+.r-sum { color: var(--ink-muted); }
+.r-status { display: flex; align-items: center; min-width: 0; }
+.r-status .k-badge, .r-status .k-livei { height: 18px; font-size: 11px; padding: 0 6px; gap: 5px; }
+.r-status .k-livei time { font-size: 10.5px; }
+.r-quiet { font-size: 11.5px; color: var(--ink-muted); white-space: nowrap; }
+.r-dur, .r-time { min-width: 0; font-size: 11px; }
+.r-acts { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); display: none; gap: 2px; padding-left: 8px; background: inherit; }
+.row:hover .r-acts, .row.is-cursor .r-acts { display: flex; }
+.row:hover .r-dur, .row:hover .r-time, .row.is-cursor .r-dur, .row.is-cursor .r-time { display: block; visibility: hidden; }
+.r-act { width: 24px; height: 24px; }
+.ib-hint { padding: 5px 20px 7px; }
+
+.cv-bar { min-height: 44px; padding: 0 12px; gap: 6px; }
+.cv-scroll { padding: 16px 20px 28px; }
+.cv-col { max-width: 760px; gap: 10px; }
+.cv-who { gap: 10px; padding-bottom: 2px; }
+.cv-who h1 { font-size: 16px; line-height: 22px; }
+.cv-who .sub { font-size: 11px; }
+.vn { gap: 10px; padding: 8px 12px 7px 8px; }
+.vn-btn { width: 34px; height: 34px; }
+.vn-wave { height: 26px; }
+.vn-knob { width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; }
+
+
+
+.vn-speed { height: 22px; min-width: 36px; font-size: 11px; }
+.sumcard { gap: 12px; padding: 14px 16px; }
+.sum-h > b { font-size: 12.5px; }
+.sum-h small { font-size: 11px; }
+.sum-h .k-badge { height: 18px; font-size: 11px; }
+.sum-text { font-size: 14px; line-height: 21px; }
+.sum-grid { gap: 12px 20px; }
+.sum-label { font-size: 11px; }
+.facts { font-size: 12.5px; line-height: 17px; gap: 5px 12px; }
+
+.tr-h { padding-top: 8px; }
+.tr-h b { font-size: 12.5px; }
+.tr-h span { font-size: 11px; }
+.cv .k-bubble { font-size: 13px; line-height: 18px; padding: 5px 9px 6px; }
+.cv .k-msg-author { font-size: 11.5px; line-height: 16px; }
+.cv .k-meta { font-size: 10px; bottom: 5px; }
+.cv .k-meta-space { width: 34px; }
+.cv .k-msg-me .k-meta-space { width: 34px; }
+.cv .k-event { font-size: 11px; padding: 6px 0; }
+.cv .k-livei { height: 20px; font-size: 11px; }
+.compose { padding: 0 20px 12px; }
+.compose small { font-size: 11px; }
+.cv .k-composer-input { font-size: 13px; padding: 4px; }
+.cv .k-composer { padding: 4px; }
+.cv .k-send { width: 28px; height: 28px; }
+
+.page-in { padding: 20px 20px 40px; gap: 16px; }
+.page-head h1 { font-size: 16px; line-height: 22px; }
+.page-head p { font-size: 12.5px; }
+
+
+
+
+.sec { padding: 14px 16px; gap: 12px; }
+.sec h2 { font-size: 14px; }
+.sec > p, .field label, .swrow b, .opt b { font-size: 12.5px; }
+.help { font-size: 11.5px; }
+.opt { padding: 10px; }
+.k-badge { height: 18px; font-size: 11px; }
+.k-cmd-item { height: 32px; font-size: 13px; }
+.help-row { min-height: 26px; font-size: 12.5px; }
+
+
+
+
+@media (max-width: 719px) {
+  .ib-head { padding: 6px 12px; }
+  .ib-cols { display: none; }
+  .row { grid-template-columns: 14px minmax(0, 1fr) auto; grid-template-areas: "dir name time" "dir sum sum" "dir status status"; row-gap: 2px; padding: 8px 12px; align-items: start; }
+  .r-dir { grid-area: dir; padding-top: 2px; }
+  .r-name { grid-area: name; }
+  .r-sum { grid-area: sum; }
+  .r-status { grid-area: status; justify-content: flex-start; }
+  .r-time { grid-area: time; }
+  .r-dur { display: none !important; }
+  .row:hover .r-time, .row.is-cursor .r-time { visibility: visible; }
+  .row:hover .r-acts, .row.is-cursor .r-acts { display: none; }
+  .r-quiet { display: none; }
+  .cv-scroll { padding: 12px 12px 20px; }
+  .compose { padding: 0 12px 10px; }
+  .page-in { padding: 14px 12px 32px; }
+}
+
+/* ===== Hidden left menu + right customer panel ===== */
+.app { grid-template-columns: minmax(0, 1fr); }
+.nav { position: fixed; top: 0; bottom: 0; left: 0; z-index: 45; width: 252px; align-items: stretch; gap: 1px; padding: 12px 10px; padding-top: max(12px, env(safe-area-inset-top, 0px)); padding-bottom: max(12px, env(safe-area-inset-bottom, 0px)); padding-left: max(10px, env(safe-area-inset-left, 0px)); box-shadow: var(--shadow-dialog); transform: translateX(-105%); visibility: hidden; overflow-y: auto; }
+.app.nav-open .nav { transform: none; visibility: visible; }
+@media (prefers-reduced-motion: no-preference) { .nav { transition: transform .16s ease-out, visibility 0s linear .16s; } .app.nav-open .nav { transition: transform .16s ease-out; } }
+.scrim { display: none; }
+.app.nav-open .scrim { display: block; position: fixed; inset: 0; z-index: 44; background: rgba(5, 6, 8, 0.45); }
+.ws { display: flex; align-items: center; gap: 8px; padding: 0 2px 10px 4px; }
+.ws b { flex: 1; font-size: 14px; font-weight: 600; }
+.ws .ws-mark { margin: 0; }
+.nav-item { display: flex; align-items: center; gap: 10px; width: 100%; height: 30px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink-muted); font-size: 13px; font-weight: 500; text-align: left; cursor: pointer; flex: none; }
+.nav-item:hover, .nav-item[aria-current="page"] { background: var(--surface-hover); color: var(--ink); }
+.nav-item:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.nav-item .lbl { flex: 1; }
+.nav-item .k-kbd { height: 17px; min-width: 17px; padding: 0 4px; font-size: 10px; }
+.nav-item .nav-live { width: 7px; height: 7px; box-shadow: none; }
+.nav-item .k-count { min-width: 16px; height: 16px; font-size: 10px; padding: 0 4px; }
+.nav-foot { margin-top: auto; display: grid; gap: 1px; justify-items: stretch; padding-top: 8px; border-top: 1px solid var(--line); }
+.me { display: flex; align-items: center; gap: 10px; padding: 8px 8px 0; }
+.me div { display: grid; line-height: 15px; min-width: 0; }
+.me b { font-size: 12.5px; font-weight: 500; }
+.me small { font-size: 11px; color: var(--ink-muted); }
+.menu-btn { margin-left: -6px; }
+.pagebar { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border-bottom: 1px solid var(--line); flex: none; }
+.pagebar b { font-size: 14px; font-weight: 600; }
+.page-head h1 { display: none; }
+.page-head p { margin: 0; }
+
+.cv-main { flex: 1; display: flex; min-height: 0; }
+.cv-center { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.cv-side { flex: none; width: 272px; overflow: auto; border-left: 1px solid var(--line); background: var(--surface); padding: 16px 14px 20px; display: flex; flex-direction: column; gap: 14px; }
+.cv-side > .k-badge, .cv-side > .k-btn { align-self: flex-start; }
+.side-who { display: flex; align-items: center; gap: 10px; }
+.side-who div { display: grid; min-width: 0; line-height: 17px; }
+.side-who b { font-size: 13.5px; font-weight: 600; }
+.side-who span { font-size: 11.5px; color: var(--ink-muted); }
+.side-facts { font-size: 12px; line-height: 16px; grid-template-columns: 60px minmax(0, 1fr); gap: 5px 10px; }
+.side-facts dd.mono { font-size: 11px; }
+.side-sec { display: grid; gap: 2px; padding-top: 12px; border-top: 1px solid var(--line); }
+.side-sec h2 { font-size: 11px; font-weight: 500; color: var(--ink-muted); margin: 0 0 4px; }
+.side-call { display: grid; gap: 1px; width: 100%; margin: 0; padding: 5px 6px; box-sizing: border-box; border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.side-call:hover { background: var(--surface-hover); }
+.side-call:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.side-call.is-old { cursor: default; }
+.side-call.is-old:hover { background: transparent; }
+.sc-top { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; line-height: 17px; min-width: 0; }
+.sc-top b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-top .mono { font-size: 10.5px; flex: none; }
+.sc-sub { font-size: 11px; color: var(--ink-muted); }
+
+
+@media (max-width: 1099px) { .cv-side { display: none; } }
+/* Same breakpoint as above: while the side panel shows the caller, drop the duplicate sub line in the call header */
+@media (min-width: 1100px) { .cv-who .sub { display: none; } }
+@media (max-width: 719px) { .pagebar { padding: 0 10px; } }
+
+
+/* WhatsApp-style waveform: thin, tight bars; colour only hints at the speaker */
+.vn-wave { justify-content: flex-start; gap: 1px; }
+.vn-wave i { flex: 1 1 0; min-width: 0; max-width: 3px; border-radius: 1.5px; }
+.vn-wave i.caller { background: var(--speaker-caller); opacity: .38; }
+.vn-wave i.ai, .vn-wave i.agent { background: var(--ink-muted); opacity: .38; }
+.vn-wave i.agent { background: var(--speaker-agent); }
+.vn-wave i.p { opacity: .95; }
+.vn-wave i.ai.p { background: var(--ink); opacity: .55; }
+.vn-wave i.none { height: 2px; opacity: .6; }
+
+/* ===== Sage surfaces ===== */
+.nav, .cv-side { background: var(--sidebar); }
+.nav { border-right-color: var(--line); }
+.nav-item { color: var(--sidebar-muted); }
+.nav-item:hover { background: #ebe9e3; color: var(--ink); }
+.nav-item[aria-current="page"] { background: var(--highlight); color: var(--highlight-ink); }
+.ib-head, .cv-bar, .pagebar { background: var(--bg); }
+.ib-list { margin: 12px 16px 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); flex: 1 1 auto; align-self: stretch; }
+.ib-cols { background: var(--surface); border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+.row:hover { background: #f7f6f3; }
+.row.is-cursor { background: var(--highlight); }
+.row.is-cursor .r-topic, .row.is-cursor .r-name { color: var(--highlight-ink); }
+.r-acts { background: transparent; }
+.row:hover .r-acts { background: #f7f6f3; }
+.row.is-cursor .r-acts { background: var(--highlight); }
+.r-act:hover { background: var(--surface); }
+.ib-tab[aria-selected="true"] { background: var(--highlight); color: var(--highlight-ink); }
+.vn, .sumcard, .sec { background: var(--surface); box-shadow: var(--shadow-card); }
+.vn-btn.live { background: var(--danger-soft); }
+.vn-wave i.ai.p { background: var(--ink-muted); opacity: .75; }
+.vn-wave i.caller.p { opacity: .9; }
+.vn-knob { box-shadow: 0 0 0 3px var(--surface); }
+.k-msg-them .k-bubble.k-tone-signal, .k-bubble.k-tone-signal { background: var(--bubble-caller); color: var(--ink); }
+.cv-side .side-call:hover { background: #ebe9e3; }
+.k-btn-primary { background: var(--action); color: var(--on-action); }
+.k-btn-secondary { background: var(--surface); }
+.k-btn-ghost:hover { background: #efede8; }
+.toast { background: var(--ink); color: #fafaf8; }
+.k-cmd, .help-sheet { background: var(--surface); }
+.k-cmd-item[aria-selected="true"] { background: var(--highlight); color: var(--highlight-ink); }
+.overlay, .app.nav-open .scrim { background: rgba(28, 25, 23, 0.28); }
+.opt.on { border-color: var(--action); background: var(--highlight); }
+
+@media (max-width: 719px) { .ib-list { margin: 8px 8px 0; } }
+
+/* QA fixes */
+.cv .k-meta-space, .cv .k-msg-me .k-meta-space { width: 44px; }
+
+.k-avatar { background: #e8e5de; }
+.k-avatar-ai { background: var(--signal-soft); }
+.ib-list { flex: 0 1 auto; }
+.ib-hint { margin-top: auto; }
+
+/* ===== Onboarding ===== */
+.ob { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; background: var(--bg); color: var(--ink); overflow: auto; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.ob-top { display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 max(20px, env(safe-area-inset-right, 0px)) 0 max(20px, env(safe-area-inset-left, 0px)); flex: none; }
+.ob-top > b { font-size: 14px; font-weight: 600; }
+.ob-top .ws-mark { margin: 0; }
+.ob-count { margin-left: auto; font-size: 12px; color: var(--ink-muted); }
+.ob-bar { height: 2px; background: var(--line); flex: none; }
+.ob-bar span { display: block; height: 100%; background: var(--action); }
+@media (prefers-reduced-motion: no-preference) { .ob-bar span { transition: width .3s ease-out; } }
+.ob-main { flex: 1; width: 100%; max-width: 600px; margin: 0 auto; padding: 8vh max(20px, env(safe-area-inset-right, 0px)) 32px max(20px, env(safe-area-inset-left, 0px)); display: flex; flex-direction: column; gap: 28px; box-sizing: border-box; }
+.ob-body { display: grid; gap: 18px; }
+.ob h1 { margin: 0; font-size: 28px; line-height: 34px; font-weight: 600; letter-spacing: -0.025em; text-wrap: balance; }
+.ob-lede { margin: 0; font-size: 15px; line-height: 23px; color: var(--ink-muted); max-width: 52ch; }
+.ob-points { display: grid; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: 6px; }
+.ob-point { display: flex; gap: 12px; align-items: center; padding: 10px; }
+.ob-pi { flex: none; width: 32px; height: 32px; border-radius: var(--radius-sm); display: grid; place-items: center; background: var(--highlight); color: var(--highlight-ink); }
+.ob-point div { display: grid; line-height: 18px; }
+.ob-point b { font-size: 13.5px; font-weight: 600; }
+.ob-point span { font-size: 12.5px; color: var(--ink-muted); }
+.ob-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+.ob-choices.three { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.ob-choice { display: flex; gap: 10px; align-items: flex-start; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-card); cursor: pointer; }
+.ob-choice.on { border-color: var(--action); background: var(--highlight); }
+.ob-choice:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.ob-choice input { margin: 3px 0 0; accent-color: var(--action); }
+.ob-choice b { display: block; font-size: 13.5px; font-weight: 600; }
+.ob-choice span { font-size: 12.5px; color: var(--ink-muted); }
+.ob-newnum { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.ob-newnum span { font-size: 12.5px; color: var(--ink-muted); }
+.ob-newnum b { font-family: var(--font-mono); font-size: 15px; }
+.ob .field label { font-size: 12.5px; font-weight: 500; }
+.ob-prompt { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--action); border-radius: var(--radius-md); font-size: 14px; font-weight: 500; }
+.ob-prompt.ok { justify-content: flex-start; border-color: var(--line); background: var(--highlight); color: var(--highlight-ink); }
+.ob-key { border: 0; background: transparent; padding: 0; cursor: pointer; border-radius: var(--radius-xs); }
+.ob-key .k-kbd { height: 24px; min-width: 24px; font-size: 12px; color: var(--ink); border-color: var(--line-control); }
+.ob-key:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (prefers-reduced-motion: no-preference) { .ob-prompt.shake { animation: obshake .3s; } }
+@keyframes obshake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.ob-steps { display: flex; gap: 6px; }
+.ob-dot { width: 18px; height: 3px; border-radius: 2px; background: var(--line); }
+.ob-dot.on { background: var(--action); }
+.ob-demo { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); overflow: hidden; min-height: 112px; }
+.ob-row { display: grid; grid-template-columns: minmax(0, 130px) minmax(0, 120px) minmax(0, 1fr); gap: 12px; align-items: center; min-height: 36px; padding: 0 14px; font-size: 13px; }
+.ob-row b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ob-t { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ob-s { color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ob-row.is-cursor { background: var(--highlight); color: var(--highlight-ink); }
+.ob-open { padding: 14px; display: grid; gap: 8px; }
+.ob-open-h { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.ob-open-h span { color: var(--ink-muted); }
+.ob-open p { margin: 0; font-size: 14px; line-height: 21px; }
+.ob-empty { padding: 40px 14px; text-align: center; font-size: 13px; color: var(--ink-muted); }
+.ob-badge { width: 48px; height: 48px; border-radius: var(--radius-full); display: grid; place-items: center; background: var(--highlight); color: var(--action); }
+.ob-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.ob-foot .k-btn { height: 36px; padding: 0 16px; font-size: 13.5px; }
+@media (max-width: 719px) { .ob h1 { font-size: 23px; line-height: 29px; } .ob-row { grid-template-columns: minmax(0, 1fr) auto; } .ob-s { display: none; } .ob-count { display: none; } .ob-top .k-btn { margin-left: auto; } }
+
+.sum-grid { grid-template-columns: minmax(0, 1fr); }
+
+/* Unread badge in the menu: true circle, digit centred */
+.nav-item .k-count { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; min-width: 18px; padding: 0; border-radius: var(--radius-full); font-size: 10.5px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; box-shadow: none; }
+
+/* Shortcut tooltip */
+.kt { position: fixed; z-index: 90; display: inline-flex; align-items: center; gap: 4px; max-width: 280px; padding: 4px 6px 4px 8px; border-radius: var(--radius-xs); background: var(--ink); color: var(--bg); font-size: 11.5px; line-height: 16px; font-weight: 500; pointer-events: none; box-shadow: var(--shadow-popover); white-space: nowrap; }
+.kt span { margin-right: 4px; }
+.kt kbd { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 3px; background: rgba(255, 255, 255, 0.16); color: inherit; font-family: var(--font-mono); font-size: 10px; box-sizing: border-box; }
+
+.toast-undo { font-weight: 400; }
+
+/* Variant: plain white page */
+:root { --bg: #ffffff; }
+.ib-list { box-shadow: none; }
+/* (White sidebar / side panel elevation now lives in the "Surface system" block at the end) */
+
+/* Inline search in the Calls header (Superhuman-style: filters the list in place) */
+.ib-search { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; color: var(--ink-muted); }
+.ib-search input { flex: 1; min-width: 0; height: 28px; border: 0; outline: none; background: transparent; font: inherit; font-size: 14px; color: var(--ink); }
+.ib-search input::placeholder { color: var(--ink-muted); opacity: 1; }
+.ib-search-n { font-size: 12px; white-space: nowrap; }
+
+/* Calls table: full width, no card frame */
+.ib-list { margin: 0; border: 0; border-radius: 0; box-shadow: none; }
+.ib-cols { border-radius: 0; }
+
+/* (Transcript bubbles, player and summary card surfaces now live in the "Surface system" block at the end) */
+@media (max-width: 719px) { .ib-list { margin: 0; } }
+/* Calls rows: same weight on every row (no unread styling), heavier caller, Topic merged into Summary */
+.row .r-name, .row.unread .r-name, .row.is-cursor .r-name { font-weight: 600; color: var(--ink); }
+.row .r-time, .row.unread .r-time { color: var(--ink-muted); }
+.row .r-sum, .row.unread .r-sum { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); font-weight: 400; }
+.row .r-sum .r-topic, .row.unread .r-sum .r-topic, .row.is-cursor .r-sum .r-topic { display: inline; color: var(--ink); font-weight: 400; }
+@media (max-width: 719px) { .row .r-sum { white-space: nowrap; display: block; } }
+
+/* Done / Reminders list header */
+.ib-mode { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13.5px; }
+.ib-mode .k-btn { color: var(--ink-muted); }
+.ib-mode-sep { color: var(--ink-disabled); }
+.ib-mode b { font-weight: 600; color: var(--ink); }
+.ib-mode .n { font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); }
+.nav-sub { padding-left: 28px; }
+.nav-sub .k-icon { width: 13px; height: 13px; }
+.nav-n { font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); }
+
+/* Inbox zero */
+.zero { flex: 1; min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 48px 24px; text-align: center; color: var(--ink-muted); box-sizing: border-box; animation: zero-in 420ms ease-out both; }
+.zero-art { margin-bottom: 14px; overflow: visible; }
+.zero-sun { fill: var(--highlight); }
+.zero-ground { fill: var(--surface, #fff); }
+.zero-line { stroke: var(--line); stroke-width: 1.5; }
+.zero-wave { stroke: var(--highlight); stroke-width: 3; stroke-linecap: round; }
+.zero-check { fill: none; stroke: var(--action); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.zero h2 { margin: 0; font-size: 22px; line-height: 28px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
+.zero-greet { margin: 0; font-size: 14px; color: var(--ink-muted); }
+.zero-stat { margin: 14px 0 0; padding: 6px 12px; border-radius: var(--radius-full); background: var(--highlight); color: var(--highlight-ink); font-size: 13px; }
+.zero-stat b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.zero-hint { margin: 18px 0 0; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-muted); }
+.ib-list.is-zero { flex: 1 1 auto; display: flex; flex-direction: column; }
+@keyframes zero-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .zero { animation: none; } }
+
+/* =====================================================================
+   Surface system (Superhuman-style). Single source of truth for elevation,
+   radii, type scale, control sizes and interaction states. Overrides the
+   scattered rules above; add new surfaces by picking a level, not a value.
+
+   Elevation
+     0  flat      page, list rows, header bars, docked panels: white + 1px --line hairline
+     1  raised    white cards on the page (player, summary, settings sections, tables):
+                  --shadow-1 = hairline ring + tight contact shadow + faint ambient. No border.
+     2  floating  ⌘K, remind menu, search, help sheet, toast, tooltips: --shadow-2
+     3  drawer    left nav sliding over a scrim: --shadow-3 (directional)
+   Rules: a surface gets either a shadow token or a border, never both.
+          Controls (inputs, textareas, kbd keycaps) keep a 1px border; secondary
+          buttons and pressed segments use the small --shadow-xs instead.
+   Radii   xs 6 (kbd, tooltip, inner segment) · sm 8 (buttons, inputs, menu/nav items)
+           md = lg 12 (cards, popovers, dialogs, toast) · bubble 16 · full (badges, pills, avatars)
+   Type    11 caption/label/mono · 12 secondary · 13 body/UI · 14 titles · 16 page title
+           (onboarding hero sizes and the inbox-zero headline are deliberate exceptions)
+   States  hover --surface-hover · selected --highlight (+ 2px --action bar on full-width rows)
+           focus 2px --focus outline, 2px offset
+   ===================================================================== */
+:root {
+  --surface-strong: #ebe9e3;          /* avatars, pressed */
+  --bubble-in: var(--surface-hover);  /* assistant / agent bubbles: soft warm grey, no border */
+  --ink-rgb: 41 37 36;
+  --shadow-xs: 0 0 0 1px rgb(var(--ink-rgb) / 0.08), 0 1px 2px rgb(var(--ink-rgb) / 0.06);
+  --shadow-1: 0 0 0 1px rgb(var(--ink-rgb) / 0.05), 0 1px 2px rgb(var(--ink-rgb) / 0.05), 0 4px 12px -4px rgb(var(--ink-rgb) / 0.08);
+  --shadow-2: 0 0 0 1px rgb(var(--ink-rgb) / 0.06), 0 2px 6px rgb(var(--ink-rgb) / 0.05), 0 16px 36px -8px rgb(var(--ink-rgb) / 0.18);
+  --shadow-3: 1px 0 0 rgb(var(--ink-rgb) / 0.06), 12px 0 40px -12px rgb(var(--ink-rgb) / 0.22);
+  --shadow-dock-l: -1px 0 0 var(--line);
+  --ring-action: 0 0 0 1px var(--action);
+  --scrim: rgb(28 25 23 / 0.20);
+  --radius-md: 12px;
+  /* legacy aliases so older rules resolve to the system */
+  --shadow-card: var(--shadow-1); --shadow-popover: var(--shadow-2); --shadow-dialog: var(--shadow-2);
+  --sidebar: var(--surface);
+}
+
+/* ---- Level 0: header bars, docked side panel, list ---- */
+.ib-head, .cv-bar, .pagebar { background: var(--bg); border-bottom: 1px solid var(--line); min-height: 44px; padding: 6px 14px; gap: 8px; box-sizing: border-box; }
+.cv-side { position: relative; background: var(--surface); border-left: 0; box-shadow: var(--shadow-dock-l); padding: 16px; gap: 16px; }
+.ib-cols { background: var(--bg); border-radius: 0; }
+
+/* ---- Level 1: raised cards (shadow, no border) ---- */
+.vn, .sumcard, .sec, .k-tl, .k-summary,
+.ob-points, .ob-choice, .ob-demo, .ob-newnum, .opt { border: 0; box-shadow: var(--shadow-1); }
+.vn { background: var(--surface); }
+.vn-knob, .vn .vn-knob { box-shadow: 0 0 0 3px var(--surface); }
+.vn-speed { background: var(--surface-hover); border: 0; box-shadow: none; }
+.vn-speed:hover { background: var(--surface-strong); }
+.sumcard, .sec, .opt, .ob-choice, .ob-newnum, .ob-points, .ob-demo { background: var(--surface); }
+.sumcard, .sec { padding: 16px; gap: 12px; }
+.opt.on, .ob-choice.on { background: var(--highlight); box-shadow: var(--ring-action), var(--shadow-1); }
+.ob-prompt { border: 0; box-shadow: var(--ring-action), var(--shadow-1); }
+.ob-prompt.ok { box-shadow: none; }
+
+/* ---- Level 2: floating (palette, remind, search, help, toast, tooltips) ---- */
+.k-cmd, .help-sheet { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-2); }
+.toast { background: var(--ink); color: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-2); }
+.kt { border-radius: var(--radius-xs); box-shadow: var(--shadow-2); font-size: 11px; }
+.overlay, .app.nav-open .scrim { background: var(--scrim); }
+
+/* ---- Level 3: drawer nav ---- */
+.nav { background: var(--surface); border-right: 0; box-shadow: var(--shadow-3); }
+.nav-foot { border-top-color: var(--line); }
+
+/* ---- Transcript ---- */
+.k-msg-them .k-bubble, .k-bubble.k-tone-neutral, .k-msg-them .k-bubble.k-tone-neutral { background: var(--bubble-in); border: 0; }
+.k-day span { border: 0; background: var(--surface-hover); }
+
+/* ---- Colors: palette vars only ---- */
+.k-avatar { background: var(--surface-strong); }
+.k-avatar-ai { background: var(--signal-soft); }
+
+/* ---- Interaction states: one hover, one selected, everywhere ---- */
+.row:hover, .nav-item:hover, .side-call:hover, .cv-side .side-call:hover,
+.k-btn-ghost:hover, .k-btn-secondary:hover, .ib-tab:hover { background: var(--surface-hover); }
+.side-call.is-old:hover { background: transparent; }
+.row.is-cursor, .ob-row.is-cursor { background: var(--highlight); box-shadow: inset 2px 0 0 var(--action); }
+.nav-item[aria-current="page"], .ib-tab[aria-selected="true"], .k-cmd-item[aria-selected="true"] { background: var(--highlight); color: var(--highlight-ink); }
+.k-cmd-item[aria-selected="true"] .k-icon { color: var(--highlight-ink); }
+.r-acts { background: transparent; }
+.row:hover .r-acts { background: var(--surface-hover); }
+.row.is-cursor .r-acts { background: var(--highlight); }
+.r-act:hover { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-xs); }
+
+/* ---- Controls: buttons, segments, inputs, badges, kbd ---- */
+.k-btn-secondary { background: var(--surface); border-color: transparent; box-shadow: var(--shadow-xs); }
+.k-btn-secondary:disabled, .k-btn:disabled { box-shadow: none; }
+.k-btn-sm { font-size: 12px; }
+.side-who { width: 100%; }
+.side-who > div { flex: 1; }
+.side-open { margin-left: auto; align-self: center; color: var(--ink-muted); }
+
+
+
+.k-composer { border-radius: var(--radius-sm); }
+.k-input input, .ta { font-size: 13px; }
+.k-badge, .k-livei, .cv .k-livei, .r-status .k-badge, .r-status .k-livei, .sum-h .k-badge { height: 18px; font-size: 11px; padding: 0 6px; gap: 5px; }
+.k-livei time, .r-status .k-livei time { font-size: 11px; }
+.k-kbd, .k-btn-sm .k-kbd, .nav-item .k-kbd { height: 18px; min-width: 18px; padding: 0 4px; font-size: 11px; }
+.ib-hint .k-kbd, .kt kbd { height: 16px; min-width: 16px; padding: 0 3px; font-size: 10px; }
+.k-btn-primary .k-kbd, .k-btn-danger .k-kbd { background: transparent; border-color: currentColor; }
+.nav-item, .k-cmd-item { height: 32px; font-size: 13px; }
+.ib-tab { height: 24px; font-size: 13px; }
+
+/* ---- Type scale ---- */
+/* 11: captions, section labels, mono numbers */
+.ib-cols, .sum-label, .side-sec h2, .help-group h3, .k-cmd-group, .k-summary-label { font-size: 11px; font-weight: 500; color: var(--ink-muted); }
+.r-dur, .r-time, .cv-pos, .sc-top .mono, .side-facts dd.mono,
+span.mono, .facts dd.mono, .ib-tab .n, .ib-mode .n, .nav-n, .cv-who .sub, .k-meta, .cv .k-meta, .k-event-in time { font-size: 11px; }
+.sum-h small, .tr-h span, .compose small, .cv .k-event, .r-quiet, .sc-sub, .ib-search-n { font-size: 11px; }
+/* 12: secondary text */
+.help, .page-head p, .sec > p, .opt span, .side-who span, .ob-choice span, .ob-point span, .me small,
+.k-cmd-foot, .help-foot, .side-facts, .sc-top, .ob-newnum span { font-size: 12px; }
+/* 13: body / UI */
+.row, .facts, .field label, .swrow b, .opt b, .help-row, .ib-mode, .side-who b, .ob-point b, .ob-choice b,
+.ob-foot .k-btn, .empty, .toast, .me b, .cv .k-bubble, .ob-row, .ob-open-h { font-size: 13px; }
+.sum-h > b, .tr-h b { font-size: 13px; font-weight: 600; }
+/* 14: titles */
+.pagebar b, .sec h2, .ws b, .help-head b, .empty b, .sum-text, .ob-top > b, .ob-open p { font-size: 14px; }
+/* 16: page / call title, overlay search inputs */
+.cv-who h1, .k-cmd-search input { font-size: 16px; }
+
+/* ---- Spacing rhythm: 20px gutters desktop, 12px mobile ---- */
+.ib-cols, .row { padding-left: 20px; padding-right: 20px; }
+.page-in { padding: 20px 20px 40px; gap: 16px; }
+.cv-scroll { padding: 16px 20px 28px; }
+.compose { padding: 0 20px 12px; }
+.k-cmd-search { padding: 0 16px; }
+.k-cmd-foot, .help-foot { padding: 8px 16px; }
+.help-head { padding: 12px 16px; }
+
+@media (max-width: 719px) {
+  .ib-head, .cv-bar, .pagebar { padding: 6px 8px; gap: 4px; }
+  .row { padding: 8px 12px; }
+  .page-in { padding: 14px 12px 32px; }
+  .cv-scroll { padding: 12px 12px 20px; }
+  .compose { padding: 0 12px 10px; }
+  .sumcard, .sec { padding: 14px; }
+  .cv-acts .cv-done > span:not(.k-kbds) { display: inline-flex; } /* text-only button: keep its label on phones */
+}
+/* ===== Customers: same list model as Calls (Customer + Phone) ===== */
+.ib-cols.cust-row, .row.cust-row { grid-template-columns: minmax(120px, 220px) minmax(110px, 150px) minmax(0, 1fr) 112px; grid-template-areas: none; }
+.cust-row .c-sum { color: var(--ink-muted); }
+.cust-row .c-sum-t { color: var(--ink); }
+.cust-row .c-last, .ib-cols.cust-row .num { text-align: right; }
+.cust-row:hover .c-last, .cust-row.is-cursor .c-last { visibility: hidden; }
+.cust-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cust-row .c-mono { font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.cust-main .ib-list { flex: 1 1 auto; }
+.side-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 1099px) {
+  .cust-main.has-rec .cv-center { display: none; }
+  .cv-side.cust-side { display: flex; flex: 1; width: auto; box-shadow: none; }
+}
+@media (max-width: 719px) {
+  .row.cust-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name last" "sum sum" "phone phone"; row-gap: 2px; padding: 8px 12px; align-items: center; }
+  .cust-row .c-name { grid-area: name; } .cust-row .c-phone { grid-area: phone; } .cust-row .c-sum { grid-area: sum; } .cust-row .c-last { grid-area: last; text-align: right; }
+  .cust-row:hover .c-last, .cust-row.is-cursor .c-last { visibility: visible; }
+}
+
+/* Assistant capabilities: enabled = raised white card, available = flat dashed tile */
+.caps-sec { display: grid; gap: 10px; }
+.caps-sec h2 { margin: 0; font-size: 12px; font-weight: 500; color: var(--ink-muted); }
+.caps { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.cap { display: grid; align-content: space-between; gap: 18px; min-height: 104px; padding: 14px; border: 1px dashed var(--line-control); border-radius: var(--radius-lg); background: transparent; color: var(--ink-muted); text-align: left; cursor: pointer; font: inherit; }
+.cap:hover { background: var(--surface-hover); }
+.cap:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.cap.on { border-color: transparent; background: var(--surface); color: var(--ink); box-shadow: var(--shadow-1); }
+.cap.on:hover { box-shadow: var(--shadow-1), 0 6px 16px -8px rgb(41 37 36 / 0.18); }
+.cap-top { display: flex; align-items: center; justify-content: space-between; }
+.cap-ic { display: grid; color: var(--ink-muted); }
+.cap.on .cap-ic { color: var(--action); }
+.cap-st { display: grid; place-items: center; width: 22px; height: 22px; border-radius: var(--radius-full); border: 1px dashed var(--line-control); color: var(--ink-muted); }
+.cap.on .cap-st { border-color: transparent; background: var(--highlight); color: var(--action); }
+.cap-t { display: grid; gap: 2px; min-width: 0; }
+.cap-t b { font-size: 13px; font-weight: 600; }
+.cap:not(.on) .cap-t b { font-weight: 500; }
+.cap-t span { font-size: 12px; color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Customer (caller) bubbles: black with light text, to set them apart from the grey assistant bubbles */
+.k-bubble.k-tone-signal, .k-msg-them .k-bubble.k-tone-signal { background: var(--bubble-caller); color: #fafaf8; border-color: transparent; }
+.k-bubble.k-tone-signal .k-msg-author { color: #ffffff; }
+.k-bubble.k-tone-signal .k-meta { color: rgb(250 250 248 / 0.55); }
+.k-msg.is-now .k-bubble.k-tone-signal { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
+
+/* Search match highlight (calls list, transcript) */
+mark { background: rgb(250 204 21 / 0.38); color: inherit; border-radius: 2px; padding: 0 1px; }
+.k-bubble.k-tone-signal mark { background: rgb(250 204 21 / 0.85); color: var(--ink); }
+
+/* Calls/Customers header: no divider line, the column header carries the separation */
+.ib-head { border-bottom: 0; }
+.ib-cols { border-bottom: 0; box-shadow: none; }
+.vn { border-radius: var(--radius-lg); }
+</style>
+<div id="app"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script>
+/* @ds-bundle: {"format":4,"namespace":"Kontor","components":[{"name":"Button"},{"name":"Kbd"},{"name":"Input"},{"name":"Badge"},{"name":"Avatar"},{"name":"MessageBubble"},{"name":"DayDivider"},{"name":"Composer"},{"name":"ChatListItem"},{"name":"CommandMenu"},{"name":"LiveIndicator"},{"name":"CallTimeline"},{"name":"CallEvent"},{"name":"CallListItem"},{"name":"CallSummary"}]} */
+(function () {
+  var React = window.React;
+  var h = React.createElement;
+
+  function cx() { return Array.prototype.filter.call(arguments, Boolean).join(' '); }
+  function omit(obj, keys) { var o = {}; for (var k in obj) { if (Object.prototype.hasOwnProperty.call(obj, k) && keys.indexOf(k) < 0) o[k] = obj[k]; } return o; }
+
+  var ICONS = {
+    send: [['path', { d: 'M12 19V5' }], ['path', { d: 'M5.5 11.5L12 5l6.5 6.5' }]],
+    attach: [['path', { d: 'M20.5 11.2l-8.4 8.4a5 5 0 0 1-7.1-7.1l8.4-8.4a3.3 3.3 0 0 1 4.7 4.7l-8.4 8.4a1.7 1.7 0 0 1-2.4-2.4l7.7-7.7' }]],
+    search: [['circle', { cx: 11, cy: 11, r: 6.5 }], ['path', { d: 'M20 20l-4.2-4.2' }]],
+    check: [['path', { d: 'M5 12.5l4.2 4.2L19 7' }]],
+    checks: [['path', { d: 'M2.5 12.5l4.2 4.2L16.5 7' }], ['path', { d: 'M11.6 16.4l.3.3L21.7 7' }]],
+    plus: [['path', { d: 'M12 5v14M5 12h14' }]],
+    reply: [['path', { d: 'M9 14L4 9l5-5' }], ['path', { d: 'M4 9h10.5a5.5 5.5 0 0 1 0 11H12' }]],
+    archive: [['rect', { x: 3, y: 4, width: 18, height: 5, rx: 1 }], ['path', { d: 'M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4' }]],
+    user: [['circle', { cx: 12, cy: 8, r: 4 }], ['path', { d: 'M4 20a8 8 0 0 1 16 0' }]],
+    calendar: [['rect', { x: 3.5, y: 5, width: 17, height: 15, rx: 2 }], ['path', { d: 'M8 3v4M16 3v4M3.5 10h17' }]],
+    spark: [['path', { d: 'M12 3c.6 4.6 3.4 7.4 9 9-5.6 1.6-8.4 4.4-9 9-.6-4.6-3.4-7.4-9-9 5.6-1.6 8.4-4.4 9-9z' }]],
+    more: [['circle', { cx: 5, cy: 12, r: 1 }], ['circle', { cx: 12, cy: 12, r: 1 }], ['circle', { cx: 19, cy: 12, r: 1 }]],
+    phone: [['path', { d: 'M5 4h3l2 5-2.5 1.5a11 11 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z' }]],
+    'phone-in': [['path', { d: 'M5 4h3l2 5-2.5 1.5a11 11 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z' }], ['path', { d: 'M21 3l-6 6M15 4v5h5' }]],
+    'phone-out': [['path', { d: 'M5 4h3l2 5-2.5 1.5a11 11 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z' }], ['path', { d: 'M15 9l6-6M16 3h5v5' }]],
+    'phone-missed': [['path', { d: 'M5 4h3l2 5-2.5 1.5a11 11 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z' }], ['path', { d: 'M15 3l6 6M21 3l-6 6' }]],
+    'phone-off': [['path', { d: 'M2.5 14.5a13.5 13.5 0 0 1 19 0l-2 2.5-3.5-1.2V13a11 11 0 0 0-8 0v2.8L4.5 17z' }]],
+    headset: [['path', { d: 'M4 15v-3a8 8 0 0 1 16 0v3' }], ['rect', { x: 3, y: 14, width: 4, height: 6, rx: 1.5 }], ['rect', { x: 17, y: 14, width: 4, height: 6, rx: 1.5 }]],
+    mic: [['rect', { x: 9, y: 3, width: 6, height: 11, rx: 3 }], ['path', { d: 'M5 11a7 7 0 0 0 14 0M12 18v3' }]],
+    play: [['path', { d: 'M8 5.5v13l10.5-6.5z' }]],
+    pause: [['rect', { x: 6.5, y: 5, width: 4, height: 14, rx: 1 }], ['rect', { x: 13.5, y: 5, width: 4, height: 14, rx: 1 }]],
+    database: [['ellipse', { cx: 12, cy: 6, rx: 7, ry: 3 }], ['path', { d: 'M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3' }]]
+  };
+  var FILLED = { spark: 1, play: 1, pause: 1 };
+
+  function Icon(p) {
+    var size = p.size || 16;
+    var parts = ICONS[p.name] || [];
+    var filled = FILLED[p.name];
+    return h('svg', { className: cx('k-icon', p.className), width: size, height: size, viewBox: '0 0 24 24', fill: filled ? 'currentColor' : 'none', stroke: filled ? 'none' : 'currentColor', strokeWidth: p.stroke || 1.75, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': 'true', focusable: 'false' },
+      parts.map(function (part, i) { return h(part[0], Object.assign({ key: i }, part[1])); }));
+  }
+
+  function Kbd(p) {
+    var keys = p.keys || [p.children];
+    return h('span', { className: cx('k-kbds', p.className) }, keys.map(function (k, i) { return h('kbd', { key: i, className: 'k-kbd' }, k); }));
+  }
+
+  function Button(p) {
+    var variant = p.variant || 'secondary';
+    var size = p.size || 'md';
+    var iconOnly = p.icon && !p.children;
+    var rest = omit(p, ['variant', 'size', 'icon', 'shortcut', 'className', 'children']);
+    return h('button', Object.assign({ type: 'button' }, rest, { className: cx('k-btn', 'k-btn-' + variant, 'k-btn-' + size, iconOnly && 'k-btn-icon', p.className) }),
+      p.icon ? h(Icon, { name: p.icon, size: size === 'sm' ? 14 : 16 }) : null,
+      p.children ? h('span', null, p.children) : null,
+      p.shortcut ? h(Kbd, { keys: p.shortcut }) : null);
+  }
+
+  function Input(p) {
+    var rest = omit(p, ['icon', 'shortcut', 'className']);
+    return h('label', { className: cx('k-input', p.className) },
+      p.icon ? h(Icon, { name: p.icon, size: 15 }) : null,
+      h('input', rest),
+      p.shortcut ? h(Kbd, { keys: p.shortcut }) : null);
+  }
+
+  function Badge(p) {
+    return h('span', { className: cx('k-badge', 'k-badge-' + (p.tone || 'neutral'), p.dot && 'k-badge-dot', p.className) }, p.children);
+  }
+
+  function initials(name) {
+    return String(name || '').split(/[\s&]+/).filter(Boolean).slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join('');
+  }
+
+  function Avatar(p) {
+    var size = p.size || 32;
+    var ai = p.kind === 'assistant';
+    return h('span', { className: cx('k-avatar', 'k-avatar-' + size, ai && 'k-avatar-ai', p.className), role: 'img', 'aria-label': p.name + (p.presence ? ', ' + (p.presence === 'online' ? 'online' : 'away') : '') },
+      ai ? h(Icon, { name: 'spark', size: Math.round(size * 0.5) }) : initials(p.name),
+      p.presence ? h('span', { className: 'k-presence k-presence-' + p.presence }) : null);
+  }
+
+  function DayDivider(p) {
+    return h('div', { className: 'k-day', role: 'separator' }, h('span', null, p.children));
+  }
+
+  var TICK_LABEL = { sent: 'Sent', delivered: 'Delivered', read: 'Read' };
+
+  function MessageBubble(p) {
+    var from = p.from || 'them';
+    var tail = p.tail !== false;
+    var mine = from === 'me';
+    return h('div', { className: cx('k-msg', 'k-msg-' + from, tail && 'k-msg-tail', p.className) },
+      h('div', { className: cx('k-bubble', p.tone && 'k-tone-' + p.tone, p.live && 'is-live') },
+        p.author ? h('div', { className: 'k-msg-author' }, p.author) : null,
+        h('span', { className: 'k-msg-text' }, p.children),
+        p.live ? h('span', { className: 'k-caret', 'aria-label': 'speaking' }) : h('span', { className: 'k-meta-space', 'aria-hidden': 'true' }),
+        p.live ? null : h('span', { className: 'k-meta' },
+          p.time ? h('time', null, p.time) : null,
+          mine && p.status ? h('span', { className: 'k-ticks k-ticks-' + p.status, role: 'img', 'aria-label': TICK_LABEL[p.status] }, h(Icon, { name: p.status === 'sent' ? 'check' : 'checks', size: 15 })) : null)));
+  }
+
+  function fmt(s) { s = Math.max(0, Math.round(s)); var m = Math.floor(s / 60), r = s % 60; return (m < 10 ? '0' : '') + m + ':' + (r < 10 ? '0' : '') + r; }
+
+  function useTicker(start, running, max) {
+    var st = React.useState(start || 0), v = st[0], setV = st[1];
+    React.useEffect(function () { setV(start || 0); }, [start]);
+    React.useEffect(function () {
+      if (!running) return;
+      var id = setInterval(function () { setV(function (x) { return max != null && x + 1 >= max ? max : x + 1; }); }, 1000);
+      return function () { clearInterval(id); };
+    }, [running, max]);
+    return [v, setV];
+  }
+
+  var LIVE_LABEL = { live: 'Live', ringing: 'Ringing', hold: 'On hold', ended: 'Ended' };
+
+  function LiveIndicator(p) {
+    var state = p.state || 'live';
+    var t = useTicker(p.seconds, state === 'live' && p.seconds != null)[0];
+    return h('span', { className: cx('k-livei', 'k-livei-' + state, p.className) },
+      h('span', { className: 'k-livei-dot', 'aria-hidden': 'true' }),
+      LIVE_LABEL[state],
+      p.seconds != null ? h('time', null, fmt(t)) : null);
+  }
+
+  var SPEAKER_DEFAULT = { caller: 'Anrufer', ai: 'Assistent', agent: 'Mitarbeiter' };
+
+  function CallTimeline(p) {
+    var segs = p.segments || [];
+    var labels = Object.assign({}, SPEAKER_DEFAULT, p.labels || {});
+    var nBars = p.bars || 120;
+    var duration = p.duration || 60;
+    var pl = React.useState(false), playing = pl[0], setPlaying = pl[1];
+    var tk = useTicker(p.position || 0, p.live || playing, p.live ? null : duration), pos = tk[0], setPos = tk[1];
+    React.useEffect(function () { if (playing && pos >= duration) setPlaying(false); }, [pos, playing, duration]);
+    var len = p.live ? Math.max(duration, pos + 30) : duration;
+    function who(t) { for (var i = 0; i < segs.length; i++) { if (t >= segs[i].start && t < segs[i].end) return segs[i].speaker; } return null; }
+    function amp(i) { var x = Math.sin(i * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); }
+    var bars = [];
+    for (var i = 0; i < nBars; i++) {
+      var t = (i + 0.5) / nBars * len;
+      var sp = p.live && t > pos ? null : who(t);
+      var a = (amp(i) + amp(i + 1) + amp(i + 2)) / 3;
+      bars.push(h('i', { key: i, className: 'k-tl-bar ' + (sp || 'none'), style: sp ? { height: Math.round(22 + a * 78) + '%' } : null }));
+    }
+    var upto = p.live ? pos : duration;
+    var share = { caller: 0, ai: 0, agent: 0 }, total = 0;
+    segs.forEach(function (s) { var d = Math.max(0, Math.min(s.end, upto) - s.start); share[s.speaker] = (share[s.speaker] || 0) + d; total += d; });
+    var keys = ['caller', 'ai', 'agent'].filter(function (k) { return share[k] > 0 || k !== 'agent'; });
+    var pct = function (k) { return total ? Math.round(share[k] / total * 100) : 0; };
+    var frac = Math.min(1, pos / len);
+    function seek(e) {
+      if (p.live) return;
+      var r = e.currentTarget.getBoundingClientRect();
+      setPos(Math.round(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * duration));
+    }
+    function onKey(e) {
+      if (p.live) return;
+      if (e.key === 'ArrowRight') { e.preventDefault(); setPos(Math.min(duration, pos + 5)); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); setPos(Math.max(0, pos - 5)); }
+      else if (e.key === ' ' && p.playable) { e.preventDefault(); setPlaying(!playing); }
+    }
+    return h('div', { className: cx('k-tl', p.className) },
+      h('div', { className: 'k-tl-head' },
+        keys.map(function (k) { return h('span', { key: k, className: 'k-tl-key ' + k }, labels[k], h('b', null, pct(k) + ' %')); }),
+        h('span', { className: 'k-tl-time' }, p.live ? h(React.Fragment, null, h('span', { className: 'k-livei-dot', 'aria-hidden': 'true' }), fmt(pos)) : fmt(pos) + ' / ' + fmt(duration))),
+      h('div', { className: 'k-tl-row' },
+        p.playable && !p.live ? h('button', { type: 'button', className: 'k-play', 'aria-label': playing ? 'Pause' : 'Abspielen', onClick: function () { if (pos >= duration) setPos(0); setPlaying(!playing); } }, h(Icon, { name: playing ? 'pause' : 'play', size: 14 })) : null,
+        h('div', { className: cx('k-tl-track', p.live && 'is-live'), role: 'slider', tabIndex: 0, 'aria-label': 'Gesprächsverlauf', 'aria-valuemin': 0, 'aria-valuemax': Math.round(len), 'aria-valuenow': Math.round(pos), 'aria-valuetext': fmt(pos), onClick: seek, onKeyDown: onKey },
+          h('span', { className: 'k-tl-played', style: { width: (frac * 100) + '%' } }),
+          bars,
+          h('span', { className: 'k-tl-ph', style: { left: (frac * 100) + '%' } }))),
+      h('div', { className: cx('k-tl-axis', p.playable && !p.live && 'has-play') },
+        h('span', null, '00:00'), h('span', null, fmt(len / 2)), h('span', null, fmt(len))));
+  }
+
+  function CallEvent(p) {
+    return h('div', { className: cx('k-event', p.className), role: 'note' },
+      h('span', { className: 'k-event-in' }, p.icon ? h(Icon, { name: p.icon, size: 14 }) : null, h('span', null, p.children), p.time ? h('time', null, p.time) : null));
+  }
+
+  var DIR_ICON = { in: 'phone-in', out: 'phone-out' };
+
+  function CallListItem(p) {
+    var rest = omit(p, ['name', 'number', 'direction', 'status', 'time', 'duration', 'summary', 'active', 'seconds', 'className']);
+    var missed = p.status === 'missed';
+    return h('button', Object.assign({ type: 'button' }, rest, { className: cx('k-chat', 'k-call', p.active && 'is-active', missed && 'is-missed', p.className), 'aria-current': p.active ? 'true' : undefined }),
+      h(Avatar, { name: p.name, size: 40 }),
+      h('span', { className: 'k-chat-body' },
+        h('span', { className: 'k-chat-top' },
+          h('span', { className: 'k-chat-name' }, p.name),
+          p.status === 'live' ? h(LiveIndicator, { state: 'live', seconds: p.seconds }) : (p.time ? h('time', { className: 'k-chat-time' }, p.time) : null)),
+        h('span', { className: 'k-chat-bottom' },
+          h('span', { className: 'k-call-sum' }, h(Icon, { name: missed ? 'phone-missed' : (DIR_ICON[p.direction] || 'phone'), size: 14 }), h('span', null, p.summary || p.number)),
+          p.status === 'transferred' ? h(Badge, { tone: 'info' }, 'Übergeben') : (p.duration ? h('span', { className: 'k-call-dur' }, p.duration) : null))));
+  }
+
+  function CallSummary(p) {
+    return h('section', { className: cx('k-summary', p.className), 'aria-label': p.title || 'Zusammenfassung' },
+      h('div', { className: 'k-summary-h' },
+        h(Icon, { name: 'spark', size: 14 }),
+        h('b', null, p.title || 'Zusammenfassung'),
+        p.live ? h('small', null, 'aktualisiert live') : null),
+      p.intent ? h('div', null, h(Badge, { tone: 'info', dot: true }, p.intent)) : null,
+      p.text ? h('p', null, p.text) : null,
+      p.fields && p.fields.length ? h('dl', null, p.fields.map(function (f, i) { return h(React.Fragment, { key: i }, h('dt', null, f.label), h('dd', null, f.value)); })) : null,
+      p.tasks && p.tasks.length ? h('div', { className: 'k-summary-tasks' },
+        h('div', { className: 'k-summary-label' }, 'Aufgaben'),
+        p.tasks.map(function (t, i) { var id = (p.id || 'sum') + '-task-' + i; return h('label', { key: i, className: 'k-task', htmlFor: id }, h('input', { id: id, type: 'checkbox', defaultChecked: !!t.done }), h('span', null, t.label)); })) : null,
+      p.onSave !== null ? h('div', { className: 'k-summary-a' },
+        h(Button, { size: 'sm', variant: 'primary', icon: 'database', onClick: p.onSave }, 'Ins CRM übernehmen'),
+        h(Button, { size: 'sm' }, 'Bearbeiten')) : null);
+  }
+
+  function Composer(p) {
+    var st = React.useState(p.defaultValue || '');
+    var value = st[0], setValue = st[1];
+    var empty = !value.trim();
+    return h('form', { className: cx('k-composer', p.className), onSubmit: function (e) { e.preventDefault(); if (empty) return; if (p.onSend) p.onSend(value); setValue(''); } },
+      p.attach === false ? null : h(Button, { variant: 'ghost', icon: 'attach', 'aria-label': 'Attach file' }),
+      h('input', { id: p.id, className: 'k-composer-input', value: value, placeholder: p.placeholder || 'Write a message', 'aria-label': 'Message', autoComplete: 'off', onChange: function (e) { setValue(e.target.value); } }),
+      !empty ? h('span', { className: 'k-composer-hint' }, h(Kbd, { keys: ['⏎'] }), 'send') : null,
+      h('button', { type: 'submit', className: 'k-send', 'aria-label': 'Send', disabled: empty }, h(Icon, { name: 'send', size: 16, stroke: 2 })));
+  }
+
+  function ChatListItem(p) {
+    var rest = omit(p, ['name', 'preview', 'time', 'unread', 'active', 'presence', 'kind', 'typing', 'className']);
+    return h('button', Object.assign({ type: 'button' }, rest, { className: cx('k-chat', p.active && 'is-active', p.unread && 'is-unread', p.className), 'aria-current': p.active ? 'true' : undefined }),
+      h(Avatar, { name: p.name, size: 40, presence: p.presence, kind: p.kind }),
+      h('span', { className: 'k-chat-body' },
+        h('span', { className: 'k-chat-top' }, h('span', { className: 'k-chat-name' }, p.name), p.time ? h('time', { className: 'k-chat-time' }, p.time) : null),
+        h('span', { className: 'k-chat-bottom' },
+          h('span', { className: cx('k-chat-preview', p.typing && 'k-chat-typing') }, p.typing ? 'typing …' : p.preview),
+          p.unread ? h('span', { className: 'k-count', 'aria-label': p.unread + ' unread' }, p.unread) : null)));
+  }
+
+  /* Command matching score: 4 prefix, 3 every token starts a word, 2 word initials, 1 substring, 0 no match */
+  function cmdScore(label, query) {
+    var l = label.toLowerCase(), q = query.toLowerCase().trim();
+    if (!q) return 1;
+    if (l.indexOf(q) === 0) return 4;
+    var words = l.split(/[^a-z0-9äöüß]+/).filter(Boolean);
+    var tokens = q.split(/\s+/);
+    if (tokens.every(function (t) { return words.some(function (w) { return w.indexOf(t) === 0; }); })) return 3;
+    var initials = words.map(function (w) { return w.charAt(0); }).join(''), compact = q.replace(/\s+/g, '');
+    if (compact.length > 1 && initials.indexOf(compact) === 0) return 2;
+    return l.indexOf(q) > -1 ? 1 : 0;
+  }
+
+  function CommandMenu(p) {
+    var q = React.useState(''), query = q[0], setQuery = q[1];
+    var a = React.useState(0), active = a[0], setActive = a[1];
+    var groups;
+    if (!query.trim()) groups = (p.groups || []).filter(function (g) { return g.items.length; });
+    else {
+      /* fuzzy: exact prefix > word starts > initials > substring, one flat ranked list */
+      var seen = {}, ranked = [], order = 0;
+      (p.groups || []).forEach(function (g) { g.items.forEach(function (it) {
+        if (seen[it.label]) return; seen[it.label] = true;
+        var s = cmdScore(it.label, query); if (s) ranked.push({ it: it, s: s, o: order++ });
+      }); });
+      ranked.sort(function (a, b) { return b.s - a.s || a.o - b.o; });
+      groups = ranked.length ? [{ label: null, items: ranked.map(function (r) { return r.it; }) }] : [];
+    }
+    var flat = [];
+    groups.forEach(function (g) { g.items.forEach(function (it) { flat.push(it); }); });
+    var idx = Math.min(active, Math.max(flat.length - 1, 0));
+    function onKey(e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setActive((idx + 1) % Math.max(flat.length, 1)); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((idx - 1 + flat.length) % Math.max(flat.length, 1)); }
+      else if (e.key === 'Enter' && flat[idx] && p.onSelect) { p.onSelect(flat[idx], 'key'); }
+    }
+    var n = -1;
+    return h('div', { className: cx('k-cmd', p.className), role: 'dialog', 'aria-label': 'Commands' },
+      h('div', { className: 'k-cmd-search' },
+        h(Icon, { name: 'search', size: 16 }),
+        h('input', { id: p.id, value: query, placeholder: p.placeholder || 'Type a command …', 'aria-label': 'Search commands', autoComplete: 'off', onKeyDown: onKey, onChange: function (e) { setQuery(e.target.value); setActive(0); } }),
+        h(Kbd, { keys: ['esc'] })),
+      h('div', { className: 'k-cmd-list', role: 'listbox' },
+        flat.length === 0 ? h('div', { className: 'k-cmd-empty' }, 'No results for “' + query + '”') :
+        groups.map(function (g, gi) {
+          return h('div', { key: gi, role: 'group', 'aria-label': g.label },
+            g.label ? h('div', { className: 'k-cmd-group' }, g.label) : null,
+            g.items.map(function (it, ii) {
+              n++; var me = n;
+              return h('div', { key: ii, className: 'k-cmd-item', role: 'option', 'aria-selected': me === idx ? 'true' : 'false', onMouseEnter: function () { setActive(me); }, onClick: function () { if (p.onSelect) p.onSelect(it, 'mouse'); } },
+                it.icon ? h(Icon, { name: it.icon, size: 16 }) : null,
+                h('span', null, it.label),
+                it.shortcut ? h(Kbd, { keys: it.shortcut }) : null);
+            }));
+        })),
+      h('div', { className: 'k-cmd-foot' },
+        h('span', null, h(Kbd, { keys: ['↑', '↓'] }), 'select'),
+        h('span', null, h(Kbd, { keys: ['⏎'] }), 'run'),
+        h('span', null, h(Kbd, { keys: ['esc'] }), 'close')));
+  }
+
+  var api = { icons: ICONS, Button: Button, Kbd: Kbd, Input: Input, Badge: Badge, Avatar: Avatar, MessageBubble: MessageBubble, DayDivider: DayDivider, Composer: Composer, ChatListItem: ChatListItem, CommandMenu: CommandMenu, LiveIndicator: LiveIndicator, CallTimeline: CallTimeline, CallEvent: CallEvent, CallListItem: CallListItem, CallSummary: CallSummary, Icon: Icon };
+  window.Kontor = Object.assign(window.Kontor || {}, api);
+})();
+
+</script>
+<script>
+(function () {
+  var K = window.Kontor, h = React.createElement;
+  var useState = React.useState, useEffect = React.useEffect, useRef = React.useRef;
+
+  /* ---------- helpers ---------- */
+  function cx() { return Array.prototype.filter.call(arguments, Boolean).join(' '); }
+  function fmt(s) { s = Math.max(0, Math.floor(s)); var m = Math.floor(s / 60), r = s % 60; return (m < 10 ? '0' : '') + m + ':' + (r < 10 ? '0' : '') + r; }
+  function amp(i) { var x = Math.sin(i * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); }
+
+  var XI = {
+    mail: [['rect', { x: 3, y: 5.5, width: 18, height: 13, rx: 2 }], ['path', { d: 'M3.5 7l8.5 6 8.5-6' }]],
+    message: [['path', { d: 'M4.5 5h15a1 1 0 0 1 1 1v9.5a1 1 0 0 1-1 1H9.5l-5 3.5V6a1 1 0 0 1 1-1z' }], ['path', { d: 'M8.5 9.5h7M8.5 12.5h4.5' }]],
+    whatsapp: [['path', { d: 'M12 3.5a8.5 8.5 0 0 0-7.3 12.8L3.5 20.5l4.3-1.1A8.5 8.5 0 1 0 12 3.5z' }], ['path', { d: 'M9.2 8.6c.3-.4.7-.4.9 0l.7 1.5c.1.3 0 .6-.2.8l-.5.5a6 6 0 0 0 2.5 2.5l.5-.5c.2-.2.5-.3.8-.2l1.5.7c.4.2.4.6 0 .9-.6.6-1.5.9-2.4.6a8 8 0 0 1-4.4-4.4c-.3-.9 0-1.8.6-2.4z' }]],
+    globe: [['circle', { cx: 12, cy: 12, r: 8.5 }], ['path', { d: 'M3.5 12h17M12 3.5c2.4 2.6 3.5 5.5 3.5 8.5s-1.1 5.9-3.5 8.5c-2.4-2.6-3.5-5.5-3.5-8.5s1.1-5.9 3.5-8.5z' }]],
+    plug: [['path', { d: 'M9 3.5v4M15 3.5v4M6.5 7.5h11V10a5.5 5.5 0 0 1-11 0z M12 15.5v5' }]],
+    users: [['circle', { cx: 9, cy: 8, r: 3.5 }], ['path', { d: 'M2.5 20a6.5 6.5 0 0 1 13 0' }], ['path', { d: 'M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6' }]],
+    tasks: [['rect', { x: 3.5, y: 3.5, width: 17, height: 17, rx: 3 }], ['path', { d: 'M8 12.5l2.8 2.8L16.5 9' }]],
+    gear: [['circle', { cx: 12, cy: 12, r: 3 }], ['path', { d: 'M12 2.5v2.5M12 19v2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M2.5 12H5M19 12h2.5M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8' }]],
+    left: [['path', { d: 'M15 5l-7 7 7 7' }]],
+    'arrow-up-right': [['path', { d: 'M7 17L17 7M8 7h9v9' }]],
+    waveform: [['path', { d: 'M4 10v4M8 7v10M12 4v16M16 8v8M20 10.5v3' }]],
+    up: [['path', { d: 'M6 15l6-6 6 6' }]],
+    down: [['path', { d: 'M6 9l6 6 6-6' }]],
+    restart: [['path', { d: 'M4 12a8 8 0 1 0 2.3-5.7' }], ['path', { d: 'M4 4v4h4' }]],
+    clock: [['circle', { cx: 12, cy: 12, r: 8.5 }], ['path', { d: 'M12 7.5V12l3 2' }]],
+    keyboard: [['rect', { x: 2.5, y: 6, width: 19, height: 12, rx: 2 }], ['path', { d: 'M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M7.5 14h9' }]],
+    menu: [['path', { d: 'M4 7h16M4 12h16M4 17h16' }]],
+    trash: [['path', { d: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3' }]]
+  };
+  /* make the outline set available to K.Icon too (command menu, K.Button icons) */
+  Object.keys(XI).forEach(function (n) { if (!K.icons[n]) K.icons[n] = XI[n]; });
+  function Ic(p) {
+    if (!XI[p.name]) return h(K.Icon, p);
+    var s = p.size || 16;
+    return h('svg', { className: cx('k-icon', p.className), width: s, height: s, viewBox: '0 0 24 24', fill: p.fill ? 'currentColor' : 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': 'true' },
+      XI[p.name].map(function (x, i) { return h(x[0], Object.assign({ key: i }, x[1])); }));
+  }
+
+  /* ---------- example data (fictional) ---------- */
+  var CUSTOMERS = [
+    { id: 'weber', lastSum: 'Contract renewal · Wants a new quote, the company grew to twelve people', name: 'Weber & Co.', contact: 'Thomas Weber', phone: '+49 30 5557 2210', email: 't.weber@weber-co.example', line: 'Commercial contents', since: '2019', until: 'Nov 30, 2026', vol: '€12,400', status: ['warning', 'Contract expiring'], last: 'Today, call' },
+    { id: 'mueller', lastSum: 'Callback · Asked for a buildings option without deductible', name: 'Müller GmbH', contact: 'Sabine Müller', phone: '+49 40 5550 1834', email: 's.mueller@mueller-gmbh.example', line: 'Buildings', since: '2021', until: 'Mar 31, 2027', vol: '€4,850', status: ['info', 'Quote pending'], last: 'Today, call' },
+    { id: 'kaya', lastSum: 'Motor claim · Parking damage to the rear, claim taken by Lea Krause', name: 'Aylin Kaya', contact: 'Aylin Kaya', phone: '+49 176 5550 4471', email: 'aylin.kaya@mail.example', line: 'Motor', since: '2023', until: 'Feb 14, 2027', vol: '€780', status: ['danger', 'Open claim'], last: 'Today, call' },
+    { id: 'sommer', lastSum: 'Liability claim · Customer slipped in the bakery, callback promised', name: 'Bäckerei Sommer', contact: 'Klaus Sommer', phone: '+49 89 5550 3310', email: 'info@baeckerei-sommer.example', line: 'Business liability', since: '2018', until: 'Sep 30, 2027', vol: '€1,960', status: ['danger', 'Open claim'], last: 'Yesterday, call' },
+    { id: 'peters', lastSum: 'Change of address · Updated on all policies by the assistant', name: 'Jonas Peters', contact: 'Jonas Peters', phone: '+49 151 5550 9023', email: 'jonas.peters@mail.example', line: 'Home contents', since: '2022', until: 'Jul 1, 2027', vol: '€214', status: ['signal', 'Active'], last: 'Yesterday, call' },
+    { id: 'lang', lastSum: 'Appointment confirmed · Policy review Tue, Nov 10, 2:00 PM', name: 'Dr. Petra Lang', contact: 'Petra Lang', phone: '+49 221 5550 7765', email: 'p.lang@praxis-lang.example', line: 'Disability', since: '2020', until: 'Dec 31, 2045', vol: '€2,340', status: ['signal', 'Active'], last: 'Mon, call' },
+    { id: 'hofmann', lastSum: 'Fleet quote · Interested in insuring twelve delivery vans', name: 'Hofmann Logistik', contact: 'Mehmet Hofmann', phone: '+49 711 5550 2208', email: 'm.hofmann@hofmann-logistik.example', line: 'Fleet', since: 'new', until: '—', vol: '—', status: ['neutral', 'Prospect'], last: 'Nov 2, call' }
+  ];
+  function cust(id) { for (var i = 0; i < CUSTOMERS.length; i++) if (CUSTOMERS[i].id === id) return CUSTOMERS[i]; return null; }
+
+  function S(sp, start, dur, text) { return { k: 'msg', sp: sp, start: start, dur: dur, text: text }; }
+  function E(at, icon, text, extra) { return Object.assign({ k: 'ev', at: at, icon: icon, text: text }, extra || {}); }
+  var GREET = 'Good morning, this is the digital assistant for Kontor. How can I help you?';
+
+  var LIVE_START = 74;
+  function liveItems() {
+    return [
+      E(0, 'phone-in', 'Incoming call, assistant answered', { time: '09:41' }),
+      S('ai', 0, 6, GREET),
+      S('caller', 7, 7, 'Hi, Thomas Weber from Weber & Co. Our contract runs out at the end of the month.'),
+      E(14, 'database', 'Customer record loaded from CRM'),
+      S('ai', 16, 9, 'Thanks, Mr Weber. Your contract ends on November 30. Would you like to renew, or would you prefer a new quote?'),
+      S('caller', 27, 6, 'A new quote, please. We are twelve people now.'),
+      S('ai', 35, 10, 'Understood. Ms Krause can walk you through a quote on Thursday at 10 AM. Does that work for you?'),
+      S('caller', 47, 3, 'Thursday works.'),
+      E(51, 'calendar', 'Meeting booked: Thu, Nov 12, 10:00 AM'),
+      S('ai', 52, 7, 'I have booked it. You will get a confirmation by email in a moment.'),
+      S('caller', 61, 2, 'Great, thanks.'),
+      S('ai', 64, 4, 'You are welcome. Is there anything else I can do for you?'),
+      S('caller', 70, 7, 'One more question: is business liability included?'),
+      S('ai', 79, 10, 'Business liability is not part of your current contract. I will note that Ms Krause should include it on Thursday.'),
+      E(89, 'check', 'Noted for the quote: business liability'),
+      S('caller', 91, 3, 'Perfect, thank you.'),
+      S('ai', 95, 5, 'My pleasure, Mr Weber. See you Thursday, and have a good day.'),
+      E(102, 'phone-off', 'Caller hung up', { end: true })
+    ];
+  }
+  function initLive() { return { elapsed: LIVE_START, items: liveItems(), mode: 'ai', ended: false, takeoverAt: null }; }
+  function cutAt(items, e) {
+    return items.filter(function (i) { return i.k === 'msg' ? i.start <= e : i.at <= e; }).map(function (i) {
+      if (i.k === 'msg' && i.start + i.dur > e) {
+        var words = i.text.split(' '), n = Math.max(1, Math.ceil(words.length * (e - i.start) / i.dur));
+        return Object.assign({}, i, { dur: Math.max(1, e - i.start), text: words.slice(0, n).join(' ') + (n < words.length ? ' …' : '') });
+      }
+      return i;
+    });
+  }
+  function liveSummary(L) {
+    var e = L.elapsed, agent = L.mode === 'agent';
+    var text = 'Mr Weber is calling about his expiring contract.';
+    if (e >= 33) text = 'Mr Weber wants a new quote instead of a renewal, because the company has grown to twelve employees.';
+    if (e >= 51) text += ' A meeting with Lea Krause is booked.';
+    if (e >= 77) text += ' Open question: is business liability included?';
+    if (agent) text += ' Lea Krause took over the call.';
+    var fields = [['Customer', 'Weber & Co.'], ['Caller', 'Thomas Weber'], ['Contract ends', 'Nov 30, 2026']];
+    if (e >= 51) fields.push(['Meeting', 'Thu, Nov 12, 10:00 AM']);
+    if (e >= 77) fields.push(['Question', 'Business liability']);
+    return { intent: 'Contract renewal', text: text, fields: fields };
+  }
+
+  var HISTORY = [
+    { id: 'c-mueller', name: 'Sabine Müller', company: 'Müller GmbH', customer: 'mueller', number: '+49 40 5550 1834', direction: 'out', time: '09:15', duration: 78,
+      intent: 'Callback', text: 'Ms Müller received the buildings insurance documents and asked about the deductible. She would like an option without a deductible.',
+      fields: [['Customer', 'Müller GmbH'], ['Line', 'Buildings'], ['Deductible', '€500 per claim'], ['Request', 'No-deductible option']],
+      items: [E(0, 'phone-out', 'Outbound call by the assistant', { time: '09:15' }), S('ai', 1, 8, 'Good morning, this is the digital assistant for Kontor, calling on behalf of Lea Krause. Am I speaking with Ms Müller?'), S('caller', 10, 3, 'Yes, speaking.'), S('ai', 14, 12, 'You asked for a callback. Did the documents for your buildings insurance arrive?'), S('caller', 27, 13, 'Yes, they did. I just have a question about the deductible.'), S('ai', 41, 17, 'The deductible is 500 euros per claim. Would you like Ms Krause to price an option without a deductible?'), S('caller', 59, 5, 'Yes, that would be good.'), S('ai', 65, 9, 'I will pass that on. She will get back to you by Friday.'), E(76, 'phone-off', 'Call ended')] },
+    { id: 'c-missed', name: '+49 30 23125679', number: '+49 30 23125679', direction: 'in', status: 'missed', time: '08:58', duration: 0, intent: 'Missed call', text: 'Hung up before the greeting. The number is not linked to a customer.', items: [] },
+    { id: 'c-kaya', name: 'Aylin Kaya', company: 'Private', customer: 'kaya', number: '+49 176 5550 4471', direction: 'in', status: 'transferred', time: '08:40', duration: 120,
+      intent: 'Motor claim', text: 'Ms Kaya reports a parking accident with damage to the rear. Nobody was hurt. The assistant transferred the call to Lea Krause, who took the claim details.',
+      fields: [['Customer', 'Aylin Kaya'], ['Damage', 'Rear bumper, while parking'], ['Injuries', 'None'], ['Documents', 'Photos by message']],
+      items: [E(0, 'phone-in', 'Incoming call, assistant answered', { time: '08:40' }), S('ai', 0, 6, GREET), S('caller', 7, 13, 'Hi, this is Aylin Kaya. Someone backed into my car this morning while parking.'), S('ai', 21, 9, 'I am sorry to hear that, Ms Kaya. Was anyone hurt?'), S('caller', 31, 5, 'No, luckily not. But the bumper is broken.'), S('ai', 37, 11, 'Good that nobody was hurt. I will connect you with Ms Krause, she will take the claim right away.'), E(49, 'headset', 'Transferred to Lea Krause'), S('agent', 51, 19, 'Hello Ms Kaya, Lea Krause here. Do you have the details of the other driver?'), S('caller', 71, 14, 'Yes, I took a photo of the license plate and their insurance card.'), S('agent', 86, 24, 'Perfect. Please send me the photos and I will file the claim straight away.'), S('caller', 111, 5, 'Will do, thanks!'), E(118, 'phone-off', 'Call ended')] },
+    { id: 'c-sommer', name: 'Klaus Sommer', company: 'Bäckerei Sommer', customer: 'sommer', number: '+49 89 5550 3310', direction: 'in', time: 'Yesterday', duration: 70,
+      intent: 'Liability claim', text: 'A customer slipped in the bakery and bruised her knee. She is asking for compensation. The assistant opened a liability claim and promised a callback from Lea Krause tomorrow morning.',
+      fields: [['Customer', 'Bäckerei Sommer'], ['Incident', 'Customer slipped in the shop'], ['Injuries', 'Bruised knee'], ['Policy', 'Business liability']],
+      items: [E(0, 'phone-in', 'Incoming call, assistant answered', { time: '16:22' }), S('ai', 0, 6, GREET), S('caller', 7, 12, 'Hello, Klaus Sommer from Bäckerei Sommer. A customer slipped in our shop today. Are we covered for that?'), S('ai', 20, 13, 'I am sorry to hear that. Your business liability policy covers injuries to customers on your premises. Was anyone seriously hurt?'), S('caller', 34, 8, 'No, just a bruised knee. But she wants compensation.'), S('ai', 43, 15, 'Understood. I have opened a liability claim, and Ms Krause will call you tomorrow morning.'), E(58, 'check', 'Claim opened'), S('caller', 60, 4, 'Thanks, that helps.'), E(68, 'phone-off', 'Call ended')] },
+    { id: 'c-peters', cat: 'ai', name: 'Jonas Peters', company: 'Private', customer: 'peters', number: '+49 151 5550 9023', direction: 'in', time: 'Yesterday', duration: 52,
+      intent: 'Change of address', text: 'Mr Peters has moved. The assistant updated the address on all of his policies and triggered a confirmation by post.',
+      fields: [['Customer', 'Jonas Peters'], ['New address', 'Lindenstraße 14, 10969 Berlin'], ['Policies', 'Home contents, liability']],
+      items: [E(0, 'phone-in', 'Incoming call, assistant answered', { time: '14:12' }), S('ai', 0, 6, GREET), S('caller', 7, 9, 'Hi, Jonas Peters. I have moved and need to change my address.'), S('ai', 17, 7, 'Of course. What is your new address?'), S('caller', 25, 8, 'Lindenstraße 14, 10969 Berlin.'), S('ai', 34, 10, 'Thank you, I have updated the address on all of your policies. You will get a confirmation by post.'), E(44, 'database', 'Address updated in CRM'), S('caller', 45, 3, 'Great, thanks.'), E(50, 'phone-off', 'Call ended')] },
+    { id: 'c-spam1', cat: 'spam', name: '+49 800 5550 112', number: '+49 800 5550 112', direction: 'in', status: 'spam', time: '10:02', duration: 21,
+      intent: 'Sales call', text: 'An energy supplier tried to sell a new electricity contract. The assistant declined and ended the call.',
+      fields: [['Number', '+49 800 5550 112'], ['Reason', 'Unsolicited sales call'], ['Action', 'Declined, number blocked']],
+      items: [E(0, 'phone-in', 'Incoming call, assistant answered', { time: '10:02' }), S('ai', 0, 5, GREET), S('caller', 6, 7, 'Hello! I can save your office up to 30 percent on electricity this year.'), S('ai', 14, 5, 'Thank you, we are not interested. Goodbye.'), E(19, 'phone-off', 'Ended by the assistant: sales call')] },
+    { id: 'c-spam2', cat: 'spam', name: '+44 20 5550 0199', number: '+44 20 5550 0199', direction: 'in', status: 'spam', time: 'Yesterday', duration: 9,
+      intent: 'Robocall', text: 'Recorded message about a parcel that could not be delivered. Typical scam pattern. The assistant hung up.',
+      fields: [['Number', '+44 20 5550 0199'], ['Reason', 'Recorded scam message'], ['Action', 'Hung up, number blocked']],
+      items: [E(0, 'phone-in', 'Incoming call, assistant answered', { time: '18:40' }), S('caller', 0, 6, 'Your parcel could not be delivered. Press one to confirm your address.'), E(7, 'phone-off', 'Ended by the assistant: robocall')] },
+    { id: 'c-lang', cat: 'ai', name: 'Petra Lang', company: 'Dr. Petra Lang', customer: 'lang', number: '+49 221 5550 7765', direction: 'out', time: 'Mon', duration: 40,
+      intent: 'Appointment confirmed', text: 'The assistant confirmed Dr. Lang\'s policy review on Tuesday at 2 PM.',
+      fields: [['Customer', 'Dr. Petra Lang'], ['Appointment', 'Tue, Nov 10, 2:00 PM'], ['Topic', 'Disability policy review']],
+      items: [E(0, 'phone-out', 'Outbound call by the assistant', { time: '15:03' }), S('ai', 1, 8, 'Good afternoon, this is the digital assistant for Kontor, calling on behalf of Lea Krause. Am I speaking with Dr. Lang?'), S('caller', 10, 2, 'Yes, speaking.'), S('ai', 13, 10, 'I am calling to confirm your policy review on Tuesday at 2 PM. Does that still work?'), S('caller', 24, 3, 'Yes, that is fine.'), S('ai', 28, 6, 'Great, see you Tuesday. Have a nice day.'), E(38, 'phone-off', 'Call ended')] }
+  ];
+  var PAST = {
+    weber: [['Oct 14', 'Invoice question', '02:10'], ['Jun 3', 'Contract documents sent', '01:05'], ['Jan 22', 'Inventory update', '03:40']],
+    mueller: [['Nov 2', 'Asked for a callback', '00:48'], ['Sep 18', 'New buildings quote', '04:12']],
+    kaya: [['Aug 30', 'Change of car', '02:31']],
+    sommer: [['Jul 12', 'Coverage check', '01:50']],
+    peters: [['Mar 5', 'Home contents quote', '03:02']],
+    lang: [['Oct 1', 'Appointment request', '01:12']]
+  };
+  function CustomerSide(p) {
+    var c = p.call, cu = c.customer ? cust(c.customer) : null;
+    if (!cu) return h('aside', { className: 'cv-side', 'aria-label': 'Caller' },
+      h('div', { className: 'side-who' }, h(K.Avatar, { name: '?', size: 32 }), h('div', null, h('b', null, 'Unknown caller'), h('span', { className: 'mono' }, c.number))),
+      h('span', { className: 'help' }, 'This number is not linked to a customer.'),
+      h(K.Button, { size: 'sm', icon: 'user', onClick: function () { p.toast('Linking is not available in this prototype.'); } }, 'Link to customer'),
+      h('div', { className: 'side-sec' }, h('h2', null, 'Previous calls'), h('span', { className: 'help' }, 'No earlier calls from this number.')));
+    var related = p.calls.filter(function (x) { return x.customer === c.customer && x.id !== c.id && !x.deleted; });
+    var past = PAST[c.customer] || [];
+    return h('aside', { className: 'cv-side', 'aria-label': 'Customer' },
+      h('div', { className: 'side-who' }, h(K.Avatar, { name: cu.name, size: 32 }), h('div', null, h('b', null, cu.contact), h('span', null, cu.name)),
+        h(K.Button, { size: 'sm', variant: 'ghost', className: 'k-btn-icon side-open', title: 'Open customer record', 'aria-label': 'Open customer record', onClick: function () { p.onCustomer(cu.id); } }, h(Ic, { name: 'arrow-up-right', size: 14 }))),
+      h(K.Badge, { tone: cu.status[0], dot: true }, cu.status[1]),
+      h('dl', { className: 'facts side-facts' }, h('dt', null, 'Phone'), h('dd', { className: 'mono' }, cu.phone), h('dt', null, 'Email'), h('dd', null, cu.email), h('dt', null, 'Line'), h('dd', null, cu.line), h('dt', null, 'Renews'), h('dd', null, cu.until), h('dt', null, 'Premium'), h('dd', null, cu.vol), h('dt', null, 'Since'), h('dd', null, cu.since)),
+      h('div', { className: 'side-sec' }, h('h2', null, 'Previous calls'),
+        related.map(function (x) { return h('button', { key: x.id, type: 'button', className: 'side-call', onClick: function () { p.onOpen(x.id); } }, h('span', { className: 'sc-top' }, h('b', null, x.intent || 'Contract renewal'), h('span', { className: 'mono' }, x.time)), h('span', { className: 'sc-sub' }, (x.direction === 'out' ? 'Outbound' : 'Inbound') + ' · ' + (x.duration ? fmt(x.duration) : 'live'))); }),
+        past.map(function (x) { return h('div', { key: x[0] + x[1], className: 'side-call is-old' }, h('span', { className: 'sc-top' }, h('b', null, x[1]), h('span', { className: 'mono' }, x[0])), h('span', { className: 'sc-sub' }, 'Inbound · ' + x[2])); }),
+        !related.length && !past.length ? h('span', { className: 'help' }, 'No earlier calls.') : null));
+  }
+  var LIVE_INFO = { id: 'live', name: 'Thomas Weber', company: 'Weber & Co.', customer: 'weber', number: '+49 30 5557 2210', direction: 'in', time: '09:41' };
+
+  var ROUTES = ['calls', 'customers', 'assistant', 'preferences'];
+  var TITLES = { calls: 'Calls', customers: 'Customers', assistant: 'Assistant Settings', preferences: 'Settings' };
+  function readHash() { var r = (location.hash || '').replace('#', ''); return ROUTES.indexOf(r) > -1 ? r : 'calls'; }
+
+  var TABS = [['you', 'Needs you', null], ['ai', 'Handled by AI', null], ['spam', 'Spam', null]];
+  function matchTab(tab, x) {
+    if (!x || x.deleted) return false;
+    if (tab === 'done') return !!x.done;
+    if (tab === 'reminders') return !!x.snoozed && !x.done;
+    if (x.done || x.snoozed) return false;
+    return (x.cat || 'you') === tab;
+  }
+  /* list modes outside the Tab cycle */
+  var MODES = { done: 'Done', reminders: 'Reminders' };
+  function greeting() { var hr = new Date().getHours(); return hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'; }
+
+  /* ---------- small UI pieces ---------- */
+  function Switch(p) { return h('button', { type: 'button', id: p.id, role: 'switch', className: 'sw', 'aria-checked': String(!!p.on), 'aria-label': p.label, onClick: function () { p.onChange(!p.on); } }); }
+
+  var SP_LABEL = { ai: 'Assistant', agent: 'Lea Krause' };
+  function segsOf(items, e) {
+    return items.filter(function (i) { return i.k === 'msg' && i.start <= e; }).map(function (i) { return { sp: i.sp, start: i.start, end: Math.min(i.start + i.dur, e) }; });
+  }
+  function VoiceNote(p) {
+    var wref = useRef(null), ws = useState(600), ww = ws[0], setWw = ws[1];
+    useEffect(function () {
+      var el = wref.current; if (!el) return;
+      function m() { setWw(el.clientWidth || 600); }
+      m();
+      if (window.ResizeObserver) { var ro = new ResizeObserver(m); ro.observe(el); return function () { ro.disconnect(); }; }
+      window.addEventListener('resize', m); return function () { window.removeEventListener('resize', m); };
+    }, []);
+    var N = Math.max(30, Math.floor(ww / 4)), len = p.live ? Math.max(150, p.elapsed + 20) : Math.max(1, p.duration);
+    var playedTo = p.live ? p.elapsed : p.position;
+    var segs = segsOf(p.items, p.live ? p.elapsed : Infinity);
+    function who(t) { for (var i = 0; i < segs.length; i++) if (t >= segs[i].start && t < segs[i].end) return segs[i].sp; return null; }
+    var bars = [];
+    for (var i = 0; i < N; i++) {
+      var t = (i + 0.5) / N * len;
+      var sp = p.live && t > p.elapsed ? null : who(t);
+      var a = amp(i) * 0.6 + amp(i + 1) * 0.4;
+      bars.push(h('i', { key: i, className: cx(sp || 'none', sp && t <= playedTo && 'p'), style: sp ? { height: Math.round(18 + a * 82) + '%' } : null }));
+    }
+    var at = p.live ? p.elapsed : p.position;
+    var frac = Math.min(1, at / len);
+    function seek(e) { if (p.live) return; var r = e.currentTarget.getBoundingClientRect(); p.onSeek(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * p.duration); }
+    return h('div', { className: 'vn' },
+      p.live
+        ? h('button', { type: 'button', className: 'vn-btn live', 'aria-pressed': String(!!p.listening), 'aria-label': p.listening ? 'Stop listening' : 'Listen in', title: (p.listening ? 'Stop listening' : 'Listen in') + ' (L)', onClick: p.onListen }, h(K.Icon, { name: 'headset', size: 16 }))
+        : h('button', { type: 'button', className: 'vn-btn', 'aria-label': p.playing ? 'Pause' : 'Play recording', title: (p.playing ? 'Pause' : 'Play') + ' (Space)', onClick: p.onToggle }, h(K.Icon, { name: p.playing ? 'pause' : 'play', size: 14 })),
+      h('div', { className: 'vn-body' },
+        h('div', { ref: wref, className: cx('vn-wave', p.live && 'is-live'), role: 'slider', tabIndex: 0, 'aria-label': 'Call timeline', 'aria-valuemin': 0, 'aria-valuemax': Math.round(len), 'aria-valuenow': Math.round(at), 'aria-valuetext': fmt(at), onClick: seek },
+          bars, h('span', { className: 'vn-knob', style: { left: (frac * 100) + '%' } }))),
+      p.live ? null : h('button', { type: 'button', className: 'vn-speed', 'aria-label': 'Playback speed ' + p.speed + 'x', onClick: p.onSpeed }, p.speed + '×'));
+  }
+
+  function SummaryCard(p) {
+    return h('section', { className: 'sumcard', 'aria-label': 'Summary' },
+      h('div', { className: 'sum-h' }, h('b', null, p.live ? 'Live summary' : 'Summary'), p.intent ? h(K.Badge, { tone: 'info', dot: true }, p.intent) : null),
+      h('p', { className: 'sum-text' }, p.text),
+      p.fields ? h('div', { className: 'sum-grid' },
+        h('div', { className: 'sum-col' }, h('span', { className: 'sum-label' }, 'Key facts'),
+          h('dl', { className: 'facts' }, p.fields.map(function (f, i) { return h(React.Fragment, { key: i }, h('dt', null, f[0]), h('dd', null, f[1])); })))) : null);
+  }
+
+  function Transcript(p) {
+    var e = p.live ? p.elapsed : Infinity;
+    var vis = p.items.filter(function (i) { return i.k === 'msg' ? i.start <= e : i.at <= e; });
+    var prev = null, out = [];
+    vis.forEach(function (i, idx) {
+      if (i.k === 'ev') { prev = null; out.push(h(K.CallEvent, { key: 'e' + idx, icon: i.icon, time: i.time || fmt(i.at) }, i.text)); return; }
+      var speaking = p.live && !p.ended && e < i.start + i.dur;
+      var text = i.text;
+      if (speaking) { var w = i.text.split(' '); text = w.slice(0, Math.max(1, Math.ceil(w.length * (e - i.start + 1) / i.dur))).join(' '); }
+      var tail = prev !== i.sp; prev = i.sp;
+      if (p.highlight && !speaking) text = hl(text, p.highlight);
+      var bubble = h(K.MessageBubble, { from: i.sp === 'caller' ? 'them' : 'me', tone: i.sp === 'caller' ? 'signal' : 'neutral', author: tail ? (i.sp === 'caller' ? p.callerName : SP_LABEL[i.sp]) : null, time: fmt(i.start), tail: tail, live: speaking, className: p.nowStart === i.start ? 'is-now' : null }, text);
+      out.push(p.onSeek ? h('div', { key: 'm' + idx, className: 'seek', role: 'button', tabIndex: 0, 'aria-label': 'Play from ' + fmt(i.start), onClick: function () { p.onSeek(i.start); }, onKeyDown: function (ev) { if (ev.key === 'Enter') { ev.stopPropagation(); p.onSeek(i.start); } } }, bubble) : h(React.Fragment, { key: 'm' + idx }, bubble));
+    });
+    return h('div', null, out);
+  }
+
+  function callSubject(c, L) { return c.id === 'live' ? (L.ended ? 'New quote, meeting Thu 10 AM' : 'Contract renewal') : c.intent; }
+  function callSnippet(c, L) { return c.id === 'live' ? liveSummary(L).text : c.text; }
+
+  /* ---------- Inbox zero: calm full-height state when nothing needs you ---------- */
+  function InboxZero(p) {
+    var n = p.aiCount;
+    return h('div', { className: 'zero', role: 'status' },
+      h('svg', { className: 'zero-art', width: 168, height: 112, viewBox: '0 0 168 112', 'aria-hidden': 'true', focusable: 'false' },
+        h('circle', { cx: 84, cy: 70, r: 34, className: 'zero-sun' }),
+        h('rect', { x: 0, y: 70, width: 168, height: 42, className: 'zero-ground' }),
+        h('path', { d: 'M8 70h152', className: 'zero-line' }),
+        h('path', { d: 'M30 84h44M96 84h36M52 96h64', className: 'zero-wave' }),
+        h('path', { d: 'M74 58l7 7 14-14', className: 'zero-check' })),
+      h('h2', null, 'All calls handled'),
+      h('p', { className: 'zero-greet' }, greeting() + ', Lea'),
+      h('p', { className: 'zero-stat' }, 'The assistant resolved ', h('b', null, n), n === 1 ? ' call on its own' : ' calls on its own'),
+      h('p', { className: 'zero-hint' }, 'Press ', h(K.Kbd, { keys: ['tab'] }), ' to check Handled by AI'));
+  }
+
+  /* ---------- Inbox (Superhuman-style list) ---------- */
+  function Inbox(p) {
+    var L = p.live;
+    var listRef = useRef(null);
+    useEffect(function () { var el = listRef.current && listRef.current.querySelector('.is-cursor'); if (el) el.scrollIntoView({ block: 'nearest' }); }, [p.cursor]);
+    return h('div', { className: 'cv' },
+      h('div', { className: 'ib-head' },
+        p.menu,
+        p.search !== null ? h('div', { className: 'ib-search' },
+          h(K.Icon, { name: 'search', size: 15 }),
+          h('input', { id: 'call-search', value: p.search, placeholder: 'Search calls, callers and transcripts', 'aria-label': 'Search calls', autoComplete: 'off',
+            onChange: function (e) { p.onSearchChange(e.target.value); },
+            onKeyDown: function (e) { if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); e.target.blur(); } } }),
+          h('span', { className: 'ib-search-n' }, p.search ? p.list.length + (p.list.length === 1 ? ' call' : ' calls') : 'All ' + p.list.length + ' calls'),
+          h(K.Button, { size: 'sm', variant: 'ghost', shortcut: ['esc'], title: 'Close search (esc)', onClick: p.onSearchClose }, 'Close')) :
+        MODES[p.tab] ? h('div', { className: 'ib-mode' },
+          h(K.Button, { size: 'sm', variant: 'ghost', title: 'Back to Needs you (esc)', onClick: function () { p.setTab('you'); } }, h(Ic, { name: 'left', size: 14 }), 'Needs you'),
+          h('span', { className: 'ib-mode-sep', 'aria-hidden': 'true' }, '/'),
+          h('b', null, MODES[p.tab]), p.list.length ? h('span', { className: 'n' }, p.list.length) : null) :
+        h('div', { className: 'ib-tabs', role: 'tablist', 'aria-label': 'Split' }, TABS.map(function (t) {
+          return h('button', { key: t[0], type: 'button', role: 'tab', className: 'ib-tab', 'aria-selected': String(p.tab === t[0]), title: t[1] + ' (' + (t[2] ? t[2].join(' ') : 'Tab') + ')', onClick: function () { p.setTab(t[0]); } },
+            t[1], p.counts[t[0]] ? h('span', { className: 'n' }, p.counts[t[0]]) : null);
+        })),
+        p.search !== null ? null : h('div', { className: 'ib-right' },
+          h(K.Button, { size: 'sm', variant: 'ghost', icon: 'search', shortcut: ['/'], title: 'Search calls (/)', onClick: p.onSearch }, 'Search'))),
+      h('div', { className: cx('ib-list', !p.list.length && p.tab === 'you' && p.search === null && 'is-zero'), ref: listRef, role: 'list' },
+        p.list.length ? h('div', { className: 'ib-cols', 'aria-hidden': 'true' }, h('span'), h('span', null, 'Caller'), h('span', null, 'Summary'), h('span', null, 'Status'), h('span', { className: 'num' }, 'Length'), h('span', { className: 'num' }, 'Time')) : null,
+        p.list.length ? p.list.map(function (c) {
+          var isLive = c.id === 'live' && !L.ended;
+          function rowAct(title, icon, run) { return h('button', { type: 'button', className: 'r-act', title: title, 'aria-label': title.replace(/ \(.*\)$/, ''), onClick: function (e) { e.stopPropagation(); run(); } }, h(Ic, { name: icon, size: 14 })); }
+          var dirIcon = c.status === 'missed' ? 'phone-missed' : c.direction === 'out' ? 'phone-out' : 'phone-in';
+          return h('div', { key: c.id, role: 'listitem', className: cx('row', p.cursor === c.id && 'is-cursor', (c.unread || isLive) && 'unread'), onClick: function () { p.onOpen(c.id); }, onMouseMove: function () { if (p.cursor !== c.id) p.setCursor(c.id); } },
+            h('span', { className: cx('r-dir', c.status === 'missed' && 'missed'), title: c.status === 'missed' ? 'Missed' : c.direction === 'out' ? 'Outbound' : 'Inbound' }, h(K.Icon, { name: dirIcon, size: 14 })),
+            h('span', { className: 'r-name' }, h('span', null, p.search ? hl(c.name, p.search) : c.name)),
+            (function () {
+              var q = p.search, hit = q ? searchHit(c, L, q) : null;
+              if (hit && hit.at != null) return h('span', { className: 'r-sum is-hit' }, h('span', { className: 'r-topic' }, hit.f + ' · ' + fmt(hit.at)), ' · ', hl(hit.t, q, 110));
+              if (q) return h('span', { className: 'r-sum' }, h('span', { className: 'r-topic' }, hl(callSubject(c, L), q)), ' · ', hl(callSnippet(c, L), q, 160));
+              return h('span', { className: 'r-sum' }, h('span', { className: 'r-topic' }, callSubject(c, L)), ' · ' + callSnippet(c, L));
+            })(),
+            h('span', { className: 'r-status' },
+              isLive ? h(K.LiveIndicator, { state: 'live', seconds: L.elapsed }) : c.snoozed && !c.done ? h(K.Badge, { tone: 'neutral' }, c.snoozed) : c.status === 'transferred' ? h(K.Badge, { tone: 'info' }, 'Transferred') : c.status === 'missed' ? h(K.Badge, { tone: 'danger' }, 'Missed') : c.status === 'spam' ? h(K.Badge, { tone: 'neutral' }, 'Blocked') : c.direction === 'out' ? h('span', { className: 'r-quiet' }, 'Outbound') : h('span', { className: 'r-quiet' }, c.cat === 'ai' ? 'Resolved by AI' : 'Follow-up')),
+            h('span', { className: 'r-dur' }, isLive ? '—' : c.id === 'live' ? fmt(L.elapsed) : c.duration ? fmt(c.duration) : '—'),
+            h('span', { className: 'r-time' }, c.time),
+            h('span', { className: 'r-acts' },
+              rowAct(c.done ? 'Mark not done (⇧E)' : 'Mark done (E)', c.done ? 'restart' : 'check', function () { p.onToggleDone(c.id); }),
+              c.snoozed && !c.done ? rowAct('Clear reminder (⇧H)', 'restart', function () { p.onClearReminder(c.id); }) : rowAct('Remind me (H)', 'clock', function () { p.onRemind(c.id); }),
+              rowAct('All commands (⌘ K)', 'more', function () { p.setCursor(c.id); p.onCommands(); })));
+        }) : p.tab === 'you' && p.search === null ? h(InboxZero, { aiCount: p.counts.ai }) : h('div', { className: 'empty' }, h(Ic, { name: p.tab === 'done' ? 'check' : p.tab === 'reminders' ? 'clock' : 'tasks', size: 22 }),
+          p.search ? h('b', null, 'No call mentions “' + p.search + '”') : h('b', null, { you: 'Nothing needs you', ai: 'Nothing here yet', spam: 'No spam', done: 'Nothing done yet', reminders: 'No reminders' }[p.tab]),
+          p.search ? h('span', null, 'Try a name, a number or a word from the conversation.') : h('span', null, { you: 'Calls that need a person land here.', ai: 'Calls the assistant resolved on its own land here.', spam: 'Sales calls and robocalls the assistant blocked land here.', done: 'Calls you mark done with E land here.', reminders: 'Calls you snooze with H wait here until they come back.' }[p.tab]))),
+      p.list.length ? h('div', { className: 'ib-hint' },
+          h('span', null, h(K.Kbd, { keys: ['J'] }), h(K.Kbd, { keys: ['K'] }), 'move'),
+          h('span', null, h(K.Kbd, { keys: ['⏎'] }), 'open'),
+          h('span', null, h(K.Kbd, { keys: ['E'] }), 'done'),
+          h('span', null, h(K.Kbd, { keys: ['tab'] }), 'switch'),
+          h('span', null, h(K.Kbd, { keys: ['⌘', 'K'] }), 'commands'),
+          h('span', null, h(K.Kbd, { keys: ['?'] }), 'all shortcuts')) : null);
+  }
+
+  /* ---------- Call view (full width) ---------- */
+  function CallView(p) {
+    var L = p.live, c = p.call;
+    var isLive = c.id === 'live' && !L.ended;
+    var items = c.id === 'live' ? L.items : c.items;
+    var duration = c.id === 'live' ? L.elapsed : c.duration;
+    var st = useState(0), pos = st[0], setPos = st[1];
+    var pl = useState(false), playing = pl[0], setPlaying = pl[1];
+    var sp = useState(1), speed = sp[0], setSpeed = sp[1];
+    var tr = useState(true), trOpen = tr[0], setTrOpen = tr[1];
+    var scRef = useRef(null);
+    useEffect(function () { setPos(0); setPlaying(false); if (scRef.current) scRef.current.scrollTop = 0; }, [c.id]);
+    useEffect(function () {
+      if (!p.search) return;
+      var t = setTimeout(function () { var m = scRef.current && scRef.current.querySelector('.k-bubble mark'); if (m) m.scrollIntoView({ block: 'center' }); }, 60);
+      return function () { clearTimeout(t); };
+    }, [c.id, p.search]);
+    useEffect(function () {
+      if (!playing) return;
+      var id = setInterval(function () { setPos(function (x) { var n = x + 0.25 * speed; if (n >= duration) { setPlaying(false); return duration; } return n; }); }, 250);
+      return function () { clearInterval(id); };
+    }, [playing, speed, duration]);
+    var ctl = useRef({}); ctl.current = { live: isLive, duration: duration, pos: pos, playing: playing };
+    useEffect(function () {
+      function onP(e) {
+        var s = ctl.current; if (s.live || !s.duration) return;
+        if (e.detail === 'toggle') { if (s.pos >= s.duration) setPos(0); setPlaying(!s.playing); }
+        if (e.detail === 'fwd') setPos(Math.min(s.duration, s.pos + 5));
+        if (e.detail === 'back') setPos(Math.max(0, s.pos - 5));
+      }
+      window.addEventListener('kontor-player', onP);
+      return function () { window.removeEventListener('kontor-player', onP); };
+    }, []);
+    var visCount = c.id === 'live' ? L.items.filter(function (i) { return i.k === 'msg' ? i.start <= L.elapsed : i.at <= L.elapsed; }).length : 0;
+    useEffect(function () {
+      var el = scRef.current; if (!el || !isLive) return;
+      if (el.scrollHeight - el.scrollTop - el.clientHeight < 140) el.scrollTop = el.scrollHeight;
+    }, [visCount, L.elapsed]);
+    var nowStart = null;
+    if (!isLive && (playing || pos > 0)) items.forEach(function (i) { if (i.k === 'msg' && pos >= i.start && pos < i.start + i.dur) nowStart = i.start; });
+    function toggle() { if (pos >= duration) setPos(0); setPlaying(!playing); }
+    var summary = c.id === 'live' ? liveSummary(L) : { intent: c.intent, text: c.text, fields: c.fields };
+    var msgCount = items.filter(function (i) { return i.k === 'msg' && (isLive ? i.start <= L.elapsed : true); }).length;
+
+    var acts;
+    if (isLive) {
+      acts = [
+        h(K.Button, { key: 'l', size: 'sm', variant: 'ghost', icon: 'headset', shortcut: ['L'], title: (p.listening ? 'Stop listening' : 'Listen in') + ' (L)', 'aria-pressed': String(p.listening), onClick: p.onListen }, p.listening ? 'Listening' : 'Listen in'),
+        L.mode === 'agent' ? h(K.Button, { key: 't', size: 'sm', icon: 'phone', disabled: true }, 'Taken over') : h(K.Button, { key: 't', size: 'sm', variant: 'primary', icon: 'phone', shortcut: ['⌘', '⏎'], title: 'Take over (⌘ ⏎)', onClick: p.onTakeover }, 'Take over'),
+        h(K.Button, { key: 'x', size: 'sm', variant: 'danger', icon: 'phone-off', 'aria-label': 'Hang up', title: 'Hang up', onClick: p.onHangup })];
+    } else {
+      acts = [
+        c.id === 'live' ? h(K.Button, { key: 'r', size: 'sm', variant: 'ghost', title: 'Restart demo call', onClick: p.onRestart }, h(Ic, { name: 'restart', size: 14 }), 'Restart demo') : null,
+        c.snoozed && !c.done ? h(K.Button, { key: 'c', size: 'sm', variant: 'ghost', shortcut: ['⇧', 'H'], title: 'Clear reminder (⇧H)', onClick: p.onClearReminder }, 'Clear reminder') : null,
+        c.done ? h(K.Button, { key: 'd', size: 'sm', icon: 'restart', shortcut: ['⇧', 'E'], title: 'Mark not done (⇧E)', onClick: p.onUndone }, 'Not done')
+          : h(K.Button, { key: 'd', size: 'sm', variant: 'primary', shortcut: ['E'], className: 'cv-done', title: 'Mark done (E)', onClick: p.onDone }, 'Done')];
+    }
+    var avatarName = c.status === 'missed' ? '?' : c.name;
+    return h('div', { className: 'cv' },
+      h('div', { className: 'cv-bar' },
+        p.menu,
+        h(K.Button, { size: 'sm', variant: 'ghost', shortcut: ['esc'], title: 'Back to calls (esc)', onClick: p.onBack, 'aria-label': 'Back to calls' }, h(Ic, { name: 'left', size: 14 }), 'Calls'),
+        h(K.Button, { size: 'sm', variant: 'ghost', title: 'Previous call (K)', 'aria-label': 'Previous call', disabled: p.index <= 0, onClick: function () { p.onStep(-1); } }, h(Ic, { name: 'up', size: 16 })),
+        h(K.Button, { size: 'sm', variant: 'ghost', title: 'Next call (J)', 'aria-label': 'Next call', disabled: p.index >= p.count - 1, onClick: function () { p.onStep(1); } }, h(Ic, { name: 'down', size: 16 })),
+        p.index > -1 ? h('span', { className: 'cv-pos' }, (p.index + 1) + ' of ' + p.count) : null,
+        h('div', { className: 'cv-acts' }, acts)),
+      h('div', { className: 'cv-main' }, h('div', { className: 'cv-center' },
+      h('div', { className: 'cv-scroll', ref: scRef },
+        h('div', { className: 'cv-col' },
+          h('div', { className: 'cv-who' },
+            h(K.Avatar, { name: avatarName, size: 32 }),
+            h('div', { className: 'cv-who-t' }, h('h1', null, c.name + (c.company && c.company !== 'Private' && c.company !== c.name ? ' · ' + c.company : '')), h('span', { className: 'sub' }, (c.name === c.number ? 'Unknown caller' : c.number) + ' · ' + (c.direction === 'out' ? 'outbound' : 'inbound') + ' · ' + c.time)),
+            h(K.LiveIndicator, { state: isLive ? 'live' : 'ended', seconds: isLive ? L.elapsed : (duration || null) }),
+            c.snoozed ? h(K.Badge, { tone: 'neutral' }, 'Reminder: ' + c.snoozed) : null),
+          c.status === 'missed'
+            ? h('div', { className: 'empty' }, h(K.Icon, { name: 'phone-missed', size: 24 }), h('b', null, 'Hung up before the greeting'), h('span', null, 'No recording and no transcript. The number is not linked to a customer.'),
+                h(K.Button, { icon: 'phone-out', onClick: function () { p.toast('The assistant would call back now. Nothing happens in this prototype.'); } }, 'Have the assistant call back'))
+            : h(React.Fragment, null,
+                h(VoiceNote, { items: items, live: isLive, elapsed: L.elapsed, duration: duration, position: pos, playing: playing, speed: speed, callerName: c.name, listening: p.listening,
+                  onSeek: function (s) { setPos(s); }, onToggle: toggle, onListen: p.onListen, onSpeed: function () { setSpeed(speed === 1 ? 1.5 : speed === 1.5 ? 2 : 1); } }),
+                h(SummaryCard, { id: 'sum-' + c.id, live: isLive, intent: summary.intent, text: summary.text, fields: summary.fields }),
+                h('div', { className: 'tr-h' }, h('b', null, 'Transcript'), h('span', null, msgCount + ' turns' + (isLive ? ' · live' : '')),
+                  h(K.Button, { size: 'sm', variant: 'ghost', 'aria-expanded': String(trOpen), onClick: function () { setTrOpen(!trOpen); } }, trOpen ? 'Collapse' : 'Expand')),
+                trOpen ? h(Transcript, { highlight: p.search || null, items: items, live: c.id === 'live', elapsed: L.elapsed, ended: !isLive, callerName: c.name, nowStart: nowStart, onSeek: isLive ? null : function (s) { setPos(s); setPlaying(true); } }) : null))),
+      isLive ? h('div', { className: 'compose' }, h('div', { className: 'compose-inner' },
+        h('small', null, 'Whisper: only the assistant hears your instruction, the caller does not.'),
+        h(K.Composer, { id: 'whisper', attach: false, placeholder: 'Instruction for the assistant …', onSend: p.onWhisper }))) : null), p.side));
+  }
+
+  /* ---------- Search: calls and their content only ---------- */
+  function callText(c, L) {
+    var items = c.id === 'live' ? L.items.filter(function (i) { return i.k === 'msg' ? i.start <= L.elapsed : i.at <= L.elapsed; }) : (c.items || []);
+    return [{ f: 'Summary', t: callSnippet(c, L) }, { f: 'Topic', t: callSubject(c, L) }].concat(items.filter(function (i) { return i.k === 'msg'; }).map(function (i) { return { f: i.sp === 'caller' ? c.name : SP_LABEL[i.sp], t: i.text, at: i.start }; }));
+  }
+  /* Search highlighting: wrap the first match in <mark>; with max, trim the text around the match */
+  function hl(text, q, max) {
+    text = String(text || ''); if (!q) return text;
+    var i = text.toLowerCase().indexOf(q.toLowerCase());
+    if (i < 0) return max && text.length > max ? text.slice(0, max) + '…' : text;
+    var s0 = 0, e0 = text.length;
+    if (max && text.length > max) { s0 = Math.max(0, i - Math.round(max * 0.3)); e0 = Math.min(text.length, s0 + max); }
+    return [(s0 > 0 ? '…' : '') + text.slice(s0, i), h('mark', { key: 'm' }, text.slice(i, i + q.length)), text.slice(i + q.length, e0) + (e0 < text.length ? '…' : '')];
+  }
+  function searchHit(c, L, q) {
+    var ql = q.toLowerCase();
+    var items = callText(c, L);
+    for (var i = 0; i < items.length; i++) if (items[i].t.toLowerCase().indexOf(ql) > -1) return items[i];
+    return null;
+  }
+  /* ---------- Shortcuts sheet ---------- */
+  var SHORTCUTS = [
+    { group: 'Navigate', rows: [['Next call', ['J']], ['Next call', ['↓']], ['Previous call', ['K']], ['Previous call', ['↑']], ['Open call', ['⏎']], ['Back to list, close', ['esc']], ['Next split', ['tab']], ['Previous split', ['⇧', 'tab']]] },
+    { group: 'Triage', rows: [['Mark done', ['E']], ['Mark not done', ['⇧', 'E']], ['Remind me', ['H']], ['Clear reminder', ['⇧', 'H']], ['Mark read or unread', ['U']], ['Delete', ['#']], ['Undo', ['Z']]] },
+    { group: 'Go to', rows: [['Calls', ['G', 'I']], ['Done', ['G', 'E']], ['Reminders', ['G', 'H']],['Customers', ['G', 'C']], ['Assistant Settings', ['G', 'A']], ['Settings', ['⌘', ',']]] },
+    { group: 'Live call', rows: [['Take over', ['⌘', '⏎']], ['Listen in', ['L']], ['Whisper to assistant', ['R']]] },
+    { group: 'Recording', rows: [['Play or pause', ['space']], ['Forward 5 seconds', ['→']], ['Back 5 seconds', ['←']]] },
+    { group: 'General', rows: [['Search calls, filter customers', ['/']], ['Commands', ['⌘', 'K']], ['Keyboard shortcuts', ['?']]] }
+  ];
+  function HelpSheet() {
+    var qs = useState(''), q = qs[0], setQ = qs[1];
+    var groups = SHORTCUTS.map(function (g) { return { group: g.group, rows: g.rows.filter(function (r) { return !q || (g.group + ' ' + r[0]).toLowerCase().indexOf(q.toLowerCase()) > -1; }) }; }).filter(function (g) { return g.rows.length; });
+    return h('div', { className: 'help-sheet', role: 'dialog', 'aria-label': 'Keyboard shortcuts' },
+      h('div', { className: 'help-head' }, h('b', null, 'Keyboard shortcuts'),
+        h(K.Input, { id: 'help-search', icon: 'search', placeholder: 'Find a shortcut', value: q, onChange: function (e) { setQ(e.target.value); } }), h(K.Kbd, { keys: ['esc'] })),
+      h('div', { className: 'help-body' }, groups.length ? groups.map(function (g) {
+        return h('section', { key: g.group, className: 'help-group' }, h('h3', null, g.group), g.rows.map(function (r) { return h('div', { key: r[0] + r[1].join(''), className: 'help-row' }, h('span', null, r[0]), h(K.Kbd, { keys: r[1] })); }));
+      }) : h('div', { className: 'help-empty' }, 'No shortcut matches “' + q + '”.')),
+      h('div', { className: 'help-foot' }, h('span', null, 'Open this anytime with ', h(K.Kbd, { keys: ['?'] })), h('span', null, 'Every action is also in ', h(K.Kbd, { keys: ['⌘', 'K'] }))));
+  }
+
+  /* ---------- Customers ---------- */
+  function filterCustomers(query) {
+    var q = (query || '').toLowerCase();
+    return CUSTOMERS.filter(function (c) { return (c.name + ' ' + c.contact + ' ' + c.phone + ' ' + c.phone.replace(/\D/g, '')).toLowerCase().indexOf(q) > -1; });
+  }
+  function latestCallFor(id) { return id === 'weber' ? 'live' : (HISTORY.filter(function (x) { return x.customer === id; })[0] || {}).id; }
+
+  /* Customers: same layout as the Calls inbox (header search, flat full-width rows) + record in a .cv-side panel */
+  function CustomersView(p) {
+    var listRef = useRef(null);
+    useEffect(function () { var el = listRef.current && listRef.current.querySelector('.is-cursor'); if (el) el.scrollIntoView({ block: 'nearest' }); }, [p.cursor]);
+    var rows = filterCustomers(p.query);
+    var c = p.customerId ? cust(p.customerId) : null;
+    var callFor = c ? latestCallFor(c.id) : null;
+    function assistantCall() { p.toast('The assistant would call now. Nothing happens in this prototype.'); }
+    function rowAct(title, icon, run) { return h('button', { type: 'button', className: 'r-act', title: title, 'aria-label': title, onClick: function (e) { e.stopPropagation(); run(); } }, h(Ic, { name: icon, size: 14 })); }
+    return h('div', { className: 'cv' },
+      h('div', { className: 'ib-head' },
+        p.menu,
+        h('div', { className: 'ib-search' },
+          h(K.Icon, { name: 'search', size: 15 }),
+          h('input', { id: 'filter-customers', value: p.query, placeholder: 'Filter customers', 'aria-label': 'Filter customers', autoComplete: 'off',
+            onChange: function (e) { p.setQuery(e.target.value); },
+            onKeyDown: function (e) { if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); e.target.blur(); } } }),
+          h('span', { className: 'ib-search-n' }, p.query ? rows.length + ' of ' + CUSTOMERS.length : CUSTOMERS.length + ' customers'))),
+      h('div', { className: cx('cv-main', 'cust-main', c && 'has-rec') },
+        h('div', { className: 'cv-center' },
+          h('div', { className: 'ib-list', ref: listRef, role: 'list', 'aria-label': 'Customers' },
+            rows.length ? h('div', { className: 'ib-cols cust-row', 'aria-hidden': 'true' }, h('span', null, 'Customer'), h('span', null, 'Phone'), h('span', null, 'Last contact summary'), h('span', { className: 'num' }, 'Last contact')) : null,
+            rows.length ? rows.map(function (r) {
+              var latest = latestCallFor(r.id);
+              return h('div', { key: r.id, role: 'listitem', className: cx('row', 'cust-row', p.cursor === r.id && 'is-cursor'), onClick: function () { p.setCursor(r.id); p.setCustomerId(r.id); }, onMouseMove: function () { if (p.cursor !== r.id) p.setCursor(r.id); } },
+                h('span', { className: 'r-name c-name' }, h('span', null, r.name)),
+                h('span', { className: 'c-cell c-mono c-phone' }, r.phone),
+                h('span', { className: 'c-cell c-sum' }, h('span', { className: 'c-sum-t' }, r.lastSum.split(' · ')[0]), ' · ' + r.lastSum.split(' · ').slice(1).join(' · ')),
+                h('span', { className: 'c-cell c-mono c-last' }, r.last),
+                h('span', { className: 'r-acts' },
+                  latest ? rowAct('Latest call', 'phone-in', function () { p.openCall(latest); }) : null,
+                  rowAct('Have assistant call', 'phone-out', assistantCall)));
+            }) : h('div', { className: 'empty' }, h(Ic, { name: 'users', size: 22 }), h('b', null, 'No customer matches “' + p.query + '”'), h('span', null, 'Try a company, a contact person or a phone number.')))),
+        c ? h('aside', { className: 'cv-side cust-side', 'aria-label': 'Customer record' },
+          h('div', { className: 'side-who' }, h(K.Avatar, { name: c.name, size: 32 }), h('div', null, h('b', null, c.name), h('span', null, c.line + ' · since ' + c.since)),
+            h(K.Button, { size: 'sm', variant: 'ghost', className: 'k-btn-icon side-open', 'aria-label': 'Close customer record', title: 'Close (esc)', onClick: function () { p.setCustomerId(null); } }, h(Ic, { name: 'left', size: 14 }))),
+          h(K.Badge, { tone: c.status[0], dot: true }, c.status[1]),
+          h('dl', { className: 'facts side-facts' }, h('dt', null, 'Contact'), h('dd', null, c.contact), h('dt', null, 'Phone'), h('dd', { className: 'mono' }, c.phone), h('dt', null, 'Email'), h('dd', null, c.email), h('dt', null, 'Renews'), h('dd', null, c.until), h('dt', null, 'Premium'), h('dd', null, c.vol)),
+          h('div', { className: 'side-acts' },
+            callFor ? h(K.Button, { size: 'sm', icon: 'phone-in', onClick: function () { p.openCall(callFor); } }, 'Latest call') : null,
+            h(K.Button, { size: 'sm', variant: 'primary', icon: 'phone-out', onClick: assistantCall }, 'Have assistant call'))) : null));
+  }
+
+  /* ---------- Assistant settings ---------- */
+  function AssistantView(p) {
+    var s = useState({ name: 'Assistant', greeting: GREET, voice: 'clara', from: '08:00', to: '18:00', caps: { crm: true, book: true, transfer: true, after: true, record: true, email: false, sms: false, whatsapp: false, web: false, integrations: false } });
+    var v = s[0], set = s[1];
+    function upd(k, val) { var n = Object.assign({}, v); n[k] = val; set(n); }
+    var voices = [['clara', 'Clara', 'calm and warm'], ['jonas', 'Jonas', 'clear and matter-of-fact'], ['mia', 'Mia', 'friendly and quick']];
+    var CAPS = [
+      ['crm', 'user', 'Look up customers', 'Recognises callers and knows their policies'],
+      ['book', 'calendar', 'Book meetings', 'Uses free slots in your calendar'],
+      ['transfer', 'phone-out', 'Transfer calls', 'Connects claims to a person right away'],
+      ['after', 'clock', 'Answer after hours', 'Takes the request and flags the call'],
+      ['record', 'mic', 'Record and transcribe', 'Callers hear a short notice first'],
+      ['email', 'mail', 'Send emails', 'Confirmations and summaries to the caller'],
+      ['sms', 'message', 'Send SMS', 'Short confirmations by text message'],
+      ['whatsapp', 'whatsapp', 'Send WhatsApp', 'Follow-ups in the customer\'s chat'],
+      ['web', 'globe', 'Web search', 'Looks up public information during a call'],
+      ['integrations', 'plug', 'Integrations', 'Connect your CRM and other tools']
+    ];
+    function toggleCap(k) { var c = Object.assign({}, v.caps); c[k] = !c[k]; upd('caps', c); }
+    return h('div', { className: 'page' }, h('form', { className: 'page-in', style: { maxWidth: 820 }, onSubmit: function (e) { e.preventDefault(); p.toast('Settings saved (prototype).'); } },
+      h('div', { className: 'page-head' }, h('div', null, h('h1', null, 'Assistant Settings'), h('p', null, 'How the assistant answers your phone.')), h(K.Button, { icon: 'phone', onClick: p.onTestCall }, 'Watch a test call')),
+      h('section', { className: 'sec' }, h('h2', null, 'Greeting'), h('p', null, 'The first sentence of every call. The assistant always says it is digital.'),
+        h('div', { className: 'row2' }, h('div', { className: 'field' }, h('label', { htmlFor: 'as-name' }, 'Name'), h(K.Input, { id: 'as-name', value: v.name, onChange: function (e) { upd('name', e.target.value); } }))),
+        h('div', { className: 'field' }, h('label', { htmlFor: 'as-greet' }, 'Greeting'), h('textarea', { id: 'as-greet', className: 'ta', value: v.greeting, onChange: function (e) { upd('greeting', e.target.value); } }), h('span', { className: 'help' }, v.greeting.length + ' characters · about ' + Math.max(1, Math.round(v.greeting.split(' ').length / 2.5)) + ' seconds spoken'))),
+      h('section', { className: 'sec' }, h('h2', null, 'Voice'),
+        h('div', { className: 'opts', role: 'radiogroup', 'aria-label': 'Voice' }, voices.map(function (o) {
+          return h('label', { key: o[0], className: cx('opt', v.voice === o[0] && 'on'), htmlFor: 'voice-' + o[0] }, h('input', { id: 'voice-' + o[0], type: 'radio', name: 'voice', checked: v.voice === o[0], onChange: function () { upd('voice', o[0]); } }), h('div', null, h('b', null, o[1]), h('span', null, o[2])));
+        }))),
+      h('section', { className: 'sec' }, h('h2', null, 'Business hours'),
+        h('div', { className: 'row2' }, h('div', { className: 'field' }, h('label', { htmlFor: 'as-from' }, 'Monday to Friday from'), h(K.Input, { id: 'as-from', value: v.from, onChange: function (e) { upd('from', e.target.value); } })), h('div', { className: 'field' }, h('label', { htmlFor: 'as-to' }, 'until'), h(K.Input, { id: 'as-to', value: v.to, onChange: function (e) { upd('to', e.target.value); } })))),
+      h('section', { className: 'caps-sec', 'aria-label': 'Capabilities' }, h('h2', null, 'Capabilities'),
+        h('div', { className: 'caps' }, CAPS.map(function (c) {
+          var on = !!v.caps[c[0]];
+          return h('button', { key: c[0], type: 'button', className: cx('cap', on && 'on'), 'aria-pressed': String(on), title: on ? 'Turn off' : 'Turn on', onClick: function () { toggleCap(c[0]); } },
+            h('span', { className: 'cap-top' }, h('span', { className: 'cap-ic' }, h(Ic, { name: c[1], size: 18 })), h('span', { className: 'cap-st', 'aria-hidden': 'true' }, h(Ic, { name: on ? 'check' : 'plus', size: 13 }))),
+            h('span', { className: 'cap-t' }, h('b', null, c[2]), h('span', null, c[3])));
+        }))),
+      h('div', { className: 'save-bar' }, h(K.Button, { type: 'submit', variant: 'primary' }, 'Save'))));
+  }
+
+  /* ---------- Settings ---------- */
+  function SettingsView(p) {
+    return h('div', { className: 'page' }, h('div', { className: 'page-in', style: { maxWidth: 820 } },
+      h('div', { className: 'page-head' }, h('div', null, h('h1', null, 'Settings'), h('p', null, 'Profile and keyboard shortcuts.'))),
+      h('section', { className: 'sec' }, h('h2', null, 'Profile'),
+        h('div', { className: 'row2' }, h('div', { className: 'field' }, h('label', { htmlFor: 'pf-name' }, 'Name'), h(K.Input, { id: 'pf-name', defaultValue: 'Lea Krause' })), h('div', { className: 'field' }, h('label', { htmlFor: 'pf-mail' }, 'Email'), h(K.Input, { id: 'pf-mail', defaultValue: 'lea.krause@kontor.example' })))),
+      h('section', { className: 'sec' }, h('h2', null, 'Keyboard shortcuts'), h('p', null, 'Almost everything is one key.'),
+        h('div', null, h(K.Button, { size: 'sm', shortcut: ['?'], title: 'Keyboard shortcuts (?)', onClick: p.onHelp }, 'Show all shortcuts'))),
+      h('section', { className: 'sec' }, h('h2', null, 'Setup'), h('div', null, h(K.Button, { size: 'sm', icon: 'spark', onClick: p.onSetup }, 'Run setup again')))));
+  }
+
+  /* ---------- Onboarding (Superhuman-style: guided setup, then learn the keys by doing) ---------- */
+  var OB_PRACTICE = [
+    { id: 'p1', name: 'Anna Berger', topic: 'Address change', sum: 'Moved to Hamburg, wants the new address on her home contents policy.' },
+    { id: 'p2', name: 'Frank Ostermann', topic: 'Claim question', sum: 'Asks whether a broken window after a storm is covered.' },
+    { id: 'p3', name: 'Lena Vogt', topic: 'New quote', sum: 'Opened a café and needs business liability from next month.' }
+  ];
+  var OB_DRILL = [
+    { key: 'j', label: ['J'], text: 'Press J to move to the next call.' },
+    { key: 'k', label: ['K'], text: 'Press K to move back up.' },
+    { key: 'Enter', label: ['⏎'], text: 'Press Enter to open the call.' },
+    { key: 'e', label: ['E'], text: 'Press E to mark it done. The next call opens by itself.' },
+    { key: 'Escape', label: ['esc'], text: 'Press Esc to go back to the list.' },
+    { key: 'cmdk', label: ['⌘', 'K'], text: 'Press ⌘K. Every action lives there.' }
+  ];
+  function Onboarding(p) {
+    var st = useState(0), step = st[0], setStep = st[1];
+    var fw = useState('forward'), mode = fw[0], setMode = fw[1];
+    var nm = useState('+49 30 5557 0100'), num = nm[0], setNum = nm[1];
+    var vc = useState('clara'), voice = vc[0], setVoice = vc[1];
+    var gr = useState(GREET), greet = gr[0], setGreet = gr[1];
+    var dr = useState(0), drill = dr[0], setDrill = dr[1];
+    var cu = useState(0), cur = cu[0], setCur = cu[1];
+    var op = useState(false), opened = op[0], setOpened = op[1];
+    var dn = useState([]), done = dn[0], setDone = dn[1];
+    var fl = useState(false), flash = fl[0], setFlash = fl[1];
+    var STEPS = ['Welcome', 'Phone number', 'Your assistant', 'Learn the keys', 'Ready'];
+    var practice = OB_PRACTICE.filter(function (c) { return done.indexOf(c.id) < 0; });
+    var drillDone = drill >= OB_DRILL.length;
+    function next() { if (step < STEPS.length - 1) setStep(step + 1); else p.onDone(); }
+    function back() { if (step > 0) setStep(step - 1); }
+    function hit(key) {
+      if (step !== 3 || drillDone) return false;
+      var want = OB_DRILL[drill].key;
+      if (key !== want) { setFlash(true); setTimeout(function () { setFlash(false); }, 350); return false; }
+      if (key === 'j') setCur(Math.min(cur + 1, practice.length - 1));
+      if (key === 'k') setCur(Math.max(cur - 1, 0));
+      if (key === 'Enter') setOpened(true);
+      if (key === 'e') { var id = practice[cur] && practice[cur].id; if (id) setDone(done.concat([id])); setCur(0); }
+      if (key === 'Escape') setOpened(false);
+      setDrill(drill + 1);
+      return true;
+    }
+    var keyRef = useRef(null);
+    keyRef.current = function (e) {
+      var typing = /^(INPUT|TEXTAREA)$/.test(e.target.tagName);
+      if (step === 3 && !drillDone) {
+        var k = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' ? 'cmdk' : e.key;
+        if (k === 'J') k = 'j'; if (k === 'K') k = 'k'; if (k === 'E') k = 'e';
+        if (['j', 'k', 'Enter', 'e', 'Escape', 'cmdk'].indexOf(k) > -1 || k.length === 1) { e.preventDefault(); hit(k); }
+        return;
+      }
+      if (e.key === 'Enter' && !typing && !e.shiftKey) { e.preventDefault(); next(); }
+      else if (e.key === 'Enter' && typing && e.target.tagName === 'INPUT') { e.preventDefault(); next(); }
+    };
+    useEffect(function () { function f(e) { keyRef.current(e); } window.addEventListener('keydown', f, true); return function () { window.removeEventListener('keydown', f, true); }; }, []);
+
+    var body;
+    if (step === 0) body = h('div', { className: 'ob-body' },
+      h('h1', null, 'Welcome to Kontor, Lea.'),
+      h('p', { className: 'ob-lede' }, 'Your assistant answers every call, writes the summary and books the follow-up. You decide what happens next, mostly with one key.'),
+      h('div', { className: 'ob-points' },
+        [['phone-in', 'Every call answered', 'Day and night, with your greeting.'], ['spark', 'Summaries, not recordings', 'Read a call in ten seconds.'], ['check', 'Inbox zero for calls', 'E marks a call done.']].map(function (x) {
+          return h('div', { key: x[1], className: 'ob-point' }, h('span', { className: 'ob-pi' }, h(K.Icon, { name: x[0], size: 16 })), h('div', null, h('b', null, x[1]), h('span', null, x[2])));
+        })));
+    else if (step === 1) body = h('div', { className: 'ob-body' },
+      h('h1', null, 'Which number should it answer?'),
+      h('div', { className: 'ob-choices', role: 'radiogroup', 'aria-label': 'Phone number' },
+        [['forward', 'Forward my number', 'Keep your number. Calls you miss go to the assistant.'], ['new', 'Get a new number', 'A local Berlin number, ready in a minute.']].map(function (o) {
+          return h('label', { key: o[0], className: cx('ob-choice', mode === o[0] && 'on'), htmlFor: 'ob-' + o[0] }, h('input', { id: 'ob-' + o[0], type: 'radio', name: 'ob-mode', checked: mode === o[0], onChange: function () { setMode(o[0]); } }), h('div', null, h('b', null, o[1]), h('span', null, o[2])));
+        })),
+      mode === 'forward'
+        ? h('div', { className: 'field' }, h('label', { htmlFor: 'ob-num' }, 'Your office number'), h(K.Input, { id: 'ob-num', value: num, onChange: function (e) { setNum(e.target.value); } }))
+        : h('div', { className: 'ob-newnum' }, h('span', null, 'Your new number'), h('b', null, '+49 30 5557 0199')));
+    else if (step === 2) body = h('div', { className: 'ob-body' },
+      h('h1', null, 'How should your assistant sound?'),
+      h('div', { className: 'ob-choices three', role: 'radiogroup', 'aria-label': 'Voice' },
+        [['clara', 'Clara', 'calm and warm'], ['jonas', 'Jonas', 'clear'], ['mia', 'Mia', 'friendly']].map(function (o) {
+          return h('label', { key: o[0], className: cx('ob-choice', voice === o[0] && 'on'), htmlFor: 'ob-v-' + o[0] }, h('input', { id: 'ob-v-' + o[0], type: 'radio', name: 'ob-voice', checked: voice === o[0], onChange: function () { setVoice(o[0]); } }), h('div', null, h('b', null, o[1]), h('span', null, o[2])));
+        })),
+      h('div', { className: 'field' }, h('label', { htmlFor: 'ob-greet' }, 'First sentence of every call'), h('textarea', { id: 'ob-greet', className: 'ta', rows: 2, value: greet, onChange: function (e) { setGreet(e.target.value); } })));
+    else if (step === 3) {
+      var d = OB_DRILL[Math.min(drill, OB_DRILL.length - 1)];
+      var pc = practice[cur];
+      body = h('div', { className: 'ob-body' },
+        h('h1', null, 'Kontor is fastest with the keyboard.'),
+        h('div', { className: cx('ob-prompt', flash && 'shake', drillDone && 'ok') },
+          drillDone ? h(React.Fragment, null, h(K.Icon, { name: 'check', size: 16 }), h('span', null, 'That is the whole workflow. Press ? anytime to see every shortcut.'))
+            : h(React.Fragment, null, h('span', null, d.text), h('button', { type: 'button', className: 'ob-key', 'aria-label': 'Press ' + d.label.join(' '), onClick: function () { hit(d.key); } }, h(K.Kbd, { keys: d.label })))),
+        h('div', { className: 'ob-steps', 'aria-hidden': 'true' }, OB_DRILL.map(function (x, i) { return h('span', { key: i, className: cx('ob-dot', i < drill && 'on') }); })),
+        h('div', { className: 'ob-demo' },
+          opened && pc
+            ? h('div', { className: 'ob-open' }, h('div', { className: 'ob-open-h' }, h(K.Avatar, { name: pc.name, size: 24 }), h('b', null, pc.name), h('span', null, pc.topic)), h('p', null, pc.sum))
+            : practice.length ? practice.map(function (c, i) {
+              return h('div', { key: c.id, className: cx('ob-row', i === cur && 'is-cursor') }, h('b', null, c.name), h('span', { className: 'ob-t' }, c.topic), h('span', { className: 'ob-s' }, c.sum));
+            }) : h('div', { className: 'ob-empty' }, 'All practice calls done.')));
+    } else body = h('div', { className: 'ob-body' },
+      h('span', { className: 'ob-badge' }, h(K.Icon, { name: 'check', size: 22 })),
+      h('h1', null, 'You are live.'),
+      h('p', { className: 'ob-lede' }, (mode === 'forward' ? 'Calls you miss on ' + num : 'Calls to +49 30 5557 0199') + ' now go to ' + (voice.charAt(0).toUpperCase() + voice.slice(1)) + '. One call is already coming in.'));
+
+    var canNext = step !== 3 || drillDone;
+    return h('div', { className: 'ob', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Set up Kontor' },
+      h('div', { className: 'ob-top' },
+        h('span', { className: 'ws-mark' }, h(K.Icon, { name: 'spark', size: 13 })), h('b', null, 'Kontor'),
+        h('span', { className: 'ob-count' }, 'Step ' + (step + 1) + ' of ' + STEPS.length + ' · ' + STEPS[step]),
+        h(K.Button, { size: 'sm', variant: 'ghost', onClick: p.onDone }, 'Skip setup')),
+      h('div', { className: 'ob-bar' }, h('span', { style: { width: ((step + (canNext ? 1 : drill / OB_DRILL.length)) / STEPS.length * 100) + '%' } })),
+      h('div', { className: 'ob-main' }, body,
+        h('div', { className: 'ob-foot' },
+          step > 0 && step < STEPS.length - 1 ? h(K.Button, { variant: 'ghost', onClick: back }, 'Back') : h('span'),
+          h(K.Button, { variant: 'primary', shortcut: canNext ? ['⏎'] : null, disabled: !canNext, onClick: next }, step === 0 ? 'Get started' : step === STEPS.length - 1 ? 'Open my calls' : step === 3 && !drillDone ? 'Finish the exercise' : 'Continue'))));
+  }
+
+  /* ---------- App ---------- */
+  var SNOOZE = [{ label: 'Later today', icon: 'calendar' }, { label: 'Tomorrow morning', icon: 'calendar' }, { label: 'In two days', icon: 'calendar' }, { label: 'Next week', icon: 'calendar' }, { label: 'In a month', icon: 'calendar' }];
+
+  function App() {
+    var r = useState(readHash()), route = r[0], setRoute = r[1];
+    var ov = useState(null), overlay = ov[0], setOverlay = ov[1];
+    var no = useState(false), navOpen = no[0], setNavOpen = no[1];
+    var ob = useState(function () { try { return localStorage.getItem('kontor-onboarded') !== '1'; } catch (e) { return true; } }), obOpen = ob[0], setObOpen = ob[1];
+    function finishOnboarding() { try { localStorage.setItem('kontor-onboarded', '1'); } catch (e) { } setObOpen(false); restart(); } /* overlay: 'commands' | 'help' | 'remind' */
+    var rf = useState(null), remindId = rf[0], setRemindId = rf[1];
+    var ts = useState(null), toastMsg = ts[0], setToastMsg = ts[1];
+    var tb = useState('you'), tab = tb[0], setTabS = tb[1];
+    var sq = useState(null), searchQ = sq[0], setSearchQ = sq[1];
+    var cr = useState('live'), cursor = cr[0], setCursor = cr[1];
+    var op = useState(null), openId = op[0], setOpenId = op[1];
+    var cm = useState({ 'c-missed': { unread: true }, 'c-sommer': { unread: true }, 'c-spam1': { unread: true } }), meta = cm[0], setMeta = cm[1];
+    var cu = useState(null), customerId = cu[0], setCustomerId = cu[1];
+    var ccur = useState(null), custCursor = ccur[0], setCustCursor = ccur[1];
+    var cfq = useState(''), custQuery = cfq[0], setCustQuery = cfq[1];
+    useEffect(function () { if (customerId) setCustCursor(customerId); }, [customerId]);
+    var lv = useState(initLive()), live = lv[0], setLive = lv[1];
+    var ls = useState(false), listening = ls[0], setListening = ls[1];
+    var toastTimer = useRef(null), gPending = useRef(false), undoStack = useRef([]);
+    /* how the current action was triggered: 'key' (shortcut), 'menu-key' (⌘K + Enter) or 'mouse' */
+    var srcRef = useRef('mouse'), remindSrc = useRef('mouse'), usedKeys = useRef({});
+    var rc = useState(function () { try { return JSON.parse(localStorage.getItem('kontor-recent-cmds') || '[]'); } catch (e) { return []; } }), recentCmds = rc[0], setRecentCmds = rc[1];
+    function pushUndo(fn) { var s = undoStack.current; s.push(fn); if (s.length > 10) s.shift(); }
+    /* Shortcut tip on mouse use, until that key has been used once from the keyboard */
+    function withTip(label, sc) {
+      if (!sc) return label;
+      if (srcRef.current === 'key') { usedKeys.current[sc] = true; return label; }
+      if (srcRef.current === 'mouse' && !usedKeys.current[sc]) return label + ' · Tip: press ' + sc;
+      return label;
+    }
+    function viaSource(src, fn) { var prev = srcRef.current; srcRef.current = src; try { return fn(); } finally { srcRef.current = prev; } }
+
+    function toast(m, undo) { setToastMsg({ text: m, undo: !!undo }); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(function () { setToastMsg(null); }, undo ? 5000 : 2600); }
+    function go(to) { if (location.hash !== '#' + to) location.hash = to; setRoute(to); }
+    useEffect(function () { function f() { setRoute(readHash()); } window.addEventListener('hashchange', f); return function () { window.removeEventListener('hashchange', f); }; }, []);
+    useEffect(function () {
+      if (live.ended) return;
+      var id = setInterval(function () {
+        setLive(function (s) {
+          if (s.ended) return s;
+          var e = s.elapsed + 1, end = s.items.filter(function (i) { return i.end && i.at <= e; })[0];
+          if (end) return Object.assign({}, s, { elapsed: end.at, ended: true });
+          return Object.assign({}, s, { elapsed: e });
+        });
+      }, 1000);
+      return function () { clearInterval(id); };
+    }, [live.ended]);
+    useEffect(function () { if (live.ended) setListening(false); }, [live.ended]);
+
+    var allCalls = [Object.assign({}, LIVE_INFO, meta.live || {})].concat(HISTORY.map(function (c) { return Object.assign({}, c, meta[c.id] || {}); }));
+    function matchSearch(c, q) {
+      if (!c || c.deleted) return false;
+      var ql = q.toLowerCase();
+      if ((c.name + ' ' + (c.company || '') + ' ' + c.number).toLowerCase().indexOf(ql) > -1) return true;
+      return callText(c, live).some(function (x) { return x.t.toLowerCase().indexOf(ql) > -1; });
+    }
+    var list = searchQ !== null ? allCalls.filter(function (c) { return matchSearch(c, searchQ); }) : allCalls.filter(function (c) { return matchTab(tab, c); });
+    var counts = { you: allCalls.filter(function (c) { return matchTab('you', c); }).length, ai: allCalls.filter(function (c) { return matchTab('ai', c); }).length, spam: allCalls.filter(function (c) { return matchTab('spam', c); }).length }, openCount = counts.you;
+    var openCall = openId ? allCalls.filter(function (c) { return c.id === openId; })[0] : null;
+    var target = route === 'calls' ? (openId || cursor) : null;
+    var targetCall = target ? allCalls.filter(function (c) { return c.id === target; })[0] : null;
+
+    function patchCall(id, patch) { setMeta(function (m) { var n = Object.assign({}, m); n[id] = Object.assign({}, m[id] || {}, patch); return n; }); }
+    function open(id) {
+      if (location.hash !== '#calls') go('calls');
+      setOpenId(id); setCursor(id); setOverlay(null);
+      var c = allCalls.filter(function (x) { return x.id === id; })[0];
+      if (c && c.unread) patchCall(id, { unread: false });
+      if (c && searchQ === null && !matchTab(tab, c)) { var t = ['you', 'ai', 'spam', 'reminders', 'done'].filter(function (k) { return matchTab(k, c); })[0]; if (t) setTabS(t); }
+    }
+    function back() { setOpenId(null); }
+    function openSearch() { go('calls'); setOpenId(null); setOverlay(null); setNavOpen(false); if (searchQ === null) searchChange(''); setTimeout(function () { var el = document.getElementById('call-search'); if (el) { el.focus(); el.select(); } }, 0); }
+    function closeSearch() { setSearchQ(null); var l = allCalls.filter(function (c) { return matchTab(tab, c); }); setCursor(l[0] ? l[0].id : null); }
+    function searchChange(v) { setSearchQ(v); var l = allCalls.filter(function (c) { return matchSearch(c, v); }); setCursor(l[0] ? l[0].id : null); }
+    function setTab(t) { setTabS(t); setSearchQ(null); setOpenId(null); var l = allCalls.filter(function (c) { return matchTab(t, c); }); setCursor(l[0] ? l[0].id : null); }
+    function step(d) {
+      var ids = list.map(function (c) { return c.id; }), cur = openId || cursor, i = ids.indexOf(cur);
+      if (!ids.length) return;
+      var n = ids[i < 0 ? 0 : Math.max(0, Math.min(ids.length - 1, i + d))];
+      if (openId) open(n); else setCursor(n);
+    }
+    function act(id, patchFn, label, sc) {
+      var c = allCalls.filter(function (x) { return x.id === id; })[0]; if (!c) return false;
+      if (id === 'live' && !live.ended) { toast('A live call can be triaged once it has ended.'); return true; }
+      var patch = patchFn(c), prev = {};
+      Object.keys(patch).forEach(function (k) { prev[k] = c[k]; });
+      var after = Object.assign({}, c, patch);
+      patchCall(id, patch);
+      if (searchQ !== null ? after.deleted : !matchTab(tab, after)) {
+        var ids = list.map(function (x) { return x.id; }), i = ids.indexOf(id), next = ids[i + 1] || ids[i - 1] || null;
+        setCursor(next);
+        if (openId === id) setOpenId(next);
+      }
+      var wasOpen = openId === id, prevTab = tab;
+      pushUndo(function () { patchCall(id, prev); setTabS(prevTab); setCursor(id); if (wasOpen) setOpenId(id); });
+      toast(withTip(label, sc), true);
+      return true;
+    }
+    function callById(id) { return allCalls.filter(function (x) { return x.id === id; })[0]; }
+    function doDone(id) { return act(id || target, function () { return { done: true, snoozed: null }; }, 'Marked done.', 'E'); }
+    function doUndone(id) {
+      var c = callById(id || target); if (!c) return false;
+      if (!c.done) { toast('This call is not done.'); return true; }
+      return act(c.id, function () { return { done: false }; }, 'Marked not done.', '⇧E');
+    }
+    function doClearReminder(id) {
+      var c = callById(id || target); if (!c) return false;
+      if (!c.snoozed || c.done) { toast('No reminder on this call.'); return true; }
+      return act(c.id, function () { return { snoozed: null }; }, 'Reminder cleared.', '⇧H');
+    }
+    function doUnread(id) { var c = callById(id || target); return act(id || target, function (c) { return { unread: !c.unread }; }, c && c.unread ? 'Marked read.' : 'Marked unread.', 'U'); }
+    function doDelete(id) { return act(id || target, function () { return { deleted: true }; }, 'Deleted.', '#'); }
+    function doRemind(id) {
+      id = id || target; if (!id) return false;
+      if (id === 'live' && !live.ended) { toast('A live call can be triaged once it has ended.'); return true; }
+      remindSrc.current = srcRef.current;
+      setRemindId(id); setOverlay('remind'); return true;
+    }
+    function remindPick(item) { setOverlay(null); viaSource(remindSrc.current, function () { act(remindId, function () { return { snoozed: item.label, done: false }; }, 'Reminder set: ' + item.label.toLowerCase() + '.', 'H'); }); }
+    function undo() {
+      var fn = undoStack.current.pop();
+      if (fn) { fn(); toast(withTip('Undone.', 'Z')); } else toast('Nothing to undo.');
+    }
+
+    function takeover() {
+      setLive(function (s) {
+        if (s.ended || s.mode === 'agent') return s;
+        var e = s.elapsed;
+        var more = [E(e, 'headset', 'Lea Krause took over'), S('agent', e + 1, 5, 'Hi Mr Weber, this is Lea Krause. I have been following the call.'), S('caller', e + 7, 3, 'Oh, hello Ms Krause!'), S('agent', e + 11, 7, 'I will add business liability to the quote right away, and we will go through everything on Thursday.'), S('caller', e + 19, 3, 'Great, see you Thursday.'), E(e + 24, 'phone-off', 'Caller hung up', { end: true })];
+        return Object.assign({}, s, { items: cutAt(s.items, e).concat(more), mode: 'agent', takeoverAt: e });
+      });
+      toast('You took over the call. In this prototype Lea Krause speaks automatically.');
+    }
+    function hangup() { setLive(function (s) { if (s.ended) return s; var e = s.elapsed; return Object.assign({}, s, { items: cutAt(s.items, e).concat([E(e, 'phone-off', 'Hung up by Lea Krause')]), ended: true }); }); toast('Call ended.'); }
+    function restart() { setLive(initLive()); setListening(false); setMeta(function (m) { var n = Object.assign({}, m); delete n.live; return n; }); setTabS('you'); go('calls'); setOpenId('live'); setCursor('live'); }
+    function whisper(text) {
+      setLive(function (s) { return Object.assign({}, s, { items: s.items.concat([E(s.elapsed, 'spark', 'Instruction to the assistant: “' + text + '”')]).sort(function (a, b) { return (a.k === 'msg' ? a.start : a.at) - (b.k === 'msg' ? b.start : b.at); }) }); });
+      toast('Instruction sent to the assistant.');
+    }
+    function listen() { if (live.ended) return; setListening(!listening); toast(listening ? 'Stopped listening.' : 'You are listening in. There is no audio in this prototype.'); }
+    function moveOther(d) {
+      if (route === 'customers') {
+        var ids = filterCustomers(custQuery).map(function (c) { return c.id; }); if (!ids.length) return;
+        var i = ids.indexOf(custCursor), next = ids[i < 0 ? 0 : Math.max(0, Math.min(ids.length - 1, i + d))];
+        setCustCursor(next); if (customerId) setCustomerId(next);
+      }
+    }
+    function goTab(t) { go('calls'); setTab(t); }
+
+    /* keyboard: Superhuman model */
+    var keyRef = useRef(null);
+    keyRef.current = function (e) { srcRef.current = 'key'; try { handleKey(e); } finally { srcRef.current = 'mouse'; } };
+    function handleKey(e) {
+      if (obOpen) return;
+      var typingIn = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
+      var mod = e.metaKey || e.ctrlKey, k = e.key;
+      if (mod && k.toLowerCase() === 'k') { e.preventDefault(); setOverlay(overlay === 'commands' ? null : 'commands'); return; }
+      if (mod && k === ',') { e.preventDefault(); setOverlay(null); go('preferences'); return; }
+      if (k === 'Escape') {
+        if (navOpen) { setNavOpen(false); return; }
+        if (overlay) { setOverlay(null); return; }
+        if (e.target.id === 'call-search') { e.target.blur(); closeSearch(); return; }
+        if (e.target.id === 'filter-customers') { setCustQuery(''); e.target.blur(); return; }
+        if (typingIn) { e.target.blur(); return; }
+        if (route === 'calls' && openId) { back(); return; }
+        if (route === 'calls' && searchQ !== null) { closeSearch(); return; }
+        if (route === 'calls' && MODES[tab]) { setTab('you'); return; }
+        if (route === 'customers' && customerId) { setCustomerId(null); return; }
+        return;
+      }
+      if (mod && k === 'Enter' && route === 'calls' && openId === 'live' && !live.ended) { e.preventDefault(); takeover(); return; }
+      if (overlay) { if (overlay === 'help' && k === '?' && !typingIn) { e.preventDefault(); setOverlay(null); } return; }
+      if (typingIn || mod || e.altKey) return;
+      if (gPending.current) {
+        gPending.current = false;
+        var m = { i: function () { goTab('you'); }, e: function () { goTab('done'); }, h: function () { goTab('reminders'); }, c: function () { go('customers'); }, a: function () { go('assistant'); } }[k.toLowerCase()];
+        if (m) { e.preventDefault(); m(); }
+        return;
+      }
+      var handled = true, onCalls = route === 'calls';
+      if (k === 'g' || k === 'G') { gPending.current = true; setTimeout(function () { gPending.current = false; }, 1200); }
+      else if (k === '?') setOverlay('help');
+      else if (k === '/') { if (route === 'customers') { var fc = document.getElementById('filter-customers'); if (fc) { fc.focus(); fc.select(); } } else openSearch(); }
+      else if (k === 'j' || k === 'J') { if (onCalls) step(1); else moveOther(1); }
+      else if (k === 'k' || k === 'K') { if (onCalls) step(-1); else moveOther(-1); }
+      else if ((k === 'ArrowDown' || k === 'ArrowUp') && !(onCalls && openId)) { var d = k === 'ArrowDown' ? 1 : -1; if (onCalls) step(d); else moveOther(d); }
+      else if ((k === 'Enter' || k === 'o') && onCalls && !openId && cursor) open(cursor);
+      else if ((k === 'Enter' || k === 'o') && route === 'customers' && custCursor) setCustomerId(custCursor);
+      else if (k === 'Tab' && onCalls) { var keys = TABS.map(function (t) { return t[0]; }); setTab(MODES[tab] ? 'you' : keys[(keys.indexOf(tab) + (e.shiftKey ? -1 : 1) + keys.length) % keys.length]); }
+      else if (k === 'e') handled = onCalls && target ? doDone() : false;
+      else if (k === 'E') handled = onCalls && target ? doUndone() : false;
+      else if (k === 'h') handled = onCalls && target ? doRemind() : false;
+      else if (k === 'H') handled = onCalls && target ? doClearReminder() : false;
+      else if (k === 'u') handled = onCalls && target ? doUnread() : false;
+      else if (k === '#') handled = onCalls && target ? doDelete() : false;
+      else if (k === 'z') undo();
+      else if (k === 'r' && onCalls && openId === 'live' && !live.ended) { var w = document.getElementById('whisper'); if (w) w.focus(); }
+      else if (k === 'l' && onCalls && openId === 'live') listen();
+      else if (k === ' ' && onCalls && openId) window.dispatchEvent(new CustomEvent('kontor-player', { detail: 'toggle' }));
+      else if (k === 'ArrowRight' && onCalls && openId) window.dispatchEvent(new CustomEvent('kontor-player', { detail: 'fwd' }));
+      else if (k === 'ArrowLeft' && onCalls && openId) window.dispatchEvent(new CustomEvent('kontor-player', { detail: 'back' }));
+      else handled = false;
+      if (handled) e.preventDefault();
+    }
+    useEffect(function () { function onKey(e) { keyRef.current(e); } window.addEventListener('keydown', onKey); return function () { window.removeEventListener('keydown', onKey); }; }, []);
+    useEffect(function () { var id = { commands: 'cmdk', help: 'help-search', remind: 'remind' }[overlay]; if (id) setTimeout(function () { var el = document.getElementById(id); if (el) el.focus(); }, 0); }, [overlay]);
+
+    var unreadCount = allCalls.filter(function (c) { return c.unread && !c.deleted; }).length;
+    function navItem(id, label, icon, keys, badge) {
+      return h('button', { key: id, type: 'button', className: 'nav-item', 'aria-current': route === id && !(id === 'calls' && MODES[tab]) ? 'page' : undefined, onClick: function () { setNavOpen(false); if (id === 'calls') { goTab('you'); } else go(id); } }, h(Ic, { name: icon, size: 15 }), h('span', { className: 'lbl' }, label), badge || null, keys ? h(K.Kbd, { keys: keys }) : null);
+    }
+    function navTab(id, label, icon, keys, n) {
+      return h('button', { key: id, type: 'button', className: 'nav-item nav-sub', 'aria-current': route === 'calls' && tab === id ? 'page' : undefined, onClick: function () { setNavOpen(false); goTab(id); } }, h(Ic, { name: icon, size: 15 }), h('span', { className: 'lbl' }, label), n ? h('span', { className: 'nav-n' }, n) : null, h(K.Kbd, { keys: keys }));
+    }
+    function navAct(label, icon, keys, fn) { return h('button', { key: label, type: 'button', className: 'nav-item', onClick: function () { setNavOpen(false); fn(); } }, h(Ic, { name: icon, size: 15 }), h('span', { className: 'lbl' }, label), keys ? h(K.Kbd, { keys: keys }) : null); }
+    var nav = h('nav', { className: 'nav', 'aria-label': 'Main' },
+      h('div', { className: 'ws' }, h('span', { className: 'ws-mark' }, h(K.Icon, { name: 'spark', size: 13 })), h('b', null, 'Kontor'), h(K.Button, { size: 'sm', variant: 'ghost', 'aria-label': 'Close menu', title: 'Close (esc)', onClick: function () { setNavOpen(false); } }, h(Ic, { name: 'left', size: 14 }))),
+      navItem('calls', 'Calls', 'phone', ['G', 'I'], !live.ended ? h('span', { className: 'nav-live', title: 'Live call' }) : unreadCount ? h('span', { className: 'k-count' }, unreadCount) : null),
+      navTab('reminders', 'Reminders', 'clock', ['G', 'H'], allCalls.filter(function (c) { return matchTab('reminders', c); }).length),
+      navTab('done', 'Done', 'check', ['G', 'E']),
+      navItem('customers', 'Customers', 'users', ['G', 'C']),
+      navItem('assistant', 'Assistant Settings', 'waveform', ['G', 'A']),
+      h('div', { className: 'nav-foot' },
+        navAct('Keyboard shortcuts', 'keyboard', ['?'], function () { setOverlay('help'); }),
+        navItem('preferences', 'Settings', 'gear', ['⌘', ',']),
+        h('div', { className: 'me' }, h(K.Avatar, { name: 'Lea Krause', size: 24, presence: 'online' }), h('div', null, h('b', null, 'Lea Krause'), h('small', null, 'Krause Insurance Brokers')))));
+    var menuBtn = h(K.Button, { size: 'sm', variant: 'ghost', className: 'menu-btn', 'aria-label': 'Open menu', 'aria-expanded': String(navOpen), title: 'Menu', onClick: function () { setNavOpen(true); } }, h(Ic, { name: 'menu', size: 16 }));
+
+    var view;
+    if (route === 'calls') {
+      view = openCall
+        ? h(CallView, { search: searchQ, menu: menuBtn, side: h(CustomerSide, { call: openCall, calls: allCalls, toast: toast, onOpen: open, onCustomer: function (id) { setCustomerId(id); go('customers'); } }), call: openCall, live: live, index: list.map(function (c) { return c.id; }).indexOf(openCall.id), count: list.length, listening: listening, toast: toast,
+            onBack: back, onStep: step, onDone: function () { doDone(); }, onUndone: function () { doUndone(); }, onClearReminder: function () { doClearReminder(); }, onRemind: function () { doRemind(); }, onTakeover: takeover, onHangup: hangup, onRestart: restart, onWhisper: whisper, onListen: listen })
+        : h(Inbox, { menu: menuBtn, list: list, live: live, tab: tab, setTab: setTab, openCount: openCount, counts: counts, cursor: cursor, setCursor: setCursor, onOpen: open,
+            onRemind: function (id) { doRemind(id); }, onClearReminder: function (id) { doClearReminder(id); }, onUnread: function (id) { doUnread(id); }, onDelete: function (id) { doDelete(id); }, onToggleDone: function (id) { var c = allCalls.filter(function (x) { return x.id === id; })[0]; if (c && c.done) doUndone(id); else doDone(id); },
+            search: searchQ, onSearchChange: searchChange, onSearchClose: closeSearch,
+            onSearch: openSearch, onCommands: function () { setOverlay('commands'); } });
+    } else if (route === 'customers') view = h(CustomersView, { menu: menuBtn, customerId: customerId, setCustomerId: setCustomerId, cursor: custCursor, setCursor: setCustCursor, query: custQuery, setQuery: setCustQuery, toast: toast, openCall: open });
+    else if (route === 'assistant') view = h(AssistantView, { toast: toast, onTestCall: restart });
+    else view = h(SettingsView, { onHelp: function () { setOverlay('help'); }, onSetup: function () { setObOpen(true); } });
+
+    /* commands: actions only */
+    var liveOn = !live.ended;
+    var callItems = targetCall ? [
+      targetCall.done ? { label: 'Mark not done', icon: 'restart', shortcut: ['⇧', 'E'] } : { label: 'Mark done', icon: 'check', shortcut: ['E'] },
+      { label: 'Remind me', icon: 'clock', shortcut: ['H'] },
+      targetCall.snoozed && !targetCall.done ? { label: 'Clear reminder', icon: 'restart', shortcut: ['⇧', 'H'] } : null,
+      { label: 'Mark read or unread', icon: 'checks', shortcut: ['U'] }, { label: 'Delete call', icon: 'trash', shortcut: ['#'] }].filter(Boolean) : null;
+    var cmdGroups = [
+      callItems ? { label: 'Selected call · ' + targetCall.name, items: callItems } : null,
+      liveOn ? { label: 'Live call', items: [{ label: 'Take over live call', icon: 'phone', shortcut: ['⌘', '⏎'] }, { label: 'Listen in', icon: 'headset', shortcut: ['L'] }, { label: 'Whisper to assistant', icon: 'spark', shortcut: ['R'] }, { label: 'Hang up', icon: 'phone-off' }] } : null,
+      { label: 'Go to', items: [{ label: 'Go to Calls', icon: 'phone', shortcut: ['G', 'I'] }, { label: 'Go to Done', icon: 'check', shortcut: ['G', 'E'] }, { label: 'Go to Reminders', icon: 'clock', shortcut: ['G', 'H'] }, { label: 'Go to Customers', icon: 'users', shortcut: ['G', 'C'] }, { label: 'Go to Assistant Settings', icon: 'waveform', shortcut: ['G', 'A'] }, { label: 'Open settings', icon: 'gear', shortcut: ['⌘', ','] }] },
+      { label: 'App', items: [{ label: 'Undo', icon: 'restart', shortcut: ['Z'] }, { label: 'Search calls', icon: 'search', shortcut: ['/'] }, { label: 'Show keyboard shortcuts', icon: 'keyboard', shortcut: ['?'] }, { label: 'Restart demo call', icon: 'restart' }, { label: 'Run setup again', icon: 'spark' }] }
+    ].filter(Boolean);
+    /* Recent: last 5 executed commands that are available right now */
+    var recentItems = recentCmds.map(function (l) { for (var gi = 0; gi < cmdGroups.length; gi++) for (var ii = 0; ii < cmdGroups[gi].items.length; ii++) if (cmdGroups[gi].items[ii].label === l) return cmdGroups[gi].items[ii]; return null; }).filter(Boolean);
+    if (recentItems.length) cmdGroups.unshift({ label: 'Recent', items: recentItems });
+    function rememberCmd(l) {
+      var next = [l].concat(recentCmds.filter(function (x) { return x !== l; })).slice(0, 5);
+      setRecentCmds(next);
+      try { localStorage.setItem('kontor-recent-cmds', JSON.stringify(next)); } catch (e) { }
+    }
+    function needCall(fn) { if (!target) { toast('Select a call first.'); return; } fn(); }
+    function onCmd(item, via) {
+      setOverlay(null);
+      var l = item.label, src = via === 'key' ? 'menu-key' : 'mouse';
+      rememberCmd(l);
+      var run = {
+        'Mark done': function () { needCall(function () { doDone(); }); }, 'Mark not done': function () { needCall(function () { doUndone(); }); }, 'Clear reminder': function () { needCall(function () { doClearReminder(); }); },
+        'Remind me': function () { needCall(function () { setTimeout(function () { viaSource(src, function () { doRemind(); }); }, 0); }); },
+        'Mark read or unread': function () { needCall(doUnread); }, 'Delete call': function () { needCall(doDelete); }, 'Undo': undo,
+        'Take over live call': function () { open('live'); takeover(); }, 'Listen in': function () { open('live'); listen(); }, 'Whisper to assistant': function () { open('live'); setTimeout(function () { var w = document.getElementById('whisper'); if (w) w.focus(); }, 50); }, 'Hang up': hangup,
+        'Go to Calls': function () { goTab('you'); }, 'Go to Done': function () { goTab('done'); }, 'Go to Reminders': function () { goTab('reminders'); },
+        'Go to Customers': function () { go('customers'); }, 'Go to Assistant Settings': function () { go('assistant'); }, 'Open settings': function () { go('preferences'); },
+        'Search calls': openSearch, 'Show keyboard shortcuts': function () { setOverlay('help'); },
+        'Restart demo call': restart,
+        'Run setup again': function () { setObOpen(true); }
+      }[l];
+      if (run) viaSource(src, run);
+    }
+    function closeOnBackdrop(e) { if (e.target === e.currentTarget) setOverlay(null); }
+
+    return h('div', { className: cx('app', navOpen && 'nav-open') },
+      nav,
+      h('div', { className: 'scrim', onClick: function () { setNavOpen(false); } }),
+      h('main', { className: 'main' }, route === 'calls' || route === 'customers' ? null : h('div', { className: 'pagebar' }, menuBtn, h('b', null, TITLES[route])), view),
+      overlay === 'commands' ? h('div', { className: 'overlay', onMouseDown: closeOnBackdrop }, h(K.CommandMenu, { id: 'cmdk', placeholder: 'Type a command …', groups: cmdGroups, onSelect: onCmd })) : null,
+      overlay === 'remind' ? h('div', { className: 'overlay', onMouseDown: closeOnBackdrop }, h(K.CommandMenu, { id: 'remind', placeholder: 'Remind me …', groups: [{ label: 'Bring this call back', items: SNOOZE }], onSelect: remindPick })) : null,
+      overlay === 'help' ? h('div', { className: 'overlay', onMouseDown: closeOnBackdrop }, h(HelpSheet)) : null,
+      obOpen ? h(Onboarding, { onDone: finishOnboarding }) : null,
+      toastMsg ? h('div', { className: 'toast', role: 'status', 'aria-live': 'polite' }, h('span', null, toastMsg.text),
+        toastMsg.undo ? h('button', { type: 'button', className: 'toast-undo', onClick: function () { undo(); } }, h(K.Kbd, { keys: ['Z'] }), 'Undo') : null) : null);
+  }
+
+
+  /* Shortcut tooltips: any element with a title like "Mark done (E)" shows label + keys on hover */
+  (function () {
+    var tip = document.createElement('div'); tip.className = 'kt'; tip.setAttribute('role', 'tooltip'); tip.hidden = true; document.body.appendChild(tip);
+    var cur = null;
+    function parse(t) {
+      var m = /^(.*?)\s*\(([^()]+)\)\s*$/.exec(t || '');
+      if (!m) return { label: t || '', keys: [] };
+      var k = m[2].trim();
+      var keys = /\s/.test(k) ? k.split(/\s+/) : (/^[⌘⇧⌥]/.test(k) && k.length > 1 ? [k.charAt(0), k.slice(1)] : [k]);
+      return { label: m[1], keys: keys };
+    }
+    /* Superhuman-style timing: wait before showing so quick clicks never flash a tooltip;
+       once one is visible, neighbouring tooltips appear at once ("warm") for a short while. */
+    var DELAY = 550, WARM_MS = 400, timer = null, warmUntil = 0;
+    function hide() { clearTimeout(timer); timer = null; if (!tip.hidden) warmUntil = Date.now() + WARM_MS; cur = null; tip.hidden = true; }
+    function cancel() { clearTimeout(timer); timer = null; warmUntil = 0; cur = null; tip.hidden = true; }
+    document.addEventListener('mouseover', function (e) {
+      if (!e.target.closest) return;
+      var el = e.target.closest('[title], [data-sc]');
+      if (el === cur) return;
+      hide();
+      if (!el || el.closest('.kt')) return;
+      if (el.hasAttribute('title')) { el.setAttribute('data-sc', el.getAttribute('title')); el.removeAttribute('title'); }
+      var info = parse(el.getAttribute('data-sc'));
+      if (!info.label && !info.keys.length) return;
+      cur = el;
+      function show() {
+        if (cur !== el || !document.contains(el)) return;
+        tip.textContent = '';
+        var l = document.createElement('span'); l.textContent = info.label; tip.appendChild(l);
+        info.keys.forEach(function (k) { var kb = document.createElement('kbd'); kb.textContent = k; tip.appendChild(kb); });
+        tip.hidden = false;
+        var r = el.getBoundingClientRect(), tr = tip.getBoundingClientRect();
+        var top = r.top - tr.height - 6; if (top < 4) top = r.bottom + 6;
+        var left = Math.max(4, Math.min(window.innerWidth - tr.width - 4, r.left + r.width / 2 - tr.width / 2));
+        tip.style.top = top + 'px'; tip.style.left = left + 'px';
+      }
+      if (Date.now() < warmUntil) show(); else timer = setTimeout(show, DELAY);
+    });
+    document.addEventListener('mouseout', function (e) { if (cur && !cur.contains(e.relatedTarget)) hide(); });
+    document.addEventListener('mousedown', cancel, true); document.addEventListener('keydown', cancel, true); window.addEventListener('scroll', cancel, true);
+  })();
+
+  ReactDOM.createRoot(document.getElementById('app')).render(h(App));
+})();
+
+</script>
+
+</body></html>
