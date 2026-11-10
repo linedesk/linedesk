@@ -2989,12 +2989,10 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
   /* props: toast(text), onHelp(), onSetup() */
   function SettingsView(p) {
     return h('div', { className: 'page' }, h('div', { className: 'page-in', style: { maxWidth: 820 } },
-      h('div', { className: 'page-head' }, h('div', null, h('h1', null, 'Settings'), h('p', null, 'Profile, keyboard shortcuts and setup.'))),
+      h('div', { className: 'page-head' }, h('div', null, h('h1', null, 'Settings'), h('p', null, 'Profile and setup.'))),
       h('section', { className: 'sec' }, h('h2', null, 'Profile'),
         h('div', { className: 'row2' }, h('div', { className: 'field' }, h('label', { htmlFor: 'pf-name' }, 'Name'), h(K.Input, { id: 'pf-name', defaultValue: 'Mike Brennan' })), h('div', { className: 'field' }, h('label', { htmlFor: 'pf-mail' }, 'Email'), h(K.Input, { id: 'pf-mail', defaultValue: 'mike@brightwater-plumbing.example' }))),
         h('div', null, h(K.Button, { size: 'sm', variant: 'primary', onClick: function () { p.toast('Profile saved.'); } }, 'Save'))),
-      h('section', { className: 'sec' }, h('h2', null, 'Keyboard shortcuts'), h('p', null, 'Almost everything is one key.'),
-        h('div', null, h(K.Button, { size: 'sm', shortcut: ['?'], title: 'Show all shortcuts (?)', onClick: p.onHelp }, 'Show all shortcuts'))),
       h('section', { className: 'sec' }, h('h2', null, 'Setup'), h('div', null, h(K.Button, { size: 'sm', icon: 'spark', onClick: p.onSetup }, 'Run setup again')))));
   }
   /* ---------- Onboarding ---------- */
