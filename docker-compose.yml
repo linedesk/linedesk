@@ -1,0 +1,26 @@
+services:
+  postgres:
+    image: postgres:17
+    command: ["postgres", "-c", "wal_level=logical"]
+    environment:
+      POSTGRES_USER: callfront
+      POSTGRES_PASSWORD: callfront
+      POSTGRES_DB: callfront
+    ports: ["5433:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U callfront"]
+      interval: 2s
+      retries: 20
+
+  electric:
+    image: electricsql/electric:latest
+    environment:
+      DATABASE_URL: postgres://callfront:callfront@postgres:5432/callfront?sslmode=disable
+      ELECTRIC_INSECURE: "true" # only the API talks to Electric; it adds the workspace filter
+    ports: ["3001:3000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+volumes:
+  pgdata:

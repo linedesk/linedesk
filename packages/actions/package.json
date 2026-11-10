@@ -1,0 +1,9 @@
+{
+  "name": "@callfront/actions",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc -p .", "test": "vitest run" },
+  "dependencies": { "@callfront/db": "workspace:*", "zod": "^4.6.7" },
+  "devDependencies": { "vitest": "^5.1.0" }
+}
