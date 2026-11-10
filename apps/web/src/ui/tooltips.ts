@@ -28,6 +28,13 @@ function place(tip: HTMLElement, el: Element) {
   tip.style.left = `${Math.max(4, Math.min(window.innerWidth - t.width - 4, r.left + r.width / 2 - t.width / 2))}px`
 }
 
+/** The element whose tooltip applies to this event target, with its title moved to data-sc so the browser's own tooltip never shows. */
+function tipTarget(target: EventTarget | null): Element | null {
+  const el = (target as Element | null)?.closest?.('[title], [data-sc]') ?? null
+  if (el?.hasAttribute('title')) { el.setAttribute('data-sc', el.getAttribute('title')!); el.removeAttribute('title') }
+  return el
+}
+
 /** Install once at startup. */
 export function installTooltips() {
   const tip = Object.assign(document.createElement('div'), { className: 'kt', hidden: true })
@@ -36,6 +43,13 @@ export function installTooltips() {
   let current: Element | null = null
   let timer: ReturnType<typeof setTimeout> | undefined
   let warmUntil = 0
+  /**
+   * Where the pointer was when a key, click, scroll or page change dismissed the tooltips.
+   * Until the pointer really moves from there nothing shows: a page that re-renders under a
+   * resting pointer (after `/` opens search, say) must not bring a tooltip back.
+   */
+  let dismissedAt: { x: number; y: number } | null = null
+  let pointer = { x: -1, y: -1 }
 
   function hide(keepWarm: boolean) {
     clearTimeout(timer)
@@ -43,14 +57,15 @@ export function installTooltips() {
     current = null
     tip.hidden = true
   }
+  function dismiss() {
+    hide(false)
+    dismissedAt = pointer
+  }
 
-  document.addEventListener('mouseover', e => {
-    const el = (e.target as Element).closest?.('[title], [data-sc]') ?? null
+  function consider(el: Element | null) {
     if (el === current) return
     hide(true)
     if (!el) return
-    // Move title to data-sc so the browser's own tooltip never shows.
-    if (el.hasAttribute('title')) { el.setAttribute('data-sc', el.getAttribute('title')!); el.removeAttribute('title') }
     const info = parseShortcutTitle(el.getAttribute('data-sc'))
     if (!info.label && !info.keys.length) return
     current = el
@@ -62,6 +77,18 @@ export function installTooltips() {
     }
     if (Date.now() < warmUntil) show()
     else timer = setTimeout(show, SHOW_AFTER_MS)
+  }
+
+  /** Every mouse event carries the pointer position; a re-render under a resting pointer repeats the old one. */
+  function track(e: MouseEvent): boolean {
+    pointer = { x: e.clientX, y: e.clientY }
+    if (dismissedAt && (dismissedAt.x !== pointer.x || dismissedAt.y !== pointer.y)) dismissedAt = null
+    return !dismissedAt
+  }
+  document.addEventListener('mouseover', e => { if (track(e)) consider(tipTarget(e.target)) })
+  document.addEventListener('mousemove', e => {
+    if (track(e)) consider(tipTarget(e.target))
+    else if (current && !current.isConnected) hide(false) // its element was re-rendered away
   })
   document.addEventListener('mouseout', e => { if (current && !current.contains(e.relatedTarget as Node | null)) hide(true) })
   document.addEventListener('click', e => {
@@ -71,8 +98,8 @@ export function installTooltips() {
     const info = parseShortcutTitle(el.getAttribute('data-sc') ?? el.getAttribute('title'))
     if (info.keys.length) window.dispatchEvent(new CustomEvent<ShortcutHint>(HINT_EVENT, { detail: info }))
   })
-  const cancel = () => hide(false)
-  document.addEventListener('mousedown', cancel, true)
-  document.addEventListener('keydown', cancel, true)
-  window.addEventListener('scroll', cancel, true)
+  document.addEventListener('mousedown', dismiss, true)
+  document.addEventListener('keydown', dismiss, true)
+  window.addEventListener('scroll', dismiss, true)
+  window.addEventListener('hashchange', dismiss) // another page or call
 }

@@ -74,16 +74,24 @@ function onCallKey(key: string, call: Call, c: KeyContext): boolean {
   return true
 }
 
+/**
+ * Tab in the inbox belongs to the views: it switches between them and never moves the focus,
+ * so no row or button gets a focus ring. In an open call it does nothing. Text fields, the
+ * menus and the other pages keep the browser's Tab (the caller never gets here for those).
+ */
+function onInboxTab(el: HTMLElement, back: boolean, c: KeyContext): true {
+  if (c.isCallOpen) return true
+  if (el.tagName !== 'BODY') el.blur() // a tab or row clicked with the mouse must not show a ring now
+  c.setTab(nextSplit(c.tab, back))
+  return true
+}
+
 /** List and view keys of the inbox. Returns false when the key is not one of them. */
-function onInboxKey(k: string, shift: boolean, nothingFocused: boolean, c: KeyContext): boolean {
+function onInboxKey(k: string, c: KeyContext): boolean {
   if (k === 'j' || k === 'J') c.step(1)
   else if (k === 'k' || k === 'K') c.step(-1)
   else if ((k === 'ArrowDown' || k === 'ArrowUp') && !c.isCallOpen) c.step(k === 'ArrowDown' ? 1 : -1) // arrows scroll an open call
   else if ((k === 'Enter' || k === 'o') && !c.isCallOpen && c.target) c.open(c.target)
-  else if (k === 'Tab') {
-    if (c.isCallOpen || !nothingFocused) return false // Tab moves the focus; it switches views only from the bare list
-    c.setTab(nextSplit(c.tab, shift))
-  }
   else if (viewByKey[k] && !c.isCallOpen) c.setTab(viewByKey[k])
   else return c.target ? onCallKey(k, c.target, c) : false
   return true
@@ -97,12 +105,13 @@ export function handleKey(e: KeyboardEvent, c: KeyContext): boolean {
   if (k === 'Escape') { onEscape(el, c); return false }
   if (c.overlay) { if (c.overlay === 'help' && k === '?') c.setOverlay(null); return false }
   if (isTyping(el) || activatesControl(k, el) || e.metaKey || e.ctrlKey || e.altKey) return false
+  if (k === 'Tab') return c.onInbox && !c.navOpen && onInboxTab(el, e.shiftKey, c)
   if (Date.now() < chordUntil) { chordUntil = 0; return c.goChord(k.toLowerCase()) }
   if (k === 'g' || k === 'G') { chordUntil = Date.now() + CHORD_MS; return true }
   if (k === '?') c.setOverlay('help')
   else if (k === 'm' || k === 'M') c.setNavOpen(!c.navOpen)
   else if (k === '/') c.openSearch()
   else if (k === 'z') c.undo()
-  else return c.onInbox && onInboxKey(k, e.shiftKey, el.tagName === 'BODY', c)
+  else return c.onInbox && onInboxKey(k, c)
   return true
 }

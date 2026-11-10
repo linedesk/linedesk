@@ -1,9 +1,9 @@
 import type { Call } from '@callfront/db/types'
 import type { ReactNode } from 'react'
 import { callerName, splits, type InboxTab } from '../inbox-model.ts'
-import { useAssistantName, useContact, useRows, useSnapshot } from '../store.tsx'
+import { useAssistantName, useContact, useRows } from '../store.tsx'
 import { clock, parseTs } from '../time.ts'
-import { Button, cx, Icon } from '../ui/kit.tsx'
+import { Button, Icon } from '../ui/kit.tsx'
 import { useElapsed } from '../ui/LiveIndicator.tsx'
 
 export type InboxHeadProps = {
@@ -73,21 +73,12 @@ function LiveCallButton({ call, onOpen }: { call: Call; onOpen?: (call: Call) =>
   )
 }
 
-/** What the assistant is doing right now, and quietly whether changes are still on their way. */
+/** What the assistant is doing right now. */
 function Presence({ liveCall, onOpen }: Pick<InboxHeadProps, 'liveCall' | 'onOpen'>) {
   const assistant = useAssistantName()
-  const { pending, online } = useSnapshot()
   const hasNumber = useRows('phone_numbers').length > 0
-  return (
-    <>
-      {(!online || pending > 0) && (
-        <span className={cx('sync-state', !online && 'is-offline')} role="status">
-          {online ? 'Saving…' : pending ? `Offline · ${pending} ${pending === 1 ? 'change' : 'changes'} waiting` : 'Offline'}
-        </span>
-      )}
-      {liveCall ? <LiveCallButton call={liveCall} onOpen={onOpen} /> : hasNumber ? <span className="ib-maya"><span className="ib-dot" />{assistant} is answering</span> : null}
-    </>
-  )
+  if (liveCall) return <LiveCallButton call={liveCall} onOpen={onOpen} />
+  return hasNumber ? <span className="ib-maya"><span className="ib-dot" />{assistant} is answering</span> : null
 }
 
 export function InboxHead({ resultCount, menu, ...p }: InboxHeadProps & { resultCount: number; menu?: ReactNode }) {

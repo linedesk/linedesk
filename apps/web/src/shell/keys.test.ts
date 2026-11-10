@@ -120,14 +120,31 @@ describe('shell keys', () => {
     expect(c.step).toHaveBeenCalledWith(1)
     expect(c.back).toHaveBeenCalled() // one Escape, not two
   })
-  it('leaves Tab to the browser inside a call or when a control has the focus', () => {
+  it('uses Tab in the list only for the views, whatever has the focus, and blurs a clicked control', () => {
     const c = context()
-    expect(press('Tab', context({ isCallOpen: true }))).toBe(false)
-    expect(press('Tab', c, { tagName: 'BUTTON' })).toBe(false)
-    expect(press('Tab', c, { tagName: 'INPUT' })).toBe(false)
-    expect(c.setTab).not.toHaveBeenCalled()
+    const blur = vi.fn()
     expect(press('Tab', c)).toBe(true)
-    expect(c.setTab).toHaveBeenCalledWith('ai')
+    expect(press('Tab', c, { shiftKey: true })).toBe(true)
+    expect(handleKey({ key: 'Tab', shiftKey: false, target: { tagName: 'BUTTON', blur } } as unknown as KeyboardEvent, c)).toBe(true)
+    expect(vi.mocked(c.setTab).mock.calls).toEqual([['ai'], ['spam'], ['ai']])
+    expect(blur).toHaveBeenCalled()
+  })
+  it('swallows Tab in an open call without doing anything', () => {
+    const c = context({ isCallOpen: true })
+    expect(press('Tab', c)).toBe(true)
+    expect(press('Tab', c, { tagName: 'INPUT', type: 'checkbox' })).toBe(true)
+    expect(c.setTab).not.toHaveBeenCalled()
+  })
+  it('leaves Tab to the browser in text fields, overlays, the menu and on other pages', () => {
+    const c = context()
+    expect(press('Tab', c, { tagName: 'INPUT' })).toBe(false)
+    expect(press('Tab', c, { tagName: 'TEXTAREA' })).toBe(false)
+    expect(press('Tab', context({ isCallOpen: true }), { tagName: 'INPUT' })).toBe(false)
+    expect(press('Tab', context({ overlay: 'commands' }))).toBe(false)
+    expect(press('Tab', context({ overlay: 'help' }))).toBe(false)
+    expect(press('Tab', context({ navOpen: true }))).toBe(false)
+    expect(press('Tab', context({ onInbox: false, target: undefined }))).toBe(false)
+    expect(c.setTab).not.toHaveBeenCalled()
   })
   it('lets Enter activate a focused button instead of opening the selected call', () => {
     const c = context()

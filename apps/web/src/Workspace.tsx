@@ -13,6 +13,7 @@ import { commandGroups, type Command } from './shell/commands.ts'
 import type { Overlay } from './shell/keys.ts'
 import { MenuButton, Nav } from './shell/Nav.tsx'
 import { Overlays } from './shell/Overlays.tsx'
+import { SyncBar } from './shell/SyncBar.tsx'
 import { pages, type PageRoute } from './shell/pages.tsx'
 import { Toast } from './shell/Toast.tsx'
 import { useKeyboard } from './shell/useKeyboard.ts'
@@ -113,6 +114,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
             onRemind={openRemind} onClearReminder={actions.clearReminder}
             onCommands={c => { view.setCursor(c.id); setOverlay('commands') }} />
         )}
+        <SyncBar />
       </main>
       <Overlays overlay={overlay} commands={commands} onClose={() => setOverlay(null)} onCommand={runCommand} onReminder={pickReminder} />
       {toaster.toast && <Toast toast={toaster.toast} onUndo={actions.undo} />}
