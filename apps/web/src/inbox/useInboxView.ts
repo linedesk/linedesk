@@ -2,7 +2,7 @@
 import type { Call } from '@callfront/db/types'
 import { useEffect, useMemo } from 'react'
 import { useSegmentsByCall } from '../call/segments.ts'
-import { countsFor, listFor, sortForList, tabOf, type InboxTab } from '../inbox-model.ts'
+import { type CallGroups, countsFor, groupRepeats, listFor, sortForList, tabOf, type InboxTab } from '../inbox-model.ts'
 import { useNow } from '../shell/useNow.ts'
 import type { RouteApi } from '../shell/useRoute.ts'
 import { useAssistantName, useRows, useRun, useSnapshot } from '../store.tsx'
@@ -20,19 +20,39 @@ export function useInboxView(nav: RouteApi) {
   const { tab, search } = nav // the view and the search live in the URL, so a reload keeps them
   const setTabState = (next: InboxTab) => nav.setView({ tab: next, search })
 
-  const list = useMemo(() => {
-    if (search === null) return listFor(calls, tab, now)
-    const hits = calls.filter(c => !c.deleted_at && matchesSearch({ call: c, contact: c.contact_id ? contacts.get(c.contact_id) : undefined, segments: segments.get(c.id) ?? [], assistantName }, search))
-    return sortForList(hits, false)
+  const { list, groups } = useMemo((): { list: Call[]; groups: CallGroups } => {
+    if (search !== null) {
+      const hits = calls.filter(
+        c =>
+          !c.deleted_at &&
+          matchesSearch(
+            {
+              call: c,
+              contact: c.contact_id ? contacts.get(c.contact_id) : undefined,
+              segments: segments.get(c.id) ?? [],
+              assistantName,
+            },
+            search,
+          ),
+      )
+      return { list: sortForList(hits, false), groups: new Map() }
+    }
+    const inTab = listFor(calls, tab, now)
+    return tab === 'you' ? groupRepeats(inTab) : { list: inTab, groups: new Map() }
   }, [calls, contacts, segments, assistantName, tab, search, now])
+  /** Every call a row stands for: a folded row's repeat calls, else the call alone. */
+  const groupOf = (call: Call): Call[] => groups.get(call.id) ?? [call]
   const counts = useMemo(() => countsFor(calls, now), [calls, now])
   /** The menu's Inbox badge: the unread dots a person sees in Needs you. */
-  const unreadNeedsYou = useMemo(() => listFor(calls, 'you', now).filter(c => c.unread).length, [calls, now])
+  const unreadNeedsYou = useMemo(() => {
+    const needsYou = groupRepeats(listFor(calls, 'you', now))
+    return needsYou.list.filter(c => (needsYou.groups.get(c.id) ?? [c]).some(m => m.unread)).length
+  }, [calls, now])
   const liveCall = useMemo(() => listFor(calls, 'you', now).find(c => c.status === 'live'), [calls, now]) // newest live call
   const [cursorId, setCursor] = useCursor(list)
   const onInbox = nav.route === 'calls'
   const openCall = onInbox && nav.callId ? calls.find(c => c.id === nav.callId && !c.deleted_at) : undefined
-  const target = onInbox ? openCall ?? list.find(c => c.id === cursorId) : undefined
+  const target = onInbox ? (openCall ?? list.find(c => c.id === cursorId)) : undefined
 
   // A reloaded search keeps its query in the URL; put the caret back into the field.
   // biome-ignore lint/correctness/useExhaustiveDependencies: only on the first render
@@ -43,11 +63,11 @@ export function useInboxView(nav: RouteApi) {
   /** The hash names a call that is not there (deleted, another workspace, a typo). Rows are known once any call is loaded. */
   const missingCall = onInbox && !!nav.callId && calls.length > 0 && !openCall
 
-  /** Show a call full width and mark it read. */
+  /** Show a call full width and mark it read, with the repeat calls its row stands for. */
   function show(call: Call) {
     nav.openCall(call.id)
     setCursor(call.id)
-    if (call.unread) void run('call.markRead', { callId: call.id })
+    for (const c of groupOf(call)) if (c.unread) void run('call.markRead', { callId: c.id })
   }
   /** Open a call from anywhere: also switches to the view it lives in. */
   function open(call: Call) {
@@ -75,14 +95,46 @@ export function useInboxView(nav: RouteApi) {
     if (nav.callId) nav.closeCall()
     else if (!onInbox) nav.go('calls')
     nav.setView({ tab, search: search ?? '' })
-    setTimeout(() => { const el = document.getElementById(SEARCH_INPUT_ID) as HTMLInputElement | null; el?.focus(); el?.select() }, 0)
+    setTimeout(() => {
+      const el = document.getElementById(SEARCH_INPUT_ID) as HTMLInputElement | null
+      el?.focus()
+      el?.select()
+    }, 0)
   }
 
   return {
-    calls, contacts, segments, list, counts, unreadNeedsYou, liveCall, tab, search, cursorId, openCall, target, onInbox, missingCall,
-    setTab, setTabState, setCursor, open, showById, step, openSearch, back: nav.closeCall,
-    changeSearch: (query: string) => { nav.setView({ tab, search: query }); setCursor(null) },
-    closeSearch: () => { nav.setView({ tab, search: null }); setCursor(null) },
+    calls,
+    contacts,
+    segments,
+    list,
+    groups,
+    groupOf,
+    counts,
+    unreadNeedsYou,
+    liveCall,
+    tab,
+    search,
+    cursorId,
+    openCall,
+    target,
+    onInbox,
+    missingCall,
+    setTab,
+    setTabState,
+    setCursor,
+    open,
+    showById,
+    step,
+    openSearch,
+    back: nav.closeCall,
+    changeSearch: (query: string) => {
+      nav.setView({ tab, search: query })
+      setCursor(null)
+    },
+    closeSearch: () => {
+      nav.setView({ tab, search: null })
+      setCursor(null)
+    },
   }
 }
 export type InboxView = ReturnType<typeof useInboxView>

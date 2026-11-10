@@ -679,3 +679,19 @@ button.me:focus-visible {
     display: none;
   }
 }
+
+/* A row that stands for repeat calls from one number: how many, quiet next to the caller. */
+.r-count {
+  flex: none;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: var(--surface-hover);
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: center;
+}

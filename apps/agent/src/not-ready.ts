@@ -21,34 +21,35 @@ export async function checkReadiness(load: () => Promise<AgentConfig>): Promise<
 
 /** One line for the worker's start-up log. */
 export function describeReadiness(readiness: Readiness): string {
-  if (!readiness.ready) return `not answering calls yet: ${readiness.reason} Calls are logged as missed until then; the config is checked again at every call.`
+  if (!readiness.ready)
+    return `not answering calls yet: ${readiness.reason} Calls are logged as missed until then; the config is checked again at every call.`
   const { stt, llm, tts } = readiness.config
   return `answering calls. Speech to text: ${stt.provider} ${stt.model}; LLM: ${llm.provider} ${llm.model}; text to speech: ${tts.provider}`
 }
 
-const listed = (items: string[]) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`)
-
 /**
- * What the business sees in the inbox: what is missing (speech recognition, language model, voice),
- * never which key or provider. The operator's detail stays in the worker log.
+ * What the business sees in the inbox: a call nobody answered, from the caller's side. Why the
+ * assistant was not answering is a setup problem, shown once in the app's status, not on every call;
+ * the operator's detail stays in the worker log.
  */
-export function missedResult(stages: Stage[]): CallResult {
-  const missing = stages.length ? `No ${listed(stages)} provider is configured yet.` : 'Its providers are not configured yet.'
-  return {
-    outcome: 'hangup',
-    title: 'Missed call: assistant not set up yet',
-    summary: `Linedesk did not answer this call because the assistant is not set up yet. ${missing} Add them under Settings, Providers.`,
-    actionItems: [{ text: 'Call back' }],
-    fields: [{ label: 'Not set up', value: stages.length ? listed(stages) : 'providers' }],
-  }
+export const missedResult: CallResult = {
+  outcome: 'hangup',
+  title: 'Missed call',
+  summary: 'Nobody answered this call: the assistant was not taking calls yet. Call the caller back.',
+  actionItems: [{ text: 'Call back' }],
 }
 
 /** Logs the call as missed and ends it. `hangUp` disconnects the caller. Never throws. */
-export async function declineCall(call: CallSession, readiness: { reason: string; stages: Stage[] }, hangUp: () => Promise<void>, retry?: RetryOptions) {
+export async function declineCall(
+  call: CallSession,
+  readiness: { reason: string; stages: Stage[] },
+  hangUp: () => Promise<void>,
+  retry?: RetryOptions,
+) {
   console.warn(`call ${call.callId} not answered: ${readiness.reason}`)
   const logged = (async () => {
-    await call.append('system', 'Not answered: the assistant is not set up yet')
-    await withRetry(() => call.finish(missedResult(readiness.stages)), retry)
+    await call.append('system', 'Not answered')
+    await withRetry(() => call.finish(missedResult), retry)
   })().catch(e => console.error(`could not log missed call ${call.callId}: ${e instanceof Error ? e.message : e}`))
   await Promise.all([logged, hangUp().catch(() => {})])
 }

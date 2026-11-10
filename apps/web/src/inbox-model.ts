@@ -1,5 +1,5 @@
 // Inbox views are derived, never stored: does a person still have to act? (architecture §9)
-import type { Call, Contact } from '@callfront/db/types'
+import type { Call, Contact, TranscriptSegment } from '@callfront/db/types'
 import { parseTs, whenLabel } from './time.ts'
 
 export type InboxTab = 'you' | 'ai' | 'spam' | 'reminders' | 'done'
@@ -20,7 +20,10 @@ export function tabOf(call: Call, now = new Date()): InboxTab {
 export const hasReminder = (call: Call, now = new Date()) => !!call.reminder_at && parseTs(call.reminder_at) > now
 
 const startedMs = (call: Call) => parseTs(call.started_at).getTime()
-const dayStartMs = (call: Call) => { const d = parseTs(call.started_at); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() }
+const dayStartMs = (call: Call) => {
+  const d = parseTs(call.started_at)
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+}
 
 /** Ids of calls that are the first one from their number. */
 export function firstCallIds(calls: Call[]): Set<string> {
@@ -48,7 +51,8 @@ export function sortForList(calls: Call[], byPriority: boolean, all: Call[] = ca
   const key = (c: Call) => [-dayStartMs(c), byPriority ? priorityOf(c, firsts.has(c.id)) : 0, -startedMs(c)] as const
   const keys = new Map(calls.map(c => [c.id, key(c)]))
   return [...calls].sort((a, b) => {
-    const ka = keys.get(a.id)!, kb = keys.get(b.id)!
+    const ka = keys.get(a.id)!,
+      kb = keys.get(b.id)!
     return ka[0] - kb[0] || ka[1] - kb[1] || ka[2] - kb[2]
   })
 }
@@ -57,14 +61,73 @@ export function listFor(calls: Call[], tab: InboxTab, now = new Date()): Call[] 
   const visible = calls.filter(c => !c.deleted_at)
   const inTab = visible.filter(c => tabOf(c, now) === tab)
   // Reminders read as a schedule: the one that comes back first is on top.
-  if (tab === 'reminders') return inTab.sort((a, b) => parseTs(a.reminder_at!).getTime() - parseTs(b.reminder_at!).getTime())
+  if (tab === 'reminders')
+    return inTab.sort((a, b) => parseTs(a.reminder_at!).getTime() - parseTs(b.reminder_at!).getTime())
   return sortForList(inTab, tab === 'you', visible)
 }
 
+/** Needs you counts rows, so repeat hang-ups from one number count once (see groupRepeats). */
 export function countsFor(calls: Call[], now = new Date()): Record<InboxTab, number> {
   const counts: Record<InboxTab, number> = { you: 0, ai: 0, spam: 0, reminders: 0, done: 0 }
   for (const c of calls) if (!c.deleted_at) counts[tabOf(c, now)]++
+  counts.you = groupRepeats(listFor(calls, 'you', now)).list.length
   return counts
+}
+
+/** Row id -> every call the row stands for (the row's own call first). Only rows that stand for more than one call. */
+export type CallGroups = ReadonlyMap<string, Call[]>
+
+const foldable = (c: Call) => c.outcome === 'hangup' && c.status !== 'live' && c.from_number.startsWith('+')
+
+/**
+ * Repeat calls from one number that left nothing to act on (hang-ups and missed calls) fold into one row,
+ * so ten hang-ups are one line, not ten. They join the newest real call from that number in the list
+ * (its issue stays the title), else the newest of them. Calls with an issue of their own keep their rows.
+ */
+export function groupRepeats(list: Call[]): { list: Call[]; groups: CallGroups } {
+  const anchorOf = new Map<string, Call>()
+  for (const c of list) {
+    if (c.status === 'live' || !c.from_number.startsWith('+')) continue
+    const seen = anchorOf.get(c.from_number)
+    const better =
+      !seen || (foldable(seen) && !foldable(c)) || (foldable(seen) === foldable(c) && startedMs(c) > startedMs(seen))
+    if (better) anchorOf.set(c.from_number, c)
+  }
+  const groups = new Map<string, Call[]>()
+  const rows: Call[] = []
+  for (const c of list) {
+    const anchor = foldable(c) ? anchorOf.get(c.from_number) : undefined
+    if (!anchor || anchor === c) {
+      rows.push(c)
+      continue
+    }
+    groups.set(anchor.id, [...(groups.get(anchor.id) ?? [anchor]), c])
+  }
+  return { list: rows, groups }
+}
+
+/**
+ * How a call went: the one answer for the row badge, the call header and the transcript.
+ * `missed`: nobody picked up (the assistant was not running or not set up). `hungUp`: the assistant
+ * answered and the caller left without saying anything. Needs the call's transcript.
+ */
+export type CallStatus = 'live' | 'missed' | 'hungUp' | 'spam' | 'outbound' | 'answered'
+export function callStatus(call: Call, segments: TranscriptSegment[]): CallStatus {
+  if (call.status === 'live') return 'live'
+  if (call.direction === 'out') return 'outbound'
+  if (call.outcome === 'spam') return 'spam'
+  if (call.outcome !== 'hangup') return 'answered'
+  return segments.some(s => s.speaker === 'agent' || s.speaker === 'human') ? 'hungUp' : 'missed'
+}
+
+/** The call header's "who answered" part. */
+export function answeredByLabel(call: Call, segments: TranscriptSegment[], assistant: string): string {
+  const status = callStatus(call, segments)
+  if (status === 'missed') return 'Not answered'
+  if (status === 'spam') return `Blocked by ${assistant}`
+  if (status === 'outbound') return `Outbound call by ${assistant}`
+  const who = call.answered_by === 'human' ? 'the team' : assistant
+  return status === 'hungUp' ? `Answered by ${who}, caller hung up` : `Answered by ${who}`
 }
 
 export const callerName = (call: Call, contact?: Contact) => contact?.name || formatPhone(call.from_number)
@@ -78,17 +141,26 @@ export function formatPhone(e164: string): string {
 export type StatusLabel = { text: string; tone: 'danger' | 'neutral' | 'info' | 'next' | 'quiet' }
 
 /** The status column of a row (a live call shows the live indicator instead). */
-export function statusLabel(call: Call, tab: InboxTab, assistantName: string, now = new Date()): StatusLabel {
+export function statusLabel(
+  call: Call,
+  tab: InboxTab,
+  assistantName: string,
+  now = new Date(),
+  segments: TranscriptSegment[] = [],
+): StatusLabel {
   const next = call.action_items.find(i => !i.done)?.text
-  if (hasReminder(call, now) && call.inbox_state === 'open') return { text: whenLabel(parseTs(call.reminder_at!), now), tone: 'neutral' }
-  if (call.outcome === 'booked') return { text: 'Booked', tone: 'neutral' }
+  if (hasReminder(call, now) && call.inbox_state === 'open')
+    return { text: whenLabel(parseTs(call.reminder_at!), now), tone: 'neutral' }
   if (call.urgency === 'urgent') return { text: 'Urgent callback', tone: 'danger' }
   if (call.outcome === 'transferred') return { text: 'Transferred', tone: 'info' }
-  if (call.outcome === 'hangup') return { text: 'Missed', tone: 'danger' }
+  if (call.outcome === 'hangup')
+    return callStatus(call, segments) === 'hungUp'
+      ? { text: 'Hung up', tone: 'quiet' }
+      : { text: 'Missed', tone: 'danger' }
   if (call.outcome === 'spam') return { text: 'Blocked', tone: 'neutral' }
   if (next && tab === 'you') return { text: next, tone: 'next' }
   if (call.direction === 'out') return { text: 'Outbound', tone: 'quiet' }
-  return { text: tabOf(call, now) === 'ai' ? `Resolved by ${assistantName}` : next ?? 'Follow-up', tone: 'quiet' }
+  return { text: tabOf(call, now) === 'ai' ? `Resolved by ${assistantName}` : (next ?? 'Follow-up'), tone: 'quiet' }
 }
 
 /**

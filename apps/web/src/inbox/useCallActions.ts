@@ -5,7 +5,18 @@ import { useRef, useState } from 'react'
 import { tabOf, type InboxTab } from '../inbox-model.ts'
 import type { Toaster } from '../shell/useToast.ts'
 import { useRun } from '../store.tsx'
-import { type Change, clearReminderChange, deleteChange, doneChange, isNoOp, notDoneChange, preview, remindChange, type Step, unreadChange } from './changes.ts'
+import {
+  type Change,
+  clearReminderChange,
+  deleteChange,
+  doneChange,
+  isNoOp,
+  notDoneChange,
+  preview,
+  remindChange,
+  type Step,
+  unreadChange,
+} from './changes.ts'
 import type { ReminderOption } from './remind.ts'
 
 /** `cancelWrite` stops a write that is still waiting for the fade; true when it had not been sent yet. */
@@ -33,14 +44,23 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
   const undoStack = useRef<UndoEntry[]>([])
   const [leaving, setLeaving] = useState<string | null>(null)
   const [entering, setEntering] = useState<string | null>(null)
-  const runAll = (steps: Step[]) => { for (const [name, input] of steps) void run(name, input) }
+  const runAll = (steps: Step[]) => {
+    for (const [name, input] of steps) void run(name, input)
+  }
 
   /** Send now, or after the row has faded out. Returns how to cancel a write that has not been sent. */
   function write(callId: string, steps: Step[], fadeFirst: boolean): () => boolean {
-    if (!fadeFirst) { runAll(steps); return () => false }
+    if (!fadeFirst) {
+      runAll(steps)
+      return () => false
+    }
     let waiting = true
     setLeaving(callId)
-    const timer = setTimeout(() => { waiting = false; runAll(steps); setLeaving(null) }, LEAVE_MS)
+    const timer = setTimeout(() => {
+      waiting = false
+      runAll(steps)
+      setLeaving(null)
+    }, LEAVE_MS)
     return () => {
       if (!waiting) return false
       waiting = false
@@ -63,7 +83,9 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
       setCursor(next)
       if (wasOpen) showCall(next)
     }
-    undoStack.current = [...undoStack.current, { steps: inverse, callId: call.id, tab, wasOpen, cancelWrite }].slice(-UNDO_DEPTH)
+    undoStack.current = [...undoStack.current, { steps: inverse, callId: call.id, tab, wasOpen, cancelWrite }].slice(
+      -UNDO_DEPTH,
+    )
     toaster.show(toaster.withTip(label, key), true)
   }
 
@@ -75,13 +97,35 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
       .filter((x): x is { call: Call; change: Change } => !!x.change && !isNoOp(x.call, x.change.steps))
     if (!changes.length) return toaster.show(calls.some(c => c.status === 'live') ? LIVE_NOTE : 'Nothing to change.')
     for (const { change } of changes) runAll(change.steps)
-    const leaving = new Set(changes.filter(({ call, change }) => {
-      const after = preview(call, change.steps)
-      return !!after.deleted_at || (!searching && tabOf(after) !== tab)
-    }).map(x => x.call.id))
-    if (leaving.size) setCursor(list.find(c => !leaving.has(c.id))?.id ?? null)
+    const leaving = new Set(
+      changes
+        .filter(({ call, change }) => {
+          const after = preview(call, change.steps)
+          return !!after.deleted_at || (!searching && tabOf(after) !== tab)
+        })
+        .map(x => x.call.id),
+    )
+    if (leaving.size) {
+      // The nearest row that stays, after the first one that leaves (then before it), as for one call.
+      const first = list.findIndex(c => leaving.has(c.id))
+      const stays = (c: Call) => !leaving.has(c.id)
+      const next =
+        (list.slice(first).find(stays) ?? list.slice(0, Math.max(0, first)).reverse().find(stays))?.id ?? null
+      setCursor(next)
+      if (openId && leaving.has(openId)) showCall(next) // done from the call view: on to the next call
+    }
+    const openLeft = !!openId && leaving.has(openId)
     const inverse = changes.flatMap(x => x.change.inverse)
-    undoStack.current = [...undoStack.current, { steps: inverse, callId: changes[0]!.call.id, tab, wasOpen: false, cancelWrite: () => false }].slice(-UNDO_DEPTH)
+    undoStack.current = [
+      ...undoStack.current,
+      {
+        steps: inverse,
+        callId: openLeft ? openId : changes[0]!.call.id,
+        tab,
+        wasOpen: openLeft,
+        cancelWrite: () => false,
+      },
+    ].slice(-UNDO_DEPTH)
     toaster.show(toaster.withTip(label(changes.length), 'Z'), true)
   }
   const calls = (n: number) => `${n} ${n === 1 ? 'call' : 'calls'}`
@@ -94,7 +138,10 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     setTab(entry.tab)
     setCursor(entry.callId)
     if (entry.wasOpen) showCall(entry.callId)
-    else if (!neverSent) { setEntering(entry.callId); setTimeout(() => setEntering(null), ENTER_MS) }
+    else if (!neverSent) {
+      setEntering(entry.callId)
+      setTimeout(() => setEntering(null), ENTER_MS)
+    }
     toaster.show(toaster.withTip('Undone.', 'Z'))
   }
 
@@ -102,22 +149,49 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     leaving,
     entering,
     undo,
-    markDone: (call: Call) => (call.inbox_state === 'done' ? toaster.show('Already done.') : act(call, doneChange(call))),
-    markNotDone: (call: Call) => (call.inbox_state === 'done' ? act(call, notDoneChange(call)) : toaster.show('This call is not done.')),
+    markDone: (call: Call) =>
+      call.inbox_state === 'done' ? toaster.show('Already done.') : act(call, doneChange(call)),
+    markNotDone: (call: Call) =>
+      call.inbox_state === 'done' ? act(call, notDoneChange(call)) : toaster.show('This call is not done.'),
     toggleUnread: (call: Call) => act(call, unreadChange(call)),
     remind: (call: Call, option: ReminderOption) => act(call, remindChange(call, option)),
-    clearReminder: (call: Call) => (tabOf(call) === 'reminders' ? act(call, clearReminderChange(call)) : toaster.show('No reminder on this call.')),
+    clearReminder: (call: Call) =>
+      tabOf(call) === 'reminders' ? act(call, clearReminderChange(call)) : toaster.show('No reminder on this call.'),
     remove: (call: Call) => act(call, deleteChange(call)),
     many: {
-      markDone: (list: Call[]) => actMany(list, c => (c.inbox_state === 'done' ? null : doneChange(c)), n => `${calls(n)} marked done.`),
-      markNotDone: (list: Call[]) => actMany(list, c => (c.inbox_state === 'done' ? notDoneChange(c) : null), n => `${calls(n)} back in the inbox.`),
+      markDone: (list: Call[]) =>
+        actMany(
+          list,
+          c => (c.inbox_state === 'done' ? null : doneChange(c)),
+          n => `${calls(n)} marked done.`,
+        ),
+      markNotDone: (list: Call[]) =>
+        actMany(
+          list,
+          c => (c.inbox_state === 'done' ? notDoneChange(c) : null),
+          n => `${calls(n)} back in the inbox.`,
+        ),
       /** Mark all read when any is unread, else mark all unread. */
       toggleUnread: (list: Call[]) => {
         const read = list.some(c => c.unread)
-        actMany(list, c => (c.unread === read ? unreadChange(c) : null), n => `${calls(n)} marked ${read ? 'read' : 'unread'}.`)
+        actMany(
+          list,
+          c => (c.unread === read ? unreadChange(c) : null),
+          n => `${calls(n)} marked ${read ? 'read' : 'unread'}.`,
+        )
       },
-      remind: (list: Call[], option: ReminderOption) => actMany(list, c => remindChange(c, option), n => `Reminder set for ${calls(n)}.`),
-      clearReminder: (list: Call[]) => actMany(list, c => (tabOf(c) === 'reminders' ? clearReminderChange(c) : null), n => `Reminder cleared on ${calls(n)}.`),
+      remind: (list: Call[], option: ReminderOption) =>
+        actMany(
+          list,
+          c => remindChange(c, option),
+          n => `Reminder set for ${calls(n)}.`,
+        ),
+      clearReminder: (list: Call[]) =>
+        actMany(
+          list,
+          c => (tabOf(c) === 'reminders' ? clearReminderChange(c) : null),
+          n => `Reminder cleared on ${calls(n)}.`,
+        ),
       remove: (list: Call[]) => actMany(list, deleteChange, n => `${calls(n)} deleted.`),
     },
     isTriageable: (call: Call) => {

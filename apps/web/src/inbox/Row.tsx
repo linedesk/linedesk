@@ -28,6 +28,8 @@ type Props = RowHandlers & {
   isCursor: boolean
   motion: 'leaving' | 'entering' | null
   selected?: boolean
+  /** Repeat calls this row stands for (see groupRepeats), the row's own call first. */
+  group?: Call[]
 }
 
 const stop = (run: () => void) => (e: MouseEvent) => {
@@ -49,11 +51,21 @@ function RowAction({ title, icon, onClick }: { title: string; icon: IconName; on
   )
 }
 
-function Status({ call, tab, markDone }: { call: Call; tab: InboxTab; markDone: boolean }) {
+function Status({
+  call,
+  tab,
+  markDone,
+  segments,
+}: {
+  call: Call
+  tab: InboxTab
+  markDone: boolean
+  segments: TranscriptSegment[]
+}) {
   const assistant = useAssistantName()
   if (call.status === 'live') return <LiveIndicator since={parseTs(call.started_at)} />
   if (markDone) return <span className="r-quiet">Done</span> // search lists every call, done ones included
-  const { text, tone } = statusLabel(call, tab, assistant)
+  const { text, tone } = statusLabel(call, tab, assistant, undefined, segments)
   if (tone === 'next' || tone === 'quiet')
     return (
       <span className={`r-${tone}`} title={tone === 'next' ? text : undefined}>
@@ -115,8 +127,9 @@ function SelectBox({
   )
 }
 
-export function Row({ call, tab, search, segments, isCursor, motion, selected = false, ...on }: Props) {
+export function Row({ call, tab, search, segments, isCursor, motion, selected = false, group, ...on }: Props) {
   const contact = useContact(call.contact_id)
+  const unread = call.unread || !!group?.some(c => c.unread)
   const live = call.status === 'live'
   const done = call.inbox_state === 'done'
   const reminded = tabOf(call) === 'reminders'
@@ -128,7 +141,7 @@ export function Row({ call, tab, search, segments, isCursor, motion, selected = 
         motion && `is-${motion}`,
         isCursor && 'is-cursor',
         selected && 'is-selected',
-        (call.unread || live) && 'unread',
+        (unread || live) && 'unread',
         done && search !== null && 'is-done',
       )}
       onClick={() => on.onOpen?.(call)}
@@ -137,10 +150,10 @@ export function Row({ call, tab, search, segments, isCursor, motion, selected = 
       }}
     >
       <span
-        className={cx('r-dot', call.unread && 'is-unread')}
+        className={cx('r-dot', unread && 'is-unread')}
         role="button"
-        title={`${call.unread ? 'Mark read' : 'Mark unread'} (U)`}
-        aria-label={call.unread ? 'Unread, mark read' : 'Read, mark unread'}
+        title={`${unread ? 'Mark read' : 'Mark unread'} (U)`}
+        aria-label={unread ? 'Unread, mark read' : 'Read, mark unread'}
         onClick={stop(() => on.onToggleUnread(call))}
       >
         <i />
@@ -148,10 +161,15 @@ export function Row({ call, tab, search, segments, isCursor, motion, selected = 
       </span>
       <span className="r-name">
         <span>{highlight(callerName(call, contact), search)}</span>
+        {group && (
+          <span className="r-count" title={`${group.length} calls from this number`}>
+            {group.length}
+          </span>
+        )}
       </span>
       <Summary call={call} search={search} segments={segments} />
       <span className="r-status">
-        <Status call={call} tab={tab} markDone={done && search !== null} />
+        <Status call={call} tab={tab} markDone={done && search !== null} segments={segments} />
       </span>
       <span className="r-dur">{live || !call.duration_sec ? '—' : shortDuration(call.duration_sec)}</span>
       <span className="r-time">

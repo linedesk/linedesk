@@ -1,7 +1,7 @@
 import type { Call } from '@callfront/db/types'
 import { Fragment, useEffect, useRef, type ReactNode } from 'react'
 import type { SegmentsByCall } from '../call/segments.ts'
-import type { InboxTab } from '../inbox-model.ts'
+import type { CallGroups, InboxTab } from '../inbox-model.ts'
 import { dayLabel, parseTs } from '../time.ts'
 import { cx, Icon, Kbd } from '../ui/kit.tsx'
 import type { BulkActions } from './BulkBar.tsx'
@@ -19,6 +19,7 @@ type Props = InboxHeadProps &
     menu?: ReactNode
     selected: ReadonlySet<string>
     bulk: BulkActions
+    groups: CallGroups
   }
 
 const emptyTitle: Record<InboxTab, string> = {
@@ -73,7 +74,7 @@ function Hints({ tab }: { tab: InboxTab }) {
 }
 
 /** The list of calls for one view, grouped by day. */
-export function Inbox({ list, segments, cursor, leaving, entering, menu, selected, bulk, ...rest }: Props) {
+export function Inbox({ list, segments, cursor, leaving, entering, menu, selected, bulk, groups, ...rest }: Props) {
   const { tab, search, counts } = rest
   const listRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -109,6 +110,7 @@ export function Inbox({ list, segments, cursor, leaving, entering, menu, selecte
               segments={segments.get(c.id) ?? []}
               isCursor={cursor === c.id}
               selected={selected.has(c.id)}
+              group={groups.get(c.id)}
               motion={leaving === c.id ? 'leaving' : entering === c.id ? 'entering' : null}
             />
           </Fragment>

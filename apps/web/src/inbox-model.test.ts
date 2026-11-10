@@ -1,17 +1,44 @@
-import type { Call } from '@callfront/db/types'
+import type { Call, TranscriptSegment } from '@callfront/db/types'
 import { describe, expect, it } from 'vitest'
 import { whenLabel } from './time.ts'
-import { countsFor, listFor, resolveCursor, statusLabel, tabOf } from './inbox-model.ts'
+import {
+  answeredByLabel,
+  callStatus,
+  countsFor,
+  groupRepeats,
+  listFor,
+  resolveCursor,
+  statusLabel,
+  tabOf,
+} from './inbox-model.ts'
 
 const now = new Date('2026-11-10T12:00:00Z')
-const call = (over: Partial<Call>) => ({
-  id: 'c', status: 'completed', outcome: 'answered', urgency: 'normal', inbox_state: 'open', reminder_at: null, reminder_label: null,
-  deleted_at: null, started_at: '2026-11-10 10:00:00+00', from_number: '+15035550100', direction: 'in', action_items: [], ...over,
-}) as Call
+const call = (over: Partial<Call>) =>
+  ({
+    id: 'c',
+    status: 'completed',
+    outcome: 'answered',
+    urgency: 'normal',
+    inbox_state: 'open',
+    reminder_at: null,
+    reminder_label: null,
+    deleted_at: null,
+    started_at: '2026-11-10 10:00:00+00',
+    from_number: '+15035550100',
+    direction: 'in',
+    action_items: [],
+    ...over,
+  }) as Call
 
 describe('inbox views', () => {
   it('puts calls where a person has to act in Needs you', () => {
-    for (const c of [call({ status: 'live' }), call({ urgency: 'urgent', outcome: 'booked' }), call({ outcome: 'callback' }), call({ outcome: 'message' }), call({ outcome: 'hangup' })]) {
+    for (const c of [
+      call({ status: 'live' }),
+      call({ urgency: 'urgent', outcome: 'booked' }),
+      call({ outcome: 'callback' }),
+      call({ outcome: 'message' }),
+      call({ outcome: 'hangup' }),
+    ]) {
       expect(tabOf(c, now)).toBe('you')
     }
   })
@@ -44,9 +71,22 @@ describe('order inside a day', () => {
       call({ id: 'new-callback', outcome: 'callback', from_number: '+4', started_at: at(8) }),
       call({ id: 'urgent', outcome: 'booked', urgency: 'urgent', from_number: '+5', started_at: at(7) }),
       call({ id: 'live', status: 'live', outcome: null, from_number: '+6', started_at: at(6) }),
-      call({ id: 'earlier-from-3', outcome: 'answered', inbox_state: 'done', from_number: '+3', started_at: '2026-11-02 09:00:00+00' }),
+      call({
+        id: 'earlier-from-3',
+        outcome: 'answered',
+        inbox_state: 'done',
+        from_number: '+3',
+        started_at: '2026-11-02 09:00:00+00',
+      }),
     ]
-    expect(listFor(calls, 'you', now).map(c => c.id)).toEqual(['live', 'urgent', 'new-callback', 'known-callback', 'message', 'hangup'])
+    expect(listFor(calls, 'you', now).map(c => c.id)).toEqual([
+      'live',
+      'urgent',
+      'new-callback',
+      'known-callback',
+      'message',
+      'hangup',
+    ])
   })
   it('keeps day groups ahead of priority and sorts other views by time only', () => {
     const calls = [
@@ -60,18 +100,71 @@ describe('order inside a day', () => {
   })
 })
 
+const agentSaid = { speaker: 'agent', text: 'Brightwater, this is Maya.', at_ms: 500 } as TranscriptSegment
+const systemLine = { speaker: 'system', text: 'Not answered', at_ms: 0 } as TranscriptSegment
+
+describe('call status', () => {
+  it('tells a missed call (nobody answered) from a hang-up after the greeting', () => {
+    expect(callStatus(call({ outcome: 'hangup' }), [systemLine])).toBe('missed')
+    expect(callStatus(call({ outcome: 'hangup' }), [agentSaid])).toBe('hungUp')
+    expect(callStatus(call({ outcome: 'message' }), [agentSaid])).toBe('answered')
+    expect(callStatus(call({ status: 'live', outcome: null }), [])).toBe('live')
+  })
+  it('says the same in the call header', () => {
+    expect(answeredByLabel(call({ outcome: 'hangup' }), [systemLine], 'Maya')).toBe('Not answered')
+    expect(answeredByLabel(call({ outcome: 'hangup' }), [agentSaid], 'Maya')).toBe('Answered by Maya, caller hung up')
+    expect(answeredByLabel(call({ outcome: 'callback' }), [agentSaid], 'Maya')).toBe('Answered by Maya')
+  })
+})
+
+describe('repeat calls', () => {
+  const at = (hour: number) => `2026-11-10 ${String(hour).padStart(2, '0')}:00:00+00`
+  it('folds hang-ups from one number into one row, the newest', () => {
+    const calls = [1, 2, 3, 4].map(h => call({ id: `h${h}`, outcome: 'hangup', started_at: at(h) }))
+    const { list, groups } = groupRepeats(listFor(calls, 'you', now))
+    expect(list.map(c => c.id)).toEqual(['h4'])
+    expect(groups.get('h4')?.map(c => c.id)).toEqual(['h4', 'h3', 'h2', 'h1'])
+    expect(countsFor(calls, now).you).toBe(1)
+  })
+  it('folds hang-ups into the real call from the same number, and keeps other numbers and real calls apart', () => {
+    const calls = [
+      call({ id: 'leak', outcome: 'callback', started_at: at(8) }),
+      call({ id: 'hang', outcome: 'hangup', started_at: at(9) }),
+      call({ id: 'quote', outcome: 'message', started_at: at(7) }),
+      call({ id: 'other', outcome: 'hangup', from_number: '+15035550199', started_at: at(6) }),
+      call({ id: 'live', status: 'live', outcome: null, started_at: at(10) }),
+    ]
+    const { list, groups } = groupRepeats(listFor(calls, 'you', now))
+    expect(list.map(c => c.id)).toEqual(['live', 'leak', 'quote', 'other'])
+    expect(groups.get('leak')?.map(c => c.id)).toEqual(['leak', 'hang'])
+    expect(groups.size).toBe(1)
+  })
+})
+
 describe('status column', () => {
   const label = (over: Partial<Call>, tab: 'you' | 'ai' = 'you') => statusLabel(call(over), tab, 'Maya', now)
   it('shows what matters most', () => {
-    expect(label({ outcome: 'callback', reminder_at: '2026-11-10T13:00:00.000Z', reminder_label: 'Later today' })).toEqual({ text: whenLabel(new Date('2026-11-10T13:00:00.000Z'), now), tone: 'neutral' }) // the time, not the label it was set with
+    expect(
+      label({ outcome: 'callback', reminder_at: '2026-11-10T13:00:00.000Z', reminder_label: 'Later today' }),
+    ).toEqual({ text: whenLabel(new Date('2026-11-10T13:00:00.000Z'), now), tone: 'neutral' }) // the time, not the label it was set with
     expect(label({ outcome: 'callback', urgency: 'urgent' })).toEqual({ text: 'Urgent callback', tone: 'danger' })
-    expect(label({ outcome: 'hangup' })).toEqual({ text: 'Missed', tone: 'danger' })
+    expect(label({ outcome: 'hangup' })).toEqual({ text: 'Missed', tone: 'danger' }) // nobody answered: no assistant turn
+    expect(statusLabel(call({ outcome: 'hangup' }), 'you', 'Maya', now, [agentSaid])).toEqual({
+      text: 'Hung up',
+      tone: 'quiet',
+    })
+    expect(label({ outcome: 'booked' }, 'ai')).toEqual({ text: 'Resolved by Maya', tone: 'quiet' }) // no booking UI in v1
     expect(label({ outcome: 'spam' })).toEqual({ text: 'Blocked', tone: 'neutral' })
-    expect(label({ outcome: 'callback', action_items: [{ text: 'Call back' }] })).toEqual({ text: 'Call back', tone: 'next' })
+    expect(label({ outcome: 'callback', action_items: [{ text: 'Call back' }] })).toEqual({
+      text: 'Call back',
+      tone: 'next',
+    })
     expect(label({ outcome: 'answered' }, 'ai')).toEqual({ text: 'Resolved by Maya', tone: 'quiet' })
   })
   it('drops the reminder label once the reminder has passed', () => {
-    expect(label({ outcome: 'callback', reminder_at: '2026-11-10 11:00:00+00', reminder_label: 'Later today' }).text).toBe('Follow-up')
+    expect(
+      label({ outcome: 'callback', reminder_at: '2026-11-10 11:00:00+00', reminder_label: 'Later today' }).text,
+    ).toBe('Follow-up')
   })
 })
 
@@ -83,7 +176,12 @@ describe('older days', () => {
       call({ id: 'nov5-hangup', outcome: 'hangup', started_at: '2026-11-05 18:00:00+00' }),
       call({ id: 'nov5-message', outcome: 'message', started_at: '2026-11-05 17:00:00+00' }),
     ]
-    expect(listFor(calls, 'you', now).map(c => c.id)).toEqual(['nov5-message', 'nov5-hangup', 'nov3-urgent', 'nov3-hangup'])
+    expect(listFor(calls, 'you', now).map(c => c.id)).toEqual([
+      'nov5-message',
+      'nov5-hangup',
+      'nov3-urgent',
+      'nov3-hangup',
+    ])
   })
 })
 
@@ -107,9 +205,24 @@ describe('cursor', () => {
 describe('reminders view', () => {
   it('lists reminders by when they come back, soonest first', () => {
     const calls = [
-      call({ id: 'next-week', outcome: 'callback', reminder_at: '2026-11-16T16:00:00.000Z', started_at: '2026-11-10 11:00:00+00' }),
-      call({ id: 'later-today', outcome: 'message', reminder_at: '2026-11-10T15:00:00.000Z', started_at: '2026-11-03 09:00:00+00' }),
-      call({ id: 'tomorrow', outcome: 'booked', reminder_at: '2026-11-11T16:00:00.000Z', started_at: '2026-11-09 09:00:00+00' }),
+      call({
+        id: 'next-week',
+        outcome: 'callback',
+        reminder_at: '2026-11-16T16:00:00.000Z',
+        started_at: '2026-11-10 11:00:00+00',
+      }),
+      call({
+        id: 'later-today',
+        outcome: 'message',
+        reminder_at: '2026-11-10T15:00:00.000Z',
+        started_at: '2026-11-03 09:00:00+00',
+      }),
+      call({
+        id: 'tomorrow',
+        outcome: 'booked',
+        reminder_at: '2026-11-11T16:00:00.000Z',
+        started_at: '2026-11-09 09:00:00+00',
+      }),
       call({ id: 'passed', outcome: 'callback', reminder_at: '2026-11-10T09:00:00.000Z' }),
     ]
     expect(listFor(calls, 'reminders', now).map(c => c.id)).toEqual(['later-today', 'tomorrow', 'next-week'])
