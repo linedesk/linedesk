@@ -65,7 +65,8 @@ export function remindChange(call: Call, option: ReminderOption): Change {
       ['call.remind', { callId: call.id, at: option.at.toISOString(), label: option.label }],
     ],
     inverse: [...restoreReminder(call), ...(wasDone ? [['call.markDone', id(call)] satisfies Step] : [])],
-    label: `Reminder set: ${option.label.toLowerCase()}.`,
+    // "tomorrow morning" reads lowercase in the sentence; a typed time ("Fri 2:00 PM") keeps its form.
+    label: `Reminder set: ${/\d/.test(option.label) ? option.label : option.label.toLowerCase()}.`,
     key: 'H',
   }
 }

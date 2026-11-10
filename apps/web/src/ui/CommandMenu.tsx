@@ -50,6 +50,8 @@ type Props<T extends CommandItem> = {
   onSelect: (item: T, via: SelectVia) => void
   placeholder?: string
   numbered?: boolean
+  /** Items made from what was typed (a reminder time), shown first and never filtered away. */
+  fromQuery?: (query: string) => CommandGroup<T> | null
 }
 
 export function CommandMenu<T extends CommandItem>({
@@ -57,12 +59,14 @@ export function CommandMenu<T extends CommandItem>({
   onSelect,
   placeholder = 'Type a command…',
   numbered,
+  fromQuery,
 }: Props<T>) {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const listId = useId()
   const optionId = (n: number) => `${listId}-${n}`
-  const shown = rank(groups, query)
+  const typed = query.trim() ? fromQuery?.(query) : null
+  const shown = [...(typed?.items.length ? [typed] : []), ...rank(groups, query)]
   const flat = shown.flatMap(g => g.items)
   const index = Math.min(active, Math.max(flat.length - 1, 0))
 

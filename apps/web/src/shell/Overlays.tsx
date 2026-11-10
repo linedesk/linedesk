@@ -1,4 +1,4 @@
-import { reminderOptions, type ReminderOption } from '../inbox/remind.ts'
+import { reminderOptions, type ReminderOption, typedReminder } from '../inbox/remind.ts'
 import { Backdrop } from '../ui/Backdrop.tsx'
 import { CommandMenu, type CommandGroup, type SelectVia } from '../ui/CommandMenu.tsx'
 import type { Command } from './commands.ts'
@@ -22,8 +22,12 @@ export function Overlays({ overlay, commands, onClose, onCommand, onReminder }: 
       {overlay === 'remind' && (
         <CommandMenu
           numbered
-          placeholder="Remind me…"
+          placeholder="Remind me… or type a time: fri 2pm, in 3 hours"
           groups={[{ label: 'Bring this call back', items: reminderOptions() }]}
+          fromQuery={query => {
+            const typed = typedReminder(query)
+            return typed && { label: 'At the time you typed', items: [typed] }
+          }}
           onSelect={onReminder}
         />
       )}

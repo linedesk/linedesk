@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { reminderOptions } from './remind.ts'
+import { reminderOptions, typedReminder } from './remind.ts'
 
 describe('reminder times', () => {
   const tuesdayAfternoon = new Date(2026, 10, 10, 15, 30)
@@ -25,18 +25,33 @@ describe('reminder edge cases', () => {
     expect(at(new Date(2028, 0, 31, 10), 'In a month')).toEqual(new Date(2028, 1, 29, 8)) // leap year
     expect(at(new Date(2026, 11, 15, 10), 'In a month')).toEqual(new Date(2027, 0, 15, 8))
   })
-  it('does not offer "Later today" once that would be tomorrow', () => {
-    expect(at(new Date(2026, 10, 10, 20, 59), 'Later today')).toEqual(new Date(2026, 10, 10, 23, 59))
+  it('does not offer "Later today" once that would be the evening (7 pm or later) or tomorrow', () => {
+    expect(at(new Date(2026, 10, 10, 15, 59), 'Later today')).toEqual(new Date(2026, 10, 10, 18, 59))
+    expect(at(new Date(2026, 10, 10, 16, 0), 'Later today')).toBeUndefined()
     expect(at(new Date(2026, 10, 10, 21, 0), 'Later today')).toBeUndefined()
-    expect(reminderOptions(new Date(2026, 10, 10, 22)).map(o => o.label)).toEqual(['Tomorrow morning', 'In two days', 'Next week', 'In a month'])
+    expect(reminderOptions(new Date(2026, 10, 10, 22)).map(o => o.label)).toEqual([
+      'Tomorrow morning',
+      'In two days',
+      'Next week',
+      'In a month',
+    ])
   })
 })
 
 describe('reminder menu', () => {
+  it('turns a typed time into a reminder, and anything else into nothing', () => {
+    const now = new Date(2026, 10, 10, 15, 30)
+    expect(typedReminder('fri 2pm', now)).toMatchObject({ label: 'Fri 2:00 PM', at: new Date(2026, 10, 13, 14) })
+    expect(typedReminder('later', now)).toBeNull()
+  })
   it('shows the actual time next to each label', () => {
     const options = reminderOptions(new Date(2026, 10, 10, 15, 30))
     expect(options.map(o => [o.label, o.hint])).toEqual([
-      ['Later today', 'Today 6:30 PM'], ['Tomorrow morning', 'Tomorrow 8:00 AM'], ['In two days', 'Thu 8:00 AM'], ['Next week', 'Mon 8:00 AM'], ['In a month', 'Dec 10, 8:00 AM'],
+      ['Later today', 'Today 6:30 PM'],
+      ['Tomorrow morning', 'Tomorrow 8:00 AM'],
+      ['In two days', 'Thu 8:00 AM'],
+      ['Next week', 'Mon 8:00 AM'],
+      ['In a month', 'Dec 10, 8:00 AM'],
     ])
   })
 })
