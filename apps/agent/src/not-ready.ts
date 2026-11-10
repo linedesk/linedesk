@@ -48,7 +48,7 @@ export async function declineCall(
 ) {
   console.warn(`call ${call.callId} not answered: ${readiness.reason}`)
   const logged = (async () => {
-    await call.append('system', 'Not answered')
+    await call.append('system', 'Missed')
     await withRetry(() => call.finish(missedResult), retry)
   })().catch(e => console.error(`could not log missed call ${call.callId}: ${e instanceof Error ? e.message : e}`))
   await Promise.all([logged, hangUp().catch(() => {})])

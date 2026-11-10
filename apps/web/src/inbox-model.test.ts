@@ -101,7 +101,7 @@ describe('order inside a day', () => {
 })
 
 const agentSaid = { speaker: 'agent', text: 'Brightwater, this is Maya.', at_ms: 500 } as TranscriptSegment
-const systemLine = { speaker: 'system', text: 'Not answered', at_ms: 0 } as TranscriptSegment
+const systemLine = { speaker: 'system', text: 'Missed', at_ms: 0 } as TranscriptSegment
 
 describe('call status', () => {
   it('tells a missed call (nobody answered) from a hang-up after the greeting', () => {
@@ -111,7 +111,7 @@ describe('call status', () => {
     expect(callStatus(call({ status: 'live', outcome: null }), [])).toBe('live')
   })
   it('says the same in the call header', () => {
-    expect(answeredByLabel(call({ outcome: 'hangup' }), [systemLine], 'Maya')).toBe('Not answered')
+    expect(answeredByLabel(call({ outcome: 'hangup' }), [systemLine], 'Maya')).toBe('Missed')
     expect(answeredByLabel(call({ outcome: 'hangup' }), [agentSaid], 'Maya')).toBe('Answered by Maya, caller hung up')
     expect(answeredByLabel(call({ outcome: 'callback' }), [agentSaid], 'Maya')).toBe('Answered by Maya')
   })

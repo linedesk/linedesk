@@ -54,7 +54,7 @@ test('a call that cannot be answered is logged as missed, naming what is missing
   const hangUp = vi.fn(async () => {})
   const readiness = { reason: 'Missing environment variable: ELEVENLABS_API_KEY.', stages: ['voice' as const] }
   await declineCall(call, readiness, hangUp, { wait: async () => {} })
-  expect(call.append).toHaveBeenCalledWith('system', 'Not answered')
+  expect(call.append).toHaveBeenCalledWith('system', 'Missed')
   expect(call.finish).toHaveBeenCalledWith({
     outcome: 'hangup',
     title: 'Missed call',

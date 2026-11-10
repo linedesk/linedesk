@@ -823,6 +823,9 @@ a.k-btn {
   text-align: center;
 }
 
+.ib-tab-short {
+  display: none;
+}
 /* Assistant status in the inbox header: green only while calls are really answered, grey otherwise. */
 .ib-maya.is-off .ib-dot {
   background: var(--line-control);
@@ -854,6 +857,19 @@ a.k-btn {
   .cv > .ib-head .ib-tabs {
     flex: 1 1 auto;
     min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .cv > .ib-head .ib-tab {
+    flex: none;
+  }
+  /* Short view names, so the three views fit next to the status. */
+  .ib-tab-long {
+    display: none;
+  }
+  .ib-tab-short {
+    display: inline;
   }
   .cv > .ib-head .ib-right {
     flex: none;

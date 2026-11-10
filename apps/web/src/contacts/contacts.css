@@ -31,6 +31,20 @@
 .cust-main .ib-list {
   overflow: auto;
 }
+/* An open contact or New contact takes room on the right only: rows keep their left edge, under
+   the header's search, and get narrower instead of jumping to the window's edge. */
+@media (min-width: 720px) {
+  .cust-main {
+    container-type: inline-size;
+  }
+  .cust-main.has-rec .ib-list .row.cust-row.ct-row,
+  .cust-main.has-rec .ib-list .ib-day {
+    width: auto;
+    max-width: none;
+    margin-left: max(0px, calc((100cqw - var(--w-list)) / 2));
+    margin-right: 0;
+  }
+}
 
 @media (max-width: 719px) {
   .row.cust-row.ct-row {

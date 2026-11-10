@@ -56,9 +56,9 @@ function SearchBar({
 
 function Tabs({ tab, setTab, counts }: Pick<InboxHeadProps, 'tab' | 'setTab' | 'counts'>) {
   const assistant = useAssistantName()
-  const info: Record<(typeof splits)[number], [label: string, description: string]> = {
+  const info: Record<(typeof splits)[number], [label: string, description: string, short?: string]> = {
     you: ['Needs you', 'Calls where someone has to act'],
-    ai: [`Handled by ${assistant}`, `${assistant} resolved these on their own`],
+    ai: [`Handled by ${assistant}`, `${assistant} resolved these on their own`, 'Handled'],
     spam: ['Spam', 'Blocked sales calls and robocalls'],
   }
   return (
@@ -74,7 +74,14 @@ function Tabs({ tab, setTab, counts }: Pick<InboxHeadProps, 'tab' | 'setTab' | '
           title={`${info[id][0]} (${i + 1})`}
           onClick={() => setTab(id)}
         >
-          {info[id][0]}
+          {info[id][2] ? (
+            <>
+              <span className="ib-tab-long">{info[id][0]}</span>
+              <span className="ib-tab-short">{info[id][2]}</span>
+            </>
+          ) : (
+            info[id][0]
+          )}
           {counts[id] ? <span className="n">{counts[id]}</span> : null}
         </button>
       ))}

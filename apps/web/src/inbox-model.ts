@@ -120,10 +120,13 @@ export function callStatus(call: Call, segments: TranscriptSegment[]): CallStatu
   return segments.some(s => s.speaker === 'agent' || s.speaker === 'human') ? 'hungUp' : 'missed'
 }
 
+/** One word per status, the same in the row, the call header and in place of the transcript. */
+export const STATUS_WORD = { missed: 'Missed', hungUp: 'Hung up' } as const
+
 /** The call header's "who answered" part. */
 export function answeredByLabel(call: Call, segments: TranscriptSegment[], assistant: string): string {
   const status = callStatus(call, segments)
-  if (status === 'missed') return 'Not answered'
+  if (status === 'missed') return STATUS_WORD.missed
   if (status === 'spam') return `Blocked by ${assistant}`
   if (status === 'outbound') return `Outbound call by ${assistant}`
   const who = call.answered_by === 'human' ? 'the team' : assistant
@@ -157,8 +160,8 @@ export function statusLabel(
   if (call.outcome === 'transferred') return { text: 'Transferred', tone: 'info' }
   if (call.outcome === 'hangup')
     return callStatus(call, segments) === 'hungUp'
-      ? { text: 'Hung up', tone: 'quiet' }
-      : { text: 'Missed', tone: 'danger' }
+      ? { text: STATUS_WORD.hungUp, tone: 'quiet' }
+      : { text: STATUS_WORD.missed, tone: 'danger' }
   if (call.outcome === 'spam') return { text: 'Blocked', tone: 'neutral' }
   if (next && tab === 'you') return { text: next, tone: 'next' }
   if (call.direction === 'out') return { text: 'Outbound', tone: 'quiet' }

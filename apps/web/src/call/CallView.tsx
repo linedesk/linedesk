@@ -1,6 +1,6 @@
 import type { Call, TranscriptSegment } from '@callfront/db/types'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { answeredByLabel, type CallStatus, callStatus, callTitle, formatPhone, hasReminder } from '../inbox-model.ts'
+import { answeredByLabel, type CallStatus, callStatus, callTitle, formatPhone, hasReminder, STATUS_WORD } from '../inbox-model.ts'
 import { useAssistantName, useContact } from '../store.tsx'
 import { clock, dateTimeLabel, longDuration, parseTs, whenLabel } from '../time.ts'
 import { Button, Icon } from '../ui/kit.tsx'
@@ -201,9 +201,9 @@ function Header({ call, segments, repeatCount }: { call: Call; segments: Transcr
 function NoConversation({ status }: { status: CallStatus }) {
   const [title, text] =
     status === 'missed'
-      ? ['Not answered', 'Nobody picked up this call, so there is no conversation.']
+      ? [STATUS_WORD.missed, 'Nobody picked up this call, so there is no conversation.']
       : status === 'hungUp'
-        ? ['Hung up', 'The caller hung up without saying anything.']
+        ? [STATUS_WORD.hungUp, 'The caller hung up without saying anything.']
         : ['No transcript', 'There is no transcript for this call.']
   return (
     <div className="empty">
