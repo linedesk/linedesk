@@ -10,8 +10,11 @@ export type KeyContext = {
   overlay: Overlay
   tab: InboxTab
   searching: boolean
-  /** The call under the cursor. */
+  /** The open call, else the call under the cursor. */
   target: Call | undefined
+  isCallOpen: boolean
+  open: (call: Call) => void
+  back: () => void
   closeOverlay: () => void
   openSearch: () => void
   closeSearch: () => void
@@ -36,6 +39,7 @@ function onEscape(el: HTMLElement, c: KeyContext) {
   if (c.overlay) return c.closeOverlay()
   if (el.id === SEARCH_INPUT_ID) { el.blur(); return c.closeSearch() }
   if (isTyping(el)) return el.blur()
+  if (c.isCallOpen) return c.back()
   if (c.searching) return c.closeSearch()
   if (!splits.includes(c.tab as never)) c.setTab('you')
 }
@@ -64,10 +68,12 @@ export function handleKey(e: KeyboardEvent, c: KeyContext): boolean {
   if (Date.now() < chordUntil) { chordUntil = 0; return c.goChord(k.toLowerCase()) }
   if (k === 'g' || k === 'G') { chordUntil = Date.now() + CHORD_MS; return true }
   if (k === '/') c.openSearch()
-  else if (k === 'j' || k === 'J' || k === 'ArrowDown') c.step(1)
-  else if (k === 'k' || k === 'K' || k === 'ArrowUp') c.step(-1)
+  else if (k === 'j' || k === 'J') c.step(1)
+  else if (k === 'k' || k === 'K') c.step(-1)
+  else if ((k === 'ArrowDown' || k === 'ArrowUp') && !c.isCallOpen) c.step(k === 'ArrowDown' ? 1 : -1) // arrows scroll an open call
+  else if ((k === 'Enter' || k === 'o') && !c.isCallOpen && c.target) c.open(c.target)
   else if (k === 'Tab') c.setTab(nextSplit(c.tab, e.shiftKey))
-  else if (viewByKey[k]) c.setTab(viewByKey[k])
+  else if (viewByKey[k] && !c.isCallOpen) c.setTab(viewByKey[k])
   else if (k === 'z') c.undo()
   else return c.target ? onCallKey(k, c.target, c) : false
   return true

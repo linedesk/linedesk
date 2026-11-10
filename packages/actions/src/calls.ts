@@ -30,6 +30,14 @@ export const callRemind = defineAction({
   patch: { table: 'calls', id: i => i.callId, set: i => ({ reminder_at: i.at, reminder_label: i.label ?? null }) },
 })
 
+export const callSetActionItems = defineAction({
+  name: 'call.setActionItems',
+  description: 'Replace the next steps of a call, for example to tick one off.',
+  input: callId.extend({ items: z.array(z.object({ text: z.string().min(1), done: z.boolean().optional() })) }),
+  permission: 'call:write',
+  patch: { table: 'calls', id: i => i.callId, set: i => ({ action_items: i.items }) },
+})
+
 // Written by the voice agent (and the dev simulator). Server handlers live in apps/api.
 const speaker = z.enum(['agent', 'caller', 'human', 'system'])
 export const outcome = z.enum(['booked', 'rescheduled', 'cancelled', 'callback', 'message', 'answered', 'transferred', 'hangup', 'spam'])

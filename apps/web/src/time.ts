@@ -23,9 +23,23 @@ export function shortDuration(seconds: number): string {
   return m ? `${m}m${s ? ` ${s}s` : ''}` : `${s}s`
 }
 
+/** "1 min 20 sec" for the call header. */
+export function longDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60), s = Math.round(seconds % 60)
+  return m ? `${m} min${s ? ` ${s} sec` : ''}` : `${s} sec`
+}
+
 /** "01:20" for clocks and transcript times. */
 export function clock(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds))
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`
+}
+
+/** "10:23 AM", "Yesterday 10:23 AM" or "Nov 8, 10:23 AM" for the call header. */
+export function dateTimeLabel(date: Date, now = new Date()): string {
+  const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  const day = dayLabel(date, now)
+  if (day === 'Today') return time
+  return day === 'Yesterday' ? `Yesterday ${time}` : `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${time}`
 }

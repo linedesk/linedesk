@@ -4,7 +4,7 @@ import { handleKey, type KeyContext } from './keys.ts'
 
 const call = { id: 'c1' } as Call
 const context = (over: Partial<KeyContext> = {}) => ({
-  overlay: null, tab: 'you', searching: false, target: call,
+  overlay: null, tab: 'you', searching: false, target: call, isCallOpen: false, open: vi.fn(), back: vi.fn(),
   closeOverlay: vi.fn(), openSearch: vi.fn(), closeSearch: vi.fn(), setTab: vi.fn(), step: vi.fn(), goChord: vi.fn(() => true),
   markDone: vi.fn(), markNotDone: vi.fn(), toggleUnread: vi.fn(), remove: vi.fn(), openRemind: vi.fn(), clearReminder: vi.fn(), undo: vi.fn(),
   ...over,
@@ -64,5 +64,27 @@ describe('inbox keys', () => {
     expect(overlay.closeOverlay).toHaveBeenCalled()
     expect(searching.closeSearch).toHaveBeenCalled()
     expect(mode.setTab).toHaveBeenCalledWith('you')
+  })
+})
+
+describe('call view keys', () => {
+  it('opens the selected call with Enter or O', () => {
+    const c = context()
+    press('Enter', c); press('o', c)
+    expect(c.open).toHaveBeenCalledTimes(2)
+  })
+  it('steps with J and K but leaves the arrows for scrolling, and Escape goes back', () => {
+    const c = context({ isCallOpen: true })
+    press('j', c); press('k', c)
+    expect(press('ArrowDown', c)).toBe(false)
+    press('Escape', c)
+    expect(vi.mocked(c.step).mock.calls).toEqual([[1], [-1]])
+    expect(c.back).toHaveBeenCalled()
+    expect(c.open).not.toHaveBeenCalled()
+  })
+  it('keeps the view while a call is open', () => {
+    const c = context({ isCallOpen: true })
+    press('2', c)
+    expect(c.setTab).not.toHaveBeenCalled()
   })
 })

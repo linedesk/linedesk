@@ -23,3 +23,9 @@ html, body, #root { height: 100%; }
 /* The backdrop's click target sits behind the panel. */
 .overlay-dismiss { position: absolute; inset: 0; border: 0; padding: 0; background: none; cursor: default; }
 .overlay > :not(.overlay-dismiss) { position: relative; }
+
+/* Contact facts edit in place: they read as text until hovered or focused. */
+.fact-input { width: 100%; margin: -2px -4px; padding: 2px 4px; border: 0; border-radius: var(--radius-xs); background: transparent; font: inherit; color: inherit; resize: none; box-sizing: content-box; }
+.fact-input::placeholder { color: var(--ink-disabled); opacity: 1; }
+.fact-input:hover { background: var(--surface-hover); }
+.fact-input:focus { outline: none; background: var(--surface); box-shadow: 0 0 0 1px var(--focus); }

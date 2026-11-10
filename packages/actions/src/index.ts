@@ -10,7 +10,7 @@ export * from './settings.ts'
 
 const all = [
   calls.callMarkDone, calls.callMarkNotDone, calls.callMarkRead, calls.callMarkUnread, calls.callRemind,
-  calls.callClearReminder, calls.callDelete, calls.callRestore,
+  calls.callClearReminder, calls.callDelete, calls.callRestore, calls.callSetActionItems,
   calls.callStart, calls.callAppendTranscript, calls.callFinish,
   settings.contactUpdate, settings.assistantUpdate,
   calendar.calendarFindSlots,

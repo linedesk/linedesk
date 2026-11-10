@@ -38,3 +38,9 @@ export function Button({ variant = 'secondary', size = 'md', icon, shortcut, cla
 export function Badge({ tone = 'neutral', dot, children }: { tone?: 'neutral' | 'danger' | 'info'; dot?: boolean; children: ReactNode }) {
   return <span className={cx('k-badge', `k-badge-${tone}`, dot && 'k-badge-dot')}>{children}</span>
 }
+
+const initials = (name: string) => name.split(/[\s&]+/).filter(Boolean).slice(0, 2).map(w => w[0]!.toUpperCase()).join('')
+
+export function Avatar({ name, size = 32 }: { name: string; size?: 24 | 32 | 40 }) {
+  return <span className={cx('k-avatar', `k-avatar-${size}`)} role="img" aria-label={name}>{initials(name) || '?'}</span>
+}

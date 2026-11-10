@@ -2,6 +2,8 @@
 import type { Call } from '@callfront/db/types'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { auth, type Me } from './auth.ts'
+import { CallView } from './call/CallView.tsx'
+import { CustomerSide } from './call/CustomerSide.tsx'
 import { useSegmentsByCall } from './call/segments.ts'
 import { Inbox } from './inbox/Inbox.tsx'
 import { SEARCH_INPUT_ID } from './inbox/InboxHead.tsx'
@@ -9,12 +11,12 @@ import { reminderOptions, type ReminderOption } from './inbox/remind.ts'
 import { matchesSearch } from './inbox/search.tsx'
 import { useCallActions } from './inbox/useCallActions.ts'
 import { useCursor } from './inbox/useCursor.ts'
-import { countsFor, listFor, sortForList, type InboxTab } from './inbox-model.ts'
+import { countsFor, listFor, sortForList, tabOf, type InboxTab } from './inbox-model.ts'
 import { handleKey, type KeyContext, type Overlay } from './shell/keys.ts'
 import { Toast } from './shell/Toast.tsx'
 import { useNow } from './shell/useNow.ts'
 import { useToast, type Source } from './shell/useToast.ts'
-import { localDbName, useAssistantName, useRejection, useRows, useSnapshot } from './store.tsx'
+import { localDbName, useAssistantName, useRejection, useRows, useRun, useSnapshot } from './store.tsx'
 import { Backdrop } from './ui/Backdrop.tsx'
 import { CommandMenu } from './ui/CommandMenu.tsx'
 import { Button } from './ui/kit.tsx'
@@ -30,7 +32,9 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   const toaster = useToast()
   const [tab, setTabState] = useState<InboxTab>('you')
   const [search, setSearch] = useState<string | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
   const [overlay, setOverlay] = useState<Overlay>(null)
+  const run = useRun()
   const remindFor = useRef<{ call: Call; source: Source } | null>(null)
 
   const list = useMemo(() => {
@@ -40,17 +44,29 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   }, [calls, contacts, segments, assistantName, tab, search, now])
   const counts = useMemo(() => countsFor(calls, now), [calls, now])
   const [cursorId, setCursor] = useCursor(list)
-  const target = list.find(c => c.id === cursorId)
-  const liveCall = calls.find(c => c.status === 'live' && !c.deleted_at)
+  const openCall = openId ? calls.find(c => c.id === openId && !c.deleted_at) : undefined
+  const target = openCall ?? list.find(c => c.id === cursorId)
+  const liveCall = useMemo(() => listFor(calls, 'you', now).find(c => c.status === 'live'), [calls, now]) // newest live call
 
-  const setTab = (next: InboxTab) => { setTabState(next); setSearch(null); setCursor(null) }
-  const actions = useCallActions({ list, tab, searching: search !== null, openId: null, setTab: setTabState, setCursor, setOpenId: () => {}, toaster })
+  const setTab = (next: InboxTab) => { setTabState(next); setSearch(null); setCursor(null); setOpenId(null) }
+  const actions = useCallActions({ list, tab, searching: search !== null, openId: openCall?.id ?? null, setTab: setTabState, setCursor, setOpenId, toaster })
 
+  /** Open a call full width. Opening marks it read and shows the view it lives in. */
+  function open(call: Call) {
+    setOpenId(call.id)
+    setCursor(call.id)
+    setOverlay(null)
+    if (call.unread) void run('call.markRead', { callId: call.id })
+    if (search === null && tabOf(call) !== tab) setTabState(tabOf(call))
+  }
   function step(by: number) {
     const i = target ? list.indexOf(target) : -1
-    setCursor(list[Math.max(0, Math.min(list.length - 1, i + by))]?.id ?? null)
+    const next = list[Math.max(0, Math.min(list.length - 1, i + by))]
+    if (next && openCall) open(next)
+    else setCursor(next?.id ?? null)
   }
   function openSearch() {
+    setOpenId(null)
     setSearch(s => s ?? '')
     setTimeout(() => { const el = document.getElementById(SEARCH_INPUT_ID) as HTMLInputElement | null; el?.focus(); el?.select() }, 0)
   }
@@ -68,7 +84,8 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   const toggleDone = (call: Call) => (call.inbox_state === 'done' ? actions.markNotDone(call) : actions.markDone(call))
 
   const keys: KeyContext = {
-    overlay, tab, searching: search !== null, target, step, setTab, openSearch, closeSearch, openRemind,
+    overlay, tab, searching: search !== null, target, step, setTab, openSearch, closeSearch, openRemind, open,
+    isCallOpen: !!openCall, back: () => setOpenId(null),
     closeOverlay: () => setOverlay(null),
     goChord: key => { const to = chordTabs[key]; if (to) setTab(to); return !!to },
     markDone: actions.markDone, markNotDone: actions.markNotDone, toggleUnread: actions.toggleUnread,
@@ -98,12 +115,19 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   return (
     <div className="app">
       <main className="main">
-        <Inbox list={list} segments={segments} cursor={target?.id ?? null} leaving={actions.leaving} entering={actions.entering}
-          tab={tab} setTab={setTab} counts={counts} liveCall={liveCall}
-          search={search} onSearch={openSearch} onSearchChange={q => { setSearch(q); setCursor(null) }} onSearchClose={closeSearch}
-          onHover={c => setCursor(c.id)} onToggleDone={toggleDone} onToggleUnread={actions.toggleUnread}
-          onRemind={openRemind} onClearReminder={actions.clearReminder}
-          menu={<Button size="sm" variant="ghost" onClick={signOut}>Sign out</Button>} />
+        {openCall ? (
+          <CallView key={openCall.id} call={openCall} segments={segments.get(openCall.id) ?? []} index={list.indexOf(openCall)} count={list.length} search={search}
+            onBack={() => setOpenId(null)} onStep={step} onDone={actions.markDone} onNotDone={actions.markNotDone}
+            onRemind={openRemind} onClearReminder={actions.clearReminder}
+            side={<CustomerSide call={openCall} onOpen={open} toast={toaster.show} />} />
+        ) : (
+          <Inbox list={list} segments={segments} cursor={target?.id ?? null} leaving={actions.leaving} entering={actions.entering}
+            tab={tab} setTab={setTab} counts={counts} liveCall={liveCall} onOpen={open}
+            search={search} onSearch={openSearch} onSearchChange={q => { setSearch(q); setCursor(null) }} onSearchClose={closeSearch}
+            onHover={c => setCursor(c.id)} onToggleDone={toggleDone} onToggleUnread={actions.toggleUnread}
+            onRemind={openRemind} onClearReminder={actions.clearReminder}
+            menu={<Button size="sm" variant="ghost" onClick={signOut}>Sign out</Button>} />
+        )}
       </main>
       {overlay === 'remind' && (
         <Backdrop onClose={() => setOverlay(null)}>
