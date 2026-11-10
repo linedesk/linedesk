@@ -1,0 +1,73 @@
+// The Account page's calls. Everything goes to Better Auth: its client, or the one server-only
+// method (set a first password) through POST /v1/account/password.
+import { auth, type AuthMethods, fetchAuthMethods } from '../../auth.ts'
+import { describeDevice, type LinkedAccount, type SessionRow } from './account-model.ts'
+
+type Result<T> = { data: T | null; error: { message?: string; code?: string; status?: number } | null }
+
+/** The server wants a recent sign-in before it does this; the page offers "Sign in again". */
+export class SignInAgain extends Error {}
+
+function unwrap<T>(result: Result<T>, fallback: string): T {
+  if (result.error?.code === 'SESSION_NOT_FRESH') throw new SignInAgain('Sign in again to do this.')
+  if (result.error || result.data === null) throw new Error(result.error?.message || fallback)
+  return result.data
+}
+
+export type Account = { user: { name: string; email: string }; accounts: LinkedAccount[]; methods: AuthMethods }
+
+export async function loadAccount(): Promise<Account> {
+  const [session, accounts, methods] = await Promise.all([auth.getSession(), auth.listAccounts(), fetchAuthMethods()])
+  const current = unwrap(session, 'You are signed out.')
+  return {
+    user: { name: current.user.name, email: current.user.email },
+    accounts: unwrap(accounts, 'Could not load your sign-in methods.'),
+    methods,
+  }
+}
+
+// Better Auth lists sessions with their tokens, and signing one out needs its token. The tokens
+// stay in this module, keyed by session id, and never reach the page's state.
+let tokens = new Map<string, string>()
+
+/** The member's sessions. Throws SignInAgain when this session is older than a day (Better Auth's rule). */
+export async function loadSessions(): Promise<SessionRow[]> {
+  const [current, sessions] = await Promise.all([auth.getSession(), auth.listSessions()])
+  const list = unwrap(sessions, 'Could not load your sessions.')
+  const currentToken = current.data?.session.token
+  tokens = new Map(list.map(s => [s.id, s.token]))
+  return list.map(s => ({ id: s.id, device: describeDevice(s.userAgent), lastActive: new Date(s.updatedAt), current: s.token === currentToken }))
+}
+
+export async function changeName(name: string) {
+  unwrap(await auth.updateUser({ name }), 'Could not save your name.')
+}
+
+/** Changes the password and signs every other session out. */
+export async function changePassword(currentPassword: string, newPassword: string) {
+  unwrap(await auth.changePassword({ currentPassword, newPassword, revokeOtherSessions: true }), 'Could not change your password.')
+}
+
+/** For a member without a password. The server asks for a sign-in in the last few minutes. */
+export async function setFirstPassword(newPassword: string) {
+  const res = await fetch('/v1/account/password', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ newPassword }),
+  })
+  if (res.ok) return
+  const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string }
+  if (body.code === 'SIGN_IN_AGAIN') throw new SignInAgain(body.error ?? 'Sign in again to set a password.')
+  throw new Error(body.error ?? 'Could not set your password.')
+}
+
+export async function signOutSession(id: string) {
+  const token = tokens.get(id)
+  if (!token) throw new Error('That session is no longer there.')
+  unwrap(await auth.revokeSession({ token }), 'Could not sign that session out.')
+}
+
+export async function signOutOtherSessions() {
+  unwrap(await auth.revokeOtherSessions(), 'Could not sign the other sessions out.')
+}

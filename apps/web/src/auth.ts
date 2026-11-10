@@ -5,7 +5,8 @@ import { createAuthClient } from 'better-auth/react'
 export type { AuthMethods, SsoMethod }
 
 export const auth = createAuthClient({
-  baseURL: window.location.origin,
+  // Same origin as the page (the API is proxied). Not read at import time, so tests can load this module without a browser.
+  baseURL: typeof window === 'undefined' ? undefined : window.location.origin,
   plugins: [organizationClient(), magicLinkClient()],
 })
 
@@ -44,7 +45,8 @@ export async function createWorkspace(name: string) {
 }
 
 /** Where the API sends the browser back to: errors arrive as `?error=CODE` on the sign-in screen. */
-const back = () => ({ callbackURL: window.location.origin, errorCallbackURL: window.location.origin })
+// A successful sign-in returns to the page it started from (`#account` after "Sign in again").
+const back = () => ({ callbackURL: window.location.origin + window.location.pathname + window.location.hash, errorCallbackURL: window.location.origin })
 
 export function requestSignInLink(email: string) {
   return auth.signIn.magicLink({ email, ...back() })
@@ -70,4 +72,10 @@ export function takeRedirectError(): string | null {
   url.searchParams.delete('error_description')
   window.history.replaceState(null, '', url)
   return redirectErrors[code] ?? `Sign-in did not work (${code.replaceAll('_', ' ').toLowerCase()}). Try again.`
+}
+
+/** Ends this session and shows the sign-in screen; signing in comes back to the same page. */
+export async function signInAgain() {
+  await auth.signOut()
+  window.location.reload()
 }

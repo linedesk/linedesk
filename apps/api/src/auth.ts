@@ -9,6 +9,9 @@ import { createRateLimiter } from './rate-limit.ts'
 
 const { google, microsoft, oidc, trustedProviders, methods } = authConfig
 
+/** Where the web app is served from; the only origin browser requests are accepted from. */
+export const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
+
 /** A member can create this many workspaces. */
 export const WORKSPACE_LIMIT = 5
 
@@ -31,7 +34,7 @@ export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: 'pg' }),
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
-  trustedOrigins: [process.env.WEB_ORIGIN ?? 'http://localhost:5173'],
+  trustedOrigins: [WEB_ORIGIN],
   emailAndPassword: { enabled: methods.password },
   socialProviders: {
     ...(google && { google }),

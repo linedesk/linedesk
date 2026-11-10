@@ -3,6 +3,7 @@ import { assistants, organization, tableNames, type TableName } from '@callfront
 import { APIError } from 'better-auth/api'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
+import { setFirstPassword } from './account.ts'
 import { authMethods } from './auth-methods.ts'
 import { auth, WORKSPACE_LIMIT } from './auth.ts'
 import { resolveActor, type Actor } from './context.ts'
@@ -56,6 +57,9 @@ app.post('/v1/workspaces', async c => {
   await auth.api.setActiveOrganization({ body: { organizationId: org.id }, headers }).catch(err => console.error('set active workspace failed', err))
   return c.json({ ok: true, workspace: { id: org.id, name: org.name } })
 })
+
+// Before the workspace guard: a member without a workspace has an account too.
+app.post('/v1/account/password', setFirstPassword)
 
 app.use('/v1/*', async (c, next) => {
   const actor = await resolveActor(c.req.raw.headers)

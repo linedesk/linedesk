@@ -4,6 +4,9 @@ import { app } from '../src/app.ts'
 import { auth, WORKSPACE_LIMIT } from '../src/auth.ts'
 import { randomIp, request, signUp } from './helpers.ts'
 
+// Several password hashes or workspaces in one test: slow when the files run in parallel.
+const SLOW = 30_000
+
 const ORIGIN = 'http://localhost:5173'
 
 function signIn(ip: string) {
@@ -26,7 +29,7 @@ describe('auth rate limiting', () => {
     for (let i = 0; i < 4; i++) statuses.push((await signIn(ip)).status)
     expect(statuses).toEqual([401, 401, 401, 429])
     expect((await signIn(randomIp())).status).toBe(401)
-  })
+  }, SLOW)
 })
 
 describe('account linking', () => {
@@ -44,7 +47,7 @@ describe('POST /v1/workspaces', () => {
     const refused = await request(user, 'POST', '/v1/workspaces', { name: 'One too many' })
     expect(refused.status).toBe(403)
     expect(refused.body).toEqual({ ok: false, error: `You can create up to ${WORKSPACE_LIMIT} workspaces.` })
-  })
+  }, SLOW)
 
   test('refuses a name that is not text or is too long', async () => {
     const user = await signUp()
