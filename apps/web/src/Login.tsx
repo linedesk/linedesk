@@ -12,7 +12,8 @@ const fail = (res: Result) => {
   if (res.error) throw new Error(authErrorMessage(res.error))
 }
 
-export function Login({ onDone }: { onDone: () => void }) {
+/** `onDone` resolves once the app has loaded the account, so the form keeps its busy state until the app replaces it. */
+export function Login({ onDone }: { onDone: () => Promise<void> }) {
   const [methods, setMethods] = useState<AuthMethods | null>(null)
   const [step, setStep] = useState<Step>('email')
   const [form, setForm] = useState({ name: '', email: '', password: '' })
@@ -48,11 +49,11 @@ export function Login({ onDone }: { onDone: () => void }) {
     },
     password: async () => {
       fail(await auth.signIn.email({ email: form.email, password: form.password }))
-      onDone()
+      await onDone()
     },
     signUp: async () => {
       fail(await auth.signUp.email({ name: form.name, email: form.email, password: form.password }))
-      onDone()
+      await onDone()
     },
   }
 
@@ -108,7 +109,7 @@ export function Login({ onDone }: { onDone: () => void }) {
         {error && <div className="auth-error" role="alert">{error}</div>}
         {withEmail && (
           <button type="submit" className="k-btn k-btn-primary" disabled={busy}>
-            {step === 'email' ? 'Email me a code' : step === 'signUp' ? 'Create account' : 'Sign in'}
+            {step === 'email' ? (busy ? 'Sending…' : 'Email me a code') : step === 'signUp' ? (busy ? 'Creating account…' : 'Create account') : busy ? 'Signing in…' : 'Sign in'}
           </button>
         )}
         <LoginSwitches step={step} methods={methods} onStep={s => { setStep(s); setError(null) }} />
@@ -129,13 +130,14 @@ function LegalFooter({ links }: { links: LegalLinks }) {
   return <nav className="auth-legal" aria-label="Legal and help">{items}</nav>
 }
 
-type CodeStepProps = { email: string; onDone: () => void; onDifferentEmail: () => void }
+type CodeStepProps = { email: string; onDone: () => Promise<void>; onDifferentEmail: () => void }
 
 /** One field for the six digits: typing, pasting the whole code or the OS's one-time-code fill all work; the sixth digit submits. */
 export function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [signedIn, setSignedIn] = useState(false)
   const [waitS, setWaitS] = useState(RESEND_AFTER_S)
   const input = useRef<HTMLInputElement>(null)
 
@@ -149,8 +151,12 @@ export function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
     setBusy(true)
     setError(null)
     const res = await signInWithCode(email, value)
+    if (!res.error) {
+      // Stay on "Signing in…" until the app has the account and replaces this page: no flash of the form.
+      setSignedIn(true)
+      return onDone()
+    }
     setBusy(false)
-    if (!res.error) return onDone()
     setError(codeErrorMessage(res.error))
     setCode('')
     input.current?.focus()
@@ -184,7 +190,7 @@ export function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
         </label>
         {error && <div className="auth-error" role="alert" id="code-error">{error}</div>}
         <button type="submit" className="k-btn k-btn-primary" disabled={busy || code.length < CODE_LENGTH}>
-          {busy ? 'Checking…' : 'Sign in'}
+          {signedIn ? 'Signing in…' : busy ? 'Checking…' : 'Sign in'}
         </button>
         {waitS > 0
           ? <p className="auth-note">You can ask for a new code in {waitS} s.</p>
