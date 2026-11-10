@@ -1,6 +1,6 @@
 // What the web app needs to show onboarding: where the workspace is, and whether phone setup can work here.
 import type { OnboardingStep } from '@callfront/actions'
-import { workspace_settings } from '@callfront/db'
+import { assistants, workspace_settings } from '@callfront/db'
 import { eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
@@ -24,6 +24,20 @@ export function workspaceTimeZone(value: unknown): string {
 /** A new workspace starts onboarding; older workspaces have no step and never see it. */
 export const newWorkspaceSettings = (workspaceId: string, timeZone: unknown) =>
   ({ workspace_id: workspaceId, timezone: workspaceTimeZone(timeZone), onboarding_step: 'business' as const })
+
+/** The default assistant of a new workspace. */
+export const newAssistant = (workspaceId: string, businessName: string) => ({
+  id: `as_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`, workspace_id: workspaceId,
+  greeting: `Thanks for calling ${businessName}. This is Maya, the AI assistant. How can I help?`,
+})
+
+/** The rows every workspace needs besides the organization: its assistant and its settings. Missing ones are added. */
+export async function ensureWorkspaceRows(workspaceId: string, businessName: string, timeZone: unknown, onboardingStep?: OnboardingStep) {
+  await db.insert(assistants).values(newAssistant(workspaceId, businessName)).onConflictDoNothing({ target: assistants.workspace_id })
+  const settings = { ...newWorkspaceSettings(workspaceId, timeZone), ...(onboardingStep ? { onboarding_step: onboardingStep } : {}) }
+  await db.insert(workspace_settings).values(settings).onConflictDoNothing({ target: workspace_settings.workspace_id })
+  if (onboardingStep) await db.update(workspace_settings).set({ onboarding_step: onboardingStep }).where(eq(workspace_settings.workspace_id, workspaceId))
+}
 
 /** null when onboarding is over, or when this member cannot change settings (only owners and admins set up). */
 export async function onboardingFor(actor: Actor): Promise<OnboardingState | null> {

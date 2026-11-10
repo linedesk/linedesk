@@ -7,15 +7,16 @@ import type { RemoteParticipant } from '@livekit/rtc-node'
 import { z } from 'zod'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log.ts'
-import { callOrigin, startCall, type CallSession } from './call-session.ts'
+import { callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { createConfigLoader, parseProviderSettings, type AgentConfig } from './config.ts'
 import { AGENT_NAME, requireEnv, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness } from './not-ready.ts'
 import { createPipeline, loadVad, summaryLlm, type Vad } from './pipeline.ts'
 import { buildInstructions, FALLBACK_GREETING } from './prompt.ts'
 import { describeRecording, livekitRecorder, saveRecording, startRecording, stopRecording } from './recording.ts'
+import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from './counterpart.ts'
 import { runTestCaller } from './test-caller/caller.ts'
-import { parseTestCallerMetadata } from './test-caller/scenarios.ts'
+import { parseTestCallerMetadata, type TestCallerMetadata } from './test-caller/scenarios.ts'
 
 let configLoader: (() => Promise<AgentConfig>) | undefined
 /** The effective provider config: Linedesk's provider settings first, the environment as fallback, cached briefly per process. */
@@ -75,7 +76,7 @@ async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClie
   await session.start({
     agent: new voice.Agent({ instructions: buildInstructions(call.assistant), tools: assistantTools(api, call, log) }),
     room: ctx.room,
-    inputOptions: { participantIdentity: caller.identity, closeOnDisconnect: true },
+    inputOptions: { participantIdentity: caller.identity, participantKinds: ALL_PARTICIPANT_KINDS, closeOnDisconnect: true },
   })
   session.say(call.assistant?.greeting || FALLBACK_GREETING)
 }
@@ -84,8 +85,9 @@ async function entry(ctx: JobContext) {
   await ctx.connect()
   // A room the call-test command dialled out of: this agent plays the caller, not the business.
   const testCaller = parseTestCallerMetadata(ctx.job.metadata)
-  if (testCaller) return runAsTestCaller(ctx, testCaller.scenario)
-  const caller = await ctx.waitForParticipant()
+  if (testCaller) return runAsTestCaller(ctx, testCaller)
+  // A test call's caller may be our own test-caller agent (no-phone call test), which LiveKit's own wait skips.
+  const caller = parseTestMetadata(ctx.job.metadata) ? await waitForCounterpart(ctx) : await ctx.waitForParticipant()
   const api = apiClientFromEnv()
   const origin = callOrigin(ctx.job.metadata, caller.attributes, ctx.room.name ?? '')
   const call = await startCall(api, origin)
@@ -119,7 +121,7 @@ async function entry(ctx: JobContext) {
   }
 }
 
-async function runAsTestCaller(ctx: JobContext, scenario: Parameters<typeof runTestCaller>[1]) {
+async function runAsTestCaller(ctx: JobContext, scenario: TestCallerMetadata) {
   const readiness = await checkReadiness(loadAgentConfig)
   if (!readiness.ready) {
     console.error(`test caller cannot call: ${readiness.reason}`)

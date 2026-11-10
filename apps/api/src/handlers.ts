@@ -6,7 +6,7 @@ import {
   transcript_segments, workspace_settings, type Tx,
 } from '@callfront/db'
 import { TelephonyError, type TelephonyProvider } from '@callfront/telephony'
-import { and, desc, eq, gt, gte, isNull, lt, lte, ne, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, isNull, lt, lte, ne, sql } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, Reject, type Undo } from './handler-context.ts'
@@ -222,15 +222,24 @@ const handlers: Record<string, Handler> = {
   'call.findForTest': async ({ tx }, input) => {
     const [number] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, input.to))
     if (!number) throw new Reject(`${input.to} is not set up in any workspace`)
-    const [call] = await tx.select().from(calls).where(and(
-      eq(calls.workspace_id, number.workspace_id), eq(calls.from_number, input.from), eq(calls.to_number, input.to), gte(calls.started_at, input.since),
-    )).orderBy(desc(calls.started_at)).limit(1)
-    const segments = call ? await tx.select({ speaker: transcript_segments.speaker }).from(transcript_segments).where(eq(transcript_segments.call_id, call.id)) : []
+    // A phone call comes in on the number; a no-phone test call is found by its room.
+    const which = input.room ? eq(calls.room, input.room) : input.from ? and(eq(calls.from_number, input.from), eq(calls.to_number, input.to)) : undefined
+    const [call] = which
+      ? await tx.select().from(calls).where(and(eq(calls.workspace_id, number.workspace_id), which, gte(calls.started_at, input.since))).orderBy(desc(calls.started_at)).limit(1)
+      : []
+    const segments = call
+      ? await tx.select({ speaker: transcript_segments.speaker, text: transcript_segments.text, at_ms: transcript_segments.at_ms }).from(transcript_segments)
+        .where(eq(transcript_segments.call_id, call.id)).orderBy(asc(transcript_segments.at_ms))
+      : []
     const count = (speaker: string) => segments.filter(s => s.speaker === speaker).length
     const data: CallTestFinding = {
       workspaceId: number.workspace_id,
-      call: call ? { id: call.id, status: call.status, outcome: call.outcome, urgency: call.urgency, title: call.title, summary: call.summary, recording_key: call.recording_key, duration_sec: call.duration_sec } : null,
+      call: call ? {
+        id: call.id, status: call.status, outcome: call.outcome, urgency: call.urgency, title: call.title, summary: call.summary,
+        recording_key: call.recording_key, duration_sec: call.duration_sec, action_items: call.action_items.length,
+      } : null,
       turns: { caller: count('caller'), agent: count('agent'), system: count('system') },
+      lines: segments,
     }
     return { rows: {}, data }
   },

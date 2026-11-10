@@ -11,7 +11,7 @@ import { auth, WORKSPACE_LIMIT } from './auth.ts'
 import { resolveActor, type Actor } from './context.ts'
 import { db } from './db.ts'
 import { previewInvitation } from './invitations.ts'
-import { newWorkspaceSettings, onboardingFor } from './onboarding.ts'
+import { newAssistant, newWorkspaceSettings, onboardingFor } from './onboarding.ts'
 import { serveRecording } from './recording-route.ts'
 import { runAction } from './run-action.ts'
 
@@ -52,10 +52,7 @@ app.post('/v1/workspaces', async c => {
   if (!org) return c.json({ ok: false, error: 'not signed in' }, 401)
   if ('refused' in org) return c.json({ ok: false, error: org.refused }, org.status === 401 ? 401 : 403)
   try {
-    await db.insert(assistants).values({
-      id: `as_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`, workspace_id: org.id,
-      greeting: `Thanks for calling ${name}. This is Maya, the AI assistant. How can I help?`,
-    })
+    await db.insert(assistants).values(newAssistant(org.id, name))
     await db.insert(workspace_settings).values(newWorkspaceSettings(org.id, body.timeZone))
   } catch (err) {
     await db.delete(organization).where(eq(organization.id, org.id))

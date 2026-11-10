@@ -1,27 +1,37 @@
-// The test caller: the same pipeline as the assistant, playing a caller from a scenario. It runs in
-// the room of an outbound SIP call to the business's number and hangs up when the scenario is done.
+// The test caller: the same pipeline as the assistant, playing a caller from a scenario. Over the
+// phone it talks to the SIP participant the call-test command dialled; in room mode it talks to the
+// business's own agent in the same room. It hangs up when the scenario is done.
 import { llm, voice, type JobContext } from '@livekit/agents'
 import type { AgentConfig } from '../config.ts'
+import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from '../counterpart.ts'
 import { createPipeline, type Vad } from '../pipeline.ts'
-import { callerInstructions, scenarios, type ScenarioName } from './scenarios.ts'
+import { callerInstructions, scenarios, type TestCallerMetadata } from './scenarios.ts'
 
 /** The SIP participant the call-test command dials; the business's assistant answers on it. */
 export const CALLEE_IDENTITY = 'callee'
 /** A test call never runs longer than this, whatever the model does. */
 export const TEST_CALLER_LIMIT_MS = 2 * 60_000
+/** How long a silent caller stays on the line before hanging up. */
+export const SILENT_CALLER_MS = 25_000
 /** Time for the goodbye to be spoken before the line is cut. */
 const GOODBYE_MS = 4000
 
-export async function runTestCaller(ctx: JobContext, scenarioName: ScenarioName, config: AgentConfig, vad: Vad) {
+export async function runTestCaller(ctx: JobContext, { scenario: name, mode }: TestCallerMetadata, config: AgentConfig, vad: Vad) {
   const hangUp = () => void ctx.deleteRoom().catch(() => {})
-  const limit = setTimeout(() => {
-    console.log(`test caller (${scenarioName}): time limit reached, hanging up`)
-    hangUp()
-  }, TEST_CALLER_LIMIT_MS)
-  limit.unref()
-  ctx.addShutdownCallback(async () => clearTimeout(limit))
+  const after = (ms: number, why: string) => {
+    const timer = setTimeout(() => {
+      console.log(`test caller (${name}): ${why}, hanging up`)
+      hangUp()
+    }, ms)
+    timer.unref()
+    ctx.addShutdownCallback(async () => clearTimeout(timer))
+  }
+  after(TEST_CALLER_LIMIT_MS, 'time limit reached')
 
-  const callee = await ctx.waitForParticipant(CALLEE_IDENTITY)
+  const counterpart = await waitForCounterpart(ctx, mode === 'phone' ? CALLEE_IDENTITY : undefined)
+  const scenario = scenarios[name]
+  if (!scenario.persona) return after(SILENT_CALLER_MS, 'stayed silent')
+
   // A voice other than the assistant's, so the two sides are easy to tell apart in a recording.
   const voiceId = process.env.TEST_CALLER_VOICE_ID
   const session = new voice.AgentSession(createPipeline(vad, config, voiceId ? { provider: config.tts.provider, voice_id: voiceId } : null))
@@ -36,8 +46,8 @@ export async function runTestCaller(ctx: JobContext, scenarioName: ScenarioName,
     },
   })
   await session.start({
-    agent: new voice.Agent({ instructions: callerInstructions(scenarios[scenarioName]), tools: { end_call: endCall } }),
+    agent: new voice.Agent({ instructions: callerInstructions(scenario), tools: { end_call: endCall } }),
     room: ctx.room,
-    inputOptions: { participantIdentity: callee.identity, closeOnDisconnect: true },
+    inputOptions: { participantIdentity: counterpart.identity, participantKinds: ALL_PARTICIPANT_KINDS, closeOnDisconnect: true },
   })
 }

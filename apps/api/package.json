@@ -8,6 +8,7 @@
     "start": "tsx --env-file=../../.env src/server.ts",
     "seed": "tsx --env-file=../../.env src/seed.ts",
     "user:create": "tsx --env-file=../../.env src/user-create.ts",
+    "workspace:create": "node --env-file-if-exists=../../.env src/workspace-create.ts",
     "typecheck": "tsc -p .",
     "test": "vitest run"
   },

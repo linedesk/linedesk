@@ -61,16 +61,25 @@ export const callStartTest = defineAction({
 /** For the phone-to-phone call test: the newest call from `from` to `to` since a moment, and how far it got. */
 export const callFindForTest = defineAction({
   name: 'call.findForTest',
-  description: 'Find the call the call test placed: the newest call from one number to a business number since a moment.',
-  input: z.object({ from: z.string().min(3), to: z.string().min(3), since: z.iso.datetime({ offset: true }) }),
+  description: 'Find the call the call test placed in the workspace of a business number: by caller number or by room, the newest since a moment.',
+  input: z.object({
+    /** The business number: it names the workspace. */
+    to: z.string().min(3),
+    since: z.iso.datetime({ offset: true }),
+    /** A call over the phone, by caller number; or a no-phone test call, by its room. */
+    from: z.string().min(3).optional(),
+    room: z.string().min(1).optional(),
+  }),
   permission: 'agent',
   readOnly: true,
 })
 /** `data` of `call.findForTest`. `call` is null while no such call exists. */
 export type CallTestFinding = {
   workspaceId: string
-  call: { id: string; status: string; outcome: string | null; urgency: string; title: string | null; summary: string | null; recording_key: string | null; duration_sec: number | null } | null
+  call: { id: string; status: string; outcome: string | null; urgency: string; title: string | null; summary: string | null; recording_key: string | null; duration_sec: number | null; action_items: number } | null
   turns: { caller: number; agent: number; system: number }
+  /** The transcript in order; `at_ms` is when each line was written, from the start of the call. */
+  lines: { speaker: string; text: string; at_ms: number }[]
 }
 
 export const callAppendTranscript = defineAction({

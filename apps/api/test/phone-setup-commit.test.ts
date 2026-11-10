@@ -7,6 +7,13 @@ import { afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
 import { act, createWorkspace, randomNumber, type Workspace } from './helpers.ts'
 
+// The carrier is the dev provider for this file, whatever another test file picks in the shared
+// test database at the same time (admin tests set active providers).
+vi.mock('../src/provider-settings.ts', async importOriginal => {
+  const original = await importOriginal<typeof import('../src/provider-settings.ts')>()
+  return { ...original, telephonyProvider: async () => devProvider }
+})
+
 let ws: Workspace
 beforeAll(async () => {
   ws = await createWorkspace('Brightwater Plumbing & Heating')

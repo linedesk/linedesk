@@ -52,7 +52,8 @@ export function callOrigin(jobMetadata: string, attributes: Record<string, strin
   return { kind: 'phone', from, to, room }
 }
 
-function parseTestMetadata(metadata: string): { workspaceId: string } | null {
+/** The workspace of a test room the API signed, or null for any other room. */
+export function parseTestMetadata(metadata: string): { workspaceId: string } | null {
   if (!metadata) return null
   try {
     const parsed = JSON.parse(metadata) as { source?: unknown; workspaceId?: unknown }

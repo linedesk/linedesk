@@ -118,7 +118,7 @@ test('call.findForTest finds the newest call between two numbers since a moment,
   const since = new Date(Date.now() - 1000).toISOString()
   const from = '+15035550192'
   const none = await act(agent(), 'call.findForTest', { from, to: ws.number, since })
-  expect(none.body.data).toEqual({ workspaceId: ws.id, call: null, turns: { caller: 0, agent: 0, system: 0 } })
+  expect(none.body.data).toEqual({ workspaceId: ws.id, call: null, turns: { caller: 0, agent: 0, system: 0 }, lines: [] })
 
   const { body } = await act(agent(), 'call.start', { from, to: ws.number })
   const callId = body.data.callId
@@ -126,7 +126,15 @@ test('call.findForTest finds the newest call between two numbers since a moment,
   await act(agent(ws.id), 'call.appendTranscript', { callId, speaker: 'caller', text: 'Hi', atMs: 900 })
   await act(agent(ws.id), 'call.finish', { callId, outcome: 'message', title: 'Test', summary: 'A test.' })
   const found = await act(agent(), 'call.findForTest', { from, to: ws.number, since })
-  expect(found.body.data).toMatchObject({ workspaceId: ws.id, call: { id: callId, status: 'completed', outcome: 'message', title: 'Test' }, turns: { caller: 1, agent: 1, system: 0 } })
+  expect(found.body.data).toMatchObject({ workspaceId: ws.id, call: { id: callId, status: 'completed', outcome: 'message', title: 'Test', action_items: 0 }, turns: { caller: 1, agent: 1, system: 0 } })
+  expect(found.body.data.lines).toEqual([{ speaker: 'agent', text: 'Hello', at_ms: 0 }, { speaker: 'caller', text: 'Hi', at_ms: 900 }])
+
+  // A no-phone test call is found by its room in the workspace of the business number.
+  const test = await act(agent(ws.id), 'call.startTest', { room: 'call-test-room-a' })
+  const byRoom = await act(agent(), 'call.findForTest', { to: ws.number, since, room: 'call-test-room-a' })
+  expect(byRoom.body.data.call.id).toBe(test.body.data.callId)
+  const otherRoom = await act(agent(), 'call.findForTest', { to: ws.number, since, room: 'no-such-room' })
+  expect(otherRoom.body.data).toMatchObject({ workspaceId: ws.id, call: null })
 
   const later = await act(agent(), 'call.findForTest', { from, to: ws.number, since: new Date(Date.now() + 60_000).toISOString() })
   expect(later.body.data.call).toBeNull()
