@@ -1497,6 +1497,21 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
 .sum-task input { accent-color: var(--action); }
 @media (max-width: 899px) { .cv-pos { display: none; } }
 @media (max-width: 719px) { .cv-act { display: none; } .cv-acts { flex-wrap: nowrap; } }
+
+/* Superhuman-style triage motion: row fades and collapses on done, eases back in on undo */
+.row.is-leaving { animation: row-out .17s ease-in forwards; overflow: hidden; pointer-events: none; }
+.row.is-entering { animation: row-in .24s ease-out; overflow: hidden; }
+@keyframes row-out { from { opacity: 1; min-height: 34px; height: 34px; } to { opacity: 0; min-height: 0; height: 0; transform: translateX(-8px); } }
+@keyframes row-in { from { opacity: 0; min-height: 0; height: 0; } to { opacity: 1; min-height: 34px; height: 34px; } }
+@media (prefers-reduced-motion: reduce) { .row.is-leaving, .row.is-entering { animation-duration: 1ms; } }
+
+/* Live calls: green, shown only in the list and header */
+:root { --live-ok: #15803d; --live-ok-soft: #e7f6ec; }
+.k-livei-live { background: var(--live-ok-soft); color: var(--live-ok); }
+.ib-maya.is-live .ib-dot, .ib-dot { background: #16a34a; }
+.lvc-bars i { background: #16a34a; }
+/* booking types: readable number fields */
+.st input[type=number], [class*="st-"] input[type=number] { min-width: 4ch; }
 </style>
 <div id="app"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
@@ -2153,7 +2168,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
           var isLive = c.id === 'live' && !L.ended;
           function rowAct(title, icon, run) { return h('button', { type: 'button', className: 'r-act', title: title, 'aria-label': title.replace(/ \(.*\)$/, ''), onClick: function (e) { e.stopPropagation(); run(); } }, h(Ic, { name: icon, size: 14 })); }
           var dirIcon = c.status === 'missed' ? 'phone-missed' : c.direction === 'out' ? 'phone-out' : 'phone-in';
-          return h(React.Fragment, { key: c.id }, newDay ? h('div', { className: 'ib-day', role: 'presentation' }, day) : null, h('div', { role: 'listitem', className: cx('row', p.cursor === c.id && 'is-cursor', (c.unread || isLive) && 'unread'), onClick: function () { p.onOpen(c.id); }, onMouseMove: function () { if (p.cursor !== c.id) p.setCursor(c.id); } },
+          return h(React.Fragment, { key: c.id }, newDay ? h('div', { className: 'ib-day', role: 'presentation' }, day) : null, h('div', { role: 'listitem', className: cx('row', p.leaving === c.id && 'is-leaving', p.entering === c.id && 'is-entering', p.cursor === c.id && 'is-cursor', (c.unread || isLive) && 'unread'), onClick: function () { p.onOpen(c.id); }, onMouseMove: function () { if (p.cursor !== c.id) p.setCursor(c.id); } },
             h('span', { className: cx('r-dir', c.status === 'missed' && 'missed'), title: c.status === 'missed' ? 'Missed' : c.direction === 'out' ? 'Outbound' : 'Inbound' }, h(K.Icon, { name: dirIcon, size: 14 })),
             h('span', { className: 'r-name' }, h('span', null, p.search ? hl(c.name, p.search) : c.name), c.afterHours ? h('span', { className: 'r-ah', title: 'After hours' }, h(Ic, { name: 'moon', size: 12 })) : null, c.assignee ? h('span', { className: 'r-assignee', title: 'Assigned to ' + (MEMBERS.filter(function (m) { return m.id === c.assignee; })[0] || {}).name }, (MEMBERS.filter(function (m) { return m.id === c.assignee; })[0] || { name: '?' }).name.split(' ').map(function (w) { return w[0]; }).join('')) : null),
             (function () {
@@ -2383,8 +2398,8 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
     ['leo', 'Leo', 'Friendly, relaxed', 'OpenAI']
   ];
   var ST_CAPS = [
-    ['crm', 'user', 'Look up customers', 'Recognises callers and knows their history'],
-    ['book', 'calendar', 'Book meetings', 'Uses free slots in your calendar'],
+    ['crm', 'user', 'Look up customers', 'Recognizes callers and knows their history'],
+    ['book', 'calendar', 'Book appointments', 'Uses free slots in your calendar'],
     ['transfer', 'phone-out', 'Transfer calls', 'Hands urgent calls to a person right away'],
     ['after', 'clock', 'Answer after hours', 'Takes the request and flags the call'],
     ['record', 'mic', 'Record and transcribe', 'Callers hear a short notice first'],
@@ -2548,7 +2563,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
   function AsGreeting(p) {
     var v = p.v, upd = p.upd;
     function rename(name) {
-      var greet = v.name && v.greeting.indexOf(v.name) > -1 && name ? v.greeting.split(v.name).join(name) : v.greeting;
+      var greet = /this is [^,]*,/.test(v.greeting) ? v.greeting.replace(/this is [^,]*,/, 'this is ' + (name || '…') + ',') : v.greeting;
       p.setMany({ name: name, greeting: greet });
     }
     var secs = Math.max(1, Math.round(v.greeting.split(/\s+/).length / 2.5));
@@ -2932,7 +2947,8 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
     return h('div', { className: 'page' }, h('div', { className: 'page-in', style: { maxWidth: 820 } },
       h('div', { className: 'page-head' }, h('div', null, h('h1', null, 'Settings'), h('p', null, 'Profile, keyboard shortcuts and setup.'))),
       h('section', { className: 'sec' }, h('h2', null, 'Profile'),
-        h('div', { className: 'row2' }, h('div', { className: 'field' }, h('label', { htmlFor: 'pf-name' }, 'Name'), h(K.Input, { id: 'pf-name', defaultValue: 'Mike Brennan' })), h('div', { className: 'field' }, h('label', { htmlFor: 'pf-mail' }, 'Email'), h(K.Input, { id: 'pf-mail', defaultValue: 'mike@brightwater-plumbing.example' })))),
+        h('div', { className: 'row2' }, h('div', { className: 'field' }, h('label', { htmlFor: 'pf-name' }, 'Name'), h(K.Input, { id: 'pf-name', defaultValue: 'Mike Brennan' })), h('div', { className: 'field' }, h('label', { htmlFor: 'pf-mail' }, 'Email'), h(K.Input, { id: 'pf-mail', defaultValue: 'mike@brightwater-plumbing.example' }))),
+        h('div', null, h(K.Button, { size: 'sm', variant: 'primary', onClick: function () { p.toast('Profile saved.'); } }, 'Save'))),
       h('section', { className: 'sec' }, h('h2', null, 'Keyboard shortcuts'), h('p', null, 'Almost everything is one key.'),
         h('div', null, h(K.Button, { size: 'sm', shortcut: ['?'], title: 'Show all shortcuts (?)', onClick: p.onHelp }, 'Show all shortcuts'))),
       h('section', { className: 'sec' }, h('h2', null, 'Setup'), h('div', null, h(K.Button, { size: 'sm', icon: 'spark', onClick: p.onSetup }, 'Run setup again')))));
@@ -2944,7 +2960,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
   var OB_OFFICE = '+1 503 555 0100';
   var OB_LINE = '+1 503 555 0142';
   var OB_LINE_DIGITS = '5035550142';
-  var OB_CRAWL = ['Found services…', 'Found hours…', 'Found service area…', 'Found FAQs…'];
+  var OB_CRAWL = ['Found services…', 'Found hours…', 'Found service area…'];
   var OB_FOUND = [
     { id: 'services', label: 'Services', items: ['Leak & pipe repair · from $180', 'Drain cleaning · from $149', 'Water heater repair · from $220', 'Water heater replacement · from $1,800', 'Boiler & furnace service · from $190', 'Bathroom remodel · free estimate'] },
     { id: 'hours', label: 'Hours', items: ['Mon–Thu 7 AM–6 PM', 'Fri 7 AM–5 PM', 'Sat 9 AM–1 PM', '24/7 emergencies'] },
@@ -2968,7 +2984,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
   ];
   var OB_CARRIERS = [
     { id: 'verizon', name: 'Verizon', pre: '*71', post: '', off: '*73' },
-    { id: 'att', name: 'AT&T', pre: '*004*', post: '#', off: '##004#' },
+    { id: 'att', name: 'AT&T', pre: '**004*', post: '#', off: '##004#' },
     { id: 'tmobile', name: 'T-Mobile', pre: '**004*', post: '#', off: '##004#' }
   ];
   var OB_PRACTICE = [
@@ -3312,7 +3328,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
       }
       if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
       var t = e.target;
-      if (t.tagName === 'TEXTAREA' || (t.getAttribute && t.getAttribute('data-ob-own-enter'))) return;
+      if (t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON' || t.tagName === 'A' || (t.getAttribute && t.getAttribute('data-ob-own-enter'))) return;
       e.preventDefault();
       if (canNext) next(); else primary();
     };
@@ -3869,6 +3885,8 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
     function finishOnboarding() { try { localStorage.setItem('callfront-onboarded', '1'); } catch (e) { } setObOpen(false); restart(); } /* overlay: 'commands' | 'help' | 'remind' */
     var rf = useState(null), remindId = rf[0], setRemindId = rf[1];
     var fk = useState([]), filterKey = fk[0], setFilterKey = fk[1];
+    var lv2 = useState(null), leavingId = lv2[0], setLeaving = lv2[1];
+    var en2 = useState(null), enteringId = en2[0], setEntering = en2[1];
     var rd = useState(false), ready = rd[0], setReady = rd[1];
     useEffect(function () { var t = setTimeout(function () { setReady(true); }, 450); return function () { clearTimeout(t); }; }, []);
     useEffect(function () { document.documentElement.setAttribute('data-theme', 'light'); }, []);
@@ -3960,14 +3978,16 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
       var patch = patchFn(c), prev = {};
       Object.keys(patch).forEach(function (k) { prev[k] = c[k]; });
       var after = Object.assign({}, c, patch);
-      patchCall(id, patch);
-      if (searchQ !== null ? after.deleted : !matchTab(tab, after)) {
+      var leaves = searchQ !== null ? after.deleted : !matchTab(tab, after);
+      if (leaves && !openId) { setLeaving(id); setTimeout(function () { patchCall(id, patch); setLeaving(null); }, 170); }
+      else patchCall(id, patch);
+      if (leaves) {
         var ids = list.map(function (x) { return x.id; }), i = ids.indexOf(id), next = ids[i + 1] || ids[i - 1] || null;
         setCursor(next);
         if (openId === id) setOpenId(next);
       }
       var wasOpen = openId === id, prevTab = tab;
-      pushUndo(function () { patchCall(id, prev); setTabS(prevTab); setCursor(id); if (wasOpen) setOpenId(id); });
+      pushUndo(function () { patchCall(id, prev); setTabS(prevTab); setCursor(id); if (wasOpen) setOpenId(id); else { setEntering(id); setTimeout(function () { setEntering(null); }, 260); } });
       toast(withTip(label, sc), true);
       return true;
     }
@@ -4102,7 +4122,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
     function navAct(label, icon, keys, fn) { return h('button', { key: label, type: 'button', className: 'nav-item', onClick: function () { setNavOpen(false); fn(); } }, h(Ic, { name: icon, size: 15 }), h('span', { className: 'lbl' }, label), keys ? h(K.Kbd, { keys: keys }) : null); }
     var nav = h('nav', { className: 'nav', 'aria-label': 'Main', onMouseEnter: function () { clearTimeout(navLeaveRef.current); }, onMouseLeave: function () { clearTimeout(navLeaveRef.current); navLeaveRef.current = setTimeout(function () { setNavOpen(false); }, 200); } },
       h('div', { className: 'ws' }, h('span', { className: 'ws-mark' }, h(K.Icon, { name: 'spark', size: 13 })), h('b', null, 'Callfront'), h(K.Button, { size: 'sm', variant: 'ghost', 'aria-label': 'Close menu', title: 'Close (esc)', onClick: function () { setNavOpen(false); } }, h(Ic, { name: 'left', size: 14 }))),
-      navItem('calls', 'Calls', 'phone', ['G', 'I'], !live.ended ? h('span', { className: 'nav-live', title: 'Live call' }) : unreadCount ? h('span', { className: 'k-count' }, unreadCount) : null),
+      navItem('calls', 'Calls', 'phone', ['G', 'I'], unreadCount ? h('span', { className: 'k-count' }, unreadCount) : null),
       navTab('reminders', 'Reminders', 'clock', ['G', 'H'], allCalls.filter(function (c) { return matchTab('reminders', c); }).length),
       navTab('done', 'Done', 'check', ['G', 'E']),
       navItem('bookings', 'Bookings', 'calendar', ['G', 'B']),
@@ -4122,7 +4142,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
             onBack: back, onStep: step, onDone: function () { doDone(); }, onUndone: function () { doUndone(); }, onClearReminder: function () { doClearReminder(); }, onRemind: function () { doRemind(); }, onTakeover: takeover, onHangup: hangup, onRestart: restart, onWhisper: whisper, onListen: listen })
         : h(Inbox, { menu: menuBtn, list: list, live: live, tab: tab, setTab: setTab, openCount: openCount, counts: counts, cursor: cursor, setCursor: setCursor, onOpen: open,
             onRemind: function (id) { doRemind(id); }, onClearReminder: function (id) { doClearReminder(id); }, onUnread: function (id) { doUnread(id); }, onDelete: function (id) { doDelete(id); }, onToggleDone: function (id) { var c = allCalls.filter(function (x) { return x.id === id; })[0]; if (c && c.done) doUndone(id); else doDone(id); },
-            ready: ready, filter: filterKey, onClearFilter: function () { setFilterKey([]); }, onEditFilter: function () { setOverlay('filter'); },
+            ready: ready, leaving: leavingId, entering: enteringId, filter: filterKey, onClearFilter: function () { setFilterKey([]); }, onEditFilter: function () { setOverlay('filter'); },
             search: searchQ, onSearchChange: searchChange, onSearchClose: closeSearch,
             onSearch: openSearch, onCommands: function () { setOverlay('commands'); } });
     } else if (route === 'bookings') view = h(BookingsView, { menu: menuBtn, toast: toast, openCall: open, openCustomer: function (id) { setCustomerId(id); go('customers'); } });
