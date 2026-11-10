@@ -34,7 +34,9 @@ export async function openLocalDb(name: string, { onLost, timeoutMs = OPEN_TIMEO
   let closed = false
   db.onversionchange = () => { closed = true; db.close(); onLost?.() } // never block another tab's delete
   return {
+    /** After close() a read finds nothing (a tab that was handed the lead while it closes). */
     all<T>(store: StoreName) {
+      if (closed) return Promise.resolve<[IDBValidKey, T][]>([])
       return new Promise<[IDBValidKey, T][]>((resolve, reject) => {
         const out: [IDBValidKey, T][] = []
         const cursor = db.transaction(store).objectStore(store).openCursor()

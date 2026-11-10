@@ -1,5 +1,7 @@
 import { useRef } from 'react'
 import { auth } from '../auth.ts'
+import { forgetMe } from '../session.ts'
+import { stopAllStores } from '../storeCache.ts'
 import { localDbName, useStore } from '../store.tsx'
 
 const SETTLE_MS = 2000
@@ -32,7 +34,9 @@ export function useSignOut({ workspaceId, onSignedOut, toast }: Options) {
       return toast(`${unsent} ${unsent === 1 ? 'change has' : 'changes have'} not been sent yet. Reconnect to keep ${unsent === 1 ? 'it' : 'them'}, or sign out again to discard.`)
     }
     await auth.signOut()
-    await onSignedOut() // closes the store, so the local database is free to delete
+    forgetMe()
+    await onSignedOut()
+    await stopAllStores() // the database is free to delete
     indexedDB.deleteDatabase(localDbName(workspaceId)) // local rows belong to the signed-in member
   }
 }

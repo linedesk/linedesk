@@ -1,7 +1,8 @@
 // One local store per workspace. Components read rows with useRows() and write with useRun().
 import type { TableName, Tables } from '@callfront/db/types'
-import { createStore, electricAdapter, type Rejection, type Store } from '@callfront/sync'
+import type { Rejection, Store } from '@callfront/sync'
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { leaseStore } from './storeCache.ts'
 
 type Ctx = { store: Store; rejection: Rejection | null; clearRejection: () => void }
 const StoreContext = createContext<Ctx | null>(null)
@@ -16,15 +17,12 @@ export function StoreProvider({ workspaceId, children }: { workspaceId: string; 
   const [rejection, setRejection] = useState<Rejection | null>(null)
   useEffect(() => {
     let live = true
-    let created: Store | undefined
-    createStore({
-      api: '', dbName: localDbName(workspaceId), adapter: electricAdapter(window.location.origin), onReject: setRejection,
-      onLocalDbLost: () => window.location.reload(), // another tab signed out and removed the local data
-    }).then(
-      store => { created = store; if (live) setBoot({ state: 'ready', store }); else store.stop() },
+    const lease = leaseStore(localDbName(workspaceId), setRejection)
+    lease.ready.then(
+      store => { if (live) setBoot({ state: 'ready', store }) },
       (error: unknown) => { if (live) setBoot({ state: 'failed', error: error instanceof Error ? error.message : String(error) }) },
     )
-    return () => { live = false; created?.stop(); setBoot({ state: 'loading' }) }
+    return () => { live = false; lease.release(); setBoot({ state: 'loading' }) }
   }, [workspaceId])
   const store = boot.state === 'ready' ? boot.store : null
   const value = useMemo(() => store && { store, rejection, clearRejection: () => setRejection(null) }, [store, rejection])

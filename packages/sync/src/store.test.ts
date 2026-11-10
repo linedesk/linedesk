@@ -3,6 +3,7 @@ import type { Call } from '@callfront/db/types'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ReadSyncAdapter, TableSink } from './adapter.ts'
 import { createStore } from './store.ts'
+import { eventually, quietFor } from './testing.ts'
 
 const call = (over: Partial<Call> = {}) => ({ id: 'c1', inbox_state: 'open', unread: true, version: 1, ...over }) as Call
 
@@ -12,7 +13,6 @@ function fakeAdapter() {
   return { adapter, calls: () => sinks.get('calls') as TableSink<'calls'> }
 }
 const respond = (status: number, body: unknown) => new Response(JSON.stringify(body), { status })
-const settle = () => new Promise(r => setTimeout(r, 20))
 let n = 0
 const open = (adapter: ReadSyncAdapter, extra = {}) => createStore({ api: '', dbName: `t${n}`, adapter, retryMs: 5, ...extra })
 
@@ -27,9 +27,11 @@ describe('store', () => {
     calls().upsert([call()])
     const pending = store.run('call.markDone', { callId: 'c1' })
     expect(store.rows('calls')[0]!.inbox_state).toBe('done') // before any network
-    await pending; await settle()
-    expect(store.getSnapshot().pending).toBe(0)
-    expect(store.rows('calls')[0]!.version).toBe(5)
+    await pending
+    await eventually(() => {
+      expect(store.getSnapshot().pending).toBe(0)
+      expect(store.rows('calls')[0]!.version).toBe(5)
+    })
     calls().upsert([call({ version: 2 })]) // a stale sync message must not undo it
     expect(store.rows('calls')[0]!.inbox_state).toBe('done')
     store.stop()
@@ -41,8 +43,8 @@ describe('store', () => {
     const onReject = vi.fn()
     const store = await open(adapter, { onReject })
     calls().upsert([call()])
-    await store.run('call.markDone', { callId: 'c1' }); await settle()
-    expect(store.rows('calls')[0]!.inbox_state).toBe('open')
+    await store.run('call.markDone', { callId: 'c1' })
+    await eventually(() => expect(store.rows('calls')[0]!.inbox_state).toBe('open'))
     expect(onReject).toHaveBeenCalledWith(expect.objectContaining({ action: 'call.markDone', error: 'nope' }))
     store.stop()
   })
@@ -59,16 +61,18 @@ describe('store', () => {
     const store = await open(first.adapter)
     first.calls().upsert([call()])
     await store.run('call.markDone', { callId: 'c1' })
-    await store.run('call.markUnread', { callId: 'c1' }); await settle()
-    expect(store.getSnapshot()).toMatchObject({ pending: 2, online: false })
+    await store.run('call.markUnread', { callId: 'c1' })
+    await eventually(() => expect(store.getSnapshot()).toMatchObject({ pending: 2, online: false }))
     store.stop()
 
     const reloaded = await open(fakeAdapter().adapter) // same dbName: n only changes after the test
     expect(reloaded.rows('calls')[0]).toMatchObject({ inbox_state: 'done', unread: true })
     offline = false
-    await reloaded.flush(); await settle()
-    expect(sent).toEqual(['call.markDone', 'call.markUnread'])
-    expect(reloaded.getSnapshot().pending).toBe(0)
+    await reloaded.flush()
+    await eventually(() => {
+      expect(sent).toEqual(['call.markDone', 'call.markUnread'])
+      expect(reloaded.getSnapshot().pending).toBe(0)
+    })
     reloaded.stop()
   })
 
@@ -85,11 +89,32 @@ describe('store', () => {
     await store.run('call.delete', { callId: 'c1' }) // request in flight
     await store.run('call.restore', { callId: 'c1' }) // added meanwhile: must not wait for a later action
     expect(sent).toEqual(['call.delete'])
-    waiting.shift()!(); await settle()
-    expect(sent).toEqual(['call.delete', 'call.restore'])
-    waiting.shift()!(); await settle()
-    expect(store.getSnapshot().pending).toBe(0)
+    waiting.shift()!()
+    await eventually(() => expect(sent).toEqual(['call.delete', 'call.restore']))
+    waiting.shift()!()
+    await eventually(() => expect(store.getSnapshot().pending).toBe(0))
     store.stop()
+  })
+
+  it('keeps the order of commands issued in the same millisecond', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-11-10T12:00:00.000Z'))
+    const sent: string[] = []
+    let offline = true
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => { if (offline) throw new TypeError('offline'); sent.push(url.split('/').pop()!); return respond(200, { ok: true, rows: {} }) }))
+    const { adapter, calls } = fakeAdapter()
+    const store = await open(adapter)
+    calls().upsert([call()])
+    const names = ['call.markDone', 'call.markUnread', 'call.markRead', 'call.markNotDone', 'call.markUnread']
+    for (const name of names) await store.run(name, { callId: 'c1' })
+    expect(store.rows('calls')[0]).toMatchObject({ inbox_state: 'open', unread: true })
+    store.stop()
+    const reloaded = await open(fakeAdapter().adapter)
+    expect(reloaded.rows('calls')[0]).toMatchObject({ inbox_state: 'open', unread: true }) // same order after a reload
+    offline = false
+    await reloaded.flush()
+    await eventually(() => expect(sent).toEqual(names))
+    reloaded.stop()
+    vi.restoreAllMocks()
   })
 
   it('writes nothing after stop, even when a request answers late', async () => {
@@ -103,7 +128,7 @@ describe('store', () => {
     // vitest fails the run on an unhandled rejection, which a write to the closed database used to cause
     answer(respond(200, { ok: true, rows: { calls: [call({ inbox_state: 'done', version: 9 })] } }))
     calls().upsert([call({ version: 12 })]) // a late sync message
-    await settle()
+    await quietFor()
     const reopened = await open(fakeAdapter().adapter)
     expect(reopened.getSnapshot().pending).toBe(1) // the command is still there to replay
     expect(reopened.rows('calls')[0]!.version).toBe(1)
