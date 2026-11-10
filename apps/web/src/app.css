@@ -827,7 +827,8 @@ a.k-btn {
 .ib-maya.is-off .ib-dot {
   background: var(--line-control);
 }
-.ib-maya-fix {
+.ib-maya-fix,
+.k-link {
   color: var(--ink);
   text-decoration: underline;
   text-underline-offset: 2px;

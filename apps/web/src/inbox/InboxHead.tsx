@@ -1,8 +1,8 @@
 import type { Call } from '@callfront/db/types'
 import type { ReactNode } from 'react'
 import { callerName, splits, type InboxTab } from '../inbox-model.ts'
-import { presenceOf, useOnline, useVoiceReady } from '../shell/presence.ts'
-import { useAssistantName, useContact, useRows } from '../store.tsx'
+import { usePresence } from '../shell/presence.ts'
+import { useAssistantName, useContact } from '../store.tsx'
 import { clock, parseTs } from '../time.ts'
 import { Button, Icon } from '../ui/kit.tsx'
 import { useElapsed } from '../ui/LiveIndicator.tsx'
@@ -118,11 +118,7 @@ const notAnsweringWhy = {
 /** What the assistant is doing right now: green only when calls are really answered. */
 function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveCall' | 'onOpen' | 'canFixVoice'>) {
   const assistant = useAssistantName()
-  const presence = presenceOf({
-    online: useOnline(),
-    hasNumber: useRows('phone_numbers').length > 0,
-    voiceReady: useVoiceReady(),
-  })
+  const presence = usePresence()
   if (liveCall) return <LiveCallButton call={liveCall} onOpen={onOpen} />
   if (presence.kind === 'unknown') return null
   if (presence.kind === 'answering') {

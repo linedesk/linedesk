@@ -16,6 +16,7 @@ import {
   type PhoneChoice,
 } from '../onboarding/flow.ts'
 import { confirmsNumber } from '@callfront/actions'
+import { usePresence } from '../shell/presence.ts'
 import { useAssistantName, useRejection, useRows, useRun } from '../store.tsx'
 import { RadioCard } from '../ui/controls.tsx'
 import { Badge, Button, cx } from '../ui/kit.tsx'
@@ -29,6 +30,8 @@ type Props = { canEdit: boolean; status: PhoneSetupStatus | null; isInstanceAdmi
 export function PhoneNumbers({ canEdit, status, isInstanceAdmin }: Props) {
   const numbers = useRows('phone_numbers').sort((a, b) => a.created_at.localeCompare(b.created_at))
   const name = useAssistantName()
+  const presence = usePresence()
+  const answering = presence.kind === 'answering'
   const [adding, setAdding] = useState(false)
   const showForm = canEdit && status?.available && (numbers.length === 0 || adding)
   return (
@@ -36,15 +39,17 @@ export function PhoneNumbers({ canEdit, status, isInstanceAdmin }: Props) {
       id="st-phone"
       title="Phone numbers"
       description={
-        numbers.length
-          ? `${name} answers calls to these numbers.`
-          : `Connect a number and ${name} starts answering its calls.`
+        !numbers.length
+          ? `Connect a number and ${name} starts answering its calls.`
+          : presence.kind === 'notAnswering'
+            ? `${name} answers calls to these numbers once the voice service of this Linedesk is set up.`
+            : `${name} answers calls to these numbers.`
       }
     >
       {numbers.length > 0 && (
         <div className="st-list">
           {numbers.map(n => (
-            <NumberRow key={n.id} number={n} canEdit={canEdit} />
+            <NumberRow key={n.id} number={n} canEdit={canEdit} answering={answering} />
           ))}
         </div>
       )}
@@ -82,14 +87,24 @@ function Unavailable({ detail, isInstanceAdmin }: { detail: string | null; isIns
       </span>
       {isInstanceAdmin && detail && (
         <span className="help">
-          For admins: {detail}. <a href="#admin/system">Open Admin, System</a>
+          For admins: {detail}.{' '}
+          <a className="k-link" href="#admin/system">
+            Open Admin, System
+          </a>
         </span>
       )}
     </div>
   )
 }
 
-function NumberRow({ number, canEdit }: { number: PhoneNumber; canEdit: boolean }) {
+/** "Answering" only when calls are really answered (the header's status); a checked number is "Connected". */
+function NumberStatus({ number, answering }: { number: PhoneNumber; answering: boolean }) {
+  if (answering) return <Badge dot>Answering</Badge>
+  if (number.verified_at) return <Badge>Connected</Badge>
+  return <Badge>Not tested yet</Badge>
+}
+
+function NumberRow({ number, canEdit, answering }: { number: PhoneNumber; canEdit: boolean; answering: boolean }) {
   const forwards = number.mode === 'forward_conditional' || number.mode === 'forward_all'
   const [open, setOpen] = useState(false)
   const [releasing, setReleasing] = useState(false)
@@ -103,7 +118,7 @@ function NumberRow({ number, canEdit }: { number: PhoneNumber; canEdit: boolean 
             {carrierName(number.provider) ? ` · ${carrierName(number.provider)}` : ''}
           </span>
         </div>
-        {number.verified_at ? <Badge dot>Answering</Badge> : <Badge>Not tested yet</Badge>}
+        <NumberStatus number={number} answering={answering} />
         {forwards && (
           <Button size="sm" variant="ghost" aria-expanded={open} onClick={() => setOpen(o => !o)}>
             {open ? 'Hide forwarding' : 'Forwarding codes'}

@@ -1,7 +1,7 @@
 // What the inbox header says about the assistant. Green means calls are really answered: a number
 // is connected and the server has the voice stack. Anything else is said plainly, with a way to fix it.
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import { useSnapshot } from '../store.tsx'
+import { useRows, useSnapshot } from '../store.tsx'
 
 export type Presence =
   | { kind: 'answering' }
@@ -67,4 +67,13 @@ export function useVoiceReady(): boolean | null {
     }
   }, [])
   return ready
+}
+
+/** The one answer to "is the assistant answering calls?", shared by the header, Phone numbers and onboarding. */
+export function usePresence(): Presence {
+  return presenceOf({
+    online: useOnline(),
+    hasNumber: useRows('phone_numbers').length > 0,
+    voiceReady: useVoiceReady(),
+  })
 }

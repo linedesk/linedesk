@@ -2,9 +2,11 @@
 // (`onboarding.setStep`), so a reload resumes at the same step.
 import { useEffect, useState } from 'react'
 import type { Me, OnboardingState } from '../auth.ts'
+import { usePresence } from '../shell/presence.ts'
 import { rejectionText } from '../shell/rejections.ts'
 import { callHash } from '../shell/useRoute.ts'
 import { useAssistantName, useRejection, useRows, useRun } from '../store.tsx'
+import { Button } from '../ui/kit.tsx'
 import { BusinessStep } from './BusinessStep.tsx'
 import { Foot, Frame, useStepKeys } from './Frame.tsx'
 import { formatNumber, nextStep, phoneSetupErrorText, previousStep, type OnboardingStep } from './flow.ts'
@@ -32,7 +34,10 @@ export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingSta
     setOtherError(null)
     void run('onboarding.setStep', { step: to })
   }
-  const back = () => { const to = previousStep(step); if (to) go(to) }
+  const back = () => {
+    const to = previousStep(step)
+    if (to) go(to)
+  }
   // Without a number the test call happens in the browser, so every step leads to the next.
   const forward = () => go(nextStep(step))
   function skip() {
@@ -46,29 +51,68 @@ export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingSta
   }
 
   return (
-    <Frame step={step} complete={step === 'done' || (step === 'phone' && hasNumber)} onSkip={step === 'done' ? undefined : skip}>
+    <Frame
+      step={step}
+      complete={step === 'done' || (step === 'phone' && hasNumber)}
+      onSkip={step === 'done' ? undefined : skip}
+    >
       {step === 'business' && <BusinessStep businessName={me.workspace!.name} onNext={forward} />}
-      {step === 'phone' && <PhoneStep status={state.phone} setupError={setupError} clearError={() => setSetupError(null)} onBack={back} onNext={forward} />}
-      {step === 'test_call' && <TestCallStep showSimulator={import.meta.env.DEV || state.phone.provider === 'dev'} onBack={back} onNext={forward} onOpenCall={openCall} />}
+      {step === 'phone' && (
+        <PhoneStep
+          status={state.phone}
+          setupError={setupError}
+          clearError={() => setSetupError(null)}
+          onBack={back}
+          onNext={forward}
+        />
+      )}
+      {step === 'test_call' && (
+        <TestCallStep
+          showSimulator={import.meta.env.DEV || state.phone.provider === 'dev'}
+          onBack={back}
+          onNext={forward}
+          onOpenCall={openCall}
+        />
+      )}
       {step === 'done' && <Done onBack={back} onDone={onDone} />}
-      {otherError && <p className="ob-error" role="alert">{otherError}</p>}
+      {otherError && (
+        <p className="ob-error" role="alert">
+          {otherError}
+        </p>
+      )}
     </Frame>
   )
 }
 
+/** "You're live" only when calls are really answered; otherwise what is left, with the way to it. */
 function Done({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
   const name = useAssistantName()
   const number = useRows('phone_numbers')[0]
+  const presence = usePresence()
   useStepKeys({ onEnter: onDone, onEscape: onBack })
+  const openPhoneSettings = () => {
+    window.history.replaceState(null, '', '#settings')
+    onDone()
+  }
+  const live = number && presence.kind === 'answering'
   return (
     <>
       <div className="ob-body">
-        <h1>{number ? "You're live." : "You're set up."}</h1>
+        <h1>{live ? "You're live." : 'Almost there.'}</h1>
         <p className="ob-lede">
-          {number
+          {live
             ? `${name} answers ${formatNumber(number.e164)}. Every call lands in your inbox with a summary and the next step.`
-            : `${name} starts answering once a number is connected. Calls then land in your inbox.`}
+            : number
+              ? `${formatNumber(number.e164)} is connected. ${name} starts answering once the voice service of this Linedesk is set up; whoever runs it can do that.`
+              : `One step left: connect a phone number. ${name} starts answering its calls, and every call lands in your inbox.`}
         </p>
+        {!number && (
+          <p>
+            <Button size="sm" icon="phone" onClick={openPhoneSettings} title="Settings, Phone numbers">
+              Connect a number
+            </Button>
+          </p>
+        )}
       </div>
       <Foot onBack={onBack} onContinue={onDone} canContinue label="Open my calls" />
     </>
