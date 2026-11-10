@@ -48,3 +48,14 @@ export function useRejection() {
   const { rejection, clearRejection } = useCtx()
   return { rejection, clearRejection }
 }
+
+export function useContact(id: string | null) {
+  const contacts = useSnapshot().tables.contacts
+  return id ? contacts.get(id) : undefined
+}
+
+/** The workspace's assistant (one per workspace). */
+export function useAssistant() {
+  return useRows('assistants')[0]
+}
+export const useAssistantName = () => useAssistant()?.name ?? 'Assistant'

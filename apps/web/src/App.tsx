@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchMe, type Me } from './auth.ts'
-import { Inbox } from './Inbox.tsx'
+import { Workspace } from './Workspace.tsx'
 import { Login } from './Login.tsx'
 import { StoreProvider } from './store.tsx'
 
@@ -18,7 +18,7 @@ export function App() {
   if (session.state === 'signedOut') return <Login onDone={refresh} />
   return (
     <StoreProvider workspaceId={session.me.workspace!.id}>
-      <Inbox me={session.me} onSignedOut={refresh} />
+      <Workspace me={session.me} onSignedOut={refresh} />
     </StoreProvider>
   )
 }

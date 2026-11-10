@@ -1,6 +1,5 @@
 /* Additions on top of the prototype's styles (styles.css is copied from prototypes/inbox-html). */
 html, body, #root { height: 100%; }
-.app-main { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 
 .auth { min-height: 100%; display: grid; place-items: center; padding: 24px; }
 .auth-card { width: min(360px, 100%); display: flex; flex-direction: column; gap: 12px; padding: 28px; background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
@@ -16,3 +15,11 @@ html, body, #root { height: 100%; }
 
 .sync-state { font-size: 12px; color: var(--ink-muted); }
 .sync-state.is-offline { color: var(--warning); }
+
+/* Real next steps can be longer than the status column: clip them like the summary. */
+.r-status { overflow: hidden; }
+.r-next, .r-quiet { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* The backdrop's click target sits behind the panel. */
+.overlay-dismiss { position: absolute; inset: 0; border: 0; padding: 0; background: none; cursor: default; }
+.overlay > :not(.overlay-dismiss) { position: relative; }

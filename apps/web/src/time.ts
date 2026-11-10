@@ -19,6 +19,13 @@ export function timeLabel(date: Date, now = new Date()): string {
 
 /** "1m 20s" for lists. */
 export function shortDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60), s = seconds % 60
-  return m ? `${m}m ${s}s` : `${s}s`
+  const m = Math.floor(seconds / 60), s = Math.round(seconds % 60)
+  return m ? `${m}m${s ? ` ${s}s` : ''}` : `${s}s`
+}
+
+/** "01:20" for clocks and transcript times. */
+export function clock(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds))
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`
 }

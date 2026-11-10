@@ -1,0 +1,74 @@
+// The keyboard model: one handler for the whole app. Everything it does is also reachable
+// with the mouse; the handler only maps keys to the same commands.
+import type { Call } from '@callfront/db/types'
+import { SEARCH_INPUT_ID } from '../inbox/InboxHead.tsx'
+import { splits, viewByKey, type InboxTab } from '../inbox-model.ts'
+
+export type Overlay = 'remind' | null
+
+export type KeyContext = {
+  overlay: Overlay
+  tab: InboxTab
+  searching: boolean
+  /** The call under the cursor. */
+  target: Call | undefined
+  closeOverlay: () => void
+  openSearch: () => void
+  closeSearch: () => void
+  setTab: (tab: InboxTab) => void
+  step: (by: number) => void
+  goChord: (key: string) => boolean
+  markDone: (call: Call) => void
+  markNotDone: (call: Call) => void
+  toggleUnread: (call: Call) => void
+  remove: (call: Call) => void
+  openRemind: (call: Call) => void
+  clearReminder: (call: Call) => void
+  undo: () => void
+}
+
+const CHORD_MS = 1200
+let chordUntil = 0
+
+const isTyping = (el: HTMLElement) => /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable
+
+function onEscape(el: HTMLElement, c: KeyContext) {
+  if (c.overlay) return c.closeOverlay()
+  if (el.id === SEARCH_INPUT_ID) { el.blur(); return c.closeSearch() }
+  if (isTyping(el)) return el.blur()
+  if (c.searching) return c.closeSearch()
+  if (!splits.includes(c.tab as never)) c.setTab('you')
+}
+
+function nextSplit(tab: InboxTab, back: boolean): InboxTab {
+  const i = splits.indexOf(tab as never)
+  return i < 0 ? 'you' : splits[(i + (back ? -1 : 1) + splits.length) % splits.length]!
+}
+
+/** Keys that act on the selected call. Returns false when the key is not one of them. */
+function onCallKey(key: string, call: Call, c: KeyContext): boolean {
+  const run: Record<string, (call: Call) => void> = {
+    e: c.markDone, E: c.markNotDone, h: c.openRemind, H: c.clearReminder, u: c.toggleUnread, '#': c.remove,
+  }
+  if (!run[key]) return false
+  run[key](call)
+  return true
+}
+
+/** Returns true when the key was handled (the caller prevents the default). */
+export function handleKey(e: KeyboardEvent, c: KeyContext): boolean {
+  const el = e.target as HTMLElement
+  const k = e.shiftKey && e.key.length === 1 ? e.key.toUpperCase() : e.key // ⇧E is 'E' whatever the layout reports
+  if (k === 'Escape') { onEscape(el, c); return false }
+  if (c.overlay || isTyping(el) || e.metaKey || e.ctrlKey || e.altKey) return false
+  if (Date.now() < chordUntil) { chordUntil = 0; return c.goChord(k.toLowerCase()) }
+  if (k === 'g' || k === 'G') { chordUntil = Date.now() + CHORD_MS; return true }
+  if (k === '/') c.openSearch()
+  else if (k === 'j' || k === 'J' || k === 'ArrowDown') c.step(1)
+  else if (k === 'k' || k === 'K' || k === 'ArrowUp') c.step(-1)
+  else if (k === 'Tab') c.setTab(nextSplit(c.tab, e.shiftKey))
+  else if (viewByKey[k]) c.setTab(viewByKey[k])
+  else if (k === 'z') c.undo()
+  else return c.target ? onCallKey(k, c.target, c) : false
+  return true
+}
