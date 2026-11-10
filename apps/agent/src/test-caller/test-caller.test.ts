@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import type { CallTestFinding } from '@callfront/actions'
 import { createLatencyLog, createOnsetDetector, rms } from './latency.ts'
 import { isGoodbye } from './caller.ts'
+import { describeMetrics } from '../turn-metrics.ts'
 import { evaluateCall, formatCallerLatency, formatReport, latencyOf, percentile } from './report.ts'
 import { callerInstructions, parseTestCallerMetadata, scenarioNames, scenarios } from './scenarios.ts'
 
@@ -110,4 +111,11 @@ test('greeting from the start, replies from the end of each caller turn', () => 
 test('the test caller may only hang up after saying goodbye', () => {
   for (const line of ['Thanks, goodbye.', 'Okay, bye!', 'Great, have a good day.', 'Good bye then']) expect(isGoodbye(line)).toBe(true)
   for (const line of ['Hi Maya, a pipe burst under my sink.', 'My number is the one I am calling from.', 'Maybe']) expect(isGoodbye(line)).toBe(false)
+})
+
+test('describeMetrics describes the stages that make up a reply and skips the rest', () => {
+  expect(describeMetrics({ type: 'eou_metrics', endOfUtteranceDelayMs: 412.4, transcriptionDelayMs: 80 })).toBe('end of turn 412 ms (transcript 80 ms)')
+  expect(describeMetrics({ type: 'llm_metrics', ttftMs: 640, durationMs: 1200 })).toBe('llm first token 640 ms (total 1200 ms)')
+  expect(describeMetrics({ type: 'tts_metrics', ttfbMs: 230 })).toBe('voice first audio 230 ms')
+  expect(describeMetrics({ type: 'vad_metrics' })).toBeNull()
 })
