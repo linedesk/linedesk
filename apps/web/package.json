@@ -1,0 +1,26 @@
+{
+  "name": "@callfront/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@callfront/actions": "workspace:*",
+    "@callfront/db": "workspace:*",
+    "@callfront/sync": "workspace:*",
+    "better-auth": "^1.7.19",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "vite": "^8.3.7",
+    "vitest": "^5.1.0"
+  }
+}

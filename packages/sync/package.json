@@ -1,0 +1,9 @@
+{
+  "name": "@callfront/sync",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc -p .", "test": "vitest run" },
+  "dependencies": { "@callfront/actions": "workspace:*", "@callfront/db": "workspace:*", "@electric-sql/client": "^1.5.28" },
+  "devDependencies": { "fake-indexeddb": "^6.0.0", "vitest": "^5.1.0" }
+}
