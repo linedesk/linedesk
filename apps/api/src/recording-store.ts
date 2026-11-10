@@ -51,7 +51,14 @@ export interface S3Options {
   fetch?: typeof fetch
 }
 
-export function createS3RecordingStore({ endpoint, region, bucket, accessKeyId, secretAccessKey, fetch: doFetch = fetch }: S3Options): RecordingStore {
+export function createS3RecordingStore({
+  endpoint,
+  region,
+  bucket,
+  accessKeyId,
+  secretAccessKey,
+  fetch: doFetch = fetch,
+}: S3Options): RecordingStore {
   const aws = new AwsClient({ accessKeyId, secretAccessKey, region, service: 's3' })
   // Path-style URLs work with every S3-compatible server.
   function objectUrl(key: string) {
@@ -79,6 +86,10 @@ const s3Env = ['S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS
 const DEFAULT_RECORDINGS_DIR = fileURLToPath(new URL('../../../data/recordings', import.meta.url))
 
 /** The store selected by RECORDING_STORE (default: file). Throws RecordingConfigError naming what is wrong. */
+/** The directory of the file store (RECORDING_STORE=file or unset); null for any other store. */
+export const recordingsDirFromEnv = (env: Env): string | null =>
+  (env.RECORDING_STORE || 'file') === 'file' ? env.RECORDINGS_DIR || DEFAULT_RECORDINGS_DIR : null
+
 export function recordingStoreFromEnv(env: Env): RecordingStore {
   const kind = env.RECORDING_STORE || 'file'
   if (kind === 'file') return createFileRecordingStore(env.RECORDINGS_DIR || DEFAULT_RECORDINGS_DIR)
@@ -86,7 +97,10 @@ export function recordingStoreFromEnv(env: Env): RecordingStore {
   const missing = s3Env.filter(name => !env[name])
   if (missing.length) throw new RecordingConfigError(`${missing.join(', ')} not set (needed for RECORDING_STORE=s3)`)
   return createS3RecordingStore({
-    endpoint: env.S3_ENDPOINT!, region: env.S3_REGION || 'us-east-1', bucket: env.S3_BUCKET!,
-    accessKeyId: env.S3_ACCESS_KEY_ID!, secretAccessKey: env.S3_SECRET_ACCESS_KEY!,
+    endpoint: env.S3_ENDPOINT!,
+    region: env.S3_REGION || 'us-east-1',
+    bucket: env.S3_BUCKET!,
+    accessKeyId: env.S3_ACCESS_KEY_ID!,
+    secretAccessKey: env.S3_SECRET_ACCESS_KEY!,
   })
 }

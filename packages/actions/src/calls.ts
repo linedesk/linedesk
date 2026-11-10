@@ -177,7 +177,8 @@ export const callFlagUrgent = defineAction({
 })
 
 // Recordings. The key is never taken from a client: both sides derive it from the workspace and the call.
-export const recordingFormats = ['ogg'] as const
+/** `ogg` from LiveKit egress; `wav` for the demo recording the seed makes. */
+export const recordingFormats = ['ogg', 'wav'] as const
 export type RecordingFormat = (typeof recordingFormats)[number]
 
 /** Where the recording of a call lives in the recording store: `<workspace>/<call>.<format>`. */

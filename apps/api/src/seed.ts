@@ -1,5 +1,5 @@
 // Demo workspace: Brightwater Plumbing & Heating (Portland), assistant Maya, owner Mike Brennan.
-// Idempotent: the base data is created once; the calendar setup is added to an existing demo too.
+// Idempotent: the base data is created once; the calendar setup and the demo recording are added to an existing demo too.
 import {
   appointment_types,
   assistants,
@@ -13,9 +13,12 @@ import {
   user,
   workspace_settings,
 } from '@callfront/db'
-import { eq } from 'drizzle-orm'
+import { recordingKey } from '@callfront/actions'
+import { asc, eq } from 'drizzle-orm'
 import { auth } from './auth.ts'
 import { db, pool } from './db.ts'
+import { demoRecordingWav, writeDemoRecording } from './demo-recording.ts'
+import { recordingsDirFromEnv } from './recording-store.ts'
 
 export const DEMO = { email: 'mike@brightwater.example', password: 'brightwater-demo', number: '+15035550142' }
 
@@ -229,13 +232,34 @@ async function seedCalendar(workspace_id: string) {
     .onConflictDoNothing()
 }
 
+/** The quote call gets a stand-in recording, so the player can be tried (file store only; S3 is left alone). */
+async function seedDemoRecording(workspace_id: string) {
+  const dir = recordingsDirFromEnv(process.env)
+  const callId = id('call', 2)
+  const [call] = await db.select().from(calls).where(eq(calls.id, callId))
+  if (!dir || !call?.duration_sec) return
+  const key = recordingKey(workspace_id, callId, 'wav')
+  const turns = await db
+    .select({ at_ms: transcript_segments.at_ms, speaker: transcript_segments.speaker })
+    .from(transcript_segments)
+    .where(eq(transcript_segments.call_id, callId))
+    .orderBy(asc(transcript_segments.at_ms))
+  const wav = demoRecordingWav(
+    call.duration_sec,
+    turns.map(t => ({ atSec: t.at_ms / 1000, speaker: t.speaker })),
+  )
+  await writeDemoRecording(dir, key, wav)
+  await db.update(calls).set({ recording_key: key }).where(eq(calls.id, callId))
+}
+
 async function seed() {
   const [existing] = await db.select().from(user).where(eq(user.email, DEMO.email))
   if (existing) {
     const [workspace] = await db.select().from(organization).where(eq(organization.slug, DEMO_SLUG))
     if (!workspace) throw new Error(`demo user exists but workspace "${DEMO_SLUG}" does not`)
     await seedCalendar(workspace.id)
-    return console.log('demo data already there (calendar setup checked)')
+    await seedDemoRecording(workspace.id)
+    return console.log('demo data already there (calendar setup and demo recording checked)')
   }
 
   const signUp = await auth.api.signUpEmail({
@@ -266,16 +290,14 @@ async function seed() {
       hours: 'Mon–Fri 7 am – 6 pm, emergencies 24/7',
     },
   })
-  await db
-    .insert(phone_numbers)
-    .values({
-      id: 'pn_demo',
-      workspace_id,
-      e164: DEMO.number,
-      provider: 'dev',
-      mode: 'forward_conditional',
-      verified_at: new Date().toISOString(),
-    })
+  await db.insert(phone_numbers).values({
+    id: 'pn_demo',
+    workspace_id,
+    e164: DEMO.number,
+    provider: 'dev',
+    mode: 'forward_conditional',
+    verified_at: new Date().toISOString(),
+  })
 
   for (const [i, c] of seedCalls.entries()) {
     const started = new Date(Date.now() - c.minutesAgo * 60_000)
@@ -311,6 +333,7 @@ async function seed() {
     )
   }
   await seedCalendar(workspace_id)
+  await seedDemoRecording(workspace_id)
   console.log(`seeded ${seedCalls.length} calls. Sign in: ${DEMO.email} / ${DEMO.password}`)
 }
 

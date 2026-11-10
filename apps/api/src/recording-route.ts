@@ -11,7 +11,8 @@ import { db } from './db.ts'
 import { RecordingConfigError, recordingStoreFromEnv } from './recording-store.ts'
 
 const SIGNED_URL_TTL_SEC = 300
-const contentType = (key: string) => (key.endsWith('.ogg') ? 'audio/ogg' : 'application/octet-stream')
+const contentType = (key: string) =>
+  key.endsWith('.ogg') ? 'audio/ogg' : key.endsWith('.wav') ? 'audio/wav' : 'application/octet-stream'
 const error = (status: number, message: string) => Response.json({ ok: false, error: message }, { status })
 
 /** First and last byte of a `Range: bytes=…` header for a file of `size` bytes. Null if it cannot be satisfied. */
@@ -34,27 +35,40 @@ function fileResponse(path: string, size: number, type: string, rangeHeader: str
   const body = Readable.toWeb(createReadStream(path, range)) as ReadableStream
   return new Response(body, {
     status: 206,
-    headers: { ...headers, 'content-length': String(range.end - range.start + 1), 'content-range': `bytes ${range.start}-${range.end}/${size}` },
+    headers: {
+      ...headers,
+      'content-length': String(range.end - range.start + 1),
+      'content-range': `bytes ${range.start}-${range.end}/${size}`,
+    },
   })
 }
 
 /** The stored key, if it is the one this call can have. Anything else in the column is not served. */
 function ownKey(call: { id: string; workspace_id: string; recording_key: string | null }): string | null {
   const key = call.recording_key
-  const own = key && isRecordingKey(key) && recordingFormats.some(format => key === recordingKey(call.workspace_id, call.id, format))
+  const own =
+    key &&
+    isRecordingKey(key) &&
+    recordingFormats.some(format => key === recordingKey(call.workspace_id, call.id, format))
   return own ? key : null
 }
 
 export async function serveRecording(actor: Actor, callId: string, rangeHeader: string | undefined): Promise<Response> {
   if (!actor.workspaceId || !actor.permissions.includes('call:read')) return error(403, 'missing permission call:read')
-  const [call] = await db.select({ id: calls.id, workspace_id: calls.workspace_id, recording_key: calls.recording_key }).from(calls)
+  const [call] = await db
+    .select({ id: calls.id, workspace_id: calls.workspace_id, recording_key: calls.recording_key })
+    .from(calls)
     .where(and(eq(calls.id, callId), eq(calls.workspace_id, actor.workspaceId)))
   const key = call && ownKey(call)
   if (!key) return error(404, 'no recording for this call')
   try {
     const location = await recordingStoreFromEnv(process.env).locate(key, SIGNED_URL_TTL_SEC)
     if (!location) return error(404, 'no recording for this call')
-    if ('url' in location) return new Response(null, { status: 302, headers: { location: location.url, 'cache-control': 'private, no-store' } })
+    if ('url' in location)
+      return new Response(null, {
+        status: 302,
+        headers: { location: location.url, 'cache-control': 'private, no-store' },
+      })
     return fileResponse(location.path, location.size, contentType(key), rangeHeader)
   } catch (e) {
     if (e instanceof RecordingConfigError) return error(409, `recording storage is not set up: ${e.message}`)
