@@ -1530,6 +1530,12 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
 .r-dot i { width: 5px; height: 5px; border-radius: 50%; background: transparent; transition: background .15s; }
 .r-dot.is-unread i { background: #16a34a; }
 .r-dot:not(.is-unread):hover i { background: var(--line-control); }
+
+/* Unread dot sits in the left gutter; names and day labels share one left edge */
+.row:not(.cust-row) { grid-template-columns: minmax(110px, 160px) minmax(0, 1fr) 104px 44px 64px; }
+.row .r-dot { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); width: 10px; }
+.ib-day { padding-left: 20px; }
+@media (max-width: 719px) { .row:not(.cust-row) { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name time" "sum sum" "status status"; } .row .r-dot { left: 1px; top: 15px; transform: none; } .ib-day { padding-left: 12px; } }
 </style>
 <div id="app"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
