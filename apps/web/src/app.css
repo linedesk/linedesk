@@ -891,3 +891,9 @@ a.k-btn {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+.st-test-bare {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}

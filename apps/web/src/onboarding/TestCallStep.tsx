@@ -1,5 +1,6 @@
-// Step 3: call the number and watch the call arrive through sync.
+// Step 3: call the number and watch the call arrive through sync; without a number, a test call in the browser.
 import { useState } from 'react'
+import { TestCall } from '../settings/TestCall.tsx'
 import { useAssistantName, useRows } from '../store.tsx'
 import { Button, Icon } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
@@ -26,10 +27,11 @@ export function TestCallStep({ showSimulator, onBack, onNext, onOpenCall }: Prop
     return (
       <>
         <div className="ob-body">
-          <h1>No number to call yet.</h1>
-          <p className="ob-lede">Connect a number first, or skip the test call for now.</p>
+          <h1>Talk to {name} in the browser.</h1>
+          <p className="ob-lede">There is no number to call yet, so try {name} with your microphone. Ask something a customer would ask. You can connect a number later in Settings.</p>
+          <TestCall canStart bare />
         </div>
-        <Foot onBack={onBack} onContinue={onNext} canContinue label="Skip test call" />
+        <Foot onBack={onBack} onContinue={onNext} canContinue label="Continue" />
       </>
     )
   }

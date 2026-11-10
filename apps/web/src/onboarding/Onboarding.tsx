@@ -33,8 +33,8 @@ export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingSta
     void run('onboarding.setStep', { step: to })
   }
   const back = () => { const to = previousStep(step); if (to) go(to) }
-  // Without a number there is nothing to call: the phone step's skip goes straight to the end.
-  const forward = () => go(step === 'phone' && !hasNumber ? 'done' : nextStep(step))
+  // Without a number the test call happens in the browser, so every step leads to the next.
+  const forward = () => go(nextStep(step))
   function skip() {
     void run('onboarding.setStep', { step: 'skipped' })
     onDone()

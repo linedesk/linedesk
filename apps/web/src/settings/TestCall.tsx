@@ -46,7 +46,8 @@ function useTestCall(room: string | null) {
   return { call, lines, notSetUp }
 }
 
-export function TestCall({ canStart }: { canStart: boolean }) {
+/** `bare`: without the section card and its heading, for a page that says what it is itself (onboarding). */
+export function TestCall({ canStart, bare }: { canStart: boolean; bare?: boolean }) {
   const name = useAssistantName()
   const [phase, setPhase] = useState<Phase>('idle')
   const [problem, setProblem] = useState<string | null>(null)
@@ -132,15 +133,15 @@ export function TestCall({ canStart }: { canStart: boolean }) {
   }
 
   const live = phase === 'live' || phase === 'starting'
-  return (
-    <Section id="as-test" title={`Talk to ${name}`} description="A test call in the browser, with your microphone. It shows up in the inbox as a test call, with transcript and summary.">
+  const body = (
+    <>
       <div>
         {live ? (
           phase === 'starting'
             ? <span className="st-test-wait"><span className="st-spin" aria-hidden="true" />Connecting…<Button size="sm" variant="ghost" onClick={cancel}>Cancel</Button></span>
             : <Button variant="secondary" onClick={() => void stop()}>End test call</Button>
         ) : (
-          <Button variant="primary" icon="phone-in" onClick={() => void start()} disabled={!canStart}>
+          <Button variant={bare ? 'secondary' : 'primary'} icon="phone-in" onClick={() => void start()} disabled={!canStart}>
             {phase === 'ended' ? 'Call again' : 'Start test call'}
           </Button>
         )}
@@ -161,6 +162,12 @@ export function TestCall({ canStart }: { canStart: boolean }) {
         </ol>
       )}
       <div ref={audio} hidden />
+    </>
+  )
+  if (bare) return <div className="st-test-bare">{body}</div>
+  return (
+    <Section id="as-test" title={`Talk to ${name}`} description="A test call in the browser, with your microphone. It shows up in the inbox as a test call, with transcript and summary.">
+      {body}
     </Section>
   )
 }
