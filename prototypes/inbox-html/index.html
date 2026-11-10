@@ -1524,6 +1524,12 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
 .cv-urgent { color: var(--danger); font-weight: 500; }
 @media (min-width: 1100px) { .cv-line .sub, .cv-line .sub + * ::before { display: none; } }
 @media (max-width: 719px) { .cv-who h1 { font-size: 18px; line-height: 24px; } }
+
+/* Unread dot (replaces the direction icon) */
+.r-dot { display: grid; place-items: center; width: 14px; height: 18px; cursor: pointer; }
+.r-dot i { width: 7px; height: 7px; border-radius: 50%; background: transparent; transition: background .15s; }
+.r-dot.is-unread i { background: var(--action); }
+.r-dot:not(.is-unread):hover i { background: var(--line-control); }
 </style>
 <div id="app"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
@@ -2183,7 +2189,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
           function rowAct(title, icon, run) { return h('button', { type: 'button', className: 'r-act', title: title, 'aria-label': title.replace(/ \(.*\)$/, ''), onClick: function (e) { e.stopPropagation(); run(); } }, h(Ic, { name: icon, size: 14 })); }
           var dirIcon = c.status === 'missed' ? 'phone-missed' : c.direction === 'out' ? 'phone-out' : 'phone-in';
           return h(React.Fragment, { key: c.id }, newDay ? h('div', { className: 'ib-day', role: 'presentation' }, day) : null, h('div', { role: 'listitem', className: cx('row', p.leaving === c.id && 'is-leaving', p.entering === c.id && 'is-entering', p.cursor === c.id && 'is-cursor', (c.unread || isLive) && 'unread'), onClick: function () { p.onOpen(c.id); }, onMouseMove: function () { if (p.cursor !== c.id) p.setCursor(c.id); } },
-            h('span', { className: cx('r-dir', c.status === 'missed' && 'missed'), title: c.status === 'missed' ? 'Missed' : c.direction === 'out' ? 'Outbound' : 'Inbound' }, h(K.Icon, { name: dirIcon, size: 14 })),
+            h('span', { className: cx('r-dot', c.unread && 'is-unread'), title: (c.unread ? 'Mark read' : 'Mark unread') + ' (U)', role: 'button', 'aria-label': c.unread ? 'Unread, mark read' : 'Read, mark unread', onClick: function (e) { e.stopPropagation(); p.onUnread(c.id); } }, h('i')),
             h('span', { className: 'r-name' }, h('span', null, p.search ? hl(c.name, p.search) : c.name), c.assignee ? h('span', { className: 'r-assignee', title: 'Assigned to ' + (MEMBERS.filter(function (m) { return m.id === c.assignee; })[0] || {}).name }, (MEMBERS.filter(function (m) { return m.id === c.assignee; })[0] || { name: '?' }).name.split(' ').map(function (w) { return w[0]; }).join('')) : null),
             (function () {
               var q = p.search, hit = q ? searchHit(c, L, q) : null;
