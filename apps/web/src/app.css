@@ -34,9 +34,8 @@ html, body, #root { height: 100%; }
 .fact-input:hover { background: var(--surface-hover); }
 .fact-input:focus { outline: none; background: var(--surface); box-shadow: 0 0 0 1px var(--focus); }
 
-/* Settings: the fieldset only groups (and disables) the sections; a service is a single column. */
+/* Settings: the fieldset only groups (and disables) the sections. */
 .st-fields { display: contents; border: 0; margin: 0; padding: 0; min-width: 0; }
-.st-li.st-svc-one { grid-template-columns: minmax(0, 1fr) auto; }
 
 /* Navigation: the scrim is a button, the profile row opens a small menu above it. */
 .scrim { border: 0; padding: 0; }
@@ -127,3 +126,10 @@ button.me:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; 
   .row .r-status { padding-right: 32px; }
   .cv-main[data-side="open"] .cv-side { top: auto; left: 0; width: auto; max-height: 70vh; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
 }
+
+/* Toast: centred text when there is no Undo button; the tighter right edge only next to the button. */
+.toast { padding: 6px 12px; }
+.toast.has-undo { padding: 6px 6px 6px 12px; }
+
+/* Assistant instructions: room for a few paragraphs. */
+.ta.ta-tall { min-height: 260px; }

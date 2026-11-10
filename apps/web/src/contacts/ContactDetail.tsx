@@ -1,6 +1,6 @@
 // The contact's record beside the list: the same editable fields as the call view's side panel, and their calls.
 import type { Call } from '@callfront/db/types'
-import { Facts, SideCalls } from '../call/CustomerSide.tsx'
+import { Facts, SideCalls } from '../call/ContactSide.tsx'
 import { formatPhone } from '../inbox-model.ts'
 import { Avatar, Button } from '../ui/kit.tsx'
 import { contactLabel, type ContactRow } from './model.ts'

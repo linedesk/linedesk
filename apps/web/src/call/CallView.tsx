@@ -51,8 +51,8 @@ function Bar({ call, index, count, menu, sideOpen, onToggleSide, ...on }: BarPro
       <Button size="sm" variant="ghost" icon="up" title="Previous call (K)" aria-label="Previous call" disabled={index <= 0} onClick={() => on.onStep(-1)} />
       <Button size="sm" variant="ghost" icon="down" title="Next call (J)" aria-label="Next call" disabled={index >= count - 1} onClick={() => on.onStep(1)} />
       {index > -1 && <span className="cv-pos">{index + 1} of {count}</span>}
-      {/* Narrow windows have no room for the caller panel next to the call: it opens as a sheet. */}
-      <Button size="sm" variant="ghost" icon="user" className="cv-caller-btn" aria-label="Caller" aria-expanded={sideOpen} title="Caller" onClick={onToggleSide} />
+      {/* Narrow windows have no room for the contact panel next to the call: it opens as a sheet. */}
+      <Button size="sm" variant="ghost" icon="user" className="cv-caller-btn" aria-label="Contact" aria-expanded={sideOpen} title="Contact" onClick={onToggleSide} />
       {!live && (
         <div className="cv-acts">
           {reminded && <Button size="sm" variant="ghost" shortcut={['⇧', 'H']} title="Clear reminder (⇧H)" onClick={() => on.onClearReminder(call)}>Clear reminder</Button>}

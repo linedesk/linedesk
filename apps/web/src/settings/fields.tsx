@@ -1,6 +1,5 @@
 // Small form pieces for settings pages. Class names match the reference UI.
 import type { ReactNode } from 'react'
-import { Button, Icon } from '../ui/kit.tsx'
 
 export function Section({ id, title, description, children }: { id: string; title: string; description: string; children: ReactNode }) {
   return (
@@ -21,8 +20,8 @@ export function TextInput({ id, value, onChange, placeholder, label }: TextProps
   return <label className="k-input"><input id={id} value={value} placeholder={placeholder} aria-label={label} onChange={e => onChange(e.target.value)} /></label>
 }
 
-export function TextArea({ id, value, onChange, placeholder, label, small }: TextProps & { small?: boolean }) {
-  return <textarea id={id} className={small ? 'ta st-ta-sm' : 'ta'} value={value} placeholder={placeholder} aria-label={label} onChange={e => onChange(e.target.value)} />
+export function TextArea({ id, value, onChange, placeholder, label, tall }: TextProps & { tall?: boolean }) {
+  return <textarea id={id} className={tall ? 'ta ta-tall' : 'ta'} value={value} placeholder={placeholder} aria-label={label} onChange={e => onChange(e.target.value)} />
 }
 
 export function SwitchRow({ title, description, on, onChange }: { title: string; description: string; on: boolean; onChange: (on: boolean) => void }) {
@@ -33,10 +32,3 @@ export function SwitchRow({ title, description, on, onChange }: { title: string;
     </div>
   )
 }
-
-export function RemoveButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return <Button size="sm" variant="ghost" className="st-rm" aria-label={label} title={label} onClick={onClick}><Icon name="trash" size={14} /></Button>
-}
-
-export const replaceAt = <T,>(list: T[], index: number, item: T) => list.map((x, i) => (i === index ? item : x))
-export const without = <T,>(list: T[], index: number) => list.filter((_, i) => i !== index)

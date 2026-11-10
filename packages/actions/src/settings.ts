@@ -18,6 +18,9 @@ export const contactUpdate = defineAction({
   patch: { table: 'contacts', id: i => i.contactId, set: ({ contactId: _id, ...rest }) => defined(rest) },
 })
 
+/** Longest free-text instructions an assistant takes (characters). */
+export const INSTRUCTIONS_MAX = 20_000
+
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description: 'Update the assistant: name, greeting, voice, whether calls are recorded and what it knows about the business.',
@@ -29,7 +32,7 @@ export const assistantUpdate = defineAction({
     record_calls: z.boolean().optional(),
     voice: z.object({ provider: z.string(), voice_id: z.string() }).optional(),
     business_profile: z.object({
-      instructions: z.string().optional(),
+      instructions: z.string().max(INSTRUCTIONS_MAX).optional(),
       description: z.string().optional(),
       services: z.array(z.string()).optional(),
       service_area: z.string().optional(),

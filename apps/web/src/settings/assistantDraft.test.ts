@@ -1,59 +1,51 @@
 import type { Assistant } from '@callfront/db/types'
 import { describe, expect, it } from 'vitest'
-import { disclosesAi, draftOf, draftProblem, isDirty, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure } from './assistantDraft.ts'
+import { disclosesAi, draftOf, draftProblem, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure } from './assistantDraft.ts'
 
-const assistant = (over: Partial<Assistant> = {}) => ({
-  id: 'as1', name: 'Maya', greeting: 'Hello', disclose_ai: true,
-  business_profile: { description: 'Plumbing', services: ['Leak repair'], service_area: 'Portland', address: '1 Main St', hours: 'Mon–Fri', faqs: [{ q: 'Estimates?', a: 'Free.' }] },
-  ...over,
-}) as Assistant
+const oldProfile = { description: 'Plumbing', services: ['Leak repair', ' ', 'Drains'], service_area: 'Portland', address: '1 Main St', hours: 'Mon–Fri', faqs: [{ q: 'Estimates?', a: 'Free.' }, { q: '', a: '' }] }
+const assistant = (over: Partial<Assistant> = {}) => ({ id: 'as1', name: 'Maya', greeting: 'Hello', disclose_ai: true, business_profile: oldProfile, ...over }) as Assistant
 
-describe('assistant draft', () => {
-  it('reads the row, with empty defaults for a new assistant', () => {
-    expect(draftOf(assistant())).toMatchObject({ name: 'Maya', services: ['Leak repair'], hours: 'Mon–Fri', faqs: [{ q: 'Estimates?', a: 'Free.' }] })
-    expect(draftOf(assistant({ business_profile: {} }))).toMatchObject({ description: '', services: [], service_area: '', hours: '', faqs: [] })
+describe('instructions', () => {
+  it('folds the older fields into one text, once, in the shape the assistant read them', () => {
+    expect(draftOf(assistant()).instructions).toBe('About: Plumbing\nServices: Leak repair, Drains\nService area: Portland\nAddress: 1 Main St\nHours: Mon–Fri\nFrequently asked questions:\nQ: Estimates?\nA: Free.')
+    expect(foldProfile({})).toBe('')
   })
-  it('keeps touched fields and refreshes untouched ones when a change syncs in', () => {
-    const saved = draftOf(assistant())
-    const editing = { ...saved, greeting: 'Hi there', services: ['Leak repair', 'Drains'] }
-    const fromElsewhere = draftOf(assistant({ name: 'Mia', greeting: 'Good day' }))
-    const merged = mergeDraft(editing, saved, fromElsewhere)
-    expect(merged.name).toBe('Mia') // untouched: follows the server
-    expect(merged.greeting).toBe('Hi there') // touched: the edit stays
-    expect(merged.services).toEqual(['Leak repair', 'Drains'])
-    expect(isDirty(merged, fromElsewhere)).toBe(true)
-    expect(isDirty(mergeDraft(saved, saved, fromElsewhere), fromElsewhere)).toBe(false)
+  it('reads saved instructions as they are, even when older fields are still there', () => {
+    expect(draftOf(assistant({ business_profile: { ...oldProfile, instructions: 'Be brief.' } })).instructions).toBe('Be brief.')
+    // empty instructions: like the voice agent, the older fields still apply, so they are shown
+    expect(draftOf(assistant({ business_profile: { ...oldProfile, instructions: '  ' } })).instructions).toContain('About: Plumbing')
+    expect(draftOf(assistant({ business_profile: { instructions: '' } })).instructions).toBe('') // saved empty by this page: nothing left to fold
   })
-  it('trims, drops empty rows and keeps profile fields the page does not edit', () => {
-    const draft = { ...draftOf(assistant()), description: ' Plumbing and heating ', services: ['Leak repair', '  ', ' Drains '], faqs: [{ q: ' Estimates? ', a: ' Free. ' }, { q: '', a: '' }] }
-    expect(profileOf(draft, assistant().business_profile)).toEqual({
-      description: 'Plumbing and heating', services: ['Leak repair', 'Drains'], service_area: 'Portland', address: '1 Main St', hours: 'Mon–Fri',
-      faqs: [{ q: 'Estimates?', a: 'Free.' }],
-    })
+  it('saves the instructions in place of the fields they came from', () => {
+    expect(profileOf({ ...draftOf(assistant()), instructions: '  New text  ' })).toEqual({ instructions: 'New text' })
   })
-  it('refuses to save a question without an answer instead of dropping it', () => {
-    const base = draftOf(assistant())
-    expect(draftProblem(base)).toBeNull()
-    expect(draftProblem({ ...base, faqs: [{ q: 'Do you do gas?', a: ' ' }] })).toContain('Do you do gas?')
-    expect(draftProblem({ ...base, faqs: [{ q: '', a: 'Yes.' }] })).toContain('no question')
-    expect(draftProblem({ ...base, faqs: [{ q: '', a: '' }] })).toBeNull() // an empty row is just dropped
-    expect(draftProblem({ ...base, name: ' ' })).toBe('The assistant needs a name.')
+  it('refuses instructions over the limit with a count', () => {
+    expect(draftProblem({ ...draftOf(assistant()), instructions: 'x'.repeat(20_001) })).toBe('The instructions are too long: 20,001 of 20,000 characters.')
+    expect(draftProblem({ ...draftOf(assistant()), instructions: 'x'.repeat(20_000) })).toBeNull()
   })
 })
 
-describe('saving the assistant', () => {
+describe('draft', () => {
   const saved = draftOf(assistant())
-  it('does not count spaces or an empty row as a change, and is clean after a save', () => {
-    expect(isDirty({ ...saved, services: [...saved.services, ''] }, saved)).toBe(false)
-    expect(isDirty({ ...saved, name: ' Maya ' }, saved)).toBe(false)
-    expect(isDirty({ ...saved, faqs: [...saved.faqs, { q: '', a: '' }] }, saved)).toBe(false)
-    const edited = { ...saved, services: [...saved.services, '  QA test service  '] }
+  it('keeps touched fields and refreshes untouched ones when a change syncs in', () => {
+    const editing = { ...saved, instructions: 'Mine' }
+    const merged = mergeDraft(editing, saved, draftOf(assistant({ name: 'Mia' })))
+    expect(merged).toMatchObject({ name: 'Mia', instructions: 'Mine' })
+  })
+  it('does not count spaces as a change, and is clean after a save', () => {
+    expect(isDirty({ ...saved, name: ' Maya ', instructions: `${saved.instructions}\n` }, saved)).toBe(false)
+    const edited = { ...saved, instructions: 'Hours: 24/7' }
     expect(isDirty(edited, saved)).toBe(true)
-    const afterSave = draftOf(assistant({ business_profile: profileOf(normalized(edited), assistant().business_profile) }))
+    const afterSave = draftOf(assistant({ business_profile: profileOf(normalized(edited)) }))
     expect(isDirty(normalized(edited), afterSave)).toBe(false)
   })
-  it('requires a greeting and says one second, not "1 seconds"', () => {
+  it('requires a name and a greeting', () => {
+    expect(draftProblem(saved)).toBeNull()
+    expect(draftProblem({ ...saved, name: ' ' })).toBe('The assistant needs a name.')
     expect(draftProblem({ ...saved, greeting: '   ' })).toContain('greeting')
+    expect(draftProblem({ ...saved, instructions: '' })).toBeNull()
+  })
+  it('says how long the greeting takes', () => {
     expect(spokenLength('Hi.')).toBe('about 1 second spoken')
     expect(spokenLength('  ')).toBe('nothing to say yet')
     expect(spokenLength('Thanks for calling Brightwater, this is Maya. How can I help?')).toBe('about 4 seconds spoken')
@@ -71,7 +63,7 @@ describe('AI disclosure in the greeting', () => {
   it('adds a sentence when the greeting does not name the assistant', () => {
     expect(withDisclosure('Thanks for calling. How can I help?', 'Maya')).toBe('Thanks for calling. This is Maya, the AI assistant. How can I help?')
     expect(withDisclosure('', 'Maya')).toBe('This is Maya, the AI assistant.')
-    expect(withDisclosure(greeting, 'Maya')).toBe(greeting) // already says it
+    expect(withDisclosure(greeting, 'Maya')).toBe(greeting)
     expect(withoutDisclosure('Hi, this is Maya, a virtual assistant.')).toBe('Hi, this is Maya.')
   })
 })

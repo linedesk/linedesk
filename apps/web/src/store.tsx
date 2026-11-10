@@ -81,3 +81,7 @@ export function useAssistant() {
   return useRows('assistants')[0]
 }
 export const useAssistantName = () => useAssistant()?.name ?? 'Assistant'
+
+// A hot update of this module would create a second context while the old provider stays mounted
+// ("useStore outside StoreProvider"): reload the page instead.
+import.meta.hot?.accept(() => window.location.reload())

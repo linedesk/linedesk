@@ -1,11 +1,12 @@
-// Assistant settings, reduced to what the data model has. Edits are a local draft; Save runs
-// assistant.update through the outbox.
+// Assistant settings: name, greeting, AI disclosure and the business's free-text instructions.
+// Edits are a local draft; Save runs assistant.update through the outbox.
+import { INSTRUCTIONS_MAX } from '@callfront/actions'
 import type { Assistant } from '@callfront/db/types'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useAssistant, useRun } from '../store.tsx'
 import { Button } from '../ui/kit.tsx'
 import { type Draft, draftOf, draftProblem, isDirty, keepDraft, keptDraft, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure } from './assistantDraft.ts'
-import { Field, RemoveButton, replaceAt, Section, SwitchRow, TextArea, TextInput, without } from './fields.tsx'
+import { Field, Section, SwitchRow, TextArea, TextInput } from './fields.tsx'
 
 type SectionProps = { draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void }
 
@@ -19,7 +20,7 @@ function Greeting({ draft, set }: SectionProps) {
   return (
     <Section id="as-greeting" title="Greeting" description="The first sentence of every call.">
       <div className="row2"><Field id="as-name" label="Assistant name"><TextInput id="as-name" value={draft.name} onChange={v => set('name', v)} /></Field></div>
-      <Field id="as-greet" label="Greeting" >
+      <Field id="as-greet" label="Greeting">
         <TextArea id="as-greet" value={draft.greeting} onChange={v => set('greeting', v)} />
         <span className="help">{draft.greeting.trim().length} characters · {spokenLength(draft.greeting)}</span>
       </Field>
@@ -29,61 +30,15 @@ function Greeting({ draft, set }: SectionProps) {
   )
 }
 
-function Services({ draft, set }: SectionProps) {
-  const list = draft.services
+function Instructions({ draft, set }: SectionProps) {
+  const name = draft.name.trim() || 'the assistant'
   return (
-    <Field label="Services">
-      <div className="st-list">
-        {list.map((service, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: rows are edited in place, so a key from the text would remount the field on every keystroke
-          <div key={i} className="st-li st-svc st-svc-one">
-            <TextInput value={service} label="Service" placeholder="Service" onChange={v => set('services', replaceAt(list, i, v))} />
-            <RemoveButton label={`Remove ${service || 'service'}`} onClick={() => set('services', without(list, i))} />
-          </div>
-        ))}
-      </div>
-      <div><Button size="sm" variant="ghost" icon="plus" onClick={() => set('services', [...list, ''])}>Add service</Button></div>
-    </Field>
-  )
-}
-
-function Faqs({ draft, set }: SectionProps) {
-  const list = draft.faqs
-  return (
-    <Field label="Questions callers ask" help="Answers are used word for word.">
-      <div className="st-list">
-        {list.map((faq, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: rows are edited in place, so a key from the text would remount the field on every keystroke
-          <div key={i} className="st-li st-faq">
-            <div className="st-faq-in">
-              <TextInput value={faq.q} label="Question" placeholder="Question" onChange={q => set('faqs', replaceAt(list, i, { ...faq, q }))} />
-              <TextArea small value={faq.a} label="Answer" placeholder="Answer" onChange={a => set('faqs', replaceAt(list, i, { ...faq, a }))} />
-            </div>
-            <RemoveButton label="Remove question" onClick={() => set('faqs', without(list, i))} />
-          </div>
-        ))}
-      </div>
-      <div><Button size="sm" variant="ghost" icon="plus" onClick={() => set('faqs', [...list, { q: '', a: '' }])}>Add question</Button></div>
-    </Field>
-  )
-}
-
-function Knowledge(props: SectionProps) {
-  const { draft, set } = props
-  return (
-    <Section id="as-knowledge" title="Business knowledge" description="Write it like you would tell a new hire.">
-      <Field id="as-desc" label="About the business"><TextArea id="as-desc" small value={draft.description} onChange={v => set('description', v)} /></Field>
-      <Services {...props} />
-      <Field id="as-area" label="Service area"><TextInput id="as-area" value={draft.service_area} onChange={v => set('service_area', v)} /></Field>
-      <Faqs {...props} />
-    </Section>
-  )
-}
-
-function Hours({ draft, set }: SectionProps) {
-  return (
-    <Section id="as-hours" title="Business hours" description="When the business is open, in your own words.">
-      <Field id="as-hours-in" label="Hours"><TextInput id="as-hours-in" value={draft.hours} placeholder="e.g. Mon–Fri 7 am – 6 pm, emergencies 24/7" onChange={v => set('hours', v)} /></Field>
+    <Section id="as-instructions" title="Instructions" description={`What ${name} should know about the business and how to handle calls. Write it like you would tell a new hire.`}>
+      <Field id="as-instr" label="Instructions" help="Services, service area, hours, prices you quote, answers to common questions, what counts as urgent.">
+        <TextArea id="as-instr" tall value={draft.instructions} onChange={v => set('instructions', v)}
+          placeholder={'We are a family-run plumbing company in Portland.\nServices: leak repair, water heaters, drain cleaning.\nHours: Mon–Fri 7 am – 6 pm, emergencies 24/7.'} />
+        <span className="help">{draft.instructions.trim().length.toLocaleString('en-US')} of {INSTRUCTIONS_MAX.toLocaleString('en-US')} characters</span>
+      </Field>
     </Section>
   )
 }
@@ -113,7 +68,7 @@ function Form({ assistant, canEdit, toast }: Props & { assistant: Assistant }) {
     const clean = normalized(draft)
     void run('assistant.update', {
       assistantId: assistant.id, name: clean.name, greeting: clean.greeting, disclose_ai: clean.disclose_ai,
-      business_profile: profileOf(clean, assistant.business_profile),
+      business_profile: profileOf(clean),
     })
     setDraft(clean) // the form shows what was saved, so it is not "dirty" any more
     toast('Assistant settings saved.')
@@ -122,10 +77,10 @@ function Form({ assistant, canEdit, toast }: Props & { assistant: Assistant }) {
   return (
     <form className="page-in st-page" onSubmit={save}>
       <div className="page-head"><div><h1>Assistant</h1><p>How {draft.name || 'your assistant'} answers your phone.</p></div></div>
+      {/* The test-call card (telephony session, settings/TestCall.tsx) goes here, above the settings. */}
       <fieldset className="st-fields" disabled={!canEdit}>
         <Greeting draft={draft} set={set} />
-        <Knowledge draft={draft} set={set} />
-        <Hours draft={draft} set={set} />
+        <Instructions draft={draft} set={set} />
       </fieldset>
       <div className="save-bar st-save">
         <span className="help">{!canEdit ? 'Only owners and admins can change these settings.' : dirty ? 'Unsaved changes. They stay here until you save or discard them.' : 'Changes apply to the next call.'}</span>

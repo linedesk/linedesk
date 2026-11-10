@@ -21,14 +21,13 @@ export type InboxHeadProps = {
 export const SEARCH_INPUT_ID = 'call-search'
 const modeTitle: Partial<Record<InboxTab, string>> = { done: 'Done', reminders: 'Reminders' }
 
-function SearchBar({ search, resultCount, onSearchChange, onSearchClose }: Pick<InboxHeadProps, 'onSearchChange' | 'onSearchClose'> & { search: string; resultCount: number }) {
+function SearchBar({ search, onSearchChange, onSearchClose }: Pick<InboxHeadProps, 'onSearchChange' | 'onSearchClose'> & { search: string }) {
   return (
     <div className="ib-search">
       <Icon name="search" size={15} />
       <input id={SEARCH_INPUT_ID} value={search} placeholder="Search calls, callers and transcripts" aria-label="Search calls" autoComplete="off"
         onChange={e => onSearchChange(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); e.currentTarget.blur() } }} />
-      <span className="ib-search-n">{search ? `${resultCount} ${resultCount === 1 ? 'call' : 'calls'}` : `All ${resultCount} calls`}</span>
       <Button size="sm" variant="ghost" shortcut={['esc']} title="Close search (esc)" onClick={onSearchClose}>Close</Button>
     </div>
   )
@@ -86,7 +85,7 @@ export function InboxHead({ resultCount, menu, ...p }: InboxHeadProps & { result
   return (
     <div className="ib-head">
       {menu}
-      {p.search !== null ? <SearchBar search={p.search} resultCount={resultCount} onSearchChange={p.onSearchChange} onSearchClose={p.onSearchClose} />
+      {p.search !== null ? <SearchBar search={p.search} onSearchChange={p.onSearchChange} onSearchClose={p.onSearchClose} />
         : mode ? <Mode title={mode} count={resultCount} setTab={p.setTab} />
         : <Tabs tab={p.tab} setTab={p.setTab} counts={p.counts} />}
       {p.search === null && (

@@ -9,7 +9,7 @@ export type CallField = { label: string; value: string }
 export type ToolEvent = { tool: string; label: string }
 export type AssistantVoice = { provider: string; voice_id: string }
 export type BusinessProfile = {
-  /** The business's own free-text instructions for the assistant. */
+  /** Free text from the business: what the assistant should know and do. When set, the agent uses it instead of the fields below. */
   instructions?: string
   description?: string
   services?: string[]

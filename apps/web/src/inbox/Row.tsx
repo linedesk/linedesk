@@ -52,7 +52,7 @@ function Summary({ call, search, segments }: Pick<Props, 'call' | 'search' | 'se
   return (
     <span className="r-sum">
       <span className="r-topic">{highlight(callTitle(call), search)}</span>
-      {call.summary ? <> · {highlight(call.summary, search, search ? 160 : undefined)}</> : null}
+      {search && call.summary ? <> · {highlight(call.summary, search, 160)}</> : null /* the topic alone; while searching, the summary shows where it matched */}
     </span>
   )
 }

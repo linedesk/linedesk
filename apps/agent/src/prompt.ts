@@ -17,12 +17,9 @@ function businessFacts({ business_profile: p }: Assistant): string {
   ].filter(Boolean).join('\n')
 }
 
-/** `instructions` is the business's own free text; the web app stores it in the business profile. */
-type Profile = Assistant['business_profile'] & { instructions?: string }
-
 /** What the business told the assistant: its free-text instructions, or the older structured fields. */
 function businessKnowledge(assistant: Assistant): string {
-  const instructions = (assistant.business_profile as Profile).instructions?.trim()
+  const instructions = assistant.business_profile.instructions?.trim()
   return instructions || businessFacts(assistant)
 }
 

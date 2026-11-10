@@ -1,18 +1,33 @@
 // The editable copy of the assistant's settings: how it is read from the row, merged with
 // changes that arrive through sync, checked and turned back into what assistant.update takes.
+import { INSTRUCTIONS_MAX } from '@callfront/actions'
 import type { Assistant, BusinessProfile } from '@callfront/db/types'
 
-export type Faq = { q: string; a: string }
-export type Draft = { name: string; greeting: string; disclose_ai: boolean; description: string; services: string[]; service_area: string; hours: string; faqs: Faq[] }
+export type Draft = { name: string; greeting: string; disclose_ai: boolean; instructions: string }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+const line = (label: string, value?: string) => (value?.trim() ? `${label}: ${value.trim()}` : null)
+
+/**
+ * The older structured fields as one text, in the shape the assistant used to read them.
+ * Shown once for an assistant that has no instructions yet, so nothing it knew is lost.
+ */
+export function foldProfile(p: BusinessProfile): string {
+  const faqs = (p.faqs ?? []).filter(f => f.q.trim() && f.a.trim()).map(f => `Q: ${f.q.trim()}\nA: ${f.a.trim()}`).join('\n')
+  return [
+    line('About', p.description),
+    line('Services', p.services?.filter(s => s.trim()).join(', ')),
+    line('Service area', p.service_area),
+    line('Address', p.address),
+    line('Hours', p.hours),
+    faqs ? `Frequently asked questions:\n${faqs}` : null,
+  ].filter(Boolean).join('\n')
+}
 
 export function draftOf(a: Assistant): Draft {
   const p = a.business_profile
-  return {
-    name: a.name, greeting: a.greeting, disclose_ai: a.disclose_ai, description: p.description ?? '',
-    services: p.services ?? [], service_area: p.service_area ?? '', hours: p.hours ?? '', faqs: p.faqs ?? [],
-  }
+  // Same rule as the voice agent: empty instructions mean the older fields still apply, so show those.
+  return { name: a.name, greeting: a.greeting, disclose_ai: a.disclose_ai, instructions: p.instructions?.trim() ? p.instructions : foldProfile(p) }
 }
 
 /** After a synced change: fields the user has not touched follow the server, touched fields keep the user's edit. */
@@ -24,16 +39,10 @@ export function mergeDraft(draft: Draft, previousSaved: Draft, nextSaved: Draft)
   return merged as Draft
 }
 
-/** What would be saved: trimmed, without empty services and empty questions. */
-export function normalized(d: Draft): Draft {
-  return {
-    ...d, name: d.name.trim(), greeting: d.greeting.trim(), description: d.description.trim(), service_area: d.service_area.trim(), hours: d.hours.trim(),
-    services: d.services.map(s => s.trim()).filter(Boolean),
-    faqs: d.faqs.map(f => ({ q: f.q.trim(), a: f.a.trim() })).filter(f => f.q || f.a),
-  }
-}
+/** What would be saved: trimmed. */
+export const normalized = (d: Draft): Draft => ({ ...d, name: d.name.trim(), greeting: d.greeting.trim(), instructions: d.instructions.trim() })
 
-/** Something to save: spaces around a value or an empty row added are not a change. */
+/** Something to save: spaces around a value are not a change. */
 export const isDirty = (draft: Draft, saved: Draft) => !same(normalized(draft), normalized(saved))
 
 /** Unsaved drafts by assistant, kept while the page is closed so leaving it does not drop an edit. */
@@ -74,17 +83,10 @@ export const withoutDisclosure = (greeting: string) => greeting.replace(DISCLOSU
 export function draftProblem(draft: Draft): string | null {
   if (!draft.name.trim()) return 'The assistant needs a name.'
   if (!draft.greeting.trim()) return 'The greeting cannot be empty: it is the first thing callers hear.'
-  const half = draft.faqs.find(f => !!f.q.trim() !== !!f.a.trim())
-  if (half) return half.q.trim() ? `Add an answer to “${half.q.trim()}” or remove the question.` : 'One answer has no question. Add the question or remove it.'
+  const length = draft.instructions.trim().length
+  if (length > INSTRUCTIONS_MAX) return `The instructions are too long: ${length.toLocaleString('en-US')} of ${INSTRUCTIONS_MAX.toLocaleString('en-US')} characters.`
   return null
 }
 
-/** The profile to save: trimmed, without empty list entries, keeping fields this page does not edit. */
-export function profileOf(d: Draft, current: BusinessProfile): BusinessProfile {
-  return {
-    ...current,
-    description: d.description.trim(), service_area: d.service_area.trim(), hours: d.hours.trim(),
-    services: d.services.map(s => s.trim()).filter(Boolean),
-    faqs: d.faqs.map(f => ({ q: f.q.trim(), a: f.a.trim() })).filter(f => f.q && f.a),
-  }
-}
+/** The profile to save: the instructions replace the older fields they were folded from. */
+export const profileOf = (d: Draft): BusinessProfile => ({ instructions: d.instructions.trim() })

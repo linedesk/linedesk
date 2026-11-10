@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AdminMode } from './admin/AdminMode.tsx'
 import type { Me } from './auth.ts'
 import { CallView } from './call/CallView.tsx'
-import { CustomerSide } from './call/CustomerSide.tsx'
+import { ContactSide } from './call/ContactSide.tsx'
 import { togglePlayback } from './call/playback.ts'
 import { Inbox } from './inbox/Inbox.tsx'
 import type { ReminderOption } from './inbox/remind.ts'
@@ -146,7 +146,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
           <CallView key={openCall.id} call={openCall} segments={view.segments.get(openCall.id) ?? []} index={list.indexOf(openCall)} count={list.length} search={search} menu={menu}
             onBack={view.back} onStep={view.step} onDone={actions.markDone} onNotDone={actions.markNotDone}
             onRemind={openRemind} onClearReminder={actions.clearReminder}
-            side={<CustomerSide call={openCall} onOpen={open} toast={toaster.show} />} />
+            side={<ContactSide call={openCall} onOpen={open} toast={toaster.show} />} />
         ) : (
           <Inbox list={list} segments={view.segments} cursor={target?.id ?? null} leaving={actions.leaving} entering={actions.entering} menu={menu}
             tab={tab} setTab={view.setTab} counts={view.counts} liveCall={view.liveCall} onOpen={open}

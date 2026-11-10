@@ -55,10 +55,10 @@ function PastCalls({ call, onOpen }: Pick<Props, 'call' | 'onOpen'>) {
 }
 
 /** The caller next to the call: who they are (editable) and what they called about before. */
-export function CustomerSide({ call, onOpen, toast }: Props) {
+export function ContactSide({ call, onOpen, toast }: Props) {
   const contact = useContact(call.contact_id)
   return (
-    <aside className="cv-side" aria-label="Caller">
+    <aside className="cv-side" aria-label="Contact">
       <div className="side-who">
         <Avatar name={contact?.name ?? '?'} />
         <div><b>{contact?.name ?? 'Unknown caller'}</b><span>{contact?.company ?? formatPhone(call.from_number)}</span></div>
