@@ -21,7 +21,7 @@ function Facts({ contact, toast }: { contact: Contact; toast: (text: string) => 
       <EditableFact label="Name" value={contact.name} placeholder="Add name" onSave={save('name')} />
       <EditableFact label="Company" value={contact.company} placeholder="Add company" onSave={save('company')} />
       <dt>Phone</dt>
-      <dd className="mono copy" title="Copy" onClick={() => copy(phone, toast)}>{phone}</dd>
+      <dd><button type="button" className="fact-copy" title="Copy" onClick={() => copy(phone, toast)}>{phone}</button></dd>
       <EditableFact label="Email" value={contact.email} placeholder="Add email" onSave={save('email')} />
       <EditableFact label="Address" value={contact.address} placeholder="Add address" onSave={save('address')} />
       <EditableFact label="Note" value={contact.note} placeholder="Add a note" onSave={save('note')} multiline />

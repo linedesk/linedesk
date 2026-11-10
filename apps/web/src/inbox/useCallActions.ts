@@ -23,11 +23,12 @@ type Context = {
   openId: string | null
   setTab: (tab: InboxTab) => void
   setCursor: (id: string | null) => void
-  setOpenId: (id: string | null) => void
+  /** Show this call full width (marking it read), or go back to the list with null. */
+  showCall: (id: string | null) => void
   toaster: Toaster
 }
 
-export function useCallActions({ list, tab, searching, openId, setTab, setCursor, setOpenId, toaster }: Context) {
+export function useCallActions({ list, tab, searching, openId, setTab, setCursor, showCall, toaster }: Context) {
   const run = useRun()
   const undoStack = useRef<UndoEntry[]>([])
   const [leaving, setLeaving] = useState<string | null>(null)
@@ -60,7 +61,7 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
       const i = list.findIndex(c => c.id === call.id)
       const next = (list[i + 1] ?? list[i - 1])?.id ?? null
       setCursor(next)
-      if (wasOpen) setOpenId(next)
+      if (wasOpen) showCall(next)
     }
     undoStack.current = [...undoStack.current, { steps: inverse, callId: call.id, tab, wasOpen, cancelWrite }].slice(-UNDO_DEPTH)
     toaster.show(toaster.withTip(label, key), true)
@@ -73,7 +74,7 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     if (!neverSent) runAll(entry.steps)
     setTab(entry.tab)
     setCursor(entry.callId)
-    if (entry.wasOpen) setOpenId(entry.callId)
+    if (entry.wasOpen) showCall(entry.callId)
     else if (!neverSent) { setEntering(entry.callId); setTimeout(() => setEntering(null), ENTER_MS) }
     toaster.show(toaster.withTip('Undone.', 'Z'))
   }

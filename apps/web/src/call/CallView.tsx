@@ -84,14 +84,19 @@ function Header({ call }: { call: Call }) {
   )
 }
 
-/** Keep a live transcript pinned to the bottom while the reader is already near it. */
+/** Keep a live transcript pinned to the bottom while the reader was near it before the new turn arrived. */
 function useFollowLive(live: boolean, segmentCount: number) {
   const ref = useRef<HTMLDivElement>(null)
+  const nearBottom = useRef(true)
+  const measure = () => {
+    const el = ref.current
+    if (el) nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_TO_BOTTOM_PX
+  }
   useEffect(() => {
     const el = ref.current
-    if (el && live && segmentCount && el.scrollHeight - el.scrollTop - el.clientHeight < STICK_TO_BOTTOM_PX) el.scrollTop = el.scrollHeight
+    if (el && live && segmentCount && nearBottom.current) el.scrollTop = el.scrollHeight
   }, [live, segmentCount])
-  return ref
+  return { ref, onScroll: measure }
 }
 
 /** One call, full width: what it was about, the conversation, and the caller on the side. Mount with key={call.id} so each call starts at the top. */
@@ -99,7 +104,7 @@ export function CallView({ call, segments, search, side, ...bar }: Props) {
   const assistant = useAssistantName()
   const contact = useContact(call.contact_id)
   const live = call.status === 'live'
-  const scrollRef = useFollowLive(live, segments.length)
+  const { ref: scrollRef, onScroll } = useFollowLive(live, segments.length)
   useEffect(() => {
     if (search) scrollRef.current?.querySelector('.k-bubble mark')?.scrollIntoView({ block: 'center' })
   }, [search, scrollRef])
@@ -111,7 +116,7 @@ export function CallView({ call, segments, search, side, ...bar }: Props) {
       <Bar call={call} {...bar} />
       <div className="cv-main">
         <div className="cv-center">
-          <div className="cv-scroll" ref={scrollRef}>
+          <div className="cv-scroll" ref={scrollRef} onScroll={onScroll}>
             <div className="cv-col">
               <Header call={call} />
               {live && <LiveCard segments={segments} assistantName={assistant} />}

@@ -25,7 +25,7 @@ Callfront should feel like a calm, native tool, not a dashboard. These rules com
 4. **Shortcuts are discoverable, not loud.** Hovering any control shows a dark tooltip with the action and its key after ~550 ms (neighbours appear instantly). Icon-only buttons explain themselves in the tooltip. Shortcuts also live in ⌘K and the `?` sheet; menu shortcuts appear on hover only.
 5. **Never ask "are you sure?".** Act instantly and offer undo (Z), with a quiet toast and a visible Undo button.
 6. **Calm by default.** Notifications only for what needs a person. The default state is "nothing needs you".
-7. **No permanent sidebar.** Navigation slides in from ☰ or `M` and closes when the mouse leaves it. Day to day you move with `G` chords, number keys and ⌘K.
+7. **No permanent sidebar.** Navigation slides in from ☰ or `M` and stays open until Esc, a click outside or a choice. Day to day you move with `G` chords, number keys and ⌘K.
 8. **One call at a time.** The inbox is a plain list grouped by day (Today, Yesterday, Earlier). Enter opens one call full width with only up/down and its actions at the top; E finishes it and moves to the next; Esc goes back. Rows carry: unread dot, caller, issue · short summary, next step, length, time. No column headers.
 9. **The issue is the title.** In a call, the big heading is what the call is about; caller and number sit below it, time · duration · who answered above it.
 10. **Views follow who has to act.** Needs you / Handled by Maya / Spam (plus Reminders and Done). What the assistant did is a column, never a view.

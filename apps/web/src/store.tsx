@@ -44,6 +44,11 @@ export function useRun() {
   return store.run
 }
 
+/** The store itself, for the few places that need to flush or look at the outbox directly. */
+export function useStore() {
+  return useCtx().store
+}
+
 export function useRejection() {
   const { rejection, clearRejection } = useCtx()
   return { rejection, clearRejection }

@@ -4,10 +4,15 @@ import type { Call } from '@callfront/db/types'
 import { SEARCH_INPUT_ID } from '../inbox/InboxHead.tsx'
 import { splits, viewByKey, type InboxTab } from '../inbox-model.ts'
 
-export type Overlay = 'remind' | null
+export type Overlay = 'remind' | 'commands' | 'help' | null
 
 export type KeyContext = {
   overlay: Overlay
+  setOverlay: (overlay: Overlay) => void
+  /** False on pages other than the inbox: call and list keys are off there. */
+  onInbox: boolean
+  navOpen: boolean
+  setNavOpen: (open: boolean) => void
   tab: InboxTab
   searching: boolean
   /** The open call, else the call under the cursor. */
@@ -15,7 +20,6 @@ export type KeyContext = {
   isCallOpen: boolean
   open: (call: Call) => void
   back: () => void
-  closeOverlay: () => void
   openSearch: () => void
   closeSearch: () => void
   setTab: (tab: InboxTab) => void
@@ -33,12 +37,23 @@ export type KeyContext = {
 const CHORD_MS = 1200
 let chordUntil = 0
 
-const isTyping = (el: HTMLElement) => /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable
+/** Enter on a focused button or link activates that control, not the selected call. */
+const activatesControl = (key: string, el: HTMLElement) => key === 'Enter' && /^(BUTTON|A)$/.test(el.tagName)
+
+const NOT_TEXT_INPUTS = /^(checkbox|radio|button|submit|reset|range|file|color|image)$/
+
+/** True while the focus is where keys are text: text inputs, text areas, selects. A ticked checkbox is not typing. */
+function isTyping(el: HTMLElement): boolean {
+  if (el.tagName === 'INPUT') return !NOT_TEXT_INPUTS.test((el as HTMLInputElement).type)
+  return el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || !!el.isContentEditable
+}
 
 function onEscape(el: HTMLElement, c: KeyContext) {
-  if (c.overlay) return c.closeOverlay()
+  if (c.overlay) return c.setOverlay(null) // the topmost layer first
+  if (c.navOpen) return c.setNavOpen(false)
   if (el.id === SEARCH_INPUT_ID) { el.blur(); return c.closeSearch() }
   if (isTyping(el)) return el.blur()
+  if (!c.onInbox) return
   if (c.isCallOpen) return c.back()
   if (c.searching) return c.closeSearch()
   if (!splits.includes(c.tab as never)) c.setTab('you')
@@ -59,22 +74,35 @@ function onCallKey(key: string, call: Call, c: KeyContext): boolean {
   return true
 }
 
+/** List and view keys of the inbox. Returns false when the key is not one of them. */
+function onInboxKey(k: string, shift: boolean, nothingFocused: boolean, c: KeyContext): boolean {
+  if (k === 'j' || k === 'J') c.step(1)
+  else if (k === 'k' || k === 'K') c.step(-1)
+  else if ((k === 'ArrowDown' || k === 'ArrowUp') && !c.isCallOpen) c.step(k === 'ArrowDown' ? 1 : -1) // arrows scroll an open call
+  else if ((k === 'Enter' || k === 'o') && !c.isCallOpen && c.target) c.open(c.target)
+  else if (k === 'Tab') {
+    if (c.isCallOpen || !nothingFocused) return false // Tab moves the focus; it switches views only from the bare list
+    c.setTab(nextSplit(c.tab, shift))
+  }
+  else if (viewByKey[k] && !c.isCallOpen) c.setTab(viewByKey[k])
+  else return c.target ? onCallKey(k, c.target, c) : false
+  return true
+}
+
 /** Returns true when the key was handled (the caller prevents the default). */
 export function handleKey(e: KeyboardEvent, c: KeyContext): boolean {
   const el = e.target as HTMLElement
   const k = e.shiftKey && e.key.length === 1 ? e.key.toUpperCase() : e.key // ⇧E is 'E' whatever the layout reports
+  if ((e.metaKey || e.ctrlKey) && k.toLowerCase() === 'k') { c.setOverlay(c.overlay === 'commands' ? null : 'commands'); return true }
   if (k === 'Escape') { onEscape(el, c); return false }
-  if (c.overlay || isTyping(el) || e.metaKey || e.ctrlKey || e.altKey) return false
+  if (c.overlay) { if (c.overlay === 'help' && k === '?') c.setOverlay(null); return false }
+  if (isTyping(el) || activatesControl(k, el) || e.metaKey || e.ctrlKey || e.altKey) return false
   if (Date.now() < chordUntil) { chordUntil = 0; return c.goChord(k.toLowerCase()) }
   if (k === 'g' || k === 'G') { chordUntil = Date.now() + CHORD_MS; return true }
-  if (k === '/') c.openSearch()
-  else if (k === 'j' || k === 'J') c.step(1)
-  else if (k === 'k' || k === 'K') c.step(-1)
-  else if ((k === 'ArrowDown' || k === 'ArrowUp') && !c.isCallOpen) c.step(k === 'ArrowDown' ? 1 : -1) // arrows scroll an open call
-  else if ((k === 'Enter' || k === 'o') && !c.isCallOpen && c.target) c.open(c.target)
-  else if (k === 'Tab') c.setTab(nextSplit(c.tab, e.shiftKey))
-  else if (viewByKey[k] && !c.isCallOpen) c.setTab(viewByKey[k])
+  if (k === '?') c.setOverlay('help')
+  else if (k === 'm' || k === 'M') c.setNavOpen(!c.navOpen)
+  else if (k === '/') c.openSearch()
   else if (k === 'z') c.undo()
-  else return c.target ? onCallKey(k, c.target, c) : false
+  else return c.onInbox && onInboxKey(k, e.shiftKey, el.tagName === 'BODY', c)
   return true
 }

@@ -5,12 +5,12 @@ import { handleKey, type KeyContext } from './keys.ts'
 const call = { id: 'c1' } as Call
 const context = (over: Partial<KeyContext> = {}) => ({
   overlay: null, tab: 'you', searching: false, target: call, isCallOpen: false, open: vi.fn(), back: vi.fn(),
-  closeOverlay: vi.fn(), openSearch: vi.fn(), closeSearch: vi.fn(), setTab: vi.fn(), step: vi.fn(), goChord: vi.fn(() => true),
+  onInbox: true, navOpen: false, setOverlay: vi.fn(), setNavOpen: vi.fn(), openSearch: vi.fn(), closeSearch: vi.fn(), setTab: vi.fn(), step: vi.fn(), goChord: vi.fn(() => true),
   markDone: vi.fn(), markNotDone: vi.fn(), toggleUnread: vi.fn(), remove: vi.fn(), openRemind: vi.fn(), clearReminder: vi.fn(), undo: vi.fn(),
   ...over,
 }) satisfies KeyContext
-const press = (key: string, c: KeyContext, over: Partial<KeyboardEvent> & { tagName?: string; id?: string } = {}) =>
-  handleKey({ key, shiftKey: false, metaKey: false, ctrlKey: false, altKey: false, target: { tagName: over.tagName ?? 'BODY', id: over.id ?? '', blur: vi.fn() }, ...over } as unknown as KeyboardEvent, c)
+const press = (key: string, c: KeyContext, over: Partial<KeyboardEvent> & { tagName?: string; id?: string; type?: string } = {}) =>
+  handleKey({ key, shiftKey: false, metaKey: false, ctrlKey: false, altKey: false, target: { tagName: over.tagName ?? 'BODY', id: over.id ?? '', type: over.type ?? 'text', blur: vi.fn() }, ...over } as unknown as KeyboardEvent, c)
 
 describe('inbox keys', () => {
   it('moves with J, K and the arrows', () => {
@@ -61,7 +61,7 @@ describe('inbox keys', () => {
   it('closes things with Escape in order: overlay, search, mode', () => {
     const overlay = context({ overlay: 'remind' }), searching = context({ searching: true }), mode = context({ tab: 'done' })
     press('Escape', overlay); press('Escape', searching); press('Escape', mode)
-    expect(overlay.closeOverlay).toHaveBeenCalled()
+    expect(overlay.setOverlay).toHaveBeenCalledWith(null)
     expect(searching.closeSearch).toHaveBeenCalled()
     expect(mode.setTab).toHaveBeenCalledWith('you')
   })
@@ -85,6 +85,60 @@ describe('call view keys', () => {
   it('keeps the view while a call is open', () => {
     const c = context({ isCallOpen: true })
     press('2', c)
+    expect(c.setTab).not.toHaveBeenCalled()
+  })
+})
+
+describe('shell keys', () => {
+  it('toggles the command menu with ⌘K, even while typing', () => {
+    const c = context()
+    expect(press('k', c, { metaKey: true, tagName: 'INPUT' })).toBe(true)
+    press('k', context({ overlay: 'commands', setOverlay: c.setOverlay }), { ctrlKey: true })
+    expect(vi.mocked(c.setOverlay).mock.calls).toEqual([['commands'], [null]])
+  })
+  it('opens the shortcut sheet with ? and the menu with M, and Escape closes the menu first', () => {
+    const c = context()
+    press('?', c); press('m', c)
+    expect(c.setOverlay).toHaveBeenCalledWith('help')
+    expect(c.setNavOpen).toHaveBeenCalledWith(true)
+  })
+  it('closes the topmost layer first with Escape: the overlay, then the menu', () => {
+    const both = context({ navOpen: true, overlay: 'commands' })
+    press('Escape', both)
+    expect(both.setOverlay).toHaveBeenCalledWith(null)
+    expect(both.setNavOpen).not.toHaveBeenCalled()
+    const menuOnly = context({ navOpen: true })
+    press('Escape', menuOnly)
+    expect(menuOnly.setNavOpen).toHaveBeenCalledWith(false)
+  })
+  it('keeps the keys working after ticking a checkbox', () => {
+    const c = context({ isCallOpen: true })
+    expect(press('e', c, { tagName: 'INPUT', type: 'checkbox' })).toBe(true)
+    press('j', c, { tagName: 'INPUT', type: 'checkbox' })
+    press('Escape', c, { tagName: 'INPUT', type: 'checkbox' })
+    expect(c.markDone).toHaveBeenCalledWith(call)
+    expect(c.step).toHaveBeenCalledWith(1)
+    expect(c.back).toHaveBeenCalled() // one Escape, not two
+  })
+  it('leaves Tab to the browser inside a call or when a control has the focus', () => {
+    const c = context()
+    expect(press('Tab', context({ isCallOpen: true }))).toBe(false)
+    expect(press('Tab', c, { tagName: 'BUTTON' })).toBe(false)
+    expect(press('Tab', c, { tagName: 'INPUT' })).toBe(false)
+    expect(c.setTab).not.toHaveBeenCalled()
+    expect(press('Tab', c)).toBe(true)
+    expect(c.setTab).toHaveBeenCalledWith('ai')
+  })
+  it('lets Enter activate a focused button instead of opening the selected call', () => {
+    const c = context()
+    expect(press('Enter', c, { tagName: 'BUTTON' })).toBe(false)
+    expect(c.open).not.toHaveBeenCalled()
+  })
+  it('turns the inbox keys off on other pages', () => {
+    const c = context({ onInbox: false, target: undefined })
+    expect(press('j', c)).toBe(false)
+    expect(press('1', c)).toBe(false)
+    expect(c.step).not.toHaveBeenCalled()
     expect(c.setTab).not.toHaveBeenCalled()
   })
 })

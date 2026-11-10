@@ -29,3 +29,20 @@ html, body, #root { height: 100%; }
 .fact-input::placeholder { color: var(--ink-disabled); opacity: 1; }
 .fact-input:hover { background: var(--surface-hover); }
 .fact-input:focus { outline: none; background: var(--surface); box-shadow: 0 0 0 1px var(--focus); }
+
+/* Settings: the fieldset only groups (and disables) the sections; a service is a single column. */
+.st-fields { display: contents; border: 0; margin: 0; padding: 0; min-width: 0; }
+.st-li.st-svc-one { grid-template-columns: minmax(0, 1fr) auto; }
+
+/* Navigation: the scrim is a button, the profile row opens a small menu above it. */
+.scrim { border: 0; padding: 0; }
+.me-wrap { position: relative; }
+button.me { width: 100%; padding: 6px 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.me-chevron { flex: none; margin-left: auto; color: var(--ink-muted); }
+button.me:hover, button.me[aria-expanded="true"] { background: var(--surface-hover); }
+button.me:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.me-menu { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 5; display: grid; gap: 1px; padding: 4px; border-radius: var(--radius-md); background: var(--surface-raised); box-shadow: var(--shadow-popover); }
+.me-menu hr { width: auto; margin: 3px 4px; border: 0; border-top: 1px solid var(--line); }
+.fact-copy { padding: 0; border: 0; background: none; color: inherit; font-family: var(--font-mono); font-size: 11px; cursor: copy; }
+.fact-copy:hover { text-decoration: underline; text-underline-offset: 2px; }
+.fact-copy:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

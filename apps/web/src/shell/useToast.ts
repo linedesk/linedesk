@@ -3,8 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { HINT_EVENT, type ShortcutHint } from '../ui/tooltips.ts'
 
 export type ToastState = { text: string; undo: boolean }
-/** How the current action was triggered: a shortcut or the mouse. */
-export type Source = 'key' | 'mouse'
+/** How the current action was triggered: a shortcut, ⌘K + Enter, or the mouse. */
+export type Source = 'key' | 'menu-key' | 'mouse'
 
 const PLAIN_MS = 2600
 const UNDO_MS = 5000

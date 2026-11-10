@@ -1,76 +1,47 @@
-// The signed-in app: holds what is selected and wires the inbox, overlays, toasts and keyboard.
+// The signed-in app: composes the inbox, the pages, the navigation, overlays and toasts.
 import type { Call } from '@callfront/db/types'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { auth, type Me } from './auth.ts'
+import { useEffect, useRef, useState } from 'react'
+import type { Me } from './auth.ts'
 import { CallView } from './call/CallView.tsx'
 import { CustomerSide } from './call/CustomerSide.tsx'
-import { useSegmentsByCall } from './call/segments.ts'
 import { Inbox } from './inbox/Inbox.tsx'
-import { SEARCH_INPUT_ID } from './inbox/InboxHead.tsx'
-import { reminderOptions, type ReminderOption } from './inbox/remind.ts'
-import { matchesSearch } from './inbox/search.tsx'
+import type { ReminderOption } from './inbox/remind.ts'
 import { useCallActions } from './inbox/useCallActions.ts'
-import { useCursor } from './inbox/useCursor.ts'
-import { countsFor, listFor, sortForList, tabOf, type InboxTab } from './inbox-model.ts'
-import { handleKey, type KeyContext, type Overlay } from './shell/keys.ts'
+import { useInboxView } from './inbox/useInboxView.ts'
+import { callerName, type InboxTab } from './inbox-model.ts'
+import { commandGroups, type Command } from './shell/commands.ts'
+import type { Overlay } from './shell/keys.ts'
+import { MenuButton, Nav } from './shell/Nav.tsx'
+import { Overlays } from './shell/Overlays.tsx'
+import { pages, type PageRoute } from './shell/pages.tsx'
 import { Toast } from './shell/Toast.tsx'
-import { useNow } from './shell/useNow.ts'
+import { useKeyboard } from './shell/useKeyboard.ts'
+import { useRoute } from './shell/useRoute.ts'
+import { useSignOut } from './shell/useSignOut.ts'
 import { useToast, type Source } from './shell/useToast.ts'
-import { localDbName, useAssistantName, useRejection, useRows, useRun, useSnapshot } from './store.tsx'
-import { Backdrop } from './ui/Backdrop.tsx'
-import { CommandMenu } from './ui/CommandMenu.tsx'
-import { Button } from './ui/kit.tsx'
+import { useRejection } from './store.tsx'
+import type { SelectVia } from './ui/CommandMenu.tsx'
+import { ErrorBoundary } from './ui/ErrorBoundary.tsx'
+import { cx } from './ui/kit.tsx'
 
 const chordTabs: Record<string, InboxTab> = { i: 'you', e: 'done', h: 'reminders' }
 
-export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
-  const calls = useRows('calls')
-  const contacts = useSnapshot().tables.contacts
-  const segments = useSegmentsByCall()
-  const assistantName = useAssistantName()
-  const now = useNow()
+export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void | Promise<void> }) {
+  const nav = useRoute()
   const toaster = useToast()
-  const [tab, setTabState] = useState<InboxTab>('you')
-  const [search, setSearch] = useState<string | null>(null)
-  const [openId, setOpenId] = useState<string | null>(null)
+  const view = useInboxView(nav)
   const [overlay, setOverlay] = useState<Overlay>(null)
-  const run = useRun()
+  const [navOpen, setNavOpen] = useState(false)
   const remindFor = useRef<{ call: Call; source: Source } | null>(null)
+  const signOut = useSignOut({ workspaceId: me.workspace!.id, onSignedOut, toast: toaster.show })
+  const { list, tab, search, openCall, target } = view
 
-  const list = useMemo(() => {
-    if (search === null) return listFor(calls, tab, now)
-    const hits = calls.filter(c => !c.deleted_at && matchesSearch({ call: c, contact: c.contact_id ? contacts.get(c.contact_id) : undefined, segments: segments.get(c.id) ?? [], assistantName }, search))
-    return sortForList(hits, false)
-  }, [calls, contacts, segments, assistantName, tab, search, now])
-  const counts = useMemo(() => countsFor(calls, now), [calls, now])
-  const [cursorId, setCursor] = useCursor(list)
-  const openCall = openId ? calls.find(c => c.id === openId && !c.deleted_at) : undefined
-  const target = openCall ?? list.find(c => c.id === cursorId)
-  const liveCall = useMemo(() => listFor(calls, 'you', now).find(c => c.status === 'live'), [calls, now]) // newest live call
-
-  const setTab = (next: InboxTab) => { setTabState(next); setSearch(null); setCursor(null); setOpenId(null) }
-  const actions = useCallActions({ list, tab, searching: search !== null, openId: openCall?.id ?? null, setTab: setTabState, setCursor, setOpenId, toaster })
-
-  /** Open a call full width. Opening marks it read and shows the view it lives in. */
-  function open(call: Call) {
-    setOpenId(call.id)
-    setCursor(call.id)
-    setOverlay(null)
-    if (call.unread) void run('call.markRead', { callId: call.id })
-    if (search === null && tabOf(call) !== tab) setTabState(tabOf(call))
-  }
-  function step(by: number) {
-    const i = target ? list.indexOf(target) : -1
-    const next = list[Math.max(0, Math.min(list.length - 1, i + by))]
-    if (next && openCall) open(next)
-    else setCursor(next?.id ?? null)
-  }
-  function openSearch() {
-    setOpenId(null)
-    setSearch(s => s ?? '')
-    setTimeout(() => { const el = document.getElementById(SEARCH_INPUT_ID) as HTMLInputElement | null; el?.focus(); el?.select() }, 0)
-  }
-  const closeSearch = () => { setSearch(null); setCursor(null) }
+  const actions = useCallActions({
+    list, tab, searching: search !== null, openId: openCall?.id ?? null, setTab: view.setTabState, setCursor: view.setCursor, showCall: view.showById, toaster,
+  })
+  const open = (call: Call) => { setOverlay(null); view.open(call) }
+  const openSearch = () => { setOverlay(null); setNavOpen(false); view.openSearch() }
+  const goPage = (to: PageRoute) => { setOverlay(null); nav.go(to) }
   function openRemind(call: Call) {
     if (!actions.isTriageable(call)) return
     remindFor.current = { call, source: toaster.currentSource() }
@@ -83,21 +54,19 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   }
   const toggleDone = (call: Call) => (call.inbox_state === 'done' ? actions.markNotDone(call) : actions.markDone(call))
 
-  const keys: KeyContext = {
-    overlay, tab, searching: search !== null, target, step, setTab, openSearch, closeSearch, openRemind, open,
-    isCallOpen: !!openCall, back: () => setOpenId(null),
-    closeOverlay: () => setOverlay(null),
-    goChord: key => { const to = chordTabs[key]; if (to) setTab(to); return !!to },
+  const callHandlers = {
     markDone: actions.markDone, markNotDone: actions.markNotDone, toggleUnread: actions.toggleUnread,
-    remove: actions.remove, clearReminder: actions.clearReminder, undo: actions.undo,
+    remove: actions.remove, clearReminder: actions.clearReminder, undo: actions.undo, openRemind,
   }
-  const keysRef = useRef(keys)
-  keysRef.current = keys
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (toaster.via('key', () => handleKey(e, keysRef.current))) e.preventDefault() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [toaster.via])
+  useKeyboard({
+    ...callHandlers, overlay, setOverlay, navOpen, setNavOpen, onInbox: view.onInbox, tab, searching: search !== null, target,
+    step: view.step, setTab: view.setTab, openSearch, closeSearch: view.closeSearch, open, isCallOpen: !!openCall, back: view.back,
+    goChord: key => {
+      if (key === 'a') goPage('assistant')
+      else if (chordTabs[key]) view.setTab(chordTabs[key])
+      return key === 'a' || !!chordTabs[key]
+    },
+  }, toaster.via)
 
   const { rejection, clearRejection } = useRejection()
   useEffect(() => {
@@ -106,34 +75,46 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
     clearRejection()
   }, [rejection, clearRejection, toaster.show])
 
-  async function signOut() {
-    await auth.signOut()
-    indexedDB.deleteDatabase(localDbName(me.workspace!.id)) // local rows belong to the signed-in member
-    onSignedOut()
+  const commands = commandGroups({
+    ...callHandlers, target, targetName: target ? callerName(target, target.contact_id ? view.contacts.get(target.contact_id) : undefined) : '',
+    goInbox: view.setTab, goPage, openSearch, signOut: () => void signOut(),
+    openHelp: () => setOverlay('help'), openNav: () => setNavOpen(true),
+  })
+  function runCommand(command: Command, via: SelectVia) {
+    setOverlay(null)
+    setTimeout(() => toaster.via(via === 'key' ? 'menu-key' : 'mouse', command.run), 0) // after the palette has closed
   }
 
+  const menu = <MenuButton open={navOpen} onOpen={() => setNavOpen(true)} />
   return (
-    <div className="app">
+    <div className={cx('app', navOpen && 'nav-open')}>
+      <Nav open={navOpen} route={nav.route} tab={tab} unreadCount={view.calls.filter(c => c.unread && !c.deleted_at).length} reminderCount={view.counts.reminders}
+        workspaceName={me.workspace!.name} onInbox={view.setTab} onPage={goPage} onHelp={() => setOverlay('help')}
+        onSignOut={() => void signOut()} onClose={() => setNavOpen(false)} />
+      <button type="button" className="scrim" aria-label="Close menu" tabIndex={-1} onClick={() => setNavOpen(false)} />
       <main className="main">
-        {openCall ? (
-          <CallView key={openCall.id} call={openCall} segments={segments.get(openCall.id) ?? []} index={list.indexOf(openCall)} count={list.length} search={search}
-            onBack={() => setOpenId(null)} onStep={step} onDone={actions.markDone} onNotDone={actions.markNotDone}
+        {nav.route !== 'calls' ? (
+          <>
+            <div className="pagebar">{menu}<b>{pages[nav.route].title}</b></div>
+            <ErrorBoundary key={nav.route} fallback={<div className="page"><div className="empty"><b>This page could not be shown</b><span>Reload the app, or go back to the inbox with G I.</span></div></div>}>
+              {pages[nav.route].render({ toast: toaster.show, canEditSettings: me.permissions.includes('settings:write') })}
+            </ErrorBoundary>
+          </>
+        ) : openCall ? (
+          <CallView key={openCall.id} call={openCall} segments={view.segments.get(openCall.id) ?? []} index={list.indexOf(openCall)} count={list.length} search={search} menu={menu}
+            onBack={view.back} onStep={view.step} onDone={actions.markDone} onNotDone={actions.markNotDone}
             onRemind={openRemind} onClearReminder={actions.clearReminder}
             side={<CustomerSide call={openCall} onOpen={open} toast={toaster.show} />} />
         ) : (
-          <Inbox list={list} segments={segments} cursor={target?.id ?? null} leaving={actions.leaving} entering={actions.entering}
-            tab={tab} setTab={setTab} counts={counts} liveCall={liveCall} onOpen={open}
-            search={search} onSearch={openSearch} onSearchChange={q => { setSearch(q); setCursor(null) }} onSearchClose={closeSearch}
-            onHover={c => setCursor(c.id)} onToggleDone={toggleDone} onToggleUnread={actions.toggleUnread}
+          <Inbox list={list} segments={view.segments} cursor={target?.id ?? null} leaving={actions.leaving} entering={actions.entering} menu={menu}
+            tab={tab} setTab={view.setTab} counts={view.counts} liveCall={view.liveCall} onOpen={open}
+            search={search} onSearch={openSearch} onSearchChange={view.changeSearch} onSearchClose={view.closeSearch}
+            onHover={c => view.setCursor(c.id)} onToggleDone={toggleDone} onToggleUnread={actions.toggleUnread}
             onRemind={openRemind} onClearReminder={actions.clearReminder}
-            menu={<Button size="sm" variant="ghost" onClick={signOut}>Sign out</Button>} />
+            onCommands={c => { view.setCursor(c.id); setOverlay('commands') }} />
         )}
       </main>
-      {overlay === 'remind' && (
-        <Backdrop onClose={() => setOverlay(null)}>
-          <CommandMenu numbered placeholder="Remind me …" groups={[{ label: 'Bring this call back', items: reminderOptions() }]} onSelect={pickReminder} />
-        </Backdrop>
-      )}
+      <Overlays overlay={overlay} commands={commands} onClose={() => setOverlay(null)} onCommand={runCommand} onReminder={pickReminder} />
       {toaster.toast && <Toast toast={toaster.toast} onUndo={actions.undo} />}
     </div>
   )
