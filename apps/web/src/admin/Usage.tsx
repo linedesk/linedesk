@@ -47,7 +47,7 @@ export function Usage({ workspaces, usage, months }: Props) {
                   const cell = grid.get(w.id)?.get(month)
                   return (
                     <td key={month} className="adm-num">
-                      {formatMinutes(cell?.minutes ?? 0)}
+                      {cell ? formatMinutes(cell.minutes) : '–'}
                       {cell ? (
                         <span className="adm-sub">
                           {cell.calls} {cell.calls === 1 ? 'call' : 'calls'}

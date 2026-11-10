@@ -41,7 +41,8 @@ test('the usage grid covers the last months in UTC, across a year boundary', () 
   expect(grid.get('b')).toBeUndefined()
   expect(formatMinutes(12.5)).toBe('12.5 min')
   expect(formatMinutes(1234)).toBe('1,234 min')
-  expect(formatMinutes(0)).toBe('–')
+  expect(formatMinutes(0)).toBe('0 min')
+  expect(formatMinutes(0.04)).toBe('<0.1 min')
 })
 
 const field = (over: Partial<ProviderField>): ProviderField => ({

@@ -119,7 +119,7 @@ export function UserDetail({ user: u, currentUserId, notify, reload }: DetailPro
             {u.workspaces.length
               ? u.workspaces.map(w => (
                   <span key={w.id} className="adm-line">
-                    {w.name} <span className="adm-sub-inline">{w.role}</span>
+                    {w.name} <span className="adm-sub-inline">{w.role.charAt(0).toUpperCase() + w.role.slice(1)}</span>
                   </span>
                 ))
               : 'None'}

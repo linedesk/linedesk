@@ -66,7 +66,8 @@ export async function livekitStatus(env: Env = process.env, doFetch: typeof fetc
       ok: false,
       message: 'LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET are not all set in the environment',
     }
-    return { url: url ?? null, server: missing, sip: missing }
+    // SIP lives on the LiveKit server: say so once, not the same env message twice.
+    return { url: url ?? null, server: missing, sip: { ok: false, message: 'Not checked: LiveKit is not set up' } }
   }
   const base = `${url.replace(/^ws/, 'http').replace(/\/+$/, '')}/twirp`
   const server = await check(async () => {

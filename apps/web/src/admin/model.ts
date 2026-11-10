@@ -41,8 +41,13 @@ export function usageByWorkspace(usage: readonly UsageRow[]): Map<string, Map<st
   return grid
 }
 
+/** Answered minutes; a month with calls but under a tenth of a minute says so instead of a dash. */
 export const formatMinutes = (minutes: number) =>
-  minutes ? `${minutes.toLocaleString('en-US', { maximumFractionDigits: 1 })} min` : '–'
+  minutes >= 0.1
+    ? `${minutes.toLocaleString('en-US', { maximumFractionDigits: 1 })} min`
+    : minutes > 0
+      ? '<0.1 min'
+      : '0 min'
 
 export type ProviderState = 'app' | 'env' | 'none'
 /** A provider counts as set in the app as soon as one of its fields is stored there. */

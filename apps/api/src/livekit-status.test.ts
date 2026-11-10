@@ -63,7 +63,11 @@ test('a server that is down, rejects the key or is not configured; the secret ne
   expect(rejected.server).toEqual({ ok: false, message: 'LiveKit rejected the API key and secret (HTTP 401)' })
 
   const unset = await livekitStatus({ LIVEKIT_URL: 'ws://localhost:7880' }, refused as unknown as typeof fetch)
-  expect(unset).toMatchObject({ url: 'ws://localhost:7880', server: { ok: false }, sip: { ok: false } })
+  expect(unset).toMatchObject({
+    url: 'ws://localhost:7880',
+    server: { ok: false },
+    sip: { ok: false, message: 'Not checked: LiveKit is not set up' },
+  })
   expect(JSON.stringify([down, rejected, unset])).not.toContain(env.LIVEKIT_API_SECRET)
 })
 
