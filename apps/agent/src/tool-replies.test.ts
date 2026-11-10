@@ -1,27 +1,41 @@
 import { expect, test, vi } from 'vitest'
-import { quietToolReplies } from './tool-replies.ts'
+import { MESSAGE_SAVED_REPLY, quietToolReplies } from './tool-replies.ts'
 
 const executed = (...names: string[]) => ({ functionCalls: names.map(name => ({ name })), cancelToolReply: vi.fn() })
+const quiet = new Set(['take_message', 'flag_urgent'])
 
-test('no second LLM round after a quiet tool when the assistant already spoke in this reply', () => {
-  const replies = quietToolReplies(new Set(['take_message', 'flag_urgent']))
+test('no second LLM round after quiet tools when the assistant already spoke in this reply', () => {
+  const say = vi.fn()
+  const replies = quietToolReplies(quiet, say)
   replies.itemAdded('user')
   replies.itemAdded('assistant')
   const event = executed('take_message', 'flag_urgent')
   replies.toolsExecuted(event)
   expect(event.cancelToolReply).toHaveBeenCalledOnce()
+  expect(say).not.toHaveBeenCalled()
 })
 
-test('the follow-up stays when the assistant said nothing yet, or another tool ran', () => {
-  const replies = quietToolReplies(new Set(['take_message']))
-  replies.itemAdded('assistant')
+test('a saved message without words gets the ready confirmation instead of a second round', () => {
+  const say = vi.fn()
+  const replies = quietToolReplies(quiet, say)
   replies.itemAdded('user')
-  const silent = executed('take_message')
-  replies.toolsExecuted(silent)
-  expect(silent.cancelToolReply).not.toHaveBeenCalled()
+  const event = executed('flag_urgent', 'take_message')
+  replies.toolsExecuted(event)
+  expect(event.cancelToolReply).toHaveBeenCalledOnce()
+  expect(say).toHaveBeenCalledWith(MESSAGE_SAVED_REPLY)
+})
+
+test('the model still answers after an urgent flag alone without words, or when another tool ran', () => {
+  const say = vi.fn()
+  const replies = quietToolReplies(new Set(['take_message', 'flag_urgent']), say)
+  replies.itemAdded('user')
+  const flagOnly = executed('flag_urgent')
+  replies.toolsExecuted(flagOnly)
+  expect(flagOnly.cancelToolReply).not.toHaveBeenCalled()
 
   replies.itemAdded('assistant')
   const mixed = executed('take_message', 'end_call')
   replies.toolsExecuted(mixed)
   expect(mixed.cancelToolReply).not.toHaveBeenCalled()
+  expect(say).not.toHaveBeenCalled()
 })
