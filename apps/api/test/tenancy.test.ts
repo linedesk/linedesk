@@ -95,9 +95,9 @@ describe('agent-facing actions', () => {
     ['call.setRecording', { callId }],
   ]
 
-  test('the list above covers every agent-only action except call.start', () => {
+  test('the list above covers every agent-only action except the two that open a call', () => {
     const agentOnly = [...actions.values()].filter(def => def.permission === 'agent').map(def => def.name)
-    expect([...onCall('x').map(([name]) => name), 'call.start'].sort()).toEqual(agentOnly.sort())
+    expect([...onCall('x').map(([name]) => name), 'call.start', 'call.startTest'].sort()).toEqual(agentOnly.sort())
   })
 
   test('an agent scoped to one workspace cannot write to a call of another', async () => {

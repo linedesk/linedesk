@@ -60,6 +60,8 @@ export const calls = pgTable('calls', {
   from_number: text('from_number').notNull(),
   to_number: text('to_number').notNull(),
   direction: text('direction', { enum: ['in', 'out'] }).notNull().default('in'),
+  /** `test`: a call a member made to the assistant from the web app, with no phone involved. */
+  source: text('source', { enum: ['phone', 'test'] }).notNull().default('phone'),
   started_at: ts('started_at').notNull().defaultNow(),
   ended_at: ts('ended_at'),
   duration_sec: integer('duration_sec'),

@@ -15,9 +15,9 @@ export * from './settings.ts'
 const all = [
   calls.callMarkDone, calls.callMarkNotDone, calls.callMarkRead, calls.callMarkUnread, calls.callRemind,
   calls.callClearReminder, calls.callDelete, calls.callRestore, calls.callSetActionItems,
-  calls.callStart, calls.callAppendTranscript, calls.callFinish, calls.callTakeMessage, calls.callFlagUrgent,
+  calls.callStart, calls.callAppendTranscript, calls.callFinish, calls.callTakeMessage, calls.callFlagUrgent, calls.callStartTest,
   calls.callSetRecording,
-  settings.contactUpdate, settings.assistantUpdate, settings.phoneNumberSetup,
+  settings.contactUpdate, settings.assistantUpdate, settings.phoneNumberSetup, settings.assistantStartTestCall,
   calendar.calendarFindSlots,
   admin.providerSetKeys, admin.providerClearKeys, admin.providerSetActive, admin.providerTest,
   admin.userInvite, admin.userDisable, admin.userEnable, admin.workspaceDisable, admin.workspaceEnable,

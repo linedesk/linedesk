@@ -13,6 +13,7 @@
     "@callfront/db": "workspace:*",
     "@callfront/sync": "workspace:*",
     "better-auth": "^1.7.19",
+    "livekit-client": "^2.23.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

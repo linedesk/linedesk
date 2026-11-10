@@ -7,7 +7,7 @@ import type { RemoteParticipant } from '@livekit/rtc-node'
 import { z } from 'zod'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log.ts'
-import { startCall, type CallSession } from './call-session.ts'
+import { callOrigin, startCall, type CallSession } from './call-session.ts'
 import { createConfigLoader, parseProviderSettings, type AgentConfig } from './config.ts'
 import { AGENT_NAME, requireEnv, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness } from './not-ready.ts'
@@ -22,12 +22,14 @@ function loadAgentConfig(): Promise<AgentConfig> {
   return configLoader()
 }
 
-/** Caller and dialled number. LiveKit SIP sets these attributes; the browser test page sets the same ones. */
-export function callNumbers(attributes: Record<string, string>) {
-  const from = attributes['sip.phoneNumber']
-  const to = attributes['sip.trunkPhoneNumber']
-  if (!from || !to) throw new Error('participant has no sip.phoneNumber / sip.trunkPhoneNumber attributes')
-  return { from, to }
+/** A test call ends by itself after this long, so a forgotten browser tab does not run up provider minutes. */
+export const TEST_CALL_LIMIT_MS = 5 * 60_000
+
+/** Deleting the room disconnects the browser; the session then closes and the call is finished as usual. */
+function endTestCallLater(ctx: JobContext) {
+  const timer = setTimeout(() => void ctx.deleteRoom().catch(() => {}), TEST_CALL_LIMIT_MS)
+  timer.unref()
+  ctx.addShutdownCallback(async () => clearTimeout(timer))
 }
 
 function assistantTools(api: ApiClient, call: CallSession, log: CallLog) {
@@ -80,7 +82,8 @@ async function entry(ctx: JobContext) {
   await ctx.connect()
   const caller = await ctx.waitForParticipant()
   const api = apiClientFromEnv()
-  const call = await startCall(api, { ...callNumbers(caller.attributes), room: ctx.room.name })
+  const origin = callOrigin(ctx.job.metadata, caller.attributes, ctx.room.name ?? '')
+  const call = await startCall(api, origin)
 
   // Checked at every call: until the providers are configured the call is logged as missed and ended.
   const readiness = await checkReadiness(loadAgentConfig)
@@ -104,6 +107,7 @@ async function entry(ctx: JobContext) {
   ctx.addShutdownCallback(finishOnce)
   try {
     await converse(ctx, caller, api, config, call, log, finishOnce)
+    if (origin.kind === 'test') endTestCallLater(ctx)
   } catch (e) {
     await finishOnce()
     throw e

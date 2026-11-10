@@ -1,0 +1,1 @@
+ALTER TABLE "calls" ADD COLUMN "source" text DEFAULT 'phone' NOT NULL;

@@ -10,16 +10,17 @@ export type LivekitStatus = { url: string | null; server: ServiceStatus; sip: Se
 
 const base64url = (value: string | Buffer) => Buffer.from(value).toString('base64url')
 
-/** A one-minute LiveKit access token with the given grants. */
+/** A LiveKit access token with the given grants: by default for one minute, for the admin checks. */
 export function livekitToken(
   apiKey: string,
   apiSecret: string,
   grants: object,
   nowSec = Math.floor(Date.now() / 1000),
+  { identity = 'callfront-admin', ttlSec = 60 }: { identity?: string; ttlSec?: number } = {},
 ) {
   const head = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
   const claims = base64url(
-    JSON.stringify({ iss: apiKey, sub: 'callfront-admin', nbf: nowSec - 10, exp: nowSec + 60, ...grants }),
+    JSON.stringify({ iss: apiKey, sub: identity, nbf: nowSec - 10, exp: nowSec + ttlSec, ...grants }),
   )
   return `${head}.${claims}.${base64url(createHmac('sha256', apiSecret).update(`${head}.${claims}`).digest())}`
 }

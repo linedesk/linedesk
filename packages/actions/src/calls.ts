@@ -49,6 +49,15 @@ export const callStart = defineAction({
   input: z.object({ from: z.string().min(3), to: z.string().min(3), room: z.string().optional() }),
   permission: 'agent',
 })
+/** The contact a test call from the web app is filed under, so the inbox shows it as "Test call". */
+export const testCallContact = { phone: 'test', name: 'Test call' } as const
+
+export const callStartTest = defineAction({
+  name: 'call.startTest',
+  description: 'Register a test call a member started from the web app. The workspace is the agent\'s x-workspace-id, taken from the dispatch the API created.',
+  input: z.object({ room: z.string().min(1).max(128) }),
+  permission: 'agent',
+})
 export const callAppendTranscript = defineAction({
   name: 'call.appendTranscript',
   description: 'Append one transcript segment to a live call.',

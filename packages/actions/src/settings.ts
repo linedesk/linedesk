@@ -63,3 +63,15 @@ export const phoneNumberSetup = defineAction({
     .refine(i => i.e164 || i.purchase, { message: 'an area code alone means buying a number: pass purchase: true, or give the number (e164) to attach' }),
   permission: 'settings:write',
 })
+
+// Talking to the assistant from the web app. Read-only for the action runner: it writes no rows,
+// and its result (a LiveKit token) must not be kept in the command log.
+export const assistantStartTestCall = defineAction({
+  name: 'assistant.startTestCall',
+  description: 'Start a test call with the assistant in the browser: returns a short-lived LiveKit token for a new room the assistant joins.',
+  input: z.object({}),
+  permission: 'settings:write',
+  readOnly: true,
+})
+/** `data` of `assistant.startTestCall`: where and how the browser joins. The token can join only `room`. */
+export type TestCallData = { url: string; token: string; room: string; expiresAt: string }

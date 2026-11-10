@@ -20,7 +20,7 @@ export interface PlayOptions {
 }
 
 export async function playScript(api: ApiClient, script: SimScript, { to, wait = sleep, log = () => {} }: PlayOptions) {
-  const call = await startCall(api, { from: script.from, to })
+  const call = await startCall(api, { kind: 'phone', from: script.from, to })
   log(`call ${call.callId} started (${script.from} -> ${to})`)
   for (const line of script.lines) {
     await wait(speakingDelayMs(line))

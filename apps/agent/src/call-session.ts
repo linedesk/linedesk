@@ -1,5 +1,5 @@
 // One call as the agent sees it: start, append transcript segments, finish.
-import { callAppendTranscript, callFinish, callStart } from '@callfront/actions'
+import { callAppendTranscript, callFinish, callStart, callStartTest } from '@callfront/actions'
 import type { Assistant, Contact, ToolEvent } from '@callfront/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
@@ -18,8 +18,13 @@ export interface CallSession {
 
 type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'contact'>
 
-export async function startCall(api: ApiClient, call: { from: string; to: string; room?: string }): Promise<CallSession> {
-  const { data } = await api.run(callStart, call)
+/** Where a call comes from: a phone (the workspace is the dialled number's) or a test from the web app. */
+export type CallOrigin = { kind: 'phone'; from: string; to: string; room?: string } | { kind: 'test'; workspaceId: string; room: string }
+
+export async function startCall(api: ApiClient, origin: CallOrigin): Promise<CallSession> {
+  const { data } = origin.kind === 'phone'
+    ? await api.run(callStart, { from: origin.from, to: origin.to, room: origin.room })
+    : await api.run(callStartTest, { room: origin.room }, origin.workspaceId)
   const { callId, workspaceId, assistant, contact } = data as StartData
   const startedAt = Date.now()
   return {
@@ -30,5 +35,29 @@ export async function startCall(api: ApiClient, call: { from: string; to: string
     async finish(result) {
       await api.run(callFinish, { callId, ...result }, workspaceId)
     },
+  }
+}
+
+/**
+ * Where the call comes from. A test room from the web app carries `{ source: 'test', workspaceId }`
+ * in the job metadata the API signed into the browser's token; anything else is a phone call, with
+ * caller and dialled number in the attributes LiveKit SIP sets (the talk page sets the same ones).
+ */
+export function callOrigin(jobMetadata: string, attributes: Record<string, string>, room: string): CallOrigin {
+  const test = parseTestMetadata(jobMetadata)
+  if (test) return { kind: 'test', workspaceId: test.workspaceId, room }
+  const from = attributes['sip.phoneNumber']
+  const to = attributes['sip.trunkPhoneNumber']
+  if (!from || !to) throw new Error('participant has no sip.phoneNumber / sip.trunkPhoneNumber attributes')
+  return { kind: 'phone', from, to, room }
+}
+
+function parseTestMetadata(metadata: string): { workspaceId: string } | null {
+  if (!metadata) return null
+  try {
+    const parsed = JSON.parse(metadata) as { source?: unknown; workspaceId?: unknown }
+    return parsed.source === 'test' && typeof parsed.workspaceId === 'string' && parsed.workspaceId ? { workspaceId: parsed.workspaceId } : null
+  } catch {
+    return null
   }
 }

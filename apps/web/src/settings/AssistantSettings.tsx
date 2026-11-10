@@ -7,6 +7,7 @@ import { useAssistant, useRun } from '../store.tsx'
 import { Button } from '../ui/kit.tsx'
 import { type Draft, draftOf, draftProblem, isDirty, keepDraft, keptDraft, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure } from './assistantDraft.ts'
 import { Field, Section, SwitchRow, TextArea, TextInput } from './fields.tsx'
+import { TestCall } from './TestCall.tsx'
 
 type SectionProps = { draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void }
 
@@ -77,7 +78,7 @@ function Form({ assistant, canEdit, toast }: Props & { assistant: Assistant }) {
   return (
     <form className="page-in st-page" onSubmit={save}>
       <div className="page-head"><div><h1>Assistant</h1><p>How {draft.name || 'your assistant'} answers your phone.</p></div></div>
-      {/* The test-call card (telephony session, settings/TestCall.tsx) goes here, above the settings. */}
+      <TestCall canStart={canEdit} />
       <fieldset className="st-fields" disabled={!canEdit}>
         <Greeting draft={draft} set={set} />
         <Instructions draft={draft} set={set} />

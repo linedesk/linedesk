@@ -1,5 +1,5 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, recordingKey, type ActionDef, type ActionResult, type FindSlotsData } from '@callfront/actions'
+import { actions, recordingKey, testCallContact, type ActionDef, type ActionResult, type FindSlotsData } from '@callfront/actions'
 import { findSlots, type FindSlotsInput, type Interval } from '@callfront/calendar'
 import {
   appointment_types, assistants, availability_exceptions, availability_rules, bookings, calls, contacts, organization, phone_numbers, syncedTables,
@@ -12,6 +12,7 @@ import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, Reject, type Undo } from './handler-context.ts'
 import { telephonyProvider } from './provider-settings.ts'
 import { recordingStoreFromEnv, type RecordingStore } from './recording-store.ts'
+import { startTestCall } from './test-call.ts'
 
 export { Reject, type HandlerCtx, type Undo }
 
@@ -153,6 +154,30 @@ const releaseBought = (provider: TelephonyProvider, number: { e164: string; prov
   }
 }
 
+type OpenCall = { from: string; to: string; room?: string; source?: 'phone' | 'test'; label: string }
+
+/** Registers a live call in a workspace: finds or creates the caller, opens the call, and does the per-call upkeep. */
+async function openCall({ tx, now, recordings }: Pick<HandlerCtx, 'tx' | 'now' | 'recordings'>, workspace_id: string, { from, to, room, source = 'phone', label }: OpenCall) {
+  const [workspace] = await tx.select({ disabledAt: organization.disabledAt }).from(organization).where(eq(organization.id, workspace_id))
+  // A phone number always has its workspace; a test call names it, so it has to exist.
+  if (!workspace && source === 'test') throw new Reject('no such workspace')
+  if (workspace?.disabledAt) throw new Reject(`the workspace of ${label} is disabled`)
+  let [contact] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, workspace_id), eq(contacts.phone, from)))
+  const isNewContact = !contact
+  if (!contact) {
+    const name = source === 'test' ? testCallContact.name : null
+    ;[contact] = await tx.insert(contacts).values({ id: newId('ct'), workspace_id, phone: from, name }).returning()
+  }
+  const id = newId('call')
+  const [call] = await tx.insert(calls).values({
+    id, workspace_id, contact_id: contact!.id, from_number: from, to_number: to, source, started_at: now, room: room ?? id,
+  }).returning()
+  const [assistant] = await tx.select().from(assistants).where(eq(assistants.workspace_id, workspace_id))
+  const stale = await completeStaleCalls(tx, workspace_id, now)
+  const linked = await linkOrphanRecordings(tx, workspace_id, now, recordings)
+  return { rows: { calls: [call!, ...stale, ...linked], contacts: [contact!] }, data: { callId: id, workspaceId: workspace_id, isNewContact, contact: contact!, assistant: assistant ?? null } }
+}
+
 const handlers: Record<string, Handler> = {
   ...adminHandlers,
 
@@ -183,22 +208,16 @@ const handlers: Record<string, Handler> = {
   'call.start': async ({ tx, now, recordings }, input) => {
     const [number] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, input.to))
     if (!number) throw new Reject(`no workspace for number ${input.to}`)
-    const workspace_id = number.workspace_id
-    const [workspace] = await tx.select({ disabledAt: organization.disabledAt }).from(organization).where(eq(organization.id, workspace_id))
-    if (workspace?.disabledAt) throw new Reject(`the workspace of ${input.to} is disabled`)
-    let [contact] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, workspace_id), eq(contacts.phone, input.from)))
-    const isNewContact = !contact
-    if (!contact) [contact] = await tx.insert(contacts).values({ id: newId('ct'), workspace_id, phone: input.from }).returning()
-    const id = newId('call')
-    const [call] = await tx.insert(calls).values({
-      id, workspace_id, contact_id: contact!.id, from_number: input.from, to_number: input.to,
-      started_at: now, room: input.room ?? id,
-    }).returning()
-    const [assistant] = await tx.select().from(assistants).where(eq(assistants.workspace_id, workspace_id))
-    const stale = await completeStaleCalls(tx, workspace_id, now)
-    const linked = await linkOrphanRecordings(tx, workspace_id, now, recordings)
-    return { rows: { calls: [call!, ...stale, ...linked], contacts: [contact!] }, data: { callId: id, workspaceId: workspace_id, isNewContact, contact: contact!, assistant: assistant ?? null } }
+    return openCall({ tx, now, recordings }, number.workspace_id, { from: input.from, to: input.to, room: input.room, label: input.to })
   },
+
+  // The agent only knows the workspace from the dispatch the API signed (assistant.startTestCall).
+  'call.startTest': async ({ tx, actor, now, recordings }, input) => {
+    if (!actor.workspaceId) throw new Reject('no workspace (send x-workspace-id)')
+    return openCall({ tx, now, recordings }, actor.workspaceId, { from: testCallContact.phone, to: testCallContact.phone, room: input.room, source: 'test', label: 'this test call' })
+  },
+
+  'assistant.startTestCall': async ({ actor }) => ({ rows: {}, data: startTestCall(actor) }),
 
   'call.appendTranscript': async ({ tx, actor }, input) => {
     const call = await loadCall(tx, actor, input.callId)
