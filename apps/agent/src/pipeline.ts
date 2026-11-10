@@ -13,6 +13,7 @@ import type { AgentConfig } from './config.ts'
 import type { CompleteJson } from './summary.ts'
 
 const SUMMARY_TIMEOUT_MS = 15_000
+const WARM_UP_TIMEOUT_MS = 5000
 
 /** ElevenLabs' lowest-latency model, unless another is configured. */
 export const ELEVENLABS_DEFAULT_MODEL = 'eleven_flash_v2_5'
@@ -72,3 +73,23 @@ export function chatJson({ apiKey, baseUrl, model }: AgentConfig['llm'], doFetch
 
 /** The LLM call used for the post-call summary: the same LLM as the conversation. */
 export const summaryLlm = (config: AgentConfig): CompleteJson => chatJson(config.llm)
+
+/**
+ * Sends the call's system prompt with a one-token answer while the greeting plays, so the caller's first
+ * reply finds an open connection (same process, same fetch pool) and, where the provider caches prompts,
+ * a cached prompt. Failures only cost the warm-up: they are logged and otherwise ignored.
+ */
+export async function warmUpLlm({ apiKey, baseUrl, model }: AgentConfig['llm'], instructions: string, doFetch: typeof fetch = fetch) {
+  try {
+    const res = await doFetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, max_tokens: 1, messages: [{ role: 'system', content: instructions }, { role: 'user', content: 'Hello?' }] }),
+      signal: AbortSignal.timeout(WARM_UP_TIMEOUT_MS),
+    })
+    await res.body?.cancel()
+    if (!res.ok) console.warn(`LLM warm-up answered ${res.status}`)
+  } catch (e) {
+    console.warn(`LLM warm-up failed: ${e instanceof Error ? e.message : String(e)}`)
+  }
+}

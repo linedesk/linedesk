@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest'
 import type { AgentConfig } from './config.ts'
-import { chatJson, voiceFor } from './pipeline.ts'
+import { chatJson, voiceFor, warmUpLlm } from './pipeline.ts'
 
 const openrouter: AgentConfig['llm'] = { provider: 'openrouter', apiKey: 'sk-or-test', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' }
 
@@ -33,4 +33,18 @@ test('the voice of the assistant is used only for the provider it was chosen for
   expect(voiceFor(eleven, { provider: 'cartesia', voice_id: 'sonic_voice' })).toBe('default_voice')
   expect(voiceFor(eleven, { provider: 'elevenlabs', voice_id: '' })).toBe('default_voice')
   expect(voiceFor({ provider: 'elevenlabs', apiKey: 'k' }, null)).toBeUndefined() // the provider's own default voice
+})
+
+test('warmUpLlm sends the system prompt for a one-token answer and never throws', async () => {
+  const fakeFetch = vi.fn<typeof fetch>(async () => Response.json({ choices: [] }))
+  await warmUpLlm(openrouter, 'You are Maya.', fakeFetch)
+  const [url, init] = fakeFetch.mock.calls[0]!
+  expect(url).toBe('https://openrouter.ai/api/v1/chat/completions')
+  expect(JSON.parse(String(init!.body))).toMatchObject({ model: 'openai/gpt-4.1-mini', max_tokens: 1, messages: [{ role: 'system', content: 'You are Maya.' }, { role: 'user' }] })
+
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  await expect(warmUpLlm(openrouter, 's', async () => { throw new TypeError('fetch failed') })).resolves.toBeUndefined()
+  await warmUpLlm(openrouter, 's', async () => new Response('busy', { status: 429 }))
+  expect(warn.mock.calls.map(c => c[0])).toEqual(['LLM warm-up failed: fetch failed', 'LLM warm-up answered 429'])
+  warn.mockRestore()
 })

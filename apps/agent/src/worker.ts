@@ -11,7 +11,7 @@ import { callOrigin, parseTestMetadata, startCall, type CallSession } from './ca
 import { createConfigLoader, parseProviderSettings, type AgentConfig } from './config.ts'
 import { AGENT_NAME, requireEnv, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness } from './not-ready.ts'
-import { createPipeline, summaryLlm } from './pipeline.ts'
+import { createPipeline, summaryLlm, warmUpLlm } from './pipeline.ts'
 import { logTurnMetrics } from './turn-metrics.ts'
 import { buildInstructions, FALLBACK_GREETING } from './prompt.ts'
 import { describeRecording, livekitRecorder, saveRecording, startRecording, stopRecording } from './recording.ts'
@@ -75,8 +75,10 @@ async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClie
   recordConversation(session, log)
   logTurnMetrics(session, call.callId)
   session.on(voice.AgentSessionEventTypes.Close, onClose)
+  const instructions = buildInstructions(call.assistant)
+  void warmUpLlm(config.llm, instructions)
   await session.start({
-    agent: new voice.Agent({ instructions: buildInstructions(call.assistant), tools: assistantTools(api, call, log) }),
+    agent: new voice.Agent({ instructions, tools: assistantTools(api, call, log) }),
     room: ctx.room,
     inputOptions: { participantIdentity: caller.identity, participantKinds: ALL_PARTICIPANT_KINDS, closeOnDisconnect: true },
   })
