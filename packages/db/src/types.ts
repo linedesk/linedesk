@@ -9,6 +9,8 @@ export type CallField = { label: string; value: string }
 export type ToolEvent = { tool: string; label: string }
 export type AssistantVoice = { provider: string; voice_id: string }
 export type BusinessProfile = {
+  /** The business's own free-text instructions for the assistant. */
+  instructions?: string
   description?: string
   services?: string[]
   service_area?: string

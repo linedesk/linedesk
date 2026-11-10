@@ -1,5 +1,5 @@
 import { actions } from '@callfront/actions'
-import { assistants, organization, tableNames, type TableName } from '@callfront/db'
+import { assistants, organization, workspace_settings, tableNames, type TableName } from '@callfront/db'
 import { APIError } from 'better-auth/api'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -9,6 +9,7 @@ import { authMethods } from './auth-methods.ts'
 import { auth, WORKSPACE_LIMIT } from './auth.ts'
 import { resolveActor, type Actor } from './context.ts'
 import { db } from './db.ts'
+import { newWorkspaceSettings, onboardingFor } from './onboarding.ts'
 import { serveRecording } from './recording-route.ts'
 import { runAction } from './run-action.ts'
 
@@ -33,7 +34,7 @@ app.get('/v1/auth-methods', c => c.json(authMethods))
 app.post('/v1/workspaces', async c => {
   const headers = c.req.raw.headers
   if (!(await auth.api.getSession({ headers }))) return c.json({ ok: false, error: 'not signed in' }, 401)
-  const body = await c.req.json<{ name?: unknown }>().catch(() => ({ name: undefined }))
+  const body = await c.req.json<{ name?: unknown; timeZone?: unknown }>().catch(() => ({ name: undefined, timeZone: undefined }))
   const name = typeof body.name === 'string' ? body.name.trim() : ''
   if (!name || name.length > 80) return c.json({ ok: false, error: 'name is required (80 characters at most)' }, 422)
   const slug = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${crypto.randomUUID().slice(0, 6)}`
@@ -50,6 +51,7 @@ app.post('/v1/workspaces', async c => {
       id: `as_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`, workspace_id: org.id,
       greeting: `Thanks for calling ${name}. This is Maya, the AI assistant. How can I help?`,
     })
+    await db.insert(workspace_settings).values(newWorkspaceSettings(org.id, body.timeZone))
   } catch (err) {
     await db.delete(organization).where(eq(organization.id, org.id))
     throw err
@@ -72,7 +74,11 @@ app.use('/v1/*', async (c, next) => {
 app.get('/v1/me', async c => {
   const actor = c.get('actor')
   const [workspace] = actor.workspaceId ? await db.select().from(organization).where(eq(organization.id, actor.workspaceId)) : []
-  return c.json({ actorId: actor.actorId, role: actor.role, permissions: actor.permissions, workspace: workspace ? { id: workspace.id, name: workspace.name, disabled: Boolean(workspace.disabledAt) } : null })
+  return c.json({
+    actorId: actor.actorId, role: actor.role, permissions: actor.permissions,
+    workspace: workspace ? { id: workspace.id, name: workspace.name, disabled: Boolean(workspace.disabledAt) } : null,
+    onboarding: workspace ? await onboardingFor(actor) : null,
+  })
 })
 
 registerAdminRoutes(app)

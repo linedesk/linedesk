@@ -98,6 +98,8 @@ export const workspace_settings = pgTable('workspace_settings', {
   workspace_id: text('workspace_id').primaryKey(),
   /** IANA time zone; working hours and exceptions are wall-clock times in it. */
   timezone: text('timezone').notNull(),
+  /** Where the owner is in onboarding. null: a workspace from before onboarding existed, treated as finished. */
+  onboarding_step: text('onboarding_step', { enum: ['business', 'phone', 'test_call', 'done', 'skipped'] }),
   created_at: createdAt(),
   version: version(),
 })

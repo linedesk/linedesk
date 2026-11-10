@@ -50,6 +50,13 @@
       "when": 1794323432384,
       "tag": "0006_admin_area",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794326856747,
+      "tag": "0007_onboarding_step",
+      "breakpoints": true
     }
   ]
 }

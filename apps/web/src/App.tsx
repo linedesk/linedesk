@@ -3,6 +3,7 @@ import { CreateWorkspace } from './CreateWorkspace.tsx'
 import { Login } from './Login.tsx'
 import { backoffMs } from './retry.ts'
 import { loadSession, type Session } from './session.ts'
+import { Onboarding } from './onboarding/Onboarding.tsx'
 import { StoreProvider } from './store.tsx'
 import { Workspace } from './Workspace.tsx'
 
@@ -18,6 +19,8 @@ function Unreachable() {
 
 export function App() {
   const [session, setSession] = useState<Session>({ state: 'loading' })
+  // Finishing onboarding is a queued command; the app moves on without waiting for it.
+  const [onboarded, setOnboarded] = useState(false)
   const refresh = useCallback(async () => setSession(await loadSession()), [])
   useEffect(() => { void refresh() }, [refresh])
 
@@ -44,7 +47,9 @@ export function App() {
   if (session.state === 'needsWorkspace') return <CreateWorkspace onDone={refresh} />
   return (
     <StoreProvider workspaceId={session.me.workspace!.id}>
-      <Workspace me={session.me} onSignedOut={refresh} />
+      {session.me.onboarding && !onboarded
+        ? <Onboarding me={session.me} state={session.me.onboarding} onDone={() => setOnboarded(true)} />
+        : <Workspace me={session.me} onSignedOut={refresh} />}
     </StoreProvider>
   )
 }

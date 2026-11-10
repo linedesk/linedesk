@@ -10,7 +10,15 @@ export const auth = createAuthClient({
   plugins: [organizationClient(), magicLinkClient()],
 })
 
-export type Me = { actorId: string; role: string; permissions: string[]; workspace: { id: string; name: string; disabled?: boolean } | null }
+/** Whether this server can set up phone numbers: the carrier it would use, or why it cannot. */
+export type PhoneSetupStatus = { provider: string | null; problem: string | null }
+/** Present while the workspace is in onboarding and this member may finish it. */
+export type OnboardingState = { step: 'business' | 'phone' | 'test_call'; phone: PhoneSetupStatus }
+
+export type Me = {
+  actorId: string; role: string; permissions: string[]; workspace: { id: string; name: string; disabled?: boolean } | null
+  onboarding: OnboardingState | null
+}
 
 /** Who am I and which workspace am I in? null when signed out or without a workspace. */
 export async function fetchMe(): Promise<Me | null> {
@@ -42,7 +50,8 @@ export async function createWorkspace(name: string) {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name }),
+    // The workspace's time zone for working hours; the API falls back to US Eastern.
+    body: JSON.stringify({ name, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
   })
   if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? 'Could not create the workspace')
 }

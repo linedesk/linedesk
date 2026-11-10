@@ -2,12 +2,14 @@ import * as admin from './admin.ts'
 import * as calendar from './calendar.ts'
 import * as calls from './calls.ts'
 import type { ActionDef } from './define.ts'
+import * as onboarding from './onboarding.ts'
 import * as settings from './settings.ts'
 
 export * from './define.ts'
 export * from './admin.ts'
 export * from './calendar.ts'
 export * from './calls.ts'
+export * from './onboarding.ts'
 export * from './settings.ts'
 
 const all = [
@@ -20,6 +22,7 @@ const all = [
   admin.providerSetKeys, admin.providerClearKeys, admin.providerSetActive, admin.providerTest,
   admin.userInvite, admin.userDisable, admin.userEnable, admin.workspaceDisable, admin.workspaceEnable,
   admin.instanceAdminGrant, admin.instanceAdminRevoke,
+  onboarding.onboardingSetStep,
 ] as ActionDef[]
 
 /** The registry: every action by name. */

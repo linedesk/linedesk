@@ -113,6 +113,19 @@ async function linkOrphanRecordings(tx: Tx, workspace_id: string, now: string, r
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /** A carrier that is selected but not configured is the operator's to fix: say what is missing. */
+/** Whether `phoneNumber.setup` can work on this server: the carrier it would use, or why it cannot. */
+export type PhoneSetupStatus = { provider: string | null; problem: string | null }
+
+export async function phoneSetupStatus(loadProvider: () => Promise<{ name: string }>, env: Record<string, string | undefined> = process.env): Promise<PhoneSetupStatus> {
+  try {
+    const { name } = await loadProvider()
+    if (name !== 'dev' && !env.LIVEKIT_SIP_ENDPOINT) return { provider: name, problem: 'LIVEKIT_SIP_ENDPOINT is not set' }
+    return { provider: name, problem: null }
+  } catch (e) {
+    return { provider: null, problem: errorMessage(e) }
+  }
+}
+
 async function configuredProvider(tx: Tx): Promise<TelephonyProvider> {
   try {
     return await telephonyProvider(tx)
@@ -223,6 +236,13 @@ const handlers: Record<string, Handler> = {
     const call = await loadCall(tx, actor, input.callId)
     const action_items = [...call.action_items, { text: input.message }]
     return { rows: { calls: await tx.update(calls).set({ action_items }).where(eq(calls.id, call.id)).returning() } }
+  },
+
+  'onboarding.setStep': async ({ tx, actor }, input) => {
+    if (!actor.workspaceId) throw new Reject('no workspace')
+    await tx.insert(workspace_settings).values({ workspace_id: actor.workspaceId, timezone: DEFAULT_TIME_ZONE, onboarding_step: input.step })
+      .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { onboarding_step: input.step } })
+    return { rows: {} }
   },
 
   'phoneNumber.setup': async ({ tx, actor, now, telephony, onRollback }, input) => {

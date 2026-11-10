@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { actions, applyLocally, isRecordingKey, recordingKey, callFlagUrgent, callTakeMessage, phoneNumberSetup, rolePermissions, type LocalTables } from './index.ts'
+import { actions, applyLocally, isRecordingKey, recordingKey, callFlagUrgent, callTakeMessage, onboardingSetStep, phoneNumberSetup, rolePermissions, type LocalTables } from './index.ts'
 
 test('assistant tools and phone setup are in the registry with the right permission', () => {
   expect(actions.get('call.takeMessage')?.permission).toBe('agent')
@@ -51,4 +51,12 @@ test('recordings: the agent only names the call, the key is derived, the setting
   expect(update.input.safeParse({ assistantId: 'as_1', record_calls: false }).success).toBe(true)
   expect(update.input.safeParse({ assistantId: 'as_1', record_calls: 'no' }).success).toBe(false)
   expect(update.patch!.set({ assistantId: 'as_1', record_calls: false }, '')).toEqual({ record_calls: false })
+})
+
+test('onboarding.setStep: registered, owners and admins only, known steps only', () => {
+  expect(actions.get('onboarding.setStep')).toBe(onboardingSetStep)
+  expect(onboardingSetStep.permission).toBe('settings:write')
+  expect(rolePermissions.member).not.toContain(onboardingSetStep.permission)
+  for (const step of ['business', 'phone', 'test_call', 'done', 'skipped']) expect(onboardingSetStep.input.safeParse({ step }).success).toBe(true)
+  expect(onboardingSetStep.input.safeParse({ step: 'calendar' }).success).toBe(false)
 })

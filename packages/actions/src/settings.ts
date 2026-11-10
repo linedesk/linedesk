@@ -29,6 +29,7 @@ export const assistantUpdate = defineAction({
     record_calls: z.boolean().optional(),
     voice: z.object({ provider: z.string(), voice_id: z.string() }).optional(),
     business_profile: z.object({
+      instructions: z.string().optional(),
       description: z.string().optional(),
       services: z.array(z.string()).optional(),
       service_area: z.string().optional(),
