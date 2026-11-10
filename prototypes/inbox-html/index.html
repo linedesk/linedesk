@@ -2069,6 +2069,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
       p.live ? null : h('button', { type: 'button', className: 'vn-speed', 'aria-label': 'Playback speed ' + p.speed + 'x', onClick: p.onSpeed }, p.speed + '×'));
   }
 
+  function shortDur(sec) { sec = Math.round(sec); var m = Math.floor(sec / 60), r = sec % 60; return m ? m + 'm' + (r ? ' ' + r + 's' : '') : r + 's'; }
   function humanDur(sec) { sec = Math.round(sec); var m = Math.floor(sec / 60), r = sec % 60; return m ? m + ' min' + (r ? ' ' + r + ' sec' : '') : r + ' sec'; }
   function apptFor(c, L) {
     if (c.id === 'live') return L.elapsed >= 65 ? { dow: 'TUE', day: 10, type: 'Emergency call-out', time: '11:30 AM – 12:30 PM', address: '4418 NE Going St', cal: 'Brightwater Jobs', status: 'Confirmed' } : null;
@@ -2192,7 +2193,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
             })(),
             h('span', { className: 'r-status' },
               isLive ? h(K.LiveIndicator, { state: 'live', seconds: L.elapsed }) : c.snoozed && !c.done ? h(K.Badge, { tone: 'neutral' }, c.snoozed) : c.booked ? h(K.Badge, { tone: 'neutral' }, 'Booked ' + c.booked) : c.priority === 1 ? h(K.Badge, { tone: 'danger' }, 'Urgent callback') : c.status === 'transferred' ? h(K.Badge, { tone: 'info' }, 'Transferred') : c.status === 'missed' ? h(K.Badge, { tone: 'danger' }, 'Missed') : c.status === 'spam' ? h(K.Badge, { tone: 'neutral' }, 'Blocked') : c.next && p.tab === 'you' ? h('span', { className: 'r-next' }, c.next) : c.result ? h('span', { className: 'r-quiet' }, c.result) : c.direction === 'out' ? h('span', { className: 'r-quiet' }, 'Outbound') : h('span', { className: 'r-quiet' }, c.cat === 'ai' ? 'Resolved by Maya' : c.next || 'Follow-up')),
-            h('span', { className: 'r-dur' }, isLive ? '—' : c.id === 'live' ? fmt(L.elapsed) : c.duration ? fmt(c.duration) : '—'),
+            h('span', { className: 'r-dur' }, isLive ? '—' : c.id === 'live' ? shortDur(L.elapsed) : c.duration ? shortDur(c.duration) : '—'),
             h('span', { className: 'r-time' }, c.time),
             h('span', { className: 'r-acts' },
               rowAct(c.done ? 'Mark not done (⇧E)' : 'Mark done (E)', c.done ? 'restart' : 'check', function () { p.onToggleDone(c.id); }),
