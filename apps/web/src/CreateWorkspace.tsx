@@ -10,6 +10,7 @@ export function CreateWorkspace({ onDone }: { onDone: () => void }) {
 
   async function submit(e: FormEvent) {
     e.preventDefault()
+    if (!name.trim()) return setError('Give your business a name.')
     setBusy(true)
     setError(null)
     try {
@@ -23,7 +24,7 @@ export function CreateWorkspace({ onDone }: { onDone: () => void }) {
 
   return (
     <AuthPage>
-      <form className="auth-card" onSubmit={submit}>
+      <form className="auth-card" onSubmit={submit} noValidate>
         <h1>Name your business</h1>
         <p>Your assistant uses it when it answers the phone.</p>
         <label>

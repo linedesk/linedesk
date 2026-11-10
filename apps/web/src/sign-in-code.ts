@@ -33,3 +33,22 @@ export function authErrorMessage(error: { code?: string; message?: string; statu
 }
 
 export const codeErrorMessage = authErrorMessage
+
+/** An email field checked in the app's words: empty, or not shaped like an address. */
+export function emailError(email: string): string | null {
+  if (!email.trim()) return 'Enter an email address.'
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ? null : authErrors.INVALID_EMAIL!
+}
+
+/** The sign-in and sign-up form, checked in the app's words before it is sent (no browser bubbles). */
+export function authFormError(
+  step: 'email' | 'password' | 'signUp',
+  form: { name: string; email: string; password: string },
+): string | null {
+  if (step === 'signUp' && !form.name.trim()) return 'Enter your name.'
+  const email = emailError(form.email)
+  if (email || step === 'email') return email
+  if (!form.password) return 'Enter your password.'
+  if (step === 'signUp' && form.password.length < 8) return authErrors.PASSWORD_TOO_SHORT!
+  return null
+}

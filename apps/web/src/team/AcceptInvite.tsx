@@ -5,6 +5,7 @@ import type { InvitationPreview } from '@callfront/actions'
 import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from 'react'
 import { type AuthMethods, auth, fetchAuthMethods, requestSignInCode } from '../auth.ts'
 import { CodeStep } from '../Login.tsx'
+import { authFormError } from '../sign-in-code.ts'
 import { previewInvitation } from './team-api.ts'
 import { AuthPage } from '../ui/kit.tsx'
 
@@ -131,6 +132,8 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
   function submit(e: FormEvent) {
     e.preventDefault()
     void attempt(async () => {
+      const invalid = authFormError(mode === 'signUp' ? 'signUp' : 'password', { ...form, email })
+      if (invalid) throw new Error(invalid)
       if (mode === 'signUp') fail(await auth.signUp.email({ name: form.name, email, password: form.password }))
       else fail(await auth.signIn.email({ email, password: form.password }))
       await onSignedIn()
@@ -139,7 +142,7 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
 
   return (
     <AuthPage>
-      <form className="auth-card" onSubmit={submit}>
+      <form className="auth-card" onSubmit={submit} noValidate>
         <h1>{title}</h1>
         {lead}
         <label>Email<input value={email} readOnly /></label>

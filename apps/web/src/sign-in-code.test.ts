@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { authErrorMessage, codeErrorMessage, normalizeCode } from './sign-in-code.ts'
+import { authErrorMessage, authFormError, codeErrorMessage, normalizeCode } from './sign-in-code.ts'
 
 test('the code field keeps digits only, at most six, so a pasted code works', () => {
   expect(normalizeCode('123456')).toBe('123456')
@@ -18,8 +18,22 @@ test('server errors become short messages', () => {
 })
 
 test('password and sign-up errors use the app wording, never the library wording', () => {
-  expect(authErrorMessage({ code: 'INVALID_EMAIL_OR_PASSWORD', message: 'Invalid email or password' })).toBe("That email and password don't match.")
+  expect(authErrorMessage({ code: 'INVALID_EMAIL_OR_PASSWORD', message: 'Invalid email or password' })).toBe(
+    "That email and password don't match.",
+  )
   expect(authErrorMessage({ code: 'USER_ALREADY_EXISTS' })).toMatch(/Sign in instead/)
   expect(authErrorMessage({ status: 429, message: 'Too many requests' })).toMatch(/Wait a minute/)
   expect(authErrorMessage({ message: 'Something odd' })).toBe('Something odd.')
+})
+
+test('the auth form is checked in the app words before it is sent', () => {
+  const form = { name: 'Mike', email: 'mike@example.com', password: 'long-enough' }
+  expect(authFormError('signUp', form)).toBeNull()
+  expect(authFormError('signUp', { ...form, name: ' ' })).toBe('Enter your name.')
+  expect(authFormError('email', { ...form, email: '' })).toBe('Enter an email address.')
+  expect(authFormError('email', { ...form, email: 'mike@' })).toBe('Enter a valid email address.')
+  expect(authFormError('email', { ...form, password: '' })).toBeNull()
+  expect(authFormError('password', { ...form, password: '' })).toBe('Enter your password.')
+  expect(authFormError('password', { ...form, password: 'short' })).toBeNull()
+  expect(authFormError('signUp', { ...form, password: 'short' })).toBe('Use at least 8 characters for the password.')
 })

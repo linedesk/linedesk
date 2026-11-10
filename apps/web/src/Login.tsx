@@ -2,7 +2,7 @@
 // email, and a password. New people are signed up on first sign-in, unless sign-up is closed.
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { type AuthMethods, auth, fetchAuthMethods, requestSignInCode, signInWithCode, startSso, takeRedirectError } from './auth.ts'
-import { authErrorMessage, CODE_LENGTH, codeErrorMessage, normalizeCode, RESEND_AFTER_S } from './sign-in-code.ts'
+import { authErrorMessage, authFormError, CODE_LENGTH, codeErrorMessage, normalizeCode, RESEND_AFTER_S } from './sign-in-code.ts'
 import { AuthPage } from './ui/kit.tsx'
 
 type Step = 'email' | 'code' | 'password' | 'signUp'
@@ -58,7 +58,10 @@ export function Login({ onDone }: { onDone: () => void }) {
 
   function submit(e: FormEvent) {
     e.preventDefault()
-    if (step !== 'code') void attempt(actions[step])
+    if (step === 'code') return
+    const invalid = authFormError(step, form)
+    if (invalid) return setError(invalid)
+    void attempt(actions[step])
   }
 
   if (!methods) return <AuthPage>{error ? <div className="auth-error" role="alert">{error}</div> : <p className="auth-wait">Connecting…</p>}</AuthPage>
@@ -74,7 +77,7 @@ export function Login({ onDone }: { onDone: () => void }) {
   const withEmail = methods.emailCode || methods.password
   return (
     <AuthPage>
-      <form className="auth-card" onSubmit={submit}>
+      <form className="auth-card" onSubmit={submit} noValidate>
         <h1>{step === 'signUp' ? 'Create your account' : 'Sign in to Linedesk'}</h1>
         <p>Your calls, handled.</p>
         {methods.sso.map(m => (
@@ -158,7 +161,7 @@ export function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
 
   return (
     <AuthPage>
-      <form className="auth-card" onSubmit={e => { e.preventDefault(); if (code.length === CODE_LENGTH) void check(code) }}>
+      <form className="auth-card" noValidate onSubmit={e => { e.preventDefault(); if (code.length === CODE_LENGTH) void check(code) }}>
         <h1>Check your email</h1>
         <p>We sent a {CODE_LENGTH}-digit code to {email}. It expires in 10 minutes.</p>
         <label>

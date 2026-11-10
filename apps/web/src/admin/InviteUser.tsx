@@ -3,6 +3,7 @@
 import { type FormEvent, useState } from 'react'
 import { Checkbox } from '../ui/controls.tsx'
 import { Button } from '../ui/kit.tsx'
+import { emailError } from '../sign-in-code.ts'
 import { runAdmin } from './api.ts'
 
 type Props = { toast: (text: string) => void; reload: () => Promise<void> }
@@ -23,6 +24,8 @@ export function InviteUser({ toast, reload }: Props) {
   async function submit(e: FormEvent) {
     e.preventDefault()
     if (busy) return
+    const invalid = emailError(form.email) ?? (form.name.trim() ? null : 'Enter their name.')
+    if (invalid) return setError(invalid)
     setBusy(true)
     setError(null)
     try {
@@ -53,7 +56,7 @@ export function InviteUser({ toast, reload }: Props) {
     )
   }
   return (
-    <form className="adm-keys adm-invite" onSubmit={submit} onKeyDown={e => e.key === 'Escape' && close()}>
+    <form className="adm-keys adm-invite" noValidate onSubmit={submit} onKeyDown={e => e.key === 'Escape' && close()}>
       <div className="row2">
         <div className="field">
           <label htmlFor="adm-invite-email">Email</label>
