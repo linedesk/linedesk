@@ -15,6 +15,8 @@ import { recordingStoreFromEnv, type RecordingStore } from './recording-store.ts
 import { startTestCall } from './test-call.ts'
 import { teamHandlers } from './team.ts'
 import { workspaceSettingsHandlers } from './workspace-settings.ts'
+import { queueCallNotification } from './jobs.ts'
+import { notificationHandlers } from './notification-settings.ts'
 
 export { Reject, type HandlerCtx, type Undo }
 
@@ -195,6 +197,7 @@ const handlers: Record<string, Handler> = {
   ...adminHandlers,
   ...teamHandlers,
   ...workspaceSettingsHandlers,
+  ...notificationHandlers,
 
   'calendar.findSlots': async ({ tx, actor, now }, input) => {
     const workspaceId = actor.workspaceId
@@ -293,6 +296,8 @@ const handlers: Record<string, Handler> = {
       const [contact] = await tx.select().from(contacts).where(eq(contacts.id, call.contact_id))
       if (contact && !contact.name) rows.contacts = await tx.update(contacts).set({ name: input.callerName }).where(eq(contacts.id, contact.id)).returning()
     }
+    // Only the first finish notifies; a repeated one (agent retry after a timeout) is not news.
+    if (call.status !== 'completed') await queueCallNotification(tx, call.id)
     return { rows }
   },
 

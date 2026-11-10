@@ -15,6 +15,7 @@ const verbs: Record<string, string> = {
   'assistant.update': 'save the assistant settings',
   'onboarding.setStep': 'save your setup progress',
   'notifications.update': 'save your notification settings',
+  'notifications.setDefaults': 'save the notification defaults',
   'workspace.updateSettings': 'save the workspace settings',
 }
 

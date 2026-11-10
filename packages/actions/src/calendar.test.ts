@@ -9,7 +9,7 @@ describe('calendar.findSlots', () => {
   })
 
   it('is read-only, like the provider connection test, the test-call token, team.list, the call-test lookup and the workspace settings read', () => {
-    expect([...actions.values()].filter(a => a.readOnly).map(a => a.name).sort()).toEqual(['assistant.startTestCall', 'calendar.findSlots', 'call.findForTest', 'provider.test', 'team.list', 'workspace.getSettings'])
+    expect([...actions.values()].filter(a => a.readOnly).map(a => a.name).sort()).toEqual(['assistant.startTestCall', 'calendar.findSlots', 'call.findForTest', 'notifications.get', 'provider.test', 'team.list', 'workspace.getSettings'])
   })
 
   it.each(['owner', 'admin', 'member', 'agent'] satisfies Role[])('can be called by %s', role => {

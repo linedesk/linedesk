@@ -13,6 +13,7 @@ import {
   jsonb,
   pgSequence,
   pgTable,
+  primaryKey,
   text,
   time,
   timestamp,
@@ -156,9 +157,22 @@ export const workspace_settings = pgTable('workspace_settings', {
   onboarding_step: text('onboarding_step', { enum: ['business', 'phone', 'test_call', 'done', 'skipped'] }),
   /** Recordings older than this many days are deleted by the daily cleanup job. null: keep them. */
   recording_retention_days: integer('recording_retention_days').default(90),
+  /** New-call notifications for members who have not set their own (member_notification_settings). */
+  notify_email_default: boolean('notify_email_default').notNull().default(true),
+  notify_browser_default: boolean('notify_browser_default').notNull().default(true),
   created_at: createdAt(),
   version: version(),
 })
+
+// A member's own new-call notifications in one workspace. null: the workspace default applies.
+// Not synced: read and written through notifications.* actions, only ever the caller's own row.
+export const member_notification_settings = pgTable('member_notification_settings', {
+  workspace_id: text('workspace_id').notNull(),
+  user_id: text('user_id').notNull(),
+  email: boolean('email'),
+  browser: boolean('browser'),
+  updated_at: ts('updated_at').notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.workspace_id, t.user_id] })])
 
 // Weekly working hours: wall-clock times in the workspace time zone. Several rows per weekday are allowed.
 // Hours cannot cross midnight; `24:00` is a valid end.

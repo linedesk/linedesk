@@ -897,3 +897,16 @@ a.k-btn {
   gap: 8px;
   justify-items: start;
 }
+
+/* Settings, Notifications: the team defaults under the member's own switches */
+.st-defaults {
+  display: grid;
+  gap: 2px;
+}
+.st-defaults > b {
+  font-size: 13px;
+  font-weight: 600;
+}
+.st-defaults > p {
+  margin: 0 0 4px;
+}

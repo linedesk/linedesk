@@ -25,6 +25,7 @@ import { Toast } from './shell/Toast.tsx'
 import { useKeyboard } from './shell/useKeyboard.ts'
 import { useRoute } from './shell/useRoute.ts'
 import { useSignOut } from './shell/useSignOut.ts'
+import { useCallNotifications } from './shell/useCallNotifications.ts'
 import { useToast, type Source } from './shell/useToast.ts'
 import { useAssistantName, useRejection } from './store.tsx'
 import type { SelectVia } from './ui/CommandMenu.tsx'
@@ -40,6 +41,8 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   const nav = useRoute()
   const toaster = useToast()
   const view = useInboxView(nav)
+  // A notification when a call ends while this tab is in the background (Settings, Notifications).
+  useCallNotifications(call => callerName(call, call.contact_id ? view.contacts.get(call.contact_id) : undefined))
   const assistantName = useAssistantName()
   const [overlay, setOverlay] = useState<Overlay>(null)
   const [navOpen, setNavOpen] = useState(false)

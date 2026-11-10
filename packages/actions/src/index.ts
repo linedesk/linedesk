@@ -2,6 +2,7 @@ import * as admin from './admin.ts'
 import * as calendar from './calendar.ts'
 import * as calls from './calls.ts'
 import type { ActionDef } from './define.ts'
+import * as notifications from './notifications.ts'
 import * as onboarding from './onboarding.ts'
 import * as settings from './settings.ts'
 import * as team from './team.ts'
@@ -10,6 +11,7 @@ export * from './define.ts'
 export * from './admin.ts'
 export * from './calendar.ts'
 export * from './calls.ts'
+export * from './notifications.ts'
 export * from './onboarding.ts'
 export * from './settings.ts'
 export * from './team.ts'
@@ -45,6 +47,9 @@ const all = [
   settings.assistantStartTestCall,
   settings.workspaceGetSettings,
   settings.workspaceUpdateSettings,
+  notifications.notificationsGet,
+  notifications.notificationsUpdate,
+  notifications.notificationsSetDefaults,
   calendar.calendarFindSlots,
   admin.providerSetKeys,
   admin.providerClearKeys,

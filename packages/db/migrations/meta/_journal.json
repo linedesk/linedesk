@@ -85,6 +85,13 @@
       "when": 1794333272728,
       "tag": "0011_contact_deleted",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794335620809,
+      "tag": "0012_call_notifications",
+      "breakpoints": true
     }
   ]
 }
