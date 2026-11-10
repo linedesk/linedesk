@@ -47,6 +47,7 @@ const field = (over: Partial<ProviderField>): ProviderField => ({
   field: 'api_key',
   label: 'API key',
   secret: true,
+  hint: null,
   source: null,
   last4: null,
   value: null,

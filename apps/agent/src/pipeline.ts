@@ -38,6 +38,21 @@ function createTts(tts: AgentConfig['tts'], assistantVoice?: AssistantVoice | nu
   return new elevenlabs.TTS({ apiKey: tts.apiKey, model: tts.model ?? ELEVENLABS_DEFAULT_MODEL, ...(voiceId ? { voiceId } : {}) })
 }
 
+/** OpenRouter's `models`: the model first, then the ones it tries when that one fails. */
+const modelsField = (model: string, fallbacks: string[]) => (fallbacks.length ? { models: [model, ...fallbacks] } : {})
+
+/** The conversation LLM; with fallbacks, every request carries the list. */
+function createLlm({ apiKey, baseUrl, model, fallbacks }: AgentConfig['llm']) {
+  const options = { apiKey, baseURL: baseUrl, model }
+  if (!fallbacks.length) return new openai.LLM(options)
+  const extra = modelsField(model, fallbacks)
+  return new (class extends openai.LLM {
+    override chat(args: Parameters<openai.LLM['chat']>[0]) {
+      return super.chat({ ...args, extraKwargs: { ...args.extraKwargs, ...extra } })
+    }
+  })(options)
+}
+
 /** Session options for one call. */
 export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVoice | null): voice.AgentSessionOptions {
   // Flux turn detection needs Flux; with another Deepgram model the session falls back to its own detection.
@@ -45,20 +60,23 @@ export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVo
   return {
     vad: null,
     stt: createStt(config.stt),
-    llm: new openai.LLM({ apiKey: config.llm.apiKey, baseURL: config.llm.baseUrl, model: config.llm.model }),
+    llm: createLlm(config.llm),
     tts: createTts(config.tts, assistantVoice),
     turnHandling: { turnDetection: fluxTurns ? 'stt' : undefined, endpointing: ENDPOINTING, preemptiveGeneration: { enabled: true } },
   }
 }
 
+/** Where one chat request goes. */
+export type ChatModel = { apiKey: string; baseUrl: string; model: string; fallbacks?: string[] }
+
 /** CompleteJson backed by an OpenAI-compatible chat completions API. Gives up after `timeoutMs`. */
-export function chatJson({ apiKey, baseUrl, model }: AgentConfig['llm'], doFetch: typeof fetch = fetch, timeoutMs = SUMMARY_TIMEOUT_MS): CompleteJson {
+export function chatJson({ apiKey, baseUrl, model, fallbacks = [] }: ChatModel, doFetch: typeof fetch = fetch, timeoutMs = SUMMARY_TIMEOUT_MS): CompleteJson {
   return async (system, user) => {
     const res = await doFetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model, response_format: { type: 'json_object' },
+        model, ...modelsField(model, fallbacks), response_format: { type: 'json_object' },
         messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
       }),
       signal: AbortSignal.timeout(timeoutMs),
@@ -71,15 +89,16 @@ export function chatJson({ apiKey, baseUrl, model }: AgentConfig['llm'], doFetch
   }
 }
 
-/** The LLM call used for the post-call summary: the same LLM as the conversation. */
-export const summaryLlm = (config: AgentConfig): CompleteJson => chatJson(config.llm)
+/** The LLM call used for the post-call summary: the summary model of the conversation's provider. */
+export const summaryLlm = ({ llm }: AgentConfig): CompleteJson =>
+  chatJson({ apiKey: llm.apiKey, baseUrl: llm.baseUrl, model: llm.summaryModel, fallbacks: llm.summaryFallbacks })
 
 /**
  * Sends the call's system prompt with a one-token answer while the greeting plays, so the caller's first
  * reply finds an open connection (same process, same fetch pool) and, where the provider caches prompts,
  * a cached prompt. Failures only cost the warm-up: they are logged and otherwise ignored.
  */
-export async function warmUpLlm({ apiKey, baseUrl, model }: AgentConfig['llm'], instructions: string, doFetch: typeof fetch = fetch) {
+export async function warmUpLlm({ apiKey, baseUrl, model }: ChatModel, instructions: string, doFetch: typeof fetch = fetch) {
   try {
     const res = await doFetch(`${baseUrl}/chat/completions`, {
       method: 'POST',

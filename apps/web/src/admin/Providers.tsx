@@ -67,7 +67,7 @@ function KeysForm({ provider, onSaved, onCancel }: FormProps) {
                 spellCheck={false}
                 autoFocus={i === 0}
                 value={values[field.field] ?? ''}
-                placeholder={field.source === 'app' ? 'Leave empty to keep the stored value' : ''}
+                placeholder={field.source === 'app' ? 'Leave empty to keep the stored value' : (field.hint ?? '')}
                 onChange={e => setValues(current => ({ ...current, [field.field]: e.target.value }))}
               />
             </span>

@@ -228,13 +228,13 @@ describe('provider keys', () => {
     expect(JSON.stringify(await providers())).not.toContain('env-openai-key')
     expect((await config()).body).toEqual({
       stt: null,
-      llm: { provider: 'openai', api_key: 'env-openai-key-0123456789', model: 'model-from-env' },
+      llm: { provider: 'openai', api_key: 'env-openai-key-0123456789', model: 'model-from-env', summary_model: null },
       tts: null,
     })
 
     await act(operator, 'provider.setKeys', { provider: 'openai', values: { api_key: SECRET } })
     expect(await fieldOf('openai', 'api_key')).toMatchObject({ source: 'app', last4: 'abcd' })
-    expect((await config()).body.llm).toEqual({ provider: 'openai', api_key: SECRET, model: 'model-from-env' })
+    expect((await config()).body.llm).toEqual({ provider: 'openai', api_key: SECRET, model: 'model-from-env', summary_model: null })
 
     expect((await act(operator, 'provider.clearKeys', { provider: 'openai' })).status).toBe(200)
     expect(await fieldOf('openai', 'api_key')).toMatchObject({ source: 'env' })
@@ -264,11 +264,12 @@ describe('provider keys', () => {
       provider: 'openrouter',
       api_key: 'or-made-up-0123456789',
       model: 'vendor/model-1',
+      summary_model: null,
     })
 
     const picked = await act(operator, 'provider.setActive', { category: 'llm', provider: 'openai' })
     expect(picked.body.data.active.llm).toEqual({ provider: 'openai', chosen: true })
-    expect((await config()).llm).toEqual({ provider: 'openai', api_key: SECRET, model: null })
+    expect((await config()).llm).toEqual({ provider: 'openai', api_key: SECRET, model: null, summary_model: null })
 
     // A picked provider that is not set up gives the agent nothing, instead of silently using another one.
     await act(operator, 'provider.setActive', { category: 'tts', provider: 'elevenlabs' })
@@ -397,6 +398,7 @@ describe('provider keys', () => {
       provider: 'openai',
       api_key: SECRET,
       model: 'gpt-made-up',
+      summary_model: null,
     })
     // A named provider without keys gives the agent nothing rather than another provider.
     process.env.TTS_PROVIDER = 'cartesia'

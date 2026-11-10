@@ -197,7 +197,7 @@ export async function providerStatus(tx: Tx, env: Env = process.env) {
     fields: Object.entries(providerSpec(provider).fields).map(([field, spec]) => {
       const row = rows.find(r => r.provider === provider && r.field === field)
       const fromEnv = env[spec.env]
-      const base = { field, label: spec.label, secret: spec.secret }
+      const base = { field, label: spec.label, secret: spec.secret, hint: ('hint' in spec ? spec.hint : undefined) ?? null }
       if (row) {
         return {
           ...base,

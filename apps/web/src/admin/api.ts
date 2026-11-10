@@ -39,6 +39,8 @@ export type ProviderField = {
   field: string
   label: string
   secret: boolean
+  /** What an empty field means, e.g. the default model. */
+  hint: string | null
   source: 'app' | 'env' | null
   last4: string | null
   value: string | null

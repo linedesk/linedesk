@@ -1,8 +1,8 @@
 import { expect, test, vi } from 'vitest'
 import type { AgentConfig } from './config.ts'
-import { chatJson, voiceFor, warmUpLlm } from './pipeline.ts'
+import { chatJson, summaryLlm, voiceFor, warmUpLlm } from './pipeline.ts'
 
-const openrouter: AgentConfig['llm'] = { provider: 'openrouter', apiKey: 'sk-or-test', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' }
+const openrouter = { apiKey: 'sk-or-test', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' }
 
 test('chatJson asks the configured API for a JSON object and returns the message content', async () => {
   const fakeFetch = vi.fn<typeof fetch>(async () => Response.json({ choices: [{ message: { content: '{"ok":true}' } }] }))
@@ -12,7 +12,7 @@ test('chatJson asks the configured API for a JSON object and returns the message
   expect((init!.headers as Record<string, string>).authorization).toBe('Bearer sk-or-test')
   expect(JSON.parse(String(init!.body))).toMatchObject({ model: 'openai/gpt-4.1-mini', response_format: { type: 'json_object' } })
 
-  const direct = { ...openrouter, provider: 'openai' as const, baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini' }
+  const direct = { ...openrouter, baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini' }
   await chatJson(direct, fakeFetch)('s', 'u')
   expect(fakeFetch.mock.calls[1]![0]).toBe('https://api.openai.com/v1/chat/completions')
 
@@ -47,4 +47,18 @@ test('warmUpLlm sends the system prompt for a one-token answer and never throws'
   await warmUpLlm(openrouter, 's', async () => new Response('busy', { status: 429 }))
   expect(warn.mock.calls.map(c => c[0])).toEqual(['LLM warm-up failed: fetch failed', 'LLM warm-up answered 429'])
   warn.mockRestore()
+})
+
+test('the summary uses the summary model, with OpenRouter fallbacks as `models`', async () => {
+  const fakeFetch = vi.fn<typeof fetch>(async () => Response.json({ choices: [{ message: { content: '{}' } }] }))
+  const llm: AgentConfig['llm'] = {
+    provider: 'openrouter', ...openrouter, model: 'live/fast', fallbacks: ['live/backup'], summaryModel: 'sum/strong', summaryFallbacks: ['sum/backup'],
+  }
+  const config = { llm } as AgentConfig
+  vi.stubGlobal('fetch', fakeFetch)
+  await summaryLlm(config)('s', 'u')
+  vi.unstubAllGlobals()
+  expect(JSON.parse(String(fakeFetch.mock.calls[0]![1]!.body))).toMatchObject({ model: 'sum/strong', models: ['sum/strong', 'sum/backup'] })
+  await chatJson({ ...openrouter, fallbacks: [] }, fakeFetch)('s', 'u')
+  expect(JSON.parse(String(fakeFetch.mock.calls[1]![1]!.body))).not.toHaveProperty('models')
 })

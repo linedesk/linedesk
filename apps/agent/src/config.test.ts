@@ -8,10 +8,14 @@ const stored: ProviderSettings = {
   tts: { provider: 'elevenlabs', api_key: 'el-app', model: null, voice_id: 'voice_app' },
 }
 
-test('env defaults: Deepgram, OpenRouter with an OpenAI mini model, ElevenLabs', async () => {
+test('env defaults: Deepgram, OpenRouter with a fast live model and a stronger summary model, each with a fallback, ElevenLabs', async () => {
   expect(await configFromEnv(keys)).toEqual({
     stt: { provider: 'deepgram', apiKey: 'dg', model: 'flux-general-en' },
-    llm: { provider: 'openrouter', apiKey: 'or', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' },
+    llm: {
+      provider: 'openrouter', apiKey: 'or', baseUrl: 'https://openrouter.ai/api/v1',
+      model: 'google/gemini-2.5-flash-lite', fallbacks: ['openai/gpt-4.1-mini'],
+      summaryModel: 'google/gemini-2.5-flash', summaryFallbacks: ['openai/gpt-5.4-mini'],
+    },
     tts: { provider: 'elevenlabs', apiKey: 'el', model: undefined, voiceId: undefined },
   })
 })
@@ -22,7 +26,7 @@ test('every stage can be changed by env', async () => {
     LLM_PROVIDER: 'openai', TTS_PROVIDER: 'cartesia', STT_MODEL: 'nova-3', LLM_MODEL: 'gpt-5.4', TTS_MODEL: 'sonic-3', TTS_VOICE_ID: 'voice_1',
   })
   expect(config.stt.model).toBe('nova-3')
-  expect(config.llm).toEqual({ provider: 'openai', apiKey: 'oa', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4' })
+  expect(config.llm).toEqual({ provider: 'openai', apiKey: 'oa', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4', fallbacks: [], summaryModel: 'gpt-4.1-mini', summaryFallbacks: [] })
   expect(config.tts).toEqual({ provider: 'cartesia', apiKey: 'ca', model: 'sonic-3', voiceId: 'voice_1' })
   expect((await configFromEnv({ ...keys, LLM_BASE_URL: 'https://llm.internal/v1/', LLM_MODEL: 'local' })).llm).toMatchObject({ baseUrl: 'https://llm.internal/v1', model: 'local' })
 })
@@ -30,7 +34,7 @@ test('every stage can be changed by env', async () => {
 test('settings stored in Linedesk win over the environment, stage by stage', () => {
   expect(resolveAgentConfig(stored, keys)).toEqual({
     stt: { provider: 'deepgram', apiKey: 'dg-app', model: 'flux-general-en' },
-    llm: { provider: 'openai', apiKey: 'oa-app', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4' },
+    llm: { provider: 'openai', apiKey: 'oa-app', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4', fallbacks: [], summaryModel: 'gpt-4.1-mini', summaryFallbacks: [] },
     tts: { provider: 'elevenlabs', apiKey: 'el-app', model: undefined, voiceId: 'voice_app' },
   })
   // A stage that is not set up in Linedesk comes from the environment.
@@ -141,4 +145,13 @@ test('a different failure is logged again, the same one is not', async () => {
     'could not read provider settings from the API, using the environment: provider-config failed (502): Bad Gateway',
     'could not read provider settings from the API, using the environment: provider-config failed (409): stored keys cannot be decrypted',
   ])
+})
+
+test('models are lists: "model, fallback, ..." for live turns and the summary, by env or stored', async () => {
+  const env = await configFromEnv({ ...keys, LLM_MODEL: ' a/fast , b/backup ', SUMMARY_MODEL: 'c/strong' })
+  expect(env.llm).toMatchObject({ model: 'a/fast', fallbacks: ['b/backup'], summaryModel: 'c/strong', summaryFallbacks: [] })
+  const app = resolveAgentConfig({ ...stored, llm: { provider: 'openrouter', api_key: 'or-app', model: 'x/one', summary_model: 'y/two, z/three' } }, keys)
+  expect(app.llm).toMatchObject({ model: 'x/one', fallbacks: [], summaryModel: 'y/two', summaryFallbacks: ['z/three'] })
+  // OpenAI's API takes no fallback list: only the first model is used.
+  expect((await configFromEnv({ ...keys, OPENAI_API_KEY: 'oa', LLM_PROVIDER: 'openai', LLM_MODEL: 'gpt-a, gpt-b' })).llm).toMatchObject({ model: 'gpt-a', fallbacks: [] })
 })

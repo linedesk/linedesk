@@ -19,8 +19,11 @@ export const categoryEnv: Record<ProviderCategory, string> = {
 }
 export const categoryNames = Object.keys(providerCategories) as [ProviderCategory, ...ProviderCategory[]]
 
-/** `env` is the variable used when nothing is stored in the app. `optional` fields are not needed for a connection. */
-type ProviderField = { label: string; env: string; secret: boolean; optional?: true }
+/**
+ * `env` is the variable used when nothing is stored in the app. `optional` fields are not needed for a
+ * connection. `hint` says what an empty field means (shown in the empty input).
+ */
+type ProviderField = { label: string; env: string; secret: boolean; optional?: true; hint?: string }
 type ProviderSpec = { label: string; category: ProviderCategory; fields: Record<string, ProviderField> }
 
 const apiKey = (env: string): ProviderField => ({ label: 'API key', env, secret: true })
@@ -60,12 +63,20 @@ export const providers = {
   openrouter: {
     label: 'OpenRouter',
     category: 'llm',
-    fields: { api_key: apiKey('OPENROUTER_API_KEY'), model: model('LLM_MODEL') },
+    fields: {
+      api_key: apiKey('OPENROUTER_API_KEY'),
+      model: { ...model('LLM_MODEL'), hint: 'google/gemini-2.5-flash-lite, openai/gpt-4.1-mini (fallbacks after a comma)' },
+      summary_model: { label: 'Summary model', env: 'SUMMARY_MODEL', secret: false, optional: true, hint: 'google/gemini-2.5-flash, openai/gpt-5.4-mini' },
+    },
   },
   openai: {
     label: 'OpenAI',
     category: 'llm',
-    fields: { api_key: apiKey('OPENAI_API_KEY'), model: model('LLM_MODEL') },
+    fields: {
+      api_key: apiKey('OPENAI_API_KEY'),
+      model: { ...model('LLM_MODEL'), hint: 'gpt-4.1-mini' },
+      summary_model: { label: 'Summary model', env: 'SUMMARY_MODEL', secret: false, optional: true, hint: 'gpt-4.1-mini' },
+    },
   },
   elevenlabs: {
     label: 'ElevenLabs',
