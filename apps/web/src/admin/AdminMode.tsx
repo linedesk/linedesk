@@ -98,6 +98,8 @@ export function AdminMode({ currentUserId, onExit }: Props) {
       if (e.metaKey || e.ctrlKey || e.altKey || document.querySelector('[role="dialog"]')) return
       // An open form (a confirmation, a key form, Invite user) handles its own keys: Esc cancels it.
       if (document.activeElement?.closest('form')) return
+      // An open list (kit Select) handles its own keys.
+      if (document.activeElement?.closest('[role="listbox"]')) return
       if (isTyping(document.activeElement)) {
         if (e.key === 'Escape') (document.activeElement as HTMLElement).blur()
         return

@@ -3,17 +3,21 @@
 import { type AssignableRole, assignableRoles, type TeamData, type TeamInvitation, type TeamMember } from '@callfront/actions'
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import { Section } from '../settings/fields.tsx'
+import { Select } from '../ui/controls.tsx'
 import { Avatar, Badge, Button } from '../ui/kit.tsx'
 import { teamApi } from './team-api.ts'
 import { canEditRole, canRemove, invitationStatus, isEmail, isOnTeam, joinedLabel, roleLabel } from './team-model.ts'
+
+const roleHelp: Record<AssignableRole, string> = {
+  admin: 'Changes settings, invites and removes people.',
+  member: 'Handles calls and contacts.',
+}
 
 type Run = (work: () => Promise<unknown>, done: string) => Promise<boolean>
 
 function RoleSelect({ value, label, onChange }: { value: AssignableRole; label: string; onChange: (role: AssignableRole) => void }) {
   return (
-    <select className="st-select" value={value} aria-label={label} title={label} onChange={e => onChange(e.target.value as AssignableRole)}>
-      {assignableRoles.map(r => <option key={r} value={r}>{roleLabel(r)}</option>)}
-    </select>
+    <Select size="sm" value={value} label={label} onChange={onChange} options={assignableRoles.map(r => ({ value: r, label: roleLabel(r), description: roleHelp[r] }))} />
   )
 }
 

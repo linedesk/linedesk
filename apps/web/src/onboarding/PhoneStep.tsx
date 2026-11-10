@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
 import { Field, TextInput } from '../settings/fields.tsx'
 import { useRows, useRun } from '../store.tsx'
+import { RadioCard } from '../ui/controls.tsx'
 import { Button, cx, Icon } from '../ui/kit.tsx'
 import { CopyButton, Foot, useStepKeys } from './Frame.tsx'
 import { carriers, formatNumber, forwardingDigits, phoneSetupInput, priceNote, type PhoneChoice } from './flow.ts'
@@ -79,10 +80,10 @@ function Choose({ status, setupError, clearError, onBack }: Props) {
     <>
       <div className="ob-body">
         <h1>Which number should your assistant answer?</h1>
-        <div className="ob-choices" role="radiogroup" aria-label="Phone number">
-          <Choice id="existing" on={kind === 'existing'} onPick={pick} title={carrier ? `Use a number I have in ${carrier}` : 'Use a number I already have'}
-            text={carrier ? `A number already in your ${carrier} account.` : 'A number already in your carrier account.'} />
-          <Choice id="new" on={kind === 'new'} onPick={pick} title="Get a new number" text="A local number in the area code you pick." />
+        <div className="k-radios" role="radiogroup" aria-label="Phone number">
+          <RadioCard name="ob-mode" checked={kind === 'existing'} onPick={() => pick('existing')} title={carrier ? `Use a number I have in ${carrier}` : 'Use a number I already have'}
+            description={carrier ? `A number already in your ${carrier} account.` : 'A number already in your carrier account.'} />
+          <RadioCard name="ob-mode" checked={kind === 'new'} onPick={() => pick('new')} title="Get a new number" description="A local number in the area code you pick." />
         </div>
         {status.provider === 'dev' && kind === 'existing' && <p className="ob2-note">Development mode: no carrier is connected, so any number works and no real call reaches it.</p>}
         {kind === 'existing' ? (
@@ -111,15 +112,6 @@ function Choose({ status, setupError, clearError, onBack }: Props) {
       <Foot onBack={onBack} onContinue={primary} canContinue={!confirming} busy={sending}
         label={sending ? 'Connecting…' : kind === 'existing' ? 'Connect number' : 'Get a number'} />
     </>
-  )
-}
-
-function Choice({ id, on, onPick, title, text }: { id: PhoneChoice['kind']; on: boolean; onPick: (id: PhoneChoice['kind']) => void; title: string; text: string }) {
-  return (
-    <label className={cx('ob-choice', on && 'on')} htmlFor={`ob-m-${id}`}>
-      <input id={`ob-m-${id}`} type="radio" name="ob-mode" checked={on} onChange={() => onPick(id)} />
-      <div><b>{title}</b><span>{text}</span></div>
-    </label>
   )
 }
 

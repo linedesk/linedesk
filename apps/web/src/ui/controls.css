@@ -1,0 +1,200 @@
+/* Kit form controls (controls.tsx): checkbox, switch, radio card, select. */
+.k-check {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink);
+}
+.k-check-input,
+.k-radio-input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+.k-check-box {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--line-control);
+  border-radius: 5px;
+  background: var(--surface);
+  color: transparent;
+  transition:
+    background 0.1s,
+    border-color 0.1s;
+}
+.k-check:hover .k-check-box {
+  border-color: var(--ink-muted);
+}
+.k-check-input:checked + .k-check-box {
+  background: var(--action);
+  border-color: var(--action);
+  color: var(--on-action);
+}
+.k-check-input:focus-visible + .k-check-box {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.k-check-off {
+  cursor: not-allowed;
+  color: var(--ink-disabled);
+}
+.k-check-off .k-check-box {
+  background: var(--surface-hover);
+}
+.sw:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.k-radio {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  cursor: pointer;
+}
+.k-radio:hover {
+  background: var(--surface-hover);
+}
+.k-radio.on {
+  background: var(--highlight);
+  box-shadow: var(--ring-action), var(--shadow-1);
+}
+.k-radio:has(.k-radio-input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.k-radio-off {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.k-radio-dot {
+  flex: none;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+}
+.k-radio.on .k-radio-dot {
+  border: 5px solid var(--action);
+}
+.k-radio-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.k-radio-text b {
+  font-size: 13px;
+  font-weight: 600;
+}
+.k-radio-text span {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.k-radios {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.k-select {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+.k-select-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.k-select-sm .k-select-btn {
+  height: 28px;
+  font-size: 12.5px;
+}
+.k-select-btn .k-icon {
+  color: var(--ink-muted);
+}
+.k-select-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.k-select-btn:focus-visible {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 1px var(--focus);
+}
+.k-select-btn:disabled {
+  color: var(--ink-disabled);
+  background: var(--surface-hover);
+  cursor: not-allowed;
+}
+.k-select-list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: max(100%, 240px);
+  max-height: 280px;
+  overflow-y: auto;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-popover);
+  outline: none;
+}
+.k-select-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  border-radius: var(--radius-xs);
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.k-select-opt.active {
+  background: var(--surface-hover);
+}
+.k-select-opt-t {
+  display: grid;
+  gap: 1px;
+}
+.k-select-opt-t small {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  white-space: normal;
+}

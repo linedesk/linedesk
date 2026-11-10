@@ -1,6 +1,7 @@
 // Creates an account and emails the person how to sign in (action user.invite). The way people get in
 // while sign-up is closed.
 import { type FormEvent, useState } from 'react'
+import { Checkbox } from '../ui/controls.tsx'
 import { Button } from '../ui/kit.tsx'
 import { runAdmin } from './api.ts'
 
@@ -32,8 +33,8 @@ export function InviteUser({ toast, reload }: Props) {
       await reload()
       toast(
         data.delivery === 'log'
-          ? `Account created. The welcome email is in the API log.`
-          : `Account created. ${form.email} gets an email on how to sign in.`,
+          ? `Invite sent to ${form.email}. The email is in the server log.`
+          : `Invite sent to ${form.email}. They sign in with a code from the email.`,
       )
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -82,19 +83,19 @@ export function InviteUser({ toast, reload }: Props) {
           </span>
         </div>
       </div>
-      <label className="adm-check">
-        <input type="checkbox" checked={form.admin} onChange={e => setForm(f => ({ ...f, admin: e.target.checked }))} />
+      <Checkbox className="adm-check" checked={form.admin} onChange={admin => setForm(f => ({ ...f, admin }))}>
         Instance admin: sees every workspace and user, and sets the provider keys
-      </label>
+      </Checkbox>
       <div className="adm-keys-foot">
         <span className="help">
-          They get an email: they sign in with this address and a code. Workspace membership comes from a workspace invitation.
+          We email them: they sign in with this address and a one-time code. They join a workspace when someone there
+          invites them.
         </span>
         <Button size="sm" variant="ghost" onClick={close}>
           Cancel
         </Button>
         <Button type="submit" size="sm" variant="primary" disabled={busy}>
-          Create and send link
+          {busy ? 'Sending…' : 'Send invite'}
         </Button>
       </div>
       {error && (

@@ -1261,7 +1261,8 @@ mark { background: rgb(250 204 21 / 0.38); color: inherit; border-radius: 2px; p
   .st-day { grid-template-columns: 90px auto 1fr; }
   .st-cal { grid-template-columns: minmax(0, 1fr) 72px 56px; }
   .st-member { grid-template-columns: auto minmax(0, 1fr) auto; }
-  .st-member > .st-select, .st-member > .st-role { grid-column: 2; justify-self: start; }
+  .st-member > .st-select, .st-member > .k-select, .st-member > .st-role { grid-column: 2; justify-self: start; }
+  .st-member > .st-role { padding: 0; }
   .st-code { grid-template-columns: minmax(0, 1fr) auto; }
   .st-code > .help { grid-column: 1 / -1; }
   .st-number > .k-badge { margin-left: 0; }

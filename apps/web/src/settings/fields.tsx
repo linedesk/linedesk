@@ -1,5 +1,6 @@
 // Small form pieces for settings pages. Class names match the reference UI.
 import type { ReactNode } from 'react'
+import { Switch } from '../ui/controls.tsx'
 
 export function Section({ id, title, description, children }: { id: string; title: string; description: string; children: ReactNode }) {
   return (
@@ -24,11 +25,11 @@ export function TextArea({ id, value, onChange, placeholder, label, tall }: Text
   return <textarea id={id} className={tall ? 'ta ta-tall' : 'ta'} value={value} placeholder={placeholder} aria-label={label} onChange={e => onChange(e.target.value)} />
 }
 
-export function SwitchRow({ title, description, on, onChange }: { title: string; description: string; on: boolean; onChange: (on: boolean) => void }) {
+export function SwitchRow({ title, description, on, onChange, disabled }: { title: string; description: string; on: boolean; onChange: (on: boolean) => void; disabled?: boolean }) {
   return (
     <div className="swrow">
       <div><b>{title}</b><span className="help">{description}</span></div>
-      <button type="button" role="switch" className="sw" aria-checked={on} aria-label={title} onClick={() => onChange(!on)} />
+      <Switch on={on} onChange={onChange} label={title} disabled={disabled} />
     </div>
   )
 }

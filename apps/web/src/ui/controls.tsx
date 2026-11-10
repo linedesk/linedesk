@@ -1,0 +1,224 @@
+// Form controls of the UI kit: Checkbox, Switch, RadioCard and Select. Use these instead of the
+// browser's own controls, so every page looks the same. Styles in controls.css (k-check, sw,
+// k-radio, k-select). Checkbox and RadioCard keep a hidden native input for keyboard and screen readers.
+import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
+import { cx, Icon } from './kit.tsx'
+import './controls.css'
+
+type CheckboxProps = {
+  checked: boolean
+  onChange: (checked: boolean) => void
+  children?: ReactNode
+  label?: string
+  disabled?: boolean
+  className?: string
+}
+
+export function Checkbox({ checked, onChange, children, label, disabled, className }: CheckboxProps) {
+  return (
+    <label className={cx('k-check', disabled && 'k-check-off', className)}>
+      <input
+        type="checkbox"
+        className="k-check-input"
+        checked={checked}
+        disabled={disabled}
+        aria-label={label}
+        onChange={e => onChange(e.target.checked)}
+      />
+      <span className="k-check-box" aria-hidden="true">
+        <Icon name="check" size={12} />
+      </span>
+      {children && <span className="k-check-text">{children}</span>}
+    </label>
+  )
+}
+
+export function Switch({
+  on,
+  onChange,
+  label,
+  disabled,
+}: {
+  on: boolean
+  onChange: (on: boolean) => void
+  label: string
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      className="sw"
+      aria-checked={on}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!on)}
+    />
+  )
+}
+
+type RadioCardProps = {
+  name: string
+  checked: boolean
+  onPick: () => void
+  title: ReactNode
+  description?: ReactNode
+  disabled?: boolean
+}
+
+/** One choice of a radio group, as a card: put several in a `role="radiogroup"` container. */
+export function RadioCard({ name, checked, onPick, title, description, disabled }: RadioCardProps) {
+  const id = useId()
+  return (
+    <label className={cx('k-radio', checked && 'on', disabled && 'k-radio-off')} htmlFor={id}>
+      <input
+        id={id}
+        type="radio"
+        className="k-radio-input"
+        name={name}
+        checked={checked}
+        disabled={disabled}
+        onChange={onPick}
+      />
+      <span className="k-radio-dot" aria-hidden="true" />
+      <span className="k-radio-text">
+        <b>{title}</b>
+        {description && <span>{description}</span>}
+      </span>
+    </label>
+  )
+}
+
+export type SelectOption<T extends string> = { value: T; label: string; description?: string }
+
+type SelectProps<T extends string> = {
+  value: T
+  options: readonly SelectOption<T>[]
+  onChange: (value: T) => void
+  /** Accessible name; also the tooltip. */
+  label: string
+  id?: string
+  disabled?: boolean
+  size?: 'sm' | 'md'
+}
+
+/** A button that opens a short list. Arrow keys move, Enter or Space picks, Esc closes. */
+export function Select<T extends string>({
+  value,
+  options,
+  onChange,
+  label,
+  id,
+  disabled,
+  size = 'md',
+}: SelectProps<T>) {
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(0)
+  const root = useRef<HTMLDivElement>(null)
+  const button = useRef<HTMLButtonElement>(null)
+  const list = useRef<HTMLDivElement>(null)
+  const listId = useId()
+  const current = options.find(o => o.value === value)
+
+  useEffect(() => {
+    if (!open) return
+    list.current?.focus()
+    const outside = (e: MouseEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', outside)
+    return () => document.removeEventListener('mousedown', outside)
+  }, [open])
+
+  function show() {
+    if (disabled) return
+    setActive(
+      Math.max(
+        0,
+        options.findIndex(o => o.value === value),
+      ),
+    )
+    setOpen(true)
+  }
+  function close() {
+    setOpen(false)
+    button.current?.focus()
+  }
+  function pick(option: SelectOption<T>) {
+    close()
+    if (option.value !== value) onChange(option.value)
+  }
+  function onButtonKey(e: KeyboardEvent) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      show()
+    }
+  }
+  function onListKey(e: KeyboardEvent) {
+    // The list owns its keys: none of them reaches the app's shortcuts.
+    e.stopPropagation()
+    if (e.key === 'Tab') return setOpen(false)
+    e.preventDefault()
+    if (e.key === 'ArrowDown') setActive(i => Math.min(options.length - 1, i + 1))
+    else if (e.key === 'ArrowUp') setActive(i => Math.max(0, i - 1))
+    else if (e.key === 'Home') setActive(0)
+    else if (e.key === 'End') setActive(options.length - 1)
+    else if (e.key === 'Enter' || e.key === ' ') {
+      const o = options[active]
+      if (o) pick(o)
+    } else if (e.key === 'Escape') close()
+  }
+
+  return (
+    <div className={cx('k-select', `k-select-${size}`, open && 'open')} ref={root}>
+      <button
+        ref={button}
+        id={id}
+        type="button"
+        className="k-select-btn"
+        disabled={disabled}
+        title={label}
+        aria-label={`${label}: ${current?.label ?? ''}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        onClick={() => (open ? close() : show())}
+        onKeyDown={onButtonKey}
+      >
+        <span>{current?.label ?? 'Choose…'}</span>
+        <Icon name="down" size={14} />
+      </button>
+      {open && (
+        <div
+          ref={list}
+          id={listId}
+          className="k-select-list"
+          role="listbox"
+          tabIndex={-1}
+          aria-label={label}
+          aria-activedescendant={`${listId}-${active}`}
+          onKeyDown={onListKey}
+        >
+          {options.map((o, i) => (
+            // biome-ignore lint/a11y/useKeyWithClickEvents: the list handles the keys for its options (aria-activedescendant)
+            <div
+              key={o.value}
+              id={`${listId}-${i}`}
+              role="option"
+              aria-selected={o.value === value}
+              className={cx('k-select-opt', i === active && 'active')}
+              onMouseEnter={() => setActive(i)}
+              onClick={() => pick(o)}
+            >
+              <span className="k-select-opt-t">
+                <span>{o.label}</span>
+                {o.description && <small>{o.description}</small>}
+              </span>
+              {o.value === value && <Icon name="check" size={14} />}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
