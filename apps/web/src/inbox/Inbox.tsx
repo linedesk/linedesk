@@ -22,6 +22,13 @@ type Props = InboxHeadProps &
     groups: CallGroups
   }
 
+const viewHeading: Record<InboxTab, string> = {
+  you: 'Needs you',
+  ai: 'Handled calls',
+  spam: 'Spam',
+  reminders: 'Reminders',
+  done: 'Done',
+}
 const emptyTitle: Record<InboxTab, string> = {
   you: 'Nothing needs you',
   ai: 'Nothing here yet',
@@ -86,6 +93,7 @@ export function Inbox({ list, segments, cursor, leaving, entering, menu, selecte
 
   return (
     <div className="cv">
+      <h1 className="sr-only">{search !== null ? 'Search calls' : viewHeading[tab]}</h1>
       <InboxHead {...rest} resultCount={list.length} menu={menu} bulk={bulk} />
       <div
         className={cx(

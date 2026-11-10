@@ -5,6 +5,7 @@ import { AdminMode } from './admin/AdminMode.tsx'
 import type { Me } from './auth.ts'
 import { CallView } from './call/CallView.tsx'
 import { ContactSide } from './call/ContactSide.tsx'
+import { toggleContactPanel } from './call/contactPanel.ts'
 import { togglePlayback } from './call/playback.ts'
 import { Inbox } from './inbox/Inbox.tsx'
 import type { ReminderOption } from './inbox/remind.ts'
@@ -30,6 +31,8 @@ import type { SelectVia } from './ui/CommandMenu.tsx'
 import { ErrorBoundary } from './ui/ErrorBoundary.tsx'
 import { cx } from './ui/kit.tsx'
 
+/** The not-found toasts (call, page) stay long enough to be read after the jump. */
+const NOT_FOUND_TOAST_MS = 4500
 const chordTabs: Record<string, InboxTab> = { i: 'you', e: 'done', h: 'reminders' }
 const chordPages: Record<string, PageRoute> = { a: 'assistant', c: 'contacts', t: 'team', s: 'settings' }
 
@@ -143,6 +146,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
       isCallOpen: !!openCall,
       back: view.back,
       togglePlayback,
+      toggleContactPanel,
       selectionCount: bulk ? selection.count : 0,
       toggleSelect: c => selection.toggle(c.id),
       extendSelect,
@@ -162,7 +166,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   const lost = !nav.known ? 'That page does not exist.' : view.missingCall ? 'Call not found.' : null
   useEffect(() => {
     if (!lost) return
-    toaster.show(lost)
+    toaster.show(lost, false, NOT_FOUND_TOAST_MS)
     nav.backToInbox()
   }, [lost, toaster.show, nav.backToInbox])
 

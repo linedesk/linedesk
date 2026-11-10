@@ -17,6 +17,7 @@ const context = (over: Partial<KeyContext> = {}) =>
     setOverlay: vi.fn(),
     setNavOpen: vi.fn(),
     togglePlayback: vi.fn(() => true),
+    toggleContactPanel: vi.fn(() => true),
     openSearch: vi.fn(),
     closeSearch: vi.fn(),
     setTab: vi.fn(),
@@ -84,6 +85,14 @@ describe('inbox keys', () => {
       c.toggleBlock,
     ])
       expect(fn).toHaveBeenCalledExactlyOnceWith(call)
+  })
+  it('toggles the contact panel with I in an open call only', () => {
+    const open = context({ isCallOpen: true })
+    expect(press('i', open)).toBe(true)
+    expect(open.toggleContactPanel).toHaveBeenCalledOnce()
+    const list = context()
+    press('i', list)
+    expect(list.toggleContactPanel).not.toHaveBeenCalled()
   })
   it('treats shift plus a letter as the capital, whatever the layout reports', () => {
     const c = context()

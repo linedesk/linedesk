@@ -142,7 +142,7 @@ function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveC
     )
   }
   const why = notAnsweringWhy[presence.reason]
-  const fix = presence.reason === 'number' ? '#assistant' : canFixVoice ? '#admin/providers' : null
+  const fix = presence.reason === 'number' ? '#settings' : canFixVoice ? '#admin/providers' : null
   return (
     <span className="ib-maya is-off" title={fix ? why : `${why} Ask whoever runs your Linedesk to finish it.`}>
       <span className="ib-dot" />

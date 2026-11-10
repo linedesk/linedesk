@@ -151,6 +151,7 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
   }, [cursor])
   return (
     <div className="cv">
+      <h1 className="sr-only">Contacts</h1>
       <div className="ib-head">
         {menu}
         <SearchBar query={query} shown={rows.length} total={page.all.length} onChange={page.setQuery} />

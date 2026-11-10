@@ -5,6 +5,7 @@ import { useAssistantName, useContact } from '../store.tsx'
 import { clock, dateTimeLabel, longDuration, parseTs, whenLabel } from '../time.ts'
 import { Button, Icon } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
+import { registerContactPanel } from './contactPanel.ts'
 import { LiveCard } from './LiveCard.tsx'
 import { RecordingPlayer } from './RecordingPlayer.tsx'
 import { SummaryCard } from './SummaryCard.tsx'
@@ -88,7 +89,7 @@ function Bar({ call, index, count, menu, sideOpen, onToggleSide, ...on }: BarPro
         className="cv-caller-btn"
         aria-label="Contact"
         aria-expanded={sideOpen}
-        title="Contact"
+        title="Contact (I)"
         onClick={onToggleSide}
       />
       {!live && (
@@ -186,7 +187,7 @@ function Header({ call, segments, repeatCount }: { call: Call; segments: Transcr
         <h1>{callTitle(call)}</h1>
         <div className="cv-line">
           <b>{contact?.name ? `${contact.name}${contact.company ? ` · ${contact.company}` : ''}` : 'Unknown caller'}</b>
-          <span className="sub">{formatPhone(call.from_number)}</span>
+          <CopyNumber number={formatPhone(call.from_number)} />
           {repeatCount > 1 && <span>{repeatCount} calls from this number</span>}
           {hasReminder(call) && <span>Reminder: {whenLabel(parseTs(call.reminder_at!))}</span>}
         </div>
@@ -212,6 +213,24 @@ function NoConversation({ status }: { status: CallStatus }) {
   )
 }
 
+/** The caller's number under the title: a click copies it. */
+function CopyNumber({ number }: { number: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () =>
+    navigator.clipboard.writeText(number).then(
+      () => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+      },
+      () => {},
+    )
+  return (
+    <button type="button" className="sub fact-copy" title={copied ? 'Copied' : 'Copy number'} onClick={copy}>
+      {copied ? 'Copied' : number}
+    </button>
+  )
+}
+
 /** Keep a live transcript pinned to the bottom while the reader was near it before the new turn arrived. */
 function useFollowLive(live: boolean, segmentCount: number) {
   const ref = useRef<HTMLDivElement>(null)
@@ -230,6 +249,7 @@ function useFollowLive(live: boolean, segmentCount: number) {
 /** One call, full width: what it was about, the conversation, and the caller on the side. Mount with key={call.id} so each call starts at the top. */
 export function CallView({ call, segments, search, side, repeatCount = 1, ...bar }: Props) {
   const [sideOpen, setSideOpen] = useState(false)
+  useEffect(() => registerContactPanel(() => setSideOpen(open => !open)), [])
   const assistant = useAssistantName()
   const contact = useContact(call.contact_id)
   const live = call.status === 'live'
