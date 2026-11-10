@@ -145,7 +145,15 @@ function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveC
     )
   }
   const why = notAnsweringWhy[presence.reason]
-  const fix = presence.reason === 'number' ? '#settings' : canFixVoice ? '#admin/providers' : null
+  // No number: the setup bar above the inbox already says so, with the button; the header keeps the dot.
+  if (presence.reason === 'number')
+    return (
+      <span className="ib-maya is-off" title={why}>
+        <span className="ib-dot" />
+        <span className="sr-only">{assistant} is not answering yet</span>
+      </span>
+    )
+  const fix = canFixVoice ? '#admin/providers' : null
   return (
     <span className="ib-maya is-off" title={fix ? why : `${why} Ask whoever runs your Linedesk to finish it.`}>
       <span className="ib-dot" />

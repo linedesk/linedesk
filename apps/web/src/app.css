@@ -667,8 +667,19 @@ button.me:focus-visible {
   right: 14px;
 }
 @media (max-width: 719px) {
+  /* Phones: the row's ⋯ sits on the first line next to the time, so a row without a status is two lines. */
   .ib-list .row:not(.cust-row) {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "name time acts" "sum sum sum" "status status status";
+    column-gap: 4px;
+  }
+  .ib-list .row:not(.cust-row) .r-acts {
+    grid-area: acts;
+    align-self: start;
+    margin: -4px -6px -4px 0;
+  }
+  .ib-list .row:not(.cust-row) .r-status {
+    padding-right: 0;
   }
   .ib-list .row .r-dot {
     left: 6px;

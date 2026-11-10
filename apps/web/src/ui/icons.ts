@@ -42,6 +42,8 @@ export const icons = {
   mic: [['rect',{x:9,y:3,width:6,height:11,rx:3}],['path',{d:'M5 11a7 7 0 0 0 14 0M12 18v3'}]],
   play: [['path',{d:'M8 5.5v13l10.5-6.5z'}]],
   pause: [['rect',{x:6.5,y:5,width:4,height:14,rx:1}],['rect',{x:13.5,y:5,width:4,height:14,rx:1}]],
+  flag: [['path',{d:'M5.5 21V4M5.5 4.5h11l-2.2 4 2.2 4h-11'}]],
+  ban: [['circle',{cx:12,cy:12,r:8.5}],['path',{d:'M6 6l12 12'}]],
   database: [['ellipse',{cx:12,cy:6,rx:7,ry:3}],['path',{d:'M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3'}]],
 } satisfies Record<string, Part[]>
 export type IconName = keyof typeof icons

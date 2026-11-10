@@ -66,14 +66,14 @@ function callCommands(call: Call, c: CommandContext): Command[] {
       : {
           label: 'Move to Spam',
           keywords: 'junk sales robocall',
-          icon: 'phone-off',
+          icon: 'flag',
           shortcut: ['!'],
           run: () => c.toggleSpam(call),
         },
     {
       label: c.isBlocked(call) ? 'Unblock number' : 'Block number',
       keywords: 'blocklist robocall spam caller',
-      icon: 'phone-off',
+      icon: 'ban',
       shortcut: ['⇧', 'B'],
       run: () => c.toggleBlock(call),
     },
