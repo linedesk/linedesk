@@ -2069,6 +2069,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
       p.live ? null : h('button', { type: 'button', className: 'vn-speed', 'aria-label': 'Playback speed ' + p.speed + 'x', onClick: p.onSpeed }, p.speed + '×'));
   }
 
+  function humanDur(sec) { sec = Math.round(sec); var m = Math.floor(sec / 60), r = sec % 60; return m ? m + ' min' + (r ? ' ' + r + ' sec' : '') : r + ' sec'; }
   function apptFor(c, L) {
     if (c.id === 'live') return L.elapsed >= 65 ? { dow: 'TUE', day: 10, type: 'Emergency call-out', time: '11:30 AM – 12:30 PM', address: '4418 NE Going St', cal: 'Brightwater Jobs', status: 'Confirmed' } : null;
     if (c.appt) return c.appt;
@@ -2284,7 +2285,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
         h('div', { className: 'cv-col' },
           h('div', { className: 'cv-who' },
             h('div', { className: 'cv-who-t' },
-              h('div', { className: 'cv-meta' }, isLive ? h(K.LiveIndicator, { state: 'live', seconds: L.elapsed }) : h('span', null, c.time), isLive ? null : h('span', null, duration ? fmt(duration) : '—'), h('span', null, c.status === 'missed' ? 'Missed' : c.direction === 'out' ? 'Outbound call by Maya' : c.status === 'spam' ? 'Blocked by Maya' : 'Answered by Maya')),
+              h('div', { className: 'cv-meta' }, isLive ? h(K.LiveIndicator, { state: 'live', seconds: L.elapsed }) : h('span', null, c.time), isLive ? null : h('span', null, duration ? humanDur(duration) : '—'), h('span', null, c.status === 'missed' ? 'Missed' : c.direction === 'out' ? 'Outbound call by Maya' : c.status === 'spam' ? 'Blocked by Maya' : 'Answered by Maya')),
               h('h1', null, callSubject(c, L)),
               h('div', { className: 'cv-line' },
                 h('b', null, c.name === c.number ? 'Unknown caller' : c.name + (c.company && c.company !== 'Private' && c.company !== c.name ? ' · ' + c.company : '')),
