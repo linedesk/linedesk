@@ -65,7 +65,10 @@ services:
       # client address from the X-Forwarded-For hop Caddy adds (apps/api/src/client-ip.ts).
       TRUSTED_PROXIES: 172.16.0.0/12,10.0.0.0/8,192.168.0.0/16
       RECORDINGS_DIR: /recordings # where RECORDING_STORE=file recordings are read from
-    volumes: ["recordings:/recordings:ro"]
+    # Same uid as LiveKit egress (1001, see recordings-init): the API serves the files egress writes and
+    # deletes them once they are past the workspace's retention (apps/api/src/recording-retention.ts).
+    user: "1001:1000"
+    volumes: ["recordings:/recordings"]
     depends_on:
       postgres: { condition: service_healthy }
       electric: { condition: service_healthy }
@@ -184,7 +187,8 @@ services:
     mem_limit: ${CALLFRONT_EGRESS_MEM:-512m}
     cpuset: ${CALLFRONT_VOICE_CPUSET:-1} # the voice core, shared by LiveKit, SIP, the agent and egress
 
-  # Egress runs as uid 1001 and a new volume belongs to root: hand the directory over once.
+  # Egress runs as uid 1001 and a new volume belongs to root: hand the directory over once. The API runs
+  # as the same uid, so it can delete recordings egress wrote.
   recordings-init:
     image: busybox:1.37
     profiles: [recording]
