@@ -1,6 +1,7 @@
 // The assistant's system prompt, built from its configuration.
 import { callRulesOf } from '@callfront/actions'
 import type { Assistant } from '@callfront/db/types'
+import type { BusinessHours } from './call-session.ts'
 
 export const FALLBACK_GREETING = 'Thanks for calling. How can I help?'
 
@@ -29,7 +30,14 @@ function businessKnowledge(assistant: Assistant): string {
  * assistant can do and how to use its tools. Editable by the owner: what the business wants it to
  * know (instructions) and how to handle calls (call_rules, or the default rules).
  */
-export function buildInstructions(assistant: Assistant | null): string {
+/** What the assistant says about opening hours: the hours and where now falls, or nothing when none are set. */
+function hoursContext(hours: BusinessHours | null | undefined): string {
+  if (!hours) return 'No business hours are set: do not tell callers when the office is open, unless the business text below says so.'
+  if (hours.openNow) return hours.summary
+  return `${hours.summary} The office is closed right now: take a message as usual and tell the caller the team will call back when the office opens, saying when. An emergency is still flagged as urgent.`
+}
+
+export function buildInstructions(assistant: Assistant | null, hours?: BusinessHours | null): string {
   const name = assistant?.name ?? 'the assistant'
   const knowledge = assistant ? businessKnowledge(assistant) : ''
   return [
@@ -38,6 +46,7 @@ export function buildInstructions(assistant: Assistant | null): string {
     assistant?.greeting ? `You have already opened the call with: "${assistant.greeting}" Do not repeat it.` : null,
     'You are an AI assistant. Whenever the caller asks whether you are a person, a robot or an AI, say truthfully that you are an AI assistant. Never claim to be human.',
     'You can do two things for the caller: save a message for the team with take_message, and flag the call as urgent with flag_urgent. You cannot book appointments, transfer calls, send anyone out or look anything up.',
+    hoursContext(hours),
     'Only state facts about the business that are given below; if you do not know something, say so and offer to take a message.',
     knowledge ? `What the business wants you to know:\n${knowledge}` : null,
     `How to handle calls:\n${callRulesOf(assistant?.call_rules)}`,

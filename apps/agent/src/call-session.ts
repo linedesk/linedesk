@@ -7,6 +7,9 @@ import type { ApiClient } from './api-client.ts'
 export type Speaker = z.input<typeof callAppendTranscript.input>['speaker']
 export type CallResult = Omit<z.input<typeof callFinish.input>, 'callId'>
 
+/** The business's hours as `call.start` reports them: `summary` is a ready sentence for the assistant. */
+export type BusinessHours = { openNow: boolean; summary: string }
+
 export interface CallSession {
   callId: string
   workspaceId: string
@@ -14,11 +17,13 @@ export interface CallSession {
   contact: Contact
   /** The caller's number is blocked: the API filed the call in Spam; hang up without answering. */
   blocked: boolean
+  /** null: the business has no hours set, and the assistant says nothing about them. */
+  businessHours: BusinessHours | null
   append(speaker: Speaker, text: string, toolEvent?: ToolEvent): Promise<void>
   finish(result: CallResult): Promise<void>
 }
 
-type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'contact'> & { blocked?: boolean }
+type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'contact'> & { blocked?: boolean; businessHours?: BusinessHours | null }
 
 /** Where a call comes from: a phone (the workspace is the dialled number's) or a test from the web app. */
 export type CallOrigin = { kind: 'phone'; from: string; to: string; room?: string } | { kind: 'test'; workspaceId: string; room: string }
@@ -27,10 +32,10 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   const { data } = origin.kind === 'phone'
     ? await api.run(callStart, { from: origin.from, to: origin.to, room: origin.room })
     : await api.run(callStartTest, { room: origin.room }, origin.workspaceId)
-  const { callId, workspaceId, assistant, contact, blocked = false } = data as StartData
+  const { callId, workspaceId, assistant, contact, blocked = false, businessHours = null } = data as StartData
   const startedAt = Date.now()
   return {
-    callId, workspaceId, assistant, contact, blocked,
+    callId, workspaceId, assistant, contact, blocked, businessHours,
     async append(speaker, text, toolEvent) {
       await api.run(callAppendTranscript, { callId, speaker, text, atMs: Date.now() - startedAt, toolEvent }, workspaceId)
     },

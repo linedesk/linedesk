@@ -33,3 +33,12 @@ test('English only, the greeting is not repeated, and works without an assistant
   expect(buildInstructions(assistant())).toContain('You have already opened the call with: "Thanks for calling Brightwater."')
   expect(buildInstructions(null)).toContain(DEFAULT_CALL_RULES)
 })
+
+test('business hours: the ready sentence goes into the prompt; closed means a message and when they will be called back', () => {
+  const open = { openNow: true, summary: 'Business hours: Monday–Friday 7 AM–6 PM (America/Los_Angeles). Open now, until 6 PM.' }
+  const closed = { openNow: false, summary: 'Business hours: Monday–Friday 7 AM–6 PM (America/Los_Angeles). Closed now; opens tomorrow at 7 AM.' }
+  expect(buildInstructions(assistant(), open)).toContain(open.summary)
+  expect(buildInstructions(assistant(), open)).not.toContain('closed right now')
+  expect(buildInstructions(assistant(), closed)).toContain(`${closed.summary} The office is closed right now: take a message as usual and tell the caller the team will call back when the office opens`)
+  expect(buildInstructions(assistant(), null)).toContain('No business hours are set: do not tell callers when the office is open')
+})

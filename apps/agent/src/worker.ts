@@ -80,7 +80,7 @@ async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClie
   logTurnMetrics(session, call.callId)
   skipQuietToolReplies(session, QUIET_TOOLS)
   session.on(voice.AgentSessionEventTypes.Close, onClose)
-  const instructions = buildInstructions(call.assistant)
+  const instructions = buildInstructions(call.assistant, call.businessHours)
   void warmUpLlm(config.llm, instructions)
   await session.start({
     agent: new voice.Agent({ instructions, tools: assistantTools(api, call, log) }),

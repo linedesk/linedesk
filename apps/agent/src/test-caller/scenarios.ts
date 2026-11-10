@@ -54,6 +54,11 @@ export const scenarios = {
     persona: 'You are Morgan Hale, in a hurry and talkative. You need someone to look at your noisy furnace. Answer in long run-on sentences, change your mind once about the best day, and cut in with new details instead of answering the question you were asked.',
     expect: { outcome: MESSAGE_OUTCOMES, actionItems: 1 },
   },
+  // Needs business hours on the test workspace (Settings) and a run while the business is closed.
+  'after-hours': {
+    persona: 'You are Jordan Kim. Your toilet keeps running; it is not an emergency. Ask whether they are open right now and when someone will call you back, then leave your name and ask for a call back.',
+    expect: { outcome: MESSAGE_OUTCOMES, actionItems: 1, urgency: 'normal', assistantSays: /\b(closed|opens?|open (again|tomorrow|on|at)|business hours|office hours)\b/i },
+  },
   silence: {
     persona: '',
     expect: { outcome: ['hangup'], silentCaller: true },
