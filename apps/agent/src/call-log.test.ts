@@ -28,12 +28,30 @@ test('finishes with the summary; messages taken and the urgent flag are kept', a
   }))
 })
 
-test('a failed or timed-out summary still finishes the call', async () => {
+test('a timed-out summary is not repeated; the message taken becomes title and summary', async () => {
   const call = fakeCall()
-  await finishCall(call, talkedCall(call), async () => { throw new Error('The operation was aborted due to timeout') }, noWait)
+  const complete = vi.fn<CompleteJson>(async () => { throw new Error('The operation was aborted due to timeout') })
+  await finishCall(call, talkedCall(call), complete, noWait)
+  expect(complete).toHaveBeenCalledTimes(1)
   expect(call.finish).toHaveBeenCalledWith(expect.objectContaining({
-    title: 'Call (summary unavailable)', summary: 'My sink is leaking.', urgency: 'urgent', actionItems: [{ text: 'Call back about the sink' }],
+    title: 'Call back about the sink', summary: 'Call back about the sink', outcome: 'message', urgency: 'urgent', actionItems: [{ text: 'Call back about the sink' }],
   }))
+})
+
+test('a failed summary request is tried once more', async () => {
+  const call = fakeCall()
+  const complete = vi.fn<CompleteJson>().mockRejectedValueOnce(new Error('summary request failed (429): Provider returned error')).mockResolvedValue(answer)
+  await finishCall(call, talkedCall(call), complete, noWait)
+  expect(complete).toHaveBeenCalledTimes(2)
+  expect(call.finish).toHaveBeenCalledWith(expect.objectContaining({ title: 'Leak', outcome: 'callback' }))
+})
+
+test('without a message taken, a failed summary finishes the call as answered', async () => {
+  const call = fakeCall()
+  const log = new CallLog(call)
+  log.record('caller', 'Are you open on Sunday?')
+  await finishCall(call, log, async () => { throw new Error('summary response was empty') }, noWait)
+  expect(call.finish).toHaveBeenCalledWith(expect.objectContaining({ title: 'Call (summary unavailable)', outcome: 'answered', summary: 'Are you open on Sunday?' }))
 })
 
 test('call.finish is retried until the API answers', async () => {

@@ -46,11 +46,27 @@ export const hangupResult: CallResult = {
   outcome: 'hangup', urgency: 'low', title: 'Hung up before speaking', summary: 'The caller hung up without saying anything.',
 }
 
-/** Used when the LLM call fails, so the call still leaves the live state with what is known. */
-export const unsummarizedResult = (lines: TranscriptLine[]): CallResult => ({
-  outcome: 'answered', title: 'Call (summary unavailable)',
-  summary: lines.find(l => l.speaker === 'caller')?.text ?? '',
-})
+/**
+ * Used when the LLM call fails, so the call still leaves the live state with what is known. A message the
+ * assistant took says what the call was about, so it becomes the title and summary.
+ */
+export function unsummarizedResult(lines: TranscriptLine[], savedMessages: string[] = []): CallResult {
+  if (savedMessages.length) {
+    return { outcome: 'message', title: headline(savedMessages[0]!), summary: savedMessages.join(' ') }
+  }
+  return { outcome: 'answered', title: 'Call (summary unavailable)', summary: lines.find(l => l.speaker === 'caller')?.text ?? '' }
+}
+
+/** The first sentence of a text, cut at a word boundary to fit a title. */
+function headline(text: string) {
+  const sentence = text.split(/(?<=[.!?])\s/)[0]!.replace(/[.!?]$/, '')
+  if (sentence.length <= MAX_TITLE_LENGTH) return sentence
+  const cut = sentence.slice(0, MAX_TITLE_LENGTH - 1)
+  return `${cut.slice(0, cut.lastIndexOf(' ') > 0 ? cut.lastIndexOf(' ') : cut.length)}…`
+}
+
+/** Outcomes that do not fit a call in which the assistant took a message. */
+const NOT_A_MESSAGE = new Set<CallResult['outcome']>(['answered', 'hangup'])
 
 /** `savedMessages` are the action items taken during the call; the LLM is told not to repeat them. */
 export async function summarizeCall(lines: TranscriptLine[], complete: CompleteJson, savedMessages: string[] = []): Promise<CallResult> {
@@ -63,9 +79,10 @@ export async function summarizeCall(lines: TranscriptLine[], complete: CompleteJ
   }
 }
 
-/** What goes into `call.finish`: tools used during the call win over the summary. */
+/** What goes into `call.finish`: tools used during the call win over the summary (a taken message makes it a message). */
 export function mergeToolResults(result: CallResult, tools: { messages: string[]; urgent: boolean }): CallResult {
   const taken = tools.messages.map(text => ({ text }))
   const extra = (result.actionItems ?? []).filter(item => !tools.messages.includes(item.text))
-  return { ...result, urgency: tools.urgent ? 'urgent' : result.urgency, actionItems: [...taken, ...extra] }
+  const outcome = taken.length && NOT_A_MESSAGE.has(result.outcome) ? 'message' : result.outcome
+  return { ...result, outcome, urgency: tools.urgent ? 'urgent' : result.urgency, actionItems: [...taken, ...extra] }
 }

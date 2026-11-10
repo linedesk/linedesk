@@ -35,17 +35,35 @@ export class CallLog {
  */
 export async function finishCall(call: CallSession, log: CallLog, complete: CompleteJson, retry?: RetryOptions) {
   await log.flush()
-  const summary = await summarizeCall(log.lines, complete, log.messages).catch(e => {
-    console.error(`could not summarize call ${call.callId}: ${message(e)}`)
-    return unsummarizedResult(log.lines)
+  const summary = await summarizeWithRetry(call, log, complete, retry).catch(e => {
+    console.error(`could not summarize call ${call.callId}, finishing it without a summary: ${message(e)}`)
+    return unsummarizedResult(log.lines, log.messages)
   })
   await withRetry(() => call.finish(mergeToolResults(summary, log)), retry)
+}
+
+/** A timed-out request is not repeated: a second one would not fit into the hang-up budget. */
+const isTimeout = (e: unknown) => e instanceof Error && (e.name === 'TimeoutError' || /timeout|timed out/i.test(e.message))
+export const SUMMARY_RETRY_DELAY_MS = 2000
+
+/** Summarizes; a failed request (a rate limit, a bad answer) is tried once more after a short pause. */
+async function summarizeWithRetry(call: CallSession, log: CallLog, complete: CompleteJson, retry?: RetryOptions) {
+  try {
+    return await summarizeCall(log.lines, complete, log.messages)
+  } catch (e) {
+    if (isTimeout(e)) throw e
+    console.warn(`summary of call ${call.callId} failed, trying once more: ${message(e)}`)
+    const pause = retry?.wait ?? ((ms: number) => new Promise(resolve => setTimeout(resolve, ms)))
+    await pause(SUMMARY_RETRY_DELAY_MS)
+    return summarizeCall(log.lines, complete, log.messages)
+  }
 }
 
 /**
  * Everything after the caller is gone has to fit into the worker's shutdown window (60 s by default):
  *   stop the recording                      at once, so the file has no trailing audio
- *   summary                                 at most 15 s (the LLM request's timeout), then finish without one
+ *   summary                                 at most 15 s (the LLM request's timeout); a failure that is not a
+ *                                           timeout is tried once more after 2 s; then finish without one
  *   call.finish                             4 attempts of at most 5 s each, 3.5 s of backoff in between
  *   wait for the recording file, report it  at most RECORDING_WAIT_MS, then call.setRecording
  * The whole sequence is cut off after HANGUP_BUDGET_MS. What did not fit is repaired by the API:

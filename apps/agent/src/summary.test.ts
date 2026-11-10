@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest'
-import { mergeToolResults, summarizeCall, type CompleteJson, type TranscriptLine } from './summary.ts'
+import { mergeToolResults, summarizeCall, unsummarizedResult, type CompleteJson, type TranscriptLine } from './summary.ts'
 
 const transcript: TranscriptLine[] = [
   { speaker: 'agent', text: 'Thanks for calling Brightwater. How can I help?' },
@@ -66,4 +66,20 @@ test('a title that is too long is cut, not rejected', async () => {
   const result = await summarizeCall(transcript, async () => JSON.stringify({ ...llmAnswer, title: 'x'.repeat(200) }))
   expect(result.title).toBe('x'.repeat(80))
   expect(result.summary).toBe(llmAnswer.summary)
+})
+
+test('a taken message makes the call a message, unless the summary says callback or spam', () => {
+  const tools = { messages: ['Call Lena back about the faucet quote'], urgent: false }
+  expect(mergeToolResults({ outcome: 'answered', urgency: 'normal' }, tools).outcome).toBe('message')
+  expect(mergeToolResults({ outcome: 'hangup', urgency: 'normal' }, tools).outcome).toBe('message')
+  expect(mergeToolResults({ outcome: 'callback', urgency: 'normal' }, tools).outcome).toBe('callback')
+  expect(mergeToolResults({ outcome: 'answered', urgency: 'normal' }, { messages: [], urgent: false }).outcome).toBe('answered')
+})
+
+test('without a summary, a long message is cut to a title at a word boundary', () => {
+  const long = `Dana Ruiz at 1450 Southeast Division Street has a burst pipe under the kitchen sink and needs a plumber as soon as possible. Main valve is off.`
+  const result = unsummarizedResult([], [long])
+  expect(result.title!.length).toBeLessThanOrEqual(80)
+  expect(result.title!.endsWith('…')).toBe(true)
+  expect(result).toMatchObject({ outcome: 'message', summary: long })
 })
