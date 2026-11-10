@@ -3935,12 +3935,17 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
     function withTip(label, sc) {
       if (!sc) return label;
       if (srcRef.current === 'key') { usedKeys.current[sc] = true; return label; }
-      if (srcRef.current === 'mouse' && !usedKeys.current[sc]) return label + ' · Tip: press ' + sc;
+      if (srcRef.current === 'mouse') return label + ' · Next time, press ' + sc;
       return label;
     }
     function viaSource(src, fn) { var prev = srcRef.current; srcRef.current = src; try { return fn(); } finally { srcRef.current = prev; } }
 
-    function toast(m, undo) { setToastMsg({ text: m, undo: !!undo }); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(function () { setToastMsg(null); }, undo ? 5000 : 2600); }
+    var lastToastAt = useRef(0);
+    useEffect(function () {
+      function onHint(e) { setTimeout(function () { if (Date.now() - lastToastAt.current > 80) toast((e.detail.label ? e.detail.label + ' · ' : '') + 'Next time, press ' + e.detail.keys.join(' ')); }, 30); }
+      window.addEventListener('callfront-hint', onHint); return function () { window.removeEventListener('callfront-hint', onHint); };
+    }, []);
+    function toast(m, undo) { lastToastAt.current = Date.now(); setToastMsg({ text: m, undo: !!undo }); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(function () { setToastMsg(null); }, undo ? 5000 : 2600); }
     function go(to) { if (location.hash !== '#' + to) location.hash = to; setRoute(to); }
     useEffect(function () { function f() { setRoute(readHash()); } window.addEventListener('hashchange', f); return function () { window.removeEventListener('hashchange', f); }; }, []);
     useEffect(function () {
@@ -4273,6 +4278,12 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
       if (Date.now() < warmUntil) show(); else timer = setTimeout(show, DELAY);
     });
     document.addEventListener('mouseout', function (e) { if (cur && !cur.contains(e.relatedTarget)) hide(); });
+    document.addEventListener('click', function (e) {
+      if (!e.isTrusted || e.detail === 0 || !e.target.closest) return;
+      var el = e.target.closest('[data-sc], [title]'); if (!el || el.closest('.kt')) return;
+      var info = parse(el.getAttribute('data-sc') || el.getAttribute('title'));
+      if (info.keys.length) window.dispatchEvent(new CustomEvent('callfront-hint', { detail: info }));
+    });
     document.addEventListener('mousedown', cancel, true); document.addEventListener('keydown', cancel, true); window.addEventListener('scroll', cancel, true);
   })();
 
