@@ -30,7 +30,11 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   if (def.readOnly) return runReadOnly(def, parsed.data, actor)
 
   const [seen] = await db.select().from(commands).where(eq(commands.id, commandId))
-  if (seen) return { status: seen.rejected ? 409 : 200, body: seen.result as RunResult['body'] }
+  if (seen) {
+    // A command id belongs to the workspace and action that used it first; nobody else gets its result.
+    if (seen.workspace_id !== actor.workspaceId || seen.action !== name) return rejection(409, 'idempotency key was used for another command')
+    return { status: seen.rejected ? 409 : 200, body: seen.result as RunResult['body'] }
+  }
 
   const record = { id: commandId, workspace_id: actor.workspaceId, actor_id: actor.actorId, action: name, input: parsed.data as object }
   try {

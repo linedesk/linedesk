@@ -21,7 +21,8 @@ app.on(['GET', 'POST'], '/api/auth/*', c => auth.handler(c.req.raw))
 
 // Create a workspace (= organization) for the signed-in user, with its assistant, and make it active.
 app.post('/v1/workspaces', async c => {
-  const { name } = await c.req.json<{ name?: string }>()
+  if (!(await auth.api.getSession({ headers: c.req.raw.headers }))) return c.json({ ok: false, error: 'not signed in' }, 401)
+  const { name } = await c.req.json<{ name?: string }>().catch(() => ({ name: undefined }))
   if (!name?.trim()) return c.json({ ok: false, error: 'name is required' }, 422)
   const slug = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${crypto.randomUUID().slice(0, 6)}`
   const org = await auth.api.createOrganization({ body: { name: name.trim(), slug }, headers: c.req.raw.headers })

@@ -69,7 +69,7 @@ describe('runAction: writing actions', () => {
   })
 
   it('replays a stored result without running the handler again', async () => {
-    fake.state.seen = [{ rejected: false, result: { ok: true, rows: {} } }]
+    fake.state.seen = [{ workspace_id: 'ws_1', action: 'call.markDone', rejected: false, result: { ok: true, rows: {} } }]
     expect(await markDone()).toEqual({ status: 200, body: { ok: true, rows: {} } })
     expect(fake.runHandler).not.toHaveBeenCalled()
     expect(fake.state.log).toEqual(['select'])
