@@ -19,6 +19,8 @@ export interface Scenario {
   /** Who the caller is and what they want, in the second person. Empty: the caller stays silent. */
   persona: string
   expect: Expectation
+  /** Business hours the business's agent uses in a no-phone test, instead of the workspace's. */
+  businessHours?: { openNow: boolean; summary: string }
 }
 
 const RULES = `You are on a real phone call with a business's phone assistant. Wait until you are greeted, then answer like a person would on the phone: one or two short sentences per turn, plain spoken English, no lists. Give your details only when asked. When you have what you called for, or after about six of your own turns, say a short goodbye and then use the end_call tool. Never say that you are an AI or that this is a test.`
@@ -54,10 +56,11 @@ export const scenarios = {
     persona: 'You are Morgan Hale, in a hurry and talkative. You need someone to look at your noisy furnace. Answer in long run-on sentences, change your mind once about the best day, and cut in with new details instead of answering the question you were asked.',
     expect: { outcome: MESSAGE_OUTCOMES, actionItems: 1 },
   },
-  // Needs business hours on the test workspace (Settings) and a run while the business is closed.
+  // Without a phone the business is closed by the scenario; over the phone the workspace's real hours apply.
   'after-hours': {
     persona: 'You are Jordan Kim. Your toilet keeps running; it is not an emergency. Ask whether they are open right now and when someone will call you back, then leave your name and ask for a call back.',
     expect: { outcome: MESSAGE_OUTCOMES, actionItems: 1, urgency: 'normal', assistantSays: /\b(closed|opens?|open (again|tomorrow|on|at)|business hours|office hours)\b/i },
+    businessHours: { openNow: false, summary: 'Business hours: Monday–Friday 7 AM–6 PM (America/Los_Angeles). Closed now; opens tomorrow at 7 AM.' },
   },
   silence: {
     persona: '',

@@ -25,14 +25,21 @@ export interface CallSession {
 
 type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'contact'> & { blocked?: boolean; businessHours?: BusinessHours | null }
 
-/** Where a call comes from: a phone (the workspace is the dialled number's) or a test from the web app. */
-export type CallOrigin = { kind: 'phone'; from: string; to: string; room?: string } | { kind: 'test'; workspaceId: string; room: string }
+/**
+ * Where a call comes from. A test call may bring `businessHours` to use instead of the workspace's
+ * (the call test sets "closed" for its after-hours scenario without touching the real settings).
+ */
+export type CallOrigin =
+  | { kind: 'phone'; from: string; to: string; room?: string }
+  | { kind: 'test'; workspaceId: string; room: string; businessHours?: BusinessHours }
 
 export async function startCall(api: ApiClient, origin: CallOrigin): Promise<CallSession> {
   const { data } = origin.kind === 'phone'
     ? await api.run(callStart, { from: origin.from, to: origin.to, room: origin.room })
     : await api.run(callStartTest, { room: origin.room }, origin.workspaceId)
-  const { callId, workspaceId, assistant, contact, blocked = false, businessHours = null } = data as StartData
+  const started = data as StartData
+  const { callId, workspaceId, assistant, contact, blocked = false } = started
+  const businessHours = (origin.kind === 'test' && origin.businessHours) || started.businessHours || null
   const startedAt = Date.now()
   return {
     callId, workspaceId, assistant, contact, blocked, businessHours,
@@ -52,7 +59,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
  */
 export function callOrigin(jobMetadata: string, attributes: Record<string, string>, room: string): CallOrigin {
   const test = parseTestMetadata(jobMetadata)
-  if (test) return { kind: 'test', workspaceId: test.workspaceId, room }
+  if (test) return { kind: 'test', workspaceId: test.workspaceId, room, ...(test.businessHours ? { businessHours: test.businessHours } : {}) }
   const from = attributes['sip.phoneNumber']
   const to = attributes['sip.trunkPhoneNumber']
   if (!from || !to) throw new Error('participant has no sip.phoneNumber / sip.trunkPhoneNumber attributes')
@@ -60,11 +67,14 @@ export function callOrigin(jobMetadata: string, attributes: Record<string, strin
 }
 
 /** The workspace of a test room the API signed, or null for any other room. */
-export function parseTestMetadata(metadata: string): { workspaceId: string } | null {
+export function parseTestMetadata(metadata: string): { workspaceId: string; businessHours?: BusinessHours } | null {
   if (!metadata) return null
   try {
-    const parsed = JSON.parse(metadata) as { source?: unknown; workspaceId?: unknown }
-    return parsed.source === 'test' && typeof parsed.workspaceId === 'string' && parsed.workspaceId ? { workspaceId: parsed.workspaceId } : null
+    const parsed = JSON.parse(metadata) as { source?: unknown; workspaceId?: unknown; businessHours?: unknown }
+    if (parsed.source !== 'test' || typeof parsed.workspaceId !== 'string' || !parsed.workspaceId) return null
+    const hours = parsed.businessHours as Partial<BusinessHours> | undefined
+    const businessHours = hours && typeof hours.openNow === 'boolean' && typeof hours.summary === 'string' ? { openNow: hours.openNow, summary: hours.summary } : undefined
+    return { workspaceId: parsed.workspaceId, ...(businessHours ? { businessHours } : {}) }
   } catch {
     return null
   }

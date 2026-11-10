@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { callOrigin } from './call-session.ts'
+import { callOrigin, startCall } from './call-session.ts'
 
 const sip = { 'sip.phoneNumber': '+15035550191', 'sip.trunkPhoneNumber': '+15035550142' }
 
@@ -17,4 +17,18 @@ test('anything else is a phone call, numbered by LiveKit SIP', () => {
 
 test('a room that is neither is refused', () => {
   expect(() => callOrigin('', {}, 'room')).toThrow('participant has no sip.phoneNumber / sip.trunkPhoneNumber attributes')
+})
+
+test('a test room may bring business hours to use instead of the workspace\'s; anything malformed is ignored', async () => {
+  const closed = { openNow: false, summary: 'Closed now; opens tomorrow at 7 AM.' }
+  const origin = callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', businessHours: closed }), {}, 'room')
+  expect(origin).toEqual({ kind: 'test', workspaceId: 'ws_1', room: 'room', businessHours: closed })
+  expect(callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', businessHours: { openNow: 'no' } }), {}, 'room')).toEqual({ kind: 'test', workspaceId: 'ws_1', room: 'room' })
+
+  // The override wins over what call.startTest reports; without one, the API's hours are used.
+  const api = (hours: unknown) => ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: null, contact: {}, businessHours: hours } }) }) as never
+  const fromApi = { openNow: true, summary: 'Open now, until 6 PM.' }
+  expect((await startCall(api(fromApi), origin)).businessHours).toEqual(closed)
+  expect((await startCall(api(fromApi), { kind: 'test', workspaceId: 'ws_1', room: 'room' })).businessHours).toEqual(fromApi)
+  expect((await startCall(api(undefined), { kind: 'test', workspaceId: 'ws_1', room: 'room' })).businessHours).toBeNull()
 })

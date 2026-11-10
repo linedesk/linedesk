@@ -13,7 +13,7 @@ import { AGENT_NAME, livekitHttpUrl, requireEnv, requireLivekitEnv, runScript } 
 import { CALLEE_IDENTITY } from './test-caller/caller.ts'
 import { LATENCY_ATTRIBUTE, type LatencySample } from './test-caller/latency.ts'
 import { evaluateCall, formatReport } from './test-caller/report.ts'
-import { isScenario, scenarioNames, scenarios, type CallTestMode, type ScenarioName, type TestCallerMetadata } from './test-caller/scenarios.ts'
+import { isScenario, scenarioNames, scenarios, type CallTestMode, type Scenario, type ScenarioName, type TestCallerMetadata } from './test-caller/scenarios.ts'
 import { findOutboundTrunk, sipClient } from './test-caller/trunk.ts'
 
 /** A hard cap on a call, on top of the caller's own two minutes. */
@@ -61,7 +61,8 @@ async function startInRoom({ name, room, to, since, api }: Run) {
   const { workspaceId } = (await api.run(callFindForTest, { to, since, room })).data as CallTestFinding
   const dispatch = dispatcher()
   const caller: TestCallerMetadata = { source: 'test-caller', scenario: name, mode: 'room' }
-  await dispatch.createDispatch(room, AGENT_NAME, { metadata: JSON.stringify({ source: 'test', workspaceId }) })
+  const { businessHours } = scenarios[name] as Scenario
+  await dispatch.createDispatch(room, AGENT_NAME, { metadata: JSON.stringify({ source: 'test', workspaceId, ...(businessHours ? { businessHours } : {}) }) })
   await dispatch.createDispatch(room, AGENT_NAME, { metadata: JSON.stringify(caller) })
   console.log(`Test call in room ${room} with workspace ${workspaceId} (scenario ${name}, no phone)…`)
 }
