@@ -119,3 +119,21 @@ test('describeMetrics describes the stages that make up a reply and skips the re
   expect(describeMetrics({ type: 'tts_metrics', ttfbMs: 230 })).toBe('voice first audio 230 ms')
   expect(describeMetrics({ type: 'vad_metrics' })).toBeNull()
 })
+
+test('call test: a completed call is waited on for its recording, up to the grace period', async () => {
+  const { waitForFinishedCall } = await import('../call-test.ts')
+  let clock = 0
+  const opts = { expectRecording: true, graceMs: 30_000, now: () => clock, wait: async (ms: number) => {
+      clock += ms
+    } }
+  const completed = (recording_key: string | null) => ({ workspaceId: 'ws', call: { status: 'completed', recording_key } }) as never
+  const answers = [completed(null), completed(null), completed('ws/call.ogg')]
+  const found = await waitForFinishedCall(async () => answers.shift() ?? completed('ws/call.ogg'), 1_000_000, async () => {}, opts)
+  expect((found as { call: { recording_key: string } }).call.recording_key).toBe('ws/call.ogg')
+
+  clock = 0
+  const never = await waitForFinishedCall(async () => completed(null), 1_000_000, async () => {}, opts)
+  expect((never as { call: { recording_key: null } }).call.recording_key).toBeNull()
+  expect(clock).toBeGreaterThanOrEqual(30_000)
+  expect(clock).toBeLessThan(40_000)
+})

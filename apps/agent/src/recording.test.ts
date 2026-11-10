@@ -27,7 +27,7 @@ test('does not record when the workspace turned it off or recording is not confi
 
 test('a recording that cannot start or stop does not fail the call', async () => {
   const broken = recorder({ start: async () => { throw new Error('no egress service available') }, stop: async () => { throw new Error('gone') } })
-  expect(await startRecording(broken, call(true), 'call-abc')).toBeNull()
+  expect(await startRecording(broken, call(true), 'call-abc', 0)).toBeNull()
   await expect(stopRecording(broken, 'EG_1')).resolves.toBeUndefined()
   await expect(stopRecording(null, null)).resolves.toBeUndefined()
 })
@@ -85,4 +85,10 @@ test('egress writes into the shared directory, or uploads to S3 by env', () => {
     output: { case: 's3', value: { endpoint: 'https://s3.test', bucket: 'recordings', accessKey: 'k', secret: 's', region: 'us-east-1', forcePathStyle: true } },
   })
   expect(() => recordingOutput('k', { RECORDING_STORE: 's3', S3_ENDPOINT: 'https://s3.test' })).toThrow('Missing environment variables: S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY.')
+})
+
+test('a recording that fails to start is tried once more', async () => {
+  const flaky = recorder({ start: vi.fn<CallRecorder['start']>().mockRejectedValueOnce(new Error('egress busy')).mockResolvedValue('EG_2') })
+  expect(await startRecording(flaky, call(true), 'call-abc', 0)).toBe('EG_2')
+  expect(flaky.start).toHaveBeenCalledTimes(2)
 })

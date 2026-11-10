@@ -31,14 +31,24 @@ export function describeRecording(env: Env = process.env): string {
   return `call recording is on: LiveKit egress writes to ${mode === 'file' ? 'the shared recordings directory' : `the S3 bucket ${env.S3_BUCKET}`}`
 }
 
-/** The recording's id, or null: off for this workspace, or it could not start. Never rejects. */
-export async function startRecording(recorder: CallRecorder | null, call: CallSession, room: string): Promise<string | null> {
+/** Pause before the second try to start a recording (egress busy or the room not ready yet). */
+export const RECORDING_RETRY_MS = 1000
+
+/** The recording's id, or null: off for this workspace, or it could not start (tried twice). Never rejects. */
+export async function startRecording(recorder: CallRecorder | null, call: CallSession, room: string, retryMs = RECORDING_RETRY_MS): Promise<string | null> {
   if (!recorder || call.assistant?.record_calls === false) return null
+  const key = recordingKey(call.workspaceId, call.callId)
   try {
-    return await recorder.start(room, recordingKey(call.workspaceId, call.callId))
-  } catch (e) {
-    console.warn(`call ${call.callId} is not recorded: ${message(e)}`)
-    return null
+    return await recorder.start(room, key)
+  } catch (first) {
+    console.warn(`recording of call ${call.callId} did not start, trying once more: ${message(first)}`)
+    await new Promise(resolve => setTimeout(resolve, retryMs))
+    try {
+      return await recorder.start(room, key)
+    } catch (e) {
+      console.warn(`call ${call.callId} is not recorded: ${message(e)}`)
+      return null
+    }
   }
 }
 

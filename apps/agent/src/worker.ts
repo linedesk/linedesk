@@ -133,7 +133,7 @@ async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClie
   setup.note(await greet(session, config, call, cachedGreeting, key))
 }
 
-/** Times from the caller joining to each setup step, logged once per call. */
+/** Times from the job's start to each setup step, logged once per call with the wall-clock start. */
 type SetupTimer = ReturnType<typeof setupTimer>
 function setupTimer(startedAt = Date.now()) {
   const marks: string[] = []
@@ -143,12 +143,14 @@ function setupTimer(startedAt = Date.now()) {
     note(text: string) {
       detail = text
     },
-    log: (callId: string) => console.log(`setup ${callId}: ${marks.join(', ')}${detail ? ` (greeting ${detail})` : ''}`),
+    log: (callId: string) => console.log(`setup ${callId}: job started ${new Date(startedAt).toISOString()}, ${marks.join(', ')}${detail ? ` (greeting ${detail})` : ''}`),
   }
 }
 
 async function entry(ctx: JobContext) {
+  const setup = setupTimer()
   await ctx.connect()
+  setup.mark('connected')
   // A room the call-test command dialled out of: this agent plays the caller, not the business.
   const testCaller = parseTestCallerMetadata(ctx.job.metadata)
   if (testCaller) return runAsTestCaller(ctx, testCaller)
@@ -157,9 +159,9 @@ async function entry(ctx: JobContext) {
   const ready = checkReadiness(loadAgentConfig)
   // A test call's caller may be our own test-caller agent (no-phone call test), which LiveKit's own wait skips.
   const caller = parseTestMetadata(ctx.job.metadata) ? await waitForCounterpart(ctx) : await ctx.waitForParticipant()
+  setup.mark('caller')
   const api = apiClientFromEnv()
   const origin = callOrigin(ctx.job.metadata, caller.attributes, ctx.room.name ?? '')
-  const setup = setupTimer()
   const call = await startCall(api, origin)
   setup.mark('registered')
   if (call.blocked) {
@@ -233,12 +235,16 @@ async function main() {
   }
   console.log(describeReadiness(await checkReadiness(loadAgentConfig)))
   console.log(describeRecording())
-  // Processes kept warm for the next call; the library's default is one per CPU core (up to four).
-  const numIdleProcesses = Number(process.env.AGENT_IDLE_PROCESSES) || undefined
+  // Processes kept warm for the next call. Three by default: a call takes one, and a phone call test two
+  // (the test caller and the business), while the next one starts (a new process needs ~2 s of CPU).
+  const numIdleProcesses = Number(process.env.AGENT_IDLE_PROCESSES) || 3
+  // How long a new process may take to load the agent. Under a running call on a small box this takes
+  // well over the library's 10 s, and a process that times out is killed and started again in a loop.
+  const initializeProcessTimeout = Number(process.env.AGENT_INIT_TIMEOUT_MS) || 60_000
   // LiveKit stops giving a worker jobs above this CPU load (0.7 by default in production). On a small
   // single-box install that refuses calls, and the second job of a call test, while one call runs.
   const loadThreshold = Number(process.env.AGENT_LOAD_THRESHOLD) || 0.95
-  cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: AGENT_NAME, numIdleProcesses, loadThreshold }))
+  cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: AGENT_NAME, numIdleProcesses, loadThreshold, initializeProcessTimeout }))
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) void main()
