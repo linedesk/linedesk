@@ -6,6 +6,7 @@ import { authConfig } from './auth-methods.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { createRateLimiter } from './rate-limit.ts'
+import { instanceAdminHooks } from './instance-admin.ts'
 
 const { google, microsoft, oidc, trustedProviders, methods } = authConfig
 
@@ -36,6 +37,7 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
   trustedOrigins: [WEB_ORIGIN],
   emailAndPassword: { enabled: methods.password },
+  databaseHooks: instanceAdminHooks,
   socialProviders: {
     ...(google && { google }),
     ...(microsoft && { microsoft }),

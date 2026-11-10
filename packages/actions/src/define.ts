@@ -4,7 +4,8 @@
 import type { TableName, Tables } from '@callfront/db/types'
 import type { z } from 'zod'
 
-export type Permission = 'call:read' | 'call:write' | 'contact:write' | 'settings:write' | 'calendar:read' | 'agent'
+/** `instance:admin` belongs to no role: the API adds it for users who operate the install, in any workspace. */
+export type Permission = 'call:read' | 'call:write' | 'contact:write' | 'settings:write' | 'calendar:read' | 'agent' | 'instance:admin'
 export type Role = 'owner' | 'admin' | 'member' | 'agent'
 
 export const rolePermissions: Record<Role, readonly Permission[]> = {
@@ -29,9 +30,26 @@ export interface ActionDef<S extends z.ZodType = z.ZodType, T extends TableName 
   patch?: PatchSpec<z.infer<S>, T>
   /** The action changes nothing: the API neither logs it as a command nor makes it idempotent. */
   readOnly?: true
+  /** Top-level input fields that hold secrets. The API replaces their values before it stores or logs the input. */
+  sensitive?: readonly string[]
 }
 
 export const defineAction = <S extends z.ZodType, T extends TableName>(def: ActionDef<S, T>) => def
+
+export const REDACTED = '[redacted]'
+
+/** The input as it may be stored and logged: sensitive fields keep their keys, never their values. */
+export function redactInput(def: Pick<ActionDef, 'sensitive'>, input: unknown): unknown {
+  if (!def.sensitive?.length || typeof input !== 'object' || input === null) return input
+  const redacted: Record<string, unknown> = { ...input }
+  for (const field of def.sensitive) {
+    const value = redacted[field]
+    if (value === undefined) continue
+    const isRecord = typeof value === 'object' && value !== null && !Array.isArray(value)
+    redacted[field] = isRecord ? Object.fromEntries(Object.keys(value).map(key => [key, REDACTED])) : REDACTED
+  }
+  return redacted
+}
 
 /** Rows per table, keyed by id: the shape of the browser's local store. */
 export type LocalTables = { [T in TableName]: Map<string, Tables[T]> }

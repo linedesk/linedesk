@@ -3,7 +3,7 @@
 // workspace_id is the Better Auth organization id; every synced table carries it and a `version`
 // (global sequence, bumped by trigger on every write) so clients can order row versions.
 import { sql } from 'drizzle-orm'
-import { bigint, boolean, check, date, index, integer, jsonb, pgSequence, pgTable, text, time, timestamp } from 'drizzle-orm/pg-core'
+import { bigint, boolean, check, date, index, integer, jsonb, pgSequence, pgTable, text, time, timestamp, unique } from 'drizzle-orm/pg-core'
 import type { ActionItem, AssistantVoice, BusinessProfile, CallField, ToolEvent } from './types.ts'
 
 export const rowVersion = pgSequence('row_version')
@@ -182,6 +182,31 @@ export const commands = pgTable('commands', {
   result: jsonb('result').notNull(),
   rejected: boolean('rejected').notNull().default(false),
   created_at: createdAt(),
+})
+
+// Provider keys set in the admin area, one row per provider field. Provider and field are plain text: the
+// list of providers lives in code (packages/actions/src/admin.ts), so a new one needs no migration.
+// Not synced to browsers. `workspace_id` is null for the value of the whole install; a per-workspace
+// override would be a row with the workspace id (not built).
+export const provider_settings = pgTable('provider_settings', {
+  id: id(),
+  workspace_id: text('workspace_id'),
+  provider: text('provider').notNull(),
+  field: text('field').notNull(),
+  /** AES-256-GCM with SECRETS_KEY, see apps/api/src/secrets.ts. */
+  value_encrypted: text('value_encrypted').notNull(),
+  /** The last four characters of a secret, for display. Null for short values and for fields that are not secret. */
+  last4: text('last4'),
+  updated_at: ts('updated_at').notNull().defaultNow(),
+  updated_by: text('updated_by'),
+}, t => [unique('provider_settings_slot').on(t.workspace_id, t.provider, t.field).nullsNotDistinct()])
+
+// Settings of the whole install that are not secret, for example `active_provider.telephony`.
+export const instance_settings = pgTable('instance_settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updated_at: ts('updated_at').notNull().defaultNow(),
+  updated_by: text('updated_by'),
 })
 
 /** Tables that read sync delivers to clients, filtered by workspace_id. */

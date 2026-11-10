@@ -1,9 +1,11 @@
+import * as admin from './admin.ts'
 import * as calendar from './calendar.ts'
 import * as calls from './calls.ts'
 import type { ActionDef } from './define.ts'
 import * as settings from './settings.ts'
 
 export * from './define.ts'
+export * from './admin.ts'
 export * from './calendar.ts'
 export * from './calls.ts'
 export * from './settings.ts'
@@ -15,6 +17,9 @@ const all = [
   calls.callSetRecording,
   settings.contactUpdate, settings.assistantUpdate, settings.phoneNumberSetup,
   calendar.calendarFindSlots,
+  admin.providerSetKeys, admin.providerClearKeys, admin.providerSetActive, admin.providerTest,
+  admin.userDisable, admin.userEnable, admin.workspaceDisable, admin.workspaceEnable,
+  admin.instanceAdminGrant, admin.instanceAdminRevoke,
 ] as ActionDef[]
 
 /** The registry: every action by name. */

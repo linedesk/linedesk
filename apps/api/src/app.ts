@@ -4,6 +4,7 @@ import { APIError } from 'better-auth/api'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { setFirstPassword } from './account.ts'
+import { registerAdminRoutes } from './admin-routes.ts'
 import { authMethods } from './auth-methods.ts'
 import { auth, WORKSPACE_LIMIT } from './auth.ts'
 import { resolveActor, type Actor } from './context.ts'
@@ -71,8 +72,10 @@ app.use('/v1/*', async (c, next) => {
 app.get('/v1/me', async c => {
   const actor = c.get('actor')
   const [workspace] = actor.workspaceId ? await db.select().from(organization).where(eq(organization.id, actor.workspaceId)) : []
-  return c.json({ actorId: actor.actorId, role: actor.role, permissions: actor.permissions, workspace: workspace ? { id: workspace.id, name: workspace.name } : null })
+  return c.json({ actorId: actor.actorId, role: actor.role, permissions: actor.permissions, workspace: workspace ? { id: workspace.id, name: workspace.name, disabled: Boolean(workspace.disabledAt) } : null })
 })
+
+registerAdminRoutes(app)
 
 app.get('/v1/actions', c => c.json([...actions.values()].map(a => ({ name: a.name, description: a.description, permission: a.permission }))))
 

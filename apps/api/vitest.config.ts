@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto'
+import { categoryEnv, providerNames, providers } from '@callfront/actions'
 import { existsSync, readFileSync } from 'node:fs'
 import { parseEnv } from 'node:util'
 import { configDefaults, defineConfig } from 'vitest/config'
@@ -32,6 +34,18 @@ export default defineConfig(async () => {
         ELECTRIC_URL: 'http://electric.test',
         // Tests must never reach a carrier, whatever .env selects.
         TELEPHONY_PROVIDER: 'dev',
+        // A fresh key per run: provider keys are only ever stored in the run's own database.
+        SECRETS_KEY: randomBytes(32).toString('base64'),
+        // No admins or provider keys from the developer's .env.
+        INSTANCE_ADMIN_EMAILS: '',
+        // The registry's variables (packages/actions/src/admin.ts) and LiveKit's.
+        ...Object.fromEntries(
+          [
+            ...providerNames.flatMap(name => Object.values(providers[name].fields).map(field => field.env)),
+            ...Object.values(categoryEnv),
+            ...['LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET'],
+          ].map(name => [name, '']),
+        ),
       },
     },
   }

@@ -1,7 +1,7 @@
 // The one path for actions. Validate, authorize, run in a transaction, record the command.
 // Idempotent per command id: a replayed command returns its first result.
 // Read-only actions skip the command log: nothing to replay, nothing to audit.
-import { actions, type ActionDef, type ActionRejection, type ActionResult } from '@callfront/actions'
+import { actions, redactInput, type ActionDef, type ActionRejection, type ActionResult } from '@callfront/actions'
 import { commands } from '@callfront/db'
 import { eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
@@ -43,7 +43,8 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
     return { status: seen.rejected ? 409 : 200, body: seen.result as RunResult['body'] }
   }
 
-  const record = { id: commandId, workspace_id: actor.workspaceId, actor_id: actor.actorId, action: name, input: parsed.data as object }
+  // The command log never holds a secret: sensitive input fields are stored redacted.
+  const record = { id: commandId, workspace_id: actor.workspaceId, actor_id: actor.actorId, action: name, input: redactInput(def, parsed.data) as object }
   // What handlers did outside the database (a bought phone number) is undone whenever the
   // transaction does not commit: the handler threw, the command could not be logged, or the commit failed.
   const undos: Undo[] = []

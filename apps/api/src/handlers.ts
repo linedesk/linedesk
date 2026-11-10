@@ -2,26 +2,18 @@
 import { actions, recordingKey, type ActionDef, type ActionResult, type FindSlotsData } from '@callfront/actions'
 import { findSlots, type FindSlotsInput, type Interval } from '@callfront/calendar'
 import {
-  appointment_types, assistants, availability_exceptions, availability_rules, bookings, calls, contacts, phone_numbers, syncedTables,
+  appointment_types, assistants, availability_exceptions, availability_rules, bookings, calls, contacts, organization, phone_numbers, syncedTables,
   transcript_segments, workspace_settings, type Tx,
 } from '@callfront/db'
-import { TelephonyError, telephonyProviderFromEnv, type TelephonyProvider } from '@callfront/telephony'
+import { TelephonyError, type TelephonyProvider } from '@callfront/telephony'
 import { and, desc, eq, gt, gte, isNull, lt, lte, ne, sql } from 'drizzle-orm'
+import { adminHandlers } from './admin-handlers.ts'
 import type { Actor } from './context.ts'
+import { type Handler, type HandlerCtx, Reject, type Undo } from './handler-context.ts'
+import { telephonyProvider } from './provider-settings.ts'
 import { recordingStoreFromEnv, type RecordingStore } from './recording-store.ts'
 
-/** A business-rule rejection: the command is final, clients must not retry it. */
-export class Reject extends Error {}
-
-/** Reverses something a handler did outside the database; resolves to a short note on what it did. */
-export type Undo = () => Promise<string>
-
-/**
- * `telephony` and `recordings` override what env selects (tests). `onRollback` registers an undo
- * that runs if the action's transaction does not commit, for whatever reason.
- */
-export type HandlerCtx = { tx: Tx; actor: Actor; now: string; telephony?: TelephonyProvider; recordings?: RecordingStore; onRollback?: (undo: Undo) => void }
-type Handler = (ctx: HandlerCtx, input: any) => Promise<Omit<ActionResult, 'ok'>>
+export { Reject, type HandlerCtx, type Undo }
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 
@@ -121,9 +113,9 @@ async function linkOrphanRecordings(tx: Tx, workspace_id: string, now: string, r
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /** A carrier that is selected but not configured is the operator's to fix: say what is missing. */
-function configuredProvider(): TelephonyProvider {
+async function configuredProvider(tx: Tx): Promise<TelephonyProvider> {
   try {
-    return telephonyProviderFromEnv(process.env)
+    return await telephonyProvider(tx)
   } catch (e) {
     throw new Reject(`phone setup is not configured: ${errorMessage(e)}`)
   }
@@ -149,6 +141,8 @@ const releaseBought = (provider: TelephonyProvider, number: { e164: string; prov
 }
 
 const handlers: Record<string, Handler> = {
+  ...adminHandlers,
+
   'calendar.findSlots': async ({ tx, actor, now }, input) => {
     const workspaceId = actor.workspaceId
     if (!workspaceId) throw new Reject('no workspace')
@@ -177,6 +171,8 @@ const handlers: Record<string, Handler> = {
     const [number] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, input.to))
     if (!number) throw new Reject(`no workspace for number ${input.to}`)
     const workspace_id = number.workspace_id
+    const [workspace] = await tx.select({ disabledAt: organization.disabledAt }).from(organization).where(eq(organization.id, workspace_id))
+    if (workspace?.disabledAt) throw new Reject(`the workspace of ${input.to} is disabled`)
     let [contact] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, workspace_id), eq(contacts.phone, input.from)))
     const isNewContact = !contact
     if (!contact) [contact] = await tx.insert(contacts).values({ id: newId('ct'), workspace_id, phone: input.from }).returning()
@@ -232,7 +228,7 @@ const handlers: Record<string, Handler> = {
   'phoneNumber.setup': async ({ tx, actor, now, telephony, onRollback }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     const workspace_id = actor.workspaceId
-    const provider = telephony ?? configuredProvider()
+    const provider = telephony ?? (await configuredProvider(tx))
     const sipEndpoint = process.env.LIVEKIT_SIP_ENDPOINT ?? ''
     if (provider.name !== 'dev' && !sipEndpoint) throw new Reject('phone setup is not configured: LIVEKIT_SIP_ENDPOINT is not set')
 

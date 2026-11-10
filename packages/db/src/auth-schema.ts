@@ -19,6 +19,10 @@ export const user = pgTable("user", {
     .defaultNow()
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
+  // Not Better Auth's: the operator of the install, independent of workspace roles (docs/architecture.md §12).
+  instanceAdmin: boolean("instance_admin").default(false).notNull(),
+  disabledAt: timestamp("disabled_at"),
+  lastSignInAt: timestamp("last_sign_in_at"),
 });
 
 export const session = pgTable(
@@ -90,6 +94,8 @@ export const organization = pgTable(
     logo: text("logo"),
     createdAt: timestamp("created_at").notNull(),
     metadata: text("metadata"),
+    // Not Better Auth's: set by an instance admin; calls to a disabled workspace are not answered.
+    disabledAt: timestamp("disabled_at"),
   },
   (table) => [uniqueIndex("organization_slug_uidx").on(table.slug)],
 );

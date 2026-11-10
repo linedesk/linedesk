@@ -236,3 +236,42 @@ Janik's Next.js mock-up currently lives at the repo root (`src/`); it moves to `
 **Default `docker compose`:** caddy, app (web + API + MCP), worker, voice agent, postgres, electric, livekit-server, livekit-sip, redis/valkey (needed by LiveKit SIP); optional `recording` profile (livekit-egress writing to a shared directory; no storage server). App, worker and agent are stateless replicas; LiveKit scales via Redis; Postgres can be managed.
 
 **Hosted version:** same code, LiveKit Cloud (US), managed numbers, US East region, pass-through minute pricing.
+
+## 12. Admin area and provider keys
+
+For the operator of a multi-tenant install: a view above the workspaces, and the provider keys in the database instead of only in env.
+
+**Instance admin** is a property of the user (`user.instance_admin`), separate from the workspace roles. It adds the permission `instance:admin`, which no role has, in whatever workspace the user is active (and without a workspace). Who gets it:
+
+- the first user of an install (existing installs: the migration marks their oldest user);
+- anyone an instance admin grants it to (`instanceAdmin.grant` / `instanceAdmin.revoke`; the last enabled instance admin cannot be revoked or disabled);
+- addresses in `INSTANCE_ADMIN_EMAILS`, evaluated on every request, so it applies to accounts that already exist, but only once the address is verified (an email-link sign-in or a sign-in provider verifies it). An unverified address grants nothing, and a password sign-up for a listed address is refused: otherwise someone could register the operator's address first and gain admin when the operator later verifies it.
+
+Better Auth's admin plugin was not used: it adds impersonation, user creation, password reset and its own role system as HTTP endpoints outside the action registry.
+
+**Disabling.** `user.disable` sets `user.disabled_at`, deletes the user's sessions and blocks new ones (a Better Auth `session.create` hook; the API also refuses a disabled user on every request). `workspace.disable` sets `organization.disabled_at`; `call.start` then rejects calls to its numbers, and its members keep only their read permissions (`*:read`): they can sign in and read, but no registry action that writes (triage, settings, phone numbers) runs for them. `/v1/me` reports `workspace.disabled`. Better Auth's own organization endpoints (invitations, roles) do not check it yet.
+
+**Providers.** The registry in `packages/actions/src/admin.ts` describes each provider: label, category (telephony, speech to text, language model, voice), its fields and which are secret or optional; `apps/api/src/provider-test.ts` holds how to test its connection. Shipped: Telnyx (API key, webhook public key; the default carrier), Twilio (account SID, auth token), Deepgram (API key, model), OpenRouter (API key, model), OpenAI (API key, model), ElevenLabs and Cartesia (API key, model, default voice). Each field falls back to the variable the voice agent reads (`apps/agent/src/config.ts`): `DEEPGRAM_API_KEY`, `STT_MODEL`, `LLM_MODEL`, `TTS_MODEL`, `TTS_VOICE_ID` and so on. The database stores provider id and field name as text (`provider_settings`, one row per field), so a new provider is an entry in the registry and no migration. `workspace_id` is null: the keys are for the whole install; a per-workspace override would be a row with the workspace id (not built). Sign-in providers, SMTP and S3 stay in env.
+
+- Values are encrypted with AES-256-GCM (`apps/api/src/secrets.ts`); the key is `SECRETS_KEY` (32 bytes, base64). Without it, saving is refused with the reason. Losing or changing the key makes the stored values unreadable (the admin area still lists them as set; using them reports the problem): set the keys again.
+- Resolution on every use (`apps/api/src/provider-settings.ts`): the stored value wins, the environment variable is the fallback. No restart needed after a change.
+- **One provider per category is active.** An instance admin picks it (`provider.setActive`, stored in `instance_settings` as `active_provider.<category>`). Without a pick, the category's variable names it (`TELEPHONY_PROVIDER`, `STT_PROVIDER`, `LLM_PROVIDER`, `TTS_PROVIDER`, as for the agent); without that, each category uses the first provider in the registry with every needed field (telephony: Telnyx before Twilio, and `dev`, no carrier, when none is set up; `TELEPHONY_PROVIDER=dev` keeps it at `dev`). A picked or named provider that is not set up is not replaced by another one.
+- A secret never goes back to the browser. `GET /v1/admin/providers` returns per field the source in effect (`app`, `env` or none), the last four characters of a stored secret (none for values shorter than 12 characters or from env), and who changed it when; and per category the active provider. Fields that are not secret (account SID, model, Telnyx public key) are returned in full.
+- `provider.setKeys` marks its `values` as `sensitive` in `defineAction`; `run-action.ts` stores sensitive input fields in `commands` as `[redacted]` (keys kept, values dropped). Any new action that takes a secret must do the same.
+- `provider.test` makes one authenticated request with an 8 second timeout. On 401/403 the provider's text is not passed on, because providers echo parts of the key; other errors carry the provider's message with every key value removed.
+
+**LiveKit is part of the install, not a provider.** Its URL, key and secret stay in env. `GET /v1/admin/system` reports, read-only, whether the server answers (`ListRooms`) and whether an inbound SIP trunk is configured (`ListSIPInboundTrunk`). The server answers the SIP API without the SIP bridge running, so this shows the SIP setup, not that the bridge is up; the bridge has no API of its own to ask. LiveKit's API does not report a version, so none is shown.
+
+**Admin reads** cross workspaces, so they are plain routes instead of read sync, all behind `instance:admin`: `GET /v1/admin/workspaces`, `/v1/admin/users`, `/v1/admin/usage?months=6` (calls and minutes from `calls.duration_sec` per workspace and UTC calendar month) and `/v1/admin/providers`.
+
+**Voice agent config.** `GET /v1/agent/provider-config` with the agent token (`Authorization: Bearer $AGENT_API_TOKEN`) returns, per speech and LLM category, the active provider and its values in clear. The agent is meant to ask at the start of each call, so an install can come up without keys and start answering once the operator has entered them; until `apps/agent/src/config.ts` reads it (telephony session), the agent still uses env only. Members, instance admins included, get 403. A category is `null` when no provider is set up for it (or the picked one is not); optional fields such as `model` are `null` when unset. 409 `{ ok: false, error }` when stored keys cannot be decrypted. The keys inside a category are the provider's field names from the registry.
+
+```json
+{
+  "stt": { "provider": "deepgram", "api_key": "…" },
+  "llm": { "provider": "openrouter", "api_key": "…", "model": "…" },
+  "tts": { "provider": "elevenlabs", "api_key": "…", "model": null, "voice_id": null }
+}
+```
+
+For `apps/agent/src/config.ts`: `stt.model`, `llm.model`, `tts.model` and `tts.voice_id` are the stored values or the agent's variables; when `null`, the agent keeps its own defaults (model ids, `baseUrl` per LLM provider).
