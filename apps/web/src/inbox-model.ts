@@ -3,7 +3,7 @@ import type { Call, Contact, TranscriptSegment } from '@callfront/db/types'
 import { parseTs, whenLabel } from './time.ts'
 
 export type InboxTab = 'you' | 'ai' | 'spam' | 'reminders' | 'done'
-/** The three splits Tab cycles through. Reminders and Done are modes outside the cycle. */
+/** The three views Tab cycles through. Reminders and Done are modes outside the cycle. */
 export const splits = ['you', 'ai', 'spam'] as const satisfies readonly InboxTab[]
 export const viewByKey: Record<string, InboxTab> = { 1: 'you', 2: 'ai', 3: 'spam', 4: 'reminders', 5: 'done' }
 

@@ -62,7 +62,7 @@ function Tabs({ tab, setTab, counts }: Pick<InboxHeadProps, 'tab' | 'setTab' | '
     spam: ['Spam', 'Blocked sales calls and robocalls'],
   }
   return (
-    <div className="ib-tabs" role="tablist" aria-label="Split">
+    <div className="ib-tabs" role="tablist" aria-label="Views">
       {splits.map((id, i) => (
         <button
           key={id}

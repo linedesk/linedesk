@@ -15,6 +15,8 @@ export type CommandContext = {
   clearReminder: (call: Call) => void
   toggleUnread: (call: Call) => void
   remove: (call: Call) => void
+  /** Selecting calls in the list; null when the list is not on screen (a call or another page is open). */
+  selection: { count: number; toggle: () => void; all: () => void; clear: () => void } | null
   goInbox: (tab: 'you' | 'done' | 'reminders') => void
   goPage: (route: PageRoute) => void
   isInstanceAdmin: boolean
@@ -28,33 +30,100 @@ export type CommandContext = {
 function callCommands(call: Call, c: CommandContext): Command[] {
   const done = call.inbox_state === 'done'
   return [
-    done ? { label: 'Mark not done', icon: 'restart', shortcut: ['⇧', 'E'], run: () => c.markNotDone(call) } : { label: 'Mark done', icon: 'check', shortcut: ['E'], run: () => c.markDone(call) },
+    done
+      ? { label: 'Mark not done', icon: 'restart', shortcut: ['⇧', 'E'], run: () => c.markNotDone(call) }
+      : { label: 'Mark done', icon: 'check', shortcut: ['E'], run: () => c.markDone(call) },
     { label: 'Remind me', icon: 'clock', shortcut: ['H'], run: () => c.openRemind(call) },
-    ...(hasReminder(call) && !done ? [{ label: 'Clear reminder', icon: 'restart', shortcut: ['⇧', 'H'], run: () => c.clearReminder(call) } satisfies Command] : []),
-    { label: call.unread ? 'Mark read' : 'Mark unread', keywords: 'read unread', icon: 'checks', shortcut: ['U'], run: () => c.toggleUnread(call) },
+    ...(hasReminder(call) && !done
+      ? [
+          {
+            label: 'Clear reminder',
+            icon: 'restart',
+            shortcut: ['⇧', 'H'],
+            run: () => c.clearReminder(call),
+          } satisfies Command,
+        ]
+      : []),
+    {
+      label: call.unread ? 'Mark read' : 'Mark unread',
+      keywords: 'read unread',
+      icon: 'checks',
+      shortcut: ['U'],
+      run: () => c.toggleUnread(call),
+    },
     { label: 'Delete call', keywords: 'remove trash', icon: 'trash', shortcut: ['#'], run: () => c.remove(call) },
+  ]
+}
+
+function selectCommands(s: NonNullable<CommandContext['selection']>, hasTarget: boolean): Command[] {
+  return [
+    ...(hasTarget && !s.count
+      ? [
+          {
+            label: 'Select call',
+            keywords: 'pick several bulk',
+            icon: 'check',
+            shortcut: ['X'],
+            run: s.toggle,
+          } satisfies Command,
+        ]
+      : []),
+    {
+      label: 'Select all in the view',
+      keywords: 'pick several bulk',
+      icon: 'checks',
+      shortcut: ['⌘', 'A'],
+      run: s.all,
+    },
+    ...(s.count
+      ? [
+          {
+            label: 'Clear selection',
+            keywords: 'unselect',
+            icon: 'restart',
+            shortcut: ['esc'],
+            run: s.clear,
+          } satisfies Command,
+        ]
+      : []),
   ]
 }
 
 export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
   return [
     ...(c.target ? [{ label: `Selected call · ${c.targetName}`, items: callCommands(c.target, c) }] : []),
-    { label: 'Go to', items: [
-      { label: 'Go to Inbox', icon: 'phone', shortcut: ['G', 'I'], run: () => c.goInbox('you') },
-      { label: 'Go to Done', icon: 'check', shortcut: ['G', 'E'], run: () => c.goInbox('done') },
-      { label: 'Go to Reminders', icon: 'clock', shortcut: ['G', 'H'], run: () => c.goInbox('reminders') },
-      { label: 'Go to Contacts', icon: 'users', shortcut: ['G', 'C'], run: () => c.goPage('contacts') },
-      { label: 'Go to Assistant', icon: 'waveform', shortcut: ['G', 'A'], run: () => c.goPage('assistant') },
-      { label: 'Go to Team', icon: 'users', shortcut: ['G', 'T'], run: () => c.goPage('team') },
-      ...(c.isInstanceAdmin ? [{ label: 'Go to Admin', icon: 'gear', shortcut: ['G', 'D'], run: () => c.goPage('admin') } satisfies Command] : []),
-    ] },
-    { label: 'App', items: [
-      { label: 'Undo', icon: 'restart', shortcut: ['Z'], run: c.undo },
-      { label: 'Search calls', icon: 'search', shortcut: ['/'], run: c.openSearch },
-      { label: 'Show keyboard shortcuts', icon: 'keyboard', shortcut: ['?'], run: c.openHelp },
-      { label: 'Open menu', icon: 'menu', shortcut: ['M'], run: c.openNav },
-      { label: 'Account settings', icon: 'user', run: () => c.goPage('account') },
-      { label: 'Sign out', icon: 'arrow-up-right', run: c.signOut },
-    ] },
+    ...(c.selection ? [{ label: 'Select', items: selectCommands(c.selection, !!c.target) }] : []),
+    {
+      label: 'Go to',
+      items: [
+        { label: 'Go to Inbox', icon: 'phone', shortcut: ['G', 'I'], run: () => c.goInbox('you') },
+        { label: 'Go to Done', icon: 'check', shortcut: ['G', 'E'], run: () => c.goInbox('done') },
+        { label: 'Go to Reminders', icon: 'clock', shortcut: ['G', 'H'], run: () => c.goInbox('reminders') },
+        { label: 'Go to Contacts', icon: 'users', shortcut: ['G', 'C'], run: () => c.goPage('contacts') },
+        { label: 'Go to Assistant', icon: 'waveform', shortcut: ['G', 'A'], run: () => c.goPage('assistant') },
+        { label: 'Go to Team', icon: 'users', shortcut: ['G', 'T'], run: () => c.goPage('team') },
+        ...(c.isInstanceAdmin
+          ? [
+              {
+                label: 'Go to Admin',
+                icon: 'gear',
+                shortcut: ['G', 'D'],
+                run: () => c.goPage('admin'),
+              } satisfies Command,
+            ]
+          : []),
+      ],
+    },
+    {
+      label: 'App',
+      items: [
+        { label: 'Undo', icon: 'restart', shortcut: ['Z'], run: c.undo },
+        { label: 'Search calls', icon: 'search', shortcut: ['/'], run: c.openSearch },
+        { label: 'Show keyboard shortcuts', icon: 'keyboard', shortcut: ['?'], run: c.openHelp },
+        { label: 'Open menu', icon: 'menu', shortcut: ['M'], run: c.openNav },
+        { label: 'Account settings', icon: 'user', run: () => c.goPage('account') },
+        { label: 'Sign out', icon: 'arrow-up-right', run: c.signOut },
+      ],
+    },
   ]
 }

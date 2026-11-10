@@ -68,7 +68,10 @@ function isTyping(el: HTMLElement): boolean {
 function onEscape(el: HTMLElement, c: KeyContext) {
   if (c.overlay) return c.setOverlay(null) // the topmost layer first
   if (c.navOpen) return c.setNavOpen(false)
-  if (el.id === SEARCH_INPUT_ID) { el.blur(); return c.closeSearch() }
+  if (el.id === SEARCH_INPUT_ID) {
+    el.blur()
+    return c.closeSearch()
+  }
   if (isTyping(el)) return el.blur()
   if (!c.onInbox) return void pageKeys?.('Escape')
   if (c.isCallOpen) return c.back()
@@ -77,7 +80,7 @@ function onEscape(el: HTMLElement, c: KeyContext) {
   if (!splits.includes(c.tab as never)) c.setTab('you')
 }
 
-function nextSplit(tab: InboxTab, back: boolean): InboxTab {
+function nextView(tab: InboxTab, back: boolean): InboxTab {
   const i = splits.indexOf(tab as never)
   return i < 0 ? 'you' : splits[(i + (back ? -1 : 1) + splits.length) % splits.length]!
 }
@@ -85,7 +88,12 @@ function nextSplit(tab: InboxTab, back: boolean): InboxTab {
 /** Keys that act on the selected call. Returns false when the key is not one of them. */
 function onCallKey(key: string, call: Call, c: KeyContext): boolean {
   const run: Record<string, (call: Call) => void> = {
-    e: c.markDone, E: c.markNotDone, h: c.openRemind, H: c.clearReminder, u: c.toggleUnread, '#': c.remove,
+    e: c.markDone,
+    E: c.markNotDone,
+    h: c.openRemind,
+    H: c.clearReminder,
+    u: c.toggleUnread,
+    '#': c.remove,
   }
   if (!run[key]) return false
   run[key](call)
@@ -100,7 +108,7 @@ function onCallKey(key: string, call: Call, c: KeyContext): boolean {
 function onInboxTab(el: HTMLElement, back: boolean, c: KeyContext): boolean {
   if (c.isCallOpen) return false
   if (el.tagName !== 'BODY') el.blur() // a tab or row clicked with the mouse must not show a ring now
-  c.setTab(nextSplit(c.tab, back))
+  c.setTab(nextView(c.tab, back))
   return true
 }
 
@@ -110,7 +118,8 @@ function onInboxKey(k: string, c: KeyContext): boolean {
   else if (k === 'j' || k === 'J') c.step(1)
   else if (k === 'k' || k === 'K') c.step(-1)
   else if (k === 'x' && !c.isCallOpen && c.target) c.toggleSelect(c.target)
-  else if ((k === 'ArrowDown' || k === 'ArrowUp') && !c.isCallOpen) c.step(k === 'ArrowDown' ? 1 : -1) // arrows scroll an open call
+  else if ((k === 'ArrowDown' || k === 'ArrowUp') && !c.isCallOpen)
+    c.step(k === 'ArrowDown' ? 1 : -1) // arrows scroll an open call
   else if ((k === 'Enter' || k === 'o') && !c.isCallOpen && c.target) c.open(c.target)
   else if (viewByKey[k] && !c.isCallOpen) c.setTab(viewByKey[k])
   else return c.target ? onCallKey(k, c.target, c) : false
@@ -121,11 +130,31 @@ function onInboxKey(k: string, c: KeyContext): boolean {
 export function handleKey(e: KeyboardEvent, c: KeyContext): boolean {
   const el = e.target as HTMLElement
   const k = e.shiftKey && e.key.length === 1 ? e.key.toUpperCase() : e.key // ⇧E is 'E' whatever the layout reports
-  if ((e.metaKey || e.ctrlKey) && k.toLowerCase() === 'k') { c.setOverlay(c.overlay === 'commands' ? null : 'commands'); return true }
-  if (k === 'Escape') { onEscape(el, c); return false }
+  if ((e.metaKey || e.ctrlKey) && k.toLowerCase() === 'k') {
+    c.setOverlay(c.overlay === 'commands' ? null : 'commands')
+    return true
+  }
+  if (k === 'Escape') {
+    onEscape(el, c)
+    return false
+  }
   // ⌘A on the list selects every call in the view (in text fields it stays the browser's select-all).
-  if ((e.metaKey || e.ctrlKey) && k.toLowerCase() === 'a' && c.onInbox && !c.isCallOpen && !c.overlay && !c.navOpen && !isTyping(el)) { c.selectAll(); return true }
-  if (c.overlay) { if (c.overlay === 'help' && k === '?' && !isTyping(el)) c.setOverlay(null); return false }
+  if (
+    (e.metaKey || e.ctrlKey) &&
+    k.toLowerCase() === 'a' &&
+    c.onInbox &&
+    !c.isCallOpen &&
+    !c.overlay &&
+    !c.navOpen &&
+    !isTyping(el)
+  ) {
+    c.selectAll()
+    return true
+  }
+  if (c.overlay) {
+    if (c.overlay === 'help' && k === '?' && !isTyping(el)) c.setOverlay(null)
+    return false
+  }
   if (isTyping(el) || activatesControl(k, el) || e.metaKey || e.ctrlKey || e.altKey) return false
   // The open navigation is the topmost layer: list and call keys stay with it (it has its own arrows and Tab).
   if (c.navOpen) {
@@ -135,12 +164,19 @@ export function handleKey(e: KeyboardEvent, c: KeyContext): boolean {
     return true
   }
   if (k === 'Tab') return c.onInbox && !c.navOpen && onInboxTab(el, e.shiftKey, c)
-  if (Date.now() < chordUntil) { chordUntil = 0; return c.goChord(k.toLowerCase()) }
-  if (k === 'g' || k === 'G') { chordUntil = Date.now() + CHORD_MS; return true }
+  if (Date.now() < chordUntil) {
+    chordUntil = 0
+    return c.goChord(k.toLowerCase())
+  }
+  if (k === 'g' || k === 'G') {
+    chordUntil = Date.now() + CHORD_MS
+    return true
+  }
   if (k === '?') c.setOverlay('help')
   else if (k === 'm' || k === 'M') c.setNavOpen(!c.navOpen)
-  else if (k === '/') { if (c.onInbox || !pageKeys?.('/')) c.openSearch() }
-  else if (k === 'z') c.undo()
+  else if (k === '/') {
+    if (c.onInbox || !pageKeys?.('/')) c.openSearch()
+  } else if (k === 'z') c.undo()
   else if (k === ' ') return c.onInbox && c.isCallOpen && c.togglePlayback()
   else return c.onInbox ? onInboxKey(k, c) : !!pageKeys?.(k)
   return true

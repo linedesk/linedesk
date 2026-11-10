@@ -214,6 +214,15 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
       : target
         ? callerName(target, target.contact_id ? view.contacts.get(target.contact_id) : undefined)
         : '',
+    selection:
+      view.onInbox && !openCall
+        ? {
+            count: bulk ? selection.count : 0,
+            toggle: () => target && selection.toggle(target.id),
+            all: selection.all,
+            clear: selection.clear,
+          }
+        : null,
     goInbox: view.setTab,
     goPage,
     isInstanceAdmin,
@@ -309,6 +318,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
             onNotDone={perRow(actions.markNotDone, actions.many.markNotDone)}
             onRemind={openRemind}
             onClearReminder={actions.clearReminder}
+            onCommands={() => setOverlay('commands')}
             side={<ContactSide call={openCall} onOpen={open} toast={toaster.show} />}
           />
         ) : (

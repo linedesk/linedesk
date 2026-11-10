@@ -19,7 +19,14 @@ export function Overlays({ overlay, commands, onClose, onCommand, onReminder }: 
   return (
     <Backdrop onClose={onClose}>
       {overlay === 'commands' && <CommandMenu groups={commands} onSelect={onCommand} />}
-      {overlay === 'remind' && <CommandMenu numbered placeholder="Remind me …" groups={[{ label: 'Bring this call back', items: reminderOptions() }]} onSelect={onReminder} />}
+      {overlay === 'remind' && (
+        <CommandMenu
+          numbered
+          placeholder="Remind me…"
+          groups={[{ label: 'Bring this call back', items: reminderOptions() }]}
+          onSelect={onReminder}
+        />
+      )}
       {overlay === 'help' && <HelpSheet />}
     </Backdrop>
   )

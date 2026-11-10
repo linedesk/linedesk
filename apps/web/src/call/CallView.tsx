@@ -17,6 +17,8 @@ export type CallViewActions = {
   onNotDone: (call: Call) => void
   onRemind: (call: Call) => void
   onClearReminder: (call: Call) => void
+  /** ⌘K: the rest of the call's actions (Mark unread, Delete…), as ⋯ does on a row. */
+  onCommands?: () => void
 }
 
 type Props = CallViewActions & {
@@ -89,6 +91,16 @@ function Bar({ call, index, count, menu, sideOpen, onToggleSide, ...on }: BarPro
       />
       {!live && (
         <div className="cv-acts">
+          {on.onCommands && (
+            <Button
+              size="sm"
+              variant="ghost"
+              icon="more"
+              aria-label="All commands"
+              title="All commands (⌘ K)"
+              onClick={on.onCommands}
+            />
+          )}
           {reminded && (
             <Button
               size="sm"

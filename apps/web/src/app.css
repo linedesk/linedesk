@@ -670,6 +670,28 @@ button.me:focus-visible {
 .cv-col {
   max-width: var(--w-read);
 }
+/* Caller and number under the title on every width (principle 9), not only on narrow screens. */
+@media (min-width: 1100px) {
+  .cv-who .sub {
+    display: inline;
+  }
+}
+/* Transcript: black stays for actions and selection; the caller speaks in white bubbles with a soft
+   edge, the assistant in the grey ones. */
+.cv .k-bubble.k-tone-signal,
+.cv .k-msg-them .k-bubble.k-tone-signal {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 1px 2px rgb(28 25 23 / 0.06);
+}
+.cv .k-bubble.k-tone-signal .k-msg-author {
+  color: var(--ink);
+}
+.cv .k-bubble.k-tone-signal .k-meta {
+  color: var(--ink-muted);
+}
 
 /* Done and Spam are finished work: their badges are quiet, never red. */
 .ib-list.is-quiet .r-status .k-badge {
