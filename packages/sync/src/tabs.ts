@@ -16,6 +16,8 @@ export type TabMessage =
   | { type: 'replace'; table: TableName; rows: Row[] }
   | { type: 'remove'; table: TableName; ids: string[] }
   | { type: 'online'; online: boolean }
+  /** The leader's read sync has caught up with the server for this table once. */
+  | { type: 'synced'; table: TableName }
 
 export interface TabLink {
   /** `lead` is called once, when this tab becomes the one that talks to the server (at once if it is alone). */
@@ -39,11 +41,27 @@ export function browserTabLink(name: string): TabLink {
   return {
     whenLeading(lead) {
       // The lock is held until close(): the promise returned to request() stays pending while this tab leads.
-      locks.request(name, { signal: waiting.signal }, () => new Promise<void>(resolve => { release = resolve; lead() })).catch(() => {})
+      locks
+        .request(
+          name,
+          { signal: waiting.signal },
+          () =>
+            new Promise<void>(resolve => {
+              release = resolve
+              lead()
+            }),
+        )
+        .catch(() => {})
     },
     post: message => channel.postMessage(message),
-    onMessage(handler) { channel.onmessage = e => handler(e.data as TabMessage) },
-    close() { waiting.abort(); release?.(); channel.close() },
+    onMessage(handler) {
+      channel.onmessage = e => handler(e.data as TabMessage)
+    },
+    close() {
+      waiting.abort()
+      release?.()
+      channel.close()
+    },
   }
 }
 
@@ -62,12 +80,22 @@ export function memoryTabHub() {
       const me: Member = {}
       members.push(me)
       return {
-        whenLeading(lead) { me.lead = lead; elect() },
-        post(message) { for (const m of members) if (m !== me) queueMicrotask(() => m.handler?.(structuredClone(message))) },
-        onMessage(handler) { me.handler = handler },
+        whenLeading(lead) {
+          me.lead = lead
+          elect()
+        },
+        post(message) {
+          for (const m of members) if (m !== me) queueMicrotask(() => m.handler?.(structuredClone(message)))
+        },
+        onMessage(handler) {
+          me.handler = handler
+        },
         close() {
           members.splice(members.indexOf(me), 1)
-          if (leader === me) { leader = undefined; elect() }
+          if (leader === me) {
+            leader = undefined
+            elect()
+          }
         },
       }
     },

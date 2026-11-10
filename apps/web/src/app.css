@@ -941,3 +941,14 @@ a.k-btn {
 .ib-list.is-selecting {
   user-select: none;
 }
+
+/* Loading rows sit where the rows will be. */
+.ib-list .sk-list {
+  max-width: var(--w-list);
+  margin: 0 auto;
+  padding-top: 8px;
+}
+.ib-list .sk-row {
+  padding-left: var(--row-lead);
+  padding-right: var(--gutter);
+}

@@ -5,22 +5,35 @@ import type { ReadSyncAdapter, TableSink } from './adapter.ts'
 import { createStore } from './store.ts'
 import { eventually, quietFor } from './testing.ts'
 
-const call = (over: Partial<Call> = {}) => ({ id: 'c1', inbox_state: 'open', unread: true, version: 1, ...over }) as Call
+const call = (over: Partial<Call> = {}) =>
+  ({ id: 'c1', inbox_state: 'open', unread: true, version: 1, ...over }) as Call
 
 function fakeAdapter() {
   const sinks = new Map<string, TableSink>()
-  const adapter: ReadSyncAdapter = { name: 'fake', start: (table, sink) => { sinks.set(table, sink as never); return () => {} } }
+  const adapter: ReadSyncAdapter = {
+    name: 'fake',
+    start: (table, sink) => {
+      sinks.set(table, sink as never)
+      return () => {}
+    },
+  }
   return { adapter, calls: () => sinks.get('calls') as TableSink<'calls'> }
 }
 const respond = (status: number, body: unknown) => new Response(JSON.stringify(body), { status })
 let n = 0
-const open = (adapter: ReadSyncAdapter, extra = {}) => createStore({ api: '', dbName: `t${n}`, adapter, retryMs: 5, ...extra })
+const open = (adapter: ReadSyncAdapter, extra = {}) =>
+  createStore({ api: '', dbName: `t${n}`, adapter, retryMs: 5, ...extra })
 
-afterEach(() => { n++; vi.unstubAllGlobals() })
+afterEach(() => {
+  n++
+  vi.unstubAllGlobals()
+})
 
 describe('store', () => {
   it('applies an action at once and keeps the server row after the ack', async () => {
-    const fetchMock = vi.fn(async () => respond(200, { ok: true, rows: { calls: [call({ inbox_state: 'done', unread: false, version: 5 })] } }))
+    const fetchMock = vi.fn(async () =>
+      respond(200, { ok: true, rows: { calls: [call({ inbox_state: 'done', unread: false, version: 5 })] } }),
+    )
     vi.stubGlobal('fetch', fetchMock)
     const { adapter, calls } = fakeAdapter()
     const store = await open(adapter)
@@ -37,8 +50,28 @@ describe('store', () => {
     store.stop()
   })
 
+  it('knows when a table has caught up with the server, also after a reload', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => respond(200, { ok: true, rows: {} })),
+    )
+    const first = fakeAdapter()
+    const store = await open(first.adapter)
+    expect(store.getSnapshot().synced.has('calls')).toBe(false) // empty means "not loaded yet"
+    first.calls().saveCursor({ offset: '0_0', handle: 'h' }) // the adapter is up to date
+    expect(store.getSnapshot().synced.has('calls')).toBe(true)
+    store.stop()
+    const again = await open(fakeAdapter().adapter)
+    expect(again.getSnapshot().synced.has('calls')).toBe(true) // the cursor on disk says it was loaded before
+    expect(again.getSnapshot().synced.has('contacts')).toBe(false)
+    again.stop()
+  })
+
   it('rolls back and reports when the server rejects', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => respond(409, { ok: false, error: 'nope' })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => respond(409, { ok: false, error: 'nope' })),
+    )
     const { adapter, calls } = fakeAdapter()
     const onReject = vi.fn()
     const store = await open(adapter, { onReject })
@@ -52,11 +85,14 @@ describe('store', () => {
   it('keeps commands while offline, across a reload, and replays them in order', async () => {
     const sent: string[] = []
     let offline = true
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (offline) throw new TypeError('offline')
-      sent.push(url.split('/').pop()!)
-      return respond(200, { ok: true, rows: {} })
-    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (offline) throw new TypeError('offline')
+        sent.push(url.split('/').pop()!)
+        return respond(200, { ok: true, rows: {} })
+      }),
+    )
     const first = fakeAdapter()
     const store = await open(first.adapter)
     first.calls().upsert([call()])
@@ -79,10 +115,16 @@ describe('store', () => {
   it('sends a command that was added while another one was still on its way', async () => {
     const sent: string[] = []
     const waiting: (() => void)[] = []
-    vi.stubGlobal('fetch', vi.fn((url: string) => new Promise<Response>(resolve => {
-      sent.push(url.split('/').pop()!)
-      waiting.push(() => resolve(respond(200, { ok: true, rows: {} })))
-    })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (url: string) =>
+          new Promise<Response>(resolve => {
+            sent.push(url.split('/').pop()!)
+            waiting.push(() => resolve(respond(200, { ok: true, rows: {} })))
+          }),
+      ),
+    )
     const { adapter, calls } = fakeAdapter()
     const store = await open(adapter)
     calls().upsert([call()])
@@ -100,7 +142,14 @@ describe('store', () => {
     vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-11-10T12:00:00.000Z'))
     const sent: string[] = []
     let offline = true
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => { if (offline) throw new TypeError('offline'); sent.push(url.split('/').pop()!); return respond(200, { ok: true, rows: {} }) }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (offline) throw new TypeError('offline')
+        sent.push(url.split('/').pop()!)
+        return respond(200, { ok: true, rows: {} })
+      }),
+    )
     const { adapter, calls } = fakeAdapter()
     const store = await open(adapter)
     calls().upsert([call()])
@@ -119,7 +168,15 @@ describe('store', () => {
 
   it('writes nothing after stop, even when a request answers late', async () => {
     let answer: (r: Response) => void = () => {}
-    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { answer = resolve })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>(resolve => {
+            answer = resolve
+          }),
+      ),
+    )
     const { adapter, calls } = fakeAdapter()
     const store = await open(adapter)
     calls().upsert([call()])

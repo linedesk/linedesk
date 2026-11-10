@@ -9,7 +9,8 @@ import { type LocalDb, openLocalDb } from './idb.ts'
 import { browserTabLink, type Command, type TabLink, type TabMessage } from './tabs.ts'
 
 type AnyRow = { id: string; version: number }
-export type Snapshot = { tables: LocalTables; pending: number; online: boolean }
+/** `synced`: tables that have caught up with the server at least once (now or in an earlier session). Before that, an empty table means "not loaded yet", not "nothing there". */
+export type Snapshot = { tables: LocalTables; pending: number; online: boolean; synced: ReadonlySet<TableName> }
 export type Rejection = { action: string; input: unknown; error: string }
 
 export interface StoreOptions {
@@ -69,6 +70,7 @@ export async function createStore(opts: StoreOptions) {
   /** Commands issued by this tab: only this tab reports their rejection to the user. */
   const mine = new Set<string>()
   let online = true
+  const synced = new Set<TableName>()
   let lastSeq = 0
   let snapshot: Snapshot
   const listeners = new Set<() => void>()
@@ -80,6 +82,10 @@ export async function createStore(opts: StoreOptions) {
         (await local.all<AnyRow>(t)).map(([, row]) => row),
         false,
       )
+    for (const [key, cursor] of await local.all<unknown>('meta')) {
+      const table = String(key).replace(/^cursor:/, '') as TableName
+      if (cursor && String(key).startsWith('cursor:') && tableNames.includes(table)) synced.add(table)
+    }
     const stored = await local.all<Command>('outbox')
     for (const [key, c] of stored) storedKey.set(c.id, key)
     const known = new Set(outbox.map(c => c.id))
@@ -94,7 +100,7 @@ export async function createStore(opts: StoreOptions) {
       const def = actions.get(c.name)
       if (def) applyLocally(tables, def, c.input, c.at)
     }
-    snapshot = { tables, pending: outbox.length, online }
+    snapshot = { tables, pending: outbox.length, online, synced: new Set(synced) }
     listeners.forEach(l => l())
   }
 
@@ -139,7 +145,11 @@ export async function createStore(opts: StoreOptions) {
       recompute()
     },
     loadCursor: async () => (await local.all('meta')).find(([k]) => k === `cursor:${table}`)?.[1],
-    saveCursor: cursor => (stopped ? undefined : void local.write('meta', s => s.put(cursor, `cursor:${table}`))),
+    saveCursor: cursor => {
+      if (stopped) return
+      void local.write('meta', s => s.put(cursor, `cursor:${table}`))
+      if (cursor && !synced.has(table)) markSynced(table)
+    },
   })
 
   function forget(id: string) {
@@ -153,6 +163,12 @@ export async function createStore(opts: StoreOptions) {
     tabs.post({ type: 'settled', id: c.id, ...result })
     await local.write('outbox', s => s.delete(storedKey.get(c.id) ?? c.id))
     storedKey.delete(c.id)
+  }
+
+  function markSynced(table: TableName) {
+    synced.add(table)
+    tabs.post({ type: 'synced', table })
+    recompute()
   }
 
   function setOnline(value: boolean) {
@@ -248,6 +264,7 @@ export async function createStore(opts: StoreOptions) {
     else if (m.type === 'replace') replaceRows(m.table, m.rows, false)
     else if (m.type === 'remove') removeRows(m.table, m.ids, false)
     else if (m.type === 'online' && !leading) online = m.online
+    else if (m.type === 'synced') synced.add(m.table)
     recompute()
   }
 

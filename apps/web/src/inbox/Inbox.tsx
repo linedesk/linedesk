@@ -4,6 +4,7 @@ import type { SegmentsByCall } from '../call/segments.ts'
 import type { CallGroups, InboxTab } from '../inbox-model.ts'
 import { dayLabel, parseTs } from '../time.ts'
 import { cx, Icon, Kbd } from '../ui/kit.tsx'
+import { LoadProblem, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import type { BulkActions } from './BulkBar.tsx'
 import { InboxHead, type InboxHeadProps } from './InboxHead.tsx'
 import { InboxZero } from './InboxZero.tsx'
@@ -88,7 +89,8 @@ export function Inbox({ list, segments, cursor, leaving, entering, menu, selecte
     if (cursor) listRef.current?.querySelector('.is-cursor')?.scrollIntoView({ block: 'nearest' })
   }, [cursor])
   const day = (c: Call) => dayLabel(parseTs(c.started_at))
-  const zero = !list.length && tab === 'you' && search === null
+  const loadState = useLoadState('calls') // before the first sync an empty list is not "nothing needs you"
+  const zero = !list.length && tab === 'you' && search === null && loadState === 'ready'
   // Screen readers hear the call under the cursor as J and K move it (the rows themselves never take focus).
   const [spoken, setSpoken] = useState('')
   useEffect(() => {
@@ -131,7 +133,11 @@ export function Inbox({ list, segments, cursor, leaving, entering, menu, selecte
             />
           </Fragment>
         ))}
-        {zero ? (
+        {loadState === 'loading' ? (
+          <SkeletonRows label="Loading calls" />
+        ) : loadState === 'slow' ? (
+          <LoadProblem what="Your calls" />
+        ) : zero ? (
           <InboxZero handledCount={counts.ai} hasAnyCalls={Object.values(counts).some(n => n > 0)} />
         ) : (
           !list.length && <Empty tab={tab} search={search} />

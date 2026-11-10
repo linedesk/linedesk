@@ -5,6 +5,7 @@ import type { Step } from '../inbox/changes.ts'
 import { callTitle } from '../inbox-model.ts'
 import { parseTs, timeLabel } from '../time.ts'
 import { Button, cx, Icon, Kbd } from '../ui/kit.tsx'
+import { LoadProblem, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { ContactDetail } from './ContactDetail.tsx'
 import './contacts.css'
 import { contactLabel, type ContactRow } from './model.ts'
@@ -143,6 +144,7 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
       '#',
     )
   const page = useContactsPage({ remove })
+  const loadState = useLoadState('contacts')
   const numbers = useMemo(() => new Set(page.all.map(r => r.contact.phone)), [page.all])
   const { rows, cursor, opened, query } = page
   const listRef = useRef<HTMLDivElement>(null)
@@ -178,7 +180,13 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
                 onHover={() => page.hover(row.contact.id)}
               />
             ))}
-            {!rows.length && <Empty query={query} />}
+            {loadState === 'loading' ? (
+              <SkeletonRows label="Loading contacts" />
+            ) : loadState === 'slow' ? (
+              <LoadProblem what="Contacts" />
+            ) : (
+              !rows.length && <Empty query={query} />
+            )}
           </div>
           {rows.length ? <Hints open={!!opened} /> : null}
         </div>
