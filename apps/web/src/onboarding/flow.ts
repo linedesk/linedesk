@@ -1,6 +1,8 @@
 // Onboarding without React: step order, the phone setup input and the carrier forwarding codes.
 import { onboardingSteps, type OnboardingStep } from '@callfront/actions'
-import type { Call } from '@callfront/db/types'
+import type { Call, PhoneNumber } from '@callfront/db/types'
+
+type PhoneNumberMode = PhoneNumber['mode']
 
 export { onboardingSteps, type OnboardingStep }
 
@@ -48,6 +50,23 @@ export function phoneSetupInput(choice: PhoneChoice): { input: PhoneSetupInput }
   if (!/^\d{3}$/.test(choice.areaCode)) return { problem: 'Enter a 3-digit area code, like 503.' }
   if (!choice.confirmed) return { problem: 'Confirm the monthly cost first.' }
   return { input: { areaCode: choice.areaCode, purchase: true, mode: 'new' } }
+}
+
+/** A `phoneNumber.setup` rejection in words an owner can act on. The server's own reason stays in the command log. */
+export function phoneSetupErrorText(error: string): string {
+  if (/^phone setup is not configured/i.test(error)) return "Phone numbers aren't set up on this server yet. Ask whoever runs your Linedesk to add a phone carrier."
+  if (/is already set up/i.test(error)) return 'That number is already connected to Linedesk.'
+  if (/is not in the .* account/i.test(error)) return "We couldn't find that number in the carrier account. Check the number, or get a new one."
+  if (/no number available in area code/i.test(error)) return 'No number is free in that area code right now. Try a nearby one.'
+  return "The number couldn't be connected. Try again in a moment."
+}
+
+/** How the business uses a connected number, in a few words. */
+export const numberModeLabel: Record<PhoneNumberMode, string> = {
+  forward_conditional: 'Missed calls forward here',
+  forward_all: 'All calls forward here',
+  new: 'Your Linedesk number',
+  ported: 'Your number, moved to Linedesk',
 }
 
 /** What a new number costs, as far as we know it. Prices are the carriers' list prices for a US local number. */

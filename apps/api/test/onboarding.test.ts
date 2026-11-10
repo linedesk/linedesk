@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 import { describe, expect, test } from 'vitest'
 import { db } from '../src/db.ts'
 import { phoneSetupStatus } from '../src/handlers.ts'
-import { workspaceTimeZone } from '../src/onboarding.ts'
+import { phoneSetupView, workspaceTimeZone } from '../src/onboarding.ts'
 import { act, addMember, createWorkspace, request } from './helpers.ts'
 
 const settingsOf = async (id: string) => (await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, id)))[0]
@@ -56,6 +56,20 @@ describe('phone setup status', () => {
     expect(await phoneSetupStatus(missingKeys, {})).toEqual({ provider: null, problem: 'TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN not set' })
     expect(await phoneSetupStatus(provider('twilio'), {})).toEqual({ provider: 'twilio', problem: 'LIVEKIT_SIP_ENDPOINT is not set' })
     expect(await phoneSetupStatus(provider('twilio'), { LIVEKIT_SIP_ENDPOINT: 'sip.example.com' })).toEqual({ provider: 'twilio', problem: null })
+  })
+
+  test('only instance admins see what the server lacks; owners get available or not', () => {
+    const missing = { provider: 'twilio', problem: 'LIVEKIT_SIP_ENDPOINT is not set' }
+    expect(phoneSetupView(missing, { permissions: ['settings:write'] })).toEqual({ provider: 'twilio', available: false, detail: null })
+    expect(phoneSetupView(missing, { permissions: ['settings:write', 'instance:admin'] })).toEqual({ provider: 'twilio', available: false, detail: 'LIVEKIT_SIP_ENDPOINT is not set' })
+    expect(phoneSetupView({ provider: 'dev', problem: null }, { permissions: [] })).toEqual({ provider: 'dev', available: true, detail: null })
+  })
+
+  test('/v1/me tells owners whether phone setup works, members get nothing', async () => {
+    const ws = await createWorkspace('Phone View Plumbing')
+    expect((await request(ws.owner, 'GET', '/v1/me')).body.phoneSetup).toMatchObject({ available: expect.any(Boolean) })
+    const member = await addMember(ws.id, 'member')
+    expect((await request(member, 'GET', '/v1/me')).body.phoneSetup).toBeNull()
   })
 
   test('the workspace time zone falls back to US Eastern for anything that is not a zone', () => {

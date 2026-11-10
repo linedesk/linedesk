@@ -54,6 +54,7 @@ export const SHORTCUTS: Group[] = [
       ['Contacts', ['G', 'C']],
       ['Assistant', ['G', 'A']],
       ['Team', ['G', 'T']],
+      ['Settings', ['G', 'S']],
       ['Admin (instance admins)', ['G', 'D']],
     ],
   },

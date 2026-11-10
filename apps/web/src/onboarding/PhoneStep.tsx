@@ -16,18 +16,18 @@ const providerLabel = (provider: string | null) => (provider === 'twilio' ? 'Twi
 export function PhoneStep(p: Props) {
   const number = useRows('phone_numbers')[0]
   if (number) return <Connected number={number} onBack={p.onBack} onNext={p.onNext} />
-  if (p.status.problem) return <Unavailable problem={p.status.problem} onBack={p.onBack} onNext={p.onNext} />
+  if (!p.status.available) return <Unavailable detail={p.status.detail} onBack={p.onBack} onNext={p.onNext} />
   return <Choose {...p} />
 }
 
-function Unavailable({ problem, onBack, onNext }: { problem: string; onBack: () => void; onNext: () => void }) {
+function Unavailable({ detail, onBack, onNext }: { detail: string | null; onBack: () => void; onNext: () => void }) {
   useStepKeys({ onEnter: onNext, onEscape: onBack })
   return (
     <>
       <div className="ob-body">
         <h1>Phone numbers aren't set up on this server yet.</h1>
-        <p className="ob-lede">Whoever runs this Linedesk needs to add the carrier keys first. Skip this step for now; your assistant starts answering once a number is connected.</p>
-        <p className="ob2-note">Server says: {problem}</p>
+        <p className="ob-lede">Whoever runs your Linedesk needs to add a phone carrier first. Skip this step for now: you can connect a number later in Settings, and your assistant starts answering then.</p>
+        {detail && <p className="ob2-note">For admins: {detail}. Check Admin, System.</p>}
       </div>
       <Foot onBack={onBack} onContinue={onNext} canContinue label="Skip for now" />
     </>

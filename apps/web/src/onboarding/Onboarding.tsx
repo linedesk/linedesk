@@ -2,11 +2,12 @@
 // (`onboarding.setStep`), so a reload resumes at the same step.
 import { useEffect, useState } from 'react'
 import type { Me, OnboardingState } from '../auth.ts'
+import { rejectionText } from '../shell/rejections.ts'
 import { callHash } from '../shell/useRoute.ts'
 import { useAssistantName, useRejection, useRows, useRun } from '../store.tsx'
 import { BusinessStep } from './BusinessStep.tsx'
 import { Foot, Frame, useStepKeys } from './Frame.tsx'
-import { formatNumber, nextStep, previousStep, type OnboardingStep } from './flow.ts'
+import { formatNumber, nextStep, phoneSetupErrorText, previousStep, type OnboardingStep } from './flow.ts'
 import { PhoneStep } from './PhoneStep.tsx'
 import { TestCallStep } from './TestCallStep.tsx'
 import './onboarding.css'
@@ -21,8 +22,8 @@ export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingSta
   const { rejection, clearRejection } = useRejection()
   useEffect(() => {
     if (!rejection) return
-    if (rejection.action === 'phoneNumber.setup') setSetupError(rejection.error)
-    else setOtherError(`Could not ${rejection.action}: ${rejection.error}`)
+    if (rejection.action === 'phoneNumber.setup') setSetupError(phoneSetupErrorText(rejection.error))
+    else setOtherError(rejectionText(rejection.action, rejection.error))
     clearRejection()
   }, [rejection, clearRejection])
 

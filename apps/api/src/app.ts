@@ -11,7 +11,7 @@ import { auth, WORKSPACE_LIMIT } from './auth.ts'
 import { resolveActor, type Actor } from './context.ts'
 import { db } from './db.ts'
 import { previewInvitation } from './invitations.ts'
-import { newAssistant, newWorkspaceSettings, onboardingFor } from './onboarding.ts'
+import { newAssistant, newWorkspaceSettings, onboardingFor, phoneSetupFor } from './onboarding.ts'
 import { voiceReady } from './provider-settings.ts'
 import { serveRecording } from './recording-route.ts'
 import { runAction } from './run-action.ts'
@@ -97,6 +97,7 @@ app.get('/v1/me', async c => {
     permissions: actor.permissions,
     workspace: workspace ? { id: workspace.id, name: workspace.name, disabled: Boolean(workspace.disabledAt) } : null,
     onboarding: workspace ? await onboardingFor(actor) : null,
+    phoneSetup: workspace ? await phoneSetupFor(actor) : null,
   })
 })
 

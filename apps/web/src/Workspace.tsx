@@ -16,6 +16,8 @@ import { commandGroups, type Command } from './shell/commands.ts'
 import type { Overlay } from './shell/keys.ts'
 import { MenuButton, Nav } from './shell/Nav.tsx'
 import { Overlays } from './shell/Overlays.tsx'
+import { rejectionText } from './shell/rejections.ts'
+import { SetupBanner } from './shell/SetupBanner.tsx'
 import { SyncBar } from './shell/SyncBar.tsx'
 import { pages, type Page, type PageRoute } from './shell/pages.tsx'
 import { Toast } from './shell/Toast.tsx'
@@ -29,7 +31,7 @@ import { ErrorBoundary } from './ui/ErrorBoundary.tsx'
 import { cx } from './ui/kit.tsx'
 
 const chordTabs: Record<string, InboxTab> = { i: 'you', e: 'done', h: 'reminders' }
-const chordPages: Record<string, PageRoute> = { a: 'assistant', c: 'contacts', t: 'team' }
+const chordPages: Record<string, PageRoute> = { a: 'assistant', c: 'contacts', t: 'team', s: 'settings' }
 
 export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void | Promise<void> }) {
   const nav = useRoute()
@@ -203,7 +205,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   const { rejection, clearRejection } = useRejection()
   useEffect(() => {
     if (!rejection) return
-    toaster.show(`Could not ${rejection.action}: ${rejection.error}`)
+    toaster.show(rejectionText(rejection.action, rejection.error))
     clearRejection()
   }, [rejection, clearRejection, toaster.show])
 
@@ -274,6 +276,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
       />
       <button type="button" className="scrim" aria-label="Close menu" tabIndex={-1} onClick={() => setNavOpen(false)} />
       <main className="main">
+        {nav.route !== 'settings' && <SetupBanner canEdit={me.permissions.includes('settings:write')} onConnect={() => goPage('settings')} />}
         {page ? (
           <>
             {!page.ownHeader && (
@@ -300,6 +303,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
                 userId: me.actorId,
                 menu,
                 openCall: open,
+                phoneSetup: me.phoneSetup,
               })}
             </ErrorBoundary>
           </>

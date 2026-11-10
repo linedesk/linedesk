@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAssistantName, useRows } from '../store.tsx'
 import { Button } from '../ui/kit.tsx'
 import { Section } from './fields.tsx'
+import { TEST_CALL_TIMEOUT_MS, TimedOut, testCallErrorText, within } from './testCallModel.ts'
 
 type Phase = 'idle' | 'starting' | 'live' | 'ended'
 
@@ -16,7 +17,7 @@ async function requestTestCall(): Promise<TestCallData> {
     method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: '{}',
   })
   const body = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; data?: TestCallData } | null
-  if (!res.ok || !body?.ok || !body.data) throw new Error(body?.error ?? `The test call could not start (HTTP ${res.status}).`)
+  if (!res.ok || !body?.ok || !body.data) throw new Error(testCallErrorText(body?.error ?? ''))
   return body.data
 }
 
@@ -54,27 +55,56 @@ export function TestCall({ canStart }: { canStart: boolean }) {
   const audio = useRef<HTMLDivElement>(null)
   const { call, lines, notSetUp } = useTestCall(roomName)
 
+  /** Bumped by Cancel and by every new start, so a late answer of an abandoned attempt is ignored. */
+  const attempt = useRef(0)
+
   useEffect(() => () => void room.current?.disconnect(), [])
 
+  // Connected, but the assistant never picked up: say so instead of waiting forever.
+  useEffect(() => {
+    if (phase !== 'live' || call) return
+    const timer = setTimeout(() => {
+      const current = room.current
+      room.current = null
+      void current?.disconnect()
+      setProblem(`${name} didn't pick up. The voice service may not be running. Try again in a moment; if it keeps happening, tell whoever runs your Linedesk.`)
+      setPhase('idle')
+    }, TEST_CALL_TIMEOUT_MS)
+    return () => clearTimeout(timer)
+  }, [phase, call, name])
+
   async function start() {
+    const mine = ++attempt.current
     setProblem(null)
+    setRoomName(null)
     setPhase('starting')
-    const blocked = await microphoneAllowed()
+    // A permission prompt nobody answers (or a microphone the system never hands over) must not hang either.
+    const blocked = await within(microphoneAllowed(), TEST_CALL_TIMEOUT_MS).catch(() => "The microphone didn't respond. Allow it for this site, then start the test call again.")
+    if (mine !== attempt.current) return
     if (blocked) return fail(blocked)
+    const next = new Room()
     try {
-      const { url, token, room: joined } = await requestTestCall()
-      const next = new Room()
-      next.on(RoomEvent.TrackSubscribed, track => {
-        if (track.kind === Track.Kind.Audio) audio.current?.append(track.attach())
+      await within((async () => {
+        const { url, token, room: joined } = await requestTestCall()
+        next.on(RoomEvent.TrackSubscribed, track => {
+          if (track.kind === Track.Kind.Audio) audio.current?.append(track.attach())
+        })
+        next.on(RoomEvent.Disconnected, () => { if (room.current === next) setPhase('ended') })
+        await next.connect(url, token)
+        await next.localParticipant.setMicrophoneEnabled(true)
+        return joined
+      })(), TEST_CALL_TIMEOUT_MS).then(joined => {
+        if (mine !== attempt.current) return void next.disconnect()
+        room.current = next
+        setRoomName(joined)
+        setPhase('live')
       })
-      next.on(RoomEvent.Disconnected, () => setPhase('ended'))
-      await next.connect(url, token)
-      await next.localParticipant.setMicrophoneEnabled(true)
-      room.current = next
-      setRoomName(joined)
-      setPhase('live')
     } catch (e) {
-      fail(e instanceof Error ? e.message : 'The test call could not start.')
+      void next.disconnect()
+      if (mine !== attempt.current) return
+      fail(e instanceof TimedOut
+        ? `Couldn't reach ${name} within ${TEST_CALL_TIMEOUT_MS / 1000} seconds. The voice service may be down. Try again in a moment.`
+        : e instanceof Error ? e.message : "The test call couldn't start. Try again in a moment.")
     }
   }
 
@@ -83,10 +113,22 @@ export function TestCall({ canStart }: { canStart: boolean }) {
     setPhase('idle')
   }
 
-  async function stop() {
-    await room.current?.disconnect()
+  async function hangUp() {
+    const current = room.current
     room.current = null
+    await current?.disconnect()
+  }
+
+  async function stop() {
+    attempt.current++
+    await hangUp()
     setPhase('ended')
+  }
+
+  function cancel() {
+    attempt.current++
+    void hangUp()
+    setPhase('idle')
   }
 
   const live = phase === 'live' || phase === 'starting'
@@ -94,7 +136,9 @@ export function TestCall({ canStart }: { canStart: boolean }) {
     <Section id="as-test" title={`Talk to ${name}`} description="A test call in the browser, with your microphone. It shows up in the inbox as a test call, with transcript and summary.">
       <div>
         {live ? (
-          <Button variant="secondary" onClick={() => void stop()} disabled={phase === 'starting'}>{phase === 'starting' ? 'Connecting…' : 'End test call'}</Button>
+          phase === 'starting'
+            ? <span className="st-test-wait"><span className="st-spin" aria-hidden="true" />Connecting…<Button size="sm" variant="ghost" onClick={cancel}>Cancel</Button></span>
+            : <Button variant="secondary" onClick={() => void stop()}>End test call</Button>
         ) : (
           <Button variant="primary" icon="phone-in" onClick={() => void start()} disabled={!canStart}>
             {phase === 'ended' ? 'Call again' : 'Start test call'}
@@ -105,7 +149,7 @@ export function TestCall({ canStart }: { canStart: boolean }) {
       {problem && <p className="help" role="alert">{problem}</p>}
       {notSetUp && (
         <p className="help" role="alert">
-          {name} is not set up yet: no {notSetUp} provider is configured. An admin adds it in the admin area under Providers.
+          {name} can't talk yet: the {notSetUp} service isn't set up. Whoever runs your Linedesk adds it under Admin, Providers.
         </p>
       )}
       {phase === 'live' && !call && <p className="help">Waiting for {name} to answer…</p>}

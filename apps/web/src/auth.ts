@@ -10,14 +10,16 @@ export const auth = createAuthClient({
   plugins: [organizationClient(), emailOTPClient()],
 })
 
-/** Whether this server can set up phone numbers: the carrier it would use, or why it cannot. */
-export type PhoneSetupStatus = { provider: string | null; problem: string | null }
+/** Whether this server can set up phone numbers and with which carrier. `detail` (what the server lacks) only reaches instance admins. */
+export type PhoneSetupStatus = { provider: string | null; available: boolean; detail: string | null }
 /** Present while the workspace is in onboarding and this member may finish it. */
 export type OnboardingState = { step: 'business' | 'phone' | 'test_call'; phone: PhoneSetupStatus }
 
 export type Me = {
   actorId: string; role: string; permissions: string[]; workspace: { id: string; name: string; disabled?: boolean } | null
   onboarding: OnboardingState | null
+  /** null for members who cannot change settings. */
+  phoneSetup: PhoneSetupStatus | null
 }
 
 /** Who am I and which workspace am I in? null when signed out or without a workspace. */

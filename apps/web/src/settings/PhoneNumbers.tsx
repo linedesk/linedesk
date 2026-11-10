@@ -1,0 +1,307 @@
+// Settings, Phone numbers: the numbers the assistant answers, how to forward a business line to
+// them, and connecting another one (attach a number from the carrier account, or buy one).
+// Connecting runs phoneNumber.setup through the outbox; the new row arrives by sync.
+import type { PhoneNumber } from '@callfront/db/types'
+import { useEffect, useState } from 'react'
+import type { PhoneSetupStatus } from '../auth.ts'
+import { CopyButton } from '../onboarding/Frame.tsx'
+import {
+  carriers,
+  forwardingDigits,
+  formatNumber,
+  numberModeLabel,
+  phoneSetupErrorText,
+  phoneSetupInput,
+  priceNote,
+  type PhoneChoice,
+} from '../onboarding/flow.ts'
+import { useAssistantName, useRejection, useRows, useRun } from '../store.tsx'
+import { RadioCard } from '../ui/controls.tsx'
+import { Badge, Button, cx } from '../ui/kit.tsx'
+import { Field, Section, TextInput } from './fields.tsx'
+
+const carrierName = (provider: string | null) =>
+  provider === 'twilio' ? 'Twilio' : provider === 'telnyx' ? 'Telnyx' : null
+
+type Props = { canEdit: boolean; status: PhoneSetupStatus | null; isInstanceAdmin: boolean }
+
+export function PhoneNumbers({ canEdit, status, isInstanceAdmin }: Props) {
+  const numbers = useRows('phone_numbers').sort((a, b) => a.created_at.localeCompare(b.created_at))
+  const name = useAssistantName()
+  const [adding, setAdding] = useState(false)
+  const showForm = canEdit && status?.available && (numbers.length === 0 || adding)
+  return (
+    <Section
+      id="st-phone"
+      title="Phone numbers"
+      description={
+        numbers.length
+          ? `${name} answers calls to these numbers.`
+          : `Connect a number and ${name} starts answering its calls.`
+      }
+    >
+      {numbers.length > 0 && (
+        <div className="st-list">
+          {numbers.map(n => (
+            <NumberRow key={n.id} number={n} />
+          ))}
+        </div>
+      )}
+      {!canEdit && numbers.length === 0 && (
+        <p className="help">No number is connected yet. Only owners and admins can connect one.</p>
+      )}
+      {canEdit && status && !status.available && (
+        <Unavailable detail={status.detail} isInstanceAdmin={isInstanceAdmin} />
+      )}
+      {showForm && (
+        <ConnectNumber
+          status={status}
+          onDone={() => setAdding(false)}
+          onCancel={numbers.length ? () => setAdding(false) : undefined}
+        />
+      )}
+      {canEdit && status?.available && numbers.length > 0 && !adding && (
+        <div>
+          <Button size="sm" icon="plus" onClick={() => setAdding(true)}>
+            Add a number
+          </Button>
+        </div>
+      )}
+    </Section>
+  )
+}
+
+function Unavailable({ detail, isInstanceAdmin }: { detail: string | null; isInstanceAdmin: boolean }) {
+  return (
+    <div className="st-note" role="status">
+      <b>Phone numbers aren't set up on this server yet.</b>
+      <span className="help">
+        Whoever runs your Linedesk needs to add a phone carrier first. Calls are answered as soon as a number is
+        connected.
+      </span>
+      {isInstanceAdmin && detail && (
+        <span className="help">
+          For admins: {detail}. <a href="#admin/system">Open Admin, System</a>
+        </span>
+      )}
+    </div>
+  )
+}
+
+function NumberRow({ number }: { number: PhoneNumber }) {
+  const forwards = number.mode === 'forward_conditional' || number.mode === 'forward_all'
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="st-li st-pn">
+      <div className="st-pn-head">
+        <div className="st-pn-t">
+          <b className="st-mono">{formatNumber(number.e164)}</b>
+          <span className="help">
+            {numberModeLabel[number.mode]}
+            {carrierName(number.provider) ? ` · ${carrierName(number.provider)}` : ''}
+          </span>
+        </div>
+        {number.verified_at ? <Badge dot>Answering</Badge> : <Badge>Not tested yet</Badge>}
+        {forwards && (
+          <Button size="sm" variant="ghost" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+            {open ? 'Hide forwarding' : 'Forwarding codes'}
+          </Button>
+        )}
+      </div>
+      {forwards && open && <Forwarding e164={number.e164} />}
+    </div>
+  )
+}
+
+/** Conditional call forwarding codes per carrier, to dial from the business line. */
+function Forwarding({ e164 }: { e164: string }) {
+  const [carrierId, setCarrierId] = useState(carriers[0]!.id)
+  const carrier = carriers.find(c => c.id === carrierId) ?? carriers[0]!
+  const on = carrier.on(forwardingDigits(e164))
+  return (
+    <div className="st-codes">
+      <div className="st-seg" role="radiogroup" aria-label="Your carrier">
+        {carriers.map(c => (
+          <button
+            key={c.id}
+            type="button"
+            role="radio"
+            aria-checked={c.id === carrierId}
+            className={cx('st-seg-b', c.id === carrierId && 'on')}
+            onClick={() => setCarrierId(c.id)}
+          >
+            {c.name}
+          </button>
+        ))}
+      </div>
+      <div className="st-code">
+        <span className="help">Turn on</span>
+        <code>{on}</code>
+        <CopyButton text={on} />
+      </div>
+      <div className="st-code">
+        <span className="help">Turn off</span>
+        <code>{carrier.off}</code>
+        <CopyButton text={carrier.off} />
+      </div>
+      <span className="help">
+        Dial it from your business phone. When nobody picks up or the line is busy, the call goes to your assistant.
+        Other carriers: look up "conditional call forwarding".
+      </span>
+    </div>
+  )
+}
+
+function ConnectNumber({
+  status,
+  onDone,
+  onCancel,
+}: {
+  status: PhoneSetupStatus | null
+  onDone: () => void
+  onCancel?: () => void
+}) {
+  const run = useRun()
+  const count = useRows('phone_numbers').length
+  const { rejection } = useRejection()
+  const [kind, setKind] = useState<PhoneChoice['kind']>('existing')
+  const [typed, setTyped] = useState('')
+  const [areaCode, setAreaCode] = useState('')
+  const [confirming, setConfirming] = useState(false)
+  const [sentAt, setSentAt] = useState<number | null>(null)
+  const [problem, setProblem] = useState<string | null>(null)
+  const carrier = carrierName(status?.provider ?? null)
+
+  // Success is the new row arriving by sync; a refusal ends the wait with its reason.
+  useEffect(() => {
+    if (sentAt !== null && count > sentAt) {
+      setSentAt(null)
+      onDone()
+    }
+  }, [count, sentAt, onDone])
+  useEffect(() => {
+    if (rejection?.action !== 'phoneNumber.setup' || sentAt === null) return
+    setSentAt(null)
+    setConfirming(false)
+    setProblem(phoneSetupErrorText(rejection.error))
+  }, [rejection, sentAt])
+
+  function send(choice: PhoneChoice) {
+    const result = phoneSetupInput(choice)
+    if ('problem' in result) return setProblem(result.problem)
+    setProblem(null)
+    setSentAt(count)
+    void run('phoneNumber.setup', result.input)
+  }
+  function submit() {
+    if (sentAt !== null) return
+    if (kind === 'existing') return send({ kind, number: typed })
+    const check = phoneSetupInput({ kind, areaCode, confirmed: true })
+    if ('problem' in check) return setProblem(check.problem)
+    setProblem(null)
+    setConfirming(true)
+  }
+  const pick = (next: PhoneChoice['kind']) => {
+    setKind(next)
+    setConfirming(false)
+    setProblem(null)
+  }
+  const busy = sentAt !== null
+
+  return (
+    <form
+      className="st-connect"
+      onSubmit={e => {
+        e.preventDefault()
+        submit()
+      }}
+    >
+      <div className="k-radios" role="radiogroup" aria-label="Which number">
+        <RadioCard
+          name="st-pn-kind"
+          checked={kind === 'existing'}
+          onPick={() => pick('existing')}
+          title={carrier ? `Use a number I have in ${carrier}` : 'Use a number I already have'}
+          description={
+            carrier ? `A number already in your ${carrier} account.` : 'A number already in your carrier account.'
+          }
+        />
+        <RadioCard
+          name="st-pn-kind"
+          checked={kind === 'new'}
+          onPick={() => pick('new')}
+          title="Get a new number"
+          description="A local number in the area code you pick."
+        />
+      </div>
+      {kind === 'existing' ? (
+        <Field id="st-pn-number" label={carrier ? `Number in ${carrier}` : 'Number'}>
+          <TextInput
+            id="st-pn-number"
+            value={typed}
+            onChange={v => {
+              setTyped(v)
+              setProblem(null)
+            }}
+            placeholder="(503) 555-0142"
+          />
+        </Field>
+      ) : (
+        <>
+          <Field id="st-pn-area" label="Area code" help={priceNote(status?.provider ?? null)}>
+            <TextInput
+              id="st-pn-area"
+              value={areaCode}
+              onChange={v => {
+                setAreaCode(v.replace(/\D/g, '').slice(0, 3))
+                setConfirming(false)
+                setProblem(null)
+              }}
+              placeholder="503"
+            />
+          </Field>
+          {confirming && (
+            <div className="ob-prompt" role="alert">
+              <span>Buy a number in area code {areaCode}? It is billed every month until you release it.</span>
+              <span className="ob2-row">
+                <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={busy}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={busy}
+                  onClick={() => send({ kind: 'new', areaCode, confirmed: true })}
+                >
+                  {busy ? 'Buying…' : 'Buy number'}
+                </Button>
+              </span>
+            </div>
+          )}
+        </>
+      )}
+      {status?.provider === 'dev' && (
+        <p className="help">
+          Development mode: no carrier is connected, so nothing is bought and no real call reaches the number.
+        </p>
+      )}
+      {problem && (
+        <p className="auth-error" role="alert">
+          {problem}
+        </p>
+      )}
+      {!confirming && (
+        <div className="st-connect-foot">
+          {onCancel && (
+            <Button size="sm" variant="ghost" onClick={onCancel} disabled={busy}>
+              Cancel
+            </Button>
+          )}
+          <Button type="submit" size="sm" variant="primary" disabled={busy}>
+            {busy ? 'Connecting…' : kind === 'existing' ? 'Connect number' : 'Get a number'}
+          </Button>
+        </div>
+      )}
+    </form>
+  )
+}
