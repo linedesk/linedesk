@@ -1536,6 +1536,13 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
 .row .r-dot { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); width: 10px; }
 .ib-day { padding-left: 20px; }
 @media (max-width: 719px) { .row:not(.cust-row) { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name time" "sum sum" "status status"; } .row .r-dot { left: 1px; top: 15px; transform: none; } .ib-day { padding-left: 12px; } }
+
+/* One left edge: tab text, day labels and caller names (desktop) */
+@media (min-width: 720px) {
+  .row:not(.cust-row) { padding-left: 62px; }
+  .row .r-dot { left: 46px; }
+  .ib-day { padding-left: 62px; }
+}
 </style>
 <div id="app"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
