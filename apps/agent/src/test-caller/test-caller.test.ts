@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import type { CallTestFinding } from '@callfront/actions'
 import { createLatencyLog, createOnsetDetector, rms } from './latency.ts'
 import { isGoodbye } from './caller.ts'
+import { waitForFinishedCall } from './wait.ts'
 import { describeMetrics } from '../turn-metrics.ts'
 import { evaluateCall, formatCallerLatency, formatReport, latencyOf, percentile } from './report.ts'
 import { callerInstructions, parseTestCallerMetadata, scenarioNames, scenarios } from './scenarios.ts'
@@ -121,7 +122,6 @@ test('describeMetrics describes the stages that make up a reply and skips the re
 })
 
 test('call test: a completed call is waited on for its recording, up to the grace period', async () => {
-  const { waitForFinishedCall } = await import('../call-test.ts')
   let clock = 0
   const opts = { expectRecording: true, graceMs: 30_000, now: () => clock, wait: async (ms: number) => {
       clock += ms
