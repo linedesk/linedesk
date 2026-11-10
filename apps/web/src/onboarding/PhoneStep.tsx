@@ -88,7 +88,7 @@ function Choose({ status, setupError, clearError, onBack }: Props) {
         {status.provider === 'dev' && kind === 'existing' && <p className="ob2-note">Development mode: no carrier is connected, so any number works and no real call reaches it.</p>}
         {kind === 'existing' ? (
           <Field id="ob-number" label={carrier ? `Number in ${carrier}` : 'Number'}>
-            <TextInput id="ob-number" value={typed} onChange={v => { setTyped(v); setProblem(null); clearError() }} placeholder="(503) 555-0142" />
+            <TextInput id="ob-number" value={typed} onChange={v => { setTyped(v); setProblem(null); clearError() }} placeholder="+1 503 555 0142" />
           </Field>
         ) : (
           <>

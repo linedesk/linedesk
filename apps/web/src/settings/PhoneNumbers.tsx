@@ -355,7 +355,7 @@ function ConnectNumber({
               setTyped(v)
               setProblem(null)
             }}
-            placeholder="(503) 555-0142"
+            placeholder="+1 503 555 0142"
           />
         </Field>
       ) : (

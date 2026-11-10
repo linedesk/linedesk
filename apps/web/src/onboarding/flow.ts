@@ -45,7 +45,7 @@ export type PhoneSetupInput = { e164: string; purchase: false } | { areaCode: st
 export function phoneSetupInput(choice: PhoneChoice): { input: PhoneSetupInput } | { problem: string } {
   if (choice.kind === 'existing') {
     const e164 = toE164(choice.number)
-    return e164 ? { input: { e164, purchase: false } } : { problem: 'Enter the number with its area code, like (503) 555-0142.' }
+    return e164 ? { input: { e164, purchase: false } } : { problem: 'Enter the number with its area code, like +1 503 555 0142.' }
   }
   if (!/^\d{3}$/.test(choice.areaCode)) return { problem: 'Enter a 3-digit area code, like 503.' }
   if (!choice.confirmed) return { problem: 'Confirm the monthly cost first.' }
