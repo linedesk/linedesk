@@ -39,7 +39,7 @@ export function Login({ onDone }: { onDone: () => void }) {
         <label>Email<input required type="email" value={form.email} onChange={set('email')} autoComplete="email" autoFocus /></label>
         <label>Password<input required type="password" minLength={8} value={form.password} onChange={set('password')} autoComplete={signUp ? 'new-password' : 'current-password'} /></label>
         {error && <div className="auth-error" role="alert">{error}</div>}
-        <button className="k-btn k-btn-primary" disabled={busy}>{signUp ? 'Create account' : 'Sign in'}</button>
+        <button type="submit" className="k-btn k-btn-primary" disabled={busy}>{signUp ? 'Create account' : 'Sign in'}</button>
         <button type="button" className="auth-switch" onClick={() => { setMode(signUp ? 'signIn' : 'signUp'); setError(null) }}>
           {signUp ? 'Already have an account? Sign in' : 'New here? Create an account'}
         </button>
