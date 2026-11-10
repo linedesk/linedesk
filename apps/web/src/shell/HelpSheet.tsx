@@ -6,7 +6,7 @@ export type Group = { group: string; rows: [label: string, keys: string[]][] }
 export const SHORTCUTS: Group[] = [
   { group: 'Navigate', rows: [['Next call', ['J']], ['Next call', ['↓']], ['Previous call', ['K']], ['Previous call', ['↑']], ['Open call', ['⏎']], ['Open call', ['O']], ['Back to list, close', ['esc']], ['Next split', ['tab']], ['Previous split', ['⇧', 'tab']], ['Needs you · Handled · Spam · Reminders · Done', ['1', '–', '5']]] },
   { group: 'Triage', rows: [['Mark done', ['E']], ['Mark not done', ['⇧', 'E']], ['Remind me', ['H']], ['Clear reminder', ['⇧', 'H']], ['Pick in a menu', ['1', '–', '9']], ['Mark read or unread', ['U']], ['Delete', ['#']], ['Undo', ['Z']]] },
-  { group: 'Go to', rows: [['Inbox', ['G', 'I']], ['Done', ['G', 'E']], ['Reminders', ['G', 'H']], ['Contacts', ['G', 'C']], ['Assistant', ['G', 'A']], ['Admin (instance admins)', ['G', 'D']]] },
+  { group: 'Go to', rows: [['Inbox', ['G', 'I']], ['Done', ['G', 'E']], ['Reminders', ['G', 'H']], ['Contacts', ['G', 'C']], ['Assistant', ['G', 'A']], ['Team', ['G', 'T']], ['Admin (instance admins)', ['G', 'D']]] },
   { group: 'General', rows: [['Search calls', ['/']], ['Commands', ['⌘', 'K']], ['Keyboard shortcuts', ['?']], ['Open menu', ['M']]] },
 ]
 

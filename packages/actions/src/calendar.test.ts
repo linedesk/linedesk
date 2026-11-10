@@ -8,8 +8,8 @@ describe('calendar.findSlots', () => {
     expect(calendarFindSlots.patch).toBeUndefined()
   })
 
-  it('is read-only, like the provider connection test and the test-call token', () => {
-    expect([...actions.values()].filter(a => a.readOnly).map(a => a.name).sort()).toEqual(['assistant.startTestCall', 'calendar.findSlots', 'provider.test'])
+  it('is read-only, like the provider connection test, the test-call token and team.list', () => {
+    expect([...actions.values()].filter(a => a.readOnly).map(a => a.name).sort()).toEqual(['assistant.startTestCall', 'calendar.findSlots', 'provider.test', 'team.list'])
   })
 
   it.each(['owner', 'admin', 'member', 'agent'] satisfies Role[])('can be called by %s', role => {

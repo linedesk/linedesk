@@ -6,6 +6,7 @@ import { AdminNotice } from '../admin/AdminMode.tsx'
 import { Contacts } from '../contacts/Contacts.tsx'
 import { AccountSettings } from '../settings/account/index.tsx'
 import { AssistantSettings } from '../settings/AssistantSettings.tsx'
+import { TeamPage } from '../team/TeamPage.tsx'
 
 export type PageProps = {
   toast: (text: string) => void
@@ -21,6 +22,7 @@ export type Page = { title: string; render: (props: PageProps) => ReactNode; own
 export const pages = {
   contacts: { title: 'Contacts', ownHeader: true, render: p => <Contacts menu={p.menu} toast={p.toast} openCall={p.openCall} /> },
   assistant: { title: 'Assistant', render: p => <AssistantSettings canEdit={p.canEditSettings} toast={p.toast} /> },
+  team: { title: 'Team', render: p => <TeamPage toast={p.toast} /> },
   account: { title: 'Account settings', render: () => <AccountSettings /> },
   // Shown in the navigation and ⌘K to instance admins only; the API refuses everyone else.
   // Instance admins get admin mode instead (Workspace.tsx); anyone else who opens #admin sees this.

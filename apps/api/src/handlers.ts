@@ -13,6 +13,7 @@ import { type Handler, type HandlerCtx, Reject, type Undo } from './handler-cont
 import { telephonyProvider } from './provider-settings.ts'
 import { recordingStoreFromEnv, type RecordingStore } from './recording-store.ts'
 import { startTestCall } from './test-call.ts'
+import { teamHandlers } from './team.ts'
 
 export { Reject, type HandlerCtx, type Undo }
 
@@ -180,6 +181,7 @@ async function openCall({ tx, now, recordings }: Pick<HandlerCtx, 'tx' | 'now' |
 
 const handlers: Record<string, Handler> = {
   ...adminHandlers,
+  ...teamHandlers,
 
   'calendar.findSlots': async ({ tx, actor, now }, input) => {
     const workspaceId = actor.workspaceId

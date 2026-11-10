@@ -10,6 +10,7 @@ import { authMethods } from './auth-methods.ts'
 import { auth, WORKSPACE_LIMIT } from './auth.ts'
 import { resolveActor, type Actor } from './context.ts'
 import { db } from './db.ts'
+import { previewInvitation } from './invitations.ts'
 import { newWorkspaceSettings, onboardingFor } from './onboarding.ts'
 import { serveRecording } from './recording-route.ts'
 import { runAction } from './run-action.ts'
@@ -28,6 +29,9 @@ app.on(['GET', 'POST'], '/api/auth/*', c => auth.handler(withClientIp(c)))
 
 // Public: the sign-in screen asks which methods this install offers.
 app.get('/v1/auth-methods', c => c.json(authMethods))
+
+// Public: the invitation link shows whom it is for and which workspace, before sign-in.
+app.get('/v1/invitations/:id', async c => c.json(await previewInvitation(c.req.param('id'))))
 
 // Create a workspace (= organization) for the signed-in user, with its assistant, and make it active.
 // Better Auth writes the organization on its own connection, so this is not one transaction:

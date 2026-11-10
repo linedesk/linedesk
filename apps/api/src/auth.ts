@@ -6,6 +6,7 @@ import { authConfig } from './auth-methods.ts'
 import { CLIENT_IP_HEADER } from './client-ip.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
+import { refuseExistingMember, sendVerificationEmail } from './invitations.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
 import { maySendSignInCode } from './signup-gate.ts'
@@ -39,6 +40,7 @@ const limitEmailCodes = createAuthMiddleware(async ctx => {
 })
 
 /** The plugin's endpoints for password reset, email change and plain verification are not offered. */
+const TEAM_WRITE_PATHS = ['/organization/invite-member', '/organization/cancel-invitation', '/organization/update-member-role', '/organization/remove-member', '/organization/leave']
 const UNUSED_EMAIL_CODE_PATHS = [
   '/email-otp/request-password-reset', '/forget-password/email-otp', '/email-otp/reset-password', '/email-otp/verify-email',
   '/email-otp/check-verification-otp', '/email-otp/request-email-change', '/email-otp/change-email',
@@ -67,6 +69,7 @@ export const auth = betterAuth({
   trustedOrigins: [WEB_ORIGIN],
   emailAndPassword: { enabled: methods.password },
   databaseHooks: instanceAdminHooks,
+  emailVerification: { sendVerificationEmail, autoSignInAfterVerification: true },
   socialProviders: {
     ...(google && { google }),
     ...(microsoft && { microsoft }),
@@ -78,10 +81,17 @@ export const auth = betterAuth({
   rateLimit: { enabled: true },
   // The client address comes from our own header (client-ip.ts), never from one the client sets.
   advanced: { ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] } },
-  disabledPaths: UNUSED_EMAIL_CODE_PATHS,
+  // Members and invitations change only through the team.* actions (team.ts), which apply the
+  // workspace's rules (last owner, who may change an owner). Accepting stays Better Auth's endpoint.
+  disabledPaths: [...UNUSED_EMAIL_CODE_PATHS, ...TEAM_WRITE_PATHS],
   hooks: { before: limitEmailCodes },
   plugins: [
-    organization({ organizationLimit: WORKSPACE_LIMIT }),
+    organization({
+      organizationLimit: WORKSPACE_LIMIT,
+      // Only the invited address, and only once it is verified, can accept.
+      requireEmailVerificationOnInvitation: true,
+      organizationHooks: { beforeAcceptInvitation: refuseExistingMember },
+    }),
     // Email sign-in by a typed code: 6 digits, 10 minutes, 3 tries per code, stored hashed, at most 3 requests a minute per IP.
     ...(methods.emailCode
       ? [emailOTP({ sendVerificationOTP: sendSignInCode, otpLength: 6, expiresIn: 600, allowedAttempts: 3, storeOTP: 'hashed', rateLimit: { window: 60, max: 3 } })]

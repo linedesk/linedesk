@@ -6,6 +6,7 @@ import { loadSession, type Session } from './session.ts'
 import { Onboarding } from './onboarding/Onboarding.tsx'
 import { StoreProvider } from './store.tsx'
 import { Workspace } from './Workspace.tsx'
+import { AcceptInvite, clearInviteId, readInviteId } from './team/AcceptInvite.tsx'
 
 /** Shown when the server is unreachable and this device has nothing to open offline. It retries on its own. */
 function Unreachable() {
@@ -19,6 +20,7 @@ function Unreachable() {
 
 export function App() {
   const [session, setSession] = useState<Session>({ state: 'loading' })
+  const [inviteId, setInviteId] = useState(readInviteId)
   // Finishing onboarding is a queued command; the app moves on without waiting for it.
   const [onboarded, setOnboarded] = useState(false)
   const refresh = useCallback(async () => setSession(await loadSession()), [])
@@ -41,6 +43,10 @@ export function App() {
     return () => { clearTimeout(timer); window.removeEventListener('online', now) }
   }, [waiting])
 
+  if (inviteId) {
+    const leaveInvite = () => { clearInviteId(); setInviteId(null); void refresh() }
+    return <AcceptInvite invitationId={inviteId} onDone={leaveInvite} />
+  }
   if (session.state === 'loading') return null
   if (session.state === 'unreachable') return <Unreachable />
   if (session.state === 'signedOut') return <Login onDone={refresh} />

@@ -116,7 +116,7 @@ export function Login({ onDone }: { onDone: () => void }) {
 type CodeStepProps = { email: string; onDone: () => void; onDifferentEmail: () => void }
 
 /** One field for the six digits: typing, pasting the whole code or the OS's one-time-code fill all work; the sixth digit submits. */
-function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
+export function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)

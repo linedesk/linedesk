@@ -29,7 +29,7 @@ import { ErrorBoundary } from './ui/ErrorBoundary.tsx'
 import { cx } from './ui/kit.tsx'
 
 const chordTabs: Record<string, InboxTab> = { i: 'you', e: 'done', h: 'reminders' }
-const chordPages: Record<string, PageRoute> = { a: 'assistant', c: 'contacts' }
+const chordPages: Record<string, PageRoute> = { a: 'assistant', c: 'contacts', t: 'team' }
 
 export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void | Promise<void> }) {
   const nav = useRoute()

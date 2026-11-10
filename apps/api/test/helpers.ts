@@ -30,11 +30,12 @@ export function appRequest(path: string, init: RequestInit = {}) {
 export type Caller = { headers: Record<string, string> }
 export type User = Caller & { userId: string }
 
-export async function signUp(): Promise<User> {
+/** A new account with a password; its email is not verified. */
+export async function signUp(email = `${uid('user')}@callfront.test`): Promise<User> {
   const res = await appRequest('/api/auth/sign-up/email', {
     method: 'POST',
     headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },
-    body: JSON.stringify({ name: 'Test User', email: `${uid('user')}@callfront.test`, password: 'test-password-1234' }),
+    body: JSON.stringify({ name: 'Test User', email, password: 'test-password-1234' }),
   })
   if (!res.ok) throw new Error(`sign-up failed: ${res.status} ${await res.text()}`)
   const { user } = (await res.json()) as { user: { id: string } }
