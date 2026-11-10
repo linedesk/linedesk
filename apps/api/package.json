@@ -7,7 +7,7 @@
     "start": "tsx --env-file=../../.env src/server.ts",
     "seed": "tsx --env-file=../../.env src/seed.ts",
     "typecheck": "tsc -p .",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@callfront/actions": "workspace:*",

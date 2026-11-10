@@ -1,0 +1,16 @@
+{
+  "name": "@callfront/agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "simulate": "tsx --env-file=../../.env src/simulate.ts",
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@callfront/actions": "workspace:*",
+    "@callfront/db": "workspace:*",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": { "@types/node": "^26.6.6", "tsx": "^4.23.15", "vitest": "^5.1.0" }
+}
