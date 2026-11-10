@@ -2218,7 +2218,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
               var q = p.search, hit = q ? searchHit(c, L, q) : null;
               if (hit && hit.at != null) return h('span', { className: 'r-sum is-hit' }, h('span', { className: 'r-topic' }, hit.f + ' · ' + fmt(hit.at)), ' · ', hl(hit.t, q, 110));
               if (q) return h('span', { className: 'r-sum' }, h('span', { className: 'r-topic' }, hl(callSubject(c, L), q)), ' · ', hl(callSnippet(c, L), q, 160));
-              return h('span', { className: 'r-sum' }, h('span', { className: 'r-topic' }, callSubject(c, L)), ' · ' + callSnippet(c, L));
+              return h('span', { className: 'r-sum' }, h('span', { className: 'r-topic' }, callSubject(c, L)));
             })(),
             h('span', { className: 'r-status' },
               isLive ? h(K.LiveIndicator, { state: 'live', seconds: L.elapsed }) : c.snoozed && !c.done ? h(K.Badge, { tone: 'neutral' }, c.snoozed) : c.booked ? h(K.Badge, { tone: 'neutral' }, 'Booked ' + c.booked) : c.priority === 1 ? h(K.Badge, { tone: 'danger' }, 'Urgent callback') : c.status === 'transferred' ? h(K.Badge, { tone: 'info' }, 'Transferred') : c.status === 'missed' ? h(K.Badge, { tone: 'danger' }, 'Missed') : c.status === 'spam' ? h(K.Badge, { tone: 'neutral' }, 'Blocked') : c.next && p.tab === 'you' ? h('span', { className: 'r-next' }, c.next) : c.result ? h('span', { className: 'r-quiet' }, c.result) : c.direction === 'out' ? h('span', { className: 'r-quiet' }, 'Outbound') : h('span', { className: 'r-quiet' }, c.cat === 'ai' ? 'Resolved by Maya' : c.next || 'Follow-up')),
@@ -2413,7 +2413,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
               return h('div', { key: r.id, role: 'listitem', className: cx('row', 'cust-row', p.cursor === r.id && 'is-cursor'), onClick: function () { p.setCursor(r.id); p.setCustomerId(r.id); }, onMouseMove: function () { if (p.cursor !== r.id) p.setCursor(r.id); } },
                 h('span', { className: 'r-name c-name' }, h('span', null, r.name)),
                 h('span', { className: 'c-cell c-mono c-phone' }, r.phone),
-                h('span', { className: 'c-cell c-sum' }, h('span', { className: 'c-sum-t' }, r.lastSum.split(' · ')[0]), ' · ' + r.lastSum.split(' · ').slice(1).join(' · ')),
+                h('span', { className: 'c-cell c-sum' }, h('span', { className: 'c-sum-t' }, r.lastSum.split(' · ')[0])),
                 h('span', { className: 'c-cell c-last' }, r.last),
                 h('span', { className: 'r-acts' },
                   latest ? rowAct('Latest call', 'phone-in', function () { p.openCall(latest); }) : null,
