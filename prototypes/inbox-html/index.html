@@ -1004,8 +1004,9 @@ mark { background: rgb(250 204 21 / 0.38); color: inherit; border-radius: 2px; p
 .r-act:hover, .r-act:focus-visible { background: transparent; box-shadow: none; color: var(--ink); }
 .k-btn-ghost.k-btn-icon:hover { background: transparent; color: var(--ink); }
 /* Nav: shortcut chips only on hover / keyboard focus */
-.nav-item .k-kbds { visibility: hidden; }
-.nav-item:hover .k-kbds, .nav-item:focus-visible .k-kbds { visibility: visible; }
+.nav-item .k-kbds { display: none; }
+.nav-item:hover .k-kbds, .nav-item:focus-visible .k-kbds { display: inline-flex; }
+.nav-item:hover .nav-live, .nav-item:hover .k-count, .nav-item:focus-visible .nav-live, .nav-item:focus-visible .k-count { display: none; }
 /* Player: draggable playhead */
 .vn-wave:not(.is-live) { cursor: pointer; touch-action: none; }
 .vn-wave.is-drag { cursor: grabbing; }
