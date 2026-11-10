@@ -178,3 +178,23 @@ describe('recording keys', () => {
     expect(c.togglePlayback).not.toHaveBeenCalled()
   })
 })
+
+describe('topmost layer', () => {
+  it('keeps list and call keys away from the list while the navigation is open', () => {
+    const c = context({ navOpen: true })
+    for (const key of ['j', 'k', 'e', 'E', 'h', 'u', '#', 'Enter', 'Tab', '1', '/', 'z']) expect(press(key, c)).toBe(false)
+    expect(c.step).not.toHaveBeenCalled()
+    expect(c.markDone).not.toHaveBeenCalled()
+    expect(c.open).not.toHaveBeenCalled()
+    expect(c.setTab).not.toHaveBeenCalled()
+    press('m', c)
+    expect(c.setNavOpen).toHaveBeenCalledWith(false)
+  })
+  it('lets you type ? in the shortcut sheet\'s search field', () => {
+    const c = context({ overlay: 'help' })
+    expect(press('?', c, { tagName: 'INPUT' })).toBe(false)
+    expect(c.setOverlay).not.toHaveBeenCalled()
+    press('?', c)
+    expect(c.setOverlay).toHaveBeenCalledWith(null)
+  })
+})

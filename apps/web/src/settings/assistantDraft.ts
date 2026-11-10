@@ -24,11 +24,56 @@ export function mergeDraft(draft: Draft, previousSaved: Draft, nextSaved: Draft)
   return merged as Draft
 }
 
-export const isDirty = (draft: Draft, saved: Draft) => !same(draft, saved)
+/** What would be saved: trimmed, without empty services and empty questions. */
+export function normalized(d: Draft): Draft {
+  return {
+    ...d, name: d.name.trim(), greeting: d.greeting.trim(), description: d.description.trim(), service_area: d.service_area.trim(), hours: d.hours.trim(),
+    services: d.services.map(s => s.trim()).filter(Boolean),
+    faqs: d.faqs.map(f => ({ q: f.q.trim(), a: f.a.trim() })).filter(f => f.q || f.a),
+  }
+}
+
+/** Something to save: spaces around a value or an empty row added are not a change. */
+export const isDirty = (draft: Draft, saved: Draft) => !same(normalized(draft), normalized(saved))
+
+/** Unsaved drafts by assistant, kept while the page is closed so leaving it does not drop an edit. */
+const kept = new Map<string, Draft>()
+export const keptDraft = (assistantId: string) => kept.get(assistantId)
+export function keepDraft(assistantId: string, draft: Draft | null) {
+  if (draft) kept.set(assistantId, draft)
+  else kept.delete(assistantId)
+}
+
+/** How long the greeting takes to say, as words for the help line. */
+export function spokenLength(greeting: string): string {
+  const words = greeting.trim().split(/\s+/).filter(Boolean).length
+  if (!words) return 'nothing to say yet'
+  const seconds = Math.max(1, Math.round(words / 2.5))
+  return `about ${seconds} ${seconds === 1 ? 'second' : 'seconds'} spoken`
+}
+
+const DISCLOSURE = /,?\s*(?:the|an|your|a)\s+(?:virtual|AI)\s+assistant\b/i
+export const disclosesAi = (greeting: string) => DISCLOSURE.test(greeting)
+
+/** The greeting with "…, the AI assistant" after the assistant's name, or a sentence that says it. */
+export function withDisclosure(greeting: string, name: string): string {
+  if (disclosesAi(greeting)) return greeting
+  const who = name.trim() || 'the assistant'
+  const named = new RegExp(`(\\bthis is ${who.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'i')
+  if (named.test(greeting)) return greeting.replace(named, '$1, the AI assistant')
+  const sentence = `This is ${who}, the AI assistant.`
+  const firstEnd = greeting.search(/[.!?]\s/)
+  if (firstEnd < 0) return greeting.trim() ? `${greeting.trim()} ${sentence}` : sentence
+  return `${greeting.slice(0, firstEnd + 1)} ${sentence}${greeting.slice(firstEnd + 1)}`
+}
+
+/** The greeting without the AI disclosure. */
+export const withoutDisclosure = (greeting: string) => greeting.replace(DISCLOSURE, '')
 
 /** Why the draft cannot be saved yet, in words for the user; null when it can. */
 export function draftProblem(draft: Draft): string | null {
   if (!draft.name.trim()) return 'The assistant needs a name.'
+  if (!draft.greeting.trim()) return 'The greeting cannot be empty: it is the first thing callers hear.'
   const half = draft.faqs.find(f => !!f.q.trim() !== !!f.a.trim())
   if (half) return half.q.trim() ? `Add an answer to “${half.q.trim()}” or remove the question.` : 'One answer has no question. Add the question or remove it.'
   return null

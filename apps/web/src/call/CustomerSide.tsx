@@ -1,7 +1,7 @@
 import type { Call, Contact } from '@callfront/db/types'
 import { callTitle, formatPhone } from '../inbox-model.ts'
 import { useContact, useRows, useRun } from '../store.tsx'
-import { clock, parseTs, timeLabel } from '../time.ts'
+import { parseTs, shortDuration, timeLabel } from '../time.ts'
 import { Avatar } from '../ui/kit.tsx'
 import { EditableFact } from './EditableFact.tsx'
 
@@ -32,6 +32,7 @@ function Facts({ contact, toast }: { contact: Contact; toast: (text: string) => 
 function PastCalls({ call, onOpen }: Pick<Props, 'call' | 'onOpen'>) {
   const others = useRows('calls')
     .filter(c => c.id !== call.id && !c.deleted_at && (call.contact_id ? c.contact_id === call.contact_id : c.from_number === call.from_number))
+    .filter(c => parseTs(c.started_at) < parseTs(call.started_at)) // earlier calls only
     .sort((a, b) => parseTs(b.started_at).getTime() - parseTs(a.started_at).getTime())
   return (
     <div className="side-sec">
@@ -39,7 +40,7 @@ function PastCalls({ call, onOpen }: Pick<Props, 'call' | 'onOpen'>) {
       {others.map(c => (
         <button key={c.id} type="button" className="side-call" onClick={() => onOpen(c)}>
           <span className="sc-top"><b>{callTitle(c)}</b><span className="mono">{timeLabel(parseTs(c.started_at))}</span></span>
-          <span className="sc-sub">{c.direction === 'out' ? 'Outbound' : 'Inbound'} · {c.status === 'live' ? 'live' : clock(c.duration_sec ?? 0)}</span>
+          <span className="sc-sub">{c.direction === 'out' ? 'Outbound' : 'Inbound'} · {c.status === 'live' ? 'live' : c.duration_sec ? shortDuration(c.duration_sec) : '—'}</span>
         </button>
       ))}
       {!others.length && <span className="help">No earlier calls.</span>}

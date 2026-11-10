@@ -2,7 +2,7 @@ import type { Call, TranscriptSegment } from '@callfront/db/types'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { callTitle, formatPhone, hasReminder } from '../inbox-model.ts'
 import { useAssistantName, useContact } from '../store.tsx'
-import { dateTimeLabel, longDuration, parseTs, whenLabel } from '../time.ts'
+import { clock, dateTimeLabel, longDuration, parseTs, whenLabel } from '../time.ts'
 import { Button, Icon } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { LiveCard } from './LiveCard.tsx'
@@ -38,7 +38,9 @@ function answeredBy(call: Call, assistant: string): string {
   return call.answered_by === 'human' ? 'Answered by the team' : `Answered by ${assistant}`
 }
 
-function Bar({ call, index, count, menu, ...on }: Omit<Props, 'segments' | 'search' | 'side'>) {
+type BarProps = Omit<Props, 'segments' | 'search' | 'side'> & { sideOpen: boolean; onToggleSide: () => void }
+
+function Bar({ call, index, count, menu, sideOpen, onToggleSide, ...on }: BarProps) {
   const live = call.status === 'live'
   const done = call.inbox_state === 'done'
   const reminded = hasReminder(call) && !done
@@ -49,6 +51,8 @@ function Bar({ call, index, count, menu, ...on }: Omit<Props, 'segments' | 'sear
       <Button size="sm" variant="ghost" icon="up" title="Previous call (K)" aria-label="Previous call" disabled={index <= 0} onClick={() => on.onStep(-1)} />
       <Button size="sm" variant="ghost" icon="down" title="Next call (J)" aria-label="Next call" disabled={index >= count - 1} onClick={() => on.onStep(1)} />
       {index > -1 && <span className="cv-pos">{index + 1} of {count}</span>}
+      {/* Narrow windows have no room for the caller panel next to the call: it opens as a sheet. */}
+      <Button size="sm" variant="ghost" icon="user" className="cv-caller-btn" aria-label="Caller" aria-expanded={sideOpen} title="Caller" onClick={onToggleSide} />
       {!live && (
         <div className="cv-acts">
           {reminded && <Button size="sm" variant="ghost" shortcut={['⇧', 'H']} title="Clear reminder (⇧H)" onClick={() => on.onClearReminder(call)}>Clear reminder</Button>}
@@ -102,10 +106,17 @@ function useFollowLive(live: boolean, segmentCount: number) {
 
 /** One call, full width: what it was about, the conversation, and the caller on the side. Mount with key={call.id} so each call starts at the top. */
 export function CallView({ call, segments, search, side, ...bar }: Props) {
+  const [sideOpen, setSideOpen] = useState(false)
   const assistant = useAssistantName()
   const contact = useContact(call.contact_id)
   const live = call.status === 'live'
   const { ref: scrollRef, onScroll } = useFollowLive(live, segments.length)
+  // When the call ends, title and summary appear at the top: bring them into view.
+  const wasLive = useRef(live)
+  useEffect(() => {
+    if (wasLive.current && !live) scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+    wasLive.current = live
+  }, [live, scrollRef])
   useEffect(() => {
     if (search) scrollRef.current?.querySelector('.k-bubble mark')?.scrollIntoView({ block: 'center' })
   }, [search, scrollRef])
@@ -114,8 +125,8 @@ export function CallView({ call, segments, search, side, ...bar }: Props) {
 
   return (
     <div className="cv">
-      <Bar call={call} {...bar} />
-      <div className="cv-main">
+      <Bar call={call} {...bar} sideOpen={sideOpen} onToggleSide={() => setSideOpen(!sideOpen)} />
+      <div className="cv-main" data-side={sideOpen ? 'open' : undefined}>
         <div className="cv-center">
           <div className="cv-scroll" ref={scrollRef} onScroll={onScroll}>
             <div className="cv-col">
@@ -129,7 +140,11 @@ export function CallView({ call, segments, search, side, ...bar }: Props) {
                     <b>Transcript</b><span>{turns} {turns === 1 ? 'turn' : 'turns'}{live ? ' · live' : ''}</span>
                     <Button size="sm" variant="ghost" aria-expanded={transcriptOpen} onClick={() => setTranscriptOpen(!transcriptOpen)}>{transcriptOpen ? 'Collapse' : 'Expand'}</Button>
                   </div>
-                  {transcriptOpen && <Transcript segments={segments} callerName={contact?.name ?? 'Caller'} assistantName={assistant} search={search} />}
+                  {transcriptOpen && (
+                    <Transcript segments={segments} callerName={contact?.name ?? 'Caller'} assistantName={assistant} search={search}
+                      start={{ time: clock(0), label: `Incoming call, ${call.answered_by === 'human' ? 'the team' : assistant} answered` }}
+                      end={live ? null : { time: clock(call.duration_sec ?? Math.max(0, ...segments.map(s => s.at_ms / 1000))), label: call.outcome === 'hangup' ? 'Caller hung up' : 'Call ended' }} />
+                  )}
                 </>
               ) : !live && (
                 <div className="empty">

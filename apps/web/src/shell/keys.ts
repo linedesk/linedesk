@@ -106,8 +106,15 @@ export function handleKey(e: KeyboardEvent, c: KeyContext): boolean {
   const k = e.shiftKey && e.key.length === 1 ? e.key.toUpperCase() : e.key // ⇧E is 'E' whatever the layout reports
   if ((e.metaKey || e.ctrlKey) && k.toLowerCase() === 'k') { c.setOverlay(c.overlay === 'commands' ? null : 'commands'); return true }
   if (k === 'Escape') { onEscape(el, c); return false }
-  if (c.overlay) { if (c.overlay === 'help' && k === '?') c.setOverlay(null); return false }
+  if (c.overlay) { if (c.overlay === 'help' && k === '?' && !isTyping(el)) c.setOverlay(null); return false }
   if (isTyping(el) || activatesControl(k, el) || e.metaKey || e.ctrlKey || e.altKey) return false
+  // The open navigation is the topmost layer: list and call keys stay with it (it has its own arrows and Tab).
+  if (c.navOpen) {
+    if (k === 'm' || k === 'M') c.setNavOpen(false)
+    else if (k === '?') c.setOverlay('help')
+    else return false
+    return true
+  }
   if (k === 'Tab') return c.onInbox && !c.navOpen && onInboxTab(el, e.shiftKey, c)
   if (Date.now() < chordUntil) { chordUntil = 0; return c.goChord(k.toLowerCase()) }
   if (k === 'g' || k === 'G') { chordUntil = Date.now() + CHORD_MS; return true }

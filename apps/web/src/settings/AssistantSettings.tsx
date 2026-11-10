@@ -4,24 +4,27 @@ import type { Assistant } from '@callfront/db/types'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useAssistant, useRun } from '../store.tsx'
 import { Button } from '../ui/kit.tsx'
-import { type Draft, draftOf, draftProblem, isDirty, mergeDraft, profileOf } from './assistantDraft.ts'
+import { type Draft, draftOf, draftProblem, isDirty, keepDraft, keptDraft, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure } from './assistantDraft.ts'
 import { Field, RemoveButton, replaceAt, Section, SwitchRow, TextArea, TextInput, without } from './fields.tsx'
 
 type SectionProps = { draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void }
 
-const WORDS_PER_SECOND = 2.5
-
 function Greeting({ draft, set }: SectionProps) {
-  const seconds = Math.max(1, Math.round(draft.greeting.split(/\s+/).length / WORDS_PER_SECOND))
+  const name = draft.name.trim() || 'The assistant'
+  /** The switch and the greeting say the same thing: turning it on or off adds or removes the disclosure. */
+  function disclose(on: boolean) {
+    set('disclose_ai', on)
+    set('greeting', on ? withDisclosure(draft.greeting, draft.name) : withoutDisclosure(draft.greeting))
+  }
   return (
     <Section id="as-greeting" title="Greeting" description="The first sentence of every call.">
       <div className="row2"><Field id="as-name" label="Assistant name"><TextInput id="as-name" value={draft.name} onChange={v => set('name', v)} /></Field></div>
       <Field id="as-greet" label="Greeting" >
         <TextArea id="as-greet" value={draft.greeting} onChange={v => set('greeting', v)} />
-        <span className="help">{draft.greeting.length} characters · about {seconds} seconds spoken</span>
+        <span className="help">{draft.greeting.trim().length} characters · {spokenLength(draft.greeting)}</span>
       </Field>
-      <SwitchRow title="Tell callers it's an AI assistant" on={draft.disclose_ai} onChange={v => set('disclose_ai', v)}
-        description={draft.disclose_ai ? `${draft.name || 'The assistant'} says it is a virtual assistant in the greeting.` : 'Some states require disclosure. We recommend leaving this on.'} />
+      <SwitchRow title="Tell callers it's an AI assistant" on={draft.disclose_ai} onChange={disclose}
+        description={draft.disclose_ai ? `${name} says it is an AI assistant in the greeting.` : 'Some states require disclosure. We recommend leaving this on.'} />
     </Section>
   )
 }
@@ -91,8 +94,10 @@ function Form({ assistant, canEdit, toast }: Props & { assistant: Assistant }) {
   const run = useRun()
   const savedJson = JSON.stringify(draftOf(assistant))
   const saved = useMemo(() => JSON.parse(savedJson) as Draft, [savedJson])
-  const [draft, setDraft] = useState(saved)
+  const [draft, setDraft] = useState(() => keptDraft(assistant.id) ?? saved) // an edit left unsaved earlier comes back
   const mergedFrom = useRef(saved)
+  const dirty = isDirty(draft, saved)
+  useEffect(() => keepDraft(assistant.id, dirty ? draft : null), [assistant.id, draft, dirty])
   useEffect(() => {
     // A change from elsewhere: untouched fields follow it, the user's unsaved edits stay.
     const previous = mergedFrom.current
@@ -105,10 +110,12 @@ function Form({ assistant, canEdit, toast }: Props & { assistant: Assistant }) {
     e.preventDefault()
     const problem = draftProblem(draft)
     if (problem) return toast(problem)
+    const clean = normalized(draft)
     void run('assistant.update', {
-      assistantId: assistant.id, name: draft.name.trim(), greeting: draft.greeting.trim(), disclose_ai: draft.disclose_ai,
-      business_profile: profileOf(draft, assistant.business_profile),
+      assistantId: assistant.id, name: clean.name, greeting: clean.greeting, disclose_ai: clean.disclose_ai,
+      business_profile: profileOf(clean, assistant.business_profile),
     })
+    setDraft(clean) // the form shows what was saved, so it is not "dirty" any more
     toast('Assistant settings saved.')
   }
 
@@ -121,8 +128,9 @@ function Form({ assistant, canEdit, toast }: Props & { assistant: Assistant }) {
         <Hours draft={draft} set={set} />
       </fieldset>
       <div className="save-bar st-save">
-        <span className="help">{canEdit ? 'Changes apply to the next call.' : 'Only owners and admins can change these settings.'}</span>
-        <Button type="submit" variant="primary" disabled={!canEdit || !isDirty(draft, saved)}>Save</Button>
+        <span className="help">{!canEdit ? 'Only owners and admins can change these settings.' : dirty ? 'Unsaved changes. They stay here until you save or discard them.' : 'Changes apply to the next call.'}</span>
+        {canEdit && dirty && <Button variant="ghost" onClick={() => setDraft(saved)}>Discard</Button>}
+        <Button type="submit" variant="primary" disabled={!canEdit || !dirty}>Save</Button>
       </div>
     </form>
   )

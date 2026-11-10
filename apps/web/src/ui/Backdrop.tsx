@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useFocusTrap } from './useFocusTrap.ts'
 
 /**
@@ -7,7 +7,8 @@ import { useFocusTrap } from './useFocusTrap.ts'
  */
 export function Backdrop({ onClose, children }: { onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
-  useFocusTrap(ref, true)
+  const [opener] = useState(() => document.activeElement as HTMLElement | null) // before any field inside takes the focus
+  useFocusTrap(ref, true, { restoreTo: opener })
   return (
     <div className="overlay" ref={ref}>
       <button type="button" className="overlay-dismiss" aria-label="Close" tabIndex={-1} onClick={onClose} />

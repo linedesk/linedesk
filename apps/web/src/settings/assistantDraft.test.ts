@@ -1,6 +1,6 @@
 import type { Assistant } from '@callfront/db/types'
 import { describe, expect, it } from 'vitest'
-import { draftOf, draftProblem, isDirty, mergeDraft, profileOf } from './assistantDraft.ts'
+import { disclosesAi, draftOf, draftProblem, isDirty, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure } from './assistantDraft.ts'
 
 const assistant = (over: Partial<Assistant> = {}) => ({
   id: 'as1', name: 'Maya', greeting: 'Hello', disclose_ai: true,
@@ -38,5 +38,40 @@ describe('assistant draft', () => {
     expect(draftProblem({ ...base, faqs: [{ q: '', a: 'Yes.' }] })).toContain('no question')
     expect(draftProblem({ ...base, faqs: [{ q: '', a: '' }] })).toBeNull() // an empty row is just dropped
     expect(draftProblem({ ...base, name: ' ' })).toBe('The assistant needs a name.')
+  })
+})
+
+describe('saving the assistant', () => {
+  const saved = draftOf(assistant())
+  it('does not count spaces or an empty row as a change, and is clean after a save', () => {
+    expect(isDirty({ ...saved, services: [...saved.services, ''] }, saved)).toBe(false)
+    expect(isDirty({ ...saved, name: ' Maya ' }, saved)).toBe(false)
+    expect(isDirty({ ...saved, faqs: [...saved.faqs, { q: '', a: '' }] }, saved)).toBe(false)
+    const edited = { ...saved, services: [...saved.services, '  QA test service  '] }
+    expect(isDirty(edited, saved)).toBe(true)
+    const afterSave = draftOf(assistant({ business_profile: profileOf(normalized(edited), assistant().business_profile) }))
+    expect(isDirty(normalized(edited), afterSave)).toBe(false)
+  })
+  it('requires a greeting and says one second, not "1 seconds"', () => {
+    expect(draftProblem({ ...saved, greeting: '   ' })).toContain('greeting')
+    expect(spokenLength('Hi.')).toBe('about 1 second spoken')
+    expect(spokenLength('  ')).toBe('nothing to say yet')
+    expect(spokenLength('Thanks for calling Brightwater, this is Maya. How can I help?')).toBe('about 4 seconds spoken')
+  })
+})
+
+describe('AI disclosure in the greeting', () => {
+  const greeting = 'Thanks for calling Brightwater Plumbing & Heating. This is Maya, the AI assistant. How can I help?'
+  it('removes and adds it back where the name is', () => {
+    const off = withoutDisclosure(greeting)
+    expect(off).toBe('Thanks for calling Brightwater Plumbing & Heating. This is Maya. How can I help?')
+    expect(disclosesAi(off)).toBe(false)
+    expect(withDisclosure(off, 'Maya')).toBe(greeting)
+  })
+  it('adds a sentence when the greeting does not name the assistant', () => {
+    expect(withDisclosure('Thanks for calling. How can I help?', 'Maya')).toBe('Thanks for calling. This is Maya, the AI assistant. How can I help?')
+    expect(withDisclosure('', 'Maya')).toBe('This is Maya, the AI assistant.')
+    expect(withDisclosure(greeting, 'Maya')).toBe(greeting) // already says it
+    expect(withoutDisclosure('Hi, this is Maya, a virtual assistant.')).toBe('Hi, this is Maya.')
   })
 })

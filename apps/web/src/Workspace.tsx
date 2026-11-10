@@ -10,7 +10,7 @@ import { Inbox } from './inbox/Inbox.tsx'
 import type { ReminderOption } from './inbox/remind.ts'
 import { useCallActions } from './inbox/useCallActions.ts'
 import { useInboxView } from './inbox/useInboxView.ts'
-import { callerName, type InboxTab } from './inbox-model.ts'
+import { callerName, callTitle, type InboxTab } from './inbox-model.ts'
 import { commandGroups, type Command } from './shell/commands.ts'
 import type { Overlay } from './shell/keys.ts'
 import { MenuButton, Nav } from './shell/Nav.tsx'
@@ -22,7 +22,7 @@ import { useKeyboard } from './shell/useKeyboard.ts'
 import { useRoute } from './shell/useRoute.ts'
 import { useSignOut } from './shell/useSignOut.ts'
 import { useToast, type Source } from './shell/useToast.ts'
-import { useRejection } from './store.tsx'
+import { useAssistantName, useRejection } from './store.tsx'
 import type { SelectVia } from './ui/CommandMenu.tsx'
 import { ErrorBoundary } from './ui/ErrorBoundary.tsx'
 import { cx } from './ui/kit.tsx'
@@ -33,6 +33,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   const nav = useRoute()
   const toaster = useToast()
   const view = useInboxView(nav)
+  const assistantName = useAssistantName()
   const [overlay, setOverlay] = useState<Overlay>(null)
   const [navOpen, setNavOpen] = useState(false)
   const remindFor = useRef<{ call: Call; source: Source } | null>(null)
@@ -82,6 +83,21 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
     nav.backToInbox()
   }, [lost, toaster.show, nav.backToInbox])
 
+  // The keyboard cursor wins over a resting mouse: while keys are used, hover does not highlight a second row.
+  useEffect(() => {
+    const root = document.documentElement
+    const keys = (e: KeyboardEvent) => { if (!e.metaKey && !e.ctrlKey) root.dataset.input = 'keys' }
+    const mouse = (e: MouseEvent) => { if (e.movementX || e.movementY) root.dataset.input = 'mouse' }
+    window.addEventListener('keydown', keys, true)
+    window.addEventListener('mousemove', mouse, true)
+    return () => { window.removeEventListener('keydown', keys, true); window.removeEventListener('mousemove', mouse, true) }
+  }, [])
+
+  // The browser tab says where you are: the open call's issue, the view or the page.
+  const viewTitles: Record<InboxTab, string> = { you: 'Needs you', ai: `Handled by ${assistantName}`, spam: 'Spam', reminders: 'Reminders', done: 'Done' }
+  const where = nav.route !== 'calls' ? pages[nav.route].title : openCall ? callTitle(openCall) : search !== null ? 'Search' : viewTitles[tab]
+  useEffect(() => { document.title = `${where} · Linedesk` }, [where])
+
   const { rejection, clearRejection } = useRejection()
   useEffect(() => {
     if (!rejection) return
@@ -112,7 +128,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   const menu = <MenuButton open={navOpen} onOpen={() => setNavOpen(true)} />
   return (
     <div className={cx('app', navOpen && 'nav-open')}>
-      <Nav open={navOpen} route={nav.route} tab={tab} unreadCount={view.calls.filter(c => c.unread && !c.deleted_at).length} reminderCount={view.counts.reminders}
+      <Nav open={navOpen} route={nav.route} tab={tab} unreadCount={view.unreadNeedsYou} reminderCount={view.counts.reminders}
         workspaceName={me.workspace!.name} isInstanceAdmin={isInstanceAdmin} onInbox={view.setTab} onPage={goPage} onHelp={() => setOverlay('help')}
         onSignOut={() => void signOut()} onClose={() => setNavOpen(false)} />
       <button type="button" className="scrim" aria-label="Close menu" tabIndex={-1} onClick={() => setNavOpen(false)} />

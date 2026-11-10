@@ -6,13 +6,20 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), texta
  * While active, keeps Tab inside the container, moves focus into it and gives focus back to
  * where it was when it ends. For dialogs and the slide-in navigation.
  */
-export function useFocusTrap(container: RefObject<HTMLElement | null>, active: boolean) {
+type Options = {
+  /** Where focus goes when the trap starts (else the first control). */
+  initial?: string
+  /** Where focus returns when it ends. Taken at render time by the caller: an autofocused field inside has moved it by the time effects run. */
+  restoreTo?: HTMLElement | null
+}
+
+export function useFocusTrap(container: RefObject<HTMLElement | null>, active: boolean, { initial, restoreTo }: Options = {}) {
   useEffect(() => {
     const root = container.current
     if (!active || !root) return
-    const previous = document.activeElement as HTMLElement | null
+    const previous = restoreTo !== undefined ? restoreTo : (document.activeElement as HTMLElement | null)
     const focusable = () => [...root.querySelectorAll<HTMLElement>(FOCUSABLE)]
-    if (!root.contains(document.activeElement)) focusable()[0]?.focus()
+    if (!root.contains(document.activeElement)) ((initial && root.querySelector<HTMLElement>(initial)) || focusable()[0])?.focus()
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== 'Tab') return
@@ -28,5 +35,5 @@ export function useFocusTrap(container: RefObject<HTMLElement | null>, active: b
       root.removeEventListener('keydown', onKeyDown)
       if (previous?.isConnected) previous.focus()
     }
-  }, [container, active])
+  }, [container, active, initial, restoreTo])
 }

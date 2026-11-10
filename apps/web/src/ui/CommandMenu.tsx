@@ -4,7 +4,8 @@ import type { IconName } from './icons.ts'
 import { Icon, Kbd } from './kit.tsx'
 
 /** `hint` is a quiet detail after the label, for example the time behind "Tomorrow morning". */
-export type CommandItem = { label: string; icon?: IconName; shortcut?: string[]; hint?: string }
+/** `keywords` are other words that find the item ("unread" finds "Mark read"). */
+export type CommandItem = { label: string; icon?: IconName; shortcut?: string[]; hint?: string; keywords?: string }
 export type CommandGroup<T extends CommandItem = CommandItem> = { label: string | null; items: T[] }
 export type SelectVia = 'key' | 'mouse'
 
@@ -25,7 +26,7 @@ export function rank<T extends CommandItem>(groups: CommandGroup<T>[], query: st
   const seen = new Set<string>()
   const ranked = groups.flatMap(g => g.items)
     .filter(it => !seen.has(it.label) && seen.add(it.label))
-    .map((it, order) => ({ it, score: commandScore(it.label, query), order }))
+    .map((it, order) => ({ it, score: Math.max(commandScore(it.label, query), it.keywords ? commandScore(it.keywords, query) - 1 : 0), order }))
     .filter(r => r.score)
     .sort((a, b) => b.score - a.score || a.order - b.order)
   return ranked.length ? [{ label: null, items: ranked.map(r => r.it) }] : []

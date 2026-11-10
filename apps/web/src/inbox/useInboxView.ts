@@ -26,6 +26,8 @@ export function useInboxView(nav: RouteApi) {
     return sortForList(hits, false)
   }, [calls, contacts, segments, assistantName, tab, search, now])
   const counts = useMemo(() => countsFor(calls, now), [calls, now])
+  /** The menu's Inbox badge: the unread dots a person sees in Needs you. */
+  const unreadNeedsYou = useMemo(() => listFor(calls, 'you', now).filter(c => c.unread).length, [calls, now])
   const liveCall = useMemo(() => listFor(calls, 'you', now).find(c => c.status === 'live'), [calls, now]) // newest live call
   const [cursorId, setCursor] = useCursor(list)
   const onInbox = nav.route === 'calls'
@@ -77,7 +79,7 @@ export function useInboxView(nav: RouteApi) {
   }
 
   return {
-    calls, contacts, segments, list, counts, liveCall, tab, search, cursorId, openCall, target, onInbox, missingCall,
+    calls, contacts, segments, list, counts, unreadNeedsYou, liveCall, tab, search, cursorId, openCall, target, onInbox, missingCall,
     setTab, setTabState, setCursor, open, showById, step, openSearch, back: nav.closeCall,
     changeSearch: (query: string) => { nav.setView({ tab, search: query }); setCursor(null) },
     closeSearch: () => { nav.setView({ tab, search: null }); setCursor(null) },

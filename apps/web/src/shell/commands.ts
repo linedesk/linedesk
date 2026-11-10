@@ -31,8 +31,8 @@ function callCommands(call: Call, c: CommandContext): Command[] {
     done ? { label: 'Mark not done', icon: 'restart', shortcut: ['⇧', 'E'], run: () => c.markNotDone(call) } : { label: 'Mark done', icon: 'check', shortcut: ['E'], run: () => c.markDone(call) },
     { label: 'Remind me', icon: 'clock', shortcut: ['H'], run: () => c.openRemind(call) },
     ...(hasReminder(call) && !done ? [{ label: 'Clear reminder', icon: 'restart', shortcut: ['⇧', 'H'], run: () => c.clearReminder(call) } satisfies Command] : []),
-    { label: call.unread ? 'Mark read' : 'Mark unread', icon: 'checks', shortcut: ['U'], run: () => c.toggleUnread(call) },
-    { label: 'Delete call', icon: 'trash', shortcut: ['#'], run: () => c.remove(call) },
+    { label: call.unread ? 'Mark read' : 'Mark unread', keywords: 'read unread', icon: 'checks', shortcut: ['U'], run: () => c.toggleUnread(call) },
+    { label: 'Delete call', keywords: 'remove trash', icon: 'trash', shortcut: ['#'], run: () => c.remove(call) },
   ]
 }
 

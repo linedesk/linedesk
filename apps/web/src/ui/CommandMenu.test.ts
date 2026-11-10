@@ -26,6 +26,14 @@ describe('command matching', () => {
   })
 })
 
+describe('command keywords', () => {
+  it('finds an item by its other words, ranked below a label match', () => {
+    const groups = [{ label: null, items: [{ label: 'Mark read', keywords: 'read unread' }, { label: 'Undo' }] }]
+    expect(rank(groups, 'unread')[0]!.items.map(i => i.label)).toEqual(['Mark read'])
+    expect(rank(groups, 'un')[0]!.items.map(i => i.label)).toEqual(['Undo', 'Mark read'])
+  })
+})
+
 describe('uniqueKeys', () => {
   it('numbers repeated texts so React keys stay unique', () => {
     expect(uniqueKeys(['Call back', 'Send quote', 'Call back', 'Call back'])).toEqual(['Call back', 'Send quote', 'Call back#2', 'Call back#3'])

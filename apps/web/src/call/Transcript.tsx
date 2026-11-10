@@ -5,22 +5,31 @@ import { clock } from '../time.ts'
 import type { IconName } from '../ui/icons.ts'
 import { cx, Icon } from '../ui/kit.tsx'
 
-type Props = { segments: TranscriptSegment[]; callerName: string; assistantName: string; search: string | null }
+type Props = {
+  segments: TranscriptSegment[]
+  callerName: string
+  assistantName: string
+  search: string | null
+  /** Where the call began and how it ended, as the first and last line. */
+  start: { time: string; label: string }
+  end: { time: string; label: string } | null
+}
 
 const toolIcons: Record<string, IconName> = { 'call.flagUrgent': 'spark', 'call.takeMessage': 'message' }
+
+/** A line between the bubbles: the call's start or end, or something the assistant did. */
+function EventLine({ icon, label, time }: { icon: IconName | null; label: string; time: string }) {
+  return (
+    <div className="k-event" role="note">
+      <span className="k-event-in">{icon && <Icon name={icon} size={14} />}<span>{label}</span><time>{time}</time></span>
+    </div>
+  )
+}
 
 /** A system or tool line between the bubbles, e.g. "Flagged urgent". */
 function CallEvent({ segment }: { segment: TranscriptSegment }) {
   const icon = segment.tool_event ? toolIcons[segment.tool_event.tool] ?? 'spark' : null
-  return (
-    <div className="k-event" role="note">
-      <span className="k-event-in">
-        {icon && <Icon name={icon} size={14} />}
-        <span>{segment.tool_event?.label ?? segment.text}</span>
-        <time>{clock(segment.at_ms / 1000)}</time>
-      </span>
-    </div>
-  )
+  return <EventLine icon={icon} label={segment.tool_event?.label ?? segment.text} time={clock(segment.at_ms / 1000)} />
 }
 
 function Bubble({ fromCaller, author, time, children }: { fromCaller: boolean; author: string | null; time: string; children: ReactNode }) {
@@ -37,11 +46,12 @@ function Bubble({ fromCaller, author, time, children }: { fromCaller: boolean; a
 }
 
 /** The conversation in spoken order. The speaker's name shows when the speaker changes. */
-export function Transcript({ segments, callerName, assistantName, search }: Props) {
+export function Transcript({ segments, callerName, assistantName, search, start, end }: Props) {
   const names: Record<string, string> = { caller: callerName, agent: assistantName, human: 'Team' }
   let previous: string | null = null
   return (
     <div>
+      <EventLine icon="phone-in" label={start.label} time={start.time} />
       {segments.map(s => {
         if (s.speaker === 'system') { previous = null; return <CallEvent key={s.id} segment={s} /> }
         const speakerChanged = previous !== s.speaker
@@ -52,6 +62,7 @@ export function Transcript({ segments, callerName, assistantName, search }: Prop
           </Bubble>
         )
       })}
+      {end && <EventLine icon="phone-off" label={end.label} time={end.time} />}
     </div>
   )
 }

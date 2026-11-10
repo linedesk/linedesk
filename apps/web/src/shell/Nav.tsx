@@ -33,7 +33,7 @@ function NavItem({ label, icon, keys, current, sub, badge, onClick }: { label: s
 /** Slide-in navigation: opens from ☰ or M; closes with Esc, the close button, a click outside or after choosing. */
 export function Nav({ open, route, tab, unreadCount, reminderCount, workspaceName, isInstanceAdmin, onClose, ...on }: Props) {
   const ref = useRef<HTMLElement>(null)
-  useFocusTrap(ref, open) // focus moves in when it opens and back when it closes
+  useFocusTrap(ref, open, { initial: '.nav-item[aria-current="page"]' }) // opens on the current page, gives focus back when it closes
   const userName = auth.useSession().data?.user.name ?? ''
   const go = (run: () => void) => () => { onClose(); run() }
   const onCalls = route === 'calls'
