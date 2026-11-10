@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log.ts'
 import { callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
+import { earlyOrigin, livekitParticipants } from './early-origin.ts'
 import { createConfigLoader, parseProviderSettings, type AgentConfig } from './config.ts'
 import { AGENT_NAME, requireEnv, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness } from './not-ready.ts'
@@ -149,20 +150,26 @@ function setupTimer(startedAt = Date.now()) {
 
 async function entry(ctx: JobContext) {
   const setup = setupTimer()
-  await ctx.connect()
-  setup.mark('connected')
   // A room the call-test command dialled out of: this agent plays the caller, not the business.
   const testCaller = parseTestCallerMetadata(ctx.job.metadata)
-  if (testCaller) return runAsTestCaller(ctx, testCaller)
+  if (testCaller) {
+    await ctx.connect()
+    return runAsTestCaller(ctx, testCaller)
+  }
+  const api = apiClientFromEnv()
+  // The call is registered while the agent joins the room when its origin is known already;
+  // a failure there is not final: it is registered again the normal way after joining.
+  const early = registerEarly(ctx, api)
+  await ctx.connect()
+  setup.mark('connected')
   // Checked at every call: until the providers are configured the call is logged as missed and ended.
   // Started now, so the config lookup overlaps with waiting for the caller and registering the call.
   const ready = checkReadiness(loadAgentConfig)
   // A test call's caller may be our own test-caller agent (no-phone call test), which LiveKit's own wait skips.
   const caller = parseTestMetadata(ctx.job.metadata) ? await waitForCounterpart(ctx) : await ctx.waitForParticipant()
   setup.mark('caller')
-  const api = apiClientFromEnv()
   const origin = callOrigin(ctx.job.metadata, caller.attributes, ctx.room.name ?? '')
-  const call = await startCall(api, origin)
+  const call = (await early) ?? (await startCall(api, origin))
   setup.mark('registered')
   if (call.blocked) {
     await ctx.deleteRoom() // blocked caller: the API already filed the call in Spam
@@ -194,6 +201,17 @@ async function entry(ctx: JobContext) {
   } catch (e) {
     await finishOnce()
     throw e
+  }
+}
+
+/** call.start for an origin known before joining; null when it is not known or the request failed. */
+async function registerEarly(ctx: JobContext, api: ApiClient): Promise<CallSession | null> {
+  try {
+    const origin = await earlyOrigin(ctx.job.metadata, ctx.job.room?.name ?? '', livekitParticipants())
+    return origin ? await startCall(api, origin) : null
+  } catch (e) {
+    console.warn(`call could not be registered before joining, trying after: ${e instanceof Error ? e.message : String(e)}`)
+    return null
   }
 }
 

@@ -6,12 +6,11 @@ import {
   transcript_segments, workspace_settings, type Tx,
 } from '@callfront/db'
 import { TelephonyError, type TelephonyProvider } from '@callfront/telephony'
-import { and, asc, desc, eq, gt, gte, isNull, lt, lte, ne, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, lt, lte, ne } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, Reject, type Undo } from './handler-context.ts'
 import { telephonyProvider } from './provider-settings.ts'
-import { recordingStoreFromEnv, type RecordingStore } from './recording-store.ts'
 import { startTestCall } from './test-call.ts'
 import { teamHandlers } from './team.ts'
 import { workspaceSettingsHandlers } from './workspace-settings.ts'
@@ -77,44 +76,6 @@ function findSlotsOrReject(input: FindSlotsInput) {
   }
 }
 
-/** A call that is still live after this long lost its agent; nobody will finish it. */
-const STALE_LIVE_CALL_MS = 2 * 60 * 60 * 1000
-
-function completeStaleCalls(tx: Tx, workspace_id: string, now: string) {
-  const cutoff = new Date(Date.parse(now) - STALE_LIVE_CALL_MS).toISOString()
-  return tx.update(calls).set({
-    status: 'completed', ended_at: now,
-    outcome: sql`coalesce(${calls.outcome}, 'answered')`, title: sql`coalesce(${calls.title}, 'Call ended without a summary')`,
-  }).where(and(eq(calls.workspace_id, workspace_id), eq(calls.status, 'live'), lt(calls.started_at, cutoff))).returning()
-}
-
-/** How far back, and how many calls, the reconciliation below looks at per `call.start`. */
-const ORPHAN_RECORDING_WINDOW_MS = 2 * 60 * 60 * 1000
-const ORPHAN_RECORDING_LIMIT = 5
-
-/**
- * Links recordings whose file exists but was never reported: the agent died or ran out of time
- * after hang-up. The key is derived, so this is a lookup per recently finished call.
- * Never fails the call that triggered it.
- */
-async function linkOrphanRecordings(tx: Tx, workspace_id: string, now: string, recordings?: RecordingStore) {
-  const since = new Date(Date.parse(now) - ORPHAN_RECORDING_WINDOW_MS).toISOString()
-  const unlinked = await tx.select({ id: calls.id }).from(calls).where(and(
-    eq(calls.workspace_id, workspace_id), eq(calls.status, 'completed'), isNull(calls.recording_key), gt(calls.ended_at, since),
-  )).orderBy(desc(calls.ended_at)).limit(ORPHAN_RECORDING_LIMIT)
-  if (!unlinked.length) return []
-  try {
-    const store = recordings ?? recordingStoreFromEnv(process.env)
-    const found = await Promise.all(unlinked.map(async ({ id }) => ((await store.exists(recordingKey(workspace_id, id))) ? id : null)))
-    const linked = await Promise.all(found.filter(id => id !== null).map(id =>
-      tx.update(calls).set({ recording_key: recordingKey(workspace_id, id) }).where(eq(calls.id, id)).returning()))
-    return linked.flat()
-  } catch (e) {
-    console.warn(`could not look for unlinked recordings: ${e instanceof Error ? e.message : e}`)
-    return []
-  }
-}
-
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /** A carrier that is selected but not configured is the operator's to fix: say what is missing. */
@@ -176,8 +137,12 @@ async function businessHoursFor(tx: Tx, workspace_id: string, now: string): Prom
 
 type OpenCall = { from: string; to: string; room?: string; source?: 'phone' | 'test'; label: string }
 
-/** Registers a live call in a workspace: finds or creates the caller, opens the call, and does the per-call upkeep. */
-async function openCall({ tx, now, recordings }: Pick<HandlerCtx, 'tx' | 'now' | 'recordings'>, workspace_id: string, { from, to, room, source = 'phone', label }: OpenCall) {
+/**
+ * Registers a live call in a workspace: finds or creates the caller and opens the call. On the path to
+ * the greeting, so it does nothing else: stale calls and unreported recordings are the API's minute
+ * sweeps (stale-calls.ts, orphan-recordings.ts).
+ */
+async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_id: string, { from, to, room, source = 'phone', label }: OpenCall) {
   const [workspace] = await tx.select({ disabledAt: organization.disabledAt }).from(organization).where(eq(organization.id, workspace_id))
   // A phone number always has its workspace; a test call names it, so it has to exist.
   if (!workspace && source === 'test') throw new Reject('no such workspace')
@@ -199,9 +164,7 @@ async function openCall({ tx, now, recordings }: Pick<HandlerCtx, 'tx' | 'now' |
   }).returning()
   const [assistant] = await tx.select().from(assistants).where(eq(assistants.workspace_id, workspace_id))
   const businessHours = await businessHoursFor(tx, workspace_id, now)
-  const stale = await completeStaleCalls(tx, workspace_id, now)
-  const linked = await linkOrphanRecordings(tx, workspace_id, now, recordings)
-  return { rows: { calls: [call!, ...stale, ...linked], contacts: [contact!] }, data: { callId: id, workspaceId: workspace_id, isNewContact, contact: contact!, assistant: assistant ?? null, blocked, businessHours } }
+  return { rows: { calls: [call!], contacts: [contact!] }, data: { callId: id, workspaceId: workspace_id, isNewContact, contact: contact!, assistant: assistant ?? null, blocked, businessHours } }
 }
 
 /** A call from a blocked number: over before it began, read, in Spam. */
@@ -251,16 +214,16 @@ const handlers: Record<string, Handler> = {
     return { rows: { contacts: [contact!] }, data: { contactId: contact!.id } }
   },
 
-  'call.start': async ({ tx, now, recordings }, input) => {
+  'call.start': async ({ tx, now }, input) => {
     const [number] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, input.to))
     if (!number) throw new Reject(`no workspace for number ${input.to}`)
-    return openCall({ tx, now, recordings }, number.workspace_id, { from: input.from, to: input.to, room: input.room, label: input.to })
+    return openCall({ tx, now }, number.workspace_id, { from: input.from, to: input.to, room: input.room, label: input.to })
   },
 
   // The agent only knows the workspace from the dispatch the API signed (assistant.startTestCall).
-  'call.startTest': async ({ tx, actor, now, recordings }, input) => {
+  'call.startTest': async ({ tx, actor, now }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace (send x-workspace-id)')
-    return openCall({ tx, now, recordings }, actor.workspaceId, { from: testCallContact.phone, to: testCallContact.phone, room: input.room, source: 'test', label: 'this test call' })
+    return openCall({ tx, now }, actor.workspaceId, { from: testCallContact.phone, to: testCallContact.phone, room: input.room, source: 'test', label: 'this test call' })
   },
 
   'call.findForTest': async ({ tx }, input) => {

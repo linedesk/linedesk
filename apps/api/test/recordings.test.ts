@@ -8,6 +8,8 @@ import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { app } from '../src/app.ts'
 import { db } from '../src/db.ts'
+import { linkOrphanRecordings } from '../src/orphan-recordings.ts'
+import { recordingStoreFromEnv } from '../src/recording-store.ts'
 import { act, agent, anonymous, createWorkspace, getCall, randomNumber, type Caller, type Workspace } from './helpers.ts'
 
 const audio = Uint8Array.from({ length: 1000 }, (_, i) => i % 256)
@@ -93,7 +95,7 @@ test('only the key that belongs to the call is served, whatever the column holds
   expect((await recording(ws.owner, ws.call.id)).status).toBe(200)
 })
 
-test('call.start links a recording file that was never reported', async () => {
+test('the sweep links a recording file that was never reported, and nothing else', async () => {
   const start = () => act(agent(), 'call.start', { from: randomNumber(), to: other.number })
   const reported = (await start()).body.data.callId as string
   const lost = (await start()).body.data.callId as string
@@ -103,7 +105,11 @@ test('call.start links a recording file that was never reported', async () => {
   await writeRecording(`${other.id}/${live}.ogg`) // still being written: the call is live
 
   const { body } = await start()
-  expect(body.rows.calls.map((c: { id: string }) => c.id)).toEqual([body.data.callId, lost])
+  expect(body.rows.calls.map((c: { id: string }) => c.id)).toEqual([body.data.callId]) // not on the call's path
+  expect((await getCall(lost))?.recording_key).toBeNull()
+  const linked = await linkOrphanRecordings(db, recordingStoreFromEnv(process.env))
+  expect(linked).toContain(lost)
+  expect(linked).not.toContain(reported)
   expect((await getCall(lost))?.recording_key).toBe(`${other.id}/${lost}.ogg`)
   expect((await getCall(reported))?.recording_key).toBeNull()
   expect((await getCall(live))?.recording_key).toBeNull()

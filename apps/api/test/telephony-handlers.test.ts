@@ -234,17 +234,15 @@ describe('telephony handlers', () => {
     await expect(run(tx, agent, 'call.finish', { callId })).rejects.toThrow('send x-workspace-id')
   }))
 
-  test('call.start completes calls of the workspace that have been live for hours', () => inRollback(async tx => {
+  test('call.start only opens its own call: old live calls are left to the stale call sweep', () => inRollback(async tx => {
     await run(tx, owner, 'phoneNumber.setup', { e164: '+15035550998' })
     const start = () => run(tx, agent, 'call.start', { from: '+15035550111', to: '+15035550998' })
     const lost = (await start()).data!.callId as string
-    const recent = (await start()).data!.callId as string
     await tx.update(calls).set({ started_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString() }).where(eq(calls.id, lost))
 
-    const { rows } = await start()
-    expect(rows.calls).toHaveLength(2)
-    expect(rows.calls?.[1]).toMatchObject({ id: lost, status: 'completed', outcome: 'answered', title: 'Call ended without a summary' })
-    const [stillLive] = await tx.select().from(calls).where(eq(calls.id, recent))
-    expect(stillLive?.status).toBe('live')
+    const { rows, data } = await start()
+    expect(rows.calls?.map(c => c.id)).toEqual([data!.callId])
+    const [untouched] = await tx.select().from(calls).where(eq(calls.id, lost))
+    expect(untouched?.status).toBe('live')
   }))
 })
