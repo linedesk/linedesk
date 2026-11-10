@@ -1,9 +1,10 @@
 // Settings › Assistant, Business hours (optional): when the office is open, per weekday. The voice
 // agent gets them with each call, so outside them the assistant can say the office is closed, take a
-// message and say when someone calls back. Saved as a whole with businessHours.set.
+// message and say when someone calls back. Part of the Assistant page's one draft: its Save runs
+// businessHours.set when the hours changed.
 import type { BusinessHoursSpan, WorkspaceSettingsData } from '@callfront/actions'
 import { useEffect, useState } from 'react'
-import { useAssistantName, useRun } from '../store.tsx'
+import { useRun } from '../store.tsx'
 import { Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Button } from '../ui/kit.tsx'
 import { Section } from './fields.tsx'
@@ -12,6 +13,7 @@ import {
   dayRows,
   DEFAULT_SPAN,
   hoursChanged,
+  hoursProblem,
   spansOf,
   timeOptions,
   WEEK_ORDER,
@@ -22,15 +24,15 @@ const DAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
 const startOptions: SelectOption<string>[] = timeOptions.filter(o => o.value !== '24:00')
 const endOptions: SelectOption<string>[] = timeOptions.filter(o => o.value !== '00:00')
 
-type Props = { canEdit: boolean; toast: (text: string) => void }
+/** The hours as part of a page draft: loaded once, edited locally, saved with the rest of the page. */
+export type HoursDraft = ReturnType<typeof useBusinessHours>
 
-export function BusinessHours({ canEdit, toast }: Props) {
+export function useBusinessHours() {
   const run = useRun()
-  const name = useAssistantName()
   const [saved, setSaved] = useState<BusinessHoursSpan[] | null>(null)
   const [days, setDays] = useState<DayHours[]>([])
   const [timeZone, setTimeZone] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   useEffect(() => {
     readAction<WorkspaceSettingsData>('workspace.getSettings').then(
       data => {
@@ -38,12 +40,36 @@ export function BusinessHours({ canEdit, toast }: Props) {
         setDays(dayRows(data.businessHours))
         setTimeZone(data.timeZone)
       },
-      (e: Error) => setError(e.message),
+      (e: Error) => setLoadError(e.message),
     )
   }, [])
+  const dirty = saved !== null && hoursChanged(saved, days)
+  return {
+    saved,
+    days,
+    timeZone,
+    loadError,
+    dirty,
+    problem: dirty ? hoursProblem(days) : null,
+    set: (weekday: number, change: Partial<DayHours>) =>
+      setDays(all => all.map(d => (d.weekday === weekday ? { ...d, ...change } : d))),
+    clear: () => setDays(dayRows([])),
+    discard: () => saved && setDays(dayRows(saved)),
+    /** Runs businessHours.set when the hours changed; call only when `problem` is null. */
+    save: () => {
+      if (!dirty) return
+      const hours = spansOf(days)
+      void run('businessHours.set', { hours })
+      setSaved(hours)
+      setDays(dayRows(hours))
+    },
+  }
+}
 
-  const set = (weekday: number, change: Partial<DayHours>) =>
-    setDays(all => all.map(d => (d.weekday === weekday ? { ...d, ...change } : d)))
+type Props = { hours: HoursDraft; canEdit: boolean; name: string }
+
+export function BusinessHours({ hours, canEdit, name }: Props) {
+  const { saved, days, timeZone, loadError, problem, set } = hours
   function toggle(weekday: number, open: boolean) {
     // A day that opens takes the hours of the day before it, else 8:00 AM–5:00 PM.
     const before = [...days].reverse().find(d => d.open && d.weekday !== weekday)
@@ -52,32 +78,16 @@ export function BusinessHours({ canEdit, toast }: Props) {
       open ? { open, start: before?.start ?? DEFAULT_SPAN.start, end: before?.end ?? DEFAULT_SPAN.end } : { open },
     )
   }
-  function save(next: DayHours[]) {
-    const hours = spansOf(next)
-    if (hours.some(h => h.end <= h.start)) return setError('Each open day needs a closing time after its opening time.')
-    setError(null)
-    void run('businessHours.set', { hours })
-    setSaved(hours)
-    setDays(dayRows(hours))
-    toast(hours.length ? 'Business hours saved.' : 'Business hours cleared.')
-  }
 
   const description = `Optional. Outside these hours ${name} tells callers the office is closed, takes a message and says when someone will call back.`
-  if (error && !saved)
-    return (
-      <Section id="as-hours" title="Business hours" description={description}>
-        <p className="help" role="alert">
-          {error}
-        </p>
-      </Section>
-    )
   if (!saved)
     return (
       <Section id="as-hours" title="Business hours" description={description}>
-        <p className="help">Loading…</p>
+        <p className="help" role={loadError ? 'alert' : undefined}>
+          {loadError ?? 'Loading…'}
+        </p>
       </Section>
     )
-  const dirty = hoursChanged(saved, days)
   return (
     <Section id="as-hours" title="Business hours" description={description}>
       <div className="st-list" role="group" aria-label="Opening hours by day">
@@ -119,31 +129,21 @@ export function BusinessHours({ canEdit, toast }: Props) {
           )
         })}
       </div>
-      {error && (
+      {problem && (
         <p className="field-error" role="alert">
-          {error}
+          {problem}
         </p>
       )}
       <div className="st-hours-foot">
         <span className="help">{timeZone ? `Times in ${timeZone.replaceAll('_', ' ')}.` : ''}</span>
-        {canEdit && saved.length > 0 && (
+        {canEdit && days.some(d => d.open) && (
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => save(dayRows([]))}
-            title="Remove all hours: the assistant then says nothing about opening times"
+            onClick={hours.clear}
+            title="Close every day: the assistant then says nothing about opening times. Saved with Save."
           >
             Clear hours
-          </Button>
-        )}
-        {canEdit && dirty && (
-          <Button size="sm" variant="ghost" onClick={() => setDays(dayRows(saved))}>
-            Discard
-          </Button>
-        )}
-        {canEdit && (
-          <Button size="sm" variant="primary" disabled={!dirty} onClick={() => save(days)}>
-            Save hours
           </Button>
         )}
       </div>

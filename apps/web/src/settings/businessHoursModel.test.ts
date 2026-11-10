@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { dayRows, hoursChanged, spansOf, timeOptionLabel, timeOptions } from './businessHoursModel.ts'
+import { dayRows, hoursChanged, hoursProblem, spansOf, timeOptionLabel, timeOptions } from './businessHoursModel.ts'
 
 const weekdays = [1, 2, 3, 4, 5].map(weekday => ({ weekday, start: '07:00', end: '18:00' }))
 
@@ -35,4 +35,12 @@ test('half-hour options from midnight to midnight', () => {
   expect(timeOptionLabel('12:00')).toBe('Noon')
   expect(timeOptionLabel('07:30')).toBe('7:30 AM')
   expect(timeOptionLabel('18:00')).toBe('6:00 PM')
+})
+
+test('an open day must close after it opens; closed days are not checked', () => {
+  const rows = dayRows(weekdays)
+  expect(hoursProblem(rows)).toBeNull()
+  const backwards = rows.map(d => (d.weekday === 2 ? { ...d, start: '18:00', end: '07:00' } : d))
+  expect(hoursProblem(backwards)).toBe('Each open day needs a closing time after its opening time.')
+  expect(hoursProblem(backwards.map(d => (d.weekday === 2 ? { ...d, open: false } : d)))).toBeNull()
 })

@@ -41,3 +41,7 @@ export function hoursChanged(saved: readonly BusinessHoursSpan[], days: readonly
       .join('|')
   return key(spansOf(dayRows(saved))) !== key(spansOf(days))
 }
+
+/** Why the hours cannot be saved, in words for the user; null when they can. */
+export const hoursProblem = (days: readonly DayHours[]): string | null =>
+  spansOf(days).some(h => h.end <= h.start) ? 'Each open day needs a closing time after its opening time.' : null
