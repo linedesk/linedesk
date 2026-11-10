@@ -12,7 +12,8 @@ function copy(text: string, toast: (text: string) => void) {
   navigator.clipboard.writeText(text).then(() => toast(`Copied ${text}`), () => toast('Copy failed. Select the number instead.'))
 }
 
-function Facts({ contact, toast }: { contact: Contact; toast: (text: string) => void }) {
+/** The contact's fields, edited in place through contact.update. Also used on the Contacts page. */
+export function Facts({ contact, toast }: { contact: Contact; toast: (text: string) => void }) {
   const run = useRun()
   const save = (field: Editable) => (value: string | null) => void run('contact.update', { contactId: contact.id, [field]: value })
   const phone = formatPhone(contact.phone)
@@ -29,6 +30,16 @@ function Facts({ contact, toast }: { contact: Contact; toast: (text: string) => 
   )
 }
 
+/** A compact list of calls that open the call view. Also used on the Contacts page. */
+export function SideCalls({ calls, onOpen }: { calls: Call[]; onOpen: (call: Call) => void }) {
+  return calls.map(c => (
+    <button key={c.id} type="button" className="side-call" onClick={() => onOpen(c)}>
+      <span className="sc-top"><b>{callTitle(c)}</b><span className="mono">{timeLabel(parseTs(c.started_at))}</span></span>
+      <span className="sc-sub">{c.direction === 'out' ? 'Outbound' : 'Inbound'} · {c.status === 'live' ? 'live' : c.duration_sec ? shortDuration(c.duration_sec) : '—'}</span>
+    </button>
+  ))
+}
+
 function PastCalls({ call, onOpen }: Pick<Props, 'call' | 'onOpen'>) {
   const others = useRows('calls')
     .filter(c => c.id !== call.id && !c.deleted_at && (call.contact_id ? c.contact_id === call.contact_id : c.from_number === call.from_number))
@@ -37,12 +48,7 @@ function PastCalls({ call, onOpen }: Pick<Props, 'call' | 'onOpen'>) {
   return (
     <div className="side-sec">
       <h2>Previous calls</h2>
-      {others.map(c => (
-        <button key={c.id} type="button" className="side-call" onClick={() => onOpen(c)}>
-          <span className="sc-top"><b>{callTitle(c)}</b><span className="mono">{timeLabel(parseTs(c.started_at))}</span></span>
-          <span className="sc-sub">{c.direction === 'out' ? 'Outbound' : 'Inbound'} · {c.status === 'live' ? 'live' : c.duration_sec ? shortDuration(c.duration_sec) : '—'}</span>
-        </button>
-      ))}
+      <SideCalls calls={others} onOpen={onOpen} />
       {!others.length && <span className="help">No earlier calls.</span>}
     </div>
   )

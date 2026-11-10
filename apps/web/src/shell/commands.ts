@@ -43,6 +43,7 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
       { label: 'Go to Inbox', icon: 'phone', shortcut: ['G', 'I'], run: () => c.goInbox('you') },
       { label: 'Go to Done', icon: 'check', shortcut: ['G', 'E'], run: () => c.goInbox('done') },
       { label: 'Go to Reminders', icon: 'clock', shortcut: ['G', 'H'], run: () => c.goInbox('reminders') },
+      { label: 'Go to Contacts', icon: 'users', shortcut: ['G', 'C'], run: () => c.goPage('contacts') },
       { label: 'Go to Assistant', icon: 'waveform', shortcut: ['G', 'A'], run: () => c.goPage('assistant') },
       ...(c.isInstanceAdmin ? [{ label: 'Go to Admin', icon: 'gear', shortcut: ['G', 'D'], run: () => c.goPage('admin') } satisfies Command] : []),
     ] },

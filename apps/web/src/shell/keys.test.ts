@@ -1,6 +1,6 @@
 import type { Call } from '@callfront/db/types'
-import { describe, expect, it, vi } from 'vitest'
-import { handleKey, type KeyContext } from './keys.ts'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { handleKey, setPageKeys, type KeyContext } from './keys.ts'
 
 const call = { id: 'c1' } as Call
 const context = (over: Partial<KeyContext> = {}) => ({
@@ -196,5 +196,38 @@ describe('topmost layer', () => {
     expect(c.setOverlay).not.toHaveBeenCalled()
     press('?', c)
     expect(c.setOverlay).toHaveBeenCalledWith(null)
+  })
+})
+
+describe('page keys', () => {
+  afterEach(() => setPageKeys(null))
+  it('hands list keys, / and Esc to the page that registered for them', () => {
+    const page = vi.fn((key: string) => key !== 'x')
+    setPageKeys(page)
+    const c = context({ onInbox: false, target: undefined })
+    expect(press('j', c)).toBe(true)
+    expect(press('Enter', c)).toBe(true)
+    expect(press('/', c)).toBe(true)
+    press('Escape', c)
+    expect(press('x', c)).toBe(false)
+    expect(page.mock.calls.map(([key]) => key)).toEqual(['j', 'Enter', '/', 'Escape', 'x'])
+    expect(c.openSearch).not.toHaveBeenCalled()
+    expect(c.step).not.toHaveBeenCalled()
+  })
+  it('keeps / as call search on pages that do not take it, and leaves the inbox alone', () => {
+    setPageKeys(() => false)
+    const page = context({ onInbox: false })
+    press('/', page)
+    expect(page.openSearch).toHaveBeenCalled()
+    const inbox = context()
+    press('j', inbox)
+    expect(inbox.step).toHaveBeenCalledWith(1)
+  })
+  it('does not reach the page while typing or with an overlay open', () => {
+    const page = vi.fn(() => true)
+    setPageKeys(page)
+    press('j', context({ onInbox: false }), { tagName: 'INPUT' })
+    press('j', context({ onInbox: false, overlay: 'help' }))
+    expect(page).not.toHaveBeenCalled()
   })
 })

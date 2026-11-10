@@ -16,7 +16,7 @@ import type { Overlay } from './shell/keys.ts'
 import { MenuButton, Nav } from './shell/Nav.tsx'
 import { Overlays } from './shell/Overlays.tsx'
 import { SyncBar } from './shell/SyncBar.tsx'
-import { pages, type PageRoute } from './shell/pages.tsx'
+import { pages, type Page, type PageRoute } from './shell/pages.tsx'
 import { Toast } from './shell/Toast.tsx'
 import { useKeyboard } from './shell/useKeyboard.ts'
 import { useRoute } from './shell/useRoute.ts'
@@ -28,6 +28,7 @@ import { ErrorBoundary } from './ui/ErrorBoundary.tsx'
 import { cx } from './ui/kit.tsx'
 
 const chordTabs: Record<string, InboxTab> = { i: 'you', e: 'done', h: 'reminders' }
+const chordPages: Record<string, PageRoute> = { a: 'assistant', c: 'contacts' }
 
 export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void | Promise<void> }) {
   const nav = useRoute()
@@ -69,9 +70,9 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
     togglePlayback,
     goChord: key => {
       if (key === 'd' && isInstanceAdmin) goPage('admin')
-      else if (key === 'a') goPage('assistant')
+      else if (chordPages[key]) goPage(chordPages[key])
       else if (chordTabs[key]) view.setTab(chordTabs[key])
-      return key === 'a' || !!chordTabs[key] || (key === 'd' && isInstanceAdmin)
+      return !!chordPages[key] || !!chordTabs[key] || (key === 'd' && isInstanceAdmin)
     },
   }, toaster.via)
 
@@ -126,6 +127,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   }
 
   const menu = <MenuButton open={navOpen} onOpen={() => setNavOpen(true)} />
+  const page: Page | null = nav.route === 'calls' ? null : pages[nav.route]
   return (
     <div className={cx('app', navOpen && 'nav-open')}>
       <Nav open={navOpen} route={nav.route} tab={tab} unreadCount={view.unreadNeedsYou} reminderCount={view.counts.reminders}
@@ -133,11 +135,11 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
         onSignOut={() => void signOut()} onClose={() => setNavOpen(false)} />
       <button type="button" className="scrim" aria-label="Close menu" tabIndex={-1} onClick={() => setNavOpen(false)} />
       <main className="main">
-        {nav.route !== 'calls' ? (
+        {page ? (
           <>
-            <div className="pagebar">{menu}<b>{pages[nav.route].title}</b></div>
+            {!page.ownHeader && <div className="pagebar">{menu}<b>{page.title}</b></div>}
             <ErrorBoundary key={nav.route} fallback={<div className="page"><div className="empty"><b>This page could not be shown</b><span>Reload the app, or go back to the inbox with G I.</span></div></div>}>
-              {pages[nav.route].render({ toast: toaster.show, canEditSettings: me.permissions.includes('settings:write'), isInstanceAdmin, userId: me.actorId })}
+              {page.render({ toast: toaster.show, canEditSettings: me.permissions.includes('settings:write'), isInstanceAdmin, userId: me.actorId, menu, openCall: open })}
             </ErrorBoundary>
           </>
         ) : openCall ? (

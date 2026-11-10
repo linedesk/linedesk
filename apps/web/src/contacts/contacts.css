@@ -1,0 +1,16 @@
+/* Contacts list. Loaded before styles.css (it comes in through the module graph), so rules carry
+   three classes to win over the prototype's `.row:not(.cust-row)` and `.cust-row` rules. */
+.row.cust-row.ct-row { grid-template-columns: minmax(120px, 200px) minmax(90px, 160px) minmax(0, 1fr) 56px 72px; cursor: default; }
+.row.cust-row.ct-row .c-company, .row.cust-row.ct-row .c-count { color: var(--ink-muted); font-size: 12.5px; }
+.row.cust-row.ct-row .r-name { color: var(--ink); }
+.row.cust-row.ct-row .c-count, .row.cust-row.ct-row .c-last { text-align: right; }
+.row.cust-row.ct-row:hover .c-last, .row.cust-row.ct-row.is-cursor .c-last { visibility: visible; }
+.row.cust-row.ct-row .c-next { color: var(--ink-muted); }
+.cust-main .cv-center { display: flex; flex-direction: column; min-height: 0; }
+.cust-main .ib-list { overflow: auto; }
+
+@media (max-width: 719px) {
+  .row.cust-row.ct-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name last" "sum sum" "company count"; row-gap: 2px; padding: 8px 12px; }
+  .row.cust-row.ct-row .c-company { grid-area: company; }
+  .row.cust-row.ct-row .c-count { grid-area: count; }
+}

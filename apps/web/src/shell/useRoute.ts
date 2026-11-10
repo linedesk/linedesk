@@ -45,7 +45,7 @@ export function useRoute() {
   const [location, setLocation] = useState(() => parseHash(window.location.hash))
   /** The latest location, also between a change and the next render (several changes can happen in one handler). */
   const current = useRef(location)
-  /** True when the open call was reached from the list in this tab, so closing it is a step back. */
+  /** True when the open call was reached from the inbox or a page in this tab, so closing it is a step back (to Contacts, say). */
   const openedFromList = useRef(false)
   const apply = useCallback((next: Location) => { current.current = next; setLocation(next) }, [])
 
@@ -71,7 +71,7 @@ export function useRoute() {
   const openCall = useCallback((id: string) => {
     const now = current.current
     if (now.callId) replace(callHash(id))
-    else { openedFromList.current = now.route === 'calls'; push(callHash(id)) }
+    else { openedFromList.current = true; push(callHash(id)) }
     apply({ ...now, route: 'calls', callId: id, known: true })
   }, [apply])
   const closeCall = useCallback(() => {

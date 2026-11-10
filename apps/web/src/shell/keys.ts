@@ -36,6 +36,13 @@ export type KeyContext = {
   undo: () => void
 }
 
+/** A page other than the inbox can take the list keys (J, K, arrows, Enter, O, /, Esc) while it is shown. Returns true when it handled the key. */
+export type PageKeys = (key: string) => boolean
+let pageKeys: PageKeys | null = null
+export function setPageKeys(handler: PageKeys | null) {
+  pageKeys = handler
+}
+
 const CHORD_MS = 1200
 let chordUntil = 0
 
@@ -56,7 +63,7 @@ function onEscape(el: HTMLElement, c: KeyContext) {
   if (c.navOpen) return c.setNavOpen(false)
   if (el.id === SEARCH_INPUT_ID) { el.blur(); return c.closeSearch() }
   if (isTyping(el)) return el.blur()
-  if (!c.onInbox) return
+  if (!c.onInbox) return void pageKeys?.('Escape')
   if (c.isCallOpen) return c.back()
   if (c.searching) return c.closeSearch()
   if (!splits.includes(c.tab as never)) c.setTab('you')
@@ -120,9 +127,9 @@ export function handleKey(e: KeyboardEvent, c: KeyContext): boolean {
   if (k === 'g' || k === 'G') { chordUntil = Date.now() + CHORD_MS; return true }
   if (k === '?') c.setOverlay('help')
   else if (k === 'm' || k === 'M') c.setNavOpen(!c.navOpen)
-  else if (k === '/') c.openSearch()
+  else if (k === '/') { if (c.onInbox || !pageKeys?.('/')) c.openSearch() }
   else if (k === 'z') c.undo()
   else if (k === ' ') return c.onInbox && c.isCallOpen && c.togglePlayback()
-  else return c.onInbox && onInboxKey(k, c)
+  else return c.onInbox ? onInboxKey(k, c) : !!pageKeys?.(k)
   return true
 }
