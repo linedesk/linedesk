@@ -21,10 +21,14 @@ const daysOf = (choice: Choice): Days | null => (choice === 'forever' ? null : (
 export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => void }) {
   const run = useRun()
   const [days, setDays] = useState<number | null | undefined>(undefined)
+  const [recordingOn, setRecordingOn] = useState(true)
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
     readAction<WorkspaceSettingsData>('workspace.getSettings').then(
-      data => setDays(data.recordingRetentionDays),
+      data => {
+        setDays(data.recordingRetentionDays)
+        setRecordingOn(data.recordingOn)
+      },
       (e: Error) => setError(e.message),
     )
   }, [])
@@ -42,7 +46,11 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
     <Section
       id="st-recordings"
       title="Recordings"
-      description="Calls are recorded so you can listen back. Older recordings are deleted once a day; the call, its transcript and summary stay."
+      description={
+        recordingOn
+          ? 'Calls are recorded so you can listen back. Older recordings are deleted once a day; the call, its transcript and summary stay.'
+          : 'Recording is off on this server, so calls are not recorded. Whoever runs your Linedesk can switch it on; this setting then applies.'
+      }
     >
       {error && (
         <p className="help" role="alert">

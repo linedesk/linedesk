@@ -5,6 +5,10 @@ import { availability_rules, workspace_settings } from '@callfront/db'
 import { eq } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 
+/** Whether calls are recorded on this server: the voice agent records only with RECORDING_STORE file or s3. */
+export const recordingOn = (env: Record<string, string | undefined>) =>
+  env.RECORDING_STORE === 'file' || env.RECORDING_STORE === 's3'
+
 /** Used until a workspace has stored its own time zone (same default as onboarding). */
 const DEFAULT_TIME_ZONE = 'America/New_York'
 
@@ -25,6 +29,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       businessHours: rules
         .map(r => ({ weekday: r.weekday, start: r.start_time.slice(0, 5), end: r.end_time.slice(0, 5) }))
         .sort((a, b) => a.weekday - b.weekday || a.start.localeCompare(b.start)),
+      recordingOn: recordingOn(process.env),
     }
     return { rows: {}, data }
   },

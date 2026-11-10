@@ -4,6 +4,7 @@
 import type { TestCallData } from '@callfront/actions'
 import { Room, RoomEvent, Track } from 'livekit-client'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useVoiceReady } from '../shell/presence.ts'
 import { useAssistantName, useRows } from '../store.tsx'
 import { Button } from '../ui/kit.tsx'
 import { Section } from './fields.tsx'
@@ -55,6 +56,8 @@ export function TestCall({ canStart, bare }: { canStart: boolean; bare?: boolean
   const room = useRef<Room | null>(null)
   const audio = useRef<HTMLDivElement>(null)
   const { call, lines, notSetUp } = useTestCall(roomName)
+  // Known up front: without the voice service a test call cannot be answered, so it is not offered.
+  const voiceDown = useVoiceReady() === false
 
   /** Bumped by Cancel and by every new start, so a late answer of an abandoned attempt is ignored. */
   const attempt = useRef(0)
@@ -141,12 +144,15 @@ export function TestCall({ canStart, bare }: { canStart: boolean; bare?: boolean
             ? <span className="st-test-wait"><span className="st-spin" aria-hidden="true" />Connecting…<Button size="sm" variant="ghost" onClick={cancel}>Cancel</Button></span>
             : <Button variant="secondary" onClick={() => void stop()}>End test call</Button>
         ) : (
-          <Button variant={bare ? 'secondary' : 'primary'} icon="phone-in" onClick={() => void start()} disabled={!canStart}>
+          <Button variant={bare ? 'secondary' : 'primary'} icon="phone-in" onClick={() => void start()} disabled={!canStart || voiceDown}>
             {phase === 'ended' ? 'Call again' : 'Start test call'}
           </Button>
         )}
         {!canStart && <span className="help"> Only owners and admins can start a test call.</span>}
       </div>
+      {canStart && voiceDown && !live && (
+        <p className="help">{name} can't take calls yet: the voice service of this Linedesk isn't set up. Whoever runs it adds it under Admin, Providers.</p>
+      )}
       {problem && <p className="help" role="alert">{problem}</p>}
       {notSetUp && (
         <p className="help" role="alert">
