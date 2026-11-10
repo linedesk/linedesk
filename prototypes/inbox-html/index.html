@@ -1542,6 +1542,8 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
   .row:not(.cust-row) { padding-left: 62px; }
   .row .r-dot { left: 46px; }
   .ib-day { padding-left: 62px; }
+  .ib-cols:not(.cust-row) { grid-template-columns: minmax(110px, 160px) minmax(0, 1fr) 104px 44px 64px; padding-left: 62px; }
+  .ib-cols:not(.cust-row) .ib-col-caller { grid-column: auto; }
 }
 
 /* Toasts: smaller, quieter; Undo reads as a button */
@@ -2203,7 +2205,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
       p.filter && p.filter.length && p.search === null ? h(FilterBar, { value: p.filter, count: p.list.length, onClear: p.onClearFilter, onEdit: p.onEditFilter }) : null,
       h('div', { className: cx('ib-list', !p.list.length && p.tab === 'you' && p.search === null && 'is-zero'), ref: listRef, role: 'list' },
         !p.ready ? h('div', { className: 'sk-list', 'aria-busy': 'true', 'aria-label': 'Loading calls' }, [0, 1, 2, 3, 4, 5].map(function (i) { return h('div', { key: i, className: 'sk-row' }, h('i', { style: { width: 14 } }), h('i', { style: { width: 110 + (i * 23) % 50 } }), h('i', { style: { flex: 1 } }), h('i', { style: { width: 70 } }), h('i', { style: { width: 56 } })); })) :
-        
+        p.list.length ? h('div', { className: 'ib-cols', 'aria-hidden': 'true' }, h('span', { className: 'ib-col-caller' }, 'Caller'), h('span', null, 'Summary'), h('span', null, p.tab === 'you' ? 'Next step' : 'Result'), h('span', { className: 'num' }, 'Length'), h('span', { className: 'num' }, 'Time')) : null,
         p.list.length ? p.list.map(function (c, ci) {
           var day = dayOf(c), newDay = ci === 0 || dayOf(p.list[ci - 1]) !== day;
           var isLive = c.id === 'live' && !L.ended;
