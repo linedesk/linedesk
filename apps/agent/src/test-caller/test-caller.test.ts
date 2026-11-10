@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import type { CallTestFinding } from '@callfront/actions'
 import { createLatencyLog, createOnsetDetector, rms } from './latency.ts'
+import { isGoodbye } from './caller.ts'
 import { evaluateCall, formatCallerLatency, formatReport, latencyOf, percentile } from './report.ts'
 import { callerInstructions, parseTestCallerMetadata, scenarioNames, scenarios } from './scenarios.ts'
 
@@ -104,4 +105,9 @@ test('greeting from the start, replies from the end of each caller turn', () => 
   expect(percentile([5, 1, 3, 2, 4], 50)).toBe(3)
   expect(percentile([5, 1, 3, 2, 4, 6, 7, 8, 9, 10], 90)).toBe(9)
   expect(percentile([], 90)).toBeNull()
+})
+
+test('the test caller may only hang up after saying goodbye', () => {
+  for (const line of ['Thanks, goodbye.', 'Okay, bye!', 'Great, have a good day.', 'Good bye then']) expect(isGoodbye(line)).toBe(true)
+  for (const line of ['Hi Maya, a pipe burst under my sink.', 'My number is the one I am calling from.', 'Maybe']) expect(isGoodbye(line)).toBe(false)
 })
