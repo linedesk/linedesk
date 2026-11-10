@@ -13,6 +13,7 @@ import { AGENT_NAME, requireEnv, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness } from './not-ready.ts'
 import { createPipeline, summaryLlm, warmUpLlm } from './pipeline.ts'
 import { logTurnMetrics } from './turn-metrics.ts'
+import { skipQuietToolReplies } from './tool-replies.ts'
 import { buildInstructions, FALLBACK_GREETING } from './prompt.ts'
 import { describeRecording, livekitRecorder, saveRecording, startRecording, stopRecording } from './recording.ts'
 import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from './counterpart.ts'
@@ -69,11 +70,15 @@ function recordConversation(session: voice.AgentSession, log: CallLog) {
   })
 }
 
+/** Tools whose result the caller need not hear: no extra LLM round when the assistant already spoke. */
+const QUIET_TOOLS = new Set(['take_message', 'flag_urgent'])
+
 /** Greets the caller and runs the conversation until the session closes. */
 async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClient, config: AgentConfig, call: CallSession, log: CallLog, onClose: () => void) {
   const session = new voice.AgentSession(createPipeline(config, call.assistant?.voice))
   recordConversation(session, log)
   logTurnMetrics(session, call.callId)
+  skipQuietToolReplies(session, QUIET_TOOLS)
   session.on(voice.AgentSessionEventTypes.Close, onClose)
   const instructions = buildInstructions(call.assistant)
   void warmUpLlm(config.llm, instructions)
