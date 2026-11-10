@@ -10,13 +10,16 @@ const ORIGIN = 'http://localhost:5173'
 const uid = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 export const randomNumber = () => `+1503${Math.floor(1e6 + Math.random() * 9e6)}`
 
+/** Auth requests are rate limited per client address; each fixture user comes from its own. */
+export const randomIp = () => `10.${[0, 0, 0].map(() => Math.floor(Math.random() * 256)).join('.')}`
+
 export type Caller = { headers: Record<string, string> }
 export type User = Caller & { userId: string }
 
 export async function signUp(): Promise<User> {
   const res = await app.request('/api/auth/sign-up/email', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', origin: ORIGIN },
+    headers: { 'content-type': 'application/json', origin: ORIGIN, 'x-forwarded-for': randomIp() },
     body: JSON.stringify({ name: 'Test User', email: `${uid('user')}@callfront.test`, password: 'test-password-1234' }),
   })
   if (!res.ok) throw new Error(`sign-up failed: ${res.status} ${await res.text()}`)

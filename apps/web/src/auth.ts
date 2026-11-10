@@ -1,7 +1,13 @@
-import { organizationClient } from 'better-auth/client/plugins'
+import { magicLinkClient, organizationClient } from 'better-auth/client/plugins'
+import type { AuthMethods, SsoMethod } from '@callfront/api/auth-types'
 import { createAuthClient } from 'better-auth/react'
 
-export const auth = createAuthClient({ baseURL: window.location.origin, plugins: [organizationClient()] })
+export type { AuthMethods, SsoMethod }
+
+export const auth = createAuthClient({
+  baseURL: window.location.origin,
+  plugins: [organizationClient(), magicLinkClient()],
+})
 
 export type Me = { actorId: string; role: string; permissions: string[]; workspace: { id: string; name: string } | null }
 
@@ -11,9 +17,51 @@ export async function fetchMe(): Promise<Me | null> {
   return res.ok ? ((await res.json()) as Me) : null
 }
 
+export async function isSignedIn(): Promise<boolean> {
+  return Boolean((await auth.getSession()).data)
+}
+
+export async function fetchAuthMethods(): Promise<AuthMethods> {
+  const res = await fetch('/v1/auth-methods')
+  if (!res.ok) throw new Error('Could not load sign-in options')
+  return (await res.json()) as AuthMethods
+}
+
 export async function createWorkspace(name: string) {
   const res = await fetch('/v1/workspaces', {
-    method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }),
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name }),
   })
   if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? 'Could not create the workspace')
+}
+
+/** Where the API sends the browser back to: errors arrive as `?error=CODE` on the sign-in screen. */
+const back = () => ({ callbackURL: window.location.origin, errorCallbackURL: window.location.origin })
+
+export function requestSignInLink(email: string) {
+  return auth.signIn.magicLink({ email, ...back() })
+}
+
+/** Leaves the page for the provider; the session exists when the browser comes back. */
+export function startSso(method: SsoMethod) {
+  return auth.signIn.social({ provider: method.id, ...back() })
+}
+
+const redirectErrors: Record<string, string> = {
+  INVALID_TOKEN: 'That sign-in link has expired or was already used. Request a new one.',
+  access_denied: 'Sign-in was cancelled.',
+  account_not_linked: 'This email already has an account. Sign in with an email link once, then this works too.',
+}
+
+/** Reads and clears the `?error=` a failed link or SSO redirect leaves in the address bar. */
+export function takeRedirectError(): string | null {
+  const url = new URL(window.location.href)
+  const code = url.searchParams.get('error')
+  if (!code) return null
+  url.searchParams.delete('error')
+  url.searchParams.delete('error_description')
+  window.history.replaceState(null, '', url)
+  return redirectErrors[code] ?? `Sign-in did not work (${code.replaceAll('_', ' ').toLowerCase()}). Try again.`
 }

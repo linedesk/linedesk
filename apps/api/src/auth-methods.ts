@@ -1,0 +1,46 @@
+// Which ways to sign in this install offers. Everything except the password is switched on by
+// setting its env vars, so a self-hosted install works with none of them.
+import type { AuthMethods, SsoMethod } from './auth-types.ts'
+
+type Env = Record<string, string | undefined>
+
+const pair = (id?: string, secret?: string) => (id && secret ? { clientId: id, clientSecret: secret } : null)
+
+/** Microsoft tenants that anyone can sign in through; their email claim is not proof of ownership. */
+const SHARED_TENANTS = ['common', 'organizations', 'consumers']
+
+export function readAuthConfig(env: Env) {
+  const google = pair(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET)
+  const microsoftKeys = pair(env.MICROSOFT_CLIENT_ID, env.MICROSOFT_CLIENT_SECRET)
+  const microsoft = microsoftKeys && { ...microsoftKeys, tenantId: env.MICROSOFT_TENANT_ID || 'common' }
+  const oidcKeys = pair(env.OIDC_CLIENT_ID, env.OIDC_CLIENT_SECRET)
+  const oidc = oidcKeys && env.OIDC_DISCOVERY_URL
+    ? { ...oidcKeys, discoveryUrl: env.OIDC_DISCOVERY_URL, label: env.OIDC_DISPLAY_NAME || 'Single sign-on' }
+    : null
+  // A trusted provider's sign-in joins the account with the same email without asking the provider
+  // whether that email is verified. Google verifies every address. Microsoft is only safe when the
+  // app is limited to one tenant: on a shared tenant any directory can assert any address.
+  const trustedProviders = [
+    google && 'google',
+    microsoft && !SHARED_TENANTS.includes(microsoft.tenantId.toLowerCase()) && 'microsoft',
+  ].filter(Boolean) as string[]
+  const methods: AuthMethods = {
+    password: env.AUTH_PASSWORD_ENABLED !== 'false',
+    magicLink: emailDelivery(env) !== 'none',
+    sso: [
+      google && { id: 'google', label: 'Google' },
+      microsoft && { id: 'microsoft', label: 'Microsoft' },
+      oidc && { id: 'oidc', label: oidc.label },
+    ].filter(Boolean) as SsoMethod[],
+  }
+  return { google, microsoft, oidc, trustedProviders, methods }
+}
+
+/** How email leaves this install. Printing it to the log is for development and must be asked for. */
+export function emailDelivery(env: Env): 'smtp' | 'log' | 'none' {
+  if (env.SMTP_URL) return 'smtp'
+  return env.EMAIL_TO_LOG === 'true' ? 'log' : 'none'
+}
+
+export const authConfig = readAuthConfig(process.env)
+export const authMethods = authConfig.methods

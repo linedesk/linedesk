@@ -112,6 +112,8 @@ async function seed() {
   }
 
   const signUp = await auth.api.signUpEmail({ body: { name: 'Mike Brennan', email: DEMO.email, password: DEMO.password }, returnHeaders: true })
+  // Verified, so an email sign-in link or SSO joins this account instead of resetting its password.
+  await db.update(user).set({ emailVerified: true }).where(eq(user.email, DEMO.email))
   const cookie = signUp.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
   const org = await auth.api.createOrganization({ body: { name: 'Brightwater Plumbing & Heating', slug: DEMO_SLUG }, headers: new Headers({ cookie }) })
   const workspace_id = org!.id
