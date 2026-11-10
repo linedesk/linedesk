@@ -31,6 +31,10 @@ import { useAssistantName, useRejection } from './store.tsx'
 import type { SelectVia } from './ui/CommandMenu.tsx'
 import { ErrorBoundary } from './ui/ErrorBoundary.tsx'
 import { cx } from './ui/kit.tsx'
+import { useMediaQuery } from './ui/useMediaQuery.ts'
+
+/** From this width the menu is docked: always shown, the content beside it. */
+const NAV_DOCKED_QUERY = '(min-width: 1600px)'
 
 /** The not-found toasts (call, page) stay long enough to be read after the jump. */
 const NOT_FOUND_TOAST_MS = 4500
@@ -46,6 +50,8 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   const assistantName = useAssistantName()
   const [overlay, setOverlay] = useState<Overlay>(null)
   const [navOpen, setNavOpen] = useState(false)
+  // On very wide windows the menu stays open beside the content instead of sliding over it.
+  const navDocked = useMediaQuery(NAV_DOCKED_QUERY)
   const remindFor = useRef<{ calls: Call[]; source: Source } | null>(null)
   const signOut = useSignOut({ workspaceId: me.workspace!.id, onSignedOut, toast: toaster.show })
   const { list, tab, search, openCall, target } = view
@@ -135,7 +141,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
       ...callHandlers,
       overlay,
       setOverlay,
-      navOpen,
+      navOpen: navOpen && !navDocked,
       setNavOpen,
       onInbox: view.onInbox,
       tab,
@@ -268,9 +274,10 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   const menu = <MenuButton open={navOpen} onOpen={() => setNavOpen(true)} />
   const page: Page | null = nav.route === 'calls' ? null : pages[nav.route]
   return (
-    <div className={cx('app', navOpen && 'nav-open')}>
+    <div className={cx('app', navDocked ? 'nav-docked' : navOpen && 'nav-open')}>
       <Nav
-        open={navOpen}
+        open={navOpen || navDocked}
+        docked={navDocked}
         route={nav.route}
         tab={tab}
         unreadCount={view.unreadNeedsYou}

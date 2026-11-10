@@ -611,11 +611,11 @@ button.me:focus-visible {
 }
 
 /* ---- Page widths: one set for the whole app ----
-   --w-list: inbox and contacts lists · --w-read: one call · --w-page: settings-style pages.
+   --w-list: inbox and contacts lists (the full window width) · --w-read: one call · --w-page: settings-style pages.
    Content is centred in its width; hover, the cursor bar, the unread dot and the checkbox sit inside
    the row, never at the window edge. */
 :root {
-  --w-list: 1120px;
+  --w-list: 100%;
   --w-read: 760px;
   --w-page: 820px;
   --gutter: 20px;
@@ -653,7 +653,7 @@ button.me:focus-visible {
 .ib-list .row:not(.cust-row) {
   padding-left: var(--row-lead);
   padding-right: var(--gutter);
-  grid-template-columns: minmax(110px, 180px) minmax(0, 1fr) minmax(104px, 240px) 44px 64px;
+  grid-template-columns: minmax(110px, 220px) minmax(0, 1fr) minmax(104px, 320px) 56px 72px;
 }
 .ib-list .ib-day {
   padding-left: var(--row-lead);
@@ -1060,4 +1060,24 @@ a.k-btn {
 }
 .st-hours-foot > .help {
   margin-right: auto;
+}
+
+/* Very wide windows: the menu is docked beside the content (Workspace, NAV_DOCKED_QUERY). */
+@media (min-width: 1600px) {
+  .app.nav-docked {
+    grid-template-columns: 252px minmax(0, 1fr);
+  }
+  .app.nav-docked .nav {
+    position: relative;
+    width: auto;
+    transform: none;
+    visibility: visible;
+    box-shadow: none;
+    border-right: 1px solid var(--line);
+    transition: none;
+  }
+  .app.nav-docked .scrim,
+  .app.nav-docked .menu-btn {
+    display: none;
+  }
 }

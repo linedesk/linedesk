@@ -9,6 +9,8 @@ import { ProfileMenu } from './ProfileMenu.tsx'
 
 type Props = {
   open: boolean
+  /** Shown beside the content on wide windows: no focus trap, stays open after choosing, no close button. */
+  docked?: boolean
   route: Route
   tab: InboxTab
   unreadCount: number
@@ -30,18 +32,19 @@ function NavItem({ label, icon, keys, current, sub, badge, onClick }: { label: s
   )
 }
 
-/** Slide-in navigation: opens from ☰ or M; closes with Esc, the close button, a click outside or after choosing. */
-export function Nav({ open, route, tab, unreadCount, reminderCount, workspaceName, isInstanceAdmin, onClose, ...on }: Props) {
+/** Slide-in navigation: opens from ☰ or M; closes with Esc, the close button, a click outside or after choosing.
+ * On very wide windows it is docked: always open beside the content. */
+export function Nav({ open, docked = false, route, tab, unreadCount, reminderCount, workspaceName, isInstanceAdmin, onClose, ...on }: Props) {
   const ref = useRef<HTMLElement>(null)
-  useFocusTrap(ref, open, { initial: '.nav-item[aria-current="page"]' }) // opens on the current page, gives focus back when it closes
+  useFocusTrap(ref, open && !docked, { initial: '.nav-item[aria-current="page"]' }) // opens on the current page, gives focus back when it closes
   const userName = auth.useSession().data?.user.name ?? ''
-  const go = (run: () => void) => () => { onClose(); run() }
+  const go = (run: () => void) => () => { if (!docked) onClose(); run() }
   const onCalls = route === 'calls'
   return (
     <nav className="nav" aria-label="Main" ref={ref} inert={!open}>
       <div className="ws">
         <span className="ws-mark"><Icon name="spark" size={13} /></span><b>Linedesk</b>
-        <Button size="sm" variant="ghost" icon="left" aria-label="Close menu" title="Close (esc)" onClick={onClose} />
+        {!docked && <Button size="sm" variant="ghost" icon="left" aria-label="Close menu" title="Close (esc)" onClick={onClose} />}
       </div>
       <NavItem label="Inbox" icon="phone" keys={['G', 'I']} current={onCalls && tab !== 'reminders' && tab !== 'done'} onClick={go(() => on.onInbox('you'))}
         badge={unreadCount ? <span className="k-count">{unreadCount}</span> : null} />
