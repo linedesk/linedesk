@@ -101,12 +101,16 @@ export function reviewImport(
   return { about, services, faqs, unchanged }
 }
 
-/** What the owner picked: whether the About text is taken over, and which services and FAQs (by index in the review). */
-export type ImportPicks = { about: boolean; services: Set<number>; faqs: Set<number> }
+/**
+ * What the owner picked: whether the About text is taken over, and which use cases, services and FAQs (by
+ * index; use cases by index in the proposal).
+ */
+export type ImportPicks = { about: boolean; useCases: Set<number>; services: Set<number>; faqs: Set<number> }
 
 /** By default: an empty About is filled, new items are added, changes to what the owner has stay unpicked. */
-export const defaultPicks = (review: ImportReview): ImportPicks => ({
+export const defaultPicks = (review: ImportReview, proposal: KnowledgeImportData): ImportPicks => ({
   about: review.about === 'empty',
+  useCases: new Set(proposal.useCases.map((_, i) => i)),
   services: new Set(review.services.flatMap((p, i) => (p.status === 'new' ? [i] : []))),
   faqs: new Set(review.faqs.flatMap((p, i) => (p.status === 'new' ? [i] : []))),
 })
@@ -132,16 +136,23 @@ export function applyImport(
     if (at >= 0) faqs[at] = { ...p.item }
     else if (faqs.length < FAQS_MAX) faqs.push({ ...p.item })
   })
+  const about = picks.about ? proposal.about.trim() : draft.instructions.trim()
+  const useCases = proposal.useCases.filter((_, i) => picks.useCases.has(i))
+  const instructions = useCases.length
+    ? [about, `Common calls:\n${useCases.map(u => `- ${u}`).join('\n')}`].filter(Boolean).join('\n\n')
+    : picks.about
+      ? about
+      : draft.instructions
   return {
     ...draft,
-    instructions: picks.about ? proposal.about.trim() : draft.instructions,
+    instructions,
     services,
     faqs,
     website: proposal.website ?? draft.website,
   }
 }
 
-/** Whether the assistant has any knowledge yet: drives the empty state that starts with the import. */
+/** Whether the assistant has any knowledge yet: drives the empty state that points to Write with help. */
 export const hasKnowledge = (d: Pick<Draft, 'instructions' | 'services' | 'faqs'>, documents: number) =>
   !!d.instructions.trim() || d.services.length > 0 || d.faqs.length > 0 || documents > 0
 

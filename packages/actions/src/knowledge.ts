@@ -23,8 +23,6 @@ export const DOCUMENT_TEXT_MAX = 200_000
 /** Documents of an assistant up to this many characters in all go into every call; above it the assistant looks them up. */
 export const DOCUMENTS_INLINE_MAX = 6_000
 export const documentTypes = ['application/pdf', 'text/plain', 'text/markdown'] as const
-/** Pasted text from the Google Business Profile (no API access needed). */
-export const PROFILE_TEXT_MAX = 10_000
 
 export type Service = { name: string; description: string; price: string }
 export type Faq = { q: string; a: string }
@@ -83,9 +81,19 @@ export function knowledgeLists(p: BusinessProfile): string {
 
 // --- Website import ------------------------------------------------------------------------
 
-/** What an import proposes; nothing is saved until the owner takes it over and saves. */
+/** What the assistant should do on calls, as the "Write with help" wizard offers them. */
+export const assistantGoals = ['messages', 'booking', 'emergencies', 'prices', 'spam'] as const
+export type AssistantGoal = (typeof assistantGoals)[number]
+export const USE_CASES_MAX = 8
+export const USE_CASE_MAX = 240
+/** The owner's own words about the business in the wizard. */
+export const BUSINESS_TEXT_MAX = 2_000
+
+/** What the wizard proposes; nothing is saved until the owner picks parts, applies them and saves. */
 export type KnowledgeImportData = {
   about: string
+  /** Short "When a caller …, …" lines for how to handle common calls. */
+  useCases: string[]
   services: Service[]
   faqs: Faq[]
   /** The pages that were read, for the review. */
@@ -97,14 +105,17 @@ export type KnowledgeImportData = {
 export const knowledgeImport = defineAction({
   name: 'knowledge.import',
   description:
-    "Read the business's website (home, services, about, contact and FAQ pages; robots.txt respected) and optionally pasted Google Business Profile text, and propose an About text, services with prices and FAQs. Changes nothing: the owner reviews the proposal and saves it with assistant.update.",
+    "Write with help: from the owner's description of the business, the goals for the assistant and optionally the business's website (home, services, about, contact and FAQ pages; robots.txt respected), propose an About text, use cases, services with prices and FAQs. Changes nothing: the owner reviews the proposal and saves it with assistant.update.",
   input: z
     .object({
       assistantId: z.string().min(1),
+      /** What the business does, its trade and the area it serves, in the owner's words. */
+      business: z.string().trim().max(BUSINESS_TEXT_MAX).optional(),
+      goals: z.array(z.enum(assistantGoals)).max(assistantGoals.length).default([]),
+      goalsNote: z.string().trim().max(1_000).optional(),
       url: z.string().trim().max(2000).optional(),
-      profileText: z.string().trim().max(PROFILE_TEXT_MAX).optional(),
     })
-    .refine(i => i.url || i.profileText, { message: 'give a website or paste the profile text' }),
+    .refine(i => i.business || i.url, { message: 'say what the business does, or give its website' }),
   permission: 'settings:write',
   readOnly: true,
 })

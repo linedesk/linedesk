@@ -22,7 +22,15 @@ import { type Handler, type Preparer, Reject } from './handler-context.ts'
 import { PdfRefused, pdfText } from './pdf-text.ts'
 import { createFailureLimiter, createRateLimiter } from './rate-limit.ts'
 import { activeRecordingStore, recordingStoreNamed } from './recording-store.ts'
-import { IMPORT_SYSTEM, ImportRefused, importPrompt, parseProposal, readSite, type SitePage } from './site-import.ts'
+import {
+  IMPORT_SYSTEM,
+  ImportRefused,
+  importPrompt,
+  type OwnerInput,
+  parseProposal,
+  readSite,
+  type SitePage,
+} from './site-import.ts'
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 
@@ -35,17 +43,18 @@ const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-
 export const IMPORTS_PER_HOUR = 10
 const importBudget = createFailureLimiter({ max: IMPORTS_PER_HOUR, windowMs: 3600_000 })
 
-type ImportInput = { assistantId: string; url?: string; profileText?: string }
+type ImportInput = { assistantId: string; url?: string } & OwnerInput
 
 async function importProposal(input: ImportInput): Promise<KnowledgeImportData> {
   const site = input.url ? await readSite(input.url) : { website: null, pages: [] as SitePage[] }
   if (input.url && !site.pages.some(p => p.text.trim()))
-    throw new ImportRefused('The website has no text we could read. Paste the text instead.')
+    throw new ImportRefused('The website has no text we could read. Describe the business instead.')
   const model = await evaluationModel(db, fetch, { maxTokens: 3000, timeoutMs: 60_000 })
-  if (!model) throw new ImportRefused('Importing needs a language model. An admin adds one under Admin › Providers.')
+  if (!model)
+    throw new ImportRefused('Writing with help needs a language model. An admin adds one under Admin › Providers.')
   let proposal: ReturnType<typeof parseProposal>
   try {
-    proposal = parseProposal(await model.complete(IMPORT_SYSTEM, importPrompt(site.pages, input.profileText)))
+    proposal = parseProposal(await model.complete(IMPORT_SYSTEM, importPrompt(site.pages, input)))
   } catch (e) {
     console.warn(`knowledge import: ${e instanceof Error ? e.message : String(e)}`)
     throw new ImportRefused('The language model did not answer in time. Try again.')
@@ -234,7 +243,7 @@ export const knowledgeHandlers: Record<string, Handler> = {
     if (!actor.workspaceId) throw new Reject('no workspace')
     await assistantIn(db, actor.workspaceId, input.assistantId)
     if (importBudget.blocked(actor.workspaceId))
-      throw new Reject(`At most ${IMPORTS_PER_HOUR} imports an hour. Try again later.`)
+      throw new Reject(`At most ${IMPORTS_PER_HOUR} drafts an hour. Try again later.`)
     importBudget.fail(actor.workspaceId)
     try {
       return { rows: {}, data: await importProposal(input) }

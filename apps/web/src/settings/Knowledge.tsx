@@ -1,6 +1,6 @@
-// Settings › Assistant › Knowledge: what the assistant knows about the business. Starts with the
-// website import when there is nothing yet; then questions callers asked that it could not answer,
-// About the business, services and prices, FAQs and documents. About, services and FAQs are part of
+// Settings › Assistant › Knowledge: what the assistant knows about the business: questions callers asked
+// that it could not answer, About the business (with Write with help, WriteWithHelp.tsx), services and
+// prices, FAQs and documents. About, services and FAQs are part of
 // the assistant's draft (saved with Save); documents and answered questions are saved at once.
 import {
   DOCUMENT_MAX_BYTES,
@@ -8,7 +8,6 @@ import {
   type documentTypes,
   FAQS_MAX,
   INSTRUCTIONS_MAX,
-  type KnowledgeImportData,
   PRICE_MAX,
   SERVICES_MAX,
 } from '@linedesk/actions'
@@ -16,22 +15,13 @@ import type { Assistant, KnowledgeDocument, KnowledgeQuestion } from '@linedesk/
 import { useRef, useState } from 'react'
 import { useRows } from '../store.tsx'
 import { Input } from '../ui/form.tsx'
-import { Button, cx } from '../ui/kit.tsx'
+import { Button } from '../ui/kit.tsx'
 import type { Draft } from './assistantDraft.ts'
 import { Field, Section, TextArea } from './fields.tsx'
-import {
-  applyImport,
-  defaultPicks,
-  documentsUse,
-  fileSize,
-  hasKnowledge,
-  type ImportPicks,
-  type ImportReview,
-  reviewImport,
-  wordDiff,
-} from './knowledgeModel.ts'
-import { callAction, useWriteAction } from './settings-api.ts'
+import { documentsUse, fileSize, hasKnowledge } from './knowledgeModel.ts'
+import { useWriteAction } from './settings-api.ts'
 import { fileToBase64 } from './voiceModel.ts'
+import { WriteWithHelp } from './WriteWithHelp.tsx'
 import './knowledge.css'
 
 type Props = {
@@ -53,234 +43,17 @@ export function Knowledge(props: Props) {
   const questions = useRows('knowledge_questions')
     .filter(q => q.assistant_id === assistant.id && q.status === 'open')
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
-  const [proposal, setProposal] = useState<KnowledgeImportData | null>(null)
   const empty = !hasKnowledge(draft, documents.length)
   const name = draft.name.trim() || 'The assistant'
 
-  if (proposal) return <ImportReviewCard {...props} proposal={proposal} onDone={() => setProposal(null)} />
   return (
     <>
       {questions.length > 0 && <QuestionsCard {...props} questions={questions} name={name} />}
-      <ImportCard {...props} name={name} onProposal={setProposal} prominent={empty} />
-      <AboutCard {...props} name={name} />
+      <AboutCard {...props} name={name} empty={empty} />
       <ServicesCard {...props} name={name} />
       <FaqsCard {...props} />
       <DocumentsCard {...props} documents={documents} name={name} />
     </>
-  )
-}
-
-// --- Import --------------------------------------------------------------------------------
-
-function ImportCard({
-  assistant,
-  draft,
-  canEdit,
-  toast,
-  name,
-  onProposal,
-  prominent,
-}: Props & { name: string; onProposal: (p: KnowledgeImportData) => void; prominent?: boolean }) {
-  const [url, setUrl] = useState(draft.website)
-  const [profileOpen, setProfileOpen] = useState(false)
-  const [profileText, setProfileText] = useState('')
-  const [busy, setBusy] = useState(false)
-  async function start() {
-    if (!url.trim() && !profileText.trim()) return toast('Enter your website, or paste your Google Business Profile.')
-    setBusy(true)
-    try {
-      onProposal(
-        await callAction<KnowledgeImportData>('knowledge.import', {
-          assistantId: assistant.id,
-          ...(url.trim() ? { url: url.trim() } : {}),
-          ...(profileText.trim() ? { profileText: profileText.trim() } : {}),
-        }),
-      )
-    } catch (e) {
-      toast((e as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-  return (
-    <Section
-      id="kn-import"
-      title={prominent ? `Teach ${name} about your business` : 'Import'}
-      description={
-        prominent
-          ? 'Start from your website. You review everything before it is used.'
-          : draft.website
-            ? `Last imported from ${draft.website.replace(/^https?:\/\//, '')}`
-            : undefined
-      }
-      help="Linedesk reads your home page and up to five pages it links to (services, prices, about, contact, FAQ), respecting robots.txt, and drafts an About text, services and FAQs. Nothing changes until you pick what to keep and save."
-    >
-      <div className="kn-import">
-        <Input
-          id="kn-url"
-          value={url}
-          placeholder="yourbusiness.com"
-          aria-label="Website"
-          disabled={!canEdit || busy}
-          onChange={e => setUrl(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              void start()
-            }
-          }}
-        />
-        <Button
-          variant={prominent ? 'primary' : 'secondary'}
-          disabled={!canEdit || busy}
-          onClick={() => void start()}
-          title="Read the website and draft the knowledge for review"
-        >
-          {busy ? 'Reading…' : prominent ? 'Import from your website' : 'Import again'}
-        </Button>
-      </div>
-      {busy && <p className="help">Reading the pages and drafting a summary. This takes up to a minute.</p>}
-      {profileOpen ? (
-        <Field
-          id="kn-profile"
-          label="Google Business Profile"
-          aside="Optional"
-          help="Copy the text of your profile (services, hours, Q&A) and paste it here."
-        >
-          <TextArea
-            id="kn-profile"
-            value={profileText}
-            onChange={setProfileText}
-            placeholder="Brightwater Plumbing & Heating · Plumber in Portland, Oregon…"
-          />
-        </Field>
-      ) : (
-        <button type="button" className="kn-link" disabled={!canEdit} onClick={() => setProfileOpen(true)}>
-          Add your Google Business Profile
-        </button>
-      )}
-    </Section>
-  )
-}
-
-function ImportReviewCard({
-  draft,
-  replace,
-  toast,
-  proposal,
-  onDone,
-}: Props & { proposal: KnowledgeImportData; onDone: () => void }) {
-  const [review] = useState<ImportReview>(() => reviewImport(draft, proposal))
-  const [picks, setPicks] = useState<ImportPicks>(() => defaultPicks(review))
-  const nothing = review.about === 'same' && !review.services.length && !review.faqs.length
-  const toggle = (list: 'services' | 'faqs', i: number) =>
-    setPicks(p => {
-      const next = new Set(p[list])
-      if (next.has(i)) next.delete(i)
-      else next.add(i)
-      return { ...p, [list]: next }
-    })
-  function take() {
-    replace(applyImport(draft, proposal, review, picks))
-    toast('Added to the draft. Check it, then save.')
-    onDone()
-  }
-  const read = proposal.pages.length
-    ? `Read ${proposal.pages.length} page${proposal.pages.length === 1 ? '' : 's'}`
-    : 'From the pasted profile'
-  return (
-    <Section
-      id="kn-review"
-      title="Review the import"
-      description={`${read}. Pick what to keep; nothing is saved until you save.`}
-    >
-      {proposal.pages.length > 0 && (
-        <ul className="kn-pages">
-          {proposal.pages.map(p => (
-            <li key={p.url} title={p.url}>
-              {p.title || p.url}
-            </li>
-          ))}
-        </ul>
-      )}
-      {nothing && (
-        <p className="help">
-          Nothing new: everything it found is already here{review.unchanged ? ` (${review.unchanged} items)` : ''}.
-        </p>
-      )}
-      {review.about !== 'same' && (
-        <div className="kn-review-block">
-          <label className="kn-pick">
-            <input
-              type="checkbox"
-              checked={picks.about}
-              onChange={e => setPicks(p => ({ ...p, about: e.target.checked }))}
-            />
-            <b>
-              {review.about === 'empty' ? 'Use as About the business' : 'Replace your About text with the imported one'}
-            </b>
-          </label>
-          <p className="help kn-about-note">
-            This text becomes {draft.name.trim() || 'the assistant'}'s instructions on every call. Read it through and
-            fix anything that is wrong before you save.
-          </p>
-          <p className="kn-about-text">
-            {review.about === 'empty'
-              ? proposal.about
-              : wordDiff(draft.instructions, proposal.about).map((part, i) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: diff parts never reorder
-                  <span key={i} className={cx(part.kind === 'added' && 'kn-add', part.kind === 'removed' && 'kn-del')}>
-                    {part.text}
-                  </span>
-                ))}
-          </p>
-        </div>
-      )}
-      {review.services.length > 0 && (
-        <div className="kn-review-block">
-          <b className="kn-review-h">Services and prices</b>
-          {review.services.map((p, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: a fixed list for this review
-            <label key={i} className="kn-pick">
-              <input type="checkbox" checked={picks.services.has(i)} onChange={() => toggle('services', i)} />
-              <span>
-                {p.item.name} · {p.item.price || 'Quote only'}
-                {p.was && <span className="kn-was"> was {p.was.price || 'quote only'}</span>}
-                {p.item.description && <span className="kn-sub">{p.item.description}</span>}
-              </span>
-              <span className="kn-tag">{p.status === 'new' ? 'New' : 'Changed'}</span>
-            </label>
-          ))}
-        </div>
-      )}
-      {review.faqs.length > 0 && (
-        <div className="kn-review-block">
-          <b className="kn-review-h">FAQs</b>
-          {review.faqs.map((p, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: a fixed list for this review
-            <label key={i} className="kn-pick">
-              <input type="checkbox" checked={picks.faqs.has(i)} onChange={() => toggle('faqs', i)} />
-              <span>
-                {p.item.q}
-                <span className="kn-sub">{p.item.a}</span>
-                {p.was && <span className="kn-sub kn-was">Yours: {p.was.a}</span>}
-              </span>
-              <span className="kn-tag">{p.status === 'new' ? 'New' : 'Changed'}</span>
-            </label>
-          ))}
-        </div>
-      )}
-      <div className="kn-foot">
-        <Button variant="ghost" onClick={onDone} title="Close without changing anything">
-          Discard
-        </Button>
-        {!nothing && (
-          <Button variant="primary" onClick={take} title="Put the picked parts into the draft">
-            Add to draft
-          </Button>
-        )}
-      </div>
-    </Section>
   )
 }
 
@@ -390,12 +163,30 @@ function QuestionRow({
 
 // --- About, services, FAQs -----------------------------------------------------------------
 
-function AboutCard({ draft, set, name }: Props & { name: string }) {
+function AboutCard(props: Props & { name: string; empty: boolean }) {
+  const { draft, set, name, empty, canEdit } = props
+  const [helping, setHelping] = useState(false)
   return (
     <Section
       id="as-instructions"
       title="About the business"
-      description="Write it like you would brief a new hire."
+      description={
+        empty
+          ? 'Not sure where to start? Write with help asks a few questions and drafts it for you.'
+          : 'Write it like you would brief a new hire.'
+      }
+      actions={
+        <Button
+          size="sm"
+          variant={empty ? 'primary' : 'secondary'}
+          icon="spark"
+          disabled={!canEdit}
+          onClick={() => setHelping(true)}
+          title="Answer a few questions and get a draft to review"
+        >
+          Write with help
+        </Button>
+      }
       help={`What ${name} should know and how to answer: what you do, the area you cover, how you handle prices, what to ask callers. Opening hours go under Settings, Business hours; ${name} reads them from there.`}
     >
       <Field id="as-instr" label={`What ${name} should know`}>
@@ -412,6 +203,7 @@ function AboutCard({ draft, set, name }: Props & { name: string }) {
           {count(draft.instructions.trim().length)} / {count(INSTRUCTIONS_MAX)}
         </span>
       </Field>
+      {helping && <WriteWithHelp {...props} onClose={() => setHelping(false)} />}
     </Section>
   )
 }
