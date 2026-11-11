@@ -1,6 +1,6 @@
 // Test fixtures: real users and sessions through Better Auth, workspaces through the API,
 // rows straight into the test database. Every id is random, so test files can run in parallel.
-import { assistants, calls, contacts, phone_numbers } from '@linedesk/db'
+import { assistant_calendars, assistants, calendar_connections, calls, contacts, phone_numbers } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { app } from '../src/app.ts'
 import { auth } from '../src/auth.ts'
@@ -31,7 +31,7 @@ export type Caller = { headers: Record<string, string> }
 export type User = Caller & { userId: string }
 
 /** A new account with a password; its email is not verified. */
-export async function signUp(email = `${uid('user')}@linedesk.test`): Promise<User> {
+export async function signUp(email = `${uid('user')}@callfront.test`): Promise<User> {
   const res = await appRequest('/api/auth/sign-up/email', {
     method: 'POST',
     headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },
@@ -94,7 +94,14 @@ export async function createWorkspace(name: string) {
       to_number: number,
     })
     .returning()
-  return { id, owner, assistant: assistant!, number, contact: contact!, call: call! }
+  // A connected calendar account (no tokens: nothing reaches a provider) and one calendar of the assistant.
+  const [connection] = await db.insert(calendar_connections)
+    .values({ id: uid('calc'), workspace_id: id, provider: 'google', account_email: `${uid('cal')}@example.com`, connected_by: owner.userId })
+    .returning()
+  const [assistantCalendar] = await db.insert(assistant_calendars)
+    .values({ id: uid('acal'), workspace_id: id, assistant_id: assistant!.id, connection_id: connection!.id, external_id: 'primary', name: 'Office', is_default: true })
+    .returning()
+  return { id, owner, assistant: assistant!, number, contact: contact!, call: call!, connection: connection!, assistantCalendar: assistantCalendar! }
 }
 export type Workspace = Awaited<ReturnType<typeof createWorkspace>>
 
@@ -106,4 +113,5 @@ export async function addMember(workspaceId: string, role: 'admin' | 'member'): 
 
 export const getCall = async (id: string) => (await db.select().from(calls).where(eq(calls.id, id)))[0]
 export const getContact = async (id: string) => (await db.select().from(contacts).where(eq(contacts.id, id)))[0]
+export const getAssistantCalendar = async (id: string) => (await db.select().from(assistant_calendars).where(eq(assistant_calendars.id, id)))[0]
 export const getAssistant = async (id: string) => (await db.select().from(assistants).where(eq(assistants.id, id)))[0]

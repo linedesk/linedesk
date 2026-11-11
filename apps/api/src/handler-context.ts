@@ -3,6 +3,7 @@
 import type { ActionResult } from '@linedesk/actions'
 import type { Tx } from '@linedesk/db'
 import type { TelephonyProvider } from '@linedesk/telephony'
+import type { CalendarServices } from './calendar-connections.ts'
 import type { Actor } from './context.ts'
 import type { RecordingStore } from './recording-store.ts'
 
@@ -13,7 +14,7 @@ export class Reject extends Error {}
 export type Undo = () => Promise<string>
 
 /**
- * `telephony` and `recordings` override what is in effect (tests). `onRollback` registers an undo
+ * `telephony`, `recordings` and `calendars` override what is in effect (tests). `onRollback` registers an undo
  * that runs if the action's transaction does not commit, for whatever reason.
  */
 export type HandlerCtx = {
@@ -22,6 +23,7 @@ export type HandlerCtx = {
   now: string
   telephony?: TelephonyProvider
   recordings?: RecordingStore
+  calendars?: CalendarServices
   onRollback?: (undo: Undo) => void
 }
 // biome-ignore lint/suspicious/noExplicitAny: the registry has validated the input against the action's schema

@@ -8,6 +8,7 @@ import {
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { and, asc, desc, eq, gt, gte, lt, lte, ne } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
+import { calendarConnectionHandlers } from './calendar-connections.ts'
 import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, Reject, type Undo } from './handler-context.ts'
@@ -180,6 +181,7 @@ const handlers: Record<string, Handler> = {
   ...teamHandlers,
   ...workspaceSettingsHandlers,
   ...notificationHandlers,
+  ...calendarConnectionHandlers,
 
   'calendar.findSlots': async ({ tx, actor, now }, input) => {
     const workspaceId = actor.workspaceId

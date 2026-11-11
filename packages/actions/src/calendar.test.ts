@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { actions, calendarFindSlots, rolePermissions, type Role } from './index.ts'
+import { actions, applyLocally, calendarFindSlots, type LocalTables, rolePermissions, type Role } from './index.ts'
 
 describe('calendar.findSlots', () => {
   it('is in the registry as a read-only action without an optimistic patch', () => {
@@ -9,7 +9,7 @@ describe('calendar.findSlots', () => {
   })
 
   it('is read-only, like the provider connection test, the test-call token, team.list, the call-test lookup and the workspace settings read', () => {
-    expect([...actions.values()].filter(a => a.readOnly).map(a => a.name).sort()).toEqual(['assistant.startTestCall', 'calendar.findSlots', 'call.findForTest', 'notifications.get', 'provider.test', 'team.list', 'workspace.getSettings'])
+    expect([...actions.values()].filter(a => a.readOnly).map(a => a.name).sort()).toEqual(['assistant.startTestCall', 'calendar.findSlots', 'calendar.listCalendars', 'call.findForTest', 'notifications.get', 'provider.test', 'team.list', 'workspace.getSettings'])
   })
 
   it.each(['owner', 'admin', 'member', 'agent'] satisfies Role[])('can be called by %s', role => {
@@ -34,5 +34,34 @@ describe('calendar.findSlots', () => {
     [{ appointmentTypeId: 'at_1', limit: 201 }],
   ])('rejects %j', input => {
     expect(calendarFindSlots.input.safeParse(input).success).toBe(false)
+  })
+})
+
+describe('calendar accounts and the assistant calendars', () => {
+  it('only owners and admins connect, list, disconnect and change calendars', () => {
+    for (const name of ['calendar.connectStart', 'calendar.connectFinish', 'calendar.listCalendars', 'calendar.disconnect', 'assistantCalendar.add', 'assistantCalendar.update', 'assistantCalendar.setDefault', 'assistantCalendar.remove']) {
+      const def = actions.get(name)!
+      expect(def.permission, name).toBe('settings:write')
+      expect(rolePermissions.member).not.toContain(def.permission)
+      expect(rolePermissions.agent).not.toContain(def.permission)
+    }
+  })
+
+  it('the OAuth code is redacted in the command log', () => {
+    expect(actions.get('calendar.connectFinish')!.sensitive).toEqual(['code'])
+  })
+
+  it('assistantCalendar.update applies the instruction and the switch locally, and nothing it was not given', () => {
+    const tables = { assistant_calendars: new Map([['acal_1', { id: 'acal_1', instruction: 'old', enabled: true, is_default: true }]]) } as unknown as LocalTables
+    const def = actions.get('assistantCalendar.update')!
+    applyLocally(tables, def, def.input.parse({ assistantCalendarId: 'acal_1', instruction: '  Emergencies  ' }), '2030-01-01T00:00:00Z')
+    expect(tables.assistant_calendars.get('acal_1')).toMatchObject({ instruction: 'Emergencies', enabled: true, is_default: true })
+    applyLocally(tables, def, def.input.parse({ assistantCalendarId: 'acal_1', enabled: false }), '2030-01-01T00:00:00Z')
+    expect(tables.assistant_calendars.get('acal_1')).toMatchObject({ instruction: 'Emergencies', enabled: false })
+    expect(def.input.safeParse({ assistantCalendarId: 'acal_1', instruction: 'x'.repeat(301) }).success).toBe(false)
+  })
+
+  it('connectStart takes Google or Microsoft only', () => {
+    expect(actions.get('calendar.connectStart')!.input.safeParse({ provider: 'yahoo' }).success).toBe(false)
   })
 })

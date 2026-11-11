@@ -12,6 +12,7 @@ import {
   type Caller,
   createWorkspace,
   getAssistant,
+  getAssistantCalendar,
   getCall,
   getContact,
   randomNumber,
@@ -42,6 +43,7 @@ function inputFor(def: ActionDef, ws: Workspace): Record<string, unknown> {
     calls: { callId: ws.call.id },
     contacts: { contactId: ws.contact.id, note: 'changed' },
     assistants: { assistantId: ws.assistant.id, greeting: 'changed' },
+    assistant_calendars: { assistantCalendarId: ws.assistantCalendar.id, instruction: 'changed' },
   }
   const input = { ...byTable[def.patch!.table], ...extra[def.name] }
   if (!def.input.safeParse(input).success) {
@@ -57,6 +59,7 @@ const snapshot = async (ws: Workspace) => [
   await getCall(ws.call.id),
   await getContact(ws.contact.id),
   await getAssistant(ws.assistant.id),
+  await getAssistantCalendar(ws.assistantCalendar.id),
 ]
 
 describe('patch actions', () => {

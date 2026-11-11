@@ -120,6 +120,13 @@
       "when": 1794354413094,
       "tag": "0016_recording_store",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794359522791,
+      "tag": "0017_calendar_connections",
+      "breakpoints": true
     }
   ]
 }

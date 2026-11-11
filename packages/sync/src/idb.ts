@@ -6,12 +6,15 @@ const stores = [...tableNames, 'outbox', 'meta'] as const
 export type StoreName = (typeof stores)[number]
 
 const OPEN_TIMEOUT_MS = 8000
+/** Bumped whenever a store is added. 2: appointment types, bookings, calendar accounts and the assistant's calendars. */
+const DB_VERSION = 2
 
 /** Opening waits behind a pending delete or upgrade from another tab; it must fail rather than hang. */
 const open = (name: string, timeoutMs: number) => new Promise<IDBDatabase>((resolve, reject) => {
-  const req = indexedDB.open(name, 1)
+  const req = indexedDB.open(name, DB_VERSION)
   const timer = setTimeout(() => reject(new Error('The local database did not open. Another tab may be holding it.')), timeoutMs)
-  req.onupgradeneeded = () => { for (const s of stores) req.result.createObjectStore(s) }
+  // Each version only adds stores (a new synced table); the ones a device has already stay as they are.
+  req.onupgradeneeded = () => { for (const s of stores) if (!req.result.objectStoreNames.contains(s)) req.result.createObjectStore(s) }
   req.onsuccess = () => { clearTimeout(timer); resolve(req.result) }
   req.onerror = () => { clearTimeout(timer); reject(req.error) }
   req.onblocked = () => { clearTimeout(timer); reject(new Error('The local database is in use by another tab.')) }

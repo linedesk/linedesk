@@ -248,6 +248,88 @@ export const appointment_types = pgTable(
   ],
 )
 
+// A calendar account connected to a workspace (Google or Microsoft). Synced: holds no secret.
+// Its tokens are in calendar_credentials, which is never synced.
+export const calendar_connections = pgTable(
+  'calendar_connections',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    provider: text('provider', { enum: ['google', 'microsoft'] }).notNull(),
+    account_email: text('account_email').notNull(),
+    /** `needs_reconnect`: the provider refused the grant (revoked, expired); someone has to connect it again. */
+    status: text('status', { enum: ['connected', 'needs_reconnect'] })
+      .notNull()
+      .default('connected'),
+    /** The provider's last refusal, for the settings page. */
+    last_error: text('last_error'),
+    /** The member who connected the account. */
+    connected_by: text('connected_by').notNull(),
+    created_at: createdAt(),
+    version: version(),
+  },
+  t => [
+    index('calendar_connections_ws').on(t.workspace_id),
+    unique('calendar_connections_account').on(t.workspace_id, t.provider, t.account_email),
+  ],
+)
+
+// OAuth tokens of a calendar connection, AES-256-GCM with SECRETS_KEY (apps/api/src/secrets.ts). Never synced.
+export const calendar_credentials = pgTable('calendar_credentials', {
+  connection_id: text('connection_id')
+    .primaryKey()
+    .references(() => calendar_connections.id, { onDelete: 'cascade' }),
+  workspace_id: workspaceId(),
+  access_token_encrypted: text('access_token_encrypted').notNull(),
+  refresh_token_encrypted: text('refresh_token_encrypted').notNull(),
+  expires_at: ts('expires_at').notNull(),
+  /** The scopes the account granted, as the provider reported them. */
+  scope: text('scope'),
+  updated_at: ts('updated_at').notNull().defaultNow(),
+})
+
+// A started calendar connect: the OAuth `state` (this row's id) and the PKCE verifier, for one member in
+// one workspace, used once and for ten minutes. Never synced.
+export const calendar_oauth_states = pgTable('calendar_oauth_states', {
+  id: id(),
+  workspace_id: workspaceId(),
+  user_id: text('user_id').notNull(),
+  provider: text('provider', { enum: ['google', 'microsoft'] }).notNull(),
+  code_verifier: text('code_verifier').notNull(),
+  expires_at: ts('expires_at').notNull(),
+  created_at: createdAt(),
+})
+
+// A calendar the assistant may book into, with the owner's note on when to use it
+// ("Emergencies", "Estimates"). The assistant picks one per booking; the API checks it is the assistant's.
+export const assistant_calendars = pgTable(
+  'assistant_calendars',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    assistant_id: text('assistant_id')
+      .notNull()
+      .references(() => assistants.id, { onDelete: 'cascade' }),
+    connection_id: text('connection_id')
+      .notNull()
+      .references(() => calendar_connections.id, { onDelete: 'cascade' }),
+    /** The provider's calendar id. */
+    external_id: text('external_id').notNull(),
+    name: text('name').notNull(),
+    /** When to use this calendar, in the owner's words; goes into the assistant's prompt. */
+    instruction: text('instruction').notNull().default(''),
+    enabled: boolean('enabled').notNull().default(true),
+    /** Used when no instruction fits. At most one per assistant. */
+    is_default: boolean('is_default').notNull().default(false),
+    created_at: createdAt(),
+    version: version(),
+  },
+  t => [
+    index('assistant_calendars_ws').on(t.workspace_id),
+    unique('assistant_calendars_calendar').on(t.assistant_id, t.connection_id, t.external_id),
+  ],
+)
+
 export const bookings = pgTable(
   'bookings',
   {
@@ -261,9 +343,12 @@ export const bookings = pgTable(
     status: text('status', { enum: ['confirmed', 'rescheduled', 'cancelled'] })
       .notNull()
       .default('confirmed'),
-    /** Set once calendar providers exist: the calendar the event was written to and its id there. */
+    /** The assistant_calendars row the event was written to (no foreign key: the booking outlives it) and the event's id there. */
     calendar_id: text('calendar_id'),
     external_event_id: text('external_event_id'),
+    /** The event's title ("Repair visit · Sam Patel") and the calendar's name, as they were when booked. */
+    title: text('title'),
+    calendar_name: text('calendar_name'),
     created_at: createdAt(),
     version: version(),
   },
@@ -317,4 +402,6 @@ export const instance_settings = pgTable('instance_settings', {
 })
 
 /** Tables that read sync delivers to clients, filtered by workspace_id. */
-export const syncedTables = { calls, contacts, assistants, phone_numbers, transcript_segments } as const
+export const syncedTables = {
+  calls, contacts, assistants, phone_numbers, transcript_segments, appointment_types, bookings, calendar_connections, assistant_calendars,
+} as const

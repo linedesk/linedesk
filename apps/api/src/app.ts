@@ -7,7 +7,9 @@ import { setFirstPassword } from './account.ts'
 import { registerAdminRoutes } from './admin-routes.ts'
 import { withClientIp } from './client-ip.ts'
 import { authMethods } from './auth-methods.ts'
-import { auth, WORKSPACE_LIMIT } from './auth.ts'
+import { auth, WEB_ORIGIN, WORKSPACE_LIMIT } from './auth.ts'
+import { calendarCallback } from './calendar-callback.ts'
+import { configuredCalendarProviders } from '@linedesk/calendar'
 import { resolveActor, type Actor } from './context.ts'
 import { db } from './db.ts'
 import { COOKIE_ACTIONS } from './impersonation.ts'
@@ -81,6 +83,10 @@ app.post('/v1/workspaces', async c => {
 // Before the workspace guard: a member without a workspace has an account too.
 app.post('/v1/account/password', setFirstPassword)
 
+// The provider sends the browser back here after the consent page. Before the guard: it answers
+// with a redirect to the settings page in every case, also when the session is gone.
+app.get('/v1/calendar/callback/:provider', async c => c.redirect(await calendarCallback(c.req.param('provider'), new URL(c.req.url).searchParams, c.req.raw.headers, WEB_ORIGIN)))
+
 app.use('/v1/*', async (c, next) => {
   const actor = await resolveActor(c.req.raw.headers)
   if (!actor) return c.json({ ok: false, error: 'not signed in or no workspace' }, 401)
@@ -117,6 +123,9 @@ app.get('/v1/assistant/status', async c => {
   c.header('cache-control', 'no-store')
   return c.json({ voiceReady: await voiceReady(db) })
 })
+
+// Which calendar providers this install can connect (their OAuth apps are set in env).
+app.get('/v1/calendar/providers', c => c.json({ providers: configuredCalendarProviders(process.env) }))
 
 registerAdminRoutes(app)
 registerImpersonationRoutes(app)
