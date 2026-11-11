@@ -20,18 +20,18 @@ jobs:
       postgres:
         image: postgres:17
         env:
-          POSTGRES_USER: callfront
-          POSTGRES_PASSWORD: callfront
-          POSTGRES_DB: callfront_test
+          POSTGRES_USER: linedesk
+          POSTGRES_PASSWORD: linedesk
+          POSTGRES_DB: linedesk_test
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U callfront"
+          --health-cmd "pg_isready -U linedesk"
           --health-interval 2s
           --health-timeout 5s
           --health-retries 20
     env:
       # Each run of the API integration tests creates its own database next to this one (the name must end in _test).
-      TEST_DATABASE_URL: postgres://callfront:callfront@localhost:5432/callfront_test
+      TEST_DATABASE_URL: postgres://linedesk:linedesk@localhost:5432/linedesk_test
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -50,5 +50,5 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - run: docker build --target api -t callfront-api .
-      - run: docker build --target web -t callfront-web .
+      - run: docker build --target api -t linedesk-api .
+      - run: docker build --target web -t linedesk-web .
