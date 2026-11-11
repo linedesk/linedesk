@@ -58,7 +58,8 @@ describe('store', () => {
     calls().upsert([call(), call({ id: 'c2' })])
     await store.run('call.markDone', { callId: 'c1' })
     await eventually(() => expect(store.rows('calls').map(c => c.id)).toEqual(['c2']))
-    expect(refresh).toHaveBeenCalled()
+    // The refresh follows once the command is settled (outbox write), a moment after the rows are gone.
+    await eventually(() => expect(refresh).toHaveBeenCalled())
     store.stop()
   })
 
