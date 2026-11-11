@@ -1,6 +1,7 @@
 // Step 3: call the number and watch the call arrive through sync; without a number, a test call in the browser.
 import { useState } from 'react'
-import { TestCall } from '../settings/TestCall.tsx'
+import { TestCallButton, useTestCall } from '../settings/TestCall.tsx'
+import { TestCallPanel } from '../settings/TestCallPanel.tsx'
 import { useAssistantName, useRows } from '../store.tsx'
 import { Button, Icon } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
@@ -11,6 +12,17 @@ import { firstTestCall, formatNumber, simulateCommand } from './flow.ts'
 const SLACK_MS = 2 * 60_000
 
 type Props = { showSimulator: boolean; onBack: () => void; onNext: () => void; onOpenCall: (callId: string) => void }
+
+/** Without a number: the test call in the browser, in the same panel as Settings › Assistant. */
+function BrowserTestCall({ onOpenCall }: { onOpenCall: (callId: string) => void }) {
+  const session = useTestCall(true)
+  return (
+    <div className="st-test-bare">
+      <TestCallButton session={session} variant="primary" />
+      <TestCallPanel session={session} onOpenCall={onOpenCall} />
+    </div>
+  )
+}
 
 export function TestCallStep({ showSimulator, onBack, onNext, onOpenCall }: Props) {
   const numbers = useRows('phone_numbers')
@@ -33,7 +45,7 @@ export function TestCallStep({ showSimulator, onBack, onNext, onOpenCall }: Prop
         <div className="ob-body">
           <h1>Talk to {name} in the browser.</h1>
           <p className="ob-lede">Use your microphone and ask what a customer would ask.</p>
-          <TestCall canStart />
+          <BrowserTestCall onOpenCall={onOpenCall} />
         </div>
         <Foot onBack={onBack} onContinue={onNext} canContinue label="Continue" />
       </>

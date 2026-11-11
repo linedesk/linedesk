@@ -18,6 +18,7 @@ import { createPipeline, createTts, summaryLlm, ttsModelOf, voiceFor, warmUpLlm 
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
 import { logTurnMetrics } from './turn-metrics.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
+import { promisesUrgent, urgentFlagger } from './urgent-promise.ts'
 import { hangUpAfterSpeech, speakingOf } from './hang-up.ts'
 import { buildInstructions, canChangeBookings, FALLBACK_GREETING } from './prompt.ts'
 import { describeRecording, livekitRecorder, resolveRecording, saveRecording, startRecording, stopRecording, stopRecordingOrThrow } from './recording.ts'
@@ -103,7 +104,7 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
 /** transfer_call, only when the assistant puts urgent calls through on this call and someone can be dialled. */
 type Transfer = Omit<Parameters<typeof transferTool>[0], 'api' | 'call' | 'log'> | null
 
-function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: () => void, transfer: Transfer) {
+function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: () => void, flagUrgent: () => Promise<void>, transfer: Transfer) {
   const { callId, workspaceId } = call
   return {
     ...bookingToolset(api, call, log),
@@ -127,15 +128,30 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
       },
     }),
     flag_urgent: llm.tool({
-      description: 'Flag this call as urgent. Use it for emergencies that need a person right away.',
+      description: 'Flag this call as urgent. Use it for emergencies that need a person right away. Whenever you tell the caller you are flagging or marking the call as urgent, call this in that same response; never say it without calling it.',
       execute: async () => {
-        await api.run(callFlagUrgent, { callId }, workspaceId)
-        log.urgent = true
-        log.record('system', 'Flagged as urgent', callFlagUrgent.name)
+        await flagUrgent()
         return 'The call is flagged as urgent for the team. Take a message now; do not promise a response time.'
       },
     }),
   }
+}
+
+/** Flags the call once, from the tool or from the guard below. */
+function callFlagger(api: ApiClient, call: CallSession, log: CallLog) {
+  return urgentFlagger(async () => {
+    await api.run(callFlagUrgent, { callId: call.callId }, call.workspaceId)
+    log.urgent = true
+    log.record('system', 'Flagged as urgent', callFlagUrgent.name)
+  })
+}
+
+/** When the assistant has said the call is flagged as urgent, it is: flag it if the model left out flag_urgent. */
+function keepUrgentPromises(session: voice.AgentSession, flagUrgent: () => Promise<void>, callId: string) {
+  session.on(voice.AgentSessionEventTypes.ConversationItemAdded, ({ item }) => {
+    if (item.type !== 'message' || item.role !== 'assistant' || !item.textContent || !promisesUrgent(item.textContent)) return
+    flagUrgent().catch(e => console.error(`call ${callId}: could not flag as urgent: ${e instanceof Error ? e.message : String(e)}`))
+  })
 }
 
 function recordConversation(session: voice.AgentSession, log: CallLog) {
@@ -191,12 +207,14 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   }
   session.on(voice.AgentSessionEventTypes.AgentStateChanged, onSpeaking)
   recordConversation(session, log)
+  const flagUrgent = callFlagger(api, call, log)
+  keepUrgentPromises(session, flagUrgent, call.callId)
   logTurnMetrics(session, call.callId)
   skipQuietToolReplies(session, QUIET_TOOLS)
   session.on(voice.AgentSessionEventTypes.Close, onClose)
   const endCall = () => hangUpAfterSpeech(speakingOf(session), () => void ctx.deleteRoom().catch(() => {}))
   const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, false, call.contact)
-  const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, null) })
+  const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, flagUrgent, null) })
   void warmUpLlm(config.llm, instructions)
   await session.start({
     agent,
@@ -206,20 +224,20 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   })
   setup.mark('session')
   setup.note(await greet(session, config, call, cachedGreeting, key))
-  void addTransfer(agent, callerJoined, { ctx, api, call, config, log, endCall, stopRecording: stopRecordingForTransfer })
+  void addTransfer(agent, callerJoined, { ctx, api, call, config, log, endCall, flagUrgent, stopRecording: stopRecordingForTransfer })
 }
 
 /** Gives the assistant transfer_call, and the instructions for it, once it is known that it can transfer now. */
 async function addTransfer(
   agent: voice.Agent, callerJoined: Promise<RemoteParticipant>,
-  { ctx, api, call, config, log, endCall, stopRecording }: { ctx: JobContext; api: ApiClient; call: CallSession; config: AgentConfig; log: CallLog; endCall: () => void; stopRecording: () => Promise<void> },
+  { ctx, api, call, config, log, endCall, flagUrgent, stopRecording }: { ctx: JobContext; api: ApiClient; call: CallSession; config: AgentConfig; log: CallLog; endCall: () => void; flagUrgent: () => Promise<void>; stopRecording: () => Promise<void> },
 ) {
   try {
     const caller = await callerJoined
     const transfer = await transferFor(ctx, api, call, config, caller.identity, stopRecording)
     if (!transfer) return
     await agent.updateInstructions(buildInstructions(call.assistant, call.businessHours, call.booking, true, call.contact))
-    await agent.updateTools(assistantTools(api, call, log, endCall, transfer))
+    await agent.updateTools(assistantTools(api, call, log, endCall, flagUrgent, transfer))
   } catch (e) {
     console.warn(`call ${call.callId} goes on without transfer: ${e instanceof Error ? e.message : String(e)}`)
   }

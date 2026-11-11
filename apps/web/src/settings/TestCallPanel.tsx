@@ -2,7 +2,6 @@
 // top, then what the assistant did and the conversation as it happens (the same transcript, event
 // lines and booking cards as the call view), and the summary once the call is filed. It does not
 // cover the page with a backdrop: the instructions stay editable while you talk.
-import type { Call } from '@linedesk/db/types'
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { BookingCards } from '../call/BookingCard.tsx'
@@ -58,8 +57,8 @@ function Controls({ session }: { session: TestCallSession }) {
 }
 
 /** Opens the filed call in the inbox (the settings page closes, and the panel with it). */
-const openInInbox = (call: Call) => {
-  window.location.hash = callHash(call.id)
+const openInInbox = (callId: string) => {
+  window.location.hash = callHash(callId)
 }
 
 /** The conversation so far: the same transcript as a finished call, plus the lines still being spoken. */
@@ -81,7 +80,14 @@ function Conversation({ session }: { session: TestCallSession }) {
 }
 
 /** The panel while a test call starts, runs and right after it, until it is closed. */
-export function TestCallPanel({ session }: { session: TestCallSession }) {
+export function TestCallPanel({
+  session,
+  onOpenCall = openInInbox,
+}: {
+  session: TestCallSession
+  /** Where Open in inbox goes (onboarding finishes first); default: the call in the inbox. */
+  onOpenCall?: (callId: string) => void
+}) {
   const { phase, problem, notSetUp, call, name, lines, pending } = session
   const open = phase !== 'idle' || !!problem
   const closable = phase === 'ended' || phase === 'idle'
@@ -91,13 +97,17 @@ export function TestCallPanel({ session }: { session: TestCallSession }) {
   )
   const dismiss = useRef(session.dismiss)
   dismiss.current = session.dismiss
+  // Esc belongs to the panel while it is open (before the page's own Esc, e.g. back in onboarding):
+  // it closes the panel after the call, and does nothing during it.
   useEffect(() => {
-    if (!open || !closable) return
+    if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !e.defaultPrevented) dismiss.current()
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      e.preventDefault()
+      if (closable) dismiss.current()
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
   }, [open, closable])
 
   const message = problem ?? (notSetUp ? `${name} can't talk yet: the ${notSetUp} service isn't set up.` : null)
@@ -137,7 +147,7 @@ export function TestCallPanel({ session }: { session: TestCallSession }) {
             </div>
             {phase === 'ended' && call && (
               <footer className="tcp-f">
-                <Button size="sm" variant="ghost" icon="arrow-up-right" onClick={() => openInInbox(call)}>
+                <Button size="sm" variant="ghost" icon="arrow-up-right" onClick={() => onOpenCall(call.id)}>
                   Open in inbox
                 </Button>
                 <Button size="sm" variant="primary" icon="phone-in" onClick={session.start}>

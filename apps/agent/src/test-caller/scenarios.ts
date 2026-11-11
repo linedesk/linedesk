@@ -16,6 +16,8 @@ export interface Expectation {
   assistantAvoids?: RegExp
   /** The caller says nothing: the transcript check expects no caller turns. */
   silentCaller?: boolean
+  /** The call was flagged with flag_urgent (a "Flagged as urgent" line), not only rated urgent by the summary. */
+  flaggedByTool?: boolean
   /** How the warm transfer must have gone (call.transfer). */
   transferResult?: 'connected' | 'not_answered' | 'declined'
 }
@@ -58,7 +60,12 @@ export const scenarios = {
   },
   'burst-pipe': {
     persona: 'You are Dana Ruiz. A pipe under your kitchen sink just burst and water is spraying everywhere; you have shut off the main valve. You want a plumber out as soon as possible. Your address is 1450 Southeast Division Street, Portland, and this number is the best way to reach you.',
-    expect: { outcome: MESSAGE_OUTCOMES, urgency: 'urgent', actionItems: 1 },
+    expect: { outcome: MESSAGE_OUTCOMES, urgency: 'urgent', actionItems: 1, flaggedByTool: true },
+  },
+  // The assistant tends to say "I'll flag this as urgent" first: the flag must follow the words.
+  'urgent-promise': {
+    persona: 'You are Tom Becker. A pipe burst in your basement and water is everywhere; you have not found the main valve yet. Say right away that it is an emergency and ask them to make sure the team knows it is urgent. Your address is 42 Oak Street, Portland, and this number is the best way to reach you.',
+    expect: { outcome: MESSAGE_OUTCOMES, urgency: 'urgent', actionItems: 1, flaggedByTool: true },
   },
   'price-question': {
     persona: 'You are Chris Moore. You want to know how much it costs to unclog a bathroom drain and whether there is a call-out fee. Push once for a ballpark number. If they cannot say, leave your name and ask for a call back.',

@@ -1,7 +1,6 @@
 // A test call in the browser, no phone involved. The API signs a LiveKit token for a new room
 // (assistant.startTestCall); the voice agent joins it and files the call in the inbox as "Test call".
-// Settings > Assistant shows a Start button in its header and the call in a side panel
-// (TestCallPanel); onboarding shows the same button, a compact bar and the transcript (TestCall).
+// Settings > Assistant and onboarding show a Start button and the call in a side panel (TestCallPanel).
 import type { TestCallData } from '@linedesk/actions'
 import type { TranscriptSegment } from '@linedesk/db/types'
 import { Room, RoomEvent, type TextStreamReader, Track } from 'livekit-client'
@@ -9,7 +8,7 @@ import { type RefObject, useEffect, useMemo, useRef, useState } from 'react'
 import { useVoiceReady } from '../shell/presence.ts'
 import { useAssistantName, useRows } from '../store.tsx'
 import { workspaceHeaders } from '../tabWorkspace.ts'
-import { Button, cx } from '../ui/kit.tsx'
+import { Button } from '../ui/kit.tsx'
 import '../ui/settings-layout.css'
 import {
   applyChunk,
@@ -274,86 +273,7 @@ export function TestCallButton({
   )
 }
 
-/** The running call (or what went wrong) in one compact bar: status, mute, hang up. */
-export function TestCallBar({ session }: { session: TestCallSession }) {
-  const { phase, problem, notSetUp, call, lines, muted, name } = session
-  const last = lines.at(-1)
-  const status =
-    phase === 'starting'
-      ? 'Connecting…'
-      : phase === 'live'
-        ? call
-          ? `On a test call with ${name}`
-          : `Waiting for ${name} to answer…`
-        : phase === 'ended'
-          ? 'Test call ended. It is in the inbox.'
-          : null
-  const message = problem ?? (notSetUp ? `${name} can't talk yet: the ${notSetUp} service isn't set up.` : null)
-  return (
-    <>
-      {(status || message) && (
-        <div className={cx('tc-bar', message && 'tc-bar-problem')} role="status" aria-live="polite">
-          {phase === 'live' && <span className="tc-live" aria-hidden="true" />}
-          {phase === 'starting' && <span className="st-spin" aria-hidden="true" />}
-          <span className="tc-text">
-            <b>{message ?? status}</b>
-            {!message && last && (
-              <span className="tc-line">
-                {last.speaker === 'caller' ? 'You' : last.speaker === 'agent' ? name : 'System'}: {last.text}
-              </span>
-            )}
-          </span>
-          {phase === 'starting' && (
-            <Button size="sm" variant="ghost" onClick={session.cancel}>
-              Cancel
-            </Button>
-          )}
-          {phase === 'live' && (
-            <>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon={muted ? 'micOff' : 'mic'}
-                aria-pressed={muted}
-                title={muted ? 'Unmute' : 'Mute'}
-                onClick={session.toggleMute}
-              />
-              <Button size="sm" variant="danger" onClick={() => void session.stop()} title="Hang up">
-                Hang up
-              </Button>
-            </>
-          )}
-          {(phase === 'ended' || phase === 'idle') && (
-            <Button size="sm" variant="ghost" icon="close" title="Close" onClick={session.dismiss} />
-          )}
-        </div>
-      )}
-      <AudioSink target={session.audio} />
-    </>
-  )
-}
-
+/** Where the call's audio plays (hidden). */
 export function AudioSink({ target }: { target: RefObject<HTMLDivElement | null> }) {
   return <div ref={target} hidden />
-}
-
-/** For onboarding: the button, the bar and the whole transcript, without a card. */
-export function TestCall({ canStart }: { canStart: boolean }) {
-  const session = useTestCall(canStart)
-  return (
-    <div className="st-test-bare">
-      <TestCallButton session={session} />
-      <TestCallBar session={session} />
-      {session.lines.length > 0 && (
-        <ol className="tc-transcript" aria-live="polite">
-          {session.lines.map(line => (
-            <li key={line.id}>
-              <b>{line.speaker === 'caller' ? 'You' : line.speaker === 'agent' ? session.name : 'System'}:</b>{' '}
-              {line.text}
-            </li>
-          ))}
-        </ol>
-      )}
-    </div>
-  )
 }

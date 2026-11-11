@@ -64,58 +64,11 @@
   }
 }
 
-/* Test call: the button in the page header and a compact bar while a call runs. */
+/* Test call: the button in the page header (the call itself is in TestCallPanel). */
 .tc-btn-wrap {
   display: inline-flex;
 }
 /* A disabled button gets no hover: the wrapper shows the reason in its tooltip. */
 .tc-btn-wrap .k-btn:disabled {
   pointer-events: none;
-}
-.tc-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  padding: 6px 6px 6px 14px;
-  box-sizing: border-box;
-  background: var(--surface);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-1);
-}
-.tc-text {
-  flex: 1;
-  min-width: 0;
-  display: grid;
-  font-size: 13px;
-  line-height: 18px;
-}
-.tc-text b {
-  font-weight: 500;
-}
-.tc-bar-problem .tc-text b {
-  color: var(--danger);
-}
-.tc-line {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--ink-muted);
-  font-size: 12.5px;
-}
-.tc-live {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  border-radius: var(--radius-full);
-  background: var(--live);
-}
-.tc-transcript {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 4px;
-  font-size: 13px;
-  color: var(--ink-muted);
 }

@@ -3,6 +3,7 @@
 import type { CallTestFinding } from '@linedesk/actions'
 import { type AgentSetup, GREETING_TARGET_MS, type LatencySample } from './latency.ts'
 import type { Expectation, Scenario } from './scenarios.ts'
+import { promisesUrgent } from '../urgent-promise.ts'
 
 export type Check = { ok: boolean; label: string; detail: string }
 type Line = CallTestFinding['lines'][number]
@@ -41,6 +42,27 @@ function bookingChecks(finding: CallTestFinding, expectation: NonNullable<Scenar
     })
   }
   return checks
+}
+
+/** How long after the assistant said the call is urgent its "Flagged as urgent" line may be written. */
+export const FLAG_AFTER_PROMISE_MS = 5000
+const isFlagLine = (l: Line) => l.speaker === 'system' && /flagged as urgent/i.test(l.text)
+
+/**
+ * Words and actions match: when the assistant said it flags the call as urgent, the flag follows
+ * right away. With `required` the call must be flagged by the tool even if nothing was said.
+ */
+export function urgentPromiseCheck(lines: Line[], required: boolean): Check | null {
+  const promise = lines.find(l => l.speaker === 'agent' && promisesUrgent(l.text))
+  const flag = lines.find(isFlagLine)
+  if (!promise && !required) return null
+  if (!flag) return { ok: false, label: 'flagged urgent', detail: promise ? `said "${promise.text}" but never flagged the call` : 'never flagged the call' }
+  const late = promise && flag.at_ms > promise.at_ms + FLAG_AFTER_PROMISE_MS
+  return {
+    ok: !late,
+    label: 'flagged urgent',
+    detail: late ? `flagged ${((flag.at_ms - promise.at_ms) / 1000).toFixed(1)} s after saying "${promise.text}"` : `flagged at ${(flag.at_ms / 1000).toFixed(1)} s`,
+  }
 }
 
 export function evaluateCall(finding: CallTestFinding, scenario: Scenario, { expectRecording = false } = {}): Check[] {
@@ -109,6 +131,8 @@ export function evaluateCall(finding: CallTestFinding, scenario: Scenario, { exp
       label: 'transfer',
       detail: `${call.transfer_result ?? 'no transfer'} (expected ${expect.transferResult})`,
     })
+  const urgent = urgentPromiseCheck(lines, !!expect.flaggedByTool)
+  if (urgent) checks.push(urgent)
   if (booking) checks.push(...bookingChecks(finding, booking))
   else if (scenario.booking) checks.push({ ok: true, label: 'booking', detail: 'the business cannot book (no appointment type or calendar): a message is expected' })
   checks.push({

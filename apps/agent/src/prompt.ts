@@ -152,6 +152,7 @@ export function buildInstructions(
     transfer ? TRANSFER_INSTRUCTIONS : null,
     callerNotesInstructions(caller),
     'When you use a tool, say your reply in the same response as the tool call instead of waiting for its result: the caller should never wait in silence.',
+    'Never tell the caller you did something (flagged the call as urgent, saved a message, booked a time) unless you call the tool for it in that same response.',
     'Use take_message once per call, when you have what the team needs; do not save the same request twice.',
     'When the caller has nothing else, say goodbye briefly. After the caller has said goodbye too, say a short goodbye and use end_call in the same response; never keep talking after both of you said goodbye.',
   ]
