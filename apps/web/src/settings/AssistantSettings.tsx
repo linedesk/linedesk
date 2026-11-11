@@ -41,7 +41,7 @@ import {
 import { AssistantHeader } from './AssistantHeader.tsx'
 import { CalendarSettings } from './Calendar.tsx'
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
-import { Field, Section, SwitchRow, TextArea, TextInput, type Variant, VariantSwitch } from './fields.tsx'
+import { Field, Section, SwitchRow, TextArea, TextInput, useRemembered } from './fields.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { Knowledge } from './Knowledge.tsx'
 import { VoiceSettings } from './VoiceSettings.tsx'
@@ -77,24 +77,6 @@ const count = (n: number) => n.toLocaleString('en-US')
 
 /** Whether the greeting's Advanced part is open; remembered in this browser. */
 const GREETING_ADVANCED_KEY = 'linedesk.assistant.greeting-advanced'
-function useRemembered(key: string): [boolean, (open: boolean) => void] {
-  const [open, setOpen] = useState(() => {
-    try {
-      return localStorage.getItem(key) === '1'
-    } catch {
-      return false
-    }
-  })
-  const remember = useCallback((next: boolean) => {
-    setOpen(next)
-    try {
-      localStorage.setItem(key, next ? '1' : '0')
-    } catch {
-      // Storage blocked: it is just not remembered.
-    }
-  }, [key])
-  return [open, remember]
-}
 
 function Greeting({
   draft,

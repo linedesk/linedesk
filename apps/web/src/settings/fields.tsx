@@ -1,7 +1,6 @@
 // Settings pages build on the kit's form pieces (ui/form.tsx); these keep the short names they use.
-import type { ReactNode } from 'react'
+import { type ReactNode, useCallback, useState } from 'react'
 import { Switch } from '../ui/controls.tsx'
-import { cx } from '../ui/kit.tsx'
 import { Card, FormField, Input, Textarea } from '../ui/form.tsx'
 
 type SectionProps = {
@@ -105,26 +104,25 @@ export function SwitchRow({ title, description, aside, on, onChange, disabled }:
   )
 }
 
-/** Which variant a field shows: during business hours, or outside them (only when the workspace uses hours). */
-export type Variant = 'during' | 'outside'
-
-/** "During hours / Outside hours" above a field, when the workspace uses business hours. */
-export function VariantSwitch({ value, onChange, label }: { value: Variant; onChange: (v: Variant) => void; label: string }) {
-  return (
-    <div className="st-seg as-variant" role="radiogroup" aria-label={label}>
-      {(['during', 'outside'] as const).map(v => (
-        <button
-          key={v}
-          type="button"
-          role="radio"
-          aria-checked={value === v}
-          className={cx('st-seg-b', value === v && 'on')}
-          onClick={() => onChange(v)}
-          title={v === 'outside' ? 'Optional. Leave it empty to use the same text as during hours.' : undefined}
-        >
-          {v === 'during' ? 'During hours' : 'Outside hours'}
-        </button>
-      ))}
-    </div>
+/** An open/closed state (an Advanced disclosure) remembered in this browser; works without storage too. */
+export function useRemembered(key: string): [boolean, (open: boolean) => void] {
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(key) === '1'
+    } catch {
+      return false
+    }
+  })
+  const remember = useCallback(
+    (next: boolean) => {
+      setOpen(next)
+      try {
+        localStorage.setItem(key, next ? '1' : '0')
+      } catch {
+        // Storage blocked: it is just not remembered.
+      }
+    },
+    [key],
   )
+  return [open, remember]
 }

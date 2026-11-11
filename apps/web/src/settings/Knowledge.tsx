@@ -16,9 +16,9 @@ import type { Assistant, KnowledgeDocument, KnowledgeQuestion } from '@linedesk/
 import { useRef, useState } from 'react'
 import { useRows } from '../store.tsx'
 import { Input } from '../ui/form.tsx'
-import { Button, cx } from '../ui/kit.tsx'
+import { Button, cx, Icon } from '../ui/kit.tsx'
 import type { Draft } from './assistantDraft.ts'
-import { Field, Section, TextArea, type Variant, VariantSwitch } from './fields.tsx'
+import { Field, Section, TextArea, useRemembered } from './fields.tsx'
 import {
   applyImport,
   defaultPicks,
@@ -391,9 +391,13 @@ function QuestionRow({
 
 // --- About, services, FAQs -----------------------------------------------------------------
 
+/** Whether About's Advanced part (the outside-hours text) is open; remembered in this browser. */
+const ABOUT_ADVANCED_KEY = 'linedesk.assistant.about-advanced'
+
 function AboutCard({ draft, set, hoursOn, name }: Props & { name: string }) {
-  const [variant, setVariant] = useState<Variant>('during')
-  const outside = hoursOn && variant === 'outside'
+  const [remembered, remember] = useRemembered(ABOUT_ADVANCED_KEY)
+  // An outside-hours text that is already there is shown, so it is never hidden from the owner by surprise.
+  const advancedOpen = remembered || !!draft.instructions_outside.trim()
   return (
     <Section
       id="as-instructions"
@@ -401,37 +405,42 @@ function AboutCard({ draft, set, hoursOn, name }: Props & { name: string }) {
       description="Write it like you would brief a new hire."
       help={`What ${name} should know and how to answer: what you do, the area you cover, how you handle prices, what to ask callers. Opening hours go under Settings, Business hours; ${name} reads them from there.`}
     >
-      {hoursOn && <VariantSwitch value={variant} onChange={setVariant} label="About the business for" />}
-      {outside ? (
-        <Field id="as-instr-out" label="Outside hours" aside="Optional">
-          <TextArea
-            id="as-instr-out"
-            tall
-            value={draft.instructions_outside}
-            onChange={v => set('instructions_outside', v)}
-            placeholder={draft.instructions || 'Empty: the same as during hours'}
-          />
-          <span className="help">
-            {draft.instructions_outside.trim()
-              ? `${count(draft.instructions_outside.trim().length)} / ${count(INSTRUCTIONS_MAX)}`
-              : 'Empty: the same as during hours'}
-          </span>
-        </Field>
-      ) : (
-        <Field id="as-instr" label={`What ${name} should know`}>
-          <TextArea
-            id="as-instr"
-            tall
-            value={draft.instructions}
-            onChange={v => set('instructions', v)}
-            placeholder={
-              'We are a family-run plumbing company in Portland.\nWe cover Portland, Beaverton and Lake Oswego.\nWe give free estimates on site.'
-            }
-          />
-          <span className="help">
-            {count(draft.instructions.trim().length)} / {count(INSTRUCTIONS_MAX)}
-          </span>
-        </Field>
+      <Field id="as-instr" label={`What ${name} should know`}>
+        <TextArea
+          id="as-instr"
+          tall
+          value={draft.instructions}
+          onChange={v => set('instructions', v)}
+          placeholder={
+            'We are a family-run plumbing company in Portland.\nWe cover Portland, Beaverton and Lake Oswego.\nWe give free estimates on site.'
+          }
+        />
+        <span className="help">
+          {count(draft.instructions.trim().length)} / {count(INSTRUCTIONS_MAX)}
+        </span>
+      </Field>
+      {hoursOn && (
+        <details className="vp-more" open={advancedOpen} onToggle={e => remember(e.currentTarget.open)}>
+          <summary title="What to know outside business hours">
+            <Icon name="down" size={14} className="vp-chevron" />
+            Advanced
+          </summary>
+          <div className="vp-more-body">
+            <Field id="as-instr-out" label="Outside business hours" aside="Optional">
+              <TextArea
+                id="as-instr-out"
+                value={draft.instructions_outside}
+                onChange={v => set('instructions_outside', v)}
+                placeholder="Empty: the same as during hours"
+              />
+              {draft.instructions_outside.trim() && (
+                <span className="help">
+                  {count(draft.instructions_outside.trim().length)} / {count(INSTRUCTIONS_MAX)}
+                </span>
+              )}
+            </Field>
+          </div>
+        </details>
       )}
     </Section>
   )
