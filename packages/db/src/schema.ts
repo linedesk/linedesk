@@ -90,6 +90,8 @@ export const contacts = pgTable(
     blocked_at: ts('blocked_at'),
     /** A deleted contact leaves Contacts; its calls keep the link. A new call from the number brings it back. */
     deleted_at: ts('deleted_at'),
+    /** Merged into this contact (contact.merge): deleted, its calls moved there; a call from its number goes there too. */
+    merged_into: text('merged_into'),
     created_at: createdAt(),
     version: version(),
   },

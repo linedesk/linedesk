@@ -73,3 +73,49 @@ export function matchesContact(contact: Contact, query: string): boolean {
 export function filterContactRows(rows: ContactRow[], query: string): ContactRow[] {
   return query.trim() ? rows.filter(row => matchesContact(row.contact, query)) : rows
 }
+
+/** The fields a merge picks from either contact. */
+export const MERGE_FIELDS = ['name', 'company', 'email', 'address', 'note'] as const
+export type MergeField = (typeof MERGE_FIELDS)[number]
+
+const emailKey = (email: string | null) => email?.trim().toLowerCase() || null
+
+/**
+ * Pairs of contacts that are probably one person: the same phone number (digits only) or the same
+ * email (case ignored). Each pair once, the older contact first; deleted contacts are left out.
+ */
+export function duplicatePairs(contacts: Iterable<Contact>): [Contact, Contact][] {
+  const live = [...contacts].filter(c => !c.deleted_at).sort((a, b) => parseTs(a.created_at).getTime() - parseTs(b.created_at).getTime())
+  const pairs: [Contact, Contact][] = []
+  const seen = new Set<string>()
+  const byKey = new Map<string, Contact>()
+  for (const contact of live) {
+    for (const key of [`p:${digitsOf(contact.phone)}`, emailKey(contact.email) && `e:${emailKey(contact.email)}`]) {
+      if (!key) continue
+      const first = byKey.get(key)
+      if (!first) {
+        byKey.set(key, contact)
+        continue
+      }
+      const id = `${first.id}|${contact.id}`
+      if (!seen.has(id)) pairs.push([first, contact])
+      seen.add(id)
+    }
+  }
+  return pairs
+}
+
+/**
+ * What a merge keeps by default: per field the kept contact's value, else the other one's. `choices`
+ * lists only the fields where both have a different value, so the member picks just those.
+ */
+export function mergeDefaults(keep: Contact, other: Contact) {
+  const values = {} as Record<MergeField, string | null>
+  const choices: MergeField[] = []
+  for (const field of MERGE_FIELDS) {
+    const [a, b] = [keep[field]?.trim() || null, other[field]?.trim() || null]
+    values[field] = a ?? b
+    if (a && b && a !== b) choices.push(field)
+  }
+  return { values, choices }
+}

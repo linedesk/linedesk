@@ -55,6 +55,28 @@ export const contactCreate = defineAction({
   public: true,
 })
 
+const mergedField = z.string().trim().max(2000).nullable()
+
+/**
+ * Two contacts that are one person: `mergeId` goes into `keepId`. The kept contact gets the values
+ * given (the ones the member picked from either), the other one's calls and bookings move to it, and
+ * the other one leaves Contacts; a later call from its number lands on the kept contact.
+ */
+export const contactMerge = defineAction({
+  name: 'contact.merge',
+  description: "Merge two contacts that are one person: the second one's calls move to the first, which keeps the given details.",
+  input: z.object({
+    keepId: z.string().min(1),
+    mergeId: z.string().min(1),
+    name: mergedField.optional(),
+    company: mergedField.optional(),
+    email: mergedField.optional(),
+    address: mergedField.optional(),
+    note: mergedField.optional(),
+  }),
+  permission: 'contact:write',
+})
+
 /** Contacts leave the list but keep their calls; contact.restore undoes it. */
 export const contactDelete = defineAction({
   name: 'contact.delete',

@@ -1,6 +1,6 @@
 // Contacts: everyone who has called, newest call first. Same list model as the inbox; the record opens beside it.
 import type { Call } from '@linedesk/db/types'
-import { useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Step } from '../inbox/changes.ts'
 import { callTitle } from '../inbox-model.ts'
 import { parseTs, timeLabel } from '../time.ts'
@@ -8,7 +8,8 @@ import { Button, cx, Icon, Kbd } from '../ui/kit.tsx'
 import { LoadProblem, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { ContactDetail } from './ContactDetail.tsx'
 import './contacts.css'
-import { contactLabel, type ContactRow } from './model.ts'
+import { MergeContacts } from './MergeContacts.tsx'
+import { contactLabel, type ContactRow, duplicatePairs } from './model.ts'
 import { NewContact } from './NewContact.tsx'
 import { CONTACT_SEARCH_ID, useContactsPage } from './useContactsPage.ts'
 
@@ -147,6 +148,11 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
   const loadState = useLoadState('contacts')
   const numbers = useMemo(() => new Set(page.all.map(r => r.contact.phone)), [page.all])
   const { rows, cursor, opened, query } = page
+  const [merging, setMerging] = useState<{ first: ContactRow; second: ContactRow | null } | null>(null)
+  const duplicates = useMemo(() => {
+    const byId = new Map(page.all.map(r => [r.contact.id, r]))
+    return duplicatePairs(page.all.map(r => r.contact)).map(([a, b]) => [byId.get(a.id)!, byId.get(b.id)!] as const)
+  }, [page.all])
   const listRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (cursor) listRef.current?.querySelector('.is-cursor')?.scrollIntoView({ block: 'nearest' })
@@ -170,6 +176,18 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
       </div>
       <div className={cx('cv-main', 'cust-main', (opened || page.creating) && 'has-rec')}>
         <div className="cv-center">
+          {duplicates.length > 0 && !query && (
+            <div className="ct-dupes">
+              <span>
+                {duplicates.length === 1
+                  ? `${contactLabel(duplicates[0]![0].contact)} and ${contactLabel(duplicates[0]![1].contact)} may be one person.`
+                  : `${duplicates.length} possible duplicates, by number or email.`}
+              </span>
+              <Button size="sm" onClick={() => setMerging({ first: duplicates[0]![0], second: duplicates[0]![1] })}>
+                Review
+              </Button>
+            </div>
+          )}
           <div className="ib-list" ref={listRef} role="list" aria-label="Contacts">
             {rows.map(row => (
               <Row
@@ -194,10 +212,26 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
           <NewContact existing={numbers} onAdded={page.added} onClose={page.stopCreate} />
         ) : (
           opened && (
-            <ContactDetail row={opened} toast={toast} onOpenCall={openCall} onClose={page.close} onDelete={remove} />
+            <ContactDetail
+              row={opened}
+              toast={toast}
+              onOpenCall={openCall}
+              onClose={page.close}
+              onDelete={remove}
+              onMerge={() => setMerging({ first: opened, second: null })}
+            />
           )
         )}
       </div>
+      {merging && (
+        <MergeContacts
+          first={merging.first}
+          second={merging.second}
+          all={page.all}
+          onClose={() => setMerging(null)}
+          toast={toast}
+        />
+      )}
     </div>
   )
 }

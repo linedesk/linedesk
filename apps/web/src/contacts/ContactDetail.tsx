@@ -17,6 +17,7 @@ type Props = {
   onOpenCall: (call: Call) => void
   onClose: () => void
   onDelete: (contactId: string) => void
+  onMerge: () => void
 }
 
 type Editable = 'name' | 'company' | 'email' | 'address' | 'note'
@@ -53,7 +54,7 @@ function DetailField({
 }
 
 /** ⋯ with Delete contact, which asks once in place; the toast then offers Undo. */
-function MoreMenu({ label, onDelete }: { label: string; onDelete: () => void }) {
+function MoreMenu({ label, onDelete, onMerge }: { label: string; onDelete: () => void; onMerge: () => void }) {
   const [open, setOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const root = useRef<HTMLDivElement>(null)
@@ -104,16 +105,30 @@ function MoreMenu({ label, onDelete }: { label: string; onDelete: () => void }) 
               </span>
             </div>
           ) : (
-            <button
-              type="button"
-              role="menuitem"
-              className="nav-item ct-menu-danger"
-              onClick={() => setConfirming(true)}
-            >
-              <Icon name="trash" size={15} />
-              <span className="lbl">Delete contact…</span>
-              <kbd className="k-kbd">#</kbd>
-            </button>
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                className="nav-item"
+                onClick={() => {
+                  setOpen(false)
+                  onMerge()
+                }}
+              >
+                <Icon name="users" size={15} />
+                <span className="lbl">Merge with…</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="nav-item ct-menu-danger"
+                onClick={() => setConfirming(true)}
+              >
+                <Icon name="trash" size={15} />
+                <span className="lbl">Delete contact…</span>
+                <kbd className="k-kbd">#</kbd>
+              </button>
+            </>
           )}
         </div>
       )}
@@ -143,7 +158,7 @@ function CallList({ calls, onOpen }: { calls: Call[]; onOpen: (call: Call) => vo
   )
 }
 
-export function ContactDetail({ row, onOpenCall, onClose, onDelete }: Props) {
+export function ContactDetail({ row, onOpenCall, onClose, onDelete, onMerge }: Props) {
   const { contact, calls } = row
   const label = contactLabel(contact)
   const phone = formatPhone(contact.phone)
@@ -167,7 +182,7 @@ export function ContactDetail({ row, onOpenCall, onClose, onDelete }: Props) {
           </div>
           <div className="ct-acts">
             {contact.phone.startsWith('+') && <CallBackLink number={contact.phone} />}
-            <MoreMenu label={label} onDelete={() => onDelete(contact.id)} />
+            <MoreMenu label={label} onDelete={() => onDelete(contact.id)} onMerge={onMerge} />
           </div>
         </header>
         <Card title="Details" className="ct-card">

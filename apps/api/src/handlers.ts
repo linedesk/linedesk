@@ -22,6 +22,7 @@ import { teamHandlers } from './team.ts'
 import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
 import { queueCallNotification } from './jobs.ts'
 import { notificationHandlers } from './notification-settings.ts'
+import { contactMergeHandlers } from './contact-merge.ts'
 import { clearCallPayloads, queueCallFinishedEvents, queueWebhookEvent, webhookData, webhookHandlers } from './webhooks.ts'
 
 export { Reject, type HandlerCtx, type Undo }
@@ -124,6 +125,8 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   if (!workspace && source === 'test') throw new Reject('no such workspace')
   if (workspace?.disabledAt) throw new Reject(`the workspace of ${label} is disabled`)
   let [contact] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, workspace_id), eq(contacts.phone, from)))
+  // A number of a contact that was merged into another one belongs to that one now.
+  if (contact?.merged_into) [contact] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, workspace_id), eq(contacts.id, contact.merged_into)))
   // A deleted contact who calls again is back in Contacts.
   if (contact?.deleted_at) [contact] = await tx.update(contacts).set({ deleted_at: null }).where(eq(contacts.id, contact.id)).returning()
   const isNewContact = !contact
@@ -175,13 +178,15 @@ const handlers: Record<string, Handler> = {
   'contact.create': async ({ tx, actor }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     const [existing] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, actor.workspaceId), eq(contacts.phone, input.phone)))
-    if (existing && !existing.deleted_at) throw new Reject(`${input.phone} is already a contact`)
+    if (existing && (!existing.deleted_at || existing.merged_into)) throw new Reject(`${input.phone} is already a contact`)
     const fields = { name: input.name ?? null, company: input.company ?? null }
     const [contact] = existing
       ? await tx.update(contacts).set({ ...fields, deleted_at: null }).where(eq(contacts.id, existing.id)).returning()
       : await tx.insert(contacts).values({ id: newId('ct'), workspace_id: actor.workspaceId, phone: input.phone, ...fields }).returning()
     return { rows: { contacts: [contact!] }, data: { contactId: contact!.id } }
   },
+
+  ...contactMergeHandlers,
 
   'call.start': async ({ tx, now }, input) => {
     const [number] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, input.to))

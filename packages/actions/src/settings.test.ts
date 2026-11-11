@@ -5,6 +5,7 @@ import { applyLocally, type LocalTables } from './index.ts'
 import {
   assistantUpdate,
   contactBlock,
+  contactMerge,
   contactUnblock,
   workspaceGetSettings,
   workspaceUpdateSettings,
@@ -55,5 +56,14 @@ describe('phoneNumber.release', () => {
       expect(confirmsNumber(typed, '+15035550142')).toBe(true)
     for (const typed of ['503 555 0143', '555 0142', '', 'yes'])
       expect(confirmsNumber(typed, '+15035550142')).toBe(false)
+  })
+})
+
+describe('contact.merge', () => {
+  it('is for anyone who edits contacts, runs on the server only, and takes the picked details', () => {
+    expect(contactMerge.permission).toBe('contact:write')
+    expect(rolePermissions.member).toContain('contact:write')
+    expect(contactMerge.patch).toBeUndefined()
+    expect(contactMerge.input.parse({ keepId: 'a', mergeId: 'b', name: ' Sam ', email: null })).toEqual({ keepId: 'a', mergeId: 'b', name: 'Sam', email: null })
   })
 })

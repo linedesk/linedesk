@@ -1,6 +1,6 @@
 import type { Call, Contact } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
-import { contactLabel, contactRows, filterContactRows, matchesContact } from './model.ts'
+import { contactLabel, contactRows, duplicatePairs, filterContactRows, matchesContact, mergeDefaults } from './model.ts'
 
 const contact = (over: Partial<Contact>) =>
   ({
@@ -115,5 +115,25 @@ describe('contact search', () => {
     const rows = contactRows([emily, contact({ id: 'k2', name: 'Mike Brennan', phone: '+15035550100' })], [])
     expect(filterContactRows(rows, '  ')).toHaveLength(2)
     expect(filterContactRows(rows, 'mike').map(r => r.contact.name)).toEqual(['Mike Brennan'])
+  })
+})
+
+describe('duplicates', () => {
+  it('pairs contacts with the same number or email (case ignored), older first, each pair once, deleted ones left out', () => {
+    const a = contact({ id: 'a', phone: '+15035550142', email: 'Sam@Example.com', created_at: '2026-11-01 10:00:00+00' })
+    const b = contact({ id: 'b', phone: '+15035550199', email: 'sam@example.com ', created_at: '2026-11-02 10:00:00+00' })
+    const c = contact({ id: 'c', phone: '+15035550142', created_at: '2026-11-03 10:00:00+00' })
+    const gone = contact({ id: 'gone', phone: '+15035550142', deleted_at: '2026-11-04 10:00:00+00' })
+    const alone = contact({ id: 'alone', phone: '+15035550100', email: 'other@example.com' })
+    expect(duplicatePairs([c, gone, b, alone, a]).map(([x, y]) => `${x.id}+${y.id}`)).toEqual(['a+b', 'a+c'])
+  })
+
+  it('keeps each field from the kept contact, fills empty ones from the other, and asks only where both differ', () => {
+    const keep = contact({ name: 'Sam', company: null, email: 'sam@example.com', note: 'Gate code 1234' })
+    const other = contact({ name: 'Sam Patel', company: 'Patel Bakery', email: 'sam@example.com', note: null })
+    expect(mergeDefaults(keep, other)).toEqual({
+      values: { name: 'Sam', company: 'Patel Bakery', email: 'sam@example.com', address: null, note: 'Gate code 1234' },
+      choices: ['name'],
+    })
   })
 })
