@@ -191,5 +191,9 @@ test('after a step, a quiet assistant is asked once to go on; not while it repli
   expect(quiet.generateReply).toHaveBeenCalledOnce()
   expect(replying.generateReply).not.toHaveBeenCalled()
   expect(callerTalks.generateReply).not.toHaveBeenCalled()
+  // The call ended meanwhile: the closing session throws, the nudge must not.
+  const closed = { agentState: 'listening', userState: 'listening', generateReply: vi.fn(() => { throw new Error('AgentSession is closing, cannot use generateReply()') }) }
+  nudgeIfQuiet(closed)
+  expect(() => vi.advanceTimersByTime(3000)).not.toThrow()
   vi.useRealTimers()
 })

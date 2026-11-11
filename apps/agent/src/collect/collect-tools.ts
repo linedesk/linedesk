@@ -56,7 +56,11 @@ type Quiet = { agentState: string; userState: string; generateReply(options: { i
 export function nudgeIfQuiet(session: Quiet, waitMs = QUIET_AFTER_STEP_MS) {
   setTimeout(() => {
     if (session.agentState !== 'listening' || session.userState === 'speaking') return
-    session.generateReply({ instructions: 'Go on with the call: answer what the caller asked or wanted, or ask for what you still need.' })
+    // The call may have ended meanwhile: a closing session throws, and a throw in a timer would end the whole job
+    // before the call is finished (no summary, the call left live).
+    try {
+      session.generateReply({ instructions: 'Go on with the call: answer what the caller asked or wanted, or ask for what you still need.' })
+    } catch {}
   }, waitMs).unref?.()
 }
 
