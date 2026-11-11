@@ -63,6 +63,10 @@ function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose
   const changed = isChanged(draft, status)
   const busy = phase !== 'idle'
   const own = draft.carrier !== 'default'
+  /** Back to the default carrier deletes the saved credentials: asked once in the dialog before saving. */
+  const leavingOwn = changed && !own && status.carrier !== 'default'
+  const [confirming, setConfirming] = useState(false)
+  const ownName = status.carrier === 'twilio' ? 'Twilio' : 'Telnyx'
   const stored = (field: string) =>
     draft.carrier === status.carrier ? status.fields.find(f => f.field === field) : undefined
 
@@ -70,6 +74,7 @@ function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose
     setDraft(d => ({ ...d, ...change }))
     setErrors({})
     setResult(null)
+    setConfirming(false)
   }
   const setValue = (field: string, value: string) => update({ values: { ...draft.values, [field]: value } })
 
@@ -83,6 +88,7 @@ function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose
       if (first) return document.getElementById(`carrier-${first}`)?.focus()
     }
     setResult(null)
+    if (leavingOwn && !confirming) return setConfirming(true)
     try {
       if (changed) {
         setPhase('saving')
@@ -101,7 +107,15 @@ function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose
   }
 
   const primary =
-    phase === 'saving' ? 'Saving…' : phase === 'testing' ? 'Testing…' : changed || !own ? 'Save' : 'Test connection'
+    phase === 'saving'
+      ? 'Saving…'
+      : phase === 'testing'
+        ? 'Testing…'
+        : confirming
+          ? `Remove ${ownName} keys`
+          : changed || !own
+            ? 'Save'
+            : 'Test connection'
   return (
     <Dialog
       title="Carrier"
@@ -114,7 +128,7 @@ function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose
             {changed ? 'Cancel' : 'Close'}
           </Button>
           <Button
-            variant="primary"
+            variant={confirming ? 'danger' : 'primary'}
             type="submit"
             form="carrier-form"
             disabled={busy || (!changed && !own) || !status.canStore}
@@ -137,6 +151,12 @@ function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose
             />
           ))}
         </div>
+        {confirming && (
+          <p className="k-field-msg" role="alert">
+            Back to the default carrier: the {ownName} keys are deleted from Linedesk, and numbers
+            come from the carrier this Linedesk is set up with.
+          </p>
+        )}
         {!status.canStore && own && (
           <p className="help" role="status">
             This server cannot store carrier credentials yet. Ask whoever runs your Linedesk.
