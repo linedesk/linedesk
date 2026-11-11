@@ -13,25 +13,11 @@ permissions:
   contents: read
 
 jobs:
+  # Fast checks only while we build: typecheck and lint (~10 s). The test suite runs in tests.yml,
+  # by hand or for a release, not on every pull request (docs/ci.md).
   check:
     runs-on: depot-ubuntu-24.04
     timeout-minutes: 10
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: linedesk
-          POSTGRES_PASSWORD: linedesk
-          POSTGRES_DB: linedesk_test
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U linedesk"
-          --health-interval 2s
-          --health-timeout 5s
-          --health-retries 20
-    env:
-      # Each run of the API integration tests creates its own database next to this one (the name must end in _test).
-      TEST_DATABASE_URL: postgres://linedesk:linedesk@localhost:5432/linedesk_test
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -42,7 +28,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
-      - run: pnpm test
 
   # Self-hosting must work at every commit: the images build. (The agent image is not built here; it is large.)
   images:

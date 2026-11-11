@@ -1,0 +1,41 @@
+# The full test suite. Not part of the everyday flow (ci.yml only typechecks and lints):
+# run it by hand (Actions → Tests → Run workflow) or by pushing a release tag (v*), before going to production.
+name: Tests
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: linedesk
+          POSTGRES_PASSWORD: linedesk
+          POSTGRES_DB: linedesk_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U linedesk"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      # Each run of the API integration tests creates its own database next to this one (the name must end in _test).
+      TEST_DATABASE_URL: postgres://linedesk:linedesk@localhost:5432/linedesk_test
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
