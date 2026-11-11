@@ -3,8 +3,16 @@ import { createWorkspace } from './auth.ts'
 import { signOutAndForget } from './localData.ts'
 import { AuthPage } from './ui/kit.tsx'
 
-/** First sign-in: name the business. Creates the workspace and its assistant. `children`: shown under the form (invitations, Admin). */
-export function CreateWorkspace({ onDone, children }: { onDone: () => void; children?: ReactNode }) {
+/**
+ * First sign-in: name the business. Creates the workspace and its assistant. `lostWorkspace`: the
+ * workspace this browser had open, which the member was removed from; said first, so the form is not
+ * a surprise. `children`: shown under the form (invitations, Admin).
+ */
+export function CreateWorkspace({
+  onDone,
+  lostWorkspace = null,
+  children,
+}: { onDone: () => void; lostWorkspace?: string | null; children?: ReactNode }) {
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -26,6 +34,11 @@ export function CreateWorkspace({ onDone, children }: { onDone: () => void; chil
   return (
     <AuthPage>
       <form className="auth-card" onSubmit={submit} noValidate>
+        {lostWorkspace && (
+          <p className="auth-lost" role="status">
+            You no longer have access to <b>{lostWorkspace}</b>. Ask its owner to invite you again, or set up your own business.
+          </p>
+        )}
         <h1>Name your business</h1>
         <p>Your assistant uses it when it answers the phone.</p>
         <label>

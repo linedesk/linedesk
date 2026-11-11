@@ -1,6 +1,6 @@
 // A caller only ever reaches rows of their own workspace, whatever ids or parameters they send.
 import { actions, CLIENT_PROTOCOL, type ActionDef } from '@linedesk/actions'
-import { appointment_types, contacts, member, phone_numbers, tableNames, transcript_segments } from '@linedesk/db'
+import { appointment_types, contacts, member, organization, phone_numbers, tableNames, transcript_segments } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { app } from '../src/app.ts'
@@ -259,6 +259,20 @@ describe('shape proxy', () => {
     expect(bare.headers.get('cache-control')).toBe('no-store')
   })
 
+  test("Electric's 401 or 403 is a server fault (502), never the browser's session; its stream-position answers pass through", async () => {
+    const answer = (status: number) => vi.stubGlobal('fetch', async () => new Response('{}', { status }))
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
+    for (const status of [401, 403, 429]) {
+      answer(status)
+      expect((await request(a.owner, 'GET', '/v1/shape/calls?offset=-1')).status).toBe(502)
+    }
+    for (const status of [400, 409]) {
+      answer(status)
+      expect((await request(a.owner, 'GET', '/v1/shape/calls?offset=-1')).status).toBe(status)
+    }
+    quiet.mockRestore()
+  })
+
   test('does not proxy tables that are not synced', async () => {
     const upstream = stubElectric()
     for (const table of ['commands', 'user', 'session', 'member']) {
@@ -353,8 +367,28 @@ describe("a tab's workspace (x-workspace-id) must be the session's", () => {
     expect(await contactsNamed(side.id, 'Lost tab contact')).toEqual([])
   })
 
-  test('signed out stays 401 with a header', async () => {
-    expect((await request(anonymous, 'GET', '/v1/shape/calls?offset=-1', undefined, { 'x-workspace-id': home.id })).status).toBe(401)
+  test('signed out stays 401 with a header, and says so', async () => {
+    expect(await request(anonymous, 'GET', '/v1/shape/calls?offset=-1', undefined, { 'x-workspace-id': home.id })).toMatchObject({
+      status: 401,
+      body: { code: 'signed_out' },
+    })
+  })
+
+  test('every answer says whether the workspace is disabled, and again once it is enabled', async () => {
+    expect((await switchTo(home.id)).status).toBe(200)
+    vi.stubGlobal('fetch', async () => new Response('[]', { status: 200 }))
+    const stateOf = async (path: string, method: 'GET' | 'POST' = 'GET', body?: unknown) =>
+      (await app.request(path, {
+        method,
+        headers: { ...both.headers, 'x-workspace-id': home.id, 'content-type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      })).headers.get('x-workspace-state')
+    expect(await stateOf('/v1/shape/calls?offset=-1')).toBe('active')
+    await db.update(organization).set({ disabledAt: new Date() }).where(eq(organization.id, home.id))
+    expect(await stateOf('/v1/shape/calls?offset=-1')).toBe('disabled')
+    expect(await stateOf('/v1/actions/call.markRead', 'POST', { callId: home.call.id })).toBe('disabled') // refused (read-only), still says it
+    await db.update(organization).set({ disabledAt: null }).where(eq(organization.id, home.id))
+    expect(await stateOf('/v1/me')).toBe('active')
   })
 
   test('the agent names a workspace with the header, as before', async () => {

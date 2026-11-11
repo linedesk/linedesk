@@ -2,7 +2,7 @@ import { FetchError, isChangeMessage, isControlMessage, ShapeStream, type Row } 
 import type { TableName } from '@linedesk/db/types'
 import type { ReadSyncAdapter, TableSink } from './adapter.ts'
 import { inOrder, type RowChange } from './ordered.ts'
-import { asRefusal, type PageScope, workspaceRequestHeaders } from './refusal.ts'
+import { type PageScope, refusalOf, workspaceRequestHeaders, workspaceStateOf } from './refusal.ts'
 
 type Cursor = { offset: string; handle: string }
 const json = (v: string) => JSON.parse(v) as unknown
@@ -99,7 +99,14 @@ export const electricAdapter = (
         reading = !live
         const stream = createStream({
           url: shapeUrl(api, table, workspaceId),
-          fetchClient: (input, init) => fetch(input, { ...init, ...LOW, credentials: 'include', headers: withWorkspace(init?.headers, { workspaceId, account }) }),
+          fetchClient: async (input, init) => {
+            const headers = withWorkspace(init?.headers, { workspaceId, account })
+            const res = await fetch(input, { ...init, ...LOW, credentials: 'include', headers })
+            // Every answer says whether the workspace is disabled: a live table notices within a long-poll.
+            const state = workspaceStateOf(res.headers)
+            if (state && !stopped) sink.workspaceState(state)
+            return res
+          },
           signal: controller.signal,
           subscribe: live,
           offset: cursor?.offset as never,
@@ -109,8 +116,8 @@ export const electricAdapter = (
           onError: error => {
             if (controller.signal.aborted || stopped) return
             controller.abort()
-            // Not this tab's workspace any more: retrying cannot help, the store stops and says so.
-            const refusal = error instanceof FetchError && error.status === 403 ? asRefusal(error.json) : null
+            // Signed out, or not this tab's workspace any more: retrying cannot help, the store stops and says so.
+            const refusal = error instanceof FetchError ? refusalOf(error.status, error.json) : null
             if (refusal) {
               stopped = true
               return sink.refuse(refusal)

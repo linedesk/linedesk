@@ -6,13 +6,21 @@ import { actions, applyLocally, type ActionResult, type LocalTables } from '@lin
 import { tableNames, type TableName, type Tables } from '@linedesk/db/types'
 import type { ReadSyncAdapter, TableSink } from './adapter.ts'
 import { type LocalDb, openLocalDb } from './idb.ts'
-import { asRefusal, type WorkspaceRefusal, workspaceRequestHeaders } from './refusal.ts'
+import {
+  keepsPendingWrites,
+  refusalOf,
+  type WorkspaceRefusal,
+  workspaceRequestHeaders,
+  type WorkspaceState,
+  workspaceStateOf,
+} from './refusal.ts'
 import { browserTabLink, type Command, type TabLink, type TabMessage } from './tabs.ts'
 
 type AnyRow = { id: string; version: number }
 /**
  * `synced`: tables that have caught up with the server at least once (now or in an earlier session). Before that, an empty table means "not loaded yet", not "nothing there".
- * `refused`: the server refuses this workspace for this tab; nothing is sent or read any more.
+ * `refused`: the server refuses this workspace for this tab, or the session is gone; nothing is sent or read any more.
+ * `discarded`: pending writes rolled back because of that. `workspaceState`: the latest the server said (null: nothing yet).
  */
 export type Snapshot = {
   tables: LocalTables
@@ -20,6 +28,8 @@ export type Snapshot = {
   online: boolean
   synced: ReadonlySet<TableName>
   refused: WorkspaceRefusal | null
+  discarded: number
+  workspaceState: WorkspaceState | null
 }
 export type Rejection = { action: string; input: unknown; error: string }
 
@@ -111,6 +121,9 @@ export async function createStore(opts: StoreOptions) {
   const mine = new Set<string>()
   let online = true
   let refused: WorkspaceRefusal | null = null
+  /** Pending writes rolled back because the session or the workspace was refused. */
+  let discarded = 0
+  let workspaceState: WorkspaceState | null = null
   const synced = new Set<TableName>()
   let lastSeq = 0
   let snapshot: Snapshot
@@ -141,7 +154,7 @@ export async function createStore(opts: StoreOptions) {
       const def = actions.get(c.name)
       if (def) applyLocally(tables, def, c.input, c.at)
     }
-    snapshot = { tables, pending: outbox.length, online, synced: new Set(synced), refused }
+    snapshot = { tables, pending: outbox.length, online, synced: new Set(synced), refused, discarded, workspaceState }
     listeners.forEach(l => l())
   }
 
@@ -219,11 +232,13 @@ export async function createStore(opts: StoreOptions) {
       if (cursor && !synced.has(table)) markSynced(table)
     },
     refuse,
+    workspaceState: setWorkspaceState,
   })
 
   /**
-   * The server refuses this tab's workspace: stop reading and sending. Pending writes stay in the
-   * outbox (unsent, not rolled back) for when this workspace is opened again; the other tabs of it hear it too.
+   * The server refuses this tab's workspace, or the session is gone: stop reading and sending; the
+   * other tabs of the workspace hear it too. After a switch, pending writes stay in the outbox for when
+   * this workspace is opened again; otherwise they can never be sent and are rolled back (`discarded`).
    */
   function refuse(refusal: WorkspaceRefusal) {
     if (stopped || refused) return
@@ -231,8 +246,25 @@ export async function createStore(opts: StoreOptions) {
     stops.forEach(s => s())
     stops = []
     clearTimeout(retry)
+    if (!keepsPendingWrites(refusal)) discardOutbox()
     tabs.post({ type: 'refused', refusal })
     leaveTabs()
+    recompute()
+  }
+
+  /** Rolls every pending write back: it shows no more, and is gone from the disk. */
+  function discardOutbox() {
+    discarded += outbox.length
+    outbox = []
+    mine.clear()
+    storedKey.clear()
+    void local.write('outbox', s => s.clear())
+  }
+
+  function setWorkspaceState(state: WorkspaceState) {
+    if (stopped || workspaceState === state) return
+    workspaceState = state
+    if (!leftTabs) tabs.post({ type: 'workspace-state', state })
     recompute()
   }
 
@@ -309,16 +341,22 @@ export async function createStore(opts: StoreOptions) {
           return retryLater()
         }
         if (stopped) return // answered after stop(): the next leader replays the command (same idempotency key)
-        if (res.status >= 500 || res.status === 401) {
-          setOnline(res.status === 401)
+        if (res.status >= 500) {
+          setOnline(false)
           return retryLater()
         }
         setOnline(true)
-        const body = (await res.json()) as ActionResult | { ok: false; error: string }
+        const state = workspaceStateOf(res.headers)
+        if (state) setWorkspaceState(state)
+        const body = (await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }))) as
+          | ActionResult
+          | { ok: false; error: string }
         if (stopped) return
-        // Not a rejection of this command: the tab's workspace is refused. It stays queued, unsent.
-        const refusal = res.status === 403 ? asRefusal(body) : null
+        // Not a rejection of this command: signed out, or the tab's workspace is refused. Retrying cannot help.
+        const refusal = refusalOf(res.status, body)
         if (refusal) return refuse(refusal)
+        // A 401 that is not the API's own (a proxy in front of it): no verdict on this command, try again later.
+        if (res.status === 401) return retryLater()
         if (body.ok) {
           for (const [table, rows] of Object.entries(body.rows)) confirm(table as TableName, rows as AnyRow[])
           removeDeleted(body.deleted)
@@ -338,6 +376,11 @@ export async function createStore(opts: StoreOptions) {
   async function run(name: string, input: unknown) {
     const def = actions.get(name)
     if (!def) throw new Error(`unknown action ${name}`)
+    // Signed out or no access: it could never be sent, so it is not even queued.
+    if (refused && !keepsPendingWrites(refused)) {
+      discarded++
+      return recompute()
+    }
     const now = Date.now()
     lastSeq = Math.max(now * 1000, lastSeq + 1, ...outbox.map(seqOf).map(s => s + 1)) // two commands in one millisecond keep their order
     const command: Command = {
@@ -374,8 +417,13 @@ export async function createStore(opts: StoreOptions) {
     else if (m.type === 'synced') synced.add(m.table)
     else if (m.type === 'refused' && !refused) {
       refused = m.refusal
+      if (!keepsPendingWrites(m.refusal)) {
+        discarded += outbox.length // the leader cleared the disk; this tab rolls back what it shows
+        outbox = []
+        mine.clear()
+      }
       leaveTabs() // a follower must not take the lead of a refused workspace either
-    }
+    } else if (m.type === 'workspace-state') workspaceState = m.state
     recompute()
   }
 

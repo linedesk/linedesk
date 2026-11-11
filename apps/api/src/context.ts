@@ -115,6 +115,9 @@ export async function resolveCaller(
  */
 export const WORKSPACE_HEADER = 'x-workspace-id'
 
+/** On every answer for a workspace: `disabled` (an instance admin disabled it, members only read) or `active`. */
+export const WORKSPACE_STATE_HEADER = 'x-workspace-state'
+
 export type WorkspaceRefusal = {
   ok: false
   error: string

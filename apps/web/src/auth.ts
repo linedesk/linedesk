@@ -42,8 +42,9 @@ export async function fetchMe(): Promise<Me | null> {
   return res.ok ? ((await res.json()) as Me) : null
 }
 
-export async function isSignedIn(): Promise<boolean> {
-  return Boolean((await auth.getSession()).data)
+/** The signed-in account's id, or null when signed out. */
+export async function signedInAccount(): Promise<string | null> {
+  return (await auth.getSession()).data?.user.id ?? null
 }
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))

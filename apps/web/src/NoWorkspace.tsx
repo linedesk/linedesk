@@ -36,12 +36,14 @@ const isInstanceAdmin = (me: Me) => me.permissions.includes('instance:admin') ||
 type Props = {
   /** null when /v1/me did not answer for this person (no workspace and no instance admin). */
   me: Me | null
+  /** The workspace this person was just removed from (this browser had it open): said first. */
+  lostWorkspace?: string | null
   onDone: () => void
   /** Opens an invitation (the same page an invitation link shows: Join or Not now). */
   onOpenInvite: (invitationId: string) => void
 }
 
-export function NoWorkspace({ me, onDone, onOpenInvite }: Props) {
+export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: Props) {
   const admin = Boolean(me && isInstanceAdmin(me))
   const hash = useHash()
   const [invitations, setInvitations] = useState<PendingInvitation[] | null>(null)
@@ -79,9 +81,14 @@ export function NoWorkspace({ me, onDone, onOpenInvite }: Props) {
       )}
     </>
   )
-  if (mayCreateWorkspace(signUpOpen, me)) return <CreateWorkspace onDone={onDone}>{extras}</CreateWorkspace>
+  if (mayCreateWorkspace(signUpOpen, me))
+    return (
+      <CreateWorkspace onDone={onDone} lostWorkspace={lostWorkspace}>
+        {extras}
+      </CreateWorkspace>
+    )
   return (
-    <NoWorkspaceYet onDone={onDone} hasInvitations={invitations.length > 0}>
+    <NoWorkspaceYet onDone={onDone} lostWorkspace={lostWorkspace} hasInvitations={invitations.length > 0}>
       {extras}
     </NoWorkspaceYet>
   )
@@ -138,17 +145,19 @@ function InvitationList({ invitations, onOpen }: { invitations: PendingInvitatio
 /** Sign-up is closed and this person may not create a workspace: they join by invitation. */
 function NoWorkspaceYet({
   hasInvitations,
+  lostWorkspace,
   onDone,
   children,
 }: {
   hasInvitations: boolean
+  lostWorkspace: string | null
   onDone: () => void
   children: ReactNode
 }) {
   return (
     <AuthPage>
       <div className="auth-card">
-        <h1>You are not in a workspace yet</h1>
+        <h1>{lostWorkspace ? `You no longer have access to ${lostWorkspace}` : 'You are not in a workspace yet'}</h1>
         <p>
           {hasInvitations
             ? 'Join a workspace you are invited to.'

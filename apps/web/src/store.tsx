@@ -77,6 +77,12 @@ export function useSnapshot() {
   return useSyncExternalStore(store.subscribe, store.getSnapshot)
 }
 
+/** Whether the workspace is disabled, as the server's latest answer said; null until one did. */
+export function useWorkspaceState() {
+  const { store } = useCtx()
+  return useSyncExternalStore(store.subscribe, () => store.getSnapshot().workspaceState)
+}
+
 export function useRows<T extends TableName>(table: T): Tables[T][] {
   const map = useSnapshot().tables[table]
   return useMemo(() => [...map.values()], [map])

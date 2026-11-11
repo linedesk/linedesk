@@ -64,6 +64,21 @@ describe('two tabs on one workspace', () => {
     second.stop()
   })
 
+  it('signed out: the other tab rolls its pending change back too, and hears whether the workspace is disabled', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => respond(401, { ok: false, error: 'not signed in', code: 'signed_out' })))
+    const { tab } = browser()
+    const a = tab(), b = tab()
+    const [first, second] = [await a.store, await b.store]
+    a.calls().workspaceState('disabled')
+    await eventually(() => expect(second.getSnapshot().workspaceState).toBe('disabled'))
+    a.calls().upsert([call()])
+    await eventually(() => expect(second.rows('calls')).toHaveLength(1))
+    await second.run('call.markDone', { callId: 'c1' }) // sent by the first tab, refused
+    await eventually(() => expect(second.getSnapshot()).toMatchObject({ refused: { code: 'signed_out' }, pending: 0, discarded: 1 }))
+    expect(second.rows('calls')[0]!.inbox_state).toBe('open')
+    first.stop(); second.stop()
+  })
+
   it('a refused leader gives up the lead: a tab opened later for the workspace leads and sends what waited', async () => {
     const sent: string[] = []
     let refuse = true

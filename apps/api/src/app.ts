@@ -12,7 +12,17 @@ import { authMethods } from './auth-methods.ts'
 import { auth, WEB_ORIGIN, WORKSPACE_LIMIT } from './auth.ts'
 import { calendarCallback } from './calendar-callback.ts'
 import { configuredCalendarProviders } from '@linedesk/calendar'
-import { ACCOUNT_HEADER, accessLost, accountRefusal, clientOutdated, resolveCaller, WORKSPACE_HEADER, workspaceRefusal, type Actor } from './context.ts'
+import {
+  ACCOUNT_HEADER,
+  accessLost,
+  accountRefusal,
+  clientOutdated,
+  resolveCaller,
+  WORKSPACE_HEADER,
+  WORKSPACE_STATE_HEADER,
+  workspaceRefusal,
+  type Actor,
+} from './context.ts'
 import { db } from './db.ts'
 import { COOKIE_ACTIONS } from './impersonation.ts'
 import { registerImpersonationRoutes } from './impersonation-routes.ts'
@@ -128,7 +138,9 @@ app.use('/v1/*', async (c, next) => {
       c.header('retry-after', '600')
       return c.json({ ok: false, error: 'too many invalid API keys from this address; try again later' }, 429)
     }
-    return c.json({ ok: false, error: 'not signed in or no workspace' }, 401)
+    // `signed_out`: no valid session (expired, signed out, account disabled); `no_workspace`: signed in, member of none.
+    const code = 'missing' in caller ? caller.missing : 'signed_out'
+    return c.json({ ok: false, error: 'not signed in or no workspace', code }, 401)
   }
   if (actor.apiKeyId && !apiKeyWithinLimit(actor.apiKeyId)) {
     c.header('retry-after', '60')
@@ -142,6 +154,17 @@ app.use('/v1/*', async (c, next) => {
   if (refusal) return c.json(refusal, 403)
   c.set('actor', actor)
   await next()
+  // Whether the workspace is disabled, on every answer: an open tab notices a disable or enable at its next request.
+  if (actor.workspaceId) {
+    const state = actor.workspaceDisabled ? 'disabled' : 'active'
+    try {
+      c.res.headers.set(WORKSPACE_STATE_HEADER, state)
+    } catch {
+      // A response passed through as it came (immutable headers): copy it once.
+      c.res = new Response(c.res.body, c.res)
+      c.res.headers.set(WORKSPACE_STATE_HEADER, state)
+    }
+  }
 })
 
 app.get('/v1/me', async c => {
@@ -214,7 +237,10 @@ app.get('/v1/calls/:id/recording', c => serveRecording(c.get('actor'), c.req.par
 // (`?workspace=`), so each workspace's shape has its own URL and Electric's client keeps its
 // per-URL state (expired handles) apart; it must be the request's workspace.
 
-const streamParams = ['offset', 'handle', 'live', 'cursor', 'live_sse', 'experimental_live_sse']
+/** The 4xx Electric answers about the stream position, which its client handles (load the table again). */
+const ELECTRIC_CLIENT_STATUSES = [400, 404, 409, 410]
+
+const streamParams =['offset', 'handle', 'live', 'cursor', 'live_sse', 'experimental_live_sse']
 /** Which rows of a table a member's browser receives: their workspace's; webhook URLs (they can carry a token) only for owners and admins. */
 function shapeFilter(table: TableName, permissions: readonly string[]) {
   if (table === 'calls') return 'workspace_id = $1 AND deleted_at IS NULL'
@@ -235,6 +261,13 @@ app.get('/v1/shape/:table', async c => {
   target.searchParams.set('where', shapeFilter(table, c.get('actor').permissions))
   target.searchParams.set('params[1]', workspaceId)
   const res = await fetch(target, { signal: c.req.raw.signal })
+  // Electric's own 4xx (an unknown handle, an offset out of range, a changed shape) tell the client to
+  // load the table again and pass through. Any other 4xx, a 401 or 403 from Electric or a proxy in
+  // front of it, is a server fault: the browser must never take it for its own session being gone.
+  if (res.status >= 400 && res.status < 500 && !ELECTRIC_CLIENT_STATUSES.includes(res.status)) {
+    console.error(`shape ${table}: Electric answered ${res.status}`)
+    return c.json({ ok: false, error: 'read sync is unavailable' }, 502)
+  }
   const headers = new Headers(res.headers)
   headers.delete('content-encoding')
   headers.delete('content-length')

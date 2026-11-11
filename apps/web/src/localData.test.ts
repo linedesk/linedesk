@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('./auth.ts', () => ({ auth: { signOut: vi.fn(async () => ({})) }, isSignedIn: vi.fn(async () => false) }))
+vi.mock('./auth.ts', () => ({ auth: { signOut: vi.fn(async () => ({})) }, signedInAccount: vi.fn(async () => null) }))
 vi.mock('./storeCache.ts', () => ({ stopAllStores: vi.fn(async () => ['linedesk-ws_open']) }))
 const { forgetBeyond, forgetElectricState, forgetLocalData, signOutAndForget } = await import('./localData.ts')
 const { auth } = await import('./auth.ts')
@@ -142,7 +142,7 @@ describe('once the session is known', () => {
   })
 
   it('removed from the last workspace, or signed out: everything goes', async () => {
-    for (const session of [{ state: 'needsWorkspace', impersonation: null, me: null }, { state: 'signedOut' }] as const) {
+    for (const session of [{ state: 'needsWorkspace', impersonation: null, me: null, lostWorkspace: null }, { state: 'signedOut' }] as const) {
       const idb = fakeIndexedDb(['linedesk-ws_a'])
       fakeStorage({ electric_expired_shapes: '{}' })
       await forgetBeyond(session)

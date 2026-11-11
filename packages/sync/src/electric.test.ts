@@ -43,8 +43,10 @@ function memorySink(saved?: unknown) {
   const rows = new Map<string, { id: string }>()
   let cursor = saved
   const refusals: WorkspaceRefusal[] = []
+  const states: string[] = []
   const sink: TableSink = {
     refuse: r => void refusals.push(r),
+    workspaceState: s => void states.push(s),
     upsert: r => r.forEach(row => rows.set(row.id, row)),
     remove: ids => ids.forEach(id => rows.delete(id)),
     replaceAll: r => {
@@ -56,7 +58,7 @@ function memorySink(saved?: unknown) {
       cursor = c
     },
   }
-  return { sink, rows, refusals, cursor: () => cursor }
+  return { sink, rows, refusals, states, cursor: () => cursor }
 }
 
 const insert = (id: string) => ({ key: id, value: { id }, headers: { operation: 'insert' } })
@@ -81,7 +83,7 @@ describe('electric adapter', () => {
     const realFetch = globalThis.fetch
     globalThis.fetch = (async (_: unknown, init?: RequestInit) => {
       seen.push(new Headers(init?.headers))
-      return new Response('[]')
+      return new Response('[]', { headers: { 'x-workspace-state': 'disabled' } })
     }) as typeof fetch
     try {
       await options.fetchClient('/v1/shape/calls?workspace=ws_a', { headers: { accept: 'application/json' } })
@@ -91,6 +93,19 @@ describe('electric adapter', () => {
     expect(seen[0]!.get('x-workspace-id')).toBe('ws_a')
     expect(seen[0]!.get('x-linedesk-client')).toBe(String(CLIENT_PROTOCOL)) // this page's protocol
     expect(seen[0]!.get('accept')).toBe('application/json')
+    expect(store.states).toEqual(['disabled']) // what the answer said about the workspace
+    stop()
+  })
+
+  it('stops a table for good when the session is gone (401), and tells the sink', async () => {
+    const { streams, createStream } = fakeStreams()
+    const store = memorySink()
+    const stop = electricAdapter('', { createStream, delayMs: () => 0 }).start('calls', store.sink)
+    await eventually(() => expect(streams).toHaveLength(1))
+    streams[0]!.fail(new FetchError(401, undefined, { ok: false, error: 'not signed in', code: 'signed_out' }, {}, 'http://x/v1/shape/calls'))
+    await eventually(() => expect(store.refusals).toEqual([{ code: 'signed_out' }]))
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(streams).toHaveLength(1) // no 401 loop
     stop()
   })
 

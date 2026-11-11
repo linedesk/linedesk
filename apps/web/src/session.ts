@@ -1,7 +1,7 @@
 // Who is signed in, and what to do when the server cannot be reached at load. A member who
 // was signed in on this device before opens the app from local data; anyone else waits for
 // the server with automatic retries instead of a dead screen.
-import { isSignedIn, type Me } from './auth.ts'
+import { type Me, signedInAccount } from './auth.ts'
 import { forgetQueries, setQueryData, setQueryScope } from './cachedQuery.ts'
 import { reach, Unreachable } from './retry.ts'
 import { setTabWorkspace } from './tabWorkspace.ts'
@@ -9,8 +9,11 @@ import { setTabWorkspace } from './tabWorkspace.ts'
 export type Session =
   | { state: 'loading' }
   | { state: 'signedOut' }
-  /** `me`: what /v1/me said (an instance admin without a workspace); null when it did not answer for this person. */
-  | { state: 'needsWorkspace'; impersonation: Me['impersonation']; me: Me | null }
+  /**
+   * `me`: what /v1/me said (an instance admin without a workspace); null when it did not answer for this person.
+   * `lostWorkspace`: the workspace this browser had open for this same person, which they no longer belong to.
+   */
+  | { state: 'needsWorkspace'; impersonation: Me['impersonation']; me: Me | null; lostWorkspace: string | null }
   /** `offline`: opened from what this device remembers, while the server is unreachable. */
   | { state: 'ready'; me: Me; offline: boolean }
   | { state: 'unreachable' }
@@ -50,16 +53,27 @@ export function forgetMe() {
   forgetQueries()
 }
 
+/** The workspace this browser had open before its member lost access to it, and whose it was (see loadSession). */
+let lost: { account: string; name: string } | null = null
+
+/** The lost workspace's name, only for the person it was lost by: never another account's workspace name. */
+const lostBy = (account: string | null) => (account && lost?.account === account ? lost.name : null)
+
 export async function loadSession(): Promise<Session> {
   try {
     const res = await reach('/v1/me', { credentials: 'include' })
     const me = res.ok ? ((await res.json()) as Me) : null
     if (me?.workspace) { remember(me); primeQueries(me); return { state: 'ready', me, offline: false } }
+    // This browser had a workspace open before: its member was removed from it (or from their last one).
+    // Kept for this page, as the remembered member is forgotten right below (a second load must say it too).
+    const before = remembered()
+    if (before?.workspace) lost = { account: before.actorId, name: before.workspace.name }
     remember(null)
     setTabWorkspace(null)
     // Signed in through a link or SSO for the first time: no workspace yet.
-    if (me) return { state: 'needsWorkspace', impersonation: me.impersonation ?? null, me }
-    return (await isSignedIn()) ? { state: 'needsWorkspace', impersonation: null, me: null } : { state: 'signedOut' }
+    if (me) return { state: 'needsWorkspace', impersonation: me.impersonation ?? null, me, lostWorkspace: lostBy(me.actorId) }
+    const account = await signedInAccount()
+    return account ? { state: 'needsWorkspace', impersonation: null, me: null, lostWorkspace: lostBy(account) } : { state: 'signedOut' }
   } catch (error) {
     if (!(error instanceof Unreachable)) throw error
     const me = remembered()

@@ -4,7 +4,7 @@
 // however many tabs are open, and no command is sent twice.
 import type { ActionResult } from '@linedesk/actions'
 import type { TableName } from '@linedesk/db/types'
-import type { WorkspaceRefusal } from './refusal.ts'
+import type { WorkspaceRefusal, WorkspaceState } from './refusal.ts'
 
 /** `seq` orders commands: strictly increasing within a tab, roughly by time across tabs (older stored commands have none). */
 export type Command = { id: string; name: string; input: unknown; at: string; seq?: number }
@@ -21,6 +21,8 @@ export type TabMessage =
   | { type: 'synced'; table: TableName }
   /** The server refuses this workspace to this browser session: no tab of it sends or reads any more. */
   | { type: 'refused'; refusal: WorkspaceRefusal }
+  /** The leader heard from the server whether the workspace is disabled. */
+  | { type: 'workspace-state'; state: WorkspaceState }
 
 export interface TabLink {
   /** `lead` is called once, when this tab becomes the one that talks to the server (at once if it is alone). */

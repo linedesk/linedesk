@@ -126,6 +126,15 @@ body,
   color: var(--danger);
   font-size: 12.5px;
 }
+/* Removed from the workspace this browser had open: said calmly above "Name your business". */
+.auth-lost {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+  color: var(--ink);
+  font-size: 13px;
+}
 /* Pending invitations of someone without a workspace (a skipped "Not now" stays reachable here). */
 .auth-invites {
   display: flex;

@@ -134,6 +134,79 @@ describe('store', () => {
     store.stop()
   })
 
+  it('a 401 that is not the API’s own (a proxy in front) rolls nothing back: the change waits and is sent later', async () => {
+    let proxyDown = true
+    const fetchMock = vi.fn(async () => (proxyDown ? respond(401, { error: 'Unauthorized' }) : respond(200, { ok: true, rows: {} })))
+    vi.stubGlobal('fetch', fetchMock)
+    const onReject = vi.fn()
+    const store = await open(fakeAdapter().adapter, { workspaceId: 'ws_a', onReject })
+    await store.run('call.markDone', { callId: 'c1' })
+    await eventually(() => expect(fetchMock).toHaveBeenCalled())
+    expect(store.getSnapshot()).toMatchObject({ refused: null, discarded: 0, pending: 1 }) // kept, not rejected
+    proxyDown = false
+    await eventually(() => expect(store.getSnapshot().pending).toBe(0)) // retried and sent
+    expect(fetchMock.mock.results.length).toBeGreaterThan(1)
+    expect(onReject).not.toHaveBeenCalled()
+    store.stop()
+  })
+
+  it('signed out (401): stops at once, rolls the change back and says so, instead of retrying forever', async () => {
+    const fetchMock = vi.fn(async () => respond(401, { ok: false, error: 'not signed in or no workspace', code: 'signed_out' }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { adapter, calls } = fakeAdapter()
+    const onReject = vi.fn()
+    const store = await open(adapter, { workspaceId: 'ws_a', onReject })
+    calls().upsert([call()])
+    await store.run('call.markDone', { callId: 'c1' })
+    expect(store.rows('calls')[0]!.inbox_state).toBe('done') // optimistic
+    await eventually(() => expect(store.getSnapshot().refused).toEqual({ code: 'signed_out' }))
+    expect(store.rows('calls')[0]!.inbox_state).toBe('open') // rolled back
+    expect(store.getSnapshot()).toMatchObject({ pending: 0, discarded: 1 })
+    await quietFor(30)
+    expect(fetchMock).toHaveBeenCalledOnce()
+    store.stop()
+    const reopened = await open(fakeAdapter().adapter, { dbName: `t${n}` })
+    expect(reopened.getSnapshot().pending).toBe(0) // gone from the disk too
+    reopened.stop()
+  })
+
+  it('after signing out, a new change is not even queued', async () => {
+    const fetchMock = vi.fn(async () => respond(200, { ok: true, rows: {} }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { adapter, calls } = fakeAdapter()
+    const store = await open(adapter)
+    calls().refuse({ code: 'signed_out' })
+    await store.run('call.markDone', { callId: 'c1' })
+    expect(store.getSnapshot()).toMatchObject({ pending: 0, discarded: 1 })
+    await quietFor(30)
+    expect(fetchMock).not.toHaveBeenCalled()
+    store.stop()
+  })
+
+  it('lost access (403 workspace_access_lost): rolled back as well', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => respond(403, { ok: false, error: 'no access', code: 'workspace_access_lost' })))
+    const { adapter, calls } = fakeAdapter()
+    const store = await open(adapter, { workspaceId: 'ws_a' })
+    calls().upsert([call()])
+    await store.run('call.markDone', { callId: 'c1' })
+    await eventually(() => expect(store.getSnapshot().refused).toEqual({ code: 'workspace_access_lost' }))
+    expect(store.rows('calls')[0]!.inbox_state).toBe('open')
+    expect(store.getSnapshot()).toMatchObject({ pending: 0, discarded: 1 })
+    store.stop()
+  })
+
+  it('knows whether the workspace is disabled from every answer, and when it is enabled again', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true, rows: {} }), { headers: { 'x-workspace-state': 'disabled' } })))
+    const { adapter, calls } = fakeAdapter()
+    const store = await open(adapter, { workspaceId: 'ws_a' })
+    expect(store.getSnapshot().workspaceState).toBeNull()
+    await store.run('call.markRead', { callId: 'c1' })
+    await eventually(() => expect(store.getSnapshot().workspaceState).toBe('disabled'))
+    calls().workspaceState('active') // read sync heard it
+    expect(store.getSnapshot().workspaceState).toBe('active')
+    store.stop()
+  })
+
   it('a refusal from read sync stops the outbox too', async () => {
     const fetchMock = vi.fn(async () => respond(200, { ok: true, rows: {} }))
     vi.stubGlobal('fetch', fetchMock)

@@ -1,7 +1,7 @@
 // Reads come from the server through a ReadSyncAdapter. Swapping the sync provider means
 // writing another adapter; the store and the UI never see vendor types.
 import type { TableName, Tables } from '@linedesk/db/types'
-import type { WorkspaceRefusal } from './refusal.ts'
+import type { WorkspaceRefusal, WorkspaceState } from './refusal.ts'
 
 export interface TableSink<T extends TableName = TableName> {
   upsert(rows: Tables[T][]): void
@@ -12,6 +12,8 @@ export interface TableSink<T extends TableName = TableName> {
   saveCursor(cursor: unknown): void
   /** The server refuses this tab's workspace: the adapter has stopped the table and does not retry. */
   refuse(refusal: WorkspaceRefusal): void
+  /** What the server said about the workspace with its latest answer (disabled by an instance admin, or active). */
+  workspaceState(state: WorkspaceState): void
 }
 
 export interface ReadSyncAdapter {

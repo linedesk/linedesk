@@ -74,7 +74,7 @@ export function App() {
   if (session.state === 'needsWorkspace') {
     return (
       <ImpersonationFrame impersonation={session.impersonation}>
-        <NoWorkspace me={session.me} onDone={refresh} onOpenInvite={setInviteId} />
+        <NoWorkspace me={session.me} lostWorkspace={session.lostWorkspace} onDone={refresh} onOpenInvite={setInviteId} />
       </ImpersonationFrame>
     )
   }
@@ -89,7 +89,7 @@ export function App() {
           {session.me.onboarding && !onboarded ? (
             <Onboarding me={session.me} state={session.me.onboarding} onDone={() => setOnboarded(true)} />
           ) : (
-            <Workspace me={session.me} onSignedOut={refresh} />
+            <Workspace me={session.me} onSignedOut={refresh} onSessionStale={refresh} />
           )}
         </TabWorkspaceGuard>
       </StoreProvider>

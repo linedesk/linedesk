@@ -34,7 +34,7 @@ import { useCallNotifications } from './shell/useCallNotifications.ts'
 import { useToast, type Source } from './shell/useToast.ts'
 import { preloadWorkspaceSettings } from './settings/settings-api.ts'
 import { preloadTeam } from './team/team-api.ts'
-import { useAssistantName, useRejection } from './store.tsx'
+import { useAssistantName, useRejection, useWorkspaceState } from './store.tsx'
 import type { SelectVia } from './ui/CommandMenu.tsx'
 import { ErrorBoundary } from './ui/ErrorBoundary.tsx'
 import { cx } from './ui/kit.tsx'
@@ -48,8 +48,22 @@ const NOT_FOUND_TOAST_MS = 4500
 const chordTabs: Record<string, InboxTab> = { i: 'you', e: 'done', h: 'reminders', m: 'mine', r: 'review' }
 const chordPages: Record<string, PageRoute> = { a: 'assistant', c: 'contacts', t: 'team', s: 'settings' }
 
-export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void | Promise<void> }) {
+type Props = {
+  me: Me
+  onSignedOut: () => void | Promise<void>
+  /** `me` is out of date (the workspace was disabled or enabled meanwhile): load it again, in place. */
+  onSessionStale: () => void | Promise<void>
+}
+
+export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
   const nav = useRoute()
+  // Disabled or enabled by an instance admin while this tab is open: the banner follows the server's
+  // latest answer, and the member's permissions are loaded again.
+  const liveState = useWorkspaceState()
+  const workspaceDisabled = liveState ? liveState === 'disabled' : Boolean(me.workspace?.disabled)
+  useEffect(() => {
+    if (liveState && (liveState === 'disabled') !== Boolean(me.workspace?.disabled)) void onSessionStale()
+  }, [liveState, me.workspace?.disabled, onSessionStale])
   const toaster = useToast()
   // Invitations to other workspaces: a dot on the menu, a toast once per invitation, Join in the profile menu.
   const invites = useMyInvitations()
@@ -435,7 +449,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
             }}
           />
         )}
-        {me.workspace?.disabled && (
+        {workspaceDisabled && (
           <div className="sync-bar" role="status">
             This workspace is disabled. Calls are not answered and nothing can be changed.
           </div>
