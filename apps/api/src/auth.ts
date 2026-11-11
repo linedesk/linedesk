@@ -14,7 +14,7 @@ import { refuseExistingMember, sendVerificationEmail } from './invitations.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { refuseWhileImpersonating } from './impersonation-guard.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
-import { passkeyPlugin, requireFreshSessionToRemovePasskey } from './passkeys.ts'
+import { guardPasskeyChanges, notifyPasskeyChange, passkeyPlugin } from './passkeys.ts'
 import { maySendSignInCode } from './signup-gate.ts'
 import { releaseWorkspaceClones } from './voices.ts'
 
@@ -52,7 +52,12 @@ const limitEmailCodes = async (ctx: Parameters<typeof refuseWhileImpersonating>[
 const beforeAuthEndpoints = createAuthMiddleware(async ctx => {
   await limitEmailCodes(ctx)
   await refuseWhileImpersonating(ctx)
-  await requireFreshSessionToRemovePasskey(ctx)
+  await guardPasskeyChanges(ctx)
+})
+
+const afterAuthEndpoints = createAuthMiddleware(async ctx => {
+  await recordAuthEndpoint(ctx)
+  await notifyPasskeyChange(ctx)
 })
 
 /** The plugin's endpoints for password reset, email change and plain verification are not offered. */
@@ -113,8 +118,9 @@ export const auth = betterAuth({
   // Members and invitations change only through the team.* actions (team.ts), which apply the
   // workspace's rules (last owner, who may change an owner). Accepting stays Better Auth's endpoint.
   disabledPaths: [...UNUSED_EMAIL_CODE_PATHS, ...TEAM_WRITE_PATHS, ...INVITATION_READ_PATHS, ...WORKSPACE_WRITE_PATHS],
-  // After: the audit log records the auth endpoints that change how someone signs in (audit.ts).
-  hooks: { before: beforeAuthEndpoints, after: recordAuthEndpoint },
+  // After: the audit log records the auth endpoints that change how someone signs in (audit.ts), and
+  // the account is emailed when a passkey is added or removed (passkeys.ts).
+  hooks: { before: beforeAuthEndpoints, after: afterAuthEndpoints },
   // Set by user.impersonate only (impersonation.ts); `input: false` keeps clients from setting it.
   // passkeyVerifiedAt: set by the session.create hook on a passkey sign-in (admin-second-factor.ts).
   session: {

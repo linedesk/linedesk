@@ -1,5 +1,5 @@
 import { actions, CLONE_BODY_MAX_BYTES, openApiDocument } from '@linedesk/actions'
-import { assistants, member, organization, user, workspace_settings, tableNames, type TableName } from '@linedesk/db'
+import { assistants, member, organization, passkey, user, workspace_settings, tableNames, type TableName } from '@linedesk/db'
 import { APIError } from 'better-auth/api'
 import { asc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -194,10 +194,21 @@ app.get('/v1/me', async c => {
     impersonation: await impersonationOf(actor),
     // An instance admin whose session lacks the second factor: 'setup' (no passkey yet) or 'confirm'.
     adminSecondFactor: actor.adminSecondFactor ?? null,
+    // An instance admin without a passkey: adding the first one asks for their enrolment code (passkey-enrolment.ts).
+    passkeyEnrolment: await needsPasskeyEnrolment(actor),
     // How this install introduces a new workspace after onboarding (FIRST_USE).
     firstUse: firstUse(),
   })
 })
+
+/** Whether this is an instance admin (by account, also before the second factor) without a passkey. */
+async function needsPasskeyEnrolment({ actorId, impersonation }: Actor): Promise<boolean> {
+  if (impersonation) return false
+  const [account] = await db.select().from(user).where(eq(user.id, actorId))
+  if (!account || !isInstanceAdmin(account)) return false
+  const [any] = await db.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, actorId)).limit(1)
+  return !any
+}
 
 /** The workspaces a user is a member of, by name. */
 function workspacesOf(userId: string) {

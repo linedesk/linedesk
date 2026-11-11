@@ -32,6 +32,7 @@ const authErrors: Record<string, string> = {
   ERROR_CEREMONY_ABORTED: 'Adding the passkey was cancelled.',
   ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED: 'This passkey is already added.',
   SESSION_NOT_FRESH: 'Sign in again to do this.',
+  PASSKEY_ENROLMENT_REQUIRED: 'That enrolment code is not right or has expired. Ask an instance admin for a new one.',
 }
 
 /** Ends a sentence the way the rest of the app does ("Invalid email" → "Invalid email."). */

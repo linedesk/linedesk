@@ -119,6 +119,7 @@ const all = [
   admin.workspaceDisable,
   admin.workspaceEnable,
   admin.instanceAdminGrant,
+  admin.userResetPasskeys,
   admin.instanceAdminRevoke,
   admin.userImpersonate,
   admin.impersonationStop,

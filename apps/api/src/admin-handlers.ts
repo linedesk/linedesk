@@ -1,6 +1,6 @@
 // Server handlers of the admin area actions (packages/actions/src/admin.ts).
 import type { ProviderName } from '@linedesk/actions'
-import { organization, session, type Tx, user } from '@linedesk/db'
+import { organization, passkey, session, type Tx, user } from '@linedesk/db'
 import { emailDelivery } from './auth-methods.ts'
 import { WEB_ORIGIN } from './auth.ts'
 import { emailSender } from './email.ts'
@@ -8,6 +8,7 @@ import { db } from './db.ts'
 import { eq, sql } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 import { anotherAdminRemains, isEnvAdmin, isInstanceAdmin } from './instance-admin.ts'
+import { issuePasskeyEnrolment, removeAllPasskeys } from './passkey-enrolment.ts'
 import {
   clearProviderKeys,
   providerStatus,
@@ -18,6 +19,9 @@ import {
 import { testProvider } from './provider-test.ts'
 import { dropUserPush } from './push.ts'
 import { SecretsKeyError } from './secrets.ts'
+
+const hasPasskey = async (tx: Tx, userId: string) =>
+  (await tx.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, userId)).limit(1)).length > 0
 
 /** A missing or wrong SECRETS_KEY is the operator's to fix: show the reason instead of a server error. */
 async function withSecretsKey<T>(run: () => Promise<T>): Promise<T> {
@@ -115,7 +119,9 @@ export const adminHandlers: Record<string, Handler> = {
         `the account was not created: the welcome email could not be sent (${e instanceof Error ? e.message : e})`,
       )
     }
-    return { rows: {}, data: { userId: created!.id, email, delivery } }
+    // A new instance admin adds their first passkey with a one-time code, given to the admin who invited them.
+    const enrolment = input.admin ? await issuePasskeyEnrolment(db, created!.id) : {}
+    return { rows: {}, data: { userId: created!.id, email, delivery, ...enrolment } }
   },
 
   'user.disable': async ({ tx, actor, now }, input) => {
@@ -144,7 +150,21 @@ export const adminHandlers: Record<string, Handler> = {
   'instanceAdmin.grant': async ({ tx }, input) => {
     const account = await loadUser(tx, input.userId)
     await tx.update(user).set({ instanceAdmin: true }).where(eq(user.id, account.id))
-    return { rows: {}, data: { userId: account.id, instance_admin: true } }
+    // Their first passkey needs this one-time code, shown once to the granting admin (passkey-enrolment.ts).
+    const enrolment = (await hasPasskey(tx, account.id)) ? {} : await issuePasskeyEnrolment(tx, account.id)
+    return { rows: {}, data: { userId: account.id, instance_admin: true, ...enrolment } }
+  },
+
+  // The recovery path that needs none of the user's passkeys (passkeys.ts). Runs only with the
+  // admin's own passkey second factor (instance:admin), never while impersonating.
+  'user.resetPasskeys': async ({ tx, actor }, input) => {
+    const account = await loadUser(tx, input.userId)
+    const isAdmin = isInstanceAdmin(account)
+    // Their sessions end too; an admin resetting their own passkeys keeps the session they are in.
+    const keep = account.id === actor.actorId ? actor.sessionId : undefined
+    const removed = await removeAllPasskeys(tx, { id: account.id, email: account.email, isAdmin }, keep)
+    const enrolment = isAdmin ? await issuePasskeyEnrolment(tx, account.id) : {}
+    return { rows: {}, data: { userId: account.id, removed, ...enrolment } }
   },
 
   'instanceAdmin.revoke': async ({ tx }, input) => {

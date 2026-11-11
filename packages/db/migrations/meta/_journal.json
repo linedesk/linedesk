@@ -253,6 +253,13 @@
       "when": 1794387472270,
       "tag": "0035_phone_number_carrier_account",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794391155458,
+      "tag": "0036_passkey_enrolment",
+      "breakpoints": true
     }
   ]
 }

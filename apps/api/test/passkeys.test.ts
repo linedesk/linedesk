@@ -2,12 +2,14 @@
 // creates an account. A full WebAuthn ceremony needs an authenticator, so registration is checked up
 // to its options; sign-in with an unknown credential is checked to make nobody.
 // Impersonation (no passkey changes as the user) is in admin.test.ts, the file with instance admins.
-import { auth_events, passkey, session } from '@linedesk/db'
+import { auth_events, passkey, session, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { readAuthConfig } from '../src/auth-methods.ts'
 import { db } from '../src/db.ts'
-import { passkeyRelyingParty } from '../src/passkeys.ts'
+import { emailSender } from '../src/email.ts'
+import { notifyPasskeyChange, PASSKEY_CONFIRMATION_REQUIRED, PASSKEY_ENROLMENT_REQUIRED, passkeyChangeRefusal, passkeyRelyingParty } from '../src/passkeys.ts'
+import { enrolmentCodeValid, issuePasskeyEnrolment } from '../src/passkey-enrolment.ts'
 import { anonymous, appRequest, type Caller, randomIp, request, signUp, FROM, type User } from './helpers.ts'
 
 const ORIGIN = { origin: 'http://localhost:5173' }
@@ -41,10 +43,16 @@ async function addPasskeyRow(who: User) {
   })
   return id
 }
+/** Marks the caller's session as started by a passkey sign-in at `at` (what the session.create hook does). */
+async function confirmWithPasskey(who: User, at = new Date()) {
+  await db.update(session).set({ passkeyVerifiedAt: at }).where(eq(session.userId, who.userId))
+}
+
 const passkeyExists = async (id: string) => (await db.select().from(passkey).where(eq(passkey.id, id))).length === 1
 
 afterEach(() => {
   delete process.env.AUTH_SIGNUP_ENABLED
+  vi.restoreAllMocks()
 })
 
 describe('passkey settings', () => {
@@ -130,7 +138,7 @@ describe('listing and removing passkeys', () => {
     expect((await authGet(anonymous, '/passkey/list-user-passkeys')).status).toBe(401)
   })
 
-  test("removing needs a recent sign-in and works only on the member's own passkey", async () => {
+  test("removing needs a passkey sign-in and a recent session, and works only on the member's own passkey", async () => {
     const owner = await signUp(address('pk-remove'))
     const stranger = await signUp(address('pk-other'))
     const id = await addPasskeyRow(owner)
@@ -139,6 +147,12 @@ describe('listing and removing passkeys', () => {
     expect((await authPost(stranger, '/passkey/delete-passkey', { id })).status).toBeGreaterThanOrEqual(400)
     expect(await passkeyExists(id)).toBe(true)
 
+    // Signed in with the password only: the account has a passkey, so that is not enough.
+    expect(await authPost(owner, '/passkey/delete-passkey', { id })).toMatchObject({
+      status: 403,
+      body: { code: PASSKEY_CONFIRMATION_REQUIRED },
+    })
+    await confirmWithPasskey(owner)
     await ageSession(owner)
     expect(await authPost(owner, '/passkey/delete-passkey', { id })).toMatchObject({
       status: 403,
@@ -146,13 +160,87 @@ describe('listing and removing passkeys', () => {
     })
     expect(await passkeyExists(id)).toBe(true)
 
+    const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
     const fresh = await signUp(address('pk-fresh'))
     const own = await addPasskeyRow(fresh)
+    await confirmWithPasskey(fresh)
     expect((await authPost(fresh, '/passkey/delete-passkey', { id: own })).status).toBe(200)
     expect(await passkeyExists(own)).toBe(false)
-    // The audit log has it; the refused attempts above are not there.
+    // The account is told, and the audit log has it; the refused attempts above are not there.
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ subject: 'A passkey was removed from your Linedesk account' }))
     const events = await db.select().from(auth_events).where(eq(auth_events.user_id, fresh.userId))
     expect(events.map(e => e.event)).toEqual(expect.arrayContaining(['sign_up', 'passkey_removed']))
     expect((await db.select().from(auth_events).where(eq(auth_events.user_id, owner.userId))).some(e => e.event === 'passkey_removed')).toBe(false)
   })
+})
+
+describe('once an account has a passkey, it guards the passkeys', () => {
+  test('adding or renaming another one needs a session started by a passkey sign-in in the last 12 hours', async () => {
+    const member = await signUp(address('pk-second'))
+    const id = await addPasskeyRow(member)
+    for (const res of [
+      await authGet(member, '/passkey/generate-register-options'),
+      await authPost(member, '/passkey/verify-registration', { response: { id: 'x', rawId: 'x', type: 'public-key', response: {} } }),
+      await authPost(member, '/passkey/update-passkey', { id, name: 'Attacker' }),
+    ])
+      expect(res).toMatchObject({ status: 403, body: { code: PASSKEY_CONFIRMATION_REQUIRED } })
+
+    await confirmWithPasskey(member, new Date(Date.now() - 13 * 3_600_000))
+    expect((await authGet(member, '/passkey/generate-register-options')).body.code).toBe(PASSKEY_CONFIRMATION_REQUIRED)
+
+    await confirmWithPasskey(member)
+    expect((await authGet(member, '/passkey/generate-register-options')).status).toBe(200)
+    expect((await authPost(member, '/passkey/update-passkey', { id, name: 'Work laptop' })).status).toBe(200)
+  })
+
+  test('the rule (unit): passkey first; an admin without one needs the enrolment code; others as before', () => {
+    const now = Date.now()
+    const session = { createdAt: new Date(now - 60_000) }
+    const confirmed = { ...session, passkeyVerifiedAt: new Date(now - 3_600_000) }
+    const account = (a: Partial<Parameters<typeof passkeyChangeRefusal>[0]>) => ({
+      isAdmin: false, hasPasskey: false, enrolmentPending: false, enrolmentCodeValid: false, ...a,
+    })
+    const store = '/passkey/verify-registration'
+    const options = '/passkey/generate-register-options'
+    expect(passkeyChangeRefusal(account({ hasPasskey: true }), session, store, now)?.code).toBe(PASSKEY_CONFIRMATION_REQUIRED)
+    expect(passkeyChangeRefusal(account({ isAdmin: true, hasPasskey: true, enrolmentCodeValid: true }), session, store, now)?.code).toBe(PASSKEY_CONFIRMATION_REQUIRED)
+    expect(passkeyChangeRefusal(account({ isAdmin: true, hasPasskey: true }), confirmed, store, now)).toBeNull()
+    expect(passkeyChangeRefusal(account({ isAdmin: true }), session, options, now)?.code).toBe(PASSKEY_ENROLMENT_REQUIRED)
+    expect(passkeyChangeRefusal(account({ isAdmin: true, enrolmentPending: true }), session, options, now)).toBeNull()
+    expect(passkeyChangeRefusal(account({ isAdmin: true, enrolmentPending: true }), session, store, now)?.code).toBe(PASSKEY_ENROLMENT_REQUIRED)
+    expect(passkeyChangeRefusal(account({ isAdmin: true, enrolmentPending: true, enrolmentCodeValid: true }), session, store, now)).toBeNull()
+    expect(passkeyChangeRefusal(account({}), session, store, now)).toBeNull()
+  })
+
+  test('a code works only as issued and until it expires', async () => {
+    const member = await signUp(address('pk-code'))
+    const { enrolmentCode } = await issuePasskeyEnrolment(db, member.userId)
+    const row = async () => (await db.select().from(user).where(eq(user.id, member.userId)))[0]!
+    expect(enrolmentCodeValid(await row(), enrolmentCode)).toBe(true)
+    expect(enrolmentCodeValid(await row(), `${enrolmentCode}x`)).toBe(false)
+    expect(enrolmentCodeValid(await row(), '')).toBe(false)
+    expect(enrolmentCodeValid(await row(), enrolmentCode, Date.now() + 25 * 3_600_000)).toBe(false)
+    // Only the hash is stored.
+    expect(JSON.stringify(await row())).not.toContain(enrolmentCode)
+  })
+})
+
+describe('emails about passkeys', () => {
+  test('a passkey added: the account is told and an enrolment code is used up', async () => {
+    const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
+    const member = await signUp(address('pk-added'))
+    await issuePasskeyEnrolment(db, member.userId)
+    const [account] = await db.select().from(user).where(eq(user.id, member.userId))
+    const ctx = { path: '/passkey/verify-registration', context: { returned: { id: 'pk' }, session: { user: { id: member.userId, email: account!.email } } } }
+    await notifyPasskeyChange(ctx as unknown as Parameters<typeof notifyPasskeyChange>[0])
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: account!.email,
+        subject: 'A passkey was added to your Linedesk account',
+        text: expect.stringContaining('Reset passkeys'),
+      }),
+    )
+    expect((await db.select().from(user).where(eq(user.id, member.userId)))[0]!.passkeyEnrolmentHash).toBeNull()
+  })
+
 })

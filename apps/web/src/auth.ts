@@ -33,6 +33,8 @@ export type Me = {
   impersonation: Impersonation | null
   /** An instance admin whose session lacks the passkey the admin area needs: add one, or sign in with it. */
   adminSecondFactor?: AdminSecondFactor | null
+  /** An instance admin without a passkey: their first needs the enrolment code another admin (or the CLI) gave them. */
+  passkeyEnrolment?: boolean
   /** How this install introduces a new workspace after onboarding: tour, sample calls, both or off. */
   firstUse?: FirstUse
 }

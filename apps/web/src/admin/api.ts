@@ -28,6 +28,8 @@ export type AdminUser = {
   workspaces: { id: string; name: string; role: string; member_id: string }[]
   /** Pending invitations to the user's address, from any workspace. */
   invitations: { id: string; workspace_id: string; workspace_name: string; role: string; expires_at: string }[]
+  /** Their passkeys (absent from an older API): an instance admin's become their second factor. */
+  passkeys?: { name: string | null; device_type: string; created_at: string | null }[]
 }
 
 export type WorkspaceMember = { member_id: string; user_id: string; name: string; email: string; role: string; joined_at: string }
@@ -136,6 +138,7 @@ type AdminInputs = {
   'workspace.enable': { workspaceId: string }
   'instanceAdmin.grant': { userId: string }
   'instanceAdmin.revoke': { userId: string }
+  'user.resetPasskeys': { userId: string }
   'membership.add': { userId: string; workspaceId: string; role: MembershipRole }
   'membership.setRole': { memberId: string; role: MembershipRole }
   'membership.remove': { memberId: string }

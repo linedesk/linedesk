@@ -93,6 +93,8 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
       return `Added a webhook to ${String(input.url ?? 'a URL')}`
     case 'webhook.update':
       return input.url ? `Changed a webhook to ${String(input.url)}` : 'Changed a webhook'
+    case 'user.resetPasskeys':
+      return "Reset a user's passkeys"
     case 'webhook.delete':
       return 'Removed a webhook'
     case 'webhook.test':

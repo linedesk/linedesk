@@ -24,6 +24,9 @@ async function main() {
   console.log(
     `Created ${body.data?.email}${values.admin ? ' as instance admin' : ''} (${status}). Welcome email ${where}.`,
   )
+  // A new instance admin adds their first passkey with this one-time code (passkey-enrolment.ts).
+  if (body.data?.enrolmentCode)
+    console.log(`Passkey enrolment code (give it to them; works once, until ${body.data.enrolmentExpiresAt}):\n\n  ${body.data.enrolmentCode}\n`)
 }
 
 main()

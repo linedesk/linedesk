@@ -5,7 +5,7 @@ import { emailError } from '../sign-in-code.ts'
 import { Checkbox } from '../ui/controls.tsx'
 import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
-import { adminGrantText } from './actions.tsx'
+import { adminGrantText, EnrolmentCodeDialog, enrolmentOf, type PasskeyEnrolment } from './actions.tsx'
 import { runAdmin } from './api.ts'
 
 type Props = { toast: (text: string) => void; reload: () => Promise<void> }
@@ -19,6 +19,7 @@ export function InviteUser({ toast, reload }: Props) {
   const [errors, setErrors] = useState<Errors>({})
   /** Inviting an instance admin asks once more, in its own dialog. */
   const [confirmingAdmin, setConfirmingAdmin] = useState(false)
+  const [enrolment, setEnrolment] = useState<{ who: string; enrolment: PasskeyEnrolment } | null>(null)
 
   const close = () => {
     if (busy) return
@@ -53,6 +54,9 @@ export function InviteUser({ toast, reload }: Props) {
       const data = (await runAdmin('user.invite', { email: form.email, name: form.name, admin: form.admin })) as {
         delivery?: string
       }
+      // A new instance admin: their first passkey needs this code, shown once.
+      const made = enrolmentOf(data)
+      if (made) setEnrolment({ who: form.email, enrolment: made })
       setBusy(false)
       setOpen(false)
       setForm(empty)
@@ -68,6 +72,7 @@ export function InviteUser({ toast, reload }: Props) {
 
   return (
     <>
+      {enrolment && <EnrolmentCodeDialog who={enrolment.who} enrolment={enrolment.enrolment} onClose={() => setEnrolment(null)} />}
       <div>
         <Button size="sm" icon="plus" onClick={() => setOpen(true)}>
           Invite user

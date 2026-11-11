@@ -60,7 +60,10 @@ const listUsers = (tx: Tx) =>
     coalesce((select json_agg(json_build_object('id', i.id, 'workspace_id', o.id, 'workspace_name', o.name, 'role', coalesce(i.role, 'member'),
         'expires_at', ${utc('i.expires_at')}) order by i.created_at)
       from invitation i join organization o on o.id = i.organization_id
-      where i.status = 'pending' and lower(i.email) = lower(u.email)), '[]'::json) as invitations
+      where i.status = 'pending' and lower(i.email) = lower(u.email)), '[]'::json) as invitations,
+    coalesce((select json_agg(json_build_object('name', p.name, 'device_type', p.device_type, 'created_at', ${utc('p.created_at')})
+        order by p.created_at)
+      from passkey p where p.user_id = u.id), '[]'::json) as passkeys
   from "user" u order by u.created_at, u.id`,
   )
 

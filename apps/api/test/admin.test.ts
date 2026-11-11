@@ -14,6 +14,7 @@ import { signInMethod } from '../src/audit.ts'
 import { emailSender } from '../src/email.ts'
 import { db } from '../src/db.ts'
 import { grantFirstUser, instanceAdminHooks, refuseUnverifiedAdminAddress } from '../src/instance-admin.ts'
+import { issuePasskeyEnrolment } from '../src/passkey-enrolment.ts'
 import { telephonyProvider } from '../src/provider-settings.ts'
 import { deleteExpiredRecordings } from '../src/recording-retention.ts'
 import { recordingStoreCache } from '../src/recording-store.ts'
@@ -102,7 +103,7 @@ describe('access', () => {
     expect((await request(anonymous, 'GET', path)).status).toBe(401)
   })
 
-  test('the registry has the nineteen admin actions', () => {
+  test('the registry has the twenty admin actions', () => {
     expect(adminActions.map(def => def.name).sort()).toEqual([
       'instanceAdmin.grant',
       'instanceAdmin.revoke',
@@ -119,6 +120,7 @@ describe('access', () => {
       'user.enable',
       'user.impersonate',
       'user.invite',
+      'user.resetPasskeys',
       'voiceCloning.get',
       'voiceCloning.set',
       'workspace.disable',
@@ -766,6 +768,8 @@ describe('users', () => {
       'invitations',
       'last_sign_in_at',
       'name',
+      // Name, device type and date only: never a credential id or key.
+      'passkeys',
       'workspaces',
     ])
   })
@@ -1033,6 +1037,81 @@ describe('instance admins', () => {
   })
 })
 
+describe('user.resetPasskeys: the recovery path that needs none of their passkeys', () => {
+  afterEach(() => vi.restoreAllMocks())
+  const passkeyRow = (userId: string) => ({
+    id: `pk_${crypto.randomUUID().slice(0, 12)}`,
+    userId,
+    publicKey: 'cHVibGlj',
+    credentialID: `cred-${crypto.randomUUID()}`,
+    counter: 0,
+    deviceType: 'multiDevice',
+    backedUp: true,
+  })
+
+  test('removes every passkey of a member and every session (a passkey session too), emails them, is audited; no code for a non-admin', async () => {
+    const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
+    const someone = await addMember(other.id, 'member')
+    await db.insert(passkey).values([passkeyRow(someone.userId), passkeyRow(someone.userId)])
+    // Their session as if started by a passkey someone else added: it must not outlive the reset.
+    await db.update(session).set({ passkeyVerifiedAt: new Date() }).where(eq(session.userId, someone.userId))
+    expect((await request(someone, 'GET', '/v1/me')).status).toBe(200)
+    const res = await act(operator, 'user.resetPasskeys', { userId: someone.userId })
+    expect(await db.select().from(session).where(eq(session.userId, someone.userId))).toEqual([])
+    expect((await request(someone, 'GET', '/v1/me')).status).toBe(401)
+    expect(res).toMatchObject({ status: 200, body: { data: { removed: 2 } } })
+    expect(res.body.data.enrolmentCode).toBeUndefined()
+    expect(await db.select().from(passkey).where(eq(passkey.userId, someone.userId))).toEqual([])
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ to: await emailOf(someone), subject: 'The passkeys of your Linedesk account were removed' }))
+    const audit = (await request(operator, 'GET', '/v1/admin/audit?kind=admin')).body.entries as { what: string }[]
+    expect(audit.some(e => e.what === 'user.resetPasskeys')).toBe(true)
+  })
+
+  test('for an instance admin it returns a new enrolment code and always emails them, also without passkeys; not for workspace owners', async () => {
+    const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
+    const second = await signUp()
+    await setAdmin(second, true)
+    await db.insert(passkey).values(passkeyRow(second.userId))
+    const res = await act(operator, 'user.resetPasskeys', { userId: second.userId })
+    expect(res.body.data).toMatchObject({ removed: 1, enrolmentCode: expect.any(String) })
+    const code: string = res.body.data.enrolmentCode
+    expect(JSON.stringify(await db.select().from(commands).where(eq(commands.action, 'user.resetPasskeys')))).not.toContain(code)
+    send.mockClear()
+    expect((await act(operator, 'user.resetPasskeys', { userId: second.userId })).body.data).toMatchObject({ removed: 0, enrolmentCode: expect.any(String) })
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ to: await emailOf(second), subject: 'A passkey enrolment code was issued for your Linedesk account' }))
+    await setAdmin(second, false)
+    expect((await act(other.owner, 'user.resetPasskeys', { userId: member.userId })).status).toBe(403)
+  })
+
+  test('an admin who resets their own passkeys keeps the session they are in; their other sessions end', async () => {
+    const self = await signUp()
+    await setAdmin(self, true)
+    const elsewhere = await signIn(self)
+    expect(elsewhere.status).toBe(200)
+    expect((await db.select().from(session).where(eq(session.userId, self.userId))).length).toBe(2)
+    expect((await act(self, 'user.resetPasskeys', { userId: self.userId })).status).toBe(200)
+    expect((await db.select().from(session).where(eq(session.userId, self.userId))).length).toBe(1)
+    expect((await request(self, 'GET', '/v1/me')).status).toBe(200)
+    await setAdmin(self, false)
+  })
+
+  test('the users list shows their passkeys with dates, for the grant dialog', async () => {
+    const someone = await signUp()
+    await db.insert(passkey).values({ ...passkeyRow(someone.userId), name: 'Work laptop', createdAt: new Date() })
+    const { users } = (await request(operator, 'GET', '/v1/admin/users')).body
+    expect(users.find((u: { id: string }) => u.id === someone.userId).passkeys).toEqual([
+      { name: 'Work laptop', device_type: 'multiDevice', created_at: expect.any(String) },
+    ])
+  })
+
+  test('granting instance admin to someone without a passkey returns their enrolment code', async () => {
+    const someone = await signUp()
+    const res = await act(operator, 'instanceAdmin.grant', { userId: someone.userId })
+    expect(res.body.data).toMatchObject({ instance_admin: true, enrolmentCode: expect.any(String) })
+    await setAdmin(someone, false)
+  })
+})
+
 describe('user.invite', () => {
   const address = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}@linedesk.test`
   const accountOf = async (email: string) => (await db.select().from(user).where(eq(user.email, email)))[0]
@@ -1059,6 +1138,19 @@ describe('user.invite', () => {
     expect(mail).toMatchObject({ to: email.toLowerCase(), subject: 'Your Linedesk account' })
     expect(mail.text).toContain('enter this email address')
     expect(mail.text).not.toMatch(/\d{6}|token=/)
+  })
+
+  test('a new instance admin comes with a one-time passkey enrolment code for the inviting admin, not in the log', async () => {
+    spySend()
+    const email = address('new-admin')
+    const res = await act(operator, 'user.invite', { email, name: 'Ann', admin: true })
+    const code: string = res.body.data.enrolmentCode
+    expect(code).toEqual(expect.any(String))
+    expect((await accountOf(email))!.passkeyEnrolmentHash).toEqual(expect.any(String))
+    const [logged] = await db.select().from(commands).where(and(eq(commands.action, 'user.invite'), sql`${commands.input}->>'email' = ${email}`))
+    expect(JSON.stringify(logged)).not.toContain(code)
+    // A plain user gets none.
+    expect((await act(operator, 'user.invite', { email: address('plain'), name: 'Bo' })).body.data.enrolmentCode).toBeUndefined()
   })
 
   test('an address that already has an account is refused', async () => {
@@ -1613,6 +1705,36 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(200)
     await sessionOfAdmin({ passkeyVerifiedAt: new Date(Date.now() - 13 * 3_600_000) })
     expect((await request(admin, 'GET', '/v1/admin/users')).body.code).toBe('SECOND_FACTOR_REQUIRED')
+  })
+
+  test("an admin's first passkey needs the enrolment code from the granting admin; later ones a passkey session (H1)", async () => {
+    const authCall = (path: string, body?: unknown, extra: Record<string, string> = {}) =>
+      request(admin, body === undefined ? 'GET' : 'POST', `/api/auth${path}`, body, { origin: 'http://localhost:5173', [FROM]: randomIp(), ...extra })
+    const verify = (code?: string) =>
+      authCall('/passkey/verify-registration', { response: { id: 'x', rawId: 'x', type: 'public-key', response: {} } }, code ? { 'x-passkey-enrolment': code } : {})
+    // No code: a fresh session with the first factor alone cannot even start.
+    await db.update(user).set({ passkeyEnrolmentHash: null, passkeyEnrolmentExpiresAt: null }).where(eq(user.id, admin.userId))
+    expect(await authCall('/passkey/generate-register-options')).toMatchObject({ status: 403, body: { code: 'PASSKEY_ENROLMENT_REQUIRED' } })
+    // A code issued for them (by grant, invite, reset or the CLI; reset itself is tested with user.resetPasskeys).
+    const { enrolmentCode: code } = await issuePasskeyEnrolment(db, admin.userId)
+    expect((await authCall('/passkey/generate-register-options')).status).toBe(200)
+    // Where the passkey is stored, the code itself is needed; the right one gets past the guard to the plugin.
+    expect((await verify()).body.code).toBe('PASSKEY_ENROLMENT_REQUIRED')
+    expect((await verify('not-the-code')).body.code).toBe('PASSKEY_ENROLMENT_REQUIRED')
+    const right = await verify(code)
+    expect(right.body?.code).not.toBe('PASSKEY_ENROLMENT_REQUIRED')
+    expect(right.status).not.toBe(200) // no real authenticator response
+    // Expired: refused again.
+    await db.update(user).set({ passkeyEnrolmentExpiresAt: new Date(Date.now() - 1000) }).where(eq(user.id, admin.userId))
+    expect((await verify(code)).body.code).toBe('PASSKEY_ENROLMENT_REQUIRED')
+    // With a passkey: an attacker with the mailbox or password cannot add theirs or remove the real one.
+    await addPasskey()
+    const [own] = await db.select().from(passkey).where(eq(passkey.userId, admin.userId))
+    expect((await authCall('/passkey/generate-register-options')).body.code).toBe('PASSKEY_CONFIRMATION_REQUIRED')
+    expect((await authCall('/passkey/delete-passkey', { id: own!.id })).body.code).toBe('PASSKEY_CONFIRMATION_REQUIRED')
+    expect((await db.select().from(passkey).where(eq(passkey.userId, admin.userId))).length).toBe(1)
+    await sessionOfAdmin({ passkeyVerifiedAt: new Date() })
+    expect((await authCall('/passkey/generate-register-options')).status).toBe(200)
   })
 
   test('only a passkey sign-in marks a session, never an impersonation', () => {

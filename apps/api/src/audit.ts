@@ -3,7 +3,7 @@
 // and `auth_events` for what happens in Better Auth's own endpoints (sign-ins with their method,
 // sign-in methods added or removed, invitations accepted). Nothing here is ever deleted.
 import { auth_events, type Db, type Tx, user } from '@linedesk/db'
-import { createAuthMiddleware, isAPIError } from 'better-auth/api'
+import { type createAuthMiddleware, isAPIError } from 'better-auth/api'
 import { eq, sql } from 'drizzle-orm'
 import { db } from './db.ts'
 
@@ -98,8 +98,10 @@ const afterEvents: Record<string, AuthEventName> = {
   '/organization/accept-invitation': 'invitation_accepted',
 }
 
-/** Runs after Better Auth's endpoints: records the ones in `afterEvents` that succeeded. */
-export const recordAuthEndpoint = createAuthMiddleware(async ctx => {
+type AfterCtx = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0]
+
+/** Runs after Better Auth's endpoints (auth.ts): records the ones in `afterEvents` that succeeded. */
+export async function recordAuthEndpoint(ctx: AfterCtx) {
   const event = afterEvents[ctx.path]
   if (!event || isAPIError(ctx.context.returned)) return
   const session = (ctx.context.session ?? ctx.context.newSession) as {
@@ -115,7 +117,7 @@ export const recordAuthEndpoint = createAuthMiddleware(async ctx => {
     ipAddress: session.session?.ipAddress,
     userAgent: session.session?.userAgent,
   })
-})
+}
 
 /** Which part of the log a row belongs to, for the filter. */
 export const AUDIT_KINDS = ['sign_in', 'account', 'admin', 'team', 'impersonation', 'keys', 'integrations'] as const
@@ -135,6 +137,7 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'workspace.enable': 'admin',
   'instanceAdmin.grant': 'admin',
   'instanceAdmin.revoke': 'admin',
+  'user.resetPasskeys': 'admin',
   'user.impersonate': 'impersonation',
   'impersonation.stop': 'impersonation',
   'team.invite': 'team',

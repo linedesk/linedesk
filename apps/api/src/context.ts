@@ -24,6 +24,8 @@ export interface Actor {
   adminSecondFactor?: AdminSecondFactor
   /** The request came with this workspace API key (api-keys.ts), not a session. */
   apiKeyId?: string
+  /** The session of a signed-in member (not an API key or the agent). */
+  sessionId?: string
 }
 
 export type Impersonation = { by: string; sessionId: string; expiresAt: Date }
@@ -88,7 +90,11 @@ export async function resolveCaller(
     : isInstanceAdmin(account) && !secondFactorGap
       ? ['instance:admin']
       : []
-  const extra = { ...(impersonation ? { impersonation } : {}), ...(secondFactorGap ? { adminSecondFactor: secondFactorGap } : {}) }
+  const extra = {
+    sessionId: session.session.id,
+    ...(impersonation ? { impersonation } : {}),
+    ...(secondFactorGap ? { adminSecondFactor: secondFactorGap } : {}),
+  }
   // The active workspace, or the member's first one right after sign-in.
   const active = session.session.activeOrganizationId
   const memberships = await db.select().from(member).where(eq(member.userId, session.user.id)).orderBy(asc(member.createdAt))

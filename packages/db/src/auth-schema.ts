@@ -24,6 +24,10 @@ export const user = pgTable("user", {
   instanceAdmin: boolean("instance_admin").default(false).notNull(),
   disabledAt: timestamp("disabled_at"),
   lastSignInAt: timestamp("last_sign_in_at"),
+  // Not Better Auth's: a one-time code an instance admin without a passkey needs to add their first
+  // (apps/api/src/passkey-enrolment.ts). Only its SHA-256 is kept.
+  passkeyEnrolmentHash: text("passkey_enrolment_hash"),
+  passkeyEnrolmentExpiresAt: timestamp("passkey_enrolment_expires_at"),
 });
 
 export const session = pgTable(

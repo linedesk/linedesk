@@ -267,8 +267,12 @@ export const userInvite = defineAction({
     admin: z.boolean().optional(),
   }),
   permission: 'instance:admin',
+  // A new instance admin's passkey enrolment code is in the result: shown once, never logged.
+  secretResult: true,
 })
-export type UserInviteData = { userId: string; email: string; delivery: 'smtp' | 'log' }
+/** A one-time code a new instance admin needs to add their first passkey (apps/api/src/passkey-enrolment.ts). */
+export type PasskeyEnrolmentData = { enrolmentCode: string; enrolmentExpiresAt: string }
+export type UserInviteData = { userId: string; email: string; delivery: 'smtp' | 'log' } & Partial<PasskeyEnrolmentData>
 
 export const userDisable = adminAction(
   'user.disable',
@@ -286,7 +290,28 @@ export const workspaceEnable = adminAction(
   'Answer the calls of a disabled workspace again.',
   workspaceId,
 )
-export const instanceAdminGrant = adminAction('instanceAdmin.grant', 'Make a user an instance admin.', userId)
+export const instanceAdminGrant = defineAction({
+  name: 'instanceAdmin.grant',
+  description: 'Make a user an instance admin. Without a passkey they get a one-time code for their first one.',
+  input: userId,
+  permission: 'instance:admin',
+  secretResult: true,
+})
+export type InstanceAdminGrantData = { userId: string; instance_admin: true } & Partial<PasskeyEnrolmentData>
+
+/**
+ * The recovery path for passkeys that does not need them: a lost device, or a passkey someone else
+ * added. Removes every passkey of the user and emails them; an instance admin also gets a new
+ * enrolment code for their first passkey (shown to the admin who ran it).
+ */
+export const userResetPasskeys = defineAction({
+  name: 'user.resetPasskeys',
+  description: "Remove every passkey of a user and email them. For an instance admin, returns a one-time code for their new first passkey.",
+  input: userId,
+  permission: 'instance:admin',
+  secretResult: true,
+})
+export type UserResetPasskeysData = { userId: string; removed: number } & Partial<PasskeyEnrolmentData>
 export const instanceAdminRevoke = adminAction(
   'instanceAdmin.revoke',
   'Take instance admin away from a user. The last instance admin stays.',

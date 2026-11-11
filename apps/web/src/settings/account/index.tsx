@@ -21,7 +21,9 @@ import {
   changeName,
   changePassword,
   loadAccount,
+  loadPasskeyEnrolment,
   loadPasskeys,
+  PASSKEY_ENROLMENT,
   loadSessions,
   removePasskey,
   setFirstPassword,
@@ -227,15 +229,21 @@ function SignIn(props: SectionProps) {
 /** The member's passkeys: add one for this device, remove one (both need a recent sign-in). */
 function Passkeys() {
   const passkeys = useQuery(PASSKEYS, loadPasskeys)
+  const enrolment = useQuery(PASSKEY_ENROLMENT, loadPasskeyEnrolment)
   const list = passkeys.data
   const [confirming, setConfirming] = useState<string | null>(null)
+  const [enrolmentCode, setEnrolmentCode] = useState('')
   const request = useRequest()
   const load = passkeys.reload
+  // An instance admin's first passkey needs the one-time code another admin (or the CLI) gave them.
+  const needsCode = enrolment.data === true
 
   const add = () =>
     request.run(async () => {
-      await addPasskey(describeDevice(navigator.userAgent))
-      await load()
+      if (needsCode && !enrolmentCode.trim()) throw new Error('Enter your passkey enrolment code first.')
+      await addPasskey(describeDevice(navigator.userAgent), needsCode ? enrolmentCode : undefined)
+      setEnrolmentCode('')
+      await Promise.all([load(), enrolment.reload()])
     }, 'Passkey added.')
   const remove = (id: string) =>
     request.run(async () => {
@@ -290,6 +298,11 @@ function Passkeys() {
           </ul>
         )}
       </Field>
+      {needsCode && (
+        <Field label="Enrolment code" tip="As an instance admin, your first passkey needs the one-time code the admin who made you one gave you.">
+          <TextInput label="Enrolment code" placeholder="From the admin who made you one" value={enrolmentCode} onChange={setEnrolmentCode} />
+        </Field>
+      )}
       <FormStatus request={request} />
       <div className="ac-actions">
         <Button
