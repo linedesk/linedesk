@@ -3,11 +3,12 @@
 // `s3` (any S3-compatible bucket). Which one records new calls is the `recording` provider category
 // (Admin > Providers > Recording storage, else RECORDING_STORE); each call keeps the store its
 // recording went to (calls.recording_store), so switching stores leaves older recordings playable.
-// Keys are always `recordingKey(workspace, call)`; both adapters refuse anything else.
+// Keys are always `recordingKey(workspace, call)` or, for uploaded documents, `documentKey(workspace,
+// document)`; both adapters refuse anything else.
 import { mkdir, readFile, realpath, stat, unlink, writeFile } from 'node:fs/promises'
-import { join, resolve, sep } from 'node:path'
+import { dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { isRecordingKey, recordingObjectKey, recordingStores, type RecordingStoreName } from '@linedesk/actions'
+import { isStoreKey, recordingObjectKey, recordingStores, type RecordingStoreName } from '@linedesk/actions'
 import type { Tx } from '@linedesk/db'
 import { AwsClient } from 'aws4fetch'
 import { activeProvider, resolveProvider } from './provider-settings.ts'
@@ -19,6 +20,8 @@ export interface RecordingStore {
   exists(key: string): Promise<boolean>
   /** Null when there is no such file. A `url` is signed and stops working after `expiresInSec`. */
   locate(key: string, expiresInSec: number): Promise<RecordingLocation | null>
+  /** Stores a file the API was given (an uploaded document), replacing one with the same key. */
+  put(key: string, body: Uint8Array, contentType: string): Promise<void>
   /** Removes the recording; a key with no file is fine (already gone). */
   delete(key: string): Promise<void>
   /** "Test connection": writes a small object, reads it back and deletes it. Throws on the first step that fails. */
@@ -43,7 +46,7 @@ export class S3RequestError extends Error {
 }
 
 function assertRecordingKey(key: string) {
-  if (!isRecordingKey(key)) throw new Error(`not a recording key: ${key}`)
+  if (!isStoreKey(key)) throw new Error(`not a recording key: ${key}`)
 }
 
 const probeName = () => `.linedesk-probe-${crypto.randomUUID()}.txt`
@@ -63,6 +66,12 @@ export function createFileRecordingStore(root: string): RecordingStore {
   return {
     exists: async key => (await find(key)) !== null,
     locate: key => find(key),
+    async put(key, body) {
+      assertRecordingKey(key)
+      const path = resolve(root, key)
+      await mkdir(dirname(path), { recursive: true })
+      await writeFile(path, body)
+    },
     async delete(key) {
       const file = await find(key)
       if (file) await unlink(file.path)
@@ -137,6 +146,9 @@ export function createS3RecordingStore({
     async locate(key, expiresInSec) {
       const signed = await aws.sign(`${objectUrl(key)}?X-Amz-Expires=${expiresInSec}`, { aws: { signQuery: true } })
       return { url: signed.url }
+    },
+    async put(key, body, contentType) {
+      await send(`PUT ${key}`, objectUrl(key), { method: 'PUT', body: new Uint8Array(body), headers: { 'content-type': contentType } })
     },
     async delete(key) {
       await send(`DELETE ${key}`, objectUrl(key), { method: 'DELETE' }, [404])

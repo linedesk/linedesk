@@ -1,5 +1,5 @@
 // One call as the agent sees it: start, append transcript segments, finish.
-import { type BookingContext, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, EMERGENCY_CONDITION } from '@linedesk/actions'
+import { type BookingContext, type CallDocuments, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, EMERGENCY_CONDITION } from '@linedesk/actions'
 import type { Assistant, Contact, ToolEvent, TransferContact } from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
@@ -37,6 +37,8 @@ export interface CallSession {
    * name (then it is not the cached greeting); null: no contact (withheld number).
    */
   caller: CallerContext | null
+  /** The assistant's reference documents: inline text or a look-up; null when it has none (or the API is older). */
+  documents: CallDocuments | null
   /** The business's Linedesk number the caller dialled (a transfer shows it as caller ID); null for a test call. */
   businessNumber: string | null
   /** No-phone call test: a simulated on-call person answers transfers instead of a phone. */
@@ -54,6 +56,7 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
   booking?: BookingContext | null
   /** The workspace's recording notice, said right after the greeting; null or missing: off. */
   recordingNotice?: string | null
+  documents?: CallDocuments | null
   /** A phone caller matched to a contact: their last calls and upcoming bookings; null or missing (older API): none. */
   callerHistory?: CallerHistory | null
 }
@@ -120,7 +123,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   const booking = started.booking ?? null
   const startedAt = Date.now()
   return {
-    callId, ...scope, assistant, contact, blocked, busy, overCap, businessHours, booking, caller,
+    callId, ...scope, assistant, contact, blocked, busy, overCap, businessHours, booking, caller, documents: started.documents ?? null,
     businessNumber: origin.kind === 'phone' ? origin.to : null,
     simulatedOnCall: onCall?.answer ?? null,
     async append(speaker, text, toolEvent) {

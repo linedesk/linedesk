@@ -8,7 +8,12 @@ const assistant = (over: Partial<Assistant> = {}) => ({ id: 'as1', name: 'Maya',
 
 describe('instructions', () => {
   it('folds the older fields into one text, once, in the shape the assistant read them', () => {
-    expect(draftOf(assistant()).instructions).toBe('About: Plumbing\nServices: Leak repair, Drains\nService area: Portland\nAddress: 1 Main St\nHours: Mon–Fri\nFrequently asked questions:\nQ: Estimates?\nA: Free.')
+    expect(draftOf(assistant()).instructions).toBe('About: Plumbing\nService area: Portland\nAddress: 1 Main St\nHours: Mon–Fri')
+    // services and FAQs have their own lists: older plain names become quote-only services
+    expect(draftOf(assistant()).services).toEqual([
+      { name: 'Leak repair', description: '', price: '' },
+      { name: 'Drains', description: '', price: '' },
+    ])
     expect(foldProfile({})).toBe('')
   })
   it('reads saved instructions as they are, even when older fields are still there', () => {
@@ -18,7 +23,21 @@ describe('instructions', () => {
     expect(draftOf(assistant({ business_profile: { instructions: '' } })).instructions).toBe('') // saved empty by this page: nothing left to fold
   })
   it('saves the instructions in place of the fields they came from', () => {
-    expect(profileOf({ ...draftOf(assistant()), instructions: '  New text  ' })).toEqual({ instructions: 'New text' })
+    expect(profileOf(normalized({ ...draftOf(assistant()), instructions: '  New text  ' }))).toEqual({
+      instructions: 'New text',
+      service_list: [
+        { name: 'Leak repair', description: '', price: '' },
+        { name: 'Drains', description: '', price: '' },
+      ],
+      faqs: [{ q: 'Estimates?', a: 'Free.' }],
+    })
+  })
+  it('services need a name and FAQs both parts; empty rows are dropped', () => {
+    const d = draftOf(assistant())
+    expect(draftProblem({ ...d, services: [...d.services, { name: '', description: '', price: '' }] })).toBeNull()
+    expect(draftProblem({ ...d, services: [{ name: ' ', description: '', price: '$90' }] })).toBe('Every service needs a name.')
+    expect(draftProblem({ ...d, faqs: [{ q: 'Weekends?', a: '' }] })).toBe('Every FAQ needs a question and an answer.')
+    expect(draftProblem({ ...d, faqs: Array.from({ length: 31 }, (_, i) => ({ q: `Q${i}`, a: 'A' })) })).toBe('At most 30 FAQs.')
   })
   it('refuses instructions over the limit with a count', () => {
     expect(draftProblem({ ...draftOf(assistant()), instructions: 'x'.repeat(20_001) })).toBe('The instructions are too long: 20,001 of 20,000 characters.')

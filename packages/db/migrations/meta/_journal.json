@@ -330,6 +330,13 @@
       "when": 1794406683532,
       "tag": "0046_transfer_contacts",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1794406810353,
+      "tag": "0047_knowledge",
+      "breakpoints": true
     }
   ]
 }

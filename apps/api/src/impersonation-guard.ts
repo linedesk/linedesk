@@ -59,7 +59,7 @@ export const IMPERSONATION_ALLOWED_WRITES: ReadonlySet<string> = new Set([
 ])
 
 /** Read-only actions that still do something outside Linedesk (send a request, start a call): refused too. */
-const IMPERSONATION_REFUSED_READS: ReadonlySet<string> = new Set(['webhook.test', 'carrier.test', 'assistant.startTestCall'])
+const IMPERSONATION_REFUSED_READS: ReadonlySet<string> = new Set(['webhook.test', 'carrier.test', 'assistant.startTestCall', 'knowledge.import'])
 
 /** Whether an impersonated session may run this action. */
 export function mayRunWhileImpersonating(def: { name: string; readOnly?: boolean }): boolean {

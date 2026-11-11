@@ -319,6 +319,14 @@ const KEY_PATTERN = new RegExp(`^[A-Za-z0-9_-]+/[A-Za-z0-9_-]+\\.(${recordingFor
 /** True for keys of the shape `recordingKey` builds: two plain segments, no dots or slashes inside them. */
 export const isRecordingKey = (key: string) => KEY_PATTERN.test(key)
 
+/** Where an assistant's uploaded document is kept in the recording store: `<workspace>/knowledge/<document>.<pdf|txt|md>`. */
+export const documentKey = (workspaceId: string, documentId: string, extension: 'pdf' | 'txt' | 'md') =>
+  `${workspaceId}/knowledge/${documentId}.${extension}`
+const DOCUMENT_KEY_PATTERN = /^[A-Za-z0-9_-]+\/knowledge\/[A-Za-z0-9_-]+\.(pdf|txt|md)$/
+export const isDocumentKey = (key: string) => DOCUMENT_KEY_PATTERN.test(key)
+/** A key the store may use: a call recording or an uploaded document. */
+export const isStoreKey = (key: string) => isRecordingKey(key) || isDocumentKey(key)
+
 const PREFIX_PATTERN = /^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)*$/
 /** True for an S3 path prefix such as `linedesk/recordings` (plain segments, no `.` or `..` segment). Slashes around it are ignored. */
 export const isRecordingPrefix = (prefix: string) => {
@@ -327,7 +335,7 @@ export const isRecordingPrefix = (prefix: string) => {
 }
 /** The object key in an S3 bucket: the optional prefix, then the recording key. Egress writes it, the API reads it. */
 export function recordingObjectKey(prefix: string | null | undefined, key: string): string {
-  if (!isRecordingKey(key)) throw new Error(`not a recording key: ${key}`)
+  if (!isStoreKey(key)) throw new Error(`not a recording key: ${key}`)
   if (prefix && !isRecordingPrefix(prefix)) throw new Error('the S3 path prefix may only hold letters, digits, - _ . and /')
   const trimmed = (prefix ?? '').replace(/^\/+|\/+$/g, '')
   return trimmed ? `${trimmed}/${key}` : key

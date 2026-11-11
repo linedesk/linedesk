@@ -5,6 +5,7 @@ import * as carrier from './carrier.ts'
 import * as calls from './calls.ts'
 import * as evaluations from './evaluations.ts'
 import type { ActionDef } from './define.ts'
+import * as knowledge from './knowledge.ts'
 import * as membership from './membership.ts'
 import * as notifications from './notifications.ts'
 import * as onboarding from './onboarding.ts'
@@ -27,6 +28,7 @@ export * from './calendar.ts'
 export * from './carrier.ts'
 export * from './calls.ts'
 export * from './evaluations.ts'
+export * from './knowledge.ts'
 export * from './membership.ts'
 export * from './notifications.ts'
 export * from './onboarding.ts'
@@ -155,6 +157,12 @@ const all = [
   webhooks.webhookDelete,
   webhooks.webhookTest,
   webhooks.webhookDeliveries,
+  knowledge.knowledgeImport,
+  knowledge.knowledgeAddDocument,
+  knowledge.knowledgeRemoveDocument,
+  knowledge.knowledgeSearch,
+  knowledge.knowledgeQuestionAnswer,
+  knowledge.knowledgeQuestionDismiss,
 ] as ActionDef[]
 
 /** The registry: every action by name. */

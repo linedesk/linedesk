@@ -108,6 +108,7 @@ describe('agent-facing actions', () => {
     ['call.startRecording', { callId }],
     ['call.setRecording', { callId }],
     ['call.transfer', { callId, to: '+15035550199', result: 'not_answered' }],
+    ['knowledge.search', { callId, query: 'water heater' }],
   ]
 
   // carrier.transferTrunk and carrier.provisionTransferTrunk are scoped by the workspace's numbers, not a call: apps/api/test/carrier-routing.test.ts.

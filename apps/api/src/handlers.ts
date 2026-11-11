@@ -33,6 +33,8 @@ import { sampleHandlers } from './sample-calls.ts'
 import { queueAssignNotification, queueCallEvaluation, queueCallNotification, queueCallPush } from './jobs.ts'
 import { queueSpendingAlerts, spendingCap } from './spending-cap.ts'
 import { evaluatedAutomatically, evaluationHandlers } from './evaluations.ts'
+import { documentsForCall, knowledgeHandlers, knowledgePreparers } from './knowledge.ts'
+import { knowledgeQuestionHandlers } from './knowledge-questions.ts'
 import { notificationHandlers } from './notification-settings.ts'
 import { starHandlers } from './star-prompt.ts'
 import { pushHandlers } from './push.ts'
@@ -194,13 +196,14 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   const booking = blocked ? null : await bookingContext(tx, workspace_id, now, { contactId: contact?.row.id ?? null, assistantId: assistant?.id ?? null })
   // Said right after the greeting; the agent appends it (null: off).
   const recordingNotice = blocked ? null : await recordingNoticeFor(tx, workspace_id)
+  const documents = blocked ? null : await documentsForCall(tx, assistant?.id)
   // A returning caller's last calls and upcoming bookings: only a phone caller matched to a contact.
   const history = source === 'phone' && contact && !blocked
     ? await callerHistory(tx, workspace_id, contact.row, { callId: id, now, canChangeBookings: booking?.canChangeBookings === true })
     : null
   return {
     rows: { calls: [call!], ...(contact ? { contacts: [contact.row] } : {}) },
-    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: assistant ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, callerHistory: history },
+    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: assistant ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, callerHistory: history, documents },
   }
 }
 
@@ -298,7 +301,7 @@ async function checkOnCallNotLinedesk(tx: HandlerCtx['tx'], e164: string, name: 
 }
 
 /** Actions with work before their transaction (handler-context.ts, Preparer). */
-export const preparers: Record<string, Preparer> = { ...voicePreparers }
+export const preparers: Record<string, Preparer> = { ...voicePreparers, ...knowledgePreparers }
 
 const handlers: Record<string, Handler> = {
   // The patch, plus: a voice must be one the workspace may use, and a clone it stops using is released.
@@ -331,6 +334,8 @@ const handlers: Record<string, Handler> = {
   ...bookingHandlers,
   ...evaluationHandlers(queueCallEvaluation),
   ...webhookHandlers,
+  ...knowledgeHandlers,
+  ...knowledgeQuestionHandlers,
 
   // The patch, and the webhook payloads and command log entries that carry the call are cleared (they hold the caller's details).
   'call.delete': async (ctx, input) => {

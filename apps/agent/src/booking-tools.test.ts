@@ -23,7 +23,7 @@ const slot = (day: string, time: string) => ({ start: `2026-11-${day}T${time}:00
 function session(): CallSession {
   return {
     callId: 'call_1', workspaceId: 'ws_1', assistant: { id: 'as_1' } as CallSession['assistant'], contact: {} as CallSession['contact'], caller: null, blocked: false, busy: false, overCap: false,
-    businessHours: null, booking, businessNumber: null, simulatedOnCall: null, append: async () => {}, finish: async () => {},
+    businessHours: null, booking, businessNumber: null, simulatedOnCall: null, documents: null, append: async () => {}, finish: async () => {},
   }
 }
 

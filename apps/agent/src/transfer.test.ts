@@ -157,6 +157,7 @@ test('live transfer test: with CALL_TEST_ONCALL a phone call test goes through t
     callId: 'c1',
     businessNumber: '+15035550194',
     simulatedOnCall: null,
+    documents: null,
     contact: { phone: '+15035550192' },
   } as never
   vi.stubEnv('CALL_TEST_FROM', '+15035550192')

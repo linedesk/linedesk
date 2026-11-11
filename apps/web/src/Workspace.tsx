@@ -31,6 +31,7 @@ import { rejectionText } from './shell/rejections.ts'
 import { SetupBanner } from './shell/SetupBanner.tsx'
 import { Tour } from './shell/Tour.tsx'
 import { finishTour, tourDue } from './shell/tour.ts'
+import { KnowledgeQuestionsBar } from './inbox/KnowledgeQuestionsBar.tsx'
 import { SampleCallsBar } from './inbox/SampleCallsBar.tsx'
 import { StarPrompt } from './shell/StarPrompt.tsx'
 import { SyncBar } from './shell/SyncBar.tsx'
@@ -431,6 +432,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
         {!page && !openCall && (
           <SampleCallsBar canEdit={me.permissions.includes('settings:write')} toast={toaster.show} />
         )}
+        {!page && !openCall && me.permissions.includes('settings:write') && <KnowledgeQuestionsBar />}
         {page ? (
           <>
             {!page.ownHeader && (

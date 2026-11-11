@@ -7,6 +7,7 @@ import {
   bigint,
   boolean,
   check,
+  customType,
   date,
   index,
   integer,
@@ -553,6 +554,73 @@ export const call_evaluations = pgTable(
   t => [index('call_evaluations_ws_score').on(t.workspace_id, t.score)],
 )
 
+// Knowledge (docs/architecture.md, Knowledge): documents an assistant may look things up in, their
+// text in chunks for the search, and questions callers asked that the assistant could not answer.
+// Documents and questions are synced (no text in them beyond a question); chunks are not.
+export const knowledge_documents = pgTable(
+  'knowledge_documents',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    assistant_id: text('assistant_id')
+      .notNull()
+      .references(() => assistants.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    mime_type: text('mime_type').notNull(),
+    size_bytes: integer('size_bytes').notNull(),
+    /** Characters of text extracted; what decides whether it goes into every call or is looked up. */
+    chars: integer('chars').notNull(),
+    /** Where the original file is (the recording store in effect when it was added); null: only the text is kept. */
+    store: text('store', { enum: ['file', 's3'] }),
+    storage_key: text('storage_key'),
+    created_by: text('created_by').notNull(),
+    created_at: createdAt(),
+    version: version(),
+  },
+  t => [index('knowledge_documents_ws').on(t.workspace_id), index('knowledge_documents_assistant').on(t.assistant_id)],
+)
+
+const tsvector = customType<{ data: string }>({ dataType: () => 'tsvector' })
+
+export const knowledge_chunks = pgTable(
+  'knowledge_chunks',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    document_id: text('document_id')
+      .notNull()
+      .references(() => knowledge_documents.id, { onDelete: 'cascade' }),
+    assistant_id: text('assistant_id').notNull(),
+    position: integer('position').notNull(),
+    text: text('text').notNull(),
+    search: tsvector('search')
+      .notNull()
+      .generatedAlwaysAs(sql`to_tsvector('english', text)`),
+  },
+  t => [index('knowledge_chunks_assistant').on(t.assistant_id), index('knowledge_chunks_search').using('gin', t.search)],
+)
+
+export const knowledge_questions = pgTable(
+  'knowledge_questions',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    assistant_id: text('assistant_id')
+      .notNull()
+      .references(() => assistants.id, { onDelete: 'cascade' }),
+    call_id: text('call_id').references(() => calls.id, { onDelete: 'set null' }),
+    question: text('question').notNull(),
+    /** `answered`: the owner's answer became an FAQ; `dismissed`: not worth an answer. */
+    status: text('status', { enum: ['open', 'answered', 'dismissed'] })
+      .notNull()
+      .default('open'),
+    resolved_at: ts('resolved_at'),
+    created_at: createdAt(),
+    version: version(),
+  },
+  t => [index('knowledge_questions_ws').on(t.workspace_id), index('knowledge_questions_assistant').on(t.assistant_id, t.status)],
+)
+
 // Spending-cap emails already sent: one row per workspace, UTC month ('2026-11') and level (80 or 100 percent),
 // so each goes out once a month (apps/api/src/spending-cap.ts). Not synced to browsers.
 export const spending_cap_alerts = pgTable(
@@ -718,7 +786,7 @@ export const webhook_deliveries = pgTable(
 /** Tables that read sync delivers to clients, filtered by workspace_id. */
 export const syncedTables = {
   calls, contacts, assistants, phone_numbers, transcript_segments, appointment_types, bookings, calendar_connections, assistant_calendars,
-  webhook_endpoints, workspace_members, call_events,
+  webhook_endpoints, workspace_members, call_events, knowledge_documents, knowledge_questions,
 } as const
 
 // A member's answer to the GitHub star prompt (apps/api/src/star-prompt.ts): once answered, it is

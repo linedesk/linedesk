@@ -2,14 +2,14 @@
 // transfer contacts and the calendar, one section at a time (#assistant/<id>/<section>). Edits in the text sections are one local
 // draft: Save runs assistant.update through the outbox; a section with unsaved
 // changes keeps a dot in the nav while you look at another one.
-import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS } from '@linedesk/actions'
+import { CALL_RULES_MAX, DEFAULT_CALL_RULES, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS } from '@linedesk/actions'
 import type { Assistant, KeypadMenuAction, KeypadMenuOption, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
 import { onSaveKey, SaveBar } from '../ui/form.tsx'
 import { Select } from '../ui/controls.tsx'
-import { Button, cx } from '../ui/kit.tsx'
+import { Button } from '../ui/kit.tsx'
 import { LoadProblem, Skeleton, useLoadState } from '../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, sectionHash, useSection } from '../ui/SettingsLayout.tsx'
 import {
@@ -41,18 +41,19 @@ import {
 import { AssistantHeader } from './AssistantHeader.tsx'
 import { CalendarSettings } from './Calendar.tsx'
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
-import { Field, Section, SwitchRow, TextArea, TextInput } from './fields.tsx'
+import { Field, Section, SwitchRow, TextArea, TextInput, type Variant, VariantSwitch } from './fields.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
+import { Knowledge } from './Knowledge.tsx'
 import { VoiceSettings } from './VoiceSettings.tsx'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
 import { TransferContacts, transferFieldId } from './TransferContacts.tsx'
 
-type SectionId = 'greeting' | 'voice' | 'instructions' | 'rules' | 'transfer' | 'calendar' | 'advanced'
+type SectionId = 'greeting' | 'voice' | 'knowledge' | 'rules' | 'transfer' | 'calendar' | 'advanced'
 const sections: readonly PageSection<SectionId>[] = [
   { id: 'greeting', label: 'Greeting', description: 'First sentence, AI disclosure' },
   { id: 'voice', label: 'Voice', description: 'How the assistant sounds' },
-  { id: 'instructions', label: 'Instructions', description: 'What the assistant knows about the business' },
+  { id: 'knowledge', label: 'Knowledge', description: 'Your business, services, prices and FAQs' },
   { id: 'rules', label: 'Call rules', description: 'How calls are handled' },
   { id: 'transfer', label: 'Transfers', description: 'Who callers are put through to, and when' },
   { id: 'calendar', label: 'Calendar', description: 'Accounts, calendars and appointment types' },
@@ -62,7 +63,7 @@ const sections: readonly PageSection<SectionId>[] = [
 const sectionFields: Record<Exclude<SectionId, 'calendar'>, (keyof Draft)[]> = {
   greeting: ['name', 'greeting', 'disclose_ai', 'greet_by_name', 'greeting_outside'],
   voice: ['voice'],
-  instructions: ['instructions', 'instructions_outside'],
+  knowledge: ['instructions', 'instructions_outside', 'services', 'faqs', 'website'],
   rules: ['call_rules'],
   transfer: ['transfers'],
   advanced: ['silence_first_gap_s', 'silence_reminders', 'silence_closing', 'keypad_on', 'keypad_options'],
@@ -72,30 +73,6 @@ const sectionFields: Record<Exclude<SectionId, 'calendar'>, (keyof Draft)[]> = {
 const assistantName = (draft: Draft) => draft.name.trim() || 'The assistant'
 
 type SectionProps = { draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void }
-/** Which variant a field shows: during business hours, or outside them (only when the workspace uses hours). */
-type Variant = 'during' | 'outside'
-
-/** "During hours / Outside hours" above a field, when the workspace uses business hours. */
-function VariantSwitch({ value, onChange, label }: { value: Variant; onChange: (v: Variant) => void; label: string }) {
-  return (
-    <div className="st-seg as-variant" role="radiogroup" aria-label={label}>
-      {(['during', 'outside'] as const).map(v => (
-        <button
-          key={v}
-          type="button"
-          role="radio"
-          aria-checked={value === v}
-          className={cx('st-seg-b', value === v && 'on')}
-          onClick={() => onChange(v)}
-          title={v === 'outside' ? 'Optional. Leave it empty to use the same text as during hours.' : undefined}
-        >
-          {v === 'during' ? 'During hours' : 'Outside hours'}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 const count = (n: number) => n.toLocaleString('en-US')
 
 function Greeting({
@@ -162,52 +139,6 @@ function Greeting({
         on={draft.greet_by_name}
         onChange={on => set('greet_by_name', on)}
       />
-    </Section>
-  )
-}
-
-function Instructions({ draft, set, hoursOn }: SectionProps & { hoursOn: boolean }) {
-  const [variant, setVariant] = useState<Variant>('during')
-  const outside = hoursOn && variant === 'outside'
-  return (
-    <Section
-      id="as-instructions"
-      title="Instructions"
-      description="Write it like you would brief a new hire."
-      help={`Everything ${assistantName(draft)} should know to answer callers: your services, the area you cover, prices, common questions and what counts as urgent. Opening hours go under Settings, Business hours; ${assistantName(draft)} reads them from there.`}
-    >
-      {hoursOn && <VariantSwitch value={variant} onChange={setVariant} label="Instructions for" />}
-      {outside ? (
-        <Field id="as-instr-out" label="Instructions outside hours" aside="Optional">
-          <TextArea
-            id="as-instr-out"
-            tall
-            value={draft.instructions_outside}
-            onChange={v => set('instructions_outside', v)}
-            placeholder={draft.instructions || 'Empty: the same as during hours'}
-          />
-          <span className="help">
-            {draft.instructions_outside.trim()
-              ? `${count(draft.instructions_outside.trim().length)} / ${count(INSTRUCTIONS_MAX)}`
-              : 'Empty: the same as during hours'}
-          </span>
-        </Field>
-      ) : (
-        <Field id="as-instr" label="Instructions">
-          <TextArea
-            id="as-instr"
-            tall
-            value={draft.instructions}
-            onChange={v => set('instructions', v)}
-            placeholder={
-              'We are a family-run plumbing company in Portland.\nServices: leak repair, water heaters, drain cleaning.\nService area: Portland, Beaverton, Lake Oswego.'
-            }
-          />
-          <span className="help">
-            {count(draft.instructions.trim().length)} / {count(INSTRUCTIONS_MAX)}
-          </span>
-        </Field>
-      )}
     </Section>
   )
 }
@@ -464,7 +395,17 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
               toast={toast}
             />
           )}
-          {current === 'instructions' && <Instructions draft={draft} set={set} hoursOn={hoursOn} />}
+          {current === 'knowledge' && (
+            <Knowledge
+              assistant={assistant}
+              draft={draft}
+              set={set}
+              replace={setDraft}
+              hoursOn={hoursOn}
+              canEdit={canEdit}
+              toast={toast}
+            />
+          )}
           {current === 'rules' && <CallRules draft={draft} set={set} />}
           {current === 'transfer' && (
             <TransferContacts

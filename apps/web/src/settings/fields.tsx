@@ -1,6 +1,7 @@
 // Settings pages build on the kit's form pieces (ui/form.tsx); these keep the short names they use.
 import type { ReactNode } from 'react'
 import { Switch } from '../ui/controls.tsx'
+import { cx } from '../ui/kit.tsx'
 import { Card, FormField, Input, Textarea } from '../ui/form.tsx'
 
 type SectionProps = {
@@ -100,6 +101,30 @@ export function SwitchRow({ title, description, aside, on, onChange, disabled }:
         {description && <span className="help">{description}</span>}
       </div>
       <Switch on={on} onChange={onChange} label={title} disabled={disabled} />
+    </div>
+  )
+}
+
+/** Which variant a field shows: during business hours, or outside them (only when the workspace uses hours). */
+export type Variant = 'during' | 'outside'
+
+/** "During hours / Outside hours" above a field, when the workspace uses business hours. */
+export function VariantSwitch({ value, onChange, label }: { value: Variant; onChange: (v: Variant) => void; label: string }) {
+  return (
+    <div className="st-seg as-variant" role="radiogroup" aria-label={label}>
+      {(['during', 'outside'] as const).map(v => (
+        <button
+          key={v}
+          type="button"
+          role="radio"
+          aria-checked={value === v}
+          className={cx('st-seg-b', value === v && 'on')}
+          onClick={() => onChange(v)}
+          title={v === 'outside' ? 'Optional. Leave it empty to use the same text as during hours.' : undefined}
+        >
+          {v === 'during' ? 'During hours' : 'Outside hours'}
+        </button>
+      ))}
     </div>
   )
 }

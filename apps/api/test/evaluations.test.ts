@@ -184,6 +184,7 @@ describe('evaluating', () => {
     expect(parseEvaluation('```json\n{"score": "4", "issues": ["  Rushed.  "]}\n```')).toEqual({
       score: 4,
       issues: ['Rushed.'],
+      unanswered: [],
     })
     const callId = await finishedCall()
     await expect(evaluateCall(db, callId, fakeModel('{"score": 0}').model)).rejects.toThrow()

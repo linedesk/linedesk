@@ -1,4 +1,4 @@
-import { actions, CLONE_BODY_MAX_BYTES, openApiDocument } from '@linedesk/actions'
+import { actions, CLONE_BODY_MAX_BYTES, DOCUMENT_BODY_MAX_BYTES, DOCUMENT_MAX_BYTES, openApiDocument } from '@linedesk/actions'
 import {
   assistants,
   member,
@@ -285,8 +285,15 @@ app.use(
     onError: c => c.json({ ok: false, error: 'the recording is larger than 10 MB' }, 413),
   }),
 )
+app.use(
+  '/v1/actions/knowledge.addDocument',
+  bodyLimit({
+    maxSize: DOCUMENT_BODY_MAX_BYTES,
+    onError: c => c.json({ ok: false, error: `the file is larger than ${DOCUMENT_MAX_BYTES / 1024 / 1024} MB` }, 413),
+  }),
+)
 app.use('/v1/actions/:name', async (c, next) =>
-  c.req.param('name') === 'voice.clone'
+  ['voice.clone', 'knowledge.addDocument'].includes(c.req.param('name'))
     ? next()
     : bodyLimit({
         maxSize: ACTION_BODY_MAX_BYTES,

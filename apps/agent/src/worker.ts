@@ -4,6 +4,7 @@ import { createServer } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { agentTokenProblem, ASSISTANT_CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage } from '@linedesk/actions'
+import { lookUpPassages } from './look-up.ts'
 import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant } from '@livekit/rtc-node'
 import { z } from 'zod'
@@ -106,6 +107,15 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
   const { callId } = call
   return {
     ...bookingToolset(api, call, log),
+    ...(call.documents?.lookUp
+      ? {
+          look_up: llm.tool({
+            description: "Search the business's reference documents for what the caller asked. Say a short filler like \"Let me check\" in the same response.",
+            parameters: z.object({ query: z.string().describe('A few keywords from the question, like "warranty water heater".') }),
+            execute: ({ query }) => lookUpPassages(api, call, log, query),
+          }),
+        }
+      : {}),
     ...collectTools(collect),
     ...(transfer ? { transfer_call: transferTool({ ...transfer, api, call, log }) } : {}),
     take_message: llm.tool({
@@ -244,7 +254,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     },
   })
   session.on(voice.AgentSessionEventTypes.Close, cancelLimit)
-  const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, [], call.caller)
+  const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, [], call.caller, call.documents)
   const collect: CollectContext = {
     log,
     room: ctx.room,
@@ -282,7 +292,7 @@ async function addTransfer(
     const caller = await callerJoined
     const transfer = await transferFor(ctx, api, call, config, caller.identity, stopRecording)
     if (!transfer) return false
-    await agent.updateInstructions(buildInstructions(call.assistant, call.businessHours, call.booking, transfer.contacts.map(c => c.contact), call.caller))
+    await agent.updateInstructions(buildInstructions(call.assistant, call.businessHours, call.booking, transfer.contacts.map(c => c.contact), call.caller, call.documents))
     await agent.updateTools(assistantTools(api, call, log, endCall, flagUrgent, transfer, collect))
     return true
   } catch (e) {
