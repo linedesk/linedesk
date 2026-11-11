@@ -54,12 +54,14 @@ export function Avatar({ name, size = 32 }: { name: string; size?: 24 | 32 | 40 
   return <span className={cx('k-avatar', `k-avatar-${size}`)} role="img" aria-label={name}>{initials(name) || '?'}</span>
 }
 
-/** The page around sign-in, sign-up and invitations: the Linedesk mark above a centred card. */
+/** The page around sign-in, sign-up and invitations: the Linedesk mark above a centred column, no card. */
 export function AuthPage({ children }: { children: ReactNode }) {
   return (
     <main className="auth">
-      <div className="auth-brand"><span className="ws-mark"><Icon name="spark" size={13} /></span><b>Linedesk</b></div>
-      {children}
+      <div className="auth-column">
+        <span className="auth-mark" role="img" aria-label="Linedesk"><Icon name="spark" size={20} /></span>
+        {children}
+      </div>
     </main>
   )
 }

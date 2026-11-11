@@ -7,6 +7,7 @@ import { type AuthMethods, auth, fetchAuthMethods, requestSignInCode } from '../
 import { CodeStep } from '../Login.tsx'
 import { authFormError } from '../sign-in-code.ts'
 import { previewInvitation } from './team-api.ts'
+import { ProviderButton } from '../ui/brand-logos.tsx'
 import { AuthPage } from '../ui/kit.tsx'
 
 const INVITE_PARAM = 'invite'
@@ -155,8 +156,8 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
               })}>Email me a code</button>
             )}
             {methods.sso.map(m => (
-              <button key={m.id} type="button" className="k-btn k-btn-secondary" disabled={busy}
-                onClick={() => attempt(async () => fail(await auth.signIn.social({ provider: m.id, ...back })))}>Continue with {m.label}</button>
+              <ProviderButton key={m.id} method={m.id} label={m.label} lastUsed={false} disabled={busy}
+                onClick={() => attempt(async () => fail(await auth.signIn.social({ provider: m.id, ...back })))} />
             ))}
             {methods.password && methods.signUp !== false && <button type="button" className="auth-switch" onClick={() => setMode('signUp')}>Create an account with a password</button>}
             {methods.password && <button type="button" className="auth-switch" onClick={() => setMode('signIn')}>I already have a password</button>}

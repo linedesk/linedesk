@@ -5,47 +5,55 @@ body,
   height: 100%;
 }
 
+/* Sign-in, sign-up and invitations: a centred column without a card (like Vercel's sign-in), the mark,
+   a large title, then full-width fields and buttons. */
 .auth {
   box-sizing: border-box;
   min-height: 100%;
   display: flex;
-  flex-direction: column;
-  align-items: center;
   justify-content: center;
-  gap: 20px;
-  padding: 24px 16px;
+  align-items: flex-start;
+  padding: max(64px, 16vh) 16px 48px;
 }
-.auth-brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 15px;
-}
-.auth-brand b {
-  font-weight: 600;
-}
-.auth-brand .ws-mark {
-  margin: 0;
-}
-.auth-card {
+.auth-column {
   width: min(360px, 100%);
   display: flex;
   flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+.auth-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--signal);
+  color: var(--on-signal);
+  display: grid;
+  place-items: center;
+}
+.auth-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  padding: 28px;
-  background: var(--surface);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
 }
 .auth-card h1 {
-  margin: 0;
-  font-size: 20px;
-  line-height: 28px;
+  margin: 0 0 12px;
+  font-size: 28px;
+  line-height: 36px;
   font-weight: 600;
+  letter-spacing: -0.02em;
+  text-align: center;
 }
 .auth-card p {
   margin: 0 0 4px;
   color: var(--ink-muted);
+  text-align: center;
+}
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 .auth-card label {
   display: flex;
@@ -55,13 +63,20 @@ body,
   color: var(--ink-muted);
 }
 .auth-card input {
-  height: 34px;
-  padding: 0 10px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
   font: inherit;
+  font-size: 14px;
   color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--line-control);
   border-radius: var(--radius-sm);
+}
+.auth-card input::placeholder {
+  color: var(--ink-muted);
+  opacity: 1;
 }
 .auth-card input:focus {
   outline: none;
@@ -70,7 +85,42 @@ body,
 }
 .auth-card .k-btn {
   justify-content: center;
-  height: 36px;
+  height: 44px;
+  font-size: 14px;
+}
+/* "Continue with ...": the mark at the left edge, the label centred, "Last used" at the right edge. */
+.auth-card .auth-provider {
+  position: relative;
+  width: 100%;
+}
+.auth-provider .auth-logo {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.auth-last-used {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 16px;
+  background: var(--surface-hover);
+  color: var(--ink-muted);
+}
+.k-btn-primary .auth-last-used {
+  background: rgb(255 255 255 / 0.16);
+  color: inherit;
+}
+.auth-separator {
+  width: 100%;
+  margin: 12px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
 }
 .auth-error {
   color: var(--danger);
@@ -83,25 +133,39 @@ body,
   font: inherit;
   color: var(--ink-muted);
   cursor: pointer;
-  text-align: left;
+  text-align: center;
 }
 .auth-switch:hover {
   color: var(--ink);
 }
-
-.auth-or {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  color: var(--ink-muted);
+.auth-switch:focus-visible,
+.auth-inline:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
-.auth-or::before,
-.auth-or::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--line);
+.auth-more {
+  align-self: center;
+  padding: 4px 0;
+}
+.auth-footer {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.auth-inline {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
 
 /* Offline bar: the last row of the app, so it never covers the list; the toast moves up while it shows. */
@@ -423,12 +487,17 @@ button.me:focus-visible {
   font-size: 12px;
 }
 
-/* Terms, privacy and help under the sign-in card. */
+/* Terms · Privacy · Help under sign-in. */
 .auth-legal {
   display: flex;
-  gap: 14px;
-  padding-top: 4px;
+  gap: 6px;
   font-size: 12px;
+}
+.auth-legal a + a::before {
+  content: "·";
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--ink-muted);
 }
 .auth-legal a {
   color: var(--ink-muted);
@@ -439,7 +508,7 @@ button.me:focus-visible {
   text-decoration: underline;
 }
 
-/* Closed sign-up: a quiet line under the sign-in options. */
+/* Who can get an account: a quiet line under the sign-in options. */
 .auth-note {
   margin: 0;
   font-size: 12.5px;
