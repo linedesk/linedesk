@@ -18,6 +18,14 @@ export function tabOf(call: Call, now = new Date()): InboxTab {
   return 'ai'
 }
 
+/**
+ * The view to show after opening a call: the one it lives in, unless the current view lists it
+ * (Needs review and Assigned to me cut across the views, and up/down must keep walking that list).
+ */
+export function viewForOpened(call: Call, tab: InboxTab, list: readonly Call[], now = new Date()): InboxTab {
+  return list.some(c => c.id === call.id) ? tab : tabOf(call, now)
+}
+
 export const hasReminder = (call: Call, now = new Date()) => !!call.reminder_at && parseTs(call.reminder_at) > now
 
 const startedMs = (call: Call) => parseTs(call.started_at).getTime()

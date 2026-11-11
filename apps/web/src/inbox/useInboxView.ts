@@ -2,7 +2,7 @@
 import type { Call } from '@linedesk/db/types'
 import { useEffect, useMemo } from 'react'
 import { useSegmentsByCall } from '../call/segments.ts'
-import { type CallGroups, countsFor, groupRepeats, listFor, sortForList, tabOf, type InboxTab } from '../inbox-model.ts'
+import { type CallGroups, countsFor, groupRepeats, listFor, sortForList, type InboxTab, viewForOpened } from '../inbox-model.ts'
 import { useNow } from '../shell/useNow.ts'
 import type { RouteApi } from '../shell/useRoute.ts'
 import { useAssistantName, useRows, useRun, useSnapshot } from '../store.tsx'
@@ -72,10 +72,11 @@ export function useInboxView(nav: RouteApi, me: string | null = null, review: Re
     setCursor(call.id)
     for (const c of groupOf(call)) if (c.unread) void run('call.markRead', { callId: c.id })
   }
-  /** Open a call from anywhere: also switches to the view it lives in. */
+  /** Open a call from anywhere: also switches to the view it lives in (viewForOpened). */
   function open(call: Call) {
     show(call)
-    if (search === null && tabOf(call) !== tab) setTabState(tabOf(call))
+    const next = viewForOpened(call, tab, list)
+    if (search === null && next !== tab) setTabState(next)
   }
   function showById(id: string | null) {
     const call = id ? calls.find(c => c.id === id) : undefined

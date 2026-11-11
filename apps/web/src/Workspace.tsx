@@ -83,6 +83,11 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
   const reviewQuery = useQuery(canReview ? REVIEW_KEY : null, loadReview)
   const review = useMemo(() => new Set((reviewQuery.data ?? []).map(e => e.callId)), [reviewQuery.data])
   const view = useInboxView(nav, me.actorId, review)
+  // Needs review is for owners and admins; a member's link or reload to it lands in Needs you.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only when the view or the permission changes
+  useEffect(() => {
+    if (!canReview && view.tab === 'review') view.setTabState('you')
+  }, [canReview, view.tab])
   // A notification when a call ends while this tab is in the background (Settings, Notifications).
   useCallNotifications(call => callerName(call, call.contact_id ? view.contacts.get(call.contact_id) : undefined))
   const assistantName = useAssistantName()
@@ -222,8 +227,9 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
       goChord: key => {
         if (key === 'd' && canOpenAdmin) goPage('admin')
         else if (chordPages[key]) goPage(chordPages[key])
-        else if (chordTabs[key]) view.setTab(chordTabs[key])
-        return !!chordPages[key] || !!chordTabs[key] || (key === 'd' && canOpenAdmin)
+        else if (chordTabs[key] && (key !== 'r' || canReview)) view.setTab(chordTabs[key])
+        else return false
+        return true
       },
     },
     toaster.via,

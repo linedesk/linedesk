@@ -11,6 +11,7 @@ import {
   resolveCursor,
   statusLabel,
   tabOf,
+  viewForOpened,
 } from './inbox-model.ts'
 
 const now = new Date('2026-11-10T12:00:00Z')
@@ -271,5 +272,15 @@ describe('transferText', () => {
     expect(transferText({ transfer_to: '+15035550199', transfer_result: 'not_answered' })).toBe('Transfer not answered')
     expect(transferText({ transfer_to: '+15035550199', transfer_result: 'declined' })).toBe('Transfer declined by +1 503 555 0199')
     expect(transferText({ transfer_to: null, transfer_result: null })).toBeNull()
+  })
+})
+
+describe('opening a call', () => {
+  const now = new Date('2026-11-11T12:00:00Z')
+  it('keeps a view that lists it (Needs review, Assigned to me), else goes to its own view', () => {
+    const urgent = call({ id: 'c1', urgency: 'urgent' })
+    expect(viewForOpened(urgent, 'review', [urgent], now)).toBe('review')
+    expect(viewForOpened(urgent, 'mine', [urgent], now)).toBe('mine')
+    expect(viewForOpened(urgent, 'done', [], now)).toBe('you')
   })
 })
