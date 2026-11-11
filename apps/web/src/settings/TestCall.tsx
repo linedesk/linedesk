@@ -1,15 +1,28 @@
 // A test call in the browser, no phone involved. The API signs a LiveKit token for a new room
 // (assistant.startTestCall); the voice agent joins it and files the call in the inbox as "Test call".
-// Settings > Assistant shows a Start button in its header and a compact call bar under it; onboarding
-// shows the same button, bar and the transcript as it syncs in (TestCall).
+// Settings > Assistant shows a Start button in its header and the call in a side panel
+// (TestCallPanel); onboarding shows the same button, a compact bar and the transcript (TestCall).
 import type { TestCallData } from '@linedesk/actions'
-import { Room, RoomEvent, Track } from 'livekit-client'
+import type { TranscriptSegment } from '@linedesk/db/types'
+import { Room, RoomEvent, type TextStreamReader, Track } from 'livekit-client'
 import { type RefObject, useEffect, useMemo, useRef, useState } from 'react'
 import { useVoiceReady } from '../shell/presence.ts'
 import { useAssistantName, useRows } from '../store.tsx'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 import { Button, cx } from '../ui/kit.tsx'
 import '../ui/settings-layout.css'
+import {
+  applyChunk,
+  FINAL_ATTRIBUTE,
+  finishLine,
+  type LiveLines,
+  type LiveSpeaker,
+  pendingLines,
+  pruneLines,
+  rowsOf,
+  SEGMENT_ATTRIBUTE,
+  TRANSCRIPTION_TOPIC,
+} from './liveTranscript.ts'
 import { TEST_CALL_TIMEOUT_MS, TimedOut, testCallErrorText, within } from './testCallModel.ts'
 
 type Phase = 'idle' | 'starting' | 'live' | 'ended'
@@ -52,6 +65,56 @@ function useRoomCall(room: string | null) {
   return { call, lines, notSetUp }
 }
 
+/**
+ * What is being said right now, from the agent's transcription streams: the caller's speech as it
+ * is recognised and the assistant's words as they are spoken, until the turn syncs in as a row.
+ */
+function useLiveLines(rows: TranscriptSegment[]) {
+  const [lines, setLines] = useState<LiveLines>([])
+  const [now, setNow] = useState(Date.now)
+  const rowsRef = useRef(rows)
+  rowsRef.current = rows
+  // A finished line waits a few seconds for its row; this re-checks while there are lines.
+  useEffect(() => {
+    if (lines.length === 0) return
+    const id = setInterval(() => {
+      const at = Date.now()
+      setNow(at)
+      setLines(current => pruneLines(current, rowsRef.current, at))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [lines.length])
+
+  /** Reads one stream into its line. The caller's line is replaced by each update, the assistant's grows. */
+  async function read(reader: TextStreamReader, speaker: LiveSpeaker) {
+    const id = reader.info.attributes?.[SEGMENT_ATTRIBUTE] ?? reader.info.id
+    const final = reader.info.attributes?.[FINAL_ATTRIBUTE] === 'true'
+    const mode = speaker === 'caller' ? 'replace' : 'append'
+    const rowsBefore = rowsOf(rowsRef.current, speaker)
+    try {
+      for await (const text of reader)
+        setLines(current => applyChunk(current, { id, speaker, text, mode, final, now: Date.now(), rowsBefore }))
+    } catch {
+      // A stream cut off by the hang-up: what arrived stays until the row replaces it.
+    }
+    setLines(current => finishLine(current, id, Date.now()))
+  }
+
+  return {
+    pending: useMemo(() => pendingLines(lines, rows, now), [lines, rows, now]),
+    listen(room: Room) {
+      room.registerTextStreamHandler(TRANSCRIPTION_TOPIC, (reader, from) => {
+        const callerTrack = reader.info.attributes?.['lk.transcribed_track_id']
+        const fromCaller =
+          from.identity === room.localParticipant.identity ||
+          (!!callerTrack && room.localParticipant.trackPublications.has(callerTrack))
+        void read(reader, fromCaller ? 'caller' : 'agent')
+      })
+    },
+    clear: () => setLines([]),
+  }
+}
+
 /** One test call with an assistant (default: the workspace's first): its phase, what went wrong, the call as it syncs in, and the controls. */
 export function useTestCall(canStart: boolean, assistant?: { id: string; name: string }) {
   const defaultName = useAssistantName()
@@ -63,6 +126,7 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
   const room = useRef<Room | null>(null)
   const audio = useRef<HTMLDivElement>(null)
   const { call, lines, notSetUp } = useRoomCall(roomName)
+  const live = useLiveLines(lines)
   // Known up front: without the voice service a test call cannot be answered, so it is not offered.
   const voiceDown = useVoiceReady() === false
   /** Bumped by Cancel and by every new start, so a late answer of an abandoned attempt is ignored. */
@@ -93,6 +157,7 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     setProblem(null)
     setRoomName(null)
     setMuted(false)
+    live.clear()
     setPhase('starting')
     // A permission prompt nobody answers must not hang either.
     const blocked = await within(microphoneAllowed(), TEST_CALL_TIMEOUT_MS).catch(
@@ -108,6 +173,7 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
           next.on(RoomEvent.TrackSubscribed, track => {
             if (track.kind === Track.Kind.Audio) audio.current?.append(track.attach())
           })
+          live.listen(next)
           next.on(RoomEvent.Disconnected, () => {
             if (room.current === next) setPhase('ended')
           })
@@ -147,6 +213,8 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     notSetUp,
     call,
     lines,
+    /** Lines still being spoken, after `lines`. */
+    pending: live.pending,
     muted,
     audio,
     /** Why Start is off, for its tooltip; null when it can start. */
@@ -175,6 +243,7 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     dismiss: () => {
       setProblem(null)
       setRoomName(null)
+      live.clear()
       setPhase('idle')
     },
   }
@@ -264,7 +333,7 @@ export function TestCallBar({ session }: { session: TestCallSession }) {
   )
 }
 
-function AudioSink({ target }: { target: RefObject<HTMLDivElement | null> }) {
+export function AudioSink({ target }: { target: RefObject<HTMLDivElement | null> }) {
   return <div ref={target} hidden />
 }
 

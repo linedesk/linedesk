@@ -37,7 +37,8 @@ import { CONNECT_RETURN_KEY } from './calendarModel.ts'
 import { Field, Section, SwitchRow, TextArea, TextInput } from './fields.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { VoiceSettings } from './VoiceSettings.tsx'
-import { TestCallBar, TestCallButton, useTestCall } from './TestCall.tsx'
+import { TestCallButton, useTestCall } from './TestCall.tsx'
+import { TestCallPanel } from './TestCallPanel.tsx'
 
 type SectionId = 'greeting' | 'voice' | 'instructions' | 'rules' | 'transfer' | 'calendar'
 const sections: readonly PageSection<SectionId>[] = [
@@ -353,7 +354,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         }
         description={canEdit ? undefined : 'Only owners and admins can change these.'}
         actions={<TestCallButton session={testCall} />}
-        banner={<TestCallBar session={testCall} />}
+        banner={<TestCallPanel session={testCall} />}
         sections={sections}
         current={current}
         unsaved={unsaved}

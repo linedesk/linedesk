@@ -14,6 +14,7 @@ import { RecordingPlayer } from './RecordingPlayer.tsx'
 import { EvaluationCard } from './EvaluationCard.tsx'
 import { SummaryCard } from './SummaryCard.tsx'
 import { Transcript } from './Transcript.tsx'
+import { useFollowLive } from './useFollowLive.ts'
 
 export type CallViewActions = {
   onBack: () => void
@@ -42,7 +43,6 @@ type Props = CallViewActions & {
   canReview?: boolean
 }
 
-const STICK_TO_BOTTOM_PX = 140
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 type BarProps = Omit<Props, 'segments' | 'search' | 'side' | 'repeatCount' | 'canReview'> & {
@@ -261,21 +261,6 @@ function CopyNumber({ number }: { number: string }) {
       {copied ? 'Copied' : number}
     </button>
   )
-}
-
-/** Keep a live transcript pinned to the bottom while the reader was near it before the new turn arrived. */
-function useFollowLive(live: boolean, segmentCount: number) {
-  const ref = useRef<HTMLDivElement>(null)
-  const nearBottom = useRef(true)
-  const measure = () => {
-    const el = ref.current
-    if (el) nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_TO_BOTTOM_PX
-  }
-  useEffect(() => {
-    const el = ref.current
-    if (el && live && segmentCount && nearBottom.current) el.scrollTop = el.scrollHeight
-  }, [live, segmentCount])
-  return { ref, onScroll: measure }
 }
 
 /** One call, full width: what it was about, the conversation, and the caller on the side. Mount with key={call.id} so each call starts at the top. */

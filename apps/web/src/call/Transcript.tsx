@@ -13,6 +13,8 @@ type Props = {
   /** Where the call began and how it ended, as the first and last line. */
   start: { time: string; label: string }
   end: { time: string; label: string } | null
+  /** Lines still being spoken on a live call, after the written ones (the test call shows them). */
+  pending?: readonly { id: string; speaker: 'caller' | 'agent'; text: string }[]
 }
 
 const toolIcons: Record<string, IconName> = { 'call.flagUrgent': 'spark', 'call.takeMessage': 'message' }
@@ -32,21 +34,23 @@ function CallEvent({ segment }: { segment: TranscriptSegment }) {
   return <EventLine icon={icon} label={segment.tool_event?.label ?? segment.text} time={clock(segment.at_ms / 1000)} />
 }
 
-function Bubble({ fromCaller, author, time, children }: { fromCaller: boolean; author: string | null; time: string; children: ReactNode }) {
+type BubbleProps = { fromCaller: boolean; author: string | null; time: string | null; pending?: boolean; children: ReactNode }
+
+function Bubble({ fromCaller, author, time, pending, children }: BubbleProps) {
   return (
-    <div className={cx('k-msg', fromCaller ? 'k-msg-them' : 'k-msg-me', author && 'k-msg-tail')}>
+    <div className={cx('k-msg', fromCaller ? 'k-msg-them' : 'k-msg-me', author && 'k-msg-tail', pending && 'k-msg-pending')}>
       <div className={cx('k-bubble', fromCaller ? 'k-tone-signal' : 'k-tone-neutral')}>
         {author && <div className="k-msg-author">{author}</div>}
         <span className="k-msg-text">{children}</span>
         <span className="k-meta-space" aria-hidden="true" />
-        <span className="k-meta"><time>{time}</time></span>
+        <span className="k-meta">{time ? <time>{time}</time> : <span className="k-typing" role="img" aria-label="Speaking"><i /><i /><i /></span>}</span>
       </div>
     </div>
   )
 }
 
 /** The conversation in spoken order. The speaker's name shows when the speaker changes. */
-export function Transcript({ segments, callerName, assistantName, search, start, end }: Props) {
+export function Transcript({ segments, callerName, assistantName, search, start, end, pending = [] }: Props) {
   const names: Record<string, string> = { caller: callerName, agent: assistantName, human: 'Team' }
   let previous: string | null = null
   return (
@@ -59,6 +63,15 @@ export function Transcript({ segments, callerName, assistantName, search, start,
         return (
           <Bubble key={s.id} fromCaller={s.speaker === 'caller'} author={speakerChanged ? names[s.speaker]! : null} time={clock(s.at_ms / 1000)}>
             {highlight(s.text, search)}
+          </Bubble>
+        )
+      })}
+      {pending.map(line => {
+        const speakerChanged = previous !== line.speaker
+        previous = line.speaker
+        return (
+          <Bubble key={line.id} fromCaller={line.speaker === 'caller'} author={speakerChanged ? names[line.speaker]! : null} time={null} pending>
+            {line.text}
           </Bubble>
         )
       })}
