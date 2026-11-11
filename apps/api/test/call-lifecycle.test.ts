@@ -226,14 +226,18 @@ test('assistant.update stores the transfer settings; an invalid on-call number i
   // Callable US numbers (the helper's random ones may not be valid on-call numbers).
   const own = `+1503248${String(Math.floor(1000 + Math.random() * 9000))}`
   const elsewhere = `+1971248${String(Math.floor(1000 + Math.random() * 9000))}`
+  // The business's office line that forwards to its Linedesk number.
+  const officeLine = `+1503249${String(Math.floor(1000 + Math.random() * 9000))}`
   await db.insert(phone_numbers).values([
-    { id: `pn_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, e164: own, provider: 'dev' },
+    { id: `pn_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, e164: own, provider: 'dev', forwarded_from: officeLine },
     { id: `pn_${crypto.randomUUID().slice(0, 8)}`, workspace_id: other.id, e164: elsewhere, provider: 'dev' },
   ])
   for (const linedesk of [own, elsewhere]) {
     const looping = await act(ws.owner, 'assistant.update', { assistantId, transfer_number: linedesk })
     expect(looping).toMatchObject({ status: 409, body: { error: expect.stringContaining('is a Linedesk number') } })
   }
+  const forwarding = await act(ws.owner, 'assistant.update', { assistantId, transfer_number: officeLine })
+  expect(forwarding).toMatchObject({ status: 409, body: { error: expect.stringContaining('forwards its calls to Linedesk') } })
   const started = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
   expect(started.body.data.assistant).toMatchObject({ transfer_urgent: true, transfer_number: '+15035550199', transfer_hours_only: true })
 })

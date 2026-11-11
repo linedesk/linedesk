@@ -6,7 +6,7 @@ import {availability_rules, call_evaluations, calls, contacts, member, organizat
 } from '@linedesk/db'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
-import { and, asc, desc, eq, gte, } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, or, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
 import { apiKeyHandlers } from './api-keys.ts'
 import { assistantForNumber, assistantHandlers, assistantIn } from './assistants.ts'
@@ -187,11 +187,21 @@ const blockedCall = (now: string) => ({
 
 /**
  * The on-call number is a person's phone, never a Linedesk number (the workspace's own or any other on the
- * install): a transfer there would ring back into Linedesk and be answered by an assistant.
+ * install) nor a business line that forwards to one (`forwarded_from`): a transfer there would ring back
+ * into Linedesk and be answered by an assistant.
  */
 async function checkOnCallNotLinedesk(tx: HandlerCtx['tx'], e164: string) {
-  const [linedesk] = await tx.select({ id: phone_numbers.id }).from(phone_numbers).where(eq(phone_numbers.e164, e164)).limit(1)
-  if (linedesk) throw new Reject("the on-call number is a Linedesk number; enter the on-call person's own phone")
+  const [linedesk] = await tx
+    .select({ e164: phone_numbers.e164 })
+    .from(phone_numbers)
+    .where(or(eq(phone_numbers.e164, e164), eq(phone_numbers.forwarded_from, e164)))
+    .limit(1)
+  if (!linedesk) return
+  throw new Reject(
+    linedesk.e164 === e164
+      ? "the on-call number is a Linedesk number; enter the on-call person's own phone"
+      : "the on-call number forwards its calls to Linedesk; enter the on-call person's own phone",
+  )
 }
 
 /** Actions with work before their transaction (handler-context.ts, Preparer). */

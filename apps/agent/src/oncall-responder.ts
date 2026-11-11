@@ -27,6 +27,10 @@ export function parseOnCallResponderMetadata(metadata: string): OnCallResponderM
   }
 }
 
+/** A caller ID for the log: only its last four digits, enough to tell which number called. */
+export const maskedNumber = (number: string | undefined) =>
+  number && /\d{4}$/.test(number) ? `…${number.slice(-4)}` : 'an unknown number'
+
 export async function runOnCallResponder(ctx: JobContext, { answer }: OnCallResponderMetadata, config: AgentConfig) {
   const hangUp = async () => {
     await ctx.deleteRoom().catch(() => {})
@@ -36,9 +40,7 @@ export async function runOnCallResponder(ctx: JobContext, { answer }: OnCallResp
   ctx.addShutdownCallback(async () => clearTimeout(limit))
   const lines = await onCallLines(config, answer)
   const phone = await waitForCounterpart(ctx)
-  console.log(
-    `on-call responder (${answer}): answered a call from ${phone.attributes['sip.phoneNumber'] ?? phone.identity}`,
-  )
+  console.log(`on-call responder (${answer}): answered a call from ${maskedNumber(phone.attributes['sip.phoneNumber'])}`)
   // The transfer side hung up (declined, no decision, or the bridge ended): end the room with it.
   ctx.room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
     if (participant.identity === phone.identity) void hangUp()

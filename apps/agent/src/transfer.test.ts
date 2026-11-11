@@ -6,7 +6,7 @@ import { buildInstructions } from './prompt.ts'
 import { mergeToolResults } from './summary.ts'
 import { phoneRefused, scenarios } from './test-caller/scenarios.ts'
 import { isPhoneCallTest, liveTransferTestAllows, onCallDialerFor } from './transfer-tool.ts'
-import { parseOnCallResponderMetadata } from './oncall-responder.ts'
+import { maskedNumber, parseOnCallResponderMetadata } from './oncall-responder.ts'
 import { parseSetupOnCallTestArgs, parseSetupSipArgs } from './setup-args.ts'
 import { NotAnsweredError, sipDialer } from './on-call-dialer.ts'
 import { answerOf, answerOfDigit, briefingText, resultOf, transferLabel, transferNumberFor } from './transfer.ts'
@@ -130,8 +130,9 @@ test('setup-sip refuses unknown options and a missing number instead of using a 
 })
 
 test('setup-oncall-test takes one number and what the responder answers', () => {
-  expect(parseSetupOnCallTestArgs(['+19715550123'])).toEqual({ number: '+19715550123', answer: 'accept' })
+  expect(parseSetupOnCallTestArgs(['+19715550123'])).toEqual({ remove: false, number: '+19715550123', answer: 'accept' })
   expect(parseSetupOnCallTestArgs(['--answer', 'no-answer', '+19715550123'])).toEqual({
+    remove: false,
     number: '+19715550123',
     answer: 'no-answer',
   })
@@ -139,6 +140,13 @@ test('setup-oncall-test takes one number and what the responder answers', () => 
   expect(() => parseSetupOnCallTestArgs(['+19715550123', '--answer', 'maybe'])).toThrow(/--answer takes/)
   expect(() => parseSetupOnCallTestArgs(['+19715550123', '+15035550194'])).toThrow(/one test on-call number/)
   expect(() => parseSetupOnCallTestArgs(['+19715550123', '--force'])).toThrow(/Unknown option/)
+  expect(parseSetupOnCallTestArgs(['--remove'])).toEqual({ remove: true })
+  expect(() => parseSetupOnCallTestArgs(['--remove', '+19715550123'])).toThrow(/--remove takes nothing else/)
+})
+
+test('the responder logs only the last four digits of who called', () => {
+  expect(maskedNumber('+15035550194')).toBe('…4064')
+  expect(maskedNumber(undefined)).toBe('an unknown number')
 })
 
 test('what the call shows for each result', () => {

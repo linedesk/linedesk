@@ -3,7 +3,8 @@
 // ("linedesk-oncall-test", same carrier address list as linedesk-inbound) and dispatch rule, so
 // setup-sip never needs this number. Safe to run again; --answer changes what the responder does.
 // The number itself is bought and pointed at LiveKit SIP like any other (Telnyx connection linedesk-livekit).
-// Usage: pnpm --filter @linedesk/agent setup-oncall-test <+1NUMBER> [--answer accept|decline|no-answer]
+// --remove deletes that trunk and dispatch rule (teardown); the number stays in the carrier account.
+// Usage: pnpm --filter @linedesk/agent setup-oncall-test <+1NUMBER> [--answer accept|decline|no-answer] | --remove
 //   in the agent container: node src/setup-oncall-test.ts <+1NUMBER> [--answer ...]
 import { RoomAgentDispatch, RoomConfiguration } from 'livekit-server-sdk'
 import { AGENT_NAME, runScript } from './env.ts'
@@ -14,8 +15,24 @@ import { ensureInboundTrunk, INBOUND_TRUNK_NAME, sipClient } from './sip-trunks.
 
 const ONCALL_TEST_NAME = 'linedesk-oncall-test'
 
+/** Deletes the test on-call trunk and dispatch rule: calls to the number then reach no agent. */
+async function remove(sip: ReturnType<typeof sipClient>) {
+  for (const rule of await sip.listSipDispatchRule())
+    if (rule.name === ONCALL_TEST_NAME) {
+      await sip.deleteSipDispatchRule(rule.sipDispatchRuleId)
+      console.log(`deleted dispatch rule ${rule.sipDispatchRuleId} ("${ONCALL_TEST_NAME}")`)
+    }
+  for (const trunk of await sip.listSipInboundTrunk())
+    if (trunk.name === ONCALL_TEST_NAME) {
+      await sip.deleteSipTrunk(trunk.sipTrunkId)
+      console.log(`deleted inbound trunk ${trunk.sipTrunkId} ("${ONCALL_TEST_NAME}")`)
+    }
+}
+
 async function main() {
-  const { number, answer } = parseSetupOnCallTestArgs(process.argv.slice(2))
+  const args = parseSetupOnCallTestArgs(process.argv.slice(2))
+  if (args.remove) return remove(sipClient())
+  const { number, answer } = args
   const allowlist = inboundAllowlistFromEnv()
   const sip = sipClient()
   const business = (await sip.listSipInboundTrunk()).find(trunk => trunk.name === INBOUND_TRUNK_NAME)

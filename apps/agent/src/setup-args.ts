@@ -12,7 +12,9 @@ export const SETUP_SIP_USAGE = [
 
 export const SETUP_ONCALL_TEST_USAGE = [
   `usage: setup-oncall-test <+1NUMBER> [--answer ${simulatedAnswers.join('|')}]`,
-  'Routes calls to the test on-call number to the on-call responder (live warm-transfer test).',
+  '       setup-oncall-test --remove',
+  'Routes calls to the test on-call number to the on-call responder (live warm-transfer test); --remove deletes',
+  'its trunk and dispatch rule again (the number stays in the carrier account).',
 ].join('\n')
 
 const fail = (problem: string, usage: string) => new Error(`${problem}\n\n${usage}`)
@@ -40,9 +42,13 @@ export function parseSetupSipArgs(args: string[]): SetupSipArgs {
   return { printAllowedAddresses: false, outbound: flags.includes('--outbound'), numbers }
 }
 
-export type SetupOnCallTestArgs = { number: string; answer: SimulatedAnswer }
+export type SetupOnCallTestArgs = { remove: true } | { remove: false; number: string; answer: SimulatedAnswer }
 
 export function parseSetupOnCallTestArgs(args: string[]): SetupOnCallTestArgs {
+  if (args.includes('--remove')) {
+    if (args.length > 1) throw fail('--remove takes nothing else.', SETUP_ONCALL_TEST_USAGE)
+    return { remove: true }
+  }
   const rest = [...args]
   let answer: SimulatedAnswer = 'accept'
   const at = rest.indexOf('--answer')
@@ -56,5 +62,5 @@ export function parseSetupOnCallTestArgs(args: string[]): SetupOnCallTestArgs {
   if (unknown.length) throw fail(`Unknown option: ${unknown.join(', ')}`, SETUP_ONCALL_TEST_USAGE)
   const numbers = numbersOf(rest, SETUP_ONCALL_TEST_USAGE)
   if (numbers.length > 1) throw fail('Give one test on-call number.', SETUP_ONCALL_TEST_USAGE)
-  return { number: numbers[0]!, answer }
+  return { remove: false, number: numbers[0]!, answer }
 }
