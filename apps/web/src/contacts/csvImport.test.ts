@@ -63,6 +63,18 @@ describe('planImport', () => {
     ])
     expect(plan).toMatchObject({ added: 1, matched: 2, unreadable: [4, 6], repeated: 1 })
   })
+
+  it('counts two numbers with one email as two new contacts, like contact.import', () => {
+    const plan = planImport(
+      [
+        ['Hannah Cole', '503 555 0298', 'hannah@example.com'],
+        ['Hannah C.', '503 555 0299', 'Hannah@example.com'],
+      ],
+      ['name', 'phone', 'email'],
+      [],
+    )
+    expect(plan).toMatchObject({ added: 2, matched: 0 })
+  })
 })
 
 describe('importPhone', () => {

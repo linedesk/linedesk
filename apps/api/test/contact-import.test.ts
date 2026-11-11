@@ -51,6 +51,18 @@ test('new rows are added; existing contacts only get their empty fields filled, 
   expect(body.rows.contacts.length).toBe(2) // the browser shows them at once
 })
 
+test('two rows with one email and different numbers are two contacts, as the preview counts them', async () => {
+  const [first, second] = [randomNumber(), randomNumber()]
+  const { body } = await act(member, 'contact.import', {
+    rows: [
+      { phone: first, name: 'Hannah Cole', email: 'hannah@example.com' },
+      { phone: second, name: 'Hannah C.', email: 'Hannah@example.com' },
+    ],
+  })
+  expect(body.data).toEqual({ created: 2, updated: 0, unchanged: 0, skipped: 0 })
+  expect(await byPhone(ws.id, second)).toMatchObject({ name: 'Hannah C.' }) // the second number is not lost
+})
+
 test('a number of a deleted contact is skipped, an identical row changes nothing, other workspaces are untouched', async () => {
   const gone = randomNumber()
   await db

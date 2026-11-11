@@ -1,6 +1,8 @@
 // contact.import: rows from a file become contacts. Matching is by number, then by email (case
 // ignored): a match only gets its empty fields filled, so an import never overwrites what someone
-// typed. A number that was merged into another contact (contact.merge) fills that one; a number of a
+// typed. Email matches only contacts that were there before the import: two rows of one file with the
+// same email and different numbers are two contacts (the preview counts them so, and no number is lost;
+// Contacts suggests merging them). A number that was merged into another contact (contact.merge) fills that one; a number of a
 // contact someone deleted is skipped (removed on purpose).
 import type { ContactImportData } from '@linedesk/actions'
 import { contacts } from '@linedesk/db'
@@ -64,7 +66,6 @@ export const contactImportHandlers: Record<string, Handler> = {
       written.set(contact.id, contact)
       byId.set(contact.id, contact)
       byPhone.set(contact.phone, contact)
-      if (emailKey(contact.email)) byEmail.set(emailKey(contact.email)!, contact)
     }
     return { rows: { contacts: [...written.values()] }, data: counts }
   },
