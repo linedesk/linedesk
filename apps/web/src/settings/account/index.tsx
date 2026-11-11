@@ -2,7 +2,8 @@
 // (#account/<section>). Everything here is Better Auth's own data (see account-api.ts), so it does not
 // go through the outbox.
 import { type FormEvent, useCallback, useState } from 'react'
-import { passkeySupported, signInAgain } from '../../auth.ts'
+import { passkeySupported } from '../../auth.ts'
+import { signInAgain } from '../../localData.ts'
 import { refreshQuery, useQuery } from '../../cachedQuery.ts'
 import { Skeleton } from '../../ui/LoadStates.tsx'
 import { dateTimeLabel } from '../../time.ts'

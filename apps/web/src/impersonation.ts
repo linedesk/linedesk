@@ -1,8 +1,8 @@
 // An instance admin signed in as another user (docs/architecture.md §12). Starting and stopping
 // change which session the browser holds, so both end in a full reload; changes still waiting
 // in the outbox are sent first, and the local data of the session that ends is deleted.
-import { forgetMe } from './session.ts'
-import { flushAllStores, forgetAllStores } from './storeCache.ts'
+import { forgetLocalData } from './localData.ts'
+import { flushAllStores } from './storeCache.ts'
 
 type Person = { id: string; name: string; email: string }
 /** From `/v1/me`: who is signed in as this user, and until when. */
@@ -56,8 +56,7 @@ export async function startImpersonation(userId: string) {
   const unsent = await flushAllStores()
   if (unsent > 0) throw new UnsentChanges(unsentText(unsent))
   await post('/v1/impersonation/start', { userId })
-  await forgetAllStores()
-  forgetMe()
+  await forgetLocalData()
   reloadAt('#calls')
 }
 
@@ -71,7 +70,6 @@ export async function stopImpersonation(userId: string, discardUnsent = false) {
   if (unsent > 0 && !discardUnsent)
     throw new UnsentChanges(unsentText(unsent).replace('then try again', 'or return again to discard them'))
   await post('/v1/impersonation/stop')
-  await forgetAllStores()
-  forgetMe()
+  await forgetLocalData()
   reloadAt(`#admin/users/${encodeURIComponent(userId)}`)
 }

@@ -1,19 +1,18 @@
 import { useRef } from 'react'
 import { auth } from '../auth.ts'
-import { forgetMe } from '../session.ts'
-import { stopAllStores } from '../storeCache.ts'
-import { localDbName, useStore } from '../store.tsx'
+import { forgetLocalData } from '../localData.ts'
+import { useStore } from '../store.tsx'
 
 const SETTLE_MS = 2000
 const POLL_MS = 150
 
-type Options = { workspaceId: string; onSignedOut: () => void | Promise<void>; toast: (text: string) => void }
+type Options = { onSignedOut: () => void | Promise<void>; toast: (text: string) => void }
 
 /**
  * Sign out without losing work: unsent changes are sent first. If some cannot be sent (offline),
  * the first attempt only says so; signing out again discards them.
  */
-export function useSignOut({ workspaceId, onSignedOut, toast }: Options) {
+export function useSignOut({ onSignedOut, toast }: Options) {
   const store = useStore()
   const warnedAbout = useRef(0)
 
@@ -34,9 +33,8 @@ export function useSignOut({ workspaceId, onSignedOut, toast }: Options) {
       return toast(`${unsent} ${unsent === 1 ? 'change has' : 'changes have'} not been sent yet. Reconnect to keep ${unsent === 1 ? 'it' : 'them'}, or sign out again to discard.`)
     }
     await auth.signOut()
-    forgetMe()
+    // Every workspace's local rows, Electric's state and cached reads belong to the member who leaves.
+    await forgetLocalData()
     await onSignedOut()
-    await stopAllStores() // the database is free to delete
-    indexedDB.deleteDatabase(localDbName(workspaceId)) // local rows belong to the signed-in member
   }
 }

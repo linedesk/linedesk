@@ -63,7 +63,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   // On very wide windows the menu stays open beside the content instead of sliding over it.
   const navDocked = useMediaQuery(NAV_DOCKED_QUERY)
   const remindFor = useRef<{ calls: Call[]; source: Source } | null>(null)
-  const signOut = useSignOut({ workspaceId: me.workspace!.id, onSignedOut, toast: toaster.show })
+  const signOut = useSignOut({ onSignedOut, toast: toaster.show })
   const { list, tab, search, openCall, target } = view
   const isInstanceAdmin = me.permissions.includes('instance:admin')
   // An instance admin without the passkey sign-in still finds the admin area; it asks for the passkey.

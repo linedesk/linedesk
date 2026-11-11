@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from 'react'
-import { auth, createWorkspace } from './auth.ts'
+import { createWorkspace } from './auth.ts'
+import { signOutAndForget } from './localData.ts'
 import { AuthPage } from './ui/kit.tsx'
 
 /** First sign-in: name the business. Creates the workspace and its assistant. */
@@ -33,7 +34,7 @@ export function CreateWorkspace({ onDone }: { onDone: () => void }) {
         </label>
         {error && <div className="auth-error" role="alert">{error}</div>}
         <button type="submit" className="k-btn k-btn-primary" disabled={busy}>Continue</button>
-        <button type="button" className="auth-switch" onClick={() => auth.signOut().then(onDone)}>Use a different account</button>
+        <button type="button" className="auth-switch" onClick={() => void signOutAndForget().then(onDone)}>Use a different account</button>
       </form>
     </AuthPage>
   )

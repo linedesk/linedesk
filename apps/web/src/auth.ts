@@ -130,9 +130,3 @@ export function takeRedirectError(): string | null {
   const message = redirectErrors[code]
   return message ? message(readLastUsedMethod()) : `Sign-in did not work (${code.replaceAll('_', ' ').toLowerCase()}). Try again.`
 }
-
-/** Ends this session and shows the sign-in screen; signing in comes back to the same page. */
-export async function signInAgain() {
-  await auth.signOut()
-  window.location.reload()
-}

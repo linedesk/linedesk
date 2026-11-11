@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CreateWorkspace } from './CreateWorkspace.tsx'
+import { forgetBeyond } from './localData.ts'
 import { Login } from './Login.tsx'
 import { backoffMs } from './retry.ts'
 import { loadSession, type Session } from './session.ts'
@@ -30,6 +31,10 @@ export function App() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+  // Local data the session does not cover (signed out, removed from a workspace) is deleted.
+  useEffect(() => {
+    void forgetBeyond(session)
+  }, [session])
 
   // While the server cannot be reached, keep asking with growing pauses; also right away when the browser is back online.
   const waiting = session.state === 'unreachable' || (session.state === 'ready' && session.offline)

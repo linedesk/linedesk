@@ -4,6 +4,7 @@
 import type { InvitationPreview } from '@linedesk/actions'
 import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from 'react'
 import { type AuthMethods, auth, fetchAuthMethods, requestSignInCode } from '../auth.ts'
+import { signOutAndForget } from '../localData.ts'
 import { CodeStep } from '../Login.tsx'
 import { authFormError } from '../sign-in-code.ts'
 import { previewInvitation } from './team-api.ts'
@@ -89,7 +90,7 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
         {lead}
         <p>You are signed in as {account.email}. Sign out, then continue with {invite.email}.</p>
         {errorLine}
-        <button type="button" className="k-btn k-btn-primary" disabled={busy} autoFocus onClick={() => attempt(async () => { await auth.signOut(); await loadAccount() })}>Sign out and continue</button>
+        <button type="button" className="k-btn k-btn-primary" disabled={busy} autoFocus onClick={() => attempt(async () => { await signOutAndForget(); await loadAccount() })}>Sign out and continue</button>
         <button type="button" className="auth-switch" onClick={onDone}>Not now</button>
       </Card>
     )

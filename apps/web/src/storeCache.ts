@@ -79,15 +79,9 @@ export async function flushAllStores(ms = 2000, pollMs = 150): Promise<number> {
   return pending()
 }
 
-/** Stops every store and deletes their local databases: the rows belong to the session that is ending. */
-export async function forgetAllStores() {
+/** Stop every store now, so their databases can be deleted (localData.ts); returns the databases' names. */
+export async function stopAllStores(): Promise<string[]> {
   const names = [...open.keys()]
-  await stopAllStores()
-  for (const name of names) indexedDB.deleteDatabase(name)
-}
-
-/** Stop every store now (sign-out deletes the database right after). */
-export async function stopAllStores() {
   const entries = [...open.values()]
   open.clear()
   for (const e of entries) {
@@ -98,4 +92,5 @@ export async function stopAllStores() {
       /* never opened */
     }
   }
+  return names
 }
