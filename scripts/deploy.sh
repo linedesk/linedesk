@@ -26,6 +26,20 @@ ROLLED=(api web agent proxy) # handled one by one below; the rest goes through `
 
 log() { echo "[deploy $(date +%H:%M:%S)] $*"; }
 
+MIN_FREE_MB=${LINEDESK_DEPLOY_MIN_FREE_MB:-2048} # a build needs room for new image layers
+
+# Free space on the disk that holds Docker's data, in MB.
+docker_free_mb() {
+  df -Pm "$(docker info -f '{{.DockerRootDir}}' 2>/dev/null || echo /)" | awk 'NR == 2 { print $4 }'
+}
+
+# Old build cache and untagged images pile up with several deploys an hour; images in use and volumes stay.
+clean_up() {
+  docker builder prune -f --filter until=24h >/dev/null || log "build cache cleanup failed (ignored)"
+  docker image prune -f >/dev/null || log "image cleanup failed (ignored)"
+  log "free disk: $(docker_free_mb) MB"
+}
+
 # Running containers of a service, one id per line.
 containers_of() {
   docker compose ps -q "$1"
@@ -120,6 +134,11 @@ update_proxy() {
 }
 
 if [ "${1:-}" != --no-build ]; then
+  free=$(docker_free_mb)
+  if [ "$free" -lt "$MIN_FREE_MB" ]; then
+    log "only ${free} MB free on Docker's disk (need ${MIN_FREE_MB}): not building. Free space (docker builder prune, docker image prune) and deploy again; the running version keeps serving."
+    exit 1
+  fi
   log "building images (the running version keeps serving)"
   # Without build attestations a rebuild from cache keeps the image id, so an unchanged service is
   # recognised as unchanged (Docker Desktop adds them by default and they differ on every build).
@@ -129,6 +148,7 @@ fi
 if [ -z "$(docker compose ps -q api)" ]; then
   log "nothing running yet: starting the stack"
   docker compose up -d --no-build --remove-orphans
+  clean_up
   exit 0
 fi
 
@@ -139,4 +159,5 @@ log "other services: recreating only what changed"
 # shellcheck disable=SC2046 # one service name per word
 docker compose up -d --no-build --no-deps --remove-orphans $(others)
 roll agent
+clean_up
 log "done"
