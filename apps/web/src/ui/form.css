@@ -4,8 +4,8 @@
 /* Card: a raised section with a title row */
 .k-card {
   display: grid;
-  gap: 16px;
-  padding: 18px 20px;
+  gap: 12px;
+  padding: 14px 16px;
   background: var(--surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-1);
@@ -44,6 +44,8 @@
   align-items: center;
   gap: 8px;
   flex: none;
+  /* A small button (28px) fits the title's line (20px) without making the header taller. */
+  margin: -4px 0;
 }
 
 /* Field */
@@ -83,12 +85,12 @@
 }
 .k-fields {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 .k-fields-2 {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
+  gap: 14px;
 }
 
 /* Input states */
@@ -328,8 +330,8 @@
 
 @media (max-width: 560px) {
   .k-card {
-    padding: 14px 16px;
-    gap: 14px;
+    padding: 12px 14px;
+    gap: 10px;
   }
   .overlay:has(> .k-dialog) {
     align-items: flex-end;

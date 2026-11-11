@@ -37,27 +37,32 @@ export function useCarrierStatus(canEdit: boolean): CarrierStatusData | null {
   return useQuery(canEdit ? CARRIER : null, loadCarrier).data ?? null
 }
 
-/** The Carrier line of the Phone numbers section and its dialog. */
-export function CarrierRow() {
+/** The carrier as a quiet line under the Phone numbers title, with Change; and its dialog. */
+export function CarrierLine() {
   const status = useCarrierStatus(true)
   const [open, setOpen] = useState(false)
-  // While it loads, the row is already in place, so the numbers below it never move down.
+  // While it loads, the line is already in place, so the numbers below it never move down.
   if (!status)
     return (
-      <div className="pn-carrier" role="status" aria-busy="true" aria-label="Loading the carrier">
-        <span className="pn-carrier-label">Carrier</span>
-        <Skeleton className="pn-carrier-sk" />
-      </div>
+      <p className="pn-carrier" role="status" aria-busy="true" aria-label="Loading the carrier">
+        Carrier <Skeleton className="pn-carrier-sk" />
+      </p>
     )
   return (
-    <div className="pn-carrier">
-      <span className="pn-carrier-label">Carrier</span>
-      <span className="pn-carrier-value">{carrierSummary(status)}</span>
-      <Button size="sm" variant="secondary" onClick={() => setOpen(true)} title="Change the carrier account">
-        Change
-      </Button>
+    <>
+      <p className="pn-carrier">
+        Carrier: <span className="pn-carrier-value">{carrierSummary(status)}</span>
+        <button
+          type="button"
+          className="pn-carrier-change"
+          onClick={() => setOpen(true)}
+          title="Change the carrier account"
+        >
+          Change
+        </button>
+      </p>
       {open && <CarrierDialog status={status} onClose={() => setOpen(false)} />}
-    </div>
+    </>
   )
 }
 
@@ -161,8 +166,8 @@ function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose
         </div>
         {confirming && (
           <p className="k-field-msg" role="alert">
-            Back to the default carrier: the {ownName} keys are deleted from Linedesk, and numbers
-            come from the carrier this Linedesk is set up with.
+            Back to the default carrier: the {ownName} keys are deleted from Linedesk, and numbers come from the carrier
+            this Linedesk is set up with.
           </p>
         )}
         {!status.canStore && own && (

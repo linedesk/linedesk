@@ -1,7 +1,8 @@
 /* Settings layout (SettingsLayout.tsx): the sections nav at the left, one section at a time. Nav
    items are the app's nav-item, the same as the admin sidebar's, so both read as one system. */
-.sl-page {
-  max-width: 1000px;
+.page-in.sl-page {
+  /* The nav (184px), the gap (28px) and the content (680px): the header's buttons end where the cards end. */
+  max-width: 892px;
 }
 .page-head.sl-head {
   align-items: flex-start;
@@ -14,7 +15,7 @@
 .sl-body {
   display: grid;
   grid-template-columns: 184px minmax(0, 1fr);
-  gap: 32px;
+  gap: 28px;
   align-items: start;
 }
 .sl-nav {
@@ -36,7 +37,9 @@
 }
 .sl-content {
   display: grid;
-  gap: 16px;
+  gap: 12px;
+  /* Settings read at one width: short lists and forms, not stretched across a wide window. */
+  max-width: 680px;
   min-width: 0;
 }
 @media (max-width: 719px) {

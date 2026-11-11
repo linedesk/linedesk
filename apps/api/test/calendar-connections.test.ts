@@ -5,7 +5,7 @@
 import { actions, rolePermissions } from '@linedesk/actions'
 import type { AccessTokenSource, CalendarOAuth, CalendarProvider, OAuthTokens } from '@linedesk/calendar'
 import { CalendarError } from '@linedesk/calendar'
-import { assistant_calendars, calendar_connections, calendar_credentials, calendar_oauth_states, commands, type Tx } from '@linedesk/db'
+import { appointment_types, assistant_calendars, calendar_connections, calendar_credentials, calendar_oauth_states, commands, type Tx } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test, vi } from 'vitest'
 import { calendarCallback } from '../src/calendar-callback.ts'
@@ -225,6 +225,64 @@ describe('tokens', () => {
 })
 
 describe("the assistant's calendars", () => {
+  test('the first calendar brings a 30-minute "Appointment" when the workspace has no type; never a second one', async () => {
+    const { services } = fakeGoogle()
+    await inRollback(async tx => {
+      const connectionId = await connect(tx, services)
+      const assistantId = ws.assistant.id
+      await tx.delete(assistant_calendars).where(eq(assistant_calendars.assistant_id, assistantId))
+      await tx.delete(appointment_types).where(eq(appointment_types.workspace_id, ws.id))
+      const added = await run(tx, owner, services, 'assistantCalendar.add', {
+        assistantId,
+        connectionId,
+        externalId: 'jobs',
+      })
+      expect(added.rows.appointment_types).toMatchObject([
+        {
+          name: 'Appointment',
+          duration_min: 30,
+          instruction: 'no other type fits',
+          name_required: true,
+          required_fields: [],
+          enabled: true,
+          workspace_id: ws.id,
+        },
+      ])
+      const second = await run(tx, owner, services, 'assistantCalendar.add', {
+        assistantId,
+        connectionId,
+        externalId: 'mike@brightwater.example',
+      })
+      expect(second.rows.appointment_types).toBeUndefined()
+      expect(await tx.select().from(appointment_types).where(eq(appointment_types.workspace_id, ws.id))).toHaveLength(1)
+    })
+  })
+
+  test('a workspace with its own types keeps them as they are', async () => {
+    const { services } = fakeGoogle()
+    await inRollback(async tx => {
+      const connectionId = await connect(tx, services)
+      await tx.delete(assistant_calendars).where(eq(assistant_calendars.assistant_id, ws.assistant.id))
+      await tx.delete(appointment_types).where(eq(appointment_types.workspace_id, ws.id))
+      const [own] = await tx
+        .insert(appointment_types)
+        .values({
+          id: `at_${crypto.randomUUID().slice(0, 8)}`,
+          workspace_id: ws.id,
+          name: 'Estimate',
+          duration_min: 45,
+        })
+        .returning()
+      const added = await run(tx, owner, services, 'assistantCalendar.add', {
+        assistantId: ws.assistant.id,
+        connectionId,
+        externalId: 'jobs',
+      })
+      expect(added.rows.appointment_types).toBeUndefined()
+      expect(await tx.select().from(appointment_types).where(eq(appointment_types.workspace_id, ws.id))).toEqual([own])
+    })
+  })
+
   test('add: only a writable calendar of the account, named as the provider names it; the first is the default', async () => {
     const { services } = fakeGoogle()
     await inRollback(async tx => {

@@ -108,27 +108,49 @@ export const CHANGE_LISTED_BOOKING_INSTRUCTIONS =
 /** Whether the assistant may offer booking changes on this call; an API of an older version did not say, so no. */
 export const canChangeBookings = (booking: BookingContext) => booking.canChangeBookings === true
 
+type BookingType = BookingContext['appointmentTypes'][number]
+
+/** How the details a type needs are said; an API of an older version did not list the name, which it always wanted. */
+const DETAIL_LABEL = { name: 'name', phone: 'phone number', email: 'email address', address: 'address' } as const
+
+/** "- Repair visit (60 minutes), id at_1. Use when: the caller needs a repair. Before booking ask for: name, address." */
+export function typeLine(t: BookingType): string {
+  const condition = t.instruction?.trim()
+  const fields: BookingType['required_fields'] = t.instruction === undefined && !t.required_fields.includes('name') ? ['name', ...t.required_fields] : t.required_fields
+  return [
+    `- ${t.name} (${t.duration_min} minutes), id ${t.id}.`,
+    condition ? ` Use when: ${condition}.` : '',
+    fields.length ? ` Before booking ask for: ${fields.map(f => DETAIL_LABEL[f]).join(', ')}.` : ' No details to ask for beyond the reason.',
+  ].join('')
+}
+
+/** "- Office, id acal_1. Use when: no other calendar fits. (default)" */
+export function calendarLine(c: BookingContext['calendars'][number]): string {
+  const condition = c.instruction.trim() || (c.is_default ? 'no other calendar fits' : '')
+  return `- ${c.name}, id ${c.id}.${condition ? ` Use when: ${condition}.` : ''}${c.is_default ? ' (default)' : ''}`
+}
+
 /**
- * Booking: the types and the calendars with the owner's notes on when to use each. The model picks
- * the calendar; the API checks it is one of the assistant's.
+ * Booking: the types and the calendars, each with the owner's condition for when to use it. The model
+ * picks both by their conditions; the API checks the calendar is one of the assistant's.
  */
 export function bookingInstructions(booking: BookingContext, transfer = false, listed = false): string {
-  const needs = (fields: string[]) => (fields.length ? `; before booking also ask for: ${fields.join(', ')}` : '')
-  const types = booking.appointmentTypes.map(t => `- ${t.name} (${t.duration_min} minutes), id ${t.id}${needs(t.required_fields)}`).join('\n')
-  const calendars = booking.calendars
-    .map(c => `- ${c.name}, id ${c.id}: ${c.instruction.trim() || (c.is_default ? 'use when no other calendar fits' : 'no note')}${c.is_default ? ' (default)' : ''}`)
-    .join('\n')
+  const types = booking.appointmentTypes.map(typeLine).join('\n')
+  const calendars = booking.calendars.map(calendarLine).join('\n')
   return [
     transfer
       ? 'You can do four things for the caller: book an appointment, save a message for the team with take_message, flag the call as urgent with flag_urgent, and put the caller through to a person with transfer_call. You cannot look up records such as jobs, invoices or accounts.'
       : 'You can do three things for the caller: book an appointment, save a message for the team with take_message, and flag the call as urgent with flag_urgent. You cannot transfer calls or look up records such as jobs, invoices or accounts.',
     `Today is ${booking.today} (${booking.todayDate}, time zone ${booking.timeZone}).`,
-    `Appointment types:\n${types}`,
+    `Appointment types, with when to use each:\n${types}`,
     `Calendars, with when to use each:\n${calendars}`,
-    booking.calendars.length > 1
-      ? 'Pick the calendar whose note fits the caller\'s request; if none fits, use the default.'
+    booking.appointmentTypes.length > 1
+      ? 'Pick the appointment type whose "Use when" condition fits the caller\'s request; if none fits, the one for when no other type fits, else the first.'
       : null,
-    'To book: find out what the caller needs, then use find_slots with the appointment type, the calendar and the days the caller wants. Offer at most two or three of the times it returns, in plain words. When the caller picks one, get their name with get_name if you do not have it confirmed, and the address for a visit with get_address, then use book_appointment with that exact start. Only say the appointment is booked after book_appointment confirmed it. If no time suits or the calendar cannot be reached, take a message with the times the caller prefers.',
+    booking.calendars.length > 1
+      ? 'Pick the calendar whose "Use when" condition fits the caller\'s request; if none fits, use the default.'
+      : null,
+    'To book: find out what the caller needs, then use find_slots with the appointment type, the calendar and the days the caller wants. Offer at most two or three of the times it returns, in plain words. When the caller picks one, get the details that type needs (listed with it) that you do not have yet: the name with get_name if you do not have it confirmed, an address with get_address. Then use book_appointment with that exact start. Only say the appointment is booked after book_appointment confirmed it. If no time suits or the calendar cannot be reached, take a message with the times the caller prefers.',
     'Never make up a free time: only offer times find_slots returned.',
     'If the caller gives an email address, pass it to book_appointment: they get the confirmation by email. Always confirm the day and time out loud.',
     canChangeBookings(booking)

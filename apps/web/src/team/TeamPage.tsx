@@ -16,6 +16,7 @@ import { markLeft } from '../session.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
 import { Select } from '../ui/controls.tsx'
 import { Avatar, Badge, Button } from '../ui/kit.tsx'
+import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { Skeleton } from '../ui/LoadStates.tsx'
 import { teamApi, useTeam } from './team-api.ts'
 import {
@@ -112,94 +113,94 @@ function MemberRow({ data, m, run }: { data: TeamData; m: TeamMember; run: Run }
       `${m.userId === data.me ? 'You are' : `${name} is`} now ${roleLabel(role).toLowerCase()}.`,
     )
   return (
-    <div className="st-li st-member">
-      <Avatar name={name} size={32} />
-      <div className="st-member-t">
-        <b>
+    <ListRow
+      lead={<Avatar name={name} size={24} />}
+      title={
+        <>
           {name}
           {m.userId === data.me && <Badge>You</Badge>}
-        </b>
-        <span className="help">
-          {m.email} · {joinedLabel(m.joinedAt)}
-        </span>
-      </div>
-      {canEditRole(data, m) ? (
-        <RoleSelect
-          value={m.role}
-          label={`Role for ${name}`}
-          roles={isOwner(data) ? teamRoles : assignableRoles}
-          onChange={role => (role === 'owner' ? setOwning(true) : void setRole(role))}
-        />
-      ) : (
-        <span className="help st-role">{roleLabel(m.role)}</span>
-      )}
-      {canRemove(data, m) ? (
-        <Button
-          size="sm"
-          variant={confirming ? 'danger' : 'ghost'}
-          icon={confirming ? undefined : 'trash'}
-          aria-label={`Remove ${name}`}
-          title={confirming ? 'They lose access at once' : `Remove ${name}`}
-          onBlur={() => setConfirming(false)}
-          onClick={() =>
-            confirming ? void run(() => teamApi.remove(m.memberId), `${name} removed.`) : setConfirming(true)
-          }
-        >
-          {confirming ? 'Remove' : null}
-        </Button>
-      ) : (
-        data.canManage && <span className="st-rm-space" />
-      )}
-      {owning && <OwnerConfirm name={name} onConfirm={() => setRole('owner')} onClose={() => setOwning(false)} />}
-    </div>
+        </>
+      }
+      sub={`${m.email} · ${joinedLabel(m.joinedAt)}`}
+      actions={
+        <>
+          {canEditRole(data, m) ? (
+            <RoleSelect
+              value={m.role}
+              label={`Role for ${name}`}
+              roles={isOwner(data) ? teamRoles : assignableRoles}
+              onChange={role => (role === 'owner' ? setOwning(true) : void setRole(role))}
+            />
+          ) : (
+            <span className="help st-role">{roleLabel(m.role)}</span>
+          )}
+          {canRemove(data, m) ? (
+            <Button
+              size="sm"
+              variant={confirming ? 'danger' : 'ghost'}
+              icon={confirming ? undefined : 'trash'}
+              aria-label={`Remove ${name}`}
+              title={confirming ? 'They lose access at once' : `Remove ${name}`}
+              onBlur={() => setConfirming(false)}
+              onClick={() =>
+                confirming ? void run(() => teamApi.remove(m.memberId), `${name} removed.`) : setConfirming(true)
+              }
+            >
+              {confirming ? 'Remove' : null}
+            </Button>
+          ) : (
+            data.canManage && <span className="st-rm-space" />
+          )}
+        </>
+      }
+      below={owning && <OwnerConfirm name={name} onConfirm={() => setRole('owner')} onClose={() => setOwning(false)} />}
+    />
   )
 }
 
 function InvitationRow({ invite, canManage, run }: { invite: TeamInvitation; canManage: boolean; run: Run }) {
   const [confirming, setConfirming] = useState(false)
   return (
-    <div className="st-li st-member">
-      <Avatar name={invite.email} size={32} />
-      <div className="st-member-t">
-        <b>
+    <ListRow
+      lead={<Avatar name={invite.email} size={24} />}
+      title={
+        <>
           {invite.email}
           <Badge>{invite.expired ? 'Expired' : 'Invited'}</Badge>
-        </b>
-        <span className="help" title={`Invited by ${invite.invitedBy || 'a teammate'}`}>
-          {invitationStatus(invite)}
-        </span>
-      </div>
-      <span className="help st-role">{roleLabel(invite.role)}</span>
-      {canManage ? (
-        <span className="team-inv-actions">
-          <Button
-            size="sm"
-            variant="ghost"
-            title="Send the email again; the link works for another 7 days"
-            onClick={() =>
-              void run(() => teamApi.resend(invite.invitationId), `Invitation sent again to ${invite.email}.`)
-            }
-          >
-            Resend
-          </Button>
-          <Button
-            size="sm"
-            variant={confirming ? 'danger' : 'ghost'}
-            title={confirming ? 'Click again: the link stops working' : 'The link stops working'}
-            onBlur={() => setConfirming(false)}
-            onClick={() =>
-              confirming
-                ? void run(() => teamApi.revoke(invite.invitationId), `Invitation for ${invite.email} revoked.`)
-                : setConfirming(true)
-            }
-          >
-            {confirming ? 'Revoke invitation' : 'Revoke'}
-          </Button>
-        </span>
-      ) : (
-        <span />
-      )}
-    </div>
+        </>
+      }
+      sub={<span title={`Invited by ${invite.invitedBy || 'a teammate'}`}>{invitationStatus(invite)}</span>}
+      aside={roleLabel(invite.role)}
+      actions={
+        canManage && (
+          <span className="team-inv-actions">
+            <Button
+              size="sm"
+              variant="ghost"
+              title="Send the email again; the link works for another 7 days"
+              onClick={() =>
+                void run(() => teamApi.resend(invite.invitationId), `Invitation sent again to ${invite.email}.`)
+              }
+            >
+              Resend
+            </Button>
+            <Button
+              size="sm"
+              variant={confirming ? 'danger' : 'ghost'}
+              title={confirming ? 'Click again: the link stops working' : 'The link stops working'}
+              onBlur={() => setConfirming(false)}
+              onClick={() =>
+                confirming
+                  ? void run(() => teamApi.revoke(invite.invitationId), `Invitation for ${invite.email} revoked.`)
+                  : setConfirming(true)
+              }
+            >
+              {confirming ? 'Revoke invitation' : 'Revoke'}
+            </Button>
+          </span>
+        )
+      }
+    />
   )
 }
 
@@ -363,21 +364,21 @@ export function TeamPage({ toast }: { toast: (text: string) => void }) {
           description={data.canManage ? undefined : 'Only owners and admins can invite or change roles.'}
           help="Owners and admins can change settings and invite or remove people. Members work with calls, contacts and appointments but can't change settings."
         >
-          <div className="st-list">
+          <List label="Members">
             {data.members.map(m => (
               <MemberRow key={m.memberId} data={data} m={m} run={run} />
             ))}
-          </div>
+          </List>
         </Section>
         {(data.canManage || data.invitations.length > 0) && (
           <Section id="team-invites" title="Invitations" description="Links in the email work for 7 days.">
-            {data.invitations.length === 0 && <p className="help">No pending invitations.</p>}
+            {data.invitations.length === 0 && <ListEmpty>No pending invitations.</ListEmpty>}
             {data.invitations.length > 0 && (
-              <div className="st-list">
+              <List label="Invitations">
                 {data.invitations.map(i => (
                   <InvitationRow key={i.invitationId} invite={i} canManage={data.canManage} run={run} />
                 ))}
-              </div>
+              </List>
             )}
             {data.canManage && <InviteForm data={data} run={run} toast={toast} />}
           </Section>

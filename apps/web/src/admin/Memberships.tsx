@@ -7,6 +7,7 @@ import { roleLabel } from '../team/team-model.ts'
 import { Select } from '../ui/controls.tsx'
 import { Card, Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
 import { Avatar, Badge, Button } from '../ui/kit.tsx'
+import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { type AdminAction, useActionRunner } from './actions.tsx'
 import { type AdminUser, type AdminWorkspace, loadWorkspaceMembers, runAdmin, type WorkspaceMembers } from './api.ts'
 import { errorText, type Notify } from './notify.ts'
@@ -44,21 +45,23 @@ type MemberRowProps = {
 
 function MemberRow({ title, sub, role, locked, onRole, onRemove, removeLabel }: MemberRowProps) {
   return (
-    <div className="st-li st-member adm-member">
-      <Avatar name={title} size={32} />
-      <div className="st-member-t">
-        <b>{title}</b>
-        {sub && <span className="help">{sub}</span>}
-      </div>
-      {locked ? (
-        <span className="help st-role" title={locked}>
-          {roleLabel(role)}
-        </span>
-      ) : (
-        <Select size="sm" align="end" value={asRole(role)} options={roleOptions} label={`Role in ${title}`} onChange={onRole} />
-      )}
-      <Button size="sm" variant="ghost" icon="trash" aria-label={removeLabel} title={locked ?? removeLabel} disabled={!!locked} onClick={onRemove} />
-    </div>
+    <ListRow
+      lead={<Avatar name={title} size={24} />}
+      title={title}
+      sub={sub}
+      actions={
+        <>
+          {locked ? (
+            <span className="help st-role" title={locked}>
+              {roleLabel(role)}
+            </span>
+          ) : (
+            <Select size="sm" align="end" value={asRole(role)} options={roleOptions} label={`Role in ${title}`} onChange={onRole} />
+          )}
+          <Button size="sm" variant="ghost" icon="trash" aria-label={removeLabel} title={locked ?? removeLabel} disabled={!!locked} onClick={onRemove} />
+        </>
+      }
+    />
   )
 }
 
@@ -67,16 +70,17 @@ type InviteRowProps = { title: string; sub: string; role: string; expired?: bool
 function InviteRow({ title, sub, role, expired, onResend, onRevoke }: InviteRowProps) {
   const [confirming, setConfirming] = useState(false)
   return (
-    <div className="st-li st-member adm-member">
-      <Avatar name={title} size={32} />
-      <div className="st-member-t">
-        <b>
+    <ListRow
+      lead={<Avatar name={title} size={24} />}
+      title={
+        <>
           {title}
           <Badge>{expired ? 'Expired' : 'Invited'}</Badge>
-        </b>
-        <span className="help">{sub}</span>
-      </div>
-      <span className="help st-role">{roleLabel(role)}</span>
+        </>
+      }
+      sub={sub}
+      aside={roleLabel(role)}
+      actions={
       <span className="team-inv-actions">
         <Button size="sm" variant="ghost" title="Send the email again; the link works for another 7 days" onClick={onResend}>
           Resend
@@ -91,7 +95,8 @@ function InviteRow({ title, sub, role, expired, onResend, onRevoke }: InviteRowP
           {confirming ? 'Revoke invitation' : 'Revoke'}
         </Button>
       </span>
-    </div>
+      }
+    />
   )
 }
 
@@ -184,7 +189,7 @@ export function UserWorkspaces({ user: u, workspaces, notify, reload }: UserProp
         </Button>
       }
     >
-      <div className="st-list">
+      <List>
         {u.workspaces.map(w => (
           <MemberRow
             key={w.member_id}
@@ -205,8 +210,8 @@ export function UserWorkspaces({ user: u, workspaces, notify, reload }: UserProp
             onRevoke={() => void change(() => runAdmin('invitation.revoke', { invitationId: i.id }), `Invitation to ${i.workspace_name} revoked.`)}
           />
         ))}
-        {!u.workspaces.length && !u.invitations.length && <p className="help">No workspaces.</p>}
-      </div>
+      </List>
+      {!u.workspaces.length && !u.invitations.length && <ListEmpty>No workspaces.</ListEmpty>}
       {adding && (
         <AddDialog
           title={`Add ${who} to a workspace`}
@@ -291,8 +296,8 @@ export function WorkspaceMembersCard({ workspace: w, users, notify, reload }: Wo
         </Button>
       }
     >
-      <div className="st-list">
-        {!data && <p className="help">Loading…</p>}
+      {!data && <ListEmpty>Loading…</ListEmpty>}
+      <List>
         {data?.members.map(m => {
           const name = m.name || m.email
           return (
@@ -319,8 +324,8 @@ export function WorkspaceMembersCard({ workspace: w, users, notify, reload }: Wo
             onRevoke={() => void change(() => runAdmin('invitation.revoke', { invitationId: i.id }), `Invitation for ${i.email} revoked.`)}
           />
         ))}
-        {data && !data.members.length && !data.invitations.length && <p className="help">No members.</p>}
-      </div>
+      </List>
+      {data && !data.members.length && !data.invitations.length && <ListEmpty>No members.</ListEmpty>}
       {adding && (
         <AddDialog
           title={`Add a member to ${w.name}`}

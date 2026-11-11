@@ -24,8 +24,9 @@ import { useAssistantName, useAssistants, useRejection, useRows, useRun } from '
 import { RadioCard, Select, type SelectOption } from '../ui/controls.tsx'
 import { Dialog } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
+import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
-import { CarrierRow, useCarrierStatus } from './Carrier.tsx'
+import { CarrierLine, useCarrierStatus } from './Carrier.tsx'
 import { Field, Section, TextInput } from './fields.tsx'
 
 const carrierName = (provider: string | null) =>
@@ -56,8 +57,9 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
   const presence = usePresence()
   const answering = presence.kind === 'answering'
   const [adding, setAdding] = useState(false)
-  const [managing, setManaging] = useState<string | null>(null)
-  const managed = numbers.find(n => n.id === managing)
+  /** The number whose dialog is open, and whether it opens on releasing it. */
+  const [managing, setManaging] = useState<{ id: string; release: boolean } | null>(null)
+  const managed = numbers.find(n => n.id === managing?.id)
   const canAdd = canEdit && !!status?.available
   return (
     <Section
@@ -71,7 +73,7 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
         )
       }
     >
-      {canEdit && <CarrierRow />}
+      {canEdit && <CarrierLine />}
       {canEdit && status && !status.available && (
         <Unavailable
           detail={status.detail}
@@ -82,25 +84,44 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
       {numbersLoad !== 'ready' ? (
         <SkeletonRows label="Loading phone numbers" rows={1} />
       ) : numbers.length > 0 ? (
-        <ul className="pn-list">
+        <List label="Phone numbers">
           {numbers.map(n => (
-            <li key={n.id} className="pn-row">
-              <b className="st-mono">{formatNumber(n.e164)}</b>
-              <span className={cx('pn-status', answering && 'is-on')}>{answering ? 'Answering' : 'Not answering'}</span>
-              {assistants.length > 1 && <span className="pn-who">{answeredBy(n, assistants)?.name}</span>}
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setManaging(n.id)}
-                title={`Manage ${formatNumber(n.e164)}`}
-              >
-                Manage
-              </Button>
-            </li>
+            <ListRow
+              key={n.id}
+              title={<span className="st-mono">{formatNumber(n.e164)}</span>}
+              sub={`${answeredBy(n, assistants)?.name ?? 'The assistant'} · ${numberModeLabel[n.mode]}`}
+              aside={
+                <span className={cx('pn-status', answering && 'is-on')}>
+                  {answering ? 'Answering' : 'Not answering'}
+                </span>
+              }
+              actions={
+                <MenuButton
+                  title={`Actions for ${formatNumber(n.e164)}`}
+                  items={[
+                    {
+                      id: 'manage',
+                      label: canEdit ? 'Manage…' : 'Details…',
+                      onSelect: () => setManaging({ id: n.id, release: false }),
+                    },
+                    ...(canEdit
+                      ? [
+                          {
+                            id: 'release',
+                            label: n.purchased ? 'Release…' : 'Disconnect…',
+                            danger: true,
+                            onSelect: () => setManaging({ id: n.id, release: true }),
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
+              }
+            />
           ))}
-        </ul>
+        </List>
       ) : (
-        <p className="help">{canEdit ? 'No number yet.' : 'No number yet. Only owners and admins can add one.'}</p>
+        <ListEmpty>{canEdit ? 'No number yet.' : 'No number yet. Only owners and admins can add one.'}</ListEmpty>
       )}
       {adding && (
         <Dialog title="Add a number" size="md" onClose={() => setAdding(false)}>
@@ -108,7 +129,13 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
         </Dialog>
       )}
       {managed && (
-        <ManageNumber number={managed} assistants={assistants} canEdit={canEdit} onClose={() => setManaging(null)} />
+        <ManageNumber
+          number={managed}
+          assistants={assistants}
+          canEdit={canEdit}
+          release={managing?.release}
+          onClose={() => setManaging(null)}
+        />
       )}
     </Section>
   )
@@ -132,12 +159,19 @@ function Unavailable({ detail, isInstanceAdmin, ownCarrier }: UnavailableProps) 
   )
 }
 
-type ManageProps = { number: PhoneNumber; assistants: Assistant[]; canEdit: boolean; onClose: () => void }
+type ManageProps = {
+  number: PhoneNumber
+  assistants: Assistant[]
+  canEdit: boolean
+  /** Opens on releasing (or disconnecting) the number, from the row's menu. */
+  release?: boolean
+  onClose: () => void
+}
 
 /** Everything about one number: how it is used, who answers it, the forwarding codes, and disconnecting it. */
-function ManageNumber({ number, assistants, canEdit, onClose }: ManageProps) {
+function ManageNumber({ number, assistants, canEdit, release = false, onClose }: ManageProps) {
   const run = useRun()
-  const [releasing, setReleasing] = useState(false)
+  const [releasing, setReleasing] = useState(canEdit && release)
   const forwards = number.mode === 'forward_conditional' || number.mode === 'forward_all'
   const carrier = carrierName(number.provider)
   const who = answeredBy(number, assistants)

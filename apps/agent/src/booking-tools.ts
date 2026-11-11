@@ -19,7 +19,7 @@ export const MAX_DESCRIBE_ATTEMPTS = 2
 
 export type FindSlotsArgs = { appointment_type_id: string; calendar_id: string; from_date?: string | null; to_date?: string | null }
 export type BookArgs = {
-  appointment_type_id: string; calendar_id: string; start: string; caller_name: string; reason: string; address?: string | null; email?: string | null
+  appointment_type_id: string; calendar_id: string; start: string; caller_name?: string | null; reason: string; address?: string | null; email?: string | null
 }
 
 /** At most PER_DAY slots per local day, MAX_OFFERED in all, earliest first. */
@@ -62,7 +62,8 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
   async function book(args: BookArgs): Promise<string> {
     try {
       const { data } = await api.run(appointmentBook, {
-        appointmentTypeId: args.appointment_type_id, calendarId: args.calendar_id, start: args.start, callerName: args.caller_name, reason: args.reason,
+        appointmentTypeId: args.appointment_type_id, calendarId: args.calendar_id, start: args.start, reason: args.reason,
+        ...(args.caller_name?.trim() ? { callerName: args.caller_name.trim() } : {}),
         ...(args.address ? { address: args.address } : {}), ...(args.email ? { callerEmail: args.email } : {}), callId, ...(call.assistant ? { assistantId: call.assistant.id } : {}),
       }, call)
       const booked = data as BookData

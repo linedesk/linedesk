@@ -9,6 +9,7 @@ import {
 } from '@linedesk/calendar'
 import { assistant_calendars, assistants, calendar_connections, calendar_credentials, calendar_oauth_states, type CalendarConnection, type Tx } from '@linedesk/db'
 import { and, asc, eq, lt, ne } from 'drizzle-orm'
+import { ensureAppointmentType } from './bookings.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { type Handler, type HandlerCtx, Forbidden, Reject } from './handler-context.ts'
@@ -226,7 +227,11 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
       id: newId('acal'), workspace_id, assistant_id: assistant.id, connection_id: connection.id, external_id: calendar.id, name: calendar.name,
       instruction: input.instruction ?? '', is_default: !first,
     }).returning()
-    return { rows: { assistant_calendars: rows }, data: { assistantCalendarId: rows[0]!.id } }
+    const types = await ensureAppointmentType(tx, workspace_id)
+    return {
+      rows: { assistant_calendars: rows, ...(types.length && { appointment_types: types }) },
+      data: { assistantCalendarId: rows[0]!.id },
+    }
   },
 
   'assistantCalendar.setDefault': async ({ tx, actor }, input: { assistantCalendarId: string }) => {

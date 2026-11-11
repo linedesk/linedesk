@@ -3,7 +3,9 @@ import { defineAction } from './define.ts'
 
 const instant = z.iso.datetime({ offset: true })
 const localDate = z.iso.date()
-export const bookingField = z.enum(['phone', 'email', 'address'])
+/** Details the assistant asks for before booking a type, besides the reason. `name` is stored as appointment_types.name_required. */
+export const bookingField = z.enum(['name', 'phone', 'email', 'address'])
+export type BookingFieldInput = z.infer<typeof bookingField>
 
 // The server handler lives in apps/api; the slots come back in the result's `data`.
 export const calendarFindSlots = defineAction({
@@ -35,6 +37,9 @@ export const calendarFindSlots = defineAction({
  */
 export type FindSlotsData = { appointmentTypeId: string; timeZone: string; slots: { start: string; end: string; label: string }[] }
 
+/** Longest condition on when the assistant uses a calendar or an appointment type (characters). */
+export const CONDITION_MAX = 300
+
 /** Longest caller name, reason and address on a booking (characters). */
 const BOOKING_TEXT_MAX = 500
 
@@ -48,7 +53,8 @@ export const appointmentBook = defineAction({
     calendarId: z.string().min(1),
     /** A slot start from calendar.findSlots. */
     start: instant,
-    callerName: z.string().trim().min(1).max(BOOKING_TEXT_MAX),
+    /** Required when the appointment type asks for the name. */
+    callerName: z.string().trim().min(1).max(BOOKING_TEXT_MAX).optional(),
     reason: z.string().trim().min(1).max(BOOKING_TEXT_MAX),
     address: z.string().trim().max(BOOKING_TEXT_MAX).optional(),
     /** The caller's number; defaults to the number of the call. */
@@ -105,7 +111,8 @@ export const appointmentReschedule = defineAction({
 
 export const appointmentTypeUpsert = defineAction({
   name: 'appointmentType.upsert',
-  description: 'Add an appointment type (name, length in minutes), or change one when its id is given.',
+  description:
+    'Add an appointment type (name, length in minutes, when the assistant offers it, the details it asks for), or change one when its id is given.',
   input: z.object({
     appointmentTypeId: z.string().min(1).optional(),
     name: z.string().trim().min(1).max(80),
@@ -114,8 +121,10 @@ export const appointmentTypeUpsert = defineAction({
     minNoticeHours: z.number().int().min(0).max(24 * 30).optional(),
     maxDaysAhead: z.number().int().min(1).max(365).optional(),
     enabled: z.boolean().optional(),
-    /** Details the assistant must have before booking, on top of name and reason. */
-    requiredFields: z.array(bookingField).max(3).optional(),
+    /** Details the assistant must have before booking, on top of the reason. */
+    requiredFields: z.array(bookingField).max(4).optional(),
+    /** When the assistant offers this type, e.g. "the caller needs an emergency visit"; empty: no condition. */
+    instruction: z.string().trim().max(CONDITION_MAX).optional(),
   }),
   permission: 'settings:write',
 })
@@ -133,9 +142,6 @@ export const appointmentTypeDelete = defineAction({
 
 export const calendarProvider = z.enum(['google', 'microsoft'])
 export type CalendarProviderId = z.infer<typeof calendarProvider>
-
-/** Longest note on when to use a calendar (characters). */
-export const CALENDAR_INSTRUCTION_MAX = 300
 
 export const calendarConnectStart = defineAction({
   name: 'calendar.connectStart',
@@ -181,23 +187,25 @@ export type DisconnectData = { revoked: boolean; note: string | null }
 
 export const assistantCalendarAdd = defineAction({
   name: 'assistantCalendar.add',
-  description: 'Let the assistant book into a calendar of a connected account. The first calendar becomes its default.',
+  description:
+    'Let the assistant book into a calendar of a connected account. The first calendar becomes its default. When the workspace has no appointment type yet, a 30-minute "Appointment" is created with it, so the assistant can book at once.',
   input: z.object({
     assistantId: z.string().min(1),
     connectionId: z.string().min(1),
     /** The provider's calendar id, from calendar.listCalendars. */
     externalId: z.string().min(1).max(500),
-    instruction: z.string().trim().max(CALENDAR_INSTRUCTION_MAX).optional(),
+    instruction: z.string().trim().max(CONDITION_MAX).optional(),
   }),
   permission: 'settings:write',
 })
 
 export const assistantCalendarUpdate = defineAction({
   name: 'assistantCalendar.update',
-  description: 'Change when the assistant uses a calendar (instruction, e.g. "Emergencies") or switch it off and on.',
+  description:
+    'Change when the assistant uses a calendar (instruction: the condition, e.g. "the caller needs an emergency visit") or switch it off and on.',
   input: z.object({
     assistantCalendarId: z.string().min(1),
-    instruction: z.string().trim().max(CALENDAR_INSTRUCTION_MAX).optional(),
+    instruction: z.string().trim().max(CONDITION_MAX).optional(),
     enabled: z.boolean().optional(),
   }),
   permission: 'settings:write',

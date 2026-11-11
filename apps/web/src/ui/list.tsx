@@ -1,0 +1,173 @@
+// Lists of the UI kit, for the short lists on settings pages (accounts, calendars, keys, members…):
+// one compact row per item (lead mark, title with a muted line, quiet status, actions at the right),
+// a one-line empty state, and a small menu for a row's or a section's less frequent actions.
+// Styles in list.css (k-list, k-row, k-menu).
+import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { Button, cx } from './kit.tsx'
+import type { IconName } from './icons.ts'
+import './list.css'
+
+export function List({ label, className, children }: { label?: string; className?: string; children: ReactNode }) {
+  return (
+    <ul className={cx('k-list', className)} aria-label={label}>
+      {children}
+    </ul>
+  )
+}
+
+type ListRowProps = {
+  /** A small mark at the left: a provider logo, an avatar. */
+  lead?: ReactNode
+  title: ReactNode
+  /** One muted line under the title. */
+  sub?: ReactNode
+  /** Quiet status at the right, before the actions: a badge, a role, a length. */
+  aside?: ReactNode
+  actions?: ReactNode
+  /** Below the row's line, full width: an inline form, a log. */
+  below?: ReactNode
+  /** Dimmed (switched off). */
+  off?: boolean
+  className?: string
+}
+
+export function ListRow({ lead, title, sub, aside, actions, below, off, className }: ListRowProps) {
+  return (
+    <li className={cx('k-row', off && 'is-off', className)}>
+      <div className="k-row-line">
+        {lead && <span className="k-row-lead">{lead}</span>}
+        <span className="k-row-main">
+          <span className="k-row-title">{title}</span>
+          {sub && <span className="k-row-sub">{sub}</span>}
+        </span>
+        {aside && <span className="k-row-aside">{aside}</span>}
+        {actions && <span className="k-row-actions">{actions}</span>}
+      </div>
+      {below}
+    </li>
+  )
+}
+
+/** The short line in place of an empty list ("No keys yet."). */
+export function ListEmpty({ children }: { children: ReactNode }) {
+  return <p className="k-list-empty">{children}</p>
+}
+
+export type MenuItem = {
+  id: string
+  label: string
+  /** A mark before the label: an icon or a provider logo. */
+  lead?: ReactNode
+  /** Red: removes or disconnects something. */
+  danger?: boolean
+  disabled?: boolean
+  /** Tooltip. */
+  title?: string
+  onSelect: () => void
+}
+
+type MenuButtonProps = {
+  items: MenuItem[]
+  /** The button's text; without it the button shows only the icon (default ⋯). */
+  label?: string
+  icon?: IconName
+  /** Accessible name and tooltip of the button. */
+  title: string
+  variant?: 'secondary' | 'ghost'
+  disabled?: boolean
+  /** Which edge of the button the menu lines up with. */
+  align?: 'start' | 'end'
+}
+
+const itemsIn = (root: HTMLElement | null) => [
+  ...(root?.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)') ?? []),
+]
+
+/**
+ * A button that opens a small menu: arrow keys move, Enter picks, Esc or a click outside closes and
+ * the focus goes back to the button.
+ */
+export function MenuButton({
+  items,
+  label,
+  icon = 'more',
+  title,
+  variant = 'ghost',
+  disabled,
+  align = 'end',
+}: MenuButtonProps) {
+  const [open, setOpen] = useState(false)
+  const root = useRef<HTMLSpanElement>(null)
+  const menuItems = () => itemsIn(root.current)
+
+  useEffect(() => {
+    if (!open) return
+    itemsIn(root.current)[0]?.focus()
+    const outside = (e: MouseEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', outside)
+    return () => document.removeEventListener('mousedown', outside)
+  }, [open])
+
+  const close = () => {
+    setOpen(false)
+    root.current?.querySelector<HTMLElement>('.k-menu-btn')?.focus()
+  }
+  function onKeyDown(e: KeyboardEvent) {
+    if (!open) return
+    if (e.key === 'Escape') {
+      e.stopPropagation()
+      close()
+      return
+    }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    e.preventDefault()
+    const all = menuItems()
+    const at = all.indexOf(document.activeElement as HTMLElement)
+    const next = e.key === 'ArrowDown' ? at + 1 : at - 1
+    all[(next + all.length) % all.length]?.focus()
+  }
+  const choose = (item: MenuItem) => {
+    close()
+    item.onSelect()
+  }
+
+  return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: arrow keys and Esc for the menu inside
+    <span className="k-menu-wrap" ref={root} onKeyDown={onKeyDown}>
+      <Button
+        size="sm"
+        variant={variant}
+        icon={label ? (icon === 'more' ? undefined : icon) : icon}
+        className="k-menu-btn"
+        aria-label={label ? undefined : title}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={title}
+        disabled={disabled}
+        onClick={() => setOpen(o => !o)}
+      >
+        {label}
+      </Button>
+      {open && (
+        <div className={cx('k-menu', `k-menu-${align}`)} role="menu" aria-label={title}>
+          {items.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              role="menuitem"
+              className={cx('k-menu-item', item.danger && 'is-danger')}
+              disabled={item.disabled}
+              title={item.title}
+              onClick={() => choose(item)}
+            >
+              {item.lead}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
+  )
+}

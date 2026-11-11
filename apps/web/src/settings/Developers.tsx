@@ -7,6 +7,7 @@ import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { Select, type SelectOption } from '../ui/controls.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
+import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
 import { Field, Section } from './fields.tsx'
 import { callAction, readAction } from './settings-api.ts'
@@ -54,13 +55,13 @@ export function Developers({ canEdit, toast }: Props) {
           <SkeletonRows label="Loading API keys" rows={2} />
         )
       ) : active.length === 0 ? (
-        <p className="help">No keys yet.</p>
+        <ListEmpty>No keys yet.</ListEmpty>
       ) : (
-        <ul className="dev-list">
+        <List label="API keys">
           {active.map(k => (
             <KeyRow key={k.id} apiKey={k} toast={toast} />
           ))}
-        </ul>
+        </List>
       )}
       {creating && <CreateKey onClose={() => setCreating(false)} toast={toast} />}
     </Section>
@@ -86,28 +87,30 @@ function KeyRow({ apiKey, toast }: { apiKey: ApiKeySummary; toast: Props['toast'
     }
   }
   return (
-    <li className="dev-row">
-      <span className="dev-main">
-        <b>{apiKey.name}</b>
-        <span className="dev-sub">
-          <code>{apiKey.prefix}…</code> · created {day(apiKey.created_at)} ·{' '}
+    <ListRow
+      title={apiKey.name}
+      sub={
+        <>
+          <code className="dev-prefix">{apiKey.prefix}…</code> · created {day(apiKey.created_at)} ·{' '}
           {apiKey.last_used_at ? `last used ${day(apiKey.last_used_at)}` : 'never used'}
-        </span>
-      </span>
-      <Badge tone="outline">{apiKey.role === 'admin' ? 'Admin' : 'Member'}</Badge>
-      <Button
-        size="sm"
-        variant={confirming ? 'danger' : 'ghost'}
-        disabled={busy}
-        onClick={revoke}
-        onBlur={() => setConfirming(false)}
-        title={
-          confirming ? 'Click again to revoke. Tools using this key stop working right away.' : `Revoke ${apiKey.name}`
-        }
-      >
-        {confirming ? 'Revoke key' : 'Revoke'}
-      </Button>
-    </li>
+        </>
+      }
+      aside={<Badge tone="outline">{apiKey.role === 'admin' ? 'Admin' : 'Member'}</Badge>}
+      actions={
+        <Button
+          size="sm"
+          variant={confirming ? 'danger' : 'ghost'}
+          disabled={busy}
+          onClick={revoke}
+          onBlur={() => setConfirming(false)}
+          title={
+            confirming ? 'Click again to revoke. Tools using this key stop working right away.' : `Revoke ${apiKey.name}`
+          }
+        >
+          {confirming ? 'Revoke key' : 'Revoke'}
+        </Button>
+      }
+    />
   )
 }
 

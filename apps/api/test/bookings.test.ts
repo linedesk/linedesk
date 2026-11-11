@@ -268,6 +268,32 @@ describe('booking', () => {
     })
   })
 
+  test('the name is a detail like the others: required unless the type does without it; it names the contact that has none', async () => {
+    const { services } = fakeCalendar()
+    await inRollback(async tx => {
+      await tx.update(contacts).set({ name: null }).where(eq(contacts.id, ws.contact.id))
+      await expect(
+        run(tx, owner, services, 'appointment.book', book(at('09:00'), { callerName: undefined })),
+      ).rejects.toThrow("A Repair visit needs the caller's name: ask for it, then book.")
+      const named = await run(tx, owner, services, 'appointment.book', book(at('09:00')))
+      expect(named.rows.bookings).toMatchObject([{ title: 'Repair visit · Sam Patel' }])
+      expect(named.rows.contacts).toMatchObject([{ id: ws.contact.id, name: 'Sam Patel' }])
+      // A contact that has a name keeps it.
+      expect(
+        (await run(tx, owner, services, 'appointment.book', book(at('11:00'), { callerName: 'Sammy' }))).rows.contacts,
+      ).toBeUndefined()
+
+      await run(tx, owner, services, 'appointmentType.upsert', {
+        appointmentTypeId: typeId,
+        name: 'Repair visit',
+        durationMin: 60,
+        requiredFields: ['address'],
+      })
+      const unnamed = await run(tx, owner, services, 'appointment.book', book(at('14:00'), { callerName: undefined }))
+      expect(unnamed.rows.bookings).toMatchObject([{ title: 'Repair visit' }])
+    })
+  })
+
   test('confirmation emails: one per call, and at most 20 per workspace an hour; the bookings themselves go through', async () => {
     const { services } = fakeCalendar()
     await inRollback(async tx => {
@@ -391,6 +417,15 @@ describe('appointment types', () => {
       const added = await run(tx, owner, services, 'appointmentType.upsert', { name: 'Estimate', durationMin: 30 })
       const id = (added.rows.appointment_types as { id: string }[])[0]!.id
       expect(added.rows.appointment_types).toMatchObject([{ name: 'Estimate', duration_min: 30, workspace_id: ws.id, enabled: true }])
+      // New types ask for the name unless told otherwise; "name" is kept as its own column.
+      expect(added.rows.appointment_types).toMatchObject([{ name_required: true, required_fields: [], instruction: '' }])
+      const changed = await run(tx, owner, services, 'appointmentType.upsert', {
+        appointmentTypeId: id, name: 'Estimate', durationMin: 30, requiredFields: ['phone', 'name', 'phone'], instruction: '  the caller wants a price first ',
+      })
+      expect(changed.rows.appointment_types).toMatchObject([{ name_required: true, required_fields: ['phone'], instruction: 'the caller wants a price first' }])
+      const without = await run(tx, owner, services, 'appointmentType.upsert', { appointmentTypeId: id, name: 'Estimate', durationMin: 30, requiredFields: [] })
+      expect(without.rows.appointment_types).toMatchObject([{ name_required: false, required_fields: [], instruction: 'the caller wants a price first' }])
+      expect(() => actions.get('appointmentType.upsert')!.input.parse({ name: 'x', durationMin: 30, instruction: 'x'.repeat(301) })).toThrow()
       expect((await run(tx, owner, services, 'appointmentType.upsert', { appointmentTypeId: id, name: 'Free estimate', durationMin: 45 })).rows.appointment_types).toMatchObject([{ name: 'Free estimate', duration_min: 45 }])
       expect(await run(tx, owner, services, 'appointmentType.delete', { appointmentTypeId: id })).toMatchObject({ data: { deleted: true }, deleted: { appointment_types: [id] } })
       await run(tx, owner, services, 'appointment.book', book(at('09:00')))
@@ -405,7 +440,10 @@ describe('through the API', () => {
     const started = await act(agent(), 'call.start', { from: '+15035550177', to: ws.number })
     expect(started.body.data.booking).toMatchObject({
       timeZone: ZONE, todayDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-      appointmentTypes: [{ id: typeId, name: 'Repair visit', duration_min: 60 }],
+      // The name is listed with the details, first; the condition comes along (empty: none).
+      appointmentTypes: [
+        { id: typeId, name: 'Repair visit', duration_min: 60, required_fields: ['name'], instruction: '' },
+      ],
       calendars: [{ id: ws.assistantCalendar.id, name: 'Office', is_default: true }],
     })
     // No appointment type: nothing to book, the assistant takes messages.

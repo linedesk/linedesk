@@ -409,7 +409,7 @@ span.mono { font-family: var(--font-mono); font-size: 12px; color: var(--ink-mut
 .opt input { margin: 3px 0 0; accent-color: var(--signal); }
 .opt b { display: block; font-size: 13.5px; font-weight: 500; }
 .opt span { font-size: 12px; color: var(--ink-muted); }
-.swrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.swrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 10px; border-top: 1px solid var(--line); }
 .swrow div { display: grid; gap: 2px; min-width: 0; }
 .swrow b { font-size: 13.5px; font-weight: 500; }
 .sw { position: relative; flex: none; width: 34px; height: 20px; border: 0; border-radius: var(--radius-full); background: var(--line-control); cursor: pointer; padding: 0; }
@@ -547,7 +547,7 @@ body { font-size: 13px; }
 .cv .k-composer { padding: 4px; }
 .cv .k-send { width: 28px; height: 28px; }
 
-.page-in { padding: 20px 20px 40px; gap: 16px; }
+.page-in { padding: 20px 20px 40px; gap: 12px; }
 .page-head h1 { font-size: 16px; line-height: 22px; }
 .page-head p { font-size: 12.5px; }
 
@@ -940,7 +940,7 @@ span.mono, .facts dd.mono, .ib-tab .n, .ib-mode .n, .nav-n, .cv-who .sub, .k-met
 
 /* ---- Spacing rhythm: 20px gutters desktop, 12px mobile ---- */
 .ib-cols, .row { padding-left: 20px; padding-right: 20px; }
-.page-in { padding: 20px 20px 40px; gap: 16px; }
+.page-in { padding: 20px 20px 40px; gap: 12px; }
 .cv-scroll { padding: 16px 20px 28px; }
 .compose { padding: 0 20px 12px; }
 .k-cmd-search { padding: 0 16px; }
@@ -1127,7 +1127,7 @@ mark { background: rgb(250 204 21 / 0.38); color: inherit; border-radius: 2px; p
 
 /* ===== Settings ===== */
 /* ===== Assistant Settings + Settings (st-) ===== */
-.st-page { max-width: 820px; }
+.st-page { max-width: 720px; }
 .st-sec { scroll-margin-top: 56px; }
 .st-sec-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .st-sec-head h2 { margin: 0; font-size: 14px; font-weight: 600; }
@@ -1144,7 +1144,7 @@ mark { background: rgb(250 204 21 / 0.38); color: inherit; border-radius: 2px; p
 
 /* lists inside a card: flat rows, hairline separators */
 .st-list { display: grid; }
-.st-li { display: grid; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); min-width: 0; }
+.st-li { display: grid; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); min-width: 0; }
 .st-li:first-child { border-top: 0; padding-top: 0; }
 .st-li.off > :not(.st-type-end):not(b):not(.sw) { opacity: .55; }
 .st-rm { color: var(--ink-muted); }
@@ -1239,15 +1239,14 @@ mark { background: rgb(250 204 21 / 0.38); color: inherit; border-radius: 2px; p
 .st-spin { width: 14px; height: 14px; border: 2px solid var(--line-soft); border-top-color: var(--ink); border-radius: var(--radius-full); animation: st-spin .8s linear infinite; }
 @keyframes st-spin { to { transform: rotate(360deg); } }
 
-/* team */
-.st-member { grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 10px; }
+/* team: the member list is the kit's (ui/list.css); the admin's user picker still uses these */
 .st-member-t { display: grid; gap: 1px; min-width: 0; }
 .st-member-t b { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; }
 .st-member-t .help { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-role { padding: 0 8px; }
 
 /* notifications: first row without the hairline */
-.st-swlist { display: grid; gap: 12px; }
+.st-swlist { display: grid; gap: 10px; }
 .st-swlist > .swrow:first-child { padding-top: 0; border-top: 0; }
 
 /* providers */

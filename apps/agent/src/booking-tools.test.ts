@@ -4,12 +4,15 @@ import { ActionError, type ApiClient } from './api-client.ts'
 import { bookingTools, MAX_DESCRIBE_ATTEMPTS, spreadSlots } from './booking-tools.ts'
 import { CallLog } from './call-log.ts'
 import type { CallSession } from './call-session.ts'
-import { buildInstructions, CHANGE_BOOKING_INSTRUCTIONS } from './prompt.ts'
+import { buildInstructions, CHANGE_BOOKING_INSTRUCTIONS, calendarLine, typeLine } from './prompt.ts'
 import { mergeToolResults } from './summary.ts'
 
 const booking: BookingContext = {
   timeZone: 'America/Los_Angeles', today: 'Wednesday, November 11, 2026', todayDate: '2026-11-11',
-  appointmentTypes: [{ id: 'at_1', name: 'Repair visit', duration_min: 60, required_fields: ['address'] }],
+  appointmentTypes: [
+    { id: 'at_1', name: 'Repair visit', duration_min: 60, required_fields: ['name', 'address'], instruction: 'the caller has something broken' },
+    { id: 'at_2', name: 'Appointment', duration_min: 30, required_fields: [], instruction: 'no other type fits' },
+  ],
   upcoming: [],
   canChangeBookings: true,
   calendars: [
@@ -80,7 +83,13 @@ test('a refused booking is not confirmed: the model hears why and what to do ins
 test('the prompt lists types and calendars with their notes only when the assistant can book', () => {
   const withBooking = buildInstructions(null, null, booking)
   expect(withBooking).toContain('Today is Wednesday, November 11, 2026 (2026-11-11, time zone America/Los_Angeles).')
-  expect(withBooking).toContain('- Repair visit (60 minutes), id at_1; before booking also ask for: address')
+  expect(withBooking).toContain(
+    '- Repair visit (60 minutes), id at_1. Use when: the caller has something broken. Before booking ask for: name, address.',
+  )
+  expect(withBooking).toContain(
+    '- Appointment (30 minutes), id at_2. Use when: no other type fits. No details to ask for beyond the reason.',
+  )
+  expect(withBooking).toContain('Pick the appointment type whose "Use when" condition fits the caller\'s request')
   // The caller's bookings are never in the prompt: the caller describes one, the API checks it.
   expect(withBooking).toContain(CHANGE_BOOKING_INSTRUCTIONS)
   expect(withBooking).not.toMatch(/booking id|upcoming appointments/)
@@ -89,9 +98,11 @@ test('the prompt lists types and calendars with their notes only when the assist
   expect(noChanges).not.toContain(CHANGE_BOOKING_INSTRUCTIONS)
   // An API of an older version does not say: no changes.
   expect(buildInstructions(null, null, { ...booking, canChangeBookings: undefined as unknown as boolean })).not.toContain(CHANGE_BOOKING_INSTRUCTIONS)
-  expect(withBooking).toContain('- Office, id acal_office: Estimates (default)')
-  expect(withBooking).toContain('- Mike, id acal_mike: Emergencies')
-  expect(withBooking).toContain("Pick the calendar whose note fits the caller's request")
+  expect(withBooking).toContain('- Office, id acal_office. Use when: Estimates. (default)')
+  expect(withBooking).toContain('- Mike, id acal_mike. Use when: Emergencies.')
+  expect(withBooking).toContain(
+    'Pick the calendar whose "Use when" condition fits the caller\'s request; if none fits, use the default.',
+  )
   expect(withBooking).not.toContain('You cannot book appointments')
   expect(buildInstructions(null, null, null)).toContain('You cannot book appointments')
 })
@@ -123,4 +134,22 @@ test(`after ${MAX_DESCRIBE_ATTEMPTS} descriptions that match no booking, the ass
   }
   expect(await tools.reschedule({ booking_date: '2026-11-18', booked_name: 'Another' }, '2026-11-19T22:00:00.000Z')).toMatch(/Do not try again: take a message/)
   expect(api.sent).toHaveLength(MAX_DESCRIBE_ATTEMPTS)
+})
+
+test('conditions: a default calendar without one is used when no other fits; one type needs no picking rule', () => {
+  expect(calendarLine({ id: 'acal_1', name: 'Office', instruction: ' ', is_default: true })).toBe('- Office, id acal_1. Use when: no other calendar fits. (default)')
+  expect(calendarLine({ id: 'acal_2', name: 'Mike', instruction: '', is_default: false })).toBe('- Mike, id acal_2.')
+  const one = buildInstructions(null, null, { ...booking, appointmentTypes: [booking.appointmentTypes[0]!] })
+  expect(one).not.toContain('Pick the appointment type')
+})
+
+test('an API of an older version lists no name and no condition: the name is still asked for', () => {
+  expect(typeLine({ id: 'at_1', name: 'Repair visit', duration_min: 60, required_fields: ['address'] })).toBe('- Repair visit (60 minutes), id at_1. Before booking ask for: name, address.')
+})
+
+test('book_appointment without a name sends none, for a type that does not ask for it', async () => {
+  const call = session()
+  const api = fakeApi(() => ({ bookingId: 'bk_1', start: '2026-11-17T17:00:00.000Z', end: '', label: 'Tuesday', calendarName: 'Mike' }))
+  await bookingTools(api, call, new CallLog(call)).book({ appointment_type_id: 'at_2', calendar_id: 'acal_mike', start: '2026-11-17T17:00:00.000Z', caller_name: ' ', reason: 'Quote' })
+  expect(api.sent[0]![1]).not.toHaveProperty('callerName')
 })

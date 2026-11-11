@@ -37,11 +37,20 @@ export function durationLabel(minutes: number): string {
   return [h ? `${h} h` : null, m ? `${m} min` : null].filter(Boolean).join(' ') || '0 min'
 }
 
-export const FIELD_LABEL: Record<AppointmentType['required_fields'][number], string> = { phone: 'Phone', email: 'Email', address: 'Address' }
+/** What the assistant can ask for before booking a type, in the order the form shows them. */
+export const BOOKING_FIELDS = ['name', 'phone', 'email', 'address'] as const
+export type BookingFieldId = (typeof BOOKING_FIELDS)[number]
+export const FIELD_LABEL: Record<BookingFieldId, string> = { name: 'Name', phone: 'Phone', email: 'Email', address: 'Address' }
 
-/** "Name, reason, address": what the assistant asks before booking this type. */
-export function requiredLabel(type: Pick<AppointmentType, 'required_fields'>): string {
-  return ['Name', 'reason', ...type.required_fields.map(f => FIELD_LABEL[f].toLowerCase())].join(', ')
+/** The details a type asks for, the name first (it is stored as name_required). */
+export function typeFields(type: Pick<AppointmentType, 'required_fields' | 'name_required'>): BookingFieldId[] {
+  return BOOKING_FIELDS.filter(f => (f === 'name' ? type.name_required : type.required_fields.includes(f)))
+}
+
+/** "Asks for name, address": what the assistant asks before booking this type, besides the reason. */
+export function requiredLabel(type: Pick<AppointmentType, 'required_fields' | 'name_required'>): string {
+  const fields = typeFields(type)
+  return fields.length ? `Asks for ${fields.map(f => FIELD_LABEL[f].toLowerCase()).join(', ')}` : 'Asks only for the reason'
 }
 
 /** The assistant's calendars, the default first, then in the order they were added. */

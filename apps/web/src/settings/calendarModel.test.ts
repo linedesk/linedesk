@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { calendarsOf, connectResult, durationLabel, requiredLabel } from './calendarModel.ts'
+import { calendarsOf, connectResult, durationLabel, requiredLabel, typeFields } from './calendarModel.ts'
 
 test('the OAuth callback result in the hash becomes a toast', () => {
   expect(connectResult('#assistant/as_1/calendar?calendar=connected')).toEqual({ ok: true, text: 'Calendar connected. Pick the calendars the assistant books into.' })
@@ -13,8 +13,12 @@ test('durations and required details read as the owner says them', () => {
   expect(durationLabel(30)).toBe('30 min')
   expect(durationLabel(60)).toBe('1 h')
   expect(durationLabel(90)).toBe('1 h 30 min')
-  expect(requiredLabel({ required_fields: [] })).toBe('Name, reason')
-  expect(requiredLabel({ required_fields: ['address', 'email'] })).toBe('Name, reason, address, email')
+  expect(requiredLabel({ required_fields: [], name_required: true })).toBe('Asks for name')
+  expect(requiredLabel({ required_fields: ['address', 'email'], name_required: true })).toBe(
+    'Asks for name, email, address',
+  )
+  expect(requiredLabel({ required_fields: [], name_required: false })).toBe('Asks only for the reason')
+  expect(typeFields({ required_fields: ['address'], name_required: false })).toEqual(['address'])
 })
 
 test("an assistant's calendars: the default first, then in the order they were added", () => {

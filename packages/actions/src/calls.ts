@@ -219,7 +219,11 @@ export type BookingContext = {
   /** Today in the business's time zone, as the assistant says it ("Wednesday, November 11, 2026"), and as YYYY-MM-DD. */
   today: string
   todayDate: string
-  appointmentTypes: { id: string; name: string; duration_min: number; required_fields: ('phone' | 'email' | 'address')[] }[]
+  /**
+   * `instruction`: when the assistant offers the type (empty: no condition). `required_fields` includes
+   * 'name' when the type asks for the caller's name (an API of an older version always wanted it and did not list it).
+   */
+  appointmentTypes: { id: string; name: string; duration_min: number; required_fields: ('name' | 'phone' | 'email' | 'address')[]; instruction?: string }[]
   calendars: { id: string; name: string; instruction: string; is_default: boolean }[]
   /**
    * Always empty: caller ID is not proof of identity, so the assistant is never told a caller's bookings.

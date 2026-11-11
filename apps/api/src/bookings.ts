@@ -1,7 +1,7 @@
 // Booking: free slots (working hours, exceptions, appointment type, existing bookings and the
 // calendar's busy times at the provider), booking into one of the assistant's calendars, cancelling,
 // and the appointment types. Also what call.start tells the agent about booking.
-import { type BookData, type BookingContext, type CallTestFinding, type FindSlotsData, isE164 } from '@linedesk/actions'
+import { type BookData, type BookingContext, type BookingFieldInput, type CallTestFinding, type FindSlotsData, isE164 } from '@linedesk/actions'
 import { CalendarError, type CalendarProvider, findSlots, type FindSlotsInput, type Interval, type WorkingHours, zonedTimeToInstant } from '@linedesk/calendar'
 import {
   appointment_types, assistant_calendars, assistants, availability_exceptions, availability_rules, bookings, calendar_connections, calls, contacts, 
@@ -149,7 +149,7 @@ async function enabledType(tx: Tx, workspaceId: string, id: string) {
 
 type FindSlotsArgs = { callId?: string; appointmentTypeId: string; from?: string; to?: string; fromDate?: string; toDate?: string; calendarId?: string; limit: number }
 type BookArgs = {
-  appointmentTypeId: string; calendarId: string; start: string; callerName: string; reason: string
+  appointmentTypeId: string; calendarId: string; start: string; callerName?: string; reason: string
   address?: string; callerPhone?: string; callerEmail?: string; callId?: string; assistantId?: string
 }
 
@@ -172,9 +172,29 @@ async function confirmationLimit(tx: Tx, workspaceId: string, callId: string | n
 }
 
 /** The details the type requires that the booking lacks, as the assistant should ask for them. */
-function missingDetails(type: AppointmentType, details: { phone: string | null; email: string | null; address?: string }) {
-  const labels = { phone: 'phone number', email: 'email address', address: 'address' } as const
-  return type.required_fields.filter(field => !details[field]).map(field => labels[field])
+function missingDetails(type: Pick<AppointmentType, 'required_fields' | 'name_required'>, details: { name?: string; phone: string | null; email: string | null; address?: string }) {
+  const labels = { name: 'name', phone: 'phone number', email: 'email address', address: 'address' } as const
+  return bookingFieldsOf(type).filter(field => !details[field]).map(field => labels[field])
+}
+
+/** The details a type asks for, the name first: `name` is its own column (name_required). */
+const bookingFieldsOf = (type: Pick<AppointmentType, 'required_fields' | 'name_required'>): BookingFieldInput[] =>
+  [...(type.name_required ? (['name'] as const) : []), ...type.required_fields]
+
+/** The type created with a workspace's first calendar (see ensureAppointmentType). */
+const DEFAULT_APPOINTMENT_TYPE = { name: 'Appointment', duration_min: 30, instruction: 'no other type fits', name_required: true } as const
+
+/**
+ * Gives a workspace without an enabled appointment type a plain 30-minute one, so an assistant that just
+ * got a calendar can book at once. Never a second one: the workspace is locked while it looks. Returns
+ * the new row, or nothing when the workspace has a type already.
+ */
+export async function ensureAppointmentType(tx: Tx, workspaceId: string): Promise<AppointmentType[]> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`appointment-types:${workspaceId}`}))`)
+  const [existing] = await tx.select({ id: appointment_types.id }).from(appointment_types)
+    .where(and(eq(appointment_types.workspace_id, workspaceId), eq(appointment_types.enabled, true))).limit(1)
+  if (existing) return []
+  return tx.insert(appointment_types).values({ id: newId('at'), workspace_id: workspaceId, ...DEFAULT_APPOINTMENT_TYPE }).returning()
 }
 
 type WhichBooking = { bookingId?: string; callId?: string; bookingDate?: string; bookedName?: string }
@@ -316,11 +336,11 @@ export const bookingHandlers: Record<string, Handler> = {
 
     // A withheld caller ID ("anonymous") is no phone number to put on a booking.
     const phone = input.callerPhone ?? (isE164(call?.from_number) ? call.from_number : null)
-    const [contact] = call?.contact_id ? await tx.select({ email: contacts.email }).from(contacts).where(eq(contacts.id, call.contact_id)) : []
+    const [contact] = call?.contact_id ? await tx.select({ email: contacts.email, name: contacts.name }).from(contacts).where(eq(contacts.id, call.contact_id)) : []
     const email = input.callerEmail ?? contact?.email ?? null
-    const missing = missingDetails(type, { phone, email, address: input.address })
+    const missing = missingDetails(type, { name: input.callerName, phone, email, address: input.address })
     if (missing.length) throw new Reject(`A ${type.name} needs the caller's ${missing.join(' and ')}: ask for it, then book.`)
-    const title = `${type.name} · ${input.callerName}`
+    const title = input.callerName ? `${type.name} · ${input.callerName}` : type.name
     const event = await atProvider(() => provider.createEvent(calendar.external_id, {
       title, start, end, location: input.address, description: eventDescription({ reason: input.reason, phone, address: input.address, callId: call?.id }),
     }))
@@ -339,8 +359,12 @@ export const bookingHandlers: Record<string, Handler> = {
     // The confirmation email goes out after the booking committed (a job), so a slow mail server never holds up the call.
     if (confirmation === 'queued') await queueBookingConfirmation(tx, rows[0]!.id)
     if (call?.source !== 'test') await queueWebhookEvent(tx, workspaceId, 'booking.created', webhookData.bookingCreated(rows[0]!), now)
+    // The name the caller gave goes on their contact too, unless it has one.
+    const named = input.callerName && call?.contact_id && !contact?.name
+      ? await tx.update(contacts).set({ name: input.callerName }).where(eq(contacts.id, call.contact_id)).returning()
+      : []
     const data: BookData = { bookingId: rows[0]!.id, start, end, label: slotLabel(start, timeZone), calendarName: calendar.name }
-    return { rows: { bookings: rows }, data }
+    return { rows: { bookings: rows, ...(named.length && { contacts: named }) }, data }
   },
 
   'appointment.cancel': async ({ tx, actor, now, ...ctx }, input: WhichBooking) => {
@@ -381,7 +405,7 @@ export const bookingHandlers: Record<string, Handler> = {
     return { rows: { bookings: rows }, data }
   },
 
-  'appointmentType.upsert': async ({ tx, actor }, input: { appointmentTypeId?: string; name: string; durationMin: number; bufferMin?: number; minNoticeHours?: number; maxDaysAhead?: number; enabled?: boolean; requiredFields?: BookingField[] }) => {
+  'appointmentType.upsert': async ({ tx, actor }, input: { appointmentTypeId?: string; name: string; durationMin: number; bufferMin?: number; minNoticeHours?: number; maxDaysAhead?: number; enabled?: boolean; requiredFields?: BookingFieldInput[]; instruction?: string }) => {
     const workspace_id = workspaceOf(actor)
     const values = {
       name: input.name, duration_min: input.durationMin,
@@ -389,7 +413,11 @@ export const bookingHandlers: Record<string, Handler> = {
       ...(input.minNoticeHours !== undefined && { min_notice_hours: input.minNoticeHours }),
       ...(input.maxDaysAhead !== undefined && { max_days_ahead: input.maxDaysAhead }),
       ...(input.enabled !== undefined && { enabled: input.enabled }),
-      ...(input.requiredFields !== undefined && { required_fields: [...new Set(input.requiredFields)] }),
+      ...(input.requiredFields !== undefined && {
+        name_required: input.requiredFields.includes('name'),
+        required_fields: [...new Set(input.requiredFields.filter((f): f is BookingField => f !== 'name'))],
+      }),
+      ...(input.instruction !== undefined && { instruction: input.instruction }),
     }
     if (!input.appointmentTypeId) {
       return { rows: { appointment_types: await tx.insert(appointment_types).values({ id: newId('at'), workspace_id, ...values }).returning() } }
@@ -418,9 +446,13 @@ export const bookingHandlers: Record<string, Handler> = {
  * `contactId`: the caller's contact, only for a caller with a dialable number.
  */
 export async function bookingContext(tx: Tx, workspaceId: string, now: string, { contactId, assistantId }: { contactId?: string | null; assistantId?: string | null } = {}): Promise<BookingContext | null> {
-  const types = await tx.select({ id: appointment_types.id, name: appointment_types.name, duration_min: appointment_types.duration_min, required_fields: appointment_types.required_fields }).from(appointment_types)
+  const typeRows = await tx.select({
+    id: appointment_types.id, name: appointment_types.name, duration_min: appointment_types.duration_min, required_fields: appointment_types.required_fields,
+    name_required: appointment_types.name_required, instruction: appointment_types.instruction,
+  }).from(appointment_types)
     .where(and(eq(appointment_types.workspace_id, workspaceId), eq(appointment_types.enabled, true))).orderBy(asc(appointment_types.created_at))
-  if (!types.length) return null
+  if (!typeRows.length) return null
+  const types = typeRows.map(t => ({ id: t.id, name: t.name, duration_min: t.duration_min, required_fields: bookingFieldsOf(t), instruction: t.instruction }))
   const calendars = await tx.select({ id: assistant_calendars.id, name: assistant_calendars.name, instruction: assistant_calendars.instruction, is_default: assistant_calendars.is_default })
     .from(assistant_calendars)
     .innerJoin(calendar_connections, eq(calendar_connections.id, assistant_calendars.connection_id))

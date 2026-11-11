@@ -48,7 +48,7 @@ export function CalendarStep({ onBack, onNext }: Props) {
         <p className="ob-lede">{name} books into your free times.</p>
         {!loaded && <SkeletonRows label="Loading your calendar" rows={1} />}
         {loaded && connections.length > 0 && (
-          <ul className="cal-list ob-cal">
+          <ul className="k-list ob-cal">
             {connections.map(c => (
               <AccountRow key={c.id} connection={c} />
             ))}

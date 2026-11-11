@@ -1,51 +1,29 @@
-/* Settings > Assistant > Calendar: accounts, calendars and appointment types as rows. */
-.cal-list {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.cal-row {
+/* Settings > Assistant > Calendar. The lists are the kit's (ui/list.css); this is what is only here. */
+
+/* The condition under a calendar's or a type's row, read as one sentence: "Use this calendar when [ … ]".
+   Lined up with the title (after the 18px mark and the gap) when the row has a mark. */
+.cal-cond {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 48px;
-  padding: 8px 0;
-  border-top: 1px solid var(--line);
-}
-.cal-row:first-child {
-  border-top: 0;
-}
-.cal-row-calendar {
-  align-items: flex-start;
-}
-.cal-row-calendar .auth-logo {
-  margin-top: 3px;
-}
-.cal-main {
-  display: grid;
-  gap: 4px;
-  flex: 1;
+  gap: 8px;
   min-width: 0;
 }
-.cal-main b {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.k-row:has(> .k-row-line > .k-row-lead) > .cal-cond {
+  margin-left: 28px;
 }
-.cal-sub {
+.cal-cond-lead {
+  flex: none;
   font-size: 12.5px;
   color: var(--ink-muted);
+  white-space: nowrap;
 }
-.cal-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex: none;
+.cal-cond .k-input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+}
+.cal-cond .k-input input {
+  font-size: 12.5px;
 }
 .cal-connect {
   display: flex;
@@ -58,7 +36,10 @@
 .cal-type-form {
   display: grid;
   gap: 12px;
-  padding: 12px 0;
+  padding: 10px 0 0;
+}
+.k-list + .cal-type-form {
+  margin-top: -2px;
   border-top: 1px solid var(--line);
 }
 .cal-type-fields {
@@ -70,9 +51,4 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-@media (max-width: 559px) {
-  .cal-row {
-    flex-wrap: wrap;
-  }
 }

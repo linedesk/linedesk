@@ -366,8 +366,15 @@ export const appointment_types = pgTable(
       .notNull()
       .default('on_site'),
     enabled: boolean('enabled').notNull().default(true),
-    /** What the assistant must have before it books this type: the caller's name and the reason always, plus any of these. */
+    /** What the assistant must have before it books this type besides the reason (always): any of these. */
     required_fields: jsonb('required_fields').$type<BookingField[]>().notNull().default([]),
+    /**
+     * Whether the assistant asks for the caller's name before booking (the "Name" field). A column of its
+     * own, not a value in required_fields, so a release that knows only phone, email and address keeps working.
+     */
+    name_required: boolean('name_required').notNull().default(true),
+    /** When the assistant offers this type ("the caller needs an emergency visit"); empty: no condition. */
+    instruction: text('instruction').notNull().default(''),
     created_at: createdAt(),
     version: version(),
   },

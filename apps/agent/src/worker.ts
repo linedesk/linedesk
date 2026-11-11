@@ -51,8 +51,8 @@ export const TEST_CALL_LIMIT_MS = 5 * 60_000
 function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record<string, llm.AnonFunctionTool<any, any, any>> {
   if (!call.booking) return {}
   const booking = bookingTools(api, call, log)
-  const typeId = z.string().describe('The id of the appointment type, from the list in your instructions.')
-  const calendarId = z.string().describe('The id of the calendar whose note fits the request, from the list in your instructions.')
+  const typeId = z.string().describe('The id of the appointment type whose "Use when" condition fits the request, from the list in your instructions.')
+  const calendarId = z.string().describe('The id of the calendar whose "Use when" condition fits the request, from the list in your instructions.')
   const bookingDate = z.string().describe('The day of the appointment the caller wants to change, YYYY-MM-DD, as the caller said it.')
   const bookedName = z.string().describe('The full name the appointment is booked under, as the caller said it.')
   return {
@@ -72,7 +72,7 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
         appointment_type_id: typeId,
         calendar_id: calendarId,
         start: z.string().describe('The exact start in brackets from find_slots.'),
-        caller_name: z.string().describe("The caller's name."),
+        caller_name: z.string().nullish().describe("The caller's name; needed when the appointment type asks for it."),
         reason: z.string().describe('One sentence: what the appointment is for.'),
         address: z.string().nullish().describe('Where the visit is, if it is on site.'),
         email: z.string().nullish().describe("The caller's email address, if they gave one: the confirmation goes there."),

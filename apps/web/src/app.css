@@ -944,29 +944,8 @@ a.k-btn {
 .st-connect .auth-error {
   margin: 0;
 }
-/* Settings, Phone numbers: one row per number, Manage opens the rest. */
-.pn-list {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.pn-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
-  align-items: center;
-  gap: 16px;
-  min-height: 48px;
-  border-top: 1px solid var(--line);
-}
-.pn-row:first-child {
-  border-top: 0;
-}
-.pn-row b {
-  font-weight: 500;
-}
-.pn-status,
-.pn-who {
+/* Settings, Phone numbers: one list row per number (ui/list.css), Manage opens the rest. */
+.pn-status {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -990,26 +969,40 @@ a.k-btn {
   color: var(--danger);
 }
 .pn-carrier {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
-  gap: 16px;
-  min-height: 48px;
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 4px;
-}
-.pn-carrier-label {
+  gap: 6px;
+  margin: -6px 0 0;
   font-size: 12.5px;
+  line-height: 18px;
   color: var(--ink-muted);
 }
-.pn-carrier-sk {
-  height: 12px;
-  width: 180px;
-}
 .pn-carrier-value {
+  color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.pn-carrier-sk {
+  height: 12px;
+  width: 140px;
+}
+.pn-carrier-change {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.pn-carrier-change:hover {
+  color: var(--ink);
+}
+.pn-carrier-change:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 .pn-carrier-form {
   display: grid;
@@ -1024,17 +1017,6 @@ a.k-btn {
 .pn-release:hover {
   color: var(--danger);
   background: var(--danger-soft);
-}
-@media (max-width: 559px) {
-  .pn-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 2px 12px;
-    padding: 8px 0;
-  }
-  .pn-row .k-btn {
-    grid-row: 1 / span 2;
-    grid-column: 2;
-  }
 }
 .st-connect-foot {
   display: flex;

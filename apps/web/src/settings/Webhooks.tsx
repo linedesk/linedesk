@@ -15,6 +15,7 @@ import { SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { Checkbox, Switch } from '../ui/controls.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
+import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { Field, Section } from './fields.tsx'
 import { callAction, readAction, useWriteAction } from './settings-api.ts'
 import './webhooks.css'
@@ -52,13 +53,13 @@ export function Webhooks({ canEdit, toast }: Props) {
       {load !== 'ready' && endpoints.length === 0 ? (
         <SkeletonRows label="Loading webhooks" rows={2} />
       ) : endpoints.length === 0 ? (
-        <p className="help">No endpoints yet.</p>
+        <ListEmpty>No endpoints yet.</ListEmpty>
       ) : (
-        <ul className="wh-list">
+        <List label="Webhook endpoints">
           {endpoints.map(e => (
             <EndpointRow key={e.id} endpoint={e} onEdit={() => setEditing(e)} toast={toast} />
           ))}
-        </ul>
+        </List>
       )}
       {editing && (
         <EndpointDialog endpoint={editing === 'new' ? null : editing} onClose={() => setEditing(null)} toast={toast} />
@@ -127,36 +128,42 @@ function EndpointRow({
   }
 
   return (
-    <li className="wh-row">
-      <div className="wh-head">
-        <span className="wh-main">
-          <b title={endpoint.url}>{endpoint.url}</b>
-          <span className="wh-sub">{endpoint.events.map(e => EVENT_LABEL[e] ?? e).join(', ')}</span>
-          {endpoint.disabled_reason && <span className="wh-sub wh-reason">{endpoint.disabled_reason}</span>}
-        </span>
-        <StatusBadge endpoint={endpoint} />
-        <Switch
-          label={`Send events to ${endpoint.url}`}
-          on={endpoint.status === 'active'}
-          onChange={on => void run('webhook.update', { endpointId: endpoint.id, enabled: on })}
-        />
-      </div>
-      <div className="wh-actions">
-        <Button size="sm" variant="ghost" disabled={busy} onClick={sendTest} title="Send a signed test event now">
-          Send test
-        </Button>
-        <Button size="sm" variant="ghost" aria-expanded={showLog} onClick={() => setShowLog(s => !s)}>
-          {showLog ? 'Hide deliveries' : 'Deliveries'}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onEdit}>
-          Edit
-        </Button>
-        <Button size="sm" variant="ghost" disabled={busy} onClick={remove}>
-          Delete
-        </Button>
-      </div>
-      {showLog && <DeliveryLog endpointId={endpoint.id} version={logVersion} />}
-    </li>
+    <ListRow
+      title={<span title={endpoint.url}>{endpoint.url}</span>}
+      sub={
+        endpoint.disabled_reason ? (
+          <span className="wh-reason">{endpoint.disabled_reason}</span>
+        ) : (
+          endpoint.events.map(e => EVENT_LABEL[e] ?? e).join(', ')
+        )
+      }
+      aside={<StatusBadge endpoint={endpoint} />}
+      actions={
+        <>
+          <Switch
+            label={`Send events to ${endpoint.url}`}
+            on={endpoint.status === 'active'}
+            onChange={on => void run('webhook.update', { endpointId: endpoint.id, enabled: on })}
+          />
+          <MenuButton
+            title={`Actions for ${endpoint.url}`}
+            disabled={busy}
+            items={[
+              {
+                id: 'test',
+                label: 'Send test',
+                title: 'Send a signed test event now',
+                onSelect: () => void sendTest(),
+              },
+              { id: 'log', label: showLog ? 'Hide deliveries' : 'Deliveries', onSelect: () => setShowLog(s => !s) },
+              { id: 'edit', label: 'Edit', onSelect: onEdit },
+              { id: 'delete', label: 'Delete', danger: true, onSelect: () => void remove() },
+            ]}
+          />
+        </>
+      }
+      below={showLog && <DeliveryLog endpointId={endpoint.id} version={logVersion} />}
+    />
   )
 }
 
