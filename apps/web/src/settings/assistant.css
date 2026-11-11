@@ -802,3 +802,152 @@
   flex-wrap: wrap;
   gap: 4px;
 }
+
+/* Settings > Assistant > History: versions on the left, what one differs from now on the right. */
+.ah {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 16px;
+  min-height: 360px;
+}
+.ah-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  max-height: 520px;
+  overflow: auto;
+}
+.ah-item {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ah-item:hover {
+  background: var(--surface-hover);
+}
+.ah-item.is-on {
+  background: var(--surface-hover);
+  box-shadow: inset 2px 0 0 var(--ink);
+}
+.ah-item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ah-now {
+  font-size: 11px;
+  line-height: 16px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--ink);
+  color: var(--surface);
+}
+.ah-sum {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ah-by,
+.ah-detail-head span,
+.ah-legend,
+.ah-note,
+.ah-empty,
+.ah-fold {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.ah-detail {
+  min-width: 0;
+  max-height: 520px;
+  overflow: auto;
+}
+.ah-detail-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.ah-legend {
+  display: flex;
+  gap: 12px;
+  margin: 0 0 8px;
+}
+.ah-part {
+  margin-bottom: 14px;
+}
+.ah-part h4 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ah-lines {
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px var(--line);
+  padding: 4px 0;
+  font-size: 13px;
+  line-height: 19px;
+}
+.ah-line {
+  display: flex;
+  gap: 8px;
+  padding: 0 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ah-line > span:first-child {
+  flex: none;
+  width: 10px;
+  color: var(--ink-muted);
+}
+.ah-old {
+  color: var(--ink-muted);
+}
+.ah-line.ah-old {
+  background: var(--surface-hover);
+  text-decoration: line-through;
+  text-decoration-color: var(--line-control);
+}
+.ah-line.ah-new {
+  font-weight: 500;
+  box-shadow: inset 2px 0 0 var(--ink);
+}
+.ah-fold {
+  padding: 0 10px 0 28px;
+}
+.ah-done {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+}
+.ah-problem {
+  margin: 0 0 12px;
+  color: var(--red, #b42318);
+}
+.ah-note {
+  margin-right: auto;
+}
+@media (max-width: 720px) {
+  .ah {
+    grid-template-columns: 1fr;
+  }
+  .ah-list {
+    max-height: 200px;
+  }
+}

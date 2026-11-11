@@ -9,7 +9,7 @@ describe('calendar.findSlots', () => {
   })
 
   it('is read-only, like the other reads, tests and proposals that change nothing', () => {
-    expect([...actions.values()].filter(a => a.readOnly).map(a => a.name).sort()).toEqual(['apiKey.list', 'assistant.startTestCall', 'calendar.findSlots', 'calendar.listCalendars', 'call.export', 'call.findForTest', 'call.getEvaluation', 'call.listEvaluations', 'call.listen', 'call.takeOver', 'carrier.get', 'carrier.test', 'carrier.transferTrunk', 'customField.list', 'insights.get', 'invitation.listMine', 'knowledge.import', 'knowledge.search', 'member.list', 'notifications.get', 'provider.test', 'team.list', 'voice.catalog', 'voice.options', 'voiceCloning.get', 'webhook.deliveries', 'webhook.test', 'workspace.getSettings'])
+    expect([...actions.values()].filter(a => a.readOnly).map(a => a.name).sort()).toEqual(['apiKey.list', 'assistant.startTestCall', 'assistant.version', 'assistant.versions', 'calendar.findSlots', 'calendar.listCalendars', 'call.export', 'call.findForTest', 'call.getEvaluation', 'call.listEvaluations', 'call.listen', 'call.takeOver', 'carrier.get', 'carrier.test', 'carrier.transferTrunk', 'customField.list', 'insights.get', 'invitation.listMine', 'knowledge.import', 'knowledge.search', 'member.list', 'notifications.get', 'provider.test', 'team.list', 'voice.catalog', 'voice.options', 'voiceCloning.get', 'webhook.deliveries', 'webhook.test', 'workspace.getSettings'])
   })
 
   it.each(['owner', 'admin', 'member'] satisfies Role[])('can be called by %s', role => {

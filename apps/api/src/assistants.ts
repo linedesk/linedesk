@@ -2,6 +2,7 @@
 // copy and delete them or move a number to another one. Every lookup is scoped to the workspace, so
 // an assistant id from another workspace is refused, never used.
 import { assistant_calendars, assistants, organization, phone_numbers, type Tx } from '@linedesk/db'
+import { recordVersion } from './assistant-versions.ts'
 import { releaseUnusedClones } from './voices.ts'
 import { type Assistant, DEFAULT_TRANSFERS } from '@linedesk/db/types'
 import { and, asc, eq, ne } from 'drizzle-orm'
@@ -80,6 +81,7 @@ export const assistantHandlers: Record<string, Handler> = {
         }
       : { id: newId(), workspace_id: workspaceId, name, greeting: greetingFor(org?.name ?? 'us', name), ai_disclosure: 'at_start' as const }
     const rows = await tx.insert(assistants).values(values).returning()
+    await recordVersion(tx, workspaceId, rows[0]!.id, { by: actor.actorId, created: true })
     return { rows: { assistants: rows }, data: { assistantId: rows[0]!.id } }
   },
 

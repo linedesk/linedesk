@@ -1,5 +1,6 @@
 import * as admin from './admin.ts'
 import * as apiKeys from './api-keys.ts'
+import * as assistantVersions from './assistant-versions.ts'
 import * as calendar from './calendar.ts'
 import * as callDetails from './call-details.ts'
 import * as carrier from './carrier.ts'
@@ -27,6 +28,7 @@ export * from './input-errors.ts'
 export * from './admin.ts'
 export * from './api-keys.ts'
 export * from './assistant-prompt.ts'
+export * from './assistant-versions.ts'
 export * from './calendar.ts'
 export * from './call-details.ts'
 export * from './carrier.ts'
@@ -92,6 +94,9 @@ const all = [
   settings.assistantUpdate,
   settings.assistantCreate,
   settings.assistantDelete,
+  assistantVersions.assistantVersions,
+  assistantVersions.assistantVersion,
+  assistantVersions.assistantRestoreVersion,
   voices.voiceOptions,
   voices.voiceCatalog,
   voices.voiceClone,

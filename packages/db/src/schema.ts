@@ -198,6 +198,8 @@ export const calls = pgTable(
     room: text('room'),
     /** The assistant that answered (call.start: the number's; a test call: the one picked). */
     assistant_id: text('assistant_id'),
+    /** The assistant's settings version the call ran with (assistant_versions.number); null: before versions. */
+    assistant_version: integer('assistant_version'),
     inbox_state: text('inbox_state', { enum: ['open', 'done'] })
       .notNull()
       .default('open'),
@@ -517,6 +519,31 @@ export const assistant_calendars = pgTable(
     index('assistant_calendars_ws').on(t.workspace_id),
     unique('assistant_calendars_calendar').on(t.assistant_id, t.connection_id, t.external_id),
   ],
+)
+
+// Every saved change of an assistant's call settings (and its calendars) as a whole copy, numbered per
+// assistant: Settings › Assistant › History lists them, compares one with now and restores it. Not synced.
+export const assistant_versions = pgTable(
+  'assistant_versions',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    assistant_id: text('assistant_id')
+      .notNull()
+      .references(() => assistants.id, { onDelete: 'cascade' }),
+    /** 1, 2, 3… per assistant; a call stores the one it ran with (calls.assistant_version). */
+    number: integer('number').notNull(),
+    /** The settings as saved (AssistantSnapshot in @linedesk/actions). */
+    settings: jsonb('settings').$type<Record<string, unknown>>().notNull(),
+    /** What changed against the version before, in a few words. */
+    summary: text('summary').notNull(),
+    /** The user who saved it; null: written by Linedesk itself (the first copy, a change from an older release). */
+    changed_by: text('changed_by'),
+    /** The version this one brought back (assistant.restoreVersion); null: an edit. */
+    restored_from: integer('restored_from'),
+    created_at: createdAt(),
+  },
+  t => [unique('assistant_versions_number').on(t.assistant_id, t.number), index('assistant_versions_ws').on(t.workspace_id)],
 )
 
 export const bookings = pgTable(

@@ -237,6 +237,9 @@ function Header({ call, segments, repeatCount, contactOpen, onOpenContact }: Hea
             </>
           )}
           <span>{answeredByLabel(call, segments, assistant)}</span>
+          {call.assistant_version != null && (
+            <span title="The assistant's settings this call ran with: Settings › Assistant › History">Assistant version {call.assistant_version}</span>
+          )}
         </div>
         <h1>{callTitle(call)}</h1>
         <div className="cv-line">

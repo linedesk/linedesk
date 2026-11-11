@@ -42,6 +42,7 @@ import {
   transfersToSave,
 } from './assistantDraft.ts'
 import { AssistantHeader } from './AssistantHeader.tsx'
+import { HistoryButton } from './AssistantHistory.tsx'
 import { CalendarSettings } from './Calendar.tsx'
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
 import { EditBusinessHours } from './BusinessHoursDialog.tsx'
@@ -596,7 +597,12 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         />
       }
       description={canEdit ? undefined : 'Only owners and admins can change these.'}
-      actions={<TestCallButton session={testCall} />}
+      actions={
+        <>
+          {canEdit && <HistoryButton assistant={assistant} dirty={changed} />}
+          <TestCallButton session={testCall} />
+        </>
+      }
       banner={<TestCallPanel session={testCall} />}
       sections={sections}
       current={current}

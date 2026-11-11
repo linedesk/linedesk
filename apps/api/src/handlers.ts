@@ -1,7 +1,7 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, ASSISTANT_CALL_MAX_MINUTES, type CallCustomField, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, } from '@linedesk/actions'
+import { actions, type AssistantRestoreData, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, type CallCustomField, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, } from '@linedesk/actions'
 import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, localDate } from '@linedesk/calendar'
-import {availability_exceptions, availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, syncedTables,
+import {assistant_calendars, assistants, availability_exceptions, availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, syncedTables,
   transcript_segments, workspace_members, workspace_settings, type Tx,
 } from '@linedesk/db'
 import type { Assistant, Closure, PhoneNumber, TransferContact } from '@linedesk/db/types'
@@ -13,6 +13,7 @@ import { startS3Recording } from './recording-egress.ts'
 import { purgeCommandsAbout } from './command-log.ts'
 import { apiKeyHandlers } from './api-keys.ts'
 import { assistantForNumber, assistantHandlers, assistantIn } from './assistants.ts'
+import { assistantVersionHandlers, recordVersion, versionForCall, versionOf, VERSIONED_ACTIONS, withVersion } from './assistant-versions.ts'
 import { bookingContext, bookingHandlers, bookingsForTest, DEFAULT_TIME_ZONE } from './bookings.ts'
 import { calendarConnectionHandlers } from './calendar-connections.ts'
 import { callerHistory } from './caller-history.ts'
@@ -220,6 +221,7 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   const [call] = await tx.insert(calls).values({
     id, workspace_id, contact_id: contact?.row.id ?? null, from_number: from, to_number: to, source, started_at: now, room: room ?? id,
     assistant_id: assistant?.id ?? null,
+    assistant_version: await versionForCall(tx, workspace_id, assistant?.id),
     ...(spam ? blockedCall(now) : overCap ? overCapCall(now) : busy ? busyCall(now) : {}),
   }).returning()
   // A busy call is filed as missed right away: the team hears of it like of any other finished call.
@@ -354,8 +356,46 @@ const handlers: Record<string, Handler> = {
     return result
   },
 
+  // An earlier version back, as a new version: the same checks as assistant.update. Its calendars are matched to the
+  // linked ones; one no longer linked is named in the result, one linked since is switched off.
+  'assistant.restoreVersion': async ({ tx, actor }, input: { assistantId: string; number: number }) => {
+    if (!actor.workspaceId) throw new Reject('no workspace')
+    const workspaceId = actor.workspaceId
+    await assistantIn(tx, workspaceId, input.assistantId)
+    const { settings } = await versionOf(tx, workspaceId, input.assistantId, input.number)
+    const { calendars: kept, ...fields } = settings
+    if (actor.emailUnverified && setsTransferNumber(fields)) throw new Forbidden('Confirm your email first: this version puts calls through to a number')
+    await checkAssistantVoice(tx, workspaceId, fields.voice).catch(e => {
+      throw new Reject(`Version ${input.number}'s voice can't be used any more (${errorMessage(e)}): pick a voice and save instead`)
+    })
+    for (const contact of fields.transfers ?? []) if (contact.number) await checkOnCallNotLinedesk(tx, contact.number, contact.name)
+    const restored = await tx.update(assistants).set(fields).where(and(eq(assistants.id, input.assistantId), eq(assistants.workspace_id, workspaceId))).returning()
+    await releaseUnusedClones(tx, workspaceId)
+    const linked = await tx.select().from(assistant_calendars).where(eq(assistant_calendars.assistant_id, input.assistantId))
+    const keyOf = (c: { connection_id: string; external_id: string }) => `${c.connection_id}/${c.external_id}`
+    const wanted = new Map(kept.map(c => [keyOf(c), c]))
+    const calendars = []
+    for (const row of linked) {
+      const was = wanted.get(keyOf(row))
+      const set = was ? { instruction: was.instruction, enabled: was.enabled, is_default: was.is_default } : { enabled: false, is_default: false }
+      calendars.push(...(await tx.update(assistant_calendars).set(set).where(eq(assistant_calendars.id, row.id)).returning()))
+    }
+    // The assistant keeps a default while it has calendars: the version's, else the oldest one that is on.
+    if (calendars.length && !calendars.some(c => c.is_default)) {
+      const next = [...calendars].sort((a, b) => a.created_at.localeCompare(b.created_at)).find(c => c.enabled) ?? calendars[0]!
+      const [updated] = await tx.update(assistant_calendars).set({ is_default: true, enabled: true }).where(eq(assistant_calendars.id, next.id)).returning()
+      calendars.splice(calendars.indexOf(next), 1, updated!)
+    }
+    const linkedKeys = new Set(linked.map(keyOf))
+    const missingCalendars = kept.filter(c => !linkedKeys.has(keyOf(c))).map(c => c.name)
+    const number = await recordVersion(tx, workspaceId, input.assistantId, { by: actor.actorId, restoredFrom: input.number })
+    const data: AssistantRestoreData = { number: number!, missingCalendars }
+    return { rows: { assistants: restored, assistant_calendars: calendars }, data }
+  },
+
   ...adminHandlers,
   ...assistantHandlers,
+  ...assistantVersionHandlers,
   ...impersonationHandlers,
   ...teamHandlers,
   ...membershipHandlers,
@@ -709,5 +749,7 @@ export const handlerNames: ReadonlySet<string> = new Set(Object.keys(handlers))
 
 /** A handler wins over the patch: an action with both is optimistic in the browser and checked here. */
 export function runHandler(ctx: HandlerCtx, def: ActionDef, input: unknown) {
-  return handlers[def.name] ? handlers[def.name]!(ctx, input) : runPatch(ctx, def, input)
+  const run = () => (handlers[def.name] ? handlers[def.name]!(ctx, input) : runPatch(ctx, def, input))
+  // A change of an assistant's call settings is kept as a version (assistant-versions.ts).
+  return VERSIONED_ACTIONS.has(def.name) ? withVersion(ctx, input as { assistantId?: string }, run) : run()
 }

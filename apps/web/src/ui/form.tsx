@@ -295,7 +295,7 @@ type DialogProps = {
   footer?: ReactNode
   /** Makes body and footer one form: Enter in a field submits, ⌘S too. */
   onSubmit?: (e: FormEvent<HTMLFormElement>) => void
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'lg'
   children?: ReactNode
 }
 

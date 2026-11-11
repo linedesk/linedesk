@@ -272,6 +272,9 @@
 .k-dialog-md {
   max-width: 480px;
 }
+.k-dialog-lg {
+  max-width: 880px;
+}
 .k-dialog-head {
   display: flex;
   align-items: flex-start;
