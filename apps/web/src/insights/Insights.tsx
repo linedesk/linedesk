@@ -31,7 +31,7 @@ const load = (days: InsightRange) => () => readAction<InsightsData>('insights.ge
 type Props = { canEdit: boolean; toast: (text: string) => void }
 
 export function Insights({ canEdit, toast }: Props) {
-  const [days, setDays] = useState<InsightRange>(7)
+  const [days, setDays] = useState<InsightRange>(30)
   const query = useQuery(queryKey(days), load(days), { persist: true })
   const assistant = useAssistantName()
   const data = query.data
