@@ -208,6 +208,7 @@ test('a contact that takes calls only during business hours: while closed the as
   expect(prompt).toContain('- The caller asks to speak to a person\n')
   expect(prompt).toMatch(/cannot be reached right now because it is outside business hours/)
   expect(prompt).toMatch(/Never say that you cannot transfer calls/)
+  expect(prompt).toMatch(/The only reason is that the business is closed, never that you are an AI/)
   // Open, with a contact to put through: the usual transfer instructions, not this.
   expect(buildInstructions(a, { openNow: true, summary: 'Open now.' }, null, [owner])).not.toMatch(/outside business hours/)
 })

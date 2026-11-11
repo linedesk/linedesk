@@ -110,7 +110,7 @@ export function heldTransferContacts(assistant: Pick<Assistant, 'transfers'> | n
 export function heldTransferInstructions(held: readonly Pick<TransferContact, 'condition'>[]): string | null {
   if (!held.length) return null
   const conditions = [...new Set(held.map(c => c.condition.trim().replace(/[.!?]+$/, '')))].map(c => `- ${c}`).join('\n')
-  return `Some calls go to a person, but not right now: the business is closed, so nobody can be put through until it is open again. These calls:\n${conditions}\nWhen a call fits one of them, tell the caller that the team cannot be reached right now because it is outside business hours, say when the business is open again if you know it, and offer to take a message so the team gets back to them. Never say that you cannot transfer calls or that you are only an AI.`
+  return `Some calls go to a person, but not right now: the business is closed, so nobody can be put through until it is open again. These calls:\n${conditions}\nWhen a call fits one of them, tell the caller that the team cannot be reached right now because it is outside business hours, say when the business is open again if you know it, and offer to take a message so the team gets back to them. The only reason is that the business is closed, never that you are an AI: if the caller asks whether you are an AI, say yes, and that the team can't be reached because it is outside business hours. Never say that you cannot transfer calls.`
 }
 
 /**
