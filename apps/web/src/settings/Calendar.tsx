@@ -242,7 +242,7 @@ function Calendars({ assistant, canEdit, toast }: Props) {
       id="as-cal-calendars"
       title="Calendars"
       description={`Where ${assistant.name} books. Say when to use each one.`}
-      help="The assistant picks the calendar whose note fits the call, else the default one. It only offers times that are free in that calendar and within business hours (Monday to Friday 9 to 5 when none are set)."
+      help="The assistant picks the calendar whose note fits the call, else the default one. It only offers times that are free in that calendar and within business hours (Monday to Friday 9 to 5 while business hours are off)."
       actions={
         canEdit && connected.length > 0 && (
           <Button size="sm" icon="plus" onClick={() => setAdding(true)}>

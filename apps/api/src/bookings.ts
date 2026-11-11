@@ -18,8 +18,8 @@ const DAY_MS = 86_400_000
 /** Used until a workspace has stored its own time zone. */
 export const DEFAULT_TIME_ZONE = 'America/New_York'
 /**
- * Hours the assistant books in when the business has set none: Monday to Friday, 9 to 5, in its
- * time zone. Without them a connected calendar would offer nothing, or the middle of the night.
+ * Hours the assistant books in when the business has no business hours switched on (or set):
+ * Monday to Friday, 9 to 5, in its time zone. Without them a connected calendar would offer nothing, or the middle of the night.
  */
 export const DEFAULT_BOOKING_HOURS: WorkingHours[] = [1, 2, 3, 4, 5].map(weekday => ({ weekday, start_time: '09:00', end_time: '17:00' }))
 
@@ -96,6 +96,14 @@ async function atProvider<T>(request: () => Promise<T>): Promise<T> {
   }
 }
 
+/** The business hours bookings follow: the workspace's, when they are switched on and set; else null (the default hours apply). */
+async function bookingHours(tx: Tx, workspaceId: string): Promise<WorkingHours[] | null> {
+  const [settings] = await tx.select({ on: workspace_settings.business_hours_on }).from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
+  if (!settings?.on) return null
+  const rules = await tx.select().from(availability_rules).where(eq(availability_rules.workspace_id, workspaceId))
+  return rules.length ? rules : null
+}
+
 type SlotSearch = {
   type: AppointmentType; window: Interval; now: string; limit: number
   calendar?: { row: AssistantCalendar; provider: CalendarProvider }
@@ -106,7 +114,7 @@ type SlotSearch = {
 /** Free slots: the engine over working hours (or the default ones), exceptions, bookings and the calendar's busy times at the provider. */
 async function availableSlots(tx: Tx, workspaceId: string, timeZone: string, { type, window, now, limit, calendar, excludeBookingId }: SlotSearch) {
   if (Date.parse(window.end) <= Date.parse(window.start)) return []
-  const rules = await tx.select().from(availability_rules).where(eq(availability_rules.workspace_id, workspaceId))
+  const rules = await bookingHours(tx, workspaceId)
   const buffer = type.buffer_min * 60_000
   const [local, remote] = await Promise.all([
     loadBusy(tx, workspaceId, window, type.buffer_min, calendar?.row.id, excludeBookingId),
@@ -115,8 +123,8 @@ async function availableSlots(tx: Tx, workspaceId: string, timeZone: string, { t
   ])
   return findSlotsOrReject({
     timeZone,
-    hours: rules.length ? rules : DEFAULT_BOOKING_HOURS,
-    exceptions: await loadExceptions(tx, workspaceId, window),
+    hours: rules ?? DEFAULT_BOOKING_HOURS,
+    exceptions: rules ? await loadExceptions(tx, workspaceId, window) : [],
     appointmentType: type,
     busy: [...local, ...remote],
     window,

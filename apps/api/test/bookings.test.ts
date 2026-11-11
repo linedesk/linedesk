@@ -110,9 +110,21 @@ describe('free slots', () => {
     })
   })
 
+  test('business hours count only when they are switched on', async () => {
+    const { services } = fakeCalendar()
+    await inRollback(async tx => {
+      await tx.insert(availability_rules).values({ id: `ar_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, weekday: 1, start_time: '13:00', end_time: '15:00' })
+      const starts = async () => ((await run(tx, owner, services, 'calendar.findSlots', { ...day(), calendarId: ws.assistantCalendar.id, limit: 50 })).data!.slots as { start: string }[]).map(s => s.start)
+      expect((await starts())[0]).toBe(at('09:00'))
+      await tx.update(workspace_settings).set({ business_hours_on: true }).where(eq(workspace_settings.workspace_id, ws.id))
+      expect(await starts()).toEqual([at('13:00'), at('13:30'), at('14:00')])
+    })
+  })
+
   test("the calendar's busy times at the provider are left out, with one request for the whole window", async () => {
     const { services, busyCalls } = fakeCalendar([{ start: at('10:00'), end: at('12:00') }])
     await inRollback(async tx => {
+      await tx.update(workspace_settings).set({ business_hours_on: true }).where(eq(workspace_settings.workspace_id, ws.id))
       await tx.insert(availability_rules).values({ id: `ar_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, weekday: 1, start_time: '08:00', end_time: '13:00' })
       const { data } = await run(tx, owner, services, 'calendar.findSlots', { ...day(), calendarId: ws.assistantCalendar.id, limit: 50 })
       expect((data!.slots as { start: string }[]).map(s => s.start)).toEqual([at('08:00'), at('08:30'), at('09:00'), at('12:00')])
