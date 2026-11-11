@@ -1,16 +1,18 @@
-// Workspace settings that are not about the assistant: phone numbers, the call export, recordings, webhooks and
-// API keys, one section at a time (#settings/<section>). Reached by G S, the menu and ⌘K. Business hours and
-// notifications are in the assistant's settings (old links are rewritten, shell/useRoute.ts).
+// Settings that are not about the assistant: your notifications, phone numbers, the call export, recordings,
+// webhooks and API keys, one section at a time (#settings/<section>). Reached by G S, the menu and ⌘K. Business
+// hours are in the assistant's settings (old links are rewritten, shell/useRoute.ts).
 import type { PhoneSetupStatus } from '../auth.ts'
 import { type PageSection, SettingsLayout, useSection } from '../ui/SettingsLayout.tsx'
 import { Developers } from './Developers.tsx'
 import { ExportCalls } from './ExportCalls.tsx'
+import { Notifications } from './Notifications.tsx'
 import { PhoneNumbers } from './PhoneNumbers.tsx'
 import { Recordings } from './Recordings.tsx'
 import { Webhooks } from './Webhooks.tsx'
 
-type SectionId = 'phone' | 'export' | 'recordings' | 'webhooks' | 'developers'
+type SectionId = 'notifications' | 'phone' | 'export' | 'recordings' | 'webhooks' | 'developers'
 const sections: readonly PageSection<SectionId>[] = [
+  { id: 'notifications', label: 'Notifications', description: 'New calls by email, in the browser and by push' },
   { id: 'phone', label: 'Phone numbers', description: 'The numbers the assistant answers' },
   { id: 'export', label: 'Export calls', description: 'Download calls as a CSV file' },
   { id: 'recordings', label: 'Recordings', description: 'How long recordings are kept, recording notice' },
@@ -30,6 +32,7 @@ export function SettingsPage({ canEdit, phoneSetup, isInstanceAdmin, toast }: Pr
   return (
     <div className="page">
       <SettingsLayout page="settings" title="Settings" sections={sections} current={current}>
+        {current === 'notifications' && <Notifications toast={toast} />}
         {current === 'phone' && (
           <PhoneNumbers canEdit={canEdit} status={phoneSetup} isInstanceAdmin={isInstanceAdmin} />
         )}

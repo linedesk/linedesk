@@ -52,10 +52,10 @@ export function parseHash(hash: string, last: InboxPlace = HOME): Location {
   return { route: 'calls', callId: null, tab: view as InboxTab, member: null, ...filters, known: true }
 }
 
-/** Sections that moved: Business hours and Notifications are in the assistant's settings now; Call details became Export calls. */
+/** Sections that moved: Business hours is in the assistant's settings, Notifications back in Settings; Call details became Export calls. */
 const MOVED: Record<string, string> = {
   'settings/hours': 'assistant/hours',
-  'settings/notifications': 'assistant/notifications',
+  'assistant/notifications': 'settings/notifications',
   'settings/fields': 'settings/export',
 }
 

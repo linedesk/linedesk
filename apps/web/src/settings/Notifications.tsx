@@ -1,4 +1,4 @@
-// Assistant, Notifications: your own new-call notifications (email per call, browser notifications
+// Settings › Notifications: your own new-call notifications (email per call, browser notifications
 // while Linedesk is open, push notifications on this device while it is closed) and, for owners and
 // admins, the defaults for teammates who never changed theirs.
 import type { NotificationChannels, NotificationSettingsData } from '@linedesk/actions'

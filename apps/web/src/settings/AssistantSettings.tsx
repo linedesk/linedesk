@@ -1,8 +1,8 @@
 // Assistant settings by topic, one section at a time (#assistant/<id>/<section>): general (greeting), business
 // info, hours and holidays, rules (AI disclosure, tone, behaviour checklist), calls and transfers (transfer
-// contacts), notifications, booking, voice, and Advanced (languages, raw call rules, silence, keypad menu).
+// contacts), booking, voice, and Advanced (languages, raw call rules, silence, keypad menu).
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
-// with unsaved changes keeps a dot in the nav. Hours, holidays, notifications and booking save on their own.
+// with unsaved changes keeps a dot in the nav. Hours, holidays and booking save on their own.
 import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, CALL_RULES_MAX, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, DEFAULT_CALL_RULES, DEFAULT_KNOWN_CALLER_GREETING, knownCallerGreetingProblem, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS, type AssistantLanguages, type Language, languageCodes, LANGUAGES, GREETING_VARIABLES, greetingVariablePattern, usesGreetingVariable } from '@linedesk/actions'
 import type { Assistant, KeypadMenuAction, KeypadMenuOption, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -57,22 +57,20 @@ import { TestCallPanel } from './TestCallPanel.tsx'
 import { TransferContacts, transferFieldId } from './TransferContacts.tsx'
 import { BusinessHours } from './BusinessHours.tsx'
 import { Holidays, VacationMode } from './Holidays.tsx'
-import { Notifications } from './Notifications.tsx'
 
-type SectionId = 'general' | 'business' | 'hours' | 'rules' | 'calls' | 'notifications' | 'booking' | 'voice' | 'advanced'
+type SectionId = 'general' | 'business' | 'hours' | 'rules' | 'calls' | 'booking' | 'voice' | 'advanced'
 const sections: readonly PageSection<SectionId>[] = [
   { id: 'general', label: 'General', description: 'Greeting and returning callers' },
   { id: 'business', label: 'Business info', description: 'What you do, services, prices, FAQs and documents' },
   { id: 'hours', label: 'Hours & holidays', description: 'Weekly hours, holidays, vacation mode' },
   { id: 'rules', label: 'Rules', description: 'AI disclosure, tone and how calls are handled' },
   { id: 'calls', label: 'Calls & transfers', description: 'Who calls are put through to' },
-  { id: 'notifications', label: 'Notifications', description: 'New calls by email, in the browser and by push' },
   { id: 'booking', label: 'Booking', description: 'Calendars and appointment types' },
   { id: 'voice', label: 'Voice', description: 'How the assistant sounds' },
   { id: 'advanced', label: 'Advanced', description: 'Languages, call rules, silence, keypad menu' },
 ]
 /** Sections that save on their own, outside the assistant's draft. */
-type OwnSection = 'hours' | 'notifications' | 'booking'
+type OwnSection = 'hours' | 'booking'
 /** Which draft fields each section holds. */
 const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   business: ['instructions', 'services', 'faqs', 'website'],
@@ -563,7 +561,6 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
           </>
         )}
       </fieldset>
-      {current === 'notifications' && <Notifications toast={toast} />}
       {current === 'booking' && <CalendarSettings assistant={assistant} canEdit={canEdit} toast={toast} />}
       {canEdit && <SaveBar dirty={changed} onCancel={cancel} note={note} />}
     </>
@@ -634,6 +631,8 @@ function canonicalAssistantHash(assistants: Assistant[]) {
   const id = isAssistant ? parts[0]! : assistants[0]?.id
   const section = isAssistant ? parts[1] : parts[0]
   if (!id || !section) return
+  // Notifications are your own settings now (Settings › Notifications), not the assistant's.
+  if (section === 'notifications') return history.replaceState(null, '', `#settings/notifications${query ? `?${query}` : ''}`)
   const next = OLD_SECTIONS[section] ?? section
   if (isAssistant && next === section) return
   history.replaceState(null, '', `#assistant/${id}/${next}${query ? `?${query}` : ''}`)
