@@ -1,7 +1,9 @@
-// Settings, Phone numbers: the numbers the assistant answers, how to forward a business line to
-// them, and connecting another one (attach a number from the carrier account, or buy one).
+// Settings, Phone numbers: a short list of the workspace's numbers; Manage opens one (who answers it,
+// how it is used, forwarding codes, disconnecting), Add number connects another (attach or buy).
 // Connecting runs phoneNumber.setup through the outbox; the new row arrives by sync.
-import type { PhoneNumber } from '@linedesk/db/types'
+import type { Assistant, PhoneNumber } from '@linedesk/db/types'
+
+type PhoneNumberMode = PhoneNumber['mode']
 import { useEffect, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
 import { CopyButton } from '../onboarding/Frame.tsx'
@@ -15,63 +17,80 @@ import {
   priceNote,
   type PhoneChoice,
 } from '../onboarding/flow.ts'
-import { confirmsNumber } from '@linedesk/actions'
+import { confirmsNumber, phoneNumberModes } from '@linedesk/actions'
 import { usePresence } from '../shell/presence.ts'
-import { useAssistantName, useRejection, useRows, useRun } from '../store.tsx'
-import { RadioCard } from '../ui/controls.tsx'
-import { Badge, Button, cx } from '../ui/kit.tsx'
+import { useAssistantName, useAssistants, useRejection, useRows, useRun } from '../store.tsx'
+import { RadioCard, Select, type SelectOption } from '../ui/controls.tsx'
+import { Dialog } from '../ui/form.tsx'
+import { Button, cx } from '../ui/kit.tsx'
 import { Field, Section, TextInput } from './fields.tsx'
 
 const carrierName = (provider: string | null) =>
-  provider === 'twilio' ? 'Twilio' : provider === 'telnyx' ? 'Telnyx' : null
+  provider === 'twilio' ? 'Twilio' : provider === 'telnyx' ? 'Telnyx' : provider === 'dev' ? 'Development' : null
+
+const modeOptions: SelectOption<PhoneNumberMode>[] = phoneNumberModes.map(mode => ({
+  value: mode,
+  label: numberModeLabel[mode],
+}))
 
 type Props = { canEdit: boolean; status: PhoneSetupStatus | null; isInstanceAdmin: boolean }
 
+/** The assistant that answers a number: its own, else the workspace's first. */
+const answeredBy = (number: PhoneNumber, assistants: Assistant[]) =>
+  assistants.find(a => a.id === number.assistant_id) ?? assistants[0]
+
 export function PhoneNumbers({ canEdit, status, isInstanceAdmin }: Props) {
   const numbers = useRows('phone_numbers').sort((a, b) => a.created_at.localeCompare(b.created_at))
-  const name = useAssistantName()
+  const assistants = useAssistants()
   const presence = usePresence()
   const answering = presence.kind === 'answering'
   const [adding, setAdding] = useState(false)
-  const showForm = canEdit && status?.available && (numbers.length === 0 || adding)
+  const [managing, setManaging] = useState<string | null>(null)
+  const managed = numbers.find(n => n.id === managing)
+  const canAdd = canEdit && !!status?.available
   return (
     <Section
       id="st-phone"
       title="Phone numbers"
-      description={
-        !numbers.length
-          ? `Connect a number and ${name} answers its calls.`
-          : presence.kind === 'notAnswering'
-            ? `${name} answers once the voice service is set up.`
-            : `${name} answers calls to these numbers.`
+      actions={
+        canAdd && (
+          <Button size="sm" icon="plus" onClick={() => setAdding(true)}>
+            Add number
+          </Button>
+        )
       }
     >
-      {numbers.length > 0 && (
-        <div className="st-list">
-          {numbers.map(n => (
-            <NumberRow key={n.id} number={n} canEdit={canEdit} answering={answering} />
-          ))}
-        </div>
-      )}
-      {!canEdit && numbers.length === 0 && (
-        <p className="help">No number yet. Only owners and admins can connect one.</p>
-      )}
       {canEdit && status && !status.available && (
         <Unavailable detail={status.detail} isInstanceAdmin={isInstanceAdmin} />
       )}
-      {showForm && (
-        <ConnectNumber
-          status={status}
-          onDone={() => setAdding(false)}
-          onCancel={numbers.length ? () => setAdding(false) : undefined}
-        />
+      {numbers.length > 0 ? (
+        <ul className="pn-list">
+          {numbers.map(n => (
+            <li key={n.id} className="pn-row">
+              <b className="st-mono">{formatNumber(n.e164)}</b>
+              <span className={cx('pn-status', answering && 'is-on')}>{answering ? 'Answering' : 'Not answering'}</span>
+              {assistants.length > 1 && <span className="pn-who">{answeredBy(n, assistants)?.name}</span>}
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setManaging(n.id)}
+                title={`Manage ${formatNumber(n.e164)}`}
+              >
+                Manage
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="help">{canEdit ? 'No number yet.' : 'No number yet. Only owners and admins can add one.'}</p>
       )}
-      {canEdit && status?.available && numbers.length > 0 && !adding && (
-        <div>
-          <Button size="sm" icon="plus" onClick={() => setAdding(true)}>
-            Add a number
-          </Button>
-        </div>
+      {adding && (
+        <Dialog title="Add a number" size="md" onClose={() => setAdding(false)}>
+          <ConnectNumber status={status} onDone={() => setAdding(false)} onCancel={() => setAdding(false)} />
+        </Dialog>
+      )}
+      {managed && (
+        <ManageNumber number={managed} assistants={assistants} canEdit={canEdit} onClose={() => setManaging(null)} />
       )}
     </Section>
   )
@@ -79,65 +98,90 @@ export function PhoneNumbers({ canEdit, status, isInstanceAdmin }: Props) {
 
 function Unavailable({ detail, isInstanceAdmin }: { detail: string | null; isInstanceAdmin: boolean }) {
   return (
-    <div className="st-note" role="status">
-      <b>No phone carrier on this server yet.</b>
-      <span className="help">
-        {isInstanceAdmin ? (
-          <>
-            {detail ? `${detail}. ` : ''}
-            <a className="k-link" href="#admin/providers">
-              Connect one in Admin
-            </a>
-          </>
-        ) : (
-          'Ask whoever runs your Linedesk to connect one.'
-        )}
-      </span>
-    </div>
+    <p className="help" role="status">
+      No phone carrier on this server yet.{' '}
+      {isInstanceAdmin ? (
+        <a className="k-link" href="#admin/providers" title={detail ?? undefined}>
+          Connect one in Admin
+        </a>
+      ) : (
+        'Ask whoever runs your Linedesk.'
+      )}
+    </p>
   )
 }
 
-/** "Answering" only when calls are really answered (the header's status); a checked number is "Connected". */
-function NumberStatus({ number, answering }: { number: PhoneNumber; answering: boolean }) {
-  if (answering) return <Badge dot>Answering</Badge>
-  if (number.verified_at) return <Badge>Connected</Badge>
-  return <Badge>Not tested yet</Badge>
-}
+type ManageProps = { number: PhoneNumber; assistants: Assistant[]; canEdit: boolean; onClose: () => void }
 
-function NumberRow({ number, canEdit, answering }: { number: PhoneNumber; canEdit: boolean; answering: boolean }) {
-  const forwards = number.mode === 'forward_conditional' || number.mode === 'forward_all'
-  const [open, setOpen] = useState(false)
+/** Everything about one number: how it is used, who answers it, the forwarding codes, and disconnecting it. */
+function ManageNumber({ number, assistants, canEdit, onClose }: ManageProps) {
+  const run = useRun()
   const [releasing, setReleasing] = useState(false)
+  const forwards = number.mode === 'forward_conditional' || number.mode === 'forward_all'
+  const carrier = carrierName(number.provider)
+  const who = answeredBy(number, assistants)
   return (
-    <div className="st-li st-pn">
-      <div className="st-pn-head">
-        <div className="st-pn-t">
-          <b className="st-mono">{formatNumber(number.e164)}</b>
-          <span className="help">
-            {numberModeLabel[number.mode]}
-            {carrierName(number.provider) ? ` · ${carrierName(number.provider)}` : ''}
-          </span>
-        </div>
-        <NumberStatus number={number} answering={answering} />
-        {forwards && (
-          <Button size="sm" variant="ghost" aria-expanded={open} onClick={() => setOpen(o => !o)}>
-            {open ? 'Hide forwarding' : 'Forwarding codes'}
-          </Button>
-        )}
-        {canEdit && !releasing && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setReleasing(true)}
-            title={number.purchased ? 'Release this number' : 'Disconnect this number'}
-          >
-            {number.purchased ? 'Release…' : 'Disconnect…'}
-          </Button>
-        )}
-      </div>
-      {forwards && open && <Forwarding e164={number.e164} />}
-      {releasing && <ReleaseNumber number={number} onCancel={() => setReleasing(false)} />}
-    </div>
+    <Dialog
+      title={formatNumber(number.e164)}
+      description={carrier ? `${carrier}${number.purchased ? ' · bought through Linedesk' : ''}` : undefined}
+      onClose={onClose}
+      footer={
+        !releasing && (
+          <>
+            {canEdit && (
+              <Button variant="ghost" className="k-dialog-foot-start pn-release" onClick={() => setReleasing(true)}>
+                {number.purchased ? 'Release…' : 'Disconnect…'}
+              </Button>
+            )}
+            <Button variant="primary" onClick={onClose}>
+              Done
+            </Button>
+          </>
+        )
+      }
+    >
+      {releasing ? (
+        <ReleaseNumber number={number} onCancel={() => setReleasing(false)} />
+      ) : (
+        <>
+          {assistants.length > 1 && (
+            <Field id="pn-who" label="Answered by">
+              <div>
+                <Select
+                  id="pn-who"
+                  value={who?.id ?? ''}
+                  label="Answered by"
+                  disabled={!canEdit}
+                  options={assistants.map(a => ({ value: a.id, label: a.name }))}
+                  onChange={assistantId => void run('phoneNumber.update', { phoneNumberId: number.id, assistantId })}
+                />
+              </div>
+            </Field>
+          )}
+          <Field id="pn-mode" label="How it's used">
+            <div>
+              <Select
+                id="pn-mode"
+                value={number.mode}
+                label="How it's used"
+                disabled={!canEdit}
+                options={modeOptions}
+                onChange={mode => void run('phoneNumber.update', { phoneNumberId: number.id, mode })}
+              />
+            </div>
+          </Field>
+          {forwards && (
+            <Field
+              id="pn-codes"
+              label="Forwarding codes"
+              tip="Dial a code from your business phone. Missed and busy calls then go to your assistant."
+            >
+              <Forwarding e164={number.e164} />
+            </Field>
+          )}
+        </>
+      )}
+    </Dialog>
   )
 }
 
@@ -256,7 +300,6 @@ function Forwarding({ e164 }: { e164: string }) {
         <code>{carrier.off}</code>
         <CopyButton text={carrier.off} />
       </div>
-      <span className="help">Dial it from your business phone. Missed and busy calls then go to your assistant.</span>
     </div>
   )
 }

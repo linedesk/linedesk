@@ -43,6 +43,8 @@ export const phone_numbers = pgTable(
     provider_ref: text('provider_ref'),
     /** Bought through Linedesk (phoneNumber.setup with purchase): only these are released at the carrier. */
     purchased: boolean('purchased').notNull().default(false),
+    /** The assistant that answers this number (one of the workspace's); null: the workspace's first one. */
+    assistant_id: text('assistant_id'),
     verified_at: ts('verified_at'),
     created_at: createdAt(),
     version: version(),
@@ -50,20 +52,25 @@ export const phone_numbers = pgTable(
   t => [index('phone_numbers_ws').on(t.workspace_id)],
 )
 
-export const assistants = pgTable('assistants', {
-  id: id(),
-  workspace_id: workspaceId().unique(),
-  name: text('name').notNull().default('Maya'),
-  greeting: text('greeting').notNull().default(''),
-  disclose_ai: boolean('disclose_ai').notNull().default(true),
-  record_calls: boolean('record_calls').notNull().default(true),
-  voice: jsonb('voice').$type<AssistantVoice>().notNull().default({ provider: 'elevenlabs', voice_id: '' }),
-  business_profile: jsonb('business_profile').$type<BusinessProfile>().notNull().default({}),
-  /** How to handle calls, as the owner wrote it; null: the default rules (DEFAULT_CALL_RULES in @linedesk/actions). */
-  call_rules: text('call_rules'),
-  created_at: createdAt(),
-  version: version(),
-})
+/** A workspace has one or more assistants; each phone number names the one that answers it. */
+export const assistants = pgTable(
+  'assistants',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    name: text('name').notNull().default('Maya'),
+    greeting: text('greeting').notNull().default(''),
+    disclose_ai: boolean('disclose_ai').notNull().default(true),
+    record_calls: boolean('record_calls').notNull().default(true),
+    voice: jsonb('voice').$type<AssistantVoice>().notNull().default({ provider: 'elevenlabs', voice_id: '' }),
+    business_profile: jsonb('business_profile').$type<BusinessProfile>().notNull().default({}),
+    /** How to handle calls, as the owner wrote it; null: the default rules (DEFAULT_CALL_RULES in @linedesk/actions). */
+    call_rules: text('call_rules'),
+    created_at: createdAt(),
+    version: version(),
+  },
+  t => [index('assistants_ws').on(t.workspace_id)],
+)
 
 export const contacts = pgTable(
   'contacts',
@@ -124,6 +131,8 @@ export const calls = pgTable(
     /** The recording store that holds `recording_key` (file or s3); null: recorded before stores were per call, so RECORDING_STORE names it. */
     recording_store: text('recording_store', { enum: ['file', 's3'] }),
     room: text('room'),
+    /** The assistant that answered (call.start: the number's; a test call: the one picked). */
+    assistant_id: text('assistant_id'),
     inbox_state: text('inbox_state', { enum: ['open', 'done'] })
       .notNull()
       .default('open'),
@@ -172,13 +181,17 @@ export const workspace_settings = pgTable('workspace_settings', {
 
 // A member's own new-call notifications in one workspace. null: the workspace default applies.
 // Not synced: read and written through notifications.* actions, only ever the caller's own row.
-export const member_notification_settings = pgTable('member_notification_settings', {
-  workspace_id: text('workspace_id').notNull(),
-  user_id: text('user_id').notNull(),
-  email: boolean('email'),
-  browser: boolean('browser'),
-  updated_at: ts('updated_at').notNull().defaultNow(),
-}, t => [primaryKey({ columns: [t.workspace_id, t.user_id] })])
+export const member_notification_settings = pgTable(
+  'member_notification_settings',
+  {
+    workspace_id: text('workspace_id').notNull(),
+    user_id: text('user_id').notNull(),
+    email: boolean('email'),
+    browser: boolean('browser'),
+    updated_at: ts('updated_at').notNull().defaultNow(),
+  },
+  t => [primaryKey({ columns: [t.workspace_id, t.user_id] })],
+)
 
 // Weekly working hours: wall-clock times in the workspace time zone. Several rows per weekday are allowed.
 // Hours cannot cross midnight; `24:00` is a valid end.

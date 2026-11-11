@@ -6,12 +6,13 @@ import './settings-layout.css'
 
 export type PageSection<T extends string = string> = { id: T; label: string; description?: string }
 
-/** The page's part of the hash: `#<page>/<section>`. */
+/** The page's part of the hash: `#<page>/<section>`; `page` may have a part of its own (`assistant/<id>`). */
 export const sectionHash = (page: string, section: string) => `#${page}/${section}`
 
 function sectionOf<T extends string>(page: string, sections: readonly PageSection<T>[], hash: string): T {
-  const [head, section] = hash.replace(/^#/, '').split('?')[0]!.split('/')
-  return (head === page && sections.find(s => s.id === section)?.id) || sections[0]!.id
+  const path = hash.replace(/^#/, '').split('?')[0]!
+  const section = path.startsWith(`${page}/`) ? path.slice(page.length + 1) : ''
+  return sections.find(s => s.id === section)?.id || sections[0]!.id
 }
 
 /** The section the hash names; the first one when it names none (or one that does not exist). */
@@ -29,6 +30,8 @@ type Props<T extends string> = {
   page: string
   title: string
   description?: ReactNode
+  /** In place of the description: something the page heads itself with (the assistant's name and switcher). */
+  heading?: ReactNode
   /** At the right of the title, in every section (e.g. Start test call). */
   actions?: ReactNode
   sections: readonly PageSection<T>[]
@@ -41,7 +44,7 @@ type Props<T extends string> = {
 }
 
 export function SettingsLayout<T extends string>(props: Props<T>) {
-  const { page, title, description, actions, sections, current, unsaved, banner, children } = props
+  const { page, title, description, heading, actions, sections, current, unsaved, banner, children } = props
   const nav = useRef<HTMLElement>(null)
   // On a phone the nav is a row that scrolls sideways: keep the open section in view.
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs again whenever another section opens
@@ -55,6 +58,7 @@ export function SettingsLayout<T extends string>(props: Props<T>) {
       <div className="page-head sl-head">
         <div>
           <h1>{title}</h1>
+          {heading}
           {description && <p>{description}</p>}
         </div>
         {actions && <div className="sl-actions">{actions}</div>}

@@ -31,12 +31,12 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
  */
 export type CallOrigin =
   | { kind: 'phone'; from: string; to: string; room?: string }
-  | { kind: 'test'; workspaceId: string; room: string; businessHours?: BusinessHours }
+  | { kind: 'test'; workspaceId: string; room: string; assistantId?: string; businessHours?: BusinessHours }
 
 export async function startCall(api: ApiClient, origin: CallOrigin): Promise<CallSession> {
   const { data } = origin.kind === 'phone'
     ? await api.run(callStart, { from: origin.from, to: origin.to, room: origin.room })
-    : await api.run(callStartTest, { room: origin.room }, origin.workspaceId)
+    : await api.run(callStartTest, { room: origin.room, ...(origin.assistantId ? { assistantId: origin.assistantId } : {}) }, origin.workspaceId)
   const started = data as StartData
   const { callId, workspaceId, assistant, contact, blocked = false } = started
   const businessHours = (origin.kind === 'test' && origin.businessHours) || started.businessHours || null
@@ -53,28 +53,36 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
 }
 
 /**
- * Where the call comes from. A test room from the web app carries `{ source: 'test', workspaceId }`
+ * Where the call comes from. A test room from the web app carries `{ source: 'test', workspaceId, assistantId? }`
  * in the job metadata the API signed into the browser's token; anything else is a phone call, with
  * caller and dialled number in the attributes LiveKit SIP sets (the talk page sets the same ones).
  */
 export function callOrigin(jobMetadata: string, attributes: Record<string, string>, room: string): CallOrigin {
   const test = parseTestMetadata(jobMetadata)
-  if (test) return { kind: 'test', workspaceId: test.workspaceId, room, ...(test.businessHours ? { businessHours: test.businessHours } : {}) }
+  if (test)
+    return {
+      kind: 'test',
+      workspaceId: test.workspaceId,
+      room,
+      ...(test.assistantId ? { assistantId: test.assistantId } : {}),
+      ...(test.businessHours ? { businessHours: test.businessHours } : {}),
+    }
   const from = attributes['sip.phoneNumber']
   const to = attributes['sip.trunkPhoneNumber']
   if (!from || !to) throw new Error('participant has no sip.phoneNumber / sip.trunkPhoneNumber attributes')
   return { kind: 'phone', from, to, room }
 }
 
-/** The workspace of a test room the API signed, or null for any other room. */
-export function parseTestMetadata(metadata: string): { workspaceId: string; businessHours?: BusinessHours } | null {
+/** The workspace (and the assistant picked in the web app) of a test room the API signed, or null for any other room. */
+export function parseTestMetadata(metadata: string): { workspaceId: string; assistantId?: string; businessHours?: BusinessHours } | null {
   if (!metadata) return null
   try {
-    const parsed = JSON.parse(metadata) as { source?: unknown; workspaceId?: unknown; businessHours?: unknown }
+    const parsed = JSON.parse(metadata) as { source?: unknown; workspaceId?: unknown; assistantId?: unknown; businessHours?: unknown }
     if (parsed.source !== 'test' || typeof parsed.workspaceId !== 'string' || !parsed.workspaceId) return null
     const hours = parsed.businessHours as Partial<BusinessHours> | undefined
     const businessHours = hours && typeof hours.openNow === 'boolean' && typeof hours.summary === 'string' ? { openNow: hours.openNow, summary: hours.summary } : undefined
-    return { workspaceId: parsed.workspaceId, ...(businessHours ? { businessHours } : {}) }
+    const assistantId = typeof parsed.assistantId === 'string' && parsed.assistantId ? parsed.assistantId : undefined
+    return { workspaceId: parsed.workspaceId, ...(assistantId ? { assistantId } : {}), ...(businessHours ? { businessHours } : {}) }
   } catch {
     return null
   }

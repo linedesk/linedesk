@@ -2,12 +2,14 @@
 import { actions, confirmsNumber, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type FindSlotsData } from '@linedesk/actions'
 import { businessHoursContext, type BusinessHoursContext, findSlots, type FindSlotsInput, type Interval } from '@linedesk/calendar'
 import {
-  appointment_types, assistants, availability_exceptions, availability_rules, bookings, calls, contacts, organization, phone_numbers, syncedTables,
+  appointment_types, availability_exceptions, availability_rules, bookings, calls, contacts, organization, phone_numbers, syncedTables,
   transcript_segments, workspace_settings, type Tx,
 } from '@linedesk/db'
+import type { Assistant } from '@linedesk/db/types'
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { and, asc, desc, eq, gt, gte, lt, lte, ne } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
+import { assistantForNumber, assistantHandlers, assistantIn } from './assistants.ts'
 import { calendarConnectionHandlers } from './calendar-connections.ts'
 import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
@@ -137,14 +139,14 @@ async function businessHoursFor(tx: Tx, workspace_id: string, now: string): Prom
   }
 }
 
-type OpenCall = { from: string; to: string; room?: string; source?: 'phone' | 'test'; label: string }
+type OpenCall = { from: string; to: string; room?: string; source?: 'phone' | 'test'; label: string; assistant: Assistant | null }
 
 /**
  * Registers a live call in a workspace: finds or creates the caller and opens the call. On the path to
  * the greeting, so it does nothing else: stale calls and unreported recordings are the API's minute
  * sweeps (stale-calls.ts, orphan-recordings.ts).
  */
-async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_id: string, { from, to, room, source = 'phone', label }: OpenCall) {
+async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_id: string, { from, to, room, source = 'phone', label, assistant }: OpenCall) {
   const [workspace] = await tx.select({ disabledAt: organization.disabledAt }).from(organization).where(eq(organization.id, workspace_id))
   // A phone number always has its workspace; a test call names it, so it has to exist.
   if (!workspace && source === 'test') throw new Reject('no such workspace')
@@ -162,9 +164,9 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   const blocked = source === 'phone' && !!contact!.blocked_at
   const [call] = await tx.insert(calls).values({
     id, workspace_id, contact_id: contact!.id, from_number: from, to_number: to, source, started_at: now, room: room ?? id,
+    assistant_id: assistant?.id ?? null,
     ...(blocked ? blockedCall(now) : {}),
   }).returning()
-  const [assistant] = await tx.select().from(assistants).where(eq(assistants.workspace_id, workspace_id))
   const businessHours = await businessHoursFor(tx, workspace_id, now)
   return { rows: { calls: [call!], contacts: [contact!] }, data: { callId: id, workspaceId: workspace_id, isNewContact, contact: contact!, assistant: assistant ?? null, blocked, businessHours } }
 }
@@ -177,6 +179,7 @@ const blockedCall = (now: string) => ({
 
 const handlers: Record<string, Handler> = {
   ...adminHandlers,
+  ...assistantHandlers,
   ...impersonationHandlers,
   ...teamHandlers,
   ...workspaceSettingsHandlers,
@@ -221,13 +224,18 @@ const handlers: Record<string, Handler> = {
   'call.start': async ({ tx, now }, input) => {
     const [number] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, input.to))
     if (!number) throw new Reject(`no workspace for number ${input.to}`)
-    return openCall({ tx, now }, number.workspace_id, { from: input.from, to: input.to, room: input.room, label: input.to })
+    const assistant = await assistantForNumber(tx, number.workspace_id, number.assistant_id)
+    return openCall({ tx, now }, number.workspace_id, { from: input.from, to: input.to, room: input.room, label: input.to, assistant })
   },
 
   // The agent only knows the workspace from the dispatch the API signed (assistant.startTestCall).
   'call.startTest': async ({ tx, actor, now }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace (send x-workspace-id)')
-    return openCall({ tx, now }, actor.workspaceId, { from: testCallContact.phone, to: testCallContact.phone, room: input.room, source: 'test', label: 'this test call' })
+    // The assistant comes from the signed dispatch; it must still be one of this workspace's.
+    const [workspace] = await tx.select({ id: organization.id }).from(organization).where(eq(organization.id, actor.workspaceId))
+    if (!workspace) throw new Reject('no such workspace')
+    const assistant = await assistantIn(tx, actor.workspaceId, input.assistantId)
+    return openCall({ tx, now }, actor.workspaceId, { from: testCallContact.phone, to: testCallContact.phone, room: input.room, source: 'test', label: 'this test call', assistant })
   },
 
   'call.findForTest': async ({ tx }, input) => {
@@ -255,7 +263,12 @@ const handlers: Record<string, Handler> = {
     return { rows: {}, data }
   },
 
-  'assistant.startTestCall': async ({ actor }) => ({ rows: {}, data: startTestCall(actor) }),
+  'assistant.startTestCall': async ({ tx, actor }, input) => {
+    if (!actor.workspaceId) throw new Reject('no workspace')
+    // Only an assistant of the caller's own workspace goes into the signed dispatch.
+    const assistant = input.assistantId ? await assistantIn(tx, actor.workspaceId, input.assistantId) : null
+    return { rows: {}, data: startTestCall(actor, assistant?.id) }
+  },
 
   'call.appendTranscript': async ({ tx, actor }, input) => {
     const call = await loadCall(tx, actor, input.callId)
@@ -326,9 +339,12 @@ const handlers: Record<string, Handler> = {
     const number = existing ?? (await atCarrier(() => provider.buyNumber(e164)))
     if (!existing) onRollback?.(releaseBought(provider, number))
 
+    // Checked before the carrier is asked to route anything.
+    const assistant = await assistantIn(tx, workspace_id, input.assistantId)
     await atCarrier(() => provider.routeToSip(number, sipEndpoint))
     const rows = await tx.insert(phone_numbers).values({
       id: newId('pn'), workspace_id, e164, provider: provider.name, provider_ref: number.providerRef,
+      assistant_id: assistant?.id ?? null,
       // A bought number is the business's new number; an attached one is taken as a forwarding
       // target, the product's default, and counts as verified only after a test call.
       mode: input.mode ?? (existing ? 'forward_conditional' : 'new'),

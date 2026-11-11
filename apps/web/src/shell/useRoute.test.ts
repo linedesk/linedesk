@@ -18,6 +18,7 @@ describe('route parsing', () => {
     expect(parseHash('#admin/users/u1')).toEqual({ ...list, route: 'admin' })
     expect(parseHash('#assistant/hours')).toEqual({ ...list, route: 'assistant' })
     expect(parseHash('#settings/recordings')).toEqual({ ...list, route: 'settings' })
+    expect(parseHash('#assistant/as_123abc/hours')).toEqual({ ...list, route: 'assistant' })
   })
   it('keeps the inbox view while a call or another page is open', () => {
     const last = { tab: 'done', search: 'leak' } as const
@@ -26,7 +27,7 @@ describe('route parsing', () => {
     expect(parseHash('#calls/spam', last)).toMatchObject({ tab: 'spam', search: null })
   })
   it('marks unknown and inherited names as unknown and shows the inbox', () => {
-    for (const hash of ['#nope', '#bogus/route', '#toString', '#constructor', '#__proto__', '#call/', '#calls/nope', '#calls/done/extra', '#team/members', '#assistant/hours/x', '#assistant/Hours']) {
+    for (const hash of ['#nope', '#bogus/route', '#toString', '#constructor', '#__proto__', '#call/', '#calls/nope', '#calls/done/extra', '#team/members', '#assistant/a/b/c', '#assistant/h%20x']) {
       expect(parseHash(hash)).toEqual({ ...list, known: false })
     }
   })

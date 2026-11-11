@@ -32,3 +32,23 @@ test('a test room may bring business hours to use instead of the workspace\'s; a
   expect((await startCall(api(fromApi), { kind: 'test', workspaceId: 'ws_1', room: 'room' })).businessHours).toEqual(fromApi)
   expect((await startCall(api(undefined), { kind: 'test', workspaceId: 'ws_1', room: 'room' })).businessHours).toBeNull()
 })
+
+test('a test room names the assistant picked in the web app, and call.startTest gets it', async () => {
+  const origin = callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', assistantId: 'as_2' }), {}, 'room')
+  expect(origin).toEqual({ kind: 'test', workspaceId: 'ws_1', room: 'room', assistantId: 'as_2' })
+  expect(callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', assistantId: 7 }), {}, 'room')).toEqual({
+    kind: 'test',
+    workspaceId: 'ws_1',
+    room: 'room',
+  })
+  const sent: unknown[] = []
+  const api = {
+    run: async (_def: unknown, input: unknown) => {
+      sent.push(input)
+      return { data: { callId: 'c', workspaceId: 'ws_1', assistant: null, contact: {} } }
+    },
+  } as never
+  await startCall(api, origin)
+  await startCall(api, { kind: 'test', workspaceId: 'ws_1', room: 'other' })
+  expect(sent).toEqual([{ room: 'room', assistantId: 'as_2' }, { room: 'other' }])
+})

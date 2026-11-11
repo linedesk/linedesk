@@ -13,7 +13,7 @@ import {
   workspace_settings,
 } from '@linedesk/db'
 import type { Call } from '@linedesk/db/types'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 import type { Email, EmailSender } from './email.ts'
 
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
@@ -82,10 +82,13 @@ export async function notifyCallFinished(tx: Tx, sender: EmailSender, callId: st
   if (call.source === 'test') return { sent: 0, failed: 0, skipped: 'test' }
   if (call.outcome === 'spam') return { sent: 0, failed: 0, skipped: 'spam' }
   const [contact] = call.contact_id ? await tx.select().from(contacts).where(eq(contacts.id, call.contact_id)) : []
+  // The assistant that answered; an older call (or a deleted assistant): the workspace's first.
   const [assistant] = await tx
     .select({ name: assistants.name })
     .from(assistants)
     .where(eq(assistants.workspace_id, call.workspace_id))
+    .orderBy(sql`${assistants.id} = ${call.assistant_id ?? ''} desc`, asc(assistants.created_at))
+    .limit(1)
   const [settings] = await tx
     .select({ timezone: workspace_settings.timezone })
     .from(workspace_settings)

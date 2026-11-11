@@ -14,12 +14,12 @@ import { TEST_CALL_TIMEOUT_MS, TimedOut, testCallErrorText, within } from './tes
 type Phase = 'idle' | 'starting' | 'live' | 'ended'
 
 /** Signs the token through the registry. A read-only action: it is not queued in the outbox. */
-async function requestTestCall(): Promise<TestCallData> {
+async function requestTestCall(assistantId?: string): Promise<TestCallData> {
   const res = await fetch('/v1/actions/assistant.startTestCall', {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
-    body: '{}',
+    body: JSON.stringify(assistantId ? { assistantId } : {}),
   })
   const body = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; data?: TestCallData } | null
   if (!res.ok || !body?.ok || !body.data) throw new Error(testCallErrorText(body?.error ?? ''))
@@ -51,9 +51,10 @@ function useRoomCall(room: string | null) {
   return { call, lines, notSetUp }
 }
 
-/** One test call: its phase, what went wrong, the call as it syncs in, and the controls. */
-export function useTestCall(canStart: boolean) {
-  const name = useAssistantName()
+/** One test call with an assistant (default: the workspace's first): its phase, what went wrong, the call as it syncs in, and the controls. */
+export function useTestCall(canStart: boolean, assistant?: { id: string; name: string }) {
+  const defaultName = useAssistantName()
+  const name = assistant?.name ?? defaultName
   const [phase, setPhase] = useState<Phase>('idle')
   const [problem, setProblem] = useState<string | null>(null)
   const [roomName, setRoomName] = useState<string | null>(null)
@@ -102,7 +103,7 @@ export function useTestCall(canStart: boolean) {
     try {
       const joined = await within(
         (async () => {
-          const { url, token, room: joined } = await requestTestCall()
+          const { url, token, room: joined } = await requestTestCall(assistant?.id)
           next.on(RoomEvent.TrackSubscribed, track => {
             if (track.kind === Track.Kind.Audio) audio.current?.append(track.attach())
           })

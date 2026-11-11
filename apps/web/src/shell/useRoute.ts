@@ -27,9 +27,10 @@ export function parseHash(hash: string, last: InboxPlace = HOME): Location {
   const [path = '', query] = hash.replace(/^#/, '').split('?')
   if (path.startsWith(CALL_PREFIX) && path.length > CALL_PREFIX.length) return { ...last, route: 'calls', callId: path.slice(CALL_PREFIX.length), known: true }
   if (isPageRoute(path)) return { ...last, route: path, callId: null, known: true }
-  // A section of a page (`#assistant/hours`): the page reads which one (ui/SettingsLayout.tsx).
-  const [page = '', section, ...deeper] = path.split('/')
-  if (isPageRoute(page) && hasSections(page) && section && /^[a-z-]+$/.test(section) && !deeper.length)
+  // A section of a page (`#settings/recordings`), or of one of several things on it
+  // (`#assistant/<assistant id>/hours`): the page reads which (ui/SettingsLayout.tsx).
+  const [page = '', ...parts] = path.split('/')
+  if (isPageRoute(page) && hasSections(page) && parts.length >= 1 && parts.length <= 2 && parts.every(p => /^[A-Za-z0-9_-]+$/.test(p)))
     return { ...last, route: page, callId: null, known: true }
   // Admin mode has sections of its own (`#admin/users/<id>`); admin/route.ts reads them.
   if (path.startsWith('admin/')) return { ...last, route: 'admin', callId: null, known: true }

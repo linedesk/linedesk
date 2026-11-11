@@ -908,6 +908,66 @@ a.k-btn {
 .st-connect .auth-error {
   margin: 0;
 }
+/* Settings, Phone numbers: one row per number, Manage opens the rest. */
+.pn-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pn-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 16px;
+  min-height: 48px;
+  border-top: 1px solid var(--line);
+}
+.pn-row:first-child {
+  border-top: 0;
+}
+.pn-row b {
+  font-weight: 500;
+}
+.pn-status,
+.pn-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.pn-status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--ink-disabled);
+}
+.pn-status.is-on {
+  color: var(--ink);
+}
+.pn-status.is-on::before {
+  background: var(--live-dot, var(--ink));
+}
+.pn-release {
+  color: var(--danger);
+}
+.pn-release:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+@media (max-width: 559px) {
+  .pn-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 12px;
+    padding: 8px 0;
+  }
+  .pn-row .k-btn {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+  }
+}
 .st-connect-foot {
   display: flex;
   justify-content: flex-end;

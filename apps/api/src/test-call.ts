@@ -18,16 +18,17 @@ const allowTestCall = createRateLimiter({ max: 6, windowMs: 10 * 60_000 })
 type Env = Record<string, string | undefined>
 
 /** What the agent reads from the job metadata of a test room (apps/agent/src/worker.ts). */
-export type TestCallMetadata = { source: 'test'; workspaceId: string }
+export type TestCallMetadata = { source: 'test'; workspaceId: string; assistantId?: string }
 
-export function startTestCall(actor: Actor, env: Env = process.env, nowMs = Date.now()): TestCallData {
+/** `assistantId` must already be checked to be one of the actor's workspace's (the handler does). */
+export function startTestCall(actor: Actor, assistantId?: string, env: Env = process.env, nowMs = Date.now()): TestCallData {
   if (!actor.workspaceId) throw new Reject('no workspace')
   const { LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET } = env
   if (!LIVEKIT_URL || !LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) throw new Reject('test calls are not set up: LiveKit is not configured on the server')
   if (!allowTestCall(`${actor.workspaceId}:${actor.actorId}`, nowMs)) throw new Reject('Too many test calls in a short time. Try again in a few minutes.')
 
   const room = `test-${crypto.randomUUID().replaceAll('-', '').slice(0, 16)}`
-  const metadata: TestCallMetadata = { source: 'test', workspaceId: actor.workspaceId }
+  const metadata: TestCallMetadata = { source: 'test', workspaceId: actor.workspaceId, ...(assistantId ? { assistantId } : {}) }
   const nowSec = Math.floor(nowMs / 1000)
   const token = livekitToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
     video: { roomJoin: true, room, canPublish: true, canPublishSources: ['microphone'], canSubscribe: true, canPublishData: false },

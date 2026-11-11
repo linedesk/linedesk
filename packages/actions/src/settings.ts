@@ -100,6 +100,28 @@ export const assistantUpdate = defineAction({
   patch: { table: 'assistants', id: i => i.assistantId, set: ({ assistantId: _id, ...rest }) => defined(rest) },
 })
 
+/** A workspace can have several assistants; each phone number names the one that answers it. */
+export const assistantCreate = defineAction({
+  name: 'assistant.create',
+  description:
+    'Add an assistant to the workspace, with a fresh name and greeting and the default call rules. With `copyOf`, a copy of that assistant of the workspace (its greeting, instructions, rules and voice). Numbers keep their assistant: assign one with phoneNumber.update.',
+  input: z.object({
+    name: z.string().trim().min(1).max(60).optional(),
+    copyOf: z.string().min(1).optional(),
+  }),
+  permission: 'settings:write',
+})
+/** `data` of `assistant.create`. */
+export type AssistantCreateData = { assistantId: string }
+
+export const assistantDelete = defineAction({
+  name: 'assistant.delete',
+  description:
+    "Delete an assistant of the workspace. Its phone numbers are answered by the workspace's first remaining assistant. The last assistant cannot be deleted.",
+  input: z.object({ assistantId: z.string().min(1) }),
+  permission: 'settings:write',
+})
+
 /** How long recordings may be kept; null keeps them until the call is deleted. */
 export const recordingRetentionChoices = [30, 60, 90, 180, 365] as const
 export const DEFAULT_RECORDING_RETENTION_DAYS = 90
@@ -163,11 +185,27 @@ export const phoneNumberSetup = defineAction({
       purchase: z.boolean().default(false),
       /** How the business uses the number. Default: `new` for a bought number, `forward_conditional` for an attached one. */
       mode: z.enum(phoneNumberModes).optional(),
+      /** The assistant that answers it (one of the workspace's). Default: the workspace's first. */
+      assistantId: z.string().min(1).optional(),
     })
     .refine(i => i.e164 || i.areaCode, { message: 'give a number (e164) or an area code' })
     .refine(i => i.e164 || i.purchase, {
       message: 'an area code alone means buying a number: pass purchase: true, or give the number (e164) to attach',
     }),
+  permission: 'settings:write',
+})
+
+export const phoneNumberUpdate = defineAction({
+  name: 'phoneNumber.update',
+  description:
+    'Change how a connected phone number is used: `mode` (forward_conditional, forward_all, new or ported) and `assistantId`, the assistant of the workspace that answers it.',
+  input: z
+    .object({
+      phoneNumberId: z.string().min(1),
+      mode: z.enum(phoneNumberModes).optional(),
+      assistantId: z.string().min(1).optional(),
+    })
+    .refine(i => i.mode || i.assistantId, { message: 'give a mode or an assistantId' }),
   permission: 'settings:write',
 })
 
@@ -195,7 +233,8 @@ export const assistantStartTestCall = defineAction({
   name: 'assistant.startTestCall',
   description:
     'Start a test call with the assistant in the browser: returns a short-lived LiveKit token for a new room the assistant joins.',
-  input: z.object({}),
+  /** The assistant to talk to (one of the workspace's); default: the workspace's first. */
+  input: z.object({ assistantId: z.string().min(1).optional() }),
   permission: 'settings:write',
   readOnly: true,
 })

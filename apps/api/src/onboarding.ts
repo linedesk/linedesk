@@ -58,10 +58,9 @@ export async function ensureWorkspaceRows(
   timeZone: unknown,
   onboardingStep?: OnboardingStep,
 ) {
-  await db
-    .insert(assistants)
-    .values(newAssistant(workspaceId, businessName))
-    .onConflictDoNothing({ target: assistants.workspace_id })
+  // A workspace has at least one assistant; one that has some keeps them.
+  const [any] = await db.select({ id: assistants.id }).from(assistants).where(eq(assistants.workspace_id, workspaceId)).limit(1)
+  if (!any) await db.insert(assistants).values(newAssistant(workspaceId, businessName))
   const settings = {
     ...newWorkspaceSettings(workspaceId, timeZone),
     ...(onboardingStep ? { onboarding_step: onboardingStep } : {}),

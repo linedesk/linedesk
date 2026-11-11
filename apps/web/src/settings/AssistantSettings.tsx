@@ -3,10 +3,10 @@
 // draft: Save runs assistant.update and businessHours.set through the outbox; a section with unsaved
 // changes keeps a dot in the nav while you look at another one.
 import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX } from '@linedesk/actions'
-import type { Assistant } from '@linedesk/db/types'
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import type { Assistant, PhoneNumber } from '@linedesk/db/types'
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
-import { useAssistant, useRun } from '../store.tsx'
+import { useAssistants, useRows, useRun } from '../store.tsx'
 import { onSaveKey, SaveBar } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 import { type PageSection, SettingsLayout, sectionHash, useSection } from '../ui/SettingsLayout.tsx'
@@ -27,8 +27,9 @@ import {
   withDisclosure,
   withoutDisclosure,
 } from './assistantDraft.ts'
+import { AssistantHeader } from './AssistantHeader.tsx'
 import { BusinessHours, useBusinessHours } from './BusinessHours.tsx'
-import { Field, Section, SwitchRow, TextArea, TextInput } from './fields.tsx'
+import { Field, Section, SwitchRow, TextArea } from './fields.tsx'
 import { TestCallBar, TestCallButton, useTestCall } from './TestCall.tsx'
 
 type SectionId = 'greeting' | 'instructions' | 'rules' | 'hours'
@@ -49,8 +50,8 @@ type SectionProps = { draft: Draft; set: <K extends keyof Draft>(key: K, value: 
 
 const count = (n: number) => n.toLocaleString('en-US')
 
-function Greeting({ draft, set, savedName }: SectionProps & { savedName: string }) {
-  const stale = staleGreetingName(draft.greeting, savedName, draft.name)
+function Greeting({ draft, set, renamedFrom }: SectionProps & { renamedFrom: string | null }) {
+  const stale = renamedFrom ? staleGreetingName(draft.greeting, renamedFrom, draft.name) : null
   /** The switch and the greeting say the same thing: turning it on or off adds or removes the disclosure. */
   function disclose(on: boolean) {
     set('disclose_ai', on)
@@ -58,9 +59,6 @@ function Greeting({ draft, set, savedName }: SectionProps & { savedName: string 
   }
   return (
     <Section id="as-greeting" title="Greeting" description="The first sentence of every call.">
-      <Field id="as-name" label="Assistant name" error={draft.name.trim() ? null : 'Enter a name. Callers hear it.'}>
-        <TextInput id="as-name" value={draft.name} onChange={v => set('name', v)} invalid={!draft.name.trim()} />
-      </Field>
       <Field id="as-greet" label="Greeting" error={draft.greeting.trim() ? null : 'The greeting cannot be empty.'}>
         <TextArea
           id="as-greet"
@@ -150,10 +148,19 @@ function CallRules({ draft, set }: SectionProps) {
 
 type Props = { canEdit: boolean; toast: (text: string) => void }
 
-function Form({ assistant, canEdit, toast }: Props & { assistant: Assistant }) {
+type FormProps = Props & {
+  assistant: Assistant
+  assistants: Assistant[]
+  numbers: PhoneNumber[]
+  onPick: (id: string) => void
+}
+
+function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormProps) {
   const run = useRun()
-  const current = useSection('assistant', sections)
-  const testCall = useTestCall(canEdit)
+  const page = `assistant/${assistant.id}`
+  const current = useSection(page, sections)
+  const testCall = useTestCall(canEdit, assistant)
+  const [renamedFrom, setRenamedFrom] = useState<string | null>(null)
   const savedJson = JSON.stringify(draftOf(assistant))
   const saved = useMemo(() => JSON.parse(savedJson) as Draft, [savedJson])
   const [draft, setDraft] = useState(() => keptDraft(assistant.id) ?? saved) // an edit left unsaved earlier comes back
@@ -182,22 +189,21 @@ function Form({ assistant, canEdit, toast }: Props & { assistant: Assistant }) {
 
   /** Shows the section a field is in, then puts the cursor there. */
   function goTo(section: SectionId, field: string) {
-    if (section !== current) window.location.hash = sectionHash('assistant', section)
+    if (section !== current) window.location.hash = sectionHash(page, section)
     setTimeout(() => document.getElementById(field)?.focus(), 0)
   }
 
   function save(e: FormEvent) {
     e.preventDefault()
-    // Name and greeting show their error under the field: go there instead of a toast that outlives the fix.
-    if (!draft.name.trim()) return goTo('greeting', 'as-name')
+    // The greeting shows its error under the field: go there instead of a toast that outlives the fix.
     if (!draft.greeting.trim()) return goTo('greeting', 'as-greet')
     const problem = draftProblem(draft) ?? hours.problem
     if (problem) return toast(problem)
     if (dirty) {
       const clean = normalized(draft)
+      // The name is renamed in place (AssistantHeader), not with Save.
       void run('assistant.update', {
         assistantId: assistant.id,
-        name: clean.name,
         greeting: clean.greeting,
         disclose_ai: clean.disclose_ai,
         business_profile: profileOf(clean),
@@ -221,13 +227,20 @@ function Form({ assistant, canEdit, toast }: Props & { assistant: Assistant }) {
   return (
     <form onSubmit={save} onKeyDown={e => onSaveKey(e, canEdit && changed)}>
       <SettingsLayout
-        page="assistant"
+        page={page}
         title="Assistant"
-        description={
-          canEdit
-            ? `How ${draft.name.trim() || 'your assistant'} answers your phone.`
-            : 'Only owners and admins can change these.'
+        heading={
+          <AssistantHeader
+            assistant={assistant}
+            assistants={assistants}
+            numbers={numbers}
+            canEdit={canEdit}
+            onPick={onPick}
+            onRenamed={setRenamedFrom}
+            toast={toast}
+          />
         }
+        description={canEdit ? undefined : 'Only owners and admins can change these.'}
         actions={<TestCallButton session={testCall} />}
         banner={<TestCallBar session={testCall} />}
         sections={sections}
@@ -235,7 +248,7 @@ function Form({ assistant, canEdit, toast }: Props & { assistant: Assistant }) {
         unsaved={unsaved}
       >
         <fieldset className="st-fields" disabled={!canEdit}>
-          {current === 'greeting' && <Greeting draft={draft} set={set} savedName={saved.name} />}
+          {current === 'greeting' && <Greeting draft={draft} set={set} renamedFrom={renamedFrom} />}
           {current === 'instructions' && <Instructions draft={draft} set={set} />}
           {current === 'rules' && <CallRules draft={draft} set={set} />}
           {current === 'hours' && (
@@ -248,12 +261,36 @@ function Form({ assistant, canEdit, toast }: Props & { assistant: Assistant }) {
   )
 }
 
+/** The assistant the hash names (`#assistant/<id>/<section>`), else the workspace's first. */
+function assistantInHash(assistants: Assistant[]): Assistant | undefined {
+  const [, id] = window.location.hash.replace(/^#/, '').split('?')[0]!.split('/')
+  return assistants.find(a => a.id === id) ?? assistants[0]
+}
+
 export function AssistantSettings(props: Props) {
-  const assistant = useAssistant()
+  const assistants = useAssistants()
+  const numbers = useRows('phone_numbers').sort((a, b) => a.created_at.localeCompare(b.created_at))
+  const [, rerender] = useState(0)
+  useEffect(() => {
+    const onHash = () => rerender(n => n + 1)
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+  const assistant = assistantInHash(assistants)
+  const onPick = useCallback((id: string) => {
+    window.location.hash = `#assistant/${id}/greeting`
+  }, [])
   return (
     <div className="page">
       {assistant ? (
-        <Form assistant={assistant} {...props} />
+        <Form
+          key={assistant.id}
+          assistant={assistant}
+          assistants={assistants}
+          numbers={numbers}
+          onPick={onPick}
+          {...props}
+        />
       ) : (
         <div className="empty">
           <b>No assistant yet</b>

@@ -3,7 +3,7 @@
 .sl-page {
   max-width: 1000px;
 }
-.sl-head {
+.page-head.sl-head {
   align-items: flex-start;
 }
 .sl-actions {

@@ -96,8 +96,8 @@ export const testCallContact = { phone: 'test', name: 'Test call' } as const
 export const callStartTest = defineAction({
   name: 'call.startTest',
   description:
-    "Register a test call a member started from the web app. The workspace is the agent's x-workspace-id, taken from the dispatch the API created.",
-  input: z.object({ room: z.string().min(1).max(128) }),
+    "Register a test call a member started from the web app. The workspace is the agent's x-workspace-id and the assistant `assistantId`, both taken from the dispatch the API signed; an assistant of another workspace is refused.",
+  input: z.object({ room: z.string().min(1).max(128), assistantId: z.string().min(1).optional() }),
   permission: 'agent',
 })
 /** For the phone-to-phone call test: the newest call from `from` to `to` since a moment, and how far it got. */

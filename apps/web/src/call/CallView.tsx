@@ -1,7 +1,7 @@
 import type { Call, TranscriptSegment } from '@linedesk/db/types'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { answeredByLabel, type CallStatus, callStatus, callTitle, formatPhone, hasReminder, STATUS_WORD } from '../inbox-model.ts'
-import { useAssistantName, useContact } from '../store.tsx'
+import { useCallAssistantName, useContact } from '../store.tsx'
 import { clock, dateTimeLabel, longDuration, parseTs, whenLabel } from '../time.ts'
 import { Button, Icon } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
@@ -167,7 +167,7 @@ function Bar({ call, index, count, menu, sideOpen, onToggleSide, ...on }: BarPro
 }
 
 function Header({ call, segments, repeatCount }: { call: Call; segments: TranscriptSegment[]; repeatCount: number }) {
-  const assistant = useAssistantName()
+  const assistant = useCallAssistantName(call.assistant_id)
   const contact = useContact(call.contact_id)
   const started = parseTs(call.started_at)
   const live = call.status === 'live'
@@ -251,7 +251,7 @@ function useFollowLive(live: boolean, segmentCount: number) {
 export function CallView({ call, segments, search, side, repeatCount = 1, ...bar }: Props) {
   const [sideOpen, setSideOpen] = useState(false)
   useEffect(() => registerContactPanel(() => setSideOpen(open => !open)), [])
-  const assistant = useAssistantName()
+  const assistant = useCallAssistantName(call.assistant_id)
   const contact = useContact(call.contact_id)
   const live = call.status === 'live'
   const { ref: scrollRef, onScroll } = useFollowLive(live, segments.length)

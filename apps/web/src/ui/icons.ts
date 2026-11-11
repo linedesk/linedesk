@@ -51,6 +51,9 @@ export const icons = {
   // micOff, close, eye, eyeOff, help and disk follow Lucide (mic-off, x, eye, eye-off, circle-help, hard-drive; ISC license).
   micOff: [['path',{d:'M2 2l20 20M18.9 13.4A7 7 0 0 0 19 12v-1M15 9.3V5a3 3 0 0 0-5.7-1.3M9 9v3a3 3 0 0 0 5.1 2.1M16.9 16.9A7 7 0 0 1 5 12v-1M12 19v3'}]],
   server: [['rect',{x:2,y:2,width:20,height:8,rx:2}],['rect',{x:2,y:14,width:20,height:8,rx:2}],['path',{d:'M6 6h.01M6 18h.01'}]],
+  // pencil and copy follow Lucide (pencil, copy; ISC license).
+  pencil: [['path',{d:'M21.2 6.8a2.8 2.8 0 0 0-4-4L3.8 16.2a2 2 0 0 0-.5.8l-1.3 4.4a.5.5 0 0 0 .6.6l4.4-1.3a2 2 0 0 0 .8-.5zM15 5l4 4'}]],
+  copy: [['rect',{x:8,y:8,width:14,height:14,rx:2}],['path',{d:'M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2'}]],
   close: [['path',{d:'M18 6 6 18M6 6l12 12'}]],
   eye: [['path',{d:'M2.1 12.3a1 1 0 0 1 0-.6 10.8 10.8 0 0 1 19.8 0 1 1 0 0 1 0 .6 10.8 10.8 0 0 1-19.8 0'}],['circle',{cx:12,cy:12,r:3}]],
   eyeOff: [['path',{d:'M10.7 5.1a10.8 10.8 0 0 1 11.2 6.6 1 1 0 0 1 0 .7 10.7 10.7 0 0 1-1.4 2.5M14.1 14.2a3 3 0 0 1-4.2-4.2M17.5 17.5a10.8 10.8 0 0 1-15.4-5.1 1 1 0 0 1 0-.7 10.8 10.8 0 0 1 4.4-5.2M2 2l20 20'}]],

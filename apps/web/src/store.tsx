@@ -90,11 +90,24 @@ export function useContact(id: string | null) {
   return id ? contacts.get(id) : undefined
 }
 
-/** The workspace's assistant (one per workspace). */
+/** The workspace's assistants, oldest first: the first one is the default (it answers numbers that name none). */
+export function useAssistants() {
+  const rows = useRows('assistants')
+  return useMemo(
+    () => [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)),
+    [rows],
+  )
+}
+/** The workspace's default assistant. */
 export function useAssistant() {
-  return useRows('assistants')[0]
+  return useAssistants()[0]
 }
 export const useAssistantName = () => useAssistant()?.name ?? 'Assistant'
+/** The assistant that handled a call (calls from before several assistants: the default one). */
+export function useCallAssistantName(assistantId: string | null): string {
+  const assistants = useAssistants()
+  return (assistants.find(a => a.id === assistantId) ?? assistants[0])?.name ?? 'Assistant'
+}
 
 // A hot update of this module would create a second context while the old provider stays mounted
 // ("useStore outside StoreProvider"): reload the page instead.
