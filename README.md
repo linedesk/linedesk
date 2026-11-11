@@ -97,6 +97,8 @@ Then open your `PUBLIC_URL`, sign in as the instance admin and add your provider
 
 The full guide (settings, ports and firewall, connecting your phone numbers, backup and restore) will be published here with the code.
 
+Before you take real calls, read [your responsibilities when you run Linedesk](docs/operator-responsibilities.md): recording consent, AI disclosure, callers' data and why Linedesk is not an emergency service.
+
 ## Open source and hosting
 
 Linedesk is licensed under the [AGPL-3.0](LICENSE) and can be self-hosted with your own provider keys and no license key.
@@ -111,4 +113,4 @@ For anything else, write to [hello@linedesk.ai](mailto:hello@linedesk.ai).
 
 ## License
 
-[AGPL-3.0](LICENSE). "Linedesk" and the Linedesk logo are trademarks of Sauerbier & Gutberlet GmbH; see [TRADEMARK.md](TRADEMARK.md).
+Copyright © 2026 Sauerbier & Gutberlet GmbH and contributors. Licensed under the [AGPL-3.0](LICENSE). "Linedesk" and the Linedesk logo are trademarks of Sauerbier & Gutberlet GmbH; see [TRADEMARK.md](TRADEMARK.md). Privacy policy and legal notice for linedesk.ai: [linedesk.ai/privacy](https://linedesk.ai/privacy), [linedesk.ai/legal](https://linedesk.ai/legal).
