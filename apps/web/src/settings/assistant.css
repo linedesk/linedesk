@@ -218,8 +218,7 @@
   flex: none;
   max-width: 45%;
 }
-.vp-play,
-.vp-play-gap {
+.vp-play {
   flex: none;
   width: 30px;
   height: 30px;
@@ -237,6 +236,13 @@
 }
 .vp-play:hover {
   background: var(--surface);
+}
+.vp-play.is-off {
+  color: var(--ink-disabled);
+  cursor: not-allowed;
+}
+.vp-play.is-off:hover {
+  background: transparent;
 }
 .vp-play:focus-visible {
   outline: 2px solid var(--focus);
@@ -404,10 +410,19 @@
 }
 
 /* Keypad menu: one row per key (key, what the caller hears, what it does, remove). */
-.as-keypad-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+.as-keypad-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+}
 @media (max-width: 560px) {
-  .as-keypad-row { grid-template-columns: auto minmax(0, 1fr) auto; }
-  .as-keypad-row > :nth-child(3) { grid-column: 2; }
+  .as-keypad-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .as-keypad-row > :nth-child(3) {
+    grid-column: 2;
+  }
 }
 
 /* Settings > Assistant > Transfers: one compact row per contact, opened in place to edit. */

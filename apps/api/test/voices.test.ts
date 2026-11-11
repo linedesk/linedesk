@@ -362,3 +362,27 @@ test('deleting a workspace releases all its clones; the consent records stay', a
   // Released once: a second release finds nothing left to delete at the provider.
   expect(await db.transaction(tx => releaseWorkspaceClones(tx, gone.id))).toEqual([])
 })
+
+test("the install's default voice has a preview too, also when it is not curated", async () => {
+  const { provider, made } = fakeProvider()
+  const options = {
+    provider,
+    cache: previewCache(await cacheDir()),
+    budget: unlimited(),
+    bundledDir: NONE,
+    ownClone: false,
+    catalogEntry: null,
+  }
+  const installDefault = { provider: 'elevenlabs', voiceId: 'bIHbv24MWmeRgasZH58o' }
+  expect((await servePreview(member, 'bIHbv24MWmeRgasZH58o', { ...options, installDefault })).status).toBe(200)
+  expect((await servePreview(member, 'bIHbv24MWmeRgasZH58o', { ...options, installDefault: null })).status).toBe(404)
+  expect(
+    (
+      await servePreview(member, 'bIHbv24MWmeRgasZH58o', {
+        ...options,
+        installDefault: { ...installDefault, provider: 'cartesia' },
+      })
+    ).status,
+  ).toBe(404)
+  expect(made).toEqual([`bIHbv24MWmeRgasZH58o:${PREVIEW_TEXT}`])
+})

@@ -76,8 +76,8 @@ function usePreview(activeProvider: string | null) {
     },
     [],
   )
-  async function toggle(voice: PickerVoice) {
-    const key = voiceKey(voice.provider, voice.id)
+  /** `key`: which button plays it, when two rows play the same voice (Default voice and Jessica). */
+  async function toggle(voice: PickerVoice, key = voiceKey(voice.provider, voice.id)) {
     audio.current?.pause()
     audio.current = null
     setFailed(null)
@@ -122,9 +122,36 @@ type Preview = ReturnType<typeof usePreview>
 
 const RING = 2 * Math.PI * 13
 
+type PlayProps = {
+  /** null: nothing to play; the button shows disabled with `unavailable` as its tooltip. */
+  voice: PickerVoice | null
+  preview: Preview
+  /** The name it is announced by, when not the voice's own ("Default voice"). */
+  label?: string
+  playKey?: string
+  unavailable?: string
+}
+
 /** Play, or while it plays: a moving waveform with the progress around it; hover or focus shows stop. */
-function PlayButton({ voice, preview }: { voice: PickerVoice; preview: Preview }) {
-  const key = voiceKey(voice.provider, voice.id)
+function PlayButton({ voice, preview, label, playKey, unavailable }: PlayProps) {
+  const name = label ?? voice?.name ?? ''
+  if (!voice)
+    return (
+      // aria-disabled, not disabled: a disabled button gets no hover, so its tooltip would never show.
+      <button
+        type="button"
+        className="vp-play is-off"
+        aria-disabled="true"
+        aria-label={`Play ${name}`}
+        title={unavailable}
+      >
+        <svg className="vp-ring" viewBox="0 0 30 30" aria-hidden="true">
+          <circle cx="15" cy="15" r="13" />
+        </svg>
+        <Icon name="play" size={14} className="vp-play-icon" />
+      </button>
+    )
+  const key = playKey ?? voiceKey(voice.provider, voice.id)
   const playing = preview.playing === key
   const loading = preview.loading === key
   const busy = playing || loading
@@ -132,10 +159,10 @@ function PlayButton({ voice, preview }: { voice: PickerVoice; preview: Preview }
     <button
       type="button"
       className={cx('vp-play', playing && 'is-playing', loading && 'is-loading')}
-      aria-label={`${busy ? 'Stop' : 'Play'} ${voice.name}`}
+      aria-label={`${busy ? 'Stop' : 'Play'} ${name}`}
       aria-busy={loading || undefined}
-      title={busy ? `Stop the sample of ${voice.name}` : `Play a sample of ${voice.name}`}
-      onClick={() => void preview.toggle(voice)}
+      title={busy ? `Stop the sample of ${name}` : `Play a sample of ${name}`}
+      onClick={() => void preview.toggle(voice, key)}
     >
       <svg className="vp-ring" viewBox="0 0 30 30" aria-hidden="true">
         <circle cx="15" cy="15" r="13" />
@@ -166,8 +193,9 @@ function PlayButton({ voice, preview }: { voice: PickerVoice; preview: Preview }
 }
 
 type RowProps = {
-  /** null: the install's default voice (no sample). */
+  /** null: the install's default voice; `defaultSample` is the voice it stands for. */
   voice: PickerVoice | null
+  defaultSample?: { provider: string; id: string; name: string | null } | null
   checked: boolean
   onPick: () => void
   disabled: boolean
@@ -175,8 +203,10 @@ type RowProps = {
   facts?: string
 }
 
-function VoiceRow({ voice, checked, onPick, disabled, preview, facts }: RowProps) {
-  const description = voice ? voice.description : "The install's default"
+function VoiceRow({ voice, defaultSample, checked, onPick, disabled, preview, facts }: RowProps) {
+  const description = voice
+    ? voice.description
+    : `The install's default${defaultSample?.name ? `: ${defaultSample.name}` : ''}`
   return (
     <div className={cx('vp-row', checked && 'on')}>
       <label className="vp-pick">
@@ -192,7 +222,17 @@ function VoiceRow({ voice, checked, onPick, disabled, preview, facts }: RowProps
         </span>
         {facts && <span className="vp-facts">{facts}</span>}
       </label>
-      {voice ? <PlayButton voice={voice} preview={preview} /> : <span className="vp-play-gap" />}
+      {voice ? (
+        <PlayButton voice={voice} preview={preview} />
+      ) : (
+        <PlayButton
+          voice={defaultSample ? { ...defaultSample, name: 'Default voice', description: null } : null}
+          label="Default voice"
+          playKey="default"
+          preview={preview}
+          unavailable="No default voice to play: the voice provider in use has none set (Admin › Providers)"
+        />
+      )}
     </div>
   )
 }
@@ -454,6 +494,7 @@ export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast }: Pr
         )}
         <VoiceRow
           voice={null}
+          defaultSample={provider && options?.defaultVoice ? { provider, ...options.defaultVoice } : null}
           checked={current === ''}
           onPick={() => pick(null)}
           disabled={!canEdit}

@@ -22,6 +22,15 @@ export const curatedVoices: Record<string, readonly CuratedVoice[]> = {
   cartesia: [],
 }
 
+/**
+ * The voice each provider speaks with when no voice id is set: the voice agent's LiveKit plugins'
+ * own defaults (ElevenLabs `DEFAULT_VOICE_ID`, Cartesia `TTSDefaultVoiceId`). Keep in sync on a plugin update.
+ */
+export const providerDefaultVoices: Record<string, string> = {
+  elevenlabs: 'bIHbv24MWmeRgasZH58o',
+  cartesia: 'f786b574-daa5-4673-aa0c-cbe3e8534c02',
+}
+
 export const isCuratedVoice = (provider: string, voiceId: string) =>
   (curatedVoices[provider] ?? []).some(v => v.id === voiceId)
 
@@ -44,6 +53,11 @@ export type VoiceOptionsData = {
   voices: readonly CuratedVoice[]
   clones: readonly ClonedVoice[]
   canClone: boolean
+  /**
+   * The voice "Default voice" stands for: the install's default voice id (Admin › Providers), else the
+   * provider's own. `name` when it is a curated voice. null when it cannot be told.
+   */
+  defaultVoice: { id: string; name: string | null } | null
 }
 
 export const voiceOptions = defineAction({

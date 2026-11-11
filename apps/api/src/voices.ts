@@ -14,6 +14,7 @@ import {
   cloningProviders,
   curatedVoices,
   isCuratedVoice,
+  providerDefaultVoices,
   type ProviderName,
   providersIn,
   type VoiceCloneData,
@@ -57,6 +58,14 @@ export async function voiceProviderInUse(tx: Tx, doFetch: typeof fetch = fetch):
   const apiKey = active?.config.api_key?.value
   if (!active || !apiKey) return null
   return createVoiceProvider(active.provider, { api_key: apiKey, model: active.config.model?.value }, doFetch)
+}
+
+/** The voice the install's default stands for, for the provider in effect: its voice id setting, else the provider's own default. */
+export async function installDefaultVoice(tx: Tx): Promise<{ provider: string; voiceId: string } | null> {
+  const active = await activeProvider(tx, 'tts').catch(() => null)
+  if (!active) return null
+  const voiceId = active.config.voice_id?.value?.trim() || providerDefaultVoices[active.provider]
+  return voiceId ? { provider: active.provider, voiceId } : null
 }
 
 /** A text-to-speech provider by name, with its key (a clone's, or a voice of another provider than the one in effect). */
@@ -214,11 +223,16 @@ export const voiceHandlers: Record<string, Handler> = {
     const active = await activeProvider(tx, 'tts').catch(() => null)
     const provider = active?.provider ?? null
     const clones = provider ? await clonesOf(tx, actor.workspaceId, provider) : []
+    const fallback = await installDefaultVoice(tx)
     const data: VoiceOptionsData = {
       provider,
       voices: provider ? (curatedVoices[provider] ?? []) : [],
       clones: clones.map(c => ({ id: c.voice_id, name: c.name })),
       canClone: !!provider && cloningProviders.includes(provider) && (await cloningOn(tx)),
+      defaultVoice: fallback && {
+        id: fallback.voiceId,
+        name: (curatedVoices[fallback.provider] ?? []).find(v => v.id === fallback.voiceId)?.name ?? null,
+      },
     }
     return { rows: {}, data }
   },
@@ -356,6 +370,8 @@ type PreviewOptions = {
   bundledDir?: string
   /** The provider the voice is of (`?provider=`); default the one in effect. */
   providerName?: string
+  /** The install's default voice (default: looked up); it always has a preview. */
+  installDefault?: { provider: string; voiceId: string } | null
   /** The voice in the provider's list (default: looked up); null when it is not listed. */
   catalogEntry?: CatalogEntry | null
   doFetch?: typeof fetch
@@ -419,8 +435,10 @@ export async function servePreview(actor: Actor, rawVoiceId: string, options: Pr
         ? await voiceProviderNamed(db, options.providerName, options.doFetch)
         : await voiceProviderInUse(db, options.doFetch)
   if (!provider) return error(409, NO_PROVIDER_FOR_PREVIEW)
+  const installDefault = options.installDefault !== undefined ? options.installDefault : await installDefaultVoice(db)
   const ownOrCurated =
     isCuratedVoice(provider.name, voiceId) ||
+    (installDefault?.provider === provider.name && installDefault.voiceId === voiceId) ||
     (options.ownClone ?? (await clonesOf(db, actor.workspaceId, provider.name)).some(c => c.voice_id === voiceId))
   const listed = ownOrCurated
     ? null
