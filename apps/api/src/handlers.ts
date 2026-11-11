@@ -1,5 +1,5 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, } from '@linedesk/actions'
+import { actions, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, } from '@linedesk/actions'
 import { businessHoursContext, type BusinessHoursContext, } from '@linedesk/calendar'
 import {availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, syncedTables,
   transcript_segments, workspace_members, workspace_settings, type Tx,
@@ -368,11 +368,17 @@ const handlers: Record<string, Handler> = {
   ...contactImportHandlers,
   ...contactMergeHandlers,
 
+  // Carriers may send numbers without the "+" or as 10 digits: both are read as E.164 first, so a caller is
+  // matched to their contact and the dialled number to its workspace whatever the shape. Ten digits are a US
+  // number only on a call to a +1 number: the dialled one can only match one of ours that is, and the caller's
+  // is read that way only when it is.
   'call.start': async ({ tx, now }, input) => {
-    const [number] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, input.to))
+    const to = normalizeCallerId(input.to, { nationalUs: true })
+    const [number] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, to))
     if (!number) throw new Reject(`no workspace for number ${input.to}`)
     const assistant = await assistantForNumber(tx, number.workspace_id, number.assistant_id)
-    return withCallToken(await openCall({ tx, now }, number.workspace_id, { from: input.from, to: input.to, room: input.room, label: input.to, assistant }))
+    const from = normalizeCallerId(input.from, { nationalUs: number.e164.startsWith('+1') })
+    return withCallToken(await openCall({ tx, now }, number.workspace_id, { from, to, room: input.room, label: to, assistant }))
   },
 
   // The agent only knows the workspace from the dispatch the API signed (assistant.startTestCall).

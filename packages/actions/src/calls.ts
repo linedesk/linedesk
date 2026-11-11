@@ -148,6 +148,24 @@ export const callStart = defineAction({
  */
 export const isE164 = (value: string | null | undefined): value is string => !!value && /^\+[1-9]\d{7,14}$/.test(value)
 
+/**
+ * A caller ID as E.164 when it is a number in another common shape: carriers may send it without the "+"
+ * ("19715550123"), with "00" for the "+", or with spaces, dashes, dots and brackets. A bare 10-digit number
+ * ("9715550123") is read as +1 only with `nationalUs`, when the number dialled is a +1 number: elsewhere ten
+ * digits are a national number of that country. Anything else ("anonymous", too short) comes back unchanged and is not E.164.
+ */
+export function normalizeCallerId(value: string, { nationalUs = false }: { nationalUs?: boolean } = {}): string {
+  const raw = value.trim()
+  if (!/^[+\d\s().-]+$/.test(raw)) return raw
+  const digits = raw.replace(/\D/g, '')
+  const e164 = raw.startsWith('+') ? `+${digits}`
+    : digits.startsWith('00') ? `+${digits.slice(2)}`
+    : /^1[2-9]\d{9}$/.test(digits) ? `+${digits}`
+    : nationalUs && /^[2-9]\d{9}$/.test(digits) ? `+1${digits}`
+    : null
+  return e164 && isE164(e164) ? e164 : raw
+}
+
 /** The contact a test call from the web app is filed under, so the inbox shows it as "Test call". */
 export const testCallContact = { phone: 'test', name: 'Test call' } as const
 

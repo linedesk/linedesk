@@ -92,7 +92,14 @@ const whichBooking = {
 export const appointmentCancel = defineAction({
   name: 'appointment.cancel',
   description: 'Cancel a booking made through Linedesk: deletes its calendar event and marks it cancelled.',
-  input: z.object(whichBooking),
+  input: z.object({
+    ...whichBooking,
+    /**
+     * The voice agent sends true: it reads `changed: false` in the answer as a refusal. An agent of the release
+     * before does not, would read that answer as cancelled, and gets a plain refusal instead (rolling updates).
+     */
+    readsRefusals: z.boolean().optional(),
+  }),
   permission: 'calendar:write',
   agent: 'call',
   logged: 'ids',
@@ -103,7 +110,16 @@ export const appointmentCancel = defineAction({
 export const appointmentReschedule = defineAction({
   name: 'appointment.reschedule',
   description: 'Move a booking made through Linedesk to another free slot: the calendar event moves with it.',
-  input: z.object({ ...whichBooking, start: instant }),
+  input: z.object({
+    ...whichBooking,
+    start: instant,
+    /**
+     * The appointment type and calendar find_slots was asked with. The voice agent must send them: the new time
+     * is checked with them before the booking is looked for, so a refused time says nothing about a booking.
+     */
+    appointmentTypeId: z.string().min(1).optional(),
+    calendarId: z.string().min(1).optional(),
+  }),
   permission: 'calendar:write',
   agent: 'call',
   logged: 'ids',

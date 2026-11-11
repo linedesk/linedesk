@@ -9,7 +9,7 @@ import {
 } from '@linedesk/db'
 import { and, asc, eq, gt, gte, inArray, lt, lte, ne, sql } from 'drizzle-orm'
 import { WEB_ORIGIN } from './auth.ts'
-import { queueBookingConfirmation } from './jobs.ts'
+import { queueBookingConfirmation, queueCallPush } from './jobs.ts'
 import { queueWebhookEvent, webhookData } from './webhooks.ts'
 import { providerFor } from './calendar-connections.ts'
 import type { Actor } from './context.ts'
@@ -219,6 +219,22 @@ function buffersFrom(input: TypeInput, existing?: AppointmentType) {
 }
 
 type WhichBooking = { bookingId?: string; callId?: string; bookingDate?: string; bookedName?: string }
+type CancelInput = WhichBooking & { readsRefusals?: boolean }
+type RescheduleInput = WhichBooking & { start: string; appointmentTypeId?: string; calendarId?: string }
+type CallRow = typeof calls.$inferSelect
+type BookingRow = typeof bookings.$inferSelect
+type HandlerResult = Awaited<ReturnType<Handler>>
+
+/**
+ * Failed tries a caller has in 24 hours, over all their calls, to describe a booking to change. At the limit, booking changes by phone stop for that caller and the call is
+ * flagged urgent for the team: nobody can guess days and names call after call.
+ */
+export const BOOKING_MISSES_PER_DAY = 3
+export const NO_MATCHING_BOOKING = 'no booking of this caller matches that day and name: take a message instead'
+export const BOOKING_CHANGES_LOCKED = 'booking changes by phone are switched off for this caller for now: take a message instead, the team will call back'
+export const TIME_NOT_FREE = 'That time is not free: look for slots again.'
+/** The next step the team finds on the call that reached the limit. */
+export const BOOKING_MISSES_NOTE = 'Several tries on the phone to change a booking did not match. Check with the caller before changing anything.'
 
 /** The words of a name, lower case, letters and digits only: "O'Neil, Sam" and "sam oneil" have the same words. */
 const nameWords = (name: string) => name.toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}\s]/gu, '').split(/\s+/).filter(Boolean)
@@ -226,55 +242,85 @@ const nameWords = (name: string) => name.toLowerCase().normalize('NFKD').replace
 /** The caller's name on a booking: its title is "<type> · <caller name>". */
 export const bookedNameOf = (title: string | null) => (title?.includes(' · ') ? title.slice(title.lastIndexOf(' · ') + 3) : '')
 
-/**
- * Whether what the caller said matches the name on the booking: the booking's last name (its last word)
- * must be among the words the caller said, and every word the caller said must be in the booked name.
- */
+/** Whether what the caller said is the name on the booking: every word of it, in any order, and nothing else. */
 export function namesMatch(stated: string, booked: string) {
-  const said = nameWords(stated)
+  const said = new Set(nameWords(stated))
   const onBooking = nameWords(booked)
-  const last = onBooking.at(-1)
-  return !!last && said.includes(last) && said.every(word => onBooking.includes(word))
+  return onBooking.length > 0 && onBooking.every(word => said.has(word)) && [...said].every(word => onBooking.includes(word))
 }
 
-/** The booking a caller described by its day and name, among the call's caller's upcoming bookings; else a rejection. */
-async function describedBooking(tx: Tx, workspaceId: string, call: { contact_id: string | null }, input: WhichBooking, now: string) {
+/** The caller's misses over their calls of the last 24 hours: by contact, or by number for a caller without one. */
+export async function recentBookingMisses(tx: Tx, workspaceId: string, caller: { contact_id: string | null; from_number: string }, now: string) {
+  const who = caller.contact_id ? eq(calls.contact_id, caller.contact_id) : eq(calls.from_number, caller.from_number)
+  const [row] = await tx.select({ misses: sql<number>`coalesce(sum(${calls.booking_misses}), 0)::int` }).from(calls)
+    .where(and(eq(calls.workspace_id, workspaceId), who, gt(calls.started_at, shift(now, -DAY_MS))))
+  return row?.misses ?? 0
+}
+
+/**
+ * A refused change, counted as a miss on the call. The action succeeds (data `changed: false`), so the miss is
+ * kept; the one that reaches the limit flags the call urgent, with a note for the team.
+ */
+async function refuseAsMiss(tx: Tx, call: CallRow, now: string, refused = NO_MATCHING_BOOKING): Promise<HandlerResult> {
+  const misses = (await recentBookingMisses(tx, call.workspace_id, call, now)) + 1
+  const reachedLimit = misses === BOOKING_MISSES_PER_DAY
+  const [updated] = await tx.update(calls).set({
+    booking_misses: sql`${calls.booking_misses} + 1`,
+    ...(reachedLimit ? { urgency: 'urgent' as const, action_items: [...call.action_items, { text: BOOKING_MISSES_NOTE }] } : {}),
+  }).where(eq(calls.id, call.id)).returning()
+  if (reachedLimit && call.urgency !== 'urgent' && call.source !== 'test') await queueCallPush(tx, call.id, 'urgent')
+  return { rows: { calls: [updated!] }, data: { changed: false, refused: misses >= BOOKING_MISSES_PER_DAY ? BOOKING_CHANGES_LOCKED : refused } }
+}
+
+/**
+ * The call the agent changes a booking on, once it may try: the caller described the booking, has a number,
+ * and is not locked out. Returns the refusal instead when locked out (nothing is counted then).
+ */
+async function describingCaller(tx: Tx, workspaceId: string, input: WhichBooking, now: string): Promise<{ call: CallRow } | { refused: HandlerResult }> {
+  if (!input.callId) throw new Forbidden('the assistant can only change a booking on a call')
+  const [call] = await tx.select().from(calls).where(and(eq(calls.id, input.callId), eq(calls.workspace_id, workspaceId)))
+  if (!call) throw new Reject('call not found')
   if (!input.bookingDate || !input.bookedName) throw new Reject('ask the caller for the day of the appointment and the name it is booked under')
   if (!call.contact_id) throw new Reject('this caller cannot change bookings by phone (no caller number): take a message instead')
+  // One caller's changes run one at a time until their transaction ends, so two calls at once cannot both pass
+  // the check below before either counts its miss.
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`booking-misses:${workspaceId}:${call.contact_id}`}))`)
+  if ((await recentBookingMisses(tx, workspaceId, call, now)) >= BOOKING_MISSES_PER_DAY) {
+    return { refused: { rows: {}, data: { changed: false, refused: BOOKING_CHANGES_LOCKED } } }
+  }
+  return { call }
+}
+
+/** The one upcoming booking of the call's caller on the day described whose name matches, or null. */
+async function describedBooking(tx: Tx, workspaceId: string, call: CallRow, input: WhichBooking, now: string): Promise<BookingRow | null> {
   const timeZone = await timeZoneOf(tx, workspaceId)
-  const dayStart = new Date(zonedTimeToInstant(input.bookingDate, '00:00', timeZone)).toISOString()
-  const dayEnd = new Date(zonedTimeToInstant(input.bookingDate, '24:00', timeZone)).toISOString()
+  const dayStart = new Date(zonedTimeToInstant(input.bookingDate!, '00:00', timeZone)).toISOString()
+  const dayEnd = new Date(zonedTimeToInstant(input.bookingDate!, '24:00', timeZone)).toISOString()
   const candidates = await tx.select().from(bookings).where(and(
-    eq(bookings.workspace_id, workspaceId), eq(bookings.contact_id, call.contact_id), ne(bookings.status, 'cancelled'),
+    eq(bookings.workspace_id, workspaceId), eq(bookings.contact_id, call.contact_id!), ne(bookings.status, 'cancelled'),
     gt(bookings.start_at, now), gte(bookings.start_at, dayStart), lt(bookings.start_at, dayEnd),
   ))
   const matching = candidates.filter(b => namesMatch(input.bookedName!, bookedNameOf(b.title)))
-  // Said the same way whether nothing is booked that day or the name differs: no hint for someone guessing.
-  if (matching.length !== 1) throw new Reject(matching.length ? 'more than one booking matches: take a message instead' : 'no booking of this caller matches that day and name: take a message instead')
-  return matching[0]!
+  // Nothing that day, another name, or more than one match: all the same miss, no hint for someone guessing.
+  return matching.length === 1 ? matching[0]! : null
 }
 
 /**
- * A booking the actor may change. The agent always names its call and the booking as the caller described
- * it (day and name, checked here; caller ID alone is not proof), or by id one booked on this very call.
- * A member names it by id, and with a call only one of that call's caller.
+ * A booking named by id. A member may change any of the workspace's, and with a call only one of that call's
+ * caller; the agent only one booked on this very call (the call test cleans up after itself this way).
  */
-async function changeableBooking(tx: Tx, actor: Actor, workspaceId: string, input: WhichBooking, now: string) {
+async function bookingById(tx: Tx, actor: Actor, workspaceId: string, input: WhichBooking): Promise<BookingRow> {
   if (actor.role === 'agent' && !input.callId) throw new Forbidden('the assistant can only change a booking on a call')
-  const [call] = input.callId
-    ? await tx.select({ contact_id: calls.contact_id }).from(calls).where(and(eq(calls.id, input.callId), eq(calls.workspace_id, workspaceId)))
-    : []
-  if (input.callId && !call) throw new Reject('call not found')
-  let booking: typeof bookings.$inferSelect | undefined
-  if (actor.role === 'agent' && !input.bookingId) booking = await describedBooking(tx, workspaceId, call!, input, now)
-  else if (actor.role === 'agent') {
-    // By id only a booking made on this same call (the call test cleans up after itself this way).
-    ;[booking] = await tx.select().from(bookings).where(and(eq(bookings.id, input.bookingId!), eq(bookings.workspace_id, workspaceId)))
+  if (!input.bookingId) throw new Reject('bookingId is required')
+  const [booking] = await tx.select().from(bookings).where(and(eq(bookings.id, input.bookingId), eq(bookings.workspace_id, workspaceId)))
+  if (actor.role === 'agent') {
     if (!booking || booking.call_id !== input.callId) throw new Reject('describe the booking by its day and name instead')
   } else {
-    if (!input.bookingId) throw new Reject('bookingId is required')
-    ;[booking] = await tx.select().from(bookings).where(and(eq(bookings.id, input.bookingId), eq(bookings.workspace_id, workspaceId)))
     if (!booking) throw new Reject('booking not found')
+    const [call] = input.callId
+      ? await tx.select({ contact_id: calls.contact_id }).from(calls).where(and(eq(calls.id, input.callId), eq(calls.workspace_id, workspaceId)))
+      : []
+    if (input.callId && !call) throw new Reject('call not found')
     if (call && (!call.contact_id || booking.contact_id !== call.contact_id)) throw new Reject("that booking is not the caller's")
   }
   if (booking.status === 'cancelled') throw new Reject('that booking is cancelled already')
@@ -312,6 +358,57 @@ function eventDescription({ reason, phone, address, callId }: { reason: string; 
     callId ? `Call: ${new URL(`/#call/${callId}`, WEB_ORIGIN)}` : null,
     'Booked by the Linedesk assistant.',
   ].filter(Boolean).join('\n')
+}
+
+/**
+ * After the agent found the booking the caller described, whatever stops the change (type switched off, the
+ * calendar refusing, the time not free for it) would tell the caller the booking exists. The change runs in a
+ * savepoint, and a refusal rolls it back and is counted as the same miss as no match.
+ */
+async function changeOrMiss(tx: Tx, call: CallRow, now: string, change: (sp: Tx) => Promise<HandlerResult>): Promise<HandlerResult> {
+  try {
+    return await tx.transaction(change)
+  } catch (e) {
+    if (e instanceof Reject) return refuseAsMiss(tx, call, now)
+    throw e
+  }
+}
+
+/** Cancels a booking and deletes its event; the calendar is asked last, so if it refuses the booking stays as it was. */
+async function cancelBooking(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, workspaceId: string, booking: BookingRow): Promise<HandlerResult> {
+  const rows = await tx.update(bookings).set({ status: 'cancelled' }).where(eq(bookings.id, booking.id)).returning()
+  const at = await calendarOfBooking(tx, ctx, workspaceId, booking.calendar_id)
+  if (at && booking.external_event_id) await atProvider(() => at.provider.deleteEvent(at.calendar.external_id, booking.external_event_id!))
+  const timeZone = await timeZoneOf(tx, workspaceId)
+  return { rows: { bookings: rows }, data: { changed: true, eventDeleted: Boolean(at && booking.external_event_id), label: slotLabel(new Date(booking.start_at).toISOString(), timeZone) } }
+}
+
+/**
+ * Moves a booking and its event to `startAt`: same checks as booking, with the booking's own time not counting
+ * as busy; the event moves last.
+ */
+async function moveBooking(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, workspaceId: string, booking: BookingRow, startAt: string, now: string): Promise<HandlerResult> {
+  const at = await calendarOfBooking(tx, ctx, workspaceId, booking.calendar_id)
+  if (!at || !booking.external_event_id) throw new Reject('that booking has no calendar event to move')
+  if (!booking.appointment_type_id) throw new Reject('that booking has no appointment type')
+  const type = await enabledType(tx, workspaceId, booking.appointment_type_id)
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`booking:${at.calendar.id}`}))`)
+  const timeZone = await timeZoneOf(tx, workspaceId)
+  const start = new Date(startAt).toISOString()
+  const end = shift(start, type.duration_min * 60_000)
+  const own = { start: new Date(booking.start_at).toISOString(), end: new Date(booking.end_at).toISOString() }
+  const provider: CalendarProvider = {
+    ...at.provider,
+    busy: async (ids, window) => (await at.provider.busy(ids, window)).filter(b => b.start !== own.start || b.end !== own.end),
+  }
+  const free = await availableSlots(tx, workspaceId, timeZone, {
+    type, window: { start, end }, now, limit: 1, calendar: { row: at.calendar, provider }, excludeBookingId: booking.id,
+  })
+  if (free[0]?.start !== start) throw new Reject(TIME_NOT_FREE)
+  const rows = await tx.update(bookings).set({ start_at: start, end_at: end, status: 'rescheduled' }).where(eq(bookings.id, booking.id)).returning()
+  await atProvider(() => at.provider.updateEvent(at.calendar.external_id, booking.external_event_id!, { start, end }))
+  const data: BookData & { changed: true } = { changed: true, bookingId: booking.id, start, end, label: slotLabel(start, timeZone), calendarName: at.calendar.name }
+  return { rows: { bookings: rows }, data }
 }
 
 export const bookingHandlers: Record<string, Handler> = {
@@ -388,42 +485,43 @@ export const bookingHandlers: Record<string, Handler> = {
     return { rows: { bookings: rows, ...(named.length && { contacts: named }) }, data }
   },
 
-  'appointment.cancel': async ({ tx, actor, now, ...ctx }, input: WhichBooking) => {
+  // The agent describes the booking (day and name, describedBooking); a member names it by id.
+  'appointment.cancel': async ({ tx, actor, now, ...ctx }, input: CancelInput) => {
     const workspaceId = workspaceOf(actor)
-    const booking = await changeableBooking(tx, actor, workspaceId, input, now)
-    const rows = await tx.update(bookings).set({ status: 'cancelled' }).where(eq(bookings.id, booking.id)).returning()
-    // The calendar is asked last: if it refuses, the booking stays as it was.
-    const at = await calendarOfBooking(tx, ctx, workspaceId, booking.calendar_id)
-    if (at && booking.external_event_id) await atProvider(() => at.provider.deleteEvent(at.calendar.external_id, booking.external_event_id!))
-    const timeZone = await timeZoneOf(tx, workspaceId)
-    return { rows: { bookings: rows }, data: { eventDeleted: Boolean(at && booking.external_event_id), label: slotLabel(new Date(booking.start_at).toISOString(), timeZone) } }
+    if (actor.role !== 'agent' || input.bookingId) return cancelBooking(tx, ctx, workspaceId, await bookingById(tx, actor, workspaceId, input))
+    // An agent of the release before this one reads any answer as cancelled: a plain refusal, before anything else.
+    if (!input.readsRefusals) throw new Reject('this assistant must be updated to change bookings: take a message instead')
+    const caller = await describingCaller(tx, workspaceId, input, now)
+    if ('refused' in caller) return caller.refused
+    const booking = await describedBooking(tx, workspaceId, caller.call, input, now)
+    if (!booking) return refuseAsMiss(tx, caller.call, now)
+    return changeOrMiss(tx, caller.call, now, sp => cancelBooking(sp, ctx, workspaceId, booking))
   },
 
-  // Same checks as booking, with the booking's own time not counting as busy; the event moves last.
-  'appointment.reschedule': async ({ tx, actor, now, ...ctx }, input: WhichBooking & { start: string }) => {
+  // The agent's new time is checked first, with the type and calendar it searched: a time that is not free then
+  // says nothing about any booking and is not a miss. Every refusal after that is (refuseAsMiss).
+  'appointment.reschedule': async ({ tx, actor, now, ...ctx }, input: RescheduleInput) => {
     const workspaceId = workspaceOf(actor)
-    const booking = await changeableBooking(tx, actor, workspaceId, input, now)
-    const at = await calendarOfBooking(tx, ctx, workspaceId, booking.calendar_id)
-    if (!at || !booking.external_event_id) throw new Reject('that booking has no calendar event to move')
-    if (!booking.appointment_type_id) throw new Reject('that booking has no appointment type')
-    const type = await enabledType(tx, workspaceId, booking.appointment_type_id)
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`booking:${at.calendar.id}`}))`)
-    const timeZone = await timeZoneOf(tx, workspaceId)
+    if (actor.role !== 'agent' || input.bookingId) return moveBooking(tx, ctx, workspaceId, await bookingById(tx, actor, workspaceId, input), input.start, now)
+    // An agent of the release before this one sends neither and reads any answer as moved: a plain refusal, before
+    // anything else, so it takes a message (the agent may be older than the API while an update rolls out).
+    if (!input.appointmentTypeId || !input.calendarId) throw new Reject('pass the appointment type and calendar find_slots was asked with')
+    const caller = await describingCaller(tx, workspaceId, input, now)
+    if ('refused' in caller) return caller.refused
+    const { call } = caller
+    const type = await enabledType(tx, workspaceId, input.appointmentTypeId)
+    const searched = await bookableCalendar(tx, ctx, workspaceId, input.calendarId, call.assistant_id ?? undefined)
+    // Locked before the check, as moveBooking locks it: nobody books the time between the check and the move.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`booking:${searched.calendar.id}`}))`)
     const start = new Date(input.start).toISOString()
-    const end = shift(start, type.duration_min * 60_000)
-    const own = { start: new Date(booking.start_at).toISOString(), end: new Date(booking.end_at).toISOString() }
-    const provider: CalendarProvider = {
-      ...at.provider,
-      busy: async (ids, window) => (await at.provider.busy(ids, window)).filter(b => b.start !== own.start || b.end !== own.end),
-    }
-    const free = await availableSlots(tx, workspaceId, timeZone, {
-      type, window: { start, end }, now, limit: 1, calendar: { row: at.calendar, provider }, excludeBookingId: booking.id,
+    const free = await availableSlots(tx, workspaceId, await timeZoneOf(tx, workspaceId), {
+      type, window: { start, end: shift(start, type.duration_min * 60_000) }, now, limit: 1, calendar: { row: searched.calendar, provider: searched.provider },
     })
-    if (free[0]?.start !== start) throw new Reject('That time is not free: look for slots again.')
-    const rows = await tx.update(bookings).set({ start_at: start, end_at: end, status: 'rescheduled' }).where(eq(bookings.id, booking.id)).returning()
-    await atProvider(() => at.provider.updateEvent(at.calendar.external_id, booking.external_event_id!, { start, end }))
-    const data: BookData = { bookingId: booking.id, start, end, label: slotLabel(start, timeZone), calendarName: at.calendar.name }
-    return { rows: { bookings: rows }, data }
+    // Taken since the caller heard it (or never offered): says nothing about a booking, so not a miss.
+    if (free[0]?.start !== start) return { rows: {}, data: { changed: false, refused: TIME_NOT_FREE, slotTaken: true } }
+    const booking = await describedBooking(tx, workspaceId, call, input, now)
+    if (!booking) return refuseAsMiss(tx, call, now)
+    return changeOrMiss(tx, call, now, sp => moveBooking(sp, ctx, workspaceId, booking, input.start, now))
   },
 
   'appointmentType.upsert': async ({ tx, actor }, input: TypeInput) => {
@@ -465,7 +563,8 @@ export const bookingHandlers: Record<string, Handler> = {
 /**
  * What the agent needs to book on a call: the appointment types and the assistant's enabled
  * calendars of connected accounts, with today's date where the business is. null when either is missing.
- * `contactId`: the caller's contact, only for a caller with a dialable number.
+ * `contactId`: the caller's contact, only for a caller with a dialable number; booking changes need one, and
+ * are off for a caller who reached BOOKING_MISSES_PER_DAY.
  */
 export async function bookingContext(tx: Tx, workspaceId: string, now: string, { contactId, assistantId }: { contactId?: string | null; assistantId?: string | null } = {}): Promise<BookingContext | null> {
   const typeRows = await tx.select({
@@ -490,7 +589,8 @@ export async function bookingContext(tx: Tx, workspaceId: string, now: string, {
   const todayDate = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now))
   // The caller's bookings are never listed: caller ID is not proof of who calls. A caller with a number
   // may change one by saying its day and name, which the API checks (changeableBooking).
-  return { timeZone, today, todayDate, appointmentTypes: types, calendars, upcoming: [], canChangeBookings: Boolean(contactId) }
+  const locked = contactId ? (await recentBookingMisses(tx, workspaceId, { contact_id: contactId, from_number: '' }, now)) >= BOOKING_MISSES_PER_DAY : true
+  return { timeZone, today, todayDate, appointmentTypes: types, calendars, upcoming: [], canChangeBookings: !locked }
 }
 
 /** For the call test: the call's bookings and whether each event exists at the provider now. */

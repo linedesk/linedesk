@@ -91,9 +91,11 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
             parameters: z.object({
               booking_date: bookingDate,
               booked_name: bookedName,
+              appointment_type_id: typeId,
+              calendar_id: calendarId.describe('The calendar id you used for find_slots.'),
               start: z.string().describe('The exact new start in brackets from find_slots.'),
             }),
-            execute: ({ start, ...which }) => booking.reschedule(which, start),
+            execute: ({ start, appointment_type_id, calendar_id, ...which }) => booking.reschedule(which, start, { appointment_type_id, calendar_id }),
           }),
         }
       : {}),

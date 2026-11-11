@@ -186,6 +186,12 @@ export const calls = pgTable(
     transfer_result: text('transfer_result', { enum: ['dialing', 'connected', 'not_answered', 'declined', 'failed'] }),
     /** When the transfer was started; counts toward the workspace's transfers per hour. */
     transfer_at: ts('transfer_at'),
+    /**
+     * Times on this call the caller described a booking to change (day and name) that the API could not match,
+     * or picked a time that was not free. Summed over the caller's calls of the last 24 hours, it locks booking
+     * changes by phone for that caller (bookings.ts, BOOKING_MISSES_PER_DAY).
+     */
+    booking_misses: integer('booking_misses').notNull().default(0),
     deleted_at: ts('deleted_at'),
     version: version(),
   },

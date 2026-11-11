@@ -96,7 +96,7 @@ export function transferInstructions(rules: readonly TransferRule[]): string {
  * caller says the day and the name, and the API checks both against the caller's bookings.
  */
 export const CHANGE_BOOKING_INSTRUCTIONS =
-  "You do not know this caller's appointments, and you never say whether they have any. If the caller wants to cancel or move an appointment, ask for the day it is on and the full name it is booked under. Then use cancel_appointment, or find_slots and then reschedule_appointment, with that day (YYYY-MM-DD) and name exactly as the caller said them. If the tool says no booking matches, do not guess or try other names or days: take a message for the team instead."
+  "You do not know this caller's appointments, and you never say whether they have any. If the caller wants to cancel or move an appointment, ask for the day it is on and the full name it is booked under. Then use cancel_appointment, or find_slots and then reschedule_appointment (with the appointment type and calendar you used for find_slots), with that day (YYYY-MM-DD) and name exactly as the caller said them. If the tool says it did not work, do not guess or try other names, days or times: take a message for the team instead."
 
 /**
  * Changing a booking when call.start listed the caller's upcoming bookings (under the name on file): the

@@ -81,16 +81,29 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
   let failedDescriptions = 0
   const described = ({ booking_date, booked_name }: DescribedBooking) => ({ bookingDate: booking_date, bookedName: booked_name, callId })
   const outOfAttempts = () => failedDescriptions >= MAX_DESCRIBE_ATTEMPTS
-  const refused = (e: unknown, what: string) => {
-    if (e instanceof ActionError && /no booking of this caller matches/.test(e.message)) failedDescriptions++
-    return `${what} did not work (${failure(e)}). Do not guess another day or name: take a message for the team instead.`
+  const refused = (e: unknown, what: string) => `${what} did not work (${failure(e)}). Do not guess another day or name: take a message for the team instead.`
+  /**
+   * The API refused the change: counted as a miss (no match, or locked out), or, with `slotTaken`, the new time
+   * is not free any more, which is no miss: the caller picks another one.
+   */
+  const declined = (data: unknown) => {
+    const answer = data as { changed?: boolean; refused?: string; slotTaken?: boolean } | undefined
+    if (answer?.changed !== false) return null
+    if (answer.slotTaken) return 'That time is not free any more. Look for slots again and offer the caller another time.'
+    failedDescriptions++
+    return `That did not work (${answer.refused ?? 'no booking matches'}). Do not guess another day, name or time: take a message for the team instead.`
   }
   const NO_MORE = 'The booking could not be found on this call. Do not try again: take a message for the team instead.'
 
   async function cancel(which: DescribedBooking): Promise<string> {
     if (outOfAttempts()) return NO_MORE
     try {
-      const { data } = await api.run(appointmentCancel, described(which), call)
+      const { data } = await api.run(appointmentCancel, { ...described(which), readsRefusals: true }, call)
+      const no = declined(data)
+      if (no) {
+        log.record('system', 'Could not cancel an appointment', appointmentCancel.name)
+        return no
+      }
       log.record('system', 'Cancelled an appointment', appointmentCancel.name)
       const label = (data as { label?: string } | undefined)?.label
       return `Cancelled${label ? ` the appointment on ${label}` : ''}. Tell the caller it is cancelled.`
@@ -100,10 +113,18 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
     }
   }
 
-  async function reschedule(which: DescribedBooking, start: string): Promise<string> {
+  /** `searched`: the appointment type and calendar find_slots was asked with; the API checks the time with them first. */
+  async function reschedule(which: DescribedBooking, start: string, searched: { appointment_type_id: string; calendar_id: string }): Promise<string> {
     if (outOfAttempts()) return NO_MORE
     try {
-      const { data } = await api.run(appointmentReschedule, { ...described(which), start }, call)
+      const { data } = await api.run(appointmentReschedule, {
+        ...described(which), start, appointmentTypeId: searched.appointment_type_id, calendarId: searched.calendar_id,
+      }, call)
+      const no = declined(data)
+      if (no) {
+        log.record('system', 'Could not move an appointment', appointmentReschedule.name)
+        return no
+      }
       const moved = data as BookData
       log.bookings.push(`moved to ${moved.label}`)
       log.record('system', `Rescheduled · ${moved.label} · ${moved.calendarName}`, appointmentReschedule.name)

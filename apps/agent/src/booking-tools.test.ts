@@ -115,25 +115,38 @@ test('cancel and reschedule name the call and the booking as the caller describe
     : { bookingId: 'bk_1', start: 'x', end: '', label: 'Thursday, November 19 at 2:00 PM', calendarName: 'Office' }))
   const tools = bookingTools(api, call, log)
   const which = { booking_date: '2026-11-17', booked_name: 'Sam Patel' }
-  expect(await tools.reschedule(which, '2026-11-19T22:00:00.000Z')).toBe('Moved to Thursday, November 19 at 2:00 PM. Confirm the new day and time to the caller.')
+  const searched = { appointment_type_id: 'at_1', calendar_id: 'acal_office' }
+  expect(await tools.reschedule(which, '2026-11-19T22:00:00.000Z', searched)).toBe('Moved to Thursday, November 19 at 2:00 PM. Confirm the new day and time to the caller.')
   expect(await tools.cancel(which)).toBe('Cancelled the appointment on Tuesday, November 17 at 9:00 AM. Tell the caller it is cancelled.')
   expect(api.sent.map(([name, input]) => [name, input])).toEqual([
-    ['appointment.reschedule', { bookingDate: '2026-11-17', bookedName: 'Sam Patel', callId: 'call_1', start: '2026-11-19T22:00:00.000Z' }],
-    ['appointment.cancel', { bookingDate: '2026-11-17', bookedName: 'Sam Patel', callId: 'call_1' }],
+    ['appointment.reschedule', { bookingDate: '2026-11-17', bookedName: 'Sam Patel', callId: 'call_1', start: '2026-11-19T22:00:00.000Z', appointmentTypeId: 'at_1', calendarId: 'acal_office' }],
+    ['appointment.cancel', { bookingDate: '2026-11-17', bookedName: 'Sam Patel', callId: 'call_1', readsRefusals: true }],
   ])
 })
 
-test(`after ${MAX_DESCRIBE_ATTEMPTS} descriptions that match no booking, the assistant stops guessing on that call`, async () => {
+test(`after ${MAX_DESCRIBE_ATTEMPTS} refusals, the assistant stops guessing on that call`, async () => {
   const call = session()
-  const api = fakeApi(() => {
-    throw new ActionError('appointment.cancel', 409, 'no booking of this caller matches that day and name: take a message instead')
-  })
+  // The API refuses as data (the miss is kept on its side), whatever the reason.
+  const api = fakeApi(() => ({ changed: false, refused: 'no booking of this caller matches that day and name: take a message instead' }))
   const tools = bookingTools(api, call, new CallLog(call))
   for (let i = 0; i < MAX_DESCRIBE_ATTEMPTS; i++) {
-    expect(await tools.cancel({ booking_date: '2026-11-17', booked_name: `Guess ${i}` })).toMatch(/^Cancelling did not work \(no booking of this caller matches.*Do not guess another day or name/)
+    expect(await tools.cancel({ booking_date: '2026-11-17', booked_name: `Guess ${i}` })).toMatch(/^That did not work \(no booking of this caller matches.*Do not guess another day, name or time/)
   }
-  expect(await tools.reschedule({ booking_date: '2026-11-18', booked_name: 'Another' }, '2026-11-19T22:00:00.000Z')).toMatch(/Do not try again: take a message/)
+  expect(await tools.reschedule({ booking_date: '2026-11-18', booked_name: 'Another' }, '2026-11-19T22:00:00.000Z', { appointment_type_id: 'at_1', calendar_id: 'acal_office' }))
+    .toMatch(/Do not try again: take a message/)
   expect(api.sent).toHaveLength(MAX_DESCRIBE_ATTEMPTS)
+})
+
+test('a time that is not free on reschedule never reads as moved, and is no failed try: the caller picks another time', async () => {
+  const call = session()
+  const api = fakeApi(() => ({ changed: false, refused: 'That time is not free: look for slots again.', slotTaken: true }))
+  const tools = bookingTools(api, call, new CallLog(call))
+  for (let i = 0; i < MAX_DESCRIBE_ATTEMPTS + 1; i++) {
+    const text = await tools.reschedule({ booking_date: '2026-11-17', booked_name: 'Sam Patel' }, '2026-11-19T22:00:00.000Z', { appointment_type_id: 'at_1', calendar_id: 'acal_office' })
+    expect(text).toMatch(/^That time is not free any more\. Look for slots again/)
+    expect(text).not.toMatch(/Moved/)
+  }
+  expect(api.sent).toHaveLength(MAX_DESCRIBE_ATTEMPTS + 1)
 })
 
 test('conditions: a default calendar without one is used when no other fits; one type needs no picking rule', () => {
