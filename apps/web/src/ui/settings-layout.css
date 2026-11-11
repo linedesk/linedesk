@@ -1,0 +1,121 @@
+/* Settings layout (SettingsLayout.tsx): the sections nav at the left, one section at a time. Nav
+   items are the app's nav-item, the same as the admin sidebar's, so both read as one system. */
+.sl-page {
+  max-width: 1000px;
+}
+.sl-head {
+  align-items: flex-start;
+}
+.sl-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sl-body {
+  display: grid;
+  grid-template-columns: 184px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+.sl-nav {
+  position: sticky;
+  top: 12px;
+  display: grid;
+  gap: 1px;
+}
+.sl-item {
+  text-decoration: none;
+  justify-content: space-between;
+}
+.sl-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--ink);
+  flex: none;
+}
+.sl-content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+@media (max-width: 719px) {
+  .sl-body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .sl-nav {
+    position: static;
+    display: flex;
+    gap: 2px;
+    margin: 0 -12px;
+    padding: 0 12px 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    box-shadow: inset 0 -1px 0 var(--line);
+  }
+  .sl-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .sl-nav .sl-item {
+    width: auto;
+    padding: 0 10px;
+    gap: 6px;
+  }
+}
+
+/* Test call: the button in the page header and a compact bar while a call runs. */
+.tc-btn-wrap {
+  display: inline-flex;
+}
+/* A disabled button gets no hover: the wrapper shows the reason in its tooltip. */
+.tc-btn-wrap .k-btn:disabled {
+  pointer-events: none;
+}
+.tc-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 6px 6px 14px;
+  box-sizing: border-box;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+}
+.tc-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  font-size: 13px;
+  line-height: 18px;
+}
+.tc-text b {
+  font-weight: 500;
+}
+.tc-bar-problem .tc-text b {
+  color: var(--danger);
+}
+.tc-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+.tc-live {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: var(--radius-full);
+  background: var(--live);
+}
+.tc-transcript {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}

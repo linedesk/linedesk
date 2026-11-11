@@ -1,6 +1,6 @@
-// What Admin, Providers shows for each provider besides its keys: a logo and one short line.
+// What Admin, Providers shows for each provider besides its keys: a logo, and one short line for its dialog.
 // Typed per provider, so a new entry in the registry needs one here too.
-import type { ProviderCategory, ProviderName } from '@callfront/actions'
+import type { ProviderName } from '@callfront/actions'
 import { cx, Icon } from '../ui/kit.tsx'
 import { type BrandMark, brandMarks } from './logos.ts'
 
@@ -16,15 +16,6 @@ export const providerMeta: Record<ProviderName, { mark: Mark; blurb: string }> =
   cartesia: { mark: { monogram: 'C' }, blurb: 'Fast, expressive voices.' },
   file: { mark: { icon: 'disk' }, blurb: 'Recordings stay on this server.' },
   s3: { mark: { brand: 'amazons3' }, blurb: 'AWS S3, R2, Hetzner, Backblaze, MinIO.' },
-}
-
-/** One line per category, under its title. */
-export const categoryBlurb: Record<ProviderCategory, string> = {
-  telephony: 'Phone numbers and calls.',
-  stt: "Turns the caller's words into text.",
-  llm: 'Understands the call and writes the replies.',
-  tts: "Speaks the assistant's replies.",
-  recording: 'Where call recordings are kept.',
 }
 
 /** The S3 presets' marks, by preset label (registry, presets of `s3`). */

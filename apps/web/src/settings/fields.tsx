@@ -28,12 +28,16 @@ type FieldProps = {
   /** Muted line under the label, only when the label is not enough. */
   help?: string
   error?: string | null
+  /** Next to the label, e.g. "Optional". */
+  aside?: ReactNode
+  /** Detail behind a (?) next to the label. */
+  tip?: string
   children: ReactNode
 }
 
-export function Field({ id, label, help, error, children }: FieldProps) {
+export function Field({ id, label, help, error, aside, tip, children }: FieldProps) {
   return (
-    <FormField id={id} label={label} description={help} error={error}>
+    <FormField id={id} label={label} description={help} error={error} aside={aside} help={tip}>
       {children}
     </FormField>
   )
@@ -78,16 +82,21 @@ export function TextArea({ id, value, onChange, placeholder, label, tall, invali
 type SwitchRowProps = {
   title: string
   description?: string
+  /** Quiet note next to the title, e.g. "Team default". */
+  aside?: string
   on: boolean
   onChange: (on: boolean) => void
   disabled?: boolean
 }
 
-export function SwitchRow({ title, description, on, onChange, disabled }: SwitchRowProps) {
+export function SwitchRow({ title, description, aside, on, onChange, disabled }: SwitchRowProps) {
   return (
     <div className="swrow">
       <div>
-        <b>{title}</b>
+        <b>
+          {title}
+          {aside && <span className="swrow-aside">{aside}</span>}
+        </b>
         {description && <span className="help">{description}</span>}
       </div>
       <Switch on={on} onChange={onChange} label={title} disabled={disabled} />

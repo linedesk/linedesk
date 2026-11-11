@@ -29,7 +29,7 @@ export function TestCallStep({ showSimulator, onBack, onNext, onOpenCall }: Prop
         <div className="ob-body">
           <h1>Talk to {name} in the browser.</h1>
           <p className="ob-lede">There is no number to call yet, so try {name} with your microphone. Ask something a customer would ask. You can connect a number later in Settings.</p>
-          <TestCall canStart bare />
+          <TestCall canStart />
         </div>
         <Foot onBack={onBack} onContinue={onNext} canContinue label="Continue" />
       </>

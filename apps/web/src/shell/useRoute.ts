@@ -1,9 +1,9 @@
 // Where the app is, kept in the URL hash so reload and the browser's Back work:
 // `#calls` (Needs you), `#calls/done` (another view), `#calls?q=leak` (search),
-// `#call/<id>` (one call), `#assistant`, `#account`, `#admin/<section>`.
+// `#call/<id>` (one call), `#assistant`, `#assistant/<section>`, `#account`, `#admin/<section>`.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { InboxTab } from '../inbox-model.ts'
-import { isPageRoute, type Route } from './pages.tsx'
+import { hasSections, isPageRoute, type Route } from './pages.tsx'
 
 export type InboxPlace = { tab: InboxTab; search: string | null }
 /** `known` is false when the hash names nothing the app has; the inbox shows instead. */
@@ -27,6 +27,10 @@ export function parseHash(hash: string, last: InboxPlace = HOME): Location {
   const [path = '', query] = hash.replace(/^#/, '').split('?')
   if (path.startsWith(CALL_PREFIX) && path.length > CALL_PREFIX.length) return { ...last, route: 'calls', callId: path.slice(CALL_PREFIX.length), known: true }
   if (isPageRoute(path)) return { ...last, route: path, callId: null, known: true }
+  // A section of a page (`#assistant/hours`): the page reads which one (ui/SettingsLayout.tsx).
+  const [page = '', section, ...deeper] = path.split('/')
+  if (isPageRoute(page) && hasSections(page) && section && /^[a-z-]+$/.test(section) && !deeper.length)
+    return { ...last, route: page, callId: null, known: true }
   // Admin mode has sections of its own (`#admin/users/<id>`); admin/route.ts reads them.
   if (path.startsWith('admin/')) return { ...last, route: 'admin', callId: null, known: true }
   const [head, view = 'you', ...rest] = path.split('/')

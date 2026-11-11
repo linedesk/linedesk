@@ -1,9 +1,12 @@
-// Account settings: profile, sign-in and sessions of the signed-in member. Everything here is
-// Better Auth's own data (see account-api.ts), so it does not go through the outbox.
+// Account settings: profile, sign-in and sessions of the signed-in member, one section at a time
+// (#account/<section>). Everything here is Better Auth's own data (see account-api.ts), so it does not
+// go through the outbox.
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import { signInAgain } from '../../auth.ts'
 import { dateTimeLabel } from '../../time.ts'
+import { onSaveKey, SaveBar } from '../../ui/form.tsx'
 import { Badge, Button } from '../../ui/kit.tsx'
+import { type PageSection, SettingsLayout, useSection } from '../../ui/SettingsLayout.tsx'
 import { Field, Section, TextInput } from '../fields.tsx'
 import { type Account, changeName, changePassword, loadAccount, loadSessions, setFirstPassword, SignInAgain, signOutOtherSessions, signOutSession } from './account-api.ts'
 import { hasPassword, orderSessions, passwordProblem, type SessionRow, SESSIONS_SHOWN, signInMethodLabels } from './account-model.ts'
@@ -63,28 +66,28 @@ function Profile({ account, reload }: SectionProps) {
   const [name, setName] = useState(account.user.name)
   const request = useRequest()
   const trimmed = name.trim()
+  const dirty = trimmed !== account.user.name
   const save = (e: FormEvent) => {
     e.preventDefault()
+    if (!trimmed || !dirty) return
     void request.run(async () => {
       await changeName(trimmed)
       await reload()
     }, 'Name saved.')
   }
   return (
-    <Section id="ac-profile" title="Profile" description="How you appear to your team.">
-      <form className="ac-form" onSubmit={save}>
-        <Field id="ac-name" label="Name">
-          <div className="ac-inline">
-            <TextInput id="ac-name" value={name} onChange={setName} placeholder="Your name" />
-            <Button type="submit" variant="primary" title="Save your name" disabled={request.busy || !trimmed || trimmed === account.user.name}>Save</Button>
-          </div>
+    <form className="ac-form" onSubmit={save} onKeyDown={e => onSaveKey(e, dirty && !!trimmed)}>
+      <Section id="ac-profile" title="Profile" description="How you appear to your team.">
+        <Field id="ac-name" label="Name" error={trimmed ? null : 'Enter your name.'}>
+          <TextInput id="ac-name" value={name} onChange={setName} placeholder="Your name" invalid={!trimmed} />
+        </Field>
+        <Field label="Email" tip="You sign in with this address. It can't be changed here yet.">
+          <span className="ac-value">{account.user.email}</span>
         </Field>
         <FormStatus request={request} />
-      </form>
-      <Field label="Email" help="You sign in with this address. It cannot be changed here yet.">
-        <span className="ac-value">{account.user.email}</span>
-      </Field>
-    </Section>
+      </Section>
+      <SaveBar dirty={dirty} saving={request.busy} disabled={!trimmed} onCancel={() => setName(account.user.name)} />
+    </form>
   )
 }
 
@@ -102,11 +105,11 @@ function PasswordForm({ account, reload }: SectionProps) {
       await (exists ? changePassword(form.current, form.next) : setFirstPassword(form.next))
       setForm(empty)
       await reload()
-    }, exists ? 'Password changed. Your other sessions were signed out.' : 'Password set. Your other sessions were signed out.')
+    }, exists ? 'Password changed. Other sessions were signed out.' : 'Password set. Other sessions were signed out.')
   }
   return (
     <form className="ac-form ac-divided" onSubmit={save}>
-      {!exists && <span className="help">You have no password yet. Set one to also sign in with email and password.</span>}
+      {!exists && <span className="help">No password yet. Set one to sign in with it too.</span>}
       <div className="row2">
         {exists && <Field id="ac-pw-current" label="Current password"><PasswordInput id="ac-pw-current" value={form.current} onChange={set('current')} autoComplete="current-password" /></Field>}
         <Field id="ac-pw-new" label="New password"><PasswordInput id="ac-pw-new" value={form.next} onChange={set('next')} autoComplete="new-password" /></Field>
@@ -115,7 +118,7 @@ function PasswordForm({ account, reload }: SectionProps) {
       <FormStatus request={request} />
       <div className="ac-actions">
         <Button type="submit" variant="primary" title={exists ? 'Change your password and sign out your other sessions' : 'Set a password for this account'} disabled={request.busy || !form.next}>
-          {exists ? 'Change password' : 'Set a password'}
+          {request.busy ? 'Saving…' : exists ? 'Change password' : 'Set a password'}
         </Button>
       </div>
     </form>
@@ -125,7 +128,7 @@ function PasswordForm({ account, reload }: SectionProps) {
 function SignIn(props: SectionProps) {
   const { accounts, methods } = props.account
   return (
-    <Section id="ac-signin" title="Sign-in" description="How you get into Linedesk.">
+    <Section id="ac-signin" title="Sign-in & security">
       <Field label="Methods">
         <div className="ac-badges">{signInMethodLabels(accounts, methods).map(label => <Badge key={label}>{label}</Badge>)}</div>
       </Field>
@@ -175,7 +178,7 @@ function Sessions() {
     <Section id="ac-sessions" title="Sessions" description="Where you are signed in.">
       {list.state === 'signInAgain' && (
         <div className="ac-inline">
-          <span className="help">Sign in again to see your devices. For your security the list is only shown for a day after signing in.</span>
+          <span className="help">Sign in again to see your devices.</span>
           <SignInAgainButton />
         </div>
       )}
@@ -214,6 +217,13 @@ function Sessions() {
   )
 }
 
+type SectionId = 'profile' | 'security' | 'sessions'
+const sections: readonly PageSection<SectionId>[] = [
+  { id: 'profile', label: 'Profile', description: 'Your name' },
+  { id: 'security', label: 'Sign-in & security', description: 'Sign-in methods and password' },
+  { id: 'sessions', label: 'Sessions', description: 'Where you are signed in' },
+]
+
 /** The shell renders this for the `account` route, without props. */
 export function AccountSettings() {
   const [account, setAccount] = useState<Account | null>(null)
@@ -228,16 +238,16 @@ export function AccountSettings() {
     void reload()
   }, [reload])
 
+  const current = useSection('account', sections)
   if (!account) return <div className="page">{error && <div className="empty"><b>Could not load your account</b><span>{error}</span></div>}</div>
   const props = { account, reload }
   return (
     <div className="page">
-      <div className="page-in st-page">
-        <div className="page-head"><div><h1>Account</h1><p>Your profile, sign-in and sessions.</p></div></div>
-        <Profile {...props} />
-        <SignIn {...props} />
-        <Sessions key={version} />
-      </div>
+      <SettingsLayout page="account" title="Account" sections={sections} current={current}>
+        {current === 'profile' && <Profile {...props} />}
+        {current === 'security' && <SignIn {...props} />}
+        {current === 'sessions' && <Sessions key={version} />}
+      </SettingsLayout>
     </div>
   )
 }

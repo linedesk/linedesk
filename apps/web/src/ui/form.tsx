@@ -231,20 +231,22 @@ export function onSaveKey(e: KeyboardEvent<HTMLFormElement>, canSave: boolean) {
 type SaveBarProps = {
   dirty: boolean
   saving?: boolean
-  onDiscard: () => void
+  onCancel: () => void
   /** Why Save is off, e.g. a field is invalid. */
   disabled?: boolean
   label?: string
+  /** Replaces "Unsaved changes", e.g. to say which sections have them. */
+  note?: ReactNode
 }
 
-/** Save and Discard, sticky at the bottom; shows only while there are changes. Submit the form to save. */
-export function SaveBar({ dirty, saving, onDiscard, disabled, label = 'Save' }: SaveBarProps) {
+/** Cancel and Save, sticky at the bottom; shows only while there are changes. Submit the form to save. */
+export function SaveBar({ dirty, saving, onCancel, disabled, label = 'Save', note }: SaveBarProps) {
   if (!dirty && !saving) return null
   return (
     <div className="k-savebar" role="region" aria-label="Unsaved changes">
-      <span className="k-savebar-note">Unsaved changes</span>
-      <Button variant="ghost" onClick={onDiscard} disabled={saving}>
-        Discard
+      <span className="k-savebar-note">{note ?? 'Unsaved changes'}</span>
+      <Button variant="ghost" onClick={onCancel} disabled={saving} title="Undo the changes">
+        Cancel
       </Button>
       <Button type="submit" variant="primary" disabled={saving || disabled} shortcut={['⌘', 'S']} title="Save (⌘S)">
         {saving ? 'Saving…' : label}

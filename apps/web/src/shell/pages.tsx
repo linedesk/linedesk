@@ -22,8 +22,11 @@ export type PageProps = {
   /** Send a change and offer Undo (Z) in the toast. */
   runUndoable: (steps: Step[], inverse: Step[], label: string, key: string) => void
 }
-/** `ownHeader`: the page draws its own header (with `menu`) instead of the title bar. */
-export type Page = { title: string; render: (props: PageProps) => ReactNode; ownHeader?: boolean }
+/**
+ * `ownHeader`: the page draws its own header (with `menu`) instead of the title bar. `sections`: the
+ * page shows one section at a time, named in the hash after the page (`#assistant/hours`).
+ */
+export type Page = { title: string; render: (props: PageProps) => ReactNode; ownHeader?: boolean; sections?: true }
 
 export const pages = {
   contacts: {
@@ -31,10 +34,15 @@ export const pages = {
     ownHeader: true,
     render: p => <Contacts menu={p.menu} toast={p.toast} openCall={p.openCall} runUndoable={p.runUndoable} />,
   },
-  assistant: { title: 'Assistant', render: p => <AssistantSettings canEdit={p.canEditSettings} toast={p.toast} /> },
+  assistant: {
+    title: 'Assistant',
+    sections: true,
+    render: p => <AssistantSettings canEdit={p.canEditSettings} toast={p.toast} />,
+  },
   team: { title: 'Team', render: p => <TeamPage toast={p.toast} /> },
   settings: {
     title: 'Settings',
+    sections: true,
     render: p => (
       <SettingsPage
         canEdit={p.canEditSettings}
@@ -44,7 +52,7 @@ export const pages = {
       />
     ),
   },
-  account: { title: 'Account settings', render: () => <AccountSettings /> },
+  account: { title: 'Account settings', sections: true, render: () => <AccountSettings /> },
   // Shown in the navigation and ⌘K to instance admins only; the API refuses everyone else.
   // Instance admins get admin mode instead (Workspace.tsx); anyone else who opens #admin sees this.
   admin: { title: 'Admin', render: () => <AdminNotice /> },
@@ -53,3 +61,5 @@ export const pages = {
 export type PageRoute = keyof typeof pages
 export type Route = 'calls' | PageRoute
 export const isPageRoute = (value: string): value is PageRoute => Object.hasOwn(pages, value)
+/** A page whose sections have their own hash (`#settings/recordings`). */
+export const hasSections = (route: PageRoute) => 'sections' in pages[route]

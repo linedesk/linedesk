@@ -40,9 +40,9 @@ export function PhoneNumbers({ canEdit, status, isInstanceAdmin }: Props) {
       title="Phone numbers"
       description={
         !numbers.length
-          ? `Connect a number and ${name} starts answering its calls.`
+          ? `Connect a number and ${name} answers its calls.`
           : presence.kind === 'notAnswering'
-            ? `${name} answers calls to these numbers once the voice service of this Linedesk is set up.`
+            ? `${name} answers once the voice service is set up.`
             : `${name} answers calls to these numbers.`
       }
     >
@@ -54,7 +54,7 @@ export function PhoneNumbers({ canEdit, status, isInstanceAdmin }: Props) {
         </div>
       )}
       {!canEdit && numbers.length === 0 && (
-        <p className="help">No number is connected yet. Only owners and admins can connect one.</p>
+        <p className="help">No number yet. Only owners and admins can connect one.</p>
       )}
       {canEdit && status && !status.available && (
         <Unavailable detail={status.detail} isInstanceAdmin={isInstanceAdmin} />
@@ -80,19 +80,19 @@ export function PhoneNumbers({ canEdit, status, isInstanceAdmin }: Props) {
 function Unavailable({ detail, isInstanceAdmin }: { detail: string | null; isInstanceAdmin: boolean }) {
   return (
     <div className="st-note" role="status">
-      <b>Phone numbers aren't set up on this server yet.</b>
+      <b>No phone carrier on this server yet.</b>
       <span className="help">
-        Whoever runs your Linedesk needs to add a phone carrier first. Calls are answered as soon as a number is
-        connected.
+        {isInstanceAdmin ? (
+          <>
+            {detail ? `${detail}. ` : ''}
+            <a className="k-link" href="#admin/providers">
+              Connect one in Admin
+            </a>
+          </>
+        ) : (
+          'Ask whoever runs your Linedesk to connect one.'
+        )}
       </span>
-      {isInstanceAdmin && detail && (
-        <span className="help">
-          For admins: {detail}.{' '}
-          <a className="k-link" href="#admin/system">
-            Open Admin, System
-          </a>
-        </span>
-      )}
     </div>
   )
 }
@@ -256,10 +256,7 @@ function Forwarding({ e164 }: { e164: string }) {
         <code>{carrier.off}</code>
         <CopyButton text={carrier.off} />
       </div>
-      <span className="help">
-        Dial it from your business phone. When nobody picks up or the line is busy, the call goes to your assistant.
-        Other carriers: look up "conditional call forwarding".
-      </span>
+      <span className="help">Dial it from your business phone. Missed and busy calls then go to your assistant.</span>
     </div>
   )
 }
@@ -374,7 +371,7 @@ function ConnectNumber({
           </Field>
           {confirming && (
             <div className="ob-prompt" role="alert">
-              <span>Buy a number in area code {areaCode}? It is billed every month until you release it.</span>
+              <span>Buy a number in {areaCode}? It is billed monthly until you release it.</span>
               <span className="ob2-row">
                 <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={busy}>
                   Cancel
@@ -392,11 +389,7 @@ function ConnectNumber({
           )}
         </>
       )}
-      {status?.provider === 'dev' && (
-        <p className="help">
-          Development mode: no carrier is connected, so nothing is bought and no real call reaches the number.
-        </p>
-      )}
+      {status?.provider === 'dev' && <p className="help">Development mode: nothing is bought or called.</p>}
       {problem && (
         <p className="auth-error" role="alert">
           {problem}

@@ -15,7 +15,7 @@ import { type ActiveProviders, type ProviderStatus, runAdmin, testProvider } fro
 import { type Connection, connectionOf, isConfigured, providerState, type TestState } from './model.ts'
 import { errorText, type Notify } from './notify.ts'
 import { ProviderDialog, SERVER_SETTING_TIP } from './ProviderDialog.tsx'
-import { categoryBlurb, Logo, providerMeta } from './ProviderLogo.tsx'
+import { Logo, providerMeta } from './ProviderLogo.tsx'
 
 type Props = {
   providers: ProviderStatus[]
@@ -97,9 +97,7 @@ function ProviderRow({ provider, test, inUse, canUse, onOpen, onUse }: RowProps)
             </Badge>
           )}
         </div>
-        <span className="adm-conn-blurb">
-          {connection === 'error' && typeof test === 'object' ? test.message : meta.blurb}
-        </span>
+        {connection === 'error' && typeof test === 'object' && <span className="adm-conn-blurb">{test.message}</span>}
       </div>
       <div className="adm-conn-actions">
         {canUse && !inUse && connection === 'connected' && (
@@ -160,8 +158,8 @@ export function Providers({ providers, active, canStore, notify, reload }: Props
         const { provider: inUse } = active[category]
         // Recording has no fallback: without a pick, calls are not recorded.
         const canUse = inCategory.length > 1 || category === 'recording'
-        const description =
-          category === 'recording' && !inUse ? 'Off: calls are not recorded.' : categoryBlurb[category]
+        // The title says what the category is; the one line left is recording being off.
+        const description = category === 'recording' && !inUse ? 'Off: calls are not recorded.' : undefined
         return (
           <Card key={category} title={providerCategories[category]} description={description} className="adm-cat">
             <ul className="adm-conns">

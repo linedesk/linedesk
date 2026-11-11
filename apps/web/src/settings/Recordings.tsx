@@ -37,19 +37,18 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
     const next = daysOf(choice)
     setDays(next)
     void run('workspace.updateSettings', { recordingRetentionDays: next })
-    toast(
-      next === null ? 'Recordings are kept until you delete the call.' : `Recordings are now kept for ${label(next)}.`,
-    )
+    toast(next === null ? 'Recordings are kept until you delete the call.' : `Recordings are kept for ${label(next)}.`)
   }
 
   return (
     <Section
       id="st-recordings"
       title="Recordings"
-      description={
+      description={recordingOn ? 'Calls are recorded so you can listen back.' : 'Recording is off on this server.'}
+      help={
         recordingOn
-          ? 'Calls are recorded so you can listen back. Older recordings are deleted once a day; the call, its transcript and summary stay.'
-          : 'Recording is off on this server, so calls are not recorded. Whoever runs your Linedesk can switch it on; this setting then applies.'
+          ? 'Older recordings are deleted once a day. The call, its transcript and summary stay.'
+          : 'Whoever runs your Linedesk can turn it on. This setting then applies.'
       }
     >
       {error && (
@@ -59,7 +58,11 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
       )}
       {days === undefined && !error && <p className="help">Loading…</p>}
       {days !== undefined && (
-        <Field id="st-retention" label="Keep recordings for">
+        <Field
+          id="st-retention"
+          label="Keep recordings for"
+          help={canEdit ? undefined : 'Only owners and admins can change this.'}
+        >
           <div>
             <Select
               id="st-retention"
@@ -70,7 +73,6 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
               disabled={!canEdit}
             />
           </div>
-          {!canEdit && <span className="help">Only owners and admins can change this.</span>}
         </Field>
       )}
     </Section>

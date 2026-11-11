@@ -20,8 +20,7 @@ async function browserAllows(): Promise<'granted' | 'denied' | 'unsupported'> {
   return (await Notification.requestPermission()) === 'granted' ? 'granted' : 'denied'
 }
 
-const blockedText =
-  'Your browser blocks notifications for this site. Allow them in the site settings, then turn this on again.'
+const blockedText = 'Blocked by the browser. Allow notifications for this site, then turn this on again.'
 
 export function Notifications({ toast }: { toast: (text: string) => void }) {
   const run = useRun()
@@ -38,7 +37,7 @@ export function Notifications({ toast }: { toast: (text: string) => void }) {
 
   if (error)
     return (
-      <Section id="st-notify" title="Notifications" description="New calls by email and in the browser.">
+      <Section id="st-notify" title="Notifications">
         <p className="help" role="alert">
           {error}
         </p>
@@ -46,7 +45,7 @@ export function Notifications({ toast }: { toast: (text: string) => void }) {
     )
   if (!settings)
     return (
-      <Section id="st-notify" title="Notifications" description="New calls by email and in the browser.">
+      <Section id="st-notify" title="Notifications">
         <p className="help">Loading…</p>
       </Section>
     )
@@ -78,50 +77,51 @@ export function Notifications({ toast }: { toast: (text: string) => void }) {
     const effective = { ...settings.effective, [channel]: settings.own[channel] ?? on }
     change({ ...settings, defaults, effective })
     void run('notifications.setDefaults', { [channel]: on })
-    toast('Defaults saved. They apply to teammates who have not changed their own.')
+    toast('Team defaults saved.')
   }
 
-  const followsDefault = (channel: Channel) => (settings.own[channel] === null ? ' Workspace default.' : '')
+  const followsDefault = (channel: Channel) => (settings.own[channel] === null ? 'Team default' : undefined)
   return (
-    <Section id="st-notify" title="Notifications" description="For you. Each teammate sets their own.">
-      <div className="st-swlist">
-        <SwitchRow
-          title="Email for every call"
-          description={`One email when a call ends, with the summary and a link to the call.${followsDefault('email')}`}
-          on={settings.effective.email}
-          onChange={on => void setOwn('email', on)}
-        />
-        <SwitchRow
-          title="Browser notifications"
-          description={
-            browserNote ??
-            `While Linedesk is open in a tab in the background, a notification when a call ends.${followsDefault('browser')}`
-          }
-          on={settings.effective.browser && !browserNote}
-          onChange={on => void setOwn('browser', on)}
-          disabled={!browserNotificationsSupported()}
-        />
-      </div>
+    <>
+      <Section id="st-notify" title="Notifications" description="Only for you. Each teammate sets their own.">
+        <div className="st-swlist">
+          <SwitchRow
+            title="Email for every call"
+            description="The summary and a link, when a call ends."
+            aside={followsDefault('email')}
+            on={settings.effective.email}
+            onChange={on => void setOwn('email', on)}
+          />
+          <SwitchRow
+            title="Browser notifications"
+            description={browserNote ?? 'While Linedesk is open in a background tab.'}
+            aside={followsDefault('browser')}
+            on={settings.effective.browser && !browserNote}
+            onChange={on => void setOwn('browser', on)}
+            disabled={!browserNotificationsSupported()}
+          />
+        </div>
+      </Section>
       {settings.canEditDefaults && (
-        <div className="st-pt st-defaults">
-          <b>Defaults for the team</b>
-          <p className="help">For new teammates and everyone who has not changed their own.</p>
+        <Section
+          id="st-notify-defaults"
+          title="Team defaults"
+          description="For teammates who haven't changed their own."
+        >
           <div className="st-swlist">
             <SwitchRow
               title="Email for every call"
-              description="One email per call with the summary."
               on={settings.defaults.email}
               onChange={on => setDefault('email', on)}
             />
             <SwitchRow
               title="Browser notifications"
-              description="While Linedesk is open in a background tab."
               on={settings.defaults.browser}
               onChange={on => setDefault('browser', on)}
             />
           </div>
-        </div>
+        </Section>
       )}
-    </Section>
+    </>
   )
 }

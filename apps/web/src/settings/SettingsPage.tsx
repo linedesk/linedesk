@@ -1,9 +1,17 @@
-// Workspace settings that are not about the assistant's words: phone numbers (and, next to them,
-// notifications and recordings). One page with sections, reached by G S, the menu and ⌘K.
+// Workspace settings that are not about the assistant's words: phone numbers, notifications and
+// recordings, one section at a time (#settings/<section>). Reached by G S, the menu and ⌘K.
 import type { PhoneSetupStatus } from '../auth.ts'
+import { type PageSection, SettingsLayout, useSection } from '../ui/SettingsLayout.tsx'
 import { Notifications } from './Notifications.tsx'
 import { PhoneNumbers } from './PhoneNumbers.tsx'
 import { Recordings } from './Recordings.tsx'
+
+type SectionId = 'phone' | 'notifications' | 'recordings'
+const sections: readonly PageSection<SectionId>[] = [
+  { id: 'phone', label: 'Phone numbers', description: 'The numbers the assistant answers' },
+  { id: 'notifications', label: 'Notifications', description: 'New calls by email and in the browser' },
+  { id: 'recordings', label: 'Recordings', description: 'How long recordings are kept' },
+]
 
 type Props = {
   canEdit: boolean
@@ -13,19 +21,16 @@ type Props = {
 }
 
 export function SettingsPage({ canEdit, phoneSetup, isInstanceAdmin, toast }: Props) {
+  const current = useSection('settings', sections)
   return (
     <div className="page">
-      <div className="page-in st-page">
-        <div className="page-head">
-          <div>
-            <h1>Settings</h1>
-            <p>Phone numbers, notifications and recordings for this workspace.</p>
-          </div>
-        </div>
-        <PhoneNumbers canEdit={canEdit} status={phoneSetup} isInstanceAdmin={isInstanceAdmin} />
-        <Notifications toast={toast} />
-        <Recordings canEdit={canEdit} toast={toast} />
-      </div>
+      <SettingsLayout page="settings" title="Settings" sections={sections} current={current}>
+        {current === 'phone' && (
+          <PhoneNumbers canEdit={canEdit} status={phoneSetup} isInstanceAdmin={isInstanceAdmin} />
+        )}
+        {current === 'notifications' && <Notifications toast={toast} />}
+        {current === 'recordings' && <Recordings canEdit={canEdit} toast={toast} />}
+      </SettingsLayout>
     </div>
   )
 }

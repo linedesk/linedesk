@@ -79,17 +79,18 @@ export function BusinessHours({ hours, canEdit, name }: Props) {
     )
   }
 
-  const description = `Optional. Outside these hours ${name} tells callers the office is closed, takes a message and says when someone will call back.`
+  const description = `Optional. Outside them, ${name} takes a message.`
+  const help = `Outside these hours ${name} tells callers the office is closed, takes a message and says when someone will call back.`
   if (!saved)
     return (
-      <Section id="as-hours" title="Business hours" description={description}>
+      <Section id="as-hours" title="Business hours" description={description} help={help}>
         <p className="help" role={loadError ? 'alert' : undefined}>
           {loadError ?? 'Loading…'}
         </p>
       </Section>
     )
   return (
-    <Section id="as-hours" title="Business hours" description={description}>
+    <Section id="as-hours" title="Business hours" description={description} help={help}>
       <div className="st-list" role="group" aria-label="Opening hours by day">
         {WEEK_ORDER.map(weekday => {
           const day = days.find(d => d.weekday === weekday)!
