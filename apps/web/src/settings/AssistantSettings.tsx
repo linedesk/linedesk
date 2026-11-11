@@ -1,5 +1,5 @@
 // Assistant settings by topic, one section at a time (#assistant/<id>/<section>): general (greeting), business
-// info, hours and holidays, rules (AI disclosure, tone, behaviour checklist), calls and transfers (transfer
+// info, hours and holidays, rules (AI disclosure, tone, behaviour checklist), transfers (transfer
 // contacts), booking, voice, and Advanced (languages, raw call rules, silence, keypad menu).
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays and booking save on their own.
@@ -58,14 +58,14 @@ import { TransferContacts, transferFieldId } from './TransferContacts.tsx'
 import { BusinessHours } from './BusinessHours.tsx'
 import { Holidays, VacationMode } from './Holidays.tsx'
 
-type SectionId = 'general' | 'business' | 'hours' | 'rules' | 'calls' | 'booking' | 'voice' | 'advanced'
+type SectionId = 'general' | 'business' | 'hours' | 'rules' | 'transfers' | 'booking' | 'voice' | 'advanced'
 const sections: readonly PageSection<SectionId>[] = [
   { id: 'general', label: 'General', description: 'Greeting and returning callers' },
   { id: 'business', label: 'Business info', description: 'What you do, services, prices, FAQs and documents' },
   { id: 'hours', label: 'Hours & holidays', description: 'Weekly hours, holidays, vacation mode' },
   { id: 'rules', label: 'Rules', description: 'AI disclosure, tone and how calls are handled' },
-  { id: 'calls', label: 'Calls & transfers', description: 'Who calls are put through to' },
-  { id: 'booking', label: 'Booking', description: 'Calendars and appointment types' },
+  { id: 'transfers', label: 'Transfers', description: 'Who calls are put through to' },
+  { id: 'booking', label: 'Booking & Calendar', description: 'Calendars and appointment types' },
   { id: 'voice', label: 'Voice', description: 'How the assistant sounds' },
   { id: 'advanced', label: 'Advanced', description: 'Languages, call rules, silence, keypad menu' },
 ]
@@ -76,7 +76,7 @@ const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   business: ['instructions', 'services', 'faqs', 'website'],
   general: ['name', 'greeting', 'greeting_known_caller', 'greeting_outside'],
   rules: ['ai_disclosure', 'communication_style', 'behaviours'],
-  calls: ['transfers'],
+  transfers: ['transfers'],
   voice: ['voice'],
   advanced: ['call_rules', 'silence_first_gap_s', 'silence_reminders', 'silence_closing', 'keypad_on', 'keypad_options', 'languages'],
 }
@@ -84,9 +84,10 @@ const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
 const OLD_SECTIONS: Record<string, SectionId> = {
   greeting: 'general',
   knowledge: 'business',
-  transfer: 'calls',
+  transfer: 'transfers',
+  calls: 'transfers',
   calendar: 'booking',
-  emergencies: 'calls',
+  emergencies: 'transfers',
 }
 
 /** The assistant's name as the help texts say it, also while the name field is being edited. */
@@ -472,7 +473,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     const transfer = transferProblem(draft)
     if (transfer) {
       setTransferSaveTried(true)
-      return goTo('calls', transferFieldId(transfer.index, transfer.field))
+      return goTo('transfers', transferFieldId(transfer.index, transfer.field))
     }
     if (silenceProblem(draft)) return goTo('advanced', 'as-silence-gap')
     if (keypadProblem(draft)) return goTo('advanced', 'as-keypad-label-0')
@@ -532,7 +533,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
           <Greeting draft={draft} set={set} renamedFrom={renamedFrom} hoursOn={hoursOn} canEdit={canEdit} />
         )}
         {current === 'rules' && <Behaviours draft={draft} set={set} />}
-        {current === 'calls' && (
+        {current === 'transfers' && (
           <>
             <TransferContacts
               transfers={draft.transfers}

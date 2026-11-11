@@ -1,5 +1,5 @@
 // The settings layout (after shadcn's): the page title, a narrow nav of the page's sections at the
-// left, one section at a time at the right. Each section has its own hash (`#assistant/<id>/calls`),
+// left, one section at a time at the right. Each section has its own hash (`#assistant/<id>/transfers`),
 // so links, reload and Back work. Below 720 px the nav is a row of tabs that scrolls sideways.
 import { type MouseEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import './settings-layout.css'

@@ -199,7 +199,7 @@ function SwitchMenu({ assistant, assistants, canEdit, onPick, onNew, onDuplicate
   )
 }
 
-/** Which numbers this assistant answers, and a list to give it more. Shown when there are several numbers. */
+/** Which numbers this assistant answers, and (with several numbers) a list to give it more. */
 function NumberChips({
   assistant,
   isDefault,
@@ -249,7 +249,7 @@ function NumberChips({
       ) : (
         <span className="help">Answers no number yet</span>
       )}
-      {canEdit && (
+      {canEdit && numbers.length > 1 && (
         <span className="as-assign">
           <Button
             size="sm"
@@ -342,7 +342,13 @@ export function AssistantHeader({ assistant, assistants, numbers, canEdit, onPic
           onDelete={() => setDeleting(true)}
         />
       </div>
-      {numbers.length > 1 && (
+      {numbers.length === 0 ? (
+        <div className="as-numbers">
+          <a className="help" href="#settings/phone">
+            No phone number yet
+          </a>
+        </div>
+      ) : (
         <NumberChips
           assistant={assistant}
           isDefault={isDefault}
