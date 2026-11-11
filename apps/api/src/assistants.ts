@@ -5,6 +5,7 @@ import { assistant_calendars, assistants, organization, phone_numbers, type Tx }
 import { recordVersion } from './assistant-versions.ts'
 import { releaseUnusedClones } from './voices.ts'
 import { type Assistant, DEFAULT_TRANSFERS } from '@linedesk/db/types'
+import { DEFAULT_AI_DISCLOSURE } from '@linedesk/actions'
 import { and, asc, eq, ne } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 
@@ -14,7 +15,7 @@ const newId = () => `as_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 const NAMES = ['Maya', 'Ava', 'Leo', 'Nora', 'Sam', 'Ivy', 'Max', 'Zoe', 'Eli', 'Ruby']
 
 export const greetingFor = (businessName: string, name: string) =>
-  `Thanks for calling ${businessName}. This is ${name}, the AI assistant. How can I help?`
+  `Thanks for calling ${businessName}. This is ${name}. How can I help?`
 
 /** The workspace's assistants, oldest first: the first is the default. */
 export const workspaceAssistants = (tx: Tx, workspaceId: string) =>
@@ -79,7 +80,7 @@ export const assistantHandlers: Record<string, Handler> = {
           created_at: undefined,
           version: undefined,
         }
-      : { id: newId(), workspace_id: workspaceId, name, greeting: greetingFor(org?.name ?? 'us', name), ai_disclosure: 'at_start' as const }
+      : { id: newId(), workspace_id: workspaceId, name, greeting: greetingFor(org?.name ?? 'us', name), ai_disclosure: DEFAULT_AI_DISCLOSURE }
     const rows = await tx.insert(assistants).values(values).returning()
     await recordVersion(tx, workspaceId, rows[0]!.id, { by: actor.actorId, created: true })
     return { rows: { assistants: rows }, data: { assistantId: rows[0]!.id } }

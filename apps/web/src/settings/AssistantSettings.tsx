@@ -1,6 +1,6 @@
-// Assistant settings by topic, one section at a time (#assistant/<id>/<section>): business info, hours and
-// holidays, calls and transfers (greeting, behaviour checklist, transfer contacts),
-// notifications, booking, voice, and Advanced (languages, raw call rules, silence, keypad menu); AI disclosure is the first row of the checklist.
+// Assistant settings by topic, one section at a time (#assistant/<id>/<section>): general (greeting), business
+// info, hours and holidays, rules (AI disclosure, tone, behaviour checklist), calls and transfers (transfer
+// contacts), notifications, booking, voice, and Advanced (languages, raw call rules, silence, keypad menu).
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays, notifications and booking save on their own.
 import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, CALL_RULES_MAX, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, DEFAULT_CALL_RULES, DEFAULT_KNOWN_CALLER_GREETING, knownCallerGreetingProblem, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS, type AssistantLanguages, type Language, languageCodes, LANGUAGES, GREETING_VARIABLES, usesGreetingVariable } from '@linedesk/actions'
@@ -44,7 +44,6 @@ import {
   transfersToSave,
 } from './assistantDraft.ts'
 import { AssistantHeader } from './AssistantHeader.tsx'
-import { HistoryButton } from './AssistantHistory.tsx'
 import { CalendarSettings } from './Calendar.tsx'
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
 import { EditBusinessHours } from './BusinessHoursDialog.tsx'
@@ -60,11 +59,13 @@ import { BusinessHours } from './BusinessHours.tsx'
 import { Holidays, VacationMode } from './Holidays.tsx'
 import { Notifications } from './Notifications.tsx'
 
-type SectionId = 'business' | 'hours' | 'calls' | 'notifications' | 'booking' | 'voice' | 'advanced'
+type SectionId = 'general' | 'business' | 'hours' | 'rules' | 'calls' | 'notifications' | 'booking' | 'voice' | 'advanced'
 const sections: readonly PageSection<SectionId>[] = [
+  { id: 'general', label: 'General', description: 'Greeting and returning callers' },
   { id: 'business', label: 'Business info', description: 'What you do, services, prices, FAQs and documents' },
   { id: 'hours', label: 'Hours & holidays', description: 'Weekly hours, holidays, vacation mode' },
-  { id: 'calls', label: 'Calls & transfers', description: 'Greeting, how calls are handled, who calls go to' },
+  { id: 'rules', label: 'Rules', description: 'AI disclosure, tone and how calls are handled' },
+  { id: 'calls', label: 'Calls & transfers', description: 'Who calls are put through to' },
   { id: 'notifications', label: 'Notifications', description: 'New calls by email, in the browser and by push' },
   { id: 'booking', label: 'Booking', description: 'Calendars and appointment types' },
   { id: 'voice', label: 'Voice', description: 'How the assistant sounds' },
@@ -75,15 +76,16 @@ type OwnSection = 'hours' | 'notifications' | 'booking'
 /** Which draft fields each section holds. */
 const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   business: ['instructions', 'services', 'faqs', 'website'],
-  calls: ['name', 'greeting', 'greeting_known_caller', 'greeting_outside', 'ai_disclosure', 'communication_style', 'behaviours', 'transfers'],
+  general: ['name', 'greeting', 'greeting_known_caller', 'greeting_outside'],
+  rules: ['ai_disclosure', 'communication_style', 'behaviours'],
+  calls: ['transfers'],
   voice: ['voice'],
   advanced: ['call_rules', 'silence_first_gap_s', 'silence_reminders', 'silence_closing', 'keypad_on', 'keypad_options', 'languages'],
 }
 /** Section ids from before the regrouping, so old links and bookmarks still land in the right place. */
 const OLD_SECTIONS: Record<string, SectionId> = {
-  greeting: 'calls',
+  greeting: 'general',
   knowledge: 'business',
-  rules: 'advanced',
   transfer: 'calls',
   calendar: 'booking',
   emergencies: 'calls',
@@ -244,7 +246,7 @@ function CallRules({ draft, set }: SectionProps) {
       id="as-rules"
       title="Call rules"
       description="The instructions behind the checklist, as text."
-      help={`How ${assistantName(draft)} handles a call: what to ask, what to do with emergencies, prices and sales calls. The checklist under Calls & transfers comes on top. Whatever the rules say, ${assistantName(draft)} always says it is an AI when asked and offers to take a message when it can't help.`}
+      help={`How ${assistantName(draft)} handles a call: what to ask, what to do with emergencies, prices and sales calls. The checklist under Rules comes on top. Whatever the rules say, ${assistantName(draft)} always says it is an AI when asked and offers to take a message when it can't help.`}
       actions={
         <Button
           size="sm"
@@ -463,8 +465,8 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
   function save(e: FormEvent) {
     e.preventDefault()
     // The greeting shows its error under the field: go there instead of a toast that outlives the fix.
-    if (!draft.greeting.trim()) return goTo('calls', 'as-greet')
-    if (knownCallerGreetingProblem(draft.greeting_known_caller)) return goTo('calls', 'as-greet-known')
+    if (!draft.greeting.trim()) return goTo('general', 'as-greet')
+    if (knownCallerGreetingProblem(draft.greeting_known_caller)) return goTo('general', 'as-greet-known')
     const transfer = transferProblem(draft)
     if (transfer) {
       setTransferSaveTried(true)
@@ -524,10 +526,12 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
             toast={toast}
           />
         )}
+        {current === 'general' && (
+          <Greeting draft={draft} set={set} renamedFrom={renamedFrom} hoursOn={hoursOn} canEdit={canEdit} />
+        )}
+        {current === 'rules' && <Behaviours draft={draft} set={set} />}
         {current === 'calls' && (
           <>
-            <Greeting draft={draft} set={set} renamedFrom={renamedFrom} hoursOn={hoursOn} canEdit={canEdit} />
-            <Behaviours draft={draft} set={set} />
             <TransferContacts
               transfers={draft.transfers}
               onChange={list => set('transfers', list)}
@@ -577,12 +581,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         />
       }
       description={canEdit ? undefined : 'Only owners and admins can change these.'}
-      actions={
-        <>
-          {canEdit && <HistoryButton assistant={assistant} dirty={changed} />}
-          <TestCallButton session={testCall} />
-        </>
-      }
+      actions={<TestCallButton session={testCall} />}
       banner={<TestCallPanel session={testCall} />}
       sections={sections}
       current={current}
@@ -621,7 +620,7 @@ function returnFromCalendarConnect(assistants: Assistant[]) {
 
 /**
  * Old and short links in place: `#assistant/<section>` (no assistant) goes to the first assistant, and a
- * section id from before the regrouping (`greeting`, `knowledge`, `rules`, `transfer`, `calendar`) to its new one.
+ * section id from before the regrouping (`greeting`, `knowledge`, `transfer`, `calendar`, `emergencies`) to its new one.
  */
 function canonicalAssistantHash(assistants: Assistant[]) {
   const [path = '', query] = window.location.hash.replace(/^#/, '').split('?')

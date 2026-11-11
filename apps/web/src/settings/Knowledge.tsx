@@ -287,7 +287,7 @@ function ServicesCard({ draft, set, canEdit, name }: Props & { name: string }) {
                       />
                       <Input
                         value={s.price}
-                        placeholder="Quote only"
+                        placeholder="e.g. $43 or quote only"
                         aria-label="Price"
                         maxLength={PRICE_MAX}
                         className="kn-price"

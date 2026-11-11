@@ -19,7 +19,7 @@ import {
   user,
   workspace_settings,
 } from '@linedesk/db'
-import { RING_SECONDS_DEFAULT } from '@linedesk/actions'
+import { DEFAULT_AI_DISCLOSURE, RING_SECONDS_DEFAULT, withoutDisclosure } from '@linedesk/actions'
 import { and, asc, eq, inArray, like } from 'drizzle-orm'
 import { db } from './db.ts'
 import { DEMO_ASSISTANT, GREETING, leadOf, type SeedCall, seedCalls } from './demo-calls.ts'
@@ -420,8 +420,9 @@ async function seedAssistant(workspaceId: string, business: string): Promise<str
     .limit(1)
   const values = {
     name: DEMO_ASSISTANT,
-    greeting: renamed(GREETING, business, DEMO_ASSISTANT),
-    greeting_outside: `Thanks for calling ${business}. We are closed right now. This is ${DEMO_ASSISTANT}, the AI assistant. How can I help?`,
+    greeting: withoutDisclosure(renamed(GREETING, business, DEMO_ASSISTANT)),
+    greeting_outside: `Thanks for calling ${business}. We are closed right now. This is ${DEMO_ASSISTANT}. How can I help?`,
+    ai_disclosure: DEFAULT_AI_DISCLOSURE,
     business_profile: {
       instructions: INSTRUCTIONS,
       description: 'Family-run plumbing and heating company in Portland, Oregon.',

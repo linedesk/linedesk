@@ -16,7 +16,7 @@ import {
   user,
   workspace_settings,
 } from '@linedesk/db'
-import { recordingKey } from '@linedesk/actions'
+import { DEFAULT_AI_DISCLOSURE, recordingKey, withoutDisclosure } from '@linedesk/actions'
 import { parseArgs } from 'node:util'
 import { asc, eq } from 'drizzle-orm'
 import { auth } from './auth.ts'
@@ -173,7 +173,8 @@ async function seed() {
     id: 'as_demo',
     workspace_id,
     name: 'Maya',
-    greeting: GREETING,
+    greeting: withoutDisclosure(GREETING),
+    ai_disclosure: DEFAULT_AI_DISCLOSURE,
     business_profile: {
       description: 'Family-run plumbing and heating company in Portland, Oregon.',
       services: ['Leak repair', 'Water heaters', 'Drain cleaning', 'Bathroom remodels', 'Furnace service'],
