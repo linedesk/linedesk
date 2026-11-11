@@ -3,26 +3,24 @@
 // mail server never holds up the agent. Test calls and spam send nothing.
 import { DEFAULT_NOTIFICATIONS } from '@linedesk/actions'
 import {
+  appointment_types,
   assistants,
+  bookings,
   calls,
   contacts,
   member,
   member_notification_settings,
+  organization,
   type Tx,
   user,
   workspace_settings,
 } from '@linedesk/db'
-import type { Call } from '@linedesk/db/types'
-import { and, asc, eq, isNull, sql } from 'drizzle-orm'
-import type { Email, EmailSender } from './email.ts'
+import { and, asc, desc, eq, isNull, ne, sql } from 'drizzle-orm'
+import type { EmailSender } from './email.ts'
+import { slotWithZone } from './bookings.ts'
+import { type CallEmail, callEmail, emailSafeName } from './emails/templates.ts'
 
-const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
-
-/** +15035550142 → +1 503 555 0142 (the web app's format). */
-export const formatNumber = (e164: string) => {
-  const m = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(e164)
-  return m ? `+1 ${m[1]} ${m[2]} ${m[3]}` : e164
-}
+export { formatNumber } from './emails/templates.ts'
 
 /** Members of the workspace who get an email for this call, with their address. */
 export async function emailRecipients(tx: Tx, workspaceId: string): Promise<{ email: string; name: string }[]> {
@@ -41,35 +39,6 @@ export async function emailRecipients(tx: Tx, workspaceId: string): Promise<{ em
     )
     .where(and(eq(member.organizationId, workspaceId), isNull(user.disabledAt)))
   return rows.filter(r => r.own ?? fallback).map(({ email, name }) => ({ email, name }))
-}
-
-type Context = { call: Call; callerName: string | null; assistantName: string; timeZone: string }
-
-/** The email for one finished call: what it was about, the summary, next steps and a link. */
-export function callEmail(
-  { call, callerName, assistantName, timeZone }: Context,
-  to: string,
-  origin = WEB_ORIGIN,
-): Email {
-  const caller = callerName ? `${callerName} (${formatNumber(call.from_number)})` : formatNumber(call.from_number)
-  const topic = call.title || 'New call'
-  const urgent = call.urgency === 'urgent'
-  const at = new Date(call.started_at)
-    .toLocaleString('en-US', { timeZone, weekday: 'short', hour: 'numeric', minute: '2-digit' })
-    .replace(/\s/g, ' ') // plain spaces: some mail apps show the narrow one as a box
-  const steps = call.action_items.filter(item => !item.done).map(item => `- ${item.text}`)
-  const text = [
-    `${assistantName} answered a call from ${caller} on ${at}.`,
-    '',
-    `${urgent ? 'URGENT: ' : ''}${topic}`,
-    ...(call.summary ? [call.summary] : []),
-    ...(steps.length ? ['', 'Next steps:', ...steps] : []),
-    '',
-    `Open the call: ${origin}/#call/${encodeURIComponent(call.id)}`,
-    '',
-    'You get one email per call. Turn it off in Linedesk under Settings, Notifications.',
-  ].join('\n')
-  return { to, subject: `${urgent ? 'Urgent: ' : ''}${topic} · ${callerName || formatNumber(call.from_number)}`, text }
 }
 
 export type NotifyResult = { sent: number; failed: number; skipped?: 'missing' | 'test' | 'spam' | 'unfinished' }
@@ -93,16 +62,35 @@ export async function notifyCallFinished(tx: Tx, sender: EmailSender, callId: st
     .select({ timezone: workspace_settings.timezone })
     .from(workspace_settings)
     .where(eq(workspace_settings.workspace_id, call.workspace_id))
-  const context: Context = {
-    call,
+  const timeZone = settings?.timezone ?? 'America/New_York'
+  const [workspace] = await tx.select({ name: organization.name }).from(organization).where(eq(organization.id, call.workspace_id))
+  const [booked] = await tx
+    .select({ start_at: bookings.start_at, type: appointment_types.name, title: bookings.title })
+    .from(bookings)
+    .leftJoin(appointment_types, eq(appointment_types.id, bookings.appointment_type_id))
+    .where(and(eq(bookings.call_id, call.id), ne(bookings.status, 'cancelled')))
+    .orderBy(desc(bookings.created_at))
+    .limit(1)
+  const content: CallEmail = {
+    callId: call.id,
+    title: call.title,
+    summary: call.summary,
+    urgent: call.urgency === 'urgent',
+    fromNumber: call.from_number,
     callerName: contact?.name ?? null,
     assistantName: assistant?.name ?? 'Your assistant',
-    timeZone: settings?.timezone ?? 'America/New_York',
+    startedAt: call.started_at,
+    durationSec: call.duration_sec,
+    timeZone,
+    nextSteps: call.action_items.filter(item => !item.done).map(item => item.text),
+    booking: booked ? { what: booked.type ?? booked.title ?? 'Appointment', when: slotWithZone(booked.start_at, timeZone) } : null,
+    workspace: emailSafeName(workspace?.name, 'your workspace'),
   }
+  const email = callEmail(content)
   const result: NotifyResult = { sent: 0, failed: 0 }
   for (const recipient of await emailRecipients(tx, call.workspace_id)) {
     try {
-      await sender.send(callEmail(context, recipient.email))
+      await sender.send({ to: recipient.email, ...email })
       result.sent++
     } catch (e) {
       result.failed++

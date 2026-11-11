@@ -18,6 +18,7 @@ import { mergeDatabaseHooks } from './db-hooks.ts'
 import { githubProvider } from './github-sign-in.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
+import { confirmationCodeEmail as confirmationCodeTemplate, signInCodeEmail } from './emails/templates.ts'
 import { refuseExistingMember, sendVerificationEmail } from './invitations.ts'
 import { countSignInFailures, limitSignIns } from './sign-in-limits.ts'
 import { refuseWhileImpersonating } from './impersonation-guard.ts'
@@ -119,24 +120,15 @@ const UNUSED_EMAIL_CODE_PATHS = [
   '/email-otp/check-verification-otp', '/email-otp/request-email-change', '/email-otp/change-email',
 ]
 
-/** The sign-in email: the code in the subject and the body, no link. */
-export const signInCodeEmail = (otp: string) => ({
-  subject: `${otp} is your Linedesk sign-in code`,
-  text: `${otp} is your Linedesk sign-in code.\n\nEnter it on the sign-in page. It works once and expires in 10 minutes. If you did not ask for it, you can ignore this email.`,
-})
+export { signInCodeEmail }
 
 /**
  * The code that confirms a signed-in member's own address (only asked for by them, see
  * sign-in-limits.ts). Names the site it is for (the address people open, as for passkeys), so a code
  * someone asks for elsewhere stands out.
  */
-export const confirmationCodeEmail = (otp: string, env: Record<string, string | undefined> = process.env) => {
-  const site = passkeyRelyingParty(env).origin
-  return {
-    subject: `${otp} is your Linedesk confirmation code`,
-    text: `${otp} confirms this address for your Linedesk account at ${site}.\n\nEnter it on ${site}, where Linedesk asked for it. It works once and expires in 10 minutes. Don't share this code with anyone; Linedesk staff will never ask for it. If you did not ask for it, you can ignore this email.`,
-  }
-}
+export const confirmationCodeEmail = (otp: string, env: Record<string, string | undefined> = process.env) =>
+  confirmationCodeTemplate(otp, passkeyRelyingParty(env).origin)
 
 /** Sign-in and confirmation codes are sent; the plugin's other code types (password reset, email change) are not offered. */
 async function sendSignInCode({ email, otp, type }: { email: string; otp: string; type: string }) {

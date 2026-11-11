@@ -7,6 +7,8 @@ export interface Email {
   to: string
   subject: string
   text: string
+  /** The same content as HTML (emails/layout.ts); mail apps show it, the text part is the fallback. */
+  html?: string
 }
 export interface EmailSender {
   kind: 'smtp' | 'log' | 'none'

@@ -13,3 +13,4 @@ out
 data/
 backups/
 *.dump
+email-previews/

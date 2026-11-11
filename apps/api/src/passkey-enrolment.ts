@@ -9,6 +9,7 @@ import { passkey, session, type Tx, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
+import { passkeysResetEmail } from './emails/templates.ts'
 
 export const ENROLMENT_HOURS = 24
 
@@ -49,17 +50,7 @@ export async function clearPasskeyEnrolment(userId: string) {
   await db.update(user).set({ passkeyEnrolmentHash: null, passkeyEnrolmentExpiresAt: null }).where(eq(user.id, userId))
 }
 
-/** The email the user gets when an admin resets their passkeys (also with none to remove, for an instance admin). */
-export function passkeysResetEmail(removed: number) {
-  const what =
-    removed > 0
-      ? 'An administrator removed every passkey of your Linedesk account and signed you out everywhere.'
-      : 'An administrator issued a passkey enrolment code for your Linedesk account and signed you out everywhere.'
-  return {
-    subject: removed > 0 ? 'The passkeys of your Linedesk account were removed' : 'A passkey enrolment code was issued for your Linedesk account',
-    text: `${what} Sign in with an email code or your password, then add a new passkey under Account, Sign-in & security.\n\nIf you did not ask for this, tell your administrator.`,
-  }
-}
+export { passkeysResetEmail }
 
 /**
  * Removes every passkey of a user and signs them out everywhere, in the caller's transaction: a

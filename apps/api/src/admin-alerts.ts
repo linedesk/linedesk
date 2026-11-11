@@ -7,12 +7,13 @@ import { and, count, eq, inArray } from 'drizzle-orm'
 import { signInMethod } from './audit.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
+import { adminAlertEmail } from './emails/templates.ts'
 import { instanceAdminEmails, isInstanceAdmin } from './instance-admin.ts'
 
 /** Emails every enabled instance admin. Resolves once the list is read; the sends run on their own. */
 export async function alertInstanceAdmins(subject: string, text: string) {
   for (const to of await instanceAdminEmails())
-    void emailSender.send({ to, subject, text }).catch(err => console.error('admin alert email failed', err))
+    void emailSender.send({ to, ...adminAlertEmail(subject, text) }).catch(err => console.error('admin alert email failed', err))
 }
 
 const methodNames: Record<string, string> = {

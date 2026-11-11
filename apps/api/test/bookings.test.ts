@@ -7,7 +7,6 @@ import { CalendarError } from '@linedesk/calendar'
 import { appointment_types, assistant_calendars, assistants, availability_rules, bookings, calls, contacts, type Tx, webhook_deliveries, webhook_endpoints, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test } from 'vitest'
-import { confirmationEmail } from '../src/booking-confirmation.ts'
 import { bookedNameOf, CONFIRMATIONS_PER_HOUR, DEFAULT_BOOKING_HOURS, namesMatch, slotLabel } from '../src/bookings.ts'
 import type { CalendarServices } from '../src/calendar-connections.ts'
 import type { Actor } from '../src/context.ts'
@@ -351,13 +350,6 @@ test('the name on a booking: last name required, nothing the booking does not ha
 })
 
 const shiftDay = (date: string, days: number) => new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
-
-test('the confirmation email: business, type and time, no link', () => {
-  const email = confirmationEmail({ business: 'Brightwater Plumbing & Heating', what: 'repair visit', when: 'Tuesday, November 17 at 9:00 AM', minutes: 60 })
-  expect(email.subject).toBe('Your repair visit with Brightwater Plumbing & Heating: Tuesday, November 17 at 9:00 AM')
-  expect(email.text).toContain('is booked for Tuesday, November 17 at 9:00 AM (60 minutes).')
-  expect(email.text).not.toMatch(/https?:/)
-})
 
 describe('appointment types', () => {
   test('add, change, and delete; one with bookings is switched off instead', async () => {

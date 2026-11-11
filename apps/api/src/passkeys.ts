@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm'
 import { passkeyConfirmed } from './admin-second-factor.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
+import { passkeyChangedEmail } from './emails/templates.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { clearPasskeyEnrolment, ENROLMENT_HEADER, enrolmentCodeValid, enrolmentPending } from './passkey-enrolment.ts'
 
@@ -124,14 +125,7 @@ export async function guardPasskeyChanges(ctx: AuthCtx) {
   }
 }
 
-/** The email the account gets when one of its passkeys is added or removed. */
-export function passkeyChangedEmail(change: 'added' | 'removed') {
-  const what = change === 'added' ? 'A passkey was added to' : 'A passkey was removed from'
-  return {
-    subject: `${what} your Linedesk account`,
-    text: `${what} your Linedesk account.\n\nIf this was you, there is nothing to do. If not, ask an instance admin of your Linedesk to remove all passkeys of your account (Admin, Users, your name, Reset passkeys), then sign in and add your own again.`,
-  }
-}
+export { passkeyChangedEmail }
 
 const CHANGE_BY_PATH: Record<string, 'added' | 'removed'> = {
   '/passkey/verify-registration': 'added',

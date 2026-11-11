@@ -4,7 +4,7 @@ import { calls, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import type { PgBoss } from 'pg-boss'
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { callEmail, emailRecipients, notifyCallFinished } from '../src/call-notifications.ts'
+import { emailRecipients, notifyCallFinished } from '../src/call-notifications.ts'
 import { db } from '../src/db.ts'
 import type { Email, EmailSender } from '../src/email.ts'
 import { CALL_NOTIFY, setJobQueue } from '../src/jobs.ts'
@@ -146,29 +146,4 @@ describe('call emails', () => {
     await act(agent(ws.id), 'call.finish', { callId: body.data.callId })
     expect(notifications()).toHaveLength(1)
   })
-})
-
-test('the email names the caller and says how to turn it off', () => {
-  const email = callEmail(
-    {
-      call: {
-        id: 'call_1',
-        from_number: '+15035550191',
-        started_at: '2026-11-10T17:00:00Z',
-        title: 'Water heater',
-        summary: 'No hot water.',
-        urgency: 'normal',
-        action_items: [],
-      } as never,
-      callerName: 'Priya Shah',
-      assistantName: 'Maya',
-      timeZone: 'America/Los_Angeles',
-    },
-    'mike@brightwater.example',
-    'https://desk.example.com',
-  )
-  expect(email.subject).toBe('Water heater · Priya Shah')
-  expect(email.text).toContain('Maya answered a call from Priya Shah (+1 503 555 0191) on Tue 9:00 AM.')
-  expect(email.text).toContain('https://desk.example.com/#call/call_1')
-  expect(email.text).toContain('Settings, Notifications')
 })

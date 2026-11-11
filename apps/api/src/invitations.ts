@@ -6,6 +6,7 @@ import { APIError } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
+import { verifyEmailEmail } from './emails/templates.ts'
 
 /**
  * Public: the invitation page asks whom the link is for before anyone signs in. The id is the
@@ -35,9 +36,8 @@ export async function refuseExistingMember({ invitation: invite, user: account }
  * who signed up with a password confirms theirs with this link (the invitation page asks for it).
  */
 export async function sendVerificationEmail({ user: account, url }: { user: { email: string }; url: string }) {
-  const text = `Open this link to confirm your email address for Linedesk:\n\n${url}\n\nIf you did not ask for it, you can ignore this email.`
   try {
-    await emailSender.send({ to: account.email, subject: 'Confirm your email for Linedesk', text })
+    await emailSender.send({ to: account.email, ...verifyEmailEmail(url) })
   } catch (err) {
     console.error('verification email failed', err)
     throw new APIError('INTERNAL_SERVER_ERROR', { message: 'Could not send the email. Try again in a moment.' })

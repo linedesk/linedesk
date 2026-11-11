@@ -13,7 +13,8 @@
     "user:passkeys": "tsx --env-file=../../.env src/user-passkeys.ts",
     "workspace:create": "node --env-file-if-exists=../../.env src/workspace-create.ts",
     "typecheck": "tsc -p .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "email:preview": "node --env-file-if-exists=../../.env src/emails/preview-cli.ts"
   },
   "dependencies": {
     "@better-auth/passkey": "1.7.19",

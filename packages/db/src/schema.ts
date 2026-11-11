@@ -417,6 +417,8 @@ export const bookings = pgTable(
     calendar_name: text('calendar_name'),
     /** The caller's email address, if they gave one. */
     caller_email: text('caller_email'),
+    /** Where the appointment is, as the caller gave it (also the calendar event's location). */
+    address: text('address'),
     /** The confirmation email: queued, or skipped by the limits (one per call, a few per workspace an hour). */
     confirmation: text('confirmation', { enum: ['queued', 'skipped'] }),
     created_at: createdAt(),

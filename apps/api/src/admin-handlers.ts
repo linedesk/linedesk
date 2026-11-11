@@ -2,8 +2,8 @@
 import type { ProviderName } from '@linedesk/actions'
 import { organization, passkey, session, type Tx, user } from '@linedesk/db'
 import { emailDelivery } from './auth-methods.ts'
-import { WEB_ORIGIN } from './auth.ts'
 import { emailSender } from './email.ts'
+import { emailSafeName, welcomeEmail } from './emails/templates.ts'
 import { db } from './db.ts'
 import { eq, or, sql } from 'drizzle-orm'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
@@ -53,12 +53,6 @@ async function setWorkspaceDisabled(tx: Tx, workspaceId: string, disabledAt: Dat
   if (!workspace) throw new Reject('workspace not found')
   return { rows: {}, data: { workspaceId, disabled_at: disabledAt?.toISOString() ?? null } }
 }
-
-/** No code in it: codes expire in 10 minutes, an invite may be read later. The sign-in page sends one. */
-export const welcomeEmail = (name: string) => ({
-  subject: 'Your Linedesk account',
-  text: `Hello ${name},\n\nan account on Linedesk was created for you. To sign in, open ${WEB_ORIGIN} and enter this email address: you get a sign-in code by email.`,
-})
 
 /** Handlers that hand out an enrolment code refuse a session that is not passkey-confirmed (admin-step-up.ts). */
 function refuseEnrolmentCode(actor: Actor) {
@@ -136,7 +130,7 @@ export const adminHandlers: Record<string, Handler> = {
       return `the account for ${email} was removed again`
     })
     try {
-      await emailSender.send({ to: email, ...welcomeEmail(input.name) })
+      await emailSender.send({ to: email, ...welcomeEmail({ name: emailSafeName(input.name, 'there'), email }) })
     } catch (e) {
       throw new Reject(
         `the account was not created: the welcome email could not be sent (${e instanceof Error ? e.message : e})`,

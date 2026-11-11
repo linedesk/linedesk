@@ -42,6 +42,13 @@ export function slotLabel(iso: string, timeZone: string) {
   return `${part('weekday')}, ${part('month')} ${part('day')} at ${part('hour')}:${part('minute')} ${part('dayPeriod')}`
 }
 
+/** slotLabel with the zone's short name, for emails read anywhere: "Tuesday, November 17 at 9:00 AM PST". */
+export function slotWithZone(at: Date | string, timeZone: string) {
+  const iso = new Date(at).toISOString()
+  const zone = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'short' }).formatToParts(new Date(iso)).find(p => p.type === 'timeZoneName')?.value
+  return zone ? `${slotLabel(iso, timeZone)} ${zone}` : slotLabel(iso, timeZone)
+}
+
 async function timeZoneOf(tx: Tx, workspaceId: string) {
   const [settings] = await tx.select({ timezone: workspace_settings.timezone }).from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
   return settings?.timezone ?? DEFAULT_TIME_ZONE
@@ -306,7 +313,7 @@ export const bookingHandlers: Record<string, Handler> = {
     const confirmation = email ? (skipped ? 'skipped' : 'queued') : null
     const rows = await tx.insert(bookings).values({
       id: newId('bk'), workspace_id: workspaceId, call_id: call?.id ?? null, contact_id: call?.contact_id ?? null, appointment_type_id: type.id,
-      start_at: start, end_at: end, calendar_id: calendar.id, external_event_id: event.id, title, calendar_name: calendar.name, caller_email: email,
+      start_at: start, end_at: end, calendar_id: calendar.id, external_event_id: event.id, title, calendar_name: calendar.name, caller_email: email, address: input.address ?? null,
       confirmation,
     }).returning()
     // The confirmation email goes out after the booking committed (a job), so a slow mail server never holds up the call.

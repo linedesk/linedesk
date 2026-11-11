@@ -1276,9 +1276,9 @@ describe('user.invite', () => {
     const toThem = send.mock.calls.map(([m]) => m).filter(m => m.to === email.toLowerCase() && !/^New instance admin/.test(m.subject))
     expect(toThem).toHaveLength(1)
     const mail = toThem[0]!
-    expect(mail).toMatchObject({ to: email.toLowerCase(), subject: 'Your Linedesk account' })
+    expect(mail).toMatchObject({ to: email.toLowerCase(), subject: 'Your Linedesk account is ready' })
     expect(send.mock.calls.some(([m]) => /^New instance admin/.test(m.subject))).toBe(true)
-    expect(mail.text).toContain('enter this email address')
+    expect(mail.text).toContain('Enter this email address')
     expect(mail.text).not.toMatch(/\d{6}|token=/)
   })
 

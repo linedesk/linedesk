@@ -84,7 +84,8 @@ describe('inviting', () => {
     const mail = sent.findLast(e => e.to === email)!
     expect(mail.subject).toBe('Join your team on Linedesk')
     expect(mail.text).not.toMatch(/evil\.example/)
-    expect(mail.text).toMatch(/to join their workspace on Linedesk/)
+    expect(mail.text).toMatch(/invited you to join your team/)
+    expect(mail.html).not.toMatch(/evil\.example/)
   })
 
   test('owners and admins can invite; members cannot', async () => {

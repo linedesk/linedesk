@@ -10,6 +10,7 @@ import { alias } from 'drizzle-orm/pg-core'
 import { invitationSubject, memberSubject } from './audit.ts'
 import type { Actor } from './context.ts'
 import { emailSender } from './email.ts'
+import { emailSafeName, invitationEmail } from './emails/templates.ts'
 import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { dropWorkspacePush } from './push.ts'
@@ -23,17 +24,7 @@ const DAY_MS = 86_400_000
 const allowEmailFor = createRateLimiter({ max: 30, windowMs: 3_600_000 })
 const allowEmailTo = createRateLimiter({ max: 3, windowMs: 3_600_000 })
 
-/**
- * A name as it may appear in a plain-text email: one line, at most 60 characters, and nothing a
- * mail program would turn into a link (a workspace called "Pay at evil.example" could otherwise
- * phish the invitee). URL-like names are left out and the fallback is used.
- */
-export function emailSafeName(name: string | null | undefined, fallback: string): string {
-  const oneLine = (name ?? '').replace(/\s+/g, ' ').trim()
-  const urlLike = /:\/\/|www\.|@|[\p{L}\p{N}-]\.[\p{L}\p{N}-]{2,}/iu
-  if (!oneLine || urlLike.test(oneLine)) return fallback
-  return oneLine.length > 60 ? `${oneLine.slice(0, 59)}…` : oneLine
-}
+export { emailSafeName }
 
 /** Unguessable: the id is the secret in the invitation link. */
 const newInvitationId = () => randomBytes(24).toString('base64url')
@@ -52,11 +43,15 @@ export async function sendInvitation(tx: Tx, invite: { id: string; email: string
   if (!allowEmailTo(invite.email.toLowerCase())) throw new Reject('too many invitations to this address in the last hour; try again later')
   const [ws] = await tx.select({ name: organization.name }).from(organization).where(eq(organization.id, invite.organizationId))
   const [inviter] = await tx.select({ name: user.name }).from(user).where(eq(user.id, invite.inviterId))
-  const who = emailSafeName(inviter?.name, 'A teammate')
-  const workspaceName = emailSafeName(ws?.name, 'their workspace')
-  const text = `${who} invited you to join ${workspaceName} on Linedesk.\n\nOpen this link to accept:\n\n${invitationLink(invite.id)}\n\nThe link works for ${INVITATION_DAYS} days. Sign in or create your account with this email address (${invite.email}). If you did not expect this, you can ignore it.`
+  const email = invitationEmail({
+    inviter: emailSafeName(inviter?.name, 'A teammate'),
+    workspace: emailSafeName(ws?.name, 'your team'),
+    email: invite.email,
+    url: invitationLink(invite.id),
+    days: INVITATION_DAYS,
+  })
   try {
-    await emailSender.send({ to: invite.email, subject: `Join ${emailSafeName(ws?.name, 'your team')} on Linedesk`, text })
+    await emailSender.send({ to: invite.email, ...email })
   } catch (err) {
     console.error('invitation email failed', err)
     throw new Reject('could not send the invitation email; try again in a moment')
