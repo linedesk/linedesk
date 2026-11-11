@@ -1,6 +1,6 @@
 # Linedesk
 
-The open-source AI front desk. Every call answered, every caller handled.
+The open-source AI receptionist for businesses. It answers every call, books the appointment and hands over to a person when needed, and you own the code and the data.
 
 Status: prototypes and architecture; the backend is next. Private until the first public release.
 
