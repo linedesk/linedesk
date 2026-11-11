@@ -6,6 +6,8 @@ import {
   type TeamData,
   type TeamInvitation,
   type TeamMember,
+  type TeamRole,
+  teamRoles,
 } from '@linedesk/actions'
 import { type FormEvent, useState } from 'react'
 import { Section } from '../settings/fields.tsx'
@@ -15,27 +17,30 @@ import { Select } from '../ui/controls.tsx'
 import { Avatar, Badge, Button } from '../ui/kit.tsx'
 import { Skeleton } from '../ui/LoadStates.tsx'
 import { teamApi, useTeam } from './team-api.ts'
-import { canEditRole, canRemove, invitationStatus, isEmail, isOnTeam, joinedLabel, roleLabel } from './team-model.ts'
+import { canEditRole, canRemove, invitationStatus, isEmail, isOnTeam, isOwner, joinedLabel, roleLabel } from './team-model.ts'
 
-const roleHelp: Record<AssignableRole, string> = {
+const roleHelp: Record<TeamRole, string> = {
+  owner: 'Everything an admin can, and makes or changes owners.',
   admin: 'Changes settings, invites and removes people.',
   member: 'Handles calls and contacts.',
 }
 
 type Run = (work: () => Promise<unknown>, done: string) => Promise<boolean>
 
-function RoleSelect({
+function RoleSelect<R extends TeamRole>({
   id,
   value,
   label,
   onChange,
+  roles,
   size = 'sm',
 }: {
   id?: string
   size?: 'sm' | 'md'
-  value: AssignableRole
+  value: R
   label: string
-  onChange: (role: AssignableRole) => void
+  onChange: (role: R) => void
+  roles: readonly R[]
 }) {
   return (
     <Select
@@ -45,14 +50,49 @@ function RoleSelect({
       value={value}
       label={label}
       onChange={onChange}
-      options={assignableRoles.map(r => ({ value: r, label: roleLabel(r), description: roleHelp[r] }))}
+      options={roles.map(r => ({ value: r, label: roleLabel(r), description: roleHelp[r] }))}
+    />
+  )
+}
+
+/** Making someone an owner asks once: they can then change or remove every other owner, you included. */
+function OwnerConfirm({ name, onConfirm, onClose }: { name: string; onConfirm: () => Promise<boolean>; onClose: () => void }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <Dialog
+      title={`Make ${name} an owner?`}
+      description="Owners can do everything you can, including changing or removing other owners. You stay an owner until you change your own role."
+      size="sm"
+      onClose={busy ? () => {} : onClose}
+      onSubmit={async e => {
+        e.preventDefault()
+        setBusy(true)
+        await onConfirm()
+        onClose()
+      }}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="danger-outline" disabled={busy}>
+            {busy ? 'Working…' : 'Make owner'}
+          </Button>
+        </>
+      }
     />
   )
 }
 
 function MemberRow({ data, m, run }: { data: TeamData; m: TeamMember; run: Run }) {
   const [confirming, setConfirming] = useState(false)
+  const [owning, setOwning] = useState(false)
   const name = m.name || m.email
+  const setRole = (role: TeamRole) =>
+    run(
+      () => teamApi.setRole(m.memberId, role),
+      `${m.userId === data.me ? 'You are' : `${name} is`} now ${roleLabel(role).toLowerCase()}.`,
+    )
   return (
     <div className="st-li st-member">
       <Avatar name={name} size={32} />
@@ -65,13 +105,12 @@ function MemberRow({ data, m, run }: { data: TeamData; m: TeamMember; run: Run }
           {m.email} · {joinedLabel(m.joinedAt)}
         </span>
       </div>
-      {canEditRole(data, m) && m.role !== 'owner' ? (
+      {canEditRole(data, m) ? (
         <RoleSelect
           value={m.role}
           label={`Role for ${name}`}
-          onChange={role =>
-            void run(() => teamApi.setRole(m.memberId, role), `${name} is now ${roleLabel(role).toLowerCase()}.`)
-          }
+          roles={isOwner(data) ? teamRoles : assignableRoles}
+          onChange={role => (role === 'owner' ? setOwning(true) : void setRole(role))}
         />
       ) : (
         <span className="help st-role">{roleLabel(m.role)}</span>
@@ -93,6 +132,7 @@ function MemberRow({ data, m, run }: { data: TeamData; m: TeamMember; run: Run }
       ) : (
         data.canManage && <span className="st-rm-space" />
       )}
+      {owning && <OwnerConfirm name={name} onConfirm={() => setRole('owner')} onClose={() => setOwning(false)} />}
     </div>
   )
 }
@@ -181,6 +221,7 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (te
           size="md"
           value={role}
           label="Role for the invited person"
+          roles={assignableRoles}
           onChange={setRole}
         />
       </FormField>

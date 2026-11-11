@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { actions, REDACTED, recordingKey } from '@linedesk/actions'
 import { auth_events, calls, commands, instance_settings, invitation, member as memberTable, organization, passkey, provider_settings, session, user } from '@linedesk/db'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { adminSecondFactorRequired, markPasskeySession } from '../src/admin-second-factor.ts'
 import { signInMethod } from '../src/audit.ts'
@@ -1242,6 +1242,23 @@ describe('impersonation', () => {
     expect(memberSessions.every(s => !s.impersonatedBy)).toBe(true)
     expect((await request(operator, 'GET', '/v1/me')).body.impersonation).toBeNull()
     await stop(as)
+  })
+
+  test('no role changes while impersonating, even as an owner', async () => {
+    const targetMember = and(eq(memberTable.organizationId, other.id), eq(memberTable.userId, target.userId))
+    await db.update(memberTable).set({ role: 'owner' }).where(targetMember)
+    try {
+      const { as } = await start(operator, target.userId)
+      const [someone] = await db.select().from(memberTable)
+        .where(and(eq(memberTable.organizationId, other.id), sql`${memberTable.userId} <> ${target.userId}`))
+      const res = await act(as, 'team.setRole', { memberId: someone!.id, role: 'owner' })
+      expect(res.status).not.toBe(200)
+      expect(JSON.stringify(res.body)).toContain('Not possible while signed in as another user.')
+      expect((await db.select().from(memberTable).where(eq(memberTable.id, someone!.id)))[0]!.role).toBe(someone!.role)
+      await stop(as)
+    } finally {
+      await db.update(memberTable).set({ role: 'member' }).where(targetMember)
+    }
   })
 
   test("nothing that changes the account's credentials or security works while impersonating", async () => {

@@ -11,9 +11,10 @@ describe('team actions', () => {
     expect(rolePermissions.agent).not.toContain('team:read')
   })
 
-  it('invites and role changes cannot give the owner role', () => {
+  it('an invitation cannot give the owner role; a role change can (the server lets only owners do it)', () => {
     expect(teamInvite.input.safeParse({ email: 'a@b.co', role: 'owner' }).success).toBe(false)
-    expect(teamSetRole.input.safeParse({ memberId: 'm1', role: 'owner' }).success).toBe(false)
+    expect(teamSetRole.input.safeParse({ memberId: 'm1', role: 'owner' }).success).toBe(true)
+    expect(teamSetRole.input.safeParse({ memberId: 'm1', role: 'chief' }).success).toBe(false)
     expect(teamRemoveMember.input.safeParse({ memberId: '' }).success).toBe(false)
   })
 

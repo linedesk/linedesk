@@ -3,9 +3,12 @@
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 
-/** Roles that can be given by invitation or by a role change. Owner is not one: no ownership transfer yet. */
+/** Roles an invitation can give. Owner is not one: an owner makes someone an owner once they are on the team. */
 export const assignableRoles = ['admin', 'member'] as const
 export type AssignableRole = (typeof assignableRoles)[number]
+/** Roles a role change can give. Only an owner makes someone an owner (a second owner, or to hand the workspace over). */
+export const teamRoles = ['owner', 'admin', 'member'] as const
+export type TeamRole = (typeof teamRoles)[number]
 
 /** How long an invitation link works, from when it was sent (or last resent). */
 export const INVITATION_DAYS = 7
@@ -51,8 +54,8 @@ export const teamRevokeInvite = defineAction({
 
 export const teamSetRole = defineAction({
   name: 'team.setRole',
-  description: "Change a member's role to admin or member. Only an owner can change an owner's role, and the last owner keeps it.",
-  input: z.object({ memberId: z.string().min(1), role: z.enum(assignableRoles) }),
+  description: "Change a member's role to owner, admin or member. Only an owner can make someone an owner or change an owner's role, and the last owner keeps it.",
+  input: z.object({ memberId: z.string().min(1), role: z.enum(teamRoles) }),
   permission: 'team:write',
 })
 

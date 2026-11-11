@@ -178,8 +178,8 @@ describe('accepting', () => {
 
 describe('roles', () => {
   test('invalid input is answered in a plain sentence, not as JSON', async () => {
-    const res = await act(ws.owner, 'team.setRole', { memberId: await memberIdOf(ws.id, plain), role: 'owner' })
-    expect(res).toMatchObject({ status: 422, body: { ok: false, error: 'Role must be one of admin, member.' } })
+    const res = await act(ws.owner, 'team.setRole', { memberId: await memberIdOf(ws.id, plain), role: 'chief' })
+    expect(res).toMatchObject({ status: 422, body: { ok: false, error: 'Role must be one of owner, admin, member.' } })
   })
 
   test('a member sees the team read-only', async () => {
@@ -234,6 +234,25 @@ describe('roles', () => {
     await db.update(member).set({ role: 'owner' }).where(eq(member.id, secondId))
     expect((await act(own.owner, 'team.setRole', { memberId: secondId, role: 'admin' })).status).toBe(200)
     expect((await act(own.owner, 'team.setRole', { memberId: await memberIdOf(own.id, own.owner), role: 'admin' })).status).toBe(409)
+  })
+
+  test('an owner makes a second owner and can then hand over by stepping down; an admin cannot make owners', async () => {
+    const own = await createWorkspace('Hand Over Co')
+    const [second, third] = [await addMember(own.id, 'admin'), await addMember(own.id, 'admin')]
+    const secondId = await memberIdOf(own.id, second)
+    expect(await act(third, 'team.setRole', { memberId: secondId, role: 'owner' })).toMatchObject({
+      status: 409,
+      body: { error: 'only an owner can make someone an owner' },
+    })
+    expect(await act(third, 'team.setRole', { memberId: await memberIdOf(own.id, third), role: 'owner' })).toMatchObject({ status: 409 })
+    expect((await act(own.owner, 'team.setRole', { memberId: secondId, role: 'owner' })).status).toBe(200)
+    const roles = async () => Object.fromEntries((await db.select().from(member).where(eq(member.organizationId, own.id))).map(m => [m.userId, m.role]))
+    expect((await roles())[second.userId]).toBe('owner')
+    // Handing over: the first owner steps down; the new owner keeps the workspace.
+    expect((await act(own.owner, 'team.setRole', { memberId: await memberIdOf(own.id, own.owner), role: 'member' })).status).toBe(200)
+    expect(await roles()).toMatchObject({ [own.owner.userId]: 'member', [second.userId]: 'owner', [third.userId]: 'admin' })
+    const logged = await db.select().from(commands).where(and(eq(commands.actor_id, own.owner.userId), eq(commands.action, 'team.setRole')))
+    expect(logged).toContainEqual(expect.objectContaining({ input: { memberId: secondId, role: 'owner' }, rejected: false }))
   })
 
   test('a member of another workspace cannot be changed', async () => {

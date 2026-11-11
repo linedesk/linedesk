@@ -68,8 +68,9 @@ async function loadPendingInvitation(tx: Tx, workspaceId: string, invitationId: 
   return row
 }
 
+/** Locked: a role change or removal decided on this row cannot overwrite a change committed meanwhile. */
 async function loadMember(tx: Tx, workspaceId: string, memberId: string) {
-  const [row] = await tx.select().from(member).where(and(eq(member.id, memberId), eq(member.organizationId, workspaceId)))
+  const [row] = await tx.select().from(member).where(and(eq(member.id, memberId), eq(member.organizationId, workspaceId))).for('update')
   if (!row) throw new Reject('member not found')
   return row
 }
@@ -86,6 +87,13 @@ async function guardOwner(tx: Tx, actor: Actor, target: { role: string; organiza
     .where(and(eq(member.organizationId, target.organizationId), eq(member.role, 'owner'))).for('update')
   if (!owners.some(o => o.userId === actor.actorId)) throw new Reject('only an owner can change or remove an owner')
   if (!owners.some(o => o.id !== target.id)) throw new Reject('the workspace needs an owner: this is the last one')
+}
+
+/** Only an owner makes someone an owner. Read from the locked owner rows, not from the session's role. */
+async function requireOwner(tx: Tx, actor: Actor, workspaceId: string) {
+  const owners = await tx.select({ userId: member.userId }).from(member)
+    .where(and(eq(member.organizationId, workspaceId), eq(member.role, 'owner'))).for('update')
+  if (!owners.some(o => o.userId === actor.actorId)) throw new Reject('only an owner can make someone an owner')
 }
 
 async function listTeam(tx: Tx, actor: Actor): Promise<TeamData> {
@@ -141,8 +149,11 @@ export const teamHandlers: Record<string, Handler> = {
   },
 
   'team.setRole': async ({ tx, actor }, input: { memberId: string; role: string }) => {
-    const target = await loadMember(tx, workspaceOf(actor), input.memberId)
+    if (actor.impersonation) throw new Reject(NOT_WHILE_IMPERSONATING)
+    const workspaceId = workspaceOf(actor)
+    const target = await loadMember(tx, workspaceId, input.memberId)
     await guardOwner(tx, actor, target)
+    if (input.role === 'owner') await requireOwner(tx, actor, workspaceId)
     await tx.update(member).set({ role: input.role }).where(eq(member.id, target.id))
     return { rows: {} }
   },

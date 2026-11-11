@@ -11,11 +11,20 @@ const data = (canManage: boolean, me = 'mike'): TeamData => ({
 })
 
 describe('team model', () => {
-  it('owners are never edited here; members see everything read-only', () => {
+  it('the last owner is never edited; members see everything read-only', () => {
     const d = data(true)
     expect(d.members.map(m => canEditRole(d, m))).toEqual([false, true, true])
+    expect(data(true, 'sarah').members.map(m => canEditRole(data(true, 'sarah'), m))).toEqual([false, false, true])
     const ro = data(false, 'jo')
     expect(ro.members.some(m => canEditRole(ro, m) || canRemove(ro, m))).toBe(false)
+  })
+
+  it('with two owners, an owner changes the other owner and their own role; an admin changes neither', () => {
+    const two = (me: string): TeamData => ({ ...data(true, me), members: [member('mike', 'owner'), member('ann', 'owner'), member('sarah', 'admin')] })
+    expect(two('mike').members.map(m => canEditRole(two('mike'), m))).toEqual([true, true, true])
+    expect(two('mike').members.map(m => canRemove(two('mike'), m))).toEqual([false, true, true])
+    expect(two('sarah').members.map(m => canEditRole(two('sarah'), m))).toEqual([false, false, false])
+    expect(two('sarah').members.map(m => canRemove(two('sarah'), m))).toEqual([false, false, false])
   })
 
   it('nobody removes themselves', () => {

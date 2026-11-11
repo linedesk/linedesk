@@ -11,7 +11,7 @@ const textFor = (name: string, input: unknown) => {
 
 describe('invalid input as plain sentences', () => {
   it('names the field and what it must be', () => {
-    expect(textFor('team.setRole', { memberId: 'm1', role: 'owner' })).toBe('Role must be one of admin, member.')
+    expect(textFor('team.invite', { email: 'a@b.co', role: 'owner' })).toBe('Role must be one of admin, member.')
     expect(textFor('team.invite', { email: 'not an email', role: 'member' })).toBe('Email must be an email address.')
     expect(textFor('team.setRole', { role: 'admin' })).toBe('MemberId is required.')
   })

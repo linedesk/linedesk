@@ -8,12 +8,21 @@ export const isEmail = (text: string) => EMAIL.test(text.trim())
 
 export const roleLabel = (role: string) => role.charAt(0).toUpperCase() + role.slice(1)
 
+export const isOwner = (data: TeamData) => data.members.some(m => m.userId === data.me && m.role === 'owner')
+const ownerCount = (data: TeamData) => data.members.filter(m => m.role === 'owner').length
+
 /**
- * Owners are shown, not edited: there is no ownership transfer yet, and the API refuses to demote
- * or remove the last owner. Nobody removes themselves from here.
+ * Admins change admins and members; owners also make owners and change owners. Your own role only
+ * when you are an owner and another owner remains (handing the workspace over). The last owner is
+ * never demoted (the API refuses too). Nobody removes themselves from here (Leave workspace does).
  */
-export const canEditRole = (data: TeamData, m: TeamMember) => data.canManage && m.role !== 'owner'
-export const canRemove = (data: TeamData, m: TeamMember) => canEditRole(data, m) && m.userId !== data.me
+export function canEditRole(data: TeamData, m: TeamMember) {
+  if (!data.canManage) return false
+  if (m.role === 'owner' && (!isOwner(data) || ownerCount(data) < 2)) return false
+  return m.userId !== data.me || (isOwner(data) && ownerCount(data) > 1)
+}
+export const canRemove = (data: TeamData, m: TeamMember) =>
+  data.canManage && (m.role !== 'owner' || (isOwner(data) && ownerCount(data) > 1)) && m.userId !== data.me
 
 export function isOnTeam(data: TeamData, email: string) {
   const address = email.trim().toLowerCase()
