@@ -1,3 +1,4 @@
+import { tagLabels } from '@linedesk/actions'
 import type { Call, TranscriptSegment } from '@linedesk/db/types'
 import type { KeyboardEvent, MouseEvent } from 'react'
 import { callerName, callTitle, statusLabel, tabOf, type InboxTab } from '../inbox-model.ts'
@@ -98,6 +99,7 @@ function Summary({ call, search, segments }: Pick<Props, 'call' | 'search' | 'se
   }
   return (
     <span className="r-sum">
+      {call.tag && <span className="r-tag">{tagLabels[call.tag]}</span>}
       <span className="r-topic">{highlight(callTitle(call), search)}</span>
       {
         search && call.summary ? (

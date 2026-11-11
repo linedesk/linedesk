@@ -9,12 +9,13 @@ import type { z } from 'zod'
  * `instance:admin` belongs to no role: the API adds it for users who operate the install, in any workspace.
  * `impersonation:stop` belongs to no role either: the API adds it only to a session an instance admin started as another user.
  */
-export type Permission = 'call:read' | 'call:write' | 'contact:write' | 'settings:write' | 'calendar:read' | 'calendar:write' | 'team:read' | 'team:write' | 'agent' | 'instance:admin' | 'impersonation:stop' | 'invitation:respond'
+/** `call:export`: every call of a date range at once (call.export), owners and admins only. */
+export type Permission = 'call:read' | 'call:write' | 'call:export' | 'contact:write' | 'settings:write' | 'calendar:read' | 'calendar:write' | 'team:read' | 'team:write' | 'agent' | 'instance:admin' | 'impersonation:stop' | 'invitation:respond'
 export type Role = 'owner' | 'admin' | 'member' | 'agent'
 
 export const rolePermissions: Record<Role, readonly Permission[]> = {
-  owner: ['call:read', 'call:write', 'contact:write', 'settings:write', 'calendar:read', 'calendar:write', 'team:read', 'team:write', 'invitation:respond'],
-  admin: ['call:read', 'call:write', 'contact:write', 'settings:write', 'calendar:read', 'calendar:write', 'team:read', 'team:write', 'invitation:respond'],
+  owner: ['call:read', 'call:write', 'call:export', 'contact:write', 'settings:write', 'calendar:read', 'calendar:write', 'team:read', 'team:write', 'invitation:respond'],
+  admin: ['call:read', 'call:write', 'call:export', 'contact:write', 'settings:write', 'calendar:read', 'calendar:write', 'team:read', 'team:write', 'invitation:respond'],
   member: ['call:read', 'call:write', 'contact:write', 'calendar:read', 'calendar:write', 'team:read', 'invitation:respond'],
   // The voice agent: only the `agent` actions, plus the member actions marked with `agent` below.
   agent: ['agent'],

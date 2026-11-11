@@ -1,5 +1,6 @@
 // ⌘K lists what can be done right now: the actions for the selected call, places to go, app commands.
-import type { Call, WorkspaceMember } from '@linedesk/db/types'
+import { tagLabels } from '@linedesk/actions'
+import { type Call, type CallTag, callTags, type WorkspaceMember } from '@linedesk/db/types'
 import { hasReminder } from '../inbox-model.ts'
 import { memberLabel } from '../team/members.ts'
 import type { CommandGroup, CommandItem } from '../ui/CommandMenu.tsx'
@@ -18,6 +19,8 @@ export type CommandContext = {
   remove: (call: Call) => void
   toggleSpam: (call: Call) => void
   toggleBlock: (call: Call) => void
+  /** Tag the call (null: remove the tag). */
+  setTag?: (call: Call, tag: CallTag | null) => void
   /** The signed-in member's user id. */
   me: string
   /** Assigning; null while the workspace has a single member (then nothing about it is offered). */
@@ -95,7 +98,18 @@ function callCommands(call: Call, c: CommandContext): Command[] {
       run: () => c.toggleBlock(call),
     },
     { label: 'Delete call', keywords: 'remove trash', icon: 'trash', shortcut: ['#'], run: () => c.remove(call) },
+    ...tagCommands(call, c),
   ]
+}
+
+/** "Tag as …" for each tag the call does not have, and removing its tag. */
+function tagCommands(call: Call, c: CommandContext): Command[] {
+  const setTag = c.setTag
+  if (!setTag) return []
+  const tagAs = callTags
+    .filter(tag => tag !== call.tag)
+    .map(tag => ({ label: `Tag as ${tagLabels[tag]}`, keywords: 'tag label kind lead', icon: 'flag', run: () => setTag(call, tag) }) satisfies Command)
+  return call.tag ? [...tagAs, { label: 'Remove tag', keywords: 'tag untag', icon: 'close', run: () => setTag(call, null) }] : tagAs
 }
 
 /**

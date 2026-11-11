@@ -11,6 +11,7 @@ import { BookingCards } from './BookingCard.tsx'
 import { LiveCard } from './LiveCard.tsx'
 import { RecordingPlayer } from './RecordingPlayer.tsx'
 import { EvaluationCard } from './EvaluationCard.tsx'
+import { LeadCard } from './LeadCard.tsx'
 import { SummaryCard } from './SummaryCard.tsx'
 import { Transcript } from './Transcript.tsx'
 import { useFollowLive } from './useFollowLive.ts'
@@ -333,6 +334,7 @@ export function CallView({ call, segments, search, side, repeatCount = 1, canRev
               {live && <LiveCard segments={segments} assistantName={assistant} />}
               {!live && call.recording_key && <RecordingPlayer callId={call.id} callDurationSec={call.duration_sec} />}
               <SummaryCard call={call} />
+              <LeadCard call={call} />
               {canReview && <EvaluationCard call={call} />}
               <BookingCards callId={call.id} />
               {turns ? (

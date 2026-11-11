@@ -1,6 +1,7 @@
 // The demo calls: a believable morning at Brightwater Plumbing & Heating. The seed files them in the
 // demo workspace; sample.add files them, renamed to the workspace's business and assistant, as samples.
 import type { calls } from '@linedesk/db'
+import type { CallTag } from '@linedesk/db/types'
 
 export const DEMO_BUSINESS = 'Brightwater Plumbing & Heating'
 export const DEMO_ASSISTANT = 'Maya'
@@ -17,7 +18,30 @@ export type SeedCall = {
   next?: string
   unread?: boolean
   fields?: { label: string; value: string }[]
+  /** Without one: from the outcome (see leadOf). */
+  tag?: CallTag
+  jobType?: string
   lines: [speaker: 'agent' | 'caller' | 'human' | 'system', text: string][]
+}
+
+/** The lead columns of a seeded call: the caller, their number, the address among its facts, a tag. */
+export function leadOf(c: SeedCall) {
+  const tag: CallTag | null =
+    c.tag ??
+    (c.title === 'Wrong number' ? 'wrong_number'
+      : c.outcome === 'spam' ? 'spam'
+        : c.outcome === 'booked' ? 'booked'
+          : c.outcome === 'transferred' ? 'transferred'
+            : c.outcome === 'hangup' ? null
+              : c.outcome === 'message' ? 'message' : 'new_lead')
+  const real = tag !== 'spam' && tag !== 'wrong_number' && c.outcome !== 'hangup'
+  return {
+    caller_name: real ? c.name : null,
+    callback_number: real ? c.phone : null,
+    address: c.fields?.find(f => f.label === 'Address')?.value ?? null,
+    job_type: real ? (c.jobType ?? c.title) : null,
+    tag,
+  }
 }
 
 export const GREETING = `Thanks for calling ${DEMO_BUSINESS}. This is ${DEMO_ASSISTANT}, the AI assistant. How can I help?`

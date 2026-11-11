@@ -69,6 +69,7 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
       const booked = data as BookData
       const what = `${typeName(args.appointment_type_id)}, ${booked.label}`
       log.bookings.push(what)
+      log.lead = { ...log.lead, callerName: args.caller_name, ...(args.address ? { address: args.address } : {}) }
       log.record('system', `Booked · ${what} · ${booked.calendarName}`, appointmentBook.name)
       return `Booked: ${what}. Confirm the day and time to the caller.`
     } catch (e) {

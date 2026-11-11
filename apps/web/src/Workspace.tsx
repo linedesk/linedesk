@@ -45,7 +45,7 @@ import { useToast, type Source } from './shell/useToast.ts'
 import { preloadWorkspaceSettings } from './settings/settings-api.ts'
 import { memberLabel, useAssignableMembers } from './team/members.ts'
 import { preloadTeam } from './team/team-api.ts'
-import { useAssistantName, useRejection, useWorkspaceState } from './store.tsx'
+import { useAssistantName, useRejection, useRun, useWorkspaceState } from './store.tsx'
 import type { SelectVia } from './ui/CommandMenu.tsx'
 import { ErrorBoundary } from './ui/ErrorBoundary.tsx'
 import { cx } from './ui/kit.tsx'
@@ -335,8 +335,10 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
     clearRejection()
   }, [rejection, clearRejection, toaster.show])
 
+  const runAction = useRun()
   const commands = commandGroups({
     ...callHandlers,
+    setTag: (call, tag) => void runAction('call.setTag', { callId: call.id, tag }),
     me: me.actorId,
     assign: canAssign
       ? {
@@ -517,6 +519,8 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
             }}
             tab={tab}
             setTab={view.setTab}
+            tag={view.tag}
+            setTag={view.setTag}
             counts={view.counts}
             liveCall={view.liveCall}
             onOpen={open}

@@ -6,7 +6,7 @@ Owners and admins add endpoints under Settings, Webhooks: a URL, the events it r
 
 | Event | When | `data` |
 | --- | --- | --- |
-| `call.completed` | the first `call.finish` of a call | `call`: id, numbers, times, outcome, urgency, title, summary, next steps, fields, contact and assistant id |
+| `call.completed` | the first `call.finish` of a call | `call`: id, numbers, times, outcome, urgency, title, summary, next steps, fields, contact and assistant id, `tag`, `lead` (caller name, callback number, address, job type, urgency) and `custom_fields` (each of the workspace's custom fields: id, label, type, value or null). Schema: `webhooks` in `GET /v1/openapi.json` |
 | `call.summary_ready` | the same moment, when the call has a summary | as `call.completed` |
 | `booking.created` | `appointment.book` | `booking`: id, start and end, status, title, calendar name, appointment type, call and contact id |
 | `message.taken` | `call.takeMessage` | `call_id`, `message`, `from_number`, `contact_id` |

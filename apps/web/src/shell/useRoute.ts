@@ -1,13 +1,14 @@
 // Where the app is, kept in the URL hash so reload and the browser's Back work:
 // `#calls` (Needs you), `#calls/done` (another view), `#calls?q=leak` (search),
-// `#calls/member/<user id>` (calls assigned to a member), `#call/<id>` (one call), `#assistant`,
-// `#assistant/<section>`, `#account`, `#admin/<section>`.
+// `#calls/member/<user id>` (calls assigned to a member), `#calls?tag=new_lead` (calls with a tag; with a
+// search: `?q=…&tag=…`), `#call/<id>` (one call), `#assistant`, `#assistant/<section>`, `#account`, `#admin/<section>`.
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { type CallTag, callTags } from '@linedesk/db/types'
 import type { InboxTab } from '../inbox-model.ts'
 import { hasSections, isPageRoute, type Route } from './pages.tsx'
 
-/** `member`: whose calls the `member` view lists (null in every other view). */
-export type InboxPlace = { tab: InboxTab; search: string | null; member?: string | null }
+/** `member`: whose calls the `member` view lists (null in every other view). `tag`: only calls with this tag; it stays while the view or the search changes. */
+export type InboxPlace = { tab: InboxTab; search: string | null; member?: string | null; tag?: CallTag | null }
 /** `known` is false when the hash names nothing the app has; the inbox shows instead. */
 export type Location = InboxPlace & { route: Route; callId: string | null; known: boolean }
 
@@ -16,10 +17,13 @@ const tabs: readonly InboxTab[] = ['you', 'ai', 'spam', 'reminders', 'done', 'mi
 const HOME: InboxPlace = { tab: 'you', search: null, member: null }
 
 export const callHash = (id: string) => `#${CALL_PREFIX}${id}`
-export function listHash({ tab, search, member }: InboxPlace): string {
+export function listHash({ tab, search, member, tag }: InboxPlace): string {
   const view = tab === 'member' && member ? `/member/${encodeURIComponent(member)}` : tab === 'you' || tab === 'member' ? '' : `/${tab}`
-  return `#calls${view}${search === null ? '' : `?q=${encodeURIComponent(search)}`}`
+  const query = [search === null ? null : `q=${encodeURIComponent(search)}`, tag ? `tag=${tag}` : null].filter(Boolean).join('&')
+  return `#calls${view}${query ? `?${query}` : ''}`
 }
+
+const isTag = (value: string | null): value is CallTag => !!value && (callTags as readonly string[]).includes(value)
 
 function decode(value: string): string {
   try { return decodeURIComponent(value) } catch { return value }
@@ -42,8 +46,13 @@ export function parseHash(hash: string, last: InboxPlace = HOME): Location {
     return { route: 'calls', callId: null, tab: 'member', member: decode(rest[0]), search: null, known: true }
   const isList = (head === 'calls' || path === '') && tabs.includes(view as InboxTab) && rest.length === 0
   if (!isList) return { ...HOME, route: 'calls', callId: null, known: false }
-  const q = query?.startsWith('q=') ? decode(query.slice(2)) : null
-  return { route: 'calls', callId: null, tab: view as InboxTab, search: q, member: null, known: true }
+  const params = query?.split('&') ?? []
+  const param = (name: string) => {
+    const found = params.find(p => p.startsWith(`${name}=`))
+    return found === undefined ? null : decode(found.slice(name.length + 1))
+  }
+  const tag = param('tag')
+  return { route: 'calls', callId: null, tab: view as InboxTab, search: param('q'), member: null, known: true, ...(isTag(tag) ? { tag } : {}) }
 }
 
 /** A new history entry. */
@@ -74,7 +83,7 @@ export function useRoute() {
   /** Change the inbox view or search. Replaces the entry: Back leaves the inbox, it does not step through views. */
   const setView = useCallback((place: InboxPlace) => {
     const now = current.current
-    if (now.route === 'calls' && !now.callId) replace(listHash(place))
+    if (now.route === 'calls' && !now.callId) replace(listHash({ ...now, ...place }))
     apply({ ...now, ...place })
   }, [apply])
   /** Opening from the list adds a history entry; moving between calls replaces it, so Back returns to the list. */

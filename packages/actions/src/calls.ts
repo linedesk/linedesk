@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { callTag, leadInput } from './call-details.ts'
 import { defineAction, type PatchSpec } from './define.ts'
 import type { Call } from '@linedesk/db/types'
 
@@ -304,6 +305,11 @@ export const callFinish = defineAction({
     actionItems: z.array(z.object({ text: z.string(), done: z.boolean().optional() })).optional(),
     fields: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
     callerName: z.string().optional(),
+    /** The lead details the summary and the assistant's tools found; the API keeps what the team already set. */
+    lead: leadInput.optional(),
+    tag: callTag.optional(),
+    /** Custom field values by field id, as the summary found them; the API checks each against its field. */
+    customValues: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
   }),
   permission: 'agent',
   logged: 'ids',

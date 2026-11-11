@@ -2,6 +2,7 @@
 // marked `public`, its input schema straight from the action's Zod schema.
 import { z } from 'zod'
 import type { ActionDef } from './define.ts'
+import { webhookCallSchema, webhookEventSchema } from './webhooks.ts'
 
 type JsonSchema = Record<string, unknown>
 
@@ -44,6 +45,26 @@ function operation(def: ActionDef) {
   }
 }
 
+const jsonSchema = (schema: z.ZodType): JsonSchema => {
+  const { $schema: _dialect, ...rest } = z.toJSONSchema(schema, { io: 'output' }) as JsonSchema
+  return rest
+}
+
+/** The events with a call in `data`, as OpenAPI 3.1 webhooks (docs/webhooks.md has the rest). */
+function webhooks() {
+  const callEvent = (type: string, summary: string) => ({
+    post: {
+      summary,
+      requestBody: { required: true, content: { 'application/json': { schema: jsonSchema(webhookEventSchema(type, z.object({ call: webhookCallSchema }))) } } },
+      responses: { 200: { description: 'Any 2xx answer within 10 seconds counts as delivered.' } },
+    },
+  })
+  return {
+    'call.completed': callEvent('call.completed', 'A call ended; with its lead details, tag and custom fields.'),
+    'call.summary_ready': callEvent('call.summary_ready', 'A call ended with a summary; the same data as call.completed.'),
+  }
+}
+
 export function openApiDocument(actions: Iterable<ActionDef>, serverUrl: string) {
   const published = [...actions].filter(a => a.public).sort((a, b) => a.name.localeCompare(b.name))
   return {
@@ -56,6 +77,7 @@ export function openApiDocument(actions: Iterable<ActionDef>, serverUrl: string)
     servers: [{ url: serverUrl }],
     security: [{ apiKey: [] }],
     paths: Object.fromEntries(published.map(def => [`/v1/actions/${def.name}`, { post: operation(def) }])),
+    webhooks: webhooks(),
     components: {
       securitySchemes: { apiKey: { type: 'http', scheme: 'bearer', description: 'A workspace API key: ld_…' } },
       schemas: { Result: ok, Rejection: rejection },

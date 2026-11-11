@@ -1702,6 +1702,31 @@ button.k-link {
   font-size: 12.5px;
 }
 
+/* Call view, Details: the lead fields and custom fields, editable in place; the tag at the top right. */
+.lead-tag {
+  margin-left: auto;
+}
+.lead-facts {
+  grid-template-columns: 110px minmax(0, 1fr);
+  align-items: center;
+}
+.lead-facts dd .k-select {
+  margin-left: -4px;
+}
+/* Inbox row: the call's tag, grey like every tag. */
+.r-tag {
+  display: inline-block;
+  margin-right: 6px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--surface-hover);
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  vertical-align: 1px;
+}
 /* The caller's name in the call header opens their contact (the panel; a sheet on narrow windows). */
 .cv-contact-link {
   display: inline-flex;

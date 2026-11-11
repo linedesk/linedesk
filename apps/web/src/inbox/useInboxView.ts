@@ -1,5 +1,5 @@
 // What the inbox shows and what is selected: the view, the search, the list, the cursor and the open call.
-import type { Call } from '@linedesk/db/types'
+import type { Call, CallTag } from '@linedesk/db/types'
 import { useEffect, useMemo } from 'react'
 import { useSegmentsByCall } from '../call/segments.ts'
 import { type CallGroups, countsFor, groupRepeats, listFor, sortForList, type InboxTab, viewForOpened } from '../inbox-model.ts'
@@ -23,13 +23,15 @@ export function useInboxView(nav: RouteApi, me: string | null = null, review: Re
   const assistantName = useAssistantName()
   const now = useNow()
   const run = useRun()
-  const { tab, search } = nav // the view and the search live in the URL, so a reload keeps them
+  const { tab, search } = nav // the view, the search and the tag filter live in the URL, so a reload keeps them
+  const tag = nav.tag ?? null
   const member = tab === 'member' ? (nav.member ?? null) : null
   const setTabState = (next: InboxTab) => nav.setView({ tab: next, search, member: next === 'member' ? member : null })
 
   const { list, groups } = useMemo((): { list: Call[]; groups: CallGroups } => {
+    const tagged = tag ? calls.filter(c => c.tag === tag) : calls
     if (search !== null) {
-      const hits = calls.filter(
+      const hits = tagged.filter(
         c =>
           !c.deleted_at &&
           matchesSearch(
@@ -44,9 +46,9 @@ export function useInboxView(nav: RouteApi, me: string | null = null, review: Re
       )
       return { list: sortForList(hits, false), groups: new Map() }
     }
-    const inTab = listFor(calls, tab, now, me, review, member)
+    const inTab = listFor(tagged, tab, now, me, review, member)
     return tab === 'you' ? groupRepeats(inTab) : { list: inTab, groups: new Map() }
-  }, [calls, contacts, segments, assistantName, tab, search, now, me, review, member])
+  }, [calls, contacts, segments, assistantName, tab, search, tag, now, me, review, member])
   /** Every call a row stands for: a folded row's repeat calls, else the call alone. */
   const groupOf = (call: Call): Call[] => groups.get(call.id) ?? [call]
   const counts = useMemo(() => countsFor(calls, now, me, review, member), [calls, now, me, review, member])
@@ -125,6 +127,13 @@ export function useInboxView(nav: RouteApi, me: string | null = null, review: Re
     tab,
     member,
     search,
+    tag,
+    /** Show only calls with this tag (null: all); kept while the view changes. */
+    setTag: (next: CallTag | null) => {
+      if (nav.callId) nav.closeCall()
+      nav.setView({ tab, search, tag: next })
+      setCursor(null)
+    },
     cursorId,
     openCall,
     target,

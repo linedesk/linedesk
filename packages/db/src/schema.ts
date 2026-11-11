@@ -20,7 +20,10 @@ import {
   timestamp,
   unique,
 } from 'drizzle-orm/pg-core'
-import { DEFAULT_TRANSFERS, type ActionItem, type AssistantVoice, type BookingField, type BusinessProfile, type CallField, type KeypadMenu, type ToolEvent, type TransferContact, type WebhookEvent } from './types.ts'
+import {
+  DEFAULT_TRANSFERS, type ActionItem, type AssistantVoice, type BookingField, type BusinessProfile, type CallField, callTags, type CustomValues,
+  customFieldTypes, type KeypadMenu, type ToolEvent, type TransferContact, type WebhookEvent,
+} from './types.ts'
 
 export const rowVersion = pgSequence('row_version')
 
@@ -162,6 +165,18 @@ export const calls = pgTable(
     summary: text('summary'),
     action_items: jsonb('action_items').$type<ActionItem[]>().notNull().default([]),
     fields: jsonb('fields').$type<CallField[]>().notNull().default([]),
+    /**
+     * The lead: who called and what they need, from the summary and the assistant's tools, editable by
+     * the team (call.updateLead). `callback_number` defaults to the caller ID of a phone call.
+     */
+    caller_name: text('caller_name'),
+    callback_number: text('callback_number'),
+    address: text('address'),
+    job_type: text('job_type'),
+    /** What kind of call it was (call.setTag); null: not tagged. */
+    tag: text('tag', { enum: callTags }),
+    /** Values of the workspace's custom fields (custom_fields), by field id. */
+    custom_values: jsonb('custom_values').$type<CustomValues>().notNull().default({}),
     answered_by: text('answered_by', { enum: ['ai', 'human'] })
       .notNull()
       .default('ai'),
@@ -812,10 +827,32 @@ export const webhook_deliveries = pgTable(
   t => [index('webhook_deliveries_endpoint').on(t.endpoint_id, t.created_at)],
 )
 
+// A workspace's own fields on calls (Settings, Call details): shown and edited like the lead fields,
+// filled from the summary, and asked by the assistant when `ask_caller` is on. At most
+// MAX_CUSTOM_FIELDS per workspace (packages/actions/src/custom-fields.ts).
+export const custom_fields = pgTable(
+  'custom_fields',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    label: text('label').notNull(),
+    type: text('type', { enum: customFieldTypes }).notNull(),
+    /** The choices of a `choice` field; empty for the other types. */
+    options: jsonb('options').$type<string[]>().notNull().default([]),
+    /** The assistant asks every caller for it (with `instruction`, how or when). Off: only taken from the conversation. */
+    ask_caller: boolean('ask_caller').notNull().default(false),
+    instruction: text('instruction'),
+    position: integer('position').notNull().default(0),
+    created_at: createdAt(),
+    version: version(),
+  },
+  t => [index('custom_fields_ws').on(t.workspace_id)],
+)
+
 /** Tables that read sync delivers to clients, filtered by workspace_id. */
 export const syncedTables = {
   calls, contacts, assistants, phone_numbers, transcript_segments, appointment_types, bookings, calendar_connections, assistant_calendars,
-  webhook_endpoints, workspace_members, call_events, knowledge_documents, knowledge_questions,
+  webhook_endpoints, workspace_members, call_events, knowledge_documents, knowledge_questions, custom_fields,
 } as const
 
 // A member's answer to the GitHub star prompt (apps/api/src/star-prompt.ts): once answered, it is

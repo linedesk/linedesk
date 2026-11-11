@@ -13,7 +13,7 @@ import {
   type Tx,
 } from '@linedesk/db'
 import { and, asc, eq, inArray, like, notExists } from 'drizzle-orm'
-import { DEMO_ASSISTANT, DEMO_BUSINESS, type SeedCall } from './demo-calls.ts'
+import { DEMO_ASSISTANT, DEMO_BUSINESS, leadOf, type SeedCall } from './demo-calls.ts'
 import { type Handler, Reject } from './handler-context.ts'
 import { sampleMorning } from './sample-morning.ts'
 
@@ -59,6 +59,7 @@ function sampleRows(c: SeedCall, workspace_id: string, contact_id: string, names
       summary: say(c.summary),
       action_items: c.next ? [{ text: say(c.next) }] : [],
       fields: c.fields ?? [],
+      ...leadOf(c),
       unread: c.unread ?? true,
     },
     segments: c.lines.map(([speaker, text], n) => ({

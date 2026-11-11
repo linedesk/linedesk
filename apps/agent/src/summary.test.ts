@@ -20,6 +20,7 @@ test('summarizes a transcript with one LLM call', async () => {
   expect(result).toEqual({
     title: 'Burst pipe in basement', summary: 'A pipe burst in the basement; she needs someone right away.',
     outcome: 'callback', urgency: 'urgent', actionItems: [{ text: 'Call Elena back within 15 minutes' }], callerName: 'Elena Novak',
+    lead: { callerName: 'Elena Novak' },
   })
   expect(complete).toHaveBeenCalledTimes(1)
   const [system, user] = complete.mock.calls[0]!
@@ -82,4 +83,34 @@ test('without a summary, a long message is cut to a title at a word boundary', (
   expect(result.title!.length).toBeLessThanOrEqual(80)
   expect(result.title!.endsWith('…')).toBe(true)
   expect(result).toMatchObject({ outcome: 'message', summary: long })
+})
+
+const fields = [
+  { id: 'cf_size', label: 'Home size', type: 'choice' as const, options: ['Small', 'Large'], ask_caller: true, instruction: null },
+  { id: 'cf_pets', label: 'Pets', type: 'boolean' as const, options: [], ask_caller: false, instruction: 'Any dogs on site?' },
+]
+
+test('extracts the lead, the tag and the custom fields; unknown or empty fields are dropped, a bad tag is ignored', async () => {
+  const complete = vi.fn<CompleteJson>(async () => JSON.stringify({
+    ...llmAnswer, address: '12 Oak St', job_type: 'Burst pipe', callback_number: null, tag: 'new_lead',
+    custom_fields: { cf_size: 'Large', cf_pets: null, cf_gone: 'x' },
+  }))
+  const result = await summarizeCall(transcript, complete, [], fields)
+  expect(result.lead).toEqual({ callerName: 'Elena Novak', address: '12 Oak St', jobType: 'Burst pipe' })
+  expect(result.tag).toBe('new_lead')
+  expect(result.customValues).toEqual({ cf_size: 'Large' })
+  expect(complete.mock.calls[0]![0]).toContain('"cf_pets": Pets (true or false). Any dogs on site?')
+
+  const odd = await summarizeCall(transcript, async () => JSON.stringify({ ...llmAnswer, tag: 'vip' }))
+  expect(odd.tag).toBeUndefined()
+  expect(odd.title).toBe('Burst pipe in basement')
+})
+
+test('tools set the tag and their lead details win over the summary', () => {
+  const result = { outcome: 'message' as const, tag: 'new_lead' as const, lead: { callerName: 'Elena', address: 'somewhere' } }
+  expect(mergeToolResults(result, { messages: [], urgent: false, bookings: ['Repair'], lead: { callerName: 'Elena Novak' } })).toMatchObject({
+    tag: 'booked', lead: { callerName: 'Elena Novak', address: 'somewhere' },
+  })
+  expect(mergeToolResults(result, { messages: [], urgent: false, transferred: true })).toMatchObject({ tag: 'transferred' })
+  expect(mergeToolResults(result, { messages: [], urgent: false })).toMatchObject({ tag: 'new_lead' })
 })

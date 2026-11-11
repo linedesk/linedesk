@@ -34,3 +34,14 @@
   font-family: var(--font-mono);
   font-size: 12.5px;
 }
+
+/* Settings > Call details: the export's date range and button on one line. */
+.cf-export {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.cf-export .k-field {
+  margin: 0;
+}

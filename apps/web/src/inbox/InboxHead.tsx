@@ -1,9 +1,11 @@
-import type { Call } from '@linedesk/db/types'
+import { tagLabels } from '@linedesk/actions'
+import { type Call, type CallTag, callTags } from '@linedesk/db/types'
 import type { ReactNode } from 'react'
 import { assigneeTabs, callerName, splits, type InboxTab } from '../inbox-model.ts'
 import { usePresence } from '../shell/presence.ts'
 import { useAssistantName, useContact } from '../store.tsx'
 import { clock, parseTs } from '../time.ts'
+import { Select, type SelectOption } from '../ui/controls.tsx'
 import { Button, Icon } from '../ui/kit.tsx'
 import { useElapsed } from '../ui/LiveIndicator.tsx'
 import { BulkBar, type BulkActions } from './BulkBar.tsx'
@@ -11,6 +13,9 @@ import { BulkBar, type BulkActions } from './BulkBar.tsx'
 export type InboxHeadProps = {
   tab: InboxTab
   setTab: (tab: InboxTab) => void
+  /** Only calls with this tag; null: all. */
+  tag: CallTag | null
+  setTag: (tag: CallTag | null) => void
   counts: Record<InboxTab, number>
   search: string | null
   onSearch: () => void
@@ -193,6 +198,26 @@ function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveC
   )
 }
 
+const ALL_TAGS = 'all'
+const tagFilterOptions: SelectOption<CallTag | typeof ALL_TAGS>[] = [
+  { value: ALL_TAGS, label: 'All tags' },
+  ...callTags.map(tag => ({ value: tag, label: tagLabels[tag] })),
+]
+
+/** Narrows the list to one tag, in every view and in search. */
+function TagFilter({ tag, setTag }: Pick<InboxHeadProps, 'tag' | 'setTag'>) {
+  return (
+    <Select
+      size="sm"
+      align="end"
+      label="Filter by tag"
+      value={tag ?? ALL_TAGS}
+      options={tagFilterOptions}
+      onChange={next => setTag(next === ALL_TAGS ? null : next)}
+    />
+  )
+}
+
 export function InboxHead({
   resultCount,
   menu,
@@ -222,9 +247,11 @@ export function InboxHead({
       ) : (
         <Tabs tab={p.tab} setTab={p.setTab} counts={p.counts} />
       )}
+      {p.search !== null && <TagFilter tag={p.tag} setTag={p.setTag} />}
       {p.search === null && (
         <div className="ib-right">
           <Presence liveCall={p.liveCall} onOpen={p.onOpen} canFixVoice={p.canFixVoice} />
+          <TagFilter tag={p.tag} setTag={p.setTag} />
           <Button
             size="sm"
             variant="ghost"

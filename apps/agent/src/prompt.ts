@@ -1,5 +1,5 @@
 // The assistant's system prompt, built from its configuration.
-import { type BookingContext, type CallDocuments, type CallerHistory, callRulesOf, fenceData, FIRST_NAME_VARIABLE, KNOWN_CALLER_GREETING_MAX, knowledgeLists } from '@linedesk/actions'
+import { type BookingContext, type CallCustomField, type CallDocuments, type CallerHistory, callRulesOf, fenceData, FIRST_NAME_VARIABLE, KNOWN_CALLER_GREETING_MAX, knowledgeLists } from '@linedesk/actions'
 import type { Assistant, Contact, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 
@@ -284,6 +284,7 @@ export function buildInstructions(
   transfers: readonly TransferRule[] = [],
   caller?: CallerContext | null,
   documents?: CallDocuments | null,
+  customFields: CallCustomField[] = [],
 ): string {
   const transfer = transfers.length > 0
   const name = assistant?.name ?? 'the assistant'
@@ -307,6 +308,7 @@ export function buildInstructions(
     callerHistoryInstructions(caller),
     caller?.greetedByName ? GREETED_BY_NAME : null,
     COLLECT_INSTRUCTIONS,
+    askCallerInstructions(customFields),
     'When you use a tool, say your reply in the same response as the tool call instead of waiting for its result: the caller should never wait in silence.',
     'Never tell the caller you did something (flagged the call as urgent, saved a message, booked a time) unless you call the tool for it in that same response.',
     'Use take_message once per call, when you have what the team needs; do not save the same request twice.',
@@ -315,4 +317,20 @@ export function buildInstructions(
   ]
     .filter(Boolean)
     .join('\n\n')
+}
+
+/**
+ * What the business wants asked on every call (custom fields with "ask the caller" on). Labels and
+ * instructions are the business's own words, so they go in as data between tags.
+ */
+export function askCallerInstructions(fields: Pick<CallCustomField, 'label' | 'type' | 'options' | 'ask_caller' | 'instruction'>[]): string | null {
+  const asked = fields.filter(f => f.ask_caller)
+  if (!asked.length) return null
+  const answer = (f: (typeof asked)[number]) =>
+    f.type === 'boolean' ? ' (yes or no)' : f.type === 'number' ? ' (a number)' : f.type === 'choice' ? ` (one of: ${f.options.join(', ')})` : ''
+  const lines = asked.map(f => `- ${f.label}${answer(f)}${f.instruction?.trim() ? `: ${f.instruction.trim()}` : ''}`)
+  return [
+    'The business also wants to know the following from every caller. Ask for each one naturally during the call, one at a time, once you know what the caller needs and before you say goodbye; skip what the caller already told you. If the caller does not know or does not want to say, move on.',
+    `<asked_details>\n${lines.join('\n')}\n</asked_details>`,
+  ].join('\n')
 }
