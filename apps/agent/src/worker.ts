@@ -19,7 +19,7 @@ import { audioStream, createGreetingCache, greetingKey, synthesize } from './gre
 import { logTurnMetrics } from './turn-metrics.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
 import { hangUpAfterSpeech, speakingOf } from './hang-up.ts'
-import { buildInstructions, FALLBACK_GREETING } from './prompt.ts'
+import { buildInstructions, canChangeBookings, FALLBACK_GREETING } from './prompt.ts'
 import { describeRecording, livekitRecorder, resolveRecording, saveRecording, startRecording, stopRecording, stopRecordingOrThrow } from './recording.ts'
 import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from './counterpart.ts'
 import { runTestCaller } from './test-caller/caller.ts'
@@ -53,6 +53,8 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
   const booking = bookingTools(api, call, log)
   const typeId = z.string().describe('The id of the appointment type, from the list in your instructions.')
   const calendarId = z.string().describe('The id of the calendar whose note fits the request, from the list in your instructions.')
+  const bookingDate = z.string().describe('The day of the appointment the caller wants to change, YYYY-MM-DD, as the caller said it.')
+  const bookedName = z.string().describe('The full name the appointment is booked under, as the caller said it.')
   return {
     find_slots: llm.tool({
       description: 'Look up free times for an appointment in one calendar. Say a short filler like "Let me check the calendar" in the same response.',
@@ -77,20 +79,21 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
       }),
       execute: args => booking.book(args),
     }),
-    ...(call.booking.upcoming.length
+    ...(canChangeBookings(call.booking)
       ? {
           cancel_appointment: llm.tool({
-            description: "Cancel one of the caller's upcoming appointments listed in your instructions, after the caller confirmed which one.",
-            parameters: z.object({ booking_id: z.string().describe('The booking id from your instructions.') }),
-            execute: ({ booking_id }) => booking.cancel(booking_id),
+            description: 'Cancel an appointment of the caller, described by the day it is on and the name it is booked under, as the caller said them.',
+            parameters: z.object({ booking_date: bookingDate, booked_name: bookedName }),
+            execute: args => booking.cancel(args),
           }),
           reschedule_appointment: llm.tool({
-            description: "Move one of the caller's upcoming appointments to a time from find_slots the caller agreed to.",
+            description: 'Move an appointment of the caller, described by its day and name as the caller said them, to a time from find_slots the caller agreed to.',
             parameters: z.object({
-              booking_id: z.string().describe('The booking id from your instructions.'),
-              start: z.string().describe('The exact start in brackets from find_slots.'),
+              booking_date: bookingDate,
+              booked_name: bookedName,
+              start: z.string().describe('The exact new start in brackets from find_slots.'),
             }),
-            execute: ({ booking_id, start }) => booking.reschedule(booking_id, start),
+            execute: ({ start, ...which }) => booking.reschedule(which, start),
           }),
         }
       : {}),

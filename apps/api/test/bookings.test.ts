@@ -4,11 +4,11 @@
 import { actions, rolePermissions } from '@linedesk/actions'
 import type { CalendarEventInput, CalendarProvider, Interval } from '@linedesk/calendar'
 import { CalendarError } from '@linedesk/calendar'
-import { appointment_types, assistant_calendars, assistants, availability_rules, bookings, calls, type Tx, webhook_deliveries, webhook_endpoints, workspace_settings } from '@linedesk/db'
+import { appointment_types, assistant_calendars, assistants, availability_rules, bookings, calls, contacts, type Tx, webhook_deliveries, webhook_endpoints, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test } from 'vitest'
 import { confirmationEmail } from '../src/booking-confirmation.ts'
-import { CONFIRMATIONS_PER_HOUR, DEFAULT_BOOKING_HOURS, slotLabel } from '../src/bookings.ts'
+import { bookedNameOf, CONFIRMATIONS_PER_HOUR, DEFAULT_BOOKING_HOURS, namesMatch, slotLabel } from '../src/bookings.ts'
 import type { CalendarServices } from '../src/calendar-connections.ts'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
@@ -256,31 +256,101 @@ describe('booking', () => {
     })
   })
 
-  test("on a call, only the caller's own bookings can be cancelled or moved; the agent must name its call", async () => {
-    const { services, events } = fakeCalendar()
+  test("a member names the booking by id; with a call, only that call's caller's", async () => {
+    const { services } = fakeCalendar()
     await inRollback(async tx => {
       const { data } = await run(tx, owner, services, 'appointment.book', book(at('09:00')))
       const bookingId = data!.bookingId as string
       const [stranger] = await tx.insert(calls).values({ id: `call_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, from_number: '+15035550999', to_number: ws.number }).returning()
-      await expect(run(tx, agent_(ws.id), services, 'appointment.cancel', { bookingId })).rejects.toThrow(/only change a booking on a call/)
-      await expect(run(tx, agent_(ws.id), services, 'appointment.cancel', { bookingId, callId: stranger!.id })).rejects.toThrow(/not the caller's/)
-      await expect(run(tx, agent_(ws.id), services, 'appointment.reschedule', { bookingId, start: at('11:00'), callId: stranger!.id })).rejects.toThrow(/not the caller's/)
+      await expect(run(tx, owner, services, 'appointment.cancel', { bookingId, callId: stranger!.id })).rejects.toThrow(/not the caller's/)
+      await expect(run(tx, owner, services, 'appointment.cancel', {})).rejects.toThrow(/bookingId is required/)
+      await run(tx, owner, services, 'appointment.cancel', { bookingId })
+      await expect(run(tx, owner, services, 'appointment.cancel', { bookingId })).rejects.toThrow(/cancelled already/)
+    })
+  })
 
-      const moved = await run(tx, agent_(ws.id), services, 'appointment.reschedule', { bookingId, start: at('09:30'), callId: ws.call.id })
-      expect(moved.rows.bookings).toMatchObject([{ start_at: expect.anything(), status: 'rescheduled' }])
-      expect(moved.data).toMatchObject({ start: at('09:30'), end: at('10:30') })
+  test('the agent changes a booking only as the caller describes it: the day and the name on it, both checked here', async () => {
+    const { services, events } = fakeCalendar()
+    await inRollback(async tx => {
+      await run(tx, owner, services, 'appointment.book', book(at('09:00')))
+      // A later call of the same caller (same number, so the same contact): no booking id is known on it.
+      const started = await run(tx, agent_(null), services, 'call.start', { from: ws.call.from_number, to: ws.number })
+      const callId = started.data!.callId as string
+      const described = (extra: Record<string, unknown>) => ({ callId, bookingDate: MONDAY, bookedName: 'Sam Patel', ...extra })
+
+      await expect(run(tx, agent_(ws.id), services, 'appointment.cancel', { bookingDate: MONDAY, bookedName: 'Sam Patel' })).rejects.toThrow(/only change a booking on a call/)
+      await expect(run(tx, agent_(ws.id), services, 'appointment.cancel', { callId })).rejects.toThrow(/ask the caller for the day/)
+      // Wrong name, wrong day, or only a first name: the same answer each time.
+      for (const wrong of [{ bookedName: 'Alex Patel' }, { bookedName: 'Sam' }, { bookingDate: shiftDay(MONDAY, 1) }]) {
+        await expect(run(tx, agent_(ws.id), services, 'appointment.cancel', described(wrong)), JSON.stringify(wrong)).rejects.toThrow(/no booking of this caller matches that day and name/)
+      }
+      // By id only a booking made on this very call.
+      const [booked] = await tx.select().from(bookings).where(eq(bookings.call_id, ws.call.id))
+      await expect(run(tx, agent_(ws.id), services, 'appointment.cancel', { bookingId: booked!.id, callId })).rejects.toThrow(/describe the booking by its day and name/)
+
+      // Spelled and cased differently, it is still the name on the booking.
+      const moved = await run(tx, agent_(ws.id), services, 'appointment.reschedule', described({ bookedName: 'patel, sam', start: at('09:30') }))
+      expect(moved.rows.bookings).toMatchObject([{ status: 'rescheduled' }])
       expect([...events.values()][0]).toMatchObject({ start: at('09:30'), end: at('10:30') })
 
-      // The caller's upcoming bookings are what call.start offers the agent.
-      const started = await run(tx, agent_(null), services, 'call.start', { from: ws.call.from_number, to: ws.number })
-      expect(started.data!.booking).toMatchObject({ upcoming: [{ id: bookingId, title: 'Repair visit · Sam Patel', label: slotLabel(at('09:30'), ZONE) }] })
+      // Another caller who names the same day and name is not this caller.
+      const other = await run(tx, agent_(null), services, 'call.start', { from: '+15035550998', to: ws.number })
+      await expect(run(tx, agent_(ws.id), services, 'appointment.cancel', described({ callId: other.data!.callId }))).rejects.toThrow(/no booking of this caller matches/)
 
-      await run(tx, agent_(ws.id), services, 'appointment.cancel', { bookingId, callId: ws.call.id })
+      const cancelled = await run(tx, agent_(ws.id), services, 'appointment.cancel', described({}))
+      expect(cancelled.data).toEqual({ eventDeleted: true, label: slotLabel(at('09:30'), ZONE) })
       expect(events.size).toBe(0)
-      await expect(run(tx, agent_(ws.id), services, 'appointment.cancel', { bookingId, callId: ws.call.id })).rejects.toThrow(/cancelled already/)
+    })
+  })
+
+  test("call.start never tells the agent the caller's bookings; booking changes only for a caller with a number", async () => {
+    const { services } = fakeCalendar()
+    await inRollback(async tx => {
+      await run(tx, owner, services, 'appointment.book', book(at('09:00')))
+      const known = await run(tx, agent_(null), services, 'call.start', { from: ws.call.from_number, to: ws.number })
+      expect(known.data!.booking).toMatchObject({ upcoming: [], canChangeBookings: true })
+      expect(JSON.stringify(known.data)).not.toContain('Sam Patel')
+    })
+  })
+
+  test('a withheld or malformed caller ID gets no contact, no booking changes, and is never the phone number on a booking', async () => {
+    const { services, events } = fakeCalendar()
+    await inRollback(async tx => {
+      for (const from of ['anonymous', 'Restricted', '5035550123', '+1 (503) 555-0123']) {
+        const started = await run(tx, agent_(null), services, 'call.start', { from, to: ws.number })
+        expect(started.data, from).toMatchObject({ contact: null, isNewContact: false, blocked: false, booking: { canChangeBookings: false, upcoming: [] } })
+        expect(started.rows.contacts, from).toBeUndefined()
+        const [call] = await tx.select().from(calls).where(eq(calls.id, started.data!.callId as string))
+        expect(call, from).toMatchObject({ contact_id: null, from_number: from })
+        await expect(run(tx, agent_(ws.id), services, 'appointment.cancel', { callId: call!.id, bookingDate: MONDAY, bookedName: 'Sam Patel' })).rejects.toThrow(/no caller number/)
+      }
+      // Anonymous callers do not share a contact (there is none).
+      expect(await tx.select().from(contacts).where(eq(contacts.phone, 'anonymous'))).toEqual([])
+
+      const anonymous = await run(tx, agent_(null), services, 'call.start', { from: 'anonymous', to: ws.number })
+      await run(tx, agent_(ws.id), services, 'appointment.book', book(at('11:00'), { callId: anonymous.data!.callId }))
+      const event = [...events.values()][0]!
+      expect(event.description).not.toContain('Phone:')
+      expect(event.description).not.toContain('anonymous')
     })
   })
 })
+
+test('the name on a booking: last name required, nothing the booking does not have', () => {
+  expect(bookedNameOf('Repair visit · Sam Patel')).toBe('Sam Patel')
+  expect(bookedNameOf('Estimate · Mary-Ann · Lee')).toBe('Lee')
+  expect(bookedNameOf(null)).toBe('')
+  expect(namesMatch('Sam Patel', 'Sam Patel')).toBe(true)
+  expect(namesMatch('patel', 'Sam Patel')).toBe(true)
+  expect(namesMatch("O'Neil, Sam", 'Sam ONeil')).toBe(true)
+  expect(namesMatch('Sam', 'Sam Patel')).toBe(false)
+  expect(namesMatch('Sam Patel Jones', 'Sam Patel')).toBe(false)
+  expect(namesMatch('Alex Patel', 'Sam Patel')).toBe(false)
+  expect(namesMatch('anything', '')).toBe(false)
+  expect(namesMatch('', 'Sam Patel')).toBe(false)
+})
+
+const shiftDay = (date: string, days: number) => new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
 
 test('the confirmation email: business, type and time, no link', () => {
   const email = confirmationEmail({ business: 'Brightwater Plumbing & Heating', what: 'repair visit', when: 'Tuesday, November 17 at 9:00 AM', minutes: 60 })

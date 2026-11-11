@@ -63,11 +63,23 @@ export const appointmentBook = defineAction({
 /** `data` of appointment.book. */
 export type BookData = { bookingId: string; start: string; end: string; label: string; calendarName: string }
 
-/** On a call (`callId`), only the caller's own bookings: the agent must say which call it is on. */
+/**
+ * Which booking to change. Members name it by `bookingId`. The voice agent never knows a caller's bookings
+ * (caller ID can be faked): it passes its call and what the caller says about the booking, its day in the
+ * business's time zone (`bookingDate`) and the name it is under (`bookedName`); the API finds the one booking
+ * of the call's caller that matches both, or refuses.
+ */
+const whichBooking = {
+  bookingId: z.string().min(1).optional(),
+  callId: z.string().min(1).optional(),
+  bookingDate: localDate.optional(),
+  bookedName: z.string().trim().min(1).max(BOOKING_TEXT_MAX).optional(),
+}
+
 export const appointmentCancel = defineAction({
   name: 'appointment.cancel',
   description: 'Cancel a booking made through Linedesk: deletes its calendar event and marks it cancelled.',
-  input: z.object({ bookingId: z.string().min(1), callId: z.string().min(1).optional() }),
+  input: z.object(whichBooking),
   permission: 'calendar:write',
   public: true,
 })
@@ -75,7 +87,7 @@ export const appointmentCancel = defineAction({
 export const appointmentReschedule = defineAction({
   name: 'appointment.reschedule',
   description: 'Move a booking made through Linedesk to another free slot: the calendar event moves with it.',
-  input: z.object({ bookingId: z.string().min(1), start: instant, callId: z.string().min(1).optional() }),
+  input: z.object({ ...whichBooking, start: instant }),
   permission: 'calendar:write',
   public: true,
 })

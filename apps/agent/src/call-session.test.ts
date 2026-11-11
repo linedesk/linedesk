@@ -16,7 +16,12 @@ test('anything else is a phone call, numbered by LiveKit SIP', () => {
 })
 
 test('a room that is neither is refused', () => {
-  expect(() => callOrigin('', {}, 'room')).toThrow('participant has no sip.phoneNumber / sip.trunkPhoneNumber attributes')
+  expect(() => callOrigin('', {}, 'room')).toThrow('participant has no sip.trunkPhoneNumber attribute')
+})
+
+test('a phone call without a caller ID is registered as anonymous, never under some number', () => {
+  expect(callOrigin('', { 'sip.trunkPhoneNumber': '+15035550142' }, 'call-1')).toEqual({ kind: 'phone', from: 'anonymous', to: '+15035550142', room: 'call-1' })
+  expect(callOrigin('', { ...sip, 'sip.phoneNumber': '' }, 'call-1')).toMatchObject({ from: 'anonymous' })
 })
 
 test('a test room may bring business hours to use instead of the workspace\'s; anything malformed is ignored', async () => {

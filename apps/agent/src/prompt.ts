@@ -61,13 +61,22 @@ const MESSAGES_AND_TRANSFER = 'You can do three things for the caller: save a me
 export const TRANSFER_INSTRUCTIONS = "Urgent calls go to a person: this comes before the rules above, and applies while the office is closed too. For an emergency that needs a person right now (the instructions and rules above say what counts as one), do not take a message first: as soon as you know the caller's name and what happened, use transfer_call. Call it without saying anything yourself: it tells the caller that you are connecting them. Never transfer a call that is not urgent. Only if transfer_call says nobody took the call, tell the caller you could not reach anyone right now, take a message with how to reach them, and say the team will call back as soon as possible; the call is already flagged as urgent."
 
 /**
+ * Changing a booking: the assistant knows none of the caller's bookings (caller ID can be faked). The
+ * caller says the day and the name, and the API checks both against the caller's bookings.
+ */
+export const CHANGE_BOOKING_INSTRUCTIONS =
+  "You do not know this caller's appointments, and you never say whether they have any. If the caller wants to cancel or move an appointment, ask for the day it is on and the full name it is booked under. Then use cancel_appointment, or find_slots and then reschedule_appointment, with that day (YYYY-MM-DD) and name exactly as the caller said them. If the tool says no booking matches, do not guess or try other names or days: take a message for the team instead."
+
+/** Whether the assistant may offer booking changes on this call; an API of an older version did not say, so no. */
+export const canChangeBookings = (booking: BookingContext) => booking.canChangeBookings === true
+
+/**
  * Booking: the types and the calendars with the owner's notes on when to use each. The model picks
  * the calendar; the API checks it is one of the assistant's.
  */
 export function bookingInstructions(booking: BookingContext, transfer = false): string {
   const needs = (fields: string[]) => (fields.length ? `; before booking also ask for: ${fields.join(', ')}` : '')
   const types = booking.appointmentTypes.map(t => `- ${t.name} (${t.duration_min} minutes), id ${t.id}${needs(t.required_fields)}`).join('\n')
-  const upcoming = booking.upcoming.map(b => `- ${b.title ?? 'Appointment'}, ${b.label}, booking id ${b.id}`).join('\n')
   const calendars = booking.calendars
     .map(c => `- ${c.name}, id ${c.id}: ${c.instruction.trim() || (c.is_default ? 'use when no other calendar fits' : 'no note')}${c.is_default ? ' (default)' : ''}`)
     .join('\n')
@@ -84,9 +93,9 @@ export function bookingInstructions(booking: BookingContext, transfer = false): 
     'To book: find out what the caller needs, then use find_slots with the appointment type, the calendar and the days the caller wants. Offer at most two or three of the times it returns, in plain words. When the caller picks one, ask for their name if you do not have it, and the address for a visit, then use book_appointment with that exact start. Only say the appointment is booked after book_appointment confirmed it. If no time suits or the calendar cannot be reached, take a message with the times the caller prefers.',
     'Never make up a free time: only offer times find_slots returned.',
     'If the caller gives an email address, pass it to book_appointment: they get the confirmation by email. Always confirm the day and time out loud.',
-    upcoming
-      ? `This caller's upcoming appointments, booked through us:\n${upcoming}\nYou may cancel one with cancel_appointment, or move it with find_slots and then reschedule_appointment, when the caller asks. Confirm which one first.`
-      : 'You can only cancel or move appointments this caller booked with us earlier; they have none. For anything else, take a message.',
+    canChangeBookings(booking)
+      ? CHANGE_BOOKING_INSTRUCTIONS
+      : 'You cannot cancel or move appointments on this call. If the caller asks to, take a message for the team.',
   ].filter(Boolean).join('\n\n')
 }
 

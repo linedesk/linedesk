@@ -42,7 +42,7 @@ function transferTrunk(sip: ReturnType<typeof sipClient>): Promise<string | null
 export const isPhoneCallTest = (
   call: Pick<CallSession, 'contact'>,
   env: Record<string, string | undefined> = process.env,
-) => !!env.CALL_TEST_FROM && call.contact.phone === env.CALL_TEST_FROM
+) => !!env.CALL_TEST_FROM && call.contact?.phone === env.CALL_TEST_FROM
 
 /**
  * The live warm-transfer test's opt-in: with CALL_TEST_ONCALL set (the test on-call number, answered by
@@ -198,8 +198,8 @@ export function transferTool({
       })
       if (announcement) log.record('agent', CONNECTING_LINE)
       const briefing = briefingText({
-        callerName: caller_name ?? call.contact.name,
-        callerNumber: call.contact.phone,
+        callerName: caller_name ?? call.contact?.name ?? null,
+        callerNumber: call.contact?.phone ?? null,
         about,
       })
       const { result } = await warmTransfer(

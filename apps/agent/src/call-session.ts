@@ -16,7 +16,8 @@ export interface CallSession {
   callId: string
   workspaceId: string
   assistant: Assistant | null
-  contact: Contact
+  /** null: the caller ID is withheld or not a number ("anonymous"), so the caller has no contact. */
+  contact: Contact | null
   /** The caller's number is blocked: the API filed the call in Spam; hang up without answering. */
   blocked: boolean
   /** null: the business has no hours set, and the assistant says nothing about them. */
@@ -109,9 +110,10 @@ export function callOrigin(jobMetadata: string, attributes: Record<string, strin
       ...(test.outsideGreeting ? { outsideGreeting: test.outsideGreeting } : {}),
       ...(test.onCall ? { onCall: test.onCall } : {}),
     }
-  const from = attributes['sip.phoneNumber']
   const to = attributes['sip.trunkPhoneNumber']
-  if (!from || !to) throw new Error('participant has no sip.phoneNumber / sip.trunkPhoneNumber attributes')
+  if (!to) throw new Error('participant has no sip.trunkPhoneNumber attribute')
+  // A withheld number may come without any caller ID: it is registered as such, never as someone's number.
+  const from = attributes['sip.phoneNumber'] || 'anonymous'
   return { kind: 'phone', from, to, room }
 }
 

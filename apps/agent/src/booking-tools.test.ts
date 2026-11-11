@@ -1,16 +1,17 @@
 import type { BookingContext } from '@linedesk/actions'
 import { expect, test } from 'vitest'
 import { ActionError, type ApiClient } from './api-client.ts'
-import { bookingTools, spreadSlots } from './booking-tools.ts'
+import { bookingTools, MAX_DESCRIBE_ATTEMPTS, spreadSlots } from './booking-tools.ts'
 import { CallLog } from './call-log.ts'
 import type { CallSession } from './call-session.ts'
-import { buildInstructions } from './prompt.ts'
+import { buildInstructions, CHANGE_BOOKING_INSTRUCTIONS } from './prompt.ts'
 import { mergeToolResults } from './summary.ts'
 
 const booking: BookingContext = {
   timeZone: 'America/Los_Angeles', today: 'Wednesday, November 11, 2026', todayDate: '2026-11-11',
   appointmentTypes: [{ id: 'at_1', name: 'Repair visit', duration_min: 60, required_fields: ['address'] }],
   upcoming: [],
+  canChangeBookings: true,
   calendars: [
     { id: 'acal_office', name: 'Office', instruction: 'Estimates', is_default: true },
     { id: 'acal_mike', name: 'Mike', instruction: 'Emergencies', is_default: false },
@@ -80,9 +81,14 @@ test('the prompt lists types and calendars with their notes only when the assist
   const withBooking = buildInstructions(null, null, booking)
   expect(withBooking).toContain('Today is Wednesday, November 11, 2026 (2026-11-11, time zone America/Los_Angeles).')
   expect(withBooking).toContain('- Repair visit (60 minutes), id at_1; before booking also ask for: address')
-  expect(withBooking).toContain('they have none')
-  expect(buildInstructions(null, null, { ...booking, upcoming: [{ id: 'bk_1', title: 'Repair visit · Sam', label: 'Tuesday, November 17 at 9:00 AM' }] }))
-    .toContain('- Repair visit · Sam, Tuesday, November 17 at 9:00 AM, booking id bk_1')
+  // The caller's bookings are never in the prompt: the caller describes one, the API checks it.
+  expect(withBooking).toContain(CHANGE_BOOKING_INSTRUCTIONS)
+  expect(withBooking).not.toMatch(/booking id|upcoming appointments/)
+  const noChanges = buildInstructions(null, null, { ...booking, canChangeBookings: false })
+  expect(noChanges).toContain('You cannot cancel or move appointments on this call')
+  expect(noChanges).not.toContain(CHANGE_BOOKING_INSTRUCTIONS)
+  // An API of an older version does not say: no changes.
+  expect(buildInstructions(null, null, { ...booking, canChangeBookings: undefined as unknown as boolean })).not.toContain(CHANGE_BOOKING_INSTRUCTIONS)
   expect(withBooking).toContain('- Office, id acal_office: Estimates (default)')
   expect(withBooking).toContain('- Mike, id acal_mike: Emergencies')
   expect(withBooking).toContain("Pick the calendar whose note fits the caller's request")
@@ -90,12 +96,31 @@ test('the prompt lists types and calendars with their notes only when the assist
   expect(buildInstructions(null, null, null)).toContain('You cannot book appointments')
 })
 
-test('cancel and reschedule always name the call, so the API only lets the caller change their own bookings', async () => {
+test('cancel and reschedule name the call and the booking as the caller described it, never a booking id', async () => {
   const call = session()
   const log = new CallLog(call)
-  const api = fakeApi(() => ({ bookingId: 'bk_1', start: 'x', end: '', label: 'Thursday, November 19 at 2:00 PM', calendarName: 'Office' }))
+  const api = fakeApi(name => (name === 'appointment.cancel'
+    ? { eventDeleted: true, label: 'Tuesday, November 17 at 9:00 AM' }
+    : { bookingId: 'bk_1', start: 'x', end: '', label: 'Thursday, November 19 at 2:00 PM', calendarName: 'Office' }))
   const tools = bookingTools(api, call, log)
-  expect(await tools.reschedule('bk_1', '2026-11-19T22:00:00.000Z')).toBe('Moved to Thursday, November 19 at 2:00 PM. Confirm the new day and time to the caller.')
-  expect(await tools.cancel('bk_1')).toBe('Cancelled. Tell the caller the appointment is cancelled.')
-  expect(api.sent.map(([name, input]) => [name, input.callId])).toEqual([['appointment.reschedule', 'call_1'], ['appointment.cancel', 'call_1']])
+  const which = { booking_date: '2026-11-17', booked_name: 'Sam Patel' }
+  expect(await tools.reschedule(which, '2026-11-19T22:00:00.000Z')).toBe('Moved to Thursday, November 19 at 2:00 PM. Confirm the new day and time to the caller.')
+  expect(await tools.cancel(which)).toBe('Cancelled the appointment on Tuesday, November 17 at 9:00 AM. Tell the caller it is cancelled.')
+  expect(api.sent.map(([name, input]) => [name, input])).toEqual([
+    ['appointment.reschedule', { bookingDate: '2026-11-17', bookedName: 'Sam Patel', callId: 'call_1', start: '2026-11-19T22:00:00.000Z' }],
+    ['appointment.cancel', { bookingDate: '2026-11-17', bookedName: 'Sam Patel', callId: 'call_1' }],
+  ])
+})
+
+test(`after ${MAX_DESCRIBE_ATTEMPTS} descriptions that match no booking, the assistant stops guessing on that call`, async () => {
+  const call = session()
+  const api = fakeApi(() => {
+    throw new ActionError('appointment.cancel', 409, 'no booking of this caller matches that day and name: take a message instead')
+  })
+  const tools = bookingTools(api, call, new CallLog(call))
+  for (let i = 0; i < MAX_DESCRIBE_ATTEMPTS; i++) {
+    expect(await tools.cancel({ booking_date: '2026-11-17', booked_name: `Guess ${i}` })).toMatch(/^Cancelling did not work \(no booking of this caller matches.*Do not guess another day or name/)
+  }
+  expect(await tools.reschedule({ booking_date: '2026-11-18', booked_name: 'Another' }, '2026-11-19T22:00:00.000Z')).toMatch(/Do not try again: take a message/)
+  expect(api.sent).toHaveLength(MAX_DESCRIBE_ATTEMPTS)
 })

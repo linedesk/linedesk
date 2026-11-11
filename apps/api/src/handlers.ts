@@ -1,5 +1,5 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, confirmsNumber, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, } from '@linedesk/actions'
+import { actions, confirmsNumber, isE164, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, } from '@linedesk/actions'
 import { businessHoursContext, type BusinessHoursContext, } from '@linedesk/calendar'
 import {availability_rules, call_evaluations, calls, contacts, member, organization, phone_numbers, syncedTables,
   transcript_segments, workspace_settings, type Tx,
@@ -154,29 +154,38 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   // A phone number always has its workspace; a test call names it, so it has to exist.
   if (!workspace && source === 'test') throw new Reject('no such workspace')
   if (workspace?.disabledAt) throw new Reject(`the workspace of ${label} is disabled`)
-  let [contact] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, workspace_id), eq(contacts.phone, from)))
-  // A number of a contact that was merged into another one belongs to that one now.
-  if (contact?.merged_into) [contact] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, workspace_id), eq(contacts.id, contact.merged_into)))
-  // A deleted contact who calls again is back in Contacts.
-  if (contact?.deleted_at) [contact] = await tx.update(contacts).set({ deleted_at: null }).where(eq(contacts.id, contact.id)).returning()
-  const isNewContact = !contact
-  if (!contact) {
-    const name = source === 'test' ? testCallContact.name : null
-    ;[contact] = await tx.insert(contacts).values({ id: newId('ct'), workspace_id, phone: from, name }).returning()
-  }
+  // A withheld or malformed caller ID ("anonymous", "restricted") names nobody: no contact (all such
+  // callers would share one), so no bookings to change and nothing to block.
+  const contact = source === 'test' || isE164(from) ? await callerContact(tx, workspace_id, from, source) : null
   const id = newId('call')
   // A blocked caller is not answered: the call is filed quietly in Spam and the agent hangs up (`blocked`).
-  const blocked = source === 'phone' && !!contact!.blocked_at
+  const blocked = source === 'phone' && !!contact?.row.blocked_at
   const [call] = await tx.insert(calls).values({
-    id, workspace_id, contact_id: contact!.id, from_number: from, to_number: to, source, started_at: now, room: room ?? id,
+    id, workspace_id, contact_id: contact?.row.id ?? null, from_number: from, to_number: to, source, started_at: now, room: room ?? id,
     assistant_id: assistant?.id ?? null,
     ...(blocked ? blockedCall(now) : {}),
   }).returning()
   const businessHours = await businessHoursFor(tx, workspace_id, now)
-  const booking = blocked ? null : await bookingContext(tx, workspace_id, now, { contactId: contact!.id, assistantId: assistant?.id ?? null })
+  const booking = blocked ? null : await bookingContext(tx, workspace_id, now, { contactId: contact?.row.id ?? null, assistantId: assistant?.id ?? null })
   // Said right after the greeting; the agent appends it (null: off).
   const recordingNotice = blocked ? null : await recordingNoticeFor(tx, workspace_id)
-  return { rows: { calls: [call!], contacts: [contact!] }, data: { callId: id, workspaceId: workspace_id, isNewContact, contact: contact!, assistant: assistant ?? null, blocked, businessHours, booking, recordingNotice } }
+  return {
+    rows: { calls: [call!], ...(contact ? { contacts: [contact.row] } : {}) },
+    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: assistant ?? null, blocked, businessHours, booking, recordingNotice },
+  }
+}
+
+/** The contact with this number: found (a merged one's survivor, a deleted one restored) or created. */
+async function callerContact(tx: Tx, workspace_id: string, phone: string, source: 'phone' | 'test') {
+  let [contact] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, workspace_id), eq(contacts.phone, phone)))
+  // A number of a contact that was merged into another one belongs to that one now.
+  if (contact?.merged_into) [contact] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, workspace_id), eq(contacts.id, contact.merged_into)))
+  // A deleted contact who calls again is back in Contacts.
+  if (contact?.deleted_at) [contact] = await tx.update(contacts).set({ deleted_at: null }).where(eq(contacts.id, contact.id)).returning()
+  if (contact) return { row: contact, isNew: false }
+  const name = source === 'test' ? testCallContact.name : null
+  const [created] = await tx.insert(contacts).values({ id: newId('ct'), workspace_id, phone, name }).returning()
+  return { row: created!, isNew: true }
 }
 
 /** A call from a blocked number: over before it began, read, in Spam. */

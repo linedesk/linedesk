@@ -107,6 +107,12 @@ export const callStart = defineAction({
   input: z.object({ from: z.string().min(3), to: z.string().min(3), room: z.string().optional() }),
   permission: 'agent',
 })
+/**
+ * Whether a caller ID is a real, dialable number (E.164). Withheld numbers arrive as "anonymous",
+ * "restricted" and the like: such a caller gets no contact, no booking lookup and no booking changes.
+ */
+export const isE164 = (value: string | null | undefined): value is string => !!value && /^\+[1-9]\d{7,14}$/.test(value)
+
 /** The contact a test call from the web app is filed under, so the inbox shows it as "Test call". */
 export const testCallContact = { phone: 'test', name: 'Test call' } as const
 
@@ -179,8 +185,16 @@ export type BookingContext = {
   todayDate: string
   appointmentTypes: { id: string; name: string; duration_min: number; required_fields: ('phone' | 'email' | 'address')[] }[]
   calendars: { id: string; name: string; instruction: string; is_default: boolean }[]
-  /** The caller's upcoming bookings made through Linedesk: the only ones the assistant may cancel or move. */
+  /**
+   * Always empty: caller ID is not proof of identity, so the assistant is never told a caller's bookings.
+   * Kept for agents of an older version, which read it.
+   */
   upcoming: { id: string; label: string; title: string | null }[]
+  /**
+   * Whether the assistant may offer to cancel or move a booking on this call: only for a caller with a
+   * dialable number (E.164). The API still checks the day and the name on the booking the caller states.
+   */
+  canChangeBookings: boolean
 }
 
 export const callAppendTranscript = defineAction({

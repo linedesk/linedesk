@@ -12,6 +12,11 @@ const MAX_OFFERED = 6
 /** Slots asked from the API; enough to spread over several days. */
 const SEARCH_LIMIT = 60
 
+/** A booking as the caller described it: its day (YYYY-MM-DD) and the name it is under; the API checks both. */
+export type DescribedBooking = { booking_date: string; booked_name: string }
+/** Descriptions that matched no booking before the assistant stops trying on a call (no guessing names or days). */
+export const MAX_DESCRIBE_ATTEMPTS = 2
+
 export type FindSlotsArgs = { appointment_type_id: string; calendar_id: string; from_date?: string | null; to_date?: string | null }
 export type BookArgs = {
   appointment_type_id: string; calendar_id: string; start: string; caller_name: string; reason: string; address?: string | null; email?: string | null
@@ -71,25 +76,40 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
     }
   }
 
-  async function cancel(bookingId: string): Promise<string> {
+  /** Failed attempts to describe a booking on this call: after MAX_DESCRIBE_ATTEMPTS, no more guesses. */
+  let failedDescriptions = 0
+  const described = ({ booking_date, booked_name }: DescribedBooking) => ({ bookingDate: booking_date, bookedName: booked_name, callId })
+  const outOfAttempts = () => failedDescriptions >= MAX_DESCRIBE_ATTEMPTS
+  const refused = (e: unknown, what: string) => {
+    if (e instanceof ActionError && /no booking of this caller matches/.test(e.message)) failedDescriptions++
+    return `${what} did not work (${failure(e)}). Do not guess another day or name: take a message for the team instead.`
+  }
+  const NO_MORE = 'The booking could not be found on this call. Do not try again: take a message for the team instead.'
+
+  async function cancel(which: DescribedBooking): Promise<string> {
+    if (outOfAttempts()) return NO_MORE
     try {
-      await api.run(appointmentCancel, { bookingId, callId }, workspaceId)
+      const { data } = await api.run(appointmentCancel, described(which), workspaceId)
       log.record('system', 'Cancelled an appointment', appointmentCancel.name)
-      return 'Cancelled. Tell the caller the appointment is cancelled.'
+      const label = (data as { label?: string } | undefined)?.label
+      return `Cancelled${label ? ` the appointment on ${label}` : ''}. Tell the caller it is cancelled.`
     } catch (e) {
-      return `Cancelling did not work (${failure(e)}). Take a message for the team instead.`
+      log.record('system', 'Could not cancel an appointment', appointmentCancel.name)
+      return refused(e, 'Cancelling')
     }
   }
 
-  async function reschedule(bookingId: string, start: string): Promise<string> {
+  async function reschedule(which: DescribedBooking, start: string): Promise<string> {
+    if (outOfAttempts()) return NO_MORE
     try {
-      const { data } = await api.run(appointmentReschedule, { bookingId, start, callId }, workspaceId)
+      const { data } = await api.run(appointmentReschedule, { ...described(which), start }, workspaceId)
       const moved = data as BookData
       log.bookings.push(`moved to ${moved.label}`)
       log.record('system', `Rescheduled · ${moved.label} · ${moved.calendarName}`, appointmentReschedule.name)
       return `Moved to ${moved.label}. Confirm the new day and time to the caller.`
     } catch (e) {
-      return `Moving it did not work (${failure(e)}). Do not say it moved. Offer another time, or take a message.`
+      log.record('system', 'Could not move an appointment', appointmentReschedule.name)
+      return refused(e, 'Moving it')
     }
   }
 
