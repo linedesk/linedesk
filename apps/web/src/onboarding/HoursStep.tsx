@@ -57,7 +57,7 @@ function HoursForm({ saved, onBack, onNext }: StepProps & { saved: WorkspaceSett
     <>
       <div className="ob-body">
         <h1>When are you open?</h1>
-        <p className="ob-lede">{name} tells callers whether you're open, and when you open next.</p>
+        <p className="ob-lede">{name} tells callers when you're open.</p>
         <Field id="ob-tz" label="Time zone">
           <TimeZoneSelect id="ob-tz" value={timeZone} onChange={setTimeZone} />
         </Field>

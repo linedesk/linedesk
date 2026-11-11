@@ -131,7 +131,7 @@ function Done({ onBack, onDone, offerSamples }: { onBack: () => void; onDone: ()
         <h1>{live ? "You're live." : 'Almost there.'}</h1>
         <p className="ob-lede">
           {live
-            ? `${name} answers ${formatNumber(number.e164)}. Every call lands in your inbox with a summary and the next step.`
+            ? `${name} answers ${formatNumber(number.e164)}. Calls land in your inbox.`
             : number
               ? `${formatNumber(number.e164)} is connected. ${name} answers once the voice service is set up.`
               : `One step left: connect a phone number in Settings.`}

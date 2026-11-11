@@ -17,12 +17,21 @@ import { Select } from '../ui/controls.tsx'
 import { Avatar, Badge, Button } from '../ui/kit.tsx'
 import { Skeleton } from '../ui/LoadStates.tsx'
 import { teamApi, useTeam } from './team-api.ts'
-import { canEditRole, canRemove, invitationStatus, isEmail, isOnTeam, isOwner, joinedLabel, roleLabel } from './team-model.ts'
+import {
+  canEditRole,
+  canRemove,
+  invitationStatus,
+  isEmail,
+  isOnTeam,
+  isOwner,
+  joinedLabel,
+  roleLabel,
+} from './team-model.ts'
 
 const roleHelp: Record<TeamRole, string> = {
-  owner: 'Everything an admin can, and makes or changes owners.',
-  admin: 'Changes settings, invites and removes people.',
-  member: 'Handles calls and contacts.',
+  owner: 'Also manages owners.',
+  admin: 'Settings and people.',
+  member: 'Calls and contacts.',
 }
 
 type Run = (work: () => Promise<unknown>, done: string) => Promise<boolean>
@@ -56,12 +65,20 @@ function RoleSelect<R extends TeamRole>({
 }
 
 /** Making someone an owner asks once: they can then change or remove every other owner, you included. */
-function OwnerConfirm({ name, onConfirm, onClose }: { name: string; onConfirm: () => Promise<boolean>; onClose: () => void }) {
+function OwnerConfirm({
+  name,
+  onConfirm,
+  onClose,
+}: {
+  name: string
+  onConfirm: () => Promise<boolean>
+  onClose: () => void
+}) {
   const [busy, setBusy] = useState(false)
   return (
     <Dialog
       title={`Make ${name} an owner?`}
-      description="Owners can do everything you can, including changing or removing other owners. You stay an owner until you change your own role."
+      description="They can do everything you can, including changing or removing other owners."
       size="sm"
       onClose={busy ? () => {} : onClose}
       onSubmit={async e => {
@@ -270,7 +287,7 @@ function LeaveWorkspace({ data }: { data: TeamData }) {
       {asking && (
         <Dialog
           title="Leave workspace"
-          description="You lose access to its calls and contacts at once. To come back, someone has to invite you again."
+          description="You lose access at once. Only a new invitation brings you back."
           size="sm"
           onClose={busy ? () => {} : () => setAsking(false)}
           onSubmit={leave}
@@ -333,14 +350,13 @@ export function TeamPage({ toast }: { toast: (text: string) => void }) {
         <div className="page-head">
           <div>
             <h1>Team</h1>
-            <p>Everyone here can open calls and handle the inbox.</p>
           </div>
         </div>
         <Section
           id="team-members"
           title="Members"
           description={data.canManage ? undefined : 'Only owners and admins can invite or change roles.'}
-          help="Admins change settings, invite and remove people. Members handle calls and contacts."
+          help="Admins manage settings and people. Members handle calls and contacts."
         >
           <div className="st-list">
             {data.members.map(m => (

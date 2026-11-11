@@ -42,9 +42,7 @@ export function CalendarStep({ onBack, onNext }: Props) {
     <>
       <div className="ob-body">
         <h1>Connect your calendar.</h1>
-        <p className="ob-lede">
-          {name} books appointments into free times. Without a calendar, {name} takes a message.
-        </p>
+        <p className="ob-lede">{name} books into your free times.</p>
         {connections.length > 0 && (
           <ul className="cal-list ob-cal">
             {connections.map(c => (

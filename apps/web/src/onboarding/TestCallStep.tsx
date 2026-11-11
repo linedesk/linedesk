@@ -72,16 +72,13 @@ export function TestCallStep({ showSimulator, onBack, onNext, onOpenCall }: Prop
           )}
         </div>
         {number.mode === 'forward_conditional' && !call && (
-          <p className="ob2-note">Once forwarding is on, a call you miss on your business number reaches {name} too.</p>
+          <p className="ob2-note">With forwarding on, missed calls reach {name} too.</p>
         )}
         {showSimulator &&
           !call &&
           (simulate ? (
             <div className="ob2-card ob-sim">
-              <span className="ob2-note">
-                Development only: plays a scripted call to this number. Nothing real is dialled. Run it where the repo
-                is checked out.
-              </span>
+              <span className="ob2-note">Development only. Run it in the repo; nothing real is dialled.</span>
               <code>{simulateCommand(number.e164)}</code>
               <CopyButton text={simulateCommand(number.e164)} label="Copy command" />
             </div>

@@ -11,8 +11,32 @@ import { onSaveKey, SaveBar } from '../../ui/form.tsx'
 import { Badge, Button } from '../../ui/kit.tsx'
 import { type PageSection, SettingsLayout, useSection } from '../../ui/SettingsLayout.tsx'
 import { Field, Section, TextInput } from '../fields.tsx'
-import { ACCOUNT, type Account, addPasskey, PASSKEYS, SESSIONS, changeName, changePassword, loadAccount, loadPasskeys, loadSessions, removePasskey, setFirstPassword, SignInAgain, signOutOtherSessions, signOutSession } from './account-api.ts'
-import { describeDevice, hasPassword, orderSessions, passwordProblem, type SessionRow, SESSIONS_SHOWN, signInMethodLabels } from './account-model.ts'
+import {
+  ACCOUNT,
+  type Account,
+  addPasskey,
+  PASSKEYS,
+  SESSIONS,
+  changeName,
+  changePassword,
+  loadAccount,
+  loadPasskeys,
+  loadSessions,
+  removePasskey,
+  setFirstPassword,
+  SignInAgain,
+  signOutOtherSessions,
+  signOutSession,
+} from './account-api.ts'
+import {
+  describeDevice,
+  hasPassword,
+  orderSessions,
+  passwordProblem,
+  type SessionRow,
+  SESSIONS_SHOWN,
+  signInMethodLabels,
+} from './account-model.ts'
 
 type SectionProps = { account: Account; reload: () => Promise<void> }
 
@@ -38,13 +62,20 @@ function useRequest() {
       setBusy(false)
     }
   }
-  const fail = (text: string | null) => { setDone(null); setError(text) }
+  const fail = (text: string | null) => {
+    setDone(null)
+    setError(text)
+  }
   return { busy, error, done, needsSignIn, setError: fail, run }
 }
 type Request = ReturnType<typeof useRequest>
 
 function SignInAgainButton() {
-  return <Button title="Sign out and sign in again, then come back here" onClick={() => void signInAgain()}>Sign in again</Button>
+  return (
+    <Button title="Sign out and sign in again, then come back here" onClick={() => void signInAgain()}>
+      Sign in again
+    </Button>
+  )
 }
 
 /** The outcome of a form's last request, next to the form that caused it. */
@@ -52,17 +83,43 @@ function FormStatus({ request }: { request: Pick<Request, 'error' | 'done' | 'ne
   if (request.error) {
     return (
       <div className="ac-inline">
-        <div className="ac-error" role="alert">{request.error}</div>
+        <div className="ac-error" role="alert">
+          {request.error}
+        </div>
         {request.needsSignIn && <SignInAgainButton />}
       </div>
     )
   }
-  return request.done ? <span className="help" role="status">{request.done}</span> : null
+  return request.done ? (
+    <span className="help" role="status">
+      {request.done}
+    </span>
+  ) : null
 }
 
 /** A password field in the kit's input frame; its label is the surrounding Field. */
-function PasswordInput({ id, value, onChange, autoComplete }: { id: string; value: string; onChange: (value: string) => void; autoComplete: string }) {
-  return <span className="k-input"><input id={id} type="password" value={value} autoComplete={autoComplete} onChange={e => onChange(e.target.value)} /></span>
+function PasswordInput({
+  id,
+  value,
+  onChange,
+  autoComplete,
+}: {
+  id: string
+  value: string
+  onChange: (value: string) => void
+  autoComplete: string
+}) {
+  return (
+    <span className="k-input">
+      <input
+        id={id}
+        type="password"
+        value={value}
+        autoComplete={autoComplete}
+        onChange={e => onChange(e.target.value)}
+      />
+    </span>
+  )
 }
 
 function Profile({ account, reload }: SectionProps) {
@@ -80,7 +137,7 @@ function Profile({ account, reload }: SectionProps) {
   }
   return (
     <form className="ac-form" onSubmit={save} onKeyDown={e => onSaveKey(e, dirty && !!trimmed)}>
-      <Section id="ac-profile" title="Profile" description="How you appear to your team.">
+      <Section id="ac-profile" title="Profile">
         <Field id="ac-name" label="Name" error={trimmed ? null : 'Enter your name.'}>
           <TextInput id="ac-name" value={name} onChange={setName} placeholder="Your name" invalid={!trimmed} />
         </Field>
@@ -104,23 +161,44 @@ function PasswordForm({ account, reload }: SectionProps) {
     e.preventDefault()
     const problem = passwordProblem(form, exists)
     if (problem) return request.setError(problem)
-    void request.run(async () => {
-      await (exists ? changePassword(form.current, form.next) : setFirstPassword(form.next))
-      setForm(empty)
-      await reload()
-    }, exists ? 'Password changed. Other sessions were signed out.' : 'Password set. Other sessions were signed out.')
+    void request.run(
+      async () => {
+        await (exists ? changePassword(form.current, form.next) : setFirstPassword(form.next))
+        setForm(empty)
+        await reload()
+      },
+      exists ? 'Password changed. Other sessions were signed out.' : 'Password set. Other sessions were signed out.',
+    )
   }
   return (
     <form className="ac-form ac-divided" onSubmit={save}>
-      {!exists && <span className="help">No password yet. Set one to sign in with it too.</span>}
+      {!exists && <span className="help">No password yet.</span>}
       <div className="row2">
-        {exists && <Field id="ac-pw-current" label="Current password"><PasswordInput id="ac-pw-current" value={form.current} onChange={set('current')} autoComplete="current-password" /></Field>}
-        <Field id="ac-pw-new" label="New password"><PasswordInput id="ac-pw-new" value={form.next} onChange={set('next')} autoComplete="new-password" /></Field>
-        <Field id="ac-pw-repeat" label="Repeat new password"><PasswordInput id="ac-pw-repeat" value={form.repeat} onChange={set('repeat')} autoComplete="new-password" /></Field>
+        {exists && (
+          <Field id="ac-pw-current" label="Current password">
+            <PasswordInput
+              id="ac-pw-current"
+              value={form.current}
+              onChange={set('current')}
+              autoComplete="current-password"
+            />
+          </Field>
+        )}
+        <Field id="ac-pw-new" label="New password">
+          <PasswordInput id="ac-pw-new" value={form.next} onChange={set('next')} autoComplete="new-password" />
+        </Field>
+        <Field id="ac-pw-repeat" label="Repeat new password">
+          <PasswordInput id="ac-pw-repeat" value={form.repeat} onChange={set('repeat')} autoComplete="new-password" />
+        </Field>
       </div>
       <FormStatus request={request} />
       <div className="ac-actions">
-        <Button type="submit" variant="primary" title={exists ? 'Change your password and sign out your other sessions' : 'Set a password for this account'} disabled={request.busy || !form.next}>
+        <Button
+          type="submit"
+          variant="primary"
+          title={exists ? 'Change your password and sign out your other sessions' : 'Set a password for this account'}
+          disabled={request.busy || !form.next}
+        >
           {request.busy ? 'Saving…' : exists ? 'Change password' : 'Set a password'}
         </Button>
       </div>
@@ -133,7 +211,11 @@ function SignIn(props: SectionProps) {
   return (
     <Section id="ac-signin" title="Sign-in & security">
       <Field label="Methods">
-        <div className="ac-badges">{signInMethodLabels(accounts, methods).map(label => <Badge key={label}>{label}</Badge>)}</div>
+        <div className="ac-badges">
+          {signInMethodLabels(accounts, methods).map(label => (
+            <Badge key={label}>{label}</Badge>
+          ))}
+        </div>
       </Field>
       {methods.passkey && passkeySupported() && <Passkeys />}
       {methods.password && <PasswordForm {...props} />}
@@ -149,37 +231,58 @@ function Passkeys() {
   const request = useRequest()
   const load = passkeys.reload
 
-  const add = () => request.run(async () => {
-    await addPasskey(describeDevice(navigator.userAgent))
-    await load()
-  }, 'Passkey added. Next time, choose Continue with Passkey.')
-  const remove = (id: string) => request.run(async () => {
-    await removePasskey(id)
-    setConfirming(null)
-    await load()
-  }, 'Passkey removed.')
+  const add = () =>
+    request.run(async () => {
+      await addPasskey(describeDevice(navigator.userAgent))
+      await load()
+    }, 'Passkey added.')
+  const remove = (id: string) =>
+    request.run(async () => {
+      await removePasskey(id)
+      setConfirming(null)
+      await load()
+    }, 'Passkey removed.')
 
   return (
     <div className="ac-form ac-divided">
-      <Field label="Passkeys" tip="Sign in with your fingerprint, face or device PIN instead of a code or password.">
-        {!list && passkeys.error && <div className="ac-error" role="alert">{passkeys.error}</div>}
+      <Field label="Passkeys" tip="Sign in with your fingerprint, face or device PIN.">
+        {!list && passkeys.error && (
+          <div className="ac-error" role="alert">
+            {passkeys.error}
+          </div>
+        )}
         {!list && !passkeys.error && <ListSkeleton label="Loading passkeys" rows={1} />}
         {list && list.length === 0 && <span className="help">No passkeys yet.</span>}
         {list && list.length > 0 && (
           <ul className="ac-list">
             {list.map(p => (
               <li key={p.id} className="ac-session">
-                <div><b>{p.name}</b>{p.added && <span className="help">Added {dateTimeLabel(p.added)}</span>}</div>
+                <div>
+                  <b>{p.name}</b>
+                  {p.added && <span className="help">Added {dateTimeLabel(p.added)}</span>}
+                </div>
                 <div className="ac-row-actions">
-                  {confirming === p.id
-                    ? (
-                      <>
-                        <span className="help">Remove this passkey?</span>
-                        <Button size="sm" variant="ghost" title="Keep this passkey" onClick={() => setConfirming(null)}>Cancel</Button>
-                        <Button size="sm" variant="danger" title="Remove it; it no longer signs you in" disabled={request.busy} onClick={() => void remove(p.id)}>Remove</Button>
-                      </>
-                    )
-                    : <Button size="sm" title={`Remove ${p.name}`} onClick={() => setConfirming(p.id)}>Remove</Button>}
+                  {confirming === p.id ? (
+                    <>
+                      <span className="help">Remove this passkey?</span>
+                      <Button size="sm" variant="ghost" title="Keep this passkey" onClick={() => setConfirming(null)}>
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        title="Remove it; it no longer signs you in"
+                        disabled={request.busy}
+                        onClick={() => void remove(p.id)}
+                      >
+                        Remove
+                      </Button>
+                    </>
+                  ) : (
+                    <Button size="sm" title={`Remove ${p.name}`} onClick={() => setConfirming(p.id)}>
+                      Remove
+                    </Button>
+                  )}
                 </div>
               </li>
             ))}
@@ -188,7 +291,11 @@ function Passkeys() {
       </Field>
       <FormStatus request={request} />
       <div className="ac-actions">
-        <Button title="Create a passkey on this device for your account" disabled={request.busy} onClick={() => void add()}>
+        <Button
+          title="Create a passkey on this device for your account"
+          disabled={request.busy}
+          onClick={() => void add()}
+        >
           {request.busy ? 'Waiting for your device…' : 'Add passkey'}
         </Button>
       </div>
@@ -197,12 +304,26 @@ function Passkeys() {
 }
 
 /** A question with Cancel and a confirming button, in place of the button that asked it. */
-function Confirm({ question, busy, onCancel, onConfirm }: { question: string; busy: boolean; onCancel: () => void; onConfirm: () => void }) {
+function Confirm({
+  question,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  question: string
+  busy: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
   return (
     <>
       <span className="help">{question}</span>
-      <Button size="sm" variant="ghost" title="Keep it signed in" onClick={onCancel}>Cancel</Button>
-      <Button size="sm" variant="primary" title="Sign out now" disabled={busy} onClick={onConfirm}>Sign out</Button>
+      <Button size="sm" variant="ghost" title="Keep it signed in" onClick={onCancel}>
+        Cancel
+      </Button>
+      <Button size="sm" variant="primary" title="Sign out now" disabled={busy} onClick={onConfirm}>
+        Sign out
+      </Button>
     </>
   )
 }
@@ -221,7 +342,12 @@ async function loadSessionList(): Promise<SessionRow[] | 'signInAgain'> {
 function ListSkeleton({ label, rows = 3 }: { label: string; rows?: number }) {
   return (
     <ul className="ac-list" aria-busy="true" aria-label={label}>
-      {Array.from({ length: rows }, (_, i) => `${label}-${i}`).map(key => <li key={key} className="ac-session ac-skel"><span /><span /></li>)}
+      {Array.from({ length: rows }, (_, i) => `${label}-${i}`).map(key => (
+        <li key={key} className="ac-session ac-skel">
+          <span />
+          <span />
+        </li>
+      ))}
     </ul>
   )
 }
@@ -236,15 +362,16 @@ function Sessions() {
   const load = query.reload
   const sessions = Array.isArray(list) ? list : null
 
-  const signOut = (action: () => Promise<void>, doneText: string) => request.run(async () => {
-    await action()
-    setConfirming(null)
-    await load()
-  }, doneText)
+  const signOut = (action: () => Promise<void>, doneText: string) =>
+    request.run(async () => {
+      await action()
+      setConfirming(null)
+      await load()
+    }, doneText)
 
   const others = sessions ? sessions.length - 1 : 0
   return (
-    <Section id="ac-sessions" title="Sessions" description="Where you are signed in.">
+    <Section id="ac-sessions" title="Sessions">
       {list === 'signInAgain' && (
         <div className="ac-inline">
           <span className="help">Sign in again to see your devices.</span>
@@ -252,30 +379,61 @@ function Sessions() {
         </div>
       )}
       {!list && !query.error && <ListSkeleton label="Loading sessions" />}
-      {!list && query.error && <div className="ac-error" role="alert">{query.error}</div>}
+      {!list && query.error && (
+        <div className="ac-error" role="alert">
+          {query.error}
+        </div>
+      )}
       {sessions && (
         <ul className="ac-list">
           {(showAll ? sessions : sessions.slice(0, SESSIONS_SHOWN)).map(s => (
             <li key={s.id} className="ac-session">
-              <div><b>{s.device}</b><span className="help">Last active {dateTimeLabel(s.lastActive)}</span></div>
+              <div>
+                <b>{s.device}</b>
+                <span className="help">Last active {dateTimeLabel(s.lastActive)}</span>
+              </div>
               <div className="ac-row-actions">
-                {s.current ? <Badge>This device</Badge>
-                  : confirming === s.id ? <Confirm question="Sign this device out?" busy={request.busy} onCancel={() => setConfirming(null)} onConfirm={() => void signOut(() => signOutSession(s.id), 'Session signed out.')} />
-                  : <Button size="sm" title={`Sign out ${s.device}`} onClick={() => setConfirming(s.id)}>Sign out</Button>}
+                {s.current ? (
+                  <Badge>This device</Badge>
+                ) : confirming === s.id ? (
+                  <Confirm
+                    question="Sign this device out?"
+                    busy={request.busy}
+                    onCancel={() => setConfirming(null)}
+                    onConfirm={() => void signOut(() => signOutSession(s.id), 'Session signed out.')}
+                  />
+                ) : (
+                  <Button size="sm" title={`Sign out ${s.device}`} onClick={() => setConfirming(s.id)}>
+                    Sign out
+                  </Button>
+                )}
               </div>
             </li>
           ))}
         </ul>
       )}
       {sessions && !showAll && sessions.length > SESSIONS_SHOWN && (
-        <div><Button size="sm" variant="ghost" onClick={() => setShowAll(true)}>Show {sessions.length - SESSIONS_SHOWN} more</Button></div>
+        <div>
+          <Button size="sm" variant="ghost" onClick={() => setShowAll(true)}>
+            Show {sessions.length - SESSIONS_SHOWN} more
+          </Button>
+        </div>
       )}
       <FormStatus request={request} />
       {others > 0 && (
         <div className="ac-actions">
-          {confirming === 'others'
-            ? <Confirm question={`Sign out ${others} other ${others === 1 ? 'session' : 'sessions'}?`} busy={request.busy} onCancel={() => setConfirming(null)} onConfirm={() => void signOut(signOutOtherSessions, 'Other sessions signed out.')} />
-            : <Button title="Sign out everywhere except this device" onClick={() => setConfirming('others')}>Sign out all other sessions</Button>}
+          {confirming === 'others' ? (
+            <Confirm
+              question={`Sign out ${others} other ${others === 1 ? 'session' : 'sessions'}?`}
+              busy={request.busy}
+              onCancel={() => setConfirming(null)}
+              onConfirm={() => void signOut(signOutOtherSessions, 'Other sessions signed out.')}
+            />
+          ) : (
+            <Button title="Sign out everywhere except this device" onClick={() => setConfirming('others')}>
+              Sign out all other sessions
+            </Button>
+          )}
         </div>
       )}
     </Section>
@@ -303,9 +461,15 @@ export function AccountSettings() {
   return (
     <div className="page">
       <SettingsLayout page="account" title="Account" sections={sections} current={current}>
-        {!props && (query.error
-          ? <div className="empty"><b>Could not load your account</b><span>{query.error}</span></div>
-          : <Skeleton className="sk-card" />)}
+        {!props &&
+          (query.error ? (
+            <div className="empty">
+              <b>Could not load your account</b>
+              <span>{query.error}</span>
+            </div>
+          ) : (
+            <Skeleton className="sk-card" />
+          ))}
         {props && current === 'profile' && <Profile {...props} />}
         {props && current === 'security' && <SignIn {...props} />}
         {current === 'sessions' && <Sessions />}

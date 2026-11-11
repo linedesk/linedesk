@@ -38,15 +38,11 @@ export function BusinessStep({ businessName, onNext }: { businessName: string; o
     <>
       <div className="ob-body">
         <h1>Who answers for {businessName}?</h1>
-        <p className="ob-lede">You can change both later in Assistant settings.</p>
+        <p className="ob-lede">You can change both later.</p>
         <Field id="ob-name" label="Assistant's name">
           <TextInput id="ob-name" value={shown?.name ?? ''} onChange={v => set({ name: v })} placeholder="Maya" />
         </Field>
-        <Field
-          id="ob-know"
-          label="What should callers know?"
-          help="Services, area, hours, prices. Plain sentences are fine."
-        >
+        <Field id="ob-know" label="What should callers know?" help="Services, area, hours, prices.">
           <TextArea
             id="ob-know"
             value={shown?.instructions ?? ''}

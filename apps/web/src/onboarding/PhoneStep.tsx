@@ -33,7 +33,7 @@ function Unavailable({ detail, onBack, onNext }: { detail: string | null; onBack
     <>
       <div className="ob-body">
         <h1>No phone carrier on this server yet.</h1>
-        <p className="ob-lede">Skip this for now and connect a number later in Settings.</p>
+        <p className="ob-lede">Skip for now and connect one later in Settings.</p>
         {detail && <p className="ob2-note">For admins: {detail}. Connect one in Admin, Providers.</p>}
       </div>
       <Foot onBack={onBack} onContinue={onNext} canContinue label="Skip for now" />
@@ -96,17 +96,8 @@ function Choose({ status, setupError, clearError, onBack }: Props) {
             checked={kind === 'existing'}
             onPick={() => pick('existing')}
             title={carrier ? `Use a number I have in ${carrier}` : 'Use a number I already have'}
-            description={
-              carrier ? `A number already in your ${carrier} account.` : 'A number already in your carrier account.'
-            }
           />
-          <RadioCard
-            name="ob-mode"
-            checked={kind === 'new'}
-            onPick={() => pick('new')}
-            title="Get a new number"
-            description="A local number in the area code you pick."
-          />
+          <RadioCard name="ob-mode" checked={kind === 'new'} onPick={() => pick('new')} title="Get a new number" />
         </div>
         {status.provider === 'dev' && kind === 'existing' && (
           <p className="ob2-note">Development mode: any number works, nothing is called.</p>

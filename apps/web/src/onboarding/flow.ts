@@ -109,13 +109,10 @@ export const numberModeLabel: Record<PhoneNumberMode, string> = {
 
 /** What a new number costs, as far as we know it. Prices are the carriers' list prices for a US local number. */
 export function priceNote(provider: string | null): string {
-  if (provider === 'twilio')
-    return 'Twilio charges about $1.15 a month for a US local number, plus call minutes. It is billed to your Twilio account.'
-  if (provider === 'telnyx')
-    return 'Telnyx charges about $1 a month for a US local number, plus call minutes. It is billed to your Telnyx account.'
-  if (provider === 'dev')
-    return 'Development mode: no carrier is connected, so nothing is bought and the number is not real.'
-  return 'Your carrier charges a monthly fee for the number, plus call minutes.'
+  if (provider === 'twilio') return 'About $1.15 a month plus call minutes, billed by Twilio.'
+  if (provider === 'telnyx') return 'About $1 a month plus call minutes, billed by Telnyx.'
+  if (provider === 'dev') return 'Development mode: nothing is bought, the number is not real.'
+  return 'A monthly fee plus call minutes, billed by your carrier.'
 }
 
 export type Carrier = { id: string; name: string; on: (digits: string) => string; off: string }
