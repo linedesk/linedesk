@@ -97,8 +97,9 @@ export async function startTestCall(tx: Tx, actor: Actor, assistantId?: string, 
   const nowSec = Math.floor(nowMs / 1000)
   const token = livekitToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
     video: { roomJoin: true, room, canPublish: true, canPublishSources: ['microphone'], canSubscribe: true, canPublishData: false },
-    // Created on join; the browser, the agent and a recording, closed soon after they leave.
-    roomConfig: { emptyTimeout: 60, departureTimeout: 10, maxParticipants: 3, agents: [{ agentName: AGENT_NAME, metadata: JSON.stringify(metadata) }] },
+    // Created on join; the browser, the agent, a recording and a few teammates listening in or taking over
+    // (call.listen, call.takeOver), closed soon after they leave.
+    roomConfig: { emptyTimeout: 60, departureTimeout: 10, maxParticipants: 8, agents: [{ agentName: AGENT_NAME, metadata: JSON.stringify(metadata) }] },
   }, nowSec, { identity: `web-${actor.actorId}`, ttlSec: TOKEN_TTL_SEC })
   // Where the browser reaches LiveKit; the API itself may use an internal address.
   const url = env.LIVEKIT_PUBLIC_URL || LIVEKIT_URL

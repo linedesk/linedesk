@@ -32,6 +32,8 @@ export const SHORTCUTS: Group[] = [
       ['Mark read or unread', ['U']],
       ['Spam, or not spam', ['!']],
       ['Contact panel of the open call', ['I']],
+      ['Listen to a live call, or stop', ['L']],
+      ['Take over a live call', ['⇧', 'T']],
       ['Block or unblock the number', ['⇧', 'B']],
       ['Delete', ['#']],
       ['Undo', ['Z']],

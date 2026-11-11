@@ -32,6 +32,7 @@ import { describeRecording, livekitRecorder, resolveRecording, saveRecording, st
 import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from './counterpart.ts'
 import { runTestCaller } from './test-caller/caller.ts'
 import { type Dialable, transferContactsFor } from './transfer.ts'
+import { watchTakeOver } from './take-over.ts'
 import { onCallDialerFor, type Reachable, transferTool } from './transfer-tool.ts'
 import { parseTestCallerMetadata, type TestCallerMetadata } from './test-caller/scenarios.ts'
 import { type OnCallResponderMetadata, parseOnCallResponderMetadata, runOnCallResponder } from './oncall-responder.ts'
@@ -246,7 +247,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const sayLine = (text: string) => session.say(text, { allowInterruptions: false }).waitForPlayout()
   const speaking = speakingOf(session)
   const endCall = () => hangUpAfterSpeech(speaking, deleteRoom, () => sayLine(GOODBYE_LINE))
-  // After a warm transfer the caller talks with a person and the assistant is out of it: neither silence on its
+  // After a warm transfer or a take-over the caller talks with a person and the assistant is out of it: neither silence on its
   // side nor its time limit ends that call (the trunk's CALL_MAX_MINUTES does).
   const transferred = () => log.transferred
   remindOnSilence(session, silence, {
@@ -285,6 +286,9 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     inputOptions: { ...(callerIdentity ? { participantIdentity: callerIdentity } : {}), participantKinds: ALL_PARTICIPANT_KINDS, closeOnDisconnect: true },
   })
   setup.mark('session')
+  // A member can take the call over from the web app at any point now (call.takeOver).
+  const stopWatching = watchTakeOver({ room: ctx.room, session, log, stopRecording: stopRecordingForTransfer, sayLine, endCall: deleteRoom })
+  session.on(voice.AgentSessionEventTypes.Close, stopWatching)
   setup.note(await greet(session, config, call, cachedGreeting, key))
   let transferOn = false
   void addTransfer(agent, callerJoined, { ctx, api, call, config, log, endCall, flagUrgent, collect, stopRecording: stopRecordingForTransfer }).then(on => {

@@ -30,6 +30,8 @@ export type KeyContext = {
   togglePlayback: () => boolean
   /** I in an open call: show or hide the contact panel; false when there is none. */
   toggleContactPanel: () => boolean
+  /** L and ⇧T in an open live call: listen, stop listening, take over; false when not handled. */
+  liveCallKey: (key: string) => boolean
   markDone: (call: Call) => void
   markNotDone: (call: Call) => void
   toggleUnread: (call: Call) => void
@@ -198,6 +200,7 @@ export function handleKey(e: KeyboardEvent, c: KeyContext): boolean {
   } else if (k === 'z') c.undo()
   else if (k === ' ') return c.onInbox && c.isCallOpen && c.togglePlayback()
   else if (k === 'i' && c.onInbox && c.isCallOpen) return c.toggleContactPanel()
+  else if ((k === 'l' || k === 'T') && c.onInbox && c.isCallOpen && c.liveCallKey(k)) return true
   else return c.onInbox ? onInboxKey(k, c) : !!pageKeys?.(k)
   return true
 }

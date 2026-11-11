@@ -8,6 +8,7 @@ import * as evaluations from './evaluations.ts'
 import * as insights from './insights.ts'
 import type { ActionDef } from './define.ts'
 import * as knowledge from './knowledge.ts'
+import * as liveCall from './live-call.ts'
 import * as membership from './membership.ts'
 import * as notifications from './notifications.ts'
 import * as onboarding from './onboarding.ts'
@@ -34,6 +35,7 @@ export * from './evaluations.ts'
 export * from './insights.ts'
 export * from './knowledge.ts'
 export * from './languages.ts'
+export * from './live-call.ts'
 export * from './membership.ts'
 export * from './notifications.ts'
 export * from './onboarding.ts'
@@ -77,6 +79,8 @@ const all = [
   calls.callStartRecording,
   calls.callSetRecording,
   transfer.callTransfer,
+  liveCall.callListen,
+  liveCall.callTakeOver,
   settings.contactUpdate,
   settings.contactBlock,
   settings.contactUnblock,

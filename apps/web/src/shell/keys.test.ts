@@ -18,6 +18,7 @@ const context = (over: Partial<KeyContext> = {}) =>
     setNavOpen: vi.fn(),
     togglePlayback: vi.fn(() => true),
     toggleContactPanel: vi.fn(() => true),
+    liveCallKey: vi.fn(() => false),
     openSearch: vi.fn(),
     closeSearch: vi.fn(),
     setTab: vi.fn(),

@@ -260,8 +260,8 @@ export const workspace_members = pgTable(
   t => [index('workspace_members_ws').on(t.workspace_id)],
 )
 
-// What people did with a call, shown as its activity: assigned (assignee_id set) or unassigned (null).
-// Written by the server (call.assign), never by the browser.
+// What people did with a call, its activity: assigned (assignee_id set) or unassigned (null) by call.assign;
+// listened in (call.listen) or took the live call over (call.takeOver). Written by the server, never by the browser.
 export const call_events = pgTable(
   'call_events',
   {
@@ -270,7 +270,7 @@ export const call_events = pgTable(
     call_id: text('call_id')
       .notNull()
       .references(() => calls.id, { onDelete: 'cascade' }),
-    kind: text('kind', { enum: ['assigned'] }).notNull(),
+    kind: text('kind', { enum: ['assigned', 'listened', 'took_over'] }).notNull(),
     /** The member who did it; null: an API key or the system. */
     actor_id: text('actor_id'),
     /** For `assigned`: the new assignee; null: unassigned. */

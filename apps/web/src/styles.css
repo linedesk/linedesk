@@ -1422,7 +1422,7 @@ mark { background: rgb(250 204 21 / 0.38); color: inherit; border-radius: 2px; p
 .bkc-t b { font-size: 13px; font-weight: 600; }
 .bkc-t span { font-size: 12px; color: var(--ink-muted); }
 .lvc { display: grid; gap: 6px; padding: 10px 14px; background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-1); }
-.lvc-row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.lvc-row { display: flex; align-items: center; gap: 10px; font-size: 13px; flex-wrap: wrap; }
 .lvc-bars { display: inline-flex; align-items: center; gap: 2px; height: 16px; }
 .lvc-bars i { width: 3px; height: 4px; border-radius: 2px; background: #16a34a; }
 .lvc-bars.on i { animation: lvc-b .9s ease-in-out infinite; }
@@ -1431,6 +1431,8 @@ mark { background: rgb(250 204 21 / 0.38); color: inherit; border-radius: 2px; p
 .lvc-who { color: var(--ink); font-weight: 500; }
 .lvc-pill { margin-left: auto; font-size: 11.5px; padding: 2px 8px; border-radius: var(--radius-full); background: var(--surface-hover); color: var(--ink-muted); }
 .lvc-note { margin: 0; font-size: 12.5px; color: var(--ink-muted); }
+.lvc-acts { margin-left: auto; display: inline-flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.lvc-problem { color: var(--danger); }
 .sum-todo { display: grid; gap: 6px; padding-top: 12px; border-top: 1px solid var(--line); }
 .k-typing { display: inline-flex; gap: 4px; align-items: center; padding: 10px 12px; }
 .k-typing i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .35; animation: k-typing 1.2s infinite; }

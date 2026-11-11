@@ -23,6 +23,7 @@ import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, lockCall, type Preparer, Forbidden, Reject, type Undo } from './handler-context.ts'
 import { telephonyProvider } from './provider-settings.ts'
 import { startTestCall } from './test-call.ts'
+import { liveCallHandlers } from './live-call.ts'
 import { membershipHandlers } from './memberships.ts'
 import { installPurchaseRefusal, logPurchase, NUMBER_SETUP_BUSY } from './number-purchases.ts'
 import { teamHandlers } from './team.ts'
@@ -369,6 +370,7 @@ const handlers: Record<string, Handler> = {
   ...calendarConnectionHandlers,
   ...carrierHandlers(),
   ...transferTrunkHandlers(),
+  ...liveCallHandlers(),
   ...apiKeyHandlers,
   ...bookingHandlers,
   ...evaluationHandlers(queueCallEvaluation),

@@ -9,6 +9,8 @@ import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { registerContactPanel } from './contactPanel.ts'
 import { BookingCards } from './BookingCard.tsx'
 import { LiveCard } from './LiveCard.tsx'
+import { liveSession, useLiveSession } from './liveSession.ts'
+import { useLiveLines } from './useLiveLines.ts'
 import { RecordingNotKept, RecordingPlayer } from './RecordingPlayer.tsx'
 import { EvaluationCard } from './EvaluationCard.tsx'
 import { LeadCard } from './LeadCard.tsx'
@@ -289,6 +291,22 @@ function CopyNumber({ number }: { number: string }) {
   )
 }
 
+/** What is being said right now while this tab listens to or talks on the call, until each turn syncs in. */
+function useListenedLines(callId: string, segments: TranscriptSegment[]) {
+  const { callId: listening } = useLiveSession()
+  const live = useLiveLines(segments)
+  const { read, clear } = live
+  useEffect(() => {
+    if (listening !== callId) return
+    const stop = liveSession.showStreams((reader, speaker) => void read(reader, speaker))
+    return () => {
+      stop()
+      clear()
+    }
+  }, [listening, callId, read, clear])
+  return live.pending
+}
+
 /** One call, full width: what it was about, the conversation, and the caller on the side. Mount with key={call.id} so each call starts at the top. */
 export function CallView({ call, segments, search, side, repeatCount = 1, canReview = false, ...bar }: Props) {
   const [sideOpen, setSideOpen] = useState(false)
@@ -314,6 +332,7 @@ export function CallView({ call, segments, search, side, repeatCount = 1, canRev
     if (search) scrollRef.current?.querySelector('.k-bubble mark')?.scrollIntoView({ block: 'center' })
   }, [search, scrollRef])
   const turns = segments.filter(s => s.speaker !== 'system').length
+  const pending = useListenedLines(call.id, segments)
   const status = callStatus(call, segments)
   const [transcriptOpen, setTranscriptOpen] = useState(true)
 
@@ -331,7 +350,7 @@ export function CallView({ call, segments, search, side, repeatCount = 1, canRev
                 contactOpen={sideOpen}
                 onOpenContact={openContact}
               />
-              {live && <LiveCard segments={segments} assistantName={assistant} />}
+              {live && <LiveCard call={call} segments={segments} assistantName={assistant} />}
               {!live && call.recording_key && <RecordingPlayer callId={call.id} callDurationSec={call.duration_sec} />}
               {!live && !call.recording_key && call.source !== 'sample' && <RecordingNotKept />}
               <SummaryCard call={call} />
@@ -361,6 +380,7 @@ export function CallView({ call, segments, search, side, repeatCount = 1, canRev
                       callerName={contact?.name ?? 'Caller'}
                       assistantName={assistant}
                       search={search}
+                      pending={live ? pending : []}
                       start={{
                         time: clock(0),
                         label: `Incoming call, ${call.answered_by === 'human' ? 'the team' : assistant} answered`,

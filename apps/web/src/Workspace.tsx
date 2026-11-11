@@ -11,6 +11,7 @@ import type { Me } from './auth.ts'
 import { CallView } from './call/CallView.tsx'
 import { ContactSide } from './call/ContactSide.tsx'
 import { toggleContactPanel } from './call/contactPanel.ts'
+import { liveCallKey } from './call/LiveCard.tsx'
 import { togglePlayback } from './call/playback.ts'
 import { assignGroups, assigneeViewGroups } from './inbox/assign.ts'
 import { Inbox } from './inbox/Inbox.tsx'
@@ -272,6 +273,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
       back: view.back,
       togglePlayback,
       toggleContactPanel,
+      liveCallKey,
       selectionCount: bulk ? selection.count : 0,
       toggleSelect: c => selection.toggle(c.id),
       extendSelect,
