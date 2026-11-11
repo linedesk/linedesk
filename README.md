@@ -87,6 +87,7 @@ front.example.com {
 | `LIVEKIT_BIND_IP` | Set to `0.0.0.0` on a server. Without it the call audio and SIP ports are only published on 127.0.0.1. |
 | Speech, language and voice | Set in the admin area under Providers (Deepgram, OpenRouter and ElevenLabs by default), or `DEEPGRAM_API_KEY`, `OPENROUTER_API_KEY` and `ELEVENLABS_API_KEY` in `.env`. Until then the agent says so in its log (`docker compose logs agent`) and calls are logged as missed. Without `AGENT_API_TOKEN` or the LiveKit settings it waits idle. |
 | `TELEPHONY_PROVIDER`, carrier keys, `LIVEKIT_SIP_ENDPOINT` | Real phone numbers through a carrier: Telnyx by default, Twilio as the alternative; see `.env.example`. |
+| `LIVEKIT_SIP_ALLOWED_ADDRESSES` (default `telnyx twilio`) | Where LiveKit SIP takes calls from: carrier names (their published signaling addresses) and/or your own IPs and CIDR ranges, e.g. `telnyx 203.0.113.7` for a PBX of your own. `any` accepts calls from every address. Applied by `setup-sip`, so run it again after a change. |
 
 The API and agent containers read the rest of `.env` as is (sign-in methods, email, telephony, provider keys); only the addresses inside the stack are set by compose.
 
@@ -108,6 +109,27 @@ Firewall: ports that Docker publishes on `0.0.0.0` bypass `ufw` (Docker writes i
 ```sh
 docker compose run --rm agent node src/setup-sip.ts +15035550142   # your numbers
 ```
+
+LiveKit then only takes calls from the carriers' signaling addresses (`LIVEKIT_SIP_ALLOWED_ADDRESSES`); a SIP request from anywhere else gets 404 and never reaches the assistant. Check it after the first real call: `docker compose logs livekit-sip | grep fromIP` shows the carrier's address on `processing invite`, and a refused call shows "Rejecting inbound call, doesn't match any Dispatch Rules" with the sender's address. If a carrier's real call is refused there, its address is missing from `packages/telephony/src/signaling-addresses.ts` (or from your variable).
+
+Optionally close 5060 in the firewall as well, so SIP scanners do not even reach LiveKit (the RTP ports stay open: carriers send audio from other ranges). The list to allow, one address per line:
+
+```sh
+docker compose run --rm agent node src/setup-sip.ts --print-allowed-addresses > sip-allow.txt
+```
+
+With your provider's firewall (e.g. a Hetzner Cloud Firewall), allow 5060 udp and tcp from these sources only. With iptables on the host, use the `DOCKER-USER` chain (Docker's published ports skip ufw's rules); the packets there already have the container's address, so match the original port. Each `-I` goes on top, so the drops come first:
+
+```sh
+for proto in udp tcp; do
+  iptables -I DOCKER-USER -p $proto -m conntrack --ctorigdstport 5060 --ctdir ORIGINAL -j DROP
+  while read -r addr; do
+    iptables -I DOCKER-USER -p $proto -s "$addr" -m conntrack --ctorigdstport 5060 --ctdir ORIGINAL -j RETURN
+  done < sip-allow.txt
+done
+```
+
+These rules are not saved across reboots (use `iptables-persistent` or your own unit), and they need the same update as the variable when the list changes.
 
 ### Memory and CPU
 
