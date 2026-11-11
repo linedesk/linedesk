@@ -2,14 +2,14 @@
 // transfer contacts and the calendar, one section at a time (#assistant/<id>/<section>). Edits in the text sections are one local
 // draft: Save runs assistant.update through the outbox; a section with unsaved
 // changes keeps a dot in the nav while you look at another one.
-import { CALL_RULES_MAX, DEFAULT_CALL_RULES, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS } from '@linedesk/actions'
+import { CALL_RULES_MAX, DEFAULT_CALL_RULES, DEFAULT_KNOWN_CALLER_GREETING, knownCallerGreetingProblem, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS } from '@linedesk/actions'
 import type { Assistant, KeypadMenuAction, KeypadMenuOption, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
 import { onSaveKey, SaveBar } from '../ui/form.tsx'
 import { Select } from '../ui/controls.tsx'
-import { Button } from '../ui/kit.tsx'
+import { Button, Icon } from '../ui/kit.tsx'
 import { LoadProblem, Skeleton, useLoadState } from '../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, sectionHash, useSection } from '../ui/SettingsLayout.tsx'
 import {
@@ -51,7 +51,7 @@ import { TransferContacts, transferFieldId } from './TransferContacts.tsx'
 
 type SectionId = 'greeting' | 'voice' | 'knowledge' | 'rules' | 'transfer' | 'calendar' | 'advanced'
 const sections: readonly PageSection<SectionId>[] = [
-  { id: 'greeting', label: 'Greeting', description: 'First sentence, AI disclosure' },
+  { id: 'greeting', label: 'Greeting', description: 'First sentence, returning callers, AI disclosure' },
   { id: 'voice', label: 'Voice', description: 'How the assistant sounds' },
   { id: 'knowledge', label: 'Knowledge', description: 'Your business, services, prices and FAQs' },
   { id: 'rules', label: 'Call rules', description: 'How calls are handled' },
@@ -61,7 +61,7 @@ const sections: readonly PageSection<SectionId>[] = [
 ]
 /** Which draft fields each section holds; the calendar has its own. */
 const sectionFields: Record<Exclude<SectionId, 'calendar'>, (keyof Draft)[]> = {
-  greeting: ['name', 'greeting', 'disclose_ai', 'greet_by_name', 'greeting_outside'],
+  greeting: ['name', 'greeting', 'disclose_ai', 'greeting_known_caller', 'greeting_outside'],
   voice: ['voice'],
   knowledge: ['instructions', 'instructions_outside', 'services', 'faqs', 'website'],
   rules: ['call_rules'],
@@ -75,6 +75,27 @@ const assistantName = (draft: Draft) => draft.name.trim() || 'The assistant'
 type SectionProps = { draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void }
 const count = (n: number) => n.toLocaleString('en-US')
 
+/** Whether the greeting's Advanced part is open; remembered in this browser. */
+const GREETING_ADVANCED_KEY = 'linedesk.assistant.greeting-advanced'
+function useRemembered(key: string): [boolean, (open: boolean) => void] {
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(key) === '1'
+    } catch {
+      return false
+    }
+  })
+  const remember = useCallback((next: boolean) => {
+    setOpen(next)
+    try {
+      localStorage.setItem(key, next ? '1' : '0')
+    } catch {
+      // Storage blocked: it is just not remembered.
+    }
+  }, [key])
+  return [open, remember]
+}
+
 function Greeting({
   draft,
   set,
@@ -82,8 +103,10 @@ function Greeting({
   hoursOn,
 }: SectionProps & { renamedFrom: string | null; hoursOn: boolean }) {
   const stale = renamedFrom ? staleGreetingName(draft.greeting, renamedFrom, draft.name) : null
-  const [variant, setVariant] = useState<Variant>('during')
-  const outside = hoursOn && variant === 'outside'
+  const knownProblem = knownCallerGreetingProblem(draft.greeting_known_caller)
+  const [remembered, remember] = useRemembered(GREETING_ADVANCED_KEY)
+  // A problem in there shows it open, so the error is never hidden.
+  const advancedOpen = remembered || !!knownProblem
   /** The switch and the greeting say the same thing: turning it on or off adds or removes the disclosure. */
   function disclose(on: boolean) {
     set('disclose_ai', on)
@@ -91,54 +114,68 @@ function Greeting({
   }
   return (
     <Section id="as-greeting" title="Greeting">
-      {hoursOn && <VariantSwitch value={variant} onChange={setVariant} label="Greeting for" />}
-      {outside ? (
-        <Field id="as-greet-out" label="Greeting outside hours" aside="Optional">
-          <TextArea
-            id="as-greet-out"
-            value={draft.greeting_outside}
-            onChange={v => set('greeting_outside', v)}
-            placeholder={draft.greeting}
-          />
-          <span className="help">
-            {draft.greeting_outside.trim() ? spokenLength(draft.greeting_outside) : 'Empty: the same as during hours'}
+      <Field id="as-greet" label="Greeting" error={draft.greeting.trim() ? null : 'The greeting cannot be empty.'}>
+        <TextArea
+          id="as-greet"
+          value={draft.greeting}
+          onChange={v => set('greeting', v)}
+          invalid={!draft.greeting.trim()}
+        />
+        <span className="help">{spokenLength(draft.greeting)}</span>
+        {stale && (
+          <span className="help as-stale">
+            Still says "{stale}".
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => set('greeting', renameInGreeting(draft.greeting, stale, draft.name.trim()))}
+            >
+              Use {draft.name.trim()}
+            </Button>
           </span>
-        </Field>
-      ) : (
-        <Field id="as-greet" label="Greeting" error={draft.greeting.trim() ? null : 'The greeting cannot be empty.'}>
-          <TextArea
-            id="as-greet"
-            value={draft.greeting}
-            onChange={v => set('greeting', v)}
-            invalid={!draft.greeting.trim()}
-          />
-          <span className="help">{spokenLength(draft.greeting)}</span>
-          {stale && (
-            <span className="help as-stale">
-              Still says "{stale}".
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => set('greeting', renameInGreeting(draft.greeting, stale, draft.name.trim()))}
-              >
-                Use {draft.name.trim()}
-              </Button>
+        )}
+      </Field>
+      <details className="vp-more" open={advancedOpen} onToggle={e => remember(e.currentTarget.open)}>
+        <summary title="Returning callers, outside hours, AI disclosure">
+          <Icon name="down" size={14} className="vp-chevron" />
+          Advanced
+        </summary>
+        <div className="vp-more-body">
+          <Field id="as-greet-known" label="Returning callers" aside="Optional" error={knownProblem}>
+            <TextInput
+              id="as-greet-known"
+              value={draft.greeting_known_caller}
+              onChange={v => set('greeting_known_caller', v)}
+              placeholder={DEFAULT_KNOWN_CALLER_GREETING}
+              invalid={!!knownProblem}
+            />
+            <span className="help">
+              {draft.greeting_known_caller.trim()
+                ? 'Said before the greeting when a saved contact calls again. {first_name} is their first name.'
+                : 'Empty: returning callers hear the usual greeting.'}
             </span>
+          </Field>
+          {hoursOn && (
+            <Field id="as-greet-out" label="Outside business hours" aside="Optional">
+              <TextArea
+                id="as-greet-out"
+                value={draft.greeting_outside}
+                onChange={v => set('greeting_outside', v)}
+                placeholder={draft.greeting}
+              />
+              <span className="help">
+                {draft.greeting_outside.trim() ? spokenLength(draft.greeting_outside) : 'Empty: the same as during hours.'}
+              </span>
+            </Field>
           )}
-        </Field>
-      )}
-      <SwitchRow
-        title="Say it's an AI assistant"
-        description={draft.disclose_ai ? undefined : 'Some states require it.'}
-        on={draft.disclose_ai}
-        onChange={disclose}
-      />
-      <SwitchRow
-        title="Greet known callers by name"
-        description={`"Hi Linda, good to hear from you again." Anything private still waits until the caller says their full name.`}
-        on={draft.greet_by_name}
-        onChange={on => set('greet_by_name', on)}
-      />
+          <SwitchRow
+            title="Say it's an AI assistant"
+            description={draft.disclose_ai ? undefined : 'Some states require it.'}
+            on={draft.disclose_ai}
+            onChange={disclose}
+          />
+        </div>
+      </details>
     </Section>
   )
 }
@@ -325,6 +362,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     e.preventDefault()
     // The greeting shows its error under the field: go there instead of a toast that outlives the fix.
     if (!draft.greeting.trim()) return goTo('greeting', 'as-greet')
+    if (knownCallerGreetingProblem(draft.greeting_known_caller)) return goTo('greeting', 'as-greet-known')
     const transfer = transferProblem(draft)
     if (transfer) return goTo('transfer', transferFieldId(transfer.index, transfer.field))
     if (silenceProblem(draft)) return goTo('advanced', 'as-silence-gap')
@@ -338,7 +376,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         assistantId: assistant.id,
         greeting: clean.greeting,
         disclose_ai: clean.disclose_ai,
-        greet_by_name: clean.greet_by_name,
+        greeting_known_caller: clean.greeting_known_caller,
         business_profile: profileOf(clean),
         call_rules: callRulesToSave(clean),
         ...outsideToSave(clean),

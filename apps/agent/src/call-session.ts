@@ -1,5 +1,5 @@
 // One call as the agent sees it: start, append transcript segments, finish.
-import { type BookingContext, type CallDocuments, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, EMERGENCY_CONDITION } from '@linedesk/actions'
+import { type BookingContext, type CallDocuments, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, DEFAULT_KNOWN_CALLER_GREETING, EMERGENCY_CONDITION } from '@linedesk/actions'
 import type { Assistant, Contact, ToolEvent, TransferContact } from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
@@ -62,15 +62,17 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
 }
 
 /**
- * The caller for the prompt, and the greeting by first name when the assistant greets known callers that way
- * (greet_by_name, on unless turned off) and call.start sent the caller's history (a phone caller with a contact).
+ * The caller for the prompt, and the assistant's greeting for a caller who called before (greeting_known_caller,
+ * empty: none) when call.start sent the caller's history (a phone caller with a contact). An assistant row of
+ * an older API has no such text: its greet_by_name decides, with the default text.
  */
 export function greetCaller(assistant: Assistant | null, contact: Contact | null, history: CallerHistory | null | undefined): { assistant: Assistant | null; caller: CallerContext | null } {
   if (!contact) return { assistant, caller: null }
   const caller: CallerContext = { name: contact.name, note: contact.note, history: history ?? null, greetedByName: false }
-  const greeting = assistant && assistant.greet_by_name !== false ? personalGreeting(assistant.greeting, caller) : null
-  if (!assistant || !greeting) return { assistant, caller }
-  return { assistant: { ...assistant, greeting }, caller: { ...caller, greetedByName: true } }
+  const template = assistant?.greeting_known_caller ?? (assistant?.greet_by_name === false ? '' : DEFAULT_KNOWN_CALLER_GREETING)
+  const personal = assistant ? personalGreeting(assistant.greeting, template, caller) : null
+  if (!assistant || !personal) return { assistant, caller }
+  return { assistant: { ...assistant, greeting: personal.text }, caller: { ...caller, greetedByName: personal.usesName } }
 }
 
 /** The greeting followed by the recording notice, so both are said (and cached as audio) as one opening. */

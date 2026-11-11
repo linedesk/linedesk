@@ -1,5 +1,5 @@
 // The assistant's system prompt, built from its configuration.
-import { type BookingContext, type CallDocuments, type CallerHistory, callRulesOf, fenceData, knowledgeLists } from '@linedesk/actions'
+import { type BookingContext, type CallDocuments, type CallerHistory, callRulesOf, fenceData, FIRST_NAME_VARIABLE, KNOWN_CALLER_GREETING_MAX, knowledgeLists } from '@linedesk/actions'
 import type { Assistant, Contact, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 
@@ -232,15 +232,21 @@ export function firstNameOf(name: string | null | undefined): string | null {
 const SALUTATION = /^(?:hi|hello|hey|good (?:morning|afternoon|evening))\b[\s,!.]*/i
 
 /**
- * The greeting for a caller known by name: "Hi Linda, good to hear from you again." (or "Hi Linda." for a contact
- * who has not called before) and the usual greeting without its own "Hi"/"Hello". null: greet as usual.
+ * The owner's greeting for a caller who called before (`greeting_known_caller`) with `{first_name}` filled in,
+ * said before the usual greeting, whose own "Hi"/"Hello" is dropped. Anything else in braces is removed, the
+ * text is capped. null: greet as usual (empty text, a first-time caller, no history from call.start, or the
+ * text needs a first name and the contact has none that looks like one).
  */
-export function personalGreeting(greeting: string, caller: CallerContext | null | undefined): string | null {
-  const first = caller?.history ? firstNameOf(caller.name) : null
-  if (!first) return null
-  const opening = caller!.history!.recentCalls.length ? `Hi ${first}, good to hear from you again.` : `Hi ${first}.`
+export function personalGreeting(greeting: string, template: string | null | undefined, caller: CallerContext | null | undefined): { text: string; usesName: boolean } | null {
+  const opening = template?.replace(/\s+/g, ' ').trim().slice(0, KNOWN_CALLER_GREETING_MAX)
+  if (!opening || !caller?.history?.recentCalls.length) return null
+  const usesName = opening.replace(FIRST_NAME_VARIABLE, '') !== opening
+  const first = firstNameOf(caller.name)
+  if (usesName && !first) return null
+  const filled = opening.replace(FIRST_NAME_VARIABLE, first ?? '').replace(/\{[^}]*\}?/g, '').replace(/\s+([,.!?])/g, '$1').trim()
+  if (!filled) return null
   const rest = greeting.trim().replace(SALUTATION, '')
-  return rest ? `${opening} ${rest.charAt(0).toUpperCase()}${rest.slice(1)}` : opening
+  return { text: rest ? `${filled} ${rest.charAt(0).toUpperCase()}${rest.slice(1)}` : filled, usesName }
 }
 
 /**

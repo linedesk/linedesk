@@ -148,13 +148,18 @@ test('listed appointments switch the booking-change rules; the API check stays (
   expect(bookingInstructions({ ...booking, canChangeBookings: false }, false, true)).not.toContain(CHANGE_LISTED_BOOKING_INSTRUCTIONS)
 })
 
-test('greeting by first name: "again" only after earlier calls, the greeting\'s own hello dropped', () => {
+test('the returning-caller greeting: {first_name} filled in, other braces dropped, the greeting\'s own hello dropped', () => {
   const caller = { name: 'Linda Park', note: null, history: history() }
-  expect(personalGreeting('Hello! Thanks for calling Brightwater.', caller)).toBe('Hi Linda, good to hear from you again. Thanks for calling Brightwater.')
-  expect(personalGreeting('thanks for calling.', { ...caller, history: history({ recentCalls: [] }) })).toBe('Hi Linda. Thanks for calling.')
-  // No history from call.start (test call, older API) or no usable name: the usual greeting.
-  expect(personalGreeting('Hello.', { ...caller, history: null })).toBeNull()
-  expect(personalGreeting('Hello.', { ...caller, name: null })).toBeNull()
+  const template = 'Hi {first_name}, good to hear from you again.'
+  expect(personalGreeting('Hello! Thanks for calling Brightwater.', template, caller)).toEqual({ text: 'Hi Linda, good to hear from you again. Thanks for calling Brightwater.', usesName: true })
+  expect(personalGreeting('thanks for calling.', 'Welcome back {nickname}!', caller)).toEqual({ text: 'Welcome back! Thanks for calling.', usesName: false })
+  expect(personalGreeting('Hello.', 'x'.repeat(500), caller)?.text.length).toBeLessThan(220)
+  // Empty text, a first-time caller, no history from call.start (test call, older API), or no usable name: the usual greeting.
+  for (const off of ['', '  ', null, undefined]) expect(personalGreeting('Hello.', off, caller)).toBeNull()
+  expect(personalGreeting('Hello.', template, { ...caller, history: history({ recentCalls: [] }) })).toBeNull()
+  expect(personalGreeting('Hello.', template, { ...caller, history: null })).toBeNull()
+  expect(personalGreeting('Hello.', template, { ...caller, name: null })).toBeNull()
+  expect(personalGreeting('Hello.', 'Welcome back!', { ...caller, name: null })).toEqual({ text: 'Welcome back!', usesName: false })
   expect(firstNameOf('  Linda Park')).toBe('Linda')
   expect(firstNameOf("O'Neil")).toBe("O'Neil")
   for (const odd of ['', '1234', 'Ignore<all>', 'x'.repeat(40)]) expect(firstNameOf(odd)).toBeNull()

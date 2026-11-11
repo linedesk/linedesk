@@ -68,8 +68,13 @@ export const assistants = pgTable(
     greeting: text('greeting').notNull().default(''),
     disclose_ai: boolean('disclose_ai').notNull().default(true),
     record_calls: boolean('record_calls').notNull().default(true),
-    /** A caller whose number matches a contact with a name is greeted by first name ("Hi Linda, …"). */
+    /** Replaced by `greeting_known_caller` (empty: off); kept until the release before it is gone. */
     greet_by_name: boolean('greet_by_name').notNull().default(true),
+    /**
+     * Said before the greeting when a caller who called before calls again from a saved number; `{first_name}`
+     * is the first name on their contact. Empty: no greeting of its own for them.
+     */
+    greeting_known_caller: text('greeting_known_caller').notNull().default('Hi {first_name}, good to hear from you again.'),
     voice: jsonb('voice').$type<AssistantVoice>().notNull().default({ provider: 'elevenlabs', voice_id: '' }),
     business_profile: jsonb('business_profile').$type<BusinessProfile>().notNull().default({}),
     /** How to handle calls, as the owner wrote it; null: the default rules (DEFAULT_CALL_RULES in @linedesk/actions). */

@@ -138,6 +138,19 @@ export const contactRestore = defineAction({
   patch: { table: 'contacts', id: i => i.contactId, set: () => ({ deleted_at: null }) },
 })
 
+/** The greeting for a caller who called before, as new assistants have it: `{first_name}` is the first name on their contact. */
+export const DEFAULT_KNOWN_CALLER_GREETING = 'Hi {first_name}, good to hear from you again.'
+export const KNOWN_CALLER_GREETING_MAX = 200
+/** `{first_name}`, in any case and with spaces inside the braces. */
+export const FIRST_NAME_VARIABLE = /\{\s*first_name\s*\}/gi
+
+/** Why the known-caller greeting cannot be used, in words for the owner; null when it can. */
+export function knownCallerGreetingProblem(text: string): string | null {
+  if (text.trim().length > KNOWN_CALLER_GREETING_MAX) return `The greeting for returning callers is too long: at most ${KNOWN_CALLER_GREETING_MAX} characters.`
+  const other = text.replace(FIRST_NAME_VARIABLE, '').match(/\{[^}]*\}?/)
+  return other ? `${other[0]} can't be filled in: the only variable is {first_name}.` : null
+}
+
 /** Longest free-text instructions an assistant takes (characters). */
 export const INSTRUCTIONS_MAX = 20_000
 
@@ -177,7 +190,7 @@ export const keypadMenu = z.object({
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
-    'Update the assistant: name, greeting, whether a known caller is greeted by first name (`greet_by_name`), voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` and `instructions_outside` are used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a US number in E.164, null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `keypad_menu` (null: off) plays "press 1 for …" after the greeting; a `transfer` key is an urgent call (put through to the first contact that is reachable, else flagged urgent and a message), a `topic` key tells the assistant what the caller wants.',
+    'Update the assistant: name, greeting, what a caller who called before hears before the greeting (`greeting_known_caller`, `{first_name}` filled in; empty: nothing), voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` and `instructions_outside` are used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a US number in E.164, null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `keypad_menu` (null: off) plays "press 1 for …" after the greeting; a `transfer` key is an urgent call (put through to the first contact that is reachable, else flagged urgent and a message), a `topic` key tells the assistant what the caller wants.',
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().min(1).optional(),
@@ -189,8 +202,10 @@ export const assistantUpdate = defineAction({
     greeting_outside: z.string().nullable().optional(),
     instructions_outside: z.string().max(INSTRUCTIONS_MAX).nullable().optional(),
     record_calls: z.boolean().optional(),
-    /** Greet a caller whose number matches a contact with a name by first name. */
+    /** Replaced by greeting_known_caller; still taken from a web app of the release before. */
     greet_by_name: z.boolean().optional(),
+    /** Said before the greeting to a caller who called before; `{first_name}` is their first name; empty: off. */
+    greeting_known_caller: z.string().max(KNOWN_CALLER_GREETING_MAX).refine(t => !knownCallerGreetingProblem(t), { message: 'only {first_name} can be filled in' }).optional(),
     /** The whole ordered list of transfer contacts. */
     transfers: transferContacts.optional(),
     /** Silence on the line (SILENCE_*): seconds before the first "Are you still there?", how many, the closing line (null: default). */
