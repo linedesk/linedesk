@@ -2,7 +2,7 @@
 // then the sign-in providers, and a password under "Show other options". New people are signed up on
 // first sign-in, unless sign-up is closed.
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react'
-import { type AuthMethods, auth, type LegalLinks, passkeySupported, type SsoMethod, fetchAuthMethods, requestSignInCode, signInWithCode, signInWithPasskey, startSso, takeRedirectError } from './auth.ts'
+import { type AuthMethods, auth, type LegalLinks, passkeySupported, type SsoMethod, fetchAuthMethods, requestSignInCode, signInWithCode, signInWithPasskey, startSso, takeRedirectError, lostSignInState, providerElsewhereMessage, providerSignInElsewhere } from './auth.ts'
 import { authErrorMessage, authFormError, CODE_LENGTH, codeErrorMessage, normalizeCode, RESEND_AFTER_S } from './sign-in-code.ts'
 import { readLastUsedMethod, rememberSignInMethod } from './sign-in-methods.ts'
 import { useQuery } from './cachedQuery.ts'
@@ -34,7 +34,9 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
   const [step, setStep] = useState<Step>('start')
   const [intent, setIntent] = useState<Intent>('signIn')
   const [form, setForm] = useState({ name: '', email: '', password: '' })
-  const [error, setError] = useState<string | null>(takeRedirectError)
+  // A failed provider sign-in comes back with ?error=CODE: read once, then shown like any other error.
+  const [redirectError] = useState(takeRedirectError)
+  const [error, setError] = useState<string | null>(redirectError?.message ?? null)
   // `busy` is what is running ('email', 'password', a provider id); it stays set after a success that leaves this page.
   const [busy, setBusy] = useState<string | null>(null)
   const [lastUsed] = useState(readLastUsedMethod)
@@ -135,8 +137,20 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
     )
   }
 
+  // Provider sign-ins started at this address cannot finish here: say where they work, with a link.
+  const elsewhere = methods.sso.length ? providerSignInElsewhere(methods) : null
+  const lostHere = Boolean(elsewhere && error && error === redirectError?.message && lostSignInState(redirectError?.code))
+  const errorPanel = (id?: string) =>
+    lostHere && elsewhere ? (
+      <AuthError id={id} message={providerElsewhereMessage(elsewhere.host)} link={{ href: elsewhere.href, label: `Open ${elsewhere.host}` }} />
+    ) : (
+      error && <AuthError id={id} message={error} />
+    )
   const withPasskey = methods.passkey && passkeySupported()
-  const hasProviders = methods.sso.length > 0 || withPasskey
+  const passkeyButton = withPasskey && (
+    <ProviderButton method="passkey" label="Passkey" lastUsed={lastUsed === 'passkey'} busy={busy === 'passkey'} busyText="Signing in…"
+      disabled={busy !== null} onClick={continueWithPasskey} />
+  )
   const hasOtherOptions = methods.password && methods.emailCode
   // A passkey alone is no way in: it is added after signing in some other way.
   const nothing = !methods.emailCode && !methods.password && methods.sso.length === 0
@@ -145,6 +159,9 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
       <div className="auth-card">
         <h1>{title}</h1>
         {intro}
+        {/* Signing in again: the passkey first, the way that also counts longest (12 hours). */}
+        {reauth && passkeyButton}
+        {reauth && passkeyButton && (methods.emailCode || methods.password || methods.sso.length > 0) && <hr className="auth-separator" />}
         {methods.emailCode && (
           <form className="auth-form" onSubmit={sendCode} noValidate>
             <input type="email" aria-label="Email" placeholder="Email address" value={form.email} onChange={set('email')} autoComplete="email" autoFocus
@@ -153,21 +170,23 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
               <span>{busy === 'email' ? 'Sending…' : 'Continue with Email'}</span>
               {lastUsed === 'email' && <LastUsed />}
             </button>
-            {error && <AuthError message={error} id="auth-error" />}
+            {errorPanel('auth-error')}
           </form>
         )}
         {passwordFirst && passwordForm}
-        {(methods.emailCode || passwordFirst) && hasProviders && <hr className="auth-separator" />}
-        {!methods.emailCode && !passwordFirst && errorLine}
+        {(methods.emailCode || passwordFirst) && (methods.sso.length > 0 || (withPasskey && !reauth)) && <hr className="auth-separator" />}
+        {!methods.emailCode && !passwordFirst && errorPanel()}
         {nothing && <AuthError message="No sign-in method is set up on this server. Ask your administrator to turn one on." />}
         {methods.sso.map(m => (
           <ProviderButton key={m.id} method={m.id} label={m.label} lastUsed={lastUsed === m.id} busy={busy === m.id}
             disabled={busy !== null} onClick={() => continueWith(m)} />
         ))}
-        {withPasskey && (
-          <ProviderButton method="passkey" label="Passkey" lastUsed={lastUsed === 'passkey'} busy={busy === 'passkey'} busyText="Signing in…"
-            disabled={busy !== null} onClick={continueWithPasskey} />
+        {elsewhere && !lostHere && (
+          <p className="auth-hint">
+            Google, Microsoft and GitHub sign in at <a href={elsewhere.href}>{elsewhere.host}</a>.
+          </p>
         )}
+        {!reauth && passkeyButton}
         {hasOtherOptions && (otherOptions
           ? <ProviderButton method="password" label="Password" lastUsed={lastUsed === 'password'} disabled={busy !== null} onClick={() => go('password')} />
           : <button type="button" className="auth-switch auth-more" onClick={() => setOtherOptions(true)}>Show other options</button>)}

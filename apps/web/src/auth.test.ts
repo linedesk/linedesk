@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchAuthMethods, redirectErrorMessage } from './auth.ts'
+import { fetchAuthMethods, lostSignInState, providerElsewhereMessage, providerSignInElsewhere, redirectErrorMessage } from './auth.ts'
 
 const methods = { password: true, emailCode: false, sso: [] }
 const ok = () => new Response(JSON.stringify(methods), { status: 200 })
@@ -40,5 +40,25 @@ describe('redirectErrorMessage', () => {
     expect(message).toMatch(/Try again/)
     expect(message).not.toMatch(/some|new|code/i)
     expect(redirectErrorMessage('constructor', null)).toMatch(/Try again/) // no prototype lookups
+  })
+})
+
+describe('providerSignInElsewhere', () => {
+  it('names the address provider sign-ins must start from when this page is open at another one', () => {
+    const at = providerSignInElsewhere({ signInOrigin: 'https://abc.ngrok.app' }, 'http://livemode.localhost:8490')
+    expect(at).toMatchObject({ origin: 'https://abc.ngrok.app', host: 'abc.ngrok.app' })
+    expect(at?.href.startsWith('https://abc.ngrok.app')).toBe(true)
+    expect(providerElsewhereMessage('abc.ngrok.app')).toMatch(/^Sign-in with Google, Microsoft or GitHub has to start from abc\.ngrok\.app\./)
+  })
+
+  it('says nothing on the right address or when an older API does not tell', () => {
+    expect(providerSignInElsewhere({ signInOrigin: 'https://abc.ngrok.app' }, 'https://abc.ngrok.app')).toBeNull()
+    expect(providerSignInElsewhere({}, 'http://livemode.localhost:8490')).toBeNull()
+  })
+
+  it('counts only a lost sign-in state as the reason, not a cancelled sign-in', () => {
+    expect(lostSignInState('state_mismatch')).toBe(true)
+    expect(lostSignInState('access_denied')).toBe(false)
+    expect(lostSignInState(undefined)).toBe(false)
   })
 })

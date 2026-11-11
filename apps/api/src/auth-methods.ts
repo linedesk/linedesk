@@ -36,8 +36,22 @@ export function readAuthConfig(env: Env) {
       oidc && { id: 'oidc', label: oidc.label },
     ].filter(Boolean) as SsoMethod[],
     links: readLegalLinks(env),
+    signInOrigin: signInOrigin(env),
   }
   return { google, microsoft, github, oidc, trustedProviders, methods }
+}
+
+/** Where provider sign-ins come back to: BETTER_AUTH_URL, else PUBLIC_URL, else WEB_ORIGIN (its origin only). */
+export function signInOrigin(env: Env): string | null {
+  for (const value of [env.BETTER_AUTH_URL, env.PUBLIC_URL, env.WEB_ORIGIN]) {
+    if (!value?.trim()) continue
+    try {
+      return new URL(value.trim()).origin
+    } catch {
+      // A malformed value is reported where it is used (auth.ts); here it just tells nothing.
+    }
+  }
+  return null
 }
 
 const httpUrl = (value?: string) => {

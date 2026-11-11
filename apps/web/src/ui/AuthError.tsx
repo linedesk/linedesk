@@ -8,8 +8,10 @@ export function splitAuthError(message: string): { title: string; next: string |
   return match ? { title: match[1]!, next: match[2]! } : { title: message.trim(), next: null }
 }
 
-/** Announced at once (role="alert"); `id` lets a field point at it with aria-describedby. */
-export function AuthError({ message, id }: { message: string; id?: string }) {
+type Props = { message: string; id?: string; link?: { href: string; label: string } }
+
+/** Announced at once (role="alert"); `id` lets a field point at it with aria-describedby; `link`: where to go to fix it. */
+export function AuthError({ message, id, link }: Props) {
   const { title, next } = splitAuthError(message)
   return (
     <div className="auth-alert" role="alert" id={id}>
@@ -17,6 +19,11 @@ export function AuthError({ message, id }: { message: string; id?: string }) {
       <div>
         <strong className="auth-alert-title">{title}</strong>
         {next && <span className="auth-alert-next">{next}</span>}
+        {link && (
+          <a className="auth-alert-link" href={link.href}>
+            {link.label}
+          </a>
+        )}
       </div>
     </div>
   )

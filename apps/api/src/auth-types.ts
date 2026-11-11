@@ -10,6 +10,12 @@ export type AuthMethods = {
   signUp?: boolean
   sso: SsoMethod[]
   links: LegalLinks
+  /**
+   * The address provider sign-ins (Google, Microsoft, GitHub, SSO) must start from: the provider sends
+   * the browser back there, and the sign-in's state cookie only exists on the address it began on.
+   * Absent from an older API.
+   */
+  signInOrigin?: string | null
 }
 /** Terms, privacy policy and support contact of this install (TERMS_URL, PRIVACY_URL, SUPPORT_EMAIL); null: not set, not shown. */
 export type LegalLinks = { terms: string | null; privacy: string | null; supportEmail: string | null }

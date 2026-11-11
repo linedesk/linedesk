@@ -1669,6 +1669,22 @@ button.k-link {
   margin-top: 2px;
   color: var(--ink-muted);
 }
+.auth-card .auth-hint {
+  font-size: 12.5px;
+}
+.auth-hint a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.auth-alert-link {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 /* "Confirm your email": an inline card in onboarding, Account and the invitation page. */
 .confirm-email {
   display: grid;

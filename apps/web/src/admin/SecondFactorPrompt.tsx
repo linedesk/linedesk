@@ -1,5 +1,7 @@
 // Shown instead of the admin area when an instance admin must sign in again (docs/architecture.md §12):
-// the last sign-in is more than 12 hours ago, or the email address is not confirmed yet. Any sign-in
+// the sign-in is too old (1 hour, 12 with a passkey), or the email address is not confirmed yet; also
+// when that happens while Admin is open (AdminMode). The reload after signing in keeps the address,
+// so it returns to the same admin page. Any sign-in
 // method this install offers works; the new session opens the admin area.
 import { useEffect } from 'react'
 import { type AdminSecondFactor, fetchMe } from '../auth.ts'

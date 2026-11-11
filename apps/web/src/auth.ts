@@ -144,12 +144,34 @@ export function redirectErrorMessage(code: string, provider: string | null): str
  * Reads and clears the `?error=` a failed SSO redirect leaves in the address bar. The provider is the
  * one this device started with (the sign-in page remembers it before leaving).
  */
-export function takeRedirectError(): string | null {
+export function takeRedirectError(): { code: string; message: string } | null {
   const url = new URL(window.location.href)
   const code = url.searchParams.get('error')
   if (!code) return null
   url.searchParams.delete('error')
   url.searchParams.delete('error_description')
   window.history.replaceState(null, '', url)
-  return redirectErrorMessage(code, readLastUsedMethod())
+  return { code, message: redirectErrorMessage(code, readLastUsedMethod()) }
 }
+
+/** The codes of a provider sign-in that lost its state: what happens when it began on another address. */
+const LOST_STATE = new Set(['state_mismatch', 'state_not_found', 'invalid_callback_request'])
+export const lostSignInState = (code: string | undefined) => Boolean(code && LOST_STATE.has(code))
+
+/**
+ * The address provider sign-ins must start from, when this page is open at another one (a local
+ * name while PUBLIC_URL is a tunnel): the provider would send the browser back to the other
+ * address, where this sign-in's state cookie does not exist. null when this is the right address.
+ */
+export function providerSignInElsewhere(methods: Pick<AuthMethods, 'signInOrigin'>, here = window.location.origin) {
+  const origin = methods.signInOrigin
+  if (!origin || origin === here) return null
+  const { host } = new URL(origin)
+  // The same page there (Admin stays Admin); outside a browser just the address.
+  const page = typeof window === 'undefined' ? '/' : window.location.pathname + window.location.hash
+  return { origin, host, href: origin + page }
+}
+
+/** What the sign-in page says when a provider sign-in has to start at `host`. */
+export const providerElsewhereMessage = (host: string) =>
+  `Sign-in with Google, Microsoft or GitHub has to start from ${host}. Open Linedesk there and sign in again.`

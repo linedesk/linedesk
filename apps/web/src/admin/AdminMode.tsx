@@ -8,7 +8,9 @@ import type { IconName } from '../ui/icons.ts'
 import { Icon, Kbd } from '../ui/kit.tsx'
 import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
 import type { ListKeys } from './AdminList.tsx'
-import { ADMIN_DATA, ADMIN_HEALTH, type AdminHealth, loadAdminData, loadHealth } from './api.ts'
+import { ADMIN_DATA, ADMIN_HEALTH, type AdminHealth, loadAdminData, loadHealth, watchAdminSignIn } from './api.ts'
+import type { AdminSecondFactor } from '../auth.ts'
+import { SecondFactorPrompt } from './SecondFactorPrompt.tsx'
 import { AuditLog } from './AuditLog.tsx'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { errorText, type Notify } from './notify.ts'
@@ -110,6 +112,9 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   const { toast, notify, undo } = useAdminToast()
   const listKeys = useRef<ListKeys | null>(null)
   const problems = useHealthProblems()
+  // The session stopped opening Admin while it was open (1 hour without a passkey): sign in again here.
+  const [signInAgain, setSignInAgain] = useState<AdminSecondFactor | null>(null)
+  useEffect(() => watchAdminSignIn(setSignInAgain), [])
 
   // Runs before the app's own key handler, which belongs to the inbox.
   useEffect(() => {
@@ -200,6 +205,9 @@ export function AdminMode({ currentUserId, onExit }: Props) {
         return <AuditLog workspaces={data.workspaces} />
     }
   }
+
+  // After signing in, the page loads again at the same admin address (SecondFactorPrompt).
+  if (signInAgain) return <SecondFactorPrompt state={signInAgain} onExit={onExit} />
 
   return (
     <div className="adm-mode">

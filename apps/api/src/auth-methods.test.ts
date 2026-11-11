@@ -31,7 +31,16 @@ describe('readAuthConfig', () => {
       signUp: false,
       sso: [],
       links: { terms: null, privacy: null, supportEmail: null },
+      signInOrigin: null,
     })
+  })
+
+  it('names the address provider sign-ins must start from: BETTER_AUTH_URL, else PUBLIC_URL, else WEB_ORIGIN', () => {
+    const origin = (env: Record<string, string>) => readAuthConfig(env).methods.signInOrigin
+    expect(origin({ BETTER_AUTH_URL: 'https://abc.ngrok.app/api/auth', PUBLIC_URL: 'http://x.localhost' })).toBe('https://abc.ngrok.app')
+    expect(origin({ PUBLIC_URL: 'https://desk.example.com/', WEB_ORIGIN: 'http://localhost:5173' })).toBe('https://desk.example.com')
+    expect(origin({ WEB_ORIGIN: 'http://localhost:5173' })).toBe('http://localhost:5173')
+    expect(origin({ BETTER_AUTH_URL: 'not a url', WEB_ORIGIN: 'http://localhost:5173' })).toBe('http://localhost:5173')
   })
 
   it('offers the email link with SMTP, or with log delivery when asked for, whatever NODE_ENV says', () => {

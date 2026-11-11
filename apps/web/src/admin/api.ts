@@ -3,6 +3,7 @@
 // and a provider key must never be stored in the browser.
 import { StepUpRequired, stepUpOf, withPasskeyStepUp } from './PasskeyStepUp.tsx'
 import type { MembershipRole, ProviderCategory, ProviderName, ProviderTestData } from '@linedesk/actions'
+import type { AdminSecondFactor } from '../auth.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 
 export type AdminWorkspace = {
@@ -99,8 +100,37 @@ export type AdminData = {
   canStoreKeys: boolean
 }
 
+/** Thrown when the admin area's sign-in has run out (more than 1 hour, 12 with a passkey) or the email is unconfirmed. */
+export class AdminSignInRequired extends Error {
+  readonly state: AdminSecondFactor
+  constructor(message: string, state: AdminSecondFactor) {
+    super(message)
+    this.state = state
+  }
+}
+
+let onSignInRequired: ((state: AdminSecondFactor) => void) | null = null
+
+/**
+ * The admin area listens here: once any admin request says the session no longer opens Admin, the
+ * whole area turns into "Sign in again for Admin" instead of a "Try again" that cannot work.
+ */
+export function watchAdminSignIn(listener: (state: AdminSecondFactor) => void): () => void {
+  onSignInRequired = listener
+  return () => {
+    if (onSignInRequired === listener) onSignInRequired = null
+  }
+}
+
 async function body<T>(res: Response): Promise<T> {
-  const json = (await res.json().catch(() => null)) as (T & { error?: string; code?: unknown; stepUp?: unknown }) | null
+  const json = (await res.json().catch(() => null)) as
+    | (T & { error?: string; code?: unknown; stepUp?: unknown; secondFactor?: unknown })
+    | null
+  if (json?.code === 'SECOND_FACTOR_REQUIRED') {
+    const state: AdminSecondFactor = json.secondFactor === 'email' ? 'email' : 'confirm'
+    onSignInRequired?.(state)
+    throw new AdminSignInRequired(json.error ?? 'Sign in again to use the admin area.', state)
+  }
   const stepUp = stepUpOf(json)
   if (stepUp) throw new StepUpRequired(json?.error ?? 'Confirm with your passkey.', stepUp)
   if (!res.ok || !json) throw new Error(json?.error ?? `The server answered ${res.status}`)
