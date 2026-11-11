@@ -4,14 +4,15 @@
 import { createHmac } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { newWebhookSecret } from '@linedesk/actions'
-import { calls, commands, webhook_deliveries, webhook_endpoints, webhook_secrets } from '@linedesk/db'
+import { newWebhookSecret, rolePermissions } from '@linedesk/actions'
+import { calls, commands, type Tx, webhook_deliveries, webhook_endpoints, webhook_secrets } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
+import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import {
   attemptDelivery, clearOldPayloads, isPrivateAddress, publicLookup, SIGNATURE_HEADER, sendWebhook, urlProblem, WEBHOOK_ATTEMPTS, WEBHOOK_ENDPOINTS_PER_WORKSPACE,
-  WEBHOOK_DISABLE_AFTER, WEBHOOK_PAYLOAD_DAYS, WEBHOOK_TESTS_PER_MINUTE,
+  WEBHOOK_DISABLE_AFTER, WEBHOOK_PAYLOAD_DAYS, WEBHOOK_TESTS_PER_MINUTE, webhookHandlers,
 } from '../src/webhooks.ts'
 import { act, addMember, agent, createWorkspace, type User, type Workspace } from './helpers.ts'
 
@@ -121,6 +122,26 @@ describe('endpoints', () => {
     // Another workspace is not affected.
     await addEndpoint(['call.completed'], other.owner)
     await db.delete(webhook_endpoints).where(eq(webhook_endpoints.workspace_id, other.id))
+  })
+
+  test('creates at the same time cannot pass the cap together', async () => {
+    const own = await createWorkspace('Endpoint Race Plumbing')
+    const existing = (await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.workspace_id, own.id))).length
+    for (let i = existing + 1; i < WEBHOOK_ENDPOINTS_PER_WORKSPACE; i++) await addEndpoint(['call.completed'], own.owner)
+    const actor: Actor = { actorId: own.owner.userId, role: 'owner', workspaceId: own.id, permissions: rolePermissions.owner }
+    const create = (tx: Tx) =>
+      webhookHandlers['webhook.create']!({ tx, actor, now: new Date().toISOString() }, {
+        endpointId: `whe_${crypto.randomUUID().slice(0, 12)}`, url: `${base}/hook`, events: ['call.completed'], secret: newWebhookSecret(),
+      })
+    // The first create holds its transaction open while the second one runs: the second must wait and then see 10.
+    let second: Promise<unknown> | undefined
+    await db.transaction(async tx => {
+      await create(tx)
+      second = db.transaction(tx2 => create(tx2)).then(() => 'created', (e: Error) => e.message)
+      await new Promise(resolve => setTimeout(resolve, 300))
+    })
+    expect(await second).toMatch(/At most 10 webhook endpoints/)
+    expect(await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.workspace_id, own.id))).toHaveLength(WEBHOOK_ENDPOINTS_PER_WORKSPACE)
   })
 
   test('IPv4 inside IPv6 is checked as the IPv4 address it reaches, however it is written', async () => {

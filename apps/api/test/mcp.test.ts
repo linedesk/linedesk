@@ -66,10 +66,11 @@ describe('access', () => {
   })
 
   test('refused keys count per address like on /v1', async () => {
+    expect((await mcp(memberKey, 'tools/list', {}, { [FROM]: randomIp() })).status).toBe(200)
     const from = { [FROM]: randomIp() }
     for (let i = 0; i < 19; i++) expect((await mcp(`ld_wrong-${i}`, 'tools/list', {}, from)).status).toBe(401)
     expect((await mcp('ld_wrong-last', 'tools/list', {}, from)).status).toBe(429)
-    // A valid key from that address still works (only refused keys are throttled).
+    // A key that worked lately still works from that address (only refused keys are throttled).
     expect((await mcp(memberKey, 'tools/list', {}, from)).status).toBe(200)
   })
 })

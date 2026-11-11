@@ -286,6 +286,8 @@ export const webhookHandlers: Record<string, Handler> = {
     await checkUrl(input.url)
     const [taken] = await tx.select({ id: webhook_endpoints.id }).from(webhook_endpoints).where(eq(webhook_endpoints.id, input.endpointId))
     if (taken) throw new Reject('that endpoint id is taken')
+    // Two creates at once would both count 9 and both insert: one workspace's creates take turns.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`webhook_endpoints:${workspace_id}`}))`)
     const [{ endpoints } = { endpoints: 0 }] = await tx.select({ endpoints: sql<number>`count(*)::int` }).from(webhook_endpoints).where(eq(webhook_endpoints.workspace_id, workspace_id))
     if (endpoints >= WEBHOOK_ENDPOINTS_PER_WORKSPACE)
       throw new Reject(`At most ${WEBHOOK_ENDPOINTS_PER_WORKSPACE} webhook endpoints per workspace. Delete one you no longer use.`)

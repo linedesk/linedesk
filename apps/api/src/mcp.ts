@@ -322,7 +322,8 @@ function releasingWhenSent(res: Response, release: () => void): Response {
 export async function serveMcp(request: Request, clientIp: string | null): Promise<Response> {
   const bearer = request.headers.get('authorization')?.replace(/^Bearer /, '') ?? ''
   if (!isApiKey(bearer)) return refuse(401, 'send a workspace API key: Authorization: Bearer ld_…', challenge)
-  const actor = await actorForApiKey(bearer, clientIp) // null without a lookup for an address with too many refused keys
+  // From an address with too many refused keys, only a key that worked lately is looked up (api-keys.ts).
+  const actor = await actorForApiKey(bearer, clientIp)
   if (!actor && tooManyInvalidApiKeys(clientIp))
     return refuse(429, 'too many invalid API keys from this address; try again later', { 'retry-after': '600' })
   if (!actor) return refuse(401, 'unknown or revoked API key', challenge)
