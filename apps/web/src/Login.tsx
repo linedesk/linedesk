@@ -268,7 +268,10 @@ export function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
     <AuthPage>
       <form className="auth-card" noValidate onSubmit={e => { e.preventDefault(); if (code.length === CODE_LENGTH) void check(code) }}>
         <h1>Check your email</h1>
-        <p>We sent a {CODE_LENGTH}-digit code to {email}. It expires in 10 minutes.</p>
+        {/* The same words for every address: whether it may sign in here is not told (no account enumeration). */}
+        <p>
+          If {email} can sign in here, a {CODE_LENGTH}-digit code is on its way. It expires in 10 minutes.
+        </p>
         <input ref={input} className="auth-code" aria-label="Sign-in code" value={code} onChange={e => change(e.target.value)} disabled={busy}
           inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={CODE_LENGTH + 6} autoFocus
           aria-describedby={error ? 'code-error' : undefined} />

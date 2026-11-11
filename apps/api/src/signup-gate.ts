@@ -44,12 +44,14 @@ export async function refuseClosedSignUp(tx: Tx, created: { email: string; email
 
 /** A sign-in code only goes out when it can sign someone in: to an account, or to an address that may create one. */
 export async function maySendSignInCode(tx: Tx, email: string): Promise<boolean> {
-  if (signUpOpen()) return true
   const [existing] = await tx
-    .select({ id: user.id })
+    .select({ id: user.id, disabledAt: user.disabledAt })
     .from(user)
     .where(sql`lower(${user.email}) = ${email.toLowerCase()}`)
     .limit(1)
+  // A disabled account cannot sign in: no code for it (the answer stays the same, see sendSignInCode).
+  if (existing?.disabledAt) return false
+  if (signUpOpen() || existing) return true
   // A code proves the address once it is entered.
-  return Boolean(existing) || mayCreateUser(tx, email, true)
+  return mayCreateUser(tx, email, true)
 }

@@ -172,6 +172,20 @@ describe('codes and sign-up', () => {
     expect(await accountOf(email)).toBeUndefined()
   })
 
+  test('a disabled account gets the same answer and no code, with sign-up open or closed', async () => {
+    const email = address('disabled')
+    const { send, codeFor } = mailbox()
+    expect((await signIn(email, await codeFor((await requestCode(email), email)))).status).toBe(200)
+    await db.update(user).set({ disabledAt: new Date() }).where(eq(user.email, email))
+    send.mockClear()
+    for (const open of ['true', 'false']) {
+      process.env.AUTH_SIGNUP_ENABLED = open
+      expect(await requestCode(email)).toEqual({ status: 200, body: { success: true } })
+    }
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(send).not.toHaveBeenCalled()
+  })
+
   test('with sign-up closed, an invited address gets a code and joins, verified', async () => {
     process.env.AUTH_SIGNUP_ENABLED = 'false'
     const { codeFor } = mailbox()
