@@ -155,6 +155,20 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
   }
 }
 
+/** Adds a detail as one more message for the team, once a message is saved on the call; false otherwise. */
+async function addToMessage(api: ApiClient, call: CallSession, log: CallLog, detail: string): Promise<boolean> {
+  if (!log.messages.length) return false
+  try {
+    await api.run(callTakeMessage, { callId: call.callId, message: detail }, call)
+    log.messages.push(detail)
+    log.record('system', 'Added to the message', callTakeMessage.name)
+    return true
+  } catch (e) {
+    console.warn(`could not add to the message of call ${call.callId}: ${e instanceof Error ? e.message : String(e)}`)
+    return false
+  }
+}
+
 /** Flags the call once, from the tool or from the guard below. */
 function callFlagger(api: ApiClient, call: CallSession, log: CallLog) {
   return urgentFlagger(async () => {
@@ -280,6 +294,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     callerIdentity: () => callerIdentity,
     today: () => call.booking?.todayDate ?? new Date().toISOString().slice(0, 10),
     languageRule: collectLanguageRule(call.assistant) ?? undefined,
+    addToMessage: detail => addToMessage(api, call, log, detail),
   }
   const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, flagUrgent, null, collect) })
   void warmUpLlm(config.llm, instructions)

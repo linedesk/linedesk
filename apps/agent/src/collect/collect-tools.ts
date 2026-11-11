@@ -5,7 +5,7 @@ import type { Room } from '@livekit/rtc-node'
 import { z } from 'zod'
 import type { CallLog } from '../call-log.ts'
 import { CollectTask, type CollectTaskOptions } from './collect-task.ts'
-import { describeOutcome, outcomeEvent } from './collection.ts'
+import { type CollectOutcome, describeOutcome, outcomeEvent } from './collection.ts'
 import { addressCollector, dateCollector, digitsCollector, emailCollector, nameCollector, phoneCollector } from './collectors.ts'
 
 type AnyCollector = CollectTaskOptions['collector']
@@ -19,6 +19,11 @@ export type CollectContext = {
   today: () => string
   /** Which language the steps speak (collectLanguageRule in prompt.ts); default English only. */
   languageRule?: string
+  /**
+   * Adds a detail to the message already saved on this call (call.takeMessage); false when there is no message yet
+   * or it could not be saved. A number confirmed after the message would otherwise be lost.
+   */
+  addToMessage?: (detail: string) => Promise<boolean>
 }
 
 /**
@@ -46,11 +51,19 @@ async function runStep(ctx: CollectContext, { ctx: run }: llm.ToolOptions, colle
     ctx.log.record('system', outcomeEvent(outcome))
     if (collector.kind === 'name' && outcome.status === 'confirmed') ctx.log.confirmedName = outcome.value
     nudgeIfQuiet(run.session)
-    return describeOutcome(outcome) + saidMeanwhile(task.chatCtx.items.slice(chatCtx.items.length))
+    return describeOutcome(outcome) + (await addedToMessage(ctx, collector, outcome)) + saidMeanwhile(task.chatCtx.items.slice(chatCtx.items.length))
   } catch (e) {
     console.warn(`collection step ${collector.kind} ended early: ${e instanceof Error ? e.message : String(e)}`)
     return `Getting the ${collector.label} did not work. Note what you have and tell the caller someone will call them back.`
   }
+}
+
+/** A phone number confirmed after the message was saved goes onto the call too; what the assistant is told about it. */
+export async function addedToMessage(ctx: CollectContext, collector: AnyCollector, outcome: CollectOutcome): Promise<string> {
+  if (collector.kind !== 'phone_number' || outcome.status !== 'confirmed' || !ctx.addToMessage) return ''
+  const what = outcome.label.charAt(0).toUpperCase() + outcome.label.slice(1)
+  const added = await ctx.addToMessage(`${what}: ${outcome.value} (confirmed with the caller).`)
+  return added ? ' It is added to the message you saved already: do not use take_message for it.' : ''
 }
 
 /** How long after a step the assistant may stay quiet before it is asked to go on. */

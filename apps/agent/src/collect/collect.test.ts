@@ -1,6 +1,6 @@
 import { llm } from '@livekit/agents'
 import { describe, expect, it, test, vi } from 'vitest'
-import { nudgeIfQuiet, saidMeanwhile } from './collect-tools.ts'
+import { addedToMessage, nudgeIfQuiet, saidMeanwhile } from './collect-tools.ts'
 import { Collection, describeOutcome, dtmfCode, KeypadInput, MAX_ATTEMPTS, outcomeEvent } from './collection.ts'
 import { addressCollector, dateCollector, digitsCollector, emailCollector, isWholePhoneNumber, nameCollector, partialPhoneNumberIn, parseDate, phoneCollector, stateCode, toE164 } from './collectors.ts'
 import { readDigits, readLetters, spokenDigits, spokenEmail, spokenLetters } from './spoken.ts'
@@ -196,4 +196,22 @@ test('after a step, a quiet assistant is asked once to go on; not while it repli
   nudgeIfQuiet(closed)
   expect(() => vi.advanceTimersByTime(3000)).not.toThrow()
   vi.useRealTimers()
+})
+
+test('a phone number confirmed after the message was saved is added to it; nothing else is', async () => {
+  const added: string[] = []
+  const addToMessage = async (detail: string) => {
+    added.push(detail)
+    return true
+  }
+  const ctx = { addToMessage } as unknown as Parameters<typeof addedToMessage>[0]
+  const confirmed = { status: 'confirmed', label: 'callback number', value: '+15035550142', via: 'keypad' } as const
+  expect(await addedToMessage(ctx, phoneCollector(), confirmed)).toMatch(/added to the message/)
+  expect(added).toEqual(['Callback number: +15035550142 (confirmed with the caller).'])
+  expect(await addedToMessage(ctx, phoneCollector(), { status: 'incomplete', label: 'callback number', partial: '50355' })).toBe('')
+  expect(await addedToMessage(ctx, nameCollector, { status: 'confirmed', label: 'name', value: 'Sam Patel', via: 'speech' })).toBe('')
+  // No message saved yet: the assistant puts the number into take_message itself.
+  const none = { addToMessage: async () => false } as unknown as Parameters<typeof addedToMessage>[0]
+  expect(await addedToMessage(none, phoneCollector(), confirmed)).toBe('')
+  expect(added).toHaveLength(1)
 })
