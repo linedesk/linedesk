@@ -95,6 +95,9 @@ async function listTeam(tx: Tx, actor: Actor): Promise<TeamData> {
     .from(member).innerJoin(user, eq(user.id, member.userId))
     .where(eq(member.organizationId, workspaceId)).orderBy(asc(member.createdAt)))
     .map(m => ({ ...m, role: m.role as TeamMember['role'], joinedAt: m.joinedAt.toISOString() }))
+  const canManage = actor.permissions.includes('team:write')
+  // Invitees' addresses are for those who invite: a member sees the team, not who is invited.
+  if (!canManage) return { members, invitations: [], canManage, me: actor.actorId }
   const inviter = alias(user, 'inviter')
   const now = Date.now()
   const invitations: TeamInvitation[] = (await tx
@@ -102,7 +105,7 @@ async function listTeam(tx: Tx, actor: Actor): Promise<TeamData> {
     .from(invitation).innerJoin(inviter, eq(inviter.id, invitation.inviterId))
     .where(and(eq(invitation.organizationId, workspaceId), eq(invitation.status, 'pending'))).orderBy(asc(invitation.createdAt)))
     .map(i => ({ ...i, role: i.role === 'admin' ? 'admin' : 'member', expiresAt: i.expiresAt.toISOString(), expired: i.expiresAt.getTime() < now }))
-  return { members, invitations, canManage: actor.permissions.includes('team:write'), me: actor.actorId }
+  return { members, invitations, canManage, me: actor.actorId }
 }
 
 export const teamHandlers: Record<string, Handler> = {

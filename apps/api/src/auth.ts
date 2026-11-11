@@ -60,6 +60,8 @@ const beforeAuthEndpoints = createAuthMiddleware(async ctx => {
  */
 const WORKSPACE_WRITE_PATHS = ['/organization/create', '/organization/update', '/organization/delete']
 const TEAM_WRITE_PATHS = ['/organization/invite-member', '/organization/cancel-invitation', '/organization/update-member-role', '/organization/remove-member', '/organization/leave', '/organization/reject-invitation']
+// Better Auth's reads that show pending invitees' addresses to every member; team.list shows them to owners and admins only.
+const INVITATION_READ_PATHS = ['/organization/get-full-organization', '/organization/list-invitations']
 const UNUSED_EMAIL_CODE_PATHS = [
   '/email-otp/request-password-reset', '/forget-password/email-otp', '/email-otp/reset-password', '/email-otp/verify-email',
   '/email-otp/check-verification-otp', '/email-otp/request-email-change', '/email-otp/change-email',
@@ -106,7 +108,7 @@ export const auth = betterAuth({
   advanced: { ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] } },
   // Members and invitations change only through the team.* actions (team.ts), which apply the
   // workspace's rules (last owner, who may change an owner). Accepting stays Better Auth's endpoint.
-  disabledPaths: [...UNUSED_EMAIL_CODE_PATHS, ...TEAM_WRITE_PATHS, ...WORKSPACE_WRITE_PATHS],
+  disabledPaths: [...UNUSED_EMAIL_CODE_PATHS, ...TEAM_WRITE_PATHS, ...INVITATION_READ_PATHS, ...WORKSPACE_WRITE_PATHS],
   // After: the audit log records the auth endpoints that change how someone signs in (audit.ts).
   hooks: { before: beforeAuthEndpoints, after: recordAuthEndpoint },
   // Set by user.impersonate only (impersonation.ts); `input: false` keeps clients from setting it.

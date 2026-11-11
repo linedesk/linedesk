@@ -190,6 +190,23 @@ describe('roles', () => {
     expect((await act(ws.owner, 'team.list', {})).body.data.canManage).toBe(true)
   })
 
+  test("a member does not see pending invitees' addresses, not through team.list and not through Better Auth", async () => {
+    // Its own workspace: invitations to `ws` are rate-limited per hour.
+    const own = await createWorkspace('Invitee Privacy Co')
+    const [ownAdmin, ownMember] = [await addMember(own.id, 'admin'), await addMember(own.id, 'member')]
+    const email = newEmail()
+    await invite(own.owner, email)
+    for (const manager of [own.owner, ownAdmin]) {
+      expect((await act(manager, 'team.list', {})).body.data.invitations.map((i: { email: string }) => i.email)).toContain(email)
+    }
+    expect((await act(ownMember, 'team.list', {})).body.data.invitations).toEqual([])
+    for (const path of ['/api/auth/organization/get-full-organization', '/api/auth/organization/list-invitations']) {
+      const res = await request(ownMember, 'GET', path)
+      expect(res.status, path).toBe(404)
+      expect(JSON.stringify(res.body ?? '')).not.toContain(email)
+    }
+  })
+
   test('a role change applies to the next request of an existing session', async () => {
     const joined = await joinAs(ws, 'member')
     expect((await act(joined, 'team.invite', { email: newEmail(), role: 'member' })).status).toBe(403)
