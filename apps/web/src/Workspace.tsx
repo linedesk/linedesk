@@ -19,6 +19,7 @@ import { callerName, callTitle, type InboxTab } from './inbox-model.ts'
 import { commandGroups, type Command } from './shell/commands.ts'
 import type { Overlay } from './shell/keys.ts'
 import { invitationNotice, unannounced, useMyInvitations } from './shell/invitations.ts'
+import { AskName } from './shell/AskName.tsx'
 import { MenuButton, Nav } from './shell/Nav.tsx'
 import { Overlays } from './shell/Overlays.tsx'
 import { rejectionText } from './shell/rejections.ts'
@@ -440,6 +441,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
           </div>
         )}
         <SyncBar />
+        <AskName impersonating={!!me.impersonation} />
       </main>
       <Overlays
         overlay={overlay}
