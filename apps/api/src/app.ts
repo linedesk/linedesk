@@ -42,6 +42,8 @@ import { servePreview } from './voices.ts'
 import { runAction } from './run-action.ts'
 
 const ELECTRIC_URL = process.env.ELECTRIC_URL ?? 'http://localhost:3001'
+/** Electric refuses shape requests without it (docker-compose.yml); only the API has it. */
+const ELECTRIC_SECRET = process.env.ELECTRIC_SECRET
 
 export const app = new Hono<{ Variables: { actor: Actor } }>()
 
@@ -291,6 +293,7 @@ app.get('/v1/shape/:table', async c => {
   target.searchParams.set('replica', 'full')
   target.searchParams.set('where', shapeFilter(table, c.get('actor').permissions))
   target.searchParams.set('params[1]', workspaceId)
+  if (ELECTRIC_SECRET) target.searchParams.set('secret', ELECTRIC_SECRET)
   const res = await fetch(target, { signal: c.req.raw.signal })
   // Electric's own 4xx (an unknown handle, an offset out of range, a changed shape) tell the client to
   // load the table again and pass through. Any other 4xx, a 401 or 403 from Electric or a proxy in

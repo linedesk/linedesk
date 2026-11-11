@@ -41,8 +41,8 @@ Requirements: Docker with Compose v2.24 or newer and about 1.5 GB of free RAM. E
 git clone https://github.com/linedesk/linedesk.git && cd linedesk
 cp .env.example .env
 docker run --rm livekit/livekit-server generate-keys   # prints a LiveKit API key and secret
-# in .env set: BETTER_AUTH_SECRET and SECRETS_KEY (each: openssl rand -base64 32), POSTGRES_PASSWORD and
-#   AGENT_API_TOKEN (each: openssl rand -hex 24), LIVEKIT_API_KEY and LIVEKIT_API_SECRET (from the line above), PUBLIC_URL
+# in .env set: BETTER_AUTH_SECRET and SECRETS_KEY (each: openssl rand -base64 32), POSTGRES_PASSWORD,
+#   AGENT_API_TOKEN and ELECTRIC_SECRET (each: openssl rand -hex 24), LIVEKIT_API_KEY and LIVEKIT_API_SECRET (from the line above), PUBLIC_URL
 docker compose up -d --build
 ```
 

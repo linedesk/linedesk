@@ -14,6 +14,10 @@ case "$DATABASE_URL" in
     exit 1
     ;;
 esac
+if [ -z "$ELECTRIC_SECRET" ] || [ "$ELECTRIC_SECRET" = "dev-electric-secret-change-me" ]; then
+  echo "ELECTRIC_SECRET is not set or still the development value. Put a random value in .env, e.g. the output of: openssl rand -hex 24" >&2
+  exit 1
+fi
 if [ "$LIVEKIT_API_SECRET" = "devsecret-change-me-at-least-32-chars" ]; then
   echo "LIVEKIT_API_KEY and LIVEKIT_API_SECRET are still the development values. Generate your own and put them in .env: docker run --rm livekit/livekit-server generate-keys" >&2
   exit 1

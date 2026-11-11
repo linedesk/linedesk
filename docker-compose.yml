@@ -8,6 +8,8 @@
 # (LINEDESK_VOICE_CPUSET) instead of a quota, because a quota stalls real-time audio even when idle;
 # the other services have quotas that add up to 0.55 of a core. At most 1.55 CPUs in all.
 # Published host ports: Caddy (LINEDESK_HTTP_BIND) and LiveKit's call audio and SIP ports. Nothing else.
+# Networks: Postgres and Electric are only on `backend` (internal, no way out), which only the API joins;
+# the agent, LiveKit, SIP, egress, Redis and Caddy cannot reach them.
 name: linedesk
 
 x-service: &service
@@ -26,6 +28,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-linedesk} # development default; the API container refuses it
       POSTGRES_DB: ${POSTGRES_DB:-linedesk}
     volumes: ["pgdata:/var/lib/postgresql/data"]
+    networks: [backend]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
       interval: 2s
@@ -38,8 +41,11 @@ services:
     image: electricsql/electric:1.8.1
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-linedesk}:${POSTGRES_PASSWORD:-linedesk}@postgres:5432/${POSTGRES_DB:-linedesk}?sslmode=disable
-      ELECTRIC_INSECURE: "true" # only the API talks to Electric; it adds the workspace filter
+      # Only the API talks to Electric: it adds the workspace filter and sends this secret with each shape request.
+      ELECTRIC_SECRET: ${ELECTRIC_SECRET:?set ELECTRIC_SECRET in .env (see .env.example)}
+      ELECTRIC_USAGE_REPORTING: "false" # on the internal network it could not report anyway
       ELECTRIC_DB_POOL_SIZE: "10"
+    networks: [backend]
     depends_on:
       postgres: { condition: service_healthy }
     healthcheck:
@@ -70,6 +76,7 @@ services:
     # deletes them once they are past the workspace's retention (apps/api/src/recording-retention.ts).
     user: "1001:1000"
     volumes: ["recordings:/recordings"]
+    networks: [default, backend] # the only service on both: Caddy and the agent reach it, it reaches the database
     depends_on:
       postgres: { condition: service_healthy }
       electric: { condition: service_healthy }
@@ -231,6 +238,10 @@ services:
     logging:
       driver: json-file
       options: { max-size: 1m, max-file: "1" }
+
+networks:
+  backend:
+    internal: true
 
 volumes:
   pgdata:

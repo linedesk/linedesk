@@ -48,6 +48,7 @@ export default defineConfig(async () => {
         WEB_ORIGIN: 'http://localhost:5173',
         AGENT_API_TOKEN: 'test-agent-token',
         ELECTRIC_URL: 'http://electric.test',
+        ELECTRIC_SECRET: 'test-electric-secret',
         // Tests must never reach a carrier, whatever .env selects.
         TELEPHONY_PROVIDER: 'dev',
         // Email sign-in by code is on, as on a real server; tests read the codes from a spy on the sender.

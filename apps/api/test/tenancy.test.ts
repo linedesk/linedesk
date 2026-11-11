@@ -195,9 +195,9 @@ describe('shape proxy', () => {
     return upstream
   }
 
-  test("sends the caller's workspace filter and ignores table and where from the client", async () => {
+  test("sends the caller's workspace filter and Electric's secret, and ignores table, where and secret from the client", async () => {
     const upstream = stubElectric()
-    const query = `table=contacts&where=${encodeURIComponent('1 = 1')}&${encodeURIComponent('params[1]')}=${b.id}&columns=id&replica=default&offset=-1&handle=h1`
+    const query = `table=contacts&where=${encodeURIComponent('1 = 1')}&${encodeURIComponent('params[1]')}=${b.id}&columns=id&replica=default&offset=-1&handle=h1&secret=guess`
     const { status } = await request(memberOfA, 'GET', `/v1/shape/calls?${query}`)
     expect(status).toBe(200)
     expect(upstream).toHaveBeenCalledOnce()
@@ -210,6 +210,7 @@ describe('shape proxy', () => {
       replica: 'full',
       offset: '-1',
       handle: 'h1',
+      secret: 'test-electric-secret',
     })
   })
 
