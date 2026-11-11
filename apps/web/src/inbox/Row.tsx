@@ -1,5 +1,5 @@
 import { tagLabels } from '@linedesk/actions'
-import type { Call, TranscriptSegment } from '@linedesk/db/types'
+import type { Call, CallTag, TranscriptSegment } from '@linedesk/db/types'
 import type { MouseEvent } from 'react'
 import { callerName, callTitle, statusLabel, tabOf, type InboxTab } from '../inbox-model.ts'
 import { useAssistantName, useContact } from '../store.tsx'
@@ -20,6 +20,8 @@ export type RowHandlers = {
   onRemind?: (call: Call) => void
   onClearReminder?: (call: Call) => void
   onCommands?: (call: Call) => void
+  /** Show only calls with this tag (a click on the row's tag). */
+  onFilterTag?: (tag: CallTag) => void
   /** The member picker, under the row's assign button; unset while the workspace has a single member (no assign UI). */
   onAssign?: (call: Call, anchor: DOMRect) => void
   /** Tick or untick a call; with shift, everything from the last ticked call to this one. */
@@ -81,7 +83,7 @@ export function Status({
   return <Badge tone={tone}>{text}</Badge>
 }
 
-function Summary({ call, search, segments }: Pick<Props, 'call' | 'search' | 'segments'>) {
+function Summary({ call, search, segments, onFilterTag }: Pick<Props, 'call' | 'search' | 'segments' | 'onFilterTag'>) {
   const assistantName = useAssistantName()
   const contact = useContact(call.contact_id)
   const hit = search ? searchHit({ call, contact, segments, assistantName }, search) : null
@@ -97,7 +99,20 @@ function Summary({ call, search, segments }: Pick<Props, 'call' | 'search' | 'se
   }
   return (
     <span className="r-sum">
-      {call.tag && <span className="r-tag">{tagLabels[call.tag]}</span>}
+      {call.tag &&
+        (onFilterTag ? (
+          <button
+            type="button"
+            className="r-tag"
+            tabIndex={-1}
+            title={`Show only ${tagLabels[call.tag]}`}
+            onClick={stop(() => onFilterTag(call.tag!))}
+          >
+            {tagLabels[call.tag]}
+          </button>
+        ) : (
+          <span className="r-tag">{tagLabels[call.tag]}</span>
+        ))}
       <span className="r-topic">{highlight(callTitle(call), search)}</span>
       {
         search && call.summary ? (
@@ -217,7 +232,7 @@ export function Row({ call, tab, search, segments, isCursor, motion, selected = 
         {call.assignee_id && on.onAssign && <AssigneeMark userId={call.assignee_id} />}
         {call.source === 'sample' && <span className="r-sample">Sample</span>}
       </span>
-      <Summary call={call} search={search} segments={segments} />
+      <Summary call={call} search={search} segments={segments} onFilterTag={on.onFilterTag} />
       <span className="r-status">
         <Status call={call} tab={tab} markDone={done && search !== null} segments={segments} />
       </span>

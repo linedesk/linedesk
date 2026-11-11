@@ -21,6 +21,8 @@ export type CommandContext = {
   toggleBlock: (call: Call) => void
   /** Tag the call (null: remove the tag). */
   setTag?: (call: Call, tag: CallTag | null) => void
+  /** The inbox's tag filter: the active tag, the picker, and clearing it. */
+  tagFilter?: { active: CallTag | null; open: () => void; clear: () => void }
   /** The signed-in member's user id. */
   me: string
   /** Assigning; null while the workspace has a single member (then nothing about it is offered). */
@@ -187,6 +189,12 @@ function selectCommands(s: NonNullable<CommandContext['selection']>, hasTarget: 
   ]
 }
 
+/** Filter by tag… opens the tag menu; Clear tag filter while one is on. */
+function tagFilterCommands(f: NonNullable<CommandContext['tagFilter']>): Command[] {
+  const open: Command = { label: 'Filter by tag…', keywords: 'tag show only lead booked message spam wrong number customer', icon: 'flag', run: f.open }
+  return f.active ? [open, { label: `Clear tag filter (${tagLabels[f.active]})`, keywords: 'tag all show every', icon: 'close', run: f.clear }] : [open]
+}
+
 export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
   return [
     ...(c.target ? [{ label: `Selected call · ${c.targetName}`, items: callCommands(c.target, c) }] : []),
@@ -197,6 +205,7 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
         { label: 'Go to Inbox', icon: 'phone', shortcut: ['G', 'I'], run: () => c.goInbox('you') },
         { label: 'Go to Done', icon: 'check', shortcut: ['G', 'E'], run: () => c.goInbox('done') },
         { label: 'Go to Reminders', icon: 'clock', shortcut: ['G', 'H'], run: () => c.goInbox('reminders') },
+        ...(c.tagFilter ? tagFilterCommands(c.tagFilter) : []),
         ...(c.assign ? assigneeViewCommands(c.assign, c) : []),
         ...(c.canReview ? [{ label: 'Go to Needs review', icon: 'flag' as const, shortcut: ['G', 'R'], run: () => c.goInbox('review') }] : []),
         { label: 'Go to Contacts', icon: 'contact', shortcut: ['G', 'C'], run: () => c.goPage('contacts') },

@@ -1773,3 +1773,35 @@ button.k-link {
   font-size: 12.5px;
   color: var(--ink-muted);
 }
+
+/* Inbox: a row's tag is a button that filters by it. */
+button.r-tag {
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+button.r-tag:hover {
+  color: var(--ink);
+}
+/* Inbox header: the active tag filter, cleared with a click. */
+.ib-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 6px 0 8px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: var(--surface-hover);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.ib-tag-chip .k-icon {
+  color: var(--ink-muted);
+}
+.ib-tag-chip:hover .k-icon {
+  color: var(--ink);
+}

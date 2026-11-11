@@ -1,11 +1,10 @@
 import { tagLabels } from '@linedesk/actions'
-import { type Call, type CallTag, callTags } from '@linedesk/db/types'
+import type { Call, CallTag } from '@linedesk/db/types'
 import type { ReactNode } from 'react'
 import { assigneeTabs, callerName, splits, type InboxTab } from '../inbox-model.ts'
 import { usePresence } from '../shell/presence.ts'
 import { useAssistantName, useContact } from '../store.tsx'
 import { clock, parseTs } from '../time.ts'
-import { Select, type SelectOption } from '../ui/controls.tsx'
 import { Button, Icon } from '../ui/kit.tsx'
 import { useElapsed } from '../ui/LiveIndicator.tsx'
 import { BulkBar, type BulkActions } from './BulkBar.tsx'
@@ -198,23 +197,13 @@ function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveC
   )
 }
 
-const ALL_TAGS = 'all'
-const tagFilterOptions: SelectOption<CallTag | typeof ALL_TAGS>[] = [
-  { value: ALL_TAGS, label: 'All tags' },
-  ...callTags.map(tag => ({ value: tag, label: tagLabels[tag] })),
-]
-
-/** Narrows the list to one tag, in every view and in search. */
-function TagFilter({ tag, setTag }: Pick<InboxHeadProps, 'tag' | 'setTag'>) {
+/** The active tag filter, said once in the header; clicking it shows every call again. */
+function TagChip({ tag, setTag }: { tag: CallTag; setTag: (tag: CallTag | null) => void }) {
   return (
-    <Select
-      size="sm"
-      align="end"
-      label="Filter by tag"
-      value={tag ?? ALL_TAGS}
-      options={tagFilterOptions}
-      onChange={next => setTag(next === ALL_TAGS ? null : next)}
-    />
+    <button type="button" className="ib-tag-chip" title="Show all tags" onClick={() => setTag(null)}>
+      Tag: {tagLabels[tag]}
+      <Icon name="close" size={12} />
+    </button>
   )
 }
 
@@ -247,11 +236,11 @@ export function InboxHead({
       ) : (
         <Tabs tab={p.tab} setTab={p.setTab} counts={p.counts} />
       )}
-      {p.search !== null && <TagFilter tag={p.tag} setTag={p.setTag} />}
+      {p.search !== null && p.tag && <TagChip tag={p.tag} setTag={p.setTag} />}
       {p.search === null && (
         <div className="ib-right">
           <Presence liveCall={p.liveCall} onOpen={p.onOpen} canFixVoice={p.canFixVoice} />
-          <TagFilter tag={p.tag} setTag={p.setTag} />
+          {p.tag && <TagChip tag={p.tag} setTag={p.setTag} />}
           <Button
             size="sm"
             variant="ghost"
