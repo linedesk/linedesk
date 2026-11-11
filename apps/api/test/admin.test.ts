@@ -186,7 +186,7 @@ describe('access', () => {
       const created = await request(loner, 'POST', '/v1/workspaces', { name: 'Operator Workspace' })
       expect(created).toMatchObject({ status: 200, body: { ok: true, workspace: { name: 'Operator Workspace' } } })
     } finally {
-      delete process.env.AUTH_SIGNUP_ENABLED
+      process.env.AUTH_SIGNUP_ENABLED = 'true'
       await setAdmin(loner, false)
     }
   })
@@ -1086,7 +1086,7 @@ describe('instance admins', () => {
         if (!(e instanceof RollbackOnly)) throw e
       })
     } finally {
-      delete process.env.AUTH_SIGNUP_ENABLED
+      process.env.AUTH_SIGNUP_ENABLED = 'true'
     }
   })
 
@@ -1250,7 +1250,7 @@ describe('user.invite', () => {
   const address = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}@linedesk.test`
   const accountOf = async (email: string) => (await db.select().from(user).where(eq(user.email, email)))[0]
   afterEach(() => {
-    delete process.env.AUTH_SIGNUP_ENABLED
+    process.env.AUTH_SIGNUP_ENABLED = 'true'
     process.env.EMAIL_TO_LOG = 'true'
     vi.restoreAllMocks()
   })

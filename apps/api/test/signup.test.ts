@@ -1,4 +1,4 @@
-// Closed sign-up (AUTH_SIGNUP_ENABLED=false). Accounts made by an instance admin (user.invite) are
+// Closed sign-up (the default; AUTH_SIGNUP_ENABLED=true opens it). Accounts made by an instance admin (user.invite) are
 // tested in admin.test.ts, which is the only file that creates instance admins.
 import { invitation, organization, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
@@ -22,12 +22,13 @@ const passwordSignUp = (email: string) =>
 const accountOf = async (email: string) => (await db.select().from(user).where(eq(user.email, email)))[0]
 /** An account made while sign-up was open, member of no workspace. */
 const signUpWhileOpen = async () => {
-  const closed = process.env.AUTH_SIGNUP_ENABLED
-  delete process.env.AUTH_SIGNUP_ENABLED
+  const before = process.env.AUTH_SIGNUP_ENABLED
+  process.env.AUTH_SIGNUP_ENABLED = 'true'
   try {
     return await signUp()
   } finally {
-    if (closed !== undefined) process.env.AUTH_SIGNUP_ENABLED = closed
+    if (before === undefined) delete process.env.AUTH_SIGNUP_ENABLED
+    else process.env.AUTH_SIGNUP_ENABLED = before
   }
 }
 
@@ -40,13 +41,22 @@ beforeAll(async () => {
 })
 
 afterEach(() => {
-  delete process.env.AUTH_SIGNUP_ENABLED
+  process.env.AUTH_SIGNUP_ENABLED = 'true'
 })
 
 describe('closed sign-up', () => {
   test('the sign-in screen is told when sign-up is closed', () => {
-    expect(readAuthConfig({}).methods.signUp).toBe(true)
+    expect(readAuthConfig({}).methods.signUp).toBe(false)
     expect(readAuthConfig({ AUTH_SIGNUP_ENABLED: 'false' }).methods.signUp).toBe(false)
+    expect(readAuthConfig({ AUTH_SIGNUP_ENABLED: 'true' }).methods.signUp).toBe(true)
+  })
+
+  test('without AUTH_SIGNUP_ENABLED a password sign-up is refused, as with false', async () => {
+    delete process.env.AUTH_SIGNUP_ENABLED
+    const email = address('unset')
+    expect((await passwordSignUp(email)).status).toBe(403)
+    expect(await accountOf(email)).toBeUndefined()
+    expect(await maySendSignInCode(db, address('nobody'))).toBe(false)
   })
 
   test('a password sign-up is refused; existing users still sign in', async () => {
@@ -66,7 +76,7 @@ describe('closed sign-up', () => {
     )
     expect(signIn.status).toBe(200)
 
-    delete process.env.AUTH_SIGNUP_ENABLED
+    process.env.AUTH_SIGNUP_ENABLED = 'true'
     expect((await passwordSignUp(email)).status).toBe(200)
   })
 
@@ -74,7 +84,9 @@ describe('closed sign-up', () => {
     process.env.AUTH_SIGNUP_ENABLED = 'false'
     const email = address('invited')
     // Password, first email-code and first SSO sign-in all create the user through this hook.
-    await expect(refuseClosedSignUp(db, { email, emailVerified: true })).rejects.toThrow('Sign-up is closed on this server.')
+    await expect(refuseClosedSignUp(db, { email, emailVerified: true })).rejects.toThrow(
+      'Sign-up is closed on this server.',
+    )
     const pending = {
       id: `inv_${crypto.randomUUID().slice(0, 8)}`,
       organizationId: ws.id,
@@ -85,7 +97,10 @@ describe('closed sign-up', () => {
     }
     await db.insert(invitation).values({ ...pending, expiresAt: new Date(Date.now() - 60_000) })
     await expect(refuseClosedSignUp(db, { email, emailVerified: true })).rejects.toThrow() // expired
-    await db.update(invitation).set({ expiresAt: new Date(Date.now() + 3_600_000), status: 'canceled' }).where(eq(invitation.id, pending.id))
+    await db
+      .update(invitation)
+      .set({ expiresAt: new Date(Date.now() + 3_600_000), status: 'canceled' })
+      .where(eq(invitation.id, pending.id))
     await expect(refuseClosedSignUp(db, { email, emailVerified: true })).rejects.toThrow() // cancelled
     await db.update(invitation).set({ status: 'pending' }).where(eq(invitation.id, pending.id))
     await expect(refuseClosedSignUp(db, { email, emailVerified: true })).resolves.toBeUndefined()
@@ -106,7 +121,7 @@ describe('closed sign-up', () => {
     }
     expect(await db.select().from(organization).where(eq(organization.name, name))).toEqual([])
     expect((await request(anonymous, 'POST', '/v1/workspaces', { name: 'Nobody' })).status).toBe(401)
-    delete process.env.AUTH_SIGNUP_ENABLED
+    process.env.AUTH_SIGNUP_ENABLED = 'true'
     expect((await request(operator, 'POST', '/v1/workspaces', { name })).status).toBe(200)
   })
 
@@ -115,7 +130,7 @@ describe('closed sign-up', () => {
     const [owner] = await db.select().from(user).where(eq(user.id, operator.userId))
     expect(await maySendSignInCode(db, address('nobody'))).toBe(false)
     expect(await maySendSignInCode(db, owner!.email.toUpperCase())).toBe(true)
-    delete process.env.AUTH_SIGNUP_ENABLED
+    process.env.AUTH_SIGNUP_ENABLED = 'true'
     expect(await maySendSignInCode(db, address('nobody'))).toBe(true)
   })
 })

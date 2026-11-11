@@ -34,7 +34,7 @@ import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { registerImpersonationRoutes } from './impersonation-routes.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { previewInvitation } from './invitations.ts'
-import { signUpOpen } from './signup-gate.ts'
+import { signUpOpen } from './auth-methods.ts'
 import { newAssistant, newWorkspaceSettings, onboardingFor, phoneSetupFor } from './onboarding.ts'
 import { firstUse } from './sample-calls.ts'
 import { voiceReady } from './provider-settings.ts'
@@ -69,7 +69,7 @@ export const WORKSPACE_CREATION_CLOSED =
   'New workspaces are created by an administrator on this server. Ask for an invitation to an existing one.'
 
 /**
- * Creating a workspace is signing up a business: with sign-up closed (AUTH_SIGNUP_ENABLED=false) only
+ * Creating a workspace is signing up a business: with sign-up closed (the default; AUTH_SIGNUP_ENABLED=true opens it) only
  * an instance admin creates one. Invitees, members and removed members join by invitation instead.
  * The admin's own account counts (a property of the user), also before their passkey second factor.
  */

@@ -4,6 +4,9 @@ import type { AuthMethods, LegalLinks, SsoMethod } from './auth-types.ts'
 
 type Env = Record<string, string | undefined>
 
+/** Sign-up is closed unless AUTH_SIGNUP_ENABLED is exactly `true`: a missing or misspelled value keeps strangers out. */
+export const signUpOpen = (env: Env = process.env) => env.AUTH_SIGNUP_ENABLED === 'true'
+
 const pair = (id?: string, secret?: string) => (id && secret ? { clientId: id, clientSecret: secret } : null)
 
 export function readAuthConfig(env: Env) {
@@ -25,7 +28,7 @@ export function readAuthConfig(env: Env) {
     password: env.AUTH_PASSWORD_ENABLED !== 'false',
     emailCode: emailDelivery(env) !== 'none',
     passkey: env.AUTH_PASSKEY_ENABLED !== 'false',
-    signUp: env.AUTH_SIGNUP_ENABLED !== 'false',
+    signUp: signUpOpen(env),
     sso: [
       google && { id: 'google', label: 'Google' },
       microsoft && { id: 'microsoft', label: 'Microsoft' },

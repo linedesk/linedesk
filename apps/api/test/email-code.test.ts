@@ -19,7 +19,7 @@ beforeAll(async () => {
   ws = await createWorkspace('Email Code Workspace')
 })
 afterEach(() => {
-  delete process.env.AUTH_SIGNUP_ENABLED
+  process.env.AUTH_SIGNUP_ENABLED = 'true'
   vi.restoreAllMocks()
 })
 

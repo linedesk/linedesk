@@ -29,6 +29,8 @@ pnpm dev                                        # API on 3100, web app on http:/
 pnpm --filter @linedesk/agent simulate          # a simulated call lands in the inbox, no provider keys needed
 ```
 
+The demo sign-in uses a password. Email codes go nowhere after `cp .env.example .env`: set `SMTP_URL`, or for local development uncomment `EMAIL_TO_LOG=true` in `.env` to print them to the API log. Sign-up is closed by default (`AUTH_SIGNUP_ENABLED=true` opens it).
+
 Your own test data in every local stack and worktree: `pnpm db:seed -- --user <your email>` once, then `pnpm dev:snapshot`; a new local database starts from that snapshot. More in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Self-hosting
@@ -46,13 +48,13 @@ docker run --rm livekit/livekit-server generate-keys   # prints a LiveKit API ke
 docker compose up -d --build
 ```
 
-Then open `PUBLIC_URL` and create your account with your address from `INSTANCE_ADMIN_EMAILS` (set it in `.env` first; sign in with an email code or a sign-in provider): that account is the instance admin, who sets up the speech, language and voice providers in the admin area. Sign-up is open by default: anyone who can reach the URL can create an account and their own workspace (they cannot see yours). To close it, set `AUTH_SIGNUP_ENABLED=false` after creating your account; then only people you invite get in (Invite user in the admin area, or `docker compose exec api node apps/api/src/user-create.ts --email ann@example.com --name "Ann Lee"`).
+Then open `PUBLIC_URL` and create your account with your address from `INSTANCE_ADMIN_EMAILS` (set it in `.env` first; sign in with an email code or a sign-in provider): that account is the instance admin, who sets up the speech, language and voice providers in the admin area. Sign-up is closed by default (`AUTH_SIGNUP_ENABLED=false`), so strangers who reach the URL cannot create accounts or workspaces; only people you invite get in (Invite user in the admin area, or `docker compose exec api node apps/api/src/user-create.ts --email ann@example.com --name "Ann Lee"`). Set `AUTH_SIGNUP_ENABLED=true` only if anyone may create an account and their own workspace (they cannot see yours, but they use your phone carrier and provider keys).
 
 No mail server yet? Without `SMTP_URL` there are no email codes, so create the first admin from the shell instead: `docker compose exec api node apps/api/src/user-create.ts --admin --email you@example.com --name "Your Name"`. It prints a one-time password (sign in with it at `PUBLIC_URL`, then change it under Account) and a passkey enrolment code for the admin area's second factor. Set up `SMTP_URL` before you invite anyone else.
 
 The API applies database migrations on every start.
 
-Sign-in by email works with a 6-digit code (no links) and needs a mail server: set `SMTP_URL` and `EMAIL_FROM`, and remove `EMAIL_TO_LOG=true` (it prints the codes to the API log and is for development only).
+Sign-in by email works with a 6-digit code (no links) and needs a mail server: set `SMTP_URL` and `EMAIL_FROM`. `EMAIL_TO_LOG=true` (commented out in `.env.example`) prints the codes to the API log instead; it is for local development only, since anyone who can read the log can sign in as anyone.
 
 ### Three ways to put it on the web
 
@@ -83,7 +85,7 @@ front.example.com {
 | `POSTGRES_PASSWORD` | Database password. Required; set it before the first start (letters and digits only). Changing it later does not change the password of an existing database. |
 | `SECRETS_KEY` | Encrypts the provider keys stored in the admin area. Keep it: without the same key they cannot be read. |
 | `PUBLIC_URL`, `LINEDESK_HTTP_BIND`, `COMPOSE_FILE` | See the table above. |
-| `AUTH_SIGNUP_ENABLED` | `false` closes sign-up (see above): an instance admin creates accounts with Invite user or `pnpm --filter @linedesk/api user:create --email … --name … [--admin]`. While sign-up is closed, workspace owners can still invite people into their own workspace. |
+| `AUTH_SIGNUP_ENABLED` (default `false`) | `false` keeps sign-up closed (see above): an instance admin creates accounts with Invite user or `pnpm --filter @linedesk/api user:create --email … --name … [--admin]`. While sign-up is closed, workspace owners can still invite people into their own workspace. |
 | `LINEDESK_TRUSTED_PROXY_RANGES` (default empty) | Behind your own reverse proxy: the addresses or ranges it connects to Caddy from (space-separated; a proxy on the same host comes from the Docker gateway, e.g. `172.16.0.0/12`). Caddy then keeps the client address the proxy forwards; without it every client looks like the proxy and shares one rate-limit bucket. |
 | `TRUSTED_PROXIES` | Addresses or ranges of the proxies in front of the API, for rate limits. Compose sets Docker's private ranges (only Caddy and the agent reach the API); change it only if you publish the API port yourself. |
 | `AGENT_API_TOKEN` | Token the voice agent uses to call the API. While it is empty or the placeholder, agent access is off and the agent idles. |

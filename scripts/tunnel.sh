@@ -11,6 +11,22 @@
 set -eu
 web=${1:-5173}
 livekit=${LIVEKIT_PORT:-7880}
+# The LiveKit tunnel is public and LiveKit takes any token signed with its secret: with the development
+# secret from .env.example anyone could join test calls or use LiveKit's API. Refuse it, as the API does.
+repo=$(cd "$(dirname "$0")/.." && pwd)
+livekit_secret=${LIVEKIT_API_SECRET:-$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}LIVEKIT_API_SECRET=//p' "$repo/.env" 2>/dev/null | tail -n 1)}
+# .env values may be quoted ("…" or '…') and padded: compare the value docker compose and the API see.
+livekit_secret=$(printf '%s' "$livekit_secret" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"\(.*\)"$/\1/' -e "s/^'\\(.*\\)'$/\\1/")
+# generate-keys prints a 43-character secret; anything under 32 is too short to publish.
+case "$livekit_secret" in
+  "" | devsecret*) livekit_secret_problem="is not set or still the development value" ;;
+  *) [ "${#livekit_secret}" -lt 32 ] && livekit_secret_problem="is shorter than 32 characters" ;;
+esac
+if [ -n "${livekit_secret_problem:-}" ]; then
+  echo "LIVEKIT_API_SECRET $livekit_secret_problem. Generate your own key and secret"
+  echo "(docker run --rm livekit/livekit-server generate-keys), put them in .env, run pnpm voice:up and restart the API and the agent worker."
+  exit 1
+fi
 command -v ngrok >/dev/null || { echo "ngrok is not installed (brew install ngrok)"; exit 1; }
 # The web tunnel exposes the whole dev app and API: it is closed behind HTTP basic auth.
 case "${NGROK_BASIC_AUTH:-}" in

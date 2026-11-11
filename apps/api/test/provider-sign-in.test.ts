@@ -130,7 +130,7 @@ beforeAll(async () => {
 })
 afterEach(() => {
   vi.unstubAllGlobals()
-  delete process.env.AUTH_SIGNUP_ENABLED
+  process.env.AUTH_SIGNUP_ENABLED = 'true'
 })
 
 const providers: Provider[] = ['google', 'microsoft', 'github']

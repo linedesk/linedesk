@@ -51,7 +51,7 @@ async function confirmWithPasskey(who: User, at = new Date()) {
 const passkeyExists = async (id: string) => (await db.select().from(passkey).where(eq(passkey.id, id))).length === 1
 
 afterEach(() => {
-  delete process.env.AUTH_SIGNUP_ENABLED
+  process.env.AUTH_SIGNUP_ENABLED = 'true'
   vi.restoreAllMocks()
 })
 

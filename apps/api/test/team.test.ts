@@ -63,7 +63,7 @@ beforeAll(async () => {
 })
 
 afterEach(() => {
-  delete process.env.AUTH_SIGNUP_ENABLED
+  process.env.AUTH_SIGNUP_ENABLED = 'true'
 })
 
 describe('inviting', () => {

@@ -79,7 +79,7 @@ const githubAccountOf = async (userId: string) =>
 
 afterEach(() => {
   vi.unstubAllGlobals()
-  delete process.env.AUTH_SIGNUP_ENABLED
+  process.env.AUTH_SIGNUP_ENABLED = 'true'
 })
 
 describe('GitHub sign-in', () => {
