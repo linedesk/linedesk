@@ -94,7 +94,7 @@ front.example.com {
 | `TELEPHONY_PROVIDER`, carrier keys, `LIVEKIT_SIP_ENDPOINT` | Real phone numbers through a carrier: Telnyx by default, Twilio as the alternative; see `.env.example`. |
 | `LIVEKIT_SIP_ALLOWED_ADDRESSES` (default `telnyx twilio`) | Where LiveKit SIP takes calls from: carrier names (their published signaling addresses) and/or your own IPs and CIDR ranges, e.g. `telnyx 203.0.113.7` for a PBX of your own. `any` accepts calls from every address. Applied by `setup-sip`, so run it again after a change. |
 
-The API and agent containers read the rest of `.env` as is (sign-in methods, email, telephony, provider keys); only the addresses inside the stack are set by compose.
+The API container reads the rest of `.env` as is (sign-in methods, email, telephony, provider keys); only the addresses inside the stack are set by compose. The agent container does not read `.env`: it gets only the variables listed under `agent` in `docker-compose.yml` (its token, LiveKit, the speech, model and voice settings, the call test's numbers), so `SECRETS_KEY`, `BETTER_AUTH_SECRET`, the database password and carrier keys never reach the process that handles calls. A variable the agent should read must be added there; one-off agent commands that need carrier keys (`setup-test-caller`) get them on the command line (`docker compose run --rm -e TELNYX_API_KEY=<key> agent ...`).
 
 ### Ports
 

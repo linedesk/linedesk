@@ -70,6 +70,14 @@ const stages = {
 type StageKey = keyof typeof stages
 
 const modelEnv = { stt: 'STT_MODEL', llm: 'LLM_MODEL', tts: 'TTS_MODEL' } as const
+/** Every variable the speech, model and voice stages read; docker-compose.yml passes each to the agent container. */
+export const stageEnvVars = [
+  ...Object.values(stages).flatMap(spec => [spec.providerEnv, ...Object.values(spec.providers)]),
+  ...Object.values(modelEnv),
+  'SUMMARY_MODEL',
+  'TTS_VOICE_ID',
+  'LLM_BASE_URL',
+]
 /**
  * Models are lists, first one first: "primary, fallback, ...". Live turns need the fastest first token
  * (gemini-2.5-flash-lite about 0.6 s from the server, gpt-5.4-mini about 1.05 s); the summary is not

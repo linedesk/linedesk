@@ -177,8 +177,37 @@ services:
     <<: *service
     build: { context: ., target: agent }
     image: linedesk-agent
-    env_file: [{ path: .env, required: false }]
+    # Only what the agent needs, never the whole .env: no SECRETS_KEY, BETTER_AUTH_SECRET, DATABASE_URL,
+    # POSTGRES_PASSWORD, SMTP, OAuth or carrier keys reach the process that handles caller audio and LLM
+    # tool calls. A variable the agent should read must be listed here (apps/agent/src/compose-env.test.ts).
     environment:
+      AGENT_API_TOKEN: ${AGENT_API_TOKEN:-}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env (see .env.example)}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env (see .env.example)}
+      # Speech, language model and voice: set in Linedesk under Providers, or here (apps/agent/src/config.ts).
+      STT_PROVIDER: ${STT_PROVIDER:-}
+      STT_MODEL: ${STT_MODEL:-}
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      SUMMARY_MODEL: ${SUMMARY_MODEL:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      TTS_PROVIDER: ${TTS_PROVIDER:-}
+      TTS_MODEL: ${TTS_MODEL:-}
+      TTS_VOICE_ID: ${TTS_VOICE_ID:-}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      CARTESIA_API_KEY: ${CARTESIA_API_KEY:-}
+      # Where calls are recorded comes from the API (Providers > Recording storage, or the API's RECORDING_STORE and S3_*).
+      RECORDING_STORE: ${RECORDING_STORE:-}
+      # The call test (apps/agent/src/call-test.ts) and its on-call stand-in; empty on most installs.
+      CALL_TEST_FROM: ${CALL_TEST_FROM:-}
+      CALL_TEST_TO: ${CALL_TEST_TO:-}
+      CALL_TEST_ONCALL: ${CALL_TEST_ONCALL:-}
+      TEST_CALLER_VOICE_ID: ${TEST_CALLER_VOICE_ID:-}
+      AGENT_LOAD_THRESHOLD: ${AGENT_LOAD_THRESHOLD:-}
+      AGENT_INIT_TIMEOUT_MS: ${AGENT_INIT_TIMEOUT_MS:-}
       # Through the proxy, which retries while the API is updated (docker/Caddyfile), not to api:3100.
       LINEDESK_API_URL: http://proxy:3100
       LIVEKIT_URL: ws://livekit:7880
