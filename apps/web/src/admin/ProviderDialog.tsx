@@ -242,7 +242,7 @@ export function ProviderDialog(props: Props) {
       footer={footer}
     >
       {!canStore && provider.fields.length > 0 && (
-        <p className="k-note">Keys can't be saved yet: the server has no encryption key.</p>
+        <p className="k-note">No encryption key on the server, so keys can't be saved.</p>
       )}
       {presets.length > 0 && (
         <FormField label="Service" description={preset?.help}>

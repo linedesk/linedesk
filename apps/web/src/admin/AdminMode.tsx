@@ -168,7 +168,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
           <SkeletonRows label="Loading" />
         </div>
       )
-    if (place.id && !detailTitle) return <p className="adm-notice">Not found. It may have been removed.</p>
+    if (place.id && !detailTitle) return <p className="adm-notice">Not found.</p>
     switch (place.section) {
       case 'workspaces':
         return workspace ? (

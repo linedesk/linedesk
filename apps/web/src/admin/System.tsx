@@ -35,7 +35,6 @@ export function System() {
   return (
     <Card
       title="LiveKit"
-      description="Voice and phone calls."
       actions={
         <Button size="sm" variant="ghost" disabled={!status && !error} onClick={() => void check()}>
           {!status && !error ? 'Checking…' : 'Check again'}

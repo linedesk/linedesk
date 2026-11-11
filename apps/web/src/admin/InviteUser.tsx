@@ -76,7 +76,6 @@ export function InviteUser({ toast, reload }: Props) {
       {open && !confirmingAdmin && (
         <Dialog
           title="Invite user"
-          description="They sign in with this email and a one-time code."
           onClose={close}
           onSubmit={submit}
           size="sm"

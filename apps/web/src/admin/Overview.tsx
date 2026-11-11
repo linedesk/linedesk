@@ -6,7 +6,14 @@ import type { ReactNode } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { Button } from '../ui/kit.tsx'
 import { LoadProblem, Skeleton } from '../ui/LoadStates.tsx'
-import { ADMIN_HEALTH, type AdminHealth, type AdminOverview, loadHealth, loadOverview, type ServiceStatus } from './api.ts'
+import {
+  ADMIN_HEALTH,
+  type AdminHealth,
+  type AdminOverview,
+  loadHealth,
+  loadOverview,
+  type ServiceStatus,
+} from './api.ts'
 
 const money = (usd: number) => (usd < 0.01 && usd > 0 ? '< $0.01' : `$${usd.toFixed(2)}`)
 const count = (n: number) => n.toLocaleString('en-US')
@@ -114,7 +121,7 @@ function Costs({ overview }: { overview: AdminOverview }) {
   const total7d = overview.costs.reduce((sum, c) => sum + c.cost7d, 0)
   const totalMonth = overview.costs.reduce((sum, c) => sum + c.costMonth, 0)
   return (
-    <Card title="Providers" note="Estimated from list prices per call minute. Your bill is at each provider.">
+    <Card title="Providers" note="Estimated from list prices.">
       <div className="adm-scroll">
         <table className="adm-table">
           <thead>

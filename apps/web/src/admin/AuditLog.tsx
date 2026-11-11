@@ -184,7 +184,7 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
       </div>
       {error && <LoadProblem what="The audit log" message={error} onRetry={() => setFilter(f => ({ ...f }))} />}
       {!error && entries === null && <SkeletonRows label="Loading" />}
-      {entries && entries.length === 0 && <p className="adm-notice">Nothing here for these filters.</p>}
+      {entries && entries.length === 0 && <p className="adm-notice">No entries.</p>}
       {entries && entries.length > 0 && (
         <div className="adm-scroll">
           <table className="adm-table">

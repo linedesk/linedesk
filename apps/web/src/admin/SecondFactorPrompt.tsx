@@ -42,12 +42,10 @@ export function SecondFactorPrompt({ state, onExit }: Props) {
         <h1 id="adm-2fa-title">{setup ? 'Set up a passkey' : 'Confirm with passkey'}</h1>
         <p>
           {setup
-            ? 'The admin area needs a passkey. Add one under Account, Sign-in & security, then sign in with it.'
-            : 'The admin area needs a passkey sign-in in the last 12 hours.'}
+            ? 'Admin needs a passkey. Add one, then sign in with it.'
+            : 'Admin needs a passkey sign-in in the last 12 hours.'}
         </p>
-        {!setup && !passkeySupported() && (
-          <p>This browser can't use passkeys. Open Linedesk over https or on localhost.</p>
-        )}
+        {!setup && !passkeySupported() && <p>Passkeys need https or localhost.</p>}
         {error && (
           <div className="auth-error" role="alert">
             {error}
