@@ -9,9 +9,16 @@ import { Button, cx, Icon } from '../ui/kit.tsx'
 import { CopyButton, Foot, useStepKeys } from './Frame.tsx'
 import { carriers, formatNumber, forwardingDigits, phoneSetupInput, priceNote, type PhoneChoice } from './flow.ts'
 
-type Props = { status: PhoneSetupStatus; setupError: string | null; clearError: () => void; onBack: () => void; onNext: () => void }
+type Props = {
+  status: PhoneSetupStatus
+  setupError: string | null
+  clearError: () => void
+  onBack: () => void
+  onNext: () => void
+}
 
-const providerLabel = (provider: string | null) => (provider === 'twilio' ? 'Twilio' : provider === 'telnyx' ? 'Telnyx' : null)
+const providerLabel = (provider: string | null) =>
+  provider === 'twilio' ? 'Twilio' : provider === 'telnyx' ? 'Telnyx' : null
 
 export function PhoneStep(p: Props) {
   const number = useRows('phone_numbers')[0]
@@ -25,9 +32,9 @@ function Unavailable({ detail, onBack, onNext }: { detail: string | null; onBack
   return (
     <>
       <div className="ob-body">
-        <h1>Phone numbers aren't set up on this server yet.</h1>
-        <p className="ob-lede">Whoever runs your Linedesk needs to add a phone carrier first. Skip this step for now: you can connect a number later in Settings, and your assistant starts answering then.</p>
-        {detail && <p className="ob2-note">For admins: {detail}. Check Admin, System.</p>}
+        <h1>No phone carrier on this server yet.</h1>
+        <p className="ob-lede">Skip this for now and connect a number later in Settings.</p>
+        {detail && <p className="ob2-note">For admins: {detail}. Connect one in Admin, Providers.</p>}
       </div>
       <Foot onBack={onBack} onContinue={onNext} canContinue label="Skip for now" />
     </>
@@ -46,7 +53,10 @@ function Choose({ status, setupError, clearError, onBack }: Props) {
 
   // A rejection ends the wait; success shows up as the new phone_numbers row (this screen then unmounts).
   useEffect(() => {
-    if (setupError) { setSending(false); setConfirming(false) }
+    if (setupError) {
+      setSending(false)
+      setConfirming(false)
+    }
   }, [setupError])
 
   function send(choice: PhoneChoice) {
@@ -81,36 +91,88 @@ function Choose({ status, setupError, clearError, onBack }: Props) {
       <div className="ob-body">
         <h1>Which number should your assistant answer?</h1>
         <div className="k-radios" role="radiogroup" aria-label="Phone number">
-          <RadioCard name="ob-mode" checked={kind === 'existing'} onPick={() => pick('existing')} title={carrier ? `Use a number I have in ${carrier}` : 'Use a number I already have'}
-            description={carrier ? `A number already in your ${carrier} account.` : 'A number already in your carrier account.'} />
-          <RadioCard name="ob-mode" checked={kind === 'new'} onPick={() => pick('new')} title="Get a new number" description="A local number in the area code you pick." />
+          <RadioCard
+            name="ob-mode"
+            checked={kind === 'existing'}
+            onPick={() => pick('existing')}
+            title={carrier ? `Use a number I have in ${carrier}` : 'Use a number I already have'}
+            description={
+              carrier ? `A number already in your ${carrier} account.` : 'A number already in your carrier account.'
+            }
+          />
+          <RadioCard
+            name="ob-mode"
+            checked={kind === 'new'}
+            onPick={() => pick('new')}
+            title="Get a new number"
+            description="A local number in the area code you pick."
+          />
         </div>
-        {status.provider === 'dev' && kind === 'existing' && <p className="ob2-note">Development mode: no carrier is connected, so any number works and no real call reaches it.</p>}
+        {status.provider === 'dev' && kind === 'existing' && (
+          <p className="ob2-note">Development mode: any number works, nothing is called.</p>
+        )}
         {kind === 'existing' ? (
           <Field id="ob-number" label={carrier ? `Number in ${carrier}` : 'Number'}>
-            <TextInput id="ob-number" value={typed} onChange={v => { setTyped(v); setProblem(null); clearError() }} placeholder="+1 503 555 0142" />
+            <TextInput
+              id="ob-number"
+              value={typed}
+              onChange={v => {
+                setTyped(v)
+                setProblem(null)
+                clearError()
+              }}
+              placeholder="+1 503 555 0142"
+            />
           </Field>
         ) : (
           <>
             <Field id="ob-area" label="Area code">
-              <TextInput id="ob-area" value={areaCode} onChange={v => { setAreaCode(v.replace(/\D/g, '').slice(0, 3)); setConfirming(false); setProblem(null); clearError() }} placeholder="503" />
+              <TextInput
+                id="ob-area"
+                value={areaCode}
+                onChange={v => {
+                  setAreaCode(v.replace(/\D/g, '').slice(0, 3))
+                  setConfirming(false)
+                  setProblem(null)
+                  clearError()
+                }}
+                placeholder="503"
+              />
             </Field>
             <p className="ob2-note">{priceNote(status.provider)}</p>
             {confirming && (
               <div className="ob-prompt" role="alert">
                 <span>Buy a number in area code {areaCode}? It is billed every month until you release it.</span>
                 <span className="ob2-row">
-                  <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={sending}>Cancel</Button>
-                  <Button size="sm" variant="primary" disabled={sending} onClick={() => send({ kind: 'new', areaCode, confirmed: true })}>Buy number</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={sending}>
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    disabled={sending}
+                    onClick={() => send({ kind: 'new', areaCode, confirmed: true })}
+                  >
+                    Buy number
+                  </Button>
                 </span>
               </div>
             )}
           </>
         )}
-        {error && <p className="ob-error" role="alert">{error}</p>}
+        {error && (
+          <p className="ob-error" role="alert">
+            {error}
+          </p>
+        )}
       </div>
-      <Foot onBack={onBack} onContinue={primary} canContinue={!confirming} busy={sending}
-        label={sending ? 'Connecting…' : kind === 'existing' ? 'Connect number' : 'Get a number'} />
+      <Foot
+        onBack={onBack}
+        onContinue={primary}
+        canContinue={!confirming}
+        busy={sending}
+        label={sending ? 'Connecting…' : kind === 'existing' ? 'Connect number' : 'Get a number'}
+      />
     </>
   )
 }
@@ -125,15 +187,29 @@ function Connected({ number, onBack, onNext }: { number: PhoneNumber; onBack: ()
     <>
       <div className="ob-body">
         <h1>{forwards ? 'Forward the calls you miss.' : 'Your number is ready.'}</h1>
-        <div className="ob-prompt ok"><Icon name="check" size={16} /><span>Your assistant answers {formatNumber(number.e164)}.</span></div>
+        <div className="ob-prompt ok">
+          <Icon name="check" size={16} />
+          <span>Your assistant answers {formatNumber(number.e164)}.</span>
+        </div>
         {forwards && (
           <>
-            <p className="ob-lede">Keep your business number. When nobody picks up or the line is busy, your carrier forwards the call to your assistant.</p>
+            <p className="ob-lede">Keep your business number. Missed and busy calls go to your assistant.</p>
             <div className="field">
-              <span id="ob-carrier-l" className="ob-label">Your carrier</span>
+              <span id="ob-carrier-l" className="ob-label">
+                Your carrier
+              </span>
               <div className="ob2-chips" role="radiogroup" aria-labelledby="ob-carrier-l">
                 {carriers.map(c => (
-                  <button key={c.id} type="button" role="radio" aria-checked={c.id === carrierId} className={cx('ob2-seg', c.id === carrierId && 'on')} onClick={() => setCarrierId(c.id)}>{c.name}</button>
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={c.id === carrierId}
+                    className={cx('ob2-seg', c.id === carrierId && 'on')}
+                    onClick={() => setCarrierId(c.id)}
+                  >
+                    {c.name}
+                  </button>
                 ))}
               </div>
             </div>
@@ -141,7 +217,9 @@ function Connected({ number, onBack, onNext }: { number: PhoneNumber; onBack: ()
               <span>From your business phone, dial</span>
               <b>{code}</b>
               <CopyButton text={code} label="Copy code" />
-              <span>Turn it off any time with {carrier.off}. Other carriers: look up "conditional call forwarding".</span>
+              <span>
+                Turn it off any time with {carrier.off}. Other carriers: look up "conditional call forwarding".
+              </span>
             </div>
           </>
         )}

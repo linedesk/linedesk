@@ -1,10 +1,37 @@
 /* Onboarding: the .ob and .ob2 rules from the reference UI live in styles.css; these are the few additions. */
-.ob .k-input { height: 36px; }
-.ob .ta { min-height: 112px; }
-.ob-error { margin: 0; font-size: 12.5px; color: var(--danger); }
-.ob-prompt .ob2-row { flex: none; }
-.ob2-dial .ob2-row { font-size: 12.5px; color: var(--ink-muted); }
-.ob-sim { display: grid; gap: 8px; justify-items: start; padding: 14px; }
-.ob-sim code { font-family: var(--font-mono); font-size: 12.5px; overflow-wrap: anywhere; }
-.ob-label { font-size: 12.5px; font-weight: 500; }
-.ob2-dial > b { user-select: all; }
+.ob .k-input {
+  height: 36px;
+}
+.ob .ta {
+  min-height: 112px;
+}
+.ob-error {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--danger);
+}
+.ob-prompt .ob2-row {
+  flex: none;
+}
+.ob2-dial .ob2-row {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.ob-sim {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding: 14px;
+}
+.ob-sim code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.ob-label {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.ob2-dial > b {
+  user-select: all;
+}

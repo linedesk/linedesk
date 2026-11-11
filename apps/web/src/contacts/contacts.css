@@ -66,31 +66,152 @@
   }
 }
 
-/* New contact: a short form in the record panel. */
-.ct-new {
-  display: grid;
-  gap: 10px;
-}
-.ct-new > b {
-  font-size: 14px;
-  font-weight: 600;
-}
-.ct-new label {
-  display: grid;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--ink-muted);
-}
-.ct-new-problem {
-  color: var(--danger);
-  font-size: 12.5px;
-}
+/* New contact: the record panel with a short form. */
 .ct-new-acts {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
 }
-.cv-side .ct-delete {
-  margin-top: auto;
+/* The contact's record: header, Details and Calls cards on the page colour. Beside the list on wide
+   windows, full width (at reading width) below 1100 px. */
+.cv-side.ct-detail {
+  width: 400px;
+  padding: 0;
+  background: var(--bg);
+}
+.ct-detail-in {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+.ct-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.ct-back {
+  margin-left: -6px;
+}
+.ct-who {
+  flex: 1;
+  display: grid;
+  min-width: 0;
+}
+.ct-who b {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ct-who span {
+  font-size: 12.5px;
   color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.ct-acts {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.ct-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px 16px;
+}
+.ct-grid .ct-wide {
+  grid-column: 1 / -1;
+}
+.k-input.ct-readonly input {
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.ct-calls {
+  display: grid;
+  margin: -4px -8px;
+  padding: 0;
+  list-style: none;
+}
+.ct-call {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 12px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ct-call:hover {
+  background: var(--surface-hover);
+}
+.ct-call:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.ct-call b {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ct-call-meta {
+  grid-row: 2;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.ct-call-time {
+  grid-row: 1 / span 2;
+  align-self: center;
+  font-size: 12px;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+/* ⋯ menu */
+.ct-menu-wrap {
+  position: relative;
+}
+.ct-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 30;
+  min-width: 220px;
+  padding: 4px;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+}
+.ct-menu .nav-item .k-kbd {
+  margin-left: auto;
+}
+.ct-menu-danger {
+  color: var(--danger);
+}
+.ct-menu-danger:hover {
+  color: var(--danger);
+}
+.ct-menu-confirm {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  font-size: 13px;
+}
+.ct-menu-acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
 }

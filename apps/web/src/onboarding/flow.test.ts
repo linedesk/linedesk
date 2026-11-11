@@ -1,6 +1,17 @@
 import type { Call } from '@callfront/db/types'
 import { expect, test } from 'vitest'
-import { carriers, firstTestCall, formatNumber, forwardingDigits, nextStep, phoneSetupInput, previousStep, progress, renameInGreeting, toE164 } from './flow.ts'
+import {
+  carriers,
+  firstTestCall,
+  formatNumber,
+  forwardingDigits,
+  nextStep,
+  phoneSetupInput,
+  previousStep,
+  progress,
+  renameInGreeting,
+  toE164,
+} from './flow.ts'
 
 test('steps run business → phone → test call → done, and back', () => {
   expect(nextStep('business')).toBe('phone')
@@ -23,14 +34,20 @@ test('US numbers are read the way people type them', () => {
 })
 
 test('an existing number is attached and never bought', () => {
-  expect(phoneSetupInput({ kind: 'existing', number: '(503) 555-0142' })).toEqual({ input: { e164: '+15035550142', purchase: false } })
+  expect(phoneSetupInput({ kind: 'existing', number: '(503) 555-0142' })).toEqual({
+    input: { e164: '+15035550142', purchase: false },
+  })
   expect(phoneSetupInput({ kind: 'existing', number: '0142' })).toHaveProperty('problem')
 })
 
 test('a new number is only requested with purchase after the user confirmed the cost', () => {
-  expect(phoneSetupInput({ kind: 'new', areaCode: '503', confirmed: false })).toEqual({ problem: 'Confirm the monthly cost first.' })
+  expect(phoneSetupInput({ kind: 'new', areaCode: '503', confirmed: false })).toEqual({
+    problem: 'Confirm the monthly cost first.',
+  })
   expect(phoneSetupInput({ kind: 'new', areaCode: '50', confirmed: true })).toHaveProperty('problem')
-  expect(phoneSetupInput({ kind: 'new', areaCode: '503', confirmed: true })).toEqual({ input: { areaCode: '503', purchase: true, mode: 'new' } })
+  expect(phoneSetupInput({ kind: 'new', areaCode: '503', confirmed: true })).toEqual({
+    input: { areaCode: '503', purchase: true, mode: 'new' },
+  })
 })
 
 test('forwarding codes per carrier', () => {
@@ -43,7 +60,8 @@ test('forwarding codes per carrier', () => {
   ])
 })
 
-const call = (id: string, to: string, started_at: string, deleted_at: string | null = null) => ({ id, to_number: to, started_at, deleted_at }) as Call
+const call = (id: string, to: string, started_at: string, deleted_at: string | null = null) =>
+  ({ id, to_number: to, started_at, deleted_at }) as Call
 
 test('the test call is the first new call to one of our numbers', () => {
   const since = '2026-11-10T15:00:00.000Z'
@@ -59,7 +77,9 @@ test('the test call is the first new call to one of our numbers', () => {
 })
 
 test('renaming the assistant keeps the greeting in step', () => {
-  expect(renameInGreeting('Thanks for calling Brightwater. This is Maya, the AI assistant.', 'Maya', 'Ava')).toBe('Thanks for calling Brightwater. This is Ava, the AI assistant.')
+  expect(renameInGreeting('Thanks for calling Brightwater. This is Maya, the AI assistant.', 'Maya', 'Ava')).toBe(
+    'Thanks for calling Brightwater. This is Ava, the AI assistant.',
+  )
   expect(renameInGreeting('Hi, Mayan Plumbing here.', 'Maya', 'Ava')).toBe('Hi, Mayan Plumbing here.')
   expect(renameInGreeting('Hello', 'Maya', 'Maya')).toBe('Hello')
 })

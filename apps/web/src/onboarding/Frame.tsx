@@ -29,31 +29,72 @@ export function useStepKeys(keys: Keys) {
   }, [])
 }
 
-export function Frame({ step, complete, onSkip, children }: { step: OnboardingStep; complete: boolean; onSkip?: () => void; children: ReactNode }) {
+export function Frame({
+  step,
+  complete,
+  onSkip,
+  children,
+}: {
+  step: OnboardingStep
+  complete: boolean
+  onSkip?: () => void
+  children: ReactNode
+}) {
   const index = onboardingSteps.indexOf(step)
   return (
     <div className="ob" role="main" aria-label="Set up Linedesk">
       <div className="ob-top">
-        <span className="ws-mark"><Icon name="spark" size={13} /></span><b>Linedesk</b>
-        <span className="ob-count">Step {index + 1} of {onboardingSteps.length} · {stepLabels[step]}</span>
-        {onSkip && <Button size="sm" variant="ghost" onClick={onSkip}>Skip setup</Button>}
+        <span className="ws-mark">
+          <Icon name="spark" size={13} />
+        </span>
+        <b>Linedesk</b>
+        <span className="ob-count">
+          Step {index + 1} of {onboardingSteps.length} · {stepLabels[step]}
+        </span>
+        {onSkip && (
+          <Button size="sm" variant="ghost" onClick={onSkip}>
+            Skip setup
+          </Button>
+        )}
       </div>
-      <div className="ob-bar"><span style={{ width: `${progress(step, complete)}%` }} /></div>
+      <div className="ob-bar">
+        <span style={{ width: `${progress(step, complete)}%` }} />
+      </div>
       <div className="ob-main">{children}</div>
     </div>
   )
 }
 
-type FootProps = { onBack?: () => void; onContinue?: () => void; canContinue: boolean; label?: string; hint?: string; busy?: boolean }
+type FootProps = {
+  onBack?: () => void
+  onContinue?: () => void
+  canContinue: boolean
+  label?: string
+  hint?: string
+  busy?: boolean
+}
 
 export function Foot({ onBack, onContinue, canContinue, label = 'Continue', hint, busy }: FootProps) {
   return (
     <div className="ob-foot">
-      {onBack ? <Button variant="ghost" icon="left" onClick={onBack} title="Back (Esc)">Back</Button> : <span />}
+      {onBack ? (
+        <Button variant="ghost" icon="left" onClick={onBack} title="Back (Esc)">
+          Back
+        </Button>
+      ) : (
+        <span />
+      )}
       <div className="ob2-foot-r">
         {hint && <span className="ob2-hint">{hint}</span>}
         {onContinue && (
-          <Button variant="primary" shortcut={canContinue && !busy ? ['⏎'] : undefined} disabled={!canContinue || busy} onClick={onContinue}>{label}</Button>
+          <Button
+            variant="primary"
+            shortcut={canContinue && !busy ? ['⏎'] : undefined}
+            disabled={!canContinue || busy}
+            onClick={onContinue}
+          >
+            {label}
+          </Button>
         )}
       </div>
     </div>
@@ -68,9 +109,18 @@ export function CopyButton({ text, label = 'Copy' }: { text: string; label?: str
     const id = setTimeout(() => setState('idle'), 1600)
     return () => clearTimeout(id)
   }, [state])
-  const copy = () => navigator.clipboard.writeText(text).then(() => setState('copied'), () => setState('failed'))
+  const copy = () =>
+    navigator.clipboard.writeText(text).then(
+      () => setState('copied'),
+      () => setState('failed'),
+    )
   return (
-    <Button size="sm" icon={state === 'copied' ? 'check' : undefined} onClick={() => void copy()} aria-label={`${label} ${text}`}>
+    <Button
+      size="sm"
+      icon={state === 'copied' ? 'check' : undefined}
+      onClick={() => void copy()}
+      aria-label={`${label} ${text}`}
+    >
       {state === 'copied' ? 'Copied' : state === 'failed' ? 'Select it instead' : label}
     </Button>
   )

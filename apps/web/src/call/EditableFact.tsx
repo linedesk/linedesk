@@ -1,13 +1,18 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 
-type Props = { label: string; value: string | null; placeholder: string; onSave: (value: string | null) => void; multiline?: boolean }
+type Edit = { value: string | null; onSave: (value: string | null) => void; multiline?: boolean }
 
-/** A fact that reads as plain text and edits in place: Enter or leaving saves, Esc reverts. */
-export function EditableFact({ label, value, placeholder, onSave, multiline }: Props) {
+/**
+ * A field that saves itself: Enter or leaving saves, Esc reverts. Returns the props for the input or
+ * textarea. A value that changes by sync never overwrites what someone is typing.
+ */
+export function useInlineEdit({ value, onSave, multiline }: Edit) {
   const [draft, setDraft] = useState(value ?? '')
   /** The value when editing started; null while the field is not focused. */
   const editingFrom = useRef<string | null>(null)
-  useEffect(() => { if (editingFrom.current === null) setDraft(value ?? '') }, [value]) // never overwrite a field someone is typing in
+  useEffect(() => {
+    if (editingFrom.current === null) setDraft(value ?? '')
+  }, [value])
 
   function commit() {
     const untouched = draft === editingFrom.current
@@ -17,14 +22,29 @@ export function EditableFact({ label, value, placeholder, onSave, multiline }: P
     if (next !== (value ?? null)) onSave(next)
   }
   function onKeyDown(e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !(multiline && e.shiftKey)) { e.preventDefault(); e.currentTarget.blur() }
+    if (e.key === 'Enter' && !(multiline && e.shiftKey)) {
+      e.preventDefault()
+      e.currentTarget.blur()
+    }
     if (e.key === 'Escape') setDraft(editingFrom.current ?? value ?? '') // the app's key handler then blurs the field
   }
-  const props = {
-    className: 'fact-input', value: draft, placeholder, 'aria-label': label, onBlur: commit, onKeyDown,
-    onFocus: () => { editingFrom.current = draft },
+  return {
+    value: draft,
+    onBlur: commit,
+    onKeyDown,
+    onFocus: () => {
+      editingFrom.current = draft
+    },
     onChange: (e: { target: { value: string } }) => setDraft(e.target.value),
   }
+}
+
+type Props = Edit & { label: string; placeholder: string }
+
+/** A fact that reads as plain text and edits in place (the call view's contact panel). */
+export function EditableFact({ label, value, placeholder, onSave, multiline }: Props) {
+  const edit = useInlineEdit({ value, onSave, multiline })
+  const props = { className: 'fact-input', placeholder, 'aria-label': label, ...edit }
   return (
     <>
       <dt>{label}</dt>

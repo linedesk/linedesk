@@ -2,6 +2,7 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { toE164 } from '../onboarding/flow.ts'
 import { useRun } from '../store.tsx'
+import { Card, FormField, Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 
 type Props = {
@@ -40,50 +41,54 @@ export function NewContact({ existing, onAdded, onClose }: Props) {
   }
 
   return (
-    <aside className="cv-side cust-side" aria-label="New contact">
-      <form className="ct-new" onSubmit={submit}>
-        <b>New contact</b>
-        <label>
-          <span>Name</span>
-          <input
-            className="k-input"
-            value={name}
-            autoFocus
-            autoComplete="off"
-            onChange={e => setName(e.target.value)}
-          />
-        </label>
-        <label>
-          <span>Phone</span>
-          <input
-            className="k-input"
-            value={phone}
-            inputMode="tel"
-            autoComplete="off"
-            placeholder="+1 503 555 0142"
-            ref={phoneInput}
-            aria-invalid={!!problem}
-            aria-describedby={problem ? 'ct-new-phone-problem' : undefined}
-            onChange={e => {
-              setPhone(e.target.value)
-              setProblem(null)
-            }}
-          />
-        </label>
-        {problem && (
-          <span className="ct-new-problem" id="ct-new-phone-problem" role="alert">
-            {problem}
-          </span>
-        )}
-        <label>
-          <span>Company</span>
-          <input className="k-input" value={company} autoComplete="off" onChange={e => setCompany(e.target.value)} />
-        </label>
+    <aside className="cv-side cust-side ct-detail" aria-label="New contact">
+      <form className="ct-detail-in" onSubmit={submit} noValidate>
+        <header className="ct-head">
+          <div className="ct-who">
+            <b>New contact</b>
+          </div>
+        </header>
+        <Card className="ct-card">
+          <div className="ct-grid">
+            <FormField id="ct-new-name" label="Name">
+              <Input
+                id="ct-new-name"
+                value={name}
+                autoFocus
+                autoComplete="off"
+                onChange={e => setName(e.target.value)}
+              />
+            </FormField>
+            <FormField id="ct-new-phone" label="Phone" error={problem}>
+              <Input
+                id="ct-new-phone"
+                value={phone}
+                inputMode="tel"
+                autoComplete="off"
+                placeholder="+1 503 555 0142"
+                ref={phoneInput}
+                invalid={!!problem}
+                onChange={e => {
+                  setPhone(e.target.value)
+                  setProblem(null)
+                }}
+              />
+            </FormField>
+            <FormField id="ct-new-company" label="Company" aside="Optional">
+              <Input
+                id="ct-new-company"
+                value={company}
+                autoComplete="off"
+                onChange={e => setCompany(e.target.value)}
+              />
+            </FormField>
+          </div>
+        </Card>
         <div className="ct-new-acts">
-          <Button size="sm" variant="ghost" shortcut={['esc']} title="Close (esc)" onClick={onClose}>
+          <Button variant="ghost" shortcut={['esc']} title="Close (esc)" onClick={onClose}>
             Cancel
           </Button>
-          <Button size="sm" variant="primary" type="submit" shortcut={['⏎']} title="Add contact (⏎)">
+          <Button variant="primary" type="submit" shortcut={['⏎']} title="Add contact (⏎)">
             Add contact
           </Button>
         </div>

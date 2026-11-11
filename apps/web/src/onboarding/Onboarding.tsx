@@ -103,8 +103,8 @@ function Done({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
           {live
             ? `${name} answers ${formatNumber(number.e164)}. Every call lands in your inbox with a summary and the next step.`
             : number
-              ? `${formatNumber(number.e164)} is connected. ${name} starts answering once the voice service of this Linedesk is set up; whoever runs it can do that.`
-              : `One step left: connect a phone number. ${name} starts answering its calls, and every call lands in your inbox.`}
+              ? `${formatNumber(number.e164)} is connected. ${name} answers once the voice service is set up.`
+              : `One step left: connect a phone number in Settings.`}
         </p>
         {!number && (
           <p>

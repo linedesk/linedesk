@@ -19,7 +19,8 @@ import './form.css'
 
 type CardProps = {
   id?: string
-  title: ReactNode
+  /** Without a title the card has no header (a form that its page already names). */
+  title?: ReactNode
   /** One short line. Anything longer goes in `help`. */
   description?: ReactNode
   /** Secondary detail, behind a (?) next to the title. */
@@ -32,19 +33,23 @@ type CardProps = {
 
 /** A section of a settings page: a raised card with a title row. */
 export function Card({ id, title, description, help, actions, className, children }: CardProps) {
-  const headingId = id ? `${id}-h` : undefined
+  const headingId = id && title ? `${id}-h` : undefined
   return (
     <section id={id} className={cx('k-card', className)} aria-labelledby={headingId}>
-      <header className="k-card-head">
-        <div className="k-card-title">
-          <h2 id={headingId}>
-            {title}
-            {help && <HelpTip text={help} />}
-          </h2>
-          {description && <p>{description}</p>}
-        </div>
-        {actions && <div className="k-card-actions">{actions}</div>}
-      </header>
+      {(title || actions) && (
+        <header className="k-card-head">
+          <div className="k-card-title">
+            {title && (
+              <h2 id={headingId}>
+                {title}
+                {help && <HelpTip text={help} />}
+              </h2>
+            )}
+            {description && <p>{description}</p>}
+          </div>
+          {actions && <div className="k-card-actions">{actions}</div>}
+        </header>
+      )}
       {children}
     </section>
   )

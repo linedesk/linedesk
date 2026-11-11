@@ -1,8 +1,15 @@
 // Team: who is in the workspace, with which role, and who is invited. Owners and admins invite,
 // change roles and remove; members see the list read-only. Every change is a team.* action.
-import { type AssignableRole, assignableRoles, type TeamData, type TeamInvitation, type TeamMember } from '@callfront/actions'
+import {
+  type AssignableRole,
+  assignableRoles,
+  type TeamData,
+  type TeamInvitation,
+  type TeamMember,
+} from '@callfront/actions'
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import { Section } from '../settings/fields.tsx'
+import { FormField, Input } from '../ui/form.tsx'
 import { Select } from '../ui/controls.tsx'
 import { Avatar, Badge, Button } from '../ui/kit.tsx'
 import { teamApi } from './team-api.ts'
@@ -15,9 +22,29 @@ const roleHelp: Record<AssignableRole, string> = {
 
 type Run = (work: () => Promise<unknown>, done: string) => Promise<boolean>
 
-function RoleSelect({ value, label, onChange }: { value: AssignableRole; label: string; onChange: (role: AssignableRole) => void }) {
+function RoleSelect({
+  id,
+  value,
+  label,
+  onChange,
+  size = 'sm',
+}: {
+  id?: string
+  size?: 'sm' | 'md'
+  value: AssignableRole
+  label: string
+  onChange: (role: AssignableRole) => void
+}) {
   return (
-    <Select size="sm" align="end" value={value} label={label} onChange={onChange} options={assignableRoles.map(r => ({ value: r, label: roleLabel(r), description: roleHelp[r] }))} />
+    <Select
+      id={id}
+      size={size}
+      align="end"
+      value={value}
+      label={label}
+      onChange={onChange}
+      options={assignableRoles.map(r => ({ value: r, label: roleLabel(r), description: roleHelp[r] }))}
+    />
   )
 }
 
@@ -28,19 +55,42 @@ function MemberRow({ data, m, run }: { data: TeamData; m: TeamMember; run: Run }
     <div className="st-li st-member">
       <Avatar name={name} size={32} />
       <div className="st-member-t">
-        <b>{name}{m.userId === data.me && <Badge>You</Badge>}</b>
-        <span className="help">{m.email} · {joinedLabel(m.joinedAt)}</span>
+        <b>
+          {name}
+          {m.userId === data.me && <Badge>You</Badge>}
+        </b>
+        <span className="help">
+          {m.email} · {joinedLabel(m.joinedAt)}
+        </span>
       </div>
-      {canEditRole(data, m) && m.role !== 'owner'
-        ? <RoleSelect value={m.role} label={`Role for ${name}`} onChange={role => void run(() => teamApi.setRole(m.memberId, role), `${name} is now ${roleLabel(role).toLowerCase()}.`)} />
-        : <span className="help st-role">{roleLabel(m.role)}</span>}
-      {canRemove(data, m)
-        ? <Button size="sm" variant={confirming ? 'danger' : 'ghost'} icon={confirming ? undefined : 'trash'} aria-label={`Remove ${name}`} title={confirming ? 'They lose access at once' : `Remove ${name}`}
-            onBlur={() => setConfirming(false)}
-            onClick={() => (confirming ? void run(() => teamApi.remove(m.memberId), `${name} removed.`) : setConfirming(true))}>
-            {confirming ? 'Remove' : null}
-          </Button>
-        : data.canManage && <span className="st-rm-space" />}
+      {canEditRole(data, m) && m.role !== 'owner' ? (
+        <RoleSelect
+          value={m.role}
+          label={`Role for ${name}`}
+          onChange={role =>
+            void run(() => teamApi.setRole(m.memberId, role), `${name} is now ${roleLabel(role).toLowerCase()}.`)
+          }
+        />
+      ) : (
+        <span className="help st-role">{roleLabel(m.role)}</span>
+      )}
+      {canRemove(data, m) ? (
+        <Button
+          size="sm"
+          variant={confirming ? 'danger' : 'ghost'}
+          icon={confirming ? undefined : 'trash'}
+          aria-label={`Remove ${name}`}
+          title={confirming ? 'They lose access at once' : `Remove ${name}`}
+          onBlur={() => setConfirming(false)}
+          onClick={() =>
+            confirming ? void run(() => teamApi.remove(m.memberId), `${name} removed.`) : setConfirming(true)
+          }
+        >
+          {confirming ? 'Remove' : null}
+        </Button>
+      ) : (
+        data.canManage && <span className="st-rm-space" />
+      )}
     </div>
   )
 }
@@ -50,16 +100,41 @@ function InvitationRow({ invite, canManage, run }: { invite: TeamInvitation; can
     <div className="st-li st-member">
       <Avatar name={invite.email} size={32} />
       <div className="st-member-t">
-        <b>{invite.email}<Badge>{invite.expired ? 'Expired' : 'Invited'}</Badge></b>
-        <span className="help">Invited by {invite.invitedBy || 'a teammate'} · {invitationStatus(invite)}</span>
+        <b>
+          {invite.email}
+          <Badge>{invite.expired ? 'Expired' : 'Invited'}</Badge>
+        </b>
+        <span className="help" title={`Invited by ${invite.invitedBy || 'a teammate'}`}>
+          {invitationStatus(invite)}
+        </span>
       </div>
       <span className="help st-role">{roleLabel(invite.role)}</span>
       {canManage ? (
         <span className="team-inv-actions">
-          <Button size="sm" variant="ghost" title="Send the email again; the link works for another 7 days" onClick={() => void run(() => teamApi.resend(invite.invitationId), `Invitation sent again to ${invite.email}.`)}>Resend</Button>
-          <Button size="sm" variant="ghost" title="The link stops working" onClick={() => void run(() => teamApi.revoke(invite.invitationId), `Invitation for ${invite.email} revoked.`)}>Revoke</Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            title="Send the email again; the link works for another 7 days"
+            onClick={() =>
+              void run(() => teamApi.resend(invite.invitationId), `Invitation sent again to ${invite.email}.`)
+            }
+          >
+            Resend
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            title="The link stops working"
+            onClick={() =>
+              void run(() => teamApi.revoke(invite.invitationId), `Invitation for ${invite.email} revoked.`)
+            }
+          >
+            Revoke
+          </Button>
         </span>
-      ) : <span />}
+      ) : (
+        <span />
+      )}
     </div>
   )
 }
@@ -75,11 +150,37 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (te
     if (isOnTeam(data, address)) return toast(`${address} is already on the team or invited.`)
     if (await run(() => teamApi.invite(address, role), `Invitation sent to ${address}.`)) setEmail('')
   }
+  const [sending, setSending] = useState(false)
   return (
-    <form className="st-inline" onSubmit={submit}>
-      <label className="k-input"><input type="email" value={email} placeholder="name@business.com" aria-label="Invite by email" onChange={e => setEmail(e.target.value)} /></label>
-      <RoleSelect value={role} label="Role for the invited person" onChange={setRole} />
-      <Button type="submit" size="sm" variant="primary" disabled={!valid} title="Send the invitation (⏎)">Invite</Button>
+    <form
+      className="team-invite"
+      onSubmit={e => {
+        setSending(true)
+        void submit(e).finally(() => setSending(false))
+      }}
+    >
+      <FormField id="team-invite-email" label="Invite by email" className="team-invite-email">
+        <Input
+          id="team-invite-email"
+          type="email"
+          value={email}
+          placeholder="name@business.com"
+          autoComplete="off"
+          onChange={e => setEmail(e.target.value)}
+        />
+      </FormField>
+      <FormField id="team-invite-role" label="Role">
+        <RoleSelect
+          id="team-invite-role"
+          size="md"
+          value={role}
+          label="Role for the invited person"
+          onChange={setRole}
+        />
+      </FormField>
+      <Button type="submit" variant="primary" disabled={!valid || sending} title="Send the invitation (⏎)">
+        {sending ? 'Sending…' : 'Invite'}
+      </Button>
     </form>
   )
 }
@@ -87,7 +188,17 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (te
 export function TeamPage({ toast }: { toast: (text: string) => void }) {
   const [data, setData] = useState<TeamData | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const load = useCallback(() => teamApi.list().then(d => { setData(d); setError(null) }, (e: Error) => setError(e.message)), [])
+  const load = useCallback(
+    () =>
+      teamApi.list().then(
+        d => {
+          setData(d)
+          setError(null)
+        },
+        (e: Error) => setError(e.message),
+      ),
+    [],
+  )
   useEffect(() => void load(), [load])
 
   const run: Run = async (work, done) => {
@@ -103,18 +214,48 @@ export function TeamPage({ toast }: { toast: (text: string) => void }) {
     }
   }
 
-  if (!data) return <div className="page">{error && <div className="empty"><b>The team could not be loaded</b><span>{error}</span></div>}</div>
+  if (!data)
+    return (
+      <div className="page">
+        {error && (
+          <div className="empty">
+            <b>The team could not be loaded</b>
+            <span>{error}</span>
+          </div>
+        )}
+      </div>
+    )
   return (
     <div className="page">
       <div className="page-in st-page">
-        <div className="page-head"><div><h1>Team</h1><p>Everyone here can open calls and handle the inbox.</p></div></div>
-        <Section id="team-members" title="Members" description={data.canManage ? 'Admins can invite people, change roles and remove members. Members see this list.' : 'Only owners and admins can invite people or change roles.'}>
-          <div className="st-list">{data.members.map(m => <MemberRow key={m.memberId} data={data} m={m} run={run} />)}</div>
+        <div className="page-head">
+          <div>
+            <h1>Team</h1>
+            <p>Everyone here can open calls and handle the inbox.</p>
+          </div>
+        </div>
+        <Section
+          id="team-members"
+          title="Members"
+          description={data.canManage ? undefined : 'Only owners and admins can invite or change roles.'}
+          help="Admins change settings, invite and remove people. Members handle calls and contacts."
+        >
+          <div className="st-list">
+            {data.members.map(m => (
+              <MemberRow key={m.memberId} data={data} m={m} run={run} />
+            ))}
+          </div>
         </Section>
         {(data.canManage || data.invitations.length > 0) && (
-          <Section id="team-invites" title="Invitations" description="Invited people join when they open the link in their email. Links work for 7 days.">
+          <Section id="team-invites" title="Invitations" description="Links in the email work for 7 days.">
             {data.invitations.length === 0 && <p className="help">No pending invitations.</p>}
-            {data.invitations.length > 0 && <div className="st-list">{data.invitations.map(i => <InvitationRow key={i.invitationId} invite={i} canManage={data.canManage} run={run} />)}</div>}
+            {data.invitations.length > 0 && (
+              <div className="st-list">
+                {data.invitations.map(i => (
+                  <InvitationRow key={i.invitationId} invite={i} canManage={data.canManage} run={run} />
+                ))}
+              </div>
+            )}
             {data.canManage && <InviteForm data={data} run={run} toast={toast} />}
           </Section>
         )}
