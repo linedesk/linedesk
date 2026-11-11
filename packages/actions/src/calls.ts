@@ -146,6 +146,8 @@ export type CallTestFinding = {
     recording_key: string | null
     duration_sec: number | null
     action_items: number
+    /** How a warm transfer during the call went (call.transfer); null: no transfer. */
+    transfer_result?: string | null
   } | null
   turns: { caller: number; agent: number; system: number }
   /** The transcript in order; `at_ms` is when each line was written, from the start of the call. */

@@ -1,5 +1,5 @@
-// Assistant settings: name, greeting, AI disclosure, voice, the business's instructions, call rules and
-// the calendar, one section at a time (#assistant/<id>/<section>). Edits in the text sections are one local
+// Assistant settings: name, greeting, AI disclosure, voice, the business's instructions, call rules,
+// transfer of urgent calls and the calendar, one section at a time (#assistant/<id>/<section>). Edits in the text sections are one local
 // draft: Save runs assistant.update through the outbox; a section with unsaved
 // changes keeps a dot in the nav while you look at another one.
 import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX } from '@linedesk/actions'
@@ -23,26 +23,29 @@ import {
   keptDraft,
   mergeDraft,
   normalized,
+  onCallProblem,
   profileOf,
   spokenLength,
   staleGreetingName,
+  transferToSave,
   withDisclosure,
   withoutDisclosure,
 } from './assistantDraft.ts'
 import { AssistantHeader } from './AssistantHeader.tsx'
 import { CalendarSettings } from './Calendar.tsx'
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
-import { Field, Section, SwitchRow, TextArea } from './fields.tsx'
+import { Field, Section, SwitchRow, TextArea, TextInput } from './fields.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { VoiceSettings } from './VoiceSettings.tsx'
 import { TestCallBar, TestCallButton, useTestCall } from './TestCall.tsx'
 
-type SectionId = 'greeting' | 'voice' | 'instructions' | 'rules' | 'calendar'
+type SectionId = 'greeting' | 'voice' | 'instructions' | 'rules' | 'transfer' | 'calendar'
 const sections: readonly PageSection<SectionId>[] = [
   { id: 'greeting', label: 'Greeting', description: 'First sentence, AI disclosure' },
   { id: 'voice', label: 'Voice', description: 'How the assistant sounds' },
   { id: 'instructions', label: 'Instructions', description: 'What the assistant knows about the business' },
   { id: 'rules', label: 'Call rules', description: 'How calls are handled' },
+  { id: 'transfer', label: 'Transfer', description: 'Urgent calls to your on-call phone' },
   { id: 'calendar', label: 'Calendar', description: 'Accounts, calendars and appointment types' },
 ]
 /** Which draft fields each section holds; the calendar has its own. */
@@ -51,6 +54,7 @@ const sectionFields: Record<Exclude<SectionId, 'calendar'>, (keyof Draft)[]> = {
   voice: ['voice'],
   instructions: ['instructions', 'instructions_outside'],
   rules: ['call_rules'],
+  transfer: ['transfer_urgent', 'transfer_number', 'transfer_hours_only'],
 }
 
 type SectionProps = { draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void }
@@ -217,6 +221,38 @@ function CallRules({ draft, set }: SectionProps) {
   )
 }
 
+function Transfer({ draft, set, hoursOn }: SectionProps & { hoursOn: boolean }) {
+  const problem = onCallProblem(draft)
+  return (
+    <Section
+      id="as-transfer"
+      title="Transfer"
+      help="The on-call phone hears who is calling and why, and takes the call with 1 or yes. No answer in 25 seconds: a message, marked urgent."
+    >
+      <SwitchRow title="Transfer urgent calls" on={draft.transfer_urgent} onChange={on => set('transfer_urgent', on)} />
+      <Field id="as-oncall" label="On-call number" error={problem}>
+        <TextInput
+          id="as-oncall"
+          value={draft.transfer_number}
+          onChange={v => set('transfer_number', v)}
+          placeholder="+1 503 555 0142"
+          invalid={!!problem}
+        />
+        <span className="help">US mobile or landline.</span>
+      </Field>
+      {hoursOn ? (
+        <SwitchRow
+          title="Only during business hours"
+          on={draft.transfer_hours_only}
+          onChange={on => set('transfer_hours_only', on)}
+        />
+      ) : (
+        <span className="help">Any time (no business hours set).</span>
+      )}
+    </Section>
+  )
+}
+
 type Props = { canEdit: boolean; toast: (text: string) => void }
 
 type FormProps = Props & {
@@ -267,6 +303,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     e.preventDefault()
     // The greeting shows its error under the field: go there instead of a toast that outlives the fix.
     if (!draft.greeting.trim()) return goTo('greeting', 'as-greet')
+    if (onCallProblem(draft)) return goTo('transfer', 'as-oncall')
     const problem = draftProblem(draft)
     if (problem) return toast(problem)
     if (dirty) {
@@ -279,6 +316,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         business_profile: profileOf(clean),
         call_rules: callRulesToSave(clean),
         ...outsideToSave(clean),
+        ...transferToSave(clean),
         voice: clean.voice,
       })
       setDraft(clean) // the form shows what was saved, so it is not "dirty" any more
@@ -324,6 +362,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
           )}
           {current === 'instructions' && <Instructions draft={draft} set={set} hoursOn={hoursOn} />}
           {current === 'rules' && <CallRules draft={draft} set={set} />}
+          {current === 'transfer' && <Transfer draft={draft} set={set} hoursOn={hoursOn} />}
         </fieldset>
         {current === 'calendar' && <CalendarSettings assistant={assistant} canEdit={canEdit} toast={toast} />}
         {canEdit && <SaveBar dirty={changed} onCancel={cancel} note={note} />}

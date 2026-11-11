@@ -1,6 +1,7 @@
 import { CALL_RULES_MAX } from './assistant-prompt.ts'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
+import { onCallNumber } from './transfer.ts'
 import { voiceId } from './voices.ts'
 
 const defined = <T extends object>(o: T) =>
@@ -137,7 +138,7 @@ export const INSTRUCTIONS_MAX = 20_000
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
-    'Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` and `instructions_outside` are used outside business hours when the workspace uses them (null: the same as during hours).',
+    'Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` and `instructions_outside` are used outside business hours when the workspace uses them (null: the same as during hours). `transfer_urgent` puts urgent calls through to `transfer_number` (a US number in E.164), only while the business is open when `transfer_hours_only`.',
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().min(1).optional(),
@@ -149,6 +150,10 @@ export const assistantUpdate = defineAction({
     greeting_outside: z.string().nullable().optional(),
     instructions_outside: z.string().max(INSTRUCTIONS_MAX).nullable().optional(),
     record_calls: z.boolean().optional(),
+    transfer_urgent: z.boolean().optional(),
+    /** null: no on-call number (transfer stays off). */
+    transfer_number: onCallNumber.nullable().optional(),
+    transfer_hours_only: z.boolean().optional(),
     /** An empty voice_id: the provider's default voice. */
     voice: z.object({ provider: z.string(), voice_id: z.union([z.literal(''), voiceId]) }).optional(),
     business_profile: z

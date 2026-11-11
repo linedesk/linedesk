@@ -55,12 +55,16 @@ function hoursContext(hours: BusinessHours | null | undefined): string | null {
 }
 
 const MESSAGES_ONLY = 'You can do two things for the caller: save a message for the team with take_message, and flag the call as urgent with flag_urgent. You cannot book appointments, transfer calls, send anyone out or look anything up.'
+const MESSAGES_AND_TRANSFER = 'You can do three things for the caller: save a message for the team with take_message, flag the call as urgent with flag_urgent, and put an urgent caller through to the on-call person with transfer_call. You cannot book appointments, send anyone out or look anything up.'
+
+/** How to put an urgent caller through; only when the assistant transfers urgent calls right now. */
+export const TRANSFER_INSTRUCTIONS = "Urgent calls go to a person: this comes before the rules above, and applies while the office is closed too. For an emergency that needs a person right now (the instructions and rules above say what counts as one), do not take a message first: as soon as you know the caller's name and what happened, use transfer_call. Call it without saying anything yourself: it tells the caller that you are connecting them. Never transfer a call that is not urgent. Only if transfer_call says nobody took the call, tell the caller you could not reach anyone right now, take a message with how to reach them, and say the team will call back as soon as possible; the call is already flagged as urgent."
 
 /**
  * Booking: the types and the calendars with the owner's notes on when to use each. The model picks
  * the calendar; the API checks it is one of the assistant's.
  */
-export function bookingInstructions(booking: BookingContext): string {
+export function bookingInstructions(booking: BookingContext, transfer = false): string {
   const needs = (fields: string[]) => (fields.length ? `; before booking also ask for: ${fields.join(', ')}` : '')
   const types = booking.appointmentTypes.map(t => `- ${t.name} (${t.duration_min} minutes), id ${t.id}${needs(t.required_fields)}`).join('\n')
   const upcoming = booking.upcoming.map(b => `- ${b.title ?? 'Appointment'}, ${b.label}, booking id ${b.id}`).join('\n')
@@ -68,7 +72,9 @@ export function bookingInstructions(booking: BookingContext): string {
     .map(c => `- ${c.name}, id ${c.id}: ${c.instruction.trim() || (c.is_default ? 'use when no other calendar fits' : 'no note')}${c.is_default ? ' (default)' : ''}`)
     .join('\n')
   return [
-    'You can do three things for the caller: book an appointment, save a message for the team with take_message, and flag the call as urgent with flag_urgent. You cannot transfer calls or look anything else up.',
+    transfer
+      ? 'You can do four things for the caller: book an appointment, save a message for the team with take_message, flag the call as urgent with flag_urgent, and put an urgent caller through to the on-call person with transfer_call. You cannot look anything else up.'
+      : 'You can do three things for the caller: book an appointment, save a message for the team with take_message, and flag the call as urgent with flag_urgent. You cannot transfer calls or look anything else up.',
     `Today is ${booking.today} (${booking.todayDate}, time zone ${booking.timeZone}).`,
     `Appointment types:\n${types}`,
     `Calendars, with when to use each:\n${calendars}`,
@@ -84,7 +90,8 @@ export function bookingInstructions(booking: BookingContext): string {
   ].filter(Boolean).join('\n\n')
 }
 
-export function buildInstructions(assistant: Assistant | null, hours?: BusinessHours | null, booking?: BookingContext | null): string {
+/** `transfer`: the assistant puts urgent calls through to the on-call phone on this call (see transferNumberFor). */
+export function buildInstructions(assistant: Assistant | null, hours?: BusinessHours | null, booking?: BookingContext | null, transfer = false): string {
   const name = assistant?.name ?? 'the assistant'
   const knowledge = assistant ? businessKnowledge(assistant) : ''
   return [
@@ -92,11 +99,12 @@ export function buildInstructions(assistant: Assistant | null, hours?: BusinessH
     'Speak English only. If the caller speaks another language, say in English that you can only help in English and offer to take a message.',
     assistant?.greeting ? `You have already opened the call with: "${assistant.greeting}" Do not repeat it.` : null,
     'You are an AI assistant. Whenever the caller asks whether you are a person, a robot or an AI, say truthfully that you are an AI assistant. Never claim to be human.',
-    booking ? bookingInstructions(booking) : MESSAGES_ONLY,
+    booking ? bookingInstructions(booking, transfer) : transfer ? MESSAGES_AND_TRANSFER : MESSAGES_ONLY,
     hoursContext(hours),
     'Only state facts about the business that are given below; if you do not know something, say so and offer to take a message.',
     knowledge ? `What the business wants you to know:\n${knowledge}` : null,
     `How to handle calls:\n${callRulesOf(assistant?.call_rules)}`,
+    transfer ? TRANSFER_INSTRUCTIONS : null,
     'When you use a tool, say your reply in the same response as the tool call instead of waiting for its result: the caller should never wait in silence.',
     'Use take_message once per call, when you have what the team needs; do not save the same request twice.',
     'When the caller has nothing else, say goodbye briefly. After the caller has said goodbye too, say a short goodbye and use end_call in the same response; never keep talking after both of you said goodbye.',

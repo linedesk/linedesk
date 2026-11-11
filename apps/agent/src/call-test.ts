@@ -16,8 +16,8 @@ import { CALLEE_IDENTITY } from './test-caller/caller.ts'
 import { type AgentSetup, LATENCY_ATTRIBUTE, type LatencySample, SETUP_ATTRIBUTE } from './test-caller/latency.ts'
 import { evaluateCall, formatReport, greetingCheck } from './test-caller/report.ts'
 import { waitForFinishedCall } from './test-caller/wait.ts'
-import { isScenario, scenarioNames, scenarios, type CallTestMode, type Scenario, type ScenarioName, type TestCallerMetadata } from './test-caller/scenarios.ts'
-import { findOutboundTrunk, sipClient } from './test-caller/trunk.ts'
+import { isScenario, phoneRefused, scenarioNames, scenarios, type CallTestMode, type Scenario, type ScenarioName, type TestCallerMetadata } from './test-caller/scenarios.ts'
+import { findOutboundTrunk, sipClient } from './sip-trunks.ts'
 
 /** A hard cap on a call, on top of the caller's own two minutes. */
 const MAX_CALL_SEC = 150
@@ -61,8 +61,8 @@ async function startInRoom({ name, room, to, since, api }: Run) {
   const { workspaceId } = (await api.run(callFindForTest, { to, since, room })).data as CallTestFinding
   const dispatch = dispatcher()
   const caller: TestCallerMetadata = { source: 'test-caller', scenario: name, mode: 'room' }
-  const { businessHours, outsideGreeting } = scenarios[name] as Scenario
-  const metadata = { source: 'test', workspaceId, ...(businessHours ? { businessHours } : {}), ...(outsideGreeting ? { outsideGreeting } : {}) }
+  const { businessHours, outsideGreeting, onCall } = scenarios[name] as Scenario
+  const metadata = { source: 'test', workspaceId, ...(businessHours ? { businessHours } : {}), ...(outsideGreeting ? { outsideGreeting } : {}), ...(onCall ? { onCall } : {}) }
   await dispatch.createDispatch(room, AGENT_NAME, { metadata: JSON.stringify(metadata) })
   await dispatch.createDispatch(room, AGENT_NAME, { metadata: JSON.stringify(caller) })
   console.log(`Test call in room ${room} with workspace ${workspaceId} (scenario ${name}, no phone)…`)
@@ -87,6 +87,8 @@ async function main() {
   const name = args.find(a => !a.startsWith('--')) ?? ''
   if (!isScenario(name)) throw new Error(`usage: call-test <scenario> [--phone] [--expect-recording] [--cancel-booking]; scenarios: ${scenarioNames.join(', ')}`)
   const mode: CallTestMode = args.includes('--phone') ? 'phone' : 'room'
+  // A transfer scenario over the phone would page a real on-call phone: only with the simulated person.
+  if (mode === 'phone' && phoneRefused(scenarios[name])) throw new Error(`${name} runs without a phone only (a simulated on-call person answers); --phone is refused`)
   const { CALL_TEST_TO: to } = requireEnv(['CALL_TEST_TO'])
   const from = mode === 'phone' ? requireEnv(['CALL_TEST_FROM']).CALL_TEST_FROM : undefined
   const run: Run = { name, mode, to, room: `call-test-${crypto.randomUUID().slice(0, 8)}`, since: new Date().toISOString(), api: apiClientFromEnv() }

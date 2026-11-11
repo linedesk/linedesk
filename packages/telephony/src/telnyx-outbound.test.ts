@@ -1,6 +1,6 @@
 // Telnyx outbound setup against mocked HTTP: only objects named for the call test are touched.
 import { describe, expect, test } from 'vitest'
-import { createTelnyxOutbound, sipUserName } from './index.ts'
+import { createTelnyxOutbound, sipUserName, transferOutboundSipFromEnv } from './index.ts'
 
 type Call = { method: string; path: string; body?: Record<string, unknown> }
 type Account = {
@@ -30,6 +30,7 @@ function mockTelnyx(account: Account) {
       return ok(account.connections.at(-1))
     }
     if (method === 'PATCH' && path.startsWith('/credential_connections/')) return ok({ id: path.split('/')[2] })
+    if (method === 'PATCH' && path.startsWith('/outbound_voice_profiles/')) return ok({ id: path.split('/')[2] })
     if (method === 'GET' && path.startsWith('/phone_numbers?')) return ok(account.numbers.filter(n => path.endsWith(n.phone_number)))
     if (method === 'PATCH' && path.startsWith('/phone_numbers/')) {
       const number = account.numbers.find(n => path.endsWith(n.id))!
@@ -38,7 +39,7 @@ function mockTelnyx(account: Account) {
     }
     return Response.json({ errors: [{ detail: `no mock for ${method} ${path}` }] }, { status: 404 })
   }
-  return { outbound: createTelnyxOutbound({ apiKey: 'KEY', fetch: fakeFetch }), calls }
+  return { outbound: createTelnyxOutbound({ apiKey: 'KEY', fetch: fakeFetch }), calls, fetch: fakeFetch }
 }
 
 const freshAccount = (): Account => ({
@@ -65,7 +66,7 @@ describe('telnyx outbound for the call test', () => {
     const { outbound, calls } = mockTelnyx(account)
     const again = await outbound.ensureOutboundSip(CALLER)
     expect(calls.filter(c => c.method === 'POST')).toEqual([])
-    expect(calls.find(c => c.method === 'PATCH')).toMatchObject({ path: '/credential_connections/conn_test', body: { password: again.password } })
+    expect(calls.find(c => c.method === 'PATCH' && c.path.startsWith('/credential_connections'))).toMatchObject({ path: '/credential_connections/conn_test', body: { password: again.password } })
   })
 
   test('never touches objects with another name, such as the connection of another business', async () => {
@@ -79,6 +80,37 @@ describe('telnyx outbound for the call test', () => {
   test('refuses a caller number that is missing or serves another connection', async () => {
     await expect(mockTelnyx(freshAccount()).outbound.ensureOutboundSip('+19715550000')).rejects.toThrow('+19715550000 is not in the Telnyx account')
     await expect(mockTelnyx(freshAccount()).outbound.ensureOutboundSip('+15035550100')).rejects.toThrow('+15035550100 is attached to another connection')
+  })
+
+  test('warm transfer: its own connection "linedesk-outbound", no number attached to it', async () => {
+    const account = freshAccount()
+    const { calls, fetch } = mockTelnyx(account)
+    const sip = await transferOutboundSipFromEnv({ TELEPHONY_PROVIDER: 'telnyx', TELNYX_API_KEY: 'KEY' }, fetch)
+    expect(sip).toMatchObject({ address: 'sip.telnyx.com', username: 'cflinedeskoutbound' })
+    expect(calls.find(c => c.method === 'POST' && c.path === '/credential_connections')?.body).toMatchObject({ connection_name: 'linedesk-outbound' })
+    expect(calls.filter(c => c.path.startsWith('/phone_numbers'))).toEqual([])
+    expect(account.numbers.map(n => n.connection_id)).toEqual([null, 'conn_other'])
+  })
+
+  test('warm transfer needs Telnyx for now', async () => {
+    await expect(transferOutboundSipFromEnv({ TELEPHONY_PROVIDER: 'twilio' })).rejects.toThrow(/Telnyx only/)
+    await expect(transferOutboundSipFromEnv({})).rejects.toThrow(/Telnyx only/)
+    await expect(transferOutboundSipFromEnv({ TELEPHONY_PROVIDER: 'telnyx' })).rejects.toThrow('TELNYX_API_KEY is not set')
+  })
+
+  test('the voice profile is US-only: created with the US plan, and an existing one is put back to US-only', async () => {
+    const account = freshAccount()
+    const first = mockTelnyx(account)
+    await first.outbound.ensureOutboundSip(CALLER)
+    expect(first.calls.find(c => c.method === 'POST' && c.path === '/outbound_voice_profiles')?.body).toMatchObject({ service_plan: 'us', whitelisted_destinations: ['US'] })
+    expect(JSON.stringify(first.calls)).not.toContain('global')
+    const again = mockTelnyx(account)
+    await again.outbound.ensureOutboundSip(CALLER)
+    expect(again.calls.find(c => c.method === 'PATCH' && c.path === '/outbound_voice_profiles/ovp_1')?.body).toEqual({ service_plan: 'us', whitelisted_destinations: ['US'] })
+  })
+
+  test('refuses to manage objects not named linedesk-*', () => {
+    expect(() => createTelnyxOutbound({ apiKey: 'KEY', name: 'OtherCo' })).toThrow(/only objects named linedesk-/)
   })
 
   test('SIP user names fit Telnyx rules', () => {

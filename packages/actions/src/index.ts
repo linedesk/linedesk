@@ -11,6 +11,7 @@ import * as onboarding from './onboarding.ts'
 import * as sample from './sample.ts'
 import * as settings from './settings.ts'
 import * as team from './team.ts'
+import * as transfer from './transfer.ts'
 import * as voices from './voices.ts'
 import * as webhooks from './webhooks.ts'
 
@@ -31,6 +32,7 @@ export * from './openapi.ts'
 export * from './sample.ts'
 export * from './settings.ts'
 export * from './team.ts'
+export * from './transfer.ts'
 export * from './voices.ts'
 export * from './webhooks.ts'
 
@@ -55,6 +57,7 @@ const all = [
   calls.callStartTest,
   calls.callFindForTest,
   calls.callSetRecording,
+  transfer.callTransfer,
   settings.contactUpdate,
   settings.contactBlock,
   settings.contactUnblock,

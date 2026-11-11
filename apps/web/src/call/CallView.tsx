@@ -1,6 +1,6 @@
 import type { Call, TranscriptSegment } from '@linedesk/db/types'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { answeredByLabel, type CallStatus, callStatus, callTitle, formatPhone, hasReminder, STATUS_WORD } from '../inbox-model.ts'
+import { answeredByLabel, type CallStatus, callStatus, callTitle, formatPhone, hasReminder, STATUS_WORD, transferText } from '../inbox-model.ts'
 import { useCallAssistantName, useContact, useRun } from '../store.tsx'
 import { useTeamMembers } from '../team/useTeamMembers.ts'
 import { Select } from '../ui/controls.tsx'
@@ -220,6 +220,7 @@ function Header({ call, segments, repeatCount }: { call: Call; segments: Transcr
           <CopyNumber number={formatPhone(call.from_number)} />
           {repeatCount > 1 && <span>{repeatCount} calls from this number</span>}
           {hasReminder(call) && <span>Reminder: {whenLabel(parseTs(call.reminder_at!))}</span>}
+          {transferText(call) && <span className="cv-transfer">{transferText(call)}</span>}
           <Assignee call={call} />
         </div>
       </div>

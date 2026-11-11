@@ -173,3 +173,55 @@ test('after call.start the agent has to name the workspace of the call', async (
   expect(res).toMatchObject({ status: 409, body: { error: 'no workspace (send x-workspace-id)' } })
   expect((await getCall(body.data.callId))?.status).toBe('live')
 })
+
+test('call.transfer records the number and the result and makes the call urgent; members cannot write it', async () => {
+  const { body } = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
+  const callId: string = body.data.callId
+  const refused = await act(ws.owner, 'call.transfer', { callId, to: '+15035550199', result: 'connected' })
+  expect(refused.status).toBe(403)
+  const premium = await act(agent(ws.id), 'call.transfer', { callId, to: '+19005550199', result: 'connected' })
+  expect(premium.status).toBe(422)
+
+  const res = await act(agent(ws.id), 'call.transfer', { callId, to: '+15035550199', result: 'not_answered' })
+  expect(res.status).toBe(200)
+  expect(await getCall(callId)).toMatchObject({ transfer_to: '+15035550199', transfer_result: 'not_answered', urgency: 'urgent', status: 'live' })
+})
+
+test('call.transfer limits per workspace: one leg at a time, six started an hour', async () => {
+  const limited = await createWorkspace('Limited Plumbing')
+  const startCall = async () => (await act(agent(), 'call.start', { from: randomNumber(), to: limited.number })).body.data.callId as string
+  const transfer = (callId: string, result: string) => act(agent(limited.id), 'call.transfer', { callId, to: '+15035550199', result })
+
+  const first = await startCall()
+  expect((await transfer(first, 'dialing')).status).toBe(200)
+  expect(await getCall(first)).toMatchObject({ transfer_result: 'dialing', urgency: 'urgent' })
+  expect((await getCall(first))?.transfer_at).not.toBeNull()
+  const second = await startCall()
+  expect(await transfer(second, 'dialing')).toMatchObject({ status: 409, body: { error: 'another transfer of this workspace is in progress' } })
+  await transfer(first, 'connected')
+  expect((await transfer(second, 'dialing')).status).toBe(409) // a connected leg still counts
+  await transfer(first, 'not_answered')
+  expect((await transfer(second, 'dialing')).status).toBe(200)
+  await transfer(second, 'declined')
+  // Another workspace is not affected.
+  const elsewhere = (await act(agent(), 'call.start', { from: randomNumber(), to: other.number })).body.data.callId
+  expect((await act(agent(other.id), 'call.transfer', { callId: elsewhere, to: '+15035550199', result: 'dialing' })).status).toBe(200)
+
+  for (let i = 0; i < 4; i++) {
+    const callId = await startCall()
+    expect((await transfer(callId, 'dialing')).status).toBe(200)
+    await transfer(callId, 'not_answered')
+  }
+  const seventh = await startCall()
+  expect(await transfer(seventh, 'dialing')).toMatchObject({ status: 409, body: { error: 'transfer limit reached: 6 an hour' } })
+})
+
+test('assistant.update stores the transfer settings; an invalid on-call number is refused', async () => {
+  const assistantId = ws.assistant.id
+  const ok = await act(ws.owner, 'assistant.update', { assistantId, transfer_urgent: true, transfer_number: '+15035550199', transfer_hours_only: true })
+  expect(ok.body.rows.assistants).toMatchObject([{ transfer_urgent: true, transfer_number: '+15035550199', transfer_hours_only: true }])
+  const bad = await act(ws.owner, 'assistant.update', { assistantId, transfer_number: '503-555-0199' })
+  expect(bad.status).toBe(422)
+  const started = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
+  expect(started.body.data.assistant).toMatchObject({ transfer_urgent: true, transfer_number: '+15035550199', transfer_hours_only: true })
+})

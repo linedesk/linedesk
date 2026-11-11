@@ -1,7 +1,9 @@
 // Outbound calls through Telnyx for LiveKit SIP: a credential connection LiveKit registers against,
-// with an outbound voice profile, and the caller-ID number attached to it. Used by the phone-to-phone
-// call test. Only objects with this file's names are created or changed; other connections in the
-// account (for example one that serves another product) are never touched.
+// with an outbound voice profile. Used by the phone-to-phone call test (named "linedesk-test-caller",
+// with its caller-ID number attached) and by warm transfers ("linedesk-outbound", no number attached:
+// each transfer shows the business's own Linedesk number, which stays on its inbound connection).
+// Only objects with the given name are created or changed; other connections in the account (for
+// example one that serves another product) are never touched.
 import { randomBytes } from 'node:crypto'
 import { TelephonyError } from './provider.ts'
 import { telnyxRequest } from './telnyx.ts'
@@ -26,22 +28,31 @@ export interface TelnyxOutboundOptions {
 type Json = Record<string, any>
 
 const DEFAULT_NAME = 'linedesk-test-caller'
+/** Outbound calls go to US numbers only: the US service plan, and only the US as destination. */
+const US_ONLY = { service_plan: 'us', whitelisted_destinations: ['US'] }
+/** Linedesk only ever creates or changes Telnyx objects whose name starts with this. */
+export const OWN_PREFIX = 'linedesk-'
+/** The connection warm transfers go out through. */
+export const TRANSFER_OUTBOUND_NAME = 'linedesk-outbound'
 const fail = (message: string) => new TelephonyError('telnyx', message)
 
 /** Telnyx user names: 4 to 32 letters and digits, a letter among the first five. */
 export const sipUserName = (name: string) => `cf${name.replace(/[^a-zA-Z0-9]/g, '')}`.slice(0, 32)
 
 export function createTelnyxOutbound({ apiKey, name = DEFAULT_NAME, fetch: doFetch = fetch }: TelnyxOutboundOptions) {
+  if (!name.startsWith(OWN_PREFIX)) throw fail(`refusing to manage "${name}": only objects named ${OWN_PREFIX}* are Linedesk's`)
   const request = telnyxRequest(apiKey, doFetch)
   const byExactName = (items: Json[] | undefined, field: string) => items?.find(item => item[field] === name)
 
+  /** Created, or put back to US-only on every run: a profile changed by hand cannot open other destinations. */
   async function ensureVoiceProfile(): Promise<string> {
     const { data } = await request('GET', `/outbound_voice_profiles?filter[name][contains]=${encodeURIComponent(name)}`)
     const existing = byExactName(data, 'name')
-    if (existing) return existing.id
-    const created = await request('POST', '/outbound_voice_profiles', {
-      name, traffic_type: 'conversational', service_plan: 'global', whitelisted_destinations: ['US'],
-    })
+    if (existing) {
+      await request('PATCH', `/outbound_voice_profiles/${existing.id}`, US_ONLY)
+      return existing.id
+    }
+    const created = await request('POST', '/outbound_voice_profiles', { name, traffic_type: 'conversational', ...US_ONLY })
     return created.data.id
   }
 
@@ -67,13 +78,16 @@ export function createTelnyxOutbound({ apiKey, name = DEFAULT_NAME, fetch: doFet
   }
 
   return {
-    /** Sets up (or repairs) outbound calling with `callerE164` as caller ID; returns the trunk settings with a new password. */
-    async ensureOutboundSip(callerE164: string): Promise<OutboundSip> {
+    /**
+     * Sets up (or repairs) outbound calling; returns the trunk settings with a new password. With
+     * `callerE164` that number is attached to the connection as its caller ID (a number used only for this).
+     */
+    async ensureOutboundSip(callerE164?: string): Promise<OutboundSip> {
       const username = sipUserName(name)
       const password = randomBytes(18).toString('base64url')
       const profileId = await ensureVoiceProfile()
       const connectionId = await ensureConnection(profileId, username, password)
-      await attachCallerNumber(connectionId, callerE164)
+      if (callerE164) await attachCallerNumber(connectionId, callerE164)
       return { address: 'sip.telnyx.com', username, password, headers: { 'X-Telnyx-Username': username } }
     },
   }

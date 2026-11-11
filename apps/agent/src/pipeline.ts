@@ -27,7 +27,7 @@ export function voiceFor(tts: AgentConfig['tts'], assistantVoice?: AssistantVoic
   return assistantVoice?.provider === tts.provider && assistantVoice.voice_id ? assistantVoice.voice_id : tts.voiceId
 }
 
-function createStt({ apiKey, model }: AgentConfig['stt']) {
+export function createStt({ apiKey, model }: AgentConfig['stt']) {
   // Deepgram's Flux models speak a different protocol than Nova.
   return model.startsWith('flux') ? new deepgram.STTv2({ apiKey, model, eagerEotThreshold: EAGER_END_OF_TURN }) : new deepgram.STT({ apiKey, model })
 }

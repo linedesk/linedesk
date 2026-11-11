@@ -20,6 +20,7 @@ import { telephonyProvider } from './provider-settings.ts'
 import { startTestCall } from './test-call.ts'
 import { membershipHandlers } from './memberships.ts'
 import { teamHandlers } from './team.ts'
+import { transferHandlers } from './transfers.ts'
 import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
 import { checkAssistantVoice, releaseUnusedClones, voiceHandlers, voicePreparers } from './voices.ts'
 import { sampleHandlers } from './sample-calls.ts'
@@ -180,6 +181,7 @@ const handlers: Record<string, Handler> = {
   ...teamHandlers,
   ...membershipHandlers,
   ...workspaceSettingsHandlers,
+  ...transferHandlers,
   ...voiceHandlers,
   ...sampleHandlers,
   ...notificationHandlers,
@@ -249,6 +251,7 @@ const handlers: Record<string, Handler> = {
       call: call ? {
         id: call.id, status: call.status, outcome: call.outcome, urgency: call.urgency, title: call.title, summary: call.summary,
         recording_key: call.recording_key, duration_sec: call.duration_sec, action_items: call.action_items.length,
+        transfer_result: call.transfer_result,
       } : null,
       turns: { caller: count('caller'), agent: count('agent'), system: count('system') },
       lines: segments,

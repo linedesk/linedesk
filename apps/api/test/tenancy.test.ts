@@ -105,6 +105,7 @@ describe('agent-facing actions', () => {
     ['call.takeMessage', { callId, message: 'taken over' }],
     ['call.flagUrgent', { callId }],
     ['call.setRecording', { callId }],
+    ['call.transfer', { callId, to: '+15035550199', result: 'not_answered' }],
   ]
 
   test('the list above covers every agent-only action except the ones that open or find a call', () => {

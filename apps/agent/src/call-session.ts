@@ -3,6 +3,7 @@ import { type BookingContext, callAppendTranscript, callFinish, callStart, callS
 import type { Assistant, Contact, ToolEvent } from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
+import { type SimulatedAnswer, simulatedAnswers } from './on-call-dialer.ts'
 import { forHours } from './prompt.ts'
 
 export type Speaker = z.input<typeof callAppendTranscript.input>['speaker']
@@ -22,6 +23,10 @@ export interface CallSession {
   businessHours: BusinessHours | null
   /** What the assistant can book; null: no appointment type or no calendar, so it only takes messages. */
   booking: BookingContext | null
+  /** The business's Linedesk number the caller dialled (a transfer shows it as caller ID); null for a test call. */
+  businessNumber: string | null
+  /** No-phone call test: a simulated on-call person answers transfers instead of a phone. */
+  simulatedOnCall: SimulatedAnswer | null
   append(speaker: Speaker, text: string, toolEvent?: ToolEvent): Promise<void>
   finish(result: CallResult): Promise<void>
 }
@@ -48,7 +53,10 @@ export function withRecordingNotice(assistant: Assistant | null, notice: string 
  */
 export type CallOrigin =
   | { kind: 'phone'; from: string; to: string; room?: string }
-  | { kind: 'test'; workspaceId: string; room: string; assistantId?: string; businessHours?: BusinessHours; outsideGreeting?: string }
+  | { kind: 'test'; workspaceId: string; room: string; assistantId?: string; businessHours?: BusinessHours; outsideGreeting?: string; onCall?: SimulatedOnCall }
+
+/** The call test's simulated on-call person and the number it stands in for (transfer is on for the test). */
+export type SimulatedOnCall = { answer: SimulatedAnswer; number: string }
 
 export async function startCall(api: ApiClient, origin: CallOrigin): Promise<CallSession> {
   const { data } = origin.kind === 'phone'
@@ -59,13 +67,22 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   const businessHours = (origin.kind === 'test' && origin.businessHours) || started.businessHours || null
   // The call test may set an outside greeting to check without touching the real assistant.
   const outsideGreeting = origin.kind === 'test' ? origin.outsideGreeting : undefined
-  const configured = started.assistant && outsideGreeting ? { ...started.assistant, greeting_outside: outsideGreeting } : started.assistant
+  const onCall = origin.kind === 'test' ? origin.onCall : undefined
+  const configured = started.assistant && (outsideGreeting || onCall)
+    ? {
+        ...started.assistant,
+        ...(outsideGreeting ? { greeting_outside: outsideGreeting } : {}),
+        ...(onCall ? { transfer_urgent: true, transfer_number: onCall.number, transfer_hours_only: false } : {}),
+      }
+    : started.assistant
   // The greeting and instructions that apply now: outside business hours, the outside variants.
   const assistant = withRecordingNotice(forHours(configured, businessHours), started.recordingNotice)
   const booking = started.booking ?? null
   const startedAt = Date.now()
   return {
     callId, workspaceId, assistant, contact, blocked, businessHours, booking,
+    businessNumber: origin.kind === 'phone' ? origin.to : null,
+    simulatedOnCall: onCall?.answer ?? null,
     async append(speaker, text, toolEvent) {
       await api.run(callAppendTranscript, { callId, speaker, text, atMs: Date.now() - startedAt, toolEvent }, workspaceId)
     },
@@ -90,6 +107,7 @@ export function callOrigin(jobMetadata: string, attributes: Record<string, strin
       ...(test.assistantId ? { assistantId: test.assistantId } : {}),
       ...(test.businessHours ? { businessHours: test.businessHours } : {}),
       ...(test.outsideGreeting ? { outsideGreeting: test.outsideGreeting } : {}),
+      ...(test.onCall ? { onCall: test.onCall } : {}),
     }
   const from = attributes['sip.phoneNumber']
   const to = attributes['sip.trunkPhoneNumber']
@@ -100,22 +118,30 @@ export function callOrigin(jobMetadata: string, attributes: Record<string, strin
 /** The workspace (and the assistant picked in the web app) of a test room the API signed, or null for any other room. */
 export function parseTestMetadata(
   metadata: string,
-): { workspaceId: string; assistantId?: string; businessHours?: BusinessHours; outsideGreeting?: string } | null {
+): { workspaceId: string; assistantId?: string; businessHours?: BusinessHours; outsideGreeting?: string; onCall?: SimulatedOnCall } | null {
   if (!metadata) return null
   try {
-    const parsed = JSON.parse(metadata) as { source?: unknown; workspaceId?: unknown; assistantId?: unknown; businessHours?: unknown; outsideGreeting?: unknown }
+    const parsed = JSON.parse(metadata) as { source?: unknown; workspaceId?: unknown; assistantId?: unknown; businessHours?: unknown; outsideGreeting?: unknown; onCall?: unknown }
     if (parsed.source !== 'test' || typeof parsed.workspaceId !== 'string' || !parsed.workspaceId) return null
     const hours = parsed.businessHours as Partial<BusinessHours> | undefined
     const businessHours = hours && typeof hours.openNow === 'boolean' && typeof hours.summary === 'string' ? { openNow: hours.openNow, summary: hours.summary } : undefined
     const assistantId = typeof parsed.assistantId === 'string' && parsed.assistantId ? parsed.assistantId : undefined
     const outsideGreeting = typeof parsed.outsideGreeting === 'string' && parsed.outsideGreeting ? parsed.outsideGreeting : undefined
+    const onCall = parseSimulatedOnCall(parsed.onCall)
     return {
       workspaceId: parsed.workspaceId,
       ...(assistantId ? { assistantId } : {}),
       ...(businessHours ? { businessHours } : {}),
       ...(outsideGreeting ? { outsideGreeting } : {}),
+      ...(onCall ? { onCall } : {}),
     }
   } catch {
     return null
   }
+}
+
+function parseSimulatedOnCall(value: unknown): SimulatedOnCall | undefined {
+  const v = value as Partial<SimulatedOnCall> | undefined
+  if (!v || typeof v.number !== 'string' || !/^\+\d{8,15}$/.test(v.number)) return undefined
+  return simulatedAnswers.includes(v.answer as SimulatedAnswer) ? { answer: v.answer as SimulatedAnswer, number: v.number } : undefined
 }

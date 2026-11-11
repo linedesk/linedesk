@@ -162,6 +162,17 @@ export function formatPhone(e164: string): string {
   return m ? `+1 ${m[1]} ${m[2]} ${m[3]}` : e164
 }
 
+/** How a warm transfer during the call went, for the call's header; null when there was none. */
+export function transferText(call: Pick<Call, 'transfer_to' | 'transfer_result'>): string | null {
+  if (!call.transfer_result) return null
+  const to = call.transfer_to ? formatPhone(call.transfer_to) : 'the on-call phone'
+  if (call.transfer_result === 'connected') return `Transferred to ${to}`
+  if (call.transfer_result === 'dialing') return `Transferring to ${to}`
+  if (call.transfer_result === 'declined') return `Transfer declined by ${to}`
+  if (call.transfer_result === 'failed') return 'Transfer could not be placed'
+  return 'Transfer not answered'
+}
+
 export type StatusLabel = { text: string; tone: 'danger' | 'neutral' | 'info' | 'next' | 'quiet' }
 
 /** The status column of a row (a live call shows the live indicator instead). */

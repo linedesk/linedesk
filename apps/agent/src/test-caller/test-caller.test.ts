@@ -31,8 +31,8 @@ test('the job metadata picks a known scenario and mode; nothing else turns an ag
   }
 })
 
-test('ten scenarios; every speaking caller is told to end the call and never reveal the test', () => {
-  expect(scenarioNames).toEqual(['callback-message', 'burst-pipe', 'price-question', 'booking', 'which-calendar', 'wrong-number', 'robot-question', 'interrupter', 'after-hours', 'silence'])
+test('thirteen scenarios; every speaking caller is told to end the call and never reveal the test', () => {
+  expect(scenarioNames).toEqual(['callback-message', 'burst-pipe', 'price-question', 'booking', 'which-calendar', 'wrong-number', 'robot-question', 'interrupter', 'after-hours', 'transfer-accepted', 'transfer-no-answer', 'transfer-declined', 'silence'])
   for (const name of scenarioNames.filter(n => scenarios[n].persona)) {
     expect(callerInstructions(scenarios[name])).toContain('end_call')
     expect(callerInstructions(scenarios[name])).toContain('Never say that you are an AI')

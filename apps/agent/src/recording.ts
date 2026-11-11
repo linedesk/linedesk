@@ -119,6 +119,14 @@ export async function stopRecording(recorder: CallRecorder | null, recordingId: 
   if (recorder && recordingId) await recorder.stop(recordingId).catch(() => {})
 }
 
+/**
+ * Stops the recording and says so: rejects when it could not be stopped. For a warm transfer, which
+ * must not put the caller through to the on-call person while the call is still being recorded.
+ */
+export async function stopRecordingOrThrow(recorder: CallRecorder | null, recordingId: string | null) {
+  if (recorder && recordingId) await recorder.stop(recordingId)
+}
+
 /** Waits for the file, then reports it with its store. If this does not happen in time, the API links the file later by its derived key. */
 export async function saveRecording(api: ApiClient, call: CallSession, recorder: CallRecorder | null, recordingId: string | null, waitMs: number, retry?: RetryOptions) {
   if (!recorder || !recordingId) return

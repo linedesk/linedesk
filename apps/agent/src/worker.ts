@@ -19,9 +19,11 @@ import { logTurnMetrics } from './turn-metrics.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
 import { hangUpAfterSpeech, speakingOf } from './hang-up.ts'
 import { buildInstructions, FALLBACK_GREETING } from './prompt.ts'
-import { describeRecording, livekitRecorder, resolveRecording, saveRecording, startRecording, stopRecording } from './recording.ts'
+import { describeRecording, livekitRecorder, resolveRecording, saveRecording, startRecording, stopRecording, stopRecordingOrThrow } from './recording.ts'
 import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from './counterpart.ts'
 import { runTestCaller } from './test-caller/caller.ts'
+import { transferNumberFor } from './transfer.ts'
+import { onCallDialerFor, transferTool } from './transfer-tool.ts'
 import { parseTestCallerMetadata, type TestCallerMetadata } from './test-caller/scenarios.ts'
 import { type AgentSetup, SETUP_ATTRIBUTE } from './test-caller/latency.ts'
 
@@ -93,10 +95,14 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
   }
 }
 
-function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: () => void) {
+/** transfer_call, only when the assistant puts urgent calls through on this call and someone can be dialled. */
+type Transfer = Omit<Parameters<typeof transferTool>[0], 'api' | 'call' | 'log'> | null
+
+function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: () => void, transfer: Transfer) {
   const { callId, workspaceId } = call
   return {
     ...bookingToolset(api, call, log),
+    ...(transfer ? { transfer_call: transferTool({ ...transfer, api, call, log }) } : {}),
     take_message: llm.tool({
       description: 'Save a message for the team. Use it whenever the caller wants a callback, a visit, a quote or anything you cannot do yourself.',
       parameters: z.object({ message: z.string().describe('One complete sentence: who wants what, and how to reach them.') }),
@@ -159,7 +165,7 @@ async function greet(session: voice.AgentSession, config: AgentConfig, call: Cal
 }
 
 /** Greets the caller and runs the conversation until the session closes. */
-async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClient, config: AgentConfig, call: CallSession, log: CallLog, onClose: () => void, setup: SetupTimer) {
+async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClient, config: AgentConfig, call: CallSession, log: CallLog, onClose: () => void, setup: SetupTimer, stopRecordingForTransfer: () => Promise<void>) {
   const key = greetingKey({
     provider: config.tts.provider, model: ttsModelOf(config.tts), voiceId: voiceFor(config.tts, call.assistant?.voice),
     text: call.assistant?.greeting || FALLBACK_GREETING,
@@ -177,15 +183,25 @@ async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClie
   logTurnMetrics(session, call.callId)
   skipQuietToolReplies(session, QUIET_TOOLS)
   session.on(voice.AgentSessionEventTypes.Close, onClose)
-  const instructions = buildInstructions(call.assistant, call.businessHours, call.booking)
+  const transfer = await transferFor(ctx, call, config, caller.identity, stopRecordingForTransfer)
+  const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, transfer !== null)
   void warmUpLlm(config.llm, instructions)
+  const endCall = () => hangUpAfterSpeech(speakingOf(session), () => void ctx.deleteRoom().catch(() => {}))
   await session.start({
-    agent: new voice.Agent({ instructions, tools: assistantTools(api, call, log, () => hangUpAfterSpeech(speakingOf(session), () => void ctx.deleteRoom().catch(() => {}))) }),
+    agent: new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, transfer) }),
     room: ctx.room,
     inputOptions: { participantIdentity: caller.identity, participantKinds: ALL_PARTICIPANT_KINDS, closeOnDisconnect: true },
   })
   setup.mark('session')
   setup.note(await greet(session, config, call, cachedGreeting, key))
+}
+
+/** What transfer_call needs on this call, or null when the assistant does not transfer now (off, closed, nobody to dial). */
+async function transferFor(ctx: JobContext, call: CallSession, config: AgentConfig, callerIdentity: string, stopRecording: () => Promise<void>): Promise<Transfer> {
+  const number = transferNumberFor(call.assistant, call.businessHours)
+  if (!number) return null
+  const dialer = await onCallDialerFor(call, number, config)
+  return dialer ? { ctx, config, callerIdentity, number, dialer, stopRecording } : null
 }
 
 /** Times from the job's start to each setup step, logged once per call with the wall-clock start. */
@@ -250,15 +266,19 @@ async function entry(ctx: JobContext) {
   // while setting up the conversation, and at job shutdown as the last resort.
   const recorder = livekitRecorder(config.recording)
   const recording = startRecording(recorder, call, ctx.room.name ?? call.callId)
+  // Stopped at hang-up, or earlier when a warm transfer connects (the on-call conversation is not recorded).
+  const stopCallRecording = async () => stopRecording(recorder, await recording) // at hang-up
+  // A transfer only goes ahead when the recording really stopped.
+  const stopRecordingForTransfer = async () => stopRecordingOrThrow(recorder, await recording)
   const finish = () => hangUp({
-    stopRecording: async () => stopRecording(recorder, await recording),
+    stopRecording: stopCallRecording,
     finishCall: () => finishCall(call, log, summaryLlm(config)),
     saveRecording: async () => saveRecording(api, call, recorder, await recording, RECORDING_WAIT_MS),
   })
   const finishOnce = once(finish, `could not finish call ${call.callId}`)
   ctx.addShutdownCallback(finishOnce)
   try {
-    await converse(ctx, caller, api, config, call, log, finishOnce, setup)
+    await converse(ctx, caller, api, config, call, log, finishOnce, setup, stopRecordingForTransfer)
     if (origin.kind === 'test') endTestCallLater(ctx)
   } catch (e) {
     await finishOnce()

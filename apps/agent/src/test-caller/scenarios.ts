@@ -1,5 +1,6 @@
 // Scenarios for the call test: who the test caller plays, and what the business's call must look
 // like afterwards. English only. Add one by adding an entry.
+import type { SimulatedOnCall } from '../call-session.ts'
 
 export interface Expectation {
   /** The call's outcome must be one of these. */
@@ -15,6 +16,8 @@ export interface Expectation {
   assistantAvoids?: RegExp
   /** The caller says nothing: the transcript check expects no caller turns. */
   silentCaller?: boolean
+  /** How the warm transfer must have gone (call.transfer). */
+  transferResult?: 'connected' | 'not_answered' | 'declined'
 }
 
 /**
@@ -37,6 +40,11 @@ export interface Scenario {
   businessHours?: { openNow: boolean; summary: string }
   /** An outside-hours greeting the business's agent uses in a no-phone test, instead of the assistant's. */
   outsideGreeting?: string
+  /**
+   * No-phone test only: transfer of urgent calls is on, to this number, and a simulated on-call person
+   * answers instead of a phone (nothing is dialled). With --phone the assistant's real settings apply.
+   */
+  onCall?: SimulatedOnCall
 }
 
 const RULES = `You are on a real phone call with a business's phone assistant. Wait until you are greeted, then answer like a person would on the phone: one or two short sentences per turn, plain spoken English, no lists. Give your details only when asked. When you have what you called for, or after about six of your own turns, say a short goodbye and then use the end_call tool. Never say that you are an AI or that this is a test.`
@@ -93,6 +101,22 @@ export const scenarios = {
     businessHours: { openNow: false, summary: 'Business hours: Monday–Friday 7 AM–6 PM (America/Los_Angeles). Closed now; opens tomorrow at 7 AM.' },
     outsideGreeting: "Thanks for calling. You've reached our after-hours line; the office is closed right now. How can I help?",
   },
+  // Warm transfer (no phone: a simulated on-call person in the consult room, nothing is dialled).
+  'transfer-accepted': {
+    persona: 'You are Dana Ruiz. A pipe under your kitchen sink just burst and water is spraying everywhere; you have shut off the main valve. You need a plumber right now. Give your name when asked. If they put you through to someone, stay on the line quietly while it rings, then talk to the person; when they say goodbye, say goodbye too.',
+    expect: { outcome: ['transferred'], urgency: 'urgent', transferResult: 'connected' },
+    onCall: { answer: 'accept', number: '+15035550199' },
+  },
+  'transfer-no-answer': {
+    persona: 'You are Dana Ruiz. A pipe under your kitchen sink just burst and water is spraying everywhere; you have shut off the main valve. You need a plumber right now. Give your name when asked. If they put you through to someone, stay on the line quietly while it rings. If nobody answers, leave a message that this number is the best way to reach you.',
+    expect: { outcome: MESSAGE_OUTCOMES, urgency: 'urgent', actionItems: 1, transferResult: 'not_answered' },
+    onCall: { answer: 'no-answer', number: '+15035550199' },
+  },
+  'transfer-declined': {
+    persona: 'You are Dana Ruiz. Water is leaking through your ceiling from the upstairs bathroom; you have turned off the water. You need someone today. Give your name when asked. If they put you through to someone, stay on the line quietly while it rings. If nobody can take it, leave a message that this number is the best way to reach you.',
+    expect: { outcome: MESSAGE_OUTCOMES, urgency: 'urgent', actionItems: 1, transferResult: 'declined' },
+    onCall: { answer: 'decline', number: '+15035550199' },
+  },
   silence: {
     persona: '',
     expect: { outcome: ['hangup'], silentCaller: true },
@@ -120,3 +144,6 @@ export function parseTestCallerMetadata(metadata: string): TestCallerMetadata | 
     return null
   }
 }
+
+/** Transfer scenarios run without a phone only: over the phone they would page a real on-call phone. */
+export const phoneRefused = (scenario: Scenario) => scenario.onCall !== undefined

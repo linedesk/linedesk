@@ -6,6 +6,7 @@ import {
   callStatus,
   countsFor,
   groupRepeats,
+  transferText,
   listFor,
   resolveCursor,
   statusLabel,
@@ -261,5 +262,14 @@ describe('needs review', () => {
     expect(listFor(calls, 'review', now, null)).toEqual([]) // members get no evaluations: nothing to review
     // A call keeps its own view: being reviewed does not move it.
     expect(tabOf(calls[1]!, now)).toBe('you')
+  })
+})
+
+describe('transferText', () => {
+  it('says how the transfer went, and nothing without one', () => {
+    expect(transferText({ transfer_to: '+15035550199', transfer_result: 'connected' })).toBe('Transferred to +1 503 555 0199')
+    expect(transferText({ transfer_to: '+15035550199', transfer_result: 'not_answered' })).toBe('Transfer not answered')
+    expect(transferText({ transfer_to: '+15035550199', transfer_result: 'declined' })).toBe('Transfer declined by +1 503 555 0199')
+    expect(transferText({ transfer_to: null, transfer_result: null })).toBeNull()
   })
 })

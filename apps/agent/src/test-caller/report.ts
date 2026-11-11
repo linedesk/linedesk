@@ -103,6 +103,12 @@ export function evaluateCall(finding: CallTestFinding, scenario: Scenario, { exp
       detail: match ? `said "${match[0]}"` : `${expect.assistantAvoids} not said`,
     })
   }
+  if (expect.transferResult)
+    checks.push({
+      ok: call.transfer_result === expect.transferResult,
+      label: 'transfer',
+      detail: `${call.transfer_result ?? 'no transfer'} (expected ${expect.transferResult})`,
+    })
   if (booking) checks.push(...bookingChecks(finding, booking))
   else if (scenario.booking) checks.push({ ok: true, label: 'booking', detail: 'the business cannot book (no appointment type or calendar): a message is expected' })
   checks.push({

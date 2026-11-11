@@ -1,8 +1,8 @@
 // The editable copy of the assistant's settings: how it is read from the row, merged with
 // changes that arrive through sync, checked and turned back into what assistant.update takes.
-import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX, callRulesOf } from '@linedesk/actions'
+import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX, callRulesOf, onCallNumberProblem } from '@linedesk/actions'
 import type { Assistant, BusinessProfile } from '@linedesk/db/types'
-import { renameInGreeting } from '../onboarding/flow.ts'
+import { formatNumber, renameInGreeting, toE164 } from '../onboarding/flow.ts'
 
 /** `greeting_outside` and `instructions_outside`: used outside business hours; empty = the same as during hours. */
 export type Draft = {
@@ -13,6 +13,10 @@ export type Draft = {
   call_rules: string
   greeting_outside: string
   instructions_outside: string
+  /** Warm transfer: urgent calls go to the on-call number (as typed; saved as E.164). */
+  transfer_urgent: boolean
+  transfer_number: string
+  transfer_hours_only: boolean
   /** The voice: provider and voice id (empty: the provider's default). */
   voice: { provider: string; voice_id: string }
 }
@@ -44,6 +48,9 @@ export function draftOf(a: Assistant): Draft {
     call_rules: callRulesOf(a.call_rules), // none stored: the default rules, shown so they can be edited
     greeting_outside: a.greeting_outside ?? '',
     instructions_outside: a.instructions_outside ?? '',
+    transfer_urgent: a.transfer_urgent,
+    transfer_number: a.transfer_number ? formatNumber(a.transfer_number) : '',
+    transfer_hours_only: a.transfer_hours_only,
     voice: { provider: a.voice.provider, voice_id: a.voice.voice_id },
   }
 }
@@ -66,6 +73,28 @@ export const normalized = (d: Draft): Draft => ({
   call_rules: d.call_rules.trim(),
   greeting_outside: d.greeting_outside.trim(),
   instructions_outside: d.instructions_outside.trim(),
+  transfer_number: normalizedNumber(d.transfer_number),
+})
+
+/** "(503) 555-0199" and "+1 503 555 0199" are the same number: both show as the latter. */
+function normalizedNumber(typed: string): string {
+  const e164 = toE164(typed)
+  return e164 ? formatNumber(e164) : typed.trim()
+}
+
+/** Why the on-call number cannot be used, or null (an empty number is fine while transfer is off). */
+export function onCallProblem(d: Pick<Draft, 'transfer_urgent' | 'transfer_number'>): string | null {
+  const typed = d.transfer_number.trim()
+  if (!typed) return d.transfer_urgent ? 'Add the on-call number urgent calls go to.' : null
+  const e164 = toE164(typed)
+  return e164 ? onCallNumberProblem(e164) : 'Enter a US number with its area code, like +1 503 555 0142.'
+}
+
+/** The transfer settings to save. */
+export const transferToSave = (d: Draft) => ({
+  transfer_urgent: d.transfer_urgent,
+  transfer_number: toE164(d.transfer_number),
+  transfer_hours_only: d.transfer_hours_only,
 })
 
 /** Something to save: spaces around a value are not a change. */
@@ -113,7 +142,7 @@ export function draftProblem(draft: Draft): string | null {
   if (length > INSTRUCTIONS_MAX) return `The instructions are too long: ${length.toLocaleString('en-US')} of ${INSTRUCTIONS_MAX.toLocaleString('en-US')} characters.`
   const rules = draft.call_rules.trim().length
   if (rules > CALL_RULES_MAX) return `How to handle calls is too long: ${rules.toLocaleString('en-US')} of ${CALL_RULES_MAX.toLocaleString('en-US')} characters.`
-  return null
+  return onCallProblem(draft)
 }
 
 /** The profile to save: the instructions replace the older fields they were folded from. */

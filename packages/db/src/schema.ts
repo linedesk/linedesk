@@ -69,6 +69,11 @@ export const assistants = pgTable(
     /** Outside business hours (only when the workspace uses them); null: the same as during hours. */
     greeting_outside: text('greeting_outside'),
     instructions_outside: text('instructions_outside'),
+    /** Warm transfer: urgent calls are put through to `transfer_number` (E.164, US) when this is on. */
+    transfer_urgent: boolean('transfer_urgent').notNull().default(false),
+    transfer_number: text('transfer_number'),
+    /** Only while the business is open (business hours); outside them the assistant takes a message. */
+    transfer_hours_only: boolean('transfer_hours_only').notNull().default(false),
     created_at: createdAt(),
     version: version(),
   },
@@ -146,6 +151,11 @@ export const calls = pgTable(
     unread: boolean('unread').notNull().default(true),
     /** The member the call is assigned to (call.assign, A in the inbox); null: nobody in particular. */
     assignee_id: text('assignee_id'),
+    /** A warm transfer during the call (call.transfer): the number dialled and how it went; null: none. */
+    transfer_to: text('transfer_to'),
+    transfer_result: text('transfer_result', { enum: ['dialing', 'connected', 'not_answered', 'declined', 'failed'] }),
+    /** When the transfer was started; counts toward the workspace's transfers per hour. */
+    transfer_at: ts('transfer_at'),
     deleted_at: ts('deleted_at'),
     version: version(),
   },

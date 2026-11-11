@@ -1,7 +1,7 @@
 import type { Assistant } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_CALL_RULES } from '@linedesk/actions'
-import { callRulesToSave, disclosesAi, draftOf, isDefaultCallRules, draftProblem, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure, staleGreetingName } from './assistantDraft.ts'
+import { callRulesToSave, disclosesAi, draftOf, isDefaultCallRules, draftProblem, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure, staleGreetingName, onCallProblem, transferToSave } from './assistantDraft.ts'
 
 const oldProfile = { description: 'Plumbing', services: ['Leak repair', ' ', 'Drains'], service_area: 'Portland', address: '1 Main St', hours: 'Mon–Fri', faqs: [{ q: 'Estimates?', a: 'Free.' }, { q: '', a: '' }] }
 const assistant = (over: Partial<Assistant> = {}) => ({ id: 'as1', name: 'Maya', greeting: 'Hello', disclose_ai: true, business_profile: oldProfile, voice: { provider: 'elevenlabs', voice_id: '' }, ...over }) as Assistant
@@ -90,4 +90,23 @@ it('a renamed assistant whose greeting still says the old name is noticed', () =
   expect(staleGreetingName('Thanks for calling. This is Ava.', 'Maya', 'Ava')).toBeNull()
   expect(staleGreetingName('This is Maya.', 'Maya', 'Maya')).toBeNull()
   expect(staleGreetingName('This is Maya.', 'Maya', '  ')).toBeNull()
+})
+
+describe('transfer', () => {
+  const on = (number: string) => ({ ...draftOf(assistant()), transfer_urgent: true, transfer_number: number })
+  it('shows the saved number formatted and saves what was typed as E.164', () => {
+    const saved = draftOf(assistant({ transfer_urgent: true, transfer_number: '+15035550199', transfer_hours_only: true }))
+    expect(saved).toMatchObject({ transfer_urgent: true, transfer_number: '+1 503 555 0199', transfer_hours_only: true })
+    expect(transferToSave({ ...on('(503) 555-0199'), transfer_hours_only: false })).toEqual({ transfer_urgent: true, transfer_number: '+15035550199', transfer_hours_only: false })
+    expect(transferToSave({ ...on(''), transfer_urgent: false })).toMatchObject({ transfer_urgent: false, transfer_number: null })
+    expect(isDirty(on('(503) 555-0199'), on('+1 503 555 0199'))).toBe(false)
+  })
+  it('needs a number when on, and a callable US one when given', () => {
+    expect(onCallProblem({ transfer_urgent: false, transfer_number: '' })).toBeNull()
+    expect(onCallProblem({ transfer_urgent: true, transfer_number: '' })).toBe('Add the on-call number urgent calls go to.')
+    expect(onCallProblem({ transfer_urgent: true, transfer_number: '555-0199' })).toMatch(/area code/)
+    expect(onCallProblem({ transfer_urgent: false, transfer_number: '+1 900 555 0199' })).toMatch(/Premium-rate/)
+    expect(draftProblem(on(''))).toBe('Add the on-call number urgent calls go to.')
+    expect(draftProblem(on('503 555 0199'))).toBeNull()
+  })
 })

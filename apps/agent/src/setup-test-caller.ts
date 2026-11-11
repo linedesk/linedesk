@@ -4,12 +4,12 @@
 // Usage: pnpm --filter @linedesk/agent setup-test-caller   (needs TELNYX_API_KEY, CALL_TEST_FROM, LiveKit env)
 import { createTelnyxOutbound } from '@linedesk/telephony'
 import { requireEnv, runScript } from './env.ts'
-import { replaceOutboundTrunk, sipClient } from './test-caller/trunk.ts'
+import { replaceOutboundTrunk, sipClient } from './sip-trunks.ts'
 
 async function main() {
   const env = requireEnv(['TELNYX_API_KEY', 'CALL_TEST_FROM'])
   const outbound = await createTelnyxOutbound({ apiKey: env.TELNYX_API_KEY }).ensureOutboundSip(env.CALL_TEST_FROM)
-  const trunkId = await replaceOutboundTrunk(sipClient(), env.CALL_TEST_FROM, outbound)
+  const trunkId = await replaceOutboundTrunk(sipClient(), [env.CALL_TEST_FROM], outbound)
   console.log(`Telnyx: credential connection "linedesk-test-caller" with ${env.CALL_TEST_FROM} as caller ID (SIP user ${outbound.username}, new password set)`)
   console.log(`LiveKit: outbound trunk ${trunkId} through ${outbound.address}`)
 }

@@ -2,7 +2,7 @@ import { expect, test, vi } from 'vitest'
 import type { ApiClient } from './api-client.ts'
 import { hangUp } from './call-log.ts'
 import type { CallSession } from './call-session.ts'
-import { describeRecording, livekitRecorder, recordingOutput, resolveRecording, saveRecording, startRecording, stopRecording, type CallRecorder, type RecordingConfig } from './recording.ts'
+import { describeRecording, livekitRecorder, recordingOutput, resolveRecording, saveRecording, startRecording, stopRecording, stopRecordingOrThrow, type CallRecorder, type RecordingConfig } from './recording.ts'
 
 const call = (record_calls?: boolean) =>
   ({ callId: 'call_1', workspaceId: 'ws_1', assistant: record_calls === undefined ? null : { record_calls } }) as unknown as CallSession
@@ -30,6 +30,17 @@ test('a recording that cannot start or stop does not fail the call', async () =>
   expect(await startRecording(broken, call(true), 'call-abc', 0)).toBeNull()
   await expect(stopRecording(broken, 'EG_1')).resolves.toBeUndefined()
   await expect(stopRecording(null, null)).resolves.toBeUndefined()
+})
+
+test('before a warm transfer the recording must really stop: a failure is reported, so nobody is put through', async () => {
+  const broken = recorder({ stop: async () => { throw new Error('egress not reachable') } })
+  await expect(stopRecordingOrThrow(broken, 'EG_1')).rejects.toThrow('egress not reachable')
+  const working = recorder()
+  await expect(stopRecordingOrThrow(working, 'EG_1')).resolves.toBeUndefined()
+  expect(working.stop).toHaveBeenCalledWith('EG_1')
+  // Nothing recorded (off, or it never started): nothing to stop, the transfer may go ahead.
+  await expect(stopRecordingOrThrow(null, null)).resolves.toBeUndefined()
+  await expect(stopRecordingOrThrow(broken, null)).resolves.toBeUndefined()
 })
 
 test('reports the recording once the file is final, sending the call id and the store', async () => {
