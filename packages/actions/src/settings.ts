@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { defineAction } from './define.ts'
 import { JOB_VALUE_MAX_CENTS } from './insights.ts'
 import { FAQS_MAX, faqSchema, SERVICES_MAX, serviceSchema } from './knowledge.ts'
+import { assistantLanguages } from './languages.ts'
 import { transferContacts } from './transfer.ts'
 import { voiceId } from './voices.ts'
 
@@ -191,7 +192,7 @@ export const keypadMenu = z.object({
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
-    'Update the assistant: name, greeting, what a caller who called before hears before the greeting (`greeting_known_caller`, `{first_name}` filled in; empty: nothing), voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a US number in E.164, null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `keypad_menu` (null: off) plays "press 1 for …" after the greeting; a `transfer` key is an urgent call (put through to the first contact that is reachable, else flagged urgent and a message), a `topic` key tells the assistant what the caller wants.',
+    'Update the assistant: name, greeting, what a caller who called before hears before the greeting (`greeting_known_caller`, `{first_name}` filled in; empty: nothing), voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a US number in E.164, null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `keypad_menu` (null: off) plays "press 1 for …" after the greeting; a `transfer` key is an urgent call (put through to the first contact that is reachable, else flagged urgent and a message), a `topic` key tells the assistant what the caller wants. `languages`: `english` (English only, the default), `allowed` (English plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in English.',
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().min(1).optional(),
@@ -214,6 +215,8 @@ export const assistantUpdate = defineAction({
     silence_closing: z.string().trim().max(SILENCE_CLOSING_MAX).nullable().optional(),
     /** null: no keypad menu (the default). */
     keypad_menu: keypadMenu.nullable().optional(),
+    /** Which languages the assistant speaks with callers besides English. */
+    languages: assistantLanguages.optional(),
     /** An empty voice_id: the provider's default voice. */
     voice: z.object({ provider: z.string(), voice_id: z.union([z.literal(''), voiceId]) }).optional(),
     business_profile: z

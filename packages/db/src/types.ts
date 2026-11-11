@@ -72,6 +72,8 @@ export const DEFAULT_TRANSFERS: TransferContact[] = [
 export type KeypadMenuAction = 'transfer' | 'topic'
 export type KeypadMenuOption = { key: string; label: string; action: KeypadMenuAction }
 export type KeypadMenu = { options: KeypadMenuOption[] }
+/** Languages an assistant speaks besides English (`languages.ts` in @linedesk/actions validates the codes). */
+export type AssistantLanguages = { mode: 'english' | 'allowed' | 'any'; allowed: string[] }
 export type BusinessProfile = {
   /** Free text from the business: what the assistant should know and do. When set, the agent uses it instead of the fields below. */
   instructions?: string

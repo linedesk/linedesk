@@ -17,6 +17,8 @@ export type CollectContext = {
   callerIdentity: () => string | undefined
   /** Today in the business's time zone, YYYY-MM-DD. */
   today: () => string
+  /** Which language the steps speak (collectLanguageRule in prompt.ts); default English only. */
+  languageRule?: string
 }
 
 async function runStep(ctx: CollectContext, { ctx: run }: llm.ToolOptions, collector: AnyCollector, keypad: boolean) {
@@ -27,6 +29,7 @@ async function runStep(ctx: CollectContext, { ctx: run }: llm.ToolOptions, colle
     const outcome = await new CollectTask({
       collector,
       chatCtx,
+      ...(ctx.languageRule ? { languageRule: ctx.languageRule } : {}),
       ...(room ? { keypad: { room, ...(callerIdentity ? { callerIdentity } : {}) } } : {}),
     }).run()
     ctx.log.record('system', outcomeEvent(outcome))

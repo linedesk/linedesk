@@ -44,6 +44,7 @@ Answer with one JSON object and nothing else:
   "tag": one of ${callTags.join(', ')}, or null if none fits
 }
 Outcomes: "booked" when the assistant booked an appointment, "message" when the assistant took a message, "callback" when the caller expects a call back, "answered" when the question was fully answered, "transferred" when the caller was put through to a person, "hangup" when the caller said nothing or left right away, "spam" for sales and robocalls. Use "urgent" only for emergencies.
+Write the title, summary and action items in English, also when the call was in another language. When it was not in English, begin the summary with "Call in <language>." (for example "Call in Spanish.").
 Tags: "booked" when an appointment was booked, "transferred" when the caller was put through, "message" when a message was taken for an existing customer, "new_lead" for someone who is not a customer yet and wants work done or a quote, "existing_customer" for a customer of the business, "wrong_number" when the caller meant to reach someone else, "spam" for sales calls and robocalls.
 Lines starting with "system:" are tools the assistant used. Messages the assistant already saved are listed after the transcript: they are action items already, never repeat or rephrase them in "action_items".`
 

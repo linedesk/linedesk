@@ -5,7 +5,7 @@ import {
   CALL_RULES_MAX, EMERGENCY_CONDITION, type Faq, FAQS_MAX, INSTRUCTIONS_MAX, RING_SECONDS_DEFAULT, TRANSFER_CONDITION_MAX,
   TRANSFER_CONTACTS_MAX, type Service, SERVICES_MAX, servicesOf, TRANSFER_NAME_MAX, callRulesOf, usesDefaultCallRules, onCallNumberProblem,
   DEFAULT_SILENCE_CLOSING, SILENCE_CLOSING_MAX, SILENCE_FIRST_GAP_MAX_S, SILENCE_FIRST_GAP_MIN_S, SILENCE_REMINDERS_MAX,
-  SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT, KEYPAD_MENU_MAX_OPTIONS,
+  SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT, KEYPAD_MENU_MAX_OPTIONS, type AssistantLanguages, ENGLISH_ONLY, otherLanguagesOf,
 } from '@linedesk/actions'
 import type { Assistant, BusinessProfile, KeypadMenuOption, TransferContact } from '@linedesk/db/types'
 import { formatNumber, renameInGreeting, toE164 } from '../onboarding/flow.ts'
@@ -36,6 +36,8 @@ export type Draft = {
   silence_first_gap_s: string
   silence_reminders: string
   silence_closing: string
+  /** Languages besides English; the picked ones are kept while English only is chosen, but saved empty. */
+  languages: AssistantLanguages
 }
 
 /** A transfer contact as edited: the number as typed (saved as E.164, empty: none yet). */
@@ -74,8 +76,25 @@ export function draftOf(a: Assistant): Draft {
     silence_reminders: String(a.silence_reminders ?? SILENCE_REMINDERS_DEFAULT),
     // None stored: the default line, shown so it can be edited (like the call rules).
     silence_closing: a.silence_closing ?? DEFAULT_SILENCE_CLOSING,
+    languages: languagesOf(a.languages),
   }
 }
+
+/** The stored setting with only known codes; a row synced before the column existed: English only. */
+function languagesOf(stored: Assistant['languages'] | undefined): AssistantLanguages {
+  if (!stored) return ENGLISH_ONLY
+  return { mode: stored.mode, allowed: otherLanguagesOf({ mode: 'allowed', allowed: stored.allowed }) }
+}
+
+/** Why the languages cannot be saved, or null. */
+export function languagesProblem(d: Pick<Draft, 'languages'>): string | null {
+  return d.languages.mode === 'allowed' && !d.languages.allowed.length ? 'Pick at least one language besides English, or choose English only.' : null
+}
+
+/** What assistant.update takes: no list unless the allow-list is used. */
+export const languagesToSave = (d: Draft) => ({
+  languages: d.languages.mode === 'allowed' ? d.languages : { mode: d.languages.mode, allowed: [] },
+})
 
 /** After a synced change: fields the user has not touched follow the server, touched fields keep the user's edit. */
 export function mergeDraft(draft: Draft, previousSaved: Draft, nextSaved: Draft): Draft {
@@ -299,7 +318,7 @@ export function draftProblem(draft: Draft): string | null {
   if (length > INSTRUCTIONS_MAX) return `The instructions are too long: ${length.toLocaleString('en-US')} of ${INSTRUCTIONS_MAX.toLocaleString('en-US')} characters.`
   const rules = draft.call_rules.trim().length
   if (rules > CALL_RULES_MAX) return `How to handle calls is too long: ${rules.toLocaleString('en-US')} of ${CALL_RULES_MAX.toLocaleString('en-US')} characters.`
-  return knowledgeProblem(normalized(draft)) ?? transferProblem(draft)?.message ?? silenceProblem(draft) ?? keypadProblem(draft)
+  return knowledgeProblem(normalized(draft)) ?? transferProblem(draft)?.message ?? silenceProblem(draft) ?? keypadProblem(draft) ?? languagesProblem(draft)
 }
 
 /** Why the services or FAQs cannot be saved; null when they can. Expects a normalized draft. */

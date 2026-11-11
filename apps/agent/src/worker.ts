@@ -3,7 +3,7 @@
 import { createServer } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { agentTokenProblem, ASSISTANT_CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage } from '@linedesk/actions'
+import { agentTokenProblem, ASSISTANT_CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage, otherLanguagesOf } from '@linedesk/actions'
 import { lookUpPassages } from './look-up.ts'
 import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant } from '@livekit/rtc-node'
@@ -22,11 +22,12 @@ import { checkReadiness, declineCall, describeReadiness, type Readiness } from '
 import { createPipeline, createTts, greetingVoice, summaryLlm, warmUpLlm } from './pipeline.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
 import { logTurnMetrics } from './turn-metrics.ts'
+import { followCallerLanguage } from './caller-language.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
 import { CALL_LIMIT_LINE, GOODBYE_LINE, hangUpAfterLine, hangUpAfterSpeech, hangUpAtCallLimit, remindOnSilence, silencePolicyOf, speakingOf, STILL_THERE_LINE, TEST_CALL_LIMIT_LINE } from './hang-up.ts'
 import { playLine, unansweredLine } from './busy-line.ts'
 import { promisesUrgent, urgentFlagger } from './urgent-promise.ts'
-import { buildInstructions, canChangeBookings, FALLBACK_GREETING } from './prompt.ts'
+import { buildInstructions, canChangeBookings, collectLanguageRule, FALLBACK_GREETING } from './prompt.ts'
 import { describeRecording, livekitRecorder, resolveRecording, saveRecording, startRecording, stopRecording, stopRecordingOrThrow } from './recording.ts'
 import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from './counterpart.ts'
 import { runTestCaller } from './test-caller/caller.ts'
@@ -222,7 +223,10 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   let callerIdentity: string | undefined
   void callerJoined.then(caller => (callerIdentity = caller.identity), () => {})
   const silence = silencePolicyOf(call.assistant)
-  const session = new voice.AgentSession(createPipeline(config, call.assistant?.voice, silence.firstGapS))
+  const languages = otherLanguagesOf(call.assistant?.languages)
+  const pipeline = createPipeline(config, call.assistant?.voice, silence.firstGapS, languages)
+  const session = new voice.AgentSession(pipeline)
+  followCallerLanguage(session, pipeline.tts, languages, call.callId)
   const onSpeaking = ({ newState }: { newState: string }) => {
     if (newState !== 'speaking') return
     session.off(voice.AgentSessionEventTypes.AgentStateChanged, onSpeaking)
@@ -270,6 +274,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     room: ctx.room,
     callerIdentity: () => callerIdentity,
     today: () => call.booking?.todayDate ?? new Date().toISOString().slice(0, 10),
+    languageRule: collectLanguageRule(call.assistant) ?? undefined,
   }
   const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, flagUrgent, null, collect) })
   void warmUpLlm(config.llm, instructions)

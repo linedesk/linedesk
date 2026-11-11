@@ -3,7 +3,7 @@
 // text to speech ElevenLabs or Cartesia. Turns are detected by Deepgram Flux, not by a local
 // voice-activity model: that saves the CPU a small server does not have, and the endpointing delay.
 // The worker only sees LiveKit's interfaces and `CompleteJson`.
-import { SILENCE_FIRST_GAP_DEFAULT_S } from '@linedesk/actions'
+import { type CallerLanguage, SILENCE_FIRST_GAP_DEFAULT_S } from '@linedesk/actions'
 import type { voice } from '@livekit/agents'
 import * as cartesia from '@livekit/agents-plugin-cartesia'
 import * as deepgram from '@livekit/agents-plugin-deepgram'
@@ -45,9 +45,23 @@ export function greetingVoice(config: AgentConfig, call: { assistant?: { voice?:
   return { provider: tts.provider, model: ttsModelOf(tts), voiceId: tts.voiceId }
 }
 
-export function createStt({ apiKey, model }: AgentConfig['stt']) {
+/** Deepgram's multilingual Flux: same price and turn detection as English Flux, 10 languages, switches mid-call. */
+export const FLUX_MULTILINGUAL = 'flux-general-multi'
+
+/**
+ * Speech recognition for a call. `otherLanguages` (the assistant's allowed languages besides English): when
+ * there are any, the multilingual model of the same family, biased toward English and those languages, so each
+ * transcript reports the language spoken. An English-only model would turn other languages into nonsense.
+ */
+export function createStt({ apiKey, model }: AgentConfig['stt'], otherLanguages: readonly CallerLanguage[] = []) {
+  const multi = otherLanguages.length > 0
+  const languageHint = multi ? ['en', ...otherLanguages] : undefined
   // Deepgram's Flux models speak a different protocol than Nova.
-  return model.startsWith('flux') ? new deepgram.STTv2({ apiKey, model, eagerEotThreshold: EAGER_END_OF_TURN }) : new deepgram.STT({ apiKey, model })
+  if (model.startsWith('flux')) {
+    return new deepgram.STTv2({ apiKey, model: multi ? FLUX_MULTILINGUAL : model, eagerEotThreshold: EAGER_END_OF_TURN, ...(languageHint ? { languageHint } : {}) })
+  }
+  // Only Nova-3 detects the language on a live stream (`multi`).
+  return multi ? new deepgram.STT({ apiKey, model: 'nova-3', language: 'multi', languageHint }) : new deepgram.STT({ apiKey, model })
 }
 
 /** The model the voice provider is asked for (ElevenLabs gets its fast default). */
@@ -75,12 +89,12 @@ function createLlm({ apiKey, baseUrl, model, fallbacks }: AgentConfig['llm']) {
 }
 
 /** Session options for one call. */
-export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVoice | null, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S): voice.AgentSessionOptions {
+export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVoice | null, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, otherLanguages: readonly CallerLanguage[] = []): voice.AgentSessionOptions & { tts: ReturnType<typeof createTts> } {
   // Flux turn detection needs Flux; with another Deepgram model the session falls back to its own detection.
   const fluxTurns = config.stt.model.startsWith('flux')
   return {
     vad: null,
-    stt: createStt(config.stt),
+    stt: createStt(config.stt, otherLanguages),
     llm: createLlm(config.llm),
     tts: createTts(config.tts, assistantVoice),
     turnHandling: { turnDetection: fluxTurns ? 'stt' : undefined, endpointing: ENDPOINTING, preemptiveGeneration: { enabled: true } },

@@ -2,13 +2,13 @@
 // transfer contacts and the calendar, one section at a time (#assistant/<id>/<section>). Edits in the text sections are one local
 // draft: Save runs assistant.update through the outbox; a section with unsaved
 // changes keeps a dot in the nav while you look at another one.
-import { CALL_RULES_MAX, DEFAULT_CALL_RULES, DEFAULT_KNOWN_CALLER_GREETING, knownCallerGreetingProblem, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS } from '@linedesk/actions'
+import { type AssistantLanguages, CALL_RULES_MAX, CALLER_LANGUAGES, type CallerLanguage, callerLanguageCodes, DEFAULT_CALL_RULES, DEFAULT_KNOWN_CALLER_GREETING, knownCallerGreetingProblem, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS } from '@linedesk/actions'
 import type { Assistant, KeypadMenuAction, KeypadMenuOption, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
 import { onSaveKey, SaveBar } from '../ui/form.tsx'
-import { Select } from '../ui/controls.tsx'
+import { Checkbox, Select } from '../ui/controls.tsx'
 import { Button, Icon } from '../ui/kit.tsx'
 import { LoadProblem, Skeleton, useLoadState } from '../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, sectionHash, useSection } from '../ui/SettingsLayout.tsx'
@@ -23,6 +23,8 @@ import {
   keepDraft,
   keypadProblem,
   keypadToSave,
+  languagesProblem,
+  languagesToSave,
   nextFreeKey,
   keptDraft,
   mergeDraft,
@@ -58,7 +60,7 @@ const sections: readonly PageSection<SectionId>[] = [
   { id: 'rules', label: 'Call rules', description: 'How calls are handled' },
   { id: 'transfer', label: 'Transfers', description: 'Who callers are put through to, and when' },
   { id: 'calendar', label: 'Calendar', description: 'Accounts, calendars and appointment types' },
-  { id: 'advanced', label: 'Advanced', description: 'Silence on the line, keypad menu' },
+  { id: 'advanced', label: 'Advanced', description: 'Languages, silence on the line, keypad menu' },
 ]
 /** Which draft fields each section holds; the calendar has its own. */
 const sectionFields: Record<Exclude<SectionId, 'calendar'>, (keyof Draft)[]> = {
@@ -67,7 +69,7 @@ const sectionFields: Record<Exclude<SectionId, 'calendar'>, (keyof Draft)[]> = {
   knowledge: ['instructions', 'services', 'faqs', 'website'],
   rules: ['call_rules'],
   transfer: ['transfers'],
-  advanced: ['silence_first_gap_s', 'silence_reminders', 'silence_closing', 'keypad_on', 'keypad_options'],
+  advanced: ['silence_first_gap_s', 'silence_reminders', 'silence_closing', 'keypad_on', 'keypad_options', 'languages'],
 }
 
 /** The assistant's name as the help texts say it, also while the name field is being edited. */
@@ -277,6 +279,43 @@ function KeypadMenu({ draft, set }: SectionProps) {
   )
 }
 
+const languageModes: { value: AssistantLanguages['mode']; label: string; description: string }[] = [
+  { value: 'english', label: 'English only', description: 'Other languages: answered in English, with an offer to take a message' },
+  { value: 'allowed', label: 'English and the languages you pick', description: 'Switches only to these' },
+  { value: 'any', label: 'Any language it speaks', description: 'Every language listed below' },
+]
+
+function Languages({ draft, set }: SectionProps) {
+  const { mode, allowed } = draft.languages
+  const problem = languagesProblem(draft)
+  const toggle = (code: CallerLanguage, on: boolean) =>
+    set('languages', { mode, allowed: callerLanguageCodes.filter(c => (c === code ? on : allowed.includes(c))) })
+  return (
+    <Section
+      id="as-languages"
+      title="Languages"
+      help={`${assistantName(draft)} greets in English. When a caller speaks a language you allow, it answers in that language from then on; otherwise it goes on in English. Summaries are always in English, transcripts stay in the language spoken. Same price per minute; the first reply after a switch can take a moment longer.`}
+    >
+      <Select id="as-languages-mode" label="Languages" value={mode} options={languageModes} onChange={m => set('languages', { mode: m, allowed })} />
+      {mode !== 'english' && (
+        <div className="as-languages" role="group" aria-label="Languages besides English">
+          {callerLanguageCodes.map(code => (
+            <Checkbox
+              key={code}
+              checked={mode === 'any' || allowed.includes(code)}
+              disabled={mode === 'any'}
+              onChange={on => toggle(code, on)}
+            >
+              {CALLER_LANGUAGES[code]}
+            </Checkbox>
+          ))}
+        </div>
+      )}
+      {problem && <span className="help as-stale">{problem}</span>}
+    </Section>
+  )
+}
+
 function Advanced({ draft, set }: SectionProps) {
   const problem = silenceProblem(draft)
   return (
@@ -359,6 +398,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     }
     if (silenceProblem(draft)) return goTo('advanced', 'as-silence-gap')
     if (keypadProblem(draft)) return goTo('advanced', 'as-keypad-label-0')
+    if (languagesProblem(draft)) return goTo('advanced', 'as-languages-mode')
     const problem = draftProblem(draft)
     if (problem) return toast(problem)
     if (dirty) {
@@ -376,6 +416,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         ...(unsaved.has('transfer') ? { transfers: transfersToSave(clean) } : {}),
         ...silenceToSave(clean),
         ...keypadToSave(clean),
+        ...languagesToSave(clean),
         voice: clean.voice,
       })
       setDraft(clean) // the form shows what was saved, so it is not "dirty" any more
@@ -447,6 +488,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
           )}
           {current === 'advanced' && (
             <>
+              <Languages draft={draft} set={set} />
               <Advanced draft={draft} set={set} />
               <KeypadMenu draft={draft} set={set} />
             </>

@@ -21,7 +21,7 @@ import {
   unique,
 } from 'drizzle-orm/pg-core'
 import {
-  DEFAULT_TRANSFERS, type ActionItem, type AssistantVoice, type BookingField, type BusinessProfile, type CallField, callTags, type CustomValues,
+  DEFAULT_TRANSFERS, type ActionItem, type AssistantLanguages, type AssistantVoice, type BookingField, type BusinessProfile, type CallField, callTags, type CustomValues,
   customFieldTypes, type KeypadMenu, type ToolEvent, type TransferContact, type WebhookEvent,
 } from './types.ts'
 
@@ -106,6 +106,8 @@ export const assistants = pgTable(
     silence_closing: text('silence_closing'),
     /** Keypad menu after the greeting ("press 1 for…"); null: off (the default). */
     keypad_menu: jsonb('keypad_menu').$type<KeypadMenu>(),
+    /** Languages the assistant speaks with callers: English only (the default), English + an allow-list, or any it supports. */
+    languages: jsonb('languages').$type<AssistantLanguages>().notNull().default({ mode: 'english', allowed: [] }),
     created_at: createdAt(),
     version: version(),
   },

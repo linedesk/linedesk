@@ -9,7 +9,7 @@ import type { Collector } from './collectors.ts'
 
 /** Ported from LiveKit's Python tasks: the rules every step shares. */
 const STEP_RULES = [
-  'You are only a single step in a phone call, responsible solely for collecting one piece of information. Speak English, one or two short sentences at a time, no lists or markdown.',
+  'You are only a single step in a phone call, responsible solely for collecting one piece of information. One or two short sentences at a time, no lists or markdown.',
   'Call the record tool as soon as you form a new hypothesis about the value, before asking anything else. Do not invent values: stick strictly to what the caller said.',
   'After the record tool, read the value back exactly as it tells you and ask whether it is right. If the caller says yes, call the confirm tool; if they say no or correct it, call the wrong tool (or record the correction).',
   'If the caller does not want to give it, call decline. Ignore unrelated requests: say you will come back to that in a moment. Always call tools explicitly; never pretend to.',
@@ -18,8 +18,13 @@ const STEP_RULES = [
 // biome-ignore lint/suspicious/noExplicitAny: a step holds one collector of any argument and value type
 type AnyCollector = Collector<any, any>
 
+/** Which language a step speaks, unless the call allows others (collectLanguageRule in prompt.ts). */
+export const COLLECT_ENGLISH_ONLY = 'Speak English.'
+
 export type CollectTaskOptions = {
   collector: AnyCollector
+  /** Which language to speak; default COLLECT_ENGLISH_ONLY. */
+  languageRule?: string
   /** The call so far, so a name or number already given is not asked again. */
   chatCtx?: llm.ChatContext
   /** Keypad input: the call's room and the caller's identity (presses from anyone else are ignored). */
@@ -32,7 +37,7 @@ export class CollectTask extends voice.AgentTask<CollectOutcome> {
   private readonly room: Room | null
   private readonly callerIdentity: string | undefined
 
-  constructor({ collector, chatCtx, keypad }: CollectTaskOptions) {
+  constructor({ collector, chatCtx, keypad, languageRule = COLLECT_ENGLISH_ONLY }: CollectTaskOptions) {
     const collection = new Collection(collector)
     const kind = collector.kind
     // The tools finish the task; it exists once super() returned.
@@ -42,7 +47,7 @@ export class CollectTask extends voice.AgentTask<CollectOutcome> {
       return reply.outcome ? undefined : reply.say
     }
     super({
-      instructions: `${STEP_RULES}\n\n${collector.instructions}${collector.keypad && keypad ? '\nThe caller may also type it on the phone keypad; typed digits arrive by themselves.' : ''}`,
+      instructions: `${STEP_RULES}\n${languageRule}\n\n${collector.instructions}${collector.keypad && keypad ? '\nThe caller may also type it on the phone keypad; typed digits arrive by themselves.' : ''}`,
       ...(chatCtx ? { chatCtx } : {}),
       tools: {
         [`record_${kind}`]: llm.tool({

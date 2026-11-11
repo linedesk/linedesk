@@ -1,5 +1,5 @@
 // The assistant's system prompt, built from its configuration.
-import { type BookingContext, type CallCustomField, type CallDocuments, type CallerHistory, callRulesOf, fenceData, FIRST_NAME_VARIABLE, KNOWN_CALLER_GREETING_MAX, knowledgeLists } from '@linedesk/actions'
+import { type BookingContext, type CallCustomField, type CallDocuments, type CallerHistory, callRulesOf, fenceData, languageNames, otherLanguagesOf, FIRST_NAME_VARIABLE, KNOWN_CALLER_GREETING_MAX, knowledgeLists } from '@linedesk/actions'
 import type { Assistant, Contact, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 
@@ -265,6 +265,27 @@ export function personalGreeting(greeting: string, template: string | null | und
   return { text: rest ? `${filled} ${rest.charAt(0).toUpperCase()}${rest.slice(1)}` : filled, usesName }
 }
 
+const ENGLISH_ONLY_RULE = 'Speak English only. If the caller speaks another language, say in English that you can only help in English and offer to take a message.'
+
+/** Which languages the assistant may answer in (assistants.languages); English only by default. */
+export function languageInstructions(assistant: Pick<Assistant, 'languages'> | null): string {
+  const others = otherLanguagesOf(assistant?.languages)
+  if (!others.length) return ENGLISH_ONLY_RULE
+  const names = languageNames(others)
+  return [
+    `Start in English. You also speak ${names}: when the caller speaks one of these, reply in that language from then on, and switch back if they switch.`,
+    `If the caller speaks any other language, reply in English: say politely that you can help in ${languageNames(['en', ...others], 'or')}, and offer to take a message.`,
+    'Whatever language you speak, write the messages, notes and booking details you save with tools in English, so the team can read them; keep names as the caller gives them.',
+  ].join(' ')
+}
+
+/** The language rule for a collection step (collect-task.ts); null: English only, the step's default. */
+export function collectLanguageRule(assistant: Pick<Assistant, 'languages'> | null): string | null {
+  const others = otherLanguagesOf(assistant?.languages)
+  if (!others.length) return null
+  return `Speak the language the caller has been speaking in this call if it is ${languageNames(['en', ...others], 'or')}, else English. Say what the tools tell you in that language; keep names, numbers, addresses and email addresses exactly as they are.`
+}
+
 /**
  * `transfers`: the contacts the assistant can put the caller through to on this call (transferContactsFor); none: no transfer.
  * `caller`: the contact this call matched (null: withheld number); its note goes in as the team's notes, its
@@ -285,7 +306,7 @@ export function buildInstructions(
   const knowledge = assistant ? businessKnowledge(assistant) : ''
   return [
     `You are ${name}, the AI assistant answering the phone for a business. You are on a live phone call: keep every reply to one or two short spoken sentences, start with a short first sentence, ask one question at a time, and never use lists, markdown or emojis.`,
-    'Speak English only. If the caller speaks another language, say in English that you can only help in English and offer to take a message.',
+    languageInstructions(assistant),
     assistant?.greeting ? `You have already opened the call with: "${assistant.greeting}" Do not repeat it.` : null,
     'You are an AI assistant. Whenever the caller asks whether you are a person, a robot or an AI, say truthfully that you are an AI assistant. Never claim to be human.',
     booking ? bookingInstructions(booking, transfer, !!caller?.history?.upcomingBookings.length) : transfer ? MESSAGES_AND_TRANSFER : MESSAGES_ONLY,
