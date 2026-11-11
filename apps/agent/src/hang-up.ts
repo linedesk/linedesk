@@ -20,14 +20,16 @@ export const GOODBYE_LINE = 'Thanks for calling. Goodbye!'
 
 type Speaking = {
   agentState: string
+  /** Calls `listener` once the assistant is neither speaking nor thinking any more. */
   onDone(listener: () => void): void
   /** Whether the assistant's speech ended within the last `ms`. */
   spokeWithin(ms: number): boolean
 }
 
 /**
- * Hangs up after the assistant's goodbye: once it has played (after a short pause), at the latest after the cap. When
- * nothing is playing and nothing was said just before, `sayGoodbye` says GOODBYE_LINE first.
+ * Hangs up after the assistant's goodbye: once it has played (after a short pause), at the latest after the cap. A
+ * reply still being generated counts as the goodbye on its way. When nothing was said just before, `sayGoodbye` says
+ * GOODBYE_LINE first.
  */
 export function hangUpAfterSpeech(agent: Speaking, hangUp: () => void, sayGoodbye?: () => Promise<unknown>, maxMs = GOODBYE_PLAYOUT_MAX_MS) {
   let done = false
@@ -37,19 +39,20 @@ export function hangUpAfterSpeech(agent: Speaking, hangUp: () => void, sayGoodby
     hangUp()
   }
   const afterPause = () => setTimeout(once, AFTER_SPEECH_MS).unref?.()
-  if (agent.agentState === 'speaking') {
-    setTimeout(once, maxMs).unref?.()
-    return agent.onDone(afterPause)
-  }
-  // The model's goodbye may still be on its way to the speaker: give it a moment to start.
-  setTimeout(() => {
-    if (agent.agentState === 'speaking') {
-      setTimeout(once, maxMs).unref?.()
-      return agent.onDone(afterPause)
-    }
+  // After the model's last words, or with nothing said just before, GOODBYE_LINE first.
+  const finish = () => {
     if (agent.spokeWithin(RECENT_SPEECH_MS + GOODBYE_START_WAIT_MS) || !sayGoodbye) return afterPause()
     hangUpAfterLine(sayGoodbye(), once)
-  }, GOODBYE_START_WAIT_MS).unref?.()
+  }
+  // Speaking, or still thinking up the goodbye it says with end_call: wait for it, at most `maxMs`.
+  const busy = () => agent.agentState === 'speaking' || agent.agentState === 'thinking'
+  const afterReply = () => {
+    setTimeout(once, maxMs).unref?.()
+    agent.onDone(finish)
+  }
+  if (busy()) return afterReply()
+  // The model's goodbye may still be on its way to the speaker: give it a moment to start.
+  setTimeout(() => (busy() ? afterReply() : finish()), GOODBYE_START_WAIT_MS).unref?.()
 }
 
 /** The session as `hangUpAfterSpeech` needs it. */
@@ -64,7 +67,7 @@ export function speakingOf(session: voice.AgentSession, now = Date.now): Speakin
     },
     onDone(listener) {
       const onState = ({ newState }: { newState: string }) => {
-        if (newState === 'speaking') return
+        if (newState === 'speaking' || newState === 'thinking') return
         session.off(voice.AgentSessionEventTypes.AgentStateChanged, onState)
         listener()
       }

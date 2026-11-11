@@ -13,6 +13,7 @@ const STEP_RULES = [
   'Call the record tool as soon as you form a new hypothesis about the value, before asking anything else. Do not invent values: stick strictly to what the caller said.',
   'After the record tool, read the value back exactly as it tells you and ask whether it is right. If the caller says yes, call the confirm tool; if they say no or correct it, call the wrong tool (or record the correction).',
   'If the caller does not want to give it, call decline. Ignore unrelated requests: say you will come back to that in a moment. Always call tools explicitly; never pretend to.',
+  'You know nothing else about the caller, their appointments or their account: never confirm or deny anything they ask about (not even "yes, I see that"); only say you will come back to it in a moment.',
 ].join('\n')
 
 // biome-ignore lint/suspicious/noExplicitAny: a step holds one collector of any argument and value type

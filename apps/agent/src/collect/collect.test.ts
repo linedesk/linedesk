@@ -1,6 +1,8 @@
-import { describe, expect, it, vi } from 'vitest'
+import { llm } from '@livekit/agents'
+import { describe, expect, it, test, vi } from 'vitest'
+import { nudgeIfQuiet, saidMeanwhile } from './collect-tools.ts'
 import { Collection, describeOutcome, dtmfCode, KeypadInput, MAX_ATTEMPTS, outcomeEvent } from './collection.ts'
-import { addressCollector, dateCollector, digitsCollector, emailCollector, nameCollector, parseDate, phoneCollector, stateCode, toE164 } from './collectors.ts'
+import { addressCollector, dateCollector, digitsCollector, emailCollector, isWholePhoneNumber, nameCollector, partialPhoneNumberIn, parseDate, phoneCollector, stateCode, toE164 } from './collectors.ts'
 import { readDigits, readLetters, spokenDigits, spokenEmail, spokenLetters } from './spoken.ts'
 
 describe('spoken input', () => {
@@ -158,4 +160,36 @@ describe('keypad input', () => {
   it('maps keys to LiveKit DTMF codes', () => {
     expect(['0', '9', '*', '#'].map(dtmfCode)).toEqual([0, 9, 10, 11])
   })
+})
+
+test('a callback number is whole only with 10 digits (or 11 with a leading 1, or + and a country code)', () => {
+  expect(isWholePhoneNumber('503-555-0142')).toBe(true)
+  expect(isWholePhoneNumber('five zero three five five five zero one four two')).toBe(true)
+  expect(isWholePhoneNumber('503-551-42')).toBe(false)
+  expect(isWholePhoneNumber('the number I am calling from')).toBe(false)
+  expect(partialPhoneNumberIn('Sam Patel wants a call back on 503-551-42 about the water heater.')).toBe('503-551-42')
+  expect(partialPhoneNumberIn('Call back on 503-555-0142, ZIP 97211, after 2 PM.')).toBeNull()
+  expect(partialPhoneNumberIn('Leak at 1450 Southeast Division Street, Portland 97202.')).toBeNull()
+})
+
+test('what the caller said during a step is passed back, so their question is answered', () => {
+  const ctx = llm.ChatContext.empty()
+  ctx.addMessage({ role: 'assistant', content: 'Could you spell your last name?' })
+  ctx.addMessage({ role: 'user', content: 'K I M. When do you open?' })
+  expect(saidMeanwhile(ctx.items)).toBe(' While you got it the caller said: "K I M. When do you open?" If they asked or wanted anything else, answer that now before you go on.')
+  expect(saidMeanwhile([])).toBe('')
+})
+
+test('after a step, a quiet assistant is asked once to go on; not while it replies or the caller talks', () => {
+  vi.useFakeTimers()
+  const session = (agentState: string, userState = 'listening') => ({ agentState, userState, generateReply: vi.fn() })
+  const quiet = session('listening')
+  const replying = session('thinking')
+  const callerTalks = session('listening', 'speaking')
+  for (const s of [quiet, replying, callerTalks]) nudgeIfQuiet(s)
+  vi.advanceTimersByTime(3000)
+  expect(quiet.generateReply).toHaveBeenCalledOnce()
+  expect(replying.generateReply).not.toHaveBeenCalled()
+  expect(callerTalks.generateReply).not.toHaveBeenCalled()
+  vi.useRealTimers()
 })

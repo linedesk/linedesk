@@ -69,6 +69,13 @@ test('book_appointment books for the call and the assistant, and the call ends a
   expect(mergeToolResults({ outcome: 'callback', title: 't', summary: 's' }, log).outcome).toBe('booked')
 })
 
+test('booked and transferred only from the tools: the summary guessing them without a booking or transfer falls back', () => {
+  const none = { messages: [], urgent: false }
+  expect(mergeToolResults({ outcome: 'booked', title: 't', summary: 's' }, none).outcome).toBe('callback')
+  expect(mergeToolResults({ outcome: 'booked', title: 't', summary: 's' }, { ...none, messages: ['Friday works'] }).outcome).toBe('message')
+  expect(mergeToolResults({ outcome: 'transferred', title: 't', summary: 's' }, none).outcome).toBe('callback')
+})
+
 test('a refused booking is not confirmed: the model hears why and what to do instead', async () => {
   const call = session()
   const log = new CallLog(call)

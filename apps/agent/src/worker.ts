@@ -11,6 +11,7 @@ import { z } from 'zod'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { bookingTools } from './booking-tools.ts'
 import { type CollectContext, collectTools } from './collect/collect-tools.ts'
+import { partialPhoneNumberIn } from './collect/collectors.ts'
 import { activeMenu, runKeypadMenu } from './keypad-menu.ts'
 import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log.ts'
 import { callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
@@ -79,7 +80,8 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
         address: z.string().nullish().describe('Where the visit is, if it is on site.'),
         email: z.string().nullish().describe("The caller's email address, if they gave one: the confirmation goes there."),
       }),
-      execute: args => booking.book(args),
+      // The name the caller confirmed letter by letter wins over the model's spelling of it.
+      execute: args => booking.book({ ...args, caller_name: log.confirmedName ?? args.caller_name }),
     }),
     ...(canChangeBookings(call.booking)
       ? {
@@ -126,6 +128,9 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
       description: 'Save a message for the team. Use it whenever the caller wants a callback, a visit, a quote or anything you cannot do yourself.',
       parameters: z.object({ message: z.string().describe('One complete sentence: who wants what. Add a callback number only if the caller gave one that is not their caller ID.') }),
       execute: async ({ message }) => {
+        // A number the caller said can come out garbled ("503 551 42"): only a whole one is saved.
+        const partial = partialPhoneNumberIn(message)
+        if (partial) return `"${partial}" is not a complete phone number. Get the callback number with get_phone_number first, then call take_message again with the confirmed number.`
         await api.run(callTakeMessage, { callId, message }, call)
         log.messages.push(message)
         log.record('system', 'Took a message', callTakeMessage.name)

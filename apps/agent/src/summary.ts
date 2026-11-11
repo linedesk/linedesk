@@ -68,6 +68,7 @@ function headline(text: string) {
 
 /** Outcomes that do not fit a call in which the assistant took a message. */
 const NOT_A_MESSAGE = new Set<CallResult['outcome']>(['answered', 'hangup'])
+const ONLY_BY_TOOLS = new Set<CallResult['outcome']>(['booked', 'transferred'])
 
 /** `savedMessages` are the action items taken during the call; the LLM is told not to repeat them. */
 export async function summarizeCall(lines: TranscriptLine[], complete: CompleteJson, savedMessages: string[] = []): Promise<CallResult> {
@@ -87,8 +88,11 @@ export async function summarizeCall(lines: TranscriptLine[], complete: CompleteJ
 export function mergeToolResults(result: CallResult, tools: { messages: string[]; urgent: boolean; bookings?: string[]; transferred?: boolean }): CallResult {
   const taken = tools.messages.map(text => ({ text }))
   const extra = (result.actionItems ?? []).filter(item => !tools.messages.includes(item.text))
+  // Booked and transferred come only from what the tools did, never from the summary's guess (a caller who
+  // agreed on a day is not booked without a booking).
+  const guessed = ONLY_BY_TOOLS.has(result.outcome) ? (taken.length ? 'message' : 'callback') : result.outcome
   const outcome = tools.transferred
     ? 'transferred'
-    : tools.bookings?.length ? 'booked' : taken.length && NOT_A_MESSAGE.has(result.outcome) ? 'message' : result.outcome
+    : tools.bookings?.length ? 'booked' : taken.length && NOT_A_MESSAGE.has(guessed) ? 'message' : guessed
   return { ...result, outcome, urgency: tools.urgent ? 'urgent' : result.urgency, actionItems: [...taken, ...extra] }
 }

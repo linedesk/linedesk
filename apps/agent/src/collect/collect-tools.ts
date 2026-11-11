@@ -26,18 +26,54 @@ async function runStep(ctx: CollectContext, { ctx: run }: llm.ToolOptions, colle
   const room = keypad ? ctx.room : null
   const callerIdentity = ctx.callerIdentity()
   try {
-    const outcome = await new CollectTask({
+    const task = new CollectTask({
       collector,
       chatCtx,
       ...(ctx.languageRule ? { languageRule: ctx.languageRule } : {}),
       ...(room ? { keypad: { room, ...(callerIdentity ? { callerIdentity } : {}) } } : {}),
-    }).run()
+    })
+    const outcome = await task.run()
     ctx.log.record('system', outcomeEvent(outcome))
-    return describeOutcome(outcome)
+    if (collector.kind === 'name' && outcome.status === 'confirmed') ctx.log.confirmedName = outcome.value
+    nudgeIfQuiet(run.session)
+    return describeOutcome(outcome) + saidMeanwhile(task.chatCtx.items.slice(chatCtx.items.length))
   } catch (e) {
     console.warn(`collection step ${collector.kind} ended early: ${e instanceof Error ? e.message : String(e)}`)
     return `Getting the ${collector.label} did not work. Note what you have and tell the caller someone will call them back.`
   }
+}
+
+/** How long after a step the assistant may stay quiet before it is asked to go on. */
+export const QUIET_AFTER_STEP_MS = 3000
+
+type Quiet = { agentState: string; userState: string; generateReply(options: { instructions: string }): unknown }
+
+/**
+ * After a step hands back, the model's reply to the step's result sometimes comes back empty: the caller then hears
+ * nothing until the silence reminder. If the assistant is still only listening after QUIET_AFTER_STEP_MS and the
+ * caller is not talking, it is asked once to go on.
+ */
+export function nudgeIfQuiet(session: Quiet, waitMs = QUIET_AFTER_STEP_MS) {
+  setTimeout(() => {
+    if (session.agentState !== 'listening' || session.userState === 'speaking') return
+    session.generateReply({ instructions: 'Go on with the call: answer what the caller asked or wanted, or ask for what you still need.' })
+  }, waitMs).unref?.()
+}
+
+/** How many of the caller's lines from a step are passed back: the last ones hold what is still open. */
+const MEANWHILE_LINES = 4
+
+/**
+ * What the caller said during a step, for the assistant: the step only collects one value and puts other
+ * questions off ("I'll come back to that"), so the assistant answers them once the step is done.
+ */
+export function saidMeanwhile(items: readonly llm.ChatItem[]): string {
+  const lines = items
+    .flatMap(item => (item.type === 'message' && item.role === 'user' && item.textContent ? [item.textContent.trim()] : []))
+    .filter(Boolean)
+    .slice(-MEANWHILE_LINES)
+  if (!lines.length) return ''
+  return ` While you got it the caller said: ${lines.map(line => `"${line}"`).join(' ')} If they asked or wanted anything else, answer that now before you go on.`
 }
 
 export function collectTools(ctx: CollectContext) {

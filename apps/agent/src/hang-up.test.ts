@@ -50,6 +50,21 @@ test('end_call with nothing said before: the assistant says goodbye first, never
   expect(hangUp).toHaveBeenCalledOnce()
 })
 
+test('end_call while the model still thinks up its goodbye: waits for it and adds no goodbye of its own', () => {
+  let done: () => void = () => {}
+  let spoke = false
+  const hangUp = vi.fn()
+  const sayGoodbye = vi.fn(async () => {})
+  hangUpAfterSpeech({ agentState: 'thinking', onDone: l => (done = l), spokeWithin: () => spoke }, hangUp, sayGoodbye)
+  vi.advanceTimersByTime(1500)
+  expect(hangUp).not.toHaveBeenCalled()
+  spoke = true // "Goodbye." played
+  done()
+  vi.advanceTimersByTime(400)
+  expect(hangUp).toHaveBeenCalledOnce()
+  expect(sayGoodbye).not.toHaveBeenCalled()
+})
+
 function userStates() {
   const listeners: ((ev: { newState: string }) => void)[] = []
   const session = { on: (event: string, listener: (ev: { newState: string }) => void) => event === voice.AgentSessionEventTypes.UserStateChanged && listeners.push(listener) }

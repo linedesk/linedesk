@@ -72,6 +72,18 @@ export function toE164(said: string): Parsed<string> {
   return ok(`+1${national}`)
 }
 
+/** Whether what was said or typed is a whole phone number (see toE164). */
+export const isWholePhoneNumber = (said: string) => toE164(said).ok
+
+/** A phone number in a text that is not whole ("call back on 503-551-42"), or null. Short numbers (a ZIP, a time) do not count. */
+export function partialPhoneNumberIn(text: string): string | null {
+  for (const [found] of text.matchAll(/\+?\d[\d\s().-]{4,}\d/g)) {
+    const digits = found.replace(/\D/g, '').length
+    if (digits >= 7 && !isWholePhoneNumber(found)) return found.trim()
+  }
+  return null
+}
+
 export function phoneCollector(what = 'callback number', keypad = true): Collector<{ phone_number: string }, string> {
   return {
     kind: 'phone_number',
@@ -121,7 +133,7 @@ export const nameCollector: Collector<{ first_name: string; last_name: string; l
   display: n => `${n.first} ${n.last}`,
   readBack: n => `${n.first} ${n.last}, last name spelled ${readLetters(n.last)}`,
   instructions:
-    'You collect the caller\'s first and last name. Then ask them to spell the last name. Callers spell letter by letter ("R U I Z"), with the phonetic alphabet ("Romeo Uniform India Zulu") or "R as in Robert"; pass the spelling as they said it in last_name_spelled. Names may have dashes or apostrophes (Mary-Jane, O\'Brien). If the caller gave their name earlier in the call, use it and only ask for the spelling.',
+    'You collect the caller\'s first and last name. Then ask them to spell the last name. Callers spell letter by letter ("R U I Z"), with the phonetic alphabet ("Romeo Uniform India Zulu") or "R as in Robert"; pass the spelling as they said it in last_name_spelled. Names may have dashes or apostrophes (Mary-Jane, O\'Brien). If the caller gave their name earlier in the call, use it and only ask for the spelling. Only a name the caller said about themselves counts: the assistant\'s own name from the greeting, the business\'s or a staff member\'s name is never the caller\'s; if you only have their last name, ask for the first name.',
   ask: 'Ask for their first and last name (if they already said it, ask them to spell the last name).',
 }
 
