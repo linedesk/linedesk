@@ -15,7 +15,7 @@ type Confirmation = {
   action: string
   /** The heaviest actions: the button unlocks once this is typed. */
   typed?: string
-  variant?: 'primary' | 'danger'
+  variant?: 'primary' | 'danger' | 'danger-outline'
 }
 
 export type AdminAction = {
@@ -32,6 +32,10 @@ export type AdminAction = {
 }
 
 const userLabel = (u: AdminUser) => u.name || u.email
+
+/** What granting instance admin means, said before it happens (detail, row and Invite user). */
+export const adminGrantText = (who: string) =>
+  `Make ${who} an instance admin? They can see every workspace and user, change provider keys and sign in as other users.`
 
 /** The actions that apply to this user: none of them on yourself except what is harmless. */
 export function userActions(u: AdminUser, currentUserId: string, reload: () => Promise<void>): AdminAction[] {
@@ -58,11 +62,7 @@ export function userActions(u: AdminUser, currentUserId: string, reload: () => P
       label: 'Make admin…',
       icon: 'shield',
       tip: 'Sees every workspace and user, and sets the provider keys.',
-      confirm: {
-        text: `${name} will see every workspace and user, and can change the provider keys.`,
-        action: 'Make instance admin',
-        variant: 'primary',
-      },
+      confirm: { text: adminGrantText(name), action: 'Make instance admin', variant: 'danger-outline' },
       run: act('instanceAdmin.grant'),
       done: `${name} is an instance admin.`,
     })

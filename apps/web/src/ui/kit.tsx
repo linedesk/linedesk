@@ -19,7 +19,8 @@ export function Kbd({ keys, className }: { keys: string[]; className?: string })
 }
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
+  /** `danger-outline`: a weighty step that destroys nothing (red text and border, no red fill). */
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-outline'
   size?: 'sm' | 'md'
   icon?: IconName
   shortcut?: string[]

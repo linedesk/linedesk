@@ -43,6 +43,8 @@ body { margin: 0; font-family: var(--font-sans); background: var(--bg); color: v
 .k-btn-ghost { background: transparent; color: var(--ink-muted); }
 .k-btn-ghost:hover { background: var(--surface-hover); color: var(--ink); }
 .k-btn-danger { background: var(--danger); color: var(--on-danger); }
+.k-btn-danger-outline { background: var(--surface); color: var(--danger); border-color: var(--danger); }
+.k-btn-danger-outline:hover { background: var(--danger-soft); }
 .k-btn-sm { height: 28px; padding: 0 10px; font-size: 12.5px; gap: 6px; }
 .k-btn-sm .k-kbd { height: 18px; min-width: 18px; }
 .k-btn-icon { width: 32px; padding: 0; justify-content: center; }

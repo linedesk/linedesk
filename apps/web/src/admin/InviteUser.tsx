@@ -5,6 +5,7 @@ import { emailError } from '../sign-in-code.ts'
 import { Checkbox } from '../ui/controls.tsx'
 import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
+import { adminGrantText } from './actions.tsx'
 import { runAdmin } from './api.ts'
 
 type Props = { toast: (text: string) => void; reload: () => Promise<void> }
@@ -16,6 +17,8 @@ export function InviteUser({ toast, reload }: Props) {
   const [form, setForm] = useState(empty)
   const [busy, setBusy] = useState(false)
   const [errors, setErrors] = useState<Errors>({})
+  /** Inviting an instance admin asks once more, in its own dialog. */
+  const [confirmingAdmin, setConfirmingAdmin] = useState(false)
 
   const close = () => {
     if (busy) return
@@ -30,7 +33,7 @@ export function InviteUser({ toast, reload }: Props) {
 
   async function submit(e: FormEvent) {
     e.preventDefault()
-    if (busy) return
+    if (busy || confirmingAdmin) return
     const found: Errors = {
       email: emailError(form.email) ?? undefined,
       name: form.name.trim() ? undefined : 'Enter their name.',
@@ -39,6 +42,12 @@ export function InviteUser({ toast, reload }: Props) {
       setErrors(found)
       return document.getElementById(found.email ? 'adm-invite-email' : 'adm-invite-name')?.focus()
     }
+    if (form.admin) return setConfirmingAdmin(true)
+    await send()
+  }
+
+  async function send() {
+    setConfirmingAdmin(false)
     setBusy(true)
     try {
       const data = (await runAdmin('user.invite', { email: form.email, name: form.name, admin: form.admin })) as {
@@ -64,7 +73,7 @@ export function InviteUser({ toast, reload }: Props) {
           Invite user
         </Button>
       </div>
-      {open && (
+      {open && !confirmingAdmin && (
         <Dialog
           title="Invite user"
           description="They sign in with this email and a one-time code."
@@ -107,6 +116,24 @@ export function InviteUser({ toast, reload }: Props) {
           </Checkbox>
           {errors.form && <FormMessage>{errors.form}</FormMessage>}
         </Dialog>
+      )}
+      {confirmingAdmin && (
+        <Dialog
+          title="Invite as instance admin?"
+          description={adminGrantText(form.email.trim())}
+          size="sm"
+          onClose={() => setConfirmingAdmin(false)}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setConfirmingAdmin(false)}>
+                Cancel
+              </Button>
+              <Button variant="danger-outline" onClick={() => void send()}>
+                Invite as admin
+              </Button>
+            </>
+          }
+        />
       )}
     </>
   )
