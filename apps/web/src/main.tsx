@@ -11,9 +11,11 @@ import '@fontsource/geist-mono/500.css'
 import './styles.css'
 import './app.css'
 import { captureOpenRouterReturn } from './admin/openrouterAuth.ts'
+import { registerServiceWorker } from './serviceWorker.ts'
 import { installTooltips } from './ui/tooltips.ts'
 
 installTooltips()
+registerServiceWorker()
 
 // Back from "Connect with OpenRouter": keep its answer for Admin, Providers and clear the address.
 const openRouterBack = captureOpenRouterReturn(window.location.search)
