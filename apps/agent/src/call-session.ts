@@ -1,5 +1,5 @@
 // One call as the agent sees it: start, append transcript segments, finish.
-import { type BookingContext, type CallCustomField, type CallDocuments, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, DEFAULT_AI_DISCLOSURE, DEFAULT_KNOWN_CALLER_GREETING, EMERGENCY_CONDITION, greetingWithDisclosure } from '@linedesk/actions'
+import { type BookingContext, type CallCustomField, type CallDocuments, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, DEFAULT_AI_DISCLOSURE, DEFAULT_KNOWN_CALLER_GREETING, EMERGENCY_CONDITION, greetingWithDisclosure, localizedDefault, mainLanguageOf, silenceClosingOf } from '@linedesk/actions'
 import type { Assistant, Contact, ToolEvent, TransferContact } from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
@@ -91,16 +91,33 @@ export function greetCaller(assistant: Assistant | null, contact: Contact | null
   }
 }
 
-/** The greeting followed by the recording notice, so both are said (and cached as audio) as one opening. */
 /** The greeting with the AI note when the assistant says it at the start; an API of an older version sends no mode. */
 export function withAiNote(assistant: Assistant | null): Assistant | null {
   if (!assistant?.greeting) return assistant
   const mode = assistant.ai_disclosure ?? DEFAULT_AI_DISCLOSURE
-  return { ...assistant, greeting: greetingWithDisclosure(assistant.greeting, assistant.name, mode) }
+  return { ...assistant, greeting: greetingWithDisclosure(assistant.greeting, assistant.name, mode, mainLanguageOf(assistant.languages)) }
 }
 
+/**
+ * The owner's texts as the call says them in the assistant's main language: a text that is still the English
+ * default (greeting, returning-caller line, closing line) becomes that language's default; written ones stay.
+ */
+export function inMainLanguage(assistant: Assistant | null): Assistant | null {
+  const main = mainLanguageOf(assistant?.languages)
+  if (!assistant || main === 'en') return assistant
+  const local = (text: string) => localizedDefault(text, main)
+  return {
+    ...assistant,
+    greeting: local(assistant.greeting),
+    greeting_outside: assistant.greeting_outside ? local(assistant.greeting_outside) : assistant.greeting_outside,
+    greeting_known_caller: assistant.greeting_known_caller && local(assistant.greeting_known_caller),
+    silence_closing: local(silenceClosingOf(assistant.silence_closing)),
+  }
+}
+
+/** The greeting followed by the recording notice (the English default in the main language), said and cached as one opening. */
 export function withRecordingNotice(assistant: Assistant | null, notice: string | null | undefined): Assistant | null {
-  const sentence = notice?.trim()
+  const sentence = notice?.trim() ? localizedDefault(notice.trim(), mainLanguageOf(assistant?.languages)) : null
   if (!assistant || !sentence) return assistant
   const greeting = assistant.greeting?.trim()
   return { ...assistant, greeting: greeting ? `${greeting} ${sentence}` : sentence }
@@ -143,7 +160,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     : started.assistant
   // The greeting and instructions that apply now: outside business hours, the outside variants.
   // …with the AI note (and in the consent mode the question) the owner chose for the start of the call.
-  const greeted = greetCaller(withAiNote(forHours(configured, businessHours)), contact, started.callerHistory)
+  const greeted = greetCaller(withAiNote(forHours(inMainLanguage(configured), businessHours)), contact, started.callerHistory)
   const assistant = withRecordingNotice(greeted.assistant, started.recordingNotice)
   const caller = greeted.caller
   const booking = started.booking ?? null

@@ -6,18 +6,23 @@
 // - it only flagged the call as urgent: a ready line says so and asks for the number, which every
 //   message needs.
 // Other tools (end_call alone) keep the model's answer.
+import { type SpokenLines, spokenLines } from '@linedesk/actions'
 import { voice } from '@livekit/agents'
 
 type ToolsExecuted = { functionCalls: { name: string }[]; cancelToolReply(): void }
 
-export const MESSAGE_SAVED_REPLY = "Thanks, I've passed your message on, and the team will get back to you. Is there anything else I can help with?"
-export const URGENT_FLAGGED_REPLY = "I've marked this as urgent for the team. Is the number you're calling from the best way to reach you?"
+export const MESSAGE_SAVED_REPLY = spokenLines('en').messageSaved
+export const URGENT_FLAGGED_REPLY = spokenLines('en').urgentFlagged
+
+/** The ready replies in the language spoken now (default English). */
+type Replies = () => Pick<SpokenLines, 'messageSaved' | 'urgentFlagged'>
+const english: Replies = () => spokenLines('en')
 
 /**
  * Tracks whether the assistant has spoken since the caller's last line and returns the handler for
  * `FunctionToolsExecuted`. `say` speaks a fixed sentence.
  */
-export function quietToolReplies(quietTools: ReadonlySet<string>, say: (text: string) => void) {
+export function quietToolReplies(quietTools: ReadonlySet<string>, say: (text: string) => void, replies: Replies = english) {
   let spokeSinceCaller = false
   return {
     itemAdded(role: string) {
@@ -28,7 +33,7 @@ export function quietToolReplies(quietTools: ReadonlySet<string>, say: (text: st
       const names = event.functionCalls.map(call => call.name)
       if (!names.length || !names.every(name => quietTools.has(name))) return
       if (spokeSinceCaller) return event.cancelToolReply()
-      const reply = names.includes('take_message') ? MESSAGE_SAVED_REPLY : names.includes('flag_urgent') ? URGENT_FLAGGED_REPLY : null
+      const reply = names.includes('take_message') ? replies().messageSaved : names.includes('flag_urgent') ? replies().urgentFlagged : null
       if (!reply) return
       event.cancelToolReply()
       say(reply)
@@ -36,8 +41,8 @@ export function quietToolReplies(quietTools: ReadonlySet<string>, say: (text: st
   }
 }
 
-export function skipQuietToolReplies(session: voice.AgentSession, quietTools: ReadonlySet<string>) {
-  const replies = quietToolReplies(quietTools, text => void session.say(text))
+export function skipQuietToolReplies(session: voice.AgentSession, quietTools: ReadonlySet<string>, lines: Replies = english) {
+  const replies = quietToolReplies(quietTools, text => void session.say(text), lines)
   session.on(voice.AgentSessionEventTypes.ConversationItemAdded, ({ item }) => {
     if (item.type === 'message' && item.textContent) replies.itemAdded(item.role)
   })

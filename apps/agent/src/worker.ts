@@ -3,7 +3,7 @@
 import { createServer } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { agentTokenProblem, ASSISTANT_CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage, otherLanguagesOf } from '@linedesk/actions'
+import { agentTokenProblem, ASSISTANT_CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage, mainLanguageOf, otherLanguagesOf, spokenLines } from '@linedesk/actions'
 import { lookUpPassages } from './look-up.ts'
 import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant } from '@livekit/rtc-node'
@@ -24,10 +24,10 @@ import { audioStream, createGreetingCache, greetingKey, synthesize } from './gre
 import { logTurnMetrics } from './turn-metrics.ts'
 import { followCallerLanguage } from './caller-language.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
-import { CALL_LIMIT_LINE, GOODBYE_LINE, hangUpAfterLine, hangUpAfterSpeech, hangUpAtCallLimit, remindOnSilence, silencePolicyOf, speakingOf, STILL_THERE_LINE, TEST_CALL_LIMIT_LINE } from './hang-up.ts'
+import { hangUpAfterLine, hangUpAfterSpeech, hangUpAtCallLimit, remindOnSilence, silencePolicyOf, speakingOf } from './hang-up.ts'
 import { playLine, unansweredLine } from './busy-line.ts'
 import { promisesUrgent, urgentFlagger } from './urgent-promise.ts'
-import { buildInstructions, canChangeBookings, collectLanguageRule, FALLBACK_GREETING } from './prompt.ts'
+import { buildInstructions, canChangeBookings, collectLanguageRule } from './prompt.ts'
 import { describeRecording, livekitRecorder, resolveRecording, saveRecording, startRecording, stopRecording, stopRecordingOrThrow } from './recording.ts'
 import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from './counterpart.ts'
 import { runTestCaller } from './test-caller/caller.ts'
@@ -188,12 +188,15 @@ const QUIET_TOOLS = new Set(['take_message', 'flag_urgent', 'end_call'])
 
 const greetingCache = createGreetingCache()
 
+/** What the assistant opens the call with: its greeting, else the fallback in its main language. */
+const openingOf = (call: CallSession) => call.assistant?.greeting || spokenLines(mainLanguageOf(call.assistant?.languages)).fallbackGreeting
+
 /**
  * Starts the greeting: the stored audio when there is some for this text and voice, else the voice
  * provider live, while the audio is made and stored for the next call.
  */
 async function greet(session: voice.AgentSession, config: AgentConfig, call: CallSession, cached: Promise<Awaited<ReturnType<typeof greetingCache.get>>>, key: string) {
-  const text = call.assistant?.greeting || FALLBACK_GREETING
+  const text = openingOf(call)
   // A greeting with the caller's name is said live and never stored: it is theirs alone.
   if (call.caller?.greetedByName) {
     session.say(text)
@@ -205,7 +208,7 @@ async function greet(session: voice.AgentSession, config: AgentConfig, call: Cal
     return 'cached'
   }
   session.say(text)
-  void synthesize(createTts(config.tts, call.assistant?.voice), text)
+  void synthesize(createTts(config.tts, call.assistant?.voice, mainLanguageOf(call.assistant?.languages)), text)
     .then(synthesized => greetingCache.put(key, synthesized))
     .catch(e => console.warn(`could not store the greeting audio: ${e instanceof Error ? e.message : String(e)}`))
   return 'synthesized'
@@ -218,16 +221,18 @@ async function greet(session: voice.AgentSession, config: AgentConfig, call: Cal
  */
 async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant>, api: ApiClient, config: AgentConfig, call: CallSession, log: CallLog, onClose: () => void, setup: SetupTimer, stopRecordingForTransfer: () => Promise<void>) {
   const key = greetingKey({
-    ...greetingVoice(config, call), text: call.assistant?.greeting || FALLBACK_GREETING,
+    ...greetingVoice(config, call), text: openingOf(call),
   })
   const cachedGreeting = call.caller?.greetedByName ? Promise.resolve(null) : greetingCache.get(key) // read while the session starts
   let callerIdentity: string | undefined
   void callerJoined.then(caller => (callerIdentity = caller.identity), () => {})
   const silence = silencePolicyOf(call.assistant)
-  const languages = otherLanguagesOf(call.assistant?.languages)
+  const languages = { main: mainLanguageOf(call.assistant?.languages), others: otherLanguagesOf(call.assistant?.languages) }
   const pipeline = createPipeline(config, call.assistant?.voice, silence.firstGapS, languages)
   const session = new voice.AgentSession(pipeline)
-  followCallerLanguage(session, pipeline.tts, languages, call.callId)
+  // Fixed lines during the call are in the language spoken now: the main one until the caller switches.
+  const spokenNow = followCallerLanguage(session, pipeline.tts, languages, call.callId)
+  const lines = () => spokenLines(spokenNow())
   const onSpeaking = ({ newState }: { newState: string }) => {
     if (newState !== 'speaking') return
     session.off(voice.AgentSessionEventTypes.AgentStateChanged, onSpeaking)
@@ -239,19 +244,19 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const flagUrgent = callFlagger(api, call, log)
   keepUrgentPromises(session, flagUrgent, call.callId)
   logTurnMetrics(session, call.callId)
-  skipQuietToolReplies(session, QUIET_TOOLS)
+  skipQuietToolReplies(session, QUIET_TOOLS, lines)
   session.on(voice.AgentSessionEventTypes.Close, onClose)
   const deleteRoom = () => void ctx.deleteRoom().catch(() => {})
-  // The assistant always says something before the call ends: its goodbye (else GOODBYE_LINE), the closing line
+  // The assistant always says something before the call ends: its goodbye (else the goodbye line in the language spoken), the closing line
   // after silence, or the goodbye at its time limit.
   const sayLine = (text: string) => session.say(text, { allowInterruptions: false }).waitForPlayout()
   const speaking = speakingOf(session)
-  const endCall = () => hangUpAfterSpeech(speaking, deleteRoom, () => sayLine(GOODBYE_LINE))
+  const endCall = () => hangUpAfterSpeech(speaking, deleteRoom, () => sayLine(lines().goodbye))
   // After a warm transfer or a take-over the caller talks with a person and the assistant is out of it: neither silence on its
   // side nor its time limit ends that call (the trunk's CALL_MAX_MINUTES does).
   const transferred = () => log.transferred
   remindOnSilence(session, silence, {
-    remind: () => void session.say(STILL_THERE_LINE),
+    remind: () => void session.say(lines().stillThere),
     close: () => {
       log.record('system', 'Hung up after silence on the line')
       hangUpAfterLine(sayLine(silence.closing), deleteRoom)
@@ -265,7 +270,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     transferred,
     goodbye: () => {
       log.record('system', `Call ended after ${limitMinutes} minutes`)
-      hangUpAfterLine(sayLine(isTest ? TEST_CALL_LIMIT_LINE : CALL_LIMIT_LINE), deleteRoom)
+      hangUpAfterLine(sayLine(isTest ? lines().testCallLimit : lines().callLimit), deleteRoom)
     },
   })
   session.on(voice.AgentSessionEventTypes.Close, cancelLimit)
@@ -299,6 +304,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     void runKeypadMenu({
       session, room: ctx.room, menu, callerIdentity: () => callerIdentity, canTransfer: () => transferOn,
       record: event => log.record('system', event),
+      lines: spokenLines(languages.main),
     }).catch(e => console.warn(`keypad menu on call ${call.callId}: ${e instanceof Error ? e.message : String(e)}`))
 }
 

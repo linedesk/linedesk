@@ -3,7 +3,7 @@
 // notifications, booking, voice, and Advanced (languages, raw call rules, silence, keypad menu); AI disclosure is the first row of the checklist.
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays, notifications and booking save on their own.
-import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, CALL_RULES_MAX, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, DEFAULT_CALL_RULES, DEFAULT_KNOWN_CALLER_GREETING, knownCallerGreetingProblem, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS, type AssistantLanguages, CALLER_LANGUAGES, type CallerLanguage, callerLanguageCodes, GREETING_VARIABLES, usesGreetingVariable } from '@linedesk/actions'
+import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, CALL_RULES_MAX, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, DEFAULT_CALL_RULES, DEFAULT_KNOWN_CALLER_GREETING, knownCallerGreetingProblem, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS, type AssistantLanguages, type Language, languageCodes, LANGUAGES, GREETING_VARIABLES, usesGreetingVariable } from '@linedesk/actions'
 import type { Assistant, KeypadMenuAction, KeypadMenuOption, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
@@ -28,6 +28,9 @@ import {
   keypadToSave,
   languagesProblem,
   languagesToSave,
+  mainOf,
+  pickedOthers,
+  withMainLanguage,
   nextFreeKey,
   keptDraft,
   mergeDraft,
@@ -219,10 +222,10 @@ const styleOptions = COMMUNICATION_STYLES.map(style => ({ value: style, label: C
 function AiDisclosureRow({ draft, set }: SectionProps) {
   function pick(mode: AiDisclosure) {
     set('ai_disclosure', mode)
-    set('greeting', disclosesAtStart(mode) ? withDisclosure(draft.greeting, draft.name) : withoutDisclosure(draft.greeting))
+    set('greeting', disclosesAtStart(mode) ? withDisclosure(draft.greeting, draft.name, mainOf(draft)) : withoutDisclosure(draft.greeting, draft.name, mainOf(draft)))
   }
   const heard = disclosesAtStart(draft.ai_disclosure) && draft.greeting.trim()
-    ? greetingWithDisclosure(draft.greeting, draft.name, draft.ai_disclosure)
+    ? greetingWithDisclosure(draft.greeting, draft.name, draft.ai_disclosure, mainOf(draft))
     : null
   return (
     <SelectRow
@@ -348,34 +351,37 @@ function KeypadMenu({ draft, set }: SectionProps) {
   )
 }
 
-const languageModes: { value: AssistantLanguages['mode']; label: string; description: string }[] = [
-  { value: 'english', label: 'English only', description: 'Other languages: answered in English, with an offer to take a message' },
-  { value: 'allowed', label: 'English and the languages you pick', description: 'Switches only to these' },
-  { value: 'any', label: 'Any language it speaks', description: 'Every language listed below' },
+const languageOptions = languageCodes.map(code => ({ value: code, label: LANGUAGES[code] }))
+const alsoModes = (main: string): { value: AssistantLanguages['mode']; label: string; description: string }[] => [
+  { value: 'english', label: 'None', description: `Other languages: answered in ${main}, with an offer to take a message` },
+  { value: 'allowed', label: 'These languages', description: 'Switches only to the ones you pick' },
+  { value: 'any', label: 'Any supported language', description: 'Every language listed below' },
 ]
 
-function Languages({ draft, set }: SectionProps) {
-  const { mode, allowed } = draft.languages
+function Languages({ draft, set, replace }: SectionProps & { replace: (draft: Draft) => void }) {
+  const { mode } = draft.languages
+  const main = mainOf(draft)
+  const others = pickedOthers(draft)
   const problem = languagesProblem(draft)
-  const toggle = (code: CallerLanguage, on: boolean) =>
-    set('languages', { mode, allowed: callerLanguageCodes.filter(c => (c === code ? on : allowed.includes(c))) })
+  const toggle = (code: Language, on: boolean) =>
+    set('languages', { ...draft.languages, allowed: languageCodes.filter(c => c !== main && (c === code ? on : others.includes(c))) })
   return (
     <Section
       id="as-languages"
       title="Languages"
-      help={`${assistantName(draft)} greets in English. When a caller speaks a language you allow, it answers in that language from then on; otherwise it goes on in English. Summaries are always in English, transcripts stay in the language spoken. Same price per minute; the first reply after a switch can take a moment longer.`}
+      help={`${assistantName(draft)} greets and speaks in the main language; the greeting, goodbye and other fixed lines are said in it (a greeting that is still the default changes with it). When a caller speaks another language you allow, it answers in that language from then on; otherwise it goes on in the main language. Summaries and messages for the team are in English, transcripts stay in the language spoken. Same price per minute; the first reply after a switch can take a moment longer.`}
     >
-      <Select id="as-languages-mode" label="Languages" value={mode} options={languageModes} onChange={m => set('languages', { mode: m, allowed })} />
+      <Field id="as-languages-main" label="Main language">
+        <Select id="as-languages-main" label="Main language" value={main} options={languageOptions} onChange={code => replace(withMainLanguage(draft, code))} />
+      </Field>
+      <Field id="as-languages-mode" label="Also speak">
+        <Select id="as-languages-mode" label="Also speak" value={mode} options={alsoModes(LANGUAGES[main])} onChange={m => set('languages', { ...draft.languages, mode: m })} />
+      </Field>
       {mode !== 'english' && (
-        <div className="as-languages" role="group" aria-label="Languages besides English">
-          {callerLanguageCodes.map(code => (
-            <Checkbox
-              key={code}
-              checked={mode === 'any' || allowed.includes(code)}
-              disabled={mode === 'any'}
-              onChange={on => toggle(code, on)}
-            >
-              {CALLER_LANGUAGES[code]}
+        <div className="as-languages" role="group" aria-label={`Languages besides ${LANGUAGES[main]}`}>
+          {languageCodes.filter(code => code !== main).map(code => (
+            <Checkbox key={code} checked={mode === 'any' || others.includes(code)} disabled={mode === 'any'} onChange={on => toggle(code, on)}>
+              {LANGUAGES[code]}
             </Checkbox>
           ))}
         </div>
@@ -568,7 +574,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         )}
         {current === 'advanced' && (
           <>
-            <Languages draft={draft} set={set} />
+            <Languages draft={draft} set={set} replace={setDraft} />
             <CallRules draft={draft} set={set} />
             <Advanced draft={draft} set={set} />
             <KeypadMenu draft={draft} set={set} />

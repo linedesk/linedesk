@@ -4,6 +4,7 @@
 // Speaking instead of pressing works as always: the menu just stops listening.
 import { voice } from '@livekit/agents'
 import { type RemoteParticipant, type Room, RoomEvent } from '@livekit/rtc-node'
+import { type SpokenLines, spokenLines } from '@linedesk/actions'
 import type { Assistant, KeypadMenu } from '@linedesk/db/types'
 
 /** How long after the menu was read the assistant waits for a key before going on. */
@@ -13,10 +14,10 @@ export const MENU_WAIT_MS = 6000
 export const activeMenu = (assistant: Pick<Assistant, 'keypad_menu'> | null): KeypadMenu | null =>
   assistant?.keypad_menu?.options?.length ? assistant.keypad_menu : null
 
-/** What the caller hears: "For emergencies, press 1. For billing, press 2. Or just tell me how I can help." */
-export function menuPrompt(menu: KeypadMenu): string {
-  const options = [...menu.options].sort((a, b) => a.key.localeCompare(b.key)).map(o => `For ${o.label}, press ${o.key}.`)
-  return `${options.join(' ')} Or just tell me how I can help.`
+/** What the caller hears: "For emergencies, press 1. For billing, press 2. Or just tell me how I can help." (in `lines`' language) */
+export function menuPrompt(menu: KeypadMenu, lines: SpokenLines = spokenLines('en')): string {
+  const options = [...menu.options].sort((a, b) => a.key.localeCompare(b.key)).map(o => lines.keypadOption(o.label, o.key))
+  return `${options.join(' ')} ${lines.keypadEnd}`
 }
 
 /** What a key means for the assistant: a transcript line and the instructions for its next reply; null for a key not on the menu. */
@@ -43,10 +44,12 @@ export type MenuOptions = {
   canTransfer: () => boolean
   record: (event: string) => void
   waitMs?: number
+  /** The lines in the assistant's main language; default English. */
+  lines?: SpokenLines
 }
 
 /** Reads the menu and acts on the first key; resolves when a key was handled, the caller spoke, or nobody pressed anything. */
-export function runKeypadMenu({ session, room, menu, callerIdentity, canTransfer, record, waitMs = MENU_WAIT_MS }: MenuOptions): Promise<void> {
+export function runKeypadMenu({ session, room, menu, callerIdentity, canTransfer, record, waitMs = MENU_WAIT_MS, lines = spokenLines('en') }: MenuOptions): Promise<void> {
   return new Promise(resolve => {
     let timer: ReturnType<typeof setTimeout> | undefined
     let wrongKeys = 0
@@ -63,7 +66,7 @@ export function runKeypadMenu({ session, room, menu, callerIdentity, canTransfer
       session.interrupt()
       if (!choice) {
         wrongKeys++
-        session.say(wrongKeys > 1 ? 'Sorry, that key is not on the menu. Just tell me how I can help.' : `Sorry, that key is not on the menu. ${menuPrompt(menu)}`)
+        session.say(`${lines.wrongKey} ${wrongKeys > 1 ? lines.justTellMe : menuPrompt(menu, lines)}`)
         if (wrongKeys > 1) stop()
         return
       }
@@ -77,7 +80,7 @@ export function runKeypadMenu({ session, room, menu, callerIdentity, canTransfer
     room.on(RoomEvent.DtmfReceived, onDigit)
     session.on(voice.AgentSessionEventTypes.UserStateChanged, onUserState)
     void session
-      .say(menuPrompt(menu))
+      .say(menuPrompt(menu, lines))
       .waitForPlayout()
       .then(() => {
         timer = setTimeout(stop, waitMs)

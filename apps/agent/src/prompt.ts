@@ -1,5 +1,5 @@
 // The assistant's system prompt, built from its configuration.
-import { aiDisclosureInstructions, type BookingContext, communicationStyleInstructions, behaviourLines, behaviourOn, type CallCustomField, type CallDocuments, type CallerHistory, callRulesOf, fenceData, FIRST_NAME_VARIABLE, KNOWN_CALLER_GREETING_MAX, knowledgeLists, languageNames, otherLanguagesOf, LAST_NAME_VARIABLE, usesGreetingVariable } from '@linedesk/actions'
+import { aiDisclosureInstructions, type BookingContext, communicationStyleInstructions, behaviourLines, behaviourOn, type CallCustomField, type CallDocuments, type CallerHistory, callRulesOf, fenceData, FIRST_NAME_VARIABLE, KNOWN_CALLER_GREETING_MAX, knowledgeLists, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf, LAST_NAME_VARIABLE, usesGreetingVariable } from '@linedesk/actions'
 import type { Assistant, Contact, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 
@@ -309,25 +309,33 @@ export function personalGreeting(greeting: string, template: string | null | und
   return { text: rest ? `${filled} ${rest.charAt(0).toUpperCase()}${rest.slice(1)}` : filled, usesName: usesFirst || usesLastName, usesLastName }
 }
 
-const ENGLISH_ONLY_RULE = 'Speak English only. If the caller speaks another language, say in English that you can only help in English and offer to take a message.'
+const TEAM_LANGUAGE_RULE =
+  'Whatever language you speak, write the messages, notes and booking details you save with tools in English, so the team can read them; keep names as the caller gives them.'
 
-/** Which languages the assistant may answer in (assistants.languages); English only by default. */
+/** Which languages the assistant speaks (assistants.languages): its main language, and the ones it may switch to. */
 export function languageInstructions(assistant: Pick<Assistant, 'languages'> | null): string {
+  const main = mainLanguageOf(assistant?.languages)
   const others = otherLanguagesOf(assistant?.languages)
-  if (!others.length) return ENGLISH_ONLY_RULE
-  const names = languageNames(others)
+  const mainName = LANGUAGES[main]
+  if (!others.length) {
+    const only = `Speak ${mainName} only. If the caller speaks another language, say in ${mainName} that you can only help in ${mainName} and offer to take a message.`
+    return main === 'en' ? only : `${only} ${TEAM_LANGUAGE_RULE}`
+  }
   return [
-    `Start in English. You also speak ${names}: when the caller speaks one of these, reply in that language from then on, and switch back if they switch.`,
-    `If the caller speaks any other language, reply in English: say politely that you can help in ${languageNames(['en', ...others], 'or')}, and offer to take a message.`,
-    'Whatever language you speak, write the messages, notes and booking details you save with tools in English, so the team can read them; keep names as the caller gives them.',
+    `Start in ${mainName}. You also speak ${languageNames(others)}: when the caller speaks one of these, reply in that language from then on, and switch back if they switch.`,
+    `If the caller speaks any other language, reply in ${mainName}: say politely that you can help in ${languageNames([main, ...others], 'or')}, and offer to take a message.`,
+    TEAM_LANGUAGE_RULE,
   ].join(' ')
 }
 
 /** The language rule for a collection step (collect-task.ts); null: English only, the step's default. */
 export function collectLanguageRule(assistant: Pick<Assistant, 'languages'> | null): string | null {
+  const main = mainLanguageOf(assistant?.languages)
   const others = otherLanguagesOf(assistant?.languages)
-  if (!others.length) return null
-  return `Speak the language the caller has been speaking in this call if it is ${languageNames(['en', ...others], 'or')}, else English. Say what the tools tell you in that language; keep names, numbers, addresses and email addresses exactly as they are.`
+  if (main === 'en' && !others.length) return null
+  const keep = 'Say what the tools tell you in that language; keep names, numbers, addresses and email addresses exactly as they are.'
+  if (!others.length) return `Speak ${LANGUAGES[main]}. ${keep}`
+  return `Speak the language the caller has been speaking in this call if it is ${languageNames([main, ...others], 'or')}, else ${LANGUAGES[main]}. ${keep}`
 }
 
 /**

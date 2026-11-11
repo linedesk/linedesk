@@ -1,6 +1,7 @@
 // A caller the assistant does not answer hears one short line in the assistant's voice before the agent hangs up,
 // never silence: over the workspace's limit of calls at once (`busy`) or its monthly spending cap (`overCap`; the API
 // filed both as missed with a callback), or a blocked number (filed in Spam).
+import { mainLanguageOf, spokenLines } from '@linedesk/actions'
 import type { Room } from '@livekit/rtc-node'
 import type { CallSession } from './call-session.ts'
 import type { AgentConfig } from './config.ts'
@@ -8,11 +9,12 @@ import { createGreetingCache, type GreetingAudio, greetingKey, synthesize } from
 import { publishVoice, speak } from './on-call-dialer.ts'
 import { createTts, greetingVoice } from './pipeline.ts'
 
-export const BUSY_LINE = 'Sorry, all our lines are busy right now. Please call back in a few minutes.'
+// The lines in English; the call says them in the assistant's main language (spokenLines).
+export const BUSY_LINE = spokenLines('en').busy
 /** Not "call back in a few minutes": the cap holds until next month, and the team has the number to call back. */
-export const OVER_CAP_LINE = "Sorry, we can't take your call right now. We'll call you back as soon as we can."
+export const OVER_CAP_LINE = spokenLines('en').overCap
 /** A blocked number (filed in Spam): still a word before the line goes dead, never silence. */
-export const BLOCKED_LINE = "Sorry, we can't take your call. Goodbye."
+export const BLOCKED_LINE = spokenLines('en').blocked
 
 /** Longest the caller is kept for the line, synthesis included; then the call ends anyway. */
 export const BUSY_LINE_MAX_MS = 12_000
@@ -25,16 +27,17 @@ export async function lineAudio(config: AgentConfig, call: Pick<CallSession, 'as
   const key = greetingKey({ ...greetingVoice(config, call), text })
   const cached = await lines.get(key)
   if (cached) return cached
-  const audio = await synthesize(createTts(config.tts, voice), text)
+  const audio = await synthesize(createTts(config.tts, voice, mainLanguageOf(call.assistant?.languages)), text)
   void lines.put(key, audio).catch(() => {})
   return audio
 }
 
 /** What a caller the assistant does not answer hears: over the spending cap, busy, or a blocked number. */
-export function unansweredLine(call: Pick<CallSession, 'busy' | 'overCap'>): string {
-  if (call.overCap) return OVER_CAP_LINE
-  if (call.busy) return BUSY_LINE
-  return BLOCKED_LINE
+export function unansweredLine(call: Pick<CallSession, 'busy' | 'overCap' | 'assistant'>): string {
+  const lines = spokenLines(mainLanguageOf(call.assistant?.languages))
+  if (call.overCap) return lines.overCap
+  if (call.busy) return lines.busy
+  return lines.blocked
 }
 
 /** Plays `text` into the room; resolves when it has played, failed, or BUSY_LINE_MAX_MS passed. Never throws. */

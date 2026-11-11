@@ -3,7 +3,7 @@
 // text to speech ElevenLabs or Cartesia. Turns are detected by Deepgram Flux, not by a local
 // voice-activity model: that saves the CPU a small server does not have, and the endpointing delay.
 // The worker only sees LiveKit's interfaces and `CompleteJson`.
-import { type CallerLanguage, SILENCE_FIRST_GAP_DEFAULT_S } from '@linedesk/actions'
+import { type Language, SILENCE_FIRST_GAP_DEFAULT_S } from '@linedesk/actions'
 import type { voice } from '@livekit/agents'
 import * as cartesia from '@livekit/agents-plugin-cartesia'
 import * as deepgram from '@livekit/agents-plugin-deepgram'
@@ -48,14 +48,18 @@ export function greetingVoice(config: AgentConfig, call: { assistant?: { voice?:
 /** Deepgram's multilingual Flux: same price and turn detection as English Flux, 10 languages, switches mid-call. */
 export const FLUX_MULTILINGUAL = 'flux-general-multi'
 
+/** The languages a call is spoken in: the assistant's main language first, then the others it may switch to. */
+export type CallLanguages = { main: Language; others: readonly Language[] }
+export const ENGLISH_CALL: CallLanguages = { main: 'en', others: [] }
+
 /**
- * Speech recognition for a call. `otherLanguages` (the assistant's allowed languages besides English): when
- * there are any, the multilingual model of the same family, biased toward English and those languages, so each
+ * Speech recognition for a call. English only: the configured model as it is. Any other main language, or other
+ * languages allowed: the multilingual model of the same family, biased toward the call's languages, so each
  * transcript reports the language spoken. An English-only model would turn other languages into nonsense.
  */
-export function createStt({ apiKey, model }: AgentConfig['stt'], otherLanguages: readonly CallerLanguage[] = []) {
-  const multi = otherLanguages.length > 0
-  const languageHint = multi ? ['en', ...otherLanguages] : undefined
+export function createStt({ apiKey, model }: AgentConfig['stt'], { main, others }: CallLanguages = ENGLISH_CALL) {
+  const multi = main !== 'en' || others.length > 0
+  const languageHint = multi ? [main, ...others] : undefined
   // Deepgram's Flux models speak a different protocol than Nova.
   if (model.startsWith('flux')) {
     return new deepgram.STTv2({ apiKey, model: multi ? FLUX_MULTILINGUAL : model, eagerEotThreshold: EAGER_END_OF_TURN, ...(languageHint ? { languageHint } : {}) })
@@ -67,10 +71,12 @@ export function createStt({ apiKey, model }: AgentConfig['stt'], otherLanguages:
 /** The model the voice provider is asked for (ElevenLabs gets its fast default). */
 export const ttsModelOf = (tts: TtsConfig) => tts.model ?? (tts.provider === 'elevenlabs' ? ELEVENLABS_DEFAULT_MODEL : undefined)
 
-export function createTts(config: AgentConfig['tts'], assistantVoice?: AssistantVoice | null) {
+/** `language`: what the voice speaks at first (Cartesia reads every text as English unless told); English is the providers' default. */
+export function createTts(config: AgentConfig['tts'], assistantVoice?: AssistantVoice | null, language: Language = 'en') {
   const { voiceId, ...tts } = ttsFor(config, assistantVoice)
-  if (tts.provider === 'cartesia') return new cartesia.TTS({ apiKey: tts.apiKey, ...(tts.model ? { model: tts.model } : {}), ...(voiceId ? { voice: voiceId } : {}) })
-  return new elevenlabs.TTS({ apiKey: tts.apiKey, model: tts.model ?? ELEVENLABS_DEFAULT_MODEL, ...(voiceId ? { voiceId } : {}) })
+  const spoken = language === 'en' ? {} : { language }
+  if (tts.provider === 'cartesia') return new cartesia.TTS({ apiKey: tts.apiKey, ...(tts.model ? { model: tts.model } : {}), ...(voiceId ? { voice: voiceId } : {}), ...spoken })
+  return new elevenlabs.TTS({ apiKey: tts.apiKey, model: tts.model ?? ELEVENLABS_DEFAULT_MODEL, ...(voiceId ? { voiceId } : {}), ...spoken })
 }
 
 /** OpenRouter's `models`: the model first, then the ones it tries when that one fails. */
@@ -89,14 +95,14 @@ function createLlm({ apiKey, baseUrl, model, fallbacks }: AgentConfig['llm']) {
 }
 
 /** Session options for one call. */
-export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVoice | null, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, otherLanguages: readonly CallerLanguage[] = []): voice.AgentSessionOptions & { tts: ReturnType<typeof createTts> } {
+export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVoice | null, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, languages: CallLanguages = ENGLISH_CALL): voice.AgentSessionOptions & { tts: ReturnType<typeof createTts> } {
   // Flux turn detection needs Flux; with another Deepgram model the session falls back to its own detection.
   const fluxTurns = config.stt.model.startsWith('flux')
   return {
     vad: null,
-    stt: createStt(config.stt, otherLanguages),
+    stt: createStt(config.stt, languages),
     llm: createLlm(config.llm),
-    tts: createTts(config.tts, assistantVoice),
+    tts: createTts(config.tts, assistantVoice, languages.main),
     turnHandling: { turnDetection: fluxTurns ? 'stt' : undefined, endpointing: ENDPOINTING, preemptiveGeneration: { enabled: true } },
     // The caller counts as away after this much silence on both sides; the worker then asks whether they are still
     // there, and in the end says goodbye and hangs up (remindOnSilence in hang-up.ts).

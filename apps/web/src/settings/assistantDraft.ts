@@ -5,7 +5,7 @@ import {
   CALL_RULES_MAX, EMERGENCY_CONDITION, type Faq, FAQS_MAX, INSTRUCTIONS_MAX, RING_SECONDS_DEFAULT, TRANSFER_CONDITION_MAX,
   TRANSFER_CONTACTS_MAX, type Service, SERVICES_MAX, servicesOf, TRANSFER_NAME_MAX, callRulesOf, usesDefaultCallRules, onCallNumberProblem,
   DEFAULT_SILENCE_CLOSING, SILENCE_CLOSING_MAX, SILENCE_FIRST_GAP_MAX_S, SILENCE_FIRST_GAP_MIN_S, SILENCE_REMINDERS_MAX,
-  SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT, KEYPAD_MENU_MAX_OPTIONS, BEHAVIOURS, type BehaviourId, behaviourOn, EMERGENCY_NOTE_MAX, type AiDisclosure, DEFAULT_AI_DISCLOSURE, type CommunicationStyle, DEFAULT_COMMUNICATION_STYLE, type AssistantLanguages, ENGLISH_ONLY, otherLanguagesOf,
+  SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT, KEYPAD_MENU_MAX_OPTIONS, BEHAVIOURS, type BehaviourId, behaviourOn, EMERGENCY_NOTE_MAX, type AiDisclosure, DEFAULT_AI_DISCLOSURE, type CommunicationStyle, DEFAULT_COMMUNICATION_STYLE, type AssistantLanguages, ENGLISH_ONLY, type Language, languageCodes, LANGUAGES, mainLanguageOf, swapDefault,
 } from '@linedesk/actions'
 import type { Assistant, BusinessProfile, KeypadMenuOption, TransferContact } from '@linedesk/db/types'
 import { formatNumber, renameInGreeting, toE164 } from '../onboarding/flow.ts'
@@ -100,18 +100,41 @@ export const behavioursToSave = (d: Pick<Draft, 'behaviours'>): Partial<Record<B
 /** The stored setting with only known codes; a row synced before the column existed: English only. */
 function languagesOf(stored: Assistant['languages'] | undefined): AssistantLanguages {
   if (!stored) return ENGLISH_ONLY
-  return { mode: stored.mode, allowed: otherLanguagesOf({ mode: 'allowed', allowed: stored.allowed }) }
+  return { main: mainLanguageOf(stored), mode: stored.mode, allowed: languageCodes.filter(code => stored.allowed.includes(code)) }
 }
+
+export const mainOf = (d: Pick<Draft, 'languages'>): Language => d.languages.main ?? 'en'
+/** The languages picked besides the main one. */
+export const pickedOthers = (d: Pick<Draft, 'languages'>): Language[] => d.languages.allowed.filter(code => code !== mainOf(d))
 
 /** Why the languages cannot be saved, or null. */
 export function languagesProblem(d: Pick<Draft, 'languages'>): string | null {
-  return d.languages.mode === 'allowed' && !d.languages.allowed.length ? 'Pick at least one language besides English, or choose English only.' : null
+  return d.languages.mode === 'allowed' && !pickedOthers(d).length
+    ? `Pick at least one language besides ${LANGUAGES[mainOf(d)]}, or choose None.`
+    : null
 }
 
-/** What assistant.update takes: no list unless the allow-list is used. */
+/** What assistant.update takes: no list unless the allow-list is used, never the main language in it. */
 export const languagesToSave = (d: Draft) => ({
-  languages: d.languages.mode === 'allowed' ? d.languages : { mode: d.languages.mode, allowed: [] },
+  languages: { main: mainOf(d), mode: d.languages.mode, allowed: d.languages.mode === 'allowed' ? pickedOthers(d) : [] },
 })
+
+/**
+ * The draft with another main language: texts that are still the old language's default (greetings, the
+ * returning-caller line, the closing line) become the new one's; texts the owner wrote stay.
+ */
+export function withMainLanguage(d: Draft, main: Language): Draft {
+  const from = mainOf(d)
+  const swap = (text: string) => (text.trim() ? swapDefault(text, from, main) : text)
+  return {
+    ...d,
+    languages: { ...d.languages, main },
+    greeting: swap(d.greeting),
+    greeting_outside: swap(d.greeting_outside),
+    greeting_known_caller: swap(d.greeting_known_caller),
+    silence_closing: swap(d.silence_closing),
+  }
+}
 
 /** After a synced change: fields the user has not touched follow the server, touched fields keep the user's edit. */
 export function mergeDraft(draft: Draft, previousSaved: Draft, nextSaved: Draft): Draft {

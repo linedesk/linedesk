@@ -1,13 +1,15 @@
-// Which languages an assistant speaks with callers: English only (the default), English plus an allow-list,
-// or any language the speech recognition understands. The greeting is always in English; the call's summary
-// is written in English for the team, its transcript stays in the language spoken.
+// Which languages an assistant speaks with callers (`assistants.languages`): a main language (English unless set)
+// and, besides it, none, a picked list, or every supported language. The greeting and the fixed lines are in the
+// main language (spoken-lines.ts); the call's summary is written in English for the team, its transcript stays in
+// the language spoken.
 import { z } from 'zod'
 
 /**
- * Languages other than English the assistant can switch to: the ones Deepgram's multilingual models
- * (Flux `flux-general-multi`, Nova-3 `multi`) recognize, which ElevenLabs Flash v2.5 and Cartesia Sonic also speak.
+ * The languages an assistant can speak: the ones Deepgram's multilingual models (Flux `flux-general-multi`,
+ * Nova-3 `multi`) recognize, which ElevenLabs Flash v2.5 and Cartesia Sonic also speak.
  */
-export const CALLER_LANGUAGES = {
+export const LANGUAGES = {
+  en: 'English',
   es: 'Spanish',
   fr: 'French',
   de: 'German',
@@ -18,31 +20,40 @@ export const CALLER_LANGUAGES = {
   hi: 'Hindi',
   ja: 'Japanese',
 } as const
-export type CallerLanguage = keyof typeof CALLER_LANGUAGES
-export const callerLanguageCodes = Object.keys(CALLER_LANGUAGES) as CallerLanguage[]
+export type Language = keyof typeof LANGUAGES
+export const languageCodes = Object.keys(LANGUAGES) as Language[]
+const languageCode = z.enum(languageCodes as [Language, ...Language[]])
 
-/** `english`: English only; `allowed`: English and `allowed`; `any`: every language in CALLER_LANGUAGES. */
+/**
+ * `main`: the language the assistant greets and speaks in (missing: English). `mode`: the languages besides it:
+ * `english` none (the name is from before the main language could be picked), `allowed` the `allowed` ones,
+ * `any` every supported language.
+ */
 export const assistantLanguages = z.object({
+  main: languageCode.optional(),
   mode: z.enum(['english', 'allowed', 'any']),
-  allowed: z
-    .array(z.enum(callerLanguageCodes as [CallerLanguage, ...CallerLanguage[]]))
-    .max(callerLanguageCodes.length),
+  allowed: z.array(languageCode).max(languageCodes.length),
 })
 export type AssistantLanguages = z.infer<typeof assistantLanguages>
 
-export const ENGLISH_ONLY: AssistantLanguages = { mode: 'english', allowed: [] }
+export const ENGLISH_ONLY: AssistantLanguages = { main: 'en', mode: 'english', allowed: [] }
 
-/** The languages besides English a call may switch to (none: English only). Unknown codes are dropped. */
-export function otherLanguagesOf(
-  languages: { mode?: string; allowed?: readonly string[] } | null | undefined,
-): CallerLanguage[] {
-  if (languages?.mode === 'any') return callerLanguageCodes
+type StoredLanguages = { main?: string; mode?: string; allowed?: readonly string[] } | null | undefined
+
+/** The main language; English when none (or an unknown one) is stored. */
+export const mainLanguageOf = (languages: StoredLanguages): Language =>
+  languageCodes.find(code => code === languages?.main) ?? 'en'
+
+/** The languages besides the main one a call may switch to (none: the main language only). Unknown codes are dropped. */
+export function otherLanguagesOf(languages: StoredLanguages): Language[] {
+  const main = mainLanguageOf(languages)
+  if (languages?.mode === 'any') return languageCodes.filter(code => code !== main)
   if (languages?.mode !== 'allowed') return []
-  return callerLanguageCodes.filter(code => languages.allowed?.includes(code))
+  return languageCodes.filter(code => code !== main && languages.allowed?.includes(code))
 }
 
-/** "Spanish and German", "Spanish, French or German". */
+/** "Spanish and German", "English, French or German". */
 export function languageNames(codes: readonly string[], joiner: 'and' | 'or' = 'and'): string {
-  const names = codes.map(code => CALLER_LANGUAGES[code as CallerLanguage] ?? 'English')
+  const names = codes.map(code => LANGUAGES[code as Language] ?? code)
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} ${joiner} ${names.at(-1)}` : (names[0] ?? '')
 }

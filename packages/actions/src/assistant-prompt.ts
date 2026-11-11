@@ -1,6 +1,9 @@
 // The default "How to handle calls" rules of an assistant. The owner can rewrite them in Settings,
 // Assistant; an assistant that has none stored (null) uses these, so a better default reaches it.
 
+import type { Language } from './languages.ts'
+import { spokenLines } from './spoken-lines.ts'
+
 /** Longest call-handling rules an assistant takes (characters). */
 export const CALL_RULES_MAX = 10_000
 
@@ -126,7 +129,8 @@ const DISCLOSURE = /,?\s*(?:the|an|your|a)\s+(?:virtual|AI)\s+assistant\b/i
 export const disclosesAi = (greeting: string) => DISCLOSURE.test(greeting)
 
 /** The greeting with "…, the AI assistant" after the assistant's name, or a sentence that says it. */
-export function withDisclosure(greeting: string, name: string): string {
+export function withDisclosure(greeting: string, name: string, language: Language = 'en'): string {
+  if (language !== 'en') return withLocalDisclosure(greeting, name, language)
   if (disclosesAi(greeting)) return greeting
   const who = name.trim() || 'the assistant'
   const named = new RegExp(`(\\bthis is ${who.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'i')
@@ -138,7 +142,23 @@ export function withDisclosure(greeting: string, name: string): string {
 }
 
 /** The greeting without the AI disclosure. */
-export const withoutDisclosure = (greeting: string) => greeting.replace(DISCLOSURE, '')
+export function withoutDisclosure(greeting: string, name = '', language: Language = 'en'): string {
+  if (language === 'en') return greeting.replace(DISCLOSURE, '')
+  const lines = spokenLines(language)
+  const sentence = lines.aiSentence(name.trim())
+  const without = greeting.includes(sentence) ? greeting.replace(sentence, '') : greeting.replace(aiAppositive(language), '')
+  return without.replace(/\s{2,}/g, ' ').trim()
+}
+
+/** The words the default greeting of a language adds for the AI note (", asistente de IA"). */
+function aiAppositive(language: Language): string {
+  const lines = spokenLines(language)
+  const noted = lines.greeting('B', 'N', true)
+  const plain = lines.greeting('B', 'N', false)
+  let start = 0
+  while (start < plain.length && noted[start] === plain[start]) start++
+  return noted.slice(start, start + noted.length - plain.length)
+}
 
 /** What the caller is asked in the consent mode, in place of the greeting's closing question. */
 export const AI_CONSENT_QUESTION = 'Is that okay with you?'
@@ -147,13 +167,26 @@ export const AI_CONSENT_QUESTION = 'Is that okay with you?'
  * The greeting as said on the call: with the AI note when the mode says so at the start, and in the consent
  * mode ending with the consent question instead of its own closing question ("How can I help?").
  */
-export function greetingWithDisclosure(greeting: string, name: string, mode: AiDisclosure): string {
+export function greetingWithDisclosure(greeting: string, name: string, mode: AiDisclosure, language: Language = 'en'): string {
   if (!greeting.trim() || !disclosesAtStart(mode)) return greeting
-  const noted = withDisclosure(greeting.trim(), name)
+  const noted = withDisclosure(greeting.trim(), name, language)
   if (mode === 'at_start') return noted
-  const sentences = noted.match(/[^.!?]+[.!?]+|[^.!?]+$/g)?.map(s => s.trim()) ?? [noted]
-  const kept = sentences.at(-1)?.endsWith('?') && sentences.length > 1 ? sentences.slice(0, -1) : sentences
-  return `${kept.join(' ')} ${AI_CONSENT_QUESTION}`
+  const sentences = noted.match(SENTENCE)?.map(s => s.trim()) ?? [noted]
+  const kept = /[?？]$/.test(sentences.at(-1) ?? '') && sentences.length > 1 ? sentences.slice(0, -1) : sentences
+  return `${kept.join(' ')} ${spokenLines(language).consentQuestion}`
+}
+
+/** Sentences, also with the full stops and question marks of Hindi and Japanese. */
+const SENTENCE = /[^.!?。！？।]+[.!?。！？।]+|[^.!?。！？।]+$/g
+
+/** A greeting in a language other than English with that language's AI sentence after its first sentence, unless it says it already. */
+function withLocalDisclosure(greeting: string, name: string, language: Language): string {
+  const lines = spokenLines(language)
+  if (lines.aiNote.test(greeting)) return greeting
+  const sentence = lines.aiSentence(name.trim() || name)
+  const firstEnd = greeting.search(/[.!?。！？।]/)
+  if (firstEnd < 0 || firstEnd === greeting.length - 1) return `${greeting} ${sentence}`
+  return `${greeting.slice(0, firstEnd + 1)} ${sentence} ${greeting.slice(firstEnd + 1).trim()}`
 }
 
 /** The prompt's part about mentioning being an AI, on top of the fixed honesty rule; null when there is nothing to add. */
