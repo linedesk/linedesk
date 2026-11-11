@@ -61,6 +61,8 @@ export interface StoreOptions {
   refreshOnStart?: readonly TableName[]
   /** How long a table waited for may show as loading at most; then the local rows show anyway. */
   refreshWaitMs?: number
+  /** A click or key press in this tab reads the polled tables again once they are older than this. */
+  activityRefreshMs?: number
 }
 
 const emptyTables = () => Object.fromEntries(tableNames.map(t => [t, new Map()])) as unknown as LocalTables
@@ -72,6 +74,12 @@ const byAge = (a: Command, b: Command) => seqOf(a) - seqOf(b) || a.id.localeComp
 const VERSION_KEY = 'appVersion'
 /** A refresh nobody answers (the leading tab closed meanwhile) stops showing tables as loading after this. */
 const REFRESH_WAIT_MS = 4000
+/**
+ * A tab someone keeps looking at gets no focus event: a member removed meanwhile would see the
+ * workspace until the next long-poll or poll (up to a minute). Their next click or key press reads
+ * the polled tables again, at most this often, so the server's refusal arrives before they act on old data.
+ */
+const ACTIVITY_REFRESH_MS = 15_000
 
 /** A new build may sync a different shape of the tables: drop the read-sync cursors so each table loads again. */
 export async function forgetCursorsOnNewVersion(local: LocalDb, version: string): Promise<boolean> {
@@ -135,6 +143,8 @@ export async function createStore(opts: StoreOptions) {
   const mine = new Set<string>()
   let online = true
   let refused: WorkspaceRefusal | null = null
+  /** When every polled table was last asked for (start counts as asked: the first reads are running). */
+  let refreshedAt = Date.now()
   /** Pending writes rolled back because the session or the workspace was refused. */
   let discarded = 0
   let workspaceState: WorkspaceState | null = null
@@ -454,6 +464,7 @@ export async function createStore(opts: StoreOptions) {
    */
   async function refresh(tables?: readonly TableName[], { wait = false }: { wait?: boolean } = {}) {
     if (stopped || refused) return
+    if (!tables) refreshedAt = Date.now()
     const waited = wait ? (tables ?? tableNames) : []
     if (waited.length) markRefreshing(waited, 1)
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -530,6 +541,9 @@ export async function createStore(opts: StoreOptions) {
   const onBack = () => {
     if (globalThis.document?.visibilityState !== 'hidden') void refresh()
   }
+  const onActivity = () => {
+    if (Date.now() - refreshedAt >= (opts.activityRefreshMs ?? ACTIVITY_REFRESH_MS)) void refresh()
+  }
   function stop() {
     if (stopped) return
     stopped = true
@@ -540,6 +554,8 @@ export async function createStore(opts: StoreOptions) {
     globalThis.removeEventListener?.('online', onOnline)
     globalThis.removeEventListener?.('focus', onBack)
     globalThis.document?.removeEventListener('visibilitychange', onBack)
+    globalThis.removeEventListener?.('pointerdown', onActivity, true)
+    globalThis.removeEventListener?.('keydown', onActivity, true)
     leaveTabs() // hands the lead to another tab
     local.close()
   }
@@ -553,6 +569,8 @@ export async function createStore(opts: StoreOptions) {
   globalThis.addEventListener?.('online', onOnline)
   globalThis.addEventListener?.('focus', onBack)
   globalThis.document?.addEventListener('visibilitychange', onBack)
+  globalThis.addEventListener?.('pointerdown', onActivity, true)
+  globalThis.addEventListener?.('keydown', onActivity, true)
   tabs.whenLeading(() => void lead())
   starting = false
   // A tab that opens while another leads: the leader's polled tables may be a minute old.

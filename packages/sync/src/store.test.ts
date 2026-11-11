@@ -254,6 +254,25 @@ describe('store', () => {
     store.stop()
   })
 
+  it('reads the polled tables again on a click or key press once they are older than the activity interval', async () => {
+    const handlers = new Map<string, () => void>()
+    vi.stubGlobal('addEventListener', (type: string, handler: () => void) => handlers.set(type, handler))
+    vi.stubGlobal('removeEventListener', (type: string) => handlers.delete(type))
+    const refresh = vi.fn(async () => {})
+    const store = await open({ ...fakeAdapter().adapter, refresh }, { activityRefreshMs: 40 })
+    await eventually(() => expect(handlers.has('pointerdown')).toBe(true))
+    refresh.mockClear()
+    handlers.get('pointerdown')!() // just started: the first reads are recent enough
+    expect(refresh).not.toHaveBeenCalled()
+    await new Promise(resolve => setTimeout(resolve, 50))
+    handlers.get('keydown')!()
+    await eventually(() => expect(refresh).toHaveBeenCalledOnce())
+    handlers.get('pointerdown')!() // read a moment ago: not again
+    expect(refresh).toHaveBeenCalledOnce()
+    store.stop()
+    expect(handlers.has('pointerdown')).toBe(false)
+  })
+
   it('knows when a table has caught up with the server, also after a reload', async () => {
     vi.stubGlobal(
       'fetch',
