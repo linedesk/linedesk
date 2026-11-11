@@ -22,6 +22,7 @@ export const calendarFindSlots = defineAction({
     limit: z.number().int().min(1).max(200).default(20),
   }),
   permission: 'calendar:read',
+  public: true,
   readOnly: true,
 })
 
@@ -56,6 +57,7 @@ export const appointmentBook = defineAction({
     assistantId: z.string().min(1).optional(),
   }),
   permission: 'calendar:write',
+  public: true,
 })
 
 /** `data` of appointment.book. */
@@ -67,6 +69,7 @@ export const appointmentCancel = defineAction({
   description: 'Cancel a booking made through Linedesk: deletes its calendar event and marks it cancelled.',
   input: z.object({ bookingId: z.string().min(1), callId: z.string().min(1).optional() }),
   permission: 'calendar:write',
+  public: true,
 })
 
 export const appointmentReschedule = defineAction({
@@ -74,6 +77,7 @@ export const appointmentReschedule = defineAction({
   description: 'Move a booking made through Linedesk to another free slot: the calendar event moves with it.',
   input: z.object({ bookingId: z.string().min(1), start: instant, callId: z.string().min(1).optional() }),
   permission: 'calendar:write',
+  public: true,
 })
 
 export const appointmentTypeUpsert = defineAction({

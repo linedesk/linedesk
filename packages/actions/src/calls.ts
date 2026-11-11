@@ -11,6 +11,7 @@ const callPatch = (name: string, description: string, set: (now: string) => Part
     description,
     input: callId,
     permission: 'call:write',
+    public: true,
     patch: { table: 'calls', id: i => i.callId, set: (_i, now) => set(now) } satisfies PatchSpec<CallId, 'calls'>,
   })
 
@@ -46,6 +47,7 @@ export const callMarkNotSpam = defineAction({
     'Take a call out of spam: it was a real caller, so it goes back to the open inbox (as a callback unless an outcome is given).',
   input: notSpamInput,
   permission: 'call:write',
+  public: true,
   patch: {
     table: 'calls',
     id: i => i.callId,
@@ -58,6 +60,7 @@ export const callRemind = defineAction({
   description: 'Hide a call until a point in time, then bring it back.',
   input: callId.extend({ at: z.iso.datetime({ offset: true }), label: z.string().max(60).optional() }),
   permission: 'call:write',
+  public: true,
   patch: { table: 'calls', id: i => i.callId, set: i => ({ reminder_at: i.at, reminder_label: i.label ?? null }) },
 })
 
@@ -70,6 +73,7 @@ export const callAssign = defineAction({
   description: 'Assign a call to a member of the workspace (their user id), or unassign it with null.',
   input: callId.extend({ userId: z.string().min(1).nullable() }),
   permission: 'call:write',
+  public: true,
   patch: { table: 'calls', id: i => i.callId, set: i => ({ assignee_id: i.userId }) },
 })
 
@@ -78,6 +82,7 @@ export const callSetActionItems = defineAction({
   description: 'Replace the next steps of a call, for example to tick one off.',
   input: callId.extend({ items: z.array(z.object({ text: z.string().min(1), done: z.boolean().optional() })) }),
   permission: 'call:write',
+  public: true,
   patch: { table: 'calls', id: i => i.callId, set: i => ({ action_items: i.items }) },
 })
 

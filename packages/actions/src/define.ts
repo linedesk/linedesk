@@ -34,6 +34,8 @@ export interface ActionDef<S extends z.ZodType = z.ZodType, T extends TableName 
   patch?: PatchSpec<z.infer<S>, T>
   /** The action changes nothing: the API neither logs it as a command nor makes it idempotent. */
   readOnly?: true
+  /** Part of the public API: listed in GET /v1/openapi.json and offered as an MCP tool. */
+  public?: true
   /** Top-level input fields that hold secrets. The API replaces their values before it stores or logs the input. */
   sensitive?: readonly string[]
   /** The result's `data` holds a secret shown once (a new API key): the command log keeps the result without it. */

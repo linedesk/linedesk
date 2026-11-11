@@ -17,6 +17,7 @@ export const contactUpdate = defineAction({
     note: z.string().nullable().optional(),
   }),
   permission: 'contact:write',
+  public: true,
   patch: { table: 'contacts', id: i => i.contactId, set: ({ contactId: _id, ...rest }) => defined(rest) },
 })
 
@@ -28,6 +29,7 @@ export const contactBlock = defineAction({
   description: 'Block a caller: calls from their number are not answered and are filed in Spam.',
   input: contactId,
   permission: 'contact:write',
+  public: true,
   patch: { table: 'contacts', id: i => i.contactId, set: (_i, now) => ({ blocked_at: now }) },
 })
 
@@ -36,6 +38,7 @@ export const contactUnblock = defineAction({
   description: 'Unblock a caller: their calls are answered again.',
   input: contactId,
   permission: 'contact:write',
+  public: true,
   patch: { table: 'contacts', id: i => i.contactId, set: () => ({ blocked_at: null }) },
 })
 
@@ -49,6 +52,7 @@ export const contactCreate = defineAction({
     company: z.string().trim().min(1).optional(),
   }),
   permission: 'contact:write',
+  public: true,
 })
 
 /** Contacts leave the list but keep their calls; contact.restore undoes it. */
@@ -57,6 +61,7 @@ export const contactDelete = defineAction({
   description: 'Delete a contact. Their calls stay in the inbox, shown by number.',
   input: contactId,
   permission: 'contact:write',
+  public: true,
   patch: { table: 'contacts', id: i => i.contactId, set: (_i, now) => ({ deleted_at: now }) },
 })
 
@@ -65,6 +70,7 @@ export const contactRestore = defineAction({
   description: 'Bring back a deleted contact.',
   input: contactId,
   permission: 'contact:write',
+  public: true,
   patch: { table: 'contacts', id: i => i.contactId, set: () => ({ deleted_at: null }) },
 })
 

@@ -18,6 +18,7 @@ export * from './calls.ts'
 export * from './membership.ts'
 export * from './notifications.ts'
 export * from './onboarding.ts'
+export * from './openapi.ts'
 export * from './settings.ts'
 export * from './team.ts'
 

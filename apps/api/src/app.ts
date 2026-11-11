@@ -1,4 +1,4 @@
-import { actions } from '@linedesk/actions'
+import { actions, openApiDocument } from '@linedesk/actions'
 import { assistants, member, organization, user, workspace_settings, tableNames, type TableName } from '@linedesk/db'
 import { APIError } from 'better-auth/api'
 import { asc, eq } from 'drizzle-orm'
@@ -80,6 +80,10 @@ app.post('/v1/workspaces', async c => {
     .catch(err => console.error('set active workspace failed', err))
   return c.json({ ok: true, workspace: { id: org.id, name: org.name } })
 })
+
+// Public, before the guard: the API description lists no data, only the public actions' schemas.
+const openApi = openApiDocument(actions.values(), process.env.PUBLIC_URL || WEB_ORIGIN)
+app.get('/v1/openapi.json', c => c.json(openApi))
 
 // Before the workspace guard: a member without a workspace has an account too.
 app.post('/v1/account/password', setFirstPassword)
