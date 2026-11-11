@@ -156,7 +156,11 @@ export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast }: Pr
       </Section>
     )
   return (
-    <Section id="as-voice" title="Voice" help="Applies from the next call.">
+    <Section
+      id="as-voice"
+      title="Voice"
+      help="The voice callers hear. A new choice is used from the next call on; a call in progress keeps the old voice."
+    >
       <div className="vc-list" role="radiogroup" aria-label="Voice">
         <div className="vc-row">
           <RadioCard

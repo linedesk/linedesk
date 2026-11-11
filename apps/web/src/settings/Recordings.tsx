@@ -42,8 +42,8 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
       description={recordingOn ? undefined : 'Recording is off on this server.'}
       help={
         recordingOn
-          ? 'Only the audio is deleted. The call, transcript and summary stay.'
-          : 'Whoever runs your Linedesk can turn it on.'
+          ? 'Recordings older than this are deleted automatically. Only the audio goes; the call, its transcript and summary stay.'
+          : 'Calls are not recorded. Whoever runs your Linedesk server can turn recording on.'
       }
     >
       {error && <LoadProblem what="Recording settings" message={error} onRetry={() => void settings.reload()} />}

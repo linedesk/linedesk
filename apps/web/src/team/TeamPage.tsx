@@ -361,7 +361,7 @@ export function TeamPage({ toast }: { toast: (text: string) => void }) {
           id="team-members"
           title="Members"
           description={data.canManage ? undefined : 'Only owners and admins can invite or change roles.'}
-          help="Admins manage settings and people. Members handle calls and contacts."
+          help="Owners and admins can change settings and invite or remove people. Members work with calls, contacts and appointments but can't change settings."
         >
           <div className="st-list">
             {data.members.map(m => (

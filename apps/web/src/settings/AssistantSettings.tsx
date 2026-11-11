@@ -57,6 +57,9 @@ const sectionFields: Record<Exclude<SectionId, 'calendar'>, (keyof Draft)[]> = {
   transfer: ['transfer_urgent', 'transfer_number', 'transfer_hours_only'],
 }
 
+/** The assistant's name as the help texts say it, also while the name field is being edited. */
+const assistantName = (draft: Draft) => draft.name.trim() || 'The assistant'
+
 type SectionProps = { draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void }
 /** Which variant a field shows: during business hours, or outside them (only when the workspace uses hours). */
 type Variant = 'during' | 'outside'
@@ -73,7 +76,7 @@ function VariantSwitch({ value, onChange, label }: { value: Variant; onChange: (
           aria-checked={value === v}
           className={cx('st-seg-b', value === v && 'on')}
           onClick={() => onChange(v)}
-          title={v === 'outside' ? 'Optional. Empty: the same as during hours' : undefined}
+          title={v === 'outside' ? 'Optional. Leave it empty to use the same text as during hours.' : undefined}
         >
           {v === 'during' ? 'During hours' : 'Outside hours'}
         </button>
@@ -154,7 +157,7 @@ function Instructions({ draft, set, hoursOn }: SectionProps & { hoursOn: boolean
       id="as-instructions"
       title="Instructions"
       description="Write it like you would brief a new hire."
-      help="Services, area, prices, common questions, what counts as urgent. Opening hours go in Settings, Business hours."
+      help={`Everything ${assistantName(draft)} should know to answer callers: your services, the area you cover, prices, common questions and what counts as urgent. Opening hours go under Settings, Business hours; ${assistantName(draft)} reads them from there.`}
     >
       {hoursOn && <VariantSwitch value={variant} onChange={setVariant} label="Instructions for" />}
       {outside ? (
@@ -198,7 +201,7 @@ function CallRules({ draft, set }: SectionProps) {
     <Section
       id="as-rules"
       title="Call rules"
-      help="Whatever the rules say, the assistant always takes a message and says it is an AI when asked."
+      help={`How ${assistantName(draft)} handles a call: what to ask, what to do with emergencies, prices and sales calls. Whatever the rules say, ${assistantName(draft)} always says it is an AI when asked and offers to take a message when it can't help.`}
       actions={
         <Button
           size="sm"
@@ -227,7 +230,7 @@ function Transfer({ draft, set, hoursOn }: SectionProps & { hoursOn: boolean }) 
     <Section
       id="as-transfer"
       title="Transfer"
-      help="The on-call phone hears who is calling and why, and takes the call with 1 or yes. No answer in 25 seconds: a message, marked urgent."
+      help={`When a call is urgent, ${assistantName(draft)} first calls your on-call number and tells whoever answers who is calling and why. If they press 1 or say yes, ${assistantName(draft)} connects the caller; that conversation isn't recorded. If no one picks up within 25 seconds or they decline, ${assistantName(draft)} takes a message and marks it urgent.`}
     >
       <SwitchRow title="Transfer urgent calls" on={draft.transfer_urgent} onChange={on => set('transfer_urgent', on)} />
       <Field id="as-oncall" label="On-call number" error={problem}>
@@ -358,7 +361,13 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         <fieldset className="st-fields" disabled={!canEdit}>
           {current === 'greeting' && <Greeting draft={draft} set={set} renamedFrom={renamedFrom} hoursOn={hoursOn} />}
           {current === 'voice' && (
-            <VoiceSettings assistantId={assistant.id} voice={draft.voice} onPick={v => set('voice', v)} canEdit={canEdit} toast={toast} />
+            <VoiceSettings
+              assistantId={assistant.id}
+              voice={draft.voice}
+              onPick={v => set('voice', v)}
+              canEdit={canEdit}
+              toast={toast}
+            />
           )}
           {current === 'instructions' && <Instructions draft={draft} set={set} hoursOn={hoursOn} />}
           {current === 'rules' && <CallRules draft={draft} set={set} />}

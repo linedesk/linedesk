@@ -84,7 +84,7 @@ function VoiceCloning() {
   return (
     <Card
       title="Voice cloning"
-      help="Off by default. Each clone keeps who confirmed consent and when; existing clones keep working when it is off."
+      help="Lets workspaces create a voice from a recording of a real person, who must have agreed to it; Linedesk keeps who confirmed that and when. Turning this off stops new clones, but existing ones keep working."
     >
       <div className="swrow">
         <div>

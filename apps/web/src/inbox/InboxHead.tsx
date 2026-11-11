@@ -138,7 +138,7 @@ function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveC
   }
   if (presence.kind === 'offline') {
     return (
-      <span className="ib-maya is-off" title="Offline: new calls show up once the connection is back">
+      <span className="ib-maya is-off" title="You are offline. New calls show up once you are back online.">
         <span className="ib-dot" />
         <span className="ib-maya-t">Offline</span>
       </span>

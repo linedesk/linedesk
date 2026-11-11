@@ -144,7 +144,10 @@ function Profile({ account, reload }: SectionProps) {
         <Field id="ac-name" label="Name" error={trimmed ? null : 'Enter your name.'}>
           <TextInput id="ac-name" value={name} onChange={setName} placeholder="Your name" invalid={!trimmed} />
         </Field>
-        <Field label="Email" tip="You sign in with this address. It can't be changed here yet.">
+        <Field
+          label="Email"
+          tip="You sign in with this address, and sign-in codes are sent to it. You can't change it here yet."
+        >
           <span className="ac-value">{account.user.email}</span>
         </Field>
         <FormStatus request={request} />
@@ -254,7 +257,10 @@ function Passkeys() {
 
   return (
     <div className="ac-form ac-divided">
-      <Field label="Passkeys" tip="Sign in with your fingerprint, face or device PIN.">
+      <Field
+        label="Passkeys"
+        tip="A passkey lets you sign in with your fingerprint, face or device PIN instead of a code or password."
+      >
         {!list && passkeys.error && (
           <div className="ac-error" role="alert">
             {passkeys.error}
@@ -299,8 +305,16 @@ function Passkeys() {
         )}
       </Field>
       {needsCode && (
-        <Field label="Enrolment code" tip="As an instance admin, your first passkey needs the one-time code the admin who made you one gave you.">
-          <TextInput label="Enrolment code" placeholder="From the admin who made you one" value={enrolmentCode} onChange={setEnrolmentCode} />
+        <Field
+          label="Enrolment code"
+          tip="Because you are an instance admin, your first passkey needs a one-time code. The admin who made you an instance admin has it."
+        >
+          <TextInput
+            label="Enrolment code"
+            placeholder="From the admin who made you one"
+            value={enrolmentCode}
+            onChange={setEnrolmentCode}
+          />
         </Field>
       )}
       <FormStatus request={request} />

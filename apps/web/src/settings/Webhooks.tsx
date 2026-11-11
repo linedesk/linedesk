@@ -42,7 +42,7 @@ export function Webhooks({ canEdit, toast }: Props) {
     <Section
       id="st-webhooks"
       title="Webhooks"
-      help="Calls, messages and bookings, as signed POSTs. Failed deliveries are retried for about an hour; an endpoint that keeps failing is turned off."
+      help="Linedesk tells another app when a call ends, a message is taken or an appointment is booked, by sending it to the web address you add here. If the address doesn't answer, Linedesk keeps trying for about an hour; after 5 events in a row fail, it stops sending until you turn the endpoint back on."
       actions={
         <Button size="sm" icon="plus" onClick={() => setEditing('new')}>
           Add endpoint

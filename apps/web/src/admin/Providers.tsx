@@ -129,7 +129,7 @@ export function Providers({ providers, active, canStore, notify, reload }: Props
       {!canStore && (
         <p className="adm-notice" role="note">
           No encryption key on the server, so keys can't be saved.{' '}
-          <HelpTip text="Set SECRETS_KEY (openssl rand -base64 32) and restart the API." />
+          <HelpTip text="Whoever runs the server sets SECRETS_KEY (make one with openssl rand -base64 32) and restarts the API. Keys are then saved encrypted." />
         </p>
       )}
       {categoryNames.map(category => {

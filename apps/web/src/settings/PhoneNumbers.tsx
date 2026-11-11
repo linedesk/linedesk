@@ -199,7 +199,7 @@ function ManageNumber({ number, assistants, canEdit, onClose }: ManageProps) {
             <Field
               id="pn-codes"
               label="Forwarding codes"
-              tip="Dial a code on your business phone to send missed and busy calls to the assistant."
+              tip="Dial the Turn on code once from your business phone. From then on, calls you don't answer or can't take because you're on the line go to your assistant. Dial Turn off to stop."
             >
               <Forwarding e164={number.e164} />
             </Field>

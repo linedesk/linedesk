@@ -40,7 +40,7 @@ export function Developers({ canEdit, toast }: Props) {
     <Section
       id="st-api-keys"
       title="API keys"
-      help="Send the key as Authorization: Bearer. REST API: /v1/openapi.json. MCP server: /mcp."
+      help="A key lets another program, like your CRM, a script or an AI app, read and update your calls, contacts and appointments. Send it as Authorization: Bearer. REST API: /v1/openapi.json, MCP server: /mcp."
       actions={
         <Button size="sm" icon="plus" onClick={() => setCreating(true)}>
           Create key
@@ -101,7 +101,9 @@ function KeyRow({ apiKey, toast }: { apiKey: ApiKeySummary; toast: Props['toast'
         disabled={busy}
         onClick={revoke}
         onBlur={() => setConfirming(false)}
-        title={confirming ? 'Click again: tools using it stop working at once' : `Revoke ${apiKey.name}`}
+        title={
+          confirming ? 'Click again to revoke. Tools using this key stop working right away.' : `Revoke ${apiKey.name}`
+        }
       >
         {confirming ? 'Revoke key' : 'Revoke'}
       </Button>

@@ -84,7 +84,7 @@ function InviteRow({ title, sub, role, expired, onResend, onRevoke }: InviteRowP
         <Button
           size="sm"
           variant={confirming ? 'danger' : 'ghost'}
-          title={confirming ? 'Click again: the link stops working' : 'The link stops working'}
+          title={confirming ? 'Click again to revoke. The invitation link stops working.' : 'Revoke the invitation; its link stops working'}
           onBlur={() => setConfirming(false)}
           onClick={() => (confirming ? onRevoke() : setConfirming(true))}
         >

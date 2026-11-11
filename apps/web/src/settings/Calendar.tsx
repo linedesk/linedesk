@@ -351,7 +351,7 @@ function Calendars({ assistant, canEdit, toast, pickFrom }: Props & { pickFrom: 
     <Section
       id="as-cal-calendars"
       title="Calendars"
-      help="The assistant books into the calendar whose note fits the call, else the default one, at free times within business hours (Monday to Friday 9 to 5 while they are off)."
+      help={`${assistant.name} books appointments into the calendar whose note fits the call, otherwise into the default one. It only offers times that are free in that calendar and inside your business hours (Monday to Friday, 9 to 5, while business hours are off).`}
       actions={
         canEdit &&
         ready &&
@@ -435,7 +435,10 @@ function TypeForm({ type, onDone }: { type?: AppointmentType; onDone: () => void
           onChange={setDuration}
         />
       </Field>
-      <Field label="Also ask for" tip="The assistant always asks for the caller's name and the reason.">
+      <Field
+        label="Also ask for"
+        tip="Your assistant always asks for the caller's name and what the appointment is for. Tick anything else it should ask before booking this type."
+      >
         <span className="cal-type-fields">
           {FIELDS.map(f => (
             <Checkbox
