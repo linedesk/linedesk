@@ -8,6 +8,7 @@ import { type FormEvent, useState } from 'react'
 import { RadioCard } from '../ui/controls.tsx'
 import { Dialog, SecretInput } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
+import { Skeleton } from '../ui/LoadStates.tsx'
 import {
   type CarrierDraft,
   carrierInput,
@@ -40,7 +41,14 @@ export function useCarrierStatus(canEdit: boolean): CarrierStatusData | null {
 export function CarrierRow() {
   const status = useCarrierStatus(true)
   const [open, setOpen] = useState(false)
-  if (!status) return null
+  // While it loads, the row is already in place, so the numbers below it never move down.
+  if (!status)
+    return (
+      <div className="pn-carrier" role="status" aria-busy="true" aria-label="Loading the carrier">
+        <span className="pn-carrier-label">Carrier</span>
+        <Skeleton className="pn-carrier-sk" />
+      </div>
+    )
   return (
     <div className="pn-carrier">
       <span className="pn-carrier-label">Carrier</span>

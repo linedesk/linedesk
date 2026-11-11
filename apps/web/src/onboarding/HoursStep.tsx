@@ -16,18 +16,26 @@ type StepProps = { onBack: () => void; onNext: () => void }
 
 export function HoursStep({ onBack, onNext }: StepProps) {
   const settings = useWorkspaceSettings()
+  const name = useAssistantName()
   if (settings.data) return <HoursForm saved={settings.data} onBack={onBack} onNext={onNext} />
+  // Until the saved hours arrive: the form's frame with Continue not yet usable. Skipping is offered
+  // only when they could not be loaded.
   return (
     <>
       <div className="ob-body">
         <h1>When are you open?</h1>
+        <p className="ob-lede">{name} tells callers when you're open.</p>
         {settings.error ? (
           <LoadProblem what="Business hours" message={settings.error} onRetry={() => void settings.reload()} />
         ) : (
           <SkeletonRows label="Loading business hours" rows={5} />
         )}
       </div>
-      <Foot onBack={onBack} onContinue={onNext} canContinue label="Skip for now" />
+      {settings.error ? (
+        <Foot onBack={onBack} onContinue={onNext} canContinue label="Skip for now" />
+      ) : (
+        <Foot onBack={onBack} onContinue={onNext} canContinue={false} />
+      )}
     </>
   )
 }

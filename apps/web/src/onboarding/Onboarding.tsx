@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import type { Me, OnboardingState } from '../auth.ts'
 import { usePresence } from '../shell/presence.ts'
 import { queueTour } from '../shell/tour.ts'
-import { useWriteAction } from '../settings/settings-api.ts'
+import { preloadWorkspaceSettings, useWriteAction } from '../settings/settings-api.ts'
 import { rejectionText } from '../shell/rejections.ts'
 import { callHash } from '../shell/useRoute.ts'
 import { useAssistantName, useRejection, useRows, useRun } from '../store.tsx'
@@ -34,6 +34,10 @@ export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingSta
   useEffect(() => {
     if (step === 'done' && offersTour(firstUse)) queueTour(workspaceId)
   }, [step, firstUse, workspaceId])
+  // The Hours step shows the saved hours: loaded now, so they are there when it opens.
+  useEffect(() => {
+    void preloadWorkspaceSettings()
+  }, [])
   const [setupError, setSetupError] = useState<string | null>(null)
   const [otherError, setOtherError] = useState<string | null>(null)
   const hasNumber = useRows('phone_numbers').length > 0

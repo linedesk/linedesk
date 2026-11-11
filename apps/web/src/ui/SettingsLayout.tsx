@@ -1,7 +1,7 @@
 // The settings layout (after shadcn's): the page title, a narrow nav of the page's sections at the
 // left, one section at a time at the right. Each section has its own hash (`#assistant/greeting`),
 // so links, reload and Back work. Below 720 px the nav is a row of tabs that scrolls sideways.
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type MouseEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import './settings-layout.css'
 
 export type PageSection<T extends string = string> = { id: T; label: string; description?: string }
@@ -15,15 +15,32 @@ function sectionOf<T extends string>(page: string, sections: readonly PageSectio
   return sections.find(s => s.id === section)?.id || sections[0]!.id
 }
 
+/**
+ * A click in the nav shows its section in the same frame: the browser's `hashchange` comes a few
+ * milliseconds after the click, and until then the previous section would stay on screen.
+ */
+const sectionClicks = new Set<(hash: string) => void>()
+
 /** The section the hash names; the first one when it names none (or one that does not exist). */
 export function useSection<T extends string>(page: string, sections: readonly PageSection<T>[]): T {
   const [current, setCurrent] = useState(() => sectionOf(page, sections, window.location.hash))
   useEffect(() => {
-    const onHash = () => setCurrent(sectionOf(page, sections, window.location.hash))
+    const show = (hash: string) => setCurrent(sectionOf(page, sections, hash))
+    const onHash = () => show(window.location.hash)
     window.addEventListener('hashchange', onHash)
-    return () => window.removeEventListener('hashchange', onHash)
+    sectionClicks.add(show)
+    return () => {
+      window.removeEventListener('hashchange', onHash)
+      sectionClicks.delete(show)
+    }
   }, [page, sections])
   return current
+}
+
+/** A plain click on a section link (not one that opens a new tab): shown now, the hash follows. */
+function showSectionNow(event: MouseEvent, hash: string) {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+  for (const show of sectionClicks) show(hash)
 }
 
 type Props<T extends string> = {
@@ -73,6 +90,7 @@ export function SettingsLayout<T extends string>(props: Props<T>) {
                 key={s.id}
                 href={sectionHash(page, s.id)}
                 className="nav-item sl-item"
+                onClick={e => showSectionNow(e, sectionHash(page, s.id))}
                 aria-current={s.id === current ? 'page' : undefined}
                 title={s.label}
                 data-desc={s.description}
