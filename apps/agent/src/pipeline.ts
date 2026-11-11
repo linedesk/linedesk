@@ -14,6 +14,11 @@ import type { AgentConfig, TtsConfig } from './config.ts'
 import type { CompleteJson } from './summary.ts'
 
 const SUMMARY_TIMEOUT_MS = 15_000
+/**
+ * The most a summary may answer with. Without a cap OpenRouter reserves the model's whole output (65k tokens) against
+ * the credits and refuses the request (402) once the balance is lower, although a summary needs a few hundred.
+ */
+export const SUMMARY_MAX_TOKENS = 2000
 const WARM_UP_TIMEOUT_MS = 5000
 
 /** ElevenLabs' lowest-latency model, unless another is configured. */
@@ -120,7 +125,7 @@ export function chatJson({ apiKey, baseUrl, model, fallbacks = [] }: ChatModel, 
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model, ...modelsField(model, fallbacks), response_format: { type: 'json_object' },
+        model, ...modelsField(model, fallbacks), response_format: { type: 'json_object' }, max_tokens: SUMMARY_MAX_TOKENS,
         messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
       }),
       signal: AbortSignal.timeout(timeoutMs),
