@@ -453,9 +453,9 @@
 .tc-main {
   display: grid;
   flex: 1;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
-  padding: 2px 4px;
+  padding: 4px 6px;
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
@@ -473,30 +473,42 @@
 }
 .tc-title {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 8px;
+  column-gap: 8px;
   min-width: 0;
 }
 .tc-title b {
   font-weight: 600;
-  white-space: nowrap;
 }
 .tc-number {
   color: var(--ink-muted);
   font-size: 13px;
   white-space: nowrap;
 }
-.tc-sub {
-  overflow: hidden;
-  color: var(--ink-muted);
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .tc-status {
-  flex: none;
+  align-self: center;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
   color: var(--ink-muted);
   font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+/* The condition wraps to two lines at most; the summary below it stays whole. */
+.tc-cond {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 13px;
+  line-height: 18px;
+}
+.tc-meta {
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
 }
 .tc-actions {
   display: flex;
@@ -504,27 +516,87 @@
   align-items: center;
   gap: 2px;
 }
-.tc-actions .k-switch,
 .tc-actions > :last-child {
   margin-left: 6px;
 }
 .tc-row.is-off .tc-title b,
-.tc-row.is-off .tc-number {
+.tc-row.is-off .tc-cond {
   color: var(--ink-muted);
 }
+/* The editor lines up with the row's content (after the order mark), not with an extra indent. */
 .tc-edit {
   display: grid;
   gap: 12px;
-  padding: 4px 12px 14px 40px;
+  margin: 0 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
 }
-.tc-pair {
+.tc-row.is-open .tc-line {
+  padding-bottom: 6px;
+}
+/* Every label row is as tall as a label: a (?) never pushes its field down. */
+.tc-edit .k-field-label {
+  height: 18px;
+}
+.tc-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 12px;
+  align-items: start;
+}
+.tc-grid-who {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 200px);
+}
+.tc-grid-then {
+  grid-template-columns: minmax(0, 150px) minmax(0, 1fr);
+}
+.ta.tc-cond-input {
+  box-sizing: border-box;
+  min-height: 0;
+  max-height: 160px;
+  resize: none;
+  overflow-y: auto;
+}
+.tc-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.tc-example {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--line-control);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.tc-example:hover {
+  color: var(--ink);
+}
+.tc-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+.tc-foot .bh-edit {
+  margin-left: 0;
+}
+.tc-anytime {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+.tc-done {
+  margin-left: auto;
 }
 .tc-add {
   display: flex;
-  flex-wrap: wrap;
   gap: 6px;
 }
 .tc-empty {
@@ -532,18 +604,28 @@
   color: var(--ink-muted);
 }
 @media (max-width: 640px) {
-  .tc-pair {
-    grid-template-columns: 1fr;
+  /* The actions go under the text, so the name and condition keep the full width. */
+  .tc-line {
+    flex-wrap: wrap;
+    align-items: flex-start;
   }
-  .tc-edit {
-    padding-left: 12px;
+  .tc-order {
+    margin-top: 4px;
   }
-  .tc-meta {
-    display: none;
+  .tc-main {
+    flex-basis: calc(100% - 30px);
+  }
+  .tc-actions {
+    flex-basis: 100%;
+    justify-content: flex-end;
+    margin-top: -4px;
+  }
+  .tc-grid-who,
+  .tc-grid-then {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
-/* "Edit business hours" next to a setting that depends on them; it opens BusinessHoursDialog. */
 .as-hours-line {
   display: flex;
 }

@@ -8,7 +8,6 @@ import {
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
-  type TextareaHTMLAttributes,
   useEffect,
   useId,
   useRef,
@@ -113,7 +112,7 @@ export function Textarea({
   invalid,
   className,
   ...rest
-}: TextareaHTMLAttributes<HTMLTextAreaElement> & { invalid?: boolean }) {
+}: ComponentProps<'textarea'> & { invalid?: boolean }) {
   return (
     <textarea
       className={cx('ta', invalid && 'k-input-invalid', className)}

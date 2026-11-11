@@ -314,6 +314,8 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
   const current = useSection(page, sections)
   const testCall = useTestCall(canEdit, assistant)
   const [renamedFrom, setRenamedFrom] = useState<string | null>(null)
+  /** A save was refused over a transfer contact: its errors show from then on. */
+  const [transferSaveTried, setTransferSaveTried] = useState(false)
   const savedJson = JSON.stringify(draftOf(assistant))
   const saved = useMemo(() => JSON.parse(savedJson) as Draft, [savedJson])
   const [draft, setDraft] = useState(() => keptDraft(assistant.id) ?? saved) // an edit left unsaved earlier comes back
@@ -351,7 +353,10 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     if (!draft.greeting.trim()) return goTo('greeting', 'as-greet')
     if (knownCallerGreetingProblem(draft.greeting_known_caller)) return goTo('greeting', 'as-greet-known')
     const transfer = transferProblem(draft)
-    if (transfer) return goTo('transfer', transferFieldId(transfer.index, transfer.field))
+    if (transfer) {
+      setTransferSaveTried(true)
+      return goTo('transfer', transferFieldId(transfer.index, transfer.field))
+    }
     if (silenceProblem(draft)) return goTo('advanced', 'as-silence-gap')
     if (keypadProblem(draft)) return goTo('advanced', 'as-keypad-label-0')
     const problem = draftProblem(draft)
@@ -437,6 +442,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
               onChange={list => set('transfers', list)}
               hoursOn={hoursOn}
               assistantName={assistantName(draft)}
+              showErrors={transferSaveTried}
             />
           )}
           {current === 'advanced' && (
