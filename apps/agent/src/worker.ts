@@ -74,7 +74,7 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
       parameters: z.object({
         appointment_type_id: typeId,
         calendar_id: calendarId,
-        start: z.string().describe('The exact start in brackets from find_slots.'),
+        start: z.string().describe('The key in brackets of the chosen time from find_slots, like s3.'),
         caller_name: z.string().nullish().describe("The caller's name; needed when the appointment type asks for it."),
         reason: z.string().describe('One sentence: what the appointment is for.'),
         address: z.string().nullish().describe('Where the visit is, if it is on site.'),
@@ -97,7 +97,7 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
               booked_name: bookedName,
               appointment_type_id: typeId,
               calendar_id: calendarId.describe('The calendar id you used for find_slots.'),
-              start: z.string().describe('The exact new start in brackets from find_slots.'),
+              start: z.string().describe('The key in brackets of the new time from find_slots, like s3.'),
             }),
             execute: ({ start, appointment_type_id, calendar_id, ...which }) => booking.reschedule(which, start, { appointment_type_id, calendar_id }),
           }),

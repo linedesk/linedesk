@@ -22,26 +22,50 @@ export type BookArgs = {
   appointment_type_id: string; calendar_id: string; start: string; caller_name?: string | null; reason: string; address?: string | null; email?: string | null
 }
 
-/** At most PER_DAY slots per local day, MAX_OFFERED in all, earliest first. */
+/** `count` items spread evenly over `list`, first and last included (all of it when it is short). */
+const evenly = <T>(list: T[], count: number): T[] =>
+  list.length <= count ? list : Array.from({ length: count }, (_, i) => list[Math.round((i * (list.length - 1)) / (count - 1))]!)
+
+/**
+ * The times to offer, earliest day first: PER_DAY per local day spread over the day (its first and its last free
+ * time, so an afternoon is offered too), MAX_OFFERED in all; a search of a single day gives up to MAX_OFFERED of it.
+ */
 export function spreadSlots(slots: FindSlotsData['slots']): FindSlotsData['slots'] {
-  const perDay = new Map<string, number>()
-  const out: FindSlotsData['slots'] = []
+  const days = new Map<string, FindSlotsData['slots']>()
   for (const slot of slots) {
     const day = slot.label.split(' at ')[0]!
-    const count = perDay.get(day) ?? 0
-    if (count >= PER_DAY) continue
-    perDay.set(day, count + 1)
-    out.push(slot)
-    if (out.length >= MAX_OFFERED) break
+    days.set(day, [...(days.get(day) ?? []), slot])
   }
-  return out
+  if (days.size === 1) return evenly(slots, MAX_OFFERED)
+  return [...days.values()].flatMap(day => evenly(day, PER_DAY)).slice(0, MAX_OFFERED)
 }
+
+/**
+ * Read with every list of free times. Models shifted dates when they spoke them ("Wednesday, November twelfth" for
+ * Wednesday, November 11) and called a day full that was never searched.
+ */
+const SLOT_RULES =
+  'Say each time with its weekday and date exactly as written; never change the date. These are only the earliest free days: ' +
+  'if the caller wants a day that is not listed, call find_slots again with from_date and to_date set to that day before you say anything about it.'
 
 const failure = (e: unknown) => (e instanceof ActionError ? e.message.replace(/^[\w.]+ failed \(\d+\): /, '') : 'the calendar did not answer')
 
 export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
   const { callId } = call
   const typeName = (id: string) => call.booking?.appointmentTypes.find(t => t.id === id)?.name ?? 'appointment'
+
+  /**
+   * The times find_slots offered on this call, by key ("s3"). Models wrote starts of their own (1:00 PM as 13:00 UTC,
+   * five in the morning in Portland); a key they copy, and a start nobody offered is never sent.
+   */
+  const offeredSlots = new Map<string, FindSlotsData['slots'][number]>()
+  const offeredStart = (given: string) => {
+    const key = given.trim().replace(/^\[|\]$/g, '').toLowerCase()
+    const slot = offeredSlots.get(key) ?? [...offeredSlots.values()].find(s => s.start === key.toUpperCase() || Date.parse(s.start) === Date.parse(given))
+    return slot?.start ?? null
+  }
+  const notOffered = () =>
+    `That is not a time find_slots offered. Use the key in brackets of one of these: ${[...offeredSlots].slice(-6).map(([key, s]) => `${s.label} [${key}]`).join(', ') || 'none yet, call find_slots first'}.`
 
   async function findSlots(args: FindSlotsArgs): Promise<string> {
     try {
@@ -52,7 +76,12 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
       const offered = spreadSlots((data as FindSlotsData).slots)
       log.record('system', `Checked availability · ${typeName(args.appointment_type_id)} · ${offered.length} slot${offered.length === 1 ? '' : 's'}`, calendarFindSlots.name)
       if (!offered.length) return 'No free times in that range. Ask whether another day works, or take a message with the times the caller prefers.'
-      return `Free times (offer two or three; book with the exact start in brackets):\n${offered.map(s => `- ${s.label} [${s.start}]`).join('\n')}`
+      const listed = offered.map(slot => {
+        const key = `s${offeredSlots.size + 1}`
+        offeredSlots.set(key, slot)
+        return `- ${slot.label} [${key}]`
+      })
+      return `Free times (offer two or three; book with the key in brackets):\n${listed.join('\n')}\n${SLOT_RULES}`
     } catch (e) {
       log.record('system', 'Could not check availability', calendarFindSlots.name)
       return `Checking the calendar failed (${failure(e)}). Apologize and take a message with the times the caller prefers.`
@@ -60,9 +89,11 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
   }
 
   async function book(args: BookArgs): Promise<string> {
+    const start = offeredStart(args.start)
+    if (!start) return notOffered()
     try {
       const { data } = await api.run(appointmentBook, {
-        appointmentTypeId: args.appointment_type_id, calendarId: args.calendar_id, start: args.start, reason: args.reason,
+        appointmentTypeId: args.appointment_type_id, calendarId: args.calendar_id, start, reason: args.reason,
         ...(args.caller_name?.trim() ? { callerName: args.caller_name.trim() } : {}),
         ...(args.address ? { address: args.address } : {}), ...(args.email ? { callerEmail: args.email } : {}), callId, ...(call.assistant ? { assistantId: call.assistant.id } : {}),
       }, call)
@@ -70,7 +101,7 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
       const what = `${typeName(args.appointment_type_id)}, ${booked.label}`
       log.bookings.push(what)
       log.record('system', `Booked · ${what} · ${booked.calendarName}`, appointmentBook.name)
-      return `Booked: ${what}. Confirm the day and time to the caller.`
+      return `Booked: ${what}. Confirm the day and time to the caller exactly as written here: ${booked.label}.`
     } catch (e) {
       log.record('system', 'Booking failed', appointmentBook.name)
       return `The booking did not go through (${failure(e)}). Do not say it is booked. Offer to look for another time, or take a message.`
@@ -114,8 +145,10 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
   }
 
   /** `searched`: the appointment type and calendar find_slots was asked with; the API checks the time with them first. */
-  async function reschedule(which: DescribedBooking, start: string, searched: { appointment_type_id: string; calendar_id: string }): Promise<string> {
+  async function reschedule(which: DescribedBooking, newStart: string, searched: { appointment_type_id: string; calendar_id: string }): Promise<string> {
     if (outOfAttempts()) return NO_MORE
+    const start = offeredStart(newStart)
+    if (!start) return notOffered()
     try {
       const { data } = await api.run(appointmentReschedule, {
         ...described(which), start, appointmentTypeId: searched.appointment_type_id, calendarId: searched.calendar_id,
