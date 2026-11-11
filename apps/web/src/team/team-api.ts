@@ -1,6 +1,6 @@
 // Team actions run online against the API: members and invitations are not in the local store,
 // and a role change or removal must not look done before the server has accepted it.
-import type { AssignableRole, InvitationPreview, TeamData } from '@linedesk/actions'
+import type { AssignableRole, InvitationPreview, TeamData, TeamLeaveData } from '@linedesk/actions'
 import { fetchQuery, useQuery } from '../cachedQuery.ts'
 
 const TEAM = 'team'
@@ -24,6 +24,7 @@ export const teamApi = {
   revoke: (invitationId: string) => runTeamAction('team.revokeInvite', { invitationId }),
   setRole: (memberId: string, role: AssignableRole) => runTeamAction('team.setRole', { memberId, role }),
   remove: (memberId: string) => runTeamAction('team.removeMember', { memberId }),
+  leave: () => runTeamAction<TeamLeaveData>('team.leave', {}),
 }
 
 /** Members and invitations: the last known at once (also across page loads), refreshed in the background. Shared by the Team page and call assignment. */

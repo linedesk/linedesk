@@ -530,6 +530,11 @@ button.me:focus-visible {
   display: inline-flex;
   align-items: center;
 }
+.team-leave {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 .team-inv-actions {
   display: flex;
   gap: 2px;

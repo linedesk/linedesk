@@ -2,6 +2,7 @@
 import { commands, invitation, member, user } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
+import { auth } from '../src/auth.ts'
 import { db } from '../src/db.ts'
 import { type Email, emailSender } from '../src/email.ts'
 import { act, addMember, agent, anonymous, appRequest, createWorkspace, FROM, randomIp, request, signUp, type User, type Workspace } from './helpers.ts'
@@ -357,5 +358,41 @@ describe('answering an invitation inside the app', () => {
     const { id } = await invitedOwner()
     expect((await act(agent(ws.id), 'invitation.accept', { invitationId: id })).status).toBe(403)
     expect((await act(agent(ws.id), 'invitation.listMine', {})).status).toBe(403)
+  })
+})
+
+describe('leaving', () => {
+  test('a member leaves: access ends at once, the next workspace is named, and it is logged', async () => {
+    const leaving = await joinAs(ws, 'member')
+    const own = await createWorkspace('Leaver Own Co')
+    await auth.api.addMember({ body: { userId: leaving.userId, organizationId: own.id, role: 'owner' } })
+    const res = await act(leaving, 'team.leave', {})
+    expect(res).toMatchObject({ status: 200, body: { ok: true, data: { nextWorkspaceId: own.id } } })
+    expect((await db.select().from(member).where(eq(member.userId, leaving.userId))).map(m => m.organizationId)).toEqual([own.id])
+    expect((await request(leaving, 'GET', '/v1/me')).body.workspace.id).toBe(own.id)
+    const [logged] = await db.select().from(commands).where(and(eq(commands.actor_id, leaving.userId), eq(commands.action, 'team.leave')))
+    expect(logged).toMatchObject({ workspace_id: ws.id, rejected: false })
+  })
+
+  test('the only workspace: no next one, and the member has no access left', async () => {
+    const leaving = await joinAs(ws, 'admin')
+    expect((await act(leaving, 'team.leave', {})).body.data).toEqual({ nextWorkspaceId: null })
+    expect((await request(leaving, 'GET', '/v1/me')).status).toBe(401)
+  })
+
+  test('the last owner cannot leave; with a second owner they can', async () => {
+    const solo = await createWorkspace('Solo Owner Co')
+    expect(await act(solo.owner, 'team.leave', {})).toMatchObject({
+      status: 409,
+      body: { error: 'you are the last owner: make someone else owner first' },
+    })
+    const second = await addMember(solo.id, 'admin')
+    await db.update(member).set({ role: 'owner' }).where(eq(member.userId, second.userId))
+    expect((await act(solo.owner, 'team.leave', {})).status).toBe(200)
+    expect((await db.select().from(member).where(eq(member.organizationId, solo.id))).map(m => m.userId)).toEqual([second.userId])
+  })
+
+  test('the agent cannot leave a workspace', async () => {
+    expect((await act(agent(ws.id), 'team.leave', {})).status).toBe(403)
   })
 })

@@ -9,7 +9,8 @@ import {
 } from '@linedesk/actions'
 import { type FormEvent, useState } from 'react'
 import { Section } from '../settings/fields.tsx'
-import { FormField, Input } from '../ui/form.tsx'
+import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
+import { switchToWorkspace } from '../shell/invitations.ts'
 import { Select } from '../ui/controls.tsx'
 import { Avatar, Badge, Button } from '../ui/kit.tsx'
 import { Skeleton } from '../ui/LoadStates.tsx'
@@ -186,6 +187,66 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (te
   )
 }
 
+/** Leave this workspace: confirmed in a dialog; then into another workspace, or to the start without one. */
+function LeaveWorkspace({ data }: { data: TeamData }) {
+  const [asking, setAsking] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const me = data.members.find(m => m.userId === data.me)
+  if (!me) return null
+  const owners = data.members.filter(m => m.role === 'owner').length
+  const lastOwner = me.role === 'owner' && owners < 2
+  async function leave(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      const { nextWorkspaceId } = await teamApi.leave()
+      if (nextWorkspaceId) await switchToWorkspace(nextWorkspaceId)
+      else window.location.replace('/')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      setBusy(false)
+    }
+  }
+  return (
+    <Section id="team-leave" title="Leave workspace">
+      <div className="team-leave">
+        <Button
+          variant="danger-outline"
+          disabled={lastOwner}
+          title={lastOwner ? 'You are the last owner: make someone else owner first' : 'You lose access at once'}
+          onClick={() => setAsking(true)}
+        >
+          Leave workspace…
+        </Button>
+        {lastOwner && <span className="help">Make someone else owner first.</span>}
+      </div>
+      {asking && (
+        <Dialog
+          title="Leave workspace"
+          description="You lose access to its calls and contacts at once. To come back, someone has to invite you again."
+          size="sm"
+          onClose={busy ? () => {} : () => setAsking(false)}
+          onSubmit={leave}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setAsking(false)} disabled={busy}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="danger" disabled={busy}>
+                {busy ? 'Leaving…' : 'Leave workspace'}
+              </Button>
+            </>
+          }
+        >
+          {error && <FormMessage>{error}</FormMessage>}
+        </Dialog>
+      )}
+    </Section>
+  )
+}
+
 export function TeamPage({ toast }: { toast: (text: string) => void }) {
   const team = useTeam()
   const data = team.data ?? null
@@ -255,6 +316,7 @@ export function TeamPage({ toast }: { toast: (text: string) => void }) {
             {data.canManage && <InviteForm data={data} run={run} toast={toast} />}
           </Section>
         )}
+        <LeaveWorkspace data={data} />
       </div>
     </div>
   )

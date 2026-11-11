@@ -100,6 +100,7 @@ const all = [
   team.teamRevokeInvite,
   team.teamSetRole,
   team.teamRemoveMember,
+  team.teamLeave,
   membership.invitationListMine,
   membership.invitationAccept,
   membership.invitationDecline,

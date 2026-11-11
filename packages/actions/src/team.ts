@@ -56,6 +56,19 @@ export const teamSetRole = defineAction({
   permission: 'team:write',
 })
 
+/**
+ * Leave the workspace you are signed in to. Every member may (also of a disabled workspace), so it
+ * needs no more than reading the team; the last owner cannot leave.
+ */
+export const teamLeave = defineAction({
+  name: 'team.leave',
+  description: 'Leave the current workspace; you lose access at once. The last owner cannot leave.',
+  input: z.object({}),
+  permission: 'team:read',
+})
+/** What `team.leave` returns: the workspace to continue in, or null when none is left. */
+export type TeamLeaveData = { nextWorkspaceId: string | null }
+
 export const teamRemoveMember = defineAction({
   name: 'team.removeMember',
   description: 'Remove a member from the workspace; they lose access at once. Only an owner can remove an owner, and never the last one.',

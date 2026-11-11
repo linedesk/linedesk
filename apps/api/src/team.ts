@@ -10,6 +10,7 @@ import { alias } from 'drizzle-orm/pg-core'
 import type { Actor } from './context.ts'
 import { emailSender } from './email.ts'
 import { type Handler, Reject } from './handler-context.ts'
+import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { createRateLimiter } from './rate-limit.ts'
 
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
@@ -141,6 +142,23 @@ export const teamHandlers: Record<string, Handler> = {
     await guardOwner(tx, actor, target)
     await tx.update(member).set({ role: input.role }).where(eq(member.id, target.id))
     return { rows: {} }
+  },
+
+  'team.leave': async ({ tx, actor }) => {
+    if (actor.impersonation) throw new Reject(NOT_WHILE_IMPERSONATING)
+    const workspaceId = workspaceOf(actor)
+    const [me] = await tx.select().from(member).where(and(eq(member.organizationId, workspaceId), eq(member.userId, actor.actorId)))
+    if (!me) throw new Reject('member not found')
+    if (me.role === 'owner') {
+      // Locked, like guardOwner: two owners leaving at the same moment cannot both succeed.
+      const owners = await tx.select({ id: member.id }).from(member)
+        .where(and(eq(member.organizationId, workspaceId), eq(member.role, 'owner'))).for('update')
+      if (!owners.some(o => o.id !== me.id)) throw new Reject('you are the last owner: make someone else owner first')
+    }
+    await tx.delete(member).where(eq(member.id, me.id))
+    const [next] = await tx.select({ id: member.organizationId }).from(member)
+      .where(eq(member.userId, actor.actorId)).orderBy(asc(member.createdAt)).limit(1)
+    return { rows: {}, data: { nextWorkspaceId: next?.id ?? null } }
   },
 
   'team.removeMember': async ({ tx, actor }, input: { memberId: string }) => {
