@@ -104,6 +104,16 @@ describe('telnyx adapter', () => {
     expect([...owned.calls, ...missing.calls].every(c => c.method === 'GET')).toBe(true)
   })
 
+  test('findNumber takes only the exact number, never a partial match of the filter', async () => {
+    const partial = mockTelnyx(c =>
+      c.method === 'GET' && c.path.startsWith('/phone_numbers?')
+        ? { json: { data: [{ id: 'num_other', phone_number: `${NUMBER}9` }, { id: 'num_shorter', phone_number: NUMBER.slice(0, -1) }] } }
+        : undefined,
+    )
+    expect(await partial.provider.findNumber(NUMBER)).toBeNull()
+    expect(await partial.provider.findNumber(NUMBER.slice(0, -1))).toEqual({ e164: NUMBER.slice(0, -1), providerRef: 'num_shorter' })
+  })
+
   test('fails when the order fails or never completes', async () => {
     const failed = mockTelnyx(c => c.path === '/number_orders' ? { json: { data: { id: 'order_1', status: 'failure' } } } : { json: { data: [] } })
     await expect(failed.provider.buyNumber(NUMBER)).rejects.toThrow('number order order_1 for +15035550100 failed')

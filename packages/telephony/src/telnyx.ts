@@ -50,7 +50,9 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
 
   async function findNumberId(e164: string): Promise<string | undefined> {
     const { data } = await request('GET', `/phone_numbers?filter[phone_number]=${encodeURIComponent(e164)}`)
-    return data?.[0]?.id
+    // Telnyx's filter also matches partial numbers: only the exact number counts, never the first hit.
+    const id = (data as Json[] | undefined)?.find(n => n.phone_number === e164)?.id
+    return id === undefined ? undefined : String(id)
   }
 
   /** Linedesk's FQDN connection to LiveKit SIP, if the account has one. */
