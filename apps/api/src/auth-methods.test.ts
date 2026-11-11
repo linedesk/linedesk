@@ -104,6 +104,13 @@ describe('readAuthConfig', () => {
       ).toEqual(['microsoft'])
     })
 
+    it('offers GitHub with both keys but never trusts it by name (only its verified primary email counts)', () => {
+      const config = readAuthConfig({ GITHUB_CLIENT_ID: 'id', GITHUB_CLIENT_SECRET: 's' })
+      expect(config.methods.sso).toEqual([{ id: 'github', label: 'GitHub' }])
+      expect(config.trustedProviders).toEqual([])
+      expect(readAuthConfig({ GITHUB_CLIENT_ID: 'id' }).github).toBeNull()
+    })
+
     it('never trusts the generic OpenID Connect provider', () => {
       const oidc = {
         OIDC_CLIENT_ID: 'id',

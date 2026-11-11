@@ -84,6 +84,8 @@ export function startSso(method: SsoMethod) {
 const redirectErrors: Record<string, string> = {
   access_denied: 'Sign-in was cancelled.',
   account_not_linked: 'This email already has an account. Sign in with an email code once, then this works too.',
+  SIGNUP_CLOSED: 'There is no account for this address. Ask your administrator for one.',
+  email_not_found:'Your account there has no verified email address. Verify your primary email with the provider, then try again.',
 }
 
 /** Reads and clears the `?error=` a failed SSO redirect leaves in the address bar. */

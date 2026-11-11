@@ -4,6 +4,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { emailOTP, genericOAuth, organization } from 'better-auth/plugins'
 import { authConfig } from './auth-methods.ts'
 import { CLIENT_IP_HEADER } from './client-ip.ts'
+import { githubProvider } from './github-sign-in.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { refuseExistingMember, sendVerificationEmail } from './invitations.ts'
@@ -12,7 +13,7 @@ import { refuseWhileImpersonating } from './impersonation-guard.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
 import { maySendSignInCode } from './signup-gate.ts'
 
-const { google, microsoft, oidc, trustedProviders, methods } = authConfig
+const { google, microsoft, github, oidc, trustedProviders, methods } = authConfig
 
 /** Where the web app is served from; the only origin browser requests are accepted from. */
 export const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
@@ -79,6 +80,7 @@ export const auth = betterAuth({
   socialProviders: {
     ...(google && { google }),
     ...(microsoft && { microsoft }),
+    ...(github && { github: githubProvider(github) }),
   },
   // One person, one account: a provider sign-in joins the account with the same email. Which
   // providers are trusted for that without an email-verified claim: see auth-methods.ts.

@@ -32,10 +32,14 @@ export async function mayCreateUser(tx: Tx, email: string, verified: boolean): P
   return Boolean(invited)
 }
 
-/** Better Auth `user.create` hook: refuses a new user while sign-up is closed. */
+/**
+ * Better Auth `user.create` hook: refuses a new user while sign-up is closed. The code lets a
+ * provider sign-in (Google, Microsoft, GitHub, OIDC) send the browser back to the sign-in page with
+ * `?error=SIGNUP_CLOSED` instead of answering the callback with a bare 403.
+ */
 export async function refuseClosedSignUp(tx: Tx, created: { email: string; emailVerified?: boolean }) {
   if (!(await mayCreateUser(tx, created.email, created.emailVerified === true)))
-    throw new APIError('FORBIDDEN', { message: 'Sign-up is closed on this server.' })
+    throw new APIError('FORBIDDEN', { code: 'SIGNUP_CLOSED', message: 'Sign-up is closed on this server.' })
 }
 
 /** A sign-in code only goes out when it can sign someone in: to an account, or to an address that may create one. */

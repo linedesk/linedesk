@@ -11,6 +11,7 @@ const SHARED_TENANTS = ['common', 'organizations', 'consumers']
 
 export function readAuthConfig(env: Env) {
   const google = pair(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET)
+  const github = pair(env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET)
   const microsoftKeys = pair(env.MICROSOFT_CLIENT_ID, env.MICROSOFT_CLIENT_SECRET)
   const microsoft = microsoftKeys && { ...microsoftKeys, tenantId: env.MICROSOFT_TENANT_ID || 'common' }
   const oidcKeys = pair(env.OIDC_CLIENT_ID, env.OIDC_CLIENT_SECRET)
@@ -21,6 +22,8 @@ export function readAuthConfig(env: Env) {
   // A trusted provider's sign-in joins the account with the same email without asking the provider
   // whether that email is verified. Google verifies every address. Microsoft is only safe when the
   // app is limited to one tenant: on a shared tenant any directory can assert any address.
+  // GitHub is never trusted by name: it joins an account only through the verified primary address
+  // its sign-in reports (github-sign-in.ts), like any provider that says the address is verified.
   const trustedProviders = [
     google && 'google',
     microsoft && !SHARED_TENANTS.includes(microsoft.tenantId.toLowerCase()) && 'microsoft',
@@ -32,11 +35,12 @@ export function readAuthConfig(env: Env) {
     sso: [
       google && { id: 'google', label: 'Google' },
       microsoft && { id: 'microsoft', label: 'Microsoft' },
+      github && { id: 'github', label: 'GitHub' },
       oidc && { id: 'oidc', label: oidc.label },
     ].filter(Boolean) as SsoMethod[],
     links: readLegalLinks(env),
   }
-  return { google, microsoft, oidc, trustedProviders, methods }
+  return { google, microsoft, github, oidc, trustedProviders, methods }
 }
 
 const httpUrl = (value?: string) => {
