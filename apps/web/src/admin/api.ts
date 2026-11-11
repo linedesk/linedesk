@@ -91,7 +91,9 @@ async function body<T>(res: Response): Promise<T> {
   return json
 }
 
-const get = async <T>(path: string) => body<T>(await fetch(path, { credentials: 'include' }))
+/** Admin requests go ahead of the read sync's when the browser queues requests. */
+const HIGH = { priority: 'high' } as RequestInit
+const get = async <T>(path: string) => body<T>(await fetch(path, { ...HIGH, credentials: 'include' }))
 
 export async function loadAdminData(): Promise<AdminData> {
   const [w, u, usage, p] = await Promise.all([
@@ -128,6 +130,7 @@ type AdminInputs = {
 /** Runs an admin action through the registry. Throws with the server's reason when it is rejected. */
 export async function runAdmin<N extends keyof AdminInputs>(name: N, input: AdminInputs[N]) {
   const res = await fetch(`/v1/actions/${name}`, {
+    ...HIGH,
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },

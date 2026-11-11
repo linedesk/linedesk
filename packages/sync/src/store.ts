@@ -199,6 +199,8 @@ export async function createStore(opts: StoreOptions) {
           res = await fetch(`${opts.api}/v1/actions/${c.name}`, {
             method: 'POST',
             credentials: 'include',
+            // Ahead of the read sync's requests when the browser has to queue them.
+            priority: 'high',
             body: JSON.stringify(c.input),
             headers: { 'content-type': 'application/json', 'idempotency-key': c.id },
           })
@@ -221,6 +223,8 @@ export async function createStore(opts: StoreOptions) {
           opts.onReject?.({ action: c.name, input: c.input, error: body.error }) // dropping it rolls the UI back
         }
         await settle(c, body.ok ? { rows: body.rows } : { error: body.error })
+        // A write can change tables that are not followed live (a deleted row is not in the answer).
+        if (body.ok) opts.adapter.refresh?.()
       }
     } finally {
       flushing = false

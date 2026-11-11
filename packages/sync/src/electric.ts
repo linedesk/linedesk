@@ -1,4 +1,5 @@
 import { FetchError, isChangeMessage, isControlMessage, ShapeStream, type Row } from '@electric-sql/client'
+import type { TableName } from '@linedesk/db/types'
 import type { ReadSyncAdapter, TableSink } from './adapter.ts'
 import { inOrder, type RowChange } from './ordered.ts'
 
@@ -23,7 +24,19 @@ type Options = {
   ) => Pick<ShapeStream<Row<unknown>>, 'subscribe' | 'lastOffset' | 'shapeHandle'>
   /** How long to wait before restarting; replaced in tests. */
   delayMs?: (attempt: number) => number
+  /**
+   * The tables followed live (a long-polling request each). The others are read up to date, then
+   * checked again every `pollMs`, when the window gets focus, and on `refresh()`. A browser opens at
+   * most six connections per host over HTTP/1.1: a live request per table would leave writes waiting.
+   * Default: every table is live.
+   */
+  liveTables?: readonly TableName[]
+  /** How often a table that is not live is checked again. */
+  pollMs?: number
 }
+
+/** Shape requests yield to everything else the page asks for (writes, admin actions). */
+const LOW: RequestInit = { priority: 'low' } as RequestInit
 
 /**
  * Electric through the API's shape proxy, which adds auth and the workspace filter.
@@ -34,56 +47,86 @@ type Options = {
  */
 export const electricAdapter = (
   api: string,
-  { createStream = o => new ShapeStream(o), delayMs = restartDelayMs }: Options = {},
-): ReadSyncAdapter => ({
-  name: 'electric',
-  start(table, sink) {
-    let stopped = false
-    let attempt = 0
-    let abort: AbortController | null = null
-    let timer: ReturnType<typeof setTimeout> | undefined
+  { createStream = o => new ShapeStream(o), delayMs = restartDelayMs, liveTables, pollMs = 60_000 }: Options = {},
+): ReadSyncAdapter => {
+  /** Re-checks of the tables that are not live, by table. */
+  const pokes = new Set<() => void>()
+  const pokeAll = () => {
+    for (const poke of pokes) poke()
+  }
+  return {
+    name: 'electric',
+    refresh: pokeAll,
+    start(table, sink) {
+      const live = !liveTables || liveTables.includes(table)
+      let stopped = false
+      /** A one-off read of a table that is not live is running. */
+      let reading = false
+      let attempt = 0
+      let abort: AbortController | null = null
+      let timer: ReturnType<typeof setTimeout> | undefined
 
-    function restartLater(fromScratch: boolean) {
-      if (stopped) return
-      clearTimeout(timer)
-      timer = setTimeout(() => void begin(fromScratch), fromScratch && attempt === 0 ? 0 : delayMs(attempt))
-      attempt++
-    }
+      function restartLater(fromScratch: boolean) {
+        if (stopped) return
+        clearTimeout(timer)
+        timer = setTimeout(() => void begin(fromScratch), fromScratch && attempt === 0 ? 0 : delayMs(attempt))
+        attempt++
+      }
 
-    async function begin(fromScratch: boolean) {
-      if (stopped) return
-      if (fromScratch) sink.saveCursor(undefined)
-      const cursor = fromScratch ? undefined : ((await sink.loadCursor()) as Cursor | undefined)
-      if (stopped) return
-      const controller = new AbortController()
-      abort = controller
-      const stream = createStream({
-        url: `${api}/v1/shape/${table}`,
-        fetchClient: (input, init) => fetch(input, { ...init, credentials: 'include' }),
-        signal: controller.signal,
-        offset: cursor?.offset as never,
-        handle: cursor?.handle,
-        parser: { int8: Number, json, jsonb: json },
-        // Stop this stream and start a new one: Electric's own retries give up after a while.
-        onError: error => {
-          if (controller.signal.aborted || stopped) return
-          controller.abort()
-          restartLater(isStaleCursor(error))
-        },
-      })
-      follow(stream, sink, !cursor, () => {
-        attempt = 0
-      })
-    }
+      async function begin(fromScratch: boolean) {
+        if (stopped) return
+        if (fromScratch) sink.saveCursor(undefined)
+        const cursor = fromScratch ? undefined : ((await sink.loadCursor()) as Cursor | undefined)
+        if (stopped) return
+        const controller = new AbortController()
+        abort = controller
+        reading = !live
+        const stream = createStream({
+          url: `${api}/v1/shape/${table}`,
+          fetchClient: (input, init) => fetch(input, { ...init, ...LOW, credentials: 'include' }),
+          signal: controller.signal,
+          subscribe: live,
+          offset: cursor?.offset as never,
+          handle: cursor?.handle,
+          parser: { int8: Number, json, jsonb: json },
+          // Stop this stream and start a new one: Electric's own retries give up after a while.
+          onError: error => {
+            if (controller.signal.aborted || stopped) return
+            controller.abort()
+            restartLater(isStaleCursor(error))
+          },
+        })
+        follow(stream, sink, !cursor, () => {
+          attempt = 0
+          if (live) return
+          // Read up to date: check again later (or sooner, on focus or after a write).
+          reading = false
+          clearTimeout(timer)
+          timer = setTimeout(poke, pollMs)
+        })
+      }
+      /** A table that is not live: read it again now, unless a read is already running. */
+      function poke() {
+        if (stopped || reading) return
+        clearTimeout(timer)
+        void begin(false)
+      }
 
-    void begin(false)
-    return () => {
-      stopped = true
-      clearTimeout(timer)
-      abort?.abort()
-    }
-  },
-})
+      if (!live) {
+        pokes.add(poke)
+        if (pokes.size === 1) globalThis.addEventListener?.('focus', pokeAll)
+      }
+      void begin(false)
+      return () => {
+        stopped = true
+        clearTimeout(timer)
+        abort?.abort()
+        pokes.delete(poke)
+        if (!live && pokes.size === 0) globalThis.removeEventListener?.('focus', pokeAll)
+      }
+    },
+  }
+}
 
 /** Applies the stream's messages to the sink. `fresh`: the table loads from the start and is replaced once complete. */
 function follow(

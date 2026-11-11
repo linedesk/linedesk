@@ -111,3 +111,32 @@ describe('a new app version', () => {
     local.close()
   })
 })
+
+describe('tables that are not live', () => {
+  it('are read up to date without a live request, then again on refresh or after a while', async () => {
+    const { streams, createStream } = fakeStreams()
+    const adapter = electricAdapter('', { createStream, liveTables: ['calls'], pollMs: 50 })
+    const live = memorySink()
+    const settings = memorySink()
+    const stopLive = adapter.start('calls', live.sink)
+    const stop = adapter.start('assistants', settings.sink)
+    await eventually(() => expect(streams).toHaveLength(2))
+    expect(streams.map(s => (s.options as { subscribe?: boolean }).subscribe)).toEqual([true, false])
+
+    // Up to date: the next read waits; a refresh while it is still running does not start another.
+    streams[1]!.send([insert('as1'), upToDate])
+    expect(settings.rows.has('as1')).toBe(true)
+    adapter.refresh?.()
+    await eventually(() => expect(streams).toHaveLength(3))
+    expect(streams[2]!.options).toMatchObject({ subscribe: false, handle: 'h1', url: '/v1/shape/assistants' })
+    adapter.refresh?.()
+    expect(streams).toHaveLength(3)
+
+    // Without a refresh it is read again after pollMs; the live table never is.
+    streams[2]!.send([upToDate])
+    await eventually(() => expect(streams).toHaveLength(4))
+    expect(streams[3]!.options).toMatchObject({ subscribe: false, url: '/v1/shape/assistants' })
+    stop()
+    stopLive()
+  })
+})

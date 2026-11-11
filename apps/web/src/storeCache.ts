@@ -3,6 +3,9 @@
 // moment and both sent the same command.
 import { createStore, electricAdapter, type Rejection, type Store } from '@linedesk/sync'
 
+/** Tables followed live: what changes while calls come in. Four long-polls leave room for writes over HTTP/1.1. */
+const LIVE_TABLES = ['calls', 'transcript_segments', 'contacts', 'bookings'] as const
+
 type Entry = {
   ready: Promise<Store>
   users: number
@@ -24,7 +27,8 @@ export function leaseStore(dbName: string, onReject: (r: Rejection) => void): St
       ready: createStore({
         api: '',
         dbName,
-        adapter: electricAdapter(window.location.origin),
+        // Live only what changes during calls; settings-like tables are checked on focus, after a write and every minute.
+        adapter: electricAdapter(window.location.origin, { liveTables: LIVE_TABLES }),
         appVersion: import.meta.env.VITE_APP_BUILD,
         onReject: r => listeners.forEach(l => l(r)),
         onLocalDbLost: () => window.location.reload(), // another tab signed out and removed the local data
