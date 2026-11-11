@@ -7,8 +7,8 @@ import type { MyInvitation } from '@linedesk/actions'
 import { refreshInvitations } from './invitations.ts'
 import { refreshWorkspaces, useWorkspaces, WorkspaceSwitcher } from './WorkspaceSwitcher.tsx'
 
-/** `onAdmin` is set for instance admins only: Admin then leads the menu. */
-type Props = { name: string; workspaceName: string; workspaceId: string; toast: (message: string) => void; invitations: MyInvitation[]; onInvitationsChanged: () => void; navOpen: boolean; onAdmin?: () => void; onAccount: () => void; onTeam: () => void; onSignOut: () => void }
+/** `onAdmin` is set for instance admins only: Admin then leads the menu. `onNewWorkspace` only where POST /v1/workspaces would allow it. */
+type Props = { name: string; workspaceName: string; workspaceId: string; toast: (message: string) => void; invitations: MyInvitation[]; onInvitationsChanged: () => void; navOpen: boolean; onNewWorkspace?: () => void; onAdmin?: () => void; onAccount: () => void; onTeam: () => void; onSignOut: () => void }
 
 /** This install's terms, privacy and support links: the last known ones at once, none that are not set. */
 export const loadAuthMethods = () => fetchAuthMethods({ attempts: 1 })
@@ -26,7 +26,7 @@ function Item({ label, icon, onClick }: { label: string; icon: IconName; onClick
 }
 
 /** The profile row at the bottom of the navigation. Clicking it opens a small menu above it. */
-export function ProfileMenu({ name, workspaceName, workspaceId, toast, invitations, onInvitationsChanged, navOpen, onAdmin, onAccount, onTeam, onSignOut }: Props) {
+export function ProfileMenu({ name, workspaceName, workspaceId, toast, invitations, onInvitationsChanged, navOpen, onNewWorkspace, onAdmin, onAccount, onTeam, onSignOut }: Props) {
   const [open, setOpen] = useState(false)
   const links = useLegalLinks()
   const workspaces = useWorkspaces() // known with the session; here so the menu never waits for it
@@ -62,6 +62,7 @@ export function ProfileMenu({ name, workspaceName, workspaceId, toast, invitatio
       {open && (
         <div className="me-menu" role="menu" aria-label="Account" onKeyDown={onKeyDown}>
           <WorkspaceSwitcher all={workspaces} currentId={workspaceId} invitations={invitations} onInvitationsChanged={onInvitationsChanged} onError={m => { setOpen(false); toast(m) }} />
+          {onNewWorkspace && <Item label="New workspace…" icon="plus" onClick={choose(onNewWorkspace)} />}
           {onAdmin && <Item label="Admin" icon="shield" onClick={choose(onAdmin)} />}
           <Item label="Account settings" icon="user" onClick={choose(onAccount)} />
           <Item label="Team" icon="users" onClick={choose(onTeam)} />

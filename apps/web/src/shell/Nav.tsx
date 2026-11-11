@@ -30,6 +30,8 @@ type Props = {
   onInbox: (tab: InboxTab) => void
   onPage: (route: PageRoute) => void
   isInstanceAdmin: boolean
+  /** Set only where POST /v1/workspaces would allow this person to create a workspace: the profile menu offers it. */
+  onNewWorkspace?: () => void
   onHelp: () => void
   onSignOut: () => void
   onClose: () => void
@@ -45,7 +47,7 @@ function NavItem({ label, icon, keys, current, sub, badge, onClick }: { label: s
 
 /** Slide-in navigation: opens from ☰ or M; closes with Esc, the close button, a click outside or after choosing.
  * On very wide windows it is docked: always open beside the content. */
-export function Nav({ open, docked = false, route, tab, unreadCount, reminderCount, mineCount, reviewCount, workspaceName, workspaceId, toast, invitations, onInvitationsChanged, isInstanceAdmin, onClose, ...on }: Props) {
+export function Nav({ open, docked = false, route, tab, unreadCount, reminderCount, mineCount, reviewCount, workspaceName, workspaceId, toast, invitations, onInvitationsChanged, isInstanceAdmin, onNewWorkspace, onClose, ...on }: Props) {
   const ref = useRef<HTMLElement>(null)
   useFocusTrap(ref, open && !docked, { initial: '.nav-item[aria-current="page"]' }) // opens on the current page, gives focus back when it closes
   const userName = auth.useSession().data?.user.name ?? ''
@@ -73,7 +75,7 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
       <NavItem label={pages.settings.title} icon="gear" keys={['G', 'S']} current={route === 'settings'} onClick={go(() => on.onPage('settings'))} />
       <div className="nav-foot">
         <NavItem label="Keyboard shortcuts" icon="keyboard" keys={['?']} onClick={go(on.onHelp)} />
-        <ProfileMenu navOpen={open} name={userName} workspaceName={workspaceName} workspaceId={workspaceId} toast={toast} invitations={invitations} onInvitationsChanged={onInvitationsChanged} onAdmin={isInstanceAdmin ? go(() => on.onPage('admin')) : undefined} onAccount={go(() => on.onPage('account'))} onTeam={go(() => on.onPage('team'))} onSignOut={go(on.onSignOut)} />
+        <ProfileMenu navOpen={open} name={userName} workspaceName={workspaceName} workspaceId={workspaceId} toast={toast} invitations={invitations} onInvitationsChanged={onInvitationsChanged} onNewWorkspace={onNewWorkspace && go(onNewWorkspace)} onAdmin={isInstanceAdmin ? go(() => on.onPage('admin')) : undefined} onAccount={go(() => on.onPage('account'))} onTeam={go(() => on.onPage('team'))} onSignOut={go(on.onSignOut)} />
       </div>
     </nav>
   )

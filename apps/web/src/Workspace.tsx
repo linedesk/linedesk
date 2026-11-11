@@ -21,6 +21,9 @@ import type { Overlay } from './shell/keys.ts'
 import { invitationNotice, unannounced, useMyInvitations } from './shell/invitations.ts'
 import { AskName } from './shell/AskName.tsx'
 import { MenuButton, Nav } from './shell/Nav.tsx'
+import { NewWorkspaceDialog } from './shell/NewWorkspace.tsx'
+import { loadAuthMethods } from './shell/ProfileMenu.tsx'
+import { mayCreateWorkspace } from './NoWorkspace.tsx'
 import { Overlays } from './shell/Overlays.tsx'
 import { rejectionText } from './shell/rejections.ts'
 import { SetupBanner } from './shell/SetupBanner.tsx'
@@ -89,6 +92,10 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
   const isInstanceAdmin = me.permissions.includes('instance:admin')
   // An instance admin without the passkey sign-in still finds the admin area; it asks for the passkey.
   const canOpenAdmin = isInstanceAdmin || Boolean(me.adminSecondFactor)
+  // The same rule as the screen without a workspace (#220): sign-up open, or an instance admin.
+  const authMethods = useQuery('auth-methods', loadAuthMethods, { persist: true }).data
+  const canCreateWorkspace = !!authMethods && mayCreateWorkspace(authMethods.signUp !== false, me)
+  const [newWorkspace, setNewWorkspace] = useState(false)
   // What is not in the local store loads at start, so Settings, Assistant and Team open with it.
   useEffect(() => {
     void preloadWorkspaceSettings()
@@ -337,6 +344,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
         invitations={invites.invitations}
         onInvitationsChanged={invites.reload}
         isInstanceAdmin={canOpenAdmin}
+        onNewWorkspace={canCreateWorkspace ? () => setNewWorkspace(true) : undefined}
         onInbox={view.setTab}
         onPage={goPage}
         onHelp={() => setOverlay('help')}
@@ -464,6 +472,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
         onCommand={runCommand}
         onReminder={pickReminder}
       />
+      {newWorkspace && <NewWorkspaceDialog onClose={() => setNewWorkspace(false)} />}
       {toaster.toast && <Toast toast={toaster.toast} onUndo={actions.undo} />}
     </div>
   )
