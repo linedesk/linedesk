@@ -74,7 +74,10 @@ export async function resolveCaller(
   clientIp: string | null = null,
 ): Promise<{ actor: Actor } | { missing: 'signed_out' | 'no_workspace' }> {
   const signedOut = { missing: 'signed_out' } as const
-  const bearer = headers.get('authorization')?.replace(/^Bearer /, '')
+  // Only the Bearer scheme is ours. Another one (Basic from a password gate in front of the app, such as
+  // scripts/local-public.sh) leaves the session cookie in charge.
+  const authorization = headers.get('authorization')
+  const bearer = authorization?.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : undefined
   if (bearer) {
     if (isApiKey(bearer)) {
       const actor = await actorForApiKey(bearer, clientIp)

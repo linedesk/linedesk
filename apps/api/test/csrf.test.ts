@@ -16,6 +16,16 @@ const forged = (who: User, path: string, init: { origin?: string | null; content
   return appRequest(path, { method: 'POST', headers, body: init.body ?? '{}' })
 }
 
+describe('Authorization schemes other than Bearer', () => {
+  test('a Basic header (a password gate in front of the app) leaves the session cookie in charge', async () => {
+    const ws = await createWorkspace('Basic Gate')
+    const basic = `Basic ${Buffer.from('gate:password-123').toString('base64')}`
+    expect((await request(ws.owner, 'GET', '/v1/me', undefined, { authorization: basic })).status).toBe(200)
+    expect((await request(ws.owner, 'POST', '/v1/actions/call.markRead', { callId: ws.call.id }, { authorization: basic })).status).toBe(200)
+    expect((await appRequest('/v1/me', { headers: { authorization: basic } })).status).toBe(401)
+  })
+})
+
 describe('cookie-signed writes under /v1', () => {
   test('from another origin, without one, or not as JSON: 403 before anything runs', async () => {
     const ws = await createWorkspace('CSRF Plumbing')
