@@ -41,18 +41,20 @@ export function parseHash(hash: string, last: InboxPlace = HOME): Location {
     return { ...last, route: page, callId: null, known: true }
   // Admin mode has sections of its own (`#admin/users/<id>`); admin/route.ts reads them.
   if (path.startsWith('admin/')) return { ...last, route: 'admin', callId: null, known: true }
-  const [head, view = 'you', ...rest] = path.split('/')
-  if (head === 'calls' && view === 'member' && rest.length === 1 && rest[0])
-    return { route: 'calls', callId: null, tab: 'member', member: decode(rest[0]), search: null, known: true }
-  const isList = (head === 'calls' || path === '') && tabs.includes(view as InboxTab) && rest.length === 0
-  if (!isList) return { ...HOME, route: 'calls', callId: null, known: false }
   const params = query?.split('&') ?? []
   const param = (name: string) => {
     const found = params.find(p => p.startsWith(`${name}=`))
     return found === undefined ? null : decode(found.slice(name.length + 1))
   }
   const tag = param('tag')
-  return { route: 'calls', callId: null, tab: view as InboxTab, search: param('q'), member: null, known: true, ...(isTag(tag) ? { tag } : {}) }
+  // The tag filter and the search ride along in every list view, a member's included.
+  const filters = { search: param('q'), ...(isTag(tag) ? { tag } : {}) }
+  const [head, view = 'you', ...rest] = path.split('/')
+  if (head === 'calls' && view === 'member' && rest.length === 1 && rest[0])
+    return { route: 'calls', callId: null, tab: 'member', member: decode(rest[0]), ...filters, known: true }
+  const isList = (head === 'calls' || path === '') && tabs.includes(view as InboxTab) && rest.length === 0
+  if (!isList) return { ...HOME, route: 'calls', callId: null, known: false }
+  return { route: 'calls', callId: null, tab: view as InboxTab, member: null, ...filters, known: true }
 }
 
 /** A new history entry. */

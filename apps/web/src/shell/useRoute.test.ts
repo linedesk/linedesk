@@ -4,6 +4,13 @@ import { callHash, listHash, parseHash } from './useRoute.ts'
 const list = { route: 'calls', callId: null, tab: 'you', search: null, known: true }
 
 describe('route parsing', () => {
+  it('keeps the tag filter and the search on a member view, and writes them back', () => {
+    const hash = '#calls/member/u_1?q=leak&tag=new_lead'
+    expect(parseHash(hash)).toMatchObject({ tab: 'member', member: 'u_1', search: 'leak', tag: 'new_lead', known: true })
+    expect(listHash({ tab: 'member', member: 'u_1', search: 'leak', tag: 'new_lead' })).toBe(hash)
+    expect(parseHash('#calls/member/u_1?tag=vip')).not.toHaveProperty('tag')
+  })
+
   it('reads the list, a view, a search, a call and the pages from the hash', () => {
     expect(parseHash('')).toEqual(list)
     expect(parseHash('#calls')).toEqual(list)
