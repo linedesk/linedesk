@@ -1,0 +1,205 @@
+// What Linedesk needs from a calendar account: its calendars, when they are busy, and events it
+// writes. Google and Microsoft adapters implement it with plain fetch; vendor code stays in them.
+// Tokens are not the adapter's business: it asks `accessToken()` for one per request and, after a
+// 401, once more with `forceRefresh` before it gives up.
+import type { Interval } from './slots.ts'
+
+export type CalendarProviderName = 'google' | 'microsoft'
+
+export type ProviderCalendar = {
+  /** The provider's calendar id. */
+  id: string
+  name: string
+  /** The account's main calendar. */
+  primary: boolean
+  /** Events can be written into it. */
+  canWrite: boolean
+}
+
+export type CalendarEventInput = {
+  title: string
+  description: string
+  start: string
+  end: string
+  location?: string
+}
+
+export type CalendarEvent = { id: string; title: string; start: string; end: string; cancelled: boolean }
+
+export interface CalendarProvider {
+  readonly name: CalendarProviderName
+  listCalendars(): Promise<ProviderCalendar[]>
+  /** Busy intervals of these calendars inside `window`, in one request where the provider allows it. */
+  busy(calendarIds: readonly string[], window: Interval): Promise<Interval[]>
+  createEvent(calendarId: string, event: CalendarEventInput): Promise<{ id: string }>
+  updateEvent(calendarId: string, eventId: string, event: Partial<CalendarEventInput>): Promise<void>
+  /** Deleting an event that is gone already is not an error. */
+  deleteEvent(calendarId: string, eventId: string): Promise<void>
+  /** null when the event does not exist (any more). */
+  getEvent(calendarId: string, eventId: string): Promise<CalendarEvent | null>
+}
+
+/** Gives the adapter an access token; `forceRefresh` after the provider refused the last one. */
+export type AccessTokenSource = (forceRefresh?: boolean) => Promise<string>
+
+/**
+ * - `auth`: the account's grant is gone or lacks a scope; someone has to connect it again.
+ * - `not_found`: the calendar or event does not exist (for this account).
+ * - `rate_limited`, `unavailable`: try later; `unavailable` covers timeouts and 5xx.
+ * - `invalid`: the provider refused the request itself.
+ */
+export type CalendarErrorKind = 'auth' | 'not_found' | 'rate_limited' | 'unavailable' | 'invalid'
+
+/** A provider failure. The message names the step and the provider's reason, never a token. */
+export class CalendarError extends Error {
+  readonly provider: CalendarProviderName
+  readonly kind: CalendarErrorKind
+  readonly status: number | undefined
+
+  constructor(provider: CalendarProviderName, kind: CalendarErrorKind, message: string, status?: number) {
+    super(`${provider === 'google' ? 'Google' : 'Microsoft'}: ${message}`)
+    this.provider = provider
+    this.kind = kind
+    this.status = status
+  }
+}
+
+/**
+ * The kind of a failed response. 403 is ambiguous (rate limits, missing scopes, read-only calendars),
+ * so each adapter classifies it from the provider's reason; without one it is `invalid`.
+ */
+export function errorKindOf(status: number): CalendarErrorKind {
+  if (status === 401) return 'auth'
+  if (status === 404 || status === 410) return 'not_found'
+  if (status === 429) return 'rate_limited'
+  if (status >= 500) return 'unavailable'
+  return 'invalid'
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: provider JSON is read field by field
+export type Json = Record<string, any>
+
+export type HttpOptions = {
+  provider: CalendarProviderName
+  accessToken: AccessTokenSource
+  fetch: typeof fetch
+  timeoutMs: number
+  /** The provider's reason from an error body. */
+  reasonOf: (body: Json) => string | undefined
+  /** A 403's kind, and optionally a clearer message, from the provider's body and the request method. */
+  forbidden: (body: Json, method: string) => { kind: CalendarErrorKind; message?: string }
+}
+
+export type HttpRequest = { method?: string; url: string; body?: unknown; headers?: Record<string, string> }
+
+/**
+ * One authorized JSON request with a timeout; a 401 refreshes the token once and repeats the request.
+ * `what` names the step in errors ("list calendars"). URLs and tokens never go into a message.
+ */
+export function createHttp({ provider, accessToken, fetch: doFetch, timeoutMs, reasonOf, forbidden }: HttpOptions) {
+  async function send(what: string, req: HttpRequest, token: string): Promise<Response> {
+    try {
+      return await doFetch(req.url, {
+        method: req.method ?? 'GET',
+        headers: {
+          authorization: `Bearer ${token}`,
+          accept: 'application/json',
+          ...(req.body === undefined ? {} : { 'content-type': 'application/json' }),
+          ...req.headers,
+        },
+        body: req.body === undefined ? undefined : JSON.stringify(req.body),
+        signal: AbortSignal.timeout(timeoutMs),
+      })
+    } catch (e) {
+      const timedOut = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')
+      throw new CalendarError(provider, 'unavailable', `${what} ${timedOut ? `took longer than ${timeoutMs} ms` : 'could not reach the provider'}`)
+    }
+  }
+
+  return async function request(what: string, req: HttpRequest): Promise<Json | null> {
+    let res = await send(what, req, await accessToken())
+    if (res.status === 401) res = await send(what, req, await accessToken(true))
+    if (res.status === 204) return null
+    const body = (await res.json().catch(() => ({}))) as Json
+    if (!res.ok) {
+      const classified = res.status === 403 ? forbidden(body, req.method ?? 'GET') : { kind: errorKindOf(res.status) }
+      const reason = classified.message ?? reasonOf(body) ?? res.statusText
+      throw new CalendarError(provider, classified.kind, `${what} failed${reason ? `: ${reason}` : ''}`, res.status)
+    }
+    return body
+  }
+}
+
+/** Merged, sorted busy intervals inside `window`. */
+export function mergeBusy(intervals: readonly Interval[], window: Interval): Interval[] {
+  const lo = Date.parse(window.start)
+  const hi = Date.parse(window.end)
+  const spans = intervals
+    .map(i => ({ start: Math.max(Date.parse(i.start), lo), end: Math.min(Date.parse(i.end), hi) }))
+    .filter(s => !Number.isNaN(s.start) && !Number.isNaN(s.end) && s.end > s.start)
+    .sort((a, b) => a.start - b.start)
+  const merged: { start: number; end: number }[] = []
+  for (const s of spans) {
+    const last = merged.at(-1)
+    if (last && s.start <= last.end) last.end = Math.max(last.end, s.end)
+    else merged.push({ ...s })
+  }
+  return merged.map(s => ({ start: new Date(s.start).toISOString(), end: new Date(s.end).toISOString() }))
+}
+
+/** OAuth tokens as a provider returns them, normalized. `refreshToken` is null when the provider kept the old one. */
+export type OAuthTokens = { accessToken: string; refreshToken: string | null; expiresAt: string; scope: string | null }
+
+export type OAuthClient = { clientId: string; clientSecret: string }
+
+/** The OAuth side of a provider: consent URL, code exchange, refresh, revoke, and whose account it is. */
+export interface CalendarOAuth {
+  readonly name: CalendarProviderName
+  readonly scopes: readonly string[]
+  authorizeUrl(params: { redirectUri: string; state: string; codeChallenge: string }): string
+  exchangeCode(params: { code: string; redirectUri: string; codeVerifier: string }): Promise<OAuthTokens>
+  refresh(refreshToken: string): Promise<OAuthTokens>
+  /** Withdraws the grant at the provider. Returns false when the provider has no way to (Microsoft). */
+  revoke(token: string): Promise<boolean>
+  accountEmail(accessToken: string): Promise<string>
+}
+
+/** POSTs a form to a token endpoint and normalizes the answer. */
+export async function tokenRequest(provider: CalendarProviderName, what: string, url: string, form: Record<string, string>, doFetch: typeof fetch, timeoutMs: number): Promise<OAuthTokens> {
+  let res: Response
+  try {
+    res = await doFetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+      body: new URLSearchParams(form).toString(),
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+  } catch {
+    throw new CalendarError(provider, 'unavailable', `${what} could not reach the provider`)
+  }
+  const body = (await res.json().catch(() => ({}))) as Json
+  if (!res.ok || typeof body.access_token !== 'string') {
+    // invalid_grant: the refresh token was revoked or expired; the account has to be connected again.
+    const kind = body.error === 'invalid_grant' ? 'auth' : res.ok ? 'invalid' : errorKindOf(res.status)
+    const reason = typeof body.error_description === 'string' ? body.error_description.split('\n')[0] : body.error
+    throw new CalendarError(provider, kind, `${what} failed${reason ? `: ${reason}` : ''}`, res.status)
+  }
+  const expiresIn = Number(body.expires_in) || 3600
+  return {
+    accessToken: body.access_token,
+    refreshToken: typeof body.refresh_token === 'string' ? body.refresh_token : null,
+    expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
+    scope: typeof body.scope === 'string' ? body.scope : null,
+  }
+}
+
+/** PKCE (RFC 7636): a random verifier and its S256 challenge. */
+export async function pkcePair(): Promise<{ verifier: string; challenge: string }> {
+  const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)))
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
+  return { verifier, challenge: base64url(new Uint8Array(digest)) }
+}
+
+function base64url(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
+}

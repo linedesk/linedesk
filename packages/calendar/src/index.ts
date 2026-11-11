@@ -1,3 +1,7 @@
 export * from './slots.ts'
 export * from './zoned-time.ts'
 export * from './business-hours.ts'
+export * from './provider.ts'
+export { createGoogleCalendar, createGoogleOAuth, GOOGLE_CALENDAR_SCOPES } from './google.ts'
+export { createMicrosoftCalendar, createMicrosoftOAuth, MICROSOFT_CALENDAR_SCOPES } from './microsoft.ts'
+export { calendarOAuthFromEnv, configuredCalendarProviders, createCalendarProvider } from './providers.ts'

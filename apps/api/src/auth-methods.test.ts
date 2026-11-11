@@ -72,6 +72,13 @@ describe('readAuthConfig', () => {
     )
   })
 
+  it('asks for no calendar access at sign-in: that is asked only when a calendar is connected (calendar.connectStart)', () => {
+    const { google, microsoft } = readAuthConfig({ GOOGLE_CLIENT_ID: 'g', GOOGLE_CLIENT_SECRET: 's', MICROSOFT_CLIENT_ID: 'm', MICROSOFT_CLIENT_SECRET: 's' })
+    // No `scope`: Better Auth asks for its defaults, openid, email and profile.
+    expect(google).toEqual({ clientId: 'g', clientSecret: 's' })
+    expect(microsoft).toEqual({ clientId: 'm', clientSecret: 's', tenantId: 'common' })
+  })
+
   it('never exposes secrets in the public methods', () => {
     const { methods } = readAuthConfig({ GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 'top-secret' })
     expect(JSON.stringify(methods)).not.toContain('top-secret')
