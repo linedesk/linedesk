@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import { callOrigin, startCall } from './call-session.ts'
+import { BLOCKED_LINE, BUSY_LINE, OVER_CAP_LINE, unansweredLine } from './busy-line.ts'
 import { buildInstructions } from './prompt.ts'
 
 const sip = { 'sip.phoneNumber': '+15035550191', 'sip.trunkPhoneNumber': '+15035550142' }
@@ -81,6 +82,19 @@ test('the recording notice from call.start is said right after the greeting, als
     'We are closed. This call may be recorded.',
   )
   for (const off of [null, undefined, '  ']) expect((await startCall(api(off), phone)).assistant?.greeting).toBe(row.greeting)
+})
+
+test('a call over the spending cap or the calls at once is not answered, and the caller hears a line, never silence', async () => {
+  const api = (data: Record<string, unknown>) => ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: null, contact: {}, ...data } }) }) as never
+  const phone = { kind: 'phone', from: '+15035550142', to: '+15035550100', room: 'r' } as const
+  const overCap = await startCall(api({ blocked: true, overCap: true }), phone)
+  expect(overCap).toMatchObject({ blocked: true, overCap: true, busy: false })
+  expect(unansweredLine(overCap)).toBe(OVER_CAP_LINE)
+  expect(OVER_CAP_LINE).not.toMatch(/few minutes/)
+  expect(unansweredLine(await startCall(api({ blocked: true, busy: true }), phone))).toBe(BUSY_LINE)
+  // A blocked number (Spam) hears a short goodbye too; an API of the release before sends no overCap.
+  expect(unansweredLine(await startCall(api({ blocked: true }), phone))).toBe(BLOCKED_LINE)
+  expect((await startCall(api({}), phone)).overCap).toBe(false)
 })
 
 test('the contact call.start matched reaches the instructions with its note; a withheld number brings none', async () => {

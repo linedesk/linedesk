@@ -13,6 +13,7 @@ import { notifyCallPush, type PushKind, pushSender } from './push.ts'
 import { deleteExpiredRecordings } from './recording-retention.ts'
 import { recordingStoreCache } from './recording-store.ts'
 import { deleteClonedVoice } from './voices.ts'
+import { sendSpendingAlert, type SpendingAlert } from './spending-cap.ts'
 import { attemptDelivery, clearOldPayloads, WEBHOOK_ATTEMPTS } from './webhooks.ts'
 
 type Env = Record<string, string | undefined>
@@ -37,6 +38,8 @@ export const WEBHOOK_CLEANUP = 'webhooks.cleanup'
 /** Deletes a cloned voice at its provider once no assistant uses it (voices.ts). Retried for a day. */
 export const VOICE_DELETE = 'voice.delete'
 const WEBHOOK_CLEANUP_CRON = '37 3 * * *'
+/** The email to owners and instance admins when a workspace reaches 80 % or 100 % of its spending cap. */
+export const SPENDING_CAP_ALERT = 'spending.capAlert'
 
 let boss: PgBoss | null = null
 
@@ -66,6 +69,11 @@ async function runJobs(instance: PgBoss, env: Env) {
     if (result.failed && !result.sent) throw new Error(`no push could be sent (${result.failed} failed)`)
     return result
   })
+  await instance.work<SpendingAlert>(SPENDING_CAP_ALERT, async ([job]) => {
+    const result = await sendSpendingAlert(db, emailSender, job!.data)
+    if (result.failed && !result.sent) throw new Error(`no spending cap email could be sent (${result.failed} failed)`)
+    return result
+  })
   await instance.work<{ bookingId: string }>(BOOKING_CONFIRM, async ([job]) => sendBookingConfirmation(db, emailSender, job!.data.bookingId))
   // No language model set up: nothing to do, and no retry. A failed request (provider down) is retried.
   await instance.work<{ callId: string }>(CALL_EVALUATE, async ([job]) => evaluateCall(db, job!.data.callId, await evaluationModel(db)))
@@ -92,6 +100,7 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(CALL_NOTIFY, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   // Few, quick retries: a push about a call is news only for a while.
   await instance.createQueue(CALL_PUSH, { retryLimit: 2, retryDelay: 30, retryBackoff: true })
+  await instance.createQueue(SPENDING_CAP_ALERT, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(BOOKING_CONFIRM, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(CALL_EVALUATE, { retryLimit: 2, retryDelay: 120, retryBackoff: true })
   await instance.createQueue(WEBHOOK_CLEANUP)
@@ -123,6 +132,11 @@ export async function queueCallNotification(tx: Tx, callId: string) {
 /** Queues the pushes about a call in the caller's transaction. Without a queue (tests) nothing is sent. */
 export async function queueCallPush(tx: Tx, callId: string, kind: PushKind) {
   await boss?.send(CALL_PUSH, { callId, kind }, { db: fromDrizzle(tx, sql) })
+}
+
+/** Queues a spending-cap email in the caller's transaction. Without a queue (tests) nothing is sent. */
+export async function queueSpendingCapAlert(tx: Tx, alert: SpendingAlert) {
+  await boss?.send(SPENDING_CAP_ALERT, alert, { db: fromDrizzle(tx, sql) })
 }
 
 /** Queues the caller's confirmation email in the booking's transaction. Without a queue (tests) nothing is sent. */

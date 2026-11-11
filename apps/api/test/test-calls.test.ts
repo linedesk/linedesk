@@ -1,11 +1,12 @@
 // Test calls from the web app: a token for one new room, signed for the caller's own workspace,
 // and the call the agent then opens in that workspace.
 import { createHmac } from 'node:crypto'
-import { calls, contacts } from '@linedesk/db'
-import { and, eq } from 'drizzle-orm'
-import { afterAll, beforeAll, expect, test } from 'vitest'
+import { calls, commands, contacts } from '@linedesk/db'
+import { and, eq, sql } from 'drizzle-orm'
+import { afterAll, beforeAll, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
 import { act, addMember, agent, anonymous, createWorkspace, type User, type Workspace } from './helpers.ts'
+import { TEST_CALL_BURST, TEST_CALL_TOKEN, TEST_CALLS_PER_USER_PER_DAY } from '../src/test-call.ts'
 
 const LIVEKIT = { LIVEKIT_URL: 'ws://livekit.internal:7880', LIVEKIT_API_KEY: 'test-key', LIVEKIT_API_SECRET: 'test-secret-test-secret-test-secret' }
 const saved = { ...process.env }
@@ -48,8 +49,10 @@ test('an owner gets a token for one new room, dispatching the agent into their o
   expect(claims.video).toEqual({ roomJoin: true, room, canPublish: true, canPublishSources: ['microphone'], canSubscribe: true, canPublishData: false })
   expect(claims.roomConfig.maxParticipants).toBe(3)
   expect(claims.roomConfig.agents).toEqual([{ agentName: 'linedesk', metadata: JSON.stringify({ source: 'test', workspaceId: ws.id }) }])
-  // Nothing is kept in the command log: the result holds a token.
-  expect(JSON.stringify(await db.execute('select input from commands order by created_at desc limit 5'))).not.toContain(token)
+  // The command log keeps that a token was issued, for the limits, never the token.
+  const logged = await db.select().from(commands).where(and(eq(commands.action, TEST_CALL_TOKEN), eq(commands.actor_id, ws.owner.userId)))
+  expect(logged.map(c => c.result)).toContainEqual({ ok: true, rows: {}, data: { room } })
+  expect(JSON.stringify(await db.execute('select input, result from commands order by created_at desc limit 20'))).not.toContain(token)
 })
 
 test('each token is for a different room, and an admin may start one too', async () => {
@@ -84,8 +87,15 @@ test('without LiveKit on the server it is a rejection that says so', async () =>
 test('too many test calls in a short time are refused', async () => {
   const caller = await addMember(other.id, 'admin')
   const statuses = []
-  for (let i = 0; i < 7; i++) statuses.push((await act(caller, 'assistant.startTestCall', {})).status)
-  expect(statuses).toEqual([200, 200, 200, 200, 200, 200, 409])
+  for (let i = 0; i <= TEST_CALL_BURST.max; i++) statuses.push((await act(caller, 'assistant.startTestCall', {})).status)
+  expect(statuses).toEqual([...Array(TEST_CALL_BURST.max).fill(200), 409])
+})
+
+test('tokens asked for at once, none used yet, cannot get past the limits', async () => {
+  const caller = await addMember(other.id, 'admin')
+  const started = await Promise.all(Array.from({ length: 10 }, () => act(caller, 'assistant.startTestCall', {})))
+  expect(started.filter(s => s.status === 200)).toHaveLength(TEST_CALL_BURST.max)
+  expect(started.filter(s => s.status === 409).every(s => /Too many test calls/.test(s.body.error))).toBe(true)
 })
 
 test('the agent opens the test call in the workspace of the dispatch, filed under "Test call"', async () => {
@@ -99,6 +109,38 @@ test('the agent opens the test call in the workspace of the dispatch, filed unde
   const second = await act(agent(ws.id), 'call.startTest', { room: 'test-room-2' })
   expect(second.body.data.contact.id).toBe(first.body.data.contact.id)
   expect(await db.select().from(contacts).where(and(eq(contacts.workspace_id, ws.id), eq(contacts.phone, 'test')))).toHaveLength(1)
+})
+
+test('a room is one test call: the agent cannot open a second call in it (a rejoin after the room closed)', async () => {
+  expect((await act(agent(ws.id), 'call.startTest', { room: 'test-room-once' })).status).toBe(200)
+  const again = await act(agent(ws.id), 'call.startTest', { room: 'test-room-once' })
+  expect(again).toMatchObject({ status: 409, body: { error: 'this test call has ended: start a new one' } })
+})
+
+test(`test calls a day: ${TEST_CALLS_PER_USER_PER_DAY} per user over all workspaces, tokens counted when issued, and the install's limit`, async () => {
+  const caller = await addMember(ws.id, 'admin')
+  // Tokens this user was issued today, in another workspace too, used or not; ones from yesterday do not count.
+  const issued = (n: number, workspaceId: string, minutesAgo = 60) => db.insert(commands).values(Array.from({ length: n }, (_, i) => ({
+    id: `cmd_tc_${crypto.randomUUID().slice(0, 12)}_${i}`, workspace_id: workspaceId, actor_id: caller.userId, action: TEST_CALL_TOKEN,
+    input: {}, result: { ok: true, rows: {}, data: { room: 'test-x' } }, created_at: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
+  })))
+  await issued(TEST_CALLS_PER_USER_PER_DAY - 2, ws.id)
+  await issued(5, ws.id, 25 * 60)
+  expect((await act(caller, 'assistant.startTestCall', {})).status).toBe(200)
+  await issued(1, other.id)
+  expect(await act(caller, 'assistant.startTestCall', {})).toMatchObject({ status: 409, body: { error: `You made ${TEST_CALLS_PER_USER_PER_DAY} test calls today. Try again tomorrow.` } })
+  // Someone else may still, until the install's limit is reached.
+  expect((await act(ws.owner, 'assistant.startTestCall', {})).status).toBe(200)
+  const [{ n }] = (await db.execute(sql`select count(*)::int as n from commands where action = ${TEST_CALL_TOKEN} and created_at > now() - interval '1 day'`)).rows as [{ n: number }]
+  process.env.TEST_CALLS_PER_DAY = String(n)
+  const alert = vi.spyOn(console, 'error').mockImplementation(() => {})
+  try {
+    expect(await act(ws.owner, 'assistant.startTestCall', {})).toMatchObject({ status: 409, body: { error: 'This Linedesk has had as many test calls today as it allows. Try again tomorrow.' } })
+    expect(alert).toHaveBeenCalledWith(expect.stringMatching(/^ALERT test calls/))
+  } finally {
+    alert.mockRestore()
+    delete process.env.TEST_CALLS_PER_DAY
+  }
 })
 
 test('call.startTest needs the agent token and a workspace', async () => {

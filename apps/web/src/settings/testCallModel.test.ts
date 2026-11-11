@@ -19,3 +19,8 @@ test('server refusals never name LiveKit or settings', () => {
   expect(testCallErrorText('Too many test calls in a short time. Try again in a few minutes.')).toMatch(/few minutes/)
   expect(testCallErrorText('')).toMatch(/Try again/)
 })
+
+test('the daily limits are shown as the server words them', () => {
+  for (const limit of ['You made 20 test calls today. Try again tomorrow.', 'This Linedesk has had as many test calls today as it allows. Try again tomorrow.', 'This workspace reached its monthly spending cap, so test calls are off until next month.'])
+    expect(testCallErrorText(limit)).toBe(limit)
+})

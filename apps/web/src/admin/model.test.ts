@@ -7,6 +7,8 @@ import {
   initialValues,
   isConfigured,
   formatMinutes,
+  formatUsd,
+  parseSpendingCap,
   monthLabel,
   nextSort,
   providerState,
@@ -110,4 +112,14 @@ test('a needed field without a value, or an emptied stored one, stops Save', () 
   expect(fieldErrors(stored, { account_sid: '', auth_token: '' })).toEqual({
     account_sid: 'Cannot be empty. Disconnect clears every key.',
   })
+})
+
+test('the spending cap field: empty is no cap, dollars with up to two decimals, nothing below zero or over the limit', () => {
+  expect(parseSpendingCap('')).toEqual({ capUsd: null })
+  expect(parseSpendingCap('  ')).toEqual({ capUsd: null })
+  expect(parseSpendingCap('50')).toEqual({ capUsd: 50 })
+  expect(parseSpendingCap('$1,250.5')).toEqual({ capUsd: 1250.5 })
+  expect(parseSpendingCap('0')).toEqual({ capUsd: 0 })
+  for (const bad of ['-5', 'ten', '1.999', '100001']) expect(parseSpendingCap(bad), bad).toHaveProperty('problem')
+  expect(formatUsd(12.5)).toBe('$12.50')
 })

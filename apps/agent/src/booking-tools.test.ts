@@ -22,7 +22,7 @@ const slot = (day: string, time: string) => ({ start: `2026-11-${day}T${time}:00
 
 function session(): CallSession {
   return {
-    callId: 'call_1', workspaceId: 'ws_1', assistant: { id: 'as_1' } as CallSession['assistant'], contact: {} as CallSession['contact'], caller: null, blocked: false, busy: false,
+    callId: 'call_1', workspaceId: 'ws_1', assistant: { id: 'as_1' } as CallSession['assistant'], contact: {} as CallSession['contact'], caller: null, blocked: false, busy: false, overCap: false,
     businessHours: null, booking, businessNumber: null, simulatedOnCall: null, append: async () => {}, finish: async () => {},
   }
 }
@@ -44,12 +44,12 @@ test('offered times: at most two per day and six in all, earliest first', () => 
   expect(spreadSlots(slots).map(s => s.label)).toEqual(['Day 17 at 10:00', 'Day 17 at 11:00', 'Day 18 at 13:00', 'Day 18 at 14:00', 'Day 19 at 15:00', 'Day 20 at 16:00'])
 })
 
-test('find_slots asks for the chosen calendar and days, and lists the times with their exact start', async () => {
+test('find_slots asks for the chosen calendar and days on this call, and lists the times with their exact start', async () => {
   const call = session()
   const log = new CallLog(call)
   const api = fakeApi(() => ({ slots: [slot('17', '17:00'), slot('17', '18:00')] }))
   const text = await bookingTools(api, call, log).findSlots({ appointment_type_id: 'at_1', calendar_id: 'acal_mike', from_date: '2026-11-17', to_date: null })
-  expect(api.sent[0]).toEqual(['calendar.findSlots', { appointmentTypeId: 'at_1', calendarId: 'acal_mike', limit: 60, fromDate: '2026-11-17' }, 'ws_1'])
+  expect(api.sent[0]).toEqual(['calendar.findSlots', { appointmentTypeId: 'at_1', calendarId: 'acal_mike', callId: 'call_1', limit: 60, fromDate: '2026-11-17' }, 'ws_1'])
   expect(text).toContain('- Day 17 at 17:00 [2026-11-17T17:00:00.000Z]')
   expect(log.lines.at(-1)).toEqual({ speaker: 'system', text: 'Checked availability · Repair visit · 2 slots' })
 })

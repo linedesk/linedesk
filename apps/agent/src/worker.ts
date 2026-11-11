@@ -335,11 +335,11 @@ async function entry(ctx: JobContext) {
   const call = (await early) ?? (await startCall(api, callOrigin(ctx.job.metadata, (await callerJoined).attributes, ctx.room.name ?? '')))
   setup.mark('registered')
   if (call.blocked) {
-    // The API already filed the call: in Spam (blocked caller) or as missed with a callback (busy). Either caller
-    // hears one line first, once the voice is set up.
+    // The API already filed the call: in Spam (blocked caller) or as missed with a callback (busy, over the spending
+    // cap). Each caller hears one line first, once the voice is set up.
     await tellCaller(ctx, call, unansweredLine(call), ready, callerJoined)
     await ctx.deleteRoom()
-    return ctx.shutdown(call.busy ? 'too many calls at once in the workspace' : 'blocked caller')
+    return ctx.shutdown(call.overCap ? 'workspace over its monthly spending cap' : call.busy ? 'too many calls at once in the workspace' : 'blocked caller')
   }
   const readiness = await ready
   if (!readiness.ready) {

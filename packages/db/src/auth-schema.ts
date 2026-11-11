@@ -105,6 +105,9 @@ export const organization = pgTable(
     metadata: text("metadata"),
     // Not Better Auth's: set by an instance admin; calls to a disabled workspace are not answered.
     disabledAt: timestamp("disabled_at"),
+    // Not Better Auth's: set by an instance admin. The workspace's monthly spending cap in US cents, on the
+    // estimated cost (apps/api/src/spending-cap.ts); null: no cap.
+    spendingCapCents: integer("spending_cap_cents"),
   },
   (table) => [uniqueIndex("organization_slug_uidx").on(table.slug)],
 );

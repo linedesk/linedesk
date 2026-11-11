@@ -19,6 +19,8 @@ export const calendarFindSlots = defineAction({
     toDate: localDate.optional(),
     /** One of the assistant's calendars (assistant_calendars id): its busy times at the provider count too. */
     calendarId: z.string().min(1).optional(),
+    /** The call the assistant searches on: then only the calendars of the assistant that answered it. */
+    callId: z.string().min(1).optional(),
     limit: z.number().int().min(1).max(200).default(20),
   }),
   permission: 'calendar:read',

@@ -50,6 +50,22 @@ export const formatMinutes = (minutes: number) =>
       ? '<0.1 min'
       : '0 min'
 
+/** US dollars with cents: 12.5 → "$12.50". */
+export const formatUsd = (value: number) => `$${value.toFixed(2)}`
+
+/** The highest monthly spending cap the API takes (SPENDING_CAP_MAX_USD in packages/actions). */
+const SPENDING_CAP_MAX_USD = 100_000
+
+/** The spending cap field: empty is no cap; else dollars, like "50" or "$49.99". */
+export function parseSpendingCap(text: string): { capUsd: number | null } | { problem: string } {
+  const value = text.trim().replace(/^\$/, '').replace(/,/g, '')
+  if (!value) return { capUsd: null }
+  if (!/^\d+(\.\d{1,2})?$/.test(value)) return { problem: 'Enter an amount in dollars, like 50 or 49.99, or leave it empty for no cap.' }
+  const capUsd = Number(value)
+  if (capUsd > SPENDING_CAP_MAX_USD) return { problem: `The cap can be at most ${formatUsd(SPENDING_CAP_MAX_USD)} a month.` }
+  return { capUsd }
+}
+
 export type ProviderState = 'app' | 'env' | 'none'
 /** A provider counts as set in the app as soon as one of its fields is stored there. */
 export function providerState(provider: ProviderStatus): ProviderState {

@@ -1,11 +1,11 @@
 // Server handlers of the admin area actions (packages/actions/src/admin.ts).
 import type { ProviderName } from '@linedesk/actions'
-import { organization, passkey, session, type Tx, user } from '@linedesk/db'
+import { organization, passkey, session, spending_cap_alerts, type Tx, user } from '@linedesk/db'
 import { emailDelivery } from './auth-methods.ts'
 import { emailSender } from './email.ts'
 import { emailSafeName, welcomeEmail } from './emails/templates.ts'
 import { db } from './db.ts'
-import { eq, or, sql } from 'drizzle-orm'
+import { and, eq, or, sql } from 'drizzle-orm'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { mayReceiveEnrolmentCode } from './admin-step-up.ts'
@@ -22,6 +22,7 @@ import {
 import { testProvider } from './provider-test.ts'
 import { dropUserPush } from './push.ts'
 import { SecretsKeyError } from './secrets.ts'
+import { monthOf, queueSpendingAlerts, spendingCap } from './spending-cap.ts'
 
 const hasPasskey = async (tx: Tx, userId: string) =>
   (await tx.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, userId)).limit(1)).length > 0
@@ -52,6 +53,23 @@ async function setWorkspaceDisabled(tx: Tx, workspaceId: string, disabledAt: Dat
     .returning({ id: organization.id })
   if (!workspace) throw new Reject('workspace not found')
   return { rows: {}, data: { workspaceId, disabled_at: disabledAt?.toISOString() ?? null } }
+}
+
+/**
+ * Sets or removes the workspace's monthly spending cap. This month's 80 % and 100 % emails start over for the new
+ * cap, and go out at once when the spend is past them already.
+ */
+async function setSpendingCap(tx: Tx, workspaceId: string, capUsd: number | null, now: string) {
+  const [workspace] = await tx
+    .update(organization)
+    .set({ spendingCapCents: capUsd === null ? null : Math.round(capUsd * 100) })
+    .where(eq(organization.id, workspaceId))
+    .returning({ id: organization.id })
+  if (!workspace) throw new Reject('workspace not found')
+  await tx.delete(spending_cap_alerts).where(and(eq(spending_cap_alerts.workspace_id, workspaceId), eq(spending_cap_alerts.month, monthOf(now))))
+  const cap = await spendingCap(tx, workspaceId, now)
+  await queueSpendingAlerts(tx, workspaceId, now, cap)
+  return { rows: {}, data: { workspaceId, spending_cap_usd: cap?.capUsd ?? null, spent_usd: cap?.spentUsd ?? null, reached: cap?.reached ?? false } }
 }
 
 /** Handlers that hand out an enrolment code refuse a session that is not passkey-confirmed (admin-step-up.ts). */
@@ -167,6 +185,7 @@ export const adminHandlers: Record<string, Handler> = {
 
   'workspace.disable': ({ tx, now }, input) => setWorkspaceDisabled(tx, input.workspaceId, new Date(now)),
   'workspace.enable': ({ tx }, input) => setWorkspaceDisabled(tx, input.workspaceId, null),
+  'workspace.setSpendingCap': ({ tx, now }, input) => setSpendingCap(tx, input.workspaceId, input.capUsd, now),
 
   'instanceAdmin.grant': async ({ tx, actor }, input) => {
     refuseEnrolmentCode(actor)

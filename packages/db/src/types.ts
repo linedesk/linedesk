@@ -4,7 +4,8 @@ import type {
   phone_numbers, transcript_segments, webhook_endpoints, workspace_settings,
 } from './schema.ts'
 
-export type ActionItem = { text: string; done?: boolean }
+/** `kind: 'message'`: a message the assistant took during the call (call.takeMessage), counted for MESSAGES_PER_CALL. */
+export type ActionItem = { text: string; done?: boolean; kind?: 'message' }
 export type CallField = { label: string; value: string }
 export type ToolEvent = { tool: string; label: string }
 /** Booking details an appointment type can require on top of the caller's name and the reason. */

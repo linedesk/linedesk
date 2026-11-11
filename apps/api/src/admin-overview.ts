@@ -83,18 +83,39 @@ function people(tx: Tx) {
   )
 }
 
+type ActiveRate = { category: ProviderCategory; provider: ProviderName | null; rate: number }
+
+/** The active provider of each billed category and its price per minute (0 when none is set up). */
+async function activeRates(tx: Tx): Promise<ActiveRate[]> {
+  const rates: ActiveRate[] = []
+  for (const category of categoryNames.filter(c => c !== 'recording')) {
+    const active = await activeProvider(tx, category).catch(() => null)
+    rates.push({ category, provider: active?.provider ?? null, rate: active ? pricePerMinute[active.provider] : 0 })
+  }
+  return rates
+}
+
+/** Estimates call cost in USD from call seconds: the same rates as the overview's "about" figures. */
+export type CostEstimate = (seconds: { all: number; phone: number }) => number
+
+/**
+ * The estimate with the providers active now: a carrier only bills phone calls; speech, language model and voice
+ * also run in browser test calls. Used by the overview, the admin workspace list and the spending cap.
+ */
+export async function costEstimate(tx: Tx): Promise<CostEstimate> {
+  const rates = await activeRates(tx)
+  return ({ all, phone }) => dollars(rates.reduce((sum, r) => sum + ((r.category === 'telephony' ? phone : all) / 60) * r.rate, 0))
+}
+
 export async function adminOverview(tx: Tx): Promise<AdminOverview> {
   const [t, p] = await Promise.all([callTotals(tx), people(tx)])
   const costs: ProviderCost[] = []
-  for (const category of categoryNames.filter(c => c !== 'recording')) {
-    const active = await activeProvider(tx, category).catch(() => null)
-    // A carrier only bills phone calls; speech, language model and voice also run in browser test calls.
+  for (const { category, provider, rate } of await activeRates(tx)) {
     const [sec7d, secMonth] = category === 'telephony' ? [t.phone_sec_7d, t.phone_sec_month] : [t.sec_7d, t.sec_month]
-    const rate = active ? pricePerMinute[active.provider] : 0
     costs.push({
       category,
-      provider: active?.provider ?? null,
-      label: active ? providerSpec(active.provider).label : null,
+      provider,
+      label: provider ? providerSpec(provider).label : null,
       minutes7d: minutes(sec7d),
       cost7d: dollars((sec7d / 60) * rate),
       costMonth: dollars((secMonth / 60) * rate),

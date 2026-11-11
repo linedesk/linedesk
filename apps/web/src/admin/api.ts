@@ -15,6 +15,10 @@ export type AdminWorkspace = {
   calls_30d: number
   last_call_at: string | null
   minutes_this_month: number
+  /** The estimated cost of this UTC month's calls, the spending cap's measure. */
+  cost_this_month: number
+  /** null: no monthly spending cap. */
+  spending_cap_usd: number | null
 }
 
 export type AdminUser = {
@@ -139,6 +143,7 @@ type AdminInputs = {
   'user.enable': { userId: string }
   'workspace.disable': { workspaceId: string }
   'workspace.enable': { workspaceId: string }
+  'workspace.setSpendingCap': { workspaceId: string; capUsd: number | null }
   'instanceAdmin.grant': { userId: string }
   'instanceAdmin.revoke': { userId: string }
   'user.resetPasskeys': { userId: string }

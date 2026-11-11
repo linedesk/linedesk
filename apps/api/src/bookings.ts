@@ -13,7 +13,7 @@ import { queueBookingConfirmation } from './jobs.ts'
 import { queueWebhookEvent, webhookData } from './webhooks.ts'
 import { providerFor } from './calendar-connections.ts'
 import type { Actor } from './context.ts'
-import { type Handler, type HandlerCtx, Forbidden, Reject } from './handler-context.ts'
+import { type Handler, type HandlerCtx, Forbidden, lockCall, Reject } from './handler-context.ts'
 
 const DAY_MS = 86_400_000
 /** Used until a workspace has stored its own time zone. */
@@ -147,7 +147,7 @@ async function enabledType(tx: Tx, workspaceId: string, id: string) {
   return type
 }
 
-type FindSlotsArgs = { appointmentTypeId: string; from?: string; to?: string; fromDate?: string; toDate?: string; calendarId?: string; limit: number }
+type FindSlotsArgs = { callId?: string; appointmentTypeId: string; from?: string; to?: string; fromDate?: string; toDate?: string; calendarId?: string; limit: number }
 type BookArgs = {
   appointmentTypeId: string; calendarId: string; start: string; callerName: string; reason: string
   address?: string; callerPhone?: string; callerEmail?: string; callId?: string; assistantId?: string
@@ -250,10 +250,22 @@ async function calendarOfBooking(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, wor
   return { calendar, provider }
 }
 
+/** Bookings the assistant makes on one call: each one writes a real calendar event and a webhook. */
+export const BOOKINGS_PER_CALL = 2
+const LINK_REMOVED = '[link removed]'
+/** Links: with a scheme or "www.", or a bare domain with a path or a common top-level domain. */
+const LINK = /\b(?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:[a-z]{2,24}\/\S*|(?:com|net|org|info|biz|io|co|app|dev|xyz|top|site|online|link|click|me|us|ru|cn|tk|ly|gl|to|sh)\b)/gi
+
+/**
+ * The reason without links: it is what the caller said, and it lands in the business's calendar, where a link
+ * would look like the business's own note.
+ */
+export const withoutLinks = (text: string) => text.replace(LINK, LINK_REMOVED)
+
 /** The event text the business sees in its calendar. */
 function eventDescription({ reason, phone, address, callId }: { reason: string; phone: string | null; address?: string; callId?: string }) {
   return [
-    reason,
+    withoutLinks(reason),
     phone ? `Phone: ${phone}` : null,
     address ? `Address: ${address}` : null,
     callId ? `Call: ${new URL(`/#call/${callId}`, WEB_ORIGIN)}` : null,
@@ -266,7 +278,10 @@ export const bookingHandlers: Record<string, Handler> = {
     const workspaceId = workspaceOf(actor)
     const type = await enabledType(tx, workspaceId, input.appointmentTypeId)
     const timeZone = await timeZoneOf(tx, workspaceId)
-    const calendar = input.calendarId ? await bookableCalendar(tx, ctx, workspaceId, input.calendarId) : undefined
+    // On a call only the calendars of the assistant that answered it (an agent of the release before sends no call).
+    const [call] = input.callId ? await tx.select({ assistant_id: calls.assistant_id }).from(calls).where(and(eq(calls.id, input.callId), eq(calls.workspace_id, workspaceId))) : []
+    if (input.callId && !call) throw new Reject('call not found')
+    const calendar = input.calendarId ? await bookableCalendar(tx, ctx, workspaceId, input.calendarId, call?.assistant_id ?? undefined) : undefined
     // Nothing is bookable after the horizon, so nothing is loaded for it either.
     const horizon = shift(now, (type.max_days_ahead + 1) * DAY_MS)
     const from = input.from ?? (input.fromDate ? new Date(zonedTimeToInstant(input.fromDate, '00:00', timeZone)).toISOString() : now)
@@ -281,8 +296,13 @@ export const bookingHandlers: Record<string, Handler> = {
   'appointment.book': async ({ tx, actor, now, onRollback, ...ctx }, input: BookArgs) => {
     const workspaceId = workspaceOf(actor)
     const type = await enabledType(tx, workspaceId, input.appointmentTypeId)
+    if (input.callId) await lockCall(tx, input.callId)
     const [call] = input.callId ? await tx.select().from(calls).where(and(eq(calls.id, input.callId), eq(calls.workspace_id, workspaceId))) : []
     if (input.callId && !call) throw new Reject('call not found')
+    if (call && actor.role === 'agent') {
+      const [made] = await tx.select({ n: sql<number>`count(*)::int` }).from(bookings).where(eq(bookings.call_id, call.id))
+      if ((made?.n ?? 0) >= BOOKINGS_PER_CALL) throw new Reject(`${BOOKINGS_PER_CALL} appointments are booked on this call already: take a message for anything more`)
+    }
     // On a call, the assistant that answered it decides which calendars may be used.
     if (call?.assistant_id && input.assistantId && call.assistant_id !== input.assistantId) throw new Reject("that calendar is not one of the assistant's calendars")
     const { calendar, provider } = await bookableCalendar(tx, ctx, workspaceId, input.calendarId, call?.assistant_id ?? input.assistantId)

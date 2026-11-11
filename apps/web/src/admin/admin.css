@@ -357,6 +357,21 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
+/* The spending cap: one amount field and Save on a row. */
+.adm-cap-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  max-width: 420px;
+}
+.adm-cap-form > :first-child {
+  flex: 1;
+}
+.adm-cap-note {
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  color: var(--danger);
+}
 /* Actions: a row of buttons under a detail's title; quick icon buttons at the end of a list row
    (on hover, focus or the cursor), a ⋯ menu instead on touch screens. */
 .adm-actbar {

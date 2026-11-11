@@ -46,7 +46,7 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
   async function findSlots(args: FindSlotsArgs): Promise<string> {
     try {
       const { data } = await api.run(calendarFindSlots, {
-        appointmentTypeId: args.appointment_type_id, calendarId: args.calendar_id, limit: SEARCH_LIMIT,
+        appointmentTypeId: args.appointment_type_id, calendarId: args.calendar_id, callId, limit: SEARCH_LIMIT,
         ...(args.from_date ? { fromDate: args.from_date } : {}), ...(args.to_date ? { toDate: args.to_date } : {}),
       }, workspaceId)
       const offered = spreadSlots((data as FindSlotsData).slots)

@@ -290,6 +290,13 @@ export const workspaceEnable = adminAction(
   'Answer the calls of a disabled workspace again.',
   workspaceId,
 )
+/** The most a monthly spending cap can be, in USD: a typo should not lift it to nothing. */
+export const SPENDING_CAP_MAX_USD = 100_000
+export const workspaceSetSpendingCap = adminAction(
+  'workspace.setSpendingCap',
+  "Set a workspace's monthly spending cap in USD on the estimated call cost (null: no cap). Once reached, the assistant stops answering its calls until next month.",
+  z.object({ workspaceId: z.string().min(1), capUsd: z.number().min(0).max(SPENDING_CAP_MAX_USD).nullable() }),
+)
 export const instanceAdminGrant = defineAction({
   name: 'instanceAdmin.grant',
   description: 'Make a user an instance admin. Without a passkey they get a one-time code for their first one.',

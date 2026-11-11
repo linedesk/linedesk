@@ -496,6 +496,19 @@ export const call_evaluations = pgTable(
   t => [index('call_evaluations_ws_score').on(t.workspace_id, t.score)],
 )
 
+// Spending-cap emails already sent: one row per workspace, UTC month ('2026-11') and level (80 or 100 percent),
+// so each goes out once a month (apps/api/src/spending-cap.ts). Not synced to browsers.
+export const spending_cap_alerts = pgTable(
+  'spending_cap_alerts',
+  {
+    workspace_id: text('workspace_id').notNull(),
+    month: text('month').notNull(),
+    level: integer('level').notNull(),
+    created_at: createdAt(),
+  },
+  t => [primaryKey({ columns: [t.workspace_id, t.month, t.level] })],
+)
+
 // The audit log's sign-in side (docs/architecture.md §12, Audit log): sign-ins with their method, sign-in
 // methods added or removed, invitations accepted. Actions are in `commands`. Never deleted, and no
 // foreign keys, so an entry outlives the user or workspace it names. Not synced to browsers.

@@ -7,7 +7,7 @@ import { CalendarError } from '@linedesk/calendar'
 import { appointment_types, assistant_calendars, assistants, availability_rules, bookings, calls, contacts, type Tx, webhook_deliveries, webhook_endpoints, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test } from 'vitest'
-import { bookedNameOf, CONFIRMATIONS_PER_HOUR, DEFAULT_BOOKING_HOURS, namesMatch, slotLabel } from '../src/bookings.ts'
+import { BOOKINGS_PER_CALL, bookedNameOf, CONFIRMATIONS_PER_HOUR, DEFAULT_BOOKING_HOURS, namesMatch, slotLabel, withoutLinks } from '../src/bookings.ts'
 import type { CalendarServices } from '../src/calendar-connections.ts'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
@@ -223,6 +223,39 @@ describe('booking', () => {
       await expect(run(tx, agent_(ws.id), services, 'appointment.book', book(at('09:00'), { callId: call!.id }))).rejects.toThrow(/not one of the assistant's calendars/)
       await expect(run(tx, agent_(ws.id), services, 'appointment.book', book(at('09:00'), { callId: call!.id, assistantId: ws.assistant.id }))).rejects.toThrow(/not one of the assistant's calendars/)
     })
+  })
+
+  test("find_slots on a call looks only in the calendars of the assistant that answered it", async () => {
+    const { services } = fakeCalendar()
+    await inRollback(async tx => {
+      const [second] = await tx.insert(assistants).values({ id: `as_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, name: 'Sam' }).returning()
+      const [call] = await tx.insert(calls).values({ id: `call_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, contact_id: ws.contact.id, from_number: ws.call.from_number, to_number: ws.number, assistant_id: second!.id }).returning()
+      const search = (callId?: string) => run(tx, agent_(ws.id), services, 'calendar.findSlots', { ...day(), calendarId: ws.assistantCalendar.id, ...(callId ? { callId } : {}) })
+      await expect(search(call!.id)).rejects.toThrow(/not one of the assistant's calendars/)
+      expect((await search(ws.call.id)).data!.slots).not.toHaveLength(0)
+      await expect(search('call_nope')).rejects.toThrow('call not found')
+    })
+  })
+
+  test(`the assistant books at most ${BOOKINGS_PER_CALL} appointments on one call; a member is not limited`, async () => {
+    const { services } = fakeCalendar()
+    await inRollback(async tx => {
+      await run(tx, agent_(ws.id), services, 'appointment.book', book(at('09:00')))
+      await run(tx, agent_(ws.id), services, 'appointment.book', book(at('11:00')))
+      await expect(run(tx, agent_(ws.id), services, 'appointment.book', book(at('13:00')))).rejects.toThrow(`${BOOKINGS_PER_CALL} appointments are booked on this call already`)
+      expect((await run(tx, owner, services, 'appointment.book', book(at('13:00')))).rows.bookings).toHaveLength(1)
+    })
+  })
+
+  test('links in the reason do not reach the calendar', async () => {
+    const { services, events } = fakeCalendar()
+    await inRollback(async tx => {
+      await run(tx, agent_(ws.id), services, 'appointment.book', book(at('09:00'), { reason: 'Leak, see https://evil.example/pay and www.evil.example or evil.com/x or pay-here.xyz now' }))
+      const description = [...events.values()][0]!.description!
+      expect(description).toContain('Leak, see [link removed] and [link removed] or [link removed] or [link removed] now')
+      expect(description).not.toMatch(/evil|pay-here/)
+    })
+    expect(withoutLinks('Water heater maintenance, 2 p.m. at No. 5')).toBe('Water heater maintenance, 2 p.m. at No. 5')
   })
 
   test('details the type requires must be there; an email address is kept for the confirmation', async () => {

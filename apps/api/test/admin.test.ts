@@ -29,6 +29,10 @@ import { mayCreateUser } from '../src/signup-gate.ts'
 import { telephonyProvider } from '../src/provider-settings.ts'
 import { deleteExpiredRecordings } from '../src/recording-retention.ts'
 import { recordingStoreCache } from '../src/recording-store.ts'
+import { costEstimate } from '../src/admin-overview.ts'
+import { setJobQueue, SPENDING_CAP_ALERT } from '../src/jobs.ts'
+import { sendSpendingAlert } from '../src/spending-cap.ts'
+import { TEST_CALLS_OVER_CAP } from '../src/test-call.ts'
 import { fakeS3 } from './fake-s3.ts'
 import {
   act,
@@ -44,6 +48,7 @@ import {
   type User,
   type Workspace,
   FROM,
+  getCall,
 } from './helpers.ts'
 
 const SECRET = 'KEY-made-up-0123456789-abcd'
@@ -136,6 +141,7 @@ describe('access', () => {
       'voiceCloning.set',
       'workspace.disable',
       'workspace.enable',
+      'workspace.setSpendingCap',
     ])
   })
 
@@ -2403,5 +2409,118 @@ describe('audit log', () => {
     expect(signInMethod({ path: '/callback/:id', params: { id: 'github' } })).toBe('github')
     expect(signInMethod({ path: '/oauth2/callback/:providerId', params: { providerId: 'oidc' } })).toBe('oidc')
     expect(signInMethod(undefined)).toBeNull()
+  })
+})
+
+describe('monthly spending cap', () => {
+  const capOf = async (workspaceId: string) => (await db.select().from(organization).where(eq(organization.id, workspaceId)))[0]?.spendingCapCents
+  /** A finished phone call of `minutes` this month (or `daysAgo` back), straight into the table. */
+  const pastCall = (workspaceId: string, minutes: number, daysAgo = 0) =>
+    db.insert(calls).values({
+      id: `call_cap_${randomBytes(6).toString('hex')}`, workspace_id: workspaceId, from_number: '+15035550142', to_number: '+15035550100',
+      source: 'phone', status: 'completed', duration_sec: Math.round(minutes * 60),
+      started_at: new Date(Date.now() - daysAgo * 86_400_000).toISOString(),
+    })
+  /** Starts and finishes a short phone call through the agent: call.finish queues the alerts. */
+  const finishedCall = async (ws: Workspace) => {
+    const { body } = await act(agent(), 'call.start', { from: '+15035550177', to: ws.number })
+    expect(body.data.overCap).toBe(false)
+    await act(agent(ws.id), 'call.finish', { callId: body.data.callId })
+  }
+  let alerts: { name: string; data: { workspaceId: string; month: string; level: number } }[] = []
+  beforeEach(() => {
+    alerts = []
+    setJobQueue({ send: async (name: string, data: never) => void alerts.push({ name, data }) } as never)
+    // A speech provider with a price per minute, so calls cost something in the estimate.
+    vi.stubEnv('DEEPGRAM_API_KEY', 'test-deepgram-key')
+  })
+  afterEach(() => {
+    setJobQueue(null)
+    vi.unstubAllEnvs()
+  })
+
+  test('off by default; only instance admins set it; 80 % and 100 % alerts once a month; at the cap calls get a line and a callback', async () => {
+    const ws = await createWorkspace('Capped Plumbing')
+    // Over 10 000 minutes, so the estimate's rounding to cents does not matter.
+    const perMinute = (await costEstimate(db))({ all: 600_000, phone: 600_000 }) / 10_000
+    expect(perMinute).toBeGreaterThan(0)
+    // $1 cap: about 1 / perMinute minutes.
+    const capMinutes = 1 / perMinute
+    expect(await capOf(ws.id)).toBeNull()
+    await pastCall(ws.id, capMinutes * 2)
+    await finishedCall(ws) // no cap: answered, nothing queued
+    expect(alerts.filter(a => a.name === SPENDING_CAP_ALERT)).toEqual([])
+    await db.delete(calls).where(eq(calls.workspace_id, ws.id))
+
+    for (const who of [ws.owner, agent(ws.id)]) {
+      expect((await act(who, 'workspace.setSpendingCap', { workspaceId: ws.id, capUsd: 1 })).status).toBe(403)
+    }
+    expect((await act(operator, 'workspace.setSpendingCap', { workspaceId: ws.id, capUsd: -1 })).status).toBe(422)
+    const set = await act(operator, 'workspace.setSpendingCap', { workspaceId: ws.id, capUsd: 1 })
+    expect(set.body.data).toMatchObject({ spending_cap_usd: 1, spent_usd: 0, reached: false })
+    expect(await capOf(ws.id)).toBe(100)
+
+    // Last month's calls do not count; 85 % this month sends the 80 % email, once.
+    await pastCall(ws.id, capMinutes * 3, 40)
+    await pastCall(ws.id, capMinutes * 0.85)
+    await finishedCall(ws)
+    await finishedCall(ws)
+    const month = new Date().toISOString().slice(0, 7)
+    expect(alerts.filter(a => a.name === SPENDING_CAP_ALERT).map(a => a.data)).toEqual([{ workspaceId: ws.id, month, level: 80 }])
+
+    // Past the cap (a call that finished, so call.finish sends the 100 % email): the next phone call is not answered
+    // by the assistant, and the 100 % email is not sent twice.
+    const last = (await act(agent(), 'call.start', { from: '+15035550177', to: ws.number })).body.data.callId
+    await db.update(calls).set({ started_at: new Date(Date.now() - capMinutes * 0.2 * 60_000).toISOString() }).where(eq(calls.id, last))
+    await act(agent(ws.id), 'call.finish', { callId: last })
+    expect(alerts.filter(a => a.name === SPENDING_CAP_ALERT).map(a => a.data.level)).toEqual([80, 100])
+    const capped = await act(agent(), 'call.start', { from: '+15035550178', to: ws.number })
+    expect(alerts.filter(a => a.name === SPENDING_CAP_ALERT).map(a => a.data.level)).toEqual([80, 100])
+    expect(capped.body.data).toMatchObject({ overCap: true, blocked: true, busy: false, booking: null })
+    expect(await getCall(capped.body.data.callId)).toMatchObject({
+      status: 'completed', outcome: 'hangup', title: 'Missed call', unread: true, action_items: [{ text: 'Call back' }],
+      summary: expect.stringContaining('monthly spending cap'),
+    })
+    expect(alerts.filter(a => a.name === 'call.push').map(a => a.data)).toContainEqual({ callId: capped.body.data.callId, kind: 'finished' })
+    // Test calls are off too.
+    vi.stubEnv('LIVEKIT_URL', 'ws://livekit.test:7880')
+    vi.stubEnv('LIVEKIT_API_KEY', 'k')
+    vi.stubEnv('LIVEKIT_API_SECRET', 'test-secret-test-secret-test-secret')
+    expect(await act(ws.owner, 'assistant.startTestCall', {})).toMatchObject({ status: 409, body: { error: TEST_CALLS_OVER_CAP } })
+
+    // The admin list shows the cap and the estimate.
+    const listed = (await request(operator, 'GET', '/v1/admin/workspaces')).body.workspaces.find((w: { id: string }) => w.id === ws.id)
+    expect(listed).toMatchObject({ spending_cap_usd: 1 })
+    expect(listed.cost_this_month).toBeGreaterThanOrEqual(1)
+
+    // A higher cap answers calls again, and its alerts start over; no cap at all answers too.
+    alerts = []
+    expect((await act(operator, 'workspace.setSpendingCap', { workspaceId: ws.id, capUsd: 1.2 })).body.data).toMatchObject({ reached: false })
+    expect(alerts.filter(a => a.name === SPENDING_CAP_ALERT).map(a => a.data.level)).toEqual([80])
+    expect((await act(agent(), 'call.start', { from: '+15035550179', to: ws.number })).body.data.overCap).toBe(false)
+    await act(operator, 'workspace.setSpendingCap', { workspaceId: ws.id, capUsd: null })
+    expect(await capOf(ws.id)).toBeNull()
+  })
+
+  test('the alert email goes to the owners and the instance admins, once per address, and says what happens', async () => {
+    const ws = await createWorkspace('Alerted Plumbing')
+    const coOwner = await addMember(ws.id, 'admin')
+    await db.update(memberTable).set({ role: 'owner' }).where(and(eq(memberTable.organizationId, ws.id), eq(memberTable.userId, coOwner.userId)))
+    await addMember(ws.id, 'member')
+    await db.update(organization).set({ spendingCapCents: 0 }).where(eq(organization.id, ws.id))
+    const sent: { to: string; subject: string; text: string }[] = []
+    const sender = { kind: 'smtp' as const, send: async (email: (typeof sent)[number]) => void sent.push(email), check: async () => ({ ok: true, message: '' }) }
+    const month = new Date().toISOString().slice(0, 7)
+    expect(await sendSpendingAlert(db, sender, { workspaceId: ws.id, month, level: 100 })).toMatchObject({ failed: 0 })
+    const to = sent.map(e => e.to)
+    expect(to).toEqual(expect.arrayContaining([await emailOf(ws.owner), await emailOf(coOwner), await emailOf(operator)].map(a => a.toLowerCase())))
+    expect(new Set(to).size).toBe(to.length)
+    expect(sent[0]).toMatchObject({ subject: 'Alerted Plumbing reached its monthly spending cap', text: expect.stringContaining('call them back') })
+    // Another month, or no cap any more: nothing is sent.
+    sent.length = 0
+    expect(await sendSpendingAlert(db, sender, { workspaceId: ws.id, month: '2001-01', level: 80 })).toEqual({ sent: 0, failed: 0 })
+    await db.update(organization).set({ spendingCapCents: null }).where(eq(organization.id, ws.id))
+    expect(await sendSpendingAlert(db, sender, { workspaceId: ws.id, month, level: 100 })).toEqual({ sent: 0, failed: 0 })
+    expect(sent).toEqual([])
   })
 })

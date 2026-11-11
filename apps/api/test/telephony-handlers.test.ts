@@ -382,7 +382,7 @@ describe('telephony handlers', () => {
 
     await run(tx, scoped, 'call.takeMessage', { callId, message: 'Call back about the quote' })
     const taken = await run(tx, scoped, 'call.takeMessage', { callId, message: 'Prefers mornings' })
-    expect(taken.rows.calls?.[0]?.action_items).toEqual([{ text: 'Call back about the quote' }, { text: 'Prefers mornings' }])
+    expect(taken.rows.calls?.[0]?.action_items).toEqual([{ text: 'Call back about the quote', kind: 'message' }, { text: 'Prefers mornings', kind: 'message' }])
 
     const flagged = await run(tx, scoped, 'call.flagUrgent', { callId })
     expect(flagged.rows.calls?.[0]?.urgency).toBe('urgent')

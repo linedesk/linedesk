@@ -87,7 +87,7 @@ export const callAssign = defineAction({
 export const callSetActionItems = defineAction({
   name: 'call.setActionItems',
   description: 'Replace the next steps of a call, for example to tick one off.',
-  input: callId.extend({ items: z.array(z.object({ text: z.string().min(1), done: z.boolean().optional() })) }),
+  input: callId.extend({ items: z.array(z.object({ text: z.string().min(1), done: z.boolean().optional(), kind: z.literal('message').optional() })) }),
   permission: 'call:write',
   public: true,
   patch: { table: 'calls', id: i => i.callId, set: i => ({ action_items: i.items }) },

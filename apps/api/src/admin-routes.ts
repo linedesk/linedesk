@@ -6,7 +6,7 @@ import type { Permission } from '@linedesk/actions'
 import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
 import type { Context, Hono, Next } from 'hono'
-import { adminHealth, adminOverview, noteAgentSeen } from './admin-overview.ts'
+import { adminHealth, adminOverview, costEstimate, noteAgentSeen } from './admin-overview.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { isEnvAdmin } from './instance-admin.ts'
@@ -38,13 +38,15 @@ const listWorkspaces = (tx: Tx) =>
   rows(
     tx,
     sql`
-  select o.id, o.name, ${utc('o.created_at')} as created_at, ${utc('o.disabled_at')} as disabled_at,
+  select o.id, o.name, ${utc('o.created_at')} as created_at, ${utc('o.disabled_at')} as disabled_at, o.spending_cap_cents,
     (select count(*)::int from member m where m.organization_id = o.id) as members,
     coalesce((select json_agg(p.e164 order by p.e164) from phone_numbers p where p.workspace_id = o.id), '[]'::json) as phone_numbers,
     (select count(*)::int from calls c where c.workspace_id = o.id and c.source <> 'sample' and c.started_at > now() - interval '30 days') as calls_30d,
     (select ${tz('max(c.started_at)')} from calls c where c.workspace_id = o.id and c.source <> 'sample') as last_call_at,
     coalesce((select sum(c.duration_sec) from calls c where c.workspace_id = o.id and c.source <> 'sample'
-      and c.started_at >= date_trunc('month', now() at time zone 'utc') at time zone 'utc'), 0)::int as seconds_this_month
+      and c.started_at >= date_trunc('month', now() at time zone 'utc') at time zone 'utc'), 0)::int as seconds_this_month,
+    coalesce((select sum(c.duration_sec) from calls c where c.workspace_id = o.id and c.source = 'phone'
+      and c.started_at >= date_trunc('month', now() at time zone 'utc') at time zone 'utc'), 0)::int as phone_seconds_this_month
   from organization o order by o.created_at, o.id`,
   )
 
@@ -102,9 +104,13 @@ export function registerAdminRoutes(app: Hono<Env>) {
   app.use('/v1/admin/*', requirePermission('instance:admin'))
 
   app.get('/v1/admin/workspaces', async c => {
-    const workspaces = (await listWorkspaces(db)).map(({ seconds_this_month, ...w }) => ({
+    const estimate = await costEstimate(db)
+    const workspaces = (await listWorkspaces(db)).map(({ seconds_this_month, phone_seconds_this_month, spending_cap_cents, ...w }) => ({
       ...w,
       minutes_this_month: minutes(seconds_this_month),
+      // The spending cap's measure (spending-cap.ts): the estimated cost of this UTC month's calls.
+      cost_this_month: estimate({ all: seconds_this_month, phone: phone_seconds_this_month }),
+      spending_cap_usd: spending_cap_cents === null ? null : spending_cap_cents / 100,
     }))
     return c.json({ workspaces })
   })

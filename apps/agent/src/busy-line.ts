@@ -1,6 +1,6 @@
 // A caller the assistant does not answer hears one short line in the assistant's voice before the agent hangs up,
-// never silence: over the workspace's limit of calls at once (`busy`; the API filed the call as missed with a
-// callback), or a blocked number (filed in Spam).
+// never silence: over the workspace's limit of calls at once (`busy`) or its monthly spending cap (`overCap`; the API
+// filed both as missed with a callback), or a blocked number (filed in Spam).
 import type { Room } from '@livekit/rtc-node'
 import type { CallSession } from './call-session.ts'
 import type { AgentConfig } from './config.ts'
@@ -9,6 +9,8 @@ import { publishVoice, speak } from './on-call-dialer.ts'
 import { createTts, greetingVoice } from './pipeline.ts'
 
 export const BUSY_LINE = 'Sorry, all our lines are busy right now. Please call back in a few minutes.'
+/** Not "call back in a few minutes": the cap holds until next month, and the team has the number to call back. */
+export const OVER_CAP_LINE = "Sorry, we can't take your call right now. We'll call you back as soon as we can."
 /** A blocked number (filed in Spam): still a word before the line goes dead, never silence. */
 export const BLOCKED_LINE = "Sorry, we can't take your call. Goodbye."
 
@@ -28,8 +30,12 @@ export async function lineAudio(config: AgentConfig, call: Pick<CallSession, 'as
   return audio
 }
 
-/** What a caller the assistant does not answer hears: the busy line, or the blocked line for a blocked number. */
-export const unansweredLine = (call: Pick<CallSession, 'busy'>) => (call.busy ? BUSY_LINE : BLOCKED_LINE)
+/** What a caller the assistant does not answer hears: over the spending cap, busy, or a blocked number. */
+export function unansweredLine(call: Pick<CallSession, 'busy' | 'overCap'>): string {
+  if (call.overCap) return OVER_CAP_LINE
+  if (call.busy) return BUSY_LINE
+  return BLOCKED_LINE
+}
 
 /** Plays `text` into the room; resolves when it has played, failed, or BUSY_LINE_MAX_MS passed. Never throws. */
 export async function playLine(room: Room, config: AgentConfig, call: Pick<CallSession, 'assistant' | 'callId'>, text: string, maxMs = BUSY_LINE_MAX_MS) {

@@ -65,6 +65,12 @@ beforeEach(async () => {
 const deliveriesOf = (endpointId: string) => db.select().from(webhook_deliveries).where(eq(webhook_deliveries.endpoint_id, endpointId))
 const endpointRow = async (endpointId: string) => (await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.id, endpointId)))[0]!
 
+/** A message on the workspace's call. Its earlier messages are cleared first: a call takes only a few (MESSAGES_PER_CALL). */
+async function takeMessage(message: string) {
+  await db.update(calls).set({ action_items: [] }).where(eq(calls.id, ws.call.id))
+  return act(agent(ws.id), 'call.takeMessage', { callId: ws.call.id, message })
+}
+
 describe('endpoints', () => {
   test('the secret is stored encrypted and never in the command log; members cannot manage endpoints', async () => {
     const { endpointId, secret } = await addEndpoint()
@@ -215,12 +221,12 @@ describe('events', () => {
     const { endpointId } = await addEndpoint(['message.taken'])
     const off = await addEndpoint(['message.taken'])
     expect((await act(ws.owner, 'webhook.update', { endpointId: off.endpointId, enabled: false })).status).toBe(200)
-    expect((await act(agent(ws.id), 'call.takeMessage', { callId: ws.call.id, message: 'Call back about the estimate' })).status).toBe(200)
+    expect((await takeMessage('Call back about the estimate')).status).toBe(200)
     expect((await deliveriesOf(endpointId))[0]!.payload).toMatchObject({ type: 'message.taken', data: { call_id: ws.call.id, message: 'Call back about the estimate' } })
     expect(await deliveriesOf(off.endpointId)).toEqual([])
 
     await db.update(calls).set({ source: 'test' }).where(eq(calls.id, ws.call.id))
-    await act(agent(ws.id), 'call.takeMessage', { callId: ws.call.id, message: 'Only a test' })
+    await takeMessage('Only a test')
     await db.update(calls).set({ source: 'phone' }).where(eq(calls.id, ws.call.id))
     expect(await deliveriesOf(endpointId)).toHaveLength(1)
   })
@@ -229,7 +235,7 @@ describe('events', () => {
 describe('delivery', () => {
   async function queuedDelivery() {
     const { endpointId, secret } = await addEndpoint(['message.taken'])
-    await act(agent(ws.id), 'call.takeMessage', { callId: ws.call.id, message: 'Please call back' })
+    await takeMessage('Please call back')
     const [delivery] = await deliveriesOf(endpointId)
     return { endpointId, secret, deliveryId: delivery!.id }
   }
@@ -264,14 +270,14 @@ describe('delivery', () => {
     const { endpointId } = await addEndpoint(['message.taken'])
     answer = 503
     for (let n = 0; n < WEBHOOK_DISABLE_AFTER; n++) {
-      await act(agent(ws.id), 'call.takeMessage', { callId: ws.call.id, message: `try ${n}` })
+      await takeMessage(`try ${n}`)
       const [pending] = (await deliveriesOf(endpointId)).filter(d => d.status === 'pending')
       for (let i = 0; i < WEBHOOK_ATTEMPTS; i++) await attemptDelivery(db, pending!.id)
     }
     const off = await endpointRow(endpointId)
     expect(off).toMatchObject({ status: 'disabled', failure_count: WEBHOOK_DISABLE_AFTER })
     expect(off.disabled_reason).toMatch(/Switched off after 5 failed deliveries in a row \(last: answered 503\)/)
-    await act(agent(ws.id), 'call.takeMessage', { callId: ws.call.id, message: 'while off' })
+    await takeMessage('while off')
     expect((await deliveriesOf(endpointId)).filter(d => d.status === 'pending')).toEqual([])
 
     expect((await act(ws.owner, 'webhook.update', { endpointId, enabled: true })).status).toBe(200)
@@ -314,7 +320,7 @@ describe('delivery', () => {
     expect((await deliveriesOf(endpointId))[0]).toMatchObject({ status: 'failed', error: 'the call was deleted' })
 
     const old = await addEndpoint(['message.taken'])
-    await act(agent(ws.id), 'call.takeMessage', { callId: ws.call.id, message: 'Old message' })
+    await takeMessage('Old message')
     const [delivery] = await deliveriesOf(old.endpointId)
     answer = 200
     await attemptDelivery(db, delivery!.id)

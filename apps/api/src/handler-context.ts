@@ -2,6 +2,7 @@
 // share it without importing each other.
 import type { ActionResult } from '@linedesk/actions'
 import type { Tx } from '@linedesk/db'
+import { sql } from 'drizzle-orm'
 import type { TelephonyProvider } from '@linedesk/telephony'
 import type { CalendarServices } from './calendar-connections.ts'
 import type { Actor } from './context.ts'
@@ -15,6 +16,9 @@ export class Reject extends Error {}
  * not possible while signed in as another user or with an API key. Answered 403 with `code: 'forbidden'`.
  */
 export class Forbidden extends Reject {}
+
+/** Serialises the writes that count things on one call (messages, bookings), until the transaction ends. */
+export const lockCall = (tx: Tx, callId: string) => tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`call:${callId}`}))`)
 
 /** Reverses something a handler did outside the database; resolves to a short note on what it did. */
 export type Undo = () => Promise<string>

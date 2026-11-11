@@ -17,7 +17,7 @@ import { type CarrierAccount, carrierHandlers, INSTALL_NUMBER_ADMIN_ONLY, lockWo
 import { refreshTransferTrunk, transferTrunkHandlers } from './transfer-trunk.ts'
 import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
-import { type Handler, type HandlerCtx, type Preparer, Forbidden, Reject, type Undo } from './handler-context.ts'
+import { type Handler, type HandlerCtx, lockCall, type Preparer, Forbidden, Reject, type Undo } from './handler-context.ts'
 import { telephonyProvider } from './provider-settings.ts'
 import { startTestCall } from './test-call.ts'
 import { membershipHandlers } from './memberships.ts'
@@ -28,6 +28,7 @@ import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-setti
 import { checkAssistantVoice, releaseUnusedClones, voiceHandlers, voicePreparers } from './voices.ts'
 import { sampleHandlers } from './sample-calls.ts'
 import { queueCallEvaluation, queueCallNotification, queueCallPush } from './jobs.ts'
+import { queueSpendingAlerts, spendingCap } from './spending-cap.ts'
 import { evaluatedAutomatically, evaluationHandlers } from './evaluations.ts'
 import { notificationHandlers } from './notification-settings.ts'
 import { starHandlers } from './star-prompt.ts'
@@ -52,6 +53,9 @@ async function runPatch({ tx, actor, now }: HandlerCtx, def: ActionDef, input: u
   if (!rows[0]) throw new Reject(`${patch.table} row not found`)
   return { rows: { [patch.table]: rows } }
 }
+
+/** Messages the assistant takes on one call: each one is a push and a webhook, so a caller cannot flood the team. */
+export const MESSAGES_PER_CALL = 3
 
 /** Only `call.start` may run without a workspace: it is the action that resolves it. */
 async function loadCall(tx: Tx, actor: Actor, callId: string) {
@@ -163,16 +167,21 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   const id = newId('call')
   // A blocked caller is not answered: the call is filed quietly in Spam and the agent hangs up (`blocked`).
   const spam = source === 'phone' && !!contact?.row.blocked_at
-  const busy = source === 'phone' && !spam && (await atLiveCallLimit(tx, workspace_id, now))
-  // Older agents only know `blocked`: hang up without answering. It covers both.
-  const blocked = spam || busy
+  // Over the workspace's monthly spending cap: not answered by the assistant (spending-cap.ts), filed like a busy call.
+  const cap = source === 'phone' && !spam ? await spendingCap(tx, workspace_id, now) : null
+  const overCap = !!cap?.reached
+  const busy = source === 'phone' && !spam && !overCap && (await atLiveCallLimit(tx, workspace_id, now))
+  // Older agents only know `blocked`: hang up without answering. It covers all three.
+  const blocked = spam || busy || overCap
   const [call] = await tx.insert(calls).values({
     id, workspace_id, contact_id: contact?.row.id ?? null, from_number: from, to_number: to, source, started_at: now, room: room ?? id,
     assistant_id: assistant?.id ?? null,
-    ...(spam ? blockedCall(now) : busy ? busyCall(now) : {}),
+    ...(spam ? blockedCall(now) : overCap ? overCapCall(now) : busy ? busyCall(now) : {}),
   }).returning()
   // A busy call is filed as missed right away: the team hears of it like of any other finished call.
-  if (busy) await queueCallPush(tx, id, 'finished')
+  if (busy || overCap) await queueCallPush(tx, id, 'finished')
+  // The cap may have been lowered below this month's spend since the last call: the 100 % email goes out now then.
+  if (overCap) await queueSpendingAlerts(tx, workspace_id, now, cap)
   const businessHours = await businessHoursFor(tx, workspace_id, now)
   const booking = blocked ? null : await bookingContext(tx, workspace_id, now, { contactId: contact?.row.id ?? null, assistantId: assistant?.id ?? null })
   // Said right after the greeting; the agent appends it (null: off).
@@ -183,7 +192,7 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
     : null
   return {
     rows: { calls: [call!], ...(contact ? { contacts: [contact.row] } : {}) },
-    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: assistant ?? null, blocked, busy, businessHours, booking, recordingNotice, callerHistory: history },
+    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: assistant ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, callerHistory: history },
   }
 }
 
@@ -198,6 +207,18 @@ async function callerContact(tx: Tx, workspace_id: string, phone: string, source
   const name = source === 'test' ? testCallContact.name : null
   const [created] = await tx.insert(contacts).values({ id: newId('ct'), workspace_id, phone, name }).returning()
   return { row: created!, isNew: true }
+}
+
+type Outcome = NonNullable<typeof calls.$inferSelect['outcome']>
+type Urgency = typeof calls.$inferSelect['urgency']
+
+/**
+ * A call flagged urgent while it ran (the assistant, a transfer) stays urgent and out of Spam: the summary reads
+ * what the caller said, and a caller could talk it into "spam" or "low". Spam becomes a callback then.
+ */
+export function keptUrgent(current: Urgency, outcome: Outcome, urgency: Urgency): { outcome: Outcome; urgency: Urgency } {
+  if (current !== 'urgent') return { outcome, urgency }
+  return { outcome: outcome === 'spam' ? 'callback' : outcome, urgency: 'urgent' }
 }
 
 /**
@@ -230,6 +251,16 @@ async function atLiveCallLimit(tx: Tx, workspace_id: string, now: string) {
 const busyCall = (now: string) => ({
   status: 'completed' as const, ended_at: now, duration_sec: 0, outcome: 'hangup' as const,
   title: 'Missed call', summary: `Nobody answered this call: ${LIVE_CALLS_PER_WORKSPACE} other calls were in progress. Call the caller back.`,
+  action_items: [{ text: 'Call back' }],
+})
+
+/**
+ * A call while the workspace is over its monthly spending cap: filed as missed, unread, with a callback. The agent
+ * tells the caller the business will call back and hangs up (OVER_CAP_LINE in apps/agent).
+ */
+const overCapCall = (now: string) => ({
+  status: 'completed' as const, ended_at: now, duration_sec: 0, outcome: 'hangup' as const,
+  title: 'Missed call', summary: 'Nobody answered this call: the workspace reached its monthly spending cap. Call the caller back.',
   action_items: [{ text: 'Call back' }],
 })
 
@@ -329,6 +360,11 @@ const handlers: Record<string, Handler> = {
     const [workspace] = await tx.select({ id: organization.id }).from(organization).where(eq(organization.id, actor.workspaceId))
     if (!workspace) throw new Reject('no such workspace')
     const assistant = await assistantIn(tx, actor.workspaceId, input.assistantId)
+    // A room is one test call: the browser's join token outlives the room, and rejoining would open a new call.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`test-room:${input.room}`}))`)
+    // The dispatch the API signed ties a room to one workspace, so looking in it is enough (and uses its index).
+    const [used] = await tx.select({ id: calls.id }).from(calls).where(and(eq(calls.workspace_id, actor.workspaceId), eq(calls.room, input.room))).limit(1)
+    if (used) throw new Reject('this test call has ended: start a new one')
     return openCall({ tx, now }, actor.workspaceId, { from: testCallContact.phone, to: testCallContact.phone, room: input.room, source: 'test', label: 'this test call', assistant })
   },
 
@@ -364,7 +400,7 @@ const handlers: Record<string, Handler> = {
     if (!actor.workspaceId) throw new Reject('no workspace')
     // Only an assistant of the caller's own workspace goes into the signed dispatch.
     const assistant = input.assistantId ? await assistantIn(tx, actor.workspaceId, input.assistantId) : null
-    return { rows: {}, data: startTestCall(actor, assistant?.id) }
+    return { rows: {}, data: await startTestCall(tx, actor, assistant?.id) }
   },
 
   // Only a member of the call's workspace can be its assignee (a user of another workspace is refused).
@@ -393,9 +429,10 @@ const handlers: Record<string, Handler> = {
   'call.finish': async ({ tx, actor, now }, input) => {
     const call = await loadCall(tx, actor, input.callId)
     const duration_sec = Math.max(0, Math.round((Date.parse(now) - Date.parse(call.started_at)) / 1000))
+    const { outcome, urgency } = keptUrgent(call.urgency, input.outcome ?? 'answered', input.urgency ?? call.urgency)
     const [updated] = await tx.update(calls).set({
       status: 'completed', ended_at: now, duration_sec,
-      outcome: input.outcome ?? 'answered', urgency: input.urgency ?? call.urgency,
+      outcome, urgency,
       title: input.title ?? call.title, summary: input.summary ?? call.summary,
       action_items: input.actionItems ?? call.action_items, fields: input.fields ?? call.fields,
     }).where(eq(calls.id, call.id)).returning()
@@ -411,6 +448,8 @@ const handlers: Record<string, Handler> = {
       // Test calls are evaluated only when the call view asks (call.evaluate).
       if (evaluatedAutomatically(updated!)) await queueCallEvaluation(tx, call.id)
       await queueCallFinishedEvents(tx, updated!, now)
+      // This call's minutes may take the workspace to 80 % or 100 % of its spending cap.
+      await queueSpendingAlerts(tx, call.workspace_id, now)
     }
     return { rows }
   },
@@ -424,8 +463,14 @@ const handlers: Record<string, Handler> = {
   },
 
   'call.takeMessage': async ({ tx, actor, now }, input) => {
+    await lockCall(tx, input.callId)
     const call = await loadCall(tx, actor, input.callId)
-    const action_items = [...call.action_items, { text: input.message }]
+    // Only messages count: other next steps (a note for the team after failed booking changes) take no slot.
+    const taken = call.action_items.filter(item => item.kind === 'message').length
+    if (call.status === 'live' && taken >= MESSAGES_PER_CALL) {
+      throw new Reject(`${MESSAGES_PER_CALL} messages are saved on this call already: tell the caller the team has them, and add nothing more`)
+    }
+    const action_items = [...call.action_items, { text: input.message, kind: 'message' as const }]
     if (call.source !== 'test') {
       await queueWebhookEvent(tx, call.workspace_id, 'message.taken', webhookData.messageTaken(call, input.message), now)
       await queueCallPush(tx, call.id, 'message')

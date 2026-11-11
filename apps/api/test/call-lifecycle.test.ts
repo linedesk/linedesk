@@ -3,7 +3,7 @@ import { calls, contacts, phone_numbers, transcript_segments } from '@linedesk/d
 import { and, asc, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, expect, test } from 'vitest'
 import { db } from '../src/db.ts'
-import { LIVE_CALLS_PER_WORKSPACE } from '../src/handlers.ts'
+import { keptUrgent, LIVE_CALLS_PER_WORKSPACE, MESSAGES_PER_CALL } from '../src/handlers.ts'
 import { CALL_PUSH, setJobQueue } from '../src/jobs.ts'
 import { act, agent, createWorkspace, getCall, getContact, randomNumber, type Workspace } from './helpers.ts'
 
@@ -245,6 +245,37 @@ test('assistant.update stores the transfer settings; an invalid on-call number i
   expect(forwarding).toMatchObject({ status: 409, body: { error: expect.stringContaining('forwards its calls to Linedesk') } })
   const started = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
   expect(started.body.data.assistant).toMatchObject({ transfer_urgent: true, transfer_number: '+15035550199', transfer_hours_only: true })
+})
+
+test(`the assistant takes at most ${MESSAGES_PER_CALL} messages on one call`, async () => {
+  // A workspace of its own: the calls this file leaves live count toward the calls at once (LIVE_CALLS_PER_WORKSPACE).
+  const ws = await createWorkspace('Message Plumbing')
+  const { body } = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
+  const callId: string = body.data.callId
+  // A next step that is no message (the note after failed booking changes) takes no slot.
+  const note = { text: 'Several tries on the phone to change a booking did not match.' }
+  await db.update(calls).set({ action_items: [note] }).where(eq(calls.id, callId))
+  for (let i = 1; i <= MESSAGES_PER_CALL; i++) {
+    expect((await act(agent(ws.id), 'call.takeMessage', { callId, message: `Message ${i}` })).status).toBe(200)
+  }
+  const refused = await act(agent(ws.id), 'call.takeMessage', { callId, message: 'One more' })
+  expect(refused).toMatchObject({ status: 409, body: { error: expect.stringContaining(`${MESSAGES_PER_CALL} messages are saved on this call already`) } })
+  expect((await getCall(callId))?.action_items).toEqual([note, ...Array.from({ length: MESSAGES_PER_CALL }, (_, i) => ({ text: `Message ${i + 1}`, kind: 'message' }))])
+})
+
+test('a call flagged urgent while it ran stays urgent and out of Spam, whatever the summary says', async () => {
+  const ws = await createWorkspace('Urgent Plumbing')
+  const { body } = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
+  const callId: string = body.data.callId
+  expect((await act(agent(ws.id), 'call.flagUrgent', { callId })).status).toBe(200)
+  expect((await act(agent(ws.id), 'call.finish', { callId, outcome: 'spam', urgency: 'low', title: 'Prank' })).status).toBe(200)
+  expect(await getCall(callId)).toMatchObject({ outcome: 'callback', urgency: 'urgent', title: 'Prank' })
+
+  // A call that was not urgent takes the summary's verdict.
+  const plain = (await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data.callId
+  await act(agent(ws.id), 'call.finish', { callId: plain, outcome: 'spam', urgency: 'low' })
+  expect(await getCall(plain)).toMatchObject({ outcome: 'spam', urgency: 'low' })
+  expect(keptUrgent('urgent', 'booked', 'normal')).toEqual({ outcome: 'booked', urgency: 'urgent' })
 })
 
 test(`at most ${LIVE_CALLS_PER_WORKSPACE} calls at once per workspace: the next one is filed as missed, not answered`, async () => {
