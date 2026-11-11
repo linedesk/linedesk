@@ -177,6 +177,11 @@ describe('accepting', () => {
 })
 
 describe('roles', () => {
+  test('invalid input is answered in a plain sentence, not as JSON', async () => {
+    const res = await act(ws.owner, 'team.setRole', { memberId: await memberIdOf(ws.id, plain), role: 'owner' })
+    expect(res).toMatchObject({ status: 422, body: { ok: false, error: 'Role must be one of admin, member.' } })
+  })
+
   test('a member sees the team read-only', async () => {
     const res = await act(plain, 'team.list', {})
     expect(res.status).toBe(200)
