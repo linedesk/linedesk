@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { AI_DISCLOSURE_LABELS, BEHAVIOURS, behaviourOn, callRulesOf, COMMUNICATION_STYLE_LABELS } from './assistant-prompt.ts'
 import { defineAction } from './define.ts'
 import { servicesOf } from './knowledge.ts'
-import { CALLER_LANGUAGES } from './languages.ts'
+import { LANGUAGES, type Language, languageNames, mainLanguageOf, otherLanguagesOf } from './languages.ts'
 import { silenceClosingOf } from './settings.ts'
 
 /** The assistant's columns a version keeps: everything that changes a call. */
@@ -79,8 +79,12 @@ export const VERSION_PARTS: readonly VersionPart[] = [
   {
     id: 'languages',
     label: 'Languages',
-    text: ({ languages: l }) =>
-      l?.mode === 'any' ? 'English and every language it speaks' : l?.mode === 'allowed' ? `English, ${l.allowed.map(c => (CALLER_LANGUAGES as Record<string, string>)[c] ?? c).join(', ')}` : 'English only',
+    text: ({ languages: l }) => {
+      const main = LANGUAGES[mainLanguageOf(l) as Language]
+      if (l?.mode === 'any') return `${main} and every language it speaks`
+      const others = otherLanguagesOf(l)
+      return others.length ? `${main}, also ${languageNames(others)}` : `${main} only`
+    },
   },
   {
     id: 'keypad_menu',
