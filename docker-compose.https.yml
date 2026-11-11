@@ -1,6 +1,7 @@
 # Self-hosting without another reverse proxy in front: Caddy listens on 80 and 443 and gets the
 # certificate for PUBLIC_URL itself. Switch it on with one line in .env:
 #   COMPOSE_FILE=docker-compose.yml:docker-compose.https.yml
+# On HTTPS the proxy also sends Strict-Transport-Security (docker/Caddyfile).
 services:
   proxy:
     environment:
