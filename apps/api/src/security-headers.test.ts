@@ -23,8 +23,13 @@ describe('security headers (docker/Caddyfile)', () => {
     expect(csp.get('default-src')).toEqual(["'self'"])
     // LiveKit: on this origin ('self' covers ws/wss) or on the one address browsers are given; never any wss: host.
     expect(csp.get('connect-src')).toEqual(["'self'", '{$LIVEKIT_PUBLIC_URL}', 'https://openrouter.ai'])
+    // Scripts and styles from this origin only; LINEDESK_CSP_DEV (empty in production) is for live mode's dev server.
+    expect(csp.get('script-src')).toEqual(["'self'", '{$LINEDESK_CSP_DEV}'])
+    expect(csp.get('style-src')).toEqual(["'self'", '{$LINEDESK_CSP_DEV}'])
     expect(csp.get('img-src')).toEqual(["'self'", 'data:'])
     expect(csp.get('media-src')).toEqual(["'self'", 'blob:', 'https:'])
+    // Web workers the app starts from blob: URLs (LiveKit's audio processing in test calls).
+    expect(csp.get('worker-src')).toEqual(["'self'", 'blob:'])
     expect(csp.get('frame-ancestors')).toEqual(["'none'"])
     expect(csp.get('base-uri')).toEqual(["'none'"])
     expect(csp.get('object-src')).toEqual(["'none'"])
@@ -37,6 +42,12 @@ describe('security headers (docker/Caddyfile)', () => {
     const compose = readFileSync(new URL('../../../docker-compose.yml', import.meta.url), 'utf8')
     const proxy = compose.slice(compose.indexOf('\n  proxy:\n'), compose.indexOf('\n  web:\n'))
     expect(proxy).toMatch(/^\s+LIVEKIT_PUBLIC_URL: \$\{LIVEKIT_PUBLIC_URL:-\}$/m)
+  })
+
+  test('the dev-only CSP sources are empty unless set (live mode sets them in .env)', () => {
+    const compose = readFileSync(new URL('../../../docker-compose.yml', import.meta.url), 'utf8')
+    const proxy = compose.slice(compose.indexOf('\n  proxy:\n'), compose.indexOf('\n  web:\n'))
+    expect(proxy).toMatch(/^\s+LINEDESK_CSP_DEV: \$\{LINEDESK_CSP_DEV:-\}$/m)
   })
 
   test('no framing, no sniffing, a short referrer, the microphone for this origin only', () => {

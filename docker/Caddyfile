@@ -46,10 +46,12 @@
 	#   origin ('self' covers its ws/wss), LiveKit on the host browsers are given (LIVEKIT_PUBLIC_URL, also
 	#   a separate ws:// or wss:// host; empty adds nothing) and OpenRouter's key exchange (admin, "Connect
 	#   with OpenRouter"); media-src: call recordings and voice previews; font-src data: for fonts Vite inlines.
+	#   LINEDESK_CSP_DEV adds sources to script-src and style-src; live mode sets LINEDESK_CSP_DEV="'unsafe-inline'" in .env (with both quotes) for
+	#   the Vite dev server's inline preamble and injected styles. Empty in production.
 	# - No framing (clickjacking), no MIME sniffing, the origin only as referrer to other sites,
 	#   the microphone for this origin only (test calls), no camera or location.
 	header {
-		Content-Security-Policy "default-src 'self'; connect-src 'self' {$LIVEKIT_PUBLIC_URL} https://openrouter.ai; img-src 'self' data:; font-src 'self' data:; media-src 'self' blob: https:; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' {$LINEDESK_CSP_DEV}; style-src 'self' {$LINEDESK_CSP_DEV}; connect-src 'self' {$LIVEKIT_PUBLIC_URL} https://openrouter.ai; img-src 'self' data:; font-src 'self' data:; media-src 'self' blob: https:; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"
 		X-Frame-Options DENY
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
