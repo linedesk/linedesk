@@ -2,7 +2,7 @@
 
 **The open-source AI receptionist for businesses.** It answers every call, books the appointment and hands over to a person when needed, and you own the code and the data. Every call lands in a fast, keyboard-first inbox.
 
-[Roadmap](ROADMAP.md) · [Contributing](CONTRIBUTING.md) · [License](LICENSE)
+[Self-hosting](#self-hosting) · [Roadmap](ROADMAP.md) · [Contributing](CONTRIBUTING.md) · [License](LICENSE)
 
 > **Status: the code is not public yet.** We are building Linedesk and will publish the source in this repository under the AGPL-3.0. Watch or star the repository to get notified when it lands.
 
@@ -23,6 +23,32 @@
 Linedesk will be licensed under the [AGPL-3.0](LICENSE) and can be self-hosted, with your own provider keys and no license key.
 
 We plan to offer a hosted version for businesses that do not want to run servers; that is how we intend to fund the project. If we ever add paid-only features, they will live in a separate `ee/` folder under their own license.
+
+## Self-hosting
+
+> **Coming with the first public release.** This guide is a placeholder; the commands below will work once the code is published here.
+
+Linedesk runs as one Docker Compose project on your own server. A small VPS with about 1.5 GB of free RAM is enough.
+
+**You need**
+
+- A Linux server with Docker and Docker Compose, plus a domain pointing at it
+- A phone number from Twilio or Telnyx, on your own account
+- API keys for the speech, language and voice providers you pick
+
+**Install**
+
+```bash
+git clone https://github.com/linedesk/linedesk
+cd linedesk && cp .env.example .env
+docker compose up -d
+```
+
+Set `PUBLIC_URL` and your provider keys in `.env` before starting. Then open your `PUBLIC_URL` and create the first account.
+
+**What runs:** Postgres, Electric, the API, the voice agent, LiveKit with LiveKit SIP, Valkey and Caddy for HTTPS.
+
+Configuration, updates, backups and connecting your phone number will be documented here.
 
 ## Get involved
 
