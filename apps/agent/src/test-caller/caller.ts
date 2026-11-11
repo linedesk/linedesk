@@ -47,11 +47,20 @@ export async function runTestCaller(ctx: JobContext, { scenario: name, mode, per
   const voiceOf = voiceId ? { provider: config.tts.provider, voice_id: voiceId } : null
   const session = new voice.AgentSession(createPipeline(config, voiceOf, undefined, scenario.languages ? { main: 'en', others: scenario.languages } : undefined))
   let saidGoodbye = false
+  let ownLines = 0
   session.on(voice.AgentSessionEventTypes.ConversationItemAdded, ({ item }) => {
     if (item.type !== 'message' || !item.textContent) return
     if (item.role === 'assistant') saidGoodbye = isGoodbye(item.textContent)
+    if (item.role === 'assistant' && ++ownLines === scenario.silentAfterLines) goSilent()
     console.log(`${item.role === 'assistant' ? 'caller' : 'business'}: ${item.textContent}`)
   })
+  // Muted both ways once its lines are said: no more turns, nothing to hear, until the assistant or the timer ends the call.
+  const goSilent = () => {
+    console.log(`test caller (${name}): silent from now on`)
+    session.input.setAudioEnabled(false)
+    setTimeout(() => session.output.setAudioEnabled(false), 1000).unref() // the line just said plays to its end
+    after(scenario.silentForMs ?? SILENT_CALLER_MS, 'stayed silent')
+  }
   const endCall = llm.tool({
     description: 'Hang up. Use it only right after you have said goodbye out loud.',
     execute: async () => {

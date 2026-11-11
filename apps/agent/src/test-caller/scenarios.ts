@@ -59,6 +59,11 @@ export interface Scenario {
   /** A silent caller (empty persona) stays on the line this long; default SILENT_CALLER_MS. */
   silentForMs?: number
   /**
+   * The caller goes silent after this many of its own lines: it stops listening and speaking (a model cannot say
+   * nothing; "..." comes out as made-up words) and stays on the line for `silentForMs`.
+   */
+  silentAfterLines?: number
+  /**
    * No-phone test only: languages besides English the business's assistant speaks on this call, instead of
    * its own setting. The test caller then understands them too.
    */
@@ -154,6 +159,14 @@ export const scenarios = {
     persona: '',
     silentForMs: 100_000,
     expect: { outcome: ['hangup'], silentCaller: true, stillThere: 2, lastLine: /can't hear anyone on the line/i },
+  },
+  // Silence in the middle of the call: the caller says what they want, then nothing more, so the assistant's question
+  // goes unanswered. Reminders, the closing line, and the assistant hangs up.
+  'silence-mid-call': {
+    persona: 'You are Pat Lee. Your bathroom faucet is dripping and you want someone to come and look at it. Say that in one short sentence.',
+    silentAfterLines: 1,
+    silentForMs: 100_000,
+    expect: { stillThere: 2, lastLine: /can't hear anyone on the line/i },
   },
   // Transfer rule "The caller asks to speak to a person" (not an emergency): put through, and the call stays not urgent.
   'transfer-person': {
