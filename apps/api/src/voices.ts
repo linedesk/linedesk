@@ -1,11 +1,13 @@
 // Voices for Settings › Assistant: which voices an assistant may use (curated ones and the
 // workspace's own clones), cloning one (voice.clone: off until an instance admin turns it on), and
-// GET /v1/voices/preview/<voiceId>, a short sample in that voice. A sample is generated once per
-// provider, model, voice and text and kept on disk, so opening the page costs nothing.
+// GET /v1/voices/preview/<voiceId>, a short sample in that voice. The curated voices' samples ship with
+// the app (assets/voice-previews), so they play without a provider key and cost nothing; any other
+// sample is generated once per provider, model, voice and text and kept on disk.
 import { createHash } from 'node:crypto'
 import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   CLONE_AUDIO_MAX_BYTES,
   CLONE_CONSENT_TEXT,
@@ -28,7 +30,10 @@ import { queueVoiceDeletion } from './jobs.ts'
 import { activeProvider, resolveProvider } from './provider-settings.ts'
 import { createVoiceProvider, type VoiceProvider, VoiceProviderError } from './voice-provider.ts'
 
-/** What every preview says. Changing it makes new samples (the text is part of the cache key). */
+/**
+ * What every preview says. Changing it makes new samples (the text is part of the cache key); the
+ * bundled ones in assets/voice-previews say it too and have to be made again.
+ */
 export const PREVIEW_TEXT = 'Hi, thanks for calling. This is how I sound on the phone. How can I help you today?'
 /** New samples a workspace may have made per hour (each is a paid request); cached ones are free. */
 export const PREVIEWS_PER_HOUR = 20
@@ -305,6 +310,18 @@ export function previewBudget(perHour = PREVIEWS_PER_HOUR, now = Date.now) {
   }
 }
 
+/** Where the curated voices' samples ship: `<provider>/<voiceId>.mp3`. */
+export const BUNDLED_PREVIEWS_DIR = fileURLToPath(new URL('../assets/voice-previews/', import.meta.url))
+
+/** The shipped sample of a curated voice, or null (not curated, or no file for it). */
+export async function bundledPreview(voiceId: string, dir = BUNDLED_PREVIEWS_DIR): Promise<Buffer | null> {
+  const provider = Object.keys(curatedVoices).find(p => isCuratedVoice(p, voiceId))
+  return provider ? readFile(join(dir, provider, `${voiceId}.mp3`)).catch(() => null) : null
+}
+
+/** Shown in Settings when there is no provider to make a sample with. */
+export const NO_PROVIDER_FOR_PREVIEW = 'Add a voice provider key in Admin › Providers to hear samples.'
+
 const error = (status: number, message: string) => Response.json({ ok: false, error: message }, { status })
 const audioResponse = (bytes: Buffer) =>
   new Response(new Uint8Array(bytes), {
@@ -325,19 +342,23 @@ type PreviewOptions = {
   budget?: ReturnType<typeof previewBudget>
   /** Whether the voice is one of the workspace's clones (default: looked up). */
   ownClone?: boolean
+  /** Where the shipped samples are (tests). */
+  bundledDir?: string
 }
 
 /**
- * The preview of a voice the workspace may use: a curated voice, or one of its own clones. A sample
- * not in the cache counts against the workspace's PREVIEWS_PER_HOUR.
+ * The preview of a voice the workspace may use: a curated voice (its shipped sample, no provider
+ * needed), or one of its own clones. A sample not in the cache counts against PREVIEWS_PER_HOUR.
  */
 export async function servePreview(actor: Actor, rawVoiceId: string, options: PreviewOptions = {}): Promise<Response> {
   if (!actor.workspaceId || !actor.permissions.includes('call:read')) return error(403, 'missing permission call:read')
   const parsed = voiceIdSchema.safeParse(rawVoiceId)
   if (!parsed.success) return error(400, 'not a voice id')
   const voiceId = parsed.data
+  const shipped = await bundledPreview(voiceId, options.bundledDir)
+  if (shipped) return audioResponse(shipped)
   const provider = options.provider === undefined ? await voiceProviderInUse(db) : options.provider
-  if (!provider) return error(409, 'no voice provider is set up (Admin, Providers)')
+  if (!provider) return error(409, NO_PROVIDER_FOR_PREVIEW)
   const allowed =
     isCuratedVoice(provider.name, voiceId) ||
     (options.ownClone ?? (await clonesOf(db, actor.workspaceId, provider.name)).some(c => c.voice_id === voiceId))

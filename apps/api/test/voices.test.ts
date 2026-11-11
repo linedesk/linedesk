@@ -14,6 +14,8 @@ import { runHandler } from '../src/handlers.ts'
 import { createVoiceProvider, type VoiceProvider, VoiceProviderError } from '../src/voice-provider.ts'
 import {
   audioKind,
+  bundledPreview,
+  NO_PROVIDER_FOR_PREVIEW,
   PREVIEW_TEXT,
   previewBudget,
   previewCache,
@@ -41,15 +43,44 @@ function fakeProvider(fail?: VoiceProviderError) {
 }
 const cacheDir = () => mkdtemp(join(tmpdir(), 'voice-preview-test-'))
 const unlimited = () => previewBudget(1000)
+/** No shipped samples: the tests below exercise synthesis and the cache. */
+const NONE = join(tmpdir(), 'no-bundled-voice-previews')
+
+test('every curated voice has a shipped sample: it plays without a provider key and never calls the provider', async () => {
+  const { provider, made } = fakeProvider()
+  for (const { id } of Object.values(curatedVoices).flat()) {
+    const shipped = await bundledPreview(id)
+    expect(shipped && audioKind(shipped), id).toBe('mp3')
+    for (const p of [null, provider]) {
+      const res = await servePreview(member, id, {
+        provider: p,
+        cache: previewCache(await cacheDir()),
+        budget: previewBudget(0),
+      })
+      expect(res.status, id).toBe(200)
+      expect(res.headers.get('content-type')).toBe('audio/mpeg')
+      expect(Buffer.from(await res.arrayBuffer()).equals(shipped!)).toBe(true)
+    }
+  }
+  expect(made).toEqual([])
+})
+
+test('a sample that has to be made without a provider says how to add one', async () => {
+  const res = await servePreview(member, 'MyOwnClone12345', { provider: null, ownClone: true, bundledDir: NONE })
+  expect(res.status).toBe(409)
+  expect(((await res.json()) as { error: string }).error).toBe(NO_PROVIDER_FOR_PREVIEW)
+})
 
 test('a preview is synthesized once and then served from the cache, also to the next page view', async () => {
   const { provider, made } = fakeProvider()
   const cache = previewCache(await cacheDir())
-  const first = await servePreview(member, JESSICA, { provider, cache, budget: unlimited() })
+  const first = await servePreview(member, JESSICA, { provider, cache, budget: unlimited(), bundledDir: NONE })
   expect(first.status).toBe(200)
   expect(first.headers.get('cache-control')).toContain('immutable')
   expect(Buffer.from(await first.arrayBuffer()).toString()).toBe(`mp3 of ${JESSICA}`)
-  expect((await servePreview(member, JESSICA, { provider, cache, budget: unlimited() })).status).toBe(200)
+  expect((await servePreview(member, JESSICA, { provider, cache, budget: unlimited(), bundledDir: NONE })).status).toBe(
+    200,
+  )
   expect(made).toEqual([`${JESSICA}:${PREVIEW_TEXT}`])
 })
 
@@ -57,7 +88,7 @@ test('two requests at once share one synthesis', async () => {
   const { provider, made } = fakeProvider()
   const cache = previewCache(await cacheDir())
   const both = await Promise.all(
-    [1, 2].map(() => servePreview(member, JESSICA, { provider, cache, budget: unlimited() })),
+    [1, 2].map(() => servePreview(member, JESSICA, { provider, cache, budget: unlimited(), bundledDir: NONE })),
   )
   expect(both.map(r => r.status)).toEqual([200, 200])
   expect(made).toHaveLength(1)
@@ -66,7 +97,7 @@ test('two requests at once share one synthesis', async () => {
 test('only curated voices and the workspace’s own clones have a preview; malformed ids and no provider are refused', async () => {
   const { provider, made } = fakeProvider()
   const cache = previewCache(await cacheDir())
-  const options = { provider, cache, budget: unlimited() }
+  const options = { provider, cache, budget: unlimited(), bundledDir: NONE }
   expect((await servePreview(member, 'SomeOtherVoice123', { ...options, ownClone: false })).status).toBe(404)
   expect((await servePreview(member, 'MyOwnClone12345', { ...options, ownClone: true })).status).toBe(200)
   expect((await servePreview(member, '../../etc/passwd', options)).status).toBe(400)
@@ -80,13 +111,14 @@ test('new samples per workspace are limited per hour; cached ones are not', asyn
   const cache = previewCache(await cacheDir())
   const budget = previewBudget(2)
   const voices = curatedVoices.elevenlabs!.map(v => v.id)
-  expect((await servePreview(member, voices[0]!, { provider, cache, budget })).status).toBe(200)
-  expect((await servePreview(member, voices[1]!, { provider, cache, budget })).status).toBe(200)
-  expect((await servePreview(member, voices[2]!, { provider, cache, budget })).status).toBe(429)
-  expect((await servePreview(member, voices[0]!, { provider, cache, budget })).status).toBe(200) // cached
-  expect((await servePreview({ ...member, workspaceId: 'ws_2' }, voices[2]!, { provider, cache, budget })).status).toBe(
-    200,
-  )
+  expect((await servePreview(member, voices[0]!, { provider, cache, budget, bundledDir: NONE })).status).toBe(200)
+  expect((await servePreview(member, voices[1]!, { provider, cache, budget, bundledDir: NONE })).status).toBe(200)
+  expect((await servePreview(member, voices[2]!, { provider, cache, budget, bundledDir: NONE })).status).toBe(429)
+  expect((await servePreview(member, voices[0]!, { provider, cache, budget, bundledDir: NONE })).status).toBe(200) // cached
+  expect(
+    (await servePreview({ ...member, workspaceId: 'ws_2' }, voices[2]!, { provider, cache, budget, bundledDir: NONE }))
+      .status,
+  ).toBe(200)
 })
 
 test('the preview cache keeps only the newest samples', async () => {
@@ -102,7 +134,7 @@ test('the preview cache keeps only the newest samples', async () => {
 test('a voice the provider does not know is a 404, not cached', async () => {
   const { provider, made } = fakeProvider(new VoiceProviderError('voice preview failed (404): voice not found', 404))
   const cache = previewCache(await cacheDir())
-  const options = { provider, cache, budget: unlimited(), ownClone: true }
+  const options = { provider, cache, budget: unlimited(), ownClone: true, bundledDir: NONE }
   expect((await servePreview(member, 'UnknownVoice123', options)).status).toBe(404)
   expect((await servePreview(member, 'UnknownVoice123', options)).status).toBe(404)
   expect(made).toHaveLength(2)

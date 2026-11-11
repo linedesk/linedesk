@@ -9,34 +9,82 @@ import { FormMessage } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 import { Field, Section, TextInput } from './fields.tsx'
 import { readAction, useWriteAction } from './settings-api.ts'
-import { cloneProblem, fileToBase64, previewUrl, voiceInEffect } from './voiceModel.ts'
+import { workspaceHeaders } from '../tabWorkspace.ts'
+import { cloneProblem, fileToBase64, previewProblem, previewUrl, voiceInEffect } from './voiceModel.ts'
 
 const VOICE_OPTIONS = 'voice.options'
 const loadOptions = () => readAction<VoiceOptionsData>(VOICE_OPTIONS)
 /** The voices of the provider in effect; the same for every assistant of the install. */
 export const useVoiceOptions = () => useQuery(VOICE_OPTIONS, loadOptions, { persist: true })
 
-/** One preview at a time: playing another stops the first. */
+type PreviewFailure = { voiceId: string; message: string }
+
+/** The sample as a playable URL, or why there is none. Fetched first so a refusal can say why. */
+async function loadPreview(voiceId: string): Promise<string | PreviewFailure> {
+  const res = await fetch(previewUrl(voiceId), { credentials: 'include', headers: workspaceHeaders() }).catch(
+    () => null,
+  )
+  if (!res?.ok || !res.headers.get('content-type')?.startsWith('audio/')) {
+    const body = (await res?.json().catch(() => null)) as { error?: string } | null
+    return { voiceId, message: previewProblem(res?.status ?? 0, body?.error) }
+  }
+  return URL.createObjectURL(await res.blob())
+}
+
+/** One preview at a time: playing another stops the first. A sample is fetched once per page view. */
 function usePreview() {
   const audio = useRef<HTMLAudioElement | null>(null)
+  const loaded = useRef(new Map<string, string>())
   const [playing, setPlaying] = useState<string | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
-  useEffect(() => () => audio.current?.pause(), [])
-  function toggle(voiceId: string) {
+  const [loading, setLoading] = useState<string | null>(null)
+  const [failed, setFailed] = useState<PreviewFailure | null>(null)
+  useEffect(
+    () => () => {
+      audio.current?.pause()
+      for (const url of loaded.current.values()) URL.revokeObjectURL(url)
+    },
+    [],
+  )
+  /** The voice the last click asked for; a sample that arrives after another click is not played. */
+  const wanted = useRef<string | null>(null)
+  async function toggle(voiceId: string) {
     audio.current?.pause()
-    if (playing === voiceId) return setPlaying(null)
-    const next = new Audio(previewUrl(voiceId))
-    audio.current = next
+    audio.current = null
     setFailed(null)
-    setPlaying(voiceId)
-    next.onended = () => setPlaying(p => (p === voiceId ? null : p))
-    next.onerror = () => {
-      setPlaying(p => (p === voiceId ? null : p))
-      setFailed(voiceId)
+    setPlaying(null)
+    if (wanted.current === voiceId) {
+      wanted.current = null
+      return setLoading(null)
     }
-    void next.play().catch(() => {})
+    wanted.current = voiceId
+    let url = loaded.current.get(voiceId)
+    if (!url) {
+      setLoading(voiceId)
+      const result = await loadPreview(voiceId)
+      if (typeof result === 'string') loaded.current.set(voiceId, result)
+      if (wanted.current !== voiceId) return
+      setLoading(null)
+      if (typeof result !== 'string') {
+        wanted.current = null
+        return setFailed(result)
+      }
+      url = result
+    }
+    const next = new Audio(url)
+    audio.current = next
+    setPlaying(voiceId)
+    const stop = () => {
+      if (wanted.current === voiceId) wanted.current = null
+      setPlaying(p => (p === voiceId ? null : p))
+    }
+    next.onended = stop
+    next.onerror = () => {
+      stop()
+      setFailed({ voiceId, message: 'The sample could not be played.' })
+    }
+    void next.play().catch(stop)
   }
-  return { playing, failed, toggle }
+  return { playing, loading, failed, toggle }
 }
 
 function PreviewButton({
@@ -48,15 +96,16 @@ function PreviewButton({
   preview: ReturnType<typeof usePreview>
   label: string
 }) {
-  const on = preview.playing === voiceId
+  const on = preview.playing === voiceId || preview.loading === voiceId
   return (
     <Button
       size="sm"
       variant="ghost"
       icon={on ? 'pause' : 'play'}
+      aria-busy={preview.loading === voiceId || undefined}
       aria-label={`${on ? 'Stop' : 'Play'} ${label}`}
       title={`${on ? 'Stop' : 'Play'} a sample of ${label}`}
-      onClick={() => preview.toggle(voiceId)}
+      onClick={() => void preview.toggle(voiceId)}
     />
   )
 }
@@ -185,7 +234,7 @@ export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast }: Pr
           </div>
         ))}
       </div>
-      {preview.failed && <FormMessage>The sample could not be played.</FormMessage>}
+      {preview.failed && <FormMessage>{preview.failed.message}</FormMessage>}
       {options?.canClone && <CloneVoice assistantId={assistantId} toast={toast} disabled={!canEdit} />}
     </Section>
   )

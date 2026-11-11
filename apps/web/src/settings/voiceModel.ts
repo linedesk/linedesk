@@ -11,6 +11,20 @@ export const voiceInEffect = (voice: VoiceChoice, provider: string | null): stri
 /** The sample of a voice, made once on the server and cached by the browser too. */
 export const previewUrl = (voiceId: string) => `/v1/voices/preview/${encodeURIComponent(voiceId)}`
 
+/**
+ * What to say when a sample does not come back as audio: from the answer's status and the server's
+ * error text (`status` 0: no answer at all).
+ */
+export function previewProblem(status: number, serverError?: string): string {
+  if (status === 0) return 'No connection to the server. Try again.'
+  if (status === 401) return 'You were signed out. Sign in again to hear samples.'
+  if (status === 409) return 'Add a voice provider key in Admin › Providers to hear samples.'
+  if (status === 429) return 'Too many new samples this hour. Try again later.'
+  if (status === 404) return 'The voice provider does not know this voice.'
+  if (status === 403 && serverError) return serverError
+  return 'The voice provider did not answer. Try again.'
+}
+
 const MB = 1024 * 1024
 
 /** Why this recording cannot be cloned, or null. */
