@@ -2,7 +2,7 @@ import { callRulesOf, DEFAULT_CALL_RULES } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import type { CallerHistory } from '@linedesk/actions'
-import { bookingInstructions, buildInstructions, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, firstNameOf, GREETED_FULL_NAME, lastNameOf, forHours, personalGreeting } from './prompt.ts'
+import { bookingInstructions, buildInstructions, heldTransferContacts, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, firstNameOf, GREETED_FULL_NAME, lastNameOf, forHours, personalGreeting } from './prompt.ts'
 
 const assistant = (over: Partial<Assistant> = {}) =>
   ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', disclose_ai: false, business_profile: { instructions: 'We fix pipes in Portland.' }, call_rules: null, ...over }) as Assistant
@@ -193,4 +193,21 @@ test('the last name: filled in from a name of two words or more; missing, the us
   const prompt = buildInstructions(assistant(), null, null, [], { ...caller, greetedByName: true, greetedFullName: true })
   expect(prompt).toContain(GREETED_FULL_NAME)
   expect(prompt).not.toMatch(/You greeted the caller by the first name/)
+})
+
+test('a contact that takes calls only during business hours: while closed the assistant says so, never "I cannot transfer"', () => {
+  const owner = { id: 'person', name: 'Owner', number: '+15035550199', condition: 'The caller asks to speak to a person.', hours_only: true, ring_seconds: 25, if_no_answer: 'message' as const, enabled: true }
+  const oncall = { ...owner, id: 'oncall', name: 'On-call', condition: 'Urgent: a burst pipe', hours_only: false }
+  const a = assistant({ transfers: [owner, oncall, { ...owner, id: 'off', name: 'Off', enabled: false }] })
+  const closed = { openNow: false, summary: 'Closed now; opens tomorrow at 7 AM.' }
+  expect(heldTransferContacts(a, closed).map(c => c.id)).toEqual(['person']) // on-call takes calls at any time; Off is off
+  expect(heldTransferContacts(a, { openNow: true, summary: 'Open now.' })).toEqual([])
+  expect(heldTransferContacts(a, null)).toEqual([]) // no hours: never closed
+  expect(heldTransferContacts(a, { ...closed, closure: { greeting: '' } }).map(c => c.id)).toEqual(['person', 'oncall']) // vacation: nobody
+  const prompt = buildInstructions(a, closed)
+  expect(prompt).toContain('- The caller asks to speak to a person\n')
+  expect(prompt).toMatch(/cannot be reached right now because it is outside business hours/)
+  expect(prompt).toMatch(/Never say that you cannot transfer calls/)
+  // Open, with a contact to put through: the usual transfer instructions, not this.
+  expect(buildInstructions(a, { openNow: true, summary: 'Open now.' }, null, [owner])).not.toMatch(/outside business hours/)
 })

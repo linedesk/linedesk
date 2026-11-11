@@ -1,5 +1,5 @@
 // The assistant's system prompt, built from its configuration.
-import { aiDisclosureInstructions, type BookingContext, communicationStyleInstructions, behaviourLines, behaviourOn, type CallDocuments, type CallerHistory, callRulesOf, fenceData, FIRST_NAME_VARIABLE, KNOWN_CALLER_GREETING_MAX, knowledgeLists, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf, LAST_NAME_VARIABLE, usesGreetingVariable } from '@linedesk/actions'
+import { aiDisclosureInstructions, type BookingContext, isActiveContact, communicationStyleInstructions, behaviourLines, behaviourOn, type CallDocuments, type CallerHistory, callRulesOf, fenceData, FIRST_NAME_VARIABLE, KNOWN_CALLER_GREETING_MAX, knowledgeLists, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf, LAST_NAME_VARIABLE, usesGreetingVariable } from '@linedesk/actions'
 import type { Assistant, Contact, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 
@@ -92,6 +92,25 @@ export function transferInstructions(rules: readonly TransferRule[]): string {
     "When a contact's condition fits the call, do not take a message first: as soon as you know the caller's name and what they need, use transfer_call with every contact whose condition fits. Call it without saying anything yourself: it tells the caller whom you are connecting them with. Never transfer a call that fits no contact's condition; then handle it as the rules above say.",
     'Only if transfer_call says nobody took the call, tell the caller you could not reach anyone right now and say what transfer_call told you: that their message is passed on and when the team gets back to them. Never promise that someone is coming, or a visit or a time.',
   ].join('\n')
+}
+
+/**
+ * Contacts that take calls, but not now because the business is closed: "only during business hours" ones outside the
+ * hours, and every contact in vacation or closure mode (nobody is put through then).
+ */
+export function heldTransferContacts(assistant: Pick<Assistant, 'transfers'> | null, hours?: BusinessHours | null): TransferContact[] {
+  if (!hours || (hours.openNow && !hours.closure)) return []
+  return (assistant?.transfers ?? []).filter(c => isActiveContact(c) && (hours.closure || c.hours_only))
+}
+
+/**
+ * What the assistant says when a call fits a contact that cannot be reached now: closed, so nobody is put through,
+ * never "I am an AI and cannot transfer you".
+ */
+export function heldTransferInstructions(held: readonly Pick<TransferContact, 'condition'>[]): string | null {
+  if (!held.length) return null
+  const conditions = [...new Set(held.map(c => c.condition.trim().replace(/[.!?]+$/, '')))].map(c => `- ${c}`).join('\n')
+  return `Some calls go to a person, but not right now: the business is closed, so nobody can be put through until it is open again. These calls:\n${conditions}\nWhen a call fits one of them, tell the caller that the team cannot be reached right now because it is outside business hours, say when the business is open again if you know it, and offer to take a message so the team gets back to them. Never say that you cannot transfer calls or that you are only an AI.`
 }
 
 /**
@@ -365,7 +384,7 @@ export function buildInstructions(
     `How to handle calls:\n${callRulesOf(assistant?.call_rules)}`,
     behavioursInstructions(assistant),
     callerIdInstructions(caller),
-    transfer ? transferInstructions(transfers) : null,
+    transfer ? transferInstructions(transfers) : heldTransferInstructions(heldTransferContacts(assistant, hours)),
     callerNotesInstructions(caller),
     callerHistoryInstructions(caller),
     caller?.greetedFullName ? GREETED_FULL_NAME : caller?.greetedByName ? GREETED_BY_NAME : null,
