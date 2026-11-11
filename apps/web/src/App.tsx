@@ -7,7 +7,7 @@ import { loadSession, type Session } from './session.ts'
 import { Onboarding } from './onboarding/Onboarding.tsx'
 import { ImpersonationFrame } from './shell/ImpersonationBar.tsx'
 import { TabWorkspaceGuard } from './shell/TabWorkspaceNotice.tsx'
-import { StoreProvider } from './store.tsx'
+import { DISABLED_WORKSPACE, StoreProvider } from './store.tsx'
 import { Workspace } from './Workspace.tsx'
 import { AcceptInvite, clearInviteId, readInviteId } from './team/AcceptInvite.tsx'
 import { BootScreen } from './ui/BootScreen.tsx'
@@ -80,7 +80,10 @@ export function App() {
   }
   return (
     <ImpersonationFrame impersonation={session.me.impersonation ?? null}>
-      <StoreProvider workspaceId={session.me.workspace!.id}>
+      <StoreProvider
+        workspaceId={session.me.workspace!.id}
+        readOnly={session.me.workspace?.disabled ? DISABLED_WORKSPACE : undefined}
+      >
         <TabWorkspaceGuard me={session.me}>
           {session.me.onboarding && !onboarded ? (
             <Onboarding me={session.me} state={session.me.onboarding} onDone={() => setOnboarded(true)} />

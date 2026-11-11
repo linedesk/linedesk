@@ -12,8 +12,14 @@ export const localDbName = (workspaceId: string) => `linedesk-${workspaceId}`
 
 type Boot = { state: 'loading' } | { state: 'failed'; error: string } | { state: 'ready'; store: Store }
 
-/** Opens the local store. While it opens a quiet loading line shows; if it cannot open, an error with Reload: never a blank page. */
-export function StoreProvider({ workspaceId, children }: { workspaceId: string; children: ReactNode }) {
+/** Why nothing can be changed (a disabled workspace): writes are refused here, before anything changes on screen. */
+export const DISABLED_WORKSPACE = 'This workspace is disabled, so nothing can be changed.'
+
+/**
+ * Opens the local store. While it opens a quiet loading line shows; if it cannot open, an error with Reload: never a blank page.
+ * `readOnly`: the reason writes are refused at once (no optimistic change that rolls back after the server's 403).
+ */
+export function StoreProvider({ workspaceId, readOnly, children }: { workspaceId: string; readOnly?: string; children: ReactNode }) {
   const [boot, setBoot] = useState<Boot>({ state: 'loading' })
   const [rejection, setRejection] = useState<Rejection | null>(null)
   useEffect(() => {
@@ -34,10 +40,11 @@ export function StoreProvider({ workspaceId, children }: { workspaceId: string; 
     }
   }, [workspaceId])
   const store = boot.state === 'ready' ? boot.store : null
-  const value = useMemo(
-    () => store && { store, rejection, clearRejection: () => setRejection(null) },
-    [store, rejection],
-  )
+  const value = useMemo(() => {
+    if (!store) return null
+    const refuse: Store['run'] = async (name, input) => setRejection({ action: name, input, error: readOnly! })
+    return { store: readOnly ? { ...store, run: refuse } : store, rejection, clearRejection: () => setRejection(null) }
+  }, [store, rejection, readOnly])
   if (value) return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
   if (boot.state === 'failed') {
     return (
