@@ -424,6 +424,27 @@ export const commands = pgTable('commands', {
   created_at: createdAt(),
 })
 
+// How well the assistant handled a call, judged by the language model after the summary: a score
+// (1 to 5) and up to three issues. One row per call, replaced when it is evaluated again. For owners
+// and admins only, so not synced to browsers; read through `call.getEvaluation` / `call.listEvaluations`.
+export const call_evaluations = pgTable(
+  'call_evaluations',
+  {
+    call_id: text('call_id')
+      .primaryKey()
+      .references(() => calls.id, { onDelete: 'cascade' }),
+    workspace_id: text('workspace_id').notNull(),
+    score: integer('score').notNull(),
+    issues: jsonb('issues').$type<string[]>().notNull().default([]),
+    /** The model that judged, e.g. google/gemini-2.5-flash-lite. */
+    model: text('model'),
+    /** The assistant's row version when it was judged: a new evaluation of the call is only worth it after the assistant changed. */
+    assistant_version: bigint('assistant_version', { mode: 'number' }),
+    created_at: createdAt(),
+  },
+  t => [index('call_evaluations_ws_score').on(t.workspace_id, t.score)],
+)
+
 // The audit log's sign-in side (docs/architecture.md §12, Audit log): sign-ins with their method, sign-in
 // methods added or removed, invitations accepted. Actions are in `commands`. Never deleted, and no
 // foreign keys, so an entry outlives the user or workspace it names. Not synced to browsers.

@@ -246,3 +246,20 @@ describe('assigned to me', () => {
     expect(tabOf(calls[0]!, now)).toBe('you')
   })
 })
+
+describe('needs review', () => {
+  it('lists the calls whose evaluation needs a person, in whatever view they are, newest first, without deleted ones', () => {
+    const calls = [
+      call({ id: 'low-done', inbox_state: 'done', started_at: '2026-11-10 09:00:00+00' }),
+      call({ id: 'low-open', outcome: 'callback', started_at: '2026-11-10 11:00:00+00' }),
+      call({ id: 'low-deleted', deleted_at: '2026-11-10 11:30:00+00' }),
+      call({ id: 'fine' }),
+    ]
+    const review = new Set(['low-done', 'low-open', 'low-deleted'])
+    expect(listFor(calls, 'review', now, null, review).map(c => c.id)).toEqual(['low-open', 'low-done'])
+    expect(countsFor(calls, now, null, review).review).toBe(2)
+    expect(listFor(calls, 'review', now, null)).toEqual([]) // members get no evaluations: nothing to review
+    // A call keeps its own view: being reviewed does not move it.
+    expect(tabOf(calls[1]!, now)).toBe('you')
+  })
+})

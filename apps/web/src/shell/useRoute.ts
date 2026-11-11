@@ -10,7 +10,7 @@ export type InboxPlace = { tab: InboxTab; search: string | null }
 export type Location = InboxPlace & { route: Route; callId: string | null; known: boolean }
 
 const CALL_PREFIX = 'call/'
-const tabs: readonly InboxTab[] = ['you', 'ai', 'spam', 'reminders', 'done', 'mine']
+const tabs: readonly InboxTab[] = ['you', 'ai', 'spam', 'reminders', 'done', 'mine', 'review']
 const HOME: InboxPlace = { tab: 'you', search: null }
 
 export const callHash = (id: string) => `#${CALL_PREFIX}${id}`

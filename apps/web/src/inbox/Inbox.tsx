@@ -1,3 +1,4 @@
+import { NEEDS_REVIEW_MAX_SCORE } from '@linedesk/actions'
 import type { Call } from '@linedesk/db/types'
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { SegmentsByCall } from '../call/segments.ts'
@@ -30,6 +31,7 @@ const viewHeading: Record<InboxTab, string> = {
   reminders: 'Reminders',
   done: 'Done',
   mine: 'Assigned to me',
+  review: 'Needs review',
 }
 const emptyTitle: Record<InboxTab, string> = {
   you: 'Nothing needs you',
@@ -38,6 +40,7 @@ const emptyTitle: Record<InboxTab, string> = {
   done: 'Nothing done yet',
   reminders: 'No reminders',
   mine: 'Nothing assigned to you',
+  review: 'Nothing to review',
 }
 const emptyHelp: Record<InboxTab, string> = {
   you: 'Calls that need a person land here.',
@@ -46,6 +49,7 @@ const emptyHelp: Record<InboxTab, string> = {
   done: 'Calls you mark done with E land here.',
   reminders: 'Calls you set a reminder for with H wait here until they come back.',
   mine: 'Calls assigned to you with A wait here until they are done.',
+  review: `Calls the assistant may have handled badly (an evaluation of ${NEEDS_REVIEW_MAX_SCORE} or lower) show up here.`,
 }
 
 function Empty({ tab, search }: { tab: InboxTab; search: string | null }) {

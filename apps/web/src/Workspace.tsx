@@ -1,6 +1,8 @@
 // The signed-in app: composes the inbox, the pages, the navigation, overlays and toasts.
 import type { Call } from '@linedesk/db/types'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery } from './cachedQuery.ts'
+import { loadReview, REVIEW_KEY } from './call/EvaluationCard.tsx'
 import { AdminMode } from './admin/AdminMode.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import type { Me } from './auth.ts'
@@ -42,7 +44,7 @@ const NAV_DOCKED_QUERY = '(min-width: 1600px)'
 
 /** The not-found toasts (call, page) stay long enough to be read after the jump. */
 const NOT_FOUND_TOAST_MS = 4500
-const chordTabs: Record<string, InboxTab> = { i: 'you', e: 'done', h: 'reminders', m: 'mine' }
+const chordTabs: Record<string, InboxTab> = { i: 'you', e: 'done', h: 'reminders', m: 'mine', r: 'review' }
 const chordPages: Record<string, PageRoute> = { a: 'assistant', c: 'contacts', t: 'team', s: 'settings' }
 
 export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void | Promise<void> }) {
@@ -54,7 +56,11 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
     const fresh = unannounced(invites.invitations)
     if (fresh.length) toaster.show(invitationNotice(fresh), false, 8000)
   }, [invites.invitations, toaster.show])
-  const view = useInboxView(nav, me.actorId)
+  // Owners and admins: the calls whose evaluation needs a person (Needs review, G R).
+  const canReview = me.permissions.includes('settings:write')
+  const reviewQuery = useQuery(canReview ? REVIEW_KEY : null, loadReview)
+  const review = useMemo(() => new Set((reviewQuery.data ?? []).map(e => e.callId)), [reviewQuery.data])
+  const view = useInboxView(nav, me.actorId, review)
   // A notification when a call ends while this tab is in the background (Settings, Notifications).
   useCallNotifications(call => callerName(call, call.contact_id ? view.contacts.get(call.contact_id) : undefined))
   const assistantName = useAssistantName()
@@ -223,6 +229,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
     reminders: 'Reminders',
     done: 'Done',
     mine: 'Assigned to me',
+    review: 'Needs review',
   }
   const where =
     nav.route !== 'calls'
@@ -263,6 +270,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
           }
         : null,
     goInbox: view.setTab,
+    canReview,
     goPage,
     isInstanceAdmin: canOpenAdmin,
     openSearch,
@@ -307,6 +315,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
         unreadCount={view.unreadNeedsYou}
         reminderCount={view.counts.reminders}
         mineCount={view.counts.mine}
+        reviewCount={canReview ? view.counts.review : null}
         workspaceName={me.workspace!.name}
         workspaceId={me.workspace!.id}
         toast={toaster.show}
@@ -373,6 +382,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
             onClearReminder={actions.clearReminder}
             onCommands={() => setOverlay('commands')}
             onToggleSpam={callHandlers.toggleSpam}
+            canReview={canReview}
             side={
               <ContactSide
                 call={openCall}

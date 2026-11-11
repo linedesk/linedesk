@@ -11,6 +11,7 @@ import { registerContactPanel } from './contactPanel.ts'
 import { BookingCards } from './BookingCard.tsx'
 import { LiveCard } from './LiveCard.tsx'
 import { RecordingPlayer } from './RecordingPlayer.tsx'
+import { EvaluationCard } from './EvaluationCard.tsx'
 import { SummaryCard } from './SummaryCard.tsx'
 import { Transcript } from './Transcript.tsx'
 
@@ -37,12 +38,14 @@ type Props = CallViewActions & {
   side: ReactNode
   /** How many calls the inbox row stands for (repeat hang-ups fold into one row). */
   repeatCount?: number
+  /** Owners and admins: the call's evaluation under the summary. */
+  canReview?: boolean
 }
 
 const STICK_TO_BOTTOM_PX = 140
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-type BarProps = Omit<Props, 'segments' | 'search' | 'side' | 'repeatCount'> & {
+type BarProps = Omit<Props, 'segments' | 'search' | 'side' | 'repeatCount' | 'canReview'> & {
   sideOpen: boolean
   onToggleSide: () => void
 }
@@ -275,7 +278,7 @@ function useFollowLive(live: boolean, segmentCount: number) {
 }
 
 /** One call, full width: what it was about, the conversation, and the caller on the side. Mount with key={call.id} so each call starts at the top. */
-export function CallView({ call, segments, search, side, repeatCount = 1, ...bar }: Props) {
+export function CallView({ call, segments, search, side, repeatCount = 1, canReview = false, ...bar }: Props) {
   const [sideOpen, setSideOpen] = useState(false)
   useEffect(() => registerContactPanel(() => setSideOpen(open => !open)), [])
   const assistant = useCallAssistantName(call.assistant_id)
@@ -306,6 +309,7 @@ export function CallView({ call, segments, search, side, repeatCount = 1, ...bar
               {live && <LiveCard segments={segments} assistantName={assistant} />}
               {!live && call.recording_key && <RecordingPlayer callId={call.id} callDurationSec={call.duration_sec} />}
               <SummaryCard call={call} />
+              {canReview && <EvaluationCard call={call} />}
               <BookingCards callId={call.id} />
               {turns ? (
                 <>

@@ -10,8 +10,10 @@ import { SEARCH_INPUT_ID } from './InboxHead.tsx'
 import { matchesSearch } from './search.tsx'
 import { useCursor } from './useCursor.ts'
 
-/** `me`: the signed-in member's user id (Assigned to me). */
-export function useInboxView(nav: RouteApi, me: string | null = null) {
+const NO_REVIEW: ReadonlySet<string> = new Set()
+
+/** `me`: the signed-in member's user id (Assigned to me). `review`: calls whose evaluation needs a person (Needs review). */
+export function useInboxView(nav: RouteApi, me: string | null = null, review: ReadonlySet<string> = NO_REVIEW) {
   const calls = useRows('calls')
   const contacts = useSnapshot().tables.contacts
   const segments = useSegmentsByCall()
@@ -38,12 +40,12 @@ export function useInboxView(nav: RouteApi, me: string | null = null) {
       )
       return { list: sortForList(hits, false), groups: new Map() }
     }
-    const inTab = listFor(calls, tab, now, me)
+    const inTab = listFor(calls, tab, now, me, review)
     return tab === 'you' ? groupRepeats(inTab) : { list: inTab, groups: new Map() }
-  }, [calls, contacts, segments, assistantName, tab, search, now, me])
+  }, [calls, contacts, segments, assistantName, tab, search, now, me, review])
   /** Every call a row stands for: a folded row's repeat calls, else the call alone. */
   const groupOf = (call: Call): Call[] => groups.get(call.id) ?? [call]
-  const counts = useMemo(() => countsFor(calls, now, me), [calls, now, me])
+  const counts = useMemo(() => countsFor(calls, now, me, review), [calls, now, me, review])
   /** The menu's Inbox badge: the unread dots a person sees in Needs you. */
   const unreadNeedsYou = useMemo(() => {
     const needsYou = groupRepeats(listFor(calls, 'you', now))

@@ -1,7 +1,7 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
 import { actions, confirmsNumber, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, } from '@linedesk/actions'
 import { businessHoursContext, type BusinessHoursContext, } from '@linedesk/calendar'
-import {availability_rules, calls, contacts, member, organization, phone_numbers, syncedTables,
+import {availability_rules, call_evaluations, calls, contacts, member, organization, phone_numbers, syncedTables,
   transcript_segments, workspace_settings, type Tx,
 } from '@linedesk/db'
 import type { Assistant } from '@linedesk/db/types'
@@ -20,7 +20,8 @@ import { startTestCall } from './test-call.ts'
 import { membershipHandlers } from './memberships.ts'
 import { teamHandlers } from './team.ts'
 import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
-import { queueCallNotification } from './jobs.ts'
+import { queueCallEvaluation, queueCallNotification } from './jobs.ts'
+import { evaluatedAutomatically, evaluationHandlers } from './evaluations.ts'
 import { notificationHandlers } from './notification-settings.ts'
 import { contactMergeHandlers } from './contact-merge.ts'
 import { clearCallPayloads, queueCallFinishedEvents, queueWebhookEvent, webhookData, webhookHandlers } from './webhooks.ts'
@@ -166,12 +167,15 @@ const handlers: Record<string, Handler> = {
   ...calendarConnectionHandlers,
   ...apiKeyHandlers,
   ...bookingHandlers,
+  ...evaluationHandlers(queueCallEvaluation),
   ...webhookHandlers,
 
   // The patch, and the webhook payloads that carry the call are cleared (they hold the caller's details).
   'call.delete': async (ctx, input) => {
     const result = await runPatch(ctx, actions.get('call.delete')!, input)
     await clearCallPayloads(ctx.tx, ctx.actor.workspaceId!, input.callId)
+    // Its evaluation goes too (it quotes what went wrong on the call); a restored call can be evaluated again.
+    await ctx.tx.delete(call_evaluations).where(and(eq(call_evaluations.call_id, input.callId), eq(call_evaluations.workspace_id, ctx.actor.workspaceId!)))
     return result
   },
 
@@ -279,6 +283,8 @@ const handlers: Record<string, Handler> = {
     // Only the first finish notifies; a repeated one (agent retry after a timeout) is not news.
     if (call.status !== 'completed') {
       await queueCallNotification(tx, call.id)
+      // Test calls are evaluated only when the call view asks (call.evaluate).
+      if (evaluatedAutomatically(updated!)) await queueCallEvaluation(tx, call.id)
       await queueCallFinishedEvents(tx, updated!, now)
     }
     return { rows }

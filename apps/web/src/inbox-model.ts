@@ -3,7 +3,7 @@ import type { Call, Contact, TranscriptSegment } from '@linedesk/db/types'
 import { parseTs, whenLabel } from './time.ts'
 
 /** `mine`: calls assigned to the signed-in member that are still open (a filter, not a place of its own). */
-export type InboxTab = 'you' | 'ai' | 'spam' | 'reminders' | 'done' | 'mine'
+export type InboxTab = 'you' | 'ai' | 'spam' | 'reminders' | 'done' | 'mine' | 'review'
 /** The three views Tab cycles through. Reminders, Done and Assigned to me are modes outside the cycle. */
 export const splits = ['you', 'ai', 'spam'] as const satisfies readonly InboxTab[]
 export const viewByKey: Record<string, InboxTab> = { 1: 'you', 2: 'ai', 3: 'spam', 4: 'reminders', 5: 'done' }
@@ -65,9 +65,14 @@ const isMine = (call: Call, me: string | null, now: Date) => {
   return tab !== 'done' && tab !== 'spam'
 }
 
-export function listFor(calls: Call[], tab: InboxTab, now = new Date(), me: string | null = null): Call[] {
+/**
+ * `review`: the calls whose evaluation needs a person (owners and admins only, from call.listEvaluations);
+ * the Needs review mode lists them newest first.
+ */
+export function listFor(calls: Call[], tab: InboxTab, now = new Date(), me: string | null = null, review: ReadonlySet<string> = new Set()): Call[] {
   const visible = calls.filter(c => !c.deleted_at)
   if (tab === 'mine') return sortForList(visible.filter(c => isMine(c, me, now)), true, visible)
+  if (tab === 'review') return sortForList(visible.filter(c => review.has(c.id)), false, visible)
   const inTab = visible.filter(c => tabOf(c, now) === tab)
   // Reminders read as a schedule: the one that comes back first is on top.
   if (tab === 'reminders')
@@ -76,12 +81,13 @@ export function listFor(calls: Call[], tab: InboxTab, now = new Date(), me: stri
 }
 
 /** Needs you counts rows, so repeat hang-ups from one number count once (see groupRepeats). */
-export function countsFor(calls: Call[], now = new Date(), me: string | null = null): Record<InboxTab, number> {
-  const counts: Record<InboxTab, number> = { you: 0, ai: 0, spam: 0, reminders: 0, done: 0, mine: 0 }
+export function countsFor(calls: Call[], now = new Date(), me: string | null = null, review: ReadonlySet<string> = new Set()): Record<InboxTab, number> {
+  const counts: Record<InboxTab, number> = { you: 0, ai: 0, spam: 0, reminders: 0, done: 0, mine: 0, review: 0 }
   for (const c of calls) {
     if (c.deleted_at) continue
     counts[tabOf(c, now)]++
     if (isMine(c, me, now)) counts.mine++
+    if (review.has(c.id)) counts.review++
   }
   counts.you = groupRepeats(listFor(calls, 'you', now)).list.length
   return counts

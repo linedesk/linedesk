@@ -24,7 +24,9 @@ export type CommandContext = {
   isBlocked: (call: Call) => boolean
   /** Selecting calls in the list; null when the list is not on screen (a call or another page is open). */
   selection: { count: number; toggle: () => void; all: () => void; clear: () => void } | null
-  goInbox: (tab: 'you' | 'done' | 'reminders' | 'mine') => void
+  goInbox: (tab: 'you' | 'done' | 'reminders' | 'mine' | 'review') => void
+  /** Owners and admins: the Needs review mode. */
+  canReview?: boolean
   goPage: (route: PageRoute) => void
   isInstanceAdmin: boolean
   undo: () => void
@@ -136,6 +138,7 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
         { label: 'Go to Done', icon: 'check', shortcut: ['G', 'E'], run: () => c.goInbox('done') },
         { label: 'Go to Reminders', icon: 'clock', shortcut: ['G', 'H'], run: () => c.goInbox('reminders') },
         { label: 'Go to Assigned to me', icon: 'user', shortcut: ['G', 'M'], run: () => c.goInbox('mine') },
+        ...(c.canReview ? [{ label: 'Go to Needs review', icon: 'flag' as const, shortcut: ['G', 'R'], run: () => c.goInbox('review') }] : []),
         { label: 'Go to Contacts', icon: 'contact', shortcut: ['G', 'C'], run: () => c.goPage('contacts') },
         { label: 'Go to Assistant', icon: 'waveform', shortcut: ['G', 'A'], run: () => c.goPage('assistant') },
         { label: 'Go to Team', icon: 'users', shortcut: ['G', 'T'], run: () => c.goPage('team') },

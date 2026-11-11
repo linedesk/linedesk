@@ -2,6 +2,7 @@ import * as admin from './admin.ts'
 import * as apiKeys from './api-keys.ts'
 import * as calendar from './calendar.ts'
 import * as calls from './calls.ts'
+import * as evaluations from './evaluations.ts'
 import type { ActionDef } from './define.ts'
 import * as membership from './membership.ts'
 import * as notifications from './notifications.ts'
@@ -17,6 +18,7 @@ export * from './api-keys.ts'
 export * from './assistant-prompt.ts'
 export * from './calendar.ts'
 export * from './calls.ts'
+export * from './evaluations.ts'
 export * from './membership.ts'
 export * from './notifications.ts'
 export * from './onboarding.ts'
@@ -112,6 +114,9 @@ const all = [
   membership.invitationRevoke,
   membership.invitationResend,
   onboarding.onboardingSetStep,
+  evaluations.callGetEvaluation,
+  evaluations.callListEvaluations,
+  evaluations.callEvaluate,
   webhooks.webhookCreate,
   webhooks.webhookUpdate,
   webhooks.webhookDelete,
