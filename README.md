@@ -29,7 +29,7 @@ pnpm dev                                        # API on 3100, web app on http:/
 pnpm --filter @linedesk/agent simulate          # a simulated call lands in the inbox, no provider keys needed
 ```
 
-More in [CONTRIBUTING.md](CONTRIBUTING.md).
+Your own test data in every local stack and worktree: `pnpm db:seed -- --user <your email>` once, then `pnpm dev:snapshot`; a new local database starts from that snapshot. More in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Self-hosting
 

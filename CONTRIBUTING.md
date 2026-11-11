@@ -22,6 +22,8 @@ pnpm db:seed      # prints the demo sign-in
 pnpm dev          # API on 3100, web app on 5173
 ```
 
+Test data that every new local stack and worktree starts with: fill your account's workspace once (`pnpm db:seed -- --user you@example.com`), then `pnpm dev:snapshot`. A new database restores the snapshot (`~/.linedesk/dev-snapshot.dump`) by itself; `pnpm dev:restore --force` replaces an existing one. Details in [CLAUDE.md](CLAUDE.md) (commands).
+
 Simulate a call without any provider keys: `pnpm --filter @linedesk/agent simulate`. Real calls, voice and recordings: see [CLAUDE.md](CLAUDE.md) (commands) and [docs/architecture.md](docs/architecture.md).
 
 ## How the code is built

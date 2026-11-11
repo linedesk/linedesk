@@ -1,6 +1,7 @@
 // Demo workspace: Brightwater Plumbing & Heating (Portland), assistant Maya, owner Mike Brennan.
 // Idempotent: the base data is created once; business hours and the demo recording are added to an existing demo too.
 // `pnpm db:seed -- --reset` replaces an existing demo's calls and contacts with these (drops old test calls).
+// `pnpm db:seed -- --user <email> [--business <name>] [--reset]` fills that account's own workspace instead (seed-workspace.ts).
 import {
   appointment_types,
   assistants,
@@ -16,15 +17,16 @@ import {
   workspace_settings,
 } from '@linedesk/db'
 import { recordingKey } from '@linedesk/actions'
+import { parseArgs } from 'node:util'
 import { asc, eq } from 'drizzle-orm'
 import { auth } from './auth.ts'
 import { db, pool } from './db.ts'
 import { demoRecordingWav, writeDemoRecording } from './demo-recording.ts'
 import { GREETING, seedCalls } from './demo-calls.ts'
 import { recordingsDir } from './recording-store.ts'
+import { seedUserWorkspace } from './seed-workspace.ts'
 
 export const DEMO = { email: 'mike@brightwater.example', password: 'brightwater-demo', number: '+15035550142' }
-
 
 const id = (prefix: string, n: number) => `${prefix}_demo_${String(n).padStart(2, '0')}`
 
@@ -34,7 +36,10 @@ const DEMO_SLUG = 'brightwater'
 async function seedBusinessHours(workspace_id: string) {
   await db.insert(workspace_settings).values({ workspace_id, timezone: 'America/Los_Angeles' }).onConflictDoNothing()
   // The demo uses its hours (they are opt-in).
-  await db.update(workspace_settings).set({ business_hours_on: true }).where(eq(workspace_settings.workspace_id, workspace_id))
+  await db
+    .update(workspace_settings)
+    .set({ business_hours_on: true })
+    .where(eq(workspace_settings.workspace_id, workspace_id))
   await db
     .insert(availability_rules)
     .values(
@@ -189,5 +194,30 @@ async function seed() {
   console.log(`seeded ${seedCalls.length} calls. Sign in: ${DEMO.email} / ${DEMO.password}`)
 }
 
-await seed()
-await pool.end()
+async function main() {
+  const { values } = parseArgs({
+    // `pnpm db:seed -- --user …` may pass the `--` through.
+    args: process.argv.slice(2).filter(a => a !== '--'),
+    options: { user: { type: 'string' }, business: { type: 'string' }, reset: { type: 'boolean' } },
+    allowPositionals: true,
+  })
+  if (!values.user) return seed()
+  const result = await seedUserWorkspace({ email: values.user, business: values.business, reset: values.reset })
+  const counts = Object.entries(result.counts)
+    .map(([k, n]) => `${n} ${k}`)
+    .join(', ')
+  console.log(
+    result.skipped
+      ? `${values.user}: workspace ${result.workspaceId} already has test data (${counts}); --reset replaces it`
+      : `${values.user}: workspace ${result.workspaceId} filled with ${counts}`,
+  )
+}
+
+try {
+  await main()
+} catch (e) {
+  console.error(e instanceof Error ? e.message : e)
+  process.exitCode = 1
+} finally {
+  await pool.end()
+}

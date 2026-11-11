@@ -1,0 +1,9 @@
+# Local development only: a new, empty Postgres volume starts from the shared dev snapshot
+# (~/.linedesk/dev-snapshot.dump, scripts/dev-snapshot.sh) instead of an empty database. An existing
+# volume is never touched. `pnpm db:up` includes this file; another local stack adds it to COMPOSE_FILE,
+# e.g. COMPOSE_FILE=docker-compose.yml:docker-compose.snapshot.yml. Never on a server.
+services:
+  postgres:
+    volumes:
+      - ${LINEDESK_SNAPSHOT_DIR:-${HOME}/.linedesk}:/linedesk-snapshot:ro
+      - ./docker/postgres-init/restore-dev-snapshot.sh:/docker-entrypoint-initdb.d/restore-dev-snapshot.sh:ro

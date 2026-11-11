@@ -17,7 +17,7 @@ export type SeedCall = {
   next?: string
   unread?: boolean
   fields?: { label: string; value: string }[]
-  lines: [speaker: 'agent' | 'caller' | 'system', text: string][]
+  lines: [speaker: 'agent' | 'caller' | 'human' | 'system', text: string][]
 }
 
 export const GREETING = `Thanks for calling ${DEMO_BUSINESS}. This is ${DEMO_ASSISTANT}, the AI assistant. How can I help?`

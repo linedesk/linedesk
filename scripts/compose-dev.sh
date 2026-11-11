@@ -5,6 +5,6 @@
 set -e
 cd "$(dirname "$0")/.."
 if [ -f .env ]; then
-  exec docker compose --env-file .env.example --env-file .env -f docker-compose.yml -f docker-compose.dev.yml "$@"
+  exec docker compose --env-file .env.example --env-file .env -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.snapshot.yml "$@"
 fi
-exec docker compose --env-file .env.example -f docker-compose.yml -f docker-compose.dev.yml "$@"
+exec docker compose --env-file .env.example -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.snapshot.yml "$@"

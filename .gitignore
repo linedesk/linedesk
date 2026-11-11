@@ -11,3 +11,5 @@ out
 *.tsbuildinfo
 *.log
 data/
+backups/
+*.dump
