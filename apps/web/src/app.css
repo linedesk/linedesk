@@ -863,6 +863,19 @@ a.k-btn {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+/* A link that is a button: no button frame. */
+button.k-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+.k-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
 /* Narrow windows keep the status as a dot (its words are in the tooltip); a live call keeps its text. */
 @media (max-width: 1099px) {
   .ib-maya:not(.is-live) {

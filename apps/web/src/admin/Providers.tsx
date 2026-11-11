@@ -1,6 +1,7 @@
-// Admin, Providers: the connections of the install, one card per category. Each provider is a row
-// with its logo, one line and its status; Connect or Manage opens its form (ProviderDialog). Every
-// provider that is set up is tested when the page opens, so the badges say what works right now.
+// Admin, Providers: the connections of the install. A light heading per category, its providers as
+// compact tiles (logo, name, one status). A tile opens the provider's dialog (ProviderDialog), where
+// it is connected, tested and chosen. Every provider that is set up is tested when the page opens,
+// so the status says what works right now.
 import {
   categoryNames,
   type ProviderCategory,
@@ -9,12 +10,13 @@ import {
   type ProviderTestData,
 } from '@callfront/actions'
 import { useEffect, useRef, useState } from 'react'
-import { Card, HelpTip } from '../ui/form.tsx'
-import { Badge, Button } from '../ui/kit.tsx'
+import { HelpTip } from '../ui/form.tsx'
+import { cx } from '../ui/kit.tsx'
 import { type ActiveProviders, type ProviderStatus, runAdmin, testProvider } from './api.ts'
-import { type Connection, connectionOf, isConfigured, providerState, type TestState } from './model.ts'
+import { connectionOf, isConfigured, providerState, type TestState } from './model.ts'
 import { errorText, type Notify } from './notify.ts'
-import { ProviderDialog, SERVER_SETTING_TIP } from './ProviderDialog.tsx'
+import { clearOpenRouterReturn, type OpenRouterReturn, peekOpenRouterReturn } from './openrouterAuth.ts'
+import { ProviderDialog, ServerSet } from './ProviderDialog.tsx'
 import { Logo, providerMeta } from './ProviderLogo.tsx'
 
 type Props = {
@@ -54,73 +56,50 @@ function useConnectionTests(providers: ProviderStatus[]) {
   return { tests, record }
 }
 
-function StatusBadge({ connection, test }: { connection: Connection; test: TestState }) {
-  if (connection === 'none') return <Badge tone="outline">Not connected</Badge>
-  if (connection === 'checking') return <Badge>Checking…</Badge>
-  if (connection === 'connected')
-    return (
-      <Badge tone="ok" dot>
-        Connected
-      </Badge>
-    )
-  return (
-    <Badge tone="danger" dot title={typeof test === 'object' ? test.message : undefined}>
-      Error
-    </Badge>
-  )
-}
+type TileStatus = { word: string; dot: 'ink' | 'muted' | 'danger' | null; title?: string }
 
-type RowProps = {
-  provider: ProviderStatus
-  test: TestState
-  inUse: boolean
-  canUse: boolean
-  onOpen: () => void
-  onUse: () => void
-}
-
-function ProviderRow({ provider, test, inUse, canUse, onOpen, onUse }: RowProps) {
-  const meta = providerMeta[provider.provider]
+/** One status per tile: Active, Connected, Error, Checking… or Not connected. */
+export function tileStatus(provider: ProviderStatus, test: TestState, inUse: boolean): TileStatus {
   const connection = connectionOf(provider, test)
-  const configured = connection !== 'none'
+  if (connection === 'none') return { word: 'Not connected', dot: null }
+  if (connection === 'checking') return { word: 'Checking…', dot: null }
+  if (connection === 'error')
+    return { word: 'Error', dot: 'danger', title: typeof test === 'object' ? test.message : undefined }
+  return inUse ? { word: 'Active', dot: 'ink' } : { word: 'Connected', dot: 'muted' }
+}
+
+type TileProps = { provider: ProviderStatus; test: TestState; inUse: boolean; onOpen: () => void }
+
+function ProviderTile({ provider, test, inUse, onOpen }: TileProps) {
+  const status = tileStatus(provider, test, inUse)
+  const fromServer = isConfigured(provider) && providerState(provider) === 'env'
   return (
-    <li className="adm-conn">
-      <Logo mark={meta.mark} />
-      <div className="adm-conn-text">
-        <div className="adm-conn-name">
+    <li>
+      <button
+        type="button"
+        className={cx('adm-tile', status.dot === 'ink' && 'adm-tile-active')}
+        onClick={onOpen}
+        title={`${status.dot === null && status.word === 'Not connected' ? 'Connect' : 'Manage'} ${provider.label}`}
+      >
+        <Logo mark={providerMeta[provider.provider].mark} />
+        <span className="adm-tile-text">
           <b>{provider.label}</b>
-          <StatusBadge connection={connection} test={test} />
-          {inUse && <Badge>In use</Badge>}
-          {configured && providerState(provider) === 'env' && (
-            <Badge tone="outline" title={SERVER_SETTING_TIP}>
-              From server settings
-            </Badge>
-          )}
-        </div>
-        {connection === 'error' && typeof test === 'object' && <span className="adm-conn-blurb">{test.message}</span>}
-      </div>
-      <div className="adm-conn-actions">
-        {canUse && !inUse && connection === 'connected' && (
-          <Button size="sm" variant="ghost" onClick={onUse} title={`Use ${provider.label}`}>
-            Use
-          </Button>
-        )}
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={onOpen}
-          title={configured ? `Manage ${provider.label}` : `Connect ${provider.label}`}
-        >
-          {configured ? 'Manage' : 'Connect'}
-        </Button>
-      </div>
+          <span className={cx('adm-tile-status', status.dot && `adm-dot-${status.dot}`)} title={status.title}>
+            {status.word}
+            {fromServer && <ServerSet />}
+          </span>
+        </span>
+      </button>
     </li>
   )
 }
 
 export function Providers({ providers, active, canStore, notify, reload }: Props) {
   const { tests, record } = useConnectionTests(providers)
-  const [open, setOpen] = useState<ProviderName | null>(null)
+  // Back from "Connect with OpenRouter": its dialog opens and finishes the connection.
+  const [oauthReturn] = useState<OpenRouterReturn | null>(() => peekOpenRouterReturn())
+  useEffect(clearOpenRouterReturn, [])
+  const [open, setOpen] = useState<ProviderName | null>(oauthReturn ? 'openrouter' : null)
   const opened = providers.find(p => p.provider === open)
 
   async function use(category: ProviderCategory, provider: ProviderName | null) {
@@ -156,26 +135,24 @@ export function Providers({ providers, active, canStore, notify, reload }: Props
       {categoryNames.map(category => {
         const inCategory = providers.filter(p => p.category === category)
         const { provider: inUse } = active[category]
-        // Recording has no fallback: without a pick, calls are not recorded.
-        const canUse = inCategory.length > 1 || category === 'recording'
-        // The title says what the category is; the one line left is recording being off.
-        const description = category === 'recording' && !inUse ? 'Off: calls are not recorded.' : undefined
         return (
-          <Card key={category} title={providerCategories[category]} description={description} className="adm-cat">
-            <ul className="adm-conns">
+          <section key={category} className="adm-provcat" aria-labelledby={`adm-cat-${category}`}>
+            <h2 id={`adm-cat-${category}`}>
+              {providerCategories[category]}
+              {category === 'recording' && !inUse && <span className="adm-provcat-note">Off</span>}
+            </h2>
+            <ul className="adm-tiles">
               {inCategory.map(p => (
-                <ProviderRow
+                <ProviderTile
                   key={p.provider}
                   provider={p}
                   test={tests[p.provider]}
                   inUse={inUse === p.provider}
-                  canUse={canUse}
                   onOpen={() => setOpen(p.provider)}
-                  onUse={() => void use(category, p.provider)}
                 />
               ))}
             </ul>
-          </Card>
+          </section>
         )
       })}
       {opened && (
@@ -184,8 +161,10 @@ export function Providers({ providers, active, canStore, notify, reload }: Props
           provider={opened}
           inUse={active[opened.category].provider === opened.provider}
           chosen={active[opened.category].chosen}
+          connected={connectionOf(opened, tests[opened.provider]) === 'connected'}
           canUse={providers.filter(p => p.category === opened.category).length > 1 || opened.category === 'recording'}
           canStore={canStore}
+          oauthReturn={opened.provider === 'openrouter' ? oauthReturn : null}
           onTested={result => record(opened.provider, result)}
           onUse={() => use(opened.category, opened.provider)}
           onStopUsing={() => use(opened.category, null)}

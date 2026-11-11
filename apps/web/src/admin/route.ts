@@ -18,7 +18,7 @@ export const adminSections = [
   {
     id: 'providers',
     label: 'Providers',
-    description: 'Connections for calls, speech, the language model and recordings.',
+    description: '',
   },
   {
     id: 'system',

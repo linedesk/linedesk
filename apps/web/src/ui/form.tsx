@@ -278,7 +278,11 @@ export function Dialog({ title, description, icon, onClose, footer, onSubmit, si
   useEffect(() => {
     const at = document.activeElement
     if (at && box.current?.querySelector('.k-dialog-body')?.contains(at)) return
-    box.current?.querySelector<HTMLElement>('.k-dialog-body :is(input, textarea):not(:disabled)')?.focus()
+    const body = box.current?.querySelector('.k-dialog-body')
+    ;(
+      body?.querySelector<HTMLElement>(':is(input, textarea):not(:disabled)') ??
+      body?.querySelector<HTMLElement>('.k-btn-primary:not(:disabled)')
+    )?.focus()
   }, [])
   function onKey(e: KeyboardEvent) {
     if (e.key !== 'Escape') return

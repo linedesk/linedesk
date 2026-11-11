@@ -7,10 +7,10 @@ import {
   providerCategories,
   providers as providerSpecs,
 } from '@callfront/actions'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { Switch } from '../ui/controls.tsx'
 import { Dialog, FormField, Input, SecretInput } from '../ui/form.tsx'
-import { Badge, Button, Icon } from '../ui/kit.tsx'
+import { Button, Icon } from '../ui/kit.tsx'
 import { type ProviderField, type ProviderStatus, runAdmin, testProvider } from './api.ts'
 import {
   changedValues,
@@ -22,18 +22,32 @@ import {
   providerState,
 } from './model.ts'
 import { errorText } from './notify.ts'
-import { Logo, presetMarks, providerMeta } from './ProviderLogo.tsx'
+import { exchangeCode, type OpenRouterReturn, startOpenRouterConnect } from './openrouterAuth.ts'
+import { Logo, presetMeta, providerMeta } from './ProviderLogo.tsx'
 
 export const SERVER_SETTING_TIP = 'Set on the server. A value saved here takes priority.'
+
+/** A value that comes from the server's settings: a small server icon, the rest in its tooltip. */
+export function ServerSet() {
+  return (
+    <span className="adm-server" role="img" aria-label={SERVER_SETTING_TIP} title={SERVER_SETTING_TIP}>
+      <Icon name="server" size={12} />
+    </span>
+  )
+}
 
 type Props = {
   provider: ProviderStatus
   inUse: boolean
   /** An admin picked this provider (not the default). */
   chosen: boolean
-  /** "Use this provider" makes sense: there is a choice, or recording is off without one. */
+  /** "Use" makes sense: there is a choice, or recording is off without one. */
   canUse: boolean
+  /** The page's last test of these keys worked. */
+  connected: boolean
   canStore: boolean
+  /** Back from "Connect with OpenRouter": the code to exchange, or why there is none. */
+  oauthReturn?: OpenRouterReturn | null
   onTested: (result: ProviderTestData) => void
   onUse: () => Promise<void>
   /** Clears the pick of this category (recording: stop recording). */
@@ -49,7 +63,8 @@ const presetsOf = (provider: ProviderStatus) =>
   ((providerSpecs[provider.provider] as { presets?: readonly ProviderPreset[] }).presets ?? []) as ProviderPreset[]
 
 export function ProviderDialog(props: Props) {
-  const { provider, inUse, chosen, canUse, canStore, onTested, onUse, onStopUsing, reload, notify, onClose } = props
+  const { provider, inUse, chosen, canUse, connected, canStore, oauthReturn } = props
+  const { onTested, onUse, onStopUsing, reload, notify, onClose } = props
   const meta = providerMeta[provider.provider]
   const [values, setValues] = useState(() => initialValues(provider))
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -57,6 +72,9 @@ export function ProviderDialog(props: Props) {
   const [result, setResult] = useState<ProviderTestData | null>(null)
   const [preset, setPreset] = useState<ProviderPreset | null>(null)
   const configured = isConfigured(provider)
+  // OpenRouter connects through its own sign-in; typing a key is the fallback.
+  const oauth = provider.provider === 'openrouter'
+  const [manual, setManual] = useState(!oauth || configured)
   const changes = changedValues(provider, values)
   const dirty = Object.keys(changes).length > 0
   const busy = phase === 'saving' || phase === 'testing' || phase === 'disconnecting'
@@ -70,7 +88,7 @@ export function ProviderDialog(props: Props) {
 
   async function save(e: FormEvent) {
     e.preventDefault()
-    if (busy) return
+    if (busy || !manual) return
     const problems = fieldErrors(provider, values)
     setErrors(problems)
     const first = Object.keys(problems)[0]
@@ -97,6 +115,30 @@ export function ProviderDialog(props: Props) {
     }
   }
 
+  /** Stores the key OpenRouter handed out, then tests it like a typed one. */
+  const finishing = useRef(false)
+  useEffect(() => {
+    if (!oauthReturn || finishing.current) return
+    finishing.current = true
+    if ('error' in oauthReturn) return setResult({ ok: false, message: oauthReturn.error })
+    void (async () => {
+      setPhase('saving')
+      try {
+        const key = await exchangeCode(oauthReturn.code, oauthReturn.verifier)
+        await runAdmin('provider.setKeys', { provider: provider.provider, values: { api_key: key } })
+        setPhase('testing')
+        const tested = await testProvider(provider.provider).catch(err => ({ ok: false, message: errorText(err) }))
+        setResult(tested)
+        onTested(tested)
+        await reload()
+      } catch (err) {
+        setResult({ ok: false, message: errorText(err) })
+      } finally {
+        setPhase('idle')
+      }
+    })()
+  }, [oauthReturn, provider.provider, onTested, reload])
+
   async function disconnect() {
     setPhase('disconnecting')
     try {
@@ -112,6 +154,10 @@ export function ProviderDialog(props: Props) {
   }
 
   const fieldId = (field: string) => `prov-${provider.provider}-${field}`
+  const useLabel = provider.category === 'recording' ? 'Record here' : 'Use for calls'
+  const keysUrl = preset ? presetMeta[preset.label]?.keysUrl : meta.keysUrl
+  /** "Get a key" goes next to the first field the provider's key page hands out. */
+  const keyField = provider.fields.find(f => f.secret || f.field === 'access_key_id' || f.field === 'account_sid')
   const working = result?.ok && !dirty
   const primaryLabel =
     phase === 'saving'
@@ -157,6 +203,11 @@ export function ProviderDialog(props: Props) {
             Stop recording
           </Button>
         )}
+        {canUse && !inUse && (connected || result?.ok) && !dirty && (
+          <Button variant="secondary" className="k-dialog-foot-start" disabled={busy} onClick={() => void onUse()}>
+            {useLabel}
+          </Button>
+        )}
         {working ? (
           <Button variant="primary" onClick={onClose}>
             Done
@@ -166,14 +217,16 @@ export function ProviderDialog(props: Props) {
             <Button variant="ghost" onClick={onClose} disabled={busy}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={busy || (dirty && !canStore)}
-              title={dirty ? 'Save and test (⌘S)' : undefined}
-            >
-              {primaryLabel}
-            </Button>
+            {manual && (
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={busy || (dirty && !canStore)}
+                title={dirty ? 'Save and test (⌘S)' : undefined}
+              >
+                {primaryLabel}
+              </Button>
+            )}
           </>
         )}
       </>
@@ -207,7 +260,7 @@ export function ProviderDialog(props: Props) {
                   for (const [field, value] of Object.entries(p.values)) set(field, value)
                 }}
               >
-                {presetMarks[p.label] && <Logo mark={presetMarks[p.label]!} size={28} />}
+                {presetMeta[p.label] && <Logo mark={presetMeta[p.label]!.mark} size={28} />}
                 <span>{p.label}</span>
               </button>
             ))}
@@ -215,30 +268,40 @@ export function ProviderDialog(props: Props) {
         </FormField>
       )}
       {provider.fields.length === 0 && <p className="k-field-desc">Nothing to set up.</p>}
-      {provider.fields.map((field, i) => (
-        <ProviderInput
-          key={`${field.field}:${field.last4 ?? ''}`}
-          id={fieldId(field.field)}
-          provider={provider}
-          field={field}
-          value={values[field.field] ?? ''}
-          error={errors[field.field]}
-          disabled={!canStore || busy}
-          autoFocus={i === 0 && !configured}
-          onChange={value => set(field.field, value)}
-        />
-      ))}
+      {!manual && !result?.ok && (
+        <div className="adm-oauth">
+          <Button
+            variant="primary"
+            disabled={busy || !canStore}
+            onClick={() => void startOpenRouterConnect()}
+            title="Sign in to OpenRouter and create a key for Linedesk"
+          >
+            {busy ? 'Connecting…' : 'Connect with OpenRouter'}
+          </Button>
+          <button type="button" className="k-link" onClick={() => setManual(true)}>
+            Enter a key instead
+          </button>
+        </div>
+      )}
+      {manual &&
+        provider.fields.map((field, i) => (
+          <ProviderInput
+            key={`${field.field}:${field.last4 ?? ''}`}
+            id={fieldId(field.field)}
+            provider={provider}
+            field={field}
+            value={values[field.field] ?? ''}
+            error={errors[field.field]}
+            disabled={!canStore || busy}
+            autoFocus={i === 0 && !configured}
+            keysUrl={field === keyField ? keysUrl : undefined}
+            onChange={value => set(field.field, value)}
+          />
+        ))}
       {result && (
         <div className={result.ok ? 'k-note' : 'k-note k-note-danger'} role="status">
           <Icon name={result.ok ? 'check' : 'ban'} size={14} />
-          <span className="adm-result">
-            {result.ok ? 'Connected.' : result.message}
-            {result.ok && canUse && !inUse && (
-              <Button size="sm" variant="secondary" onClick={() => void onUse()}>
-                Use this provider
-              </Button>
-            )}
-          </span>
+          <span className="adm-result">{result.ok ? 'Connected.' : result.message}</span>
         </div>
       )}
     </Dialog>
@@ -253,16 +316,19 @@ type InputProps = {
   error?: string
   disabled: boolean
   autoFocus: boolean
+  /** Where the provider hands out this key: a "Get a key" link next to the label. */
+  keysUrl?: string
   onChange: (value: string) => void
 }
 
-function ProviderInput({ id, provider, field, value, error, disabled, autoFocus, onChange }: InputProps) {
-  const fromServer = field.source === 'env' && (
-    <Badge tone="outline" title={SERVER_SETTING_TIP}>
-      From server settings
-    </Badge>
+function ProviderInput({ id, provider, field, value, error, disabled, autoFocus, keysUrl, onChange }: InputProps) {
+  const fromServer = field.source === 'env' && <ServerSet />
+  const getKey = keysUrl && (
+    <a className="k-link adm-getkey" href={keysUrl} target="_blank" rel="noreferrer" title="Opens in a new tab">
+      Get a key
+    </a>
   )
-  const aside = fromServer || (isOptional(provider, field) ? 'Optional' : undefined)
+  const aside = fromServer || getKey || (isOptional(provider, field) ? 'Optional' : undefined)
   if (isSwitch(provider, field)) {
     const on = (value || field.value || 'true') !== 'false'
     return (

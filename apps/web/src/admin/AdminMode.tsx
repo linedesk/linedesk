@@ -255,7 +255,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
         ))}
       </nav>
       <main className="adm-main">
-        <div className="adm-col">
+        <div className={place.section === 'providers' ? 'adm-col adm-col-wide' : 'adm-col'}>
           <header className="adm-head">
             {detailTitle ? (
               <>
@@ -273,7 +273,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
             ) : (
               <>
                 <h1>{meta.label}</h1>
-                <p>{meta.description}</p>
+                {meta.description && <p>{meta.description}</p>}
               </>
             )}
           </header>
