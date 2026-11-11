@@ -85,6 +85,9 @@ services:
     build: { context: ., target: web }
     image: linedesk-web
     ports: ["${LINEDESK_HTTP_BIND:-80}:80"]
+    environment:
+      # Behind your own reverse proxy: the ranges it connects from, so Caddy keeps its X-Forwarded-For (docker/Caddyfile).
+      LINEDESK_TRUSTED_PROXY_RANGES: ${LINEDESK_TRUSTED_PROXY_RANGES:-}
     volumes: ["caddy_data:/data"]
     depends_on:
       api: { condition: service_healthy }

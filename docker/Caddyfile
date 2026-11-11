@@ -1,6 +1,15 @@
 # Web entry point: the web app, /api and /v1 proxied to the API, /rtc to LiveKit.
 # Default: plain HTTP on port 80 for any host name (directly, or behind another reverse proxy that
 # terminates TLS). With SITE_ADDRESS=https://your.domain Caddy gets the certificate itself.
+{
+	servers {
+		# Behind your own reverse proxy: its address or range (LINEDESK_TRUSTED_PROXY_RANGES, e.g. the
+		# Docker gateway 172.16.0.0/12), so the X-Forwarded-For it sends is kept and rate limits see each
+		# client. Empty (the default): no upstream is trusted and a client cannot pick its own address.
+		trusted_proxies static {$LINEDESK_TRUSTED_PROXY_RANGES}
+	}
+}
+
 {$SITE_ADDRESS::80} {
 	@api path /api/* /v1/*
 	handle @api {
