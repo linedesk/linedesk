@@ -1,7 +1,7 @@
 // The report of a call test, from what the business's side recorded: transcript, summary,
 // pass/fail per check, and how quickly the assistant answered.
 import type { CallTestFinding } from '@linedesk/actions'
-import type { LatencySample } from './latency.ts'
+import { type AgentSetup, GREETING_TARGET_MS, type LatencySample } from './latency.ts'
 import type { Expectation, Scenario } from './scenarios.ts'
 
 export type Check = { ok: boolean; label: string; detail: string }
@@ -150,7 +150,26 @@ export function formatCallerLatency(sample: LatencySample | null): string {
   return `Latency heard by the caller: greeting after ${sample.greetingMs === null ? 'none' : seconds(sample.greetingMs)}; reply ${stats}`
 }
 
-export function formatReport(finding: CallTestFinding, checks: Check[], heard: LatencySample | null = null): string {
+/** The business agent's own timing: from its job start (pickup, in room mode) to each setup step. */
+export function formatAgentSetup(setup: AgentSetup | null): string {
+  if (!setup) return 'Greeting from pickup (business agent): not measured'
+  const { steps, greeting } = setup
+  const greetingAt = steps['greeting audio']
+  const parts = Object.entries(steps).map(([step, ms]) => `${step} ${seconds(ms)}`).join(', ')
+  return `Greeting from pickup (business agent): ${greetingAt === undefined ? 'none' : seconds(greetingAt)}${greeting ? ` (greeting ${greeting})` : ''}; steps: ${parts}`
+}
+
+/** The greeting starts within GREETING_TARGET_MS of pickup, measured by the business's agent. */
+export function greetingCheck(setup: AgentSetup | null): Check {
+  const at = setup?.steps['greeting audio']
+  return {
+    ok: at !== undefined && at <= GREETING_TARGET_MS,
+    label: 'greeting from pickup',
+    detail: at === undefined ? 'not measured' : `${seconds(at)} (target ${seconds(GREETING_TARGET_MS)})`,
+  }
+}
+
+export function formatReport(finding: CallTestFinding, checks: Check[], heard: LatencySample | null = null, setup: AgentSetup | null = null): string {
   const out: string[] = []
   if (finding.lines.length) {
     out.push(
@@ -171,6 +190,7 @@ export function formatReport(finding: CallTestFinding, checks: Check[], heard: L
     )
   }
   out.push(formatCallerLatency(heard))
+  if (setup) out.push(formatAgentSetup(setup))
   out.push('Checks:', ...checks.map(c => `  ${c.ok ? 'PASS' : 'FAIL'}  ${c.label}: ${c.detail}`))
   out.push(checks.every(c => c.ok) ? 'Call test passed.' : 'Call test failed.')
   return out.join('\n')

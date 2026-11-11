@@ -4,7 +4,7 @@ import { createLatencyLog, createOnsetDetector, rms } from './latency.ts'
 import { isGoodbye } from './caller.ts'
 import { waitForFinishedCall } from './wait.ts'
 import { describeMetrics } from '../turn-metrics.ts'
-import { evaluateCall, formatCallerLatency, formatReport, latencyOf, percentile } from './report.ts'
+import { evaluateCall, formatAgentSetup, formatCallerLatency, formatReport, greetingCheck, latencyOf, percentile } from './report.ts'
 import { callerInstructions, parseTestCallerMetadata, scenarioNames, scenarios } from './scenarios.ts'
 
 const lines = [
@@ -161,4 +161,13 @@ test('call test: a completed call is waited on for its recording, up to the grac
   expect((never as { call: { recording_key: null } }).call.recording_key).toBeNull()
   expect(clock).toBeGreaterThanOrEqual(30_000)
   expect(clock).toBeLessThan(40_000)
+})
+
+test('greeting from pickup: the business agent\'s own timing, checked against 2.5 s', () => {
+  const setup = { steps: { connected: 310, caller: 311, session: 893, 'greeting audio': 925 }, greeting: 'cached' }
+  expect(greetingCheck(setup)).toEqual({ ok: true, label: 'greeting from pickup', detail: '0.9 s (target 2.5 s)' })
+  expect(greetingCheck({ steps: { 'greeting audio': 2600 }, greeting: 'synthesized' }).ok).toBe(false)
+  expect(greetingCheck(null)).toMatchObject({ ok: false, detail: 'not measured' })
+  expect(formatAgentSetup(setup)).toBe('Greeting from pickup (business agent): 0.9 s (greeting cached); steps: connected 0.3 s, caller 0.3 s, session 0.9 s, greeting audio 0.9 s')
+  expect(formatAgentSetup(null)).toContain('not measured')
 })

@@ -13,8 +13,8 @@ import { AgentDispatchClient, RoomServiceClient } from 'livekit-server-sdk'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { AGENT_NAME, livekitHttpUrl, requireEnv, requireLivekitEnv, runScript } from './env.ts'
 import { CALLEE_IDENTITY } from './test-caller/caller.ts'
-import { LATENCY_ATTRIBUTE, type LatencySample } from './test-caller/latency.ts'
-import { evaluateCall, formatReport } from './test-caller/report.ts'
+import { type AgentSetup, LATENCY_ATTRIBUTE, type LatencySample, SETUP_ATTRIBUTE } from './test-caller/latency.ts'
+import { evaluateCall, formatReport, greetingCheck } from './test-caller/report.ts'
 import { waitForFinishedCall } from './test-caller/wait.ts'
 import { isScenario, scenarioNames, scenarios, type CallTestMode, type Scenario, type ScenarioName, type TestCallerMetadata } from './test-caller/scenarios.ts'
 import { findOutboundTrunk, sipClient } from './test-caller/trunk.ts'
@@ -27,18 +27,25 @@ const RESULT_WAIT_MS = 90_000
 type Run = { name: ScenarioName; mode: CallTestMode; to: string; room: string; since: string; api: ApiClient }
 
 
-/** Reads the test caller's latency attribute while its room exists; keeps the last value seen. */
+/**
+ * Reads, while the room exists, the test caller's latency attribute and the business agent's setup
+ * attribute; keeps the last value seen of each.
+ */
 function latencyReader(room: string) {
   const livekit = requireLivekitEnv()
   const rooms = new RoomServiceClient(livekitHttpUrl(livekit.LIVEKIT_URL), livekit.LIVEKIT_API_KEY, livekit.LIVEKIT_API_SECRET)
   let last: LatencySample | null = null
+  let setup: AgentSetup | null = null
   return {
     get: () => last,
+    setup: () => setup,
     async poll() {
       const participants = await rooms.listParticipants(room).catch(() => [])
       for (const p of participants) {
         const value = p.attributes[LATENCY_ATTRIBUTE]
         if (value) last = JSON.parse(value) as LatencySample
+        const own = p.attributes[SETUP_ATTRIBUTE]
+        if (own) setup = JSON.parse(own) as AgentSetup
       }
     },
   }
@@ -93,8 +100,9 @@ async function main() {
   const latency = latencyReader(run.room)
   const expectRecording = args.includes('--expect-recording')
   const finding = await waitForFinishedCall(find, Date.now() + MAX_CALL_SEC * 1000 + RESULT_WAIT_MS, latency.poll, { expectRecording })
-  const checks = evaluateCall(finding, scenarios[name], { expectRecording })
-  console.log(formatReport(finding, checks, latency.get()))
+  // Room mode: the business agent's job starts when the call is picked up, so its own timing is pickup to greeting.
+  const checks = [...evaluateCall(finding, scenarios[name], { expectRecording }), ...(mode === 'room' ? [greetingCheck(latency.setup())] : [])]
+  console.log(formatReport(finding, checks, latency.get(), latency.setup()))
   if (args.includes('--cancel-booking')) await cancelTestBookings(run.api, finding)
   if (!checks.every(c => c.ok)) process.exitCode = 1
 }

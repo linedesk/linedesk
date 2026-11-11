@@ -162,6 +162,10 @@ services:
       LINEDESK_API_URL: http://api:3100
       LIVEKIT_URL: ws://livekit:7880
       AGENT_IDLE_PROCESSES: ${AGENT_IDLE_PROCESSES:-1} # processes kept warm for the next call
+      # Greeting audio is made once per greeting and voice; on a volume it survives a new image,
+      # so the first call after a deploy plays it stored instead of waiting for the voice provider.
+      GREETING_CACHE_DIR: /var/cache/linedesk/greetings
+    volumes: ["greetings:/var/cache/linedesk/greetings"]
     depends_on:
       api: { condition: service_healthy }
       livekit: { condition: service_started }
@@ -207,3 +211,4 @@ volumes:
   pgdata:
   caddy_data:
   recordings:
+  greetings:

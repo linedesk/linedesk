@@ -5,6 +5,14 @@ import { voice, type JobContext } from '@livekit/agents'
 import { AudioStream, type AudioFrame, type RemoteParticipant, RoomEvent, TrackKind } from '@livekit/rtc-node'
 
 export const LATENCY_ATTRIBUTE = 'linedesk.latency'
+/**
+ * The business's agent publishes its own setup timings on this attribute: milliseconds from its job
+ * start (in room mode: when the call is picked up) to each step, and whether the greeting was stored audio.
+ */
+export const SETUP_ATTRIBUTE = 'linedesk.setup'
+export type AgentSetup = { steps: Record<string, number>; greeting: string }
+/** The greeting must start within this long of pickup (on the test server's hardware). */
+export const GREETING_TARGET_MS = 2500
 export type LatencySample = { greetingMs: number | null; replyMs: number[] }
 
 /** Level above which a 10 ms frame counts as speech (16-bit PCM RMS). Phone and TTS audio sit far above it. */

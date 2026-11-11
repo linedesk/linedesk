@@ -23,6 +23,7 @@ import { describeRecording, livekitRecorder, resolveRecording, saveRecording, st
 import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from './counterpart.ts'
 import { runTestCaller } from './test-caller/caller.ts'
 import { parseTestCallerMetadata, type TestCallerMetadata } from './test-caller/scenarios.ts'
+import { type AgentSetup, SETUP_ATTRIBUTE } from './test-caller/latency.ts'
 
 let configLoader: (() => Promise<AgentConfig>) | undefined
 /** The effective provider config: Linedesk's provider settings first, the environment as fallback, cached briefly per process. */
@@ -169,7 +170,7 @@ async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClie
     if (newState !== 'speaking') return
     session.off(voice.AgentSessionEventTypes.AgentStateChanged, onSpeaking)
     setup.mark('greeting audio')
-    setup.log(call.callId)
+    setup.log(call.callId, ctx.room)
   }
   session.on(voice.AgentSessionEventTypes.AgentStateChanged, onSpeaking)
   recordConversation(session, log)
@@ -190,14 +191,22 @@ async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClie
 /** Times from the job's start to each setup step, logged once per call with the wall-clock start. */
 type SetupTimer = ReturnType<typeof setupTimer>
 function setupTimer(startedAt = Date.now()) {
-  const marks: string[] = []
+  const steps: Record<string, number> = {}
   let detail = ''
   return {
-    mark: (step: string) => void marks.push(`${step} +${Date.now() - startedAt} ms`),
+    mark(step: string) {
+      steps[step] = Date.now() - startedAt
+    },
     note(text: string) {
       detail = text
     },
-    log: (callId: string) => console.log(`setup ${callId}: job started ${new Date(startedAt).toISOString()}, ${marks.join(', ')}${detail ? ` (greeting ${detail})` : ''}`),
+    /** Logs the timings and publishes them on the agent's participant, where the call test reads them. */
+    log(callId: string, room?: JobContext['room']) {
+      const marks = Object.entries(steps).map(([step, ms]) => `${step} +${ms} ms`)
+      console.log(`setup ${callId}: job started ${new Date(startedAt).toISOString()}, ${marks.join(', ')}${detail ? ` (greeting ${detail})` : ''}`)
+      const setup: AgentSetup = { steps, greeting: detail }
+      void room?.localParticipant?.setAttributes({ [SETUP_ATTRIBUTE]: JSON.stringify(setup) }).catch(() => {})
+    },
   }
 }
 
