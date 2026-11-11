@@ -34,15 +34,21 @@ export const MAX_TRANSFER_TRIES = 3
 /** What the assistant does when nobody it tried accepts. */
 export type Fallback = 'message_urgent' | 'message'
 
+/** A condition as written, without case, extra spaces or a closing full stop: two contacts with the same one fit the same calls. */
+const conditionKey = (condition: string) => condition.trim().toLowerCase().replace(/\s+/g, ' ').replace(/[.!?]+$/, '')
+
 /**
  * Whom to try, in order, for the contacts the assistant said fit this call (by name), and what to do
- * when none of them accepts. The owner's list order wins over the order the assistant named them. A
- * contact whose fallback is "next" hands over to the next one that fits; when there is none, the
- * assistant takes a message marked urgent (someone wanted the call to reach a person).
+ * when none of them accepts. A named contact stands for its condition: every contact with the same
+ * condition fits too, so a backup is tried even when the assistant named only the first one. The owner's
+ * list order wins over the order the assistant named them. A contact whose fallback is "next" hands over
+ * to the next one that fits; when there is none, the assistant takes a message marked urgent (someone
+ * wanted the call to reach a person).
  */
 export function transferPlan(contacts: Dialable[], picked: readonly string[]): { tries: Dialable[]; fallback: Fallback } | null {
   const names = new Set(picked.map(n => n.trim().toLowerCase()))
-  const fitting = contacts.filter(c => names.has(c.name.trim().toLowerCase()))
+  const conditions = new Set(contacts.filter(c => names.has(c.name.trim().toLowerCase())).map(c => conditionKey(c.condition)))
+  const fitting = contacts.filter(c => conditions.has(conditionKey(c.condition)))
   if (!fitting.length) return null
   const tries: Dialable[] = []
   for (const contact of fitting) {

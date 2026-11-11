@@ -72,8 +72,15 @@ test('the plan tries the contacts that fit in the owner\'s order, whatever order
   // Mike's fallback is a message: Sarah is not tried even though she fits.
   const plain = transferContactsFor(assistant({ transfers: [contact(), sarah] }), open)
   expect(ids(transferPlan(plain, ['Mike', 'Sarah'])!.tries)).toEqual(['oncall'])
+  // Sarah has Mike's condition: she fits too, even when only Mike is named (the model often names one).
+  expect(ids(transferPlan(list, ['Mike'])!.tries)).toEqual(['oncall', 'sarah'])
+  expect(ids(transferPlan(list, ['sarah'])!.tries)).toEqual(['oncall', 'sarah']) // the owner's order, from the first that fits
   // "Try the next" with nobody left: a message marked urgent.
-  expect(transferPlan(list, ['Mike'])).toMatchObject({ tries: [{ id: 'oncall' }], fallback: 'message_urgent' })
+  const alone = transferContactsFor(assistant({ transfers: [mikeNext, office] }), open)
+  expect(transferPlan(alone, ['Mike'])).toMatchObject({ tries: [{ id: 'oncall' }], fallback: 'message_urgent' })
+  // The same condition written differently (case, spaces, a full stop) is the same condition.
+  const backup = contact({ id: 'backup', name: 'Backup', number: '+15035550122', condition: ' urgent:  a burst pipe, a gas smell, no heat. ' })
+  expect(ids(transferPlan(transferContactsFor(assistant({ transfers: [mikeNext, backup] }), open), ['Mike'])!.tries)).toEqual(['oncall', 'backup'])
   // A name that is no contact (or a contact not reachable now): no transfer.
   expect(transferPlan(list, ['Owner'])).toBeNull()
 })
