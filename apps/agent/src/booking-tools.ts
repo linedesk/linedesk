@@ -40,7 +40,7 @@ export function spreadSlots(slots: FindSlotsData['slots']): FindSlotsData['slots
 const failure = (e: unknown) => (e instanceof ActionError ? e.message.replace(/^[\w.]+ failed \(\d+\): /, '') : 'the calendar did not answer')
 
 export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
-  const { callId, workspaceId } = call
+  const { callId } = call
   const typeName = (id: string) => call.booking?.appointmentTypes.find(t => t.id === id)?.name ?? 'appointment'
 
   async function findSlots(args: FindSlotsArgs): Promise<string> {
@@ -48,7 +48,7 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
       const { data } = await api.run(calendarFindSlots, {
         appointmentTypeId: args.appointment_type_id, calendarId: args.calendar_id, callId, limit: SEARCH_LIMIT,
         ...(args.from_date ? { fromDate: args.from_date } : {}), ...(args.to_date ? { toDate: args.to_date } : {}),
-      }, workspaceId)
+      }, call)
       const offered = spreadSlots((data as FindSlotsData).slots)
       log.record('system', `Checked availability · ${typeName(args.appointment_type_id)} · ${offered.length} slot${offered.length === 1 ? '' : 's'}`, calendarFindSlots.name)
       if (!offered.length) return 'No free times in that range. Ask whether another day works, or take a message with the times the caller prefers.'
@@ -64,7 +64,7 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
       const { data } = await api.run(appointmentBook, {
         appointmentTypeId: args.appointment_type_id, calendarId: args.calendar_id, start: args.start, callerName: args.caller_name, reason: args.reason,
         ...(args.address ? { address: args.address } : {}), ...(args.email ? { callerEmail: args.email } : {}), callId, ...(call.assistant ? { assistantId: call.assistant.id } : {}),
-      }, workspaceId)
+      }, call)
       const booked = data as BookData
       const what = `${typeName(args.appointment_type_id)}, ${booked.label}`
       log.bookings.push(what)
@@ -89,7 +89,7 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
   async function cancel(which: DescribedBooking): Promise<string> {
     if (outOfAttempts()) return NO_MORE
     try {
-      const { data } = await api.run(appointmentCancel, described(which), workspaceId)
+      const { data } = await api.run(appointmentCancel, described(which), call)
       log.record('system', 'Cancelled an appointment', appointmentCancel.name)
       const label = (data as { label?: string } | undefined)?.label
       return `Cancelled${label ? ` the appointment on ${label}` : ''}. Tell the caller it is cancelled.`
@@ -102,7 +102,7 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
   async function reschedule(which: DescribedBooking, start: string): Promise<string> {
     if (outOfAttempts()) return NO_MORE
     try {
-      const { data } = await api.run(appointmentReschedule, { ...described(which), start }, workspaceId)
+      const { data } = await api.run(appointmentReschedule, { ...described(which), start }, call)
       const moved = data as BookData
       log.bookings.push(`moved to ${moved.label}`)
       log.record('system', `Rescheduled · ${moved.label} · ${moved.calendarName}`, appointmentReschedule.name)

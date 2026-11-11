@@ -127,7 +127,7 @@ async function main() {
 async function cancelTestBookings(api: ApiClient, { call, workspaceId, bookings = [] }: CallTestFinding) {
   for (const booking of bookings.filter(b => b.status !== 'cancelled')) {
     try {
-      await api.run(appointmentCancel, { bookingId: booking.id, callId: call!.id }, workspaceId)
+      await api.run(appointmentCancel, { bookingId: booking.id, callId: call!.id }, { workspaceId })
       console.log(`Cancelled the test booking ${booking.id} and its calendar event.`)
     } catch (e) {
       console.error(`Could not cancel the test booking ${booking.id}: ${e instanceof Error ? e.message : String(e)}`)

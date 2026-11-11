@@ -33,7 +33,9 @@ test('call.start replayed creates one call and one contact', async () => {
   const first = await act(agent(), 'call.start', { from, to: ws.number }, key)
   const replay = await act(agent(), 'call.start', { from, to: ws.number }, key)
   expect(first.status).toBe(200)
-  expect(replay).toEqual(first)
+  // The call token is shown once: the log, and so a replay, keeps it redacted.
+  expect(first.body.data.callToken).toMatch(/^ldcall_/)
+  expect(replay).toEqual({ ...first, body: { ...first.body, data: { ...first.body.data, callToken: '[redacted]' } } })
   expect(await db.select().from(calls).where(eq(calls.from_number, from))).toHaveLength(1)
   expect(await db.select().from(contacts).where(eq(contacts.phone, from))).toHaveLength(1)
 })

@@ -15,6 +15,8 @@ export type BusinessHours = { openNow: boolean; summary: string }
 export interface CallSession {
   callId: string
   workspaceId: string
+  /** The call token from `call.start` for every later request about this call; missing from an older API. */
+  token?: string
   assistant: Assistant | null
   /** null: the caller ID is withheld or not a number ("anonymous"), so the caller has no contact. */
   contact: Contact | null
@@ -44,6 +46,7 @@ export interface CallSession {
 }
 
 type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'contact'> & {
+  callToken?: string
   blocked?: boolean
   busy?: boolean
   overCap?: boolean
@@ -89,9 +92,10 @@ export type SimulatedOnCall = { answer: SimulatedAnswer; number: string }
 export async function startCall(api: ApiClient, origin: CallOrigin): Promise<CallSession> {
   const { data } = origin.kind === 'phone'
     ? await api.run(callStart, { from: origin.from, to: origin.to, room: origin.room })
-    : await api.run(callStartTest, { room: origin.room, ...(origin.assistantId ? { assistantId: origin.assistantId } : {}) }, origin.workspaceId)
+    : await api.run(callStartTest, { room: origin.room, ...(origin.assistantId ? { assistantId: origin.assistantId } : {}) }, { workspaceId: origin.workspaceId })
   const started = data as StartData
   const { callId, workspaceId, contact, blocked = false, busy = false, overCap = false } = started
+  const scope = { workspaceId, ...(started.callToken ? { token: started.callToken } : {}) }
   const businessHours = (origin.kind === 'test' && origin.businessHours) || started.businessHours || null
   // The call test may set an outside greeting to check without touching the real assistant.
   const outsideGreeting = origin.kind === 'test' ? origin.outsideGreeting : undefined
@@ -110,14 +114,14 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   const booking = started.booking ?? null
   const startedAt = Date.now()
   return {
-    callId, workspaceId, assistant, contact, blocked, busy, overCap, businessHours, booking, caller,
+    callId, ...scope, assistant, contact, blocked, busy, overCap, businessHours, booking, caller,
     businessNumber: origin.kind === 'phone' ? origin.to : null,
     simulatedOnCall: onCall?.answer ?? null,
     async append(speaker, text, toolEvent) {
-      await api.run(callAppendTranscript, { callId, speaker, text, atMs: Date.now() - startedAt, toolEvent }, workspaceId)
+      await api.run(callAppendTranscript, { callId, speaker, text, atMs: Date.now() - startedAt, toolEvent }, scope)
     },
     async finish(result) {
-      await api.run(callFinish, { callId, ...result }, workspaceId)
+      await api.run(callFinish, { callId, ...result }, scope)
     },
   }
 }

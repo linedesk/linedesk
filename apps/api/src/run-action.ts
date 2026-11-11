@@ -3,7 +3,7 @@
 // Read-only actions skip the command log: nothing to replay, nothing to audit.
 import { secondFactorRefusal } from './admin-second-factor.ts'
 import { passkeyStepUpRefusal } from './admin-step-up.ts'
-import { actions, droppedFields, inputErrorText, REDACTED, redactInput, unknownFieldsText, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
+import { actions, droppedFields, inputErrorText, redactInput, redactResult, unknownFieldsText, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
 import { commands } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
@@ -81,6 +81,30 @@ async function runUndos(undos: Undo[]): Promise<string[]> {
   return notes
 }
 
+/**
+ * Actions that open a call or find one by number: the install-wide agent token, never a call token.
+ * Compat window: until the contract step, the install-wide token (with x-workspace-id) still runs every
+ * agent action in any workspace, for agents older than the call token. Remove that by 2026-12-31: then
+ * the install-wide token runs only these actions and GET /v1/agent/provider-config.
+ */
+const INSTALL_AGENT_ACTIONS = ['call.start', 'call.startTest', 'call.findForTest']
+
+/**
+ * Why the voice agent may not run this action with this input, or null. Its role has only `agent`;
+ * a member action needs `def.agent`, and `agent: 'call'` needs the call it is for. A call token
+ * (`actor.callId`) runs only actions for its own call.
+ */
+export function agentRefusal(def: ActionDef, input: unknown, actor: Actor): string | null {
+  if (actor.role !== 'agent') return null
+  if (def.permission !== 'agent' && !def.agent) return `the voice agent may not run ${def.name}`
+  const callId = (input as { callId?: unknown }).callId
+  if (def.agent === 'call' && typeof callId !== 'string') return `the voice agent runs ${def.name} only with its callId`
+  if (!actor.callId) return null
+  if (INSTALL_AGENT_ACTIONS.includes(def.name)) return `${def.name} needs the agent token, not a call token`
+  if (callId !== undefined && callId !== actor.callId) return 'this call token is for another call'
+  return null
+}
+
 async function runReadOnly(def: ActionDef, input: unknown, actor: Actor): Promise<RunResult> {
   try {
     return { status: 200, body: { ok: true, ...(await runHandler({ tx: db, actor, now: new Date().toISOString() }, def, input)) } }
@@ -96,7 +120,8 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   if (!def) return rejection(404, `unknown action ${name}`)
   const refusal = secondFactorRefusal(actor, def.permission)
   if (refusal) return { status: 403, body: refusal }
-  if (!actor.permissions.includes(def.permission)) return forbidden(`missing permission ${def.permission}`)
+  const allowed = actor.role === 'agent' && def.agent ? actor.permissions.includes('agent') : actor.permissions.includes(def.permission)
+  if (!allowed) return forbidden(`missing permission ${def.permission}`)
   // An instance admin signed in as this user: reads and a short allow-list only (impersonation-guard.ts).
   if (actor.impersonation && !mayRunWhileImpersonating(def)) return forbidden(NOT_WHILE_IMPERSONATING)
   // A leaked key must not reach settings: carrier, numbers, transfer number, webhooks, calendars.
@@ -104,6 +129,8 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   if (actor.emailUnverified && needsConfirmedEmail(name, rawInput)) return emailNotVerified
   const parsed = def.input.safeParse(rawInput)
   if (!parsed.success) return rejection(422, inputErrorText(parsed.error, rawInput))
+  const agentRefused = agentRefusal(def, parsed.data, actor)
+  if (agentRefused) return forbidden(agentRefused)
   const unknown = unknownFieldsRefusal(name, rawInput, parsed.data, actor)
   if (unknown) return unknown
   const stepUp = await passkeyStepUpRefusal(def, parsed.data, actor)
@@ -139,7 +166,7 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
       const ctx = { tx, actor, now: new Date().toISOString(), onRollback, prepared }
       const result: ActionResult = { ok: true, ...(await runHandler(ctx, def, parsed.data)) }
       // A secret in the result (a new API key) goes to the caller once and never into the log, so a replay does not repeat it.
-      await tx.insert(commands).values({ ...record, result: def.secretResult ? { ...result, data: { redacted: REDACTED } } : result })
+      await tx.insert(commands).values({ ...record, result: redactResult(def, result) })
       return result
     })
     return { status: 200, body }

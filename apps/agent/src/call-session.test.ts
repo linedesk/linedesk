@@ -84,6 +84,21 @@ test('the recording notice from call.start is said right after the greeting, als
   for (const off of [null, undefined, '  ']) expect((await startCall(api(off), phone)).assistant?.greeting).toBe(row.greeting)
 })
 
+test('every request about the call after call.start goes with the call token it returned', async () => {
+  const sent: unknown[] = []
+  const api = {
+    run: async (_def: unknown, _input: unknown, scope: unknown) => {
+      sent.push(scope)
+      return { data: { callId: 'c', workspaceId: 'ws_1', assistant: null, contact: null, callToken: 'ldcall_x' } }
+    },
+  } as never
+  const call = await startCall(api, { kind: 'phone', from: '+15035550191', to: '+15035550142' })
+  await call.append('caller', 'hi')
+  await call.finish({ summary: 's', outcome: 'message', urgency: 'normal' } as never)
+  expect(sent).toEqual([undefined, { workspaceId: 'ws_1', token: 'ldcall_x' }, { workspaceId: 'ws_1', token: 'ldcall_x' }])
+  expect(call).toMatchObject({ workspaceId: 'ws_1', token: 'ldcall_x' })
+})
+
 test('a call over the spending cap or the calls at once is not answered, and the caller hears a line, never silence', async () => {
   const api = (data: Record<string, unknown>) => ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: null, contact: {}, ...data } }) }) as never
   const phone = { kind: 'phone', from: '+15035550142', to: '+15035550100', room: 'r' } as const

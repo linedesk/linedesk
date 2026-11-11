@@ -16,7 +16,8 @@ export const rolePermissions: Record<Role, readonly Permission[]> = {
   owner: ['call:read', 'call:write', 'contact:write', 'settings:write', 'calendar:read', 'calendar:write', 'team:read', 'team:write', 'invitation:respond'],
   admin: ['call:read', 'call:write', 'contact:write', 'settings:write', 'calendar:read', 'calendar:write', 'team:read', 'team:write', 'invitation:respond'],
   member: ['call:read', 'call:write', 'contact:write', 'calendar:read', 'calendar:write', 'team:read', 'invitation:respond'],
-  agent: ['call:write', 'contact:write', 'calendar:read', 'calendar:write', 'agent'],
+  // The voice agent: only the `agent` actions, plus the member actions marked with `agent` below.
+  agent: ['agent'],
 }
 
 export interface PatchSpec<I, T extends TableName = TableName> {
@@ -43,8 +44,16 @@ export interface ActionDef<S extends z.ZodType = z.ZodType, T extends TableName 
   destructive?: true
   /** Top-level input fields that hold secrets. The API replaces their values before it stores or logs the input. */
   sensitive?: readonly string[]
-  /** The result's `data` holds a secret shown once (a new API key): the command log keeps the result without it. */
-  secretResult?: true
+  /**
+   * The result's `data` holds a secret shown once (a new API key): the command log keeps the result without it.
+   * A list names only the `data` fields that are secret (an agent call token); the rest is kept.
+   */
+  secretResult?: true | readonly string[]
+  /**
+   * A member action the voice agent may also run (its role has only `agent`): `call` only for the
+   * call named by the input's `callId`, `workspace` within the call's workspace.
+   */
+  agent?: 'call' | 'workspace'
 }
 
 export const defineAction = <S extends z.ZodType, T extends TableName>(def: ActionDef<S, T>) => def
@@ -62,6 +71,15 @@ export function redactInput(def: Pick<ActionDef, 'sensitive'>, input: unknown): 
     redacted[field] = isRecord ? Object.fromEntries(Object.keys(value).map(key => [key, REDACTED])) : REDACTED
   }
   return redacted
+}
+
+/** The result as the command log may keep it: secret `data` fields (or all of `data`) replaced. */
+export function redactResult<R extends { data?: Record<string, unknown> }>(def: Pick<ActionDef, 'secretResult'>, result: R): R {
+  if (!def.secretResult || !result.data) return result
+  if (def.secretResult === true) return { ...result, data: { redacted: REDACTED } }
+  const data = { ...result.data }
+  for (const field of def.secretResult) if (data[field] !== undefined) data[field] = REDACTED
+  return { ...result, data }
 }
 
 /** Rows per table, keyed by id: the shape of the browser's local store. */

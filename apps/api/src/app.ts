@@ -331,9 +331,11 @@ export const SHAPE_NOT_FOR_API_KEYS =
 
 app.get('/v1/shape/:table', async c => {
   const table = c.req.param('table') as TableName
-  const { workspaceId, apiKeyId } = c.get('actor')
+  const { workspaceId, apiKeyId, role, permissions } = c.get('actor')
   if (apiKeyId) return c.json({ ok: false, error: SHAPE_NOT_FOR_API_KEYS, code: 'forbidden' }, 403)
   if (!tableNames.includes(table) || !workspaceId) return c.json({ ok: false, error: 'unknown table' }, 404)
+  // Read sync is for members and API keys that read calls; never the voice agent, whose tools read nothing.
+  if (role === 'agent' || !permissions.includes('call:read')) return c.json({ ok: false, error: 'missing permission call:read' }, 403)
   const refusal = await workspaceRefusal(c.get('actor'), c.req.query('workspace') ?? null)
   if (refusal) return c.json(refusal, 403)
   const target = new URL('/v1/shape', ELECTRIC_URL)

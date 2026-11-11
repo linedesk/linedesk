@@ -8,6 +8,7 @@ import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { and, asc, desc, eq, gt, gte, or, sql, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
+import { issueCallToken } from './agent-token.ts'
 import { startS3Recording } from './recording-egress.ts'
 import { apiKeyHandlers } from './api-keys.ts'
 import { assistantForNumber, assistantHandlers, assistantIn } from './assistants.ts'
@@ -151,6 +152,11 @@ async function businessHoursFor(tx: Tx, workspace_id: string, now: string): Prom
 }
 
 type OpenCall = { from: string; to: string; room?: string; source?: 'phone' | 'test'; label: string; assistant: Assistant | null }
+
+/** The agent's token for the call it just opened (agent-token.ts); the command log keeps it redacted. */
+function withCallToken<R extends { data: { callId: string; workspaceId: string } }>(result: R) {
+  return { ...result, data: { ...result.data, callToken: issueCallToken(result.data.workspaceId, result.data.callId) } }
+}
 
 /**
  * Registers a live call in a workspace: finds or creates the caller and opens the call. On the path to
@@ -351,7 +357,7 @@ const handlers: Record<string, Handler> = {
     const [number] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, input.to))
     if (!number) throw new Reject(`no workspace for number ${input.to}`)
     const assistant = await assistantForNumber(tx, number.workspace_id, number.assistant_id)
-    return openCall({ tx, now }, number.workspace_id, { from: input.from, to: input.to, room: input.room, label: input.to, assistant })
+    return withCallToken(await openCall({ tx, now }, number.workspace_id, { from: input.from, to: input.to, room: input.room, label: input.to, assistant }))
   },
 
   // The agent only knows the workspace from the dispatch the API signed (assistant.startTestCall).
@@ -366,7 +372,7 @@ const handlers: Record<string, Handler> = {
     // The dispatch the API signed ties a room to one workspace, so looking in it is enough (and uses its index).
     const [used] = await tx.select({ id: calls.id }).from(calls).where(and(eq(calls.workspace_id, actor.workspaceId), eq(calls.room, input.room))).limit(1)
     if (used) throw new Reject('this test call has ended: start a new one')
-    return openCall({ tx, now }, actor.workspaceId, { from: testCallContact.phone, to: testCallContact.phone, room: input.room, source: 'test', label: 'this test call', assistant })
+    return withCallToken(await openCall({ tx, now }, actor.workspaceId, { from: testCallContact.phone, to: testCallContact.phone, room: input.room, source: 'test', label: 'this test call', assistant }))
   },
 
   'call.findForTest': async ({ tx, now, calendars }, input) => {

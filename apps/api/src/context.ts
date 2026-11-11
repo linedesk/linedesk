@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { CLIENT_PROTOCOL, CLIENT_PROTOCOL_HEADER, rolePermissions, type Permission, type Role } from '@linedesk/actions'
 import { member, organization, user } from '@linedesk/db'
 import { and, asc, eq } from 'drizzle-orm'
+import { isCallToken, verifyCallToken } from './agent-token.ts'
 import { actorForApiKey, isApiKey } from './api-keys.ts'
 import { auth } from './auth.ts'
 import { addressBucket } from './client-ip.ts'
@@ -29,6 +30,8 @@ export interface Actor {
   apiKeyId?: string
   /** The session of a signed-in member (not an API key or the agent). */
   sessionId?: string
+  /** The voice agent with a call token (agent-token.ts): only this call, in `workspaceId`. */
+  callId?: string
   /**
    * The session was started by a passkey sign-in in the last 12 hours (never while impersonating),
    * or the caller is the server operator (CLI): what admin-step-up.ts asks for.
@@ -81,6 +84,17 @@ export const INVALID_AGENT_TOKENS_PER_IP = 10
 const invalidAgentTokens = createFailureLimiter({ max: INVALID_AGENT_TOKENS_PER_IP, windowMs: 10 * 60_000 })
 export const tooManyInvalidAgentTokens = (ip: string | null) => invalidAgentTokens.blocked(addressBucket(ip))
 
+/**
+ * The voice agent: with the install-wide token in the workspace it names (x-workspace-id; none
+ * before `call.start`), with a call token in that call's workspace. Nothing in a disabled workspace.
+ */
+async function agentActor(workspaceId: string | null, callId?: string): Promise<Actor> {
+  const actor: Actor = { actorId: 'agent', role: 'agent', workspaceId, permissions: rolePermissions.agent, ...(callId ? { callId } : {}) }
+  if (!workspaceId) return actor
+  const [workspace] = await db.select({ disabledAt: organization.disabledAt }).from(organization).where(eq(organization.id, workspaceId))
+  return workspace?.disabledAt ? { ...actor, permissions: [], workspaceDisabled: true } : actor
+}
+
 /** `clientIp` is where the request comes from (client-ip.ts); refused API keys are counted per address. */
 export async function resolveActor(headers: Headers, clientIp: string | null = null): Promise<Actor | null> {
   const resolved = await resolveCaller(headers, clientIp)
@@ -105,13 +119,19 @@ export async function resolveCaller(
       const actor = await actorForApiKey(bearer, clientIp)
       return actor ? { actor } : signedOut
     }
-    // The agent reaches the API through the internal listener only; anywhere else its token counts for nothing.
+    // The agent reaches the API through the internal listener only; anywhere else its tokens (install-wide
+    // and per call) count for nothing. Checked before either token, so a call token never works through the public site.
     if (!agentEntryAllowed(headers.get(ENTRY_HEADER)) || tooManyInvalidAgentTokens(clientIp)) return signedOut
+    if (isCallToken(bearer)) {
+      const claims = verifyCallToken(bearer)
+      if (!claims) invalidAgentTokens.fail(addressBucket(clientIp))
+      return claims ? { actor: await agentActor(claims.workspaceId, claims.callId) } : signedOut
+    }
     if (!process.env.AGENT_API_TOKEN || !sameToken(bearer, process.env.AGENT_API_TOKEN)) {
       invalidAgentTokens.fail(addressBucket(clientIp))
       return signedOut
     }
-    return { actor: { actorId: 'agent', role: 'agent', workspaceId: headers.get(WORKSPACE_HEADER), permissions: rolePermissions.agent } }
+    return { actor: await agentActor(headers.get(WORKSPACE_HEADER)) }
   }
   const session = await auth.api.getSession({ headers })
   if (!session) return signedOut
@@ -216,7 +236,9 @@ export const accessLost = (error = 'You no longer have access to this workspace.
  * answered with 403, never 409: Electric's client takes a 409 on a shape request for an expired shape.
  */
 export async function workspaceRefusal(actor: Actor, requested: string | null): Promise<WorkspaceRefusal | null> {
-  if (!requested || requested === actor.workspaceId || actor.role === 'agent') return null
+  if (!requested || requested === actor.workspaceId) return null
+  // The install-wide agent token names its workspace with the header; a call token has its own.
+  if (actor.role === 'agent') return actor.callId ? accessLost('This call token belongs to another workspace.') : null
   if (actor.apiKeyId) return accessLost('This API key belongs to another workspace.')
   const [membership] = await db
     .select({ id: member.id })

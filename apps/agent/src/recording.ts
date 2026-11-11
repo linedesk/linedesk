@@ -131,7 +131,7 @@ export async function stopRecordingOrThrow(recorder: CallRecorder | null, record
 export async function saveRecording(api: ApiClient, call: CallSession, recorder: CallRecorder | null, recordingId: string | null, waitMs: number, retry?: RetryOptions) {
   if (!recorder || !recordingId) return
   if (!(await recorder.waitUntilFinal(recordingId, waitMs))) return console.warn(`recording of call ${call.callId} did not complete in time`)
-  await withRetry(() => api.run(callSetRecording, { callId: call.callId, store: recorder.store }, call.workspaceId), retry)
+  await withRetry(() => api.run(callSetRecording, { callId: call.callId, store: recorder.store }, call), retry)
 }
 
 /** Where egress finds the recordings directory inside its container (see docker-compose.yml). */

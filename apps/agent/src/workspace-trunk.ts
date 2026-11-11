@@ -10,16 +10,16 @@ import {
   carrierTransferTrunk,
 } from '@linedesk/actions'
 import type { SipClient } from 'livekit-server-sdk'
-import type { ApiClient } from './api-client.ts'
+import type { ApiClient, CallScope } from './api-client.ts'
 import { type DialRequest, NotAnsweredError, type OnCallDialer } from './on-call-dialer.ts'
 
 /** How a transfer from the call to `from` dials out (`default`: the install's trunk). */
-export const transferRoute = async (api: ApiClient, workspaceId: string, from: string) =>
-  (await api.run(carrierTransferTrunk, { from }, workspaceId)).data as CarrierTransferTrunkData
+export const transferRoute = async (api: ApiClient, call: CallScope, from: string) =>
+  (await api.run(carrierTransferTrunk, { from }, call)).data as CarrierTransferTrunkData
 
 /** Asks the API to set the workspace's trunk up again; its id. */
-export async function reprovisionTrunk(api: ApiClient, workspaceId: string): Promise<string> {
-  const { trunkId } = (await api.run(carrierProvisionTransferTrunk, {}, workspaceId)).data as CarrierProvisionData
+export async function reprovisionTrunk(api: ApiClient, call: CallScope): Promise<string> {
+  const { trunkId } = (await api.run(carrierProvisionTransferTrunk, {}, call)).data as CarrierProvisionData
   if (!trunkId) throw new Error('the workspace has no trunk of its own account to dial through')
   return trunkId
 }
@@ -28,13 +28,13 @@ export async function reprovisionTrunk(api: ApiClient, workspaceId: string): Pro
 export async function ownTransferTrunk(
   api: ApiClient,
   sip: SipClient,
-  workspaceId: string,
+  call: CallScope,
   trunkName: string,
   from: string,
 ): Promise<string> {
   const trunk = (await sip.listSipOutboundTrunk()).find(t => t.name === trunkName)
   if (trunk?.numbers.includes(from)) return trunk.sipTrunkId
-  return reprovisionTrunk(api, workspaceId)
+  return reprovisionTrunk(api, call)
 }
 
 /**

@@ -166,9 +166,11 @@ export function registerAdminRoutes(app: Hono<Env>) {
   // LiveKit is part of the install (keys in env): read-only status of the server and its SIP service.
   app.get('/v1/admin/system', async c => c.json({ livekit: await livekitStatus() }))
 
-  // For the voice agent: the active speech and LLM providers with their keys, in clear. Agent token only;
-  // no member, not even an instance admin. The agent asks at the start of each call.
+  // For the voice agent: the active speech and LLM providers with their keys, in clear. The install-wide
+  // agent token only: no member, not even an instance admin, and no call token (a leaked one must not
+  // read the install's keys). The agent asks at the start of each call.
   app.get('/v1/agent/provider-config', requirePermission('agent'), async c => {
+    if (c.get('actor').callId) return c.json({ ok: false, error: 'a call token cannot read the provider config' }, 403)
     noteAgentSeen()
     try {
       c.header('cache-control', 'no-store')

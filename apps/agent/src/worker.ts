@@ -103,7 +103,7 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
 type Transfer = Omit<Parameters<typeof transferTool>[0], 'api' | 'call' | 'log'> | null
 
 function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: () => void, flagUrgent: () => Promise<void>, transfer: Transfer, collect: CollectContext) {
-  const { callId, workspaceId } = call
+  const { callId } = call
   return {
     ...bookingToolset(api, call, log),
     ...collectTools(collect),
@@ -112,7 +112,7 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
       description: 'Save a message for the team. Use it whenever the caller wants a callback, a visit, a quote or anything you cannot do yourself.',
       parameters: z.object({ message: z.string().describe('One complete sentence: who wants what. Add a callback number only if the caller gave one that is not their caller ID.') }),
       execute: async ({ message }) => {
-        await api.run(callTakeMessage, { callId, message }, workspaceId)
+        await api.run(callTakeMessage, { callId, message }, call)
         log.messages.push(message)
         log.record('system', 'Took a message', callTakeMessage.name)
         return 'The message is saved. Tell the caller the team will get back to them.'
@@ -139,7 +139,7 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
 /** Flags the call once, from the tool or from the guard below. */
 function callFlagger(api: ApiClient, call: CallSession, log: CallLog) {
   return urgentFlagger(async () => {
-    await api.run(callFlagUrgent, { callId: call.callId }, call.workspaceId)
+    await api.run(callFlagUrgent, { callId: call.callId }, call)
     log.urgent = true
     log.record('system', 'Flagged as urgent', callFlagUrgent.name)
   })
@@ -373,7 +373,7 @@ async function entry(ctx: JobContext) {
   // From here on the call exists and must be finished: on hang-up (session close), on any error
   // while setting up the conversation, and at job shutdown as the last resort.
   const recorder = livekitRecorder(config.recording, process.env, async () =>
-    (await api.run(callStartRecording, { callId: call.callId }, call.workspaceId)).data!.egressId as string)
+    (await api.run(callStartRecording, { callId: call.callId }, call)).data!.egressId as string)
   const recording = startRecording(recorder, call, ctx.room.name ?? call.callId)
   // Stopped at hang-up, or earlier when a warm transfer connects (the on-call conversation is not recorded).
   const stopCallRecording = async () => stopRecording(recorder, await recording) // at hang-up

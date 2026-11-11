@@ -6,7 +6,7 @@ import type { ApiClient } from './api-client.ts'
 import { NotAnsweredError } from './on-call-dialer.ts'
 import { isCredentialRefusal, ownTransferTrunk, transferRoute, workspaceTrunkDialer } from './workspace-trunk.ts'
 
-const WS = 'ws_1'
+const WS = { workspaceId: 'ws_1', token: 'ldcall_t' }
 const FROM = '+15035550142'
 const NAME = 'linedesk-outbound-ws_1-0123456789ab'
 

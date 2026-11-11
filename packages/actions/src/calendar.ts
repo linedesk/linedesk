@@ -24,6 +24,7 @@ export const calendarFindSlots = defineAction({
     limit: z.number().int().min(1).max(200).default(20),
   }),
   permission: 'calendar:read',
+  agent: 'workspace',
   public: true,
   readOnly: true,
 })
@@ -59,6 +60,7 @@ export const appointmentBook = defineAction({
     assistantId: z.string().min(1).optional(),
   }),
   permission: 'calendar:write',
+  agent: 'call',
   public: true,
 })
 
@@ -83,6 +85,7 @@ export const appointmentCancel = defineAction({
   description: 'Cancel a booking made through Linedesk: deletes its calendar event and marks it cancelled.',
   input: z.object(whichBooking),
   permission: 'calendar:write',
+  agent: 'call',
   public: true,
   destructive: true,
 })
@@ -92,6 +95,7 @@ export const appointmentReschedule = defineAction({
   description: 'Move a booking made through Linedesk to another free slot: the calendar event moves with it.',
   input: z.object({ ...whichBooking, start: instant }),
   permission: 'calendar:write',
+  agent: 'call',
   public: true,
   destructive: true,
 })

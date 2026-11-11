@@ -65,7 +65,7 @@ describe('cookie-signed writes under /v1', () => {
 
   test('Bearer callers (agent, API keys) need neither an Origin nor a cookie check; no cookie means the usual 401', async () => {
     const ws = await createWorkspace('CSRF Agent')
-    expect((await request(agent(ws.id), 'POST', '/v1/actions/call.markRead', { callId: ws.call.id })).status).not.toBe(403)
+    expect((await request(agent(ws.id), 'POST', '/v1/actions/call.flagUrgent', { callId: ws.call.id })).status).toBe(200)
     const anonymous = await appRequest('/v1/actions/call.markDone', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: '{}' })
     expect(anonymous.status).toBe(401)
   })

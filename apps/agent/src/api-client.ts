@@ -1,5 +1,7 @@
 // The agent's only way to the API: POST /v1/actions/<name> to write, and its one read,
-// GET /v1/agent/provider-config. Always with the agent token.
+// GET /v1/agent/provider-config. The install-wide agent token opens a call (`call.start`,
+// `call.startTest`) and reads the providers; everything for a call then goes with the call token
+// the API returned for it, which is bound to that call and its workspace.
 import type { ActionDef, ActionRejection, ActionResult } from '@linedesk/actions'
 import type { z } from 'zod'
 
@@ -23,23 +25,29 @@ export interface ApiClientOptions {
   fetch?: typeof fetch
 }
 
+/**
+ * Whom an action is for once `call.start` has resolved the call: its workspace and the call token.
+ * Without a token (an API older than the agent returns none) the agent token and the workspace header.
+ */
+export type CallScope = { workspaceId: string; token?: string }
+
 export interface ApiClient {
-  /** Runs one registry action. `workspaceId` scopes the agent once `call.start` has resolved it. */
-  run<S extends z.ZodType>(def: ActionDef<S, any>, input: z.input<S>, workspaceId?: string): Promise<ActionResult>
+  /** Runs one registry action, for the call in `scope` once there is one. */
+  run<S extends z.ZodType>(def: ActionDef<S, any>, input: z.input<S>, scope?: CallScope): Promise<ActionResult>
   /** The speech and LLM providers set up in Linedesk, with their keys. The body is never put into an error. */
   providerSettings(): Promise<unknown>
 }
 
 export function createApiClient({ baseUrl, token, fetch: doFetch = fetch }: ApiClientOptions): ApiClient {
   return {
-    async run(def, input, workspaceId) {
+    async run(def, input, scope) {
       const res = await doFetch(new URL(`/v1/actions/${def.name}`, baseUrl), {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          authorization: `Bearer ${token}`,
+          authorization: `Bearer ${scope?.token ?? token}`,
           'idempotency-key': crypto.randomUUID(),
-          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+          ...(scope ? { 'x-workspace-id': scope.workspaceId } : {}),
         },
         body: JSON.stringify(input),
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),

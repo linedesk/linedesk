@@ -254,18 +254,16 @@ describe('shape proxy', () => {
     expect(upstream.mock.calls.map(([url]) => url.searchParams.get('where'))).toEqual(['workspace_id = $1 AND false', 'workspace_id = $1'])
   })
 
-  test('the agent reads the workspace it names, and nothing without one', async () => {
+  test('the agent reads no workspace: not the one it names, not with a call token', async () => {
     const upstream = stubElectric()
     expect((await request(agent(), 'GET', '/v1/shape/calls?offset=-1')).status).toBe(404)
     expect((await request(agent(a.id, 'wrong-token'), 'GET', '/v1/shape/calls?offset=-1')).status).toBe(401)
+    for (const table of ['calls', 'contacts', 'transcript_segments', 'bookings']) {
+      expect((await request(agent(a.id), 'GET', `/v1/shape/${table}?offset=-1`)).status).toBe(403)
+    }
+    const { body } = await act(agent(), 'call.start', { from: randomNumber(), to: a.number })
+    expect((await request(agent(undefined, body.data.callToken), 'GET', '/v1/shape/contacts?offset=-1')).status).toBe(403)
     expect(upstream).not.toHaveBeenCalled()
-
-    const query = `where=${encodeURIComponent('1 = 1')}&${encodeURIComponent('params[1]')}=${b.id}&offset=-1`
-    expect((await request(agent(a.id), 'GET', `/v1/shape/calls?${query}`)).status).toBe(200)
-    expect(Object.fromEntries(upstream.mock.calls[0]![0].searchParams)).toMatchObject({
-      where: 'workspace_id = $1 AND deleted_at IS NULL',
-      'params[1]': a.id,
-    })
   })
 
   test('responses are never stored, not even by the browser (a polled table asks again with the same URL after a write), and vary by caller', async () => {

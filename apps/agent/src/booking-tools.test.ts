@@ -31,8 +31,8 @@ function fakeApi(answer: (name: string, input: Record<string, unknown>) => unkno
   const sent: [string, Record<string, unknown>, string | undefined][] = []
   return {
     sent,
-    async run(def, input, workspaceId) {
-      sent.push([def.name, input as Record<string, unknown>, workspaceId])
+    async run(def, input, scope) {
+      sent.push([def.name, input as Record<string, unknown>, scope?.workspaceId])
       return { ok: true, rows: {}, data: answer(def.name, input as Record<string, unknown>) as Record<string, unknown> }
     },
     providerSettings: async () => ({}),

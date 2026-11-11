@@ -412,10 +412,11 @@ describe('through the API', () => {
     expect((await act(agent(), 'call.start', { from: '+15035550177', to: other.number })).body.data.booking).toBeNull()
   })
 
-  test('members and the agent may book; types are for owners and admins', async () => {
+  test('members and the agent (for its call) may book; types are for owners and admins', async () => {
     for (const name of ['appointment.book', 'appointment.cancel']) {
       expect(actions.get(name)!.permission).toBe('calendar:write')
-      for (const role of ['owner', 'admin', 'member', 'agent'] as const) expect(rolePermissions[role]).toContain('calendar:write')
+      for (const role of ['owner', 'admin', 'member'] as const) expect(rolePermissions[role]).toContain('calendar:write')
+      expect(actions.get(name)!.agent).toBe('call')
     }
     for (const name of ['appointmentType.upsert', 'appointmentType.delete']) {
       expect((await act(member, name, { appointmentTypeId: typeId, name: 'x', durationMin: 30 })).status, name).toBe(403)

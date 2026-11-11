@@ -73,7 +73,7 @@ export async function onCallDialerFor(
   const sip = sipClient()
   const from = call.businessNumber
   // A number in the workspace's own carrier account dials out through that account, never the install's.
-  const route = await transferRoute(api, call.workspaceId, from).catch(e => {
+  const route = await transferRoute(api, call, from).catch(e => {
     console.warn(`could not tell how call ${call.callId} transfers: ${e instanceof Error ? e.message : String(e)}`)
     return null
   })
@@ -81,8 +81,8 @@ export async function onCallDialerFor(
   const { trunkName } = route
   if (route.carrier !== 'default' && trunkName) {
     return workspaceTrunkDialer(
-      () => ownTransferTrunk(api, sip, call.workspaceId, trunkName, from),
-      () => reprovisionTrunk(api, call.workspaceId),
+      () => ownTransferTrunk(api, sip, call, trunkName, from),
+      () => reprovisionTrunk(api, call),
       trunkId => sipDialer({ sip, trunkId, to: number, from }),
     )
   }
@@ -134,7 +134,7 @@ function callerLeft(ctx: JobContext, identity: string): AbortSignal {
 /** Asks the API to start the transfer (call.transfer dialing): refused over the workspace's limits. */
 async function startTransfer(api: ApiClient, call: CallSession, to: string): Promise<string | null> {
   try {
-    await api.run(callTransfer, { callId: call.callId, to, result: 'dialing' }, call.workspaceId)
+    await api.run(callTransfer, { callId: call.callId, to, result: 'dialing' }, call)
     return null
   } catch (e) {
     return e instanceof Error ? e.message : String(e)
@@ -169,7 +169,7 @@ export function transferTool({
         log.urgent = true
         log.record('system', transferLabel('failed', number), callTransfer.name)
         void api
-          .run(callTransfer, { callId: call.callId, to: number, result: 'failed' }, call.workspaceId)
+          .run(callTransfer, { callId: call.callId, to: number, result: 'failed' }, call)
           .catch(() => {})
         return NOT_CONNECTED_REPLY
       }
@@ -210,7 +210,7 @@ export function transferTool({
       log.urgent = true
       log.record('system', transferLabel(result, number), callTransfer.name)
       await api
-        .run(callTransfer, { callId: call.callId, to: number, result }, call.workspaceId)
+        .run(callTransfer, { callId: call.callId, to: number, result }, call)
         .catch(e =>
           console.error(
             `could not record the transfer of call ${call.callId}: ${e instanceof Error ? e.message : String(e)}`,

@@ -139,6 +139,7 @@ export const callStart = defineAction({
   description: 'Register an incoming call. The workspace is resolved from the dialled number.',
   input: z.object({ from: z.string().min(3), to: z.string().min(3), room: z.string().optional() }),
   permission: 'agent',
+  secretResult: ['callToken'],
 })
 /**
  * Whether a caller ID is a real, dialable number (E.164). Withheld numbers arrive as "anonymous",
@@ -155,6 +156,7 @@ export const callStartTest = defineAction({
     "Register a test call a member started from the web app. The workspace is the agent's x-workspace-id and the assistant `assistantId`, both taken from the dispatch the API signed; an assistant of another workspace is refused.",
   input: z.object({ room: z.string().min(1).max(128), assistantId: z.string().min(1).optional() }),
   permission: 'agent',
+  secretResult: ['callToken'],
 })
 /** For the phone-to-phone call test: the newest call from `from` to `to` since a moment, and how far it got. */
 export const callFindForTest = defineAction({

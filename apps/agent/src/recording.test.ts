@@ -48,7 +48,7 @@ test('reports the recording once the file is final, sending the call id and the 
   const rec = recorder({ store: 's3' })
   await saveRecording(api, call(true), rec, 'EG_1', 15_000, { wait: async () => {} })
   expect(rec.waitUntilFinal).toHaveBeenCalledWith('EG_1', 15_000)
-  expect(api.run).toHaveBeenCalledWith(expect.objectContaining({ name: 'call.setRecording' }), { callId: 'call_1', store: 's3' }, 'ws_1')
+  expect(api.run).toHaveBeenCalledWith(expect.objectContaining({ name: 'call.setRecording' }), { callId: 'call_1', store: 's3' }, expect.objectContaining({ workspaceId: 'ws_1' }))
 
   const notFinal = fakeApi()
   await saveRecording(notFinal, call(true), recorder({ waitUntilFinal: async () => false }), 'EG_1', 15_000)
