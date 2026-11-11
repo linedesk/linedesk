@@ -3,7 +3,7 @@
 // text to speech ElevenLabs or Cartesia. Turns are detected by Deepgram Flux, not by a local
 // voice-activity model: that saves the CPU a small server does not have, and the endpointing delay.
 // The worker only sees LiveKit's interfaces and `CompleteJson`.
-import { type Language, SILENCE_FIRST_GAP_DEFAULT_S } from '@linedesk/actions'
+import { type Language, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S } from '@linedesk/actions'
 import type { voice } from '@livekit/agents'
 import * as cartesia from '@livekit/agents-plugin-cartesia'
 import * as deepgram from '@livekit/agents-plugin-deepgram'
@@ -32,7 +32,7 @@ export function ttsFor(tts: AgentConfig['tts'], assistantVoice?: AssistantVoice 
   if (own && assistantVoice.provider === tts.provider) return { provider: tts.provider, apiKey: tts.apiKey, model: tts.model, voiceId: own }
   const other = own ? tts.others?.find(o => o.provider === assistantVoice.provider) : undefined
   if (other) return { ...other, voiceId: own }
-  return { provider: tts.provider, apiKey: tts.apiKey, model: tts.model, voiceId: tts.voiceId }
+  return { provider: tts.provider, apiKey: tts.apiKey, model: tts.model, voiceId: tts.voiceId ?? providerDefaultVoices[tts.provider] }
 }
 
 /** The voice id a call uses (see ttsFor). */

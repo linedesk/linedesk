@@ -23,11 +23,11 @@ export const curatedVoices: Record<string, readonly CuratedVoice[]> = {
 }
 
 /**
- * The voice each provider speaks with when no voice id is set: the voice agent's LiveKit plugins'
- * own defaults (ElevenLabs `DEFAULT_VOICE_ID`, Cartesia `TTSDefaultVoiceId`). Keep in sync on a plugin update.
+ * The voice each provider speaks with when neither the assistant nor the install (TTS_VOICE_ID) sets one:
+ * Jessica on ElevenLabs; on Cartesia the LiveKit plugin's own default (`TTSDefaultVoiceId`, keep in sync).
  */
 export const providerDefaultVoices: Record<string, string> = {
-  elevenlabs: 'bIHbv24MWmeRgasZH58o',
+  elevenlabs: 'cgSgspJ2msm6clMCkdW9',
   cartesia: 'f786b574-daa5-4673-aa0c-cbe3e8534c02',
 }
 
