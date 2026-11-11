@@ -1,16 +1,15 @@
 // The contact's record beside the list (full width below 1100 px): a header with who it is and the
 // actions, the details as a form whose fields save themselves (contact.update), and their calls.
 import type { Call, Contact } from '@linedesk/db/types'
-import { Fragment, type KeyboardEvent, useEffect, useRef, useState } from 'react'
+import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { CallBackLink } from '../call/ContactSide.tsx'
 import { useInlineEdit } from '../call/EditableFact.tsx'
-import { formatPhone, tabOf } from '../inbox-model.ts'
-import { type Change, doneChange, notDoneChange, type Step, unreadChange } from '../inbox/changes.ts'
-import { Row } from '../inbox/Row.tsx'
+import { formatPhone } from '../inbox-model.ts'
+import type { Step } from '../inbox/changes.ts'
 import { useAssistants, useRun } from '../store.tsx'
-import { dayLabel, parseTs } from '../time.ts'
 import { Card, FormField, Input, Textarea } from '../ui/form.tsx'
 import { Avatar, Button, Icon } from '../ui/kit.tsx'
+import { ContactCalls } from './ContactCalls.tsx'
 import { contactLabel, type ContactRow, noteHint } from './model.ts'
 
 type Props = {
@@ -150,50 +149,6 @@ function MoreMenu({ label, onDelete, onMerge }: { label: string; onDelete: () =>
   )
 }
 
-/**
- * The contact's calls as the inbox shows them: the inbox's own row (unread dot, caller, topic, status,
- * length, time) under the same day labels, so the list is recognisable at a glance. Click or Enter
- * opens the call; the dot marks it read or unread and, on hover, E marks it done, both with undo.
- */
-function CallList({
-  calls,
-  onOpen,
-  runUndoable,
-}: {
-  calls: Call[]
-  onOpen: (call: Call) => void
-  runUndoable: RunUndoable
-}) {
-  if (!calls.length) return <p className="help">No calls yet.</p>
-  const day = (c: Call) => dayLabel(parseTs(c.started_at))
-  const apply = (change: Change) => runUndoable(change.steps, change.inverse, change.label, change.key)
-  return (
-    <div className="ib-list ct-calls" role="list" aria-label="Calls">
-      {calls.map((c, i) => (
-        <Fragment key={c.id}>
-          {(i === 0 || day(calls[i - 1]!) !== day(c)) && (
-            <div className="ib-day" role="presentation">
-              {day(c)}
-            </div>
-          )}
-          <Row
-            call={c}
-            tab={tabOf(c)}
-            search={null}
-            segments={[]}
-            isCursor={false}
-            motion={null}
-            focusable
-            onOpen={onOpen}
-            onToggleUnread={call => apply(unreadChange(call))}
-            onToggleDone={call => apply(call.inbox_state === 'done' ? notDoneChange(call) : doneChange(call))}
-          />
-        </Fragment>
-      ))}
-    </div>
-  )
-}
-
 export function ContactDetail({ row, onOpenCall, onClose, onDelete, onMerge, runUndoable }: Props) {
   const { contact, calls } = row
   const assistantNames = useAssistants().map(a => a.name)
@@ -242,7 +197,12 @@ export function ContactDetail({ row, onOpenCall, onClose, onDelete, onMerge, run
           </div>
         </Card>
         <Card title={calls.length ? `Calls · ${calls.length}` : 'Calls'} className="ct-card">
-          <CallList calls={calls} onOpen={onOpenCall} runUndoable={runUndoable} />
+          <ContactCalls
+            key={contact.id}
+            calls={calls}
+            onOpen={onOpenCall}
+            onChange={change => runUndoable(change.steps, change.inverse, change.label, change.key)}
+          />
         </Card>
       </div>
     </aside>

@@ -1,6 +1,6 @@
 import { tagLabels } from '@linedesk/actions'
 import type { Call, TranscriptSegment } from '@linedesk/db/types'
-import type { KeyboardEvent, MouseEvent } from 'react'
+import type { MouseEvent } from 'react'
 import { callerName, callTitle, statusLabel, tabOf, type InboxTab } from '../inbox-model.ts'
 import { useAssistantName, useContact } from '../store.tsx'
 import { clock, parseTs, shortDuration, timeLabel, timeUnderDay } from '../time.ts'
@@ -36,8 +36,6 @@ type Props = RowHandlers & {
   selected?: boolean
   /** Repeat calls this row stands for (see groupRepeats), the row's own call first. */
   group?: Call[]
-  /** Reachable with Tab, Enter opens the call: for lists without the inbox's own cursor keys. */
-  focusable?: boolean
 }
 
 const stop = (run: () => void) => (e: MouseEvent) => {
@@ -45,7 +43,7 @@ const stop = (run: () => void) => (e: MouseEvent) => {
   run()
 }
 
-function RowAction({ title, icon, onClick }: { title: string; icon: IconName; onClick: () => void }) {
+export function RowAction({ title, icon, onClick }: { title: string; icon: IconName; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -59,7 +57,7 @@ function RowAction({ title, icon, onClick }: { title: string; icon: IconName; on
   )
 }
 
-function Status({
+export function Status({
   call,
   tab,
   markDone,
@@ -167,18 +165,7 @@ function AssignAction({ call, onAssign }: { call: Call; onAssign: (call: Call, a
   )
 }
 
-export function Row({
-  call,
-  tab,
-  search,
-  segments,
-  isCursor,
-  motion,
-  selected = false,
-  group,
-  focusable,
-  ...on
-}: Props) {
+export function Row({ call, tab, search, segments, isCursor, motion, selected = false, group, ...on }: Props) {
   const contact = useContact(call.contact_id)
   const unread = call.unread || !!group?.some(c => c.unread)
   const live = call.status === 'live'
@@ -208,14 +195,6 @@ export function Row({
       onMouseMove={() => {
         if (!isCursor) on.onHover?.(call)
       }}
-      {...(focusable && {
-        tabIndex: 0,
-        onKeyDown: (e: KeyboardEvent) => {
-          if (e.key !== 'Enter' || e.target !== e.currentTarget) return
-          e.preventDefault()
-          on.onOpen?.(call)
-        },
-      })}
     >
       <span
         className={cx('r-dot', unread && 'is-unread')}
