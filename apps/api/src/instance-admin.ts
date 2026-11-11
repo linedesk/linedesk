@@ -4,7 +4,7 @@
 import { randomBytes } from 'node:crypto'
 import { markPasskeySession } from './admin-second-factor.ts'
 import { account, type Tx, user } from '@linedesk/db'
-import { and, eq, inArray, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { APIError } from 'better-auth/api'
 import { hashPassword } from 'better-auth/crypto'
 import { db } from './db.ts'
@@ -35,6 +35,12 @@ function isInstanceAdminSql() {
   const emails = envAdminEmails()
   if (!emails.length) return eq(user.instanceAdmin, true)
   return or(eq(user.instanceAdmin, true), and(eq(user.emailVerified, true), inArray(sql`lower(${user.email})`, emails)))
+}
+
+/** The addresses of every enabled instance admin: who is told about admin sign-ins and changes (admin-alerts.ts). */
+export async function instanceAdminEmails(): Promise<string[]> {
+  const admins = await db.select({ email: user.email }).from(user).where(and(isInstanceAdminSql(), isNull(user.disabledAt)))
+  return admins.map(admin => admin.email)
 }
 
 /**
@@ -75,6 +81,7 @@ export async function grantFirstUser(tx: Tx, created: { id: string; email: strin
 export async function refuseUnverifiedAdminAddress(_tx: Tx, created: { email: string; emailVerified?: boolean }) {
   if (created.emailVerified || !envAdminEmails().includes(created.email.toLowerCase())) return
   throw new APIError('FORBIDDEN', {
+    code: 'ADDRESS_RESERVED',
     message: 'This address is reserved for an administrator. Sign in with an email code or a sign-in provider.',
   })
 }
@@ -96,7 +103,7 @@ export const instanceAdminHooks = {
     create: {
       before: async (session: { userId: string; impersonatedBy?: string | null }, ctx?: unknown) => {
         const [account] = await db.select({ disabledAt: user.disabledAt }).from(user).where(eq(user.id, session.userId))
-        if (account?.disabledAt) throw new APIError('FORBIDDEN', { message: 'This account is disabled.' })
+        if (account?.disabledAt) throw new APIError('FORBIDDEN', { code: 'ACCOUNT_DISABLED', message: 'This account is disabled.' })
         // An admin signing in as the user is not the user signing in.
         if (!session.impersonatedBy)
           await db.update(user).set({ lastSignInAt: new Date() }).where(eq(user.id, session.userId))

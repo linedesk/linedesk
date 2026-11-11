@@ -14,7 +14,8 @@ import { db, pool } from './db.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { runAction } from './run-action.ts'
 
-const operator: Actor = { actorId: 'cli', role: 'member', workspaceId: null, permissions: ['instance:admin'] }
+// The operator on the server vouches for themselves: no passkey step-up (admin-step-up.ts).
+const operator: Actor = { actorId: 'cli', role: 'member', workspaceId: null, permissions: ['instance:admin'], passkeyConfirmed: true }
 const USAGE = 'Usage: node apps/api/src/user-passkeys.ts (--remove | --enrol) --email <address>'
 
 async function main() {

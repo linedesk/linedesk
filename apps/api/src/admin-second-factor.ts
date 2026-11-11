@@ -1,37 +1,73 @@
-// Instance admins need a second factor (docs/architecture.md §12): the admin area and admin actions
-// work only in a session started by a passkey sign-in in the last 12 hours. An email code, a
-// password or a provider sign-in alone is not enough. Impersonation sessions never count (they never
-// carry instance:admin). Self-hosters without https (no passkeys) can turn it off: ADMIN_SECOND_FACTOR=off.
+// Instance admins re-confirm who they are before the admin area (docs/architecture.md §12): the admin
+// area and admin actions work only for an admin whose email address is confirmed, in a session
+// started by a recent sign-in. Every enabled sign-in method counts (passkey, email code, password,
+// Google, Microsoft, GitHub, single sign-on): a passkey sign-in for 12 hours, any other for 1 hour.
+// What can take over the admin role or the passkeys (granting admin, resetting passkeys, signing in
+// as a user, actions on another admin) needs a passkey sign-in on top (admin-step-up.ts), and
+// changing passkeys keeps its own rule (passkeys.ts). Impersonation sessions never count. Installs
+// that cannot meet the rule (no email, no https for passkeys) turn it off: ADMIN_SECOND_FACTOR=off.
 import type { Permission } from '@linedesk/actions'
-import { passkey } from '@linedesk/db'
-import { eq } from 'drizzle-orm'
-import { db } from './db.ts'
 
-/** How long a passkey sign-in counts for the admin area. */
+/** How long a passkey sign-in counts: for the admin area, admin step-ups and changing passkeys. */
 export const PASSKEY_CONFIRM_HOURS = 12
+/** How long any other sign-in (email code, password, a provider) opens the admin area. */
+export const OTHER_SIGN_IN_ADMIN_HOURS = 1
 
-/** What an instance admin still has to do: add a passkey, or sign in with it again. */
-export type AdminSecondFactor = 'setup' | 'confirm'
+/** What an instance admin still has to do: confirm their email address, or sign in again. */
+export type AdminSecondFactor = 'email' | 'confirm'
 
 /** Read on every request, so tests and operators can switch it without a restart. */
 export const adminSecondFactorRequired = (env: Record<string, string | undefined> = process.env) =>
   env.ADMIN_SECOND_FACTOR?.trim().toLowerCase() !== 'off'
 
-/** Whether a session's passkey sign-in is recent enough. */
-export function passkeyConfirmed(passkeyVerifiedAt: Date | string | null | undefined, now = Date.now()): boolean {
-  if (!passkeyVerifiedAt) return false
-  const at = new Date(passkeyVerifiedAt).getTime()
-  return Number.isFinite(at) && at <= now && now - at < PASSKEY_CONFIRM_HOURS * 3_600_000
+/** Whether a sign-in at `at` lies within the last `hours`; a time in the future never counts. */
+export function signedInWithin(at: Date | string | null | undefined, hours: number, now = Date.now()): boolean {
+  if (!at) return false
+  const time = new Date(at).getTime()
+  return Number.isFinite(time) && time <= now && now - time < hours * 3_600_000
 }
 
-/** null when this instance admin's session may use the admin area; otherwise what is missing. */
-export async function adminSecondFactorGap(
-  userId: string,
-  session: { passkeyVerifiedAt?: Date | string | null },
-): Promise<AdminSecondFactor | null> {
-  if (!adminSecondFactorRequired() || passkeyConfirmed(session.passkeyVerifiedAt)) return null
-  const [any] = await db.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, userId)).limit(1)
-  return any ? 'confirm' : 'setup'
+/** Whether a session's passkey sign-in is recent enough (12 hours). */
+export const passkeyConfirmed = (passkeyVerifiedAt: Date | string | null | undefined, now = Date.now()) =>
+  signedInWithin(passkeyVerifiedAt, PASSKEY_CONFIRM_HOURS, now)
+
+type AdminSession = {
+  createdAt: Date | string
+  passkeyVerifiedAt?: Date | string | null
+  impersonatedBy?: string | null
+}
+
+/**
+ * null when this instance admin's session may use the admin area; otherwise what is missing. A
+ * session's `createdAt` is the sign-in that started it (Better Auth never moves it when it extends
+ * the session); `passkeyVerifiedAt` is set only when that sign-in was a passkey (markPasskeySession).
+ */
+export function adminSecondFactorGap(
+  account: { emailVerified: boolean },
+  session: AdminSession,
+  now = Date.now(),
+): AdminSecondFactor | null {
+  if (session.impersonatedBy) return 'confirm'
+  if (!adminSecondFactorRequired()) return null
+  if (!account.emailVerified) return 'email'
+  const recent =
+    passkeyConfirmed(session.passkeyVerifiedAt, now) ||
+    signedInWithin(session.createdAt, OTHER_SIGN_IN_ADMIN_HOURS, now)
+  return recent ? null : 'confirm'
+}
+
+/** Said loudly at every start while the rule is off (server.ts): it is easy to forget in a .env. */
+export function secondFactorOffWarning(env: Record<string, string | undefined> = process.env): string | null {
+  if (adminSecondFactorRequired(env)) return null
+  const line = '!'.repeat(78)
+  return [
+    line,
+    'WARNING: ADMIN_SECOND_FACTOR=off. The admin area opens for any signed-in instance admin, also an',
+    'unconfirmed address or a sign-in days old, and granting admin, resetting passkeys and signing in as',
+    "a user need no passkey. Anyone with an admin's mailbox or password controls this install.",
+    'Remove the setting once the install has https and email.',
+    line,
+  ].join('\n')
 }
 
 export const SECOND_FACTOR_REQUIRED = 'SECOND_FACTOR_REQUIRED'
@@ -40,9 +76,9 @@ export const SECOND_FACTOR_REQUIRED = 'SECOND_FACTOR_REQUIRED'
 export function secondFactorRefusal(actor: { adminSecondFactor?: AdminSecondFactor }, permission: Permission) {
   if (permission !== 'instance:admin' || !actor.adminSecondFactor) return null
   const error =
-    actor.adminSecondFactor === 'setup'
-      ? 'Add a passkey under Account, Sign-in & security, then sign in with it to use the admin area.'
-      : 'Confirm with your passkey to use the admin area.'
+    actor.adminSecondFactor === 'email'
+      ? 'Confirm your email address to use the admin area: sign in with an email code.'
+      : 'Sign in again to use the admin area: a passkey sign-in counts for 12 hours, any other for 1 hour.'
   return { ok: false as const, error, code: SECOND_FACTOR_REQUIRED, secondFactor: actor.adminSecondFactor }
 }
 

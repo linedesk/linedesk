@@ -7,8 +7,9 @@ import { type AuthMethods, auth, fetchAuthMethods, requestSignInCode } from '../
 import { ConfirmEmail } from '../ConfirmEmail.tsx'
 import { signOutAndForget } from '../localData.ts'
 import { CodeStep } from '../Login.tsx'
-import { authFormError } from '../sign-in-code.ts'
+import { authErrorMessage, authFormError } from '../sign-in-code.ts'
 import { previewInvitation } from './team-api.ts'
+import { AuthError } from '../ui/AuthError.tsx'
 import { ProviderButton } from '../ui/brand-logos.tsx'
 import { AuthPage } from '../ui/kit.tsx'
 
@@ -25,7 +26,7 @@ export function clearInviteId() {
 type Account = { email: string; emailVerified: boolean }
 type Result = { error: { message?: string } | null }
 const fail = (res: Result) => {
-  if (res.error) throw new Error(res.error.message ?? 'That did not work')
+  if (res.error) throw new Error(authErrorMessage(res.error))
 }
 const here = () => window.location.href
 
@@ -46,8 +47,8 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
     setAccount(session ? { email: session.user.email, emailVerified: session.user.emailVerified } : null)
   }, [])
   useEffect(() => {
-    previewInvitation(invitationId).then(setInvite, (e: Error) => setError(e.message))
-    fetchAuthMethods().then(setMethods, (e: Error) => setError(e.message))
+    previewInvitation(invitationId).then(setInvite, (e: unknown) => setError(authErrorMessage(e)))
+    fetchAuthMethods().then(setMethods, (e: unknown) => setError(authErrorMessage(e)))
     void loadAccount()
   }, [invitationId, loadAccount])
 
@@ -57,13 +58,14 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
     try {
       await work()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      // Our own messages as they are; a network failure (TypeError) or anything else in plain words.
+      setError(e instanceof Error && !(e instanceof TypeError) ? e.message : authErrorMessage(e))
     } finally {
       setBusy(false)
     }
   }
 
-  const errorLine = error && <div className="auth-error" role="alert">{error}</div>
+  const errorLine = error && <AuthError message={error} />
   if (!invite || account === undefined || !methods) return <AuthPage>{errorLine}</AuthPage>
   if (invite.status !== 'pending') {
     return (

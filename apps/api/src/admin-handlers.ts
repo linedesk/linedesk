@@ -6,7 +6,10 @@ import { WEB_ORIGIN } from './auth.ts'
 import { emailSender } from './email.ts'
 import { db } from './db.ts'
 import { eq, or, sql } from 'drizzle-orm'
-import { type Handler, Reject } from './handler-context.ts'
+import { Forbidden, type Handler, Reject } from './handler-context.ts'
+import { alertInstanceAdmins } from './admin-alerts.ts'
+import { mayReceiveEnrolmentCode } from './admin-step-up.ts'
+import type { Actor } from './context.ts'
 import { anotherAdminRemains, isEnvAdmin, isInstanceAdmin } from './instance-admin.ts'
 import { issuePasskeyEnrolment, removeAllPasskeys } from './passkey-enrolment.ts'
 import {
@@ -57,6 +60,25 @@ export const welcomeEmail = (name: string) => ({
   text: `Hello ${name},\n\nan account on Linedesk was created for you. To sign in, open ${WEB_ORIGIN} and enter this email address: you get a sign-in code by email.`,
 })
 
+/** Handlers that hand out an enrolment code refuse a session that is not passkey-confirmed (admin-step-up.ts). */
+function refuseEnrolmentCode(actor: Actor) {
+  if (!mayReceiveEnrolmentCode(actor)) throw new Forbidden('confirm with your passkey to do this')
+}
+
+/** Who did it, for the alert emails: their address, or the server operator. */
+async function actorName(actor: Actor): Promise<string> {
+  if (actor.actorId === 'cli') return 'The server operator (command line)'
+  const [who] = await db.select({ email: user.email }).from(user).where(eq(user.id, actor.actorId))
+  return who?.email ?? 'An instance admin'
+}
+
+async function alertAdminGranted(actor: Actor, email: string) {
+  await alertInstanceAdmins(
+    `New instance admin on Linedesk: ${email}`,
+    `${await actorName(actor)} made ${email} an instance admin.\n\nIf you did not expect this, sign in with your passkey and check Admin, Users and Audit log.`,
+  )
+}
+
 export const adminHandlers: Record<string, Handler> = {
   'provider.setKeys': async ({ tx, actor, now }, input) => {
     await withSecretsKey(() => setProviderKeys(tx, input.provider, input.values, actor.actorId, now))
@@ -78,7 +100,8 @@ export const adminHandlers: Record<string, Handler> = {
     return { rows: {}, data: await testProvider(input.provider, config) }
   },
 
-  'user.invite': async ({ onRollback }, input) => {
+  'user.invite': async ({ actor, onRollback }, input) => {
+    if (input.admin) refuseEnrolmentCode(actor)
     const delivery = emailDelivery(process.env)
     if (delivery === 'none') {
       throw new Reject(
@@ -119,8 +142,11 @@ export const adminHandlers: Record<string, Handler> = {
         `the account was not created: the welcome email could not be sent (${e instanceof Error ? e.message : e})`,
       )
     }
-    // A new instance admin adds their first passkey with a one-time code, given to the admin who invited them.
+    // A new instance admin adds their first passkey with a one-time code, given to the admin who invited them
+    // (only to a passkey-confirmed session: also checked before the account is made, so no email goes out).
+    if (input.admin) refuseEnrolmentCode(actor)
     const enrolment = input.admin ? await issuePasskeyEnrolment(db, created!.id) : {}
+    if (input.admin) await alertAdminGranted(actor, email)
     return { rows: {}, data: { userId: created!.id, email, delivery, ...enrolment } }
   },
 
@@ -148,23 +174,32 @@ export const adminHandlers: Record<string, Handler> = {
   'workspace.disable': ({ tx, now }, input) => setWorkspaceDisabled(tx, input.workspaceId, new Date(now)),
   'workspace.enable': ({ tx }, input) => setWorkspaceDisabled(tx, input.workspaceId, null),
 
-  'instanceAdmin.grant': async ({ tx }, input) => {
+  'instanceAdmin.grant': async ({ tx, actor }, input) => {
+    refuseEnrolmentCode(actor)
     const account = await loadUser(tx, input.userId)
     await tx.update(user).set({ instanceAdmin: true }).where(eq(user.id, account.id))
     // Their first passkey needs this one-time code, shown once to the granting admin (passkey-enrolment.ts).
     const enrolment = (await hasPasskey(tx, account.id)) ? {} : await issuePasskeyEnrolment(tx, account.id)
+    await alertAdminGranted(actor, account.email)
     return { rows: {}, data: { userId: account.id, instance_admin: true, ...enrolment } }
   },
 
   // The recovery path that needs none of the user's passkeys (passkeys.ts). Runs only with the
-  // admin's own passkey second factor (instance:admin), never while impersonating.
+  // admin's own passkey sign-in (admin-step-up.ts) or from the CLI, never while impersonating, and
+  // never on the admin's own account: that would turn a stolen first factor into a passkey.
   'user.resetPasskeys': async ({ tx, actor }, input) => {
+    if (input.userId === actor.actorId)
+      throw new Forbidden('you cannot reset your own passkeys; ask another instance admin, or run user:passkeys --remove on the server')
+    refuseEnrolmentCode(actor)
     const account = await loadUser(tx, input.userId)
     const isAdmin = isInstanceAdmin(account)
-    // Their sessions end too; an admin resetting their own passkeys keeps the session they are in.
-    const keep = account.id === actor.actorId ? actor.sessionId : undefined
-    const removed = await removeAllPasskeys(tx, { id: account.id, email: account.email, isAdmin }, keep)
+    // Their sessions end too.
+    const removed = await removeAllPasskeys(tx, { id: account.id, email: account.email, isAdmin })
     const enrolment = isAdmin ? await issuePasskeyEnrolment(tx, account.id) : {}
+    await alertInstanceAdmins(
+      `Passkeys reset on Linedesk: ${account.email}`,
+      `${await actorName(actor)} removed every passkey of ${account.email} (${removed} removed) and ended their sessions.${isAdmin ? ' They are an instance admin and got a new enrolment code for their first passkey.' : ''}\n\nIf you did not expect this, sign in with your passkey and check Admin, Audit log.`,
+    )
     return { rows: {}, data: { userId: account.id, removed, ...enrolment } }
   },
 

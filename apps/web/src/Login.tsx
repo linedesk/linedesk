@@ -7,6 +7,7 @@ import { authErrorMessage, authFormError, CODE_LENGTH, codeErrorMessage, normali
 import { readLastUsedMethod, rememberSignInMethod } from './sign-in-methods.ts'
 import { useQuery } from './cachedQuery.ts'
 import { LastUsed, ProviderButton } from './ui/brand-logos.tsx'
+import { AuthError } from './ui/AuthError.tsx'
 import { AuthPage } from './ui/kit.tsx'
 
 type Step = 'start' | 'code' | 'password'
@@ -17,11 +18,17 @@ type Result = { error: { message?: string; code?: string; status?: number } | nu
 const loadAuthMethods = () => fetchAuthMethods()
 
 const fail = (res: Result) => {
-  if (res.error) throw new Error(authErrorMessage(res.error))
+  if (res.error) throw res.error
 }
 
-/** `onDone` resolves once the app has loaded the account, so the form keeps its busy state until the app replaces it. */
-export function Login({ onDone }: { onDone: () => Promise<void> }) {
+/** Signing in again for a place that asks for a recent sign-in (the admin area): why, and the way back. */
+export type Reauth = { title: string; why: string; onBack: () => void }
+
+/**
+ * `onDone` resolves once the app has loaded the account, so the form keeps its busy state until the app replaces it.
+ * With `reauth`, the same methods sign a signed-in member in again; no sign-up and no switch to it.
+ */
+export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?: Reauth }) {
   // What this install offers: the last known at once (kept across visits), checked again in the background.
   const methods = useQuery('auth-methods', loadAuthMethods, { persist: true }).data ?? null
   const [step, setStep] = useState<Step>('start')
@@ -41,7 +48,7 @@ export function Login({ onDone }: { onDone: () => Promise<void> }) {
     try {
       if (await action()) return
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(authErrorMessage(err))
     }
     setBusy(null)
   }
@@ -92,16 +99,21 @@ export function Login({ onDone }: { onDone: () => Promise<void> }) {
     })
   }
 
-  if (!methods) return <AuthPage>{error ? <div className="auth-error" role="alert">{error}</div> : <p className="auth-wait">Connecting…</p>}</AuthPage>
+  if (!methods) return <AuthPage>{error ? <AuthError message={error} /> : <p className="auth-wait">Connecting…</p>}</AuthPage>
 
   if (step === 'code') {
     return <CodeStep email={form.email} onDone={onDone} onDifferentEmail={() => go('start')} />
   }
 
-  const title = intent === 'signUp' ? 'Create your Linedesk account' : 'Sign in to Linedesk'
-  const errorLine = error && <div className="auth-error" role="alert">{error}</div>
+  const title = reauth ? reauth.title : intent === 'signUp' ? 'Create your Linedesk account' : 'Sign in to Linedesk'
+  const errorLine = error && <AuthError message={error} />
   // Without email codes the password is the main form, not one of the other options.
   const passwordFirst = methods.password && !methods.emailCode
+  const intro = reauth && <p>{reauth.why}</p>
+  // Signing in again: a way back instead of the switch to creating an account.
+  const footer = reauth
+    ? <button type="button" className="auth-switch" title="Back to where you were" onClick={reauth.onBack}>Back</button>
+    : <AuthFooter methods={methods} intent={intent} onIntent={setIntent} />
   const passwordForm = (
     <PasswordForm intent={intent} form={form} set={set} busy={busy === 'password'} disabled={busy !== null} error={errorLine}
       autoFocus={step === 'password'} onSubmit={signInWithPassword} />
@@ -112,11 +124,12 @@ export function Login({ onDone }: { onDone: () => Promise<void> }) {
       <AuthPage>
         <div className="auth-card">
           <h1>{title}</h1>
+          {intro}
           {passwordForm}
           <button type="button" className="auth-switch" onClick={() => go('start')}>
             {intent === 'signIn' ? 'Forgot your password? Sign in with an email code' : 'Other ways to sign up'}
           </button>
-          <AuthFooter methods={methods} intent={intent} onIntent={setIntent} />
+          {footer}
         </div>
       </AuthPage>
     )
@@ -131,6 +144,7 @@ export function Login({ onDone }: { onDone: () => Promise<void> }) {
     <AuthPage>
       <div className="auth-card">
         <h1>{title}</h1>
+        {intro}
         {methods.emailCode && (
           <form className="auth-form" onSubmit={sendCode} noValidate>
             <input type="email" aria-label="Email" placeholder="Email address" value={form.email} onChange={set('email')} autoComplete="email" autoFocus
@@ -139,13 +153,13 @@ export function Login({ onDone }: { onDone: () => Promise<void> }) {
               <span>{busy === 'email' ? 'Sending…' : 'Continue with Email'}</span>
               {lastUsed === 'email' && <LastUsed />}
             </button>
-            {error && <div className="auth-error" role="alert" id="auth-error">{error}</div>}
+            {error && <AuthError message={error} id="auth-error" />}
           </form>
         )}
         {passwordFirst && passwordForm}
         {(methods.emailCode || passwordFirst) && hasProviders && <hr className="auth-separator" />}
         {!methods.emailCode && !passwordFirst && errorLine}
-        {nothing && <div className="auth-error" role="alert">No sign-in method is set up on this server.</div>}
+        {nothing && <AuthError message="No sign-in method is set up on this server. Ask your administrator to turn one on." />}
         {methods.sso.map(m => (
           <ProviderButton key={m.id} method={m.id} label={m.label} lastUsed={lastUsed === m.id} busy={busy === m.id}
             disabled={busy !== null} onClick={() => continueWith(m)} />
@@ -157,7 +171,7 @@ export function Login({ onDone }: { onDone: () => Promise<void> }) {
         {hasOtherOptions && (otherOptions
           ? <ProviderButton method="password" label="Password" lastUsed={lastUsed === 'password'} disabled={busy !== null} onClick={() => go('password')} />
           : <button type="button" className="auth-switch auth-more" onClick={() => setOtherOptions(true)}>Show other options</button>)}
-        <AuthFooter methods={methods} intent={intent} onIntent={setIntent} />
+        {footer}
       </div>
     </AuthPage>
   )
@@ -236,7 +250,7 @@ export function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
   async function check(value: string) {
     setBusy(true)
     setError(null)
-    const res = await signInWithCode(email, value)
+    const res = await signInWithCode(email, value).catch(error => ({ error }))
     if (!res.error) {
       // Stay on "Signing in…" until the app has the account and replaces this page: no flash of the form.
       setSignedIn(true)
@@ -259,7 +273,7 @@ export function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
     setError(null)
     setCode('')
     setWaitS(RESEND_AFTER_S)
-    const res = await requestSignInCode(email)
+    const res = await requestSignInCode(email).catch(error => ({ error }))
     if (res.error) setError(authErrorMessage(res.error))
     input.current?.focus()
   }
@@ -275,7 +289,7 @@ export function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
         <input ref={input} className="auth-code" aria-label="Sign-in code" value={code} onChange={e => change(e.target.value)} disabled={busy}
           inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={CODE_LENGTH + 6} autoFocus
           aria-describedby={error ? 'code-error' : undefined} />
-        {error && <div className="auth-error" role="alert" id="code-error">{error}</div>}
+        {error && <AuthError message={error} id="code-error" />}
         <button type="submit" className="k-btn k-btn-primary" disabled={busy || code.length < CODE_LENGTH}>
           {signedIn ? 'Signing in…' : busy ? 'Checking…' : 'Sign in'}
         </button>

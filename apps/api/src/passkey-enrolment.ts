@@ -6,7 +6,7 @@
 // Also here: removing every passkey of a user, the recovery path that does not need their passkeys.
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { passkey, session, type Tx, user } from '@linedesk/db'
-import { and, eq, ne } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
 
@@ -63,19 +63,18 @@ export function passkeysResetEmail(removed: number) {
 
 /**
  * Removes every passkey of a user and signs them out everywhere, in the caller's transaction: a
- * session started by a passkey someone else added must not outlive it. `keepSessionId` is the
- * session of an admin who resets their own passkeys. The user is emailed when there were passkeys,
+ * session started by a passkey someone else added must not outlive it. Never on the caller's own
+ * account (user.resetPasskeys refuses that). The user is emailed when there were passkeys,
  * and always when they are an instance admin. Returns how many passkeys there were.
  */
 export async function removeAllPasskeys(
   tx: Tx,
   target: { id: string; email: string; isAdmin: boolean },
-  keepSessionId?: string,
 ): Promise<number> {
   const removed = await tx.delete(passkey).where(eq(passkey.userId, target.id)).returning({ id: passkey.id })
   await tx
     .delete(session)
-    .where(keepSessionId ? and(eq(session.userId, target.id), ne(session.id, keepSessionId)) : eq(session.userId, target.id))
+    .where(eq(session.userId, target.id))
   if (removed.length || target.isAdmin) {
     void emailSender
       .send({ to: target.email, ...passkeysResetEmail(removed.length) })

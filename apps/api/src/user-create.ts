@@ -10,7 +10,8 @@ import { pool } from './db.ts'
 import { createAdminWithPassword } from './instance-admin.ts'
 import { runAction } from './run-action.ts'
 
-const operator: Actor = { actorId: 'cli', role: 'member', workspaceId: null, permissions: ['instance:admin'] }
+// The operator on the server vouches for themselves: no passkey step-up (admin-step-up.ts).
+const operator: Actor = { actorId: 'cli', role: 'member', workspaceId: null, permissions: ['instance:admin'], passkeyConfirmed: true }
 
 async function main() {
   const { values } = parseArgs({

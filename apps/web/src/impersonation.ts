@@ -1,6 +1,7 @@
 // An instance admin signed in as another user (docs/architecture.md §12). Starting and stopping
 // change which session the browser holds, so both end in a full reload; changes still waiting
 // in the outbox are sent first, and the local data of the session that ends is deleted.
+import { StepUpRequired, stepUpOf, withPasskeyStepUp } from './admin/PasskeyStepUp.tsx'
 import { forgetLocalData } from './localData.ts'
 import { flushAllStores } from './storeCache.ts'
 
@@ -40,7 +41,9 @@ async function post(path: string, body: unknown = {}) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   })
-  const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; resumed?: boolean } | null
+  const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; resumed?: boolean; code?: unknown; stepUp?: unknown } | null
+  const stepUp = stepUpOf(json)
+  if (stepUp) throw new StepUpRequired(json?.error ?? 'Confirm with your passkey.', stepUp)
   if (!res.ok || !json?.ok) throw new Error(json?.error ?? `The server answered ${res.status}`)
   return json
 }
@@ -55,7 +58,7 @@ function reloadAt(hash: string) {
 export async function startImpersonation(userId: string) {
   const unsent = await flushAllStores()
   if (unsent > 0) throw new UnsentChanges(unsentText(unsent))
-  await post('/v1/impersonation/start', { userId })
+  await withPasskeyStepUp(() => post('/v1/impersonation/start', { userId }), 'sign in as this user')
   await forgetLocalData()
   reloadAt('#calls')
 }

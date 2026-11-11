@@ -1,6 +1,7 @@
 // Admin mode: the operator's view above the workspaces, with its own sidebar instead of the
 // inbox. Sections are routes (`#admin/<section>[/<id>]`). Esc steps back: from a detail to its
 // list, from a list out of admin mode to where the user was.
+import { PasskeyStepUpHost } from './PasskeyStepUp.tsx'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { Toast } from '../shell/Toast.tsx'
 import type { IconName } from '../ui/icons.ts'
@@ -202,6 +203,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
 
   return (
     <div className="adm-mode">
+      <PasskeyStepUpHost />
       <nav className="adm-side" aria-label="Admin">
         <button type="button" className="adm-back" onClick={onExit} title="Back to Linedesk (esc)">
           <Icon name="left" size={15} />

@@ -1,4 +1,5 @@
 import { serve } from '@hono/node-server'
+import { secondFactorOffWarning } from './admin-second-factor.ts'
 import { app } from './app.ts'
 import { db } from './db.ts'
 import { startJobs, stopJobs } from './jobs.ts'
@@ -6,6 +7,8 @@ import { startOrphanRecordingSweep } from './orphan-recordings.ts'
 import { startStaleCallSweep } from './stale-calls.ts'
 
 const port = Number(process.env.PORT ?? 3000)
+const offWarning = secondFactorOffWarning()
+if (offWarning) console.warn(offWarning)
 // Live calls whose agent went away are ended after a while (stale-calls.ts).
 startStaleCallSweep(db)
 // Recording files the agent never reported are linked to their calls (orphan-recordings.ts).

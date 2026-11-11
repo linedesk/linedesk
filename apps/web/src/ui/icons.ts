@@ -48,7 +48,7 @@ export const icons = {
   flag: [['path',{d:'M5.5 21V4M5.5 4.5h11l-2.2 4 2.2 4h-11'}]],
   ban: [['circle',{cx:12,cy:12,r:8.5}],['path',{d:'M6 6l12 12'}]],
   database: [['ellipse',{cx:12,cy:6,rx:7,ry:3}],['path',{d:'M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3'}]],
-  // micOff, close, eye, eyeOff, help and disk follow Lucide (mic-off, x, eye, eye-off, circle-help, hard-drive; ISC license).
+  // micOff, close, eye, eyeOff, help, disk and alert follow Lucide (mic-off, x, eye, eye-off, circle-help, hard-drive, circle-alert; ISC license).
   micOff: [['path',{d:'M2 2l20 20M18.9 13.4A7 7 0 0 0 19 12v-1M15 9.3V5a3 3 0 0 0-5.7-1.3M9 9v3a3 3 0 0 0 5.1 2.1M16.9 16.9A7 7 0 0 1 5 12v-1M12 19v3'}]],
   server: [['rect',{x:2,y:2,width:20,height:8,rx:2}],['rect',{x:2,y:14,width:20,height:8,rx:2}],['path',{d:'M6 6h.01M6 18h.01'}]],
   // pencil and copy follow Lucide (pencil, copy; ISC license).
@@ -61,6 +61,7 @@ export const icons = {
   eyeOff: [['path',{d:'M10.7 5.1a10.8 10.8 0 0 1 11.2 6.6 1 1 0 0 1 0 .7 10.7 10.7 0 0 1-1.4 2.5M14.1 14.2a3 3 0 0 1-4.2-4.2M17.5 17.5a10.8 10.8 0 0 1-15.4-5.1 1 1 0 0 1 0-.7 10.8 10.8 0 0 1 4.4-5.2M2 2l20 20'}]],
   help: [['circle',{cx:12,cy:12,r:9}],['path',{d:'M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01'}]],
   disk: [['path',{d:'M22 12H2M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.4-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.8 1.1zM6 16h.01M10 16h.01'}]],
+  alert: [['circle',{cx:12,cy:12,r:9}],['path',{d:'M12 8v4.5M12 16h.01'}]],
 } satisfies Record<string, Part[]>
 export type IconName = keyof typeof icons
 export const filledIcons: ReadonlySet<IconName> = new Set(['spark', 'play', 'pause'])

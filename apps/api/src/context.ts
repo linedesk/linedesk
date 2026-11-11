@@ -8,7 +8,7 @@ import { auth } from './auth.ts'
 import { mustConfirmEmail } from './auth-methods.ts'
 import { db } from './db.ts'
 import { impersonationEndsAt } from './impersonation-guard.ts'
-import { type AdminSecondFactor, adminSecondFactorGap } from './admin-second-factor.ts'
+import { type AdminSecondFactor, adminSecondFactorGap, passkeyConfirmed } from './admin-second-factor.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 
 export interface Actor {
@@ -27,6 +27,11 @@ export interface Actor {
   apiKeyId?: string
   /** The session of a signed-in member (not an API key or the agent). */
   sessionId?: string
+  /**
+   * The session was started by a passkey sign-in in the last 12 hours (never while impersonating),
+   * or the caller is the server operator (CLI): what admin-step-up.ts asks for.
+   */
+  passkeyConfirmed?: true
   /** The member's address (or an API key's creator's) is not confirmed yet: no sensitive actions (run-action.ts). */
   emailUnverified?: true
 }
@@ -87,7 +92,7 @@ export async function resolveCaller(
   if (impersonation === null) return signedOut
   // While impersonating: the user's own permissions, never instance:admin, plus ending the impersonation.
   // An instance admin gets instance:admin only in a session with the second factor (admin-second-factor.ts).
-  const secondFactorGap = !impersonation && isInstanceAdmin(account) ? await adminSecondFactorGap(account.id, session.session) : null
+  const secondFactorGap = !impersonation && isInstanceAdmin(account) ? adminSecondFactorGap(account, session.session) : null
   const extraPermissions: Permission[] = impersonation
     ? ['impersonation:stop']
     : isInstanceAdmin(account) && !secondFactorGap
@@ -95,6 +100,7 @@ export async function resolveCaller(
       : []
   const extra = {
     sessionId: session.session.id,
+    ...(!impersonation && passkeyConfirmed(session.session.passkeyVerifiedAt) ? { passkeyConfirmed: true as const } : {}),
     ...(mustConfirmEmail(account.emailVerified) ? { emailUnverified: true as const } : {}),
     ...(impersonation ? { impersonation } : {}),
     ...(secondFactorGap ? { adminSecondFactor: secondFactorGap } : {}),

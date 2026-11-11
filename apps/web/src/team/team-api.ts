@@ -37,6 +37,7 @@ export const preloadTeam = () => fetchQuery(TEAM, teamApi.list, { persist: true 
 
 export async function previewInvitation(id: string): Promise<InvitationPreview> {
   const res = await fetch(`/v1/invitations/${encodeURIComponent(id)}`)
-  if (!res.ok) throw new Error('Could not load the invitation')
+  // A code, not words: the invitation page says it through authErrorMessage like every sign-in error.
+  if (!res.ok) throw Object.assign(new Error('invitation unavailable'), { code: 'INVITATION_UNAVAILABLE', status: res.status })
   return (await res.json()) as InvitationPreview
 }

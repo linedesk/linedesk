@@ -8,8 +8,13 @@ import { join } from 'node:path'
 import { actions, REDACTED, recordingKey } from '@linedesk/actions'
 import { auth_events, calls, commands, instance_settings, invitation, member as memberTable, organization, passkey, provider_settings, session, user } from '@linedesk/db'
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
-import { adminSecondFactorRequired, markPasskeySession } from '../src/admin-second-factor.ts'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
+import { adminSignInEmail, alertOnAdminSignIn, plainSnippet } from '../src/admin-alerts.ts'
+import { adminHandlers } from '../src/admin-handlers.ts'
+import { adminSecondFactorGap, adminSecondFactorRequired, markPasskeySession, secondFactorOffWarning } from '../src/admin-second-factor.ts'
+import { mayReceiveEnrolmentCode } from '../src/admin-step-up.ts'
+import type { Actor } from '../src/context.ts'
+import { runAction } from '../src/run-action.ts'
 import { signInMethod } from '../src/audit.ts'
 import { emailSender } from '../src/email.ts'
 import { db } from '../src/db.ts'
@@ -1217,15 +1222,15 @@ describe('user.resetPasskeys: the recovery path that needs none of their passkey
     expect((await act(other.owner, 'user.resetPasskeys', { userId: member.userId })).status).toBe(403)
   })
 
-  test('an admin who resets their own passkeys keeps the session they are in; their other sessions end', async () => {
+  test('an admin cannot reset their own passkeys (b): recovery is another admin or the server', async () => {
     const self = await signUp()
     await setAdmin(self, true)
-    const elsewhere = await signIn(self)
-    expect(elsewhere.status).toBe(200)
-    expect((await db.select().from(session).where(eq(session.userId, self.userId))).length).toBe(2)
-    expect((await act(self, 'user.resetPasskeys', { userId: self.userId })).status).toBe(200)
-    expect((await db.select().from(session).where(eq(session.userId, self.userId))).length).toBe(1)
-    expect((await request(self, 'GET', '/v1/me')).status).toBe(200)
+    await db.insert(passkey).values(passkeyRow(self.userId))
+    expect(await act(self, 'user.resetPasskeys', { userId: self.userId })).toMatchObject({ status: 403, body: { code: 'forbidden' } })
+    expect((await db.select().from(passkey).where(eq(passkey.userId, self.userId))).length).toBe(1)
+    // The operator on the server (the CLI's actor) still can.
+    const cli: Actor = { actorId: 'cli', role: 'member', workspaceId: null, permissions: ['instance:admin'], passkeyConfirmed: true }
+    expect((await runAction('user.resetPasskeys', { userId: self.userId }, cli)).status).toBe(200)
     await setAdmin(self, false)
   })
 
@@ -1267,9 +1272,12 @@ describe('user.invite', () => {
       emailVerified: false,
       instanceAdmin: true,
     })
-    expect(send).toHaveBeenCalledTimes(1)
-    const [mail] = send.mock.calls[0]!
+    // One email to them; the other admins hear of the new admin separately (admin-alerts.ts).
+    const toThem = send.mock.calls.map(([m]) => m).filter(m => m.to === email.toLowerCase() && !/^New instance admin/.test(m.subject))
+    expect(toThem).toHaveLength(1)
+    const mail = toThem[0]!
     expect(mail).toMatchObject({ to: email.toLowerCase(), subject: 'Your Linedesk account' })
+    expect(send.mock.calls.some(([m]) => /^New instance admin/.test(m.subject))).toBe(true)
     expect(mail.text).toContain('enter this email address')
     expect(mail.text).not.toMatch(/\d{6}|token=/)
   })
@@ -1847,9 +1855,11 @@ describe('memberships across workspaces', () => {
 
 describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
   const PASSKEY_PATH = '/passkey/verify-authentication'
+  const HOUR = 3_600_000
   let admin: User
-  const sessionOfAdmin = (values: { passkeyVerifiedAt?: Date | null; impersonatedBy?: string | null }) =>
+  const sessionOfAdmin = (values: { passkeyVerifiedAt?: Date | null; impersonatedBy?: string | null; createdAt?: Date }) =>
     db.update(session).set(values).where(eq(session.userId, admin.userId))
+  const confirmEmail = (emailVerified: boolean) => db.update(user).set({ emailVerified }).where(eq(user.id, admin.userId))
   const addPasskey = () =>
     db.insert(passkey).values({
       id: `pk_${crypto.randomUUID().slice(0, 12)}`,
@@ -1860,6 +1870,11 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       deviceType: 'multiDevice',
       backedUp: true,
     })
+  /** The browser's cookie from a sign-in response, as a caller of its own. */
+  const callerFrom = (res: Response): User => ({
+    userId: admin.userId,
+    headers: { cookie: res.headers.getSetCookie().map(c => c.split(';')[0]).join('; '), origin: 'http://localhost:5173' },
+  })
 
   beforeAll(async () => {
     admin = await signUp()
@@ -1867,21 +1882,27 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     // A confirmed address: an unconfirmed one cannot add passkeys at all.
     await db.update(user).set({ emailVerified: true }).where(eq(user.id, admin.userId))
   })
+  beforeEach(async () => {
+    // A confirmed admin whose sign-in was 13 hours ago, unless a test says otherwise.
+    await confirmEmail(true)
+    await sessionOfAdmin({ createdAt: new Date(Date.now() - 13 * HOUR) })
+  })
   afterEach(async () => {
     process.env.ADMIN_SECOND_FACTOR = 'off'
+    vi.restoreAllMocks()
     await db.delete(passkey).where(eq(passkey.userId, admin.userId))
     await sessionOfAdmin({ passkeyVerifiedAt: null, impersonatedBy: null })
   })
 
-  test('without a passkey: no instance:admin, admin routes and actions refused with SECOND_FACTOR_REQUIRED, /v1/me says setup', async () => {
+  test('a sign-in older than 12 hours: no instance:admin, admin routes and actions refused, /v1/me says confirm', async () => {
     process.env.ADMIN_SECOND_FACTOR = 'on'
     const me = (await request(admin, 'GET', '/v1/me')).body
     expect(me.permissions).not.toContain('instance:admin')
-    expect(me.adminSecondFactor).toBe('setup')
+    expect(me.adminSecondFactor).toBe('confirm')
     for (const path of adminRoutes) {
       expect(await request(admin, 'GET', path), path).toMatchObject({
         status: 403,
-        body: { code: 'SECOND_FACTOR_REQUIRED', secondFactor: 'setup' },
+        body: { code: 'SECOND_FACTOR_REQUIRED', secondFactor: 'confirm' },
       })
     }
     // user.impersonate runs only through its own route (POST /v1/actions refuses it before any permission check).
@@ -1895,26 +1916,95 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     expect((await request(other.owner, 'GET', '/v1/me')).body.adminSecondFactor).toBeNull()
   })
 
-  test('with a passkey, in a session not started by it: confirm', async () => {
+  test('(e) another sign-in opens the admin area for 1 hour, a passkey sign-in for 12; a future time never', async () => {
     process.env.ADMIN_SECOND_FACTOR = 'on'
-    await addPasskey()
-    expect((await request(admin, 'GET', '/v1/me')).body.adminSecondFactor).toBe('confirm')
-    expect(await request(admin, 'GET', '/v1/admin/users')).toMatchObject({ status: 403, body: { secondFactor: 'confirm' } })
-  })
-
-  test('a passkey sign-in in the last 12 hours opens the admin area; an older one does not', async () => {
-    process.env.ADMIN_SECOND_FACTOR = 'on'
-    await addPasskey()
-    await sessionOfAdmin({ passkeyVerifiedAt: new Date(Date.now() - 11 * 3_600_000) })
+    const status = async () => (await request(admin, 'GET', '/v1/admin/users')).status
+    await sessionOfAdmin({ createdAt: new Date(Date.now() - 50 * 60_000) })
     const me = (await request(admin, 'GET', '/v1/me')).body
     expect(me.permissions).toContain('instance:admin')
     expect(me.adminSecondFactor).toBeNull()
+    expect(await status()).toBe(200)
+    await sessionOfAdmin({ createdAt: new Date(Date.now() - 61 * 60_000) })
+    expect(await request(admin, 'GET', '/v1/admin/users')).toMatchObject({ status: 403, body: { code: 'SECOND_FACTOR_REQUIRED', secondFactor: 'confirm' } })
+    // A passkey sign-in (marked when the session is made, so both times are the same).
+    const elevenAgo = new Date(Date.now() - 11 * HOUR)
+    await sessionOfAdmin({ createdAt: elevenAgo, passkeyVerifiedAt: elevenAgo })
+    expect(await status()).toBe(200)
+    const thirteenAgo = new Date(Date.now() - 13 * HOUR)
+    await sessionOfAdmin({ createdAt: thirteenAgo, passkeyVerifiedAt: thirteenAgo })
+    expect(await status()).toBe(403)
+    await sessionOfAdmin({ createdAt: new Date(Date.now() + HOUR), passkeyVerifiedAt: null })
+    expect(await status()).toBe(403)
+  })
+
+  test('signing in again with a password opens the admin area', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(403)
+    const res = await appRequest('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://localhost:5173', [FROM]: randomIp() },
+      body: JSON.stringify({ email: await emailOf(admin), password: 'test-password-1234' }),
+    })
+    expect(res.status).toBe(200)
+    expect((await request(callerFrom(res), 'GET', '/v1/admin/users')).status).toBe(200)
+    expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(403) // the old session stays as it was
+  })
+
+  test('signing in again with an email code opens the admin area', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
+    const email = await emailOf(admin)
+    const headers = { origin: 'http://localhost:5173', [FROM]: randomIp() }
+    expect((await request(anonymous, 'POST', '/api/auth/email-otp/send-verification-otp', { email, type: 'sign-in' }, headers)).status).toBe(200)
+    await vi.waitFor(() => expect(send.mock.calls.some(([m]) => m.to === email)).toBe(true))
+    const otp = send.mock.calls.map(([m]) => m).findLast(m => m.to === email)!.subject.slice(0, 6)
+    const res = await appRequest('/api/auth/sign-in/email-otp', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...headers },
+      body: JSON.stringify({ email, otp }),
+    })
+    expect(res.status).toBe(200)
+    expect((await request(callerFrom(res), 'GET', '/v1/admin/users')).status).toBe(200)
+  })
+
+  test('the rule does not ask how the session was started (passkey, code, password, Google, Microsoft, GitHub)', () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    const now = Date.now()
+    const recent = { createdAt: new Date(now - 30 * 60_000), passkeyVerifiedAt: null }
+    expect(adminSecondFactorGap({ emailVerified: true }, recent, now)).toBeNull()
+    expect(adminSecondFactorGap({ emailVerified: true }, { ...recent, createdAt: new Date(now - HOUR) }, now)).toBe('confirm')
+    expect(adminSecondFactorGap({ emailVerified: false }, recent, now)).toBe('email')
+    expect(adminSecondFactorGap({ emailVerified: true }, { ...recent, impersonatedBy: 'someone' }, now)).toBe('confirm')
+  })
+
+  test('an unconfirmed email address keeps the admin area closed, even right after signing in', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    await confirmEmail(false)
+    await sessionOfAdmin({ createdAt: new Date() })
+    const me = (await request(admin, 'GET', '/v1/me')).body
+    expect(me.permissions).not.toContain('instance:admin')
+    expect(me.adminSecondFactor).toBe('email')
+    expect(await request(admin, 'GET', '/v1/admin/users')).toMatchObject({
+      status: 403,
+      body: { code: 'SECOND_FACTOR_REQUIRED', secondFactor: 'email' },
+    })
+  })
+
+  test('a recent sign-in that opens the admin area still cannot add or remove passkeys without a passkey sign-in (H1)', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    await addPasskey()
+    await sessionOfAdmin({ createdAt: new Date() })
     expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(200)
-    await sessionOfAdmin({ passkeyVerifiedAt: new Date(Date.now() - 13 * 3_600_000) })
-    expect((await request(admin, 'GET', '/v1/admin/users')).body.code).toBe('SECOND_FACTOR_REQUIRED')
+    const authCall = (path: string, body?: unknown) =>
+      request(admin, body === undefined ? 'GET' : 'POST', `/api/auth${path}`, body, { origin: 'http://localhost:5173', [FROM]: randomIp() })
+    const [own] = await db.select().from(passkey).where(eq(passkey.userId, admin.userId))
+    expect((await authCall('/passkey/generate-register-options')).body.code).toBe('PASSKEY_CONFIRMATION_REQUIRED')
+    expect((await authCall('/passkey/delete-passkey', { id: own!.id })).body.code).toBe('PASSKEY_CONFIRMATION_REQUIRED')
+    expect((await db.select().from(passkey).where(eq(passkey.userId, admin.userId))).length).toBe(1)
   })
 
   test("an admin's first passkey needs the enrolment code from the granting admin; later ones a passkey session (H1)", async () => {
+    await sessionOfAdmin({ createdAt: new Date() })
     const authCall = (path: string, body?: unknown, extra: Record<string, string> = {}) =>
       request(admin, body === undefined ? 'GET' : 'POST', `/api/auth${path}`, body, { origin: 'http://localhost:5173', [FROM]: randomIp(), ...extra })
     const verify = (code?: string) =>
@@ -1953,27 +2043,203 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     expect(markPasskeySession(plain, undefined)).toBeUndefined()
   })
 
-  test('a client cannot mark its own session', async () => {
+  test('a client can neither mark its own session nor move its sign-in time', async () => {
     process.env.ADMIN_SECOND_FACTOR = 'on'
-    await addPasskey()
-    await request(admin, 'POST', '/api/auth/update-session', { passkeyVerifiedAt: new Date().toISOString() })
-    expect((await db.select().from(session).where(eq(session.userId, admin.userId)))[0]!.passkeyVerifiedAt).toBeNull()
+    const rows = () => db.select().from(session).where(eq(session.userId, admin.userId)).orderBy(session.id)
+    const before = await rows()
+    await request(admin, 'POST', '/api/auth/update-session', {
+      passkeyVerifiedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    })
+    const after = await rows()
+    expect(after.map(row => row.passkeyVerifiedAt)).toEqual(before.map(() => null))
+    expect(after.map(row => row.createdAt.getTime())).toEqual(before.map(row => row.createdAt.getTime()))
     expect((await request(admin, 'GET', '/v1/me')).body.adminSecondFactor).toBe('confirm')
   })
 
-  test('an impersonation session never counts, even when its row says passkey', async () => {
+  test('an impersonation session never counts, even a fresh one whose row says passkey', async () => {
     process.env.ADMIN_SECOND_FACTOR = 'on'
-    await sessionOfAdmin({ passkeyVerifiedAt: new Date(), impersonatedBy: operator.userId })
+    await sessionOfAdmin({ passkeyVerifiedAt: new Date(), impersonatedBy: operator.userId, createdAt: new Date() })
     const me = (await request(admin, 'GET', '/v1/me')).body
     expect(me.permissions).not.toContain('instance:admin')
     expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(403)
   })
 
-  test('ADMIN_SECOND_FACTOR=off turns the rule off; it is on by default', async () => {
+  describe('(a) taking over admin needs a passkey sign-in on top of a recent sign-in', () => {
+    let target: User // a plain user
+    let otherAdmin: User
+    beforeAll(async () => {
+      target = await signUp()
+      otherAdmin = await signUp()
+      await setAdmin(otherAdmin, true)
+    })
+    afterAll(() => setAdmin(otherAdmin, false))
+    const stepUpRefused = { status: 403, body: { code: 'PASSKEY_STEP_UP_REQUIRED' } }
+
+    test('a non-passkey session opens Admin but cannot grant, reset, impersonate, invite an admin or act on another admin', async () => {
+      process.env.ADMIN_SECOND_FACTOR = 'on'
+      await sessionOfAdmin({ createdAt: new Date() })
+      expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(200)
+      const refusals = [
+        await act(admin, 'instanceAdmin.grant', { userId: target.userId }),
+        await act(admin, 'user.resetPasskeys', { userId: target.userId }),
+        await act(admin, 'user.invite', { email: `${crypto.randomUUID().slice(0, 8)}@linedesk.test`, name: 'New Admin', admin: true }),
+        await act(admin, 'user.disable', { userId: otherAdmin.userId }),
+        await act(admin, 'instanceAdmin.revoke', { userId: otherAdmin.userId }),
+        await request(admin, 'POST', '/v1/impersonation/start', { userId: target.userId }),
+      ]
+      // No passkey yet: what is missing is the first passkey (enrolment code path).
+      for (const res of refusals) expect(res).toMatchObject({ ...stepUpRefused, body: { ...stepUpRefused.body, stepUp: 'enrol' } })
+      expect((await db.select().from(user).where(eq(user.id, target.userId)))[0]!.instanceAdmin).toBe(false)
+      expect((await db.select().from(user).where(eq(user.id, otherAdmin.userId)))[0]!.disabledAt).toBeNull()
+      // With a passkey on the account, the dialog asks to confirm with it.
+      await addPasskey()
+      expect(await act(admin, 'instanceAdmin.grant', { userId: target.userId })).toMatchObject({ ...stepUpRefused, body: { stepUp: 'confirm' } })
+    })
+
+    test('F2: an admin\'s workspace membership counts as acting on them: setRole and remove by memberId need the passkey', async () => {
+      process.env.ADMIN_SECOND_FACTOR = 'on'
+      await sessionOfAdmin({ createdAt: new Date() })
+      const adminMember = `m_${crypto.randomUUID().slice(0, 12)}`
+      const plainMember = `m_${crypto.randomUUID().slice(0, 12)}`
+      await db.insert(memberTable).values([
+        { id: adminMember, organizationId: other.id, userId: otherAdmin.userId, role: 'admin', createdAt: new Date() },
+        { id: plainMember, organizationId: other.id, userId: target.userId, role: 'admin', createdAt: new Date() },
+      ])
+      expect(await act(admin, 'membership.setRole', { memberId: adminMember, role: 'member' })).toMatchObject(stepUpRefused)
+      expect(await act(admin, 'membership.remove', { memberId: adminMember })).toMatchObject(stepUpRefused)
+      expect(await act(admin, 'membership.add', { userId: otherAdmin.userId, workspaceId: home.id, role: 'member' })).toMatchObject(stepUpRefused)
+      // A member who is no instance admin: no passkey needed.
+      expect((await act(admin, 'membership.setRole', { memberId: plainMember, role: 'member' })).status).toBe(200)
+      expect((await act(admin, 'membership.remove', { memberId: plainMember })).status).toBe(200)
+      await db.delete(memberTable).where(eq(memberTable.id, adminMember))
+    })
+
+    test('actions on users who are not admins, and the rest of Admin, need no passkey', async () => {
+      process.env.ADMIN_SECOND_FACTOR = 'on'
+      await sessionOfAdmin({ createdAt: new Date() })
+      expect((await act(admin, 'user.disable', { userId: target.userId })).status).toBe(200)
+      expect((await act(admin, 'user.enable', { userId: target.userId })).status).toBe(200)
+    })
+
+    test('in a passkey session they run, and (c) only then is an enrolment code handed out', async () => {
+      process.env.ADMIN_SECOND_FACTOR = 'on'
+      await addPasskey()
+      const now = new Date()
+      await sessionOfAdmin({ createdAt: now, passkeyVerifiedAt: now })
+      const granted = await act(admin, 'instanceAdmin.grant', { userId: target.userId })
+      expect(granted).toMatchObject({ status: 200, body: { data: { enrolmentCode: expect.any(String) } } })
+      await setAdmin(target, false)
+    })
+
+    test('(c) the handlers themselves never give an enrolment code to a session without a passkey sign-in', async () => {
+      process.env.ADMIN_SECOND_FACTOR = 'on'
+      const plain: Actor = { actorId: admin.userId, role: 'member', workspaceId: null, permissions: ['instance:admin'], sessionId: 's' }
+      for (const [name, input] of [
+        ['instanceAdmin.grant', { userId: target.userId }],
+        ['user.resetPasskeys', { userId: target.userId }],
+        ['user.invite', { email: 'never@linedesk.test', name: 'Never', admin: true }],
+      ] as const) {
+        await expect(adminHandlers[name]!({ tx: db, actor: plain, now: new Date().toISOString() }, input), name).rejects.toThrow(/passkey/)
+      }
+      expect(mayReceiveEnrolmentCode({ ...plain, passkeyConfirmed: true })).toBe(true)
+      process.env.ADMIN_SECOND_FACTOR = 'off'
+      expect(mayReceiveEnrolmentCode(plain)).toBe(true)
+    })
+
+    test('a passkey sign-in older than 12 hours no longer counts for them', async () => {
+      process.env.ADMIN_SECOND_FACTOR = 'on'
+      await addPasskey()
+      // Admin itself is closed by then too; even a fresh session with an old passkey mark is not confirmed.
+      await sessionOfAdmin({ createdAt: new Date(), passkeyVerifiedAt: new Date(Date.now() - 13 * HOUR) })
+      expect(await act(admin, 'instanceAdmin.grant', { userId: target.userId })).toMatchObject(stepUpRefused)
+    })
+  })
+
+  describe('(d) every instance admin is emailed', () => {
+    let operatorEmail = ''
+    beforeAll(async () => {
+      operatorEmail = await emailOf(operator)
+    })
+    const mails = () => vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
+    const sentTo = (send: ReturnType<typeof mails>, subject: RegExp) =>
+      send.mock.calls.map(([m]) => m).filter(m => subject.test(m.subject)).map(m => m.to)
+
+    test('when an admin signs in with a password, every admin hears of it', async () => {
+      process.env.ADMIN_SECOND_FACTOR = 'on'
+      const send = mails()
+      expect((await signIn(admin)).status).toBe(200)
+      const adminAddresses = [await emailOf(admin), await emailOf(operator)]
+      await vi.waitFor(() => expect(sentTo(send, /^Admin sign-in/)).toEqual(expect.arrayContaining(adminAddresses)))
+      const mail = send.mock.calls.map(([m]) => m).find(m => /^Admin sign-in/.test(m.subject))!
+      expect(mail.text).toMatch(/signed in with a password/)
+    })
+
+    test('a passkey sign-in from a known device sends nothing; from a new one it does; a member\'s sign-in never', async () => {
+      const send = mails()
+      const device = { ipAddress: '203.0.113.7', userAgent: `Browser ${crypto.randomUUID()}` }
+      const passkeySignIn = { path: '/passkey/verify-authentication' }
+      const record = () =>
+        db.insert(auth_events).values({ id: `ae_${crypto.randomUUID().slice(0, 12)}`, user_id: admin.userId, event: 'sign_in', method: 'passkey', ip_address: device.ipAddress, user_agent: device.userAgent })
+      await record() // this sign-in, as the audit log records it first
+      await alertOnAdminSignIn({ userId: admin.userId, ...device }, passkeySignIn)
+      expect(sentTo(send, /^Admin sign-in/)).toContain(await emailOf(operator)) // first time from here
+      send.mockClear()
+      await record()
+      await alertOnAdminSignIn({ userId: admin.userId, ...device }, passkeySignIn)
+      expect(sentTo(send, /^Admin sign-in/)).toEqual([])
+      await alertOnAdminSignIn({ userId: member.userId, ...device }, { path: '/sign-in/email' })
+      await alertOnAdminSignIn({ userId: admin.userId, impersonatedBy: operator.userId, ...device }, { path: '/sign-in/email' })
+      expect(sentTo(send, /^Admin sign-in/)).toEqual([])
+    })
+
+    test('F1: an admin session from an endpoint the alert does not know is still reported, as another method', async () => {
+      const send = mails()
+      await alertOnAdminSignIn({ userId: admin.userId, ipAddress: '198.51.100.4', userAgent: 'x' }, { path: '/some/new-endpoint' })
+      await alertOnAdminSignIn({ userId: admin.userId }, undefined)
+      const alerts = send.mock.calls.map(([m]) => m).filter(m => /^Admin sign-in/.test(m.subject) && m.to === operatorEmail)
+      expect(alerts).toHaveLength(2)
+      expect(alerts[0]!.text).toMatch(/a sign-in method Linedesk does not recognise/)
+    })
+
+    test('F4: the alert carries no links and no long browser strings', () => {
+      const ua = `Mozilla/5.0 (evil) visit https://phish.example/reset?x=1 or www.phish.example now ${'A'.repeat(300)}`
+      const { text } = adminSignInEmail('ann@linedesk.test', 'password', true, { userId: 'u', ipAddress: '203.0.113.9', userAgent: ua })
+      expect(text).not.toMatch(/https?:|www\./)
+      expect(text).toContain('[link]')
+      const browserLine = text.split('\n').find(line => line.startsWith('Browser: '))!
+      expect(browserLine.length).toBeLessThanOrEqual('Browser: '.length + 120)
+      expect(plainSnippet(null)).toBe('unknown')
+    })
+
+    test('when admin is granted and when passkeys are reset', async () => {
+      process.env.ADMIN_SECOND_FACTOR = 'on'
+      const send = mails()
+      const someone = await signUp()
+      const now = new Date()
+      await addPasskey()
+      await sessionOfAdmin({ createdAt: now, passkeyVerifiedAt: now })
+      expect((await act(admin, 'instanceAdmin.grant', { userId: someone.userId })).status).toBe(200)
+      expect(sentTo(send, /^New instance admin/)).toEqual(expect.arrayContaining([await emailOf(admin), await emailOf(operator)]))
+      expect((await act(admin, 'user.resetPasskeys', { userId: someone.userId })).status).toBe(200)
+      const reset = send.mock.calls.map(([m]) => m).filter(m => /^Passkeys reset/.test(m.subject))
+      expect(reset.map(m => m.to)).toEqual(expect.arrayContaining([await emailOf(operator)]))
+      expect(reset[0]!.text).toContain(await emailOf(admin)) // who did it
+      await setAdmin(someone, false)
+    })
+  })
+
+  test('ADMIN_SECOND_FACTOR=off turns the rule off, the email check and the passkey step-up included, with a loud warning', async () => {
     expect(adminSecondFactorRequired({})).toBe(true)
     expect(adminSecondFactorRequired({ ADMIN_SECOND_FACTOR: 'OFF' })).toBe(false)
+    expect(secondFactorOffWarning({})).toBeNull()
+    expect(secondFactorOffWarning({ ADMIN_SECOND_FACTOR: 'off' })).toMatch(/WARNING: ADMIN_SECOND_FACTOR=off/)
     process.env.ADMIN_SECOND_FACTOR = 'off'
+    await confirmEmail(false)
     expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(200)
+    const someone = await signUp()
+    expect((await act(admin, 'instanceAdmin.grant', { userId: someone.userId })).status).toBe(200)
+    await setAdmin(someone, false)
   })
 })
 

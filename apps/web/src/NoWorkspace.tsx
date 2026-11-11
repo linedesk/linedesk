@@ -64,7 +64,7 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
   const leave = () => {
     window.location.hash = '#start'
   }
-  // Account settings need no workspace: the passkey the admin area asks for is added there.
+  // Account settings need no workspace (an admin without one manages sign-in methods there).
   if (me && hash.startsWith('#account')) return <AccountPage onBack={leave} />
   if (me && admin && hash.startsWith('#admin')) {
     if (me.adminSecondFactor) return <SecondFactorPrompt state={me.adminSecondFactor} onExit={leave} />

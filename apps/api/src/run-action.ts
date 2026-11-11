@@ -2,6 +2,7 @@
 // Idempotent per command id: a replayed command returns its first result.
 // Read-only actions skip the command log: nothing to replay, nothing to audit.
 import { secondFactorRefusal } from './admin-second-factor.ts'
+import { passkeyStepUpRefusal } from './admin-step-up.ts'
 import { actions, droppedFields, inputErrorText, REDACTED, redactInput, unknownFieldsText, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
 import { commands } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
@@ -105,6 +106,8 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   if (!parsed.success) return rejection(422, inputErrorText(parsed.error, rawInput))
   const unknown = unknownFieldsRefusal(name, rawInput, parsed.data, actor)
   if (unknown) return unknown
+  const stepUp = await passkeyStepUpRefusal(def, parsed.data, actor)
+  if (stepUp) return { status: 403, body: stepUp }
   if (def.readOnly) return runReadOnly(def, parsed.data, actor)
 
   const [seen] = await db.select().from(commands).where(eq(commands.id, commandId))

@@ -5,6 +5,7 @@ import { createAuthClient } from 'better-auth/react'
 import type { FirstUse, OnboardingStep, StarPrompt } from '@linedesk/actions'
 
 import type { Impersonation } from './impersonation.ts'
+import { authErrorMessage } from './sign-in-code.ts'
 import { readLastUsedMethod } from './sign-in-methods.ts'
 import { announceSwitch } from './tabWorkspace.ts'
 
@@ -31,7 +32,7 @@ export type Me = {
   phoneSetup: PhoneSetupStatus | null
   /** Set while an instance admin is signed in as this user. */
   impersonation: Impersonation | null
-  /** An instance admin whose session lacks the passkey the admin area needs: add one, or sign in with it. */
+  /** An instance admin who must confirm their email address or sign in again before the admin area. */
   adminSecondFactor?: AdminSecondFactor | null
   /** An instance admin without a passkey: their first needs the enrolment code another admin (or the CLI) gave them. */
   passkeyEnrolment?: boolean
@@ -43,7 +44,8 @@ export type Me = {
   starPrompt?: StarPrompt | null
 }
 
-export type AdminSecondFactor = 'setup' | 'confirm'
+/** `email`: the address is not confirmed yet; `confirm`: the last sign-in is more than 12 hours ago. */
+export type AdminSecondFactor = 'email' | 'confirm'
 
 /** Who am I and which workspace am I in? null when signed out or without a workspace. */
 export async function fetchMe(): Promise<Me | null> {
@@ -87,7 +89,7 @@ export async function createWorkspace(name: string) {
 
 /** Where the API sends the browser back to: errors arrive as `?error=CODE` on the sign-in screen. */
 // A successful sign-in returns to the page it started from (`#account` after "Sign in again").
-const back = () => ({ callbackURL: window.location.origin + window.location.pathname + window.location.hash, errorCallbackURL: window.location.origin })
+const back = () => ({ callbackURL: window.location.origin + window.location.pathname + window.location.hash, errorCallbackURL: window.location.origin + window.location.pathname + window.location.hash })
 
 /** Emails a sign-in code. The answer is the same whether or not the address has an account. */
 export function requestSignInCode(email: string) {
@@ -121,10 +123,21 @@ const unprovenEmail = (provider: string | null) =>
   `${(provider && providerNames[provider]) || 'The sign-in provider'} didn't confirm this email address, so it can't sign you in. Sign in with an email code instead.`
 
 const redirectErrors: Record<string, (provider: string | null) => string> = {
-  access_denied: () => 'Sign-in was cancelled.',
+  // Better Auth's own: the state cookie or record of this sign-in is gone, expired or from another browser.
+  state_mismatch: () =>
+    'This sign-in took too long or was started in another browser. Start again below and finish in the same tab. If it keeps happening, allow cookies for this site.',
+  state_not_found: () => 'This sign-in could not be finished. Start again below and finish in the same tab.',
+  invalid_callback_request: () => 'This sign-in could not be finished. Start again below.',
+  access_denied: () => 'Sign-in was cancelled. Choose a way to sign in below.',
   account_not_linked: unprovenEmail,
   email_not_found: unprovenEmail,
   SIGNUP_CLOSED: () => 'There is no account for this address. Ask your administrator for one.',
+}
+
+/** The words for a `?error=` code a provider sign-in came back with; unknown codes never show as such. */
+export function redirectErrorMessage(code: string, provider: string | null): string {
+  const message = Object.hasOwn(redirectErrors, code) ? redirectErrors[code] : undefined
+  return message ? message(provider) : authErrorMessage({ code: code.toUpperCase() })
 }
 
 /**
@@ -138,6 +151,5 @@ export function takeRedirectError(): string | null {
   url.searchParams.delete('error')
   url.searchParams.delete('error_description')
   window.history.replaceState(null, '', url)
-  const message = redirectErrors[code]
-  return message ? message(readLastUsedMethod()) : `Sign-in did not work (${code.replaceAll('_', ' ').toLowerCase()}). Try again.`
+  return redirectErrorMessage(code, readLastUsedMethod())
 }

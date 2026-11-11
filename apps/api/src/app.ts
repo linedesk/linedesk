@@ -72,7 +72,7 @@ export const WORKSPACE_CREATION_CLOSED =
 /**
  * Creating a workspace is signing up a business: with sign-up closed (the default; AUTH_SIGNUP_ENABLED=true opens it) only
  * an instance admin creates one. Invitees, members and removed members join by invitation instead.
- * The admin's own account counts (a property of the user), also before their passkey second factor.
+ * The admin's own account counts (a property of the user), also before they sign in again for the admin area.
  */
 async function mayCreateWorkspace(userId: string): Promise<boolean> {
   if (signUpOpen()) return true

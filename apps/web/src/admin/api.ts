@@ -1,6 +1,7 @@
 // The admin area talks to the API directly. Its rows cross workspaces, so they are not in the
 // local store, and its writes skip the outbox on purpose: an outbox entry is kept in IndexedDB,
 // and a provider key must never be stored in the browser.
+import { StepUpRequired, stepUpOf, withPasskeyStepUp } from './PasskeyStepUp.tsx'
 import type { MembershipRole, ProviderCategory, ProviderName, ProviderTestData } from '@linedesk/actions'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 
@@ -95,7 +96,9 @@ export type AdminData = {
 }
 
 async function body<T>(res: Response): Promise<T> {
-  const json = (await res.json().catch(() => null)) as (T & { error?: string }) | null
+  const json = (await res.json().catch(() => null)) as (T & { error?: string; code?: unknown; stepUp?: unknown }) | null
+  const stepUp = stepUpOf(json)
+  if (stepUp) throw new StepUpRequired(json?.error ?? 'Confirm with your passkey.', stepUp)
   if (!res.ok || !json) throw new Error(json?.error ?? `The server answered ${res.status}`)
   return json
 }
@@ -148,17 +151,36 @@ type AdminInputs = {
   'voiceCloning.set': { on: boolean }
 }
 
-/** Runs an admin action through the registry. Throws with the server's reason when it is rejected. */
-export async function runAdmin<N extends keyof AdminInputs>(name: N, input: AdminInputs[N]) {
-  const res = await fetch(`/v1/actions/${name}`, {
-    ...HIGH,
-    method: 'POST',
-    credentials: 'include',
-    headers: { ...workspaceHeaders(), 'content-type': 'application/json' },
-    body: JSON.stringify(input),
-  })
-  return (await body<{ data?: Record<string, unknown> }>(res)).data ?? {}
+/**
+ * Runs an admin action through the registry. Throws with the server's reason when it is rejected;
+ * when it needs a passkey sign-in, asks for one and runs again (PasskeyStepUp.tsx).
+ */
+export function runAdmin<N extends keyof AdminInputs>(name: N, input: AdminInputs[N]) {
+  return withPasskeyStepUp(async () => {
+    const res = await fetch(`/v1/actions/${name}`, {
+      ...HIGH,
+      method: 'POST',
+      credentials: 'include',
+      headers: { ...workspaceHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+    return (await body<{ data?: Record<string, unknown> }>(res)).data ?? {}
+  }, stepUpLabel(name))
 }
+
+/** What the passkey dialog says it confirms. */
+const stepUpLabels: Partial<Record<keyof AdminInputs, string>> = {
+  'instanceAdmin.grant': 'make an instance admin',
+  'instanceAdmin.revoke': 'remove an instance admin',
+  'user.resetPasskeys': 'reset passkeys',
+  'user.invite': 'invite an instance admin',
+  'user.disable': 'disable an admin',
+  'user.enable': 'enable an admin',
+  'membership.add': "add an admin to a workspace",
+  'membership.setRole': "change an admin's role",
+  'membership.remove': 'remove an admin from a workspace',
+}
+export const stepUpLabel = (name: keyof AdminInputs) => stepUpLabels[name] ?? 'this admin change'
 
 export const testProvider = async (provider: ProviderName) =>
   (await runAdmin('provider.test', { provider })) as ProviderTestData

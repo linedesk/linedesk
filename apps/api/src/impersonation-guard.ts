@@ -74,7 +74,7 @@ export async function refuseWhileImpersonating(ctx: AuthCtx) {
   if (!refusedPath(ctx.path)) return
   const session = await getSessionFromCtx(ctx).catch(() => null)
   if ((session?.session as { impersonatedBy?: string | null } | undefined)?.impersonatedBy) {
-    throw new APIError('FORBIDDEN', { message: NOT_WHILE_IMPERSONATING })
+    throw new APIError('FORBIDDEN', { code: 'NOT_WHILE_IMPERSONATING', message: NOT_WHILE_IMPERSONATING })
   }
 }
 

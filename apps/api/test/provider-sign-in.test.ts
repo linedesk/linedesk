@@ -243,3 +243,36 @@ describe('an unverified password account', () => {
     expect(sessions).toHaveLength(1) // only the Google sign-in's own session
   })
 })
+
+describe('a sign-in whose state is unknown or expired', () => {
+  test("goes back to the app's sign-in screen with the error code, never to Better Auth's error page", async () => {
+    const res = await appRequest('/api/auth/callback/google?code=c&state=not-a-state', { redirect: 'manual', headers: { [FROM]: randomIp() } })
+    expect(res.status).toBe(302)
+    const to = new URL(res.headers.get('location')!)
+    expect(to.origin).toBe(ORIGIN)
+    expect(to.searchParams.get('error')).toBe('state_mismatch')
+    const page = await appRequest('/api/auth/error?error=state_mismatch', { redirect: 'manual', headers: { [FROM]: randomIp() } })
+    expect(page.headers.get('location')).toBe(`${ORIGIN}/?error=state_mismatch`)
+  })
+})
+
+describe('a provider ID token posted by the client (F1)', () => {
+  test('is refused for sign-in and for linking: Linedesk only signs in through the provider redirect', async () => {
+    for (const path of ['/api/auth/sign-in/social', '/api/auth/link-social']) {
+      const res = await appRequest(path, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },
+        body: JSON.stringify({ provider: 'google', idToken: { token: 'header.payload.signature' } }),
+      })
+      expect(res.status, path).toBe(403)
+      expect(((await res.json()) as { code?: string }).code, path).toBe('ID_TOKEN_SIGN_IN_OFF')
+    }
+    // The redirect itself still starts.
+    const redirect = await appRequest('/api/auth/sign-in/social', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },
+      body: JSON.stringify({ provider: 'google', callbackURL: ORIGIN }),
+    })
+    expect(redirect.status).toBe(200)
+  })
+})

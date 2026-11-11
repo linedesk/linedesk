@@ -1,5 +1,6 @@
+import { adminAlertHooks } from './admin-alerts.ts'
 import { betterAuth } from 'better-auth'
-import { createAuthMiddleware } from 'better-auth/api'
+import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { emailOTP, genericOAuth, organization } from 'better-auth/plugins'
 import { authConfig } from './auth-methods.ts'
@@ -69,7 +70,22 @@ export const TRUSTED_ORIGINS: readonly string[] = [...new Set([normaliseOrigin(W
 /** A member can create this many workspaces. */
 export const WORKSPACE_LIMIT = 5
 
+/** The endpoints that take a provider's ID token straight from the client instead of the redirect. */
+const ID_TOKEN_PATHS = ['/sign-in/social', '/link-social']
+
+/**
+ * Better Auth signs in (or links) with a provider ID token the client posts, without the redirect
+ * and its state check. Linedesk only uses the redirect, so a posted ID token is refused: it would be
+ * a way in that the sign-in limits and the admin alerts do not see.
+ */
+export function refuseIdTokenSignIn(ctx: { path: string; body?: unknown }) {
+  if (!ID_TOKEN_PATHS.includes(ctx.path)) return
+  if ((ctx.body as { idToken?: unknown } | undefined)?.idToken === undefined) return
+  throw new APIError('FORBIDDEN', { code: 'ID_TOKEN_SIGN_IN_OFF', message: "Sign in on the provider's page." })
+}
+
 const beforeAuthEndpoints = createAuthMiddleware(async ctx => {
+  refuseIdTokenSignIn(ctx)
   await limitSignIns(ctx)
   await refuseWhileImpersonating(ctx)
   await guardPasskeyChanges(ctx)
@@ -141,8 +157,11 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
   trustedOrigins: [...TRUSTED_ORIGINS],
+  // A failed provider sign-in that names no page of its own (expired or unknown state) goes to the
+  // app's sign-in screen, which explains `?error=` in plain words, never to Better Auth's error page.
+  onAPIError: { errorURL: WEB_ORIGIN },
   emailAndPassword: { enabled: methods.password },
-  databaseHooks: mergeDatabaseHooks(instanceAdminHooks, accountLinkingHooks, auditHooks, starOnGrantHooks),
+  databaseHooks: mergeDatabaseHooks(instanceAdminHooks, accountLinkingHooks, auditHooks, starOnGrantHooks, adminAlertHooks),
   emailVerification: {
     sendVerificationEmail,
     autoSignInAfterVerification: true,

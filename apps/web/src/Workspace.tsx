@@ -100,7 +100,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
   const signOut = useSignOut({ onSignedOut, toast: toaster.show })
   const { list, tab, search, openCall, target } = view
   const isInstanceAdmin = me.permissions.includes('instance:admin')
-  // An instance admin without the passkey sign-in still finds the admin area; it asks for the passkey.
+  // An instance admin who must sign in again still finds the admin area; it asks them to sign in.
   const canOpenAdmin = isInstanceAdmin || Boolean(me.adminSecondFactor)
   // First-use tour (FIRST_USE): once after onboarding in this browser, and from ⌘K.
   const tourOffered = offersTour(me.firstUse ?? 'off')

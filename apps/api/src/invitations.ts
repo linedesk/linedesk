@@ -27,7 +27,7 @@ export async function previewInvitation(id: string): Promise<InvitationPreview> 
 export async function refuseExistingMember({ invitation: invite, user: account }: { invitation: { organizationId: string }; user: { id: string } }) {
   const [existing] = await db.select({ id: member.id }).from(member)
     .where(and(eq(member.organizationId, invite.organizationId), eq(member.userId, account.id)))
-  if (existing) throw new APIError('BAD_REQUEST', { message: 'You are already a member of this workspace.' })
+  if (existing) throw new APIError('BAD_REQUEST', { code: 'ALREADY_MEMBER', message: 'You are already a member of this workspace.' })
 }
 
 /**
