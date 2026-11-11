@@ -9,7 +9,7 @@ type Account = {
   numbers: { id: string; phone_number: string; connection_id: string | null }[]
 }
 
-const CALLER = '+15035550192'
+const CALLER = '+19715550188'
 
 function mockTelnyx(account: Account) {
   const calls: Call[] = []
@@ -42,8 +42,8 @@ function mockTelnyx(account: Account) {
 }
 
 const freshAccount = (): Account => ({
-  profiles: [{ id: 'ovp_other', name: 'OtherCo' }],
-  connections: [{ id: 'conn_other', connection_name: 'OtherCo' }],
+  profiles: [{ id: 'ovp_other', name: 'Another business' }],
+  connections: [{ id: 'conn_other', connection_name: 'Another business' }],
   numbers: [{ id: 'num_b', phone_number: CALLER, connection_id: null }, { id: 'num_other', phone_number: '+15035550100', connection_id: 'conn_other' }],
 })
 
@@ -68,7 +68,7 @@ describe('telnyx outbound for the call test', () => {
     expect(calls.find(c => c.method === 'PATCH')).toMatchObject({ path: '/credential_connections/conn_test', body: { password: again.password } })
   })
 
-  test('never touches objects with another name, such as the OtherCo connection', async () => {
+  test('never touches objects with another name, such as the connection of another business', async () => {
     const { outbound, calls } = mockTelnyx(freshAccount())
     await outbound.ensureOutboundSip(CALLER)
     for (const call of calls.filter(c => c.method !== 'GET')) {

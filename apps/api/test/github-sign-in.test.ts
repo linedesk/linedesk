@@ -13,7 +13,7 @@ const { db } = await import('../src/db.ts')
 const { appRequest, randomIp, FROM, signUp } = await import('./helpers.ts')
 
 const ORIGIN = 'http://localhost:5173'
-const address = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}@callfront.test`
+const address = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}@linedesk.test`
 type GitHubEmail = { email: string; primary: boolean; verified: boolean }
 
 const realFetch = globalThis.fetch

@@ -236,7 +236,7 @@ prototypes/   clickable prototypes (no backend)
 docs/
 ```
 
-Janik's Next.js mock-up currently lives at the repo root (`src/`); it moves to `prototypes/linedesk-next/` when the monorepo is created.
+Janik's earlier Next.js mock-up is archived in `prototypes/linedesk-next/`.
 
 **Default `docker compose`:** caddy, app (web + API + MCP), worker, voice agent, postgres, electric, livekit-server, livekit-sip, redis/valkey (needed by LiveKit SIP); optional `recording` profile (livekit-egress writing to a shared directory; no storage server). App, worker and agent are stateless replicas; LiveKit scales via Redis; Postgres can be managed.
 
