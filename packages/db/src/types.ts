@@ -14,6 +14,14 @@ export type BookingField = 'phone' | 'email' | 'address'
 export const webhookEvents = ['call.completed', 'call.summary_ready', 'booking.created', 'message.taken'] as const
 export type WebhookEvent = (typeof webhookEvents)[number]
 export type AssistantVoice = { provider: string; voice_id: string }
+/**
+ * The optional keypad menu an assistant plays right after the greeting ("Press 1 for emergencies…").
+ * `transfer`: the key is an urgent call (put through when transfer is on, else flagged urgent and a message);
+ * `topic`: the assistant goes on knowing what the caller wants.
+ */
+export type KeypadMenuAction = 'transfer' | 'topic'
+export type KeypadMenuOption = { key: string; label: string; action: KeypadMenuAction }
+export type KeypadMenu = { options: KeypadMenuOption[] }
 export type BusinessProfile = {
   /** Free text from the business: what the assistant should know and do. When set, the agent uses it instead of the fields below. */
   instructions?: string

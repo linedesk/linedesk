@@ -19,7 +19,7 @@ import {
   timestamp,
   unique,
 } from 'drizzle-orm/pg-core'
-import type { ActionItem, AssistantVoice, BookingField, BusinessProfile, CallField, ToolEvent, WebhookEvent } from './types.ts'
+import type { ActionItem, AssistantVoice, BookingField, BusinessProfile, KeypadMenu, CallField, ToolEvent, WebhookEvent } from './types.ts'
 
 export const rowVersion = pgSequence('row_version')
 
@@ -89,6 +89,8 @@ export const assistants = pgTable(
     silence_first_gap_s: integer('silence_first_gap_s').notNull().default(8),
     silence_reminders: integer('silence_reminders').notNull().default(2),
     silence_closing: text('silence_closing'),
+    /** Keypad menu after the greeting ("press 1 for…"); null: off (the default). */
+    keypad_menu: jsonb('keypad_menu').$type<KeypadMenu>(),
     created_at: createdAt(),
     version: version(),
   },

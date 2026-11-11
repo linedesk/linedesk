@@ -402,3 +402,10 @@
     display: none;
   }
 }
+
+/* Keypad menu: one row per key (key, what the caller hears, what it does, remove). */
+.as-keypad-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+@media (max-width: 560px) {
+  .as-keypad-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .as-keypad-row > :nth-child(3) { grid-column: 2; }
+}

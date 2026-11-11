@@ -2,6 +2,8 @@
 // phone it talks to the SIP participant the call-test command dialled; in room mode it talks to the
 // business's own agent in the same room. It hangs up when the scenario is done.
 import { llm, voice, type JobContext } from '@livekit/agents'
+import { z } from 'zod'
+import { dtmfCode } from '../collect/collection.ts'
 import type { AgentConfig } from '../config.ts'
 import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from '../counterpart.ts'
 import { createPipeline } from '../pipeline.ts'
@@ -16,6 +18,8 @@ export const isGoodbye = (text: string) => /\b(good ?bye|bye|have a (good|nice|g
 export const TEST_CALLER_LIMIT_MS = 2 * 60_000
 /** How long a silent caller stays on the line before hanging up. */
 export const SILENT_CALLER_MS = 25_000
+/** Pause between two keypad presses, like a person typing. */
+const KEY_GAP_MS = 250
 /** Time for the goodbye to be spoken before the line is cut. */
 const GOODBYE_MS = 4000
 
@@ -56,9 +60,20 @@ export async function runTestCaller(ctx: JobContext, { scenario: name, mode }: T
       return 'Hanging up.'
     },
   })
+  const pressKeys = llm.tool({
+    description: 'Type keys on the phone keypad (digits, * and #), for example when asked to type a number and press pound.',
+    parameters: z.object({ keys: z.string().describe('The keys in order, e.g. "5035550142#".') }),
+    execute: async ({ keys }) => {
+      for (const key of keys.replace(/[^\d*#]/g, '')) {
+        await ctx.room.localParticipant!.publishDtmf(dtmfCode(key), key)
+        await new Promise(r => setTimeout(r, KEY_GAP_MS))
+      }
+      return 'Typed. Wait for the assistant.'
+    },
+  })
   measureLatency(ctx, counterpart, session)
   await session.start({
-    agent: new voice.Agent({ instructions: callerInstructions(scenario), tools: { end_call: endCall } }),
+    agent: new voice.Agent({ instructions: callerInstructions(scenario), tools: { end_call: endCall, press_keys: pressKeys } }),
     room: ctx.room,
     inputOptions: { participantIdentity: counterpart.identity, participantKinds: ALL_PARTICIPANT_KINDS, closeOnDisconnect: true },
   })

@@ -151,10 +151,29 @@ export const DEFAULT_SILENCE_CLOSING = "I can't hear anyone on the line, so I'll
 /** The closing line an assistant says: its own, or the default. */
 export const silenceClosingOf = (stored: string | null | undefined) => stored?.trim() || DEFAULT_SILENCE_CLOSING
 
+/** Most options a keypad menu offers: callers forget a longer list. */
+export const KEYPAD_MENU_MAX_OPTIONS = 5
+export const KEYPAD_MENU_LABEL_MAX = 60
+
+/** A keypad menu: keys 1–9, each once, each with what the caller hears ("emergencies") and what it does. */
+export const keypadMenu = z.object({
+  options: z
+    .array(
+      z.object({
+        key: z.string().regex(/^[1-9]$/, 'Keys are 1 to 9.'),
+        label: z.string().trim().min(1, 'Each key needs a label.').max(KEYPAD_MENU_LABEL_MAX),
+        action: z.enum(['transfer', 'topic']),
+      }),
+    )
+    .min(1)
+    .max(KEYPAD_MENU_MAX_OPTIONS)
+    .refine(options => new Set(options.map(o => o.key)).size === options.length, 'Each key can be used once.'),
+})
+
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
-    'Update the assistant: name, greeting, whether a known caller is greeted by first name (`greet_by_name`), voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` and `instructions_outside` are used outside business hours when the workspace uses them (null: the same as during hours). `transfer_urgent` puts urgent calls through to `transfer_number` (a US number in E.164), only while the business is open when `transfer_hours_only`.',
+    'Update the assistant: name, greeting, whether a known caller is greeted by first name (`greet_by_name`), voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` and `instructions_outside` are used outside business hours when the workspace uses them (null: the same as during hours). `transfer_urgent` puts urgent calls through to `transfer_number` (a US number in E.164), only while the business is open when `transfer_hours_only`. `keypad_menu` (null: off) plays "press 1 for …" after the greeting; a `transfer` key is an urgent call, a `topic` key tells the assistant what the caller wants.',
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().min(1).optional(),
@@ -176,6 +195,8 @@ export const assistantUpdate = defineAction({
     silence_first_gap_s: z.number().int().min(SILENCE_FIRST_GAP_MIN_S).max(SILENCE_FIRST_GAP_MAX_S).optional(),
     silence_reminders: z.number().int().min(0).max(SILENCE_REMINDERS_MAX).optional(),
     silence_closing: z.string().trim().max(SILENCE_CLOSING_MAX).nullable().optional(),
+    /** null: no keypad menu (the default). */
+    keypad_menu: keypadMenu.nullable().optional(),
     /** An empty voice_id: the provider's default voice. */
     voice: z.object({ provider: z.string(), voice_id: z.union([z.literal(''), voiceId]) }).optional(),
     business_profile: z

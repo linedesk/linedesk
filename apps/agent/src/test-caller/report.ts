@@ -125,6 +125,14 @@ export function evaluateCall(finding: CallTestFinding, scenario: Scenario, { exp
       detail: match ? `said "${match[0]}"` : `${expect.assistantAvoids} not said`,
     })
   }
+  if (expect.toolSays) {
+    const tools = lines.filter(l => l.speaker === 'system').map(l => l.text)
+    checks.push({
+      ok: tools.some(t => expect.toolSays!.test(t)),
+      label: 'tool line',
+      detail: `${expect.toolSays} in ${tools.length ? tools.map(t => `"${t}"`).join(', ') : 'no tool lines'}`,
+    })
+  }
   if (expect.transferResult)
     checks.push({
       ok: call.transfer_result === expect.transferResult,

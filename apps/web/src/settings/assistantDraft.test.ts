@@ -1,7 +1,7 @@
 import type { Assistant } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_CALL_RULES, DEFAULT_SILENCE_CLOSING } from '@linedesk/actions'
-import { callRulesToSave, disclosesAi, draftOf, isDefaultCallRules, draftProblem, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure, staleGreetingName, onCallProblem, transferToSave, silenceProblem, silenceSummary, silenceToSave } from './assistantDraft.ts'
+import { callRulesToSave, disclosesAi, draftOf, isDefaultCallRules, draftProblem, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure, staleGreetingName, onCallProblem, transferToSave, silenceProblem, silenceSummary, silenceToSave, keypadProblem, keypadToSave, nextFreeKey } from './assistantDraft.ts'
 
 const oldProfile = { description: 'Plumbing', services: ['Leak repair', ' ', 'Drains'], service_area: 'Portland', address: '1 Main St', hours: 'Mon–Fri', faqs: [{ q: 'Estimates?', a: 'Free.' }, { q: '', a: '' }] }
 const assistant = (over: Partial<Assistant> = {}) => ({ id: 'as1', name: 'Maya', greeting: 'Hello', disclose_ai: true, business_profile: oldProfile, voice: { provider: 'elevenlabs', voice_id: '' }, ...over }) as Assistant
@@ -127,5 +127,33 @@ describe('silence on the line', () => {
       expect(silenceProblem({ ...d, ...bad }), JSON.stringify(bad).slice(0, 40)).not.toBeNull()
       expect(draftProblem({ ...d, ...bad })).not.toBeNull()
     }
+  })
+})
+
+describe('keypad menu', () => {
+  const menu = { options: [{ key: '1', label: 'emergencies', action: 'transfer' as const }, { key: '3', label: 'billing', action: 'topic' as const }] }
+
+  it('is off without a saved menu, and saves null while off', () => {
+    const draft = draftOf(assistant({ keypad_menu: null }))
+    expect(draft.keypad_on).toBe(false)
+    expect(keypadToSave(draft)).toEqual({ keypad_menu: null })
+    expect(keypadProblem(draft)).toBeNull()
+  })
+
+  it('reads a saved menu and saves it back with trimmed labels', () => {
+    const draft = draftOf(assistant({ keypad_menu: menu }))
+    expect(draft.keypad_on).toBe(true)
+    const edited = { ...draft, keypad_options: [{ ...draft.keypad_options[0]!, label: ' emergencies ' }, draft.keypad_options[1]!] }
+    expect(keypadToSave(edited)).toEqual({ keypad_menu: menu })
+    expect(isDirty(edited, draft)).toBe(false)
+    expect(nextFreeKey(menu.options)).toBe('2')
+  })
+
+  it('needs a label per key and each key once', () => {
+    const draft = draftOf(assistant({ keypad_menu: menu }))
+    expect(keypadProblem({ ...draft, keypad_options: [] })).toMatch(/at least one key/)
+    expect(keypadProblem({ ...draft, keypad_options: [{ key: '1', label: ' ', action: 'topic' }] })).toMatch(/needs a label/)
+    expect(keypadProblem({ ...draft, keypad_options: [menu.options[0]!, { ...menu.options[1]!, key: '1' }] })).toMatch(/used once/)
+    expect(draftProblem({ ...draft, keypad_options: [] })).toMatch(/at least one key/)
   })
 })

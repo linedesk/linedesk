@@ -97,7 +97,7 @@ export function bookingInstructions(booking: BookingContext, transfer = false, l
     booking.calendars.length > 1
       ? 'Pick the calendar whose note fits the caller\'s request; if none fits, use the default.'
       : null,
-    'To book: find out what the caller needs, then use find_slots with the appointment type, the calendar and the days the caller wants. Offer at most two or three of the times it returns, in plain words. When the caller picks one, ask for their name if you do not have it, and the address for a visit, then use book_appointment with that exact start. Only say the appointment is booked after book_appointment confirmed it. If no time suits or the calendar cannot be reached, take a message with the times the caller prefers.',
+    'To book: find out what the caller needs, then use find_slots with the appointment type, the calendar and the days the caller wants. Offer at most two or three of the times it returns, in plain words. When the caller picks one, get their name with get_name if you do not have it confirmed, and the address for a visit with get_address, then use book_appointment with that exact start. Only say the appointment is booked after book_appointment confirmed it. If no time suits or the calendar cannot be reached, take a message with the times the caller prefers.',
     'Never make up a free time: only offer times find_slots returned.',
     'If the caller gives an email address, pass it to book_appointment: they get the confirmation by email. Always confirm the day and time out loud.',
     canChangeBookings(booking)
@@ -108,6 +108,9 @@ export function bookingInstructions(booking: BookingContext, transfer = false, l
 
 /** Our delimiters around what callers and the team wrote; removed from that text so it cannot close them. */
 const CALLER_TAGS = /<\/?caller_(?:notes|history)>/gi
+/** How the main assistant is told to use the steps. */
+export const COLLECT_INSTRUCTIONS =
+  "Before you save a message or book, get the details with the collection tools, which read them back and confirm them: get_name for the caller's name (with the last name spelled), get_phone_number when the caller wants a callback on a number other than the one they are calling from (or their number is withheld), get_address for a visit, get_email when they want a confirmation by email, get_date for a date, get_digits for an account, policy or other number (they can type it on the keypad). Call them without saying anything yourself; each asks the caller. Use only the values they return, and never ask for the same detail twice."
 
 /** The longest contact note the assistant gets; longer ones are cut. */
 export const CALLER_NOTE_MAX_CHARS = 2000
@@ -225,6 +228,7 @@ export function buildInstructions(
     callerNotesInstructions(caller),
     callerHistoryInstructions(caller),
     caller?.greetedByName ? GREETED_BY_NAME : null,
+    COLLECT_INSTRUCTIONS,
     'When you use a tool, say your reply in the same response as the tool call instead of waiting for its result: the caller should never wait in silence.',
     'Never tell the caller you did something (flagged the call as urgent, saved a message, booked a time) unless you call the tool for it in that same response.',
     'Use take_message once per call, when you have what the team needs; do not save the same request twice.',

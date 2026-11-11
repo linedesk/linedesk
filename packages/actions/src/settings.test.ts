@@ -20,6 +20,26 @@ describe('assistant.update', () => {
     const input = assistantUpdate.input.parse({ assistantId: 'as1', business_profile: { instructions: 'Hours: 24/7' } })
     expect(input.business_profile).toEqual({ instructions: 'Hours: 24/7' })
   })
+
+  it('takes a keypad menu (keys 1–9, each once) or null to turn it off', () => {
+    const ok = { options: [{ key: '1', label: 'emergencies', action: 'transfer' }, { key: '2', label: 'billing', action: 'topic' }] }
+    expect(assistantUpdate.input.safeParse({ assistantId: 'as1', keypad_menu: ok }).success).toBe(true)
+    expect(assistantUpdate.input.safeParse({ assistantId: 'as1', keypad_menu: null }).success).toBe(true)
+    const bad = (options: unknown[]) => assistantUpdate.input.safeParse({ assistantId: 'as1', keypad_menu: { options } }).success
+    expect(bad([])).toBe(false)
+    expect(bad([{ key: '0', label: 'x', action: 'topic' }])).toBe(false)
+    expect(bad([{ key: '#', label: 'x', action: 'topic' }])).toBe(false)
+    expect(bad([{ key: '1', label: ' ', action: 'topic' }])).toBe(false)
+    expect(bad([{ key: '1', label: 'a', action: 'topic' }, { key: '1', label: 'b', action: 'topic' }])).toBe(false)
+    expect(bad([{ key: '1', label: 'a', action: 'hang-up' }])).toBe(false)
+  })
+
+  it('applies the keypad menu locally like any other field', () => {
+    const menu = { options: [{ key: '1', label: 'emergencies', action: 'transfer' as const }] }
+    const assistants = new Map([['as1', { id: 'as1', keypad_menu: null }]])
+    applyLocally({ assistants } as unknown as LocalTables, assistantUpdate, { assistantId: 'as1', keypad_menu: menu }, '2026-11-11T00:00:00Z')
+    expect(assistants.get('as1')!.keypad_menu).toEqual(menu)
+  })
 })
 
 describe('contact.block and contact.unblock', () => {

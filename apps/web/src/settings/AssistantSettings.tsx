@@ -2,12 +2,13 @@
 // transfer of urgent calls and the calendar, one section at a time (#assistant/<id>/<section>). Edits in the text sections are one local
 // draft: Save runs assistant.update through the outbox; a section with unsaved
 // changes keeps a dot in the nav while you look at another one.
-import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX, SILENCE_CLOSING_MAX } from '@linedesk/actions'
-import type { Assistant, PhoneNumber } from '@linedesk/db/types'
+import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS } from '@linedesk/actions'
+import type { Assistant, KeypadMenuAction, KeypadMenuOption, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
 import { onSaveKey, SaveBar } from '../ui/form.tsx'
+import { Select } from '../ui/controls.tsx'
 import { Button, cx } from '../ui/kit.tsx'
 import { LoadProblem, Skeleton, useLoadState } from '../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, sectionHash, useSection } from '../ui/SettingsLayout.tsx'
@@ -20,6 +21,9 @@ import {
   isDefaultCallRules,
   isDirty,
   keepDraft,
+  keypadProblem,
+  keypadToSave,
+  nextFreeKey,
   keptDraft,
   mergeDraft,
   normalized,
@@ -51,7 +55,7 @@ const sections: readonly PageSection<SectionId>[] = [
   { id: 'rules', label: 'Call rules', description: 'How calls are handled' },
   { id: 'transfer', label: 'Transfer', description: 'Urgent calls to your on-call phone' },
   { id: 'calendar', label: 'Calendar', description: 'Accounts, calendars and appointment types' },
-  { id: 'advanced', label: 'Advanced', description: 'Silence on the line' },
+  { id: 'advanced', label: 'Advanced', description: 'Silence on the line, keypad menu' },
 ]
 /** Which draft fields each section holds; the calendar has its own. */
 const sectionFields: Record<Exclude<SectionId, 'calendar'>, (keyof Draft)[]> = {
@@ -60,7 +64,7 @@ const sectionFields: Record<Exclude<SectionId, 'calendar'>, (keyof Draft)[]> = {
   instructions: ['instructions', 'instructions_outside'],
   rules: ['call_rules'],
   transfer: ['transfer_urgent', 'transfer_number', 'transfer_hours_only'],
-  advanced: ['silence_first_gap_s', 'silence_reminders', 'silence_closing'],
+  advanced: ['silence_first_gap_s', 'silence_reminders', 'silence_closing', 'keypad_on', 'keypad_options'],
 }
 
 /** The assistant's name as the help texts say it, also while the name field is being edited. */
@@ -268,6 +272,87 @@ function Transfer({ draft, set, hoursOn }: SectionProps & { hoursOn: boolean }) 
   )
 }
 
+const keyOptions = ['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(k => ({ value: k, label: k }))
+const actionOptions: { value: KeypadMenuAction; label: string; description: string }[] = [
+  { value: 'transfer', label: 'Urgent', description: 'Put through to the on-call number when transfer is on, else marked urgent with a message' },
+  { value: 'topic', label: 'Topic', description: 'The assistant knows what the call is about and goes on' },
+]
+
+/** What the caller hears, as the voice agent says it. */
+const menuPreview = (options: KeypadMenuOption[]) =>
+  `${[...options].sort((a, b) => a.key.localeCompare(b.key)).map(o => `For ${o.label.trim() || '…'}, press ${o.key}.`).join(' ')} Or just tell me how I can help.`
+
+function KeypadMenu({ draft, set }: SectionProps) {
+  const problem = keypadProblem(draft)
+  const options = draft.keypad_options
+  const update = (i: number, change: Partial<KeypadMenuOption>) =>
+    set('keypad_options', options.map((o, j) => (j === i ? { ...o, ...change } : o)))
+  const free = nextFreeKey(options)
+  return (
+    <Section
+      id="as-keypad"
+      title="Keypad menu"
+      help={`Off by default. When on, ${assistantName(draft)} reads a short menu right after the greeting and callers can press a key or just start talking. An urgent key is handled like an emergency: put through to your on-call number when transfer is on, otherwise marked urgent with a message.`}
+    >
+      <SwitchRow title="Play a keypad menu" on={draft.keypad_on} onChange={on => set('keypad_on', on)} />
+      {draft.keypad_on && (
+        <>
+          {options.map((option, i) => (
+            <div className="as-keypad-row" key={option.key}>
+              <Select
+                id={`as-keypad-key-${i}`}
+                value={option.key}
+                label="Key"
+                size="sm"
+                options={keyOptions.filter(k => k.value === option.key || !options.some(o => o.key === k.value))}
+                onChange={key => update(i, { key })}
+              />
+              <TextInput
+                id={`as-keypad-label-${i}`}
+                label="What the caller hears after For"
+                value={option.label}
+                onChange={label => update(i, { label: label.slice(0, KEYPAD_MENU_LABEL_MAX) })}
+                placeholder="emergencies"
+                invalid={!option.label.trim()}
+              />
+              <Select
+                id={`as-keypad-action-${i}`}
+                value={option.action}
+                label="What the key does"
+                size="sm"
+                align="end"
+                options={actionOptions}
+                onChange={action => update(i, { action })}
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                icon="trash"
+                title="Remove this key"
+                aria-label="Remove this key"
+                onClick={() => set('keypad_options', options.filter((_, j) => j !== i))}
+              />
+            </div>
+          ))}
+          {free && options.length < KEYPAD_MENU_MAX_OPTIONS && (
+            <div>
+              <Button
+                size="sm"
+                variant="ghost"
+                icon="plus"
+                onClick={() => set('keypad_options', [...options, { key: free, label: '', action: 'topic' }])}
+              >
+                Add key
+              </Button>
+            </div>
+          )}
+          {problem ? <span className="help as-stale">{problem}</span> : <span className="help">"{menuPreview(options)}"</span>}
+        </>
+      )}
+    </Section>
+  )
+}
+
 function Advanced({ draft, set }: SectionProps) {
   const problem = silenceProblem(draft)
   return (
@@ -342,6 +427,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     if (!draft.greeting.trim()) return goTo('greeting', 'as-greet')
     if (onCallProblem(draft)) return goTo('transfer', 'as-oncall')
     if (silenceProblem(draft)) return goTo('advanced', 'as-silence-gap')
+    if (keypadProblem(draft)) return goTo('advanced', 'as-keypad-label-0')
     const problem = draftProblem(draft)
     if (problem) return toast(problem)
     if (dirty) {
@@ -357,6 +443,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         ...outsideToSave(clean),
         ...transferToSave(clean),
         ...silenceToSave(clean),
+        ...keypadToSave(clean),
         voice: clean.voice,
       })
       setDraft(clean) // the form shows what was saved, so it is not "dirty" any more
@@ -409,7 +496,12 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
           {current === 'instructions' && <Instructions draft={draft} set={set} hoursOn={hoursOn} />}
           {current === 'rules' && <CallRules draft={draft} set={set} />}
           {current === 'transfer' && <Transfer draft={draft} set={set} hoursOn={hoursOn} />}
-          {current === 'advanced' && <Advanced draft={draft} set={set} />}
+          {current === 'advanced' && (
+            <>
+              <Advanced draft={draft} set={set} />
+              <KeypadMenu draft={draft} set={set} />
+            </>
+          )}
         </fieldset>
         {current === 'calendar' && <CalendarSettings assistant={assistant} canEdit={canEdit} toast={toast} />}
         {canEdit && <SaveBar dirty={changed} onCancel={cancel} note={note} />}

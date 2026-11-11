@@ -9,6 +9,8 @@ import type { RemoteParticipant } from '@livekit/rtc-node'
 import { z } from 'zod'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { bookingTools } from './booking-tools.ts'
+import { type CollectContext, collectTools } from './collect/collect-tools.ts'
+import { activeMenu, runKeypadMenu } from './keypad-menu.ts'
 import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log.ts'
 import { callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
@@ -100,10 +102,11 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
 /** transfer_call, only when the assistant puts urgent calls through on this call and someone can be dialled. */
 type Transfer = Omit<Parameters<typeof transferTool>[0], 'api' | 'call' | 'log'> | null
 
-function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: () => void, flagUrgent: () => Promise<void>, transfer: Transfer) {
+function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: () => void, flagUrgent: () => Promise<void>, transfer: Transfer, collect: CollectContext) {
   const { callId, workspaceId } = call
   return {
     ...bookingToolset(api, call, log),
+    ...collectTools(collect),
     ...(transfer ? { transfer_call: transferTool({ ...transfer, api, call, log }) } : {}),
     take_message: llm.tool({
       description: 'Save a message for the team. Use it whenever the caller wants a callback, a visit, a quote or anything you cannot do yourself.',
@@ -242,7 +245,13 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   })
   session.on(voice.AgentSessionEventTypes.Close, cancelLimit)
   const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, false, call.caller)
-  const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, flagUrgent, null) })
+  const collect: CollectContext = {
+    log,
+    room: ctx.room,
+    callerIdentity: () => callerIdentity,
+    today: () => call.booking?.todayDate ?? new Date().toISOString().slice(0, 10),
+  }
+  const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, flagUrgent, null, collect) })
   void warmUpLlm(config.llm, instructions)
   await session.start({
     agent,
@@ -252,22 +261,33 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   })
   setup.mark('session')
   setup.note(await greet(session, config, call, cachedGreeting, key))
-  void addTransfer(agent, callerJoined, { ctx, api, call, config, log, endCall, flagUrgent, stopRecording: stopRecordingForTransfer })
+  let transferOn = false
+  void addTransfer(agent, callerJoined, { ctx, api, call, config, log, endCall, flagUrgent, collect, stopRecording: stopRecordingForTransfer }).then(on => {
+    transferOn = on
+  })
+  const menu = activeMenu(call.assistant)
+  if (menu)
+    void runKeypadMenu({
+      session, room: ctx.room, menu, callerIdentity: () => callerIdentity, canTransfer: () => transferOn,
+      record: event => log.record('system', event),
+    }).catch(e => console.warn(`keypad menu on call ${call.callId}: ${e instanceof Error ? e.message : String(e)}`))
 }
 
-/** Gives the assistant transfer_call, and the instructions for it, once it is known that it can transfer now. */
+/** Gives the assistant transfer_call, and the instructions for it, once it is known that it can transfer now; true when it did. */
 async function addTransfer(
   agent: voice.Agent, callerJoined: Promise<RemoteParticipant>,
-  { ctx, api, call, config, log, endCall, flagUrgent, stopRecording }: { ctx: JobContext; api: ApiClient; call: CallSession; config: AgentConfig; log: CallLog; endCall: () => void; flagUrgent: () => Promise<void>; stopRecording: () => Promise<void> },
-) {
+  { ctx, api, call, config, log, endCall, flagUrgent, collect, stopRecording }: { ctx: JobContext; api: ApiClient; call: CallSession; config: AgentConfig; log: CallLog; endCall: () => void; flagUrgent: () => Promise<void>; collect: CollectContext; stopRecording: () => Promise<void> },
+): Promise<boolean> {
   try {
     const caller = await callerJoined
     const transfer = await transferFor(ctx, api, call, config, caller.identity, stopRecording)
-    if (!transfer) return
+    if (!transfer) return false
     await agent.updateInstructions(buildInstructions(call.assistant, call.businessHours, call.booking, true, call.caller))
-    await agent.updateTools(assistantTools(api, call, log, endCall, flagUrgent, transfer))
+    await agent.updateTools(assistantTools(api, call, log, endCall, flagUrgent, transfer, collect))
+    return true
   } catch (e) {
     console.warn(`call ${call.callId} goes on without transfer: ${e instanceof Error ? e.message : String(e)}`)
+    return false
   }
 }
 

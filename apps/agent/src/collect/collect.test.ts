@@ -1,0 +1,161 @@
+import { describe, expect, it, vi } from 'vitest'
+import { Collection, describeOutcome, dtmfCode, KeypadInput, MAX_ATTEMPTS, outcomeEvent } from './collection.ts'
+import { addressCollector, dateCollector, digitsCollector, emailCollector, nameCollector, parseDate, phoneCollector, stateCode, toE164 } from './collectors.ts'
+import { readDigits, readLetters, spokenDigits, spokenEmail, spokenLetters } from './spoken.ts'
+
+describe('spoken input', () => {
+  it('turns spoken digits into digits', () => {
+    expect(spokenDigits('five oh three, five five five, oh one four two')).toBe('5035550142')
+    expect(spokenDigits('area code 503, double five five, zero one four two')).toBe('5035550142')
+    expect(spokenDigits('503-555-0142')).toBe('5035550142')
+    expect(spokenDigits('plus one five oh three 555 0142')).toBe('+15035550142')
+    expect(spokenDigits('twenty one, nineteen, five hundred')).toBe('2119500')
+    expect(spokenDigits('triple seven')).toBe('777')
+    expect(spokenDigits('um, nothing')).toBe('')
+  })
+
+  it('reads letters spelled one by one, with the NATO alphabet or "as in"', () => {
+    expect(spokenLetters('R U I Z')).toBe('ruiz')
+    expect(spokenLetters('Romeo Uniform India Zulu')).toBe('ruiz')
+    expect(spokenLetters('Ruiz, R as in Robert, U, I as in India, Z')).toBe('ruiz')
+    expect(spokenLetters('B for Bravo R E double N A N')).toBe('brennan')
+    expect(spokenLetters('O apostrophe B R I E N')).toBe("o'brien")
+    expect(spokenLetters('Ruiz')).toBeNull()
+  })
+
+  it('turns a spoken email address into an address', () => {
+    expect(spokenEmail('dana dot ruiz at gmail dot com')).toBe('dana.ruiz@gmail.com')
+    expect(spokenEmail('my email is sam underscore patel two two at outlook dot com')).toBe('sam_patel22@outlook.com')
+    expect(spokenEmail('d as in delta a n a at yahoo dot com')).toBe('dana@yahoo.com')
+    expect(spokenEmail('dana.ruiz@gmail.com')).toBe('dana.ruiz@gmail.com')
+  })
+
+  it('reads digits in groups and letters one by one', () => {
+    expect(readDigits('5035550142', [3, 3])).toBe('5 0 3, 5 5 5, 0 1 4 2')
+    expect(readLetters("O'Brien")).toBe('O, apostrophe, B, R, I, E, N')
+  })
+})
+
+describe('collectors', () => {
+  it('phone numbers become US E.164', () => {
+    expect(toE164('five oh three five five five oh one four two')).toEqual({ ok: true, value: '+15035550142' })
+    expect(toE164('1 503 555 0142')).toEqual({ ok: true, value: '+15035550142' })
+    expect(toE164('+44 20 7946 0958')).toEqual({ ok: true, value: '+442079460958' })
+    expect(toE164('555 0142').ok).toBe(false)
+    expect(toE164('103 555 0142').ok).toBe(false) // area codes start with 2–9
+    expect(phoneCollector().readBack('+15035550142')).toBe('5 0 3, 5 5 5, 0 1 4 2')
+  })
+
+  it('names need the last name spelled, and the spelling wins', () => {
+    const asked = nameCollector.parse({ first_name: 'Dana', last_name: 'Reese' })
+    expect(asked.ok).toBe(false)
+    if (!asked.ok) expect(asked.problem).toMatch(/spell the last name/)
+    const spelled = nameCollector.parse({ first_name: 'dana', last_name: 'Reese', last_name_spelled: 'R U I Z' })
+    expect(spelled).toEqual({ ok: true, value: { first: 'Dana', last: 'Ruiz' } })
+    if (spelled.ok) expect(nameCollector.readBack(spelled.value)).toBe('Dana Ruiz, last name spelled R, U, I, Z')
+    expect(nameCollector.parse({ first_name: '12345', last_name: 'x', last_name_spelled: 'a b' }).ok).toBe(false)
+    expect(nameCollector.parse({ first_name: 'null', last_name: 'Ruiz' }).ok).toBe(false)
+  })
+
+  it('emails are checked and spelled back', () => {
+    expect(emailCollector.parse({ email: 'dana dot ruiz at gmail dot com' })).toEqual({ ok: true, value: 'dana.ruiz@gmail.com' })
+    expect(emailCollector.parse({ email: 'dana ruiz' }).ok).toBe(false)
+    expect(emailCollector.readBack('d.r@gmail.com')).toBe('D, dot, R, at, gmail dot com')
+  })
+
+  it('addresses are US: street with a number, a state, a 5-digit ZIP', () => {
+    const parsed = addressCollector.parse({ street: '1450 SE Division Street', city: 'portland', state: 'Oregon', zip: 'nine seven two oh two' })
+    expect(parsed).toEqual({ ok: true, value: { street: '1450 SE Division Street', unit: '', city: 'Portland', state: 'OR', zip: '97202' } })
+    if (parsed.ok) {
+      expect(addressCollector.display(parsed.value)).toBe('1450 SE Division Street, Portland, OR 97202')
+      expect(addressCollector.readBack(parsed.value)).toBe('1450 SE Division Street, Portland, Oregon, ZIP 9 7 2 0 2')
+    }
+    expect(addressCollector.parse({ street: 'Division Street', city: 'Portland', state: 'OR' }).ok).toBe(false)
+    expect(addressCollector.parse({ street: '1 Main St', city: 'Portland', state: 'Narnia' }).ok).toBe(false)
+    expect(addressCollector.parse({ street: '1 Main St', city: 'Portland', state: 'OR', zip: '972' }).ok).toBe(false)
+    expect(stateCode('n.y.')).toBe('NY')
+  })
+
+  it('dates: ISO, US and spoken forms; impossible dates and bounds refused', () => {
+    expect(parseDate('2026-11-14', '2026-11-11')).toBe('2026-11-14')
+    expect(parseDate('11/14', '2026-11-11')).toBe('2026-11-14')
+    expect(parseDate('January 15th 1990', '2026-11-11')).toBe('1990-01-15')
+    expect(parseDate('the 15th of Jan 90', '2026-11-11')).toBe('1990-01-15')
+    expect(parseDate('February 30', '2026-11-11')).toBeNull()
+    const day = dateCollector({ what: 'preferred day', today: '2026-11-11', notBefore: '2026-11-11' })
+    expect(day.parse({ date: '2026-11-10' }).ok).toBe(false)
+    expect(day.readBack('2026-11-14')).toBe('Saturday, November 14, 2026')
+  })
+
+  it('digits by keypad or speech, with a length', () => {
+    const zip = digitsCollector({ what: 'ZIP code', minDigits: 5, maxDigits: 5, keypad: true })
+    expect(zip.parse({ digits: 'nine seven two oh two' })).toEqual({ ok: true, value: '97202' })
+    expect(zip.parse({ digits: '9720' }).ok).toBe(false)
+    expect(zip.keypad?.toArgs('97202')).toEqual({ digits: '97202' })
+    expect(digitsCollector({ what: 'x', minDigits: 1, maxDigits: 4, keypad: false }).keypad).toBeUndefined()
+  })
+})
+
+describe('a collection step', () => {
+  it('records, reads back and completes on confirmation', () => {
+    const step = new Collection(phoneCollector())
+    expect(step.confirm().say).toMatch(/Nothing to confirm/)
+    const heard = step.record({ phone_number: 'five oh three five five five oh one four two' })
+    expect(heard.say).toContain('"5 0 3, 5 5 5, 0 1 4 2"')
+    const done = step.confirm()
+    expect(done.outcome).toEqual({ status: 'confirmed', label: 'callback number', value: '+15035550142', via: 'speech' })
+    expect(describeOutcome(done.outcome!)).toMatch(/confirmed the callback number: \+15035550142/)
+  })
+
+  it('gives up after the tries and hands back the best guess', () => {
+    const step = new Collection(phoneCollector())
+    step.record({ phone_number: '555 0142' })
+    step.record({ phone_number: '5035550142' })
+    step.reject()
+    expect(step.outcome).toBeNull()
+    const last = step.record({ phone_number: '503 555' })
+    expect(last.outcome).toEqual({ status: 'incomplete', label: 'callback number', partial: '503 555' })
+    expect(describeOutcome(last.outcome!)).toMatch(/someone will call them back/)
+    expect(outcomeEvent(last.outcome!)).toBe('Callback number not confirmed')
+    expect(MAX_ATTEMPTS).toBe(3)
+  })
+
+  it('a keypad entry is marked as typed, and a decline ends the step', () => {
+    const step = new Collection(phoneCollector())
+    step.record({ phone_number: '5035550142' }, 'keypad')
+    const done = step.confirm()
+    expect(outcomeEvent(done.outcome!)).toBe('Callback number confirmed · typed on the keypad')
+    const declined = new Collection(emailCollector).decline('has no email')
+    expect(describeOutcome(declined.outcome!)).toMatch(/did not want to give the email address \(has no email\)/)
+  })
+})
+
+describe('keypad input', () => {
+  it('ends on #, starts over on *, and takes what was typed after a pause', () => {
+    vi.useFakeTimers()
+    const done = vi.fn()
+    const keypad = new KeypadInput(11, done, 4000)
+    for (const key of '12*5035550142#') keypad.press(key)
+    expect(done).toHaveBeenCalledWith({ digits: '5035550142', ended: 'pound' })
+
+    const paused = vi.fn()
+    const second = new KeypadInput(11, paused, 4000)
+    second.press('9')
+    second.press('7')
+    vi.advanceTimersByTime(3999)
+    expect(paused).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(paused).toHaveBeenCalledWith({ digits: '97', ended: 'timeout' })
+
+    const full = vi.fn()
+    const third = new KeypadInput(3, full)
+    for (const key of '1234') third.press(key)
+    expect(full).toHaveBeenCalledTimes(1)
+    expect(full).toHaveBeenCalledWith({ digits: '123', ended: 'full' })
+    vi.useRealTimers()
+  })
+
+  it('maps keys to LiveKit DTMF codes', () => {
+    expect(['0', '9', '*', '#'].map(dtmfCode)).toEqual([0, 9, 10, 11])
+  })
+})

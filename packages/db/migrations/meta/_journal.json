@@ -302,6 +302,13 @@
       "when": 1794405556494,
       "tag": "0042_spending_cap",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1794405677259,
+      "tag": "0043_keypad_menu",
+      "breakpoints": true
     }
   ]
 }

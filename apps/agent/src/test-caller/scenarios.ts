@@ -18,6 +18,8 @@ export interface Expectation {
   silentCaller?: boolean
   /** The call was flagged with flag_urgent (a "Flagged as urgent" line), not only rated urgent by the summary. */
   flaggedByTool?: boolean
+  /** A tool line in the call's transcript must match (for example "Callback number confirmed · typed on the keypad"). */
+  toolSays?: RegExp
   /** How the warm transfer must have gone (call.transfer). */
   transferResult?: 'connected' | 'not_answered' | 'declined'
 }
@@ -123,6 +125,11 @@ export const scenarios = {
     persona: 'You are Dana Ruiz. Water is leaking through your ceiling from the upstairs bathroom; you have turned off the water. You need someone today. Give your name when asked. If they put you through to someone, stay on the line quietly while it rings. If nobody can take it, leave a message that this number is the best way to reach you.',
     expect: { outcome: MESSAGE_OUTCOMES, urgency: 'urgent', actionItems: 1, transferResult: 'declined' },
     onCall: { answer: 'decline', number: '+15035550199' },
+  },
+  // Keypad (DTMF): the caller types the callback number instead of saying it; the assistant reads it back.
+  'keypad-callback': {
+    persona: 'You are Sam Patel. Your water heater is making a banging noise and you want someone to call you back about it, but not on the number you are calling from: on your cell, 503 555 0142. When the assistant asks for the callback number, do not say it: use press_keys with "5035550142#" and then wait. When it reads the number back correctly, say yes. Give your name when asked (spell Patel as P A T E L if asked).',
+    expect: { outcome: MESSAGE_OUTCOMES, actionItems: 1, toolSays: /callback number confirmed · typed on the keypad/i },
   },
   silence: {
     persona: '',
