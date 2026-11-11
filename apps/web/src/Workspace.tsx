@@ -483,7 +483,6 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
             onCommands={() => setOverlay('commands')}
             onToggleSpam={callHandlers.toggleSpam}
             onAssign={canAssign ? openAssign : undefined}
-            me={me.actorId}
             canReview={canReview}
             side={
               <ContactSide

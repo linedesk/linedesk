@@ -85,14 +85,14 @@ export function CommandMenu<T extends CommandItem>({
 
   function onKey(e: KeyboardEvent) {
     const count = Math.max(flat.length, 1)
-    const picked = numbered && !query && /^[1-9]$/.test(e.key) ? flat[Number(e.key) - 1] : undefined
+    const picked = numbered && !query && !e.repeat && /^[1-9]$/.test(e.key) ? flat[Number(e.key) - 1] : undefined
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setActive((index + 1) % count)
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setActive((index - 1 + count) % count)
-    } else if (e.key === 'Enter' && flat[index]) onSelect(flat[index], 'key')
+    } else if (e.key === 'Enter' && !e.repeat && flat[index]) onSelect(flat[index], 'key')
     else if (picked) {
       e.preventDefault()
       onSelect(picked, 'key')

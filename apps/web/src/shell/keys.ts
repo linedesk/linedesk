@@ -60,6 +60,9 @@ export function setPageKeys(handler: PageKeys | null) {
   pageKeys = handler
 }
 
+/** Keys that may repeat while held: moving through lists and views. */
+const REPEATING_KEYS = new Set(['j', 'k', 'J', 'K', 'ArrowDown', 'ArrowUp', 'Tab'])
+
 const CHORD_MS = 1200
 let chordUntil = 0
 
@@ -169,6 +172,9 @@ export function handleKey(e: KeyboardEvent, c: KeyContext): boolean {
     return false
   }
   if (isTyping(el) || activatesControl(k, el) || e.metaKey || e.ctrlKey || e.altKey) return false
+  // A held key repeats only moves (J, K, arrows, Tab). Every other shortcut acts once per press: holding
+  // Z, E or the picker's key must not fire it dozens of times (undo flipping a call back and forth).
+  if (e.repeat && !REPEATING_KEYS.has(k)) return true
   // The open navigation is the topmost layer: list and call keys stay with it (it has its own arrows and Tab).
   if (c.navOpen) {
     if (k === 'm' || k === 'M') c.setNavOpen(false)

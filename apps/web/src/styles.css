@@ -1579,8 +1579,3 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
 .cv-assign { margin-left: auto; display: inline-flex; }
 .cv-assign + .cv-acts { margin-left: 0; }
 .cv-assign-btn .k-avatar { margin-right: 2px; }
-.cv-activity { display: grid; gap: 6px; padding: 4px 2px; font-size: 13px; color: var(--ink-muted); }
-.cv-activity > b { font-size: 13px; color: var(--ink); }
-.cv-activity ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
-.cv-activity li { display: flex; justify-content: space-between; gap: 12px; }
-.cv-activity time { flex: none; }

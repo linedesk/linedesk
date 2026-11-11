@@ -5,7 +5,6 @@ import { useCallAssistantName, useContact } from '../store.tsx'
 import { firstName, memberLabel, useMember } from '../team/members.ts'
 import { clock, dateTimeLabel, longDuration, parseTs, whenLabel } from '../time.ts'
 import { Avatar, Button, Icon } from '../ui/kit.tsx'
-import { CallActivity } from './CallActivity.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { registerContactPanel } from './contactPanel.ts'
 import { BookingCards } from './BookingCard.tsx'
@@ -43,18 +42,16 @@ type Props = CallViewActions & {
   repeatCount?: number
   /** Owners and admins: the call's evaluation under the summary. */
   canReview?: boolean
-  /** The signed-in member's user id (the activity says "You"). */
-  me: string
 }
+
+/** Below this width the contact panel is a sheet (app.css). */
+const NARROW_QUERY = '(max-width: 1099px)'
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-type BarProps = Omit<Props, 'segments' | 'search' | 'side' | 'repeatCount' | 'canReview' | 'me'> & {
-  sideOpen: boolean
-  onToggleSide: () => void
-}
+type BarProps = Omit<Props, 'segments' | 'search' | 'side' | 'repeatCount' | 'canReview'>
 
-function Bar({ call, index, count, menu, sideOpen, onToggleSide, ...on }: BarProps) {
+function Bar({ call, index, count, menu, ...on }: BarProps) {
   const live = call.status === 'live'
   const done = call.inbox_state === 'done'
   const reminded = hasReminder(call) && !done
@@ -92,17 +89,6 @@ function Bar({ call, index, count, menu, sideOpen, onToggleSide, ...on }: BarPro
           {index + 1} of {count}
         </span>
       )}
-      {/* Narrow windows have no room for the contact panel next to the call: it opens as a sheet. */}
-      <Button
-        size="sm"
-        variant="ghost"
-        icon="user"
-        className="cv-caller-btn"
-        aria-label="Contact"
-        aria-expanded={sideOpen}
-        title="Contact (I)"
-        onClick={onToggleSide}
-      />
       {on.onAssign && (
         <span className="cv-assign">
           <AssignButton call={call} onAssign={on.onAssign} />
@@ -207,7 +193,30 @@ function AssignButton({ call, onAssign }: { call: Call; onAssign: (call: Call, a
   )
 }
 
-function Header({ call, segments, repeatCount }: { call: Call; segments: TranscriptSegment[]; repeatCount: number }) {
+type HeaderProps = {
+  call: Call
+  segments: TranscriptSegment[]
+  repeatCount: number
+  /** Whether the contact sheet is open (narrow windows). */
+  contactOpen: boolean
+  onOpenContact: () => void
+}
+
+/**
+ * The caller's name opens their contact (the panel beside the call; a sheet on narrow windows). An
+ * unknown caller reads "Add name" and opens the same panel at its name field.
+ */
+function ContactLink({ name, number, open, onOpen }: { name: string | null; number: string; open: boolean; onOpen: () => void }) {
+  const label = name ? `Open contact ${name}` : `Add a name for ${number}`
+  return (
+    <button type="button" className="cv-contact-link" aria-label={label} aria-expanded={open} title={`${label} (I)`} onClick={onOpen}>
+      <span>{name ?? 'Add name'}</span>
+      <Icon name="arrow-up-right" size={12} />
+    </button>
+  )
+}
+
+function Header({ call, segments, repeatCount, contactOpen, onOpenContact }: HeaderProps) {
   const assistant = useCallAssistantName(call.assistant_id)
   const contact = useContact(call.contact_id)
   const started = parseTs(call.started_at)
@@ -228,7 +237,12 @@ function Header({ call, segments, repeatCount }: { call: Call; segments: Transcr
         </div>
         <h1>{callTitle(call)}</h1>
         <div className="cv-line">
-          <b>{contact?.name ? `${contact.name}${contact.company ? ` · ${contact.company}` : ''}` : 'Unknown caller'}</b>
+          <ContactLink
+            name={contact?.name ? `${contact.name}${contact.company ? ` · ${contact.company}` : ''}` : null}
+            number={formatPhone(call.from_number)}
+            open={contactOpen}
+            onOpen={onOpenContact}
+          />
           <CopyNumber number={formatPhone(call.from_number)} />
           {repeatCount > 1 && <span>{repeatCount} calls from this number</span>}
           {hasReminder(call) && <span>Reminder: {whenLabel(parseTs(call.reminder_at!))}</span>}
@@ -275,8 +289,15 @@ function CopyNumber({ number }: { number: string }) {
 }
 
 /** One call, full width: what it was about, the conversation, and the caller on the side. Mount with key={call.id} so each call starts at the top. */
-export function CallView({ call, segments, search, side, repeatCount = 1, canReview = false, me, ...bar }: Props) {
+export function CallView({ call, segments, search, side, repeatCount = 1, canReview = false, ...bar }: Props) {
   const [sideOpen, setSideOpen] = useState(false)
+  /** Narrow windows: open or close the contact sheet. Wide ones show the panel anyway. Opening puts the caret in its name. */
+  function openContact() {
+    const narrow = window.matchMedia(NARROW_QUERY).matches
+    if (narrow && sideOpen) return setSideOpen(false)
+    if (narrow) setSideOpen(true)
+    requestAnimationFrame(() => document.querySelector<HTMLElement>('.cv-side [aria-label="Name"]')?.focus())
+  }
   useEffect(() => registerContactPanel(() => setSideOpen(open => !open)), [])
   const assistant = useCallAssistantName(call.assistant_id)
   const contact = useContact(call.contact_id)
@@ -297,18 +318,23 @@ export function CallView({ call, segments, search, side, repeatCount = 1, canRev
 
   return (
     <div className="cv">
-      <Bar call={call} {...bar} sideOpen={sideOpen} onToggleSide={() => setSideOpen(!sideOpen)} />
+      <Bar call={call} {...bar} />
       <div className="cv-main" data-side={sideOpen ? 'open' : undefined}>
         <div className="cv-center">
           <div className="cv-scroll" ref={scrollRef} onScroll={onScroll}>
             <div className="cv-col">
-              <Header call={call} segments={segments} repeatCount={repeatCount} />
+              <Header
+                call={call}
+                segments={segments}
+                repeatCount={repeatCount}
+                contactOpen={sideOpen}
+                onOpenContact={openContact}
+              />
               {live && <LiveCard segments={segments} assistantName={assistant} />}
               {!live && call.recording_key && <RecordingPlayer callId={call.id} callDurationSec={call.duration_sec} />}
               <SummaryCard call={call} />
               {canReview && <EvaluationCard call={call} />}
               <BookingCards callId={call.id} />
-              {bar.onAssign && <CallActivity callId={call.id} me={me} />}
               {turns ? (
                 <>
                   <div className="tr-h">

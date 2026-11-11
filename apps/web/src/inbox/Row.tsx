@@ -144,7 +144,7 @@ function AssigneeMark({ userId }: { userId: string }) {
   )
 }
 
-/** Opens the member picker under itself; shows the assignee's initials when the call has one. */
+/** Opens the member picker under itself. Always the assign icon; the assignee's initials sit next to the caller's name. */
 function AssignAction({ call, onAssign }: { call: Call; onAssign: (call: Call, anchor: DOMRect) => void }) {
   const assignee = useMember(call.assignee_id)
   const title = call.assignee_id ? `Assigned to ${memberLabel(assignee)}: reassign (A)` : 'Assign (A)'
@@ -160,7 +160,7 @@ function AssignAction({ call, onAssign }: { call: Call; onAssign: (call: Call, a
         onAssign(call, e.currentTarget.getBoundingClientRect())
       }}
     >
-      {call.assignee_id ? <Avatar name={memberLabel(assignee)} size={20} /> : <Icon name="user" size={14} />}
+      <Icon name="user" size={14} />
     </button>
   )
 }
