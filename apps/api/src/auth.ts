@@ -180,7 +180,14 @@ export const auth = betterAuth({
   // One email, one account: a provider sign-in with a proven email joins the account with that
   // email, also one whose email was never verified (an invitation); see account-linking.ts.
   // Provider tokens are stored encrypted with BETTER_AUTH_SECRET (rows from before stay readable as they are).
-  account: { accountLinking: { enabled: true, trustedProviders, requireLocalEmailVerified: false }, encryptOAuthTokens: true },
+  account: {
+    accountLinking: { enabled: true, trustedProviders, requireLocalEmailVerified: false },
+    encryptOAuthTokens: true,
+    // A provider sign-in's state lives in one encrypted, browser-bound cookie for 10 minutes. Better
+    // Auth's default keeps it in the database for 10 minutes but checks a second cookie that lasts
+    // only 5, so a sign-in that took longer (a slow account chooser, MFA) failed with state_mismatch.
+    storeStateStrategy: 'cookie',
+  },
   // On in every environment, not only when NODE_ENV says production.
   rateLimit: { enabled: true },
   // The client address comes from our own header (client-ip.ts), never from one the client sets.

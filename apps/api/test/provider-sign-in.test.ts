@@ -276,3 +276,19 @@ describe('a provider ID token posted by the client (F1)', () => {
     expect(redirect.status).toBe(200)
   })
 })
+
+describe('the state of a provider sign-in', () => {
+  test('lives in one encrypted cookie for 10 minutes, so a slow provider sign-in (over 5 minutes) still finishes', async () => {
+    const start = await appRequest('/api/auth/sign-in/social', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },
+      body: JSON.stringify({ provider: 'github', callbackURL: ORIGIN }),
+    })
+    expect(start.status).toBe(200)
+    const cookies = start.headers.getSetCookie()
+    const state = cookies.find(c => /oauth_state=/.test(c))
+    expect(state).toMatch(/Max-Age=600/)
+    expect(state).toMatch(/HttpOnly/)
+    expect(cookies.some(c => /(^|\.)state=/.test(c.split(';')[0]!) && !/oauth_state/.test(c))).toBe(false)
+  })
+})
