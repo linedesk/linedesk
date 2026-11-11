@@ -45,15 +45,16 @@ test('business hours: the ready sentence goes into the prompt; closed means a me
   expect(buildInstructions(assistant(), null)).not.toMatch(/business hours|office is (open|closed)/i)
 })
 
-test('outside business hours the outside greeting and instructions apply; empty ones fall back', () => {
+test('outside business hours the outside greeting applies; the instructions are the same at any hour', () => {
   const closed = { openNow: false, summary: 'Closed now; opens tomorrow at 7 AM.' }
   const open = { openNow: true, summary: 'Open now, until 6 PM.' }
+  // An older row may still hold an outside-hours text: it is not used any more.
   const both = assistant({ greeting_outside: 'We are closed. This is Maya.', instructions_outside: 'Only take messages.' })
-  expect(forHours(both, closed)).toMatchObject({ greeting: 'We are closed. This is Maya.', business_profile: { instructions: 'Only take messages.' } })
-  expect(buildInstructions(forHours(both, closed), closed)).toContain('What the business wants you to know:\nOnly take messages.')
+  expect(forHours(both, closed)).toMatchObject({ greeting: 'We are closed. This is Maya.', business_profile: { instructions: 'We fix pipes in Portland.' } })
+  expect(buildInstructions(forHours(both, closed), closed)).not.toContain('Only take messages.')
   expect(forHours(both, open)).toBe(both)
   expect(forHours(both, null)).toBe(both)
-  const blank = assistant({ greeting_outside: '  ', instructions_outside: null })
+  const blank = assistant({ greeting_outside: '  ' })
   expect(forHours(blank, closed)).toMatchObject({ greeting: 'Thanks for calling Brightwater.', business_profile: { instructions: 'We fix pipes in Portland.' } })
   expect(forHours(null, closed)).toBeNull()
 })

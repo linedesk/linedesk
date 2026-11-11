@@ -190,7 +190,7 @@ export const keypadMenu = z.object({
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
-    'Update the assistant: name, greeting, what a caller who called before hears before the greeting (`greeting_known_caller`, `{first_name}` filled in; empty: nothing), voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` and `instructions_outside` are used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a US number in E.164, null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `keypad_menu` (null: off) plays "press 1 for …" after the greeting; a `transfer` key is an urgent call (put through to the first contact that is reachable, else flagged urgent and a message), a `topic` key tells the assistant what the caller wants.',
+    'Update the assistant: name, greeting, what a caller who called before hears before the greeting (`greeting_known_caller`, `{first_name}` filled in; empty: nothing), voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a US number in E.164, null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `keypad_menu` (null: off) plays "press 1 for …" after the greeting; a `transfer` key is an urgent call (put through to the first contact that is reachable, else flagged urgent and a message), a `topic` key tells the assistant what the caller wants.',
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().min(1).optional(),
@@ -200,7 +200,6 @@ export const assistantUpdate = defineAction({
     call_rules: z.string().max(CALL_RULES_MAX).nullable().optional(),
     /** Used outside business hours, when the workspace uses them; null: the same as during hours. */
     greeting_outside: z.string().nullable().optional(),
-    instructions_outside: z.string().max(INSTRUCTIONS_MAX).nullable().optional(),
     record_calls: z.boolean().optional(),
     /** Replaced by greeting_known_caller; still taken from a web app of the release before. */
     greet_by_name: z.boolean().optional(),

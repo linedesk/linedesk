@@ -64,7 +64,7 @@ const sections: readonly PageSection<SectionId>[] = [
 const sectionFields: Record<Exclude<SectionId, 'calendar'>, (keyof Draft)[]> = {
   greeting: ['name', 'greeting', 'disclose_ai', 'greeting_known_caller', 'greeting_outside'],
   voice: ['voice'],
-  knowledge: ['instructions', 'instructions_outside', 'services', 'faqs', 'website'],
+  knowledge: ['instructions', 'services', 'faqs', 'website'],
   rules: ['call_rules'],
   transfer: ['transfers'],
   advanced: ['silence_first_gap_s', 'silence_reminders', 'silence_closing', 'keypad_on', 'keypad_options'],
@@ -426,7 +426,6 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
               draft={draft}
               set={set}
               replace={setDraft}
-              hoursOn={hoursOn}
               canEdit={canEdit}
               toast={toast}
             />

@@ -94,14 +94,14 @@ describe('business hours', () => {
     expect(body.data.businessHours).toMatchObject({ timeZone: 'America/Denver' })
   })
 
-  test('the outside-hours greeting and instructions are stored per assistant; members cannot change them', async () => {
+  test('the outside-hours greeting is stored per assistant; members cannot change it', async () => {
     const ws = await createWorkspace('Outside Hours Plumbing')
     const member = await addMember(ws.id, 'member')
-    const set = { assistantId: ws.assistant.id, greeting_outside: 'We are closed. This is Maya.', instructions_outside: 'Take a message.' }
+    const set = { assistantId: ws.assistant.id, greeting_outside: 'We are closed. This is Maya.' }
     expect((await act(member, 'assistant.update', set)).status).toBe(403)
     expect((await act(ws.owner, 'assistant.update', set)).status).toBe(200)
     const { body } = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
-    expect(body.data.assistant).toMatchObject({ greeting_outside: 'We are closed. This is Maya.', instructions_outside: 'Take a message.' })
+    expect(body.data.assistant).toMatchObject({ greeting_outside: 'We are closed. This is Maya.' })
     await act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, greeting_outside: null })
     expect((await getAssistant(ws.assistant.id))!.greeting_outside).toBeNull()
   })

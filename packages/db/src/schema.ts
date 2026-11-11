@@ -84,6 +84,7 @@ export const assistants = pgTable(
     call_rules: text('call_rules'),
     /** Outside business hours (only when the workspace uses them); null: the same as during hours. */
     greeting_outside: text('greeting_outside'),
+    /** No longer used (migration 0053 moved it into business_profile.instructions); dropped in a later release. */
     instructions_outside: text('instructions_outside'),
     /**
      * Warm transfer: who the assistant puts callers through to, and when, in order (TransferContact).

@@ -422,8 +422,6 @@ async function seedAssistant(workspaceId: string, business: string): Promise<str
     name: DEMO_ASSISTANT,
     greeting: renamed(GREETING, business, DEMO_ASSISTANT),
     greeting_outside: `Thanks for calling ${business}. We are closed right now. This is ${DEMO_ASSISTANT}, the AI assistant. How can I help?`,
-    instructions_outside:
-      'Take a message. Only urgent calls (gas smell, flooding, no heat with vulnerable people) are put through.',
     business_profile: {
       instructions: INSTRUCTIONS,
       description: 'Family-run plumbing and heating company in Portland, Oregon.',

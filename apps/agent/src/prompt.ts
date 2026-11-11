@@ -50,18 +50,12 @@ export function documentsInstructions(documents: CallDocuments | null | undefine
  * know (instructions) and how to handle calls (call_rules, or the default rules).
  */
 /**
- * Outside business hours an assistant may greet and know something else: its outside variants, where
- * it has them. During hours, or when the workspace does not use hours (null), the usual ones.
+ * Outside business hours an assistant greets with its outside greeting, where it has one. What it knows
+ * is the same at any hour; after-hours behaviour comes from the call rules and the transfer rules.
  */
 export function forHours(assistant: Assistant | null, hours: BusinessHours | null | undefined): Assistant | null {
   if (!assistant || !hours || hours.openNow) return assistant
-  const greeting = assistant.greeting_outside?.trim() || assistant.greeting
-  const instructions = assistant.instructions_outside?.trim()
-  return {
-    ...assistant,
-    greeting,
-    business_profile: instructions ? { ...assistant.business_profile, instructions } : assistant.business_profile,
-  }
+  return { ...assistant, greeting: assistant.greeting_outside?.trim() || assistant.greeting }
 }
 
 /** What the assistant says about opening hours: the hours and where now falls; nothing when the workspace does not use hours. */

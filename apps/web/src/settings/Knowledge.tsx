@@ -16,10 +16,9 @@ import type { Assistant, KnowledgeDocument, KnowledgeQuestion } from '@linedesk/
 import { useRef, useState } from 'react'
 import { useRows } from '../store.tsx'
 import { Input } from '../ui/form.tsx'
-import { Button, cx, Icon } from '../ui/kit.tsx'
+import { Button, cx } from '../ui/kit.tsx'
 import type { Draft } from './assistantDraft.ts'
-import { EditBusinessHours } from './BusinessHoursDialog.tsx'
-import { Field, Section, TextArea, useRemembered } from './fields.tsx'
+import { Field, Section, TextArea } from './fields.tsx'
 import {
   applyImport,
   defaultPicks,
@@ -40,7 +39,6 @@ type Props = {
   draft: Draft
   set: <K extends keyof Draft>(key: K, value: Draft[K]) => void
   replace: (next: Draft) => void
-  hoursOn: boolean
   canEdit: boolean
   toast: (text: string) => void
 }
@@ -392,13 +390,7 @@ function QuestionRow({
 
 // --- About, services, FAQs -----------------------------------------------------------------
 
-/** Whether About's Advanced part (the outside-hours text) is open; remembered in this browser. */
-const ABOUT_ADVANCED_KEY = 'linedesk.assistant.about-advanced'
-
-function AboutCard({ draft, set, hoursOn, canEdit, name }: Props & { name: string }) {
-  const [remembered, remember] = useRemembered(ABOUT_ADVANCED_KEY)
-  // An outside-hours text that is already there is shown, so it is never hidden from the owner by surprise.
-  const advancedOpen = remembered || !!draft.instructions_outside.trim()
+function AboutCard({ draft, set, name }: Props & { name: string }) {
   return (
     <Section
       id="as-instructions"
@@ -420,32 +412,6 @@ function AboutCard({ draft, set, hoursOn, canEdit, name }: Props & { name: strin
           {count(draft.instructions.trim().length)} / {count(INSTRUCTIONS_MAX)}
         </span>
       </Field>
-      {hoursOn && (
-        <details className="vp-more" open={advancedOpen} onToggle={e => remember(e.currentTarget.open)}>
-          <summary title="What to know outside business hours">
-            <Icon name="down" size={14} className="vp-chevron" />
-            Advanced
-          </summary>
-          <div className="vp-more-body">
-            <Field id="as-instr-out" label="Outside business hours" aside="Optional">
-              <TextArea
-                id="as-instr-out"
-                value={draft.instructions_outside}
-                onChange={v => set('instructions_outside', v)}
-                placeholder="Empty: the same as during hours"
-              />
-              {draft.instructions_outside.trim() && (
-                <span className="help">
-                  {count(draft.instructions_outside.trim().length)} / {count(INSTRUCTIONS_MAX)}
-                </span>
-              )}
-              <span className="as-hours-line">
-                <EditBusinessHours canEdit={canEdit} />
-              </span>
-            </Field>
-          </div>
-        </details>
-      )}
     </Section>
   )
 }
