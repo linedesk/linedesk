@@ -141,6 +141,8 @@ type AdminInputs = {
   'membership.remove': { memberId: string }
   'invitation.revoke': { invitationId: string }
   'invitation.resend': { invitationId: string }
+  'voiceCloning.get': Record<string, never>
+  'voiceCloning.set': { on: boolean }
 }
 
 /** Runs an admin action through the registry. Throws with the server's reason when it is rejected. */

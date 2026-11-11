@@ -211,6 +211,13 @@
       "when": 1794380305358,
       "tag": "0029_call_evaluations",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794384572899,
+      "tag": "0030_voice_clones",
+      "breakpoints": true
     }
   ]
 }

@@ -4,7 +4,7 @@ import { DEFAULT_CALL_RULES } from '@linedesk/actions'
 import { callRulesToSave, disclosesAi, draftOf, isDefaultCallRules, draftProblem, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure, staleGreetingName } from './assistantDraft.ts'
 
 const oldProfile = { description: 'Plumbing', services: ['Leak repair', ' ', 'Drains'], service_area: 'Portland', address: '1 Main St', hours: 'Mon–Fri', faqs: [{ q: 'Estimates?', a: 'Free.' }, { q: '', a: '' }] }
-const assistant = (over: Partial<Assistant> = {}) => ({ id: 'as1', name: 'Maya', greeting: 'Hello', disclose_ai: true, business_profile: oldProfile, ...over }) as Assistant
+const assistant = (over: Partial<Assistant> = {}) => ({ id: 'as1', name: 'Maya', greeting: 'Hello', disclose_ai: true, business_profile: oldProfile, voice: { provider: 'elevenlabs', voice_id: '' }, ...over }) as Assistant
 
 describe('instructions', () => {
   it('folds the older fields into one text, once, in the shape the assistant read them', () => {

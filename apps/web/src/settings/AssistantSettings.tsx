@@ -1,5 +1,5 @@
-// Assistant settings: name, greeting, AI disclosure, the business's instructions, call rules and the
-// calendar, one section at a time (#assistant/<id>/<section>). Edits in the text sections are one local
+// Assistant settings: name, greeting, AI disclosure, voice, the business's instructions, call rules and
+// the calendar, one section at a time (#assistant/<id>/<section>). Edits in the text sections are one local
 // draft: Save runs assistant.update through the outbox; a section with unsaved
 // changes keeps a dot in the nav while you look at another one.
 import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX } from '@linedesk/actions'
@@ -34,11 +34,13 @@ import { CalendarSettings } from './Calendar.tsx'
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
 import { Field, Section, SwitchRow, TextArea } from './fields.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
+import { VoiceSettings } from './VoiceSettings.tsx'
 import { TestCallBar, TestCallButton, useTestCall } from './TestCall.tsx'
 
-type SectionId = 'greeting' | 'instructions' | 'rules' | 'calendar'
+type SectionId = 'greeting' | 'voice' | 'instructions' | 'rules' | 'calendar'
 const sections: readonly PageSection<SectionId>[] = [
   { id: 'greeting', label: 'Greeting', description: 'First sentence, AI disclosure' },
+  { id: 'voice', label: 'Voice', description: 'How the assistant sounds' },
   { id: 'instructions', label: 'Instructions', description: 'What the assistant knows about the business' },
   { id: 'rules', label: 'Call rules', description: 'How calls are handled' },
   { id: 'calendar', label: 'Calendar', description: 'Accounts, calendars and appointment types' },
@@ -46,6 +48,7 @@ const sections: readonly PageSection<SectionId>[] = [
 /** Which draft fields each section holds; the calendar has its own. */
 const sectionFields: Record<Exclude<SectionId, 'calendar'>, (keyof Draft)[]> = {
   greeting: ['name', 'greeting', 'disclose_ai', 'greeting_outside'],
+  voice: ['voice'],
   instructions: ['instructions', 'instructions_outside'],
   rules: ['call_rules'],
 }
@@ -276,6 +279,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         business_profile: profileOf(clean),
         call_rules: callRulesToSave(clean),
         ...outsideToSave(clean),
+        voice: clean.voice,
       })
       setDraft(clean) // the form shows what was saved, so it is not "dirty" any more
     }
@@ -315,6 +319,9 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
       >
         <fieldset className="st-fields" disabled={!canEdit}>
           {current === 'greeting' && <Greeting draft={draft} set={set} renamedFrom={renamedFrom} hoursOn={hoursOn} />}
+          {current === 'voice' && (
+            <VoiceSettings assistantId={assistant.id} voice={draft.voice} onPick={v => set('voice', v)} canEdit={canEdit} toast={toast} />
+          )}
           {current === 'instructions' && <Instructions draft={draft} set={set} hoursOn={hoursOn} />}
           {current === 'rules' && <CallRules draft={draft} set={set} />}
         </fieldset>

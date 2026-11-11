@@ -102,7 +102,7 @@ describe('access', () => {
     expect((await request(anonymous, 'GET', path)).status).toBe(401)
   })
 
-  test('the registry has the seventeen admin actions', () => {
+  test('the registry has the nineteen admin actions', () => {
     expect(adminActions.map(def => def.name).sort()).toEqual([
       'instanceAdmin.grant',
       'instanceAdmin.revoke',
@@ -119,6 +119,8 @@ describe('access', () => {
       'user.enable',
       'user.impersonate',
       'user.invite',
+      'voiceCloning.get',
+      'voiceCloning.set',
       'workspace.disable',
       'workspace.enable',
     ])

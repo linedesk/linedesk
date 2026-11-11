@@ -16,6 +16,7 @@ import { refuseWhileImpersonating } from './impersonation-guard.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
 import { passkeyPlugin, requireFreshSessionToRemovePasskey } from './passkeys.ts'
 import { maySendSignInCode } from './signup-gate.ts'
+import { releaseWorkspaceClones } from './voices.ts'
 
 const { google, microsoft, github, oidc, trustedProviders, methods } = authConfig
 
@@ -124,7 +125,13 @@ export const auth = betterAuth({
       organizationLimit: WORKSPACE_LIMIT,
       // Only the invited address, and only once it is verified, can accept.
       requireEmailVerificationOnInvitation: true,
-      organizationHooks: { beforeAcceptInvitation: refuseExistingMember },
+      organizationHooks: {
+        beforeAcceptInvitation: refuseExistingMember,
+        // Its cloned voices are deleted at the provider too.
+        beforeDeleteOrganization: async ({ organization }) => {
+          await db.transaction(tx => releaseWorkspaceClones(tx, organization.id))
+        },
+      },
     }),
     // Email sign-in by a typed code: 6 digits, 10 minutes, 3 tries per code, stored hashed, at most 3 requests a minute per IP.
     ...(methods.emailCode

@@ -497,6 +497,26 @@ export const instance_settings = pgTable('instance_settings', {
   updated_by: text('updated_by'),
 })
 
+// Voices a workspace cloned at its text-to-speech provider (voice.clone), with the consent given
+// for it. Not synced. A clone no assistant of the workspace uses any more is deleted at the provider
+// and here (apps/api/src/voices.ts), also when its workspace is deleted.
+export const voice_clones = pgTable(
+  'voice_clones',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    provider: text('provider').notNull(),
+    voice_id: text('voice_id').notNull(),
+    name: text('name').notNull(),
+    /** Who confirmed the speaker's consent, when, and the exact statement they confirmed. */
+    consent_by: text('consent_by').notNull(),
+    consent_at: ts('consent_at').notNull(),
+    consent_text: text('consent_text').notNull(),
+    created_at: createdAt(),
+  },
+  t => [index('voice_clones_ws').on(t.workspace_id), unique('voice_clones_voice').on(t.provider, t.voice_id)],
+)
+
 // Where a workspace's events are sent (apps/api/src/webhooks.ts). Synced: holds no secret; the signing
 // secret is in webhook_secrets. `failure_count`: deliveries in a row that failed after every retry.
 export const webhook_endpoints = pgTable(

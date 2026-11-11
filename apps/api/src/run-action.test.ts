@@ -17,7 +17,7 @@ const fake = vi.hoisted(() => {
   return { state, db, runHandler: vi.fn() }
 })
 vi.mock('./db.ts', () => ({ db: fake.db }))
-vi.mock('./handlers.ts', () => ({ Reject: class Reject extends Error {}, runHandler: fake.runHandler }))
+vi.mock('./handlers.ts', () => ({ Reject: class Reject extends Error {}, runHandler: fake.runHandler, preparers: {} }))
 
 const { runAction } = await import('./run-action.ts')
 const { Reject } = await import('./handlers.ts')

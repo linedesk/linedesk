@@ -14,12 +14,13 @@ import { bookingContext, bookingHandlers, bookingsForTest, DEFAULT_TIME_ZONE } f
 import { calendarConnectionHandlers } from './calendar-connections.ts'
 import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
-import { type Handler, type HandlerCtx, Reject, type Undo } from './handler-context.ts'
+import { type Handler, type HandlerCtx, type Preparer, Reject, type Undo } from './handler-context.ts'
 import { telephonyProvider } from './provider-settings.ts'
 import { startTestCall } from './test-call.ts'
 import { membershipHandlers } from './memberships.ts'
 import { teamHandlers } from './team.ts'
 import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
+import { checkAssistantVoice, releaseUnusedClones, voiceHandlers, voicePreparers } from './voices.ts'
 import { sampleHandlers } from './sample-calls.ts'
 import { queueCallEvaluation, queueCallNotification } from './jobs.ts'
 import { evaluatedAutomatically, evaluationHandlers } from './evaluations.ts'
@@ -158,13 +159,26 @@ const blockedCall = (now: string) => ({
   title: 'Blocked caller', summary: 'This number is blocked, so the call was not answered.',
 })
 
+/** Actions with work before their transaction (handler-context.ts, Preparer). */
+export const preparers: Record<string, Preparer> = { ...voicePreparers }
+
 const handlers: Record<string, Handler> = {
+  // The patch, plus: a voice must be one the workspace may use, and a clone it stops using is released.
+  'assistant.update': async (ctx, input) => {
+    if (!ctx.actor.workspaceId) throw new Reject('no workspace')
+    if (input.voice) await checkAssistantVoice(ctx.tx, ctx.actor.workspaceId, input.voice)
+    const result = await runPatch(ctx, actions.get('assistant.update')!, input)
+    if (input.voice) await releaseUnusedClones(ctx.tx, ctx.actor.workspaceId)
+    return result
+  },
+
   ...adminHandlers,
   ...assistantHandlers,
   ...impersonationHandlers,
   ...teamHandlers,
   ...membershipHandlers,
   ...workspaceSettingsHandlers,
+  ...voiceHandlers,
   ...sampleHandlers,
   ...notificationHandlers,
   ...calendarConnectionHandlers,

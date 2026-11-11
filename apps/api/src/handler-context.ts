@@ -25,6 +25,20 @@ export type HandlerCtx = {
   recordings?: RecordingStore
   calendars?: CalendarServices
   onRollback?: (undo: Undo) => void
+  /** What the action's preparer returned (see Preparer). */
+  prepared?: unknown
 }
+
+/**
+ * Work an action does outside the database before its transaction, such as a slow provider call
+ * that must not hold a transaction open. Runs after validation and permission checks; a Reject
+ * refuses the command, and undos registered here run if the transaction then does not commit.
+ * The handler gets the result as `ctx.prepared`.
+ */
+export type Preparer = (
+  ctx: { actor: Actor; now: string; onRollback: (undo: Undo) => void },
+  // biome-ignore lint/suspicious/noExplicitAny: the registry has validated the input against the action's schema
+  input: any,
+) => Promise<unknown>
 // biome-ignore lint/suspicious/noExplicitAny: the registry has validated the input against the action's schema
 export type Handler = (ctx: HandlerCtx, input: any) => Promise<Omit<ActionResult, 'ok'>>

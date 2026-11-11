@@ -11,6 +11,7 @@ import { emailSender } from './email.ts'
 import { evaluateCall, evaluationModel } from './evaluations.ts'
 import { deleteExpiredRecordings } from './recording-retention.ts'
 import { recordingStoreCache } from './recording-store.ts'
+import { deleteClonedVoice } from './voices.ts'
 import { attemptDelivery, clearOldPayloads, WEBHOOK_ATTEMPTS } from './webhooks.ts'
 
 type Env = Record<string, string | undefined>
@@ -28,6 +29,8 @@ export const CALL_EVALUATE = 'call.evaluate'
 export const WEBHOOK_DELIVER = 'webhook.deliver'
 /** Every day: webhook payloads older than 30 days are cleared (webhooks.ts). */
 export const WEBHOOK_CLEANUP = 'webhooks.cleanup'
+/** Deletes a cloned voice at its provider once no assistant uses it (voices.ts). Retried for a day. */
+export const VOICE_DELETE = 'voice.delete'
 const WEBHOOK_CLEANUP_CRON = '37 3 * * *'
 
 let boss: PgBoss | null = null
@@ -36,6 +39,9 @@ let boss: PgBoss | null = null
 export const jobQueue = () => boss
 
 async function runJobs(instance: PgBoss, env: Env) {
+  await instance.work<{ provider: string; voiceId: string }>(VOICE_DELETE, async ([job]) => {
+    if (job) await deleteClonedVoice(job.data.provider, job.data.voiceId)
+  })
   await instance.schedule(RECORDING_CLEANUP, RECORDING_CLEANUP_CRON)
   await instance.work(RECORDING_CLEANUP, async () => {
     const result = await deleteExpiredRecordings(db, recordingStoreCache(db, env))
@@ -75,6 +81,7 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(BOOKING_CONFIRM, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(CALL_EVALUATE, { retryLimit: 2, retryDelay: 120, retryBackoff: true })
   await instance.createQueue(WEBHOOK_CLEANUP)
+  await instance.createQueue(VOICE_DELETE, { retryLimit: 24, retryDelay: 3600 })
   await instance.createQueue(WEBHOOK_DELIVER, { retryLimit: WEBHOOK_ATTEMPTS - 1, retryDelay: 60, retryBackoff: true })
   if (workHere) await runJobs(instance, env)
   boss = instance
@@ -112,4 +119,9 @@ export async function queueCallEvaluation(tx: Tx, callId: string) {
 /** Queues one webhook delivery in the transaction of the event. Without a queue (tests) it stays pending. */
 export async function queueWebhookDelivery(tx: Tx, deliveryId: string) {
   await boss?.send(WEBHOOK_DELIVER, { deliveryId }, { db: fromDrizzle(tx, sql) })
+}
+
+/** Queues the deletion of a cloned voice at its provider, in the transaction that stopped using it. */
+export async function queueVoiceDeletion(tx: Tx, provider: string, voiceId: string) {
+  await boss?.send(VOICE_DELETE, { provider, voiceId }, { db: fromDrizzle(tx, sql) })
 }

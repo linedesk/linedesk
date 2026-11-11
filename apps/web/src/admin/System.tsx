@@ -1,9 +1,13 @@
-// LiveKit is part of the install: its keys are set in env at install time, so this is a
-// read-only status, loaded on its own because a server that is down takes seconds to say so.
+// System: LiveKit, part of the install (its keys are set in env at install time, so this is a
+// read-only status, loaded on its own because a server that is down takes seconds to say so), and
+// whether workspaces may clone voices (off until an instance admin turns it on).
+import type { VoiceCloningData } from '@linedesk/actions'
+import { useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
+import { Switch } from '../ui/controls.tsx'
 import { Card } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
-import { type LivekitStatus, loadLivekitStatus, type ServiceStatus } from './api.ts'
+import { type LivekitStatus, loadLivekitStatus, runAdmin, type ServiceStatus } from './api.ts'
 
 const LIVEKIT = 'admin.livekit'
 
@@ -23,7 +27,7 @@ function Service({ name, status }: { name: string; status: ServiceStatus | null 
   )
 }
 
-export function System() {
+function Livekit() {
   const query = useQuery(LIVEKIT, loadLivekitStatus)
   const status = query.data ?? null
   const error = status ? null : query.error
@@ -56,5 +60,52 @@ export function System() {
         </dl>
       )}
     </Card>
+  )
+}
+
+const CLONING = 'admin.voiceCloning'
+const loadCloning = async () => (await runAdmin('voiceCloning.get', {})) as VoiceCloningData
+
+/** Voice cloning for every workspace: off by default; existing clones keep working when it is turned off. */
+function VoiceCloning() {
+  const query = useQuery(CLONING, loadCloning)
+  const [problem, setProblem] = useState<string | null>(null)
+  const on = query.data?.on ?? false
+  async function change(next: boolean) {
+    setProblem(null)
+    setQueryData<VoiceCloningData | undefined>(CLONING, { on: next })
+    try {
+      await runAdmin('voiceCloning.set', { on: next })
+    } catch (e) {
+      setQueryData<VoiceCloningData | undefined>(CLONING, { on: !next })
+      setProblem(e instanceof Error ? e.message : 'Could not change voice cloning.')
+    }
+  }
+  return (
+    <Card
+      title="Voice cloning"
+      help="Off by default. Each clone keeps who confirmed consent and when; existing clones keep working when it is off."
+    >
+      <div className="swrow">
+        <div>
+          <b>Allow voice cloning</b>
+        </div>
+        <Switch on={on} onChange={v => void change(v)} label="Allow voice cloning" disabled={!query.data} />
+      </div>
+      {problem && (
+        <p className="k-field-msg" role="alert">
+          {problem}
+        </p>
+      )}
+    </Card>
+  )
+}
+
+export function System() {
+  return (
+    <>
+      <Livekit />
+      <VoiceCloning />
+    </>
   )
 }

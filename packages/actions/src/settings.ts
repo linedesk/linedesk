@@ -1,6 +1,7 @@
 import { CALL_RULES_MAX } from './assistant-prompt.ts'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
+import { voiceId } from './voices.ts'
 
 const defined = <T extends object>(o: T) =>
   Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>
@@ -148,7 +149,8 @@ export const assistantUpdate = defineAction({
     greeting_outside: z.string().nullable().optional(),
     instructions_outside: z.string().max(INSTRUCTIONS_MAX).nullable().optional(),
     record_calls: z.boolean().optional(),
-    voice: z.object({ provider: z.string(), voice_id: z.string() }).optional(),
+    /** An empty voice_id: the provider's default voice. */
+    voice: z.object({ provider: z.string(), voice_id: z.union([z.literal(''), voiceId]) }).optional(),
     business_profile: z
       .object({
         instructions: z.string().max(INSTRUCTIONS_MAX).optional(),

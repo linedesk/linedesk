@@ -7,7 +7,7 @@ import { commands } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
-import { Reject, runHandler, type Undo } from './handlers.ts'
+import { preparers, Reject, runHandler, type Undo } from './handlers.ts'
 
 export type RunResult = { status: 200 | 403 | 404 | 409 | 422; body: ActionResult | ActionRejection }
 
@@ -59,9 +59,12 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   // What handlers did outside the database (a bought phone number) is undone whenever the
   // transaction does not commit: the handler threw, the command could not be logged, or the commit failed.
   const undos: Undo[] = []
+  const onRollback = (undo: Undo) => void undos.push(undo)
   try {
+    const prepare = preparers[name]
+    const prepared = prepare ? await prepare({ actor, now: new Date().toISOString(), onRollback }, parsed.data) : undefined
     const body = await db.transaction(async tx => {
-      const ctx = { tx, actor, now: new Date().toISOString(), onRollback: (undo: Undo) => undos.push(undo) }
+      const ctx = { tx, actor, now: new Date().toISOString(), onRollback, prepared }
       const result: ActionResult = { ok: true, ...(await runHandler(ctx, def, parsed.data)) }
       // A secret in the result (a new API key) goes to the caller once and never into the log, so a replay does not repeat it.
       await tx.insert(commands).values({ ...record, result: def.secretResult ? { ...result, data: { redacted: REDACTED } } : result })

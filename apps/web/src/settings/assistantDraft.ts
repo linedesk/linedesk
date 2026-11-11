@@ -13,6 +13,8 @@ export type Draft = {
   call_rules: string
   greeting_outside: string
   instructions_outside: string
+  /** The voice: provider and voice id (empty: the provider's default). */
+  voice: { provider: string; voice_id: string }
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
@@ -42,6 +44,7 @@ export function draftOf(a: Assistant): Draft {
     call_rules: callRulesOf(a.call_rules), // none stored: the default rules, shown so they can be edited
     greeting_outside: a.greeting_outside ?? '',
     instructions_outside: a.instructions_outside ?? '',
+    voice: { provider: a.voice.provider, voice_id: a.voice.voice_id },
   }
 }
 

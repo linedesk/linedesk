@@ -10,6 +10,7 @@ import * as onboarding from './onboarding.ts'
 import * as sample from './sample.ts'
 import * as settings from './settings.ts'
 import * as team from './team.ts'
+import * as voices from './voices.ts'
 import * as webhooks from './webhooks.ts'
 
 export * from './define.ts'
@@ -28,6 +29,7 @@ export * from './openapi.ts'
 export * from './sample.ts'
 export * from './settings.ts'
 export * from './team.ts'
+export * from './voices.ts'
 export * from './webhooks.ts'
 
 const all = [
@@ -62,6 +64,10 @@ const all = [
   settings.assistantUpdate,
   settings.assistantCreate,
   settings.assistantDelete,
+  voices.voiceOptions,
+  voices.voiceClone,
+  voices.voiceCloningGet,
+  voices.voiceCloningSet,
   settings.phoneNumberSetup,
   settings.phoneNumberUpdate,
   settings.phoneNumberRelease,

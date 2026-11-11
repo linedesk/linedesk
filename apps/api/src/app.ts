@@ -1,8 +1,12 @@
-import { actions, openApiDocument } from '@linedesk/actions'
+import { actions, CLONE_BODY_MAX_BYTES, openApiDocument } from '@linedesk/actions'
 import { assistants, member, organization, user, workspace_settings, tableNames, type TableName } from '@linedesk/db'
 import { APIError } from 'better-auth/api'
 import { asc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
+
+/** The largest action request body, except voice.clone (a recording). */
+const ACTION_BODY_MAX_BYTES = 4 * 1024 * 1024
 import { setFirstPassword } from './account.ts'
 import { API_KEY_REQUESTS_PER_MINUTE, apiKeyWithinLimit, isApiKey, tooManyInvalidApiKeys } from './api-keys.ts'
 import { registerAdminRoutes } from './admin-routes.ts'
@@ -33,6 +37,7 @@ import { newAssistant, newWorkspaceSettings, onboardingFor, phoneSetupFor } from
 import { firstUse } from './sample-calls.ts'
 import { voiceReady } from './provider-settings.ts'
 import { serveRecording } from './recording-route.ts'
+import { servePreview } from './voices.ts'
 import { runAction } from './run-action.ts'
 
 const ELECTRIC_URL = process.env.ELECTRIC_URL ?? 'http://localhost:3001'
@@ -224,6 +229,12 @@ app.get('/v1/actions', c =>
   c.json([...actions.values()].map(a => ({ name: a.name, description: a.description, permission: a.permission }))),
 )
 
+// A voice recording is the one large input: it is capped before the body is read; every other action at 4 MB (a contact import of 500 rows fits).
+app.use('/v1/actions/voice.clone', bodyLimit({ maxSize: CLONE_BODY_MAX_BYTES, onError: c => c.json({ ok: false, error: 'the recording is larger than 10 MB' }, 413) }))
+app.use('/v1/actions/:name', async (c, next) =>
+  c.req.param('name') === 'voice.clone' ? next() : bodyLimit({ maxSize: ACTION_BODY_MAX_BYTES, onError: c => c.json({ ok: false, error: 'request body too large' }, 413) })(c, next),
+)
+
 app.post('/v1/actions/:name', async c => {
   // These change which session the browser holds, so only their own routes run them.
   if (COOKIE_ACTIONS.includes(c.req.param('name')))
@@ -232,6 +243,8 @@ app.post('/v1/actions/:name', async c => {
   const { status, body } = await runAction(c.req.param('name'), input, c.get('actor'), c.req.header('idempotency-key'))
   return c.json(body, status)
 })
+
+app.get('/v1/voices/preview/:voiceId', c => servePreview(c.get('actor'), c.req.param('voiceId')))
 
 app.get('/v1/calls/:id/recording', c => serveRecording(c.get('actor'), c.req.param('id'), c.req.header('range')))
 

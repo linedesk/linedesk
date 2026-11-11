@@ -9,7 +9,7 @@ test('a new assistant has no voice chosen, for ElevenLabs; choosing one keeps th
   const ws = await createWorkspace('Brightwater Plumbing & Heating')
   expect(ws.assistant.voice).toEqual({ provider: 'elevenlabs', voice_id: '' })
 
-  const voice = { provider: 'elevenlabs', voice_id: 'voice_maya' }
+  const voice = { provider: 'elevenlabs', voice_id: 'cgSgspJ2msm6clMCkdW9' } // a curated voice
   expect((await act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, voice })).status).toBe(200)
   const [updated] = await db.select().from(assistants).where(eq(assistants.id, ws.assistant.id))
   expect(updated?.voice).toEqual(voice)

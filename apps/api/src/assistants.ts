@@ -2,6 +2,7 @@
 // copy and delete them or move a number to another one. Every lookup is scoped to the workspace, so
 // an assistant id from another workspace is refused, never used.
 import { assistant_calendars, assistants, organization, phone_numbers, type Tx } from '@linedesk/db'
+import { releaseUnusedClones } from './voices.ts'
 import type { Assistant } from '@linedesk/db/types'
 import { and, asc, eq, ne } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
@@ -100,6 +101,8 @@ export const assistantHandlers: Record<string, Handler> = {
     // Its calendars go with it (foreign key cascade).
     const calendars = await tx.select({ id: assistant_calendars.id }).from(assistant_calendars).where(eq(assistant_calendars.assistant_id, doomed!.id))
     await tx.delete(assistants).where(and(eq(assistants.id, doomed!.id), eq(assistants.workspace_id, workspaceId)))
+    // A cloned voice only it used goes too, at the provider as well.
+    await releaseUnusedClones(tx, workspaceId)
     return {
       rows: { phone_numbers: moved },
       deleted: { assistants: [doomed!.id], assistant_calendars: calendars.map(c => c.id) },
