@@ -209,8 +209,10 @@ export function transferTool({ ctx, api, call, log, config, callerIdentity, cont
       // The caller is on hold: what they say now is not a turn for the assistant.
       session.input.setAudioEnabled(false)
       const left = callerLeft(ctx, callerIdentity)
+      // The name the caller confirmed on this call beats the one on file (a shared or test number has someone else's).
+      const callerName = caller_name ?? log.confirmedName ?? call.contact?.name ?? null
       const briefing = briefingText({
-        callerName: caller_name ?? call.contact?.name ?? null,
+        callerName,
         callerNumber: call.contact?.phone ?? null,
         about,
         urgent,
@@ -273,7 +275,7 @@ export function transferTool({ ctx, api, call, log, config, callerIdentity, cont
         previous = contact
       }
       if (urgent) log.urgent = true
-      if (triedNames.length) await saveNotConnectedMessage(api, call, log, notConnectedMessage({ callerName: caller_name ?? call.contact?.name, about, tried: triedNames }))
+      if (triedNames.length) await saveNotConnectedMessage(api, call, log, notConnectedMessage({ callerName, about, tried: triedNames }))
       session.input.setAudioEnabled(true)
       log.onHold = false
       return notConnectedReply(plan.fallback satisfies Fallback)
