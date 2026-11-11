@@ -12,7 +12,7 @@ import { SignInMark } from '../ui/brand-logos.tsx'
 import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
-import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
+import { DeleteButton, EditButton, List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { Skeleton, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { useQuery } from '../cachedQuery.ts'
 import {
@@ -213,7 +213,9 @@ function Accounts({ assistant, canEdit, toast }: Props) {
         </List>
       ) : (
         <ListEmpty>
-          {connector.providers?.length === 0 ? noProviderText : `No account yet. Add one so ${assistant.name} can book.`}
+          {connector.providers?.length === 0
+            ? noProviderText
+            : `No account yet. Add one so ${assistant.name} can book.`}
         </ListEmpty>
       )}
     </Section>
@@ -549,8 +551,18 @@ function TypeForm({ type, onDone }: { type?: AppointmentType; onDone: () => void
         />
       </Field>
       <div className="cal-type-rules">
-        <Field id="cal-type-before" label="Buffer before" tip="Free time kept after the appointment or event before this one.">
-          <Select id="cal-type-before" label="Buffer before" value={before} options={bufferOptions} onChange={setBefore} />
+        <Field
+          id="cal-type-before"
+          label="Buffer before"
+          tip="Free time kept after the appointment or event before this one."
+        >
+          <Select
+            id="cal-type-before"
+            label="Buffer before"
+            value={before}
+            options={bufferOptions}
+            onChange={setBefore}
+          />
         </Field>
         <Field id="cal-type-after" label="Buffer after" tip="Free time kept before the next appointment or event.">
           <Select id="cal-type-after" label="Buffer after" value={after} options={bufferOptions} onChange={setAfter} />
@@ -643,18 +655,13 @@ function AppointmentTypes({ canEdit }: Omit<Props, 'assistant' | 'toast'>) {
                 }
                 actions={
                   canEdit && (
-                    <MenuButton
-                      title={`Actions for ${t.name}`}
-                      items={[
-                        { id: 'edit', label: 'Edit', onSelect: () => setEditing(t.id) },
-                        {
-                          id: 'delete',
-                          label: 'Delete',
-                          danger: true,
-                          onSelect: () => void run('appointmentType.delete', { appointmentTypeId: t.id }),
-                        },
-                      ]}
-                    />
+                    <>
+                      <EditButton name={t.name} onClick={() => setEditing(t.id)} />
+                      <DeleteButton
+                        name={t.name}
+                        onDelete={() => void run('appointmentType.delete', { appointmentTypeId: t.id })}
+                      />
+                    </>
                   )
                 }
               />

@@ -53,6 +53,41 @@ export function ListEmpty({ children }: { children: ReactNode }) {
   return <p className="k-list-empty">{children}</p>
 }
 
+/** A row's Edit: a small pencil button. */
+export function EditButton({ name, onClick }: { name: string; onClick: () => void }) {
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      icon="pencil"
+      aria-label={`Edit ${name}`}
+      title={`Edit ${name}`}
+      onClick={onClick}
+    />
+  )
+}
+
+/**
+ * A row's Delete: a small trash button that asks once in place, like Revoke and Remove elsewhere. The
+ * first click turns it into a red "Delete"; a second click deletes, leaving it (blur) takes it back.
+ */
+export function DeleteButton({ name, onDelete }: { name: string; onDelete: () => void }) {
+  const [confirming, setConfirming] = useState(false)
+  return (
+    <Button
+      size="sm"
+      variant={confirming ? 'danger' : 'ghost'}
+      icon={confirming ? undefined : 'trash'}
+      aria-label={confirming ? `Delete ${name} now` : `Delete ${name}`}
+      title={confirming ? 'Click again to delete' : `Delete ${name}`}
+      onBlur={() => setConfirming(false)}
+      onClick={() => (confirming ? onDelete() : setConfirming(true))}
+    >
+      {confirming ? 'Delete' : null}
+    </Button>
+  )
+}
+
 export type MenuItem = {
   id: string
   label: string
