@@ -39,7 +39,7 @@ is_current() {
   container=$(containers_of "$1" | head -1)
   [ "$(docker inspect -f '{{.Image}}' "$container")" = \
     "$(docker image inspect -f '{{.Id}}' "$(docker inspect -f '{{.Config.Image}}' "$container")")" ] &&
-    ! docker compose up --dry-run -d --no-build --no-deps "$1" 2>&1 | grep -q Recreate
+    ! grep -q Recreate <<<"$(docker compose up --dry-run -d --no-build --no-deps "$1" 2>&1)"
 }
 
 # The settings hash compose stored on the container vs. the current one (settings only, not the image).
