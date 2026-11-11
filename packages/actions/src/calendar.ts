@@ -6,6 +6,8 @@ const localDate = z.iso.date()
 /** Details the assistant asks for before booking a type, besides the reason. `name` is stored as appointment_types.name_required. */
 export const bookingField = z.enum(['name', 'phone', 'email', 'address'])
 export type BookingFieldInput = z.infer<typeof bookingField>
+/** When an appointment type may be booked, relative to the business hours. */
+export const bookWhen = z.enum(['business_hours', 'outside_business_hours', 'any_time'])
 
 // The server handler lives in apps/api; the slots come back in the result's `data`.
 export const calendarFindSlots = defineAction({
@@ -117,7 +119,14 @@ export const appointmentTypeUpsert = defineAction({
     appointmentTypeId: z.string().min(1).optional(),
     name: z.string().trim().min(1).max(80),
     durationMin: z.number().int().min(5).max(24 * 60),
+    /** Free time on both sides; kept for callers from before the two below, which win when given. */
     bufferMin: z.number().int().min(0).max(240).optional(),
+    /** Free time kept after the appointment or event before this one (minutes). */
+    bufferBeforeMin: z.number().int().min(0).max(240).optional(),
+    /** Free time kept before the next appointment or event (minutes). */
+    bufferAfterMin: z.number().int().min(0).max(240).optional(),
+    /** When it may be booked: inside the business hours (default), outside them, or at any time. */
+    bookWhen: bookWhen.optional(),
     minNoticeHours: z.number().int().min(0).max(24 * 30).optional(),
     maxDaysAhead: z.number().int().min(1).max(365).optional(),
     enabled: z.boolean().optional(),

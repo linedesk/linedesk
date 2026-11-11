@@ -359,7 +359,16 @@ export const appointment_types = pgTable(
     workspace_id: workspaceId(),
     name: text('name').notNull(),
     duration_min: integer('duration_min').notNull(),
+    /** Kept for a release from before the two buffers below: the larger of them. */
     buffer_min: integer('buffer_min').notNull().default(0),
+    /** Free time kept between an appointment or event before and this one (minutes). */
+    buffer_before_min: integer('buffer_before_min').notNull().default(0),
+    /** Free time kept between this one and the next appointment or event (minutes). */
+    buffer_after_min: integer('buffer_after_min').notNull().default(0),
+    /** When it may be booked, relative to the business hours (see hoursFor in @linedesk/calendar). */
+    book_when: text('book_when', { enum: ['business_hours', 'outside_business_hours', 'any_time'] })
+      .notNull()
+      .default('business_hours'),
     min_notice_hours: integer('min_notice_hours').notNull().default(0),
     max_days_ahead: integer('max_days_ahead').notNull().default(60),
     location: text('location', { enum: ['on_site', 'office', 'phone', 'video'] })
@@ -382,6 +391,8 @@ export const appointment_types = pgTable(
     index('appointment_types_ws').on(t.workspace_id),
     check('appointment_types_duration', sql`${t.duration_min} > 0`),
     check('appointment_types_buffer', sql`${t.buffer_min} >= 0`),
+    check('appointment_types_buffer_before', sql`${t.buffer_before_min} >= 0`),
+    check('appointment_types_buffer_after', sql`${t.buffer_after_min} >= 0`),
     check('appointment_types_min_notice', sql`${t.min_notice_hours} >= 0`),
     check('appointment_types_max_days', sql`${t.max_days_ahead} > 0`),
   ],

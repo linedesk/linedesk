@@ -41,6 +41,7 @@ import {
 import { AssistantHeader } from './AssistantHeader.tsx'
 import { CalendarSettings } from './Calendar.tsx'
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
+import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { Field, Section, SwitchRow, TextArea, TextInput, useRemembered } from './fields.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { Knowledge } from './Knowledge.tsx'
@@ -83,7 +84,8 @@ function Greeting({
   set,
   renamedFrom,
   hoursOn,
-}: SectionProps & { renamedFrom: string | null; hoursOn: boolean }) {
+  canEdit,
+}: SectionProps & { renamedFrom: string | null; hoursOn: boolean; canEdit: boolean }) {
   const stale = renamedFrom ? staleGreetingName(draft.greeting, renamedFrom, draft.name) : null
   const knownProblem = knownCallerGreetingProblem(draft.greeting_known_caller)
   const [remembered, remember] = useRemembered(GREETING_ADVANCED_KEY)
@@ -147,6 +149,9 @@ function Greeting({
               />
               <span className="help">
                 {draft.greeting_outside.trim() ? spokenLength(draft.greeting_outside) : 'Empty: the same as during hours.'}
+              </span>
+              <span className="as-hours-line">
+                <EditBusinessHours canEdit={canEdit} />
               </span>
             </Field>
           )}
@@ -405,7 +410,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         unsaved={unsaved}
       >
         <fieldset className="st-fields" disabled={!canEdit}>
-          {current === 'greeting' && <Greeting draft={draft} set={set} renamedFrom={renamedFrom} hoursOn={hoursOn} />}
+          {current === 'greeting' && <Greeting draft={draft} set={set} renamedFrom={renamedFrom} hoursOn={hoursOn} canEdit={canEdit} />}
           {current === 'voice' && (
             <VoiceSettings
               assistantId={assistant.id}

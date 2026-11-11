@@ -16,8 +16,12 @@ import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { Skeleton, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { useQuery } from '../cachedQuery.ts'
 import {
+  BOOK_WHEN_LABEL,
   BOOKING_FIELDS,
   type BookingFieldId,
+  type BookWhen,
+  BUFFERS,
+  bufferLabel,
   CONNECT_RETURN_KEY,
   calendarsOf,
   connectResult,
@@ -27,8 +31,10 @@ import {
   PROVIDER_LABEL,
   type ProviderId,
   requiredLabel,
+  rulesLabel,
   typeFields,
 } from './calendarModel.ts'
+import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { Field, Section } from './fields.tsx'
 import { callAction, useWriteAction } from './settings-api.ts'
 import './calendar.css'
@@ -430,7 +436,7 @@ function Calendars({ assistant, canEdit, toast, pickFrom }: Props & { pickFrom: 
     <Section
       id="as-cal-calendars"
       title="Calendars"
-      help={`${assistant.name} books appointments into the calendar whose note fits the call, otherwise into the default one. It only offers times that are free in that calendar and inside your business hours (Monday to Friday, 9 to 5, while business hours are off).`}
+      help={`${assistant.name} books appointments into the calendar whose note fits the call, otherwise into the default one. It only offers times that are free in that calendar and that the appointment type allows: inside your business hours unless the type says otherwise (Monday to Friday, 9 to 5, while business hours are off).`}
       actions={
         canEdit &&
         ready &&
@@ -476,6 +482,11 @@ function Calendars({ assistant, canEdit, toast, pickFrom }: Props & { pickFrom: 
 }
 
 const durationOptions: SelectOption<string>[] = DURATIONS.map(d => ({ value: String(d), label: durationLabel(d) }))
+const bufferOptions: SelectOption<string>[] = BUFFERS.map(b => ({ value: String(b), label: bufferLabel(b) }))
+const bookWhenOptions: SelectOption<BookWhen>[] = (Object.keys(BOOK_WHEN_LABEL) as BookWhen[]).map(value => ({
+  value,
+  label: BOOK_WHEN_LABEL[value],
+}))
 
 function TypeForm({ type, onDone }: { type?: AppointmentType; onDone: () => void }) {
   const run = useRun()
@@ -483,6 +494,9 @@ function TypeForm({ type, onDone }: { type?: AppointmentType; onDone: () => void
   const [duration, setDuration] = useState(String(type?.duration_min ?? 60))
   const [fields, setFields] = useState<BookingFieldId[]>(type ? typeFields(type) : ['name', 'address'])
   const [condition, setCondition] = useState(type?.instruction ?? '')
+  const [before, setBefore] = useState(String(type?.buffer_before_min ?? 0))
+  const [after, setAfter] = useState(String(type?.buffer_after_min ?? 0))
+  const [when, setWhen] = useState<BookWhen>(type?.book_when ?? 'business_hours')
   const save = () => {
     if (!name.trim()) return
     void run('appointmentType.upsert', {
@@ -491,6 +505,9 @@ function TypeForm({ type, onDone }: { type?: AppointmentType; onDone: () => void
       durationMin: Number(duration),
       requiredFields: fields,
       instruction: condition.trim(),
+      bufferBeforeMin: Number(before),
+      bufferAfterMin: Number(after),
+      bookWhen: when,
     })
     onDone()
   }
@@ -531,6 +548,22 @@ function TypeForm({ type, onDone }: { type?: AppointmentType; onDone: () => void
           onChange={e => setCondition(e.target.value)}
         />
       </Field>
+      <div className="cal-type-rules">
+        <Field id="cal-type-before" label="Buffer before" tip="Free time kept after the appointment or event before this one.">
+          <Select id="cal-type-before" label="Buffer before" value={before} options={bufferOptions} onChange={setBefore} />
+        </Field>
+        <Field id="cal-type-after" label="Buffer after" tip="Free time kept before the next appointment or event.">
+          <Select id="cal-type-after" label="Buffer after" value={after} options={bufferOptions} onChange={setAfter} />
+        </Field>
+        <Field id="cal-type-hours" label="Can be booked">
+          <Select id="cal-type-hours" label="Can be booked" value={when} options={bookWhenOptions} onChange={setWhen} />
+        </Field>
+      </div>
+      {when !== 'any_time' && (
+        <span className="cal-type-hours">
+          <EditBusinessHours canEdit />
+        </span>
+      )}
       <Field
         label="Ask for"
         tip="Your assistant always asks what the appointment is for. Tick anything else it should ask before booking this type."
@@ -589,7 +622,7 @@ function AppointmentTypes({ canEdit }: Omit<Props, 'assistant' | 'toast'>) {
               <ListRow
                 key={t.id}
                 title={t.name}
-                sub={requiredLabel(t)}
+                sub={[requiredLabel(t), rulesLabel(t)].filter(Boolean).join(' · ')}
                 aside={durationLabel(t.duration_min)}
                 below={
                   <ConditionField

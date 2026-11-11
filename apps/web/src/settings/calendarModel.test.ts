@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { calendarsOf, connectResult, durationLabel, requiredLabel, typeFields } from './calendarModel.ts'
+import { calendarsOf, connectResult, durationLabel, requiredLabel, rulesLabel, typeFields } from './calendarModel.ts'
 
 test('the OAuth callback result in the hash becomes a toast', () => {
   expect(connectResult('#assistant/as_1/calendar?calendar=connected')).toEqual({ ok: true, text: 'Calendar connected. Pick the calendars the assistant books into.' })
@@ -19,6 +19,14 @@ test('durations and required details read as the owner says them', () => {
   )
   expect(requiredLabel({ required_fields: [], name_required: false })).toBe('Asks only for the reason')
   expect(typeFields({ required_fields: ['address'], name_required: false })).toEqual(['address'])
+})
+
+test('booking rules read short, only what differs from the defaults', () => {
+  const t = (buffer_before_min: number, buffer_after_min: number, book_when: 'business_hours' | 'outside_business_hours' | 'any_time' = 'business_hours') => ({ buffer_before_min, buffer_after_min, book_when })
+  expect(rulesLabel(t(0, 0))).toBe('')
+  expect(rulesLabel(t(15, 15))).toBe('15 min buffer')
+  expect(rulesLabel(t(15, 0, 'outside_business_hours'))).toBe('15 min before · Outside business hours')
+  expect(rulesLabel(t(0, 10, 'any_time'))).toBe('10 min after · Any time')
 })
 
 test("an assistant's calendars: the default first, then in the order they were added", () => {

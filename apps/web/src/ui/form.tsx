@@ -14,6 +14,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { arrow, autoUpdate, flip, offset, shift, useFloating } from '@floating-ui/react-dom'
 import { Backdrop } from './Backdrop.tsx'
 import { Button, cx, Icon } from './kit.tsx'
 import './form.css'
@@ -188,19 +189,35 @@ export function SecretInput({ id, value, onChange, storedLast4, placeholder, aut
   )
 }
 
-/** A (?) that explains, for detail that does not need to be on the page. Hover or focus shows it. */
+/**
+ * A (?) that explains, for detail that does not need to be on the page. Hover or focus shows it,
+ * anchored to the (?) with an arrow (Floating UI, as the tour): above it when there is room, else
+ * below, and shifted to stay inside the window.
+ */
 export function HelpTip({ text }: { text: string }) {
   const [open, setOpen] = useState(false)
   const id = useId()
+  const arrowRef = useRef<HTMLSpanElement>(null)
+  const { refs, floatingStyles, placement, middlewareData } = useFloating({
+    open,
+    strategy: 'fixed',
+    placement: 'top',
+    whileElementsMounted: autoUpdate,
+    middleware: [offset(8), flip({ padding: 8 }), shift({ padding: 8 }), arrow({ element: arrowRef, padding: 8 })],
+  })
+  const below = placement.startsWith('bottom')
+  const tip = middlewareData.arrow
   return (
     <span className="k-help">
       <button
+        ref={refs.setReference}
         type="button"
         className="k-help-btn"
         aria-label="More information"
         aria-describedby={open ? id : undefined}
         aria-expanded={open}
-        onClick={() => setOpen(o => !o)}
+        // Hover has opened it already: a click keeps it open (Esc or leaving closes it).
+        onClick={() => setOpen(true)}
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
         onFocus={() => setOpen(true)}
@@ -215,8 +232,13 @@ export function HelpTip({ text }: { text: string }) {
         ?
       </button>
       {open && (
-        <span role="tooltip" id={id} className="k-help-pop">
+        <span ref={refs.setFloating} role="tooltip" id={id} className="k-help-pop" style={floatingStyles}>
           {text}
+          <span
+            ref={arrowRef}
+            className={cx('k-help-arrow', below && 'is-below')}
+            style={{ left: tip?.x != null ? `${tip.x}px` : undefined }}
+          />
         </span>
       )}
     </span>

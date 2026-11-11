@@ -16,7 +16,25 @@ export type Interval = { start: string; end: string }
 export type WorkingHours = { weekday: number; start_time: string; end_time: string }
 /** Replaces the weekly hours on `date` (`YYYY-MM-DD`). Without times (both null) the day is closed. */
 export type HoursException = { date: string; start_time: string | null; end_time: string | null }
-export type SlotRules = { duration_min: number; buffer_min: number; min_notice_hours: number; max_days_ahead: number }
+/**
+ * `buffer_before_min`: free time kept between the end of a busy interval and the start of a slot;
+ * `buffer_after_min`: between the end of a slot and the next busy interval. Without them, `buffer_min`
+ * counts on both sides (rows from before the two fields).
+ */
+export type SlotRules = {
+  duration_min: number
+  buffer_min: number
+  buffer_before_min?: number
+  buffer_after_min?: number
+  min_notice_hours: number
+  max_days_ahead: number
+}
+
+/** The free time kept before and after a slot, in minutes. */
+export const buffersOf = (type: SlotRules) => ({
+  before: type.buffer_before_min ?? type.buffer_min,
+  after: type.buffer_after_min ?? type.buffer_min,
+})
 
 export interface FindSlotsInput {
   /** IANA time zone the working hours are written in. */
@@ -58,6 +76,10 @@ function assertValid({ hours, exceptions, appointmentType: type, stepMin = DEFAU
   for (const field of ['buffer_min', 'min_notice_hours', 'max_days_ahead'] as const) {
     if (!(type[field] >= 0)) throw new RangeError(`${field} must not be negative`)
   }
+  for (const field of ['buffer_before_min', 'buffer_after_min'] as const) {
+    const value = type[field]
+    if (value !== undefined && !(value >= 0)) throw new RangeError(`${field} must not be negative`)
+  }
   for (const h of hours) {
     if (!Number.isInteger(h.weekday) || h.weekday < 0 || h.weekday > 6) throw new RangeError(`weekday ${h.weekday} must be 0 (Sunday) to 6`)
     assertTimeRange(`working hours on weekday ${h.weekday}`, h.start_time, h.end_time)
@@ -94,8 +116,12 @@ export function findSlots(input: FindSlotsInput): Interval[] {
   const { timeZone, appointmentType: type, limit = Infinity } = input
   const duration = type.duration_min * MINUTE_MS
   const step = (input.stepMin ?? DEFAULT_STEP_MIN) * MINUTE_MS
-  const buffer = type.buffer_min * MINUTE_MS
-  const blocked = input.busy.map(b => ({ start: toInstant(b.start) - buffer, end: toInstant(b.end) + buffer }))
+  // A slot may start `before` after a busy interval ends, and must end `after` before the next one starts.
+  const buffers = buffersOf(type)
+  const blocked = input.busy.map(b => ({
+    start: toInstant(b.start) - buffers.after * MINUTE_MS,
+    end: toInstant(b.end) + buffers.before * MINUTE_MS,
+  }))
   const isFree = (start: number) => blocked.every(b => start + duration <= b.start || start >= b.end)
   const bookable = bookableSpan(input)
 
@@ -111,4 +137,50 @@ export function findSlots(input: FindSlotsInput): Interval[] {
   }
   return [...starts].sort((a, b) => a - b).slice(0, limit)
     .map(start => ({ start: new Date(start).toISOString(), end: new Date(start + duration).toISOString() }))
+}
+
+/**
+ * When a type may be booked, relative to the business hours: inside them (the default), outside them,
+ * or at any time of any day.
+ */
+export type BookWhen = 'business_hours' | 'outside_business_hours' | 'any_time'
+
+const WHOLE_DAY = { start_time: '00:00', end_time: '24:00' }
+
+/** The parts of a day (`00:00`–`24:00`) not covered by `ranges`, in order. */
+function gapsOf(ranges: readonly { start_time: string; end_time: string }[]): { start_time: string; end_time: string }[] {
+  const sorted = [...ranges].sort((a, b) => a.start_time.localeCompare(b.start_time))
+  const gaps: { start_time: string; end_time: string }[] = []
+  let from = '00:00'
+  for (const r of sorted) {
+    const start = r.start_time.slice(0, 5)
+    const end = r.end_time.slice(0, 5)
+    if (start > from) gaps.push({ start_time: from, end_time: start })
+    if (end > from) from = end
+  }
+  if (from < '24:00') gaps.push({ start_time: from, end_time: '24:00' })
+  return gaps
+}
+
+/**
+ * The hours and exceptions slots of a type are found in, from the business hours and their
+ * exceptions: the same for `business_hours`; every day, all day for `any_time`; and for
+ * `outside_business_hours` the rest of each day (a closed day is open all day, a day open all day is closed).
+ */
+export function hoursFor(
+  bookWhen: BookWhen,
+  hours: readonly WorkingHours[],
+  exceptions: readonly HoursException[],
+): { hours: WorkingHours[]; exceptions: HoursException[] } {
+  if (bookWhen === 'business_hours') return { hours: [...hours], exceptions: [...exceptions] }
+  const everyDay = [0, 1, 2, 3, 4, 5, 6]
+  if (bookWhen === 'any_time') return { hours: everyDay.map(weekday => ({ weekday, ...WHOLE_DAY })), exceptions: [] }
+  const outsideHours = everyDay.flatMap(weekday => gapsOf(hours.filter(h => h.weekday === weekday)).map(g => ({ weekday, ...g })))
+  const dates = [...new Set(exceptions.map(e => e.date))]
+  const outsideExceptions = dates.flatMap((date): HoursException[] => {
+    const open = exceptions.filter(e => e.date === date && e.start_time && e.end_time) as { start_time: string; end_time: string }[]
+    const gaps = gapsOf(open)
+    return gaps.length ? gaps.map(g => ({ date, ...g })) : [{ date, start_time: null, end_time: null }]
+  })
+  return { hours: outsideHours, exceptions: outsideExceptions }
 }

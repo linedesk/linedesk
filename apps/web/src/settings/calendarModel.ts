@@ -47,6 +47,27 @@ export function typeFields(type: Pick<AppointmentType, 'required_fields' | 'name
   return BOOKING_FIELDS.filter(f => (f === 'name' ? type.name_required : type.required_fields.includes(f)))
 }
 
+/** Free time a type keeps before and after itself, in minutes. */
+export const BUFFERS = [0, 5, 10, 15, 30, 60] as const
+export const bufferLabel = (minutes: number) => (minutes ? `${minutes} min` : 'None')
+
+export type BookWhen = AppointmentType['book_when']
+export const BOOK_WHEN_LABEL: Record<BookWhen, string> = {
+  business_hours: 'During business hours',
+  outside_business_hours: 'Outside business hours',
+  any_time: 'Any time',
+}
+
+/** "15 min before, 10 min after · Outside business hours": the type's booking rules, only what is not the default. */
+export function rulesLabel(type: Pick<AppointmentType, 'buffer_before_min' | 'buffer_after_min' | 'book_when'>): string {
+  const { buffer_before_min: before, buffer_after_min: after } = type
+  const buffers =
+    before && before === after
+      ? `${before} min buffer`
+      : [before && `${before} min before`, after && `${after} min after`].filter(Boolean).join(', ')
+  return [buffers, type.book_when !== 'business_hours' && BOOK_WHEN_LABEL[type.book_when]].filter(Boolean).join(' · ')
+}
+
 /** "Asks for name, address": what the assistant asks before booking this type, besides the reason. */
 export function requiredLabel(type: Pick<AppointmentType, 'required_fields' | 'name_required'>): string {
   const fields = typeFields(type)

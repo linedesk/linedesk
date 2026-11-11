@@ -542,3 +542,15 @@
     display: none;
   }
 }
+
+/* "Edit business hours" next to a setting that depends on them; it opens BusinessHoursDialog. */
+.as-hours-line {
+  display: flex;
+}
+.bh-edit {
+  margin-left: -8px;
+}
+.bh-dialog {
+  display: grid;
+  gap: 12px;
+}

@@ -132,6 +132,40 @@ describe('free slots', () => {
     })
   })
 
+  test("the type's buffers keep a gap after and before the calendar's events", async () => {
+    const { services } = fakeCalendar([{ start: at('10:00'), end: at('12:00') }])
+    await inRollback(async tx => {
+      await tx.update(workspace_settings).set({ business_hours_on: true }).where(eq(workspace_settings.workspace_id, ws.id))
+      await tx.insert(availability_rules).values({ id: `ar_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, weekday: 1, start_time: '08:00', end_time: '14:00' })
+      const starts = async () => ((await run(tx, owner, services, 'calendar.findSlots', { ...day(), calendarId: ws.assistantCalendar.id, limit: 50 })).data!.slots as { start: string }[]).map(s => s.start)
+      const set = (bufferBeforeMin: number, bufferAfterMin: number) =>
+        run(tx, owner, services, 'appointmentType.upsert', { appointmentTypeId: typeId, name: 'Repair visit', durationMin: 60, bufferBeforeMin, bufferAfterMin })
+      const changed = await set(30, 0)
+      expect(changed.rows.appointment_types).toMatchObject([{ buffer_before_min: 30, buffer_after_min: 0, buffer_min: 30 }])
+      expect(await starts()).toEqual([at('08:00'), at('08:30'), at('09:00'), at('12:30'), at('13:00')])
+      await set(0, 30)
+      expect(await starts()).toEqual([at('08:00'), at('08:30'), at('12:00'), at('12:30'), at('13:00')])
+    })
+  })
+
+  test('a type booked only outside business hours: no slots inside them, and booking inside them is refused', async () => {
+    const { services } = fakeCalendar()
+    await inRollback(async tx => {
+      await tx.update(workspace_settings).set({ business_hours_on: true }).where(eq(workspace_settings.workspace_id, ws.id))
+      await tx.insert(availability_rules).values({ id: `ar_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, weekday: 1, start_time: '08:00', end_time: '13:00' })
+      await run(tx, owner, services, 'appointmentType.upsert', { appointmentTypeId: typeId, name: 'Repair visit', durationMin: 60, bookWhen: 'outside_business_hours' })
+      const { data } = await run(tx, owner, services, 'calendar.findSlots', { ...day(), calendarId: ws.assistantCalendar.id, limit: 50 })
+      const starts = (data!.slots as { start: string }[]).map(s => s.start)
+      expect(starts).toContain(at('13:00'))
+      expect(starts.filter(s => s >= at('07:30') && s < at('13:00'))).toEqual([])
+      await expect(run(tx, owner, services, 'appointment.book', book(at('09:00')))).rejects.toThrow(/not free/)
+      expect((await run(tx, owner, services, 'appointment.book', book(at('14:00')))).rows.bookings).toHaveLength(1)
+      // Any time: inside the hours again too.
+      await run(tx, owner, services, 'appointmentType.upsert', { appointmentTypeId: typeId, name: 'Repair visit', durationMin: 60, bookWhen: 'any_time' })
+      expect((await run(tx, owner, services, 'appointment.book', book(at('09:00')))).rows.bookings).toHaveLength(1)
+    })
+  })
+
   test('a calendar that cannot be reached is a rejection with the reason, so the agent can take a message', async () => {
     const { services } = fakeCalendar([], { fail: new CalendarError('google', 'unavailable', 'check availability took longer than 4000 ms') })
     await inRollback(async tx => {

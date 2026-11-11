@@ -351,6 +351,13 @@
       "when": 1794407257665,
       "tag": "0049_appointment_type_conditions",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1794407422744,
+      "tag": "0050_appointment_type_booking_rules",
+      "breakpoints": true
     }
   ]
 }

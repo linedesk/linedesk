@@ -171,7 +171,7 @@ export function BusinessHours({ canEdit, toast }: Props) {
   }
 
   const help =
-    'Your assistant tells callers when you are open and, when you are closed, when to expect a call back. Appointments are only booked inside these hours, and the greeting and instructions can be different outside them.'
+    'Your assistant tells callers when you are open and, when you are closed, when to expect a call back. Appointment types are booked inside these hours unless a type says otherwise, and the greeting and instructions can be different outside them.'
   const mainSwitch = (
     <span className="bh-main">
       <span className="help">Use business hours</span>

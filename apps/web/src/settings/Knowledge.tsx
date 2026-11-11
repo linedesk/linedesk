@@ -18,6 +18,7 @@ import { useRows } from '../store.tsx'
 import { Input } from '../ui/form.tsx'
 import { Button, cx, Icon } from '../ui/kit.tsx'
 import type { Draft } from './assistantDraft.ts'
+import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { Field, Section, TextArea, useRemembered } from './fields.tsx'
 import {
   applyImport,
@@ -394,7 +395,7 @@ function QuestionRow({
 /** Whether About's Advanced part (the outside-hours text) is open; remembered in this browser. */
 const ABOUT_ADVANCED_KEY = 'linedesk.assistant.about-advanced'
 
-function AboutCard({ draft, set, hoursOn, name }: Props & { name: string }) {
+function AboutCard({ draft, set, hoursOn, canEdit, name }: Props & { name: string }) {
   const [remembered, remember] = useRemembered(ABOUT_ADVANCED_KEY)
   // An outside-hours text that is already there is shown, so it is never hidden from the owner by surprise.
   const advancedOpen = remembered || !!draft.instructions_outside.trim()
@@ -438,6 +439,9 @@ function AboutCard({ draft, set, hoursOn, name }: Props & { name: string }) {
                   {count(draft.instructions_outside.trim().length)} / {count(INSTRUCTIONS_MAX)}
                 </span>
               )}
+              <span className="as-hours-line">
+                <EditBusinessHours canEdit={canEdit} />
+              </span>
             </Field>
           </div>
         </details>

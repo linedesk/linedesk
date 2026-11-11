@@ -16,6 +16,7 @@ import {
   transferInactive,
   transferProblem,
 } from './assistantDraft.ts'
+import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { Field, Section, SwitchRow, TextArea, TextInput } from './fields.tsx'
 
 const fallbackOptions: SelectOption<TransferFallback>[] = [
@@ -251,6 +252,10 @@ function ContactRow({
           ) : (
             <span className="help">Any time (no business hours set).</span>
           )}
+          {/* Inside the page's fieldset: disabled with it for members who cannot edit. */}
+          <span className="as-hours-line">
+            <EditBusinessHours canEdit label={hoursOn ? 'Edit business hours' : 'Set business hours'} />
+          </span>
         </div>
       )}
     </li>

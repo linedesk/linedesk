@@ -2,7 +2,7 @@
 // calendar's busy times at the provider), booking into one of the assistant's calendars, cancelling,
 // and the appointment types. Also what call.start tells the agent about booking.
 import { type BookData, type BookingContext, type BookingFieldInput, type CallTestFinding, type FindSlotsData, isE164 } from '@linedesk/actions'
-import { CalendarError, type CalendarProvider, findSlots, type FindSlotsInput, type Interval, type WorkingHours, zonedTimeToInstant } from '@linedesk/calendar'
+import { type BookWhen, buffersOf, CalendarError, type CalendarProvider, findSlots, type FindSlotsInput, hoursFor, type Interval, type WorkingHours, zonedTimeToInstant } from '@linedesk/calendar'
 import {
   appointment_types, assistant_calendars, assistants, availability_exceptions, availability_rules, bookings, calendar_connections, calls, contacts, 
   type AppointmentType, type AssistantCalendar, type BookingField, type Tx, workspace_settings,
@@ -123,16 +123,19 @@ type SlotSearch = {
 async function availableSlots(tx: Tx, workspaceId: string, timeZone: string, { type, window, now, limit, calendar, excludeBookingId }: SlotSearch) {
   if (Date.parse(window.end) <= Date.parse(window.start)) return []
   const rules = await bookingHours(tx, workspaceId)
-  const buffer = type.buffer_min * 60_000
+  const { before, after } = buffersOf(type)
+  const buffer = Math.max(before, after) * 60_000
   const [local, remote] = await Promise.all([
-    loadBusy(tx, workspaceId, window, type.buffer_min, calendar?.row.id, excludeBookingId),
+    loadBusy(tx, workspaceId, window, Math.max(before, after), calendar?.row.id, excludeBookingId),
     // One request to the provider, over the window and its buffers.
     calendar ? atProvider(() => calendar.provider.busy([calendar.row.external_id], { start: shift(window.start, -buffer), end: shift(window.end, buffer) })) : [],
   ])
+  // The type says how it relates to the business hours (yours when switched on, else the default ones).
+  const when = hoursFor(type.book_when, rules ?? DEFAULT_BOOKING_HOURS, rules ? await loadExceptions(tx, workspaceId, window) : [])
   return findSlotsOrReject({
     timeZone,
-    hours: rules ?? DEFAULT_BOOKING_HOURS,
-    exceptions: rules ? await loadExceptions(tx, workspaceId, window) : [],
+    hours: when.hours,
+    exceptions: when.exceptions,
     appointmentType: type,
     busy: [...local, ...remote],
     window,
@@ -195,6 +198,24 @@ export async function ensureAppointmentType(tx: Tx, workspaceId: string): Promis
     .where(and(eq(appointment_types.workspace_id, workspaceId), eq(appointment_types.enabled, true))).limit(1)
   if (existing) return []
   return tx.insert(appointment_types).values({ id: newId('at'), workspace_id: workspaceId, ...DEFAULT_APPOINTMENT_TYPE }).returning()
+}
+
+type TypeInput = {
+  appointmentTypeId?: string; name: string; durationMin: number; bufferMin?: number; bufferBeforeMin?: number; bufferAfterMin?: number
+  bookWhen?: BookWhen; minNoticeHours?: number; maxDaysAhead?: number; enabled?: boolean; requiredFields?: BookingFieldInput[]; instruction?: string
+}
+
+/**
+ * The buffer columns an upsert sets: the two buffers (bufferMin, from callers before them, sets both),
+ * and buffer_min as the larger one, for a release that only knows buffer_min. Nothing when none is given.
+ */
+function buffersFrom(input: TypeInput, existing?: AppointmentType) {
+  const before = input.bufferBeforeMin ?? input.bufferMin
+  const after = input.bufferAfterMin ?? input.bufferMin
+  if (before === undefined && after === undefined) return {}
+  const buffer_before_min = before ?? existing?.buffer_before_min ?? 0
+  const buffer_after_min = after ?? existing?.buffer_after_min ?? 0
+  return { buffer_before_min, buffer_after_min, buffer_min: Math.max(buffer_before_min, buffer_after_min) }
 }
 
 type WhichBooking = { bookingId?: string; callId?: string; bookingDate?: string; bookedName?: string }
@@ -405,11 +426,15 @@ export const bookingHandlers: Record<string, Handler> = {
     return { rows: { bookings: rows }, data }
   },
 
-  'appointmentType.upsert': async ({ tx, actor }, input: { appointmentTypeId?: string; name: string; durationMin: number; bufferMin?: number; minNoticeHours?: number; maxDaysAhead?: number; enabled?: boolean; requiredFields?: BookingFieldInput[]; instruction?: string }) => {
+  'appointmentType.upsert': async ({ tx, actor }, input: TypeInput) => {
     const workspace_id = workspaceOf(actor)
+    const scope = input.appointmentTypeId ? and(eq(appointment_types.id, input.appointmentTypeId), eq(appointment_types.workspace_id, workspace_id)) : undefined
+    const [existing] = scope ? await tx.select().from(appointment_types).where(scope) : []
+    if (scope && !existing) throw new Reject('appointment type not found')
     const values = {
       name: input.name, duration_min: input.durationMin,
-      ...(input.bufferMin !== undefined && { buffer_min: input.bufferMin }),
+      ...buffersFrom(input, existing),
+      ...(input.bookWhen !== undefined && { book_when: input.bookWhen }),
       ...(input.minNoticeHours !== undefined && { min_notice_hours: input.minNoticeHours }),
       ...(input.maxDaysAhead !== undefined && { max_days_ahead: input.maxDaysAhead }),
       ...(input.enabled !== undefined && { enabled: input.enabled }),
@@ -422,10 +447,7 @@ export const bookingHandlers: Record<string, Handler> = {
     if (!input.appointmentTypeId) {
       return { rows: { appointment_types: await tx.insert(appointment_types).values({ id: newId('at'), workspace_id, ...values }).returning() } }
     }
-    const rows = await tx.update(appointment_types).set(values)
-      .where(and(eq(appointment_types.id, input.appointmentTypeId), eq(appointment_types.workspace_id, workspace_id))).returning()
-    if (!rows[0]) throw new Reject('appointment type not found')
-    return { rows: { appointment_types: rows } }
+    return { rows: { appointment_types: await tx.update(appointment_types).set(values).where(scope).returning() } }
   },
 
   'appointmentType.delete': async ({ tx, actor }, input: { appointmentTypeId: string }) => {

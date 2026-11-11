@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findSlots, type FindSlotsInput, type WorkingHours } from './slots.ts'
+import { findSlots, type FindSlotsInput, hoursFor, type WorkingHours } from './slots.ts'
 
 const LA = 'America/Los_Angeles'
 const weekdays = (start_time: string, end_time: string): WorkingHours[] => [1, 2, 3, 4, 5].map(weekday => ({ weekday, start_time, end_time }))
@@ -100,6 +100,22 @@ describe('findSlots: busy intervals and buffers', () => {
     expect(result).not.toContain('01-12 10:00') // would end 11:00, inside the 10:45 buffer
     expect(result).not.toContain('01-12 12:00') // starts inside the buffer that ends 12:15
     expect(result).toEqual(['01-12 09:00', '01-12 13:00', '01-12 14:00', '01-12 15:00', '01-12 16:00'])
+  })
+
+  it('keeps a gap after a busy interval (buffer before the slot) and one before the next (buffer after)', () => {
+    // 30 min before each slot: nothing may start until 12:30; no gap needed after the slot
+    expect(starts({ busy: [booking], appointmentType: type({ buffer_before_min: 30, buffer_after_min: 0 }) }).slice(0, 5)).toEqual(
+      ['01-12 09:00', '01-12 09:30', '01-12 10:00', '01-12 12:30', '01-12 13:00'],
+    )
+    // 30 min after each slot: it must end by 10:30; the next may start right at 12:00
+    expect(starts({ busy: [booking], appointmentType: type({ buffer_before_min: 0, buffer_after_min: 30 }) }).slice(0, 4)).toEqual(
+      ['01-12 09:00', '01-12 09:30', '01-12 12:00', '01-12 12:30'],
+    )
+  })
+
+  it('the two buffers win over buffer_min; a negative one is rejected', () => {
+    expect(starts({ busy: [booking], appointmentType: type({ buffer_min: 60, buffer_before_min: 0, buffer_after_min: 0 }), stepMin: 60 })).toContain('01-12 10:00')
+    expect(() => slots({ appointmentType: type({ buffer_after_min: -5 }) })).toThrow(RangeError)
   })
 
   it('handles overlapping and unsorted busy intervals', () => {
@@ -268,5 +284,44 @@ describe('findSlots: daylight saving in America/Los_Angeles', () => {
       now: '2026-03-07T23:30:00-08:00', window: { start: '2026-03-07T00:00:00-08:00', end: '2026-03-20T00:00:00-07:00' },
     }))
     expect(result.map(s => s.start)).toEqual(['2026-03-08T16:00:00.000Z', '2026-03-08T17:00:00.000Z'])
+  })
+})
+
+describe('hoursFor: when a type may be booked', () => {
+  const hours = weekdays('09:00', '17:00')
+
+  it('during business hours: the hours and exceptions as they are', () => {
+    const exceptions = [{ date: '2026-01-12', start_time: null, end_time: null }]
+    expect(hoursFor('business_hours', hours, exceptions)).toEqual({ hours, exceptions })
+  })
+
+  it('any time: every day, all day, exceptions ignored', () => {
+    const any = hoursFor('any_time', hours, [{ date: '2026-01-12', start_time: null, end_time: null }])
+    expect(any.exceptions).toEqual([])
+    expect(starts({ ...any, stepMin: 360, now: '2026-01-11T23:00:00-08:00' })).toEqual(['01-12 00:00', '01-12 06:00', '01-12 12:00', '01-12 18:00'])
+  })
+
+  it('outside business hours: the rest of each day; weekends all day', () => {
+    const outside = hoursFor('outside_business_hours', hours, [])
+    expect(outside.hours.filter(h => h.weekday === 1)).toEqual([
+      { weekday: 1, start_time: '00:00', end_time: '09:00' },
+      { weekday: 1, start_time: '17:00', end_time: '24:00' },
+    ])
+    expect(outside.hours.filter(h => h.weekday === 0)).toEqual([{ weekday: 0, start_time: '00:00', end_time: '24:00' }])
+    expect(starts({ ...outside, stepMin: 60 })).toEqual(['01-12 06:00', '01-12 07:00', '01-12 08:00', '01-12 17:00', '01-12 18:00', '01-12 19:00', '01-12 20:00', '01-12 21:00', '01-12 22:00', '01-12 23:00'])
+  })
+
+  it('outside business hours: a closed day is open all day, a day open around the clock is closed', () => {
+    const outside = hoursFor('outside_business_hours', hours, [
+      { date: '2026-01-12', start_time: null, end_time: null },
+      { date: '2026-01-13', start_time: '00:00', end_time: '24:00' },
+      { date: '2026-01-14', start_time: '10:00', end_time: '12:00' },
+    ])
+    expect(outside.exceptions).toEqual([
+      { date: '2026-01-12', start_time: '00:00', end_time: '24:00' },
+      { date: '2026-01-13', start_time: null, end_time: null },
+      { date: '2026-01-14', start_time: '00:00', end_time: '10:00' },
+      { date: '2026-01-14', start_time: '12:00', end_time: '24:00' },
+    ])
   })
 })
