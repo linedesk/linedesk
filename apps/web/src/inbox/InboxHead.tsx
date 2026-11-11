@@ -23,7 +23,7 @@ export type InboxHeadProps = {
 }
 
 export const SEARCH_INPUT_ID = 'call-search'
-const modeTitle: Partial<Record<InboxTab, string>> = { done: 'Done', reminders: 'Reminders' }
+const modeTitle: Partial<Record<InboxTab, string>> = { done: 'Done', reminders: 'Reminders', mine: 'Assigned to me' }
 
 function SearchBar({
   search,

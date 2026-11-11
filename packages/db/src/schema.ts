@@ -142,6 +142,7 @@ export const calls = pgTable(
     reminder_at: ts('reminder_at'),
     reminder_label: text('reminder_label'),
     unread: boolean('unread').notNull().default(true),
+    /** The member the call is assigned to (call.assign, A in the inbox); null: nobody in particular. */
     assignee_id: text('assignee_id'),
     deleted_at: ts('deleted_at'),
     version: version(),

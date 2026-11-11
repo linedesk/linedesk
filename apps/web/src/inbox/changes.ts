@@ -123,6 +123,17 @@ export const clearReminderChange = (call: Call): Change => ({
   key: '⇧H',
 })
 
+/** A: the call is yours; on a call that is already yours, nobody's. */
+export const assignChange = (call: Call, me: string): Change => {
+  const mine = call.assignee_id === me
+  return {
+    steps: [['call.assign', { ...id(call), userId: mine ? null : me }]],
+    inverse: [['call.assign', { ...id(call), userId: call.assignee_id }]],
+    label: mine ? 'Unassigned.' : 'Assigned to you.',
+    key: 'A',
+  }
+}
+
 export const deleteChange = (call: Call): Change => ({
   steps: [['call.delete', id(call)]],
   inverse: [['call.restore', id(call)]],

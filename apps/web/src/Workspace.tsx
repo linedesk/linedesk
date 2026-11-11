@@ -38,13 +38,13 @@ const NAV_DOCKED_QUERY = '(min-width: 1600px)'
 
 /** The not-found toasts (call, page) stay long enough to be read after the jump. */
 const NOT_FOUND_TOAST_MS = 4500
-const chordTabs: Record<string, InboxTab> = { i: 'you', e: 'done', h: 'reminders' }
+const chordTabs: Record<string, InboxTab> = { i: 'you', e: 'done', h: 'reminders', m: 'mine' }
 const chordPages: Record<string, PageRoute> = { a: 'assistant', c: 'contacts', t: 'team', s: 'settings' }
 
 export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void | Promise<void> }) {
   const nav = useRoute()
   const toaster = useToast()
-  const view = useInboxView(nav)
+  const view = useInboxView(nav, me.actorId)
   // A notification when a call ends while this tab is in the background (Settings, Notifications).
   useCallNotifications(call => callerName(call, call.contact_id ? view.contacts.get(call.contact_id) : undefined))
   const assistantName = useAssistantName()
@@ -66,6 +66,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
     setCursor: view.setCursor,
     showCall: view.showById,
     toaster,
+    me: me.actorId,
   })
   const selection = useSelection(list)
   // A new view or search starts with nothing selected.
@@ -125,6 +126,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
     remove: each(actions.remove, actions.many.remove),
     toggleSpam: each(actions.toggleSpam, actions.many.toggleSpam),
     toggleBlock: actions.toggleBlock,
+    toggleAssign: each(actions.toggleAssign, actions.many.toggleAssign),
     clearReminder: each(actions.clearReminder, actions.many.clearReminder),
     undo: actions.undo,
     openRemind,
@@ -203,6 +205,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
     spam: 'Spam',
     reminders: 'Reminders',
     done: 'Done',
+    mine: 'Assigned to me',
   }
   const where =
     nav.route !== 'calls'
@@ -225,6 +228,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
 
   const commands = commandGroups({
     ...callHandlers,
+    me: me.actorId,
     isBlocked: call => !!(call.contact_id && view.contacts.get(call.contact_id)?.blocked_at),
     target,
     targetName: bulk
@@ -282,6 +286,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
         tab={tab}
         unreadCount={view.unreadNeedsYou}
         reminderCount={view.counts.reminders}
+        mineCount={view.counts.mine}
         workspaceName={me.workspace!.name}
         workspaceId={me.workspace!.id}
         onError={toaster.show}

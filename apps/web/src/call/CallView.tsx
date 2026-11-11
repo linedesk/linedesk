@@ -1,7 +1,9 @@
 import type { Call, TranscriptSegment } from '@linedesk/db/types'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { answeredByLabel, type CallStatus, callStatus, callTitle, formatPhone, hasReminder, STATUS_WORD } from '../inbox-model.ts'
-import { useCallAssistantName, useContact } from '../store.tsx'
+import { useCallAssistantName, useContact, useRun } from '../store.tsx'
+import { useTeamMembers } from '../team/useTeamMembers.ts'
+import { Select } from '../ui/controls.tsx'
 import { clock, dateTimeLabel, longDuration, parseTs, whenLabel } from '../time.ts'
 import { Button, Icon } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
@@ -167,6 +169,29 @@ function Bar({ call, index, count, menu, sideOpen, onToggleSide, ...on }: BarPro
   )
 }
 
+/** Who the call is assigned to; A assigns it to you. A teammate is picked here. */
+function Assignee({ call }: { call: Call }) {
+  const run = useRun()
+  const members = useTeamMembers()
+  if (members.length < 2 && !call.assignee_id) return null
+  const NOBODY = 'nobody'
+  const options = [
+    { value: NOBODY, label: 'Nobody' },
+    ...members.map(m => ({ value: m.userId, label: m.name || m.email })),
+  ]
+  return (
+    <span className="cv-assign">
+      <Select
+        size="sm"
+        value={call.assignee_id ?? NOBODY}
+        options={options}
+        label="Assigned to"
+        onChange={value => void run('call.assign', { callId: call.id, userId: value === NOBODY ? null : value })}
+      />
+    </span>
+  )
+}
+
 function Header({ call, segments, repeatCount }: { call: Call; segments: TranscriptSegment[]; repeatCount: number }) {
   const assistant = useCallAssistantName(call.assistant_id)
   const contact = useContact(call.contact_id)
@@ -192,6 +217,7 @@ function Header({ call, segments, repeatCount }: { call: Call; segments: Transcr
           <CopyNumber number={formatPhone(call.from_number)} />
           {repeatCount > 1 && <span>{repeatCount} calls from this number</span>}
           {hasReminder(call) && <span>Reminder: {whenLabel(parseTs(call.reminder_at!))}</span>}
+          <Assignee call={call} />
         </div>
       </div>
     </div>

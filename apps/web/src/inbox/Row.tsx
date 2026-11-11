@@ -5,7 +5,8 @@ import { useAssistantName, useContact } from '../store.tsx'
 import { clock, parseTs, shortDuration, timeLabel, timeUnderDay } from '../time.ts'
 import type { IconName } from '../ui/icons.ts'
 import { Checkbox } from '../ui/controls.tsx'
-import { Badge, cx, Icon } from '../ui/kit.tsx'
+import { memberName, useTeamMembers } from '../team/useTeamMembers.ts'
+import { Avatar, Badge, cx, Icon } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { highlight, searchHit } from './search.tsx'
 
@@ -128,6 +129,17 @@ function SelectBox({
   )
 }
 
+/** The member a call is assigned to: a small avatar, the name in the tooltip. */
+function AssigneeMark({ userId }: { userId: string }) {
+  const members = useTeamMembers()
+  const name = memberName(members, userId)
+  return (
+    <span className="r-assignee" title={`Assigned to ${name}`}>
+      <Avatar name={name} size={24} />
+    </span>
+  )
+}
+
 export function Row({ call, tab, search, segments, isCursor, motion, selected = false, group, ...on }: Props) {
   const contact = useContact(call.contact_id)
   const unread = call.unread || !!group?.some(c => c.unread)
@@ -177,6 +189,7 @@ export function Row({ call, tab, search, segments, isCursor, motion, selected = 
             {group.length}
           </span>
         )}
+        {call.assignee_id && <AssigneeMark userId={call.assignee_id} />}
       </span>
       <Summary call={call} search={search} segments={segments} />
       <span className="r-status">

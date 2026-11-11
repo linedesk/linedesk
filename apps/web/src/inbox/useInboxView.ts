@@ -10,7 +10,8 @@ import { SEARCH_INPUT_ID } from './InboxHead.tsx'
 import { matchesSearch } from './search.tsx'
 import { useCursor } from './useCursor.ts'
 
-export function useInboxView(nav: RouteApi) {
+/** `me`: the signed-in member's user id (Assigned to me). */
+export function useInboxView(nav: RouteApi, me: string | null = null) {
   const calls = useRows('calls')
   const contacts = useSnapshot().tables.contacts
   const segments = useSegmentsByCall()
@@ -37,12 +38,12 @@ export function useInboxView(nav: RouteApi) {
       )
       return { list: sortForList(hits, false), groups: new Map() }
     }
-    const inTab = listFor(calls, tab, now)
+    const inTab = listFor(calls, tab, now, me)
     return tab === 'you' ? groupRepeats(inTab) : { list: inTab, groups: new Map() }
-  }, [calls, contacts, segments, assistantName, tab, search, now])
+  }, [calls, contacts, segments, assistantName, tab, search, now, me])
   /** Every call a row stands for: a folded row's repeat calls, else the call alone. */
   const groupOf = (call: Call): Call[] => groups.get(call.id) ?? [call]
-  const counts = useMemo(() => countsFor(calls, now), [calls, now])
+  const counts = useMemo(() => countsFor(calls, now, me), [calls, now, me])
   /** The menu's Inbox badge: the unread dots a person sees in Needs you. */
   const unreadNeedsYou = useMemo(() => {
     const needsYou = groupRepeats(listFor(calls, 'you', now))

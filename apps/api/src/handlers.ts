@@ -1,7 +1,7 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
 import { actions, confirmsNumber, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, } from '@linedesk/actions'
 import { businessHoursContext, type BusinessHoursContext, } from '@linedesk/calendar'
-import {availability_rules, calls, contacts, organization, phone_numbers, syncedTables,
+import {availability_rules, calls, contacts, member, organization, phone_numbers, syncedTables,
   transcript_segments, workspace_settings, type Tx,
 } from '@linedesk/db'
 import type { Assistant } from '@linedesk/db/types'
@@ -219,6 +219,20 @@ const handlers: Record<string, Handler> = {
     return { rows: {}, data: startTestCall(actor, assistant?.id) }
   },
 
+  // Only a member of the call's workspace can be its assignee (a user of another workspace is refused).
+  'call.assign': async ({ tx, actor }, input) => {
+    if (!actor.workspaceId) throw new Reject('no workspace')
+    // Same answer as the patch it stands in for: a call of another workspace is not found.
+    const [call] = await tx.select().from(calls).where(and(eq(calls.id, input.callId), eq(calls.workspace_id, actor.workspaceId)))
+    if (!call) throw new Reject('calls row not found')
+    if (input.userId) {
+      const [isMember] = await tx.select({ id: member.id }).from(member)
+        .where(and(eq(member.organizationId, call.workspace_id), eq(member.userId, input.userId)))
+      if (!isMember) throw new Reject('that user is not a member of this workspace')
+    }
+    return { rows: { calls: await tx.update(calls).set({ assignee_id: input.userId }).where(eq(calls.id, call.id)).returning() } }
+  },
+
   'call.appendTranscript': async ({ tx, actor }, input) => {
     const call = await loadCall(tx, actor, input.callId)
     const [segment] = await tx.insert(transcript_segments).values({
@@ -342,6 +356,10 @@ for (const def of actions.values()) {
   if (!def.patch && !handlers[def.name]) throw new Error(`action ${def.name} has neither a patch nor a handler`)
 }
 
+/** The actions with a server handler (tests check which also have a patch). */
+export const handlerNames: ReadonlySet<string> = new Set(Object.keys(handlers))
+
+/** A handler wins over the patch: an action with both is optimistic in the browser and checked here. */
 export function runHandler(ctx: HandlerCtx, def: ActionDef, input: unknown) {
-  return def.patch ? runPatch(ctx, def, input) : handlers[def.name]!(ctx, input)
+  return handlers[def.name] ? handlers[def.name]!(ctx, input) : runPatch(ctx, def, input)
 }

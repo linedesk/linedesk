@@ -23,6 +23,7 @@ const all = [
   calls.callMarkRead,
   calls.callMarkUnread,
   calls.callRemind,
+  calls.callAssign,
   calls.callClearReminder,
   calls.callDelete,
   calls.callRestore,

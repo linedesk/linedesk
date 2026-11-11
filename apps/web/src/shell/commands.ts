@@ -17,11 +17,14 @@ export type CommandContext = {
   remove: (call: Call) => void
   toggleSpam: (call: Call) => void
   toggleBlock: (call: Call) => void
+  toggleAssign: (call: Call) => void
+  /** The signed-in member's user id. */
+  me: string
   /** Whether the call's number is blocked. */
   isBlocked: (call: Call) => boolean
   /** Selecting calls in the list; null when the list is not on screen (a call or another page is open). */
   selection: { count: number; toggle: () => void; all: () => void; clear: () => void } | null
-  goInbox: (tab: 'you' | 'done' | 'reminders') => void
+  goInbox: (tab: 'you' | 'done' | 'reminders' | 'mine') => void
   goPage: (route: PageRoute) => void
   isInstanceAdmin: boolean
   undo: () => void
@@ -38,6 +41,13 @@ function callCommands(call: Call, c: CommandContext): Command[] {
       ? { label: 'Mark not done', icon: 'restart', shortcut: ['⇧', 'E'], run: () => c.markNotDone(call) }
       : { label: 'Mark done', icon: 'check', shortcut: ['E'], run: () => c.markDone(call) },
     { label: 'Remind me', icon: 'clock', shortcut: ['H'], run: () => c.openRemind(call) },
+    {
+      label: call.assignee_id === c.me ? 'Unassign' : 'Assign to me',
+      keywords: 'assign mine teammate',
+      icon: 'user',
+      shortcut: ['A'],
+      run: () => c.toggleAssign(call),
+    },
     ...(hasReminder(call) && !done
       ? [
           {
@@ -125,6 +135,7 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
         { label: 'Go to Inbox', icon: 'phone', shortcut: ['G', 'I'], run: () => c.goInbox('you') },
         { label: 'Go to Done', icon: 'check', shortcut: ['G', 'E'], run: () => c.goInbox('done') },
         { label: 'Go to Reminders', icon: 'clock', shortcut: ['G', 'H'], run: () => c.goInbox('reminders') },
+        { label: 'Go to Assigned to me', icon: 'user', shortcut: ['G', 'M'], run: () => c.goInbox('mine') },
         { label: 'Go to Contacts', icon: 'contact', shortcut: ['G', 'C'], run: () => c.goPage('contacts') },
         { label: 'Go to Assistant', icon: 'waveform', shortcut: ['G', 'A'], run: () => c.goPage('assistant') },
         { label: 'Go to Team', icon: 'users', shortcut: ['G', 'T'], run: () => c.goPage('team') },

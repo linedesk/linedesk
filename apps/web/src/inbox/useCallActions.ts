@@ -8,6 +8,7 @@ import { useRun, useSnapshot } from '../store.tsx'
 import {
   type Change,
   clearReminderChange,
+  assignChange,
   deleteChange,
   doneChange,
   isNoOp,
@@ -47,9 +48,11 @@ type Context = {
   /** Show this call full width (marking it read), or go back to the list with null. */
   showCall: (id: string | null) => void
   toaster: Toaster
+  /** The signed-in member's user id: A assigns calls to them. */
+  me: string
 }
 
-export function useCallActions({ list, tab, searching, openId, setTab, setCursor, showCall, toaster }: Context) {
+export function useCallActions({ list, tab, searching, openId, setTab, setCursor, showCall, toaster, me }: Context) {
   const run = useRun()
   const contacts = useSnapshot().tables.contacts
   const undoStack = useRef<UndoEntry[]>([])
@@ -181,6 +184,7 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     clearReminder: (call: Call) =>
       tabOf(call) === 'reminders' ? act(call, clearReminderChange(call)) : toaster.show('No reminder on this call.'),
     remove: (call: Call) => act(call, deleteChange(call)),
+    toggleAssign: (call: Call) => act(call, assignChange(call, me)),
     toggleSpam: (call: Call) => act(call, spamChange(call)),
     toggleBlock: (call: Call) => {
       const contact = call.contact_id ? contacts.get(call.contact_id) : undefined
@@ -222,6 +226,7 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
           n => `Reminder cleared on ${calls(n)}.`,
         ),
       remove: (list: Call[]) => actMany(list, deleteChange, n => `${calls(n)} deleted.`),
+      toggleAssign: (list: Call[]) => actMany(list, c => assignChange(c, me), n => `${calls(n)} assigned.`),
       /** All to Spam, unless all of them are spam already: then all back to Needs you. */
       toggleSpam: (list: Call[]) => {
         const toSpam = list.some(c => c.outcome !== 'spam')

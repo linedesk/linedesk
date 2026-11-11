@@ -37,6 +37,8 @@ export type KeyContext = {
   toggleSpam: (call: Call) => void
   /** ⇧B blocks the caller's number (and files the call in Spam), or unblocks it. */
   toggleBlock: (call: Call) => void
+  /** A assigns the call to you, or takes it back when it is yours. */
+  toggleAssign: (call: Call) => void
   openRemind: (call: Call) => void
   clearReminder: (call: Call) => void
   undo: () => void
@@ -102,6 +104,7 @@ function onCallKey(key: string, call: Call, c: KeyContext): boolean {
     '#': c.remove,
     '!': c.toggleSpam,
     B: c.toggleBlock,
+    a: c.toggleAssign,
   }
   if (!run[key]) return false
   run[key](call)

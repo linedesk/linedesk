@@ -228,3 +228,21 @@ describe('reminders view', () => {
     expect(listFor(calls, 'reminders', now).map(c => c.id)).toEqual(['later-today', 'tomorrow', 'next-week'])
   })
 })
+
+describe('assigned to me', () => {
+  it('lists the open calls assigned to the signed-in member, in any view but done and spam', () => {
+    const calls = [
+      call({ id: 'mine-needs-you', outcome: 'callback', assignee_id: 'u1' }),
+      call({ id: 'mine-handled', assignee_id: 'u1' }),
+      call({ id: 'mine-done', inbox_state: 'done', assignee_id: 'u1' }),
+      call({ id: 'mine-spam', outcome: 'spam', assignee_id: 'u1' }),
+      call({ id: 'theirs', outcome: 'callback', assignee_id: 'u2' }),
+      call({ id: 'nobody', outcome: 'callback' }),
+    ]
+    expect(listFor(calls, 'mine', now, 'u1').map(c => c.id).sort()).toEqual(['mine-handled', 'mine-needs-you'])
+    expect(countsFor(calls, now, 'u1').mine).toBe(2)
+    expect(listFor(calls, 'mine', now, null)).toEqual([])
+    // The call keeps its own view too: assigning does not move it.
+    expect(tabOf(calls[0]!, now)).toBe('you')
+  })
+})

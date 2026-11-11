@@ -15,6 +15,8 @@ type Props = {
   tab: InboxTab
   unreadCount: number
   reminderCount: number
+  /** Open calls assigned to the signed-in member. */
+  mineCount: number
   workspaceName: string
   workspaceId: string
   onError: (message: string) => void
@@ -36,7 +38,7 @@ function NavItem({ label, icon, keys, current, sub, badge, onClick }: { label: s
 
 /** Slide-in navigation: opens from ☰ or M; closes with Esc, the close button, a click outside or after choosing.
  * On very wide windows it is docked: always open beside the content. */
-export function Nav({ open, docked = false, route, tab, unreadCount, reminderCount, workspaceName, workspaceId, onError, isInstanceAdmin, onClose, ...on }: Props) {
+export function Nav({ open, docked = false, route, tab, unreadCount, reminderCount, mineCount, workspaceName, workspaceId, onError, isInstanceAdmin, onClose, ...on }: Props) {
   const ref = useRef<HTMLElement>(null)
   useFocusTrap(ref, open && !docked, { initial: '.nav-item[aria-current="page"]' }) // opens on the current page, gives focus back when it closes
   const userName = auth.useSession().data?.user.name ?? ''
@@ -48,10 +50,12 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
         <span className="ws-mark"><LogoMark /></span><b>Linedesk</b>
         {!docked && <Button size="sm" variant="ghost" icon="left" aria-label="Close menu" title="Close (esc)" onClick={onClose} />}
       </div>
-      <NavItem label="Inbox" icon="phone" keys={['G', 'I']} current={onCalls && tab !== 'reminders' && tab !== 'done'} onClick={go(() => on.onInbox('you'))}
+      <NavItem label="Inbox" icon="phone" keys={['G', 'I']} current={onCalls && tab !== 'reminders' && tab !== 'done' && tab !== 'mine'} onClick={go(() => on.onInbox('you'))}
         badge={unreadCount ? <span className="k-count">{unreadCount}</span> : null} />
       <NavItem sub label="Reminders" icon="clock" keys={['G', 'H']} current={onCalls && tab === 'reminders'} onClick={go(() => on.onInbox('reminders'))}
         badge={reminderCount ? <span className="nav-n">{reminderCount}</span> : null} />
+      <NavItem sub label="Assigned to me" icon="user" keys={['G', 'M']} current={onCalls && tab === 'mine'} onClick={go(() => on.onInbox('mine'))}
+        badge={mineCount ? <span className="nav-n">{mineCount}</span> : null} />
       <NavItem sub label="Done" icon="check" keys={['G', 'E']} current={onCalls && tab === 'done'} onClick={go(() => on.onInbox('done'))} />
       <NavItem label={pages.contacts.title} icon="contact" keys={['G', 'C']} current={route === 'contacts'} onClick={go(() => on.onPage('contacts'))} />
       <NavItem label={pages.assistant.title} icon="waveform" keys={['G', 'A']} current={route === 'assistant'} onClick={go(() => on.onPage('assistant'))} />

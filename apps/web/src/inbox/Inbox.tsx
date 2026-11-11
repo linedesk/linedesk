@@ -29,6 +29,7 @@ const viewHeading: Record<InboxTab, string> = {
   spam: 'Spam',
   reminders: 'Reminders',
   done: 'Done',
+  mine: 'Assigned to me',
 }
 const emptyTitle: Record<InboxTab, string> = {
   you: 'Nothing needs you',
@@ -36,6 +37,7 @@ const emptyTitle: Record<InboxTab, string> = {
   spam: 'No spam',
   done: 'Nothing done yet',
   reminders: 'No reminders',
+  mine: 'Nothing assigned to you',
 }
 const emptyHelp: Record<InboxTab, string> = {
   you: 'Calls that need a person land here.',
@@ -43,6 +45,7 @@ const emptyHelp: Record<InboxTab, string> = {
   spam: 'Sales calls and robocalls the assistant blocked land here.',
   done: 'Calls you mark done with E land here.',
   reminders: 'Calls you set a reminder for with H wait here until they come back.',
+  mine: 'Calls assigned to you with A wait here until they are done.',
 }
 
 function Empty({ tab, search }: { tab: InboxTab; search: string | null }) {

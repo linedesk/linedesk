@@ -1,6 +1,7 @@
 // One definition per action. `patch` is the declarative part shared by both sides: the browser
 // applies it to its local rows at once (optimistic), the API runs the same patch as an UPDATE
-// scoped to the caller's workspace. Actions without `patch` get a server handler in apps/api.
+// scoped to the caller's workspace. Actions without `patch` get a server handler in apps/api; an
+// action with both is applied optimistically and its handler runs on the server (to check more).
 import type { TableName, Tables } from '@linedesk/db/types'
 import type { z } from 'zod'
 

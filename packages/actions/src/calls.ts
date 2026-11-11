@@ -61,6 +61,18 @@ export const callRemind = defineAction({
   patch: { table: 'calls', id: i => i.callId, set: i => ({ reminder_at: i.at, reminder_label: i.label ?? null }) },
 })
 
+/**
+ * Hand a call to a teammate (a member of the workspace), or take it back with null. Applied at once
+ * in the browser; the server also checks that the user is a member (apps/api/src/handlers.ts).
+ */
+export const callAssign = defineAction({
+  name: 'call.assign',
+  description: 'Assign a call to a member of the workspace (their user id), or unassign it with null.',
+  input: callId.extend({ userId: z.string().min(1).nullable() }),
+  permission: 'call:write',
+  patch: { table: 'calls', id: i => i.callId, set: i => ({ assignee_id: i.userId }) },
+})
+
 export const callSetActionItems = defineAction({
   name: 'call.setActionItems',
   description: 'Replace the next steps of a call, for example to tick one off.',

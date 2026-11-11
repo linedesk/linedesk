@@ -29,6 +29,7 @@ const context = (over: Partial<KeyContext> = {}) =>
     remove: vi.fn(),
     toggleSpam: vi.fn(),
     toggleBlock: vi.fn(),
+    toggleAssign: vi.fn(),
     openRemind: vi.fn(),
     clearReminder: vi.fn(),
     undo: vi.fn(),

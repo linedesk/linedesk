@@ -1,6 +1,6 @@
 import type { Call } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
-import { type Change, clearReminderChange, deleteChange, doneChange, isNoOp, notDoneChange, preview, remindChange, unreadChange } from './changes.ts'
+import { assignChange, type Change, clearReminderChange, deleteChange, doneChange, isNoOp, notDoneChange, preview, remindChange, unreadChange } from './changes.ts'
 
 const call = (over: Partial<Call> = {}) => ({
   id: 'c1', status: 'completed', inbox_state: 'open', unread: true, reminder_at: null, reminder_label: null, deleted_at: null, ...over,
@@ -39,5 +39,17 @@ describe('no-op changes', () => {
     expect(isNoOp(call({ inbox_state: 'done', unread: false }), doneChange(call()).steps)).toBe(true)
     expect(isNoOp(call(), doneChange(call()).steps)).toBe(false)
     expect(isNoOp(call({ inbox_state: 'done' }), doneChange(call()).steps)).toBe(false) // still unread
+  })
+})
+
+describe('A assigns to me', () => {
+  it('assigns the call to me, or takes it back when it is mine; undo restores who had it', () => {
+    const theirs = call({ assignee_id: 'u2' })
+    expect(preview(call(), assignChange(call(), 'u1').steps).assignee_id).toBe('u1')
+    expect(preview(theirs, assignChange(theirs, 'u1').steps).assignee_id).toBe('u1')
+    expect(preview(preview(theirs, assignChange(theirs, 'u1').steps), assignChange(theirs, 'u1').inverse).assignee_id).toBe('u2')
+    const mine = call({ assignee_id: 'u1' })
+    expect(assignChange(mine, 'u1').label).toBe('Unassigned.')
+    expect(preview(mine, assignChange(mine, 'u1').steps).assignee_id).toBeNull()
   })
 })
