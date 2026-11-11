@@ -43,7 +43,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
 
   'workspace.updateSettings': async (
     { tx, actor },
-    input: { recordingRetentionDays?: number | null; businessHoursOn?: boolean; recordingNoticeOn?: boolean; recordingNotice?: string },
+    input: { recordingRetentionDays?: number | null; businessHoursOn?: boolean; recordingNoticeOn?: boolean; recordingNotice?: string; timeZone?: string },
   ) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     const set = {
@@ -51,6 +51,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       ...(input.businessHoursOn !== undefined ? { business_hours_on: input.businessHoursOn } : {}),
       ...(input.recordingNoticeOn !== undefined ? { recording_notice_on: input.recordingNoticeOn } : {}),
       ...(input.recordingNotice !== undefined ? { recording_notice: input.recordingNotice } : {}),
+      ...(input.timeZone !== undefined ? { timezone: input.timeZone } : {}),
     }
     if (!Object.keys(set).length) return { rows: {} }
     const [row] = await tx
@@ -65,7 +66,8 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
         businessHoursOn: row!.business_hours_on,
         recordingNoticeOn: row!.recording_notice_on,
         recordingNotice: row!.recording_notice ?? DEFAULT_RECORDING_NOTICE,
-      } satisfies Pick<WorkspaceSettingsData, 'recordingRetentionDays' | 'businessHoursOn' | 'recordingNoticeOn' | 'recordingNotice'>,
+        timeZone: row!.timezone,
+      } satisfies Pick<WorkspaceSettingsData, 'recordingRetentionDays' | 'businessHoursOn' | 'recordingNoticeOn' | 'recordingNotice' | 'timeZone'>,
     }
   },
 

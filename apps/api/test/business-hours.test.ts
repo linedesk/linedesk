@@ -80,6 +80,20 @@ describe('business hours', () => {
     expect((await act(ws.owner, 'workspace.getSettings', {})).body.data.businessHours).toHaveLength(5)
   })
 
+  test('the time zone is confirmed or changed through workspace.updateSettings; members cannot change it', async () => {
+    const ws = await createWorkspace('Time Zone Plumbing')
+    const member = await addMember(ws.id, 'member')
+    expect((await act(member, 'workspace.updateSettings', { timeZone: 'America/Denver' })).status).toBe(403)
+    expect((await act(ws.owner, 'workspace.updateSettings', { timeZone: 'Mountain Time' })).status).toBe(422)
+    const changed = await act(ws.owner, 'workspace.updateSettings', { timeZone: 'America/Denver' })
+    expect(changed.body.data).toMatchObject({ timeZone: 'America/Denver' })
+    expect((await act(ws.owner, 'workspace.getSettings', {})).body.data.timeZone).toBe('America/Denver')
+    await act(ws.owner, 'businessHours.set', { hours: [{ weekday: 1, start: '09:00', end: '17:00' }] })
+    await act(ws.owner, 'workspace.updateSettings', { businessHoursOn: true })
+    const { body } = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
+    expect(body.data.businessHours).toMatchObject({ timeZone: 'America/Denver' })
+  })
+
   test('the outside-hours greeting and instructions are stored per assistant; members cannot change them', async () => {
     const ws = await createWorkspace('Outside Hours Plumbing')
     const member = await addMember(ws.id, 'member')

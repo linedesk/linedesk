@@ -2,6 +2,7 @@ import { passkeyClient } from '@better-auth/passkey/client'
 import { emailOTPClient, organizationClient } from 'better-auth/client/plugins'
 import type { AuthMethods, LegalLinks, SsoMethod } from '@linedesk/api/auth-types'
 import { createAuthClient } from 'better-auth/react'
+import type { OnboardingStep } from '@linedesk/actions'
 
 import type { Impersonation } from './impersonation.ts'
 import { readLastUsedMethod } from './sign-in-methods.ts'
@@ -18,7 +19,7 @@ export const auth = createAuthClient({
 /** Whether this server can set up phone numbers and with which carrier. `detail` (what the server lacks) only reaches instance admins. */
 export type PhoneSetupStatus = { provider: string | null; available: boolean; detail: string | null }
 /** Present while the workspace is in onboarding and this member may finish it. */
-export type OnboardingState = { step: 'business' | 'phone' | 'test_call'; phone: PhoneSetupStatus }
+export type OnboardingState = { step: Exclude<OnboardingStep, 'done'>; phone: PhoneSetupStatus }
 
 export type Me = {
   actorId: string; role: string; permissions: string[]; workspace: { id: string; name: string; disabled?: boolean } | null

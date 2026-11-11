@@ -8,8 +8,10 @@ import { callHash } from '../shell/useRoute.ts'
 import { useAssistantName, useRejection, useRows, useRun } from '../store.tsx'
 import { Button } from '../ui/kit.tsx'
 import { BusinessStep } from './BusinessStep.tsx'
+import { CalendarStep } from './CalendarStep.tsx'
 import { Foot, Frame, useStepKeys } from './Frame.tsx'
 import { formatNumber, nextStep, phoneSetupErrorText, previousStep, type OnboardingStep } from './flow.ts'
+import { HoursStep } from './HoursStep.tsx'
 import { PhoneStep } from './PhoneStep.tsx'
 import { TestCallStep } from './TestCallStep.tsx'
 import './onboarding.css'
@@ -66,6 +68,8 @@ export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingSta
           onNext={forward}
         />
       )}
+      {step === 'hours' && <HoursStep onBack={back} onNext={forward} />}
+      {step === 'calendar' && <CalendarStep onBack={back} onNext={forward} />}
       {step === 'test_call' && (
         <TestCallStep
           showSimulator={import.meta.env.DEV || state.phone.provider === 'dev'}

@@ -61,6 +61,6 @@ test('onboarding.setStep: registered, owners and admins only, known steps only',
   expect(actions.get('onboarding.setStep')).toBe(onboardingSetStep)
   expect(onboardingSetStep.permission).toBe('settings:write')
   expect(rolePermissions.member).not.toContain(onboardingSetStep.permission)
-  for (const step of ['business', 'phone', 'test_call', 'done', 'skipped']) expect(onboardingSetStep.input.safeParse({ step }).success).toBe(true)
-  expect(onboardingSetStep.input.safeParse({ step: 'calendar' }).success).toBe(false)
+  for (const step of ['business', 'phone', 'hours', 'calendar', 'test_call', 'done', 'skipped']) expect(onboardingSetStep.input.safeParse({ step }).success).toBe(true)
+  expect(onboardingSetStep.input.safeParse({ step: 'billing' }).success).toBe(false)
 })

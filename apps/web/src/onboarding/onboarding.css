@@ -35,3 +35,40 @@
 .ob2-dial > b {
   user-select: all;
 }
+.ob-hours-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ob .st-list {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 10px 16px;
+}
+.ob .st-li:first-child {
+  padding-top: 8px;
+}
+.ob-cal {
+  margin: 0;
+  padding: 0;
+}
+.ob-tight {
+  margin: 0;
+}
+/* Phones: the times of a day go under its name, so the week fits without scrolling sideways. */
+@media (max-width: 520px) {
+  .ob .st-list {
+    padding: 4px 14px;
+  }
+  .ob .st-day {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .ob .st-day > .st-times {
+    grid-column: 1 / -1;
+  }
+  .ob .st-day > .help {
+    display: none;
+  }
+}

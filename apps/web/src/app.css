@@ -1268,8 +1268,15 @@ button.k-link {
   justify-content: flex-end;
   gap: 8px;
 }
-.st-hours-foot > .help {
+.st-hours-foot > .help,
+.st-hours-foot > .st-tz {
   margin-right: auto;
+}
+.st-tz {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 /* Very wide windows: the menu is docked beside the content (Workspace, NAV_DOCKED_QUERY). */

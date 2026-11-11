@@ -210,6 +210,16 @@ export type WorkspaceSettingsData = {
   recordingOn: boolean
 }
 
+/** A real IANA time zone ("America/Los_Angeles"), as the server's and the browser's Intl know it. */
+export function isTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value })
+    return true
+  } catch {
+    return false
+  }
+}
+
 const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$|^24:00$/, 'a time like 07:00')
 
 export const businessHoursSet = defineAction({
@@ -236,12 +246,13 @@ export const workspaceGetSettings = defineAction({
 export const workspaceUpdateSettings = defineAction({
   name: 'workspace.updateSettings',
   description:
-    'Change workspace settings: `recordingRetentionDays` (30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting; off by default) and `recordingNotice` (that sentence, e.g. "This call may be recorded.").',
+    'Change workspace settings: `recordingRetentionDays` (30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting; off by default), `recordingNotice` (that sentence, e.g. "This call may be recorded.") and `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles").',
   input: z.object({
     recordingRetentionDays: z.union([z.literal(recordingRetentionChoices), z.null()]).optional(),
     businessHoursOn: z.boolean().optional(),
     recordingNoticeOn: z.boolean().optional(),
     recordingNotice: z.string().trim().min(1, 'Write the sentence the assistant says.').max(RECORDING_NOTICE_MAX).optional(),
+    timeZone: z.string().refine(isTimeZone, 'a time zone like America/Los_Angeles').optional(),
   }),
   permission: 'settings:write',
 })

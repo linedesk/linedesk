@@ -42,6 +42,13 @@ describe('workspace.updateSettings', () => {
       expect(workspaceUpdateSettings.input.safeParse({ recordingRetentionDays: days }).success).toBe(false)
   })
 
+  it('takes a real IANA time zone', () => {
+    for (const timeZone of ['America/Los_Angeles', 'Europe/Berlin', 'Pacific/Honolulu'])
+      expect(workspaceUpdateSettings.input.safeParse({ timeZone }).success).toBe(true)
+    for (const timeZone of ['Pacific Time', 'America/Nowhere', ''])
+      expect(workspaceUpdateSettings.input.safeParse({ timeZone }).success).toBe(false)
+  })
+
   it('only owners and admins change it; every member reads it', () => {
     expect(rolePermissions.member).not.toContain(workspaceUpdateSettings.permission)
     expect(rolePermissions.admin).toContain(workspaceUpdateSettings.permission)

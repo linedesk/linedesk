@@ -5,7 +5,7 @@
 import type { ConnectStartData, DisconnectData, ListCalendarsData } from '@linedesk/actions'
 import { CALENDAR_INSTRUCTION_MAX } from '@linedesk/actions'
 import type { AppointmentType, Assistant, AssistantCalendar, CalendarConnection } from '@linedesk/db/types'
-import { type KeyboardEvent, useEffect, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, useEffect, useState } from 'react'
 import { useRows, useRun } from '../store.tsx'
 import { SignInMark } from '../ui/brand-logos.tsx'
 import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
@@ -47,19 +47,20 @@ function useProviders(): ProviderId[] | null {
   return data ?? (error ? [] : null)
 }
 
-function Accounts({ assistant, canEdit, toast }: Props) {
-  const write = useWriteAction()
-  const connections = useRows('calendar_connections').sort((a, b) => a.created_at.localeCompare(b.created_at))
-  const connectionsLoad = useLoadState('calendar_connections')
+/**
+ * One button per calendar provider this install offers: it opens the provider's consent page, and the
+ * callback brings the browser back to this app. Used in Settings and in onboarding.
+ */
+export function ConnectButtons({ assistantId, toast }: { assistantId: string; toast: (text: string) => void }) {
   const providers = useProviders()
-  const [busy, setBusy] = useState<string | null>(null)
+  const [busy, setBusy] = useState<ProviderId | null>(null)
 
   async function connect(provider: ProviderId) {
     setBusy(provider)
     try {
       const { url } = await callAction<ConnectStartData>('calendar.connectStart', { provider })
       try {
-        sessionStorage.setItem(CONNECT_RETURN_KEY, assistant.id)
+        sessionStorage.setItem(CONNECT_RETURN_KEY, assistantId)
       } catch {}
       window.location.assign(url)
     } catch (e) {
@@ -67,6 +68,53 @@ function Accounts({ assistant, canEdit, toast }: Props) {
       setBusy(null)
     }
   }
+
+  if (!providers) return <Skeleton className="sk-field" />
+  if (!providers.length)
+    return (
+      <p className="help">No calendar provider is set up on this server. An admin sets GOOGLE_CLIENT_ID or MICROSOFT_CLIENT_ID and its secret.</p>
+    )
+  return (
+    <div className="cal-connect">
+      {providers.map(p => (
+        <Button key={p} disabled={busy !== null} onClick={() => connect(p)} title={`Connect a ${PROVIDER_LABEL[p]} calendar`}>
+          <SignInMark method={p} />
+          {busy === p ? `Opening ${PROVIDER_LABEL[p]}…` : `Connect ${PROVIDER_LABEL[p]}`}
+        </Button>
+      ))}
+    </div>
+  )
+}
+
+/** A connected account as a row: provider mark, address, and whether it still works. */
+export function AccountRow({ connection, children }: { connection: CalendarConnection; children?: ReactNode }) {
+  const c = connection
+  return (
+    <li className="cal-row">
+      <SignInMark method={c.provider} />
+      <span className="cal-main">
+        <b>{c.account_email}</b>
+        {c.status === 'needs_reconnect' && <span className="cal-sub">{c.last_error ?? 'Access was withdrawn.'}</span>}
+      </span>
+      {c.status === 'connected' ? (
+        <Badge tone="ok" dot>
+          Connected
+        </Badge>
+      ) : (
+        <Badge tone="danger" dot>
+          Connect again
+        </Badge>
+      )}
+      {children}
+    </li>
+  )
+}
+
+function Accounts({ assistant, canEdit, toast }: Props) {
+  const write = useWriteAction()
+  const connections = useRows('calendar_connections').sort((a, b) => a.created_at.localeCompare(b.created_at))
+  const connectionsLoad = useLoadState('calendar_connections')
+  const [busy, setBusy] = useState<string | null>(null)
 
   async function disconnect(connection: CalendarConnection) {
     if (!window.confirm(`Disconnect ${connection.account_email}? The assistant stops booking into its calendars. Booked events stay.`)) return
@@ -87,44 +135,17 @@ function Accounts({ assistant, canEdit, toast }: Props) {
       {connections.length > 0 && (
         <ul className="cal-list">
           {connections.map(c => (
-            <li key={c.id} className="cal-row">
-              <SignInMark method={c.provider} />
-              <span className="cal-main">
-                <b>{c.account_email}</b>
-                {c.status === 'needs_reconnect' && <span className="cal-sub">{c.last_error ?? 'Access was withdrawn.'}</span>}
-              </span>
-              {c.status === 'connected' ? (
-                <Badge tone="ok" dot>
-                  Connected
-                </Badge>
-              ) : (
-                <Badge tone="danger" dot>
-                  Connect again
-                </Badge>
-              )}
+            <AccountRow key={c.id} connection={c}>
               {canEdit && (
                 <Button size="sm" variant="ghost" disabled={busy === c.id} onClick={() => disconnect(c)} title={`Disconnect ${c.account_email}`}>
                   Disconnect
                 </Button>
               )}
-            </li>
+            </AccountRow>
           ))}
         </ul>
       )}
-      {canEdit && !providers && <Skeleton className="sk-field" />}
-      {canEdit && providers && providers.length > 0 && (
-        <div className="cal-connect">
-          {providers.map(p => (
-            <Button key={p} disabled={busy !== null} onClick={() => connect(p)} title={`Connect a ${PROVIDER_LABEL[p]} calendar`}>
-              <SignInMark method={p} />
-              {busy === p ? `Opening ${PROVIDER_LABEL[p]}…` : `Connect ${PROVIDER_LABEL[p]}`}
-            </Button>
-          ))}
-        </div>
-      )}
-      {providers?.length === 0 && (
-        <p className="help">No calendar provider is set up on this server. An admin sets GOOGLE_CLIENT_ID or MICROSOFT_CLIENT_ID and its secret.</p>
-      )}
+      {canEdit && <ConnectButtons assistantId={assistant.id} toast={toast} />}
     </Section>
   )
 }
@@ -183,7 +204,7 @@ function CalendarRow({ calendar, account, canEdit, onRemove }: { calendar: Assis
   )
 }
 
-function AddCalendar({ assistant, connections, onClose, toast }: { assistant: Assistant; connections: CalendarConnection[]; onClose: () => void; toast: (t: string) => void }) {
+export function AddCalendar({ assistant, connections, onClose, toast }: { assistant: Assistant; connections: CalendarConnection[]; onClose: () => void; toast: (t: string) => void }) {
   const write = useWriteAction()
   const [connectionId, setConnectionId] = useState(connections[0]?.id ?? '')
   const listed = useQuery(connectionId ? `calendar.list.${connectionId}` : null, () =>

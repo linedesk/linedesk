@@ -20,6 +20,7 @@ import {
   WEEK_ORDER,
 } from './businessHoursModel.ts'
 import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
+import { timeZoneLabel, timeZoneOptions } from './timeZones.ts'
 
 const DAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const startOptions: SelectOption<string>[] = timeOptions.filter(o => o.value !== '24:00')
@@ -68,8 +69,92 @@ export function useBusinessHours() {
 
 type Props = { canEdit: boolean; toast: (text: string) => void }
 
+/** Opens or closes a day. A day that opens takes the hours of the day before it, else 8:00 AM–5:00 PM. */
+function openChange(days: readonly DayHours[], weekday: number, open: boolean): Partial<DayHours> {
+  if (!open) return { open }
+  const before = [...days].reverse().find(d => d.open && d.weekday !== weekday)
+  return { open, start: before?.start ?? DEFAULT_SPAN.start, end: before?.end ?? DEFAULT_SPAN.end }
+}
+
+type GridProps = {
+  days: readonly DayHours[]
+  set: (weekday: number, change: Partial<DayHours>) => void
+  canEdit: boolean
+}
+
+/** The week, Monday first: a switch per day and its opening and closing time. Used in Settings and onboarding. */
+export function HoursGrid({ days, set, canEdit }: GridProps) {
+  return (
+    <div className="st-list" role="group" aria-label="Opening hours by day">
+      {WEEK_ORDER.map(weekday => {
+        const day = days.find(d => d.weekday === weekday)!
+        return (
+          <div key={weekday} className="st-li st-day">
+            <b>{DAY[weekday]}</b>
+            <Switch
+              on={day.open}
+              onChange={open => set(weekday, openChange(days, weekday, open))}
+              label={`Open on ${DAY[weekday]}`}
+              disabled={!canEdit}
+            />
+            {day.open ? (
+              <span className="st-times">
+                <Select
+                  size="sm"
+                  value={day.start}
+                  options={startOptions}
+                  onChange={start => set(weekday, { start })}
+                  label={`${DAY[weekday]} opens`}
+                  disabled={!canEdit}
+                />
+                <span className="help">to</span>
+                <Select
+                  size="sm"
+                  value={day.end}
+                  options={endOptions}
+                  onChange={end => set(weekday, { end })}
+                  label={`${DAY[weekday]} closes`}
+                  disabled={!canEdit}
+                />
+              </span>
+            ) : (
+              <span className="help">Closed</span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** The workspace's time zone as a picker; typing a city's first letters jumps to it. */
+export function TimeZoneSelect({
+  value,
+  onChange,
+  disabled,
+  id,
+}: {
+  value: string
+  onChange: (zone: string) => void
+  disabled?: boolean
+  id?: string
+}) {
+  return (
+    <Select
+      id={id}
+      size="sm"
+      value={value}
+      options={timeZoneOptions(value)}
+      onChange={onChange}
+      label="Time zone"
+      disabled={disabled}
+    />
+  )
+}
+
 /** The Business hours section of Settings: the main switch, and the weekly grid while it is on. */
 export function BusinessHours({ canEdit, toast }: Props) {
+  const run = useRun()
   const hours = useBusinessHours()
   const { saved, days, timeZone, loadError, problem, set, on, dirty } = hours
   function save(e: FormEvent) {
@@ -78,13 +163,11 @@ export function BusinessHours({ canEdit, toast }: Props) {
     hours.save()
     toast('Business hours saved.')
   }
-  function toggle(weekday: number, open: boolean) {
-    // A day that opens takes the hours of the day before it, else 8:00 AM–5:00 PM.
-    const before = [...days].reverse().find(d => d.open && d.weekday !== weekday)
-    set(
-      weekday,
-      open ? { open, start: before?.start ?? DEFAULT_SPAN.start, end: before?.end ?? DEFAULT_SPAN.end } : { open },
-    )
+  // The time zone saves at once, like the switch: it is one choice, not part of the grid's draft.
+  function changeTimeZone(zone: string) {
+    patchWorkspaceSettings({ timeZone: zone })
+    void run('workspace.updateSettings', { timeZone: zone })
+    toast(`Time zone set to ${timeZoneLabel(zone)}.`)
   }
 
   const help =
@@ -116,52 +199,17 @@ export function BusinessHours({ canEdit, toast }: Props) {
       >
         {on && (
           <>
-            <div className="st-list" role="group" aria-label="Opening hours by day">
-              {WEEK_ORDER.map(weekday => {
-                const day = days.find(d => d.weekday === weekday)!
-                return (
-                  <div key={weekday} className="st-li st-day">
-                    <b>{DAY[weekday]}</b>
-                    <Switch
-                      on={day.open}
-                      onChange={open => toggle(weekday, open)}
-                      label={`Open on ${DAY[weekday]}`}
-                      disabled={!canEdit}
-                    />
-                    {day.open ? (
-                      <span className="st-times">
-                        <Select
-                          size="sm"
-                          value={day.start}
-                          options={startOptions}
-                          onChange={start => set(weekday, { start })}
-                          label={`${DAY[weekday]} opens`}
-                          disabled={!canEdit}
-                        />
-                        <span className="help">to</span>
-                        <Select
-                          size="sm"
-                          value={day.end}
-                          options={endOptions}
-                          onChange={end => set(weekday, { end })}
-                          label={`${DAY[weekday]} closes`}
-                          disabled={!canEdit}
-                        />
-                      </span>
-                    ) : (
-                      <span className="help">Closed</span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+            <HoursGrid days={days} set={set} canEdit={canEdit} />
             {problem && (
               <p className="field-error" role="alert">
                 {problem}
               </p>
             )}
             <div className="st-hours-foot">
-              <span className="help">{timeZone ? `Times in ${timeZone.replaceAll('_', ' ')}.` : ''}</span>
+              <span className="st-tz">
+                <span className="help">Times in</span>
+                <TimeZoneSelect value={timeZone} onChange={changeTimeZone} disabled={!canEdit} />
+              </span>
               {canEdit && days.some(d => d.open) && (
                 <Button size="sm" variant="ghost" onClick={hours.clear} title="Close every day">
                   Clear hours

@@ -1,6 +1,12 @@
 // Onboarding without React: step order, the phone setup input and the carrier forwarding codes.
-import { onboardingSteps, type OnboardingStep } from '@linedesk/actions'
+import {
+  type BusinessHoursSpan,
+  onboardingSteps,
+  type OnboardingStep,
+  type WorkspaceSettingsData,
+} from '@linedesk/actions'
 import type { Call, PhoneNumber } from '@linedesk/db/types'
+import { type DayHours, dayRows } from '../settings/businessHoursModel.ts'
 
 type PhoneNumberMode = PhoneNumber['mode']
 
@@ -9,6 +15,8 @@ export { onboardingSteps, type OnboardingStep }
 export const stepLabels: Record<OnboardingStep, string> = {
   business: 'Business',
   phone: 'Phone',
+  hours: 'Hours',
+  calendar: 'Calendar',
   test_call: 'Test call',
   done: 'Done',
 }
@@ -17,6 +25,26 @@ export const nextStep = (step: OnboardingStep): OnboardingStep =>
   onboardingSteps[Math.min(onboardingSteps.indexOf(step) + 1, onboardingSteps.length - 1)]!
 export const previousStep = (step: OnboardingStep): OnboardingStep | null =>
   onboardingSteps[onboardingSteps.indexOf(step) - 1] ?? null
+
+/** The usual small-business week the hours step starts from: Monday to Friday, 9 to 5. */
+export const STARTER_HOURS: BusinessHoursSpan[] = [1, 2, 3, 4, 5].map(weekday => ({
+  weekday,
+  start: '09:00',
+  end: '17:00',
+}))
+
+/**
+ * What the hours step shows first. A workspace without hours gets 9 to 5 on weekdays, turned on, in the
+ * browser's time zone (the owner confirms it). Coming back to the step shows what was saved.
+ */
+export function firstHoursDraft(
+  saved: Pick<WorkspaceSettingsData, 'businessHours' | 'businessHoursOn' | 'timeZone'>,
+  browserZone: string | null,
+): { on: boolean; days: DayHours[]; timeZone: string } {
+  if (!saved.businessHours.length)
+    return { on: true, days: dayRows(STARTER_HOURS), timeZone: browserZone ?? saved.timeZone }
+  return { on: saved.businessHoursOn, days: dayRows(saved.businessHours), timeZone: saved.timeZone }
+}
 
 /** Share of the bar to fill: finished steps, plus the current one once it is complete. */
 export function progress(step: OnboardingStep, complete: boolean): number {

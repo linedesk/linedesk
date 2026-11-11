@@ -2,6 +2,7 @@ import type { Call } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import {
   carriers,
+  firstHoursDraft,
   firstTestCall,
   formatNumber,
   forwardingDigits,
@@ -13,16 +14,44 @@ import {
   toE164,
 } from './flow.ts'
 
-test('steps run business → phone → test call → done, and back', () => {
+test('steps run business → phone → hours → calendar → test call → done, and back', () => {
   expect(nextStep('business')).toBe('phone')
-  expect(nextStep('phone')).toBe('test_call')
+  expect(nextStep('phone')).toBe('hours')
+  expect(nextStep('hours')).toBe('calendar')
+  expect(nextStep('calendar')).toBe('test_call')
   expect(nextStep('test_call')).toBe('done')
   expect(nextStep('done')).toBe('done')
   expect(previousStep('business')).toBeNull()
+  expect(previousStep('calendar')).toBe('hours')
   expect(previousStep('done')).toBe('test_call')
   expect(progress('business', false)).toBe(0)
-  expect(progress('phone', true)).toBe(50)
+  expect(progress('hours', true)).toBe(50)
   expect(progress('done', true)).toBe(100)
+})
+
+test('the hours step starts at 9 to 5 on weekdays in the browser zone, or shows what was saved', () => {
+  const fresh = firstHoursDraft(
+    { businessHours: [], businessHoursOn: false, timeZone: 'America/New_York' },
+    'America/Los_Angeles',
+  )
+  expect(fresh.on).toBe(true)
+  expect(fresh.timeZone).toBe('America/Los_Angeles')
+  expect(fresh.days.filter(d => d.open).map(d => [d.weekday, d.start, d.end])).toEqual(
+    [1, 2, 3, 4, 5].map(w => [w, '09:00', '17:00']),
+  )
+  expect(
+    firstHoursDraft({ businessHours: [], businessHoursOn: false, timeZone: 'America/Denver' }, null).timeZone,
+  ).toBe('America/Denver')
+  const back = firstHoursDraft(
+    {
+      businessHours: [{ weekday: 6, start: '10:00', end: '14:00' }],
+      businessHoursOn: false,
+      timeZone: 'America/Denver',
+    },
+    'America/Los_Angeles',
+  )
+  expect(back).toMatchObject({ on: false, timeZone: 'America/Denver' })
+  expect(back.days.filter(d => d.open).map(d => d.weekday)).toEqual([6])
 })
 
 test('US numbers are read the way people type them', () => {

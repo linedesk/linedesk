@@ -58,6 +58,17 @@ describe('cached queries', () => {
     expect(peekQuery('settings')).toEqual({ days: 90 })
   })
 
+  test('an answer to a load that started before such a change does not undo it', async () => {
+    let answer!: (value: { zone: string }) => void
+    const loading = fetchQuery('zone', () => new Promise<{ zone: string }>(resolve => (answer = resolve)))
+    setQueryData('zone', { zone: 'America/Denver' })
+    answer({ zone: 'America/Los_Angeles' })
+    await loading
+    expect(peekQuery('zone')).toEqual({ zone: 'America/Denver' })
+    await fetchQuery('zone', async () => ({ zone: 'America/Chicago' }))
+    expect(peekQuery('zone')).toEqual({ zone: 'America/Chicago' })
+  })
+
   test("sign-out forgets every member's answers but keeps what the sign-in page shows", async () => {
     setQueryScope('')
     await fetchQuery('auth-methods', async () => ({ password: true }), { persist: true })

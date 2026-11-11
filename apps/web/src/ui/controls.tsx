@@ -104,7 +104,27 @@ type SelectProps<T extends string> = {
   align?: 'start' | 'end'
 }
 
-/** A button that opens a short list. Arrow keys move, Enter or Space picks, Esc closes. */
+/** Keys typed within this many ms of each other form one search ("los a"). */
+const TYPEAHEAD_MS = 700
+
+/**
+ * The option whose label starts with what was typed, or -1. The first letter searches from the top,
+ * further letters from the option found (`from`), and the same letter again moves to the next one.
+ */
+export function typeaheadIndex(labels: readonly string[], typed: string, from: number): number {
+  const query = typed.toLowerCase()
+  const repeat = query.length > 1 && [...query].every(c => c === query[0])
+  const prefix = repeat ? query[0]! : query
+  // A new search starts at the top; more letters refine from where it is; the same letter again moves on.
+  const start = repeat ? from + 1 : query.length === 1 ? 0 : from
+  for (let k = 0; k < labels.length; k++) {
+    const i = (start + k) % labels.length
+    if (labels[i]!.toLowerCase().startsWith(prefix)) return i
+  }
+  return -1
+}
+
+/** A button that opens a list. Arrow keys move, typing jumps to a label, Enter or Space picks, Esc closes. */
 export function Select<T extends string>({
   value,
   options,
@@ -122,6 +142,7 @@ export function Select<T extends string>({
   const list = useRef<HTMLDivElement>(null)
   const listId = useId()
   const current = options.find(o => o.value === value)
+  const typed = useRef({ text: '', at: 0 })
 
   useEffect(() => {
     if (!open) return
@@ -132,6 +153,22 @@ export function Select<T extends string>({
     document.addEventListener('mousedown', outside)
     return () => document.removeEventListener('mousedown', outside)
   }, [open])
+
+  // A long list (time zones) keeps the active option in view while the keys move it.
+  useEffect(() => {
+    if (open) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: 'nearest' })
+  }, [open, active, listId])
+
+  function jumpTo(key: string) {
+    const now = Date.now()
+    typed.current = { text: now - typed.current.at < TYPEAHEAD_MS ? typed.current.text + key : key, at: now }
+    const i = typeaheadIndex(
+      options.map(o => o.label),
+      typed.current.text,
+      active,
+    )
+    if (i >= 0) setActive(i)
+  }
 
   function show() {
     if (disabled) return
@@ -166,10 +203,11 @@ export function Select<T extends string>({
     else if (e.key === 'ArrowUp') setActive(i => Math.max(0, i - 1))
     else if (e.key === 'Home') setActive(0)
     else if (e.key === 'End') setActive(options.length - 1)
-    else if (e.key === 'Enter' || e.key === ' ') {
+    else if (e.key === 'Enter' || (e.key === ' ' && Date.now() - typed.current.at >= TYPEAHEAD_MS)) {
       const o = options[active]
       if (o) pick(o)
     } else if (e.key === 'Escape') close()
+    else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) jumpTo(e.key)
   }
 
   return (

@@ -26,7 +26,7 @@ describe('onboarding progress', () => {
 
   test('skipping ends it too; an unknown step is refused', async () => {
     const ws = await createWorkspace('Skip Plumbing')
-    expect((await act(ws.owner, 'onboarding.setStep', { step: 'calendar' })).status).toBe(422)
+    expect((await act(ws.owner, 'onboarding.setStep', { step: 'billing' })).status).toBe(422)
     await act(ws.owner, 'onboarding.setStep', { step: 'skipped' })
     expect((await request(ws.owner, 'GET', '/v1/me')).body.onboarding).toBeNull()
   })

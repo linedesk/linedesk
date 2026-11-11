@@ -20,6 +20,8 @@ type Entry = {
   load?: () => Promise<unknown>
   persist: boolean
   loadedAt: number
+  /** How often the page put an answer in place itself (setQueryData). */
+  changes: number
   inflight?: Promise<void>
   listeners: Set<() => void>
 }
@@ -59,6 +61,7 @@ function entryFor(key: string, persist = false): Entry {
       state: stored === undefined ? EMPTY : { data: stored, error: null },
       persist,
       loadedAt: 0,
+      changes: 0,
       listeners: new Set(),
     }
     entries.set(key, entry)
@@ -90,8 +93,10 @@ export function fetchQuery<T>(key: string, load?: () => Promise<T>, options: Opt
   if (entry.inflight) return entry.inflight
   const run = entry.load
   if (!run) return Promise.resolve()
+  const changesBefore = entry.changes
   const inflight = run().then(
-    data => publish(key, entry, { data, error: null }),
+    // An answer the server gave before a change the page made since would undo that change on screen.
+    data => (entry.changes !== changesBefore ? undefined : publish(key, entry, { data, error: null })),
     (err: unknown) =>
       publish(key, entry, { data: entry.state.data, error: err instanceof Error ? err.message : String(err) }),
   )
@@ -111,6 +116,7 @@ export function setQueryData<T>(key: string, update: T | ((previous: T | undefin
   const data =
     typeof update === 'function' ? (update as (p: T | undefined) => T)(entry.state.data as T | undefined) : update
   entry.loadedAt = Date.now()
+  entry.changes++
   publish(key, entry, { data, error: null })
 }
 
