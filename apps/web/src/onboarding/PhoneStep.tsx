@@ -41,7 +41,7 @@ function Unavailable({ detail, onBack, onNext }: { detail: string | null; onBack
   )
 }
 
-function Choose({ status, setupError, clearError, onBack }: Props) {
+function Choose({ status, setupError, clearError, onBack, onNext }: Props) {
   const run = useRun()
   // Numbers already in the install's carrier account are for instance admins only: then only a new one.
   const canAttach = status?.canAttach !== false
@@ -164,6 +164,7 @@ function Choose({ status, setupError, clearError, onBack }: Props) {
       <Foot
         onBack={onBack}
         onContinue={primary}
+        onSkipStep={onNext}
         canContinue={!confirming}
         busy={sending}
         label={sending ? 'Connecting…' : kind === 'existing' ? 'Connect number' : 'Get a number'}

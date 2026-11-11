@@ -72,9 +72,11 @@ type FootProps = {
   label?: string
   hint?: string
   busy?: boolean
+  /** This step alone can be left out ("Skip for now"), next to its own action. */
+  onSkipStep?: () => void
 }
 
-export function Foot({ onBack, onContinue, canContinue, label = 'Continue', hint, busy }: FootProps) {
+export function Foot({ onBack, onContinue, canContinue, label = 'Continue', hint, busy, onSkipStep }: FootProps) {
   return (
     <div className="ob-foot">
       {onBack ? (
@@ -86,6 +88,11 @@ export function Foot({ onBack, onContinue, canContinue, label = 'Continue', hint
       )}
       <div className="ob2-foot-r">
         {hint && <span className="ob2-hint">{hint}</span>}
+        {onSkipStep && (
+          <Button variant="ghost" onClick={onSkipStep} disabled={busy} title="Go on without this step">
+            Skip for now
+          </Button>
+        )}
         {onContinue && (
           <Button
             variant="primary"

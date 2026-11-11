@@ -28,6 +28,12 @@ export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingSta
     onDone()
   }
   const [step, setStep] = useState<OnboardingStep>(state.step)
+  // The tour is queued as soon as the last step shows: a reload there opens the inbox (onboarding is
+  // done on the server), and the tour must still start there.
+  const workspaceId = me.workspace!.id
+  useEffect(() => {
+    if (step === 'done' && offersTour(firstUse)) queueTour(workspaceId)
+  }, [step, firstUse, workspaceId])
   const [setupError, setSetupError] = useState<string | null>(null)
   const [otherError, setOtherError] = useState<string | null>(null)
   const hasNumber = useRows('phone_numbers').length > 0
