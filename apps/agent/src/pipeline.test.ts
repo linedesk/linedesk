@@ -32,7 +32,7 @@ test('the voice of the assistant is used only for the provider it was chosen for
   expect(voiceFor(eleven, { provider: 'elevenlabs', voice_id: 'maya' })).toBe('maya')
   expect(voiceFor(eleven, { provider: 'cartesia', voice_id: 'sonic_voice' })).toBe('default_voice')
   expect(voiceFor(eleven, { provider: 'elevenlabs', voice_id: '' })).toBe('default_voice')
-  expect(voiceFor({ provider: 'elevenlabs', apiKey: 'k' }, null)).toBeUndefined() // the provider's own default voice
+  expect(voiceFor({ provider: 'elevenlabs', apiKey: 'k' }, null)).toBe('cgSgspJ2msm6clMCkdW9') // Jessica, the default voice
 })
 
 test('warmUpLlm sends the system prompt for a one-token answer and never throws', async () => {
