@@ -420,22 +420,6 @@
   gap: 8px 16px;
 }
 
-/* Keypad menu: one row per key (key, what the caller hears, what it does, remove). */
-.as-keypad-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  gap: 8px;
-  align-items: center;
-}
-@media (max-width: 560px) {
-  .as-keypad-row {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-  }
-  .as-keypad-row > :nth-child(3) {
-    grid-column: 2;
-  }
-}
-
 /* Settings > Assistant > Transfers: one compact row per contact, opened in place to edit. */
 .tc-list {
   display: grid;

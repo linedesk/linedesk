@@ -5,9 +5,9 @@ import {
   CALL_RULES_MAX, type Faq, FAQS_MAX, INSTRUCTIONS_MAX, RING_SECONDS_DEFAULT, TRANSFER_CONDITION_MAX,
   TRANSFER_CONTACTS_MAX, type Service, SERVICES_MAX, servicesOf, TRANSFER_NAME_MAX, callRulesOf, usesDefaultCallRules, onCallNumberProblem,
   DEFAULT_SILENCE_CLOSING, SILENCE_CLOSING_MAX, SILENCE_FIRST_GAP_MAX_S, SILENCE_FIRST_GAP_MIN_S, SILENCE_REMINDERS_MAX,
-  SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT, KEYPAD_MENU_MAX_OPTIONS, BEHAVIOURS, type BehaviourId, behaviourOn, type AiDisclosure, DEFAULT_AI_DISCLOSURE, type CommunicationStyle, DEFAULT_COMMUNICATION_STYLE, type AssistantLanguages, ENGLISH_ONLY, type Language, languageCodes, LANGUAGES, mainLanguageOf, swapDefault,
+  SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT, BEHAVIOURS, type BehaviourId, behaviourOn, type AiDisclosure, DEFAULT_AI_DISCLOSURE, type CommunicationStyle, DEFAULT_COMMUNICATION_STYLE, type AssistantLanguages, ENGLISH_ONLY, type Language, languageCodes, LANGUAGES, mainLanguageOf, swapDefault,
 } from '@linedesk/actions'
-import type { Assistant, BusinessProfile, KeypadMenuOption, TransferContact } from '@linedesk/db/types'
+import type { Assistant, BusinessProfile, TransferContact } from '@linedesk/db/types'
 import { formatNumber, renameInGreeting, toE164 } from '../onboarding/flow.ts'
 
 /** `greeting_outside`: used outside business hours; empty = the same as during hours. */
@@ -26,9 +26,6 @@ export type Draft = {
   greeting_outside: string
   /** Warm transfer: who callers are put through to, and when, in order. */
   transfers: TransferDraft[]
-  /** Keypad menu after the greeting; the options are kept while it is off, but only saved when on. */
-  keypad_on: boolean
-  keypad_options: KeypadMenuOption[]
   /** The voice: provider and voice id (empty: the provider's default). */
   voice: { provider: string; voice_id: string }
   /** Knowledge: services with prices (empty price: quote only), FAQs, and the website last imported from. */
@@ -70,8 +67,6 @@ export function draftOf(a: Assistant): Draft {
     call_rules: callRulesOf(a.call_rules), // none stored: the default rules, shown so they can be edited
     greeting_outside: a.greeting_outside ?? '',
     transfers: (a.transfers ?? []).map(c => transferDraftOf({ ...c, number: c.number ? formatNumber(c.number) : '' })),
-    keypad_on: !!a.keypad_menu?.options?.length,
-    keypad_options: a.keypad_menu?.options?.length ? a.keypad_menu.options.map(o => ({ ...o })) : DEFAULT_KEYPAD_OPTIONS,
     voice: { provider: a.voice.provider, voice_id: a.voice.voice_id },
     services: servicesOf(p).map(s => ({ ...s })),
     faqs: (p.faqs ?? []).map(f => ({ ...f })),
@@ -152,7 +147,6 @@ export const normalized = (d: Draft): Draft => ({
   greeting_outside: d.greeting_outside.trim(),
   greeting_known_caller: d.greeting_known_caller.trim(),
   transfers: d.transfers.map(c => transferDraftOf({ ...c, name: c.name.trim(), condition: c.condition.trim(), number: normalizedNumber(c.number) })),
-  keypad_options: d.keypad_options.map(o => ({ ...o, label: o.label.trim() })),
   services: d.services
     .map(s => ({ name: s.name.trim(), description: s.description.trim(), price: s.price.trim() }))
     .filter(s => s.name || s.description || s.price),
@@ -206,31 +200,6 @@ export function silenceSummary(d: Pick<Draft, 'silence_first_gap_s' | 'silence_r
   if (!times) return `After ${gap} seconds of silence the assistant says the closing line and hangs up. Never while a call is transferred.`
   return `Asks "Are you still there?" after ${at.join(', ')} seconds of silence, says the closing line and hangs up at ${end} seconds. Never while a call is transferred.`
 }
-
-/** What a new keypad menu starts with. */
-export const DEFAULT_KEYPAD_OPTIONS: KeypadMenuOption[] = [
-  { key: '1', label: 'emergencies', action: 'transfer' },
-  { key: '2', label: 'everything else', action: 'topic' },
-]
-
-/** Why the keypad menu cannot be saved, or null (nothing to check while it is off). */
-export function keypadProblem(d: Pick<Draft, 'keypad_on' | 'keypad_options'>): string | null {
-  if (!d.keypad_on) return null
-  if (!d.keypad_options.length) return 'Add at least one key to the keypad menu, or turn it off.'
-  if (d.keypad_options.length > KEYPAD_MENU_MAX_OPTIONS) return `The keypad menu has at most ${KEYPAD_MENU_MAX_OPTIONS} keys.`
-  if (d.keypad_options.some(o => !o.label.trim())) return 'Each key in the keypad menu needs a label.'
-  if (new Set(d.keypad_options.map(o => o.key)).size !== d.keypad_options.length) return 'Each key can be used once in the keypad menu.'
-  return null
-}
-
-/** The keypad menu to save: null when it is off. */
-export const keypadToSave = (d: Draft) => ({
-  keypad_menu: d.keypad_on ? { options: d.keypad_options.map(o => ({ ...o, label: o.label.trim() })) } : null,
-})
-
-/** The first key 1–9 the menu does not use yet; null when all are taken. */
-export const nextFreeKey = (options: KeypadMenuOption[]): string | null =>
-  ['1', '2', '3', '4', '5', '6', '7', '8', '9'].find(k => !options.some(o => o.key === k)) ?? null
 
 /** "(503) 555-0199" and "+1 503 555 0199" are the same number: both show as the latter. */
 function normalizedNumber(typed: string): string {
@@ -338,7 +307,7 @@ export function draftProblem(draft: Draft): string | null {
   if (length > INSTRUCTIONS_MAX) return `The instructions are too long: ${length.toLocaleString('en-US')} of ${INSTRUCTIONS_MAX.toLocaleString('en-US')} characters.`
   const rules = draft.call_rules.trim().length
   if (rules > CALL_RULES_MAX) return `How to handle calls is too long: ${rules.toLocaleString('en-US')} of ${CALL_RULES_MAX.toLocaleString('en-US')} characters.`
-  return knowledgeProblem(normalized(draft)) ?? transferProblem(draft)?.message ?? silenceProblem(draft) ?? keypadProblem(draft) ?? languagesProblem(draft)
+  return knowledgeProblem(normalized(draft)) ?? transferProblem(draft)?.message ?? silenceProblem(draft) ?? languagesProblem(draft)
 }
 
 /** Why the services or FAQs cannot be saved; null when they can. Expects a normalized draft. */

@@ -1,10 +1,8 @@
 // A collection step on a live call: a LiveKit AgentTask that takes over the conversation until the
 // value is confirmed, the caller declines, or the tries run out, then hands back to the assistant.
-// Keypad presses (SIP DTMF) count as the caller's answer where the step allows them.
 import { llm, voice } from '@livekit/agents'
-import { type RemoteParticipant, type Room, RoomEvent } from '@livekit/rtc-node'
 import { z } from 'zod'
-import { Collection, type CollectOutcome, KeypadInput, type StepReply } from './collection.ts'
+import { Collection, type CollectOutcome, type StepReply } from './collection.ts'
 import type { Collector } from './collectors.ts'
 
 /** Ported from LiveKit's Python tasks: the rules every step shares. */
@@ -28,17 +26,12 @@ export type CollectTaskOptions = {
   languageRule?: string
   /** The call so far, so a name or number already given is not asked again. */
   chatCtx?: llm.ChatContext
-  /** Keypad input: the call's room and the caller's identity (presses from anyone else are ignored). */
-  keypad?: { room: Room; callerIdentity?: string }
 }
 
 export class CollectTask extends voice.AgentTask<CollectOutcome> {
   private readonly collection: Collection<Record<string, unknown>, unknown>
-  private readonly keypadInput: KeypadInput | null
-  private readonly room: Room | null
-  private readonly callerIdentity: string | undefined
 
-  constructor({ collector, chatCtx, keypad, languageRule = COLLECT_ENGLISH_ONLY }: CollectTaskOptions) {
+  constructor({ collector, chatCtx, languageRule = COLLECT_ENGLISH_ONLY }: CollectTaskOptions) {
     const collection = new Collection(collector)
     const kind = collector.kind
     // The tools finish the task; it exists once super() returned.
@@ -48,7 +41,7 @@ export class CollectTask extends voice.AgentTask<CollectOutcome> {
       return reply.outcome ? undefined : reply.say
     }
     super({
-      instructions: `${STEP_RULES}\n${languageRule}\n\n${collector.instructions}${collector.keypad && keypad ? '\nThe caller may also type it on the phone keypad; typed digits arrive by themselves.' : ''}`,
+      instructions: `${STEP_RULES}\n${languageRule}\n\n${collector.instructions}`,
       ...(chatCtx ? { chatCtx } : {}),
       tools: {
         [`record_${kind}`]: llm.tool({
@@ -73,40 +66,11 @@ export class CollectTask extends voice.AgentTask<CollectOutcome> {
     })
     self.task = this
     this.collection = collection
-    this.room = keypad?.room ?? null
-    this.callerIdentity = keypad?.callerIdentity
-    this.keypadInput =
-      collector.keypad && keypad ? new KeypadInput(collector.keypad.maxDigits, result => void this.onTyped(result.digits)) : null
-  }
-
-  private readonly onDigit = (_code: number, digit: string, participant: RemoteParticipant) => {
-    if (this.callerIdentity && participant.identity !== this.callerIdentity) return
-    this.keypadInput?.press(digit)
-  }
-
-  /** Typed digits are checked in code (no model guessing) and read back like spoken ones. */
-  private async onTyped(digits: string) {
-    const keypad = this.collection.collector.keypad
-    if (!keypad || this.done) return
-    this.session.interrupt()
-    const reply = this.collection.record(keypad.toArgs(digits), 'keypad')
-    this.keypadInput?.reset()
-    if (reply.outcome) {
-      if (!this.done) this.complete(reply.outcome)
-      return
-    }
-    this.session.generateReply({ instructions: `The caller typed ${digits || 'nothing'} on the keypad. ${reply.say}`, toolChoice: 'none' })
   }
 
   override async onEnter() {
-    if (this.keypadInput) this.room?.on(RoomEvent.DtmfReceived, this.onDigit)
     this.session.generateReply({
       instructions: `${this.collection.collector.ask} If the caller already gave it earlier in this call, record it with the record tool and read it back instead of asking again.`,
     })
-  }
-
-  override async onExit() {
-    this.room?.off(RoomEvent.DtmfReceived, this.onDigit)
-    this.keypadInput?.stop()
   }
 }

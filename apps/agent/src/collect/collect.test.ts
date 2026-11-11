@@ -1,7 +1,7 @@
 import { llm } from '@livekit/agents'
 import { describe, expect, it, test, vi } from 'vitest'
 import { addedToMessage, nudgeIfQuiet, saidMeanwhile } from './collect-tools.ts'
-import { Collection, describeOutcome, dtmfCode, KeypadInput, MAX_ATTEMPTS, outcomeEvent } from './collection.ts'
+import { Collection, describeOutcome, MAX_ATTEMPTS, outcomeEvent } from './collection.ts'
 import { addressCollector, dateCollector, digitsCollector, emailCollector, isWholePhoneNumber, nameCollector, partialPhoneNumberIn, parseDate, phoneCollector, stateCode, toE164 } from './collectors.ts'
 import { readDigits, readLetters, spokenDigits, spokenEmail, spokenLetters } from './spoken.ts'
 
@@ -89,12 +89,10 @@ describe('collectors', () => {
     expect(day.readBack('2026-11-14')).toBe('Saturday, November 14, 2026')
   })
 
-  it('digits by keypad or speech, with a length', () => {
-    const zip = digitsCollector({ what: 'ZIP code', minDigits: 5, maxDigits: 5, keypad: true })
+  it('digits, with a length', () => {
+    const zip = digitsCollector({ what: 'ZIP code', minDigits: 5, maxDigits: 5 })
     expect(zip.parse({ digits: 'nine seven two oh two' })).toEqual({ ok: true, value: '97202' })
     expect(zip.parse({ digits: '9720' }).ok).toBe(false)
-    expect(zip.keypad?.toArgs('97202')).toEqual({ digits: '97202' })
-    expect(digitsCollector({ what: 'x', minDigits: 1, maxDigits: 4, keypad: false }).keypad).toBeUndefined()
   })
 })
 
@@ -105,7 +103,7 @@ describe('a collection step', () => {
     const heard = step.record({ phone_number: 'five oh three five five five oh one four two' })
     expect(heard.say).toContain('"5 0 3, 5 5 5, 0 1 4 2"')
     const done = step.confirm()
-    expect(done.outcome).toEqual({ status: 'confirmed', label: 'callback number', value: '+15035550142', via: 'speech' })
+    expect(done.outcome).toEqual({ status: 'confirmed', label: 'callback number', value: '+15035550142' })
     expect(describeOutcome(done.outcome!)).toMatch(/confirmed the callback number: \+15035550142/)
   })
 
@@ -122,43 +120,13 @@ describe('a collection step', () => {
     expect(MAX_ATTEMPTS).toBe(3)
   })
 
-  it('a keypad entry is marked as typed, and a decline ends the step', () => {
+  it('a confirmed value gets one transcript line, and a decline ends the step', () => {
     const step = new Collection(phoneCollector())
-    step.record({ phone_number: '5035550142' }, 'keypad')
+    step.record({ phone_number: '5035550142' })
     const done = step.confirm()
-    expect(outcomeEvent(done.outcome!)).toBe('Callback number confirmed · typed on the keypad')
+    expect(outcomeEvent(done.outcome!)).toBe('Callback number confirmed')
     const declined = new Collection(emailCollector).decline('has no email')
     expect(describeOutcome(declined.outcome!)).toMatch(/did not want to give the email address \(has no email\)/)
-  })
-})
-
-describe('keypad input', () => {
-  it('ends on #, starts over on *, and takes what was typed after a pause', () => {
-    vi.useFakeTimers()
-    const done = vi.fn()
-    const keypad = new KeypadInput(11, done, 4000)
-    for (const key of '12*5035550142#') keypad.press(key)
-    expect(done).toHaveBeenCalledWith({ digits: '5035550142', ended: 'pound' })
-
-    const paused = vi.fn()
-    const second = new KeypadInput(11, paused, 4000)
-    second.press('9')
-    second.press('7')
-    vi.advanceTimersByTime(3999)
-    expect(paused).not.toHaveBeenCalled()
-    vi.advanceTimersByTime(1)
-    expect(paused).toHaveBeenCalledWith({ digits: '97', ended: 'timeout' })
-
-    const full = vi.fn()
-    const third = new KeypadInput(3, full)
-    for (const key of '1234') third.press(key)
-    expect(full).toHaveBeenCalledTimes(1)
-    expect(full).toHaveBeenCalledWith({ digits: '123', ended: 'full' })
-    vi.useRealTimers()
-  })
-
-  it('maps keys to LiveKit DTMF codes', () => {
-    expect(['0', '9', '*', '#'].map(dtmfCode)).toEqual([0, 9, 10, 11])
   })
 })
 
@@ -205,11 +173,11 @@ test('a phone number confirmed after the message was saved is added to it; nothi
     return true
   }
   const ctx = { addToMessage } as unknown as Parameters<typeof addedToMessage>[0]
-  const confirmed = { status: 'confirmed', label: 'callback number', value: '+15035550142', via: 'keypad' } as const
+  const confirmed = { status: 'confirmed', label: 'callback number', value: '+15035550142' } as const
   expect(await addedToMessage(ctx, phoneCollector(), confirmed)).toMatch(/added to the message/)
   expect(added).toEqual(['Callback number: +15035550142 (confirmed with the caller).'])
   expect(await addedToMessage(ctx, phoneCollector(), { status: 'incomplete', label: 'callback number', partial: '50355' })).toBe('')
-  expect(await addedToMessage(ctx, nameCollector, { status: 'confirmed', label: 'name', value: 'Sam Patel', via: 'speech' })).toBe('')
+  expect(await addedToMessage(ctx, nameCollector, { status: 'confirmed', label: 'name', value: 'Sam Patel' })).toBe('')
   // No message saved yet: the assistant puts the number into take_message itself.
   const none = { addToMessage: async () => false } as unknown as Parameters<typeof addedToMessage>[0]
   expect(await addedToMessage(none, phoneCollector(), confirmed)).toBe('')

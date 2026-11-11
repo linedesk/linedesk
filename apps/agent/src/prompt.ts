@@ -187,7 +187,7 @@ export function bookingInstructions(booking: BookingContext, transfer = false, l
 const CALLER_TAGS = /<\/?caller_(?:notes|history)>/gi
 /** How the main assistant is told to use the steps. */
 export const COLLECT_INSTRUCTIONS =
-  "Before you save a message or book, get the details with the collection tools, which read them back and confirm them: get_name for the caller's name (with the last name spelled), get_phone_number when the caller wants a callback on a number other than the one they are calling from (or their number is withheld), get_address for a visit, get_email when they want a confirmation by email, get_date for a date, get_digits for an account, policy or other number (they can type it on the keypad). Call them without saying anything yourself; each asks the caller. Use only the values they return, and never ask for the same detail twice."
+  "Before you save a message or book, get the details with the collection tools, which read them back and confirm them: get_name for the caller's name (with the last name spelled), get_phone_number when the caller wants a callback on a number other than the one they are calling from (or their number is withheld), get_address for a visit, get_email when they want a confirmation by email, get_date for a date, get_digits for an account, policy or other number. Call them without saying anything yourself; each asks the caller. Use only the values they return, and never ask for the same detail twice."
 
 /** The longest contact note the assistant gets; longer ones are cut. */
 export const CALLER_NOTE_MAX_CHARS = 2000

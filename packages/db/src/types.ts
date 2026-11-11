@@ -52,19 +52,11 @@ export const DEFAULT_TRANSFERS: TransferContact[] = [
   },
 ]
 /**
- * The optional keypad menu an assistant plays right after the greeting ("Press 1 for emergencies…").
- * `transfer`: the key is an urgent call (put through when transfer is on, else flagged urgent and a message);
- * `topic`: the assistant goes on knowing what the caller wants.
- */
-/**
  * Vacation or closure mode: from `from` to `until` (dates in the workspace time zone, both closed) the business
  * is closed whatever its hours say. `greeting` replaces the greeting (empty: the outside-hours one, else the
  * usual). Nobody is put through: every call gets a message. A `transfers` key saved by an older release is ignored.
  */
 export type Closure = { from: string; until: string; greeting: string }
-export type KeypadMenuAction = 'transfer' | 'topic'
-export type KeypadMenuOption = { key: string; label: string; action: KeypadMenuAction }
-export type KeypadMenu = { options: KeypadMenuOption[] }
 /** The main language an assistant speaks (missing: English) and the ones besides it (`languages.ts` in @linedesk/actions validates the codes). */
 export type AssistantLanguages = { main?: string; mode: 'english' | 'allowed' | 'any'; allowed: string[] }
 export type BusinessProfile = {

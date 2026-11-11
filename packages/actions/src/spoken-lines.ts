@@ -1,5 +1,5 @@
 // The fixed lines an assistant says on a call, in each language it can speak (languages.ts): the default
-// greeting, the AI note, goodbye, silence and limit lines, busy lines, quick tool replies and the keypad menu.
+// greeting, the AI note, goodbye, silence and limit lines, busy lines and quick tool replies.
 // Owner-written texts (greeting, closing line, recording notice) are kept as written; only when one is still
 // the English default and the main language is another is it swapped for that language's default (localizedDefault).
 import type { Language } from './languages.ts'
@@ -28,12 +28,6 @@ export type SpokenLines = {
   messageSaved: string
   urgentFlagged: string
   recordingNotice: string
-  keypadOption: (label: string, key: string) => string
-  keypadEnd: string
-  /** A key that is not on the keypad menu. */
-  wrongKey: string
-  /** After a second wrong key: no menu again, just talk. */
-  justTellMe: string
 }
 
 const en: SpokenLines = {
@@ -57,10 +51,6 @@ const en: SpokenLines = {
   urgentFlagged:
     "I've marked this as urgent for the team. Is the number you're calling from the best way to reach you?",
   recordingNotice: 'This call may be recorded.',
-  keypadOption: (label, key) => `For ${label}, press ${key}.`,
-  keypadEnd: 'Or just tell me how I can help.',
-  wrongKey: 'Sorry, that key is not on the menu.',
-  justTellMe: 'Just tell me how I can help.',
 }
 
 const es: SpokenLines = {
@@ -85,10 +75,6 @@ const es: SpokenLines = {
   urgentFlagged:
     'He marcado esto como urgente para el equipo. ¿El número desde el que llama es el mejor para localizarle?',
   recordingNotice: 'Esta llamada puede ser grabada.',
-  keypadOption: (label, key) => `Para ${label}, pulse ${key}.`,
-  keypadEnd: 'O simplemente dígame en qué puedo ayudarle.',
-  wrongKey: 'Lo siento, esa tecla no está en el menú.',
-  justTellMe: 'Simplemente dígame en qué puedo ayudarle.',
 }
 
 const fr: SpokenLines = {
@@ -113,10 +99,6 @@ const fr: SpokenLines = {
   urgentFlagged:
     "J'ai signalé cet appel comme urgent à l'équipe. Le numéro depuis lequel vous appelez est-il le meilleur pour vous joindre ?",
   recordingNotice: 'Cet appel peut être enregistré.',
-  keypadOption: (label, key) => `Pour ${label}, appuyez sur ${key}.`,
-  keypadEnd: 'Ou dites-moi simplement comment je peux vous aider.',
-  wrongKey: 'Désolé, cette touche ne fait pas partie du menu.',
-  justTellMe: 'Dites-moi simplement comment je peux vous aider.',
 }
 
 const de: SpokenLines = {
@@ -142,10 +124,6 @@ const de: SpokenLines = {
   urgentFlagged:
     'Ich habe das für das Team als dringend markiert. Sind Sie unter der Nummer, von der Sie anrufen, am besten erreichbar?',
   recordingNotice: 'Dieser Anruf wird möglicherweise aufgezeichnet.',
-  keypadOption: (label, key) => `Für ${label} drücken Sie die ${key}.`,
-  keypadEnd: 'Oder sagen Sie mir einfach, wie ich helfen kann.',
-  wrongKey: 'Diese Taste ist leider nicht im Menü.',
-  justTellMe: 'Sagen Sie mir einfach, wie ich helfen kann.',
 }
 
 const it: SpokenLines = {
@@ -169,10 +147,6 @@ const it: SpokenLines = {
   urgentFlagged:
     'Ho segnalato la cosa come urgente al team. Il numero da cui sta chiamando è il migliore per raggiungerla?',
   recordingNotice: 'Questa chiamata potrebbe essere registrata.',
-  keypadOption: (label, key) => `Per ${label}, prema ${key}.`,
-  keypadEnd: 'Oppure mi dica semplicemente come posso aiutarla.',
-  wrongKey: 'Mi dispiace, quel tasto non è nel menu.',
-  justTellMe: 'Mi dica semplicemente come posso aiutarla.',
 }
 
 const pt: SpokenLines = {
@@ -197,10 +171,6 @@ const pt: SpokenLines = {
   urgentFlagged:
     'Marquei isso como urgente para a equipe. O número de onde você está ligando é o melhor para falar com você?',
   recordingNotice: 'Esta ligação pode ser gravada.',
-  keypadOption: (label, key) => `Para ${label}, pressione ${key}.`,
-  keypadEnd: 'Ou simplesmente me diga como posso ajudar.',
-  wrongKey: 'Desculpe, essa tecla não está no menu.',
-  justTellMe: 'Simplesmente me diga como posso ajudar.',
 }
 
 const nl: SpokenLines = {
@@ -225,10 +195,6 @@ const nl: SpokenLines = {
   urgentFlagged:
     'Ik heb dit als dringend gemarkeerd voor het team. Bent u het best bereikbaar op het nummer waarmee u belt?',
   recordingNotice: 'Dit gesprek kan worden opgenomen.',
-  keypadOption: (label, key) => `Voor ${label}, druk op ${key}.`,
-  keypadEnd: 'Of vertel me gewoon waarmee ik u kan helpen.',
-  wrongKey: 'Sorry, die toets staat niet in het menu.',
-  justTellMe: 'Vertel me gewoon waarmee ik u kan helpen.',
 }
 
 const ru: SpokenLines = {
@@ -250,10 +216,6 @@ const ru: SpokenLines = {
   urgentFlagged:
     'Это отмечено для команды как срочное. По номеру, с которого вы звоните, с вами лучше всего связаться?',
   recordingNotice: 'Этот звонок может записываться.',
-  keypadOption: (label, key) => `${label}: нажмите ${key}.`,
-  keypadEnd: 'Или просто скажите, чем я могу помочь.',
-  wrongKey: 'Извините, такой клавиши нет в меню.',
-  justTellMe: 'Просто скажите, чем я могу помочь.',
 }
 
 const hi: SpokenLines = {
@@ -276,10 +238,6 @@ const hi: SpokenLines = {
   urgentFlagged:
     'इसे टीम के लिए ज़रूरी के रूप में चिह्नित कर दिया गया है। क्या जिस नंबर से आप कॉल कर रहे हैं, उसी पर आपसे संपर्क करना सबसे अच्छा रहेगा?',
   recordingNotice: 'यह कॉल रिकॉर्ड की जा सकती है।',
-  keypadOption: (label, key) => `${label} के लिए ${key} दबाएँ।`,
-  keypadEnd: 'या बस बताइए कि मैं आपकी कैसे मदद करूँ।',
-  wrongKey: 'माफ़ कीजिए, यह बटन मेनू में नहीं है।',
-  justTellMe: 'बस बताइए कि मैं आपकी कैसे मदद करूँ।',
 }
 
 const ja: SpokenLines = {
@@ -303,10 +261,6 @@ const ja: SpokenLines = {
     'ありがとうございます。メッセージをお伝えしましたので、担当者からご連絡いたします。ほかに何かございますか？',
   urgentFlagged: '緊急としてチームに伝えました。今おかけの番号にご連絡すればよろしいでしょうか？',
   recordingNotice: 'この通話は録音される場合があります。',
-  keypadOption: (label, key) => `${label}は${key}を押してください。`,
-  keypadEnd: 'または、ご用件をそのままお話しください。',
-  wrongKey: '申し訳ございません、そのボタンはメニューにありません。',
-  justTellMe: 'ご用件をそのままお話しください。',
 }
 
 const LINES: Record<Language, SpokenLines> = { en, es, fr, de, it, pt, nl, ru, hi, ja }

@@ -22,7 +22,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import {
   DEFAULT_TRANSFERS, type ActionItem, type AssistantLanguages, type AssistantVoice, type BookingField, type BusinessProfile, type CallField, type Closure,
-  type KeypadMenu, type ToolEvent, type TransferContact, type WebhookEvent,
+  type ToolEvent, type TransferContact, type WebhookEvent,
 } from './types.ts'
 
 export const rowVersion = pgSequence('row_version')
@@ -109,8 +109,6 @@ export const assistants = pgTable(
     silence_first_gap_s: integer('silence_first_gap_s').notNull().default(8),
     silence_reminders: integer('silence_reminders').notNull().default(2),
     silence_closing: text('silence_closing'),
-    /** Keypad menu after the greeting ("press 1 for…"); null: off (the default). */
-    keypad_menu: jsonb('keypad_menu').$type<KeypadMenu>(),
     /** The behaviour checklist (BEHAVIOURS in @linedesk/actions): only the switches the owner changed; the rest use their default. */
     behaviours: jsonb('behaviours').$type<Record<string, boolean>>().notNull().default({}),
     /** Languages the assistant speaks with callers: English only (the default), English + an allow-list, or any it supports. */

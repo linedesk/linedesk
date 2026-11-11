@@ -421,6 +421,13 @@
       "when": 1794414044160,
       "tag": "0059_drop_call_details",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1794424132831,
+      "tag": "0060_drop_keypad_menu",
+      "breakpoints": true
     }
   ]
 }

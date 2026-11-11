@@ -1,0 +1,1 @@
+ALTER TABLE "assistants" DROP COLUMN "keypad_menu";

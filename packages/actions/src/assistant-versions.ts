@@ -12,7 +12,7 @@ import { silenceClosingOf } from './settings.ts'
 /** The assistant's columns a version keeps: everything that changes a call. */
 export const VERSIONED_FIELDS = [
   'name', 'greeting', 'greeting_known_caller', 'greeting_outside', 'ai_disclosure', 'communication_style', 'behaviours',
-  'business_profile', 'call_rules', 'transfers', 'voice', 'languages', 'keypad_menu',
+  'business_profile', 'call_rules', 'transfers', 'voice', 'languages',
   'silence_first_gap_s', 'silence_reminders', 'silence_closing', 'record_calls',
 ] as const satisfies readonly (keyof Assistant)[]
 export type VersionedField = (typeof VERSIONED_FIELDS)[number]
@@ -29,7 +29,7 @@ export function snapshotOf(a: Assistant, calendars: readonly AssistantCalendar[]
   return { ...fields, calendars: kept }
 }
 
-/** A saved version's settings without keys of fields that were removed since (e.g. `emergency_note`). */
+/** A saved version's settings without keys of fields that were removed since (e.g. `emergency_note`, `keypad_menu`). */
 export function storedSnapshot(settings: unknown): AssistantSnapshot {
   const stored = settings as Record<string, unknown>
   const fields = Object.fromEntries(VERSIONED_FIELDS.filter(k => k in stored).map(k => [k, stored[k]]))
@@ -91,11 +91,6 @@ export const VERSION_PARTS: readonly VersionPart[] = [
       const others = otherLanguagesOf(l)
       return others.length ? `${main}, also ${languageNames(others)}` : `${main} only`
     },
-  },
-  {
-    id: 'keypad_menu',
-    label: 'Keypad menu',
-    text: s => s.keypad_menu?.options?.length ? s.keypad_menu.options.map(o => `${o.key}: ${o.label}${o.action === 'transfer' ? ' (urgent)' : ''}`).join('\n') : 'Off',
   },
   {
     id: 'silence',

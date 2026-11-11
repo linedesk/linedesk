@@ -12,7 +12,6 @@ import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { bookingTools } from './booking-tools.ts'
 import { type CollectContext, collectTools, nudgeIfQuiet } from './collect/collect-tools.ts'
 import { partialPhoneNumberIn } from './collect/collectors.ts'
-import { activeMenu, runKeypadMenu } from './keypad-menu.ts'
 import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log.ts'
 import { callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
@@ -295,8 +294,6 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, [], call.caller, call.documents)
   const collect: CollectContext = {
     log,
-    room: ctx.room,
-    callerIdentity: () => callerIdentity,
     today: () => call.booking?.todayDate ?? new Date().toISOString().slice(0, 10),
     languageRule: collectLanguageRule(call.assistant) ?? undefined,
     addToMessage: detail => addToMessage(api, call, log, detail),
@@ -314,17 +311,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const stopWatching = watchTakeOver({ room: ctx.room, session, log, stopRecording: stopRecordingForTransfer, sayLine, endCall: deleteRoom })
   session.on(voice.AgentSessionEventTypes.Close, stopWatching)
   setup.note(await greet(session, config, call, cachedGreeting, key))
-  let transferOn = false
-  void addTransfer(agent, callerJoined, { ctx, api, call, config, log, endCall, flagUrgent, collect, stopRecording: stopRecordingForTransfer }).then(on => {
-    transferOn = on
-  })
-  const menu = activeMenu(call.assistant)
-  if (menu)
-    void runKeypadMenu({
-      session, room: ctx.room, menu, callerIdentity: () => callerIdentity, canTransfer: () => transferOn,
-      record: event => log.record('system', event),
-      lines: spokenLines(languages.main),
-    }).catch(e => console.warn(`keypad menu on call ${call.callId}: ${e instanceof Error ? e.message : String(e)}`))
+  void addTransfer(agent, callerJoined, { ctx, api, call, config, log, endCall, flagUrgent, collect, stopRecording: stopRecordingForTransfer })
 }
 
 /** Gives the assistant transfer_call, and the instructions for it, once it is known that it can transfer now; true when it did. */

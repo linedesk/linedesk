@@ -185,29 +185,10 @@ export const DEFAULT_SILENCE_CLOSING = "I can't hear anyone on the line, so I'll
 /** The closing line an assistant says: its own, or the default. */
 export const silenceClosingOf = (stored: string | null | undefined) => stored?.trim() || DEFAULT_SILENCE_CLOSING
 
-/** Most options a keypad menu offers: callers forget a longer list. */
-export const KEYPAD_MENU_MAX_OPTIONS = 5
-export const KEYPAD_MENU_LABEL_MAX = 60
-
-/** A keypad menu: keys 1–9, each once, each with what the caller hears ("emergencies") and what it does. */
-export const keypadMenu = z.object({
-  options: z
-    .array(
-      z.object({
-        key: z.string().regex(/^[1-9]$/, 'Keys are 1 to 9.'),
-        label: z.string().trim().min(1, 'Each key needs a label.').max(KEYPAD_MENU_LABEL_MAX),
-        action: z.enum(['transfer', 'topic']),
-      }),
-    )
-    .min(1)
-    .max(KEYPAD_MENU_MAX_OPTIONS)
-    .refine(options => new Set(options.map(o => o.key)).size === options.length, 'Each key can be used once.'),
-})
-
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
-    'Update the assistant: name, greeting, what a caller who called before hears before the greeting (`greeting_known_caller`, `{first_name}` and `{last_name}` filled in; empty: nothing), voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a US number in E.164, null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `keypad_menu` (null: off) plays "press 1 for …" after the greeting; a `transfer` key is an urgent call (put through to the first contact that is reachable, else flagged urgent and a message), a `topic` key tells the assistant what the caller wants. `languages`: `english` (English only, the default), `allowed` (English plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in English. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, listed_prices_only, confirm_number); `ai_disclosure`: whether and when it mentions being an AI (never, when_asked, at_start, at_start_consent: says it and asks whether that is okay); it never claims to be human. `communication_style`: the tone (standard, professional, casual, formal, empathetic).',
+    'Update the assistant: name, greeting, what a caller who called before hears before the greeting (`greeting_known_caller`, `{first_name}` and `{last_name}` filled in; empty: nothing), voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a US number in E.164, null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `languages`: `english` (English only, the default), `allowed` (English plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in English. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, listed_prices_only, confirm_number); `ai_disclosure`: whether and when it mentions being an AI (never, when_asked, at_start, at_start_consent: says it and asks whether that is okay); it never claims to be human. `communication_style`: the tone (standard, professional, casual, formal, empathetic).',
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().min(1).optional(),
@@ -233,8 +214,6 @@ export const assistantUpdate = defineAction({
     silence_first_gap_s: z.number().int().min(SILENCE_FIRST_GAP_MIN_S).max(SILENCE_FIRST_GAP_MAX_S).optional(),
     silence_reminders: z.number().int().min(0).max(SILENCE_REMINDERS_MAX).optional(),
     silence_closing: z.string().trim().max(SILENCE_CLOSING_MAX).nullable().optional(),
-    /** null: no keypad menu (the default). */
-    keypad_menu: keypadMenu.nullable().optional(),
     /** The behaviour checklist: the switches the owner changed (BEHAVIOURS); a missing one uses its default. */
     behaviours: z
       .partialRecord(z.enum([...BEHAVIOUR_IDS, ...REMOVED_BEHAVIOUR_IDS]), z.boolean())

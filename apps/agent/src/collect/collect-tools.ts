@@ -1,7 +1,6 @@
 // The assistant's collection tools: each runs one collection step (collect-task.ts) and returns
 // the confirmed value, or what to do when there is none, in words the assistant can act on.
 import { llm } from '@livekit/agents'
-import type { Room } from '@livekit/rtc-node'
 import { z } from 'zod'
 import type { CallLog } from '../call-log.ts'
 import { CollectTask, type CollectTaskOptions } from './collect-task.ts'
@@ -12,9 +11,6 @@ type AnyCollector = CollectTaskOptions['collector']
 
 export type CollectContext = {
   log: CallLog
-  /** The call's room, for keypad presses; the caller's identity once known. */
-  room: Room | null
-  callerIdentity: () => string | undefined
   /** Today in the business's time zone, YYYY-MM-DD. */
   today: () => string
   /** Which language the steps speak (collectLanguageRule in prompt.ts); default English only. */
@@ -34,18 +30,15 @@ export const SAME_RESPONSE_MS = 300
 /** What a step returns when the caller is on hold for a transfer: it asks nothing. */
 export const ON_HOLD_REPLY = 'The caller is on hold while you put them through to a person: do not ask them anything now.'
 
-async function runStep(ctx: CollectContext, { ctx: run }: llm.ToolOptions, collector: AnyCollector, keypad: boolean) {
+async function runStep(ctx: CollectContext, { ctx: run }: llm.ToolOptions, collector: AnyCollector) {
   await new Promise(resolve => setTimeout(resolve, SAME_RESPONSE_MS))
   if (ctx.log.onHold) return ON_HOLD_REPLY
   const chatCtx = run.session.currentAgent.chatCtx.copy({ excludeFunctionCall: true, excludeInstructions: true })
-  const room = keypad ? ctx.room : null
-  const callerIdentity = ctx.callerIdentity()
   try {
     const task = new CollectTask({
       collector,
       chatCtx,
       ...(ctx.languageRule ? { languageRule: ctx.languageRule } : {}),
-      ...(room ? { keypad: { room, ...(callerIdentity ? { callerIdentity } : {}) } } : {}),
     })
     const outcome = await task.run()
     ctx.log.record('system', outcomeEvent(outcome))
@@ -107,35 +100,35 @@ export function collectTools(ctx: CollectContext) {
   return {
     get_name: llm.tool({
       description: "Get the caller's first and last name, with the last name spelled, and confirm it.",
-      execute: async (_args, opts) => runStep(ctx, opts, nameCollector, false),
+      execute: async (_args, opts) => runStep(ctx, opts, nameCollector),
     }),
     get_phone_number: llm.tool({
-      description: 'Get a phone number from the caller (spoken or typed on the keypad) and confirm it.',
+      description: 'Get a phone number from the caller and confirm it.',
       parameters: z.object({ what: z.string().nullish().describe('What the number is for, e.g. "callback number". Default: callback number.') }),
-      execute: async ({ what }, opts) => runStep(ctx, opts, phoneCollector(what?.trim() || 'callback number'), true),
+      execute: async ({ what }, opts) => runStep(ctx, opts, phoneCollector(what?.trim() || 'callback number')),
     }),
     get_address: llm.tool({
       description: 'Get the street address of a visit (US) and confirm it.',
-      execute: async (_args, opts) => runStep(ctx, opts, addressCollector, false),
+      execute: async (_args, opts) => runStep(ctx, opts, addressCollector),
     }),
     get_email: llm.tool({
       description: "Get the caller's email address, spelled, and confirm it.",
-      execute: async (_args, opts) => runStep(ctx, opts, emailCollector, false),
+      execute: async (_args, opts) => runStep(ctx, opts, emailCollector),
     }),
     get_date: llm.tool({
       description: 'Get a date from the caller (for example a preferred day or a date of birth) and confirm it.',
       parameters: z.object({ what: z.string().describe('What the date is, e.g. "preferred day".') }),
-      execute: async ({ what }, opts) => runStep(ctx, opts, dateCollector({ what, today: ctx.today() }), false),
+      execute: async ({ what }, opts) => runStep(ctx, opts, dateCollector({ what, today: ctx.today() })),
     }),
     get_digits: llm.tool({
-      description: 'Get a number made of digits (account, policy, ZIP code) by keypad or speech, and confirm it.',
+      description: 'Get a number made of digits (account, policy, ZIP code) and confirm it.',
       parameters: z.object({
         what: z.string().describe('What it is, e.g. "account number".'),
         min_digits: z.number().int().min(1).max(20).describe('Fewest digits it can have.'),
         max_digits: z.number().int().min(1).max(20).describe('Most digits it can have.'),
       }),
       execute: async ({ what, min_digits, max_digits }, opts) =>
-        runStep(ctx, opts, digitsCollector({ what, minDigits: Math.min(min_digits, max_digits), maxDigits: Math.max(min_digits, max_digits), keypad: true }), true),
+        runStep(ctx, opts, digitsCollector({ what, minDigits: Math.min(min_digits, max_digits), maxDigits: Math.max(min_digits, max_digits) })),
     }),
   }
 }

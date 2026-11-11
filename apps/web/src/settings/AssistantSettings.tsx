@@ -1,10 +1,10 @@
 // Assistant settings by topic, one section at a time (#assistant/<id>/<section>): general (greeting), business
 // info, hours and holidays, rules (AI disclosure, tone, behaviour checklist), transfers (transfer
-// contacts), booking, voice, and Advanced (languages, raw call rules, silence, keypad menu).
+// contacts), booking, voice, and Advanced (languages, raw call rules, silence).
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays and booking save on their own.
-import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, CALL_RULES_MAX, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, DEFAULT_CALL_RULES, DEFAULT_KNOWN_CALLER_GREETING, knownCallerGreetingProblem, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS, type AssistantLanguages, type Language, languageCodes, LANGUAGES, GREETING_VARIABLES, greetingVariablePattern, usesGreetingVariable } from '@linedesk/actions'
-import type { Assistant, KeypadMenuAction, KeypadMenuOption, PhoneNumber } from '@linedesk/db/types'
+import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, CALL_RULES_MAX, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, DEFAULT_CALL_RULES, DEFAULT_KNOWN_CALLER_GREETING, knownCallerGreetingProblem, SILENCE_CLOSING_MAX, type AssistantLanguages, type Language, languageCodes, LANGUAGES, GREETING_VARIABLES, greetingVariablePattern, usesGreetingVariable } from '@linedesk/actions'
+import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
@@ -23,14 +23,11 @@ import {
   isDefaultCallRules,
   isDirty,
   keepDraft,
-  keypadProblem,
-  keypadToSave,
   languagesProblem,
   languagesToSave,
   mainOf,
   pickedOthers,
   withMainLanguage,
-  nextFreeKey,
   keptDraft,
   mergeDraft,
   normalized,
@@ -67,7 +64,7 @@ const sections: readonly PageSection<SectionId>[] = [
   { id: 'transfers', label: 'Transfers', description: 'Who calls are put through to' },
   { id: 'booking', label: 'Booking & Calendar', description: 'Calendars and appointment types' },
   { id: 'voice', label: 'Voice', description: 'How the assistant sounds' },
-  { id: 'advanced', label: 'Advanced', description: 'Languages, call rules, silence, keypad menu' },
+  { id: 'advanced', label: 'Advanced', description: 'Languages, call rules, silence' },
 ]
 /** Sections that save on their own, outside the assistant's draft. */
 type OwnSection = 'hours' | 'booking'
@@ -78,7 +75,7 @@ const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   rules: ['ai_disclosure', 'communication_style', 'behaviours'],
   transfers: ['transfers'],
   voice: ['voice'],
-  advanced: ['call_rules', 'silence_first_gap_s', 'silence_reminders', 'silence_closing', 'keypad_on', 'keypad_options', 'languages'],
+  advanced: ['call_rules', 'silence_first_gap_s', 'silence_reminders', 'silence_closing', 'languages'],
 }
 /** Section ids from before the regrouping, so old links and bookmarks still land in the right place. */
 const OLD_SECTIONS: Record<string, SectionId> = {
@@ -272,87 +269,6 @@ function CallRules({ draft, set }: SectionProps) {
   )
 }
 
-const keyOptions = ['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(k => ({ value: k, label: k }))
-const actionOptions: { value: KeypadMenuAction; label: string; description: string }[] = [
-  { value: 'transfer', label: 'Urgent', description: 'Put through to a transfer contact that fits urgent calls, else marked urgent with a message' },
-  { value: 'topic', label: 'Topic', description: 'The assistant knows what the call is about and goes on' },
-]
-
-/** What the caller hears, as the voice agent says it. */
-const menuPreview = (options: KeypadMenuOption[]) =>
-  `${[...options].sort((a, b) => a.key.localeCompare(b.key)).map(o => `For ${o.label.trim() || '…'}, press ${o.key}.`).join(' ')} Or just tell me how I can help.`
-
-function KeypadMenu({ draft, set }: SectionProps) {
-  const problem = keypadProblem(draft)
-  const options = draft.keypad_options
-  const update = (i: number, change: Partial<KeypadMenuOption>) =>
-    set('keypad_options', options.map((o, j) => (j === i ? { ...o, ...change } : o)))
-  const free = nextFreeKey(options)
-  return (
-    <Section
-      id="as-keypad"
-      title="Keypad menu"
-      help={`Off by default. When on, ${assistantName(draft)} reads a short menu right after the greeting and callers can press a key or just start talking. An urgent key is handled like an emergency: put through to your on-call number when transfer is on, otherwise marked urgent with a message.`}
-    >
-      <SwitchRow title="Play a keypad menu" on={draft.keypad_on} onChange={on => set('keypad_on', on)} />
-      {draft.keypad_on && (
-        <>
-          {options.map((option, i) => (
-            <div className="as-keypad-row" key={option.key}>
-              <Select
-                id={`as-keypad-key-${i}`}
-                value={option.key}
-                label="Key"
-                size="sm"
-                options={keyOptions.filter(k => k.value === option.key || !options.some(o => o.key === k.value))}
-                onChange={key => update(i, { key })}
-              />
-              <TextInput
-                id={`as-keypad-label-${i}`}
-                label="What the caller hears after For"
-                value={option.label}
-                onChange={label => update(i, { label: label.slice(0, KEYPAD_MENU_LABEL_MAX) })}
-                placeholder="emergencies"
-                invalid={!option.label.trim()}
-              />
-              <Select
-                id={`as-keypad-action-${i}`}
-                value={option.action}
-                label="What the key does"
-                size="sm"
-                align="end"
-                options={actionOptions}
-                onChange={action => update(i, { action })}
-              />
-              <Button
-                size="sm"
-                variant="ghost"
-                icon="trash"
-                title="Remove this key"
-                aria-label="Remove this key"
-                onClick={() => set('keypad_options', options.filter((_, j) => j !== i))}
-              />
-            </div>
-          ))}
-          {free && options.length < KEYPAD_MENU_MAX_OPTIONS && (
-            <div>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon="plus"
-                onClick={() => set('keypad_options', [...options, { key: free, label: '', action: 'topic' }])}
-              >
-                Add key
-              </Button>
-            </div>
-          )}
-          {problem ? <span className="help as-stale">{problem}</span> : <span className="help">"{menuPreview(options)}"</span>}
-        </>
-      )}
-    </Section>
-  )
-}
-
 const languageOptions = languageCodes.map(code => ({ value: code, label: LANGUAGES[code] }))
 const alsoModes = (main: string): { value: AssistantLanguages['mode']; label: string; description: string }[] => [
   { value: 'english', label: 'None', description: `Other languages: answered in ${main}, with an offer to take a message` },
@@ -476,7 +392,6 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
       return goTo('transfers', transferFieldId(transfer.index, transfer.field))
     }
     if (silenceProblem(draft)) return goTo('advanced', 'as-silence-gap')
-    if (keypadProblem(draft)) return goTo('advanced', 'as-keypad-label-0')
     if (languagesProblem(draft)) return goTo('advanced', 'as-languages-mode')
     const problem = draftProblem(draft)
     if (problem) return toast(problem)
@@ -497,7 +412,6 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         // Only when changed: putting calls through to a number waits for a confirmed email, other edits do not.
         ...(JSON.stringify(clean.transfers) !== JSON.stringify(normalized(saved).transfers) ? { transfers: transfersToSave(clean) } : {}),
         ...silenceToSave(clean),
-        ...keypadToSave(clean),
         behaviours: behavioursToSave(clean),
         ...languagesToSave(clean),
         voice: clean.voice,
@@ -558,7 +472,6 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
             <Languages draft={draft} set={set} replace={setDraft} />
             <CallRules draft={draft} set={set} />
             <Advanced draft={draft} set={set} />
-            <KeypadMenu draft={draft} set={set} />
           </>
         )}
       </fieldset>

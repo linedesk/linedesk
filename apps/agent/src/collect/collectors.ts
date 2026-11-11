@@ -1,6 +1,6 @@
 // What each collection step asks for, how it checks what the caller said and how it reads it back.
-// Ported from LiveKit's Python ready-made tasks (beta/workflows: GetDtmfTask, GetPhoneNumberTask,
-// GetNameTask, GetEmailTask, GetAddressTask, GetDOBTask): the same prompts and checks, but the
+// Ported from LiveKit's Python ready-made tasks (beta/workflows: GetPhoneNumberTask, GetNameTask,
+// GetEmailTask, GetAddressTask, GetDOBTask): the same prompts and checks, but the
 // normalizing of spoken input is done in code (spoken.ts), so it is the same on every model.
 import { z } from 'zod'
 import { capitalizeName, readDigits, readLetters, spokenDigits, spokenEmail, spokenLetters } from './spoken.ts'
@@ -23,8 +23,6 @@ export interface Collector<Args extends Record<string, unknown>, T> {
   instructions: string
   /** The first question. */
   ask: string
-  /** The caller may type it on the keypad (digits only). */
-  keypad?: { minDigits: number; maxDigits: number; toArgs(digits: string): Args }
 }
 
 const ok = <T>(value: T): Parsed<T> => ({ ok: true, value })
@@ -32,9 +30,9 @@ const problem = (text: string): Parsed<never> => ({ ok: false, problem: text })
 
 // ---------- digits (account, ZIP, policy number) ----------
 
-export type DigitsOptions = { what: string; minDigits: number; maxDigits: number; keypad: boolean }
+export type DigitsOptions = { what: string; minDigits: number; maxDigits: number }
 
-export function digitsCollector({ what, minDigits, maxDigits, keypad }: DigitsOptions): Collector<{ digits: string }, string> {
+export function digitsCollector({ what, minDigits, maxDigits }: DigitsOptions): Collector<{ digits: string }, string> {
   const length = minDigits === maxDigits ? `${minDigits} digits` : `${minDigits} to ${maxDigits} digits`
   return {
     kind: 'digits',
@@ -49,10 +47,7 @@ export function digitsCollector({ what, minDigits, maxDigits, keypad }: DigitsOp
     display: d => d,
     readBack: d => readDigits(d, d.length > 4 ? [3, 3] : []),
     instructions: `You collect the ${what} (${length}). Callers say digits as words ("five oh three"), in groups, or with "double". Pass what they said as it is; the tool turns it into digits.`,
-    ask: keypad
-      ? `Ask for the ${what}: they can type it on the phone keypad and then press the pound key, or say it.`
-      : `Ask for the ${what}.`,
-    ...(keypad ? { keypad: { minDigits, maxDigits, toArgs: (digits: string) => ({ digits }) } } : {}),
+    ask: `Ask for the ${what}.`,
   }
 }
 
@@ -84,7 +79,7 @@ export function partialPhoneNumberIn(text: string): string | null {
   return null
 }
 
-export function phoneCollector(what = 'callback number', keypad = true): Collector<{ phone_number: string }, string> {
+export function phoneCollector(what = 'callback number'): Collector<{ phone_number: string }, string> {
   return {
     kind: 'phone_number',
     label: what,
@@ -93,10 +88,7 @@ export function phoneCollector(what = 'callback number', keypad = true): Collect
     display: e164 => e164,
     readBack: e164 => (e164.startsWith('+1') ? readDigits(e164.slice(2), [3, 3]) : `plus ${readDigits(e164.slice(1))}`),
     instructions: `You collect the caller's ${what}. Callers say numbers as words ("five oh three"), in groups, or "area code …". Pass what they said; the tool checks it. If it is unclear after a try, ask for the area code first, then the rest. Never read it back as one block: read it in groups.`,
-    ask: keypad
-      ? `Ask for the ${what}: they can say it, or type it on the keypad and press pound.`
-      : `Ask for the ${what}.`,
-    ...(keypad ? { keypad: { minDigits: 10, maxDigits: 11, toArgs: (digits: string) => ({ phone_number: digits }) } } : {}),
+    ask: `Ask for the ${what}.`,
   }
 }
 
