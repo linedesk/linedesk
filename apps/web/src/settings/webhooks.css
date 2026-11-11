@@ -35,7 +35,7 @@
   font-size: 12.5px;
 }
 
-/* Settings > Call details: the export's date range and button on one line. */
+/* Settings > Export calls: the date range and button on one line. */
 .cf-export {
   display: flex;
   flex-wrap: wrap;

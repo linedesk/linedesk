@@ -1,5 +1,5 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, type AssistantRestoreData, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, type CallCustomField, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, } from '@linedesk/actions'
+import { actions, type AssistantRestoreData, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, } from '@linedesk/actions'
 import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, localDate } from '@linedesk/calendar'
 import {assistant_calendars, assistants, availability_exceptions, availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, syncedTables,
   transcript_segments, workspace_members, workspace_settings, type Tx,
@@ -44,7 +44,7 @@ import { pushHandlers } from './push.ts'
 import { contactImportHandlers } from './contact-import.ts'
 import { contactMergeHandlers } from './contact-merge.ts'
 import { keepsRecordings } from './recording-retention.ts'
-import { callDetailsHandlers, customFieldsOf, finishedDetails } from './call-details.ts'
+import { callExportHandlers } from './call-export.ts'
 import { clearCallPayloads, queueCallFinishedEvents, queueWebhookEvent, webhookData, webhookHandlers } from './webhooks.ts'
 
 export { Forbidden, Reject, type HandlerCtx, type Undo }
@@ -239,12 +239,9 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   const history = source === 'phone' && contact && !blocked
     ? await callerHistory(tx, workspace_id, contact.row, { callId: id, now, canChangeBookings: booking?.canChangeBookings === true })
     : null
-  // The workspace's custom fields: the agent asks callers for those with ask_caller, the summary fills all.
-  const customFields: CallCustomField[] = blocked ? [] : (await customFieldsOf(tx, workspace_id))
-    .map(f => ({ id: f.id, label: f.label, type: f.type, options: f.options, ask_caller: f.ask_caller, instruction: f.instruction }))
   return {
     rows: { calls: [call!], ...(contact ? { contacts: [contact.row] } : {}) },
-    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: assistant ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, keepRecording, callerHistory: history, documents, customFields },
+    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: assistant ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, keepRecording, callerHistory: history, documents },
   }
 }
 
@@ -417,7 +414,7 @@ const handlers: Record<string, Handler> = {
   ...webhookHandlers,
   ...knowledgeHandlers,
   ...knowledgeQuestionHandlers,
-  ...callDetailsHandlers,
+  ...callExportHandlers,
 
   // The patch, and the webhook payloads and command log entries that carry the call are cleared (they hold the caller's details).
   'call.delete': async (ctx, input) => {
@@ -566,7 +563,6 @@ const handlers: Record<string, Handler> = {
       outcome, urgency,
       title: input.title ?? call.title, summary: input.summary ?? call.summary,
       action_items: input.actionItems ?? call.action_items, fields: input.fields ?? call.fields,
-      ...(await finishedDetails(tx, call, input)),
     }).where(eq(calls.id, call.id)).returning()
     const rows: ActionResult['rows'] = { calls: [updated!] }
     if (input.callerName && call.contact_id) {

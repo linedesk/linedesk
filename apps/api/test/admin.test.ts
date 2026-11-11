@@ -1520,7 +1520,6 @@ describe('impersonation', () => {
       'call.remind',
       'carrier.get',
       'carrier.transferTrunk',
-      'customField.list',
       'impersonation.stop',
       'insights.get',
       'invitation.listMine',

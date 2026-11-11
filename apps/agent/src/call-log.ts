@@ -1,5 +1,4 @@
 // What happened in one call, and how it ends: every call that was started gets finished.
-import type { LeadInput } from '@linedesk/actions'
 import type { CallSession, Speaker } from './call-session.ts'
 import { withRetry, type RetryOptions } from './retry.ts'
 import { mergeToolResults, summarizeCall, unsummarizedResult, type CompleteJson, type TranscriptLine } from './summary.ts'
@@ -15,8 +14,6 @@ export class CallLog {
   readonly bookings: string[] = []
   /** The caller was put through to the on-call person (a warm transfer that connected). */
   transferred = false
-  /** Lead details the caller gave to a tool (take_message, book_appointment): they win over the summary. */
-  lead: LeadInput = {}
   private pending: Promise<unknown>[] = []
 
   private call: CallSession
@@ -56,13 +53,13 @@ export const SUMMARY_RETRY_DELAY_MS = 2000
 /** Summarizes; a failed request (a rate limit, a bad answer) is tried once more after a short pause. */
 async function summarizeWithRetry(call: CallSession, log: CallLog, complete: CompleteJson, retry?: RetryOptions) {
   try {
-    return await summarizeCall(log.lines, complete, log.messages, call.customFields)
+    return await summarizeCall(log.lines, complete, log.messages)
   } catch (e) {
     if (isTimeout(e)) throw e
     console.warn(`summary of call ${call.callId} failed, trying once more: ${message(e)}`)
     const pause = retry?.wait ?? ((ms: number) => new Promise(resolve => setTimeout(resolve, ms)))
     await pause(SUMMARY_RETRY_DELAY_MS)
-    return summarizeCall(log.lines, complete, log.messages, call.customFields)
+    return summarizeCall(log.lines, complete, log.messages)
   }
 }
 

@@ -1,8 +1,6 @@
 // Insights (insights.get): counts over the workspace's calls for the last 7, 30 or 90 days and the span
 // before it, from calls, bookings, transcripts and business hours. One query, grouped by local day
 // and hour; the totals, the daily series and the busiest hours and weekdays are folded from it.
-// A call's tag (call.setTag, set from the summary or by the team) counts as well as its outcome:
-// tagged booked, message, transferred or spam is counted as one, also when the outcome says otherwise.
 import type { InsightCounts, InsightRange, InsightsData } from '@linedesk/actions'
 import { availability_rules, type Tx, workspace_settings } from '@linedesk/db'
 import { eq, sql } from 'drizzle-orm'
@@ -130,7 +128,7 @@ async function queryBuckets(
         (c.outcome = 'hangup' and not exists (
           select 1 from transcript_segments s where s.call_id = c.id and s.speaker in ('agent', 'human')
         )) as missed,
-        (c.outcome = 'booked' or c.tag = 'booked' or exists (
+        (c.outcome = 'booked' or exists (
           select 1 from bookings b where b.call_id = c.id and b.workspace_id = c.workspace_id and b.status <> 'cancelled'
         )) as booked_any
       from calls c
@@ -138,7 +136,7 @@ async function queryBuckets(
         and c.status = 'completed' and c.started_at >= ${startOf(2 * days - 1)}
     ),
     k as (
-      select c.*, coalesce(c.outcome = 'spam' or c.tag = 'spam', false) as is_spam, not (${openAt(workspaceId, local)}) as closed from c
+      select c.*, coalesce(c.outcome = 'spam', false) as is_spam, not (${openAt(workspaceId, local)}) as closed from c
     )
     select current, to_char(local, 'YYYY-MM-DD') as day, extract(hour from local)::int as hour,
       count(*)::int as calls,
@@ -146,8 +144,8 @@ async function queryBuckets(
       count(*) filter (where missed)::int as missed,
       count(*) filter (where urgency = 'urgent' and not is_spam)::int as urgent,
       count(*) filter (where booked_any and not is_spam)::int as booked,
-      count(*) filter (where (outcome in ('message', 'callback') or tag = 'message') and not is_spam)::int as messages,
-      count(*) filter (where (outcome = 'transferred' or tag = 'transferred' or transfer_result = 'connected') and not is_spam)::int as transferred,
+      count(*) filter (where outcome in ('message', 'callback') and not is_spam)::int as messages,
+      count(*) filter (where (outcome = 'transferred' or transfer_result = 'connected') and not is_spam)::int as transferred,
       count(*) filter (where is_spam)::int as spam,
       coalesce(sum(duration_sec), 0)::int as seconds,
       count(*) filter (where closed and not missed and not is_spam)::int as after_hours,

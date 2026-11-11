@@ -22,7 +22,7 @@ import { asc, eq } from 'drizzle-orm'
 import { auth } from './auth.ts'
 import { db, pool } from './db.ts'
 import { demoRecordingWav, writeDemoRecording } from './demo-recording.ts'
-import { GREETING, seedCalls, leadOf } from './demo-calls.ts'
+import { GREETING, seedCalls } from './demo-calls.ts'
 import { recordingsDir } from './recording-store.ts'
 import { seedUserWorkspace } from './seed-workspace.ts'
 
@@ -107,7 +107,6 @@ async function seedCallsAndContacts(workspace_id: string) {
       summary: c.summary,
       action_items: c.next ? [{ text: c.next }] : [],
       fields: c.fields ?? [],
-      ...leadOf(c),
       unread: c.unread ?? true,
     })
     // Turns spread over the call, the first one at 0:00.

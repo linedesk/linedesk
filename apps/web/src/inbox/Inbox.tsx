@@ -1,5 +1,4 @@
-import { tagLabels } from '@linedesk/actions'
-import type { Call, CallTag } from '@linedesk/db/types'
+import type { Call } from '@linedesk/db/types'
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { SegmentsByCall } from '../call/segments.ts'
 import type { CallGroups, InboxTab } from '../inbox-model.ts'
@@ -46,11 +45,11 @@ const emptyTitle: Record<InboxTab, string> = {
   unassigned: 'Every call that needs someone has someone',
   review: 'Nothing to review',
 }
-function Empty({ tab, search, tag }: { tab: InboxTab; search: string | null; tag: CallTag | null }) {
+function Empty({ tab, search }: { tab: InboxTab; search: string | null }) {
   return (
     <div className="empty">
       <Icon name={tab === 'done' ? 'check' : tab === 'reminders' ? 'clock' : 'tasks'} size={22} />
-      <b>{search ? `No call mentions “${search}”` : tag ? `No calls tagged ${tagLabels[tag]} here` : emptyTitle[tab]}</b>
+      <b>{search ? `No call mentions “${search}”` : emptyTitle[tab]}</b>
     </div>
   )
 }
@@ -83,14 +82,14 @@ function Hints({ tab }: { tab: InboxTab }) {
 
 /** The list of calls for one view, grouped by day. */
 export function Inbox({ list, segments, cursor, leaving, entering, menu, selected, bulk, groups, ...rest }: Props) {
-  const { tab, search, tag, counts } = rest
+  const { tab, search, counts } = rest
   const listRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (cursor) listRef.current?.querySelector('.is-cursor')?.scrollIntoView({ block: 'nearest' })
   }, [cursor])
   const day = (c: Call) => dayLabel(parseTs(c.started_at))
   const loadState = useLoadState('calls') // before the first sync an empty list is not "nothing needs you"
-  const zero = !list.length && tab === 'you' && search === null && !tag && loadState === 'ready'
+  const zero = !list.length && tab === 'you' && search === null && loadState === 'ready'
   // Screen readers hear the call under the cursor as J and K move it (the rows themselves never take focus).
   const [spoken, setSpoken] = useState('')
   useEffect(() => {
@@ -142,7 +141,7 @@ export function Inbox({ list, segments, cursor, leaving, entering, menu, selecte
         ) : zero ? (
           <InboxZero handledCount={counts.ai} hasAnyCalls={Object.values(counts).some(n => n > 0)} />
         ) : (
-          !list.length && <Empty tab={tab} search={search} tag={tag} />
+          !list.length && <Empty tab={tab} search={search} />
         )}
       </div>
       {list.length ? <Hints tab={tab} /> : null}

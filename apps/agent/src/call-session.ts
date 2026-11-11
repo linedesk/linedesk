@@ -1,5 +1,5 @@
 // One call as the agent sees it: start, append transcript segments, finish.
-import { type BookingContext, type CallCustomField, type CallDocuments, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, DEFAULT_AI_DISCLOSURE, DEFAULT_KNOWN_CALLER_GREETING, greetingWithDisclosure, localizedDefault, mainLanguageOf, silenceClosingOf } from '@linedesk/actions'
+import { type BookingContext, type CallDocuments, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, DEFAULT_AI_DISCLOSURE, DEFAULT_KNOWN_CALLER_GREETING, greetingWithDisclosure, localizedDefault, mainLanguageOf, silenceClosingOf } from '@linedesk/actions'
 import type { Assistant, Contact, ToolEvent, TransferContact } from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
@@ -35,8 +35,6 @@ export interface CallSession {
   businessHours: BusinessHours | null
   /** What the assistant can book; null: no appointment type or no calendar, so it only takes messages. */
   booking: BookingContext | null
-  /** The workspace's custom fields: the assistant asks for those with `ask_caller`, the summary fills all. */
-  customFields: CallCustomField[]
   /** false: the workspace keeps no recordings (Settings, Recordings: Don't keep), so the call is not recorded. Missing: record. */
   keepRecording?: boolean
   /**
@@ -63,8 +61,6 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
   booking?: BookingContext | null
   /** The workspace's recording notice, said right after the greeting; null or missing: off. */
   recordingNotice?: string | null
-  /** Missing from an API of an older version: none. */
-  customFields?: CallCustomField[]
   /** Missing (older API): recordings are kept. */
   keepRecording?: boolean
   documents?: CallDocuments | null
@@ -167,7 +163,6 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   const startedAt = Date.now()
   return {
     callId, ...scope, assistant, contact, blocked, busy, overCap, businessHours, booking, caller, documents: started.documents ?? null,
-    customFields: started.customFields ?? [],
     keepRecording: started.keepRecording !== false,
     businessNumber: origin.kind === 'phone' ? origin.to : null,
     simulatedOnCall: onCall?.answer ?? null,

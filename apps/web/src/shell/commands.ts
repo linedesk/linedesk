@@ -1,6 +1,5 @@
 // ⌘K lists what can be done right now: the actions for the selected call, places to go, app commands.
-import { tagLabels } from '@linedesk/actions'
-import { type Call, type CallTag, callTags, type WorkspaceMember } from '@linedesk/db/types'
+import type { Call, WorkspaceMember } from '@linedesk/db/types'
 import { hasReminder } from '../inbox-model.ts'
 import { memberLabel } from '../team/members.ts'
 import type { CommandGroup, CommandItem } from '../ui/CommandMenu.tsx'
@@ -19,10 +18,8 @@ export type CommandContext = {
   remove: (call: Call) => void
   toggleSpam: (call: Call) => void
   toggleBlock: (call: Call) => void
-  /** Tag the call (null: remove the tag). */
-  setTag?: (call: Call, tag: CallTag | null) => void
-  /** The inbox's tag filter: the active tag, the picker, and clearing it. */
-  tagFilter?: { active: CallTag | null; open: () => void; clear: () => void }
+  /** Flag the call as urgent, or take the flag off (normal). */
+  setUrgent?: (call: Call, urgent: boolean) => void
   /** The signed-in member's user id. */
   me: string
   /** Assigning; null while the workspace has a single member (then nothing about it is offered). */
@@ -100,18 +97,17 @@ function callCommands(call: Call, c: CommandContext): Command[] {
       run: () => c.toggleBlock(call),
     },
     { label: 'Delete call', keywords: 'remove trash', icon: 'trash', shortcut: ['#'], run: () => c.remove(call) },
-    ...tagCommands(call, c),
+    ...urgentCommands(call, c),
   ]
 }
 
-/** "Tag as …" for each tag the call does not have, and removing its tag. */
-function tagCommands(call: Call, c: CommandContext): Command[] {
-  const setTag = c.setTag
-  if (!setTag) return []
-  const tagAs = callTags
-    .filter(tag => tag !== call.tag)
-    .map(tag => ({ label: `Tag as ${tagLabels[tag]}`, keywords: 'tag label kind lead', icon: 'flag', run: () => setTag(call, tag) }) satisfies Command)
-  return call.tag ? [...tagAs, { label: 'Remove tag', keywords: 'tag untag', icon: 'close', run: () => setTag(call, null) }] : tagAs
+/** Mark urgent, or Not urgent on an urgent call: the team's own say over the urgent flag. */
+function urgentCommands(call: Call, c: CommandContext): Command[] {
+  const setUrgent = c.setUrgent
+  if (!setUrgent) return []
+  return call.urgency === 'urgent'
+    ? [{ label: 'Not urgent', keywords: 'urgent flag emergency priority', icon: 'close', run: () => setUrgent(call, false) }]
+    : [{ label: 'Mark urgent', keywords: 'urgent flag emergency priority', icon: 'flag', run: () => setUrgent(call, true) }]
 }
 
 /**
@@ -189,12 +185,6 @@ function selectCommands(s: NonNullable<CommandContext['selection']>, hasTarget: 
   ]
 }
 
-/** Filter by tag… opens the tag menu; Clear tag filter while one is on. */
-function tagFilterCommands(f: NonNullable<CommandContext['tagFilter']>): Command[] {
-  const open: Command = { label: 'Filter by tag…', keywords: 'tag show only lead booked message spam wrong number customer', icon: 'flag', run: f.open }
-  return f.active ? [open, { label: `Clear tag filter (${tagLabels[f.active]})`, keywords: 'tag all show every', icon: 'close', run: f.clear }] : [open]
-}
-
 export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
   return [
     ...(c.target ? [{ label: `Selected call · ${c.targetName}`, items: callCommands(c.target, c) }] : []),
@@ -205,7 +195,6 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
         { label: 'Go to Inbox', icon: 'phone', shortcut: ['G', 'I'], run: () => c.goInbox('you') },
         { label: 'Go to Done', icon: 'check', shortcut: ['G', 'E'], run: () => c.goInbox('done') },
         { label: 'Go to Reminders', icon: 'clock', shortcut: ['G', 'H'], run: () => c.goInbox('reminders') },
-        ...(c.tagFilter ? tagFilterCommands(c.tagFilter) : []),
         ...(c.assign ? assigneeViewCommands(c.assign, c) : []),
         ...(c.canReview ? [{ label: 'Go to Needs review', icon: 'flag' as const, shortcut: ['G', 'R'], run: () => c.goInbox('review') }] : []),
         { label: 'Go to Contacts', icon: 'contact', shortcut: ['G', 'C'], run: () => c.goPage('contacts') },

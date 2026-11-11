@@ -1,7 +1,6 @@
 // The signed-in app: composes the inbox, the pages, the navigation, overlays and toasts.
-import { offersTour, tagLabels } from '@linedesk/actions'
-import { type Call, callTags } from '@linedesk/db/types'
-import type { IconName } from './ui/icons.ts'
+import { offersTour } from '@linedesk/actions'
+import type { Call } from '@linedesk/db/types'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from './cachedQuery.ts'
 import { loadReview, REVIEW_KEY } from './call/EvaluationCard.tsx'
@@ -204,15 +203,6 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
     setPicker({ label: 'Assign', placeholder: 'Assign to…', groups, anchor })
     setOverlay('pick')
   }
-  /** ⌘K Filter by tag…: a menu of the tags; picking one shows only those calls, in every view. */
-  function openTagFilter() {
-    const items: Command[] = [
-      ...(view.tag ? [{ label: 'All tags', icon: 'close' as const, run: () => view.setTag(null) }] : []),
-      ...callTags.map(tag => ({ label: tagLabels[tag], icon: (view.tag === tag ? 'check' : 'flag') as IconName, run: () => view.setTag(tag) })),
-    ]
-    setPicker({ label: 'Filter by tag', placeholder: 'Show only calls tagged…', groups: [{ label: null, items }] })
-    setOverlay('pick')
-  }
   /** Switch between the assignee views (the title of one, as a menu). */
   function openAssigneeViews(anchor: DOMRect) {
     const groups = assigneeViewGroups(members, me.actorId).map(g => ({
@@ -350,8 +340,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
   const runAction = useRun()
   const commands = commandGroups({
     ...callHandlers,
-    setTag: (call, tag) => void runAction('call.setTag', { callId: call.id, tag }),
-    tagFilter: { active: view.tag, open: openTagFilter, clear: () => view.setTag(null) },
+    setUrgent: (call, urgent) => void runAction('call.setUrgency', { callId: call.id, urgency: urgent ? 'urgent' : 'normal' }),
     me: me.actorId,
     assign: canAssign
       ? {
@@ -532,8 +521,6 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
             }}
             tab={tab}
             setTab={view.setTab}
-            tag={view.tag}
-            setTag={view.setTag}
             counts={view.counts}
             liveCall={view.liveCall}
             onOpen={open}
@@ -554,7 +541,6 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
               view.setCursor(c.id)
               setOverlay('commands')
             }}
-            onFilterTag={view.setTag}
           />
         )}
         {workspaceDisabled && (

@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { callTag, leadInput } from './call-details.ts'
 import { defineAction, type PatchSpec } from './define.ts'
 import type { Call } from '@linedesk/db/types'
 
@@ -304,12 +303,8 @@ export const callFinish = defineAction({
     summary: z.string().optional(),
     actionItems: z.array(z.object({ text: z.string(), done: z.boolean().optional() })).optional(),
     fields: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+    /** The caller's name as the summary found it: names the contact when it has no name yet. */
     callerName: z.string().optional(),
-    /** The lead details the summary and the assistant's tools found; the API keeps what the team already set. */
-    lead: leadInput.optional(),
-    tag: callTag.optional(),
-    /** Custom field values by field id, as the summary found them; the API checks each against its field. */
-    customValues: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
   }),
   permission: 'agent',
   logged: 'ids',
@@ -329,6 +324,17 @@ export const callFlagUrgent = defineAction({
   input: callId,
   permission: 'agent',
   patch: { table: 'calls', id: i => i.callId, set: () => ({ urgency: 'urgent' }) } satisfies PatchSpec<CallId, 'calls'>,
+})
+
+const setUrgencyInput = callId.extend({ urgency })
+/** The team's own urgent flag (⌘K Mark urgent / Not urgent). */
+export const callSetUrgency = defineAction({
+  name: 'call.setUrgency',
+  description: "Set how urgent a call is: urgent puts it at the top of the inbox; normal or low takes the flag off.",
+  input: setUrgencyInput,
+  permission: 'call:write',
+  public: true,
+  patch: { table: 'calls', id: i => i.callId, set: i => ({ urgency: i.urgency }) } satisfies PatchSpec<z.infer<typeof setUrgencyInput>, 'calls'>,
 })
 
 // Recordings. The key is never taken from a client: both sides derive it from the workspace and the call.

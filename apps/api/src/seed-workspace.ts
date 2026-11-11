@@ -22,7 +22,7 @@ import {
 import { DEFAULT_AI_DISCLOSURE, RING_SECONDS_DEFAULT, withoutDisclosure } from '@linedesk/actions'
 import { and, asc, eq, inArray, like } from 'drizzle-orm'
 import { db } from './db.ts'
-import { DEMO_ASSISTANT, GREETING, leadOf, type SeedCall, seedCalls } from './demo-calls.ts'
+import { DEMO_ASSISTANT, GREETING, type SeedCall, seedCalls } from './demo-calls.ts'
 import { renamed } from './sample-calls.ts'
 
 type Booking = { type: string; inDays: number; hour: number; status?: 'confirmed' | 'rescheduled' }
@@ -586,7 +586,6 @@ async function seedCallsFor(ctx: CallContext, list: WorkspaceSeedCall[]) {
       summary: say(c.summary),
       action_items: c.next ? [{ text: say(c.next) }] : [],
       fields: c.fields ?? [],
-      ...leadOf(c),
       assistant_id: ctx.assistantId,
       unread: c.unread ?? true,
       inbox_state: c.done ? 'done' : 'open',

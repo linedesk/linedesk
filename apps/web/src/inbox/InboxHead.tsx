@@ -1,5 +1,4 @@
-import { tagLabels } from '@linedesk/actions'
-import type { Call, CallTag } from '@linedesk/db/types'
+import type { Call } from '@linedesk/db/types'
 import type { ReactNode } from 'react'
 import { assigneeTabs, callerName, splits, type InboxTab } from '../inbox-model.ts'
 import { usePresence } from '../shell/presence.ts'
@@ -12,9 +11,6 @@ import { BulkBar, type BulkActions } from './BulkBar.tsx'
 export type InboxHeadProps = {
   tab: InboxTab
   setTab: (tab: InboxTab) => void
-  /** Only calls with this tag; null: all. */
-  tag: CallTag | null
-  setTag: (tag: CallTag | null) => void
   counts: Record<InboxTab, number>
   search: string | null
   onSearch: () => void
@@ -197,16 +193,6 @@ function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveC
   )
 }
 
-/** The active tag filter, said once in the header; clicking it shows every call again. */
-function TagChip({ tag, setTag }: { tag: CallTag; setTag: (tag: CallTag | null) => void }) {
-  return (
-    <button type="button" className="ib-tag-chip" title="Show all tags" onClick={() => setTag(null)}>
-      Tag: {tagLabels[tag]}
-      <Icon name="close" size={12} />
-    </button>
-  )
-}
-
 export function InboxHead({
   resultCount,
   menu,
@@ -236,11 +222,9 @@ export function InboxHead({
       ) : (
         <Tabs tab={p.tab} setTab={p.setTab} counts={p.counts} />
       )}
-      {p.search !== null && p.tag && <TagChip tag={p.tag} setTag={p.setTag} />}
       {p.search === null && (
         <div className="ib-right">
           <Presence liveCall={p.liveCall} onOpen={p.onOpen} canFixVoice={p.canFixVoice} />
-          {p.tag && <TagChip tag={p.tag} setTag={p.setTag} />}
           <Button
             size="sm"
             variant="ghost"

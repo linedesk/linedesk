@@ -60,7 +60,7 @@ function webhooks() {
     },
   })
   return {
-    'call.completed': callEvent('call.completed', 'A call ended; with its lead details, tag and custom fields.'),
+    'call.completed': callEvent('call.completed', 'A call ended.'),
     'call.summary_ready': callEvent('call.summary_ready', 'A call ended with a summary; the same data as call.completed.'),
   }
 }

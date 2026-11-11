@@ -19,9 +19,9 @@ export type InsightCounts = {
   /** Nobody picked up (the assistant was not running or not set up). */
   missed: number
   urgent: number
-  /** Calls that ended with an appointment the assistant booked (a booking from the call, the outcome or the tag). */
+  /** Calls that ended with an appointment the assistant booked (a booking from the call or the outcome). */
   booked: number
-  /** The assistant took a message or a callback request (outcome or tag). */
+  /** The assistant took a message or a callback request. */
   messages: number
   transferred: number
   spam: number

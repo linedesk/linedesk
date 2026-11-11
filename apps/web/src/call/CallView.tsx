@@ -13,7 +13,6 @@ import { liveSession, useLiveSession } from './liveSession.ts'
 import { useLiveLines } from './useLiveLines.ts'
 import { RecordingNotKept, RecordingPlayer } from './RecordingPlayer.tsx'
 import { EvaluationCard } from './EvaluationCard.tsx'
-import { LeadCard } from './LeadCard.tsx'
 import { SummaryCard } from './SummaryCard.tsx'
 import { Transcript } from './Transcript.tsx'
 import { useFollowLive } from './useFollowLive.ts'
@@ -357,7 +356,6 @@ export function CallView({ call, segments, search, side, repeatCount = 1, canRev
               {!live && call.recording_key && <RecordingPlayer callId={call.id} callDurationSec={call.duration_sec} />}
               {!live && !call.recording_key && call.source !== 'sample' && <RecordingNotKept />}
               <SummaryCard call={call} />
-              <LeadCard call={call} />
               {canReview && <EvaluationCard call={call} />}
               <BookingCards callId={call.id} />
               {turns ? (

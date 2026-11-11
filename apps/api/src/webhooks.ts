@@ -7,10 +7,9 @@ import { type LookupAddress, lookup as dnsLookup } from 'node:dns'
 import { isIP } from 'node:net'
 import type { WebhookDeliveriesData, WebhookDeliverySummary, WebhookTestData } from '@linedesk/actions'
 import { type Tx, webhook_deliveries, webhook_endpoints, webhook_secrets } from '@linedesk/db'
-import type { Booking, Call, CustomField, WebhookEvent } from '@linedesk/db/types'
+import type { Booking, Call, WebhookEvent } from '@linedesk/db/types'
 import { and, desc, eq, isNotNull, lt, ne, or, sql } from 'drizzle-orm'
 import { Agent, fetch as undiciFetch } from 'undici'
-import { customFieldsOf } from './call-details.ts'
 import { type Handler, Reject } from './handler-context.ts'
 import { isPrivateAddress } from './ip-address.ts'
 import { queueWebhookDelivery } from './jobs.ts'
@@ -149,13 +148,10 @@ export async function sendWebhook(url: string, secret: string, deliveryId: strin
 // --- Events ----------------------------------------------------------------------------------
 
 /** The call as events carry it (the schema is `webhookCallSchema`, packages/actions/src/webhooks.ts). */
-const callData = (call: Call, fields: CustomField[]) => ({
+const callData = (call: Call) => ({
   id: call.id, from_number: call.from_number, to_number: call.to_number, direction: call.direction, started_at: call.started_at,
   ended_at: call.ended_at, duration_sec: call.duration_sec, outcome: call.outcome, urgency: call.urgency, title: call.title,
   summary: call.summary, action_items: call.action_items, fields: call.fields, contact_id: call.contact_id, assistant_id: call.assistant_id,
-  tag: call.tag,
-  lead: { caller_name: call.caller_name, callback_number: call.callback_number, address: call.address, job_type: call.job_type, urgency: call.urgency },
-  custom_fields: fields.map(f => ({ id: f.id, label: f.label, type: f.type, value: call.custom_values[f.id] ?? null })),
 })
 const bookingData = (b: Booking) => ({
   id: b.id, start_at: b.start_at, end_at: b.end_at, status: b.status, title: b.title, calendar_name: b.calendar_name,
@@ -164,7 +160,7 @@ const bookingData = (b: Booking) => ({
 
 /** What each event carries in `data`. */
 export const webhookData = {
-  callCompleted: (call: Call, fields: CustomField[]) => ({ call: callData(call, fields) }),
+  callCompleted: (call: Call) => ({ call: callData(call) }),
   bookingCreated: (booking: Booking) => ({ booking: bookingData(booking) }),
   messageTaken: (call: Call, message: string) => ({ call_id: call.id, message, from_number: call.from_number, contact_id: call.contact_id }),
 }
@@ -187,7 +183,7 @@ export async function queueWebhookEvent(tx: Tx, workspaceId: string, event: Webh
 /** The events of a finished call: completed, and summary_ready when it has a summary. */
 export async function queueCallFinishedEvents(tx: Tx, call: Call, now: string) {
   if (call.source === 'test') return
-  const data = webhookData.callCompleted(call, await customFieldsOf(tx, call.workspace_id))
+  const data = webhookData.callCompleted(call)
   await queueWebhookEvent(tx, call.workspace_id, 'call.completed', data, now)
   if (call.summary) await queueWebhookEvent(tx, call.workspace_id, 'call.summary_ready', data, now)
 }

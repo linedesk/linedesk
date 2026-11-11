@@ -10,7 +10,6 @@ import type { RemoteParticipant } from '@livekit/rtc-node'
 import { z } from 'zod'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { bookingTools } from './booking-tools.ts'
-import { leadFromTool } from './summary.ts'
 import { type CollectContext, collectTools } from './collect/collect-tools.ts'
 import { activeMenu, runKeypadMenu } from './keypad-menu.ts'
 import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log.ts'
@@ -125,17 +124,10 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
     ...(transfer ? { transfer_call: transferTool({ ...transfer, api, call, log }) } : {}),
     take_message: llm.tool({
       description: 'Save a message for the team. Use it whenever the caller wants a callback, a visit, a quote or anything you cannot do yourself.',
-      parameters: z.object({
-        message: z.string().describe('One complete sentence: who wants what. Add a callback number only if the caller gave one that is not their caller ID.'),
-        caller_name: z.string().nullish().describe("The caller's name, if they gave it."),
-        callback_number: z.string().nullish().describe('A number to call back on, only if the caller gave one other than the number they are calling from.'),
-        address: z.string().nullish().describe('The address of the job, if the caller gave one.'),
-        job_type: z.string().nullish().describe('What kind of job it is, in two or three words (for example "Leak repair", "Water heater install").'),
-      }),
-      execute: async ({ message, ...lead }) => {
+      parameters: z.object({ message: z.string().describe('One complete sentence: who wants what. Add a callback number only if the caller gave one that is not their caller ID.') }),
+      execute: async ({ message }) => {
         await api.run(callTakeMessage, { callId, message }, call)
         log.messages.push(message)
-        log.lead = { ...log.lead, ...leadFromTool(lead) }
         log.record('system', 'Took a message', callTakeMessage.name)
         return 'The message is saved. Tell the caller the team will get back to them.'
       },
@@ -274,7 +266,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     },
   })
   session.on(voice.AgentSessionEventTypes.Close, cancelLimit)
-  const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, [], call.caller, call.documents, call.customFields)
+  const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, [], call.caller, call.documents)
   const collect: CollectContext = {
     log,
     room: ctx.room,
@@ -317,7 +309,7 @@ async function addTransfer(
     const caller = await callerJoined
     const transfer = await transferFor(ctx, api, call, config, caller.identity, stopRecording)
     if (!transfer) return false
-    await agent.updateInstructions(buildInstructions(call.assistant, call.businessHours, call.booking, transfer.contacts.map(c => c.contact), call.caller, call.documents, call.customFields))
+    await agent.updateInstructions(buildInstructions(call.assistant, call.businessHours, call.booking, transfer.contacts.map(c => c.contact), call.caller, call.documents))
     await agent.updateTools(assistantTools(api, call, log, endCall, flagUrgent, transfer, collect))
     return true
   } catch (e) {

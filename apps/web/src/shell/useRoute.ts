@@ -1,15 +1,13 @@
 // Where the app is, kept in the URL hash so reload and the browser's Back work:
 // `#calls` (Needs you), `#calls/done` (another view), `#calls?q=leak` (search),
-// `#calls/member/<user id>` (calls assigned to a member), `#calls?tag=new_lead` (calls with a tag; with a
-// search: `?q=…&tag=…`), `#call/<id>` (one call), `#assistant`, `#assistant/<section>`, `#account`, `#admin/<section>`.
+// `#calls/member/<user id>` (calls assigned to a member), `#call/<id>` (one call), `#assistant`, `#assistant/<section>`, `#account`, `#admin/<section>`.
 // Old links to moved sections are rewritten (movedHash).
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { type CallTag, callTags } from '@linedesk/db/types'
 import type { InboxTab } from '../inbox-model.ts'
 import { hasSections, isPageRoute, type Route } from './pages.tsx'
 
-/** `member`: whose calls the `member` view lists (null in every other view). `tag`: only calls with this tag; it stays while the view or the search changes. */
-export type InboxPlace = { tab: InboxTab; search: string | null; member?: string | null; tag?: CallTag | null }
+/** `member`: whose calls the `member` view lists (null in every other view). */
+export type InboxPlace = { tab: InboxTab; search: string | null; member?: string | null }
 /** `known` is false when the hash names nothing the app has; the inbox shows instead. */
 export type Location = InboxPlace & { route: Route; callId: string | null; known: boolean }
 
@@ -18,13 +16,10 @@ const tabs: readonly InboxTab[] = ['you', 'ai', 'spam', 'reminders', 'done', 'mi
 const HOME: InboxPlace = { tab: 'you', search: null, member: null }
 
 export const callHash = (id: string) => `#${CALL_PREFIX}${id}`
-export function listHash({ tab, search, member, tag }: InboxPlace): string {
+export function listHash({ tab, search, member }: InboxPlace): string {
   const view = tab === 'member' && member ? `/member/${encodeURIComponent(member)}` : tab === 'you' || tab === 'member' ? '' : `/${tab}`
-  const query = [search === null ? null : `q=${encodeURIComponent(search)}`, tag ? `tag=${tag}` : null].filter(Boolean).join('&')
-  return `#calls${view}${query ? `?${query}` : ''}`
+  return `#calls${view}${search === null ? '' : `?q=${encodeURIComponent(search)}`}`
 }
-
-const isTag = (value: string | null): value is CallTag => !!value && (callTags as readonly string[]).includes(value)
 
 function decode(value: string): string {
   try { return decodeURIComponent(value) } catch { return value }
@@ -47,9 +42,8 @@ export function parseHash(hash: string, last: InboxPlace = HOME): Location {
     const found = params.find(p => p.startsWith(`${name}=`))
     return found === undefined ? null : decode(found.slice(name.length + 1))
   }
-  const tag = param('tag')
-  // The tag filter and the search ride along in every list view, a member's included.
-  const filters = { search: param('q'), ...(isTag(tag) ? { tag } : {}) }
+  // The search rides along in every list view, a member's included.
+  const filters = { search: param('q') }
   const [head, view = 'you', ...rest] = path.split('/')
   if (head === 'calls' && view === 'member' && rest.length === 1 && rest[0])
     return { route: 'calls', callId: null, tab: 'member', member: decode(rest[0]), ...filters, known: true }
@@ -58,8 +52,12 @@ export function parseHash(hash: string, last: InboxPlace = HOME): Location {
   return { route: 'calls', callId: null, tab: view as InboxTab, member: null, ...filters, known: true }
 }
 
-/** Sections that moved to another page: Business hours and Notifications are in the assistant's settings now. */
-const MOVED: Record<string, string> = { 'settings/hours': 'assistant/hours', 'settings/notifications': 'assistant/notifications' }
+/** Sections that moved: Business hours and Notifications are in the assistant's settings now; Call details became Export calls. */
+const MOVED: Record<string, string> = {
+  'settings/hours': 'assistant/hours',
+  'settings/notifications': 'assistant/notifications',
+  'settings/fields': 'settings/export',
+}
 
 /** Where an old link now points (`#settings/hours` → `#assistant/hours`), or null when it did not move. */
 export function movedHash(hash: string): string | null {

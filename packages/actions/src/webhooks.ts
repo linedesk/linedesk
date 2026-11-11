@@ -1,7 +1,7 @@
 // Outbound webhooks: endpoints a workspace's owners and admins add under Settings, Webhooks. Each
 // event goes to every active endpoint that subscribed to it, signed with the endpoint's secret
 // (apps/api/src/webhooks.ts).
-import { callTags, customFieldTypes, webhookEvents } from '@linedesk/db/types'
+import { webhookEvents } from '@linedesk/db/types'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 
@@ -117,20 +117,9 @@ export const webhookCallSchema = z.object({
   title: nullableText,
   summary: nullableText,
   action_items: z.array(z.object({ text: z.string(), done: z.boolean().optional() })),
-  fields: z.array(z.object({ label: z.string(), value: z.string() })).describe('Older free-form facts; prefer lead and custom_fields.'),
+  fields: z.array(z.object({ label: z.string(), value: z.string() })).describe('Facts the summary noted.'),
   contact_id: nullableText,
   assistant_id: nullableText,
-  tag: z.enum(callTags).nullable().describe('What kind of call it was; null: not tagged.'),
-  lead: z.object({
-    caller_name: nullableText,
-    callback_number: nullableText,
-    address: nullableText,
-    job_type: nullableText,
-    urgency: z.enum(['urgent', 'normal', 'low']),
-  }),
-  custom_fields: z
-    .array(z.object({ id: z.string(), label: z.string(), type: z.enum(customFieldTypes), value: z.union([z.string(), z.number(), z.boolean()]).nullable() }))
-    .describe("Every custom field of the workspace with this call's value (null: not filled)."),
 })
 /** The envelope every event is POSTed in. */
 export const webhookEventSchema = (type: string, data: z.ZodType) =>

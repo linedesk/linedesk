@@ -2,7 +2,7 @@ import * as admin from './admin.ts'
 import * as apiKeys from './api-keys.ts'
 import * as assistantVersions from './assistant-versions.ts'
 import * as calendar from './calendar.ts'
-import * as callDetails from './call-details.ts'
+import * as callExport from './call-export.ts'
 import * as carrier from './carrier.ts'
 import * as calls from './calls.ts'
 import * as evaluations from './evaluations.ts'
@@ -30,7 +30,7 @@ export * from './api-keys.ts'
 export * from './assistant-prompt.ts'
 export * from './assistant-versions.ts'
 export * from './calendar.ts'
-export * from './call-details.ts'
+export * from './call-export.ts'
 export * from './carrier.ts'
 export * from './calls.ts'
 export * from './evaluations.ts'
@@ -65,13 +65,8 @@ const all = [
   calls.callMarkSpam,
   calls.callMarkNotSpam,
   calls.callSetActionItems,
-  callDetails.callUpdateLead,
-  callDetails.callSetTag,
-  callDetails.callSetCustomValues,
-  callDetails.callExport,
-  callDetails.customFieldUpsert,
-  callDetails.customFieldDelete,
-  callDetails.customFieldList,
+  calls.callSetUrgency,
+  callExport.callExport,
   calls.callStart,
   calls.callAppendTranscript,
   calls.callFinish,
