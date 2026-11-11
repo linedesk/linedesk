@@ -80,6 +80,30 @@ describeProviderContract('telnyx', () => {
 })
 
 describe('telnyx adapter', () => {
+  test('a request Telnyx never answers fails after the timeout, without holding the caller', async () => {
+    const seen: (AbortSignal | null | undefined)[] = []
+    const hung: typeof fetch = (_url, init) => {
+      seen.push(init?.signal)
+      return new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal!.reason)))
+    }
+    const provider = createTelnyxProvider({ apiKey: 'KEY', fetch: hung, timeoutMs: 20 })
+    const failed = await provider.searchNumbers({ country: 'US', areaCode: '503', limit: 1 }).catch(e => e)
+    expect(failed).toBeInstanceOf(TelephonyError)
+    expect(failed.message).toMatch(/GET \/available_phone_numbers: Telnyx did not answer within 0.02 s/)
+    expect(failed.message).not.toContain('KEY')
+    expect(seen[0]).toBeInstanceOf(AbortSignal)
+  })
+
+  test('an answer whose body never finishes fails after the timeout too', async () => {
+    const slowBody: typeof fetch = async (_url, init) => new Response(new ReadableStream({
+      start(controller) {
+        init?.signal?.addEventListener('abort', () => controller.error(init.signal!.reason))
+      },
+    }), { status: 200 })
+    const provider = createTelnyxProvider({ apiKey: 'KEY', fetch: slowBody, timeoutMs: 20 })
+    await expect(provider.findNumber(NUMBER)).rejects.toThrow(/did not answer within/)
+  })
+
   test('searches voice numbers by country and area code', async () => {
     const { provider, calls } = mockTelnyx(telnyxAccount())
     const numbers = await provider.searchNumbers({ country: 'US', areaCode: '503', limit: 5 })

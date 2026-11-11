@@ -6,6 +6,11 @@ const API = 'https://api.telnyx.com/v2'
 const CONNECTION_NAME = 'linedesk-livekit'
 const WEBHOOK_TOLERANCE_SEC = 300
 const ORDER_LOOKUPS = 10
+/**
+ * Longest one Telnyx request may take, answer included. A purchase holds the install-wide purchase lock and a
+ * database connection while it waits for Telnyx: a hung request must not hold them for long.
+ */
+export const TELNYX_TIMEOUT_MS = 15_000
 // DER prefix that turns a raw 32-byte Ed25519 public key into SPKI.
 const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex')
 
@@ -17,6 +22,8 @@ export interface TelnyxOptions {
   /** Wait between look-ups while a number order completes. */
   wait?: (ms: number) => Promise<unknown>
   now?: () => number
+  /** Longest one request may take (default TELNYX_TIMEOUT_MS). */
+  timeoutMs?: number
 }
 
 type Json = Record<string, any>
@@ -29,16 +36,32 @@ const statusByEvent: Record<string, CallStatus> = {
 
 const fail = (message: string, status?: number) => new TelephonyError('telnyx', message, status)
 
-/** One authenticated Telnyx API call; errors carry the status and Telnyx's own reason, never the key. */
-export function telnyxRequest(apiKey: string, doFetch: typeof fetch = fetch) {
+/**
+ * One authenticated Telnyx API call; errors carry the status and Telnyx's own reason, never the key. Gives up after
+ * `timeoutMs` with a TelephonyError that says so.
+ */
+export function telnyxRequest(apiKey: string, doFetch: typeof fetch = fetch, timeoutMs = TELNYX_TIMEOUT_MS) {
   return async function request(method: string, path: string, body?: Json): Promise<Json> {
-    const res = await doFetch(`${API}${path}`, {
-      method,
-      headers: { authorization: `Bearer ${apiKey}`, accept: 'application/json', ...(body ? { 'content-type': 'application/json' } : {}) },
-      body: body ? JSON.stringify(body) : undefined,
-    })
-    const json = (await res.json().catch(() => ({}))) as Json
-    if (!res.ok) throw fail(`${method} ${path.split('?')[0]}: ${json.errors?.[0]?.detail ?? json.errors?.[0]?.title ?? res.statusText}`, res.status)
+    const where = `${method} ${path.split('?')[0]}`
+    const signal = AbortSignal.timeout(timeoutMs)
+    let res: Response
+    let json: Json
+    try {
+      res = await doFetch(`${API}${path}`, {
+        method,
+        headers: { authorization: `Bearer ${apiKey}`, accept: 'application/json', ...(body ? { 'content-type': 'application/json' } : {}) },
+        body: body ? JSON.stringify(body) : undefined,
+        signal,
+      })
+      json = (await res.json().catch(e => {
+        if (signal.aborted) throw e
+        return {}
+      })) as Json
+    } catch (e) {
+      if (signal.aborted) throw fail(`${where}: Telnyx did not answer within ${timeoutMs / 1000} s`)
+      throw e
+    }
+    if (!res.ok) throw fail(`${where}: ${json.errors?.[0]?.detail ?? json.errors?.[0]?.title ?? res.statusText}`, res.status)
     return json
   }
 }
@@ -54,7 +77,7 @@ const sameTelnyxId = (value: unknown, id: string) =>
 export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider {
   const { apiKey, publicKey, fetch: doFetch = fetch, now = Date.now } = options
   const wait = options.wait ?? ((ms: number) => new Promise(resolve => setTimeout(resolve, ms)))
-  const request = telnyxRequest(apiKey, doFetch)
+  const request = telnyxRequest(apiKey, doFetch, options.timeoutMs)
 
   async function findNumberId(e164: string): Promise<string | undefined> {
     const { data } = await request('GET', `/phone_numbers?filter[phone_number]=${encodeURIComponent(e164)}`)

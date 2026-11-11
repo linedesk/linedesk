@@ -544,6 +544,16 @@ const handlers: Record<string, Handler> = {
     const sipEndpoint = process.env.LIVEKIT_SIP_ENDPOINT ?? ''
     if (provider.name !== 'dev' && !sipEndpoint) throw new Reject('phone setup is not configured: LIVEKIT_SIP_ENDPOINT is not set')
 
+    // Everything that can refuse is checked before the carrier is asked anything, and before anything is bought.
+    if (actor.workspaceDisabled) throw new Reject('this workspace is disabled')
+    const assistant = await assistantIn(tx, workspace_id, input.assistantId)
+    const onInstallAccount = carrier_account === 'install' && provider.name !== 'dev'
+    // A purchase by area code is a US purchase: its limits are checked before the carrier is searched, so a
+    // refused one makes no carrier request (and takes the install-wide purchase lock before it does).
+    if (onInstallAccount && input.purchase && !input.e164) {
+      const refusal = await installPurchaseRefusal(tx, actor, workspace_id, { byNumber: false, now })
+      if (refusal) throw new Reject(refusal)
+    }
     // Only a purchase may search: attaching always names the number.
     const e164: string | undefined = input.e164 ?? (await atCarrier(() => provider.searchNumbers({ country: 'US', areaCode: input.areaCode, limit: 1 })))[0]?.e164
     if (!e164) throw new Reject(`no number available in area code ${input.areaCode}`)
@@ -559,12 +569,10 @@ const handlers: Record<string, Handler> = {
     if (existing && carrier_account === 'install' && provider.name !== 'dev' && !actor.permissions.includes('instance:admin')) {
       throw new Forbidden(INSTALL_NUMBER_ADMIN_ONLY)
     }
-    // Everything that can refuse is checked before anything is bought.
-    if (actor.workspaceDisabled) throw new Reject('this workspace is disabled')
-    const assistant = await assistantIn(tx, workspace_id, input.assistantId)
     const buying = !existing
-    if (buying && carrier_account === 'install' && provider.name !== 'dev') {
-      const refusal = await installPurchaseRefusal(tx, actor, workspace_id, { byNumber: !!input.e164 || !e164.startsWith('+1'), now })
+    // A number typed in (checked above when searched by area code).
+    if (buying && onInstallAccount && input.e164) {
+      const refusal = await installPurchaseRefusal(tx, actor, workspace_id, { byNumber: true, now })
       if (refusal) throw new Reject(refusal)
     }
     // Logged (committed) before the carrier is asked: a purchase that fails later still counts.

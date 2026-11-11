@@ -140,6 +140,17 @@ describe('telephony handlers', () => {
       expect((await setup(tx, { areaCode: '541', purchase: true }, { ...install, searchNumbers: async () => [{ e164: '+15415550111' }] }, admin)).rows.phone_numbers?.[0]?.purchased).toBe(true)
     }))
 
+    test('a purchase over a limit is refused before the carrier is searched or asked anything', () => withSipEndpoint(async tx => {
+      await pastPurchases(tx, Array.from({ length: INSTALL_PURCHASES_PER_USER_PER_DAY }, () => ({ workspace_id: 'ws_elsewhere', minutesAgo: 60 })))
+      const searchNumbers = vi.fn(async () => [{ e164: '+15035550123' }])
+      const install = { ...installCarrier(), searchNumbers }
+      await expect(setup(tx, { areaCode: '503', purchase: true }, install)).rejects.toThrow('numbers today')
+      await expect(setup(tx, { areaCode: '503', purchase: true, assistantId: 'as_bogus' }, install)).rejects.toThrow()
+      expect(searchNumbers).not.toHaveBeenCalled()
+      expect(install.findNumber).not.toHaveBeenCalled()
+      expect(install.buyNumber).not.toHaveBeenCalled()
+    }))
+
     test('a purchase older than 30 days no longer counts', () => withSipEndpoint(async tx => {
       await pastPurchases(tx, [{ minutesAgo: 31 * 24 * 60 }, { minutesAgo: 31 * 24 * 60 }])
       expect((await setup(tx, { areaCode: '503', purchase: true }, installCarrier())).rows.phone_numbers?.[0]?.purchased).toBe(true)
