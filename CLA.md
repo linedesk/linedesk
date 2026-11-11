@@ -2,7 +2,7 @@
 
 Thank you for contributing to Linedesk. This agreement makes clear what rights you give the project when you contribute. You keep ownership of your work; this is a license, not a transfer.
 
-"You" means the person or legal entity submitting a contribution. "We" and "us" means the maintainers of the Linedesk project and any legal entity they designate to hold the project. A "Contribution" is any code, documentation or other material you intentionally submit to the project, for example through a pull request.
+"You" means the person or legal entity submitting a contribution. "We" and "us" means Sauerbier & Gutberlet GmbH, the company that holds the Linedesk project, and any successor or affiliate it designates to hold the project. A "Contribution" is any code, documentation or other material you intentionally submit to the project, for example through a pull request.
 
 ## 1. Copyright license
 

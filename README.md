@@ -32,4 +32,4 @@ For anything else, write to [hello@linedesk.ai](mailto:hello@linedesk.ai).
 
 ## License
 
-[AGPL-3.0](LICENSE). "Linedesk" and the Linedesk logo are trademarks; see [TRADEMARK.md](TRADEMARK.md).
+[AGPL-3.0](LICENSE). "Linedesk" and the Linedesk logo are trademarks of Sauerbier & Gutberlet GmbH; see [TRADEMARK.md](TRADEMARK.md).
