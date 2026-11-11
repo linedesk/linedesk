@@ -65,6 +65,7 @@ services:
       # client address from the X-Forwarded-For hop Caddy adds (apps/api/src/client-ip.ts).
       TRUSTED_PROXIES: 172.16.0.0/12,10.0.0.0/8,192.168.0.0/16
       RECORDINGS_DIR: /recordings # where Local disk (RECORDING_STORE=file) recordings are read from
+      LIVEKIT_URL: ws://livekit:7880 # test calls and the voice status check talk to LiveKit here
     # Same uid as LiveKit egress (1001, see recordings-init): the API serves the files egress writes and
     # deletes them once they are past the workspace's retention (apps/api/src/recording-retention.ts).
     user: "1001:1000"
