@@ -1508,7 +1508,6 @@ describe('impersonation', () => {
       'calendar.findSlots',
       'calendar.listCalendars',
       'call.clearReminder',
-      'call.export',
       'call.findForTest',
       'call.getEvaluation',
       'call.listEvaluations',
@@ -1553,6 +1552,8 @@ describe('impersonation', () => {
         ['assistant.update', { id: other.assistant.id, patch: { name: 'Taken over' } }],
         ['contact.delete', { contactId: other.contact.id }],
         ['webhook.test', { endpointId: other.webhookEndpoint.id }],
+        // Support, not taking customer data out: no bulk export of the calls.
+        ['call.export', { from: '2026-01-01', to: '2026-01-31' }],
       ]
       for (const [name, input] of refused) {
         expect(await act(as, name, input), name).toMatchObject({ status: 403, body: { error: 'Not possible while signed in as another user.' } })

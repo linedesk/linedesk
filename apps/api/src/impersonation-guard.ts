@@ -58,8 +58,12 @@ export const IMPERSONATION_ALLOWED_WRITES: ReadonlySet<string> = new Set([
   'call.clearReminder',
 ])
 
-/** Read-only actions that still do something outside Linedesk (send a request, start a call): refused too. */
-const IMPERSONATION_REFUSED_READS: ReadonlySet<string> = new Set(['webhook.test', 'carrier.test', 'assistant.startTestCall', 'knowledge.import', 'call.listen', 'call.takeOver'])
+/**
+ * Read-only actions refused too: those that still do something outside Linedesk (send a request, start
+ * a call), and the bulk export of the workspace's calls (an impersonation is for support, not for taking
+ * customer data out).
+ */
+const IMPERSONATION_REFUSED_READS: ReadonlySet<string> = new Set(['webhook.test', 'carrier.test', 'assistant.startTestCall', 'knowledge.import', 'call.listen', 'call.takeOver', 'call.export'])
 
 /** Whether an impersonated session may run this action. */
 export function mayRunWhileImpersonating(def: { name: string; readOnly?: boolean }): boolean {
