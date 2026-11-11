@@ -1,42 +1,73 @@
-// Settings › Assistant › Voice: a curated voice with a preview, any voice id of the provider
-// (Advanced), and cloning a voice where the provider can. The pick is part of the page's draft
+// Settings › Assistant › Voice: suggested voices (the curated ones and the workspace's clones) as
+// compact rows with a play button, and More voices: every voice of every provider with a key, with
+// search and filters. Cloning a voice where the provider can. The pick is part of the page's draft
 // (Save); cloning saves at once, since the provider creates the voice right away.
-import { CLONE_CONSENT_TEXT, type VoiceCloneData, type VoiceOptionsData } from '@linedesk/actions'
-import { useEffect, useRef, useState } from 'react'
+import {
+  CLONE_CONSENT_TEXT,
+  type CatalogProvider,
+  type VoiceCatalogData,
+  type VoiceCloneData,
+  type VoiceOptionsData,
+} from '@linedesk/actions'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
-import { Checkbox, RadioCard } from '../ui/controls.tsx'
+import { workspaceHeaders } from '../tabWorkspace.ts'
+import { Checkbox, Select } from '../ui/controls.tsx'
 import { FormMessage } from '../ui/form.tsx'
-import { Button } from '../ui/kit.tsx'
+import { Button, cx, Icon } from '../ui/kit.tsx'
 import { Field, Section, TextInput } from './fields.tsx'
 import { readAction, useWriteAction } from './settings-api.ts'
-import { workspaceHeaders } from '../tabWorkspace.ts'
-import { cloneProblem, fileToBase64, previewProblem, previewUrl, voiceInEffect } from './voiceModel.ts'
+import {
+  byEnglishThenName,
+  cloneProblem,
+  facetValues,
+  fileToBase64,
+  filterVoices,
+  NO_FILTER,
+  type PickerVoice,
+  previewProblem,
+  previewUrl,
+  type VoiceFilter,
+  voiceFacts,
+  voiceInEffect,
+  voiceKey,
+} from './voiceModel.ts'
 
 const VOICE_OPTIONS = 'voice.options'
+const VOICE_CATALOG = 'voice.catalog'
 const loadOptions = () => readAction<VoiceOptionsData>(VOICE_OPTIONS)
+const loadCatalog = () => readAction<VoiceCatalogData>(VOICE_CATALOG)
 /** The voices of the provider in effect; the same for every assistant of the install. */
 export const useVoiceOptions = () => useQuery(VOICE_OPTIONS, loadOptions, { persist: true })
+/** How many voices More voices shows at first, and adds per "Show more". */
+const PAGE = 30
 
-type PreviewFailure = { voiceId: string; message: string }
+type PreviewFailure = { key: string; message: string }
 
 /** The sample as a playable URL, or why there is none. Fetched first so a refusal can say why. */
-async function loadPreview(voiceId: string): Promise<string | PreviewFailure> {
-  const res = await fetch(previewUrl(voiceId), { credentials: 'include', headers: workspaceHeaders() }).catch(
+async function loadPreview(key: string, voiceId: string, provider: string | null): Promise<string | PreviewFailure> {
+  const res = await fetch(previewUrl(voiceId, provider), { credentials: 'include', headers: workspaceHeaders() }).catch(
     () => null,
   )
   if (!res?.ok || !res.headers.get('content-type')?.startsWith('audio/')) {
     const body = (await res?.json().catch(() => null)) as { error?: string } | null
-    return { voiceId, message: previewProblem(res?.status ?? 0, body?.error) }
+    return { key, message: previewProblem(res?.status ?? 0, body?.error) }
   }
   return URL.createObjectURL(await res.blob())
 }
 
-/** One preview at a time: playing another stops the first. A sample is fetched once per page view. */
-function usePreview() {
+/**
+ * One preview at a time: playing another stops the first. A sample is fetched once per page view.
+ * `progress` (0–1) of the one playing, for its ring.
+ */
+function usePreview(activeProvider: string | null) {
   const audio = useRef<HTMLAudioElement | null>(null)
   const loaded = useRef(new Map<string, string>())
+  /** The voice the last click asked for; a sample that arrives after another click is not played. */
+  const wanted = useRef<string | null>(null)
   const [playing, setPlaying] = useState<string | null>(null)
   const [loading, setLoading] = useState<string | null>(null)
+  const [progress, setProgress] = useState(0)
   const [failed, setFailed] = useState<PreviewFailure | null>(null)
   useEffect(
     () => () => {
@@ -45,24 +76,24 @@ function usePreview() {
     },
     [],
   )
-  /** The voice the last click asked for; a sample that arrives after another click is not played. */
-  const wanted = useRef<string | null>(null)
-  async function toggle(voiceId: string) {
+  async function toggle(voice: PickerVoice) {
+    const key = voiceKey(voice.provider, voice.id)
     audio.current?.pause()
     audio.current = null
     setFailed(null)
     setPlaying(null)
-    if (wanted.current === voiceId) {
+    setProgress(0)
+    if (wanted.current === key) {
       wanted.current = null
       return setLoading(null)
     }
-    wanted.current = voiceId
-    let url = loaded.current.get(voiceId)
+    wanted.current = key
+    let url = loaded.current.get(key)
     if (!url) {
-      setLoading(voiceId)
-      const result = await loadPreview(voiceId)
-      if (typeof result === 'string') loaded.current.set(voiceId, result)
-      if (wanted.current !== voiceId) return
+      setLoading(key)
+      const result = await loadPreview(key, voice.id, voice.provider === activeProvider ? null : voice.provider)
+      if (typeof result === 'string') loaded.current.set(key, result)
+      if (wanted.current !== key) return
       setLoading(null)
       if (typeof result !== 'string') {
         wanted.current = null
@@ -72,41 +103,215 @@ function usePreview() {
     }
     const next = new Audio(url)
     audio.current = next
-    setPlaying(voiceId)
+    setPlaying(key)
     const stop = () => {
-      if (wanted.current === voiceId) wanted.current = null
-      setPlaying(p => (p === voiceId ? null : p))
+      if (wanted.current === key) wanted.current = null
+      setPlaying(p => (p === key ? null : p))
     }
+    next.ontimeupdate = () => next.duration && setProgress(next.currentTime / next.duration)
     next.onended = stop
     next.onerror = () => {
       stop()
-      setFailed({ voiceId, message: 'The sample could not be played.' })
+      setFailed({ key, message: 'The sample could not be played.' })
     }
     void next.play().catch(stop)
   }
-  return { playing, loading, failed, toggle }
+  return { playing, loading, progress, failed, toggle }
+}
+type Preview = ReturnType<typeof usePreview>
+
+const RING = 2 * Math.PI * 13
+
+/** Play, or while it plays: a moving waveform with the progress around it; hover or focus shows stop. */
+function PlayButton({ voice, preview }: { voice: PickerVoice; preview: Preview }) {
+  const key = voiceKey(voice.provider, voice.id)
+  const playing = preview.playing === key
+  const loading = preview.loading === key
+  const busy = playing || loading
+  return (
+    <button
+      type="button"
+      className={cx('vp-play', playing && 'is-playing', loading && 'is-loading')}
+      aria-label={`${busy ? 'Stop' : 'Play'} ${voice.name}`}
+      aria-busy={loading || undefined}
+      title={busy ? `Stop the sample of ${voice.name}` : `Play a sample of ${voice.name}`}
+      onClick={() => void preview.toggle(voice)}
+    >
+      <svg className="vp-ring" viewBox="0 0 30 30" aria-hidden="true">
+        <circle cx="15" cy="15" r="13" />
+        {playing && (
+          <circle
+            className="vp-ring-done"
+            cx="15"
+            cy="15"
+            r="13"
+            strokeDasharray={RING}
+            strokeDashoffset={RING * (1 - preview.progress)}
+          />
+        )}
+      </svg>
+      {playing ? (
+        <span className="vp-bars" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+          <i />
+        </span>
+      ) : (
+        !loading && <Icon name="play" size={14} className="vp-play-icon" />
+      )}
+      {busy && <span className="vp-stop" aria-hidden="true" />}
+    </button>
+  )
 }
 
-function PreviewButton({
-  voiceId,
-  preview,
-  label,
-}: {
-  voiceId: string
-  preview: ReturnType<typeof usePreview>
-  label: string
-}) {
-  const on = preview.playing === voiceId || preview.loading === voiceId
+type RowProps = {
+  /** null: the install's default voice (no sample). */
+  voice: PickerVoice | null
+  checked: boolean
+  onPick: () => void
+  disabled: boolean
+  preview: Preview
+  facts?: string
+}
+
+function VoiceRow({ voice, checked, onPick, disabled, preview, facts }: RowProps) {
+  const description = voice ? voice.description : "The install's default"
   return (
-    <Button
-      size="sm"
-      variant="ghost"
-      icon={on ? 'pause' : 'play'}
-      aria-busy={preview.loading === voiceId || undefined}
-      aria-label={`${on ? 'Stop' : 'Play'} ${label}`}
-      title={`${on ? 'Stop' : 'Play'} a sample of ${label}`}
-      onClick={() => void preview.toggle(voiceId)}
-    />
+    <div className={cx('vp-row', checked && 'on')}>
+      <label className="vp-pick">
+        <input type="radio" name="voice" className="vp-radio" checked={checked} disabled={disabled} onChange={onPick} />
+        <span className="vp-dot" aria-hidden="true" />
+        <span className="vp-text">
+          <span className="vp-name">{voice ? voice.name : 'Default voice'}</span>
+          {description && (
+            <span className="vp-desc" title={description.length > 60 ? description : undefined}>
+              {description}
+            </span>
+          )}
+        </span>
+        {facts && <span className="vp-facts">{facts}</span>}
+      </label>
+      {voice ? <PlayButton voice={voice} preview={preview} /> : <span className="vp-play-gap" />}
+    </div>
+  )
+}
+
+/** "All …" plus the values in the list; null when there is nothing to choose between. */
+function filterOptions(all: string, values: { value: string; label: string }[]) {
+  return values.length > 1 ? [{ value: '', label: all }, ...values] : null
+}
+
+type MoreProps = {
+  catalog: VoiceCatalogData | undefined
+  error: string | null
+  selected: string
+  onPick: (voice: PickerVoice) => void
+  disabled: boolean
+  preview: Preview
+}
+
+/** Every voice of every provider with a key: search, filters, preview, pick. */
+function MoreVoices({ catalog, error, selected, onPick, disabled, preview }: MoreProps) {
+  const [filter, setFilter] = useState<VoiceFilter>(NO_FILTER)
+  const [shown, setShown] = useState(PAGE)
+  const set = (change: Partial<VoiceFilter>) => {
+    setFilter(f => ({ ...f, ...change }))
+    setShown(PAGE)
+  }
+  const voices = useMemo(() => [...(catalog?.voices ?? [])].sort(byEnglishThenName), [catalog])
+  const configured = (catalog?.providers ?? []).filter(p => p.configured)
+  const labelOf = (provider: string) => configured.find(p => p.provider === provider)?.label
+  const matches = useMemo(() => filterVoices(voices, filter), [voices, filter])
+  if (!catalog)
+    return <p className="help">{error ? 'The voices could not be loaded. Try again.' : 'Loading voices…'}</p>
+  const filters = [
+    {
+      key: 'provider' as const,
+      label: 'Provider',
+      options: filterOptions(
+        'All providers',
+        configured.map(p => ({ value: p.provider, label: p.label })),
+      ),
+    },
+    {
+      key: 'language' as const,
+      label: 'Language',
+      options: filterOptions('Any language', facetValues(voices, 'language')),
+    },
+    { key: 'gender' as const, label: 'Gender', options: filterOptions('Any gender', facetValues(voices, 'gender')) },
+    { key: 'accent' as const, label: 'Accent', options: filterOptions('Any accent', facetValues(voices, 'accent')) },
+  ]
+  return (
+    <div className="vp-more-body">
+      <div className="vp-tools">
+        <span className="vp-search">
+          <Icon name="search" size={14} />
+          <TextInput
+            id="vp-search"
+            label="Search voices"
+            placeholder="Search voices"
+            value={filter.query}
+            onChange={query => set({ query })}
+          />
+        </span>
+        {filters.map(
+          f =>
+            f.options && (
+              <Select
+                key={f.key}
+                size="sm"
+                label={f.label}
+                value={filter[f.key]}
+                options={f.options}
+                onChange={value => set({ [f.key]: value })}
+              />
+            ),
+        )}
+      </div>
+      {matches.length ? (
+        <div className="vp-list" role="radiogroup" aria-label="More voices">
+          {matches.slice(0, shown).map(v => (
+            <VoiceRow
+              key={voiceKey(v.provider, v.id)}
+              voice={v}
+              checked={selected === voiceKey(v.provider, v.id)}
+              onPick={() => onPick(v)}
+              disabled={disabled}
+              preview={preview}
+              facts={voiceFacts(v, configured.length > 1 ? labelOf(v.provider) : undefined)}
+            />
+          ))}
+        </div>
+      ) : (
+        <p className="help">{voices.length ? 'No voice matches.' : 'No voices yet.'}</p>
+      )}
+      {matches.length > shown && (
+        <Button size="sm" variant="ghost" onClick={() => setShown(n => n + PAGE)}>
+          Show {Math.min(PAGE, matches.length - shown)} more of {matches.length - shown}
+        </Button>
+      )}
+      <ProviderHints providers={catalog.providers} />
+    </div>
+  )
+}
+
+/** A line per provider whose voices are missing: no key, or the list could not be read. */
+function ProviderHints({ providers }: { providers: readonly CatalogProvider[] }) {
+  const missing = providers.filter(p => !p.configured).map(p => p.label)
+  const failed = providers.filter(p => p.error)
+  return (
+    <>
+      {failed.map(p => (
+        <FormMessage key={p.provider}>{p.error}</FormMessage>
+      ))}
+      {missing.length > 0 && (
+        <p className="help">
+          {missing.join(' and ')} voices show here once {missing.length > 1 ? 'they have' : 'it has'} a key (Admin ›
+          Providers).
+        </p>
+      )}
+    </>
   )
 }
 
@@ -189,14 +394,37 @@ function CloneVoice({
 
 export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast }: Props) {
   const { data: options } = useVoiceOptions()
-  const preview = usePreview()
   const provider = options?.provider ?? null
-  const current = voiceInEffect(voice, provider)
-  const choices = [
-    ...(options?.voices ?? []).map(v => ({ id: v.id, name: v.name, description: v.description })),
-    ...(options?.clones ?? []).map(v => ({ id: v.id, name: v.name, description: 'Cloned voice of this workspace' })),
-  ]
-  const pick = (voiceId: string) => provider && onPick({ provider, voice_id: voiceId })
+  const preview = usePreview(provider)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const suggested: PickerVoice[] = provider
+    ? [
+        ...(options?.voices ?? []).map(v => ({ provider, ...v })),
+        ...(options?.clones ?? []).map(v => ({ provider, id: v.id, name: v.name, description: 'Your cloned voice' })),
+      ]
+    : []
+  const isSuggested = suggested.some(v => v.provider === voice.provider && v.id === voice.voice_id)
+  // The catalog is read when More voices opens, or at once when the voice in use is one of it.
+  const needCatalog = moreOpen || (!!voice.voice_id && !!options && !isSuggested)
+  const { data: catalog, error: catalogError } = useQuery(needCatalog ? VOICE_CATALOG : null, loadCatalog, {
+    persist: true,
+  })
+  const usable = catalog
+    ? catalog.providers.filter(p => p.configured).map(p => p.provider)
+    : [provider, voice.provider].filter((p): p is string => !!p)
+  const current = voiceInEffect(voice, usable)
+  const fromCatalog =
+    current && !isSuggested
+      ? (catalog?.voices.find(v => voiceKey(v.provider, v.id) === current) ?? {
+          provider: voice.provider,
+          id: voice.voice_id,
+          name: 'Chosen voice',
+          description: voice.voice_id,
+        })
+      : null
+  const pick = (v: PickerVoice | null) =>
+    v ? onPick({ provider: v.provider, voice_id: v.id }) : provider && onPick({ provider, voice_id: '' })
+  const failure = preview.failed
 
   if (options && !provider)
     return (
@@ -208,33 +436,57 @@ export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast }: Pr
     <Section
       id="as-voice"
       title="Voice"
-      help="The voice callers hear. A new choice is used from the next call on; a call in progress keeps the old voice."
+      help="Applies from the next call. Play a sample to hear how a voice sounds on the phone."
     >
-      <div className="vc-list" role="radiogroup" aria-label="Voice">
-        <div className="vc-row">
-          <RadioCard
-            name="voice"
-            checked={current === ''}
-            onPick={() => pick('')}
-            title="Default voice"
-            description="Install default"
+      <div className="vp-group-label" id="vp-suggested">
+        Suggested
+      </div>
+      <div className="vp-list" role="radiogroup" aria-labelledby="vp-suggested">
+        {fromCatalog && (
+          <VoiceRow
+            voice={fromCatalog}
+            checked
+            onPick={() => pick(fromCatalog)}
+            disabled={!canEdit}
+            preview={preview}
+            facts={voiceFacts(fromCatalog, catalog?.providers.find(p => p.provider === fromCatalog.provider)?.label)}
           />
-          <span aria-hidden="true" />
-        </div>
-        {choices.map(v => (
-          <div className="vc-row" key={v.id}>
-            <RadioCard
-              name="voice"
-              checked={current === v.id}
-              onPick={() => pick(v.id)}
-              title={v.name}
-              description={v.description}
-            />
-            <PreviewButton voiceId={v.id} preview={preview} label={v.name} />
-          </div>
+        )}
+        <VoiceRow
+          voice={null}
+          checked={current === ''}
+          onPick={() => pick(null)}
+          disabled={!canEdit}
+          preview={preview}
+        />
+        {suggested.map(v => (
+          <VoiceRow
+            key={voiceKey(v.provider, v.id)}
+            voice={v}
+            checked={current === voiceKey(v.provider, v.id)}
+            onPick={() => pick(v)}
+            disabled={!canEdit}
+            preview={preview}
+          />
         ))}
       </div>
-      {preview.failed && <FormMessage>{preview.failed.message}</FormMessage>}
+      {failure && <FormMessage>{failure.message}</FormMessage>}
+      <details className="vp-more" onToggle={e => setMoreOpen(e.currentTarget.open)}>
+        <summary title="Every voice of your voice providers, with search and filters">
+          <Icon name="down" size={14} className="vp-chevron" />
+          More voices
+        </summary>
+        {moreOpen && (
+          <MoreVoices
+            catalog={catalog}
+            error={catalogError}
+            selected={current}
+            onPick={pick}
+            disabled={!canEdit}
+            preview={preview}
+          />
+        )}
+      </details>
       {options?.canClone && <CloneVoice assistantId={assistantId} toast={toast} disabled={!canEdit} />}
     </Section>
   )

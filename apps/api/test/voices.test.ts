@@ -38,6 +38,9 @@ function fakeProvider(fail?: VoiceProviderError) {
       if (fail) throw fail
       return { bytes: Buffer.from(`mp3 of ${voiceId}`), contentType: 'audio/mpeg' }
     },
+    async listVoices() {
+      return []
+    },
   }
   return { provider, made }
 }
@@ -98,7 +101,9 @@ test('only curated voices and the workspace’s own clones have a preview; malfo
   const { provider, made } = fakeProvider()
   const cache = previewCache(await cacheDir())
   const options = { provider, cache, budget: unlimited(), bundledDir: NONE }
-  expect((await servePreview(member, 'SomeOtherVoice123', { ...options, ownClone: false })).status).toBe(404)
+  expect(
+    (await servePreview(member, 'SomeOtherVoice123', { ...options, ownClone: false, catalogEntry: null })).status,
+  ).toBe(404)
   expect((await servePreview(member, 'MyOwnClone12345', { ...options, ownClone: true })).status).toBe(200)
   expect((await servePreview(member, '../../etc/passwd', options)).status).toBe(400)
   expect((await servePreview(member, JESSICA, { ...options, provider: null })).status).toBe(409)

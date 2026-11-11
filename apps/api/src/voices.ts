@@ -15,6 +15,7 @@ import {
   curatedVoices,
   isCuratedVoice,
   type ProviderName,
+  providersIn,
   type VoiceCloneData,
   type VoiceCloningData,
   type VoiceOptionsData,
@@ -28,6 +29,7 @@ import { db } from './db.ts'
 import { type Handler, type Preparer, Reject } from './handler-context.ts'
 import { queueVoiceDeletion } from './jobs.ts'
 import { activeProvider, resolveProvider } from './provider-settings.ts'
+import { type CatalogEntry, catalogData, catalogVoice, voiceCatalog } from './voice-catalog.ts'
 import { createVoiceProvider, type VoiceProvider, VoiceProviderError } from './voice-provider.ts'
 
 /**
@@ -57,8 +59,9 @@ export async function voiceProviderInUse(tx: Tx, doFetch: typeof fetch = fetch):
   return createVoiceProvider(active.provider, { api_key: apiKey, model: active.config.model?.value }, doFetch)
 }
 
-/** The provider a clone was made at, with its key (it may not be the one in effect any more). */
+/** A text-to-speech provider by name, with its key (a clone's, or a voice of another provider than the one in effect). */
 async function voiceProviderNamed(tx: Tx, name: string, doFetch: typeof fetch = fetch): Promise<VoiceProvider | null> {
+  if (!(providersIn('tts') as string[]).includes(name)) return null
   const config = await resolveProvider(tx, name as ProviderName).catch(() => null)
   const apiKey = config?.api_key?.value
   return apiKey
@@ -81,10 +84,12 @@ const clonesOf = (tx: Tx, workspaceId: string, provider: string) =>
 
 /**
  * Whether an assistant of this workspace may use the voice: the default (empty id), a curated voice,
- * or a voice this workspace cloned. Anything else (another workspace's clone, a random id) is refused.
+ * a voice this workspace cloned, or one of a provider's list (voice-catalog.ts). Anything else
+ * (another workspace's clone, a random id) is refused.
  */
 export async function checkAssistantVoice(tx: Tx, workspaceId: string, voice: { provider: string; voice_id: string }) {
   if (!voice.voice_id || isCuratedVoice(voice.provider, voice.voice_id)) return
+  if (await catalogVoice(tx, workspaceId, voice.provider, voice.voice_id)) return
   const [own] = await tx
     .select({ id: voice_clones.id })
     .from(voice_clones)
@@ -96,7 +101,7 @@ export async function checkAssistantVoice(tx: Tx, workspaceId: string, voice: { 
         isNull(voice_clones.deleted_at),
       ),
     )
-  if (!own) throw new Reject("that voice is not one of the curated voices or this workspace's cloned voices")
+  if (!own) throw new Reject("that voice is not one of the voice providers' voices or this workspace's cloned voices")
 }
 
 /**
@@ -216,6 +221,11 @@ export const voiceHandlers: Record<string, Handler> = {
       canClone: !!provider && cloningProviders.includes(provider) && (await cloningOn(tx)),
     }
     return { rows: {}, data }
+  },
+
+  'voice.catalog': async ({ tx, actor }) => {
+    if (!actor.workspaceId) throw new Reject('no workspace')
+    return { rows: {}, data: catalogData(await voiceCatalog(tx, actor.workspaceId)) }
   },
 
   /** The clone was made by the preparer; here the consent record is stored and the voice becomes the assistant's. */
@@ -344,11 +354,56 @@ type PreviewOptions = {
   ownClone?: boolean
   /** Where the shipped samples are (tests). */
   bundledDir?: string
+  /** The provider the voice is of (`?provider=`); default the one in effect. */
+  providerName?: string
+  /** The voice in the provider's list (default: looked up); null when it is not listed. */
+  catalogEntry?: CatalogEntry | null
+  doFetch?: typeof fetch
+}
+
+/** Longest provider-hosted sample taken. */
+const SAMPLE_MAX_BYTES = 2 * 1024 * 1024
+
+/** Where each provider hosts its voice samples; a sample URL on any other host is not fetched. */
+export const SAMPLE_HOSTS: Record<string, readonly string[]> = { elevenlabs: ['storage.googleapis.com'], cartesia: [] }
+
+/** The body, refused as soon as it is larger than `max` bytes (by content-length, and while it streams). */
+async function boundedBody(res: Response, max: number): Promise<Buffer> {
+  if (Number(res.headers.get('content-length') ?? 0) > max)
+    throw new VoiceProviderError('the voice sample is too large', 502)
+  const chunks: Uint8Array[] = []
+  let size = 0
+  const reader = res.body?.getReader()
+  if (!reader) return Buffer.alloc(0)
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > max) {
+      await reader.cancel().catch(() => {})
+      throw new VoiceProviderError('the voice sample is too large', 502)
+    }
+    chunks.push(value)
+  }
+  return Buffer.concat(chunks)
+}
+
+/** A sample the provider hosts at a public https URL on its own sample host (no key, no cost). */
+export async function hostedSample(provider: string, url: string, doFetch: typeof fetch = fetch): Promise<Buffer> {
+  const parsed = URL.canParse(url) ? new URL(url) : null
+  if (parsed?.protocol !== 'https:' || !(SAMPLE_HOSTS[provider] ?? []).includes(parsed.hostname))
+    throw new VoiceProviderError("the voice sample is not on the provider's sample host", 502)
+  const res = await doFetch(parsed, { signal: AbortSignal.timeout(20_000), redirect: 'error' })
+  if (!res.ok) throw new VoiceProviderError(`voice sample failed (${res.status})`, 502)
+  const bytes = await boundedBody(res, SAMPLE_MAX_BYTES)
+  if (!bytes.length || audioKind(bytes) !== 'mp3') throw new VoiceProviderError('the voice sample is not an mp3', 502)
+  return bytes
 }
 
 /**
  * The preview of a voice the workspace may use: a curated voice (its shipped sample, no provider
- * needed), or one of its own clones. A sample not in the cache counts against PREVIEWS_PER_HOUR.
+ * needed), one of its own clones, or a voice of a provider's list (the sample the provider hosts, else
+ * one synthesized). A synthesized sample not in the cache counts against PREVIEWS_PER_HOUR.
  */
 export async function servePreview(actor: Actor, rawVoiceId: string, options: PreviewOptions = {}): Promise<Response> {
   if (!actor.workspaceId || !actor.permissions.includes('call:read')) return error(403, 'missing permission call:read')
@@ -357,26 +412,41 @@ export async function servePreview(actor: Actor, rawVoiceId: string, options: Pr
   const voiceId = parsed.data
   const shipped = await bundledPreview(voiceId, options.bundledDir)
   if (shipped) return audioResponse(shipped)
-  const provider = options.provider === undefined ? await voiceProviderInUse(db) : options.provider
+  const provider =
+    options.provider !== undefined
+      ? options.provider
+      : options.providerName
+        ? await voiceProviderNamed(db, options.providerName, options.doFetch)
+        : await voiceProviderInUse(db, options.doFetch)
   if (!provider) return error(409, NO_PROVIDER_FOR_PREVIEW)
-  const allowed =
+  const ownOrCurated =
     isCuratedVoice(provider.name, voiceId) ||
     (options.ownClone ?? (await clonesOf(db, actor.workspaceId, provider.name)).some(c => c.voice_id === voiceId))
-  if (!allowed) return error(404, "not one of the curated voices or this workspace's cloned voices")
+  const listed = ownOrCurated
+    ? null
+    : options.catalogEntry !== undefined
+      ? options.catalogEntry
+      : await catalogVoice(db, actor.workspaceId, provider.name, voiceId, { doFetch: options.doFetch })
+  if (!ownOrCurated && !listed)
+    return error(404, "not one of the voice providers' voices or this workspace's cloned voices")
+  const hosted = listed?.previewUrl ?? null
   const cache = options.cache ?? previewCache()
-  const key = previewKey(provider, voiceId)
+  const key = hosted ? createHash('sha256').update(hosted).digest('hex').slice(0, 32) : previewKey(provider, voiceId)
   const stored = await cache.get(key)
   if (stored) return audioResponse(stored)
   try {
     let pending = making.get(key)
     if (!pending) {
-      if (!(options.budget ?? defaultBudget).take(actor.workspaceId))
+      if (!hosted && !(options.budget ?? defaultBudget).take(actor.workspaceId))
         return error(429, `at most ${PREVIEWS_PER_HOUR} new voice samples an hour`)
-      pending = provider.synthesize(voiceId, PREVIEW_TEXT).then(async audio => {
+      const made = hosted
+        ? hostedSample(provider.name, hosted, options.doFetch ?? fetch)
+        : provider.synthesize(voiceId, PREVIEW_TEXT).then(audio => audio.bytes)
+      pending = made.then(async bytes => {
         await cache
-          .put(key, audio.bytes)
+          .put(key, bytes)
           .catch(e => console.warn(`could not store a voice preview: ${e instanceof Error ? e.message : e}`))
-        return audio.bytes
+        return bytes
       })
       making.set(key, pending)
       void pending.catch(() => {}).finally(() => making.delete(key))

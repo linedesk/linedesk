@@ -102,6 +102,17 @@ export async function activeProvider(tx: Tx, category: ProviderCategory, env: En
   return null
 }
 
+/** Every provider of a category that has all its needed fields, with its config, in registry order. */
+export async function setUpProviders(tx: Tx, category: ProviderCategory, env: Env = process.env) {
+  const ready: { provider: ProviderName; config: ProviderConfig }[] = []
+  for (const provider of providersIn(category)) {
+    const config = await resolveProvider(tx, provider, env)
+    if (Object.keys(providerSpec(provider).fields).every(field => config[field] || isOptional(provider, field)))
+      ready.push({ provider, config })
+  }
+  return ready
+}
+
 /**
  * The telephony provider in effect: the one picked in the admin area, else TELEPHONY_PROVIDER
  * (`dev` means no carrier), else the first one in the registry that is set up (Telnyx before
@@ -127,7 +138,15 @@ const voiceCategories = ['stt', 'llm', 'tts'] as const satisfies readonly Provid
 /** What the agent gets: the voice stages, and where to record calls. */
 const agentCategories = [...voiceCategories, 'recording'] as const satisfies readonly ProviderCategory[]
 type VoiceEntry = { provider: ProviderName } & Record<string, string | null>
-export type VoiceProviderConfig = Record<(typeof agentCategories)[number], VoiceEntry | null>
+export type VoiceProviderConfig = Record<(typeof agentCategories)[number], VoiceEntry | null> & {
+  /** Every voice provider with a key: an assistant may use a voice of another one than `tts`. */
+  tts_providers: VoiceEntry[]
+}
+
+const entryOf = (provider: ProviderName, config: ProviderConfig): VoiceEntry => ({
+  provider,
+  ...Object.fromEntries(Object.keys(providerSpec(provider).fields).map(field => [field, config[field]?.value ?? null])),
+})
 
 /**
  * Whether the server has what the voice agent needs to answer a call: LiveKit in env and a speech,
@@ -154,13 +173,9 @@ export async function voiceProviderConfig(tx: Tx): Promise<VoiceProviderConfig> 
   const config = {} as VoiceProviderConfig
   for (const category of agentCategories) {
     const active = await activeProvider(tx, category)
-    config[category] = active && {
-      provider: active.provider,
-      ...Object.fromEntries(
-        Object.keys(providerSpec(active.provider).fields).map(field => [field, active.config[field]?.value ?? null]),
-      ),
-    }
+    config[category] = active && entryOf(active.provider, active.config)
   }
+  config.tts_providers = (await setUpProviders(tx, 'tts')).map(p => entryOf(p.provider, p.config))
   return config
 }
 

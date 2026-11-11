@@ -16,7 +16,7 @@ test('env defaults: Deepgram, OpenRouter with a fast live model and a stronger s
       model: 'google/gemini-2.5-flash-lite', fallbacks: ['openai/gpt-4.1-mini'],
       summaryModel: 'google/gemini-2.5-flash', summaryFallbacks: ['openai/gpt-5.4-mini'],
     },
-    tts: { provider: 'elevenlabs', apiKey: 'el', model: undefined, voiceId: undefined },
+    tts: { provider: 'elevenlabs', apiKey: 'el', model: undefined, voiceId: undefined, others: [] },
     recording: { store: 'off' },
   })
 })
@@ -28,7 +28,7 @@ test('every stage can be changed by env', async () => {
   })
   expect(config.stt.model).toBe('nova-3')
   expect(config.llm).toEqual({ provider: 'openai', apiKey: 'oa', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4', fallbacks: [], summaryModel: 'gpt-4.1-mini', summaryFallbacks: [] })
-  expect(config.tts).toEqual({ provider: 'cartesia', apiKey: 'ca', model: 'sonic-3', voiceId: 'voice_1' })
+  expect(config.tts).toEqual({ provider: 'cartesia', apiKey: 'ca', model: 'sonic-3', voiceId: 'voice_1', others: [] })
   expect((await configFromEnv({ ...keys, LLM_BASE_URL: 'https://llm.internal/v1/', LLM_MODEL: 'local' })).llm).toMatchObject({ baseUrl: 'https://llm.internal/v1', model: 'local' })
 })
 
@@ -36,7 +36,7 @@ test('settings stored in Linedesk win over the environment, stage by stage', () 
   expect(resolveAgentConfig(stored, keys)).toEqual({
     stt: { provider: 'deepgram', apiKey: 'dg-app', model: 'flux-general-en' },
     llm: { provider: 'openai', apiKey: 'oa-app', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4', fallbacks: [], summaryModel: 'gpt-4.1-mini', summaryFallbacks: [] },
-    tts: { provider: 'elevenlabs', apiKey: 'el-app', model: undefined, voiceId: 'voice_app' },
+    tts: { provider: 'elevenlabs', apiKey: 'el-app', model: undefined, voiceId: 'voice_app', others: [] },
     recording: { store: 'off' },
   })
   // A stage that is not set up in Linedesk comes from the environment.
@@ -165,4 +165,18 @@ test('recording storage comes with the provider settings; without it (an older A
   expect(resolveAgentConfig(parseProviderSettings(stored), { ...keys, RECORDING_STORE: 'file' }).recording).toEqual({ store: 'file' })
   expect(resolveAgentConfig({ ...stored, recording: null }, keys).recording).toEqual({ store: 'off' })
   expect(() => parseProviderSettings({ ...stored, recording: { provider: 's3', bucket: 42 } })).toThrow('unexpected shape')
+})
+
+test('every other voice provider with a key comes along, so an assistant can use a voice of it', () => {
+  const config = resolveAgentConfig({
+    ...stored,
+    tts_providers: [
+      { provider: 'elevenlabs', api_key: 'el-app', model: null },
+      { provider: 'cartesia', api_key: 'ca-app', model: 'sonic-2' },
+      { provider: 'unknown', api_key: 'x' },
+      { provider: 'cartesia', api_key: null },
+    ],
+  }, {})
+  expect(config.tts.others).toEqual([{ provider: 'cartesia', apiKey: 'ca-app', model: 'sonic-2' }])
+  expect(parseProviderSettings({ stt: null, llm: null, tts: null }).tts_providers).toBeUndefined() // an older API
 })

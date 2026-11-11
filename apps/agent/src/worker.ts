@@ -14,7 +14,7 @@ import { earlyOrigin, livekitParticipants } from './early-origin.ts'
 import { createConfigLoader, parseProviderSettings, type AgentConfig } from './config.ts'
 import { AGENT_NAME, requireEnv, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness } from './not-ready.ts'
-import { createPipeline, createTts, summaryLlm, ttsModelOf, voiceFor, warmUpLlm } from './pipeline.ts'
+import { createPipeline, createTts, greetingVoice, summaryLlm, warmUpLlm } from './pipeline.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
 import { logTurnMetrics } from './turn-metrics.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
@@ -192,8 +192,7 @@ async function greet(session: voice.AgentSession, config: AgentConfig, call: Cal
  */
 async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant>, api: ApiClient, config: AgentConfig, call: CallSession, log: CallLog, onClose: () => void, setup: SetupTimer, stopRecordingForTransfer: () => Promise<void>) {
   const key = greetingKey({
-    provider: config.tts.provider, model: ttsModelOf(config.tts), voiceId: voiceFor(config.tts, call.assistant?.voice),
-    text: call.assistant?.greeting || FALLBACK_GREETING,
+    ...greetingVoice(config, call), text: call.assistant?.greeting || FALLBACK_GREETING,
   })
   const cachedGreeting = greetingCache.get(key) // read while the session starts
   let callerIdentity: string | undefined

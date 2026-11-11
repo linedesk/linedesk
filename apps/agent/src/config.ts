@@ -21,11 +21,16 @@ export interface AgentConfig {
     summaryModel: string
     summaryFallbacks: string[]
   }
-  /** `voiceId` is the default voice; an assistant can bring its own for the same provider. */
-  tts: { provider: 'elevenlabs' | 'cartesia'; apiKey: string; model?: string; voiceId?: string }
+  /**
+   * `voiceId` is the default voice; an assistant can bring its own, also of another provider in
+   * `others` (every other voice provider set up with a key).
+   */
+  tts: TtsConfig & { voiceId?: string; others?: TtsConfig[] }
   /** Where calls are recorded (holds the S3 secret: never log it). Not a stage: `off` does not stop calls. */
   recording: RecordingConfig
 }
+
+export type TtsConfig = { provider: 'elevenlabs' | 'cartesia'; apiKey: string; model?: string }
 
 type Env = Record<string, string | undefined>
 
@@ -51,7 +56,8 @@ const entry = z.object({
   voice_id: z.string().nullish(),
 }).nullable()
 // `recording` is missing from an API older than the agent: the environment applies then.
-const providerSettings = z.object({ stt: entry, llm: entry, tts: entry, recording: recordingSettings })
+// `tts_providers` is missing from an API older than the agent: only the active voice provider then.
+const providerSettings = z.object({ stt: entry, llm: entry, tts: entry, recording: recordingSettings, tts_providers: z.array(entry.unwrap()).optional() })
 export type ProviderSettings = z.infer<typeof providerSettings>
 type Entry = z.infer<typeof entry>
 
@@ -150,7 +156,12 @@ export function resolveAgentConfig(settings: ProviderSettings | null, env: Env =
       model: model!, fallbacks: withFallbacks ? fallbacks : [],
       summaryModel: summaryModel!, summaryFallbacks: withFallbacks ? summaryFallbacks : [],
     },
-    tts: { provider: tts.provider as AgentConfig['tts']['provider'], apiKey: tts.api_key!, model: tts.model || undefined, voiceId: tts.voice_id || undefined },
+    tts: {
+      provider: tts.provider as TtsConfig['provider'], apiKey: tts.api_key!, model: tts.model || undefined, voiceId: tts.voice_id || undefined,
+      others: (settings?.tts_providers ?? [])
+        .filter(p => p.provider !== tts.provider && p.api_key && p.provider in stages.tts.providers)
+        .map(p => ({ provider: p.provider as TtsConfig['provider'], apiKey: p.api_key!, model: p.model || undefined })),
+    },
     recording: resolveRecording(settings?.recording, env),
   }
 }

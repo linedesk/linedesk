@@ -55,6 +55,45 @@ export const voiceOptions = defineAction({
   readOnly: true,
 })
 
+/**
+ * A voice of a provider's own list (Settings › Assistant › Voice › More voices): the provider's voices
+ * that the install's key can use, without other workspaces' clones. Fields the provider does not give are null.
+ */
+export type CatalogVoice = {
+  provider: string
+  id: string
+  name: string
+  description: string | null
+  /** Language code as the provider gives it, e.g. `en`. */
+  language: string | null
+  gender: string | null
+  accent: string | null
+}
+
+/**
+ * A text-to-speech provider Linedesk supports: `configured` when it has a key (its voices are listed),
+ * `active` when it is the install's provider in effect, `error` when its list could not be read.
+ */
+export type CatalogProvider = {
+  provider: string
+  label: string
+  active: boolean
+  configured: boolean
+  error: string | null
+}
+
+/** `data` of `voice.catalog`: every supported provider, and the voices of those with a key. */
+export type VoiceCatalogData = { providers: readonly CatalogProvider[]; voices: readonly CatalogVoice[] }
+
+export const voiceCatalog = defineAction({
+  name: 'voice.catalog',
+  description:
+    "Every voice an assistant can use from the text-to-speech providers that have a key: each provider's own list (fetched with the install's key, cached a few minutes), without other workspaces' cloned voices.",
+  input: z.object({}),
+  permission: 'call:read',
+  readOnly: true,
+})
+
 /** A provider voice id: letters, digits, dashes and underscores (ElevenLabs ids, Cartesia UUIDs). */
 export const voiceId = z
   .string()

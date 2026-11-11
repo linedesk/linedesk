@@ -9,7 +9,7 @@ import * as deepgram from '@livekit/agents-plugin-deepgram'
 import * as elevenlabs from '@livekit/agents-plugin-elevenlabs'
 import * as openai from '@livekit/agents-plugin-openai'
 import type { AssistantVoice } from '@linedesk/db/types'
-import type { AgentConfig } from './config.ts'
+import type { AgentConfig, TtsConfig } from './config.ts'
 import type { CompleteJson } from './summary.ts'
 
 const SUMMARY_TIMEOUT_MS = 15_000
@@ -22,9 +22,26 @@ const ENDPOINTING = { minDelay: 100, maxDelay: 1000 }
 /** Flux reports a likely end of turn this early, so the reply can be prepared while it confirms. */
 const EAGER_END_OF_TURN = 0.5
 
-/** The assistant's own voice if it was picked for the provider in use, else the configured default (or the provider's). */
-export function voiceFor(tts: AgentConfig['tts'], assistantVoice?: AssistantVoice | null): string | undefined {
-  return assistantVoice?.provider === tts.provider && assistantVoice.voice_id ? assistantVoice.voice_id : tts.voiceId
+/**
+ * The voice provider and voice a call uses: the assistant's own voice with its provider when that one
+ * is set up (the one in use or another with a key), else the configured default voice (or the provider's).
+ */
+export function ttsFor(tts: AgentConfig['tts'], assistantVoice?: AssistantVoice | null): TtsConfig & { voiceId?: string } {
+  const own = assistantVoice?.voice_id
+  if (own && assistantVoice.provider === tts.provider) return { provider: tts.provider, apiKey: tts.apiKey, model: tts.model, voiceId: own }
+  const other = own ? tts.others?.find(o => o.provider === assistantVoice.provider) : undefined
+  if (other) return { ...other, voiceId: own }
+  return { provider: tts.provider, apiKey: tts.apiKey, model: tts.model, voiceId: tts.voiceId }
+}
+
+/** The voice id a call uses (see ttsFor). */
+export const voiceFor = (tts: AgentConfig['tts'], assistantVoice?: AssistantVoice | null): string | undefined =>
+  ttsFor(tts, assistantVoice).voiceId
+
+/** What a cached line in the assistant's voice is keyed by (with its text): provider, model and voice. */
+export function greetingVoice(config: AgentConfig, call: { assistant?: { voice?: AssistantVoice | null } | null }) {
+  const tts = ttsFor(config.tts, call.assistant?.voice)
+  return { provider: tts.provider, model: ttsModelOf(tts), voiceId: tts.voiceId }
 }
 
 export function createStt({ apiKey, model }: AgentConfig['stt']) {
@@ -33,10 +50,10 @@ export function createStt({ apiKey, model }: AgentConfig['stt']) {
 }
 
 /** The model the voice provider is asked for (ElevenLabs gets its fast default). */
-export const ttsModelOf = (tts: AgentConfig['tts']) => tts.model ?? (tts.provider === 'elevenlabs' ? ELEVENLABS_DEFAULT_MODEL : undefined)
+export const ttsModelOf = (tts: TtsConfig) => tts.model ?? (tts.provider === 'elevenlabs' ? ELEVENLABS_DEFAULT_MODEL : undefined)
 
-export function createTts(tts: AgentConfig['tts'], assistantVoice?: AssistantVoice | null) {
-  const voiceId = voiceFor(tts, assistantVoice)
+export function createTts(config: AgentConfig['tts'], assistantVoice?: AssistantVoice | null) {
+  const { voiceId, ...tts } = ttsFor(config, assistantVoice)
   if (tts.provider === 'cartesia') return new cartesia.TTS({ apiKey: tts.apiKey, ...(tts.model ? { model: tts.model } : {}), ...(voiceId ? { voice: voiceId } : {}) })
   return new elevenlabs.TTS({ apiKey: tts.apiKey, model: tts.model ?? ELEVENLABS_DEFAULT_MODEL, ...(voiceId ? { voiceId } : {}) })
 }

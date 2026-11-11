@@ -11,7 +11,7 @@ import type { AgentConfig } from './config.ts'
 import type { Announcement } from './audio-bridge.ts'
 import { requireLivekitEnv } from './env.ts'
 import { createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
-import { createTts, ttsModelOf, voiceFor } from './pipeline.ts'
+import { createTts, greetingVoice } from './pipeline.ts'
 import { type OnCallDialer, simulatedDialer, sipDialer } from './on-call-dialer.ts'
 import { findOutboundTrunk, sipClient, TRANSFER_TRUNK_NAME } from './sip-trunks.ts'
 import { ownTransferTrunk, reprovisionTrunk, transferRoute, workspaceTrunkDialer } from './workspace-trunk.ts'
@@ -102,9 +102,7 @@ const lines = createGreetingCache()
 /** "I'm connecting you…" in the assistant's voice, mono; synthesized once per voice and kept like the greeting. */
 async function connectingLine(config: AgentConfig, call: CallSession): Promise<Announcement> {
   const key = greetingKey({
-    provider: config.tts.provider,
-    model: ttsModelOf(config.tts),
-    voiceId: voiceFor(config.tts, call.assistant?.voice),
+    ...greetingVoice(config, call),
     text: CONNECTING_LINE,
   })
   let audio = await lines.get(key)

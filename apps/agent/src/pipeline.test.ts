@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest'
 import type { AgentConfig } from './config.ts'
-import { chatJson, summaryLlm, voiceFor, warmUpLlm } from './pipeline.ts'
+import { chatJson, greetingVoice, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
 
 const openrouter = { apiKey: 'sk-or-test', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' }
 
@@ -61,4 +61,12 @@ test('the summary uses the summary model, with OpenRouter fallbacks as `models`'
   expect(JSON.parse(String(fakeFetch.mock.calls[0]![1]!.body))).toMatchObject({ model: 'sum/strong', models: ['sum/strong', 'sum/backup'] })
   await chatJson({ ...openrouter, fallbacks: [] }, fakeFetch)('s', 'u')
   expect(JSON.parse(String(fakeFetch.mock.calls[1]![1]!.body))).not.toHaveProperty('models')
+})
+
+test('an assistant with a voice of another provider that has a key gets that provider', () => {
+  const tts = { provider: 'elevenlabs' as const, apiKey: 'k', voiceId: 'default_voice', others: [{ provider: 'cartesia' as const, apiKey: 'ck', model: 'sonic-2' }] }
+  expect(ttsFor(tts, { provider: 'cartesia', voice_id: 'sonic_voice' })).toEqual({ provider: 'cartesia', apiKey: 'ck', model: 'sonic-2', voiceId: 'sonic_voice' })
+  expect(ttsFor({ ...tts, others: [] }, { provider: 'cartesia', voice_id: 'sonic_voice' })).toMatchObject({ provider: 'elevenlabs', voiceId: 'default_voice' })
+  expect(ttsFor(tts, { provider: 'cartesia', voice_id: '' })).toMatchObject({ provider: 'elevenlabs', voiceId: 'default_voice' })
+  expect(greetingVoice({ tts } as never, { assistant: { voice: { provider: 'cartesia', voice_id: 'sonic_voice' } } })).toEqual({ provider: 'cartesia', model: 'sonic-2', voiceId: 'sonic_voice' })
 })

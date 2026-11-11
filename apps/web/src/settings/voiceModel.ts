@@ -4,12 +4,83 @@ import { CLONE_AUDIO_MAX_BYTES, cloneAudioTypes } from '@linedesk/actions'
 
 export type VoiceChoice = { provider: string; voice_id: string }
 
-/** The voice id that applies with this provider: a voice picked for another provider does not (the agent ignores it too). */
-export const voiceInEffect = (voice: VoiceChoice, provider: string | null): string =>
-  provider && voice.provider === provider ? voice.voice_id : ''
+/** One voice as the picker lists it, curated or from a provider's list. */
+export type PickerVoice = {
+  provider: string
+  id: string
+  name: string
+  description: string | null
+  language?: string | null
+  gender?: string | null
+  accent?: string | null
+}
 
-/** The sample of a voice, made once on the server and cached by the browser too. */
-export const previewUrl = (voiceId: string) => `/v1/voices/preview/${encodeURIComponent(voiceId)}`
+/** A voice's identity in the picker: the same id can exist at two providers. */
+export const voiceKey = (provider: string, voiceId: string) => `${provider}:${voiceId}`
+
+/**
+ * The voice that applies, as a voiceKey ('' for the default): a voice of a provider that is not set
+ * up (no key) does not apply; the agent uses the default voice then, so the picker shows that.
+ */
+export const voiceInEffect = (voice: VoiceChoice, usable: readonly string[]): string =>
+  voice.voice_id && usable.includes(voice.provider) ? voiceKey(voice.provider, voice.voice_id) : ''
+
+/**
+ * The sample of a voice, made once on the server and cached by the browser too. `provider` only when
+ * it is not the one in effect.
+ */
+export const previewUrl = (voiceId: string, provider?: string | null) =>
+  `/v1/voices/preview/${encodeURIComponent(voiceId)}${provider ? `?provider=${encodeURIComponent(provider)}` : ''}`
+
+export type VoiceFilter = { query: string; provider: string; language: string; gender: string; accent: string }
+export const NO_FILTER: VoiceFilter = { query: '', provider: '', language: '', gender: '', accent: '' }
+
+const norm = (value: string | null | undefined) => (value ?? '').trim().toLowerCase()
+
+/** The voices that match the search (name, description, accent) and every filter that is set. */
+export function filterVoices<V extends PickerVoice>(voices: readonly V[], filter: VoiceFilter): V[] {
+  const words = norm(filter.query).split(/\s+/).filter(Boolean)
+  return voices.filter(v => {
+    if (filter.provider && v.provider !== filter.provider) return false
+    if (filter.language && norm(v.language) !== filter.language) return false
+    if (filter.gender && norm(v.gender) !== filter.gender) return false
+    if (filter.accent && norm(v.accent) !== filter.accent) return false
+    const text = `${norm(v.name)} ${norm(v.description)} ${norm(v.accent)} ${norm(languageName(v.language))}`
+    return words.every(w => text.includes(w))
+  })
+}
+
+/** English first (the assistant speaks US English), then by name. */
+export const byEnglishThenName = (a: PickerVoice, b: PickerVoice) =>
+  Number(norm(a.language) !== 'en') - Number(norm(b.language) !== 'en') || a.name.localeCompare(b.name)
+
+/** The values a filter can take in this list, sorted by label, each once. */
+export function facetValues(voices: readonly PickerVoice[], field: 'language' | 'gender' | 'accent') {
+  const values = new Set(voices.map(v => norm(v[field])).filter(Boolean))
+  const label = field === 'language' ? languageName : capitalize
+  return [...values].map(value => ({ value, label: label(value) })).sort((a, b) => a.label.localeCompare(b.label))
+}
+
+const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
+let languageNames: Intl.DisplayNames | null = null
+
+/** "en" → "English"; an unknown code stays as it is. */
+export function languageName(code: string | null | undefined): string {
+  if (!code) return ''
+  try {
+    languageNames ??= new Intl.DisplayNames(['en'], { type: 'language' })
+    return languageNames.of(code) ?? code
+  } catch {
+    return code
+  }
+}
+
+/** The muted facts after a voice's name: "Female · American · English", the provider when there are several. */
+export function voiceFacts(v: PickerVoice, providerLabel?: string): string {
+  return [v.gender && capitalize(v.gender), v.accent && capitalize(v.accent), languageName(v.language), providerLabel]
+    .filter(Boolean)
+    .join(' · ')
+}
 
 /**
  * What to say when a sample does not come back as audio: from the answer's status and the server's

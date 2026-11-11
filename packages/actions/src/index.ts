@@ -72,6 +72,7 @@ const all = [
   settings.assistantCreate,
   settings.assistantDelete,
   voices.voiceOptions,
+  voices.voiceCatalog,
   voices.voiceClone,
   voices.voiceCloningGet,
   voices.voiceCloningSet,

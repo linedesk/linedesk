@@ -1,16 +1,86 @@
 import { describe, expect, it, test } from 'vitest'
-import { cloneProblem, fileToBase64, previewProblem, previewUrl, voiceInEffect } from './voiceModel.ts'
+import {
+  byEnglishThenName,
+  cloneProblem,
+  facetValues,
+  fileToBase64,
+  filterVoices,
+  NO_FILTER,
+  previewProblem,
+  previewUrl,
+  voiceFacts,
+  voiceInEffect,
+} from './voiceModel.ts'
 
 describe('voice picker', () => {
-  it('a voice picked for another provider does not apply: the default is shown', () => {
-    expect(voiceInEffect({ provider: 'elevenlabs', voice_id: 'cgSgspJ2msm6clMCkdW9' }, 'elevenlabs')).toBe(
-      'cgSgspJ2msm6clMCkdW9',
+  it('a voice of a provider without a key does not apply: the default is shown', () => {
+    const jessica = { provider: 'elevenlabs', voice_id: 'cgSgspJ2msm6clMCkdW9' }
+    expect(voiceInEffect(jessica, ['elevenlabs'])).toBe('elevenlabs:cgSgspJ2msm6clMCkdW9')
+    expect(voiceInEffect({ provider: 'cartesia', voice_id: 'abc-123' }, ['elevenlabs', 'cartesia'])).toBe(
+      'cartesia:abc-123',
     )
-    expect(voiceInEffect({ provider: 'cartesia', voice_id: 'abc-123-def-456' }, 'elevenlabs')).toBe('')
-    expect(voiceInEffect({ provider: 'elevenlabs', voice_id: 'x' }, null)).toBe('')
+    expect(voiceInEffect({ provider: 'cartesia', voice_id: 'abc-123' }, ['elevenlabs'])).toBe('')
+    expect(voiceInEffect({ provider: 'elevenlabs', voice_id: '' }, ['elevenlabs'])).toBe('')
   })
-  it('previews', () => {
+  it('previews name the provider only when it is not the one in effect', () => {
     expect(previewUrl('cgSgspJ2msm6clMCkdW9')).toBe('/v1/voices/preview/cgSgspJ2msm6clMCkdW9')
+    expect(previewUrl('abc-123', 'cartesia')).toBe('/v1/voices/preview/abc-123?provider=cartesia')
+  })
+  it('more voices: search by name, description, accent or language, and filters', () => {
+    const voices = [
+      {
+        provider: 'elevenlabs',
+        id: '1',
+        name: 'Jessica',
+        description: 'Warm and bright',
+        language: 'en',
+        gender: 'female',
+        accent: 'american',
+      },
+      {
+        provider: 'elevenlabs',
+        id: '2',
+        name: 'Lea',
+        description: 'Young Swiss voice',
+        language: 'de',
+        gender: 'female',
+        accent: 'standard',
+      },
+      {
+        provider: 'cartesia',
+        id: '3',
+        name: 'Brooke',
+        description: null,
+        language: 'en',
+        gender: 'female',
+        accent: null,
+      },
+      {
+        provider: 'cartesia',
+        id: '4',
+        name: 'Ronald',
+        description: 'Calm narrator',
+        language: 'en',
+        gender: 'male',
+        accent: 'British',
+      },
+    ]
+    const ids = (filter: Partial<typeof NO_FILTER>) => filterVoices(voices, { ...NO_FILTER, ...filter }).map(v => v.id)
+    expect(ids({})).toEqual(['1', '2', '3', '4'])
+    expect(ids({ query: 'swiss' })).toEqual(['2'])
+    expect(ids({ query: 'german' })).toEqual(['2'])
+    expect(ids({ query: 'cal narr' })).toEqual(['4'])
+    expect(ids({ provider: 'cartesia', gender: 'female' })).toEqual(['3'])
+    expect(ids({ accent: 'british' })).toEqual(['4'])
+    expect(ids({ language: 'de', query: 'jess' })).toEqual([])
+    expect(facetValues(voices, 'language')).toEqual([
+      { value: 'en', label: 'English' },
+      { value: 'de', label: 'German' },
+    ])
+    expect(facetValues(voices, 'accent').map(f => f.label)).toEqual(['American', 'British', 'Standard'])
+    expect(voiceFacts(voices[3]!, 'Cartesia')).toBe('Male · British · English · Cartesia')
+    expect(voiceFacts(voices[2]!)).toBe('Female · English')
+    expect([...voices].sort(byEnglishThenName).map(v => v.name)).toEqual(['Brooke', 'Jessica', 'Ronald', 'Lea'])
   })
   it('cloning needs a name, a recording of a known type up to 10 MB, and consent', () => {
     const file = { size: 1_000_000, type: 'audio/mpeg' }

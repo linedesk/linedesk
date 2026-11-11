@@ -1,5 +1,14 @@
 import { actions, CLONE_BODY_MAX_BYTES, openApiDocument } from '@linedesk/actions'
-import { assistants, member, organization, passkey, user, workspace_settings, tableNames, type TableName } from '@linedesk/db'
+import {
+  assistants,
+  member,
+  organization,
+  passkey,
+  user,
+  workspace_settings,
+  tableNames,
+  type TableName,
+} from '@linedesk/db'
 import { APIError } from 'better-auth/api'
 import { asc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -141,7 +150,11 @@ app.post('/v1/account/password', setFirstPassword)
 
 // The provider sends the browser back here after the consent page. Before the guard: it answers
 // with a redirect to the settings page in every case, also when the session is gone.
-app.get('/v1/calendar/callback/:provider', async c => c.redirect(await calendarCallback(c.req.param('provider'), new URL(c.req.url).searchParams, c.req.raw.headers, WEB_ORIGIN)))
+app.get('/v1/calendar/callback/:provider', async c =>
+  c.redirect(
+    await calendarCallback(c.req.param('provider'), new URL(c.req.url).searchParams, c.req.raw.headers, WEB_ORIGIN),
+  ),
+)
 
 app.use('/v1/*', async (c, next) => {
   const ip = clientIpOf(c)
@@ -235,7 +248,8 @@ function workspacesOf(userId: string) {
 /** Who is signed in as this user, for the banner while impersonating. */
 async function impersonationOf({ actorId, impersonation }: Actor) {
   if (!impersonation) return null
-  const person = (id: string) => db.select({ id: user.id, name: user.name, email: user.email }).from(user).where(eq(user.id, id))
+  const person = (id: string) =>
+    db.select({ id: user.id, name: user.name, email: user.email }).from(user).where(eq(user.id, id))
   const [[by], [as]] = await Promise.all([person(impersonation.by), person(actorId)])
   return by && as ? { by, user: as, expiresAt: impersonation.expiresAt.toISOString() } : null
 }
@@ -257,9 +271,20 @@ app.get('/v1/actions', c =>
 )
 
 // A voice recording is the one large input: it is capped before the body is read; every other action at 4 MB (a contact import of 500 rows fits).
-app.use('/v1/actions/voice.clone', bodyLimit({ maxSize: CLONE_BODY_MAX_BYTES, onError: c => c.json({ ok: false, error: 'the recording is larger than 10 MB' }, 413) }))
+app.use(
+  '/v1/actions/voice.clone',
+  bodyLimit({
+    maxSize: CLONE_BODY_MAX_BYTES,
+    onError: c => c.json({ ok: false, error: 'the recording is larger than 10 MB' }, 413),
+  }),
+)
 app.use('/v1/actions/:name', async (c, next) =>
-  c.req.param('name') === 'voice.clone' ? next() : bodyLimit({ maxSize: ACTION_BODY_MAX_BYTES, onError: c => c.json({ ok: false, error: 'request body too large' }, 413) })(c, next),
+  c.req.param('name') === 'voice.clone'
+    ? next()
+    : bodyLimit({
+        maxSize: ACTION_BODY_MAX_BYTES,
+        onError: c => c.json({ ok: false, error: 'request body too large' }, 413),
+      })(c, next),
 )
 
 app.post('/v1/actions/:name', async c => {
@@ -271,7 +296,9 @@ app.post('/v1/actions/:name', async c => {
   return c.json(body, status)
 })
 
-app.get('/v1/voices/preview/:voiceId', c => servePreview(c.get('actor'), c.req.param('voiceId')))
+app.get('/v1/voices/preview/:voiceId', c =>
+  servePreview(c.get('actor'), c.req.param('voiceId'), { providerName: c.req.query('provider') || undefined }),
+)
 
 app.get('/v1/calls/:id/recording', c => serveRecording(c.get('actor'), c.req.param('id'), c.req.header('range')))
 
@@ -283,7 +310,7 @@ app.get('/v1/calls/:id/recording', c => serveRecording(c.get('actor'), c.req.par
 /** The 4xx Electric answers about the stream position, which its client handles (load the table again). */
 const ELECTRIC_CLIENT_STATUSES = [400, 404, 409, 410]
 
-const streamParams =['offset', 'handle', 'live', 'cursor', 'live_sse', 'experimental_live_sse']
+const streamParams = ['offset', 'handle', 'live', 'cursor', 'live_sse', 'experimental_live_sse']
 /** Which rows of a table a member's browser receives: their workspace's; webhook URLs (they can carry a token) only for owners and admins. */
 function shapeFilter(table: TableName, permissions: readonly string[]) {
   if (table === 'calls') return 'workspace_id = $1 AND deleted_at IS NULL'
@@ -292,7 +319,8 @@ function shapeFilter(table: TableName, permissions: readonly string[]) {
 }
 
 /** Read sync is the browser's: it streams whole tables, settings included (assistants, numbers, calendars, webhooks). */
-export const SHAPE_NOT_FOR_API_KEYS = 'API keys cannot use read sync; use the public API (GET /v1/openapi.json) or the MCP read tools'
+export const SHAPE_NOT_FOR_API_KEYS =
+  'API keys cannot use read sync; use the public API (GET /v1/openapi.json) or the MCP read tools'
 
 app.get('/v1/shape/:table', async c => {
   const table = c.req.param('table') as TableName
