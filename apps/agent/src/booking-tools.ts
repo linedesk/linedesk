@@ -14,7 +14,7 @@ const MAX_OFFERED = 6
 const SEARCH_LIMIT = 60
 
 /** A booking as the caller described it: its day (YYYY-MM-DD) and the name it is under; the API checks both. */
-export type DescribedBooking = { booking_date: string; booked_name: string }
+export type DescribedBooking = { booking_date: string }
 /** Descriptions that matched no booking before the assistant stops trying on a call (no guessing names or days). */
 export const MAX_DESCRIBE_ATTEMPTS = 2
 
@@ -130,7 +130,20 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
 
   /** Failed attempts to describe a booking on this call: after MAX_DESCRIBE_ATTEMPTS, no more guesses. */
   let failedDescriptions = 0
-  const described = ({ booking_date, booked_name }: DescribedBooking) => ({ bookingDate: booking_date, bookedName: booked_name, callId })
+  /**
+   * The name is the one the caller said and confirmed in the name step on this call, never the model's: it knows the
+   * contact's name (greeting, caller history) and once cancelled an appointment before the caller had said any name.
+   * Caller ID is cheap to fake, so the name the caller says is the check.
+   */
+  const described = ({ booking_date }: Pick<DescribedBooking, 'booking_date'>) => ({ bookingDate: booking_date, bookedName: log.confirmedName ?? '', callId })
+  /**
+   * The greeting said the caller's full name ("Hi Donna Ruiz"): anyone calling from that number has heard the name on
+   * file, so saying it back proves nothing. No booking changes on such a call, whatever the model does.
+   */
+  const GREETED_FULL_NAME =
+    'Appointments cannot be cancelled or moved on this call. Take a message for the team: they will call back to change it.'
+  const NAME_FIRST =
+    "Before you cancel or move an appointment, get the caller's full name with get_name: they say it and confirm it. Never use a name from your notes or the greeting."
   const outOfAttempts = () => failedDescriptions >= MAX_DESCRIBE_ATTEMPTS
   const refused = (e: unknown, what: string) => `${what} did not work (${failure(e)}). Do not guess another day or name: take a message for the team instead.`
   /**
@@ -147,7 +160,9 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
   const NO_MORE = 'The booking could not be found on this call. Do not try again: take a message for the team instead.'
 
   async function cancel(which: DescribedBooking): Promise<string> {
+    if (call.caller?.greetedFullName) return GREETED_FULL_NAME
     if (outOfAttempts()) return NO_MORE
+    if (!log.confirmedName) return NAME_FIRST
     try {
       const { data } = await api.run(appointmentCancel, { ...described(which), readsRefusals: true }, call)
       const no = declined(data)
@@ -166,7 +181,9 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
 
   /** `searched`: the appointment type and calendar find_slots was asked with; the API checks the time with them first. */
   async function reschedule(which: DescribedBooking, newStart: string, searched: { appointment_type_id: string; calendar_id: string }): Promise<string> {
+    if (call.caller?.greetedFullName) return GREETED_FULL_NAME
     if (outOfAttempts()) return NO_MORE
+    if (!log.confirmedName) return NAME_FIRST
     const start = offeredStart(newStart)
     if (!start) return notOffered()
     try {

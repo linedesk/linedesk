@@ -137,11 +137,12 @@ test('the prompt lists types and calendars with their notes only when the assist
 test('cancel and reschedule name the call and the booking as the caller described it, never a booking id', async () => {
   const call = session()
   const log = new CallLog(call)
+  log.confirmedName = 'Sam Patel'
   const api = offering(name => (name === 'appointment.cancel'
     ? { eventDeleted: true, label: 'Tuesday, November 17 at 9:00 AM' }
     : { bookingId: 'bk_1', start: 'x', end: '', label: 'Thursday, November 19 at 2:00 PM', calendarName: 'Office' }))
   const tools = bookingTools(api, call, log)
-  const which = { booking_date: '2026-11-17', booked_name: 'Sam Patel' }
+  const which = { booking_date: '2026-11-17' }
   const searched = { appointment_type_id: 'at_1', calendar_id: 'acal_office' }
   await tools.findSlots(searched)
   expect(await tools.reschedule(which, 's2', searched)).toBe('Moved to Thursday, November 19 at 2:00 PM. Confirm the new day and time to the caller.')
@@ -156,12 +157,14 @@ test(`after ${MAX_DESCRIBE_ATTEMPTS} refusals, the assistant stops guessing on t
   const call = session()
   // The API refuses as data (the miss is kept on its side), whatever the reason.
   const api = offering(() => ({ changed: false, refused: 'no booking of this caller matches that day and name: take a message instead' }))
-  const tools = bookingTools(api, call, new CallLog(call))
+  const log = new CallLog(call)
+  log.confirmedName = 'Sam Patel'
+  const tools = bookingTools(api, call, log)
   await tools.findSlots(search)
   for (let i = 0; i < MAX_DESCRIBE_ATTEMPTS; i++) {
-    expect(await tools.cancel({ booking_date: '2026-11-17', booked_name: `Guess ${i}` })).toMatch(/^That did not work \(no booking of this caller matches.*Do not guess another day, name or time/)
+    expect(await tools.cancel({ booking_date: '2026-11-17' })).toMatch(/^That did not work \(no booking of this caller matches.*Do not guess another day, name or time/)
   }
-  expect(await tools.reschedule({ booking_date: '2026-11-18', booked_name: 'Another' }, 's2', { appointment_type_id: 'at_1', calendar_id: 'acal_office' }))
+  expect(await tools.reschedule({ booking_date: '2026-11-18' }, 's2', { appointment_type_id: 'at_1', calendar_id: 'acal_office' }))
     .toMatch(/Do not try again: take a message/)
   expect(api.sent).toHaveLength(MAX_DESCRIBE_ATTEMPTS + 1)
 })
@@ -169,10 +172,12 @@ test(`after ${MAX_DESCRIBE_ATTEMPTS} refusals, the assistant stops guessing on t
 test('a time that is not free on reschedule never reads as moved, and is no failed try: the caller picks another time', async () => {
   const call = session()
   const api = offering(() => ({ changed: false, refused: 'That time is not free: look for slots again.', slotTaken: true }))
-  const tools = bookingTools(api, call, new CallLog(call))
+  const log = new CallLog(call)
+  log.confirmedName = 'Sam Patel'
+  const tools = bookingTools(api, call, log)
   await tools.findSlots(search)
   for (let i = 0; i < MAX_DESCRIBE_ATTEMPTS + 1; i++) {
-    const text = await tools.reschedule({ booking_date: '2026-11-17', booked_name: 'Sam Patel' }, 's2', { appointment_type_id: 'at_1', calendar_id: 'acal_office' })
+    const text = await tools.reschedule({ booking_date: '2026-11-17' }, 's2', { appointment_type_id: 'at_1', calendar_id: 'acal_office' })
     expect(text).toMatch(/^That time is not free any more\. Look for slots again/)
     expect(text).not.toMatch(/Moved/)
   }
@@ -240,4 +245,30 @@ test('book_appointment without a name sends none, for a type that does not ask f
   await tools.findSlots({ appointment_type_id: 'at_2', calendar_id: 'acal_mike' })
   await tools.book({ appointment_type_id: 'at_2', calendar_id: 'acal_mike', start: 's1', caller_name: ' ', reason: 'Quote' })
   expect(api.sent[1]![1]).not.toHaveProperty('callerName')
+})
+
+test('no cancel or move before the caller confirmed their name on this call: the model never fills in a name', async () => {
+  const call = session()
+  const log = new CallLog(call)
+  const api = offering(() => ({ eventDeleted: true, label: 'Monday, November 16 at 1:00 PM' }))
+  const tools = bookingTools(api, call, log)
+  await tools.findSlots(search)
+  expect(await tools.cancel({ booking_date: '2026-11-16' })).toMatch(/^Before you cancel or move an appointment, get the caller's full name with get_name/)
+  expect(await tools.reschedule({ booking_date: '2026-11-16' }, 's1', search)).toMatch(/^Before you cancel or move/)
+  expect(api.sent.map(([name]) => name)).toEqual(['calendar.findSlots'])
+  log.confirmedName = 'Donna Ruiz'
+  await tools.cancel({ booking_date: '2026-11-16' })
+  expect(api.sent[1]![1]).toMatchObject({ bookingDate: '2026-11-16', bookedName: 'Donna Ruiz' })
+})
+
+test('a call whose greeting said the full name changes no booking, even with a confirmed name', async () => {
+  const call = { ...session(), caller: { name: 'Donna Ruiz', note: null, greetedByName: true, greetedFullName: true } } as CallSession
+  const log = new CallLog(call)
+  log.confirmedName = 'Donna Ruiz'
+  const api = offering(() => ({ eventDeleted: true, label: 'Monday, November 16 at 1:00 PM' }))
+  const tools = bookingTools(api, call, log)
+  await tools.findSlots(search)
+  expect(await tools.cancel({ booking_date: '2026-11-16' })).toMatch(/^Appointments cannot be cancelled or moved on this call/)
+  expect(await tools.reschedule({ booking_date: '2026-11-16' }, 's1', search)).toMatch(/^Appointments cannot be cancelled or moved on this call/)
+  expect(api.sent.map(([name]) => name)).toEqual(['calendar.findSlots'])
 })
