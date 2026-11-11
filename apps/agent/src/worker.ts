@@ -110,7 +110,7 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
     ...(transfer ? { transfer_call: transferTool({ ...transfer, api, call, log }) } : {}),
     take_message: llm.tool({
       description: 'Save a message for the team. Use it whenever the caller wants a callback, a visit, a quote or anything you cannot do yourself.',
-      parameters: z.object({ message: z.string().describe('One complete sentence: who wants what, and how to reach them.') }),
+      parameters: z.object({ message: z.string().describe('One complete sentence: who wants what. Add a callback number only if the caller gave one that is not their caller ID.') }),
       execute: async ({ message }) => {
         await api.run(callTakeMessage, { callId, message }, workspaceId)
         log.messages.push(message)

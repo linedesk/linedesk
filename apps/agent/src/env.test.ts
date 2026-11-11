@@ -51,8 +51,8 @@ test('the prompt holds the product rules: messages only, no transfer, no booking
   // Asked, it always says it is an AI; disclose_ai only changes the greeting (in the settings page).
   expect(buildInstructions({ ...assistant, disclose_ai: false })).toContain('say truthfully that you are an AI assistant')
   expect(prompt).toContain('You cannot book appointments, transfer calls')
-  expect(prompt).toContain('take a message for them and say they will call back')
-  expect(prompt).toContain('Appointments: you cannot book them. Ask which day and time suit the caller')
+  expect(prompt).toContain('take a message for that person and say they will call back')
+  expect(prompt).toContain('Appointments: if you can book, follow the booking steps. If not, ask which day and time suit the caller')
   expect(prompt).toContain('flag the call as urgent right away')
   expect(prompt).toContain('say your reply in the same response as the tool call')
   expect(prompt).not.toMatch(/record/i) // no recording notice for now

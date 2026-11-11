@@ -49,7 +49,7 @@ Book repair visits and free estimates when the caller wants one; ask for the add
 Gas smell, no heat with small children or elderly people at home, or water that cannot be shut off: urgent, put the call through to Mike.
 Emergency call-out fee after hours is $150, credited to the job.`
 
-const CALL_RULES = `Take a message for everything you cannot book. Always confirm the callback number.
+const CALL_RULES = `Take a message for everything you cannot book. The callback number is the caller ID; only ask for another if the caller wants it.
 Flag as urgent: active leaks, gas smell, no heat or no hot water with vulnerable people at home.
 Sales calls and robocalls: politely end the call.`
 

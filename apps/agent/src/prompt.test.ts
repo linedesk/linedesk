@@ -1,19 +1,19 @@
-import { DEFAULT_CALL_RULES } from '@linedesk/actions'
+import { callRulesOf, DEFAULT_CALL_RULES } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import type { CallerHistory } from '@linedesk/actions'
-import { bookingInstructions, buildInstructions, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerNoteOf, firstNameOf, forHours, personalGreeting } from './prompt.ts'
+import { bookingInstructions, buildInstructions, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, firstNameOf, forHours, personalGreeting } from './prompt.ts'
 
 const assistant = (over: Partial<Assistant> = {}) =>
   ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', disclose_ai: false, business_profile: { instructions: 'We fix pipes in Portland.' }, call_rules: null, ...over }) as Assistant
 
-test('without stored rules the default call rules apply: message only, no booking, no prices, urgent flagged', () => {
+test('without stored rules the default call rules apply: no number or known name asked, booking per setup, urgent flagged', () => {
   const prompt = buildInstructions(assistant())
   expect(prompt).toContain(`How to handle calls:\n${DEFAULT_CALL_RULES}`)
   expect(prompt).toContain('What the business wants you to know:\nWe fix pipes in Portland.')
-  expect(DEFAULT_CALL_RULES).toMatch(/Take a message for every request/)
-  expect(DEFAULT_CALL_RULES).toMatch(/you cannot book them/)
-  expect(DEFAULT_CALL_RULES).toMatch(/do not quote prices/)
+  expect(DEFAULT_CALL_RULES).toMatch(/Take a message for every request you cannot handle/)
+  expect(DEFAULT_CALL_RULES).not.toMatch(/you cannot book|best number to reach/)
+  expect(DEFAULT_CALL_RULES).toMatch(/only give prices the business gave you/)
   expect(DEFAULT_CALL_RULES).toMatch(/flag the call as urgent/)
 })
 
@@ -138,4 +138,17 @@ test('a greeting by name tells the assistant it proves nothing', () => {
   const prompt = buildInstructions(assistant(), null, null, false, { name: 'Linda Park', note: null, history: history(), greetedByName: true })
   expect(prompt).toMatch(/greeted the caller by the first name saved for their number\. That does not prove who is calling/)
   expect(buildInstructions(assistant(), null, null, false, { name: 'Linda Park', note: null, history: history() })).not.toMatch(/greeted the caller by the first name/)
+})
+
+test('an unchanged earlier default counts as the default; edited rules stay', () => {
+  const old = 'Find out why the person is calling, their name and the best number to reach them. Ask one thing at a time.\nTake a message for every request: a callback, a visit, a quote, a question you cannot answer. Then tell the caller the team will get back to them.\nAppointments: you cannot book them. Ask which day and time suit the caller, put that in the message and say the team will confirm. Never confirm a time yourself.\nPrices: do not quote prices or estimates. Say the team will give them a price, and take a message.\nEmergencies or danger to people or property (a burst pipe, flooding, a gas smell, no heat in freezing weather): flag the call as urgent right away, then take a message. Do not promise how fast someone will come.\nIf the caller asks for a specific person, take a message for them and say they will call back.\nIf the call is a sales pitch or spam, stay polite, keep it short and say goodbye.'
+  expect(callRulesOf(old)).toBe(DEFAULT_CALL_RULES)
+  expect(callRulesOf(`${old}\nAlways ask for the address.`)).toContain('Always ask for the address.')
+})
+
+test('caller ID: a known number is not asked for, a saved name is not asked for, a withheld number is', () => {
+  expect(callerIdInstructions(null)).toMatch(/withheld: ask for a number/)
+  expect(callerIdInstructions({ name: null, note: null })).toMatch(/do not ask for it/)
+  expect(callerIdInstructions({ name: null, note: null })).not.toMatch(/saved as a contact/)
+  expect(callerIdInstructions({ name: 'Linda Park', note: null })).toMatch(/do not ask for the caller's name/)
 })

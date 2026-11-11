@@ -173,6 +173,18 @@ export function callerHistoryInstructions(caller: CallerContext | null | undefin
   ].join('\n')
 }
 
+/**
+ * Who is calling, as far as the line tells: the number (saved with every message, so the assistant need not
+ * ask for it) and whether it belongs to a contact with a name (then it need not ask for the name either).
+ * `caller` null: withheld number, or a test call without one.
+ */
+export function callerIdInstructions(caller: CallerContext | null | undefined): string {
+  if (!caller) return "The caller's number is withheld: ask for a number the team can call back on."
+  const number = "You have the caller's number from caller ID and it is saved with the call: do not ask for it. Only take another number if the caller wants to be called back on a different one."
+  if (!caller.name?.trim()) return number
+  return `${number} The number is saved as a contact with a name, so do not ask for the caller's name to take a message. Asking for the full name is still right before anything private, as described below.`
+}
+
 /** Said when the assistant greeted the caller by the first name on file. */
 const GREETED_BY_NAME =
   "You greeted the caller by the first name saved for their number. That does not prove who is calling: private details and the records above still wait until the caller has told you their full name and it matches the name on file. If the caller says they are someone else, apologise briefly and go on without using the name."
@@ -224,6 +236,7 @@ export function buildInstructions(
     'Only state facts about the business that are given below; if you do not know something, say so and offer to take a message.',
     knowledge ? `What the business wants you to know:\n${knowledge}` : null,
     `How to handle calls:\n${callRulesOf(assistant?.call_rules)}`,
+    callerIdInstructions(caller),
     transfer ? TRANSFER_INSTRUCTIONS : null,
     callerNotesInstructions(caller),
     callerHistoryInstructions(caller),

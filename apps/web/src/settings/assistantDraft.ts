@@ -1,7 +1,7 @@
 // The editable copy of the assistant's settings: how it is read from the row, merged with
 // changes that arrive through sync, checked and turned back into what assistant.update takes.
 import {
-  CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX, callRulesOf, onCallNumberProblem,
+  CALL_RULES_MAX, INSTRUCTIONS_MAX, callRulesOf, usesDefaultCallRules, onCallNumberProblem,
   DEFAULT_SILENCE_CLOSING, SILENCE_CLOSING_MAX, SILENCE_FIRST_GAP_MAX_S, SILENCE_FIRST_GAP_MIN_S, SILENCE_REMINDERS_MAX,
   SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT, KEYPAD_MENU_MAX_OPTIONS,
 } from '@linedesk/actions'
@@ -232,7 +232,7 @@ export const profileOf = (d: Draft): BusinessProfile => ({ instructions: d.instr
 /** The rules to save: null when they are the default (or empty), so a better default reaches this assistant later. */
 export const callRulesToSave = (d: Draft): string | null => {
   const rules = d.call_rules.trim()
-  return rules && rules !== DEFAULT_CALL_RULES ? rules : null
+  return usesDefaultCallRules(rules) ? null : rules
 }
 
 export const isDefaultCallRules = (d: Draft) => callRulesToSave(d) === null
