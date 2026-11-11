@@ -26,13 +26,20 @@ const check = (finding: CallTestFinding, name: keyof typeof scenarios, label: st
 test('the job metadata picks a known scenario and mode; nothing else turns an agent into a caller', () => {
   expect(parseTestCallerMetadata('{"source":"test-caller","scenario":"burst-pipe","mode":"room"}')).toEqual({ source: 'test-caller', scenario: 'burst-pipe', mode: 'room' })
   expect(parseTestCallerMetadata('{"source":"test-caller","scenario":"silence"}')?.mode).toBe('phone')
+  expect(parseTestCallerMetadata('{"source":"test-caller","scenario":"booking","mode":"room","persona":" You are Test Linedesk. "}')?.persona).toBe('You are Test Linedesk.')
+  expect(parseTestCallerMetadata('{"source":"test-caller","scenario":"booking","persona":""}')).not.toHaveProperty('persona')
   for (const metadata of ['', 'nope', '{"source":"test","workspaceId":"ws_1"}', '{"source":"test-caller","scenario":"rob-a-bank"}']) {
     expect(parseTestCallerMetadata(metadata)).toBeNull()
   }
 })
 
-test('fifteen scenarios; every speaking caller is told to end the call and never reveal the test', () => {
-  expect(scenarioNames).toEqual(['callback-message', 'burst-pipe', 'urgent-promise', 'price-question', 'booking', 'which-calendar', 'wrong-number', 'robot-question', 'interrupter', 'after-hours', 'transfer-accepted', 'transfer-no-answer', 'transfer-declined', 'keypad-callback', 'silence'])
+test('every speaking caller is told to end the call, never reveal the test, and today\'s date', () => {
+  expect(scenarioNames).toEqual([
+    'callback-message', 'burst-pipe', 'urgent-promise', 'price-question', 'booking', 'which-calendar', 'wrong-number', 'robot-question', 'interrupter',
+    'after-hours', 'transfer-accepted', 'transfer-no-answer', 'transfer-declined', 'keypad-callback', 'silence', 'silence-closing', 'transfer-person', 'spanish-caller',
+  ])
+  expect(callerInstructions(scenarios.booking, 'Wednesday, November 11, 2026')).toContain('Today is Wednesday, November 11, 2026.')
+  expect(callerInstructions(scenarios['spanish-caller'])).toContain('plain spoken Spanish')
   for (const name of scenarioNames.filter(n => scenarios[n].persona)) {
     expect(callerInstructions(scenarios[name])).toContain('end_call')
     expect(callerInstructions(scenarios[name])).toContain('Never say that you are an AI')

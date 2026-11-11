@@ -139,6 +139,18 @@ export function evaluateCall(finding: CallTestFinding, scenario: Scenario, { exp
       label: 'transfer',
       detail: `${call.transfer_result ?? 'no transfer'} (expected ${expect.transferResult})`,
     })
+  if (expect.stillThere) {
+    const asked = lines.filter(l => l.speaker === 'agent' && /are you still there/i.test(l.text)).length
+    checks.push({ ok: asked >= expect.stillThere, label: 'silence reminders', detail: `asked ${asked} time${asked === 1 ? '' : 's'} (expected ${expect.stillThere})` })
+  }
+  if (expect.lastLine) {
+    const last = lines.filter(l => l.speaker === 'agent').at(-1)?.text ?? ''
+    checks.push({ ok: expect.lastLine.test(last), label: 'last line', detail: last ? `"${last}"` : 'none' })
+  }
+  if (expect.summarySays) {
+    const summary = `${call.title ?? ''} ${call.summary ?? ''}`
+    checks.push({ ok: expect.summarySays.test(summary), label: 'summary says', detail: `${expect.summarySays} in "${summary.slice(0, 120)}"` })
+  }
   const urgent = urgentPromiseCheck(lines, !!expect.flaggedByTool)
   if (urgent) checks.push(urgent)
   if (booking) checks.push(...bookingChecks(finding, booking))

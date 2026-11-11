@@ -1,5 +1,6 @@
 // Call test: our test-caller agent calls the business and the result is checked in the inbox.
-//   pnpm --filter @linedesk/agent call-test <scenario> [--phone] [--expect-recording] [--cancel-booking]
+//   pnpm --filter @linedesk/agent call-test <scenario> [--phone] [--expect-recording] [--cancel-booking] [--persona "<who the caller is>"]
+// --persona: the caller plays this instead of the scenario's persona; the scenario's checks stay.
 //   in the agent container: node src/call-test.ts <scenario> [--phone]
 // Booking scenarios (booking, which-calendar) expect a real booking when the assistant has an appointment
 // type and a calendar: the event stays in the calendar to look at; --cancel-booking deletes it afterwards.
@@ -19,12 +20,12 @@ import { waitForFinishedCall } from './test-caller/wait.ts'
 import { isScenario, phoneRefused, scenarioNames, scenarios, type CallTestMode, type Scenario, type ScenarioName, type TestCallerMetadata } from './test-caller/scenarios.ts'
 import { findOutboundTrunk, sipClient } from './sip-trunks.ts'
 
-/** A hard cap on a call, on top of the caller's own two minutes. */
-const MAX_CALL_SEC = 150
+/** A hard cap on a call, on top of the caller's own three minutes. */
+const MAX_CALL_SEC = 210
 /** How long to wait after hang-up for the summary and finish to land. */
 const RESULT_WAIT_MS = 90_000
 
-type Run = { name: ScenarioName; mode: CallTestMode; to: string; room: string; since: string; api: ApiClient }
+type Run = { name: ScenarioName; mode: CallTestMode; to: string; room: string; since: string; api: ApiClient; persona?: string | undefined }
 
 
 /**
@@ -67,12 +68,15 @@ async function waitForParticipant(room: string, timeoutMs = 20_000) {
 }
 
 /** Both agents in one room: the test caller, and the business's as a test call of its workspace. */
-async function startInRoom({ name, room, to, since, api }: Run) {
+async function startInRoom({ name, room, to, since, api, persona }: Run) {
   const { workspaceId } = (await api.run(callFindForTest, { to, since, room })).data as CallTestFinding
   const dispatch = dispatcher()
-  const caller: TestCallerMetadata = { source: 'test-caller', scenario: name, mode: 'room' }
-  const { businessHours, outsideGreeting, onCall } = scenarios[name] as Scenario
-  const metadata = { source: 'test', workspaceId, ...(businessHours ? { businessHours } : {}), ...(outsideGreeting ? { outsideGreeting } : {}), ...(onCall ? { onCall } : {}) }
+  const caller: TestCallerMetadata = { source: 'test-caller', scenario: name, mode: 'room', ...(persona ? { persona } : {}) }
+  const { businessHours, outsideGreeting, onCall, languages } = scenarios[name] as Scenario
+  const metadata = {
+    source: 'test', workspaceId,
+    ...(businessHours ? { businessHours } : {}), ...(outsideGreeting ? { outsideGreeting } : {}), ...(onCall ? { onCall } : {}), ...(languages ? { languages } : {}),
+  }
   // The caller first, as on a phone call: the caller is in the room when the business's job starts,
   // so the business's own timing from its job start is not the time the test caller takes to join.
   await dispatch.createDispatch(room, AGENT_NAME, { metadata: JSON.stringify(caller) })
@@ -82,11 +86,11 @@ async function startInRoom({ name, room, to, since, api }: Run) {
 }
 
 /** The test caller in its own room, dialling the business number over Telnyx. */
-async function startByPhone({ name, room, to }: Run, from: string) {
+async function startByPhone({ name, room, to, persona }: Run, from: string) {
   const sip = sipClient()
   const trunkId = await findOutboundTrunk(sip)
   if (!trunkId) throw new Error('No outbound trunk "linedesk-test-caller": run setup-test-caller first.')
-  const caller: TestCallerMetadata = { source: 'test-caller', scenario: name, mode: 'phone' }
+  const caller: TestCallerMetadata = { source: 'test-caller', scenario: name, mode: 'phone', ...(persona ? { persona } : {}) }
   await dispatcher().createDispatch(room, AGENT_NAME, { metadata: JSON.stringify(caller) })
   console.log(`Calling ${to} from ${from} (scenario ${name}, room ${room})…`)
   await sip.createSipParticipant(trunkId, to, room, {
@@ -97,19 +101,21 @@ async function startByPhone({ name, room, to }: Run, from: string) {
 
 async function main() {
   const args = process.argv.slice(2)
-  const name = args.find(a => !a.startsWith('--')) ?? ''
-  if (!isScenario(name)) throw new Error(`usage: call-test <scenario> [--phone] [--expect-recording] [--cancel-booking]; scenarios: ${scenarioNames.join(', ')}`)
+  const personaAt = args.indexOf('--persona')
+  const persona = personaAt >= 0 ? args[personaAt + 1] : undefined
+  const name = args.find((a, i) => !a.startsWith('--') && i !== personaAt + 1) ?? ''
+  if (!isScenario(name)) throw new Error(`usage: call-test <scenario> [--phone] [--expect-recording] [--cancel-booking] [--persona "…"]; scenarios: ${scenarioNames.join(', ')}`)
   const mode: CallTestMode = args.includes('--phone') ? 'phone' : 'room'
   // A transfer scenario over the phone would page a real on-call phone: only with the simulated person,
   // or in the live transfer test (CALL_TEST_ONCALL), where the agent dials nothing but the test on-call number.
   if (mode === 'phone' && phoneRefused(scenarios[name])) throw new Error(`${name} runs without a phone only (a simulated on-call person answers); --phone is refused (live transfer test: set CALL_TEST_ONCALL, see docs/architecture.md)`)
   const { CALL_TEST_TO: to } = requireEnv(['CALL_TEST_TO'])
   const from = mode === 'phone' ? requireEnv(['CALL_TEST_FROM']).CALL_TEST_FROM : undefined
-  const run: Run = { name, mode, to, room: `call-test-${crypto.randomUUID().slice(0, 8)}`, since: new Date().toISOString(), api: apiClientFromEnv() }
+  const run: Run = { name, mode, to, room: `call-test-${crypto.randomUUID().slice(0, 8)}`, since: new Date().toISOString(), api: apiClientFromEnv(), persona }
 
   if (from) await startByPhone(run, from)
   else await startInRoom(run)
-  console.log('The conversation runs for up to two minutes; waiting for the call to finish…')
+  console.log('The conversation runs for up to three minutes; waiting for the call to finish…')
 
   const lookup = from ? { from } : { room: run.room }
   const find = async () => (await run.api.run(callFindForTest, { to, since: run.since, ...lookup })).data as CallTestFinding

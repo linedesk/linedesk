@@ -263,6 +263,17 @@ test('a test room can bring a simulated on-call person; anything malformed is ig
   expect(parseTestMetadata(meta({ answer: 'maybe', number: '+15035550199' }))?.onCall).toBeUndefined()
   expect(parseTestMetadata(meta({ answer: 'accept', number: 'call me' }))?.onCall).toBeUndefined()
   expect(parseTestMetadata(meta(undefined))?.onCall).toBeUndefined()
+  // For callers who ask for a person: the default "asks for a person" contact, never hours-only in the test.
+  const person = parseTestMetadata(meta({ answer: 'accept', number: '+15035550199', for: 'person' }))?.onCall
+  expect(person).toEqual({ answer: 'accept', number: '+15035550199', for: 'person' })
+  expect(simulatedContact(person!.number, person!.for)).toMatchObject({ condition: 'The caller asks to speak to a person', if_no_answer: 'message', hours_only: false, number: '+15035550199' })
+})
+
+test('a test room can allow other languages; unknown codes are dropped', () => {
+  const meta = (languages: unknown) => JSON.stringify({ source: 'test', workspaceId: 'ws_1', languages })
+  expect(parseTestMetadata(meta(['es', 'xx']))?.languages).toEqual(['es'])
+  expect(parseTestMetadata(meta(['xx']))?.languages).toBeUndefined()
+  expect(parseTestMetadata(meta('es'))?.languages).toBeUndefined()
 })
 
 test('ringback: 440 + 480 Hz for two seconds, then four seconds of silence', () => {

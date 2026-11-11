@@ -1,6 +1,6 @@
 // One call as the agent sees it: start, append transcript segments, finish.
-import { type BookingContext, type CallDocuments, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, DEFAULT_AI_DISCLOSURE, DEFAULT_KNOWN_CALLER_GREETING, greetingWithDisclosure, localizedDefault, mainLanguageOf, silenceClosingOf } from '@linedesk/actions'
-import type { Assistant, Contact, ToolEvent, TransferContact } from '@linedesk/db/types'
+import { type BookingContext, type CallDocuments, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, DEFAULT_AI_DISCLOSURE, DEFAULT_KNOWN_CALLER_GREETING, greetingWithDisclosure, type Language, languageCodes, localizedDefault, mainLanguageOf, silenceClosingOf } from '@linedesk/actions'
+import { type Assistant, type Contact, DEFAULT_TRANSFERS, type ToolEvent, type TransferContact } from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
 import { type SimulatedAnswer, simulatedAnswers } from './on-call-dialer.ts'
@@ -125,16 +125,30 @@ export function withRecordingNotice(assistant: Assistant | null, notice: string 
  */
 export type CallOrigin =
   | { kind: 'phone'; from: string; to: string; room?: string }
-  | { kind: 'test'; workspaceId: string; room: string; assistantId?: string; businessHours?: BusinessHours; outsideGreeting?: string; onCall?: SimulatedOnCall }
+  | ({ kind: 'test'; room: string } & TestMetadata)
 
-/** The call test's simulated on-call person and the number it stands in for (transfer is on for the test). */
-export type SimulatedOnCall = { answer: SimulatedAnswer; number: string }
+/**
+ * The call test's simulated on-call person and the number it stands in for (transfer is on for the test).
+ * `for`: which calls go to it, urgent ones (default) or callers who ask for a person.
+ */
+export type SimulatedOnCall = { answer: SimulatedAnswer; number: string; for?: 'urgent' | 'person' }
 
-/** The call test's only transfer contact: urgent calls to the simulated on-call person. */
-export const simulatedContact = (number: string): TransferContact => ({
-  id: 'oncall', name: 'Mike', number, condition: 'Urgent: a burst pipe, flooding, a gas smell or no heat in freezing weather', hours_only: false,
-  ring_seconds: 25, if_no_answer: 'message_urgent', enabled: true,
-})
+/** The call test's only transfer contact: the simulated on-call person, for urgent calls or for callers who ask for a person. */
+export const simulatedContact = (number: string, forCalls: SimulatedOnCall['for'] = 'urgent'): TransferContact =>
+  forCalls === 'person'
+    ? { ...DEFAULT_TRANSFERS[0]!, name: 'Mike', number, hours_only: false }
+    : { id: 'oncall', name: 'Mike', number, condition: 'Urgent: a burst pipe, flooding, a gas smell or no heat in freezing weather', hours_only: false, ring_seconds: 25, if_no_answer: 'message_urgent', enabled: true }
+
+/** What a test room's job metadata may carry: the workspace, and settings the call test uses instead of the assistant's. */
+type TestMetadata = {
+  workspaceId: string
+  assistantId?: string
+  businessHours?: BusinessHours
+  outsideGreeting?: string
+  onCall?: SimulatedOnCall
+  /** Languages besides English the assistant speaks on this test call. */
+  languages?: Language[]
+}
 
 export async function startCall(api: ApiClient, origin: CallOrigin): Promise<CallSession> {
   const { data } = origin.kind === 'phone'
@@ -147,11 +161,13 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   // The call test may set an outside greeting to check without touching the real assistant.
   const outsideGreeting = origin.kind === 'test' ? origin.outsideGreeting : undefined
   const onCall = origin.kind === 'test' ? origin.onCall : undefined
-  const configured = started.assistant && (outsideGreeting || onCall)
+  const languages = origin.kind === 'test' ? origin.languages : undefined
+  const configured = started.assistant && (outsideGreeting || onCall || languages)
     ? {
         ...started.assistant,
         ...(outsideGreeting ? { greeting_outside: outsideGreeting } : {}),
-        ...(onCall ? { transfers: [simulatedContact(onCall.number)] } : {}),
+        ...(onCall ? { transfers: [simulatedContact(onCall.number, onCall.for)] } : {}),
+        ...(languages ? { languages: { mode: 'allowed' as const, allowed: languages } } : {}),
       }
     : started.assistant
   // The greeting and instructions that apply now: outside business hours, the outside variants.
@@ -182,16 +198,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
  */
 export function callOrigin(jobMetadata: string, attributes: Record<string, string>, room: string): CallOrigin {
   const test = parseTestMetadata(jobMetadata)
-  if (test)
-    return {
-      kind: 'test',
-      workspaceId: test.workspaceId,
-      room,
-      ...(test.assistantId ? { assistantId: test.assistantId } : {}),
-      ...(test.businessHours ? { businessHours: test.businessHours } : {}),
-      ...(test.outsideGreeting ? { outsideGreeting: test.outsideGreeting } : {}),
-      ...(test.onCall ? { onCall: test.onCall } : {}),
-    }
+  if (test) return { kind: 'test', room, ...test }
   const to = attributes['sip.trunkPhoneNumber']
   if (!to) throw new Error('participant has no sip.trunkPhoneNumber attribute')
   // A withheld number may come without any caller ID: it is registered as such, never as someone's number.
@@ -200,24 +207,24 @@ export function callOrigin(jobMetadata: string, attributes: Record<string, strin
 }
 
 /** The workspace (and the assistant picked in the web app) of a test room the API signed, or null for any other room. */
-export function parseTestMetadata(
-  metadata: string,
-): { workspaceId: string; assistantId?: string; businessHours?: BusinessHours; outsideGreeting?: string; onCall?: SimulatedOnCall } | null {
+export function parseTestMetadata(metadata: string): TestMetadata | null {
   if (!metadata) return null
   try {
-    const parsed = JSON.parse(metadata) as { source?: unknown; workspaceId?: unknown; assistantId?: unknown; businessHours?: unknown; outsideGreeting?: unknown; onCall?: unknown }
+    const parsed = JSON.parse(metadata) as { source?: unknown; workspaceId?: unknown; assistantId?: unknown; businessHours?: unknown; outsideGreeting?: unknown; onCall?: unknown; languages?: unknown }
     if (parsed.source !== 'test' || typeof parsed.workspaceId !== 'string' || !parsed.workspaceId) return null
     const hours = parsed.businessHours as Partial<BusinessHours> | undefined
     const businessHours = hours && typeof hours.openNow === 'boolean' && typeof hours.summary === 'string' ? { openNow: hours.openNow, summary: hours.summary } : undefined
     const assistantId = typeof parsed.assistantId === 'string' && parsed.assistantId ? parsed.assistantId : undefined
     const outsideGreeting = typeof parsed.outsideGreeting === 'string' && parsed.outsideGreeting ? parsed.outsideGreeting : undefined
     const onCall = parseSimulatedOnCall(parsed.onCall)
+    const languages = Array.isArray(parsed.languages) ? languageCodes.filter(code => code !== 'en').filter(code => (parsed.languages as unknown[]).includes(code)) : []
     return {
       workspaceId: parsed.workspaceId,
       ...(assistantId ? { assistantId } : {}),
       ...(businessHours ? { businessHours } : {}),
       ...(outsideGreeting ? { outsideGreeting } : {}),
       ...(onCall ? { onCall } : {}),
+      ...(languages.length ? { languages } : {}),
     }
   } catch {
     return null
@@ -227,5 +234,6 @@ export function parseTestMetadata(
 function parseSimulatedOnCall(value: unknown): SimulatedOnCall | undefined {
   const v = value as Partial<SimulatedOnCall> | undefined
   if (!v || typeof v.number !== 'string' || !/^\+\d{8,15}$/.test(v.number)) return undefined
-  return simulatedAnswers.includes(v.answer as SimulatedAnswer) ? { answer: v.answer as SimulatedAnswer, number: v.number } : undefined
+  if (!simulatedAnswers.includes(v.answer as SimulatedAnswer)) return undefined
+  return { answer: v.answer as SimulatedAnswer, number: v.number, ...(v.for === 'person' ? { for: 'person' as const } : {}) }
 }

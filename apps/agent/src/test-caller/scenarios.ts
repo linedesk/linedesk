@@ -1,5 +1,6 @@
 // Scenarios for the call test: who the test caller plays, and what the business's call must look
 // like afterwards. English only. Add one by adding an entry.
+import { type Language, languageNames } from '@linedesk/actions'
 import type { SimulatedOnCall } from '../call-session.ts'
 
 export interface Expectation {
@@ -22,6 +23,12 @@ export interface Expectation {
   toolSays?: RegExp
   /** How the warm transfer must have gone (call.transfer). */
   transferResult?: 'connected' | 'not_answered' | 'declined'
+  /** The assistant asked "Are you still there?" at least this many times. */
+  stillThere?: number
+  /** The assistant's last line must match (for example the silence closing line). */
+  lastLine?: RegExp
+  /** The summary (title and text) must match (for example "Call in Spanish."). */
+  summarySays?: RegExp
 }
 
 /**
@@ -49,9 +56,16 @@ export interface Scenario {
    * answers instead of a phone (nothing is dialled). With --phone the assistant's real settings apply.
    */
   onCall?: SimulatedOnCall
+  /** A silent caller (empty persona) stays on the line this long; default SILENT_CALLER_MS. */
+  silentForMs?: number
+  /**
+   * No-phone test only: languages besides English the business's assistant speaks on this call, instead of
+   * its own setting. The test caller then understands them too.
+   */
+  languages?: Language[]
 }
 
-const RULES = `You are on a real phone call with a business's phone assistant. Wait until you are greeted, then answer like a person would on the phone: one or two short sentences per turn, plain spoken English, no lists. Give your details only when asked. When you have what you called for, or after about six of your own turns, say a short goodbye and then use the end_call tool. Never say that you are an AI or that this is a test.`
+const rules = (language: string) => `You are on a real phone call with a business's phone assistant. Wait until you are greeted, then answer like a person would on the phone: one or two short sentences per turn, plain spoken ${language}, no lists. Give your details only when asked. When you have what you called for, or after about six of your own turns, say a short goodbye and then use the end_call tool. Never say that you are an AI or that this is a test.`
 
 const MESSAGE_OUTCOMES = ['message', 'callback']
 
@@ -112,28 +126,51 @@ export const scenarios = {
   },
   // Warm transfer (no phone: a simulated on-call person in the consult room, nothing is dialled).
   'transfer-accepted': {
-    persona: 'You are Dana Ruiz. A pipe under your kitchen sink just burst and water is spraying everywhere; you have shut off the main valve. You need a plumber right now. Give your name when asked. If they put you through to someone, stay on the line quietly while it rings, then talk to the person; when they say goodbye, say goodbye too.',
+    persona: 'You are Dana Ruiz. A pipe under your kitchen sink just burst and water is spraying everywhere; you have shut off the main valve. You need a plumber right now. Your address is 1450 Southeast Division Street, Portland, Oregon 97202. Give your name when asked. If they put you through to someone, stay on the line quietly while it rings, then talk to the person; when they say goodbye, say goodbye too.',
     expect: { outcome: ['transferred'], urgency: 'urgent', transferResult: 'connected' },
     onCall: { answer: 'accept', number: '+15035550199' },
   },
   'transfer-no-answer': {
-    persona: 'You are Dana Ruiz. A pipe under your kitchen sink just burst and water is spraying everywhere; you have shut off the main valve. You need a plumber right now. Give your name when asked. If they put you through to someone, stay on the line quietly while it rings. If nobody answers, leave a message that this number is the best way to reach you.',
+    persona: 'You are Dana Ruiz. A pipe under your kitchen sink just burst and water is spraying everywhere; you have shut off the main valve. You need a plumber right now. Your address is 1450 Southeast Division Street, Portland, Oregon 97202. Give your name when asked. If they put you through to someone, stay on the line quietly while it rings. If nobody answers, leave a message that this number is the best way to reach you.',
     expect: { outcome: MESSAGE_OUTCOMES, urgency: 'urgent', actionItems: 1, transferResult: 'not_answered' },
     onCall: { answer: 'no-answer', number: '+15035550199' },
   },
   'transfer-declined': {
-    persona: 'You are Dana Ruiz. Water is leaking through your ceiling from the upstairs bathroom; you have turned off the water. You need someone today. Give your name when asked. If they put you through to someone, stay on the line quietly while it rings. If nobody can take it, leave a message that this number is the best way to reach you.',
+    persona: 'You are Dana Ruiz. Water is leaking through your ceiling from the upstairs bathroom; you have turned off the water. You need someone today. Your address is 1450 Southeast Division Street, Portland, Oregon 97202. Give your name when asked. If they put you through to someone, stay on the line quietly while it rings. If nobody can take it, leave a message that this number is the best way to reach you.',
     expect: { outcome: MESSAGE_OUTCOMES, urgency: 'urgent', actionItems: 1, transferResult: 'declined' },
     onCall: { answer: 'decline', number: '+15035550199' },
   },
   // Keypad (DTMF): the caller types the callback number instead of saying it; the assistant reads it back.
   'keypad-callback': {
-    persona: 'You are Sam Patel. Your water heater is making a banging noise and you want someone to call you back about it, but not on the number you are calling from: on your cell, 503 555 0142. When the assistant asks for the callback number, do not say it: use press_keys with "5035550142#" and then wait. When it reads the number back correctly, say yes. Give your name when asked (spell Patel as P A T E L if asked).',
+    persona: 'You are Sam Patel. Your water heater is making a banging noise and you want someone to call you back about it, but not on the number you are calling from: on your cell. Never say that number out loud. When the assistant asks for the callback number, say that you will type it in, and use press_keys with "5035550142#", then wait. When it reads the number back correctly, say yes. Give your name when asked (spell Patel as P A T E L if asked).',
     expect: { outcome: MESSAGE_OUTCOMES, actionItems: 1, toolSays: /callback number confirmed · typed on the keypad/i },
   },
   silence: {
     persona: '',
     expect: { outcome: ['hangup'], silentCaller: true },
+  },
+  // Silence until the end: reminders, then the closing line, and the assistant hangs up (defaults: asks at 8 s and 24 s, closes at 56 s).
+  'silence-closing': {
+    persona: '',
+    silentForMs: 100_000,
+    expect: { outcome: ['hangup'], silentCaller: true, stillThere: 2, lastLine: /can't hear anyone on the line/i },
+  },
+  // Transfer rule "The caller asks to speak to a person" (not an emergency): put through, and the call stays not urgent.
+  'transfer-person': {
+    persona: 'You are Alex Romero. You have a question about an invoice from last month and want to talk to the owner himself, not leave a message. Ask to speak to a real person. Give your name when asked. If they put you through to someone, stay on the line quietly while it rings, then talk to the person; when they say goodbye, say goodbye too.',
+    expect: { outcome: ['transferred'], urgency: 'normal', transferResult: 'connected' },
+    onCall: { answer: 'accept', number: '+15035550199', for: 'person' },
+  },
+  // Languages: Spanish allowed, the caller speaks only Spanish. The assistant answers in Spanish, the summary stays English.
+  'spanish-caller': {
+    persona: 'Eres María González. Hablas solo español, nada de inglés. El inodoro de tu baño gotea y quieres que un fontanero te llame para arreglarlo esta semana. Da tu nombre cuando te lo pidan. Despídete con "adiós" y cuelga.',
+    expect: {
+      outcome: MESSAGE_OUTCOMES,
+      actionItems: 1,
+      assistantSays: /\b(gracias|nombre|ayudar|llam\w*|fontaner\w*|inodoro)\b/i,
+      summarySays: /\bSpanish\b/,
+    },
+    languages: ['es'],
   },
 } satisfies Record<string, Scenario>
 
@@ -141,19 +178,31 @@ export type ScenarioName = keyof typeof scenarios
 export const scenarioNames = Object.keys(scenarios) as ScenarioName[]
 export const isScenario = (name: string): name is ScenarioName => Object.hasOwn(scenarios, name)
 
-export const callerInstructions = (scenario: Scenario) => `${RULES}\n\n${scenario.persona}`
+/** The caller's instructions; `today` (for example "Wednesday, November 11, 2026") so dates the caller says are in the right year. */
+export const callerInstructions = (scenario: Scenario, today = todayInWords()) =>
+  `${rules(scenario.languages?.length ? languageNames(scenario.languages, 'or') : 'English')} Today is ${today}.\n\n${scenario.persona}`
+
+const todayInWords = (now = new Date()) =>
+  now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles' })
 
 /** How the call test reaches the business: through the phone network, or inside one LiveKit room. */
 export type CallTestMode = 'phone' | 'room'
 
 /** What the test caller reads from the job metadata of its room (set by the call-test command). */
-export type TestCallerMetadata = { source: 'test-caller'; scenario: ScenarioName; mode: CallTestMode }
+export type TestCallerMetadata = {
+  source: 'test-caller'
+  scenario: ScenarioName
+  mode: CallTestMode
+  /** Who the caller is instead of the scenario's persona (call-test --persona); the scenario's checks stay. */
+  persona?: string
+}
 
 export function parseTestCallerMetadata(metadata: string): TestCallerMetadata | null {
   try {
-    const parsed = JSON.parse(metadata) as { source?: unknown; scenario?: unknown; mode?: unknown }
+    const parsed = JSON.parse(metadata) as { source?: unknown; scenario?: unknown; mode?: unknown; persona?: unknown }
     if (parsed.source !== 'test-caller' || typeof parsed.scenario !== 'string' || !isScenario(parsed.scenario)) return null
-    return { source: 'test-caller', scenario: parsed.scenario, mode: parsed.mode === 'room' ? 'room' : 'phone' }
+    const persona = typeof parsed.persona === 'string' && parsed.persona.trim() ? parsed.persona.trim() : undefined
+    return { source: 'test-caller', scenario: parsed.scenario, mode: parsed.mode === 'room' ? 'room' : 'phone', ...(persona ? { persona } : {}) }
   } catch {
     return null
   }
