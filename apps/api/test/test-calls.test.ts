@@ -47,7 +47,7 @@ test('an owner gets a token for one new room, dispatching the agent into their o
   expect(new Date(expiresAt).getTime() / 1000).toBe(claims.exp)
   // Only this room, only the microphone, no data messages, no admin rights.
   expect(claims.video).toEqual({ roomJoin: true, room, canPublish: true, canPublishSources: ['microphone'], canSubscribe: true, canPublishData: false })
-  expect(claims.roomConfig.maxParticipants).toBe(3)
+  expect(claims.roomConfig.maxParticipants).toBe(8) // the caller, the agent, a recording and teammates listening in (call.listen)
   expect(claims.roomConfig.agents).toEqual([{ agentName: 'linedesk', metadata: JSON.stringify({ source: 'test', workspaceId: ws.id }) }])
   // The command log keeps that a token was issued, for the limits, never the token.
   const logged = await db.select().from(commands).where(and(eq(commands.action, TEST_CALL_TOKEN), eq(commands.actor_id, ws.owner.userId)))

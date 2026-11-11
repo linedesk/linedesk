@@ -5,7 +5,7 @@ import { actions, isE164, normalizeCallerId, rolePermissions } from '@linedesk/a
 import type { CalendarEventInput, CalendarProvider, Interval } from '@linedesk/calendar'
 import { CalendarError } from '@linedesk/calendar'
 import { appointment_types, assistant_calendars, assistants, availability_rules, bookings, calls, contacts, phone_numbers, type Tx, webhook_deliveries, webhook_endpoints, workspace_settings } from '@linedesk/db'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test } from 'vitest'
 import {
   BOOKING_CHANGES_LOCKED, BOOKING_MISSES_NOTE, BOOKING_MISSES_PER_DAY, BOOKINGS_PER_CALL, bookedNameOf, CONFIRMATIONS_PER_HOUR, DEFAULT_BOOKING_HOURS,
@@ -97,6 +97,11 @@ const book = (start: string, extra: Record<string, unknown> = {}) => ({
   appointmentTypeId: typeId, calendarId: ws.assistantCalendar.id, start, callerName: 'Sam Patel', reason: 'Water heater maintenance',
   address: '220 NE Alberta St, Portland', callId: ws.call.id, ...extra,
 })
+
+
+/** Ends the workspace's live calls, so a test that opens many in a row stays under the calls-at-once limit (LIVE_CALLS_PER_WORKSPACE). */
+const endLiveCalls = (tx: Tx, workspaceId: string) =>
+  tx.update(calls).set({ status: 'completed' }).where(and(eq(calls.workspace_id, workspaceId), eq(calls.status, 'live')))
 
 describe('free slots', () => {
   test('without business hours: Monday to Friday 9 to 5 in the business time zone, labelled as the business says them', async () => {
@@ -582,6 +587,7 @@ describe('booking', () => {
     const { services, events } = fakeCalendar()
     await inRollback(async tx => {
       for (const from of ['anonymous', 'Restricted', '12345', '+0123456789', 'sip:alice@example.test']) {
+        await endLiveCalls(tx, ws.id)
         const started = await run(tx, agent_(null), services, 'call.start', { from, to: ws.number })
         expect(started.data, from).toMatchObject({ contact: null, isNewContact: false, blocked: false, booking: { canChangeBookings: false, upcoming: [] } })
         expect(started.rows.contacts, from).toBeUndefined()
@@ -606,6 +612,7 @@ describe('booking', () => {
       const e164 = ws.call.from_number
       const national = e164.slice(2)
       for (const from of [e164.slice(1), national, `(${national.slice(0, 3)}) ${national.slice(3, 6)}-${national.slice(6)}`, `00${e164.slice(1)}`]) {
+        await endLiveCalls(tx, ws.id)
         const started = await run(tx, agent_(null), services, 'call.start', { from, to: ws.number.slice(1) })
         expect(started.data, from).toMatchObject({ isNewContact: false, contact: { id: ws.contact.id }, booking: { canChangeBookings: true } })
         const [call] = await tx.select().from(calls).where(eq(calls.id, started.data!.callId as string))

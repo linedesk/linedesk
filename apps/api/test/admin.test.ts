@@ -273,7 +273,7 @@ describe('provider keys', () => {
     expect(await fieldOf('openai', 'api_key')).toMatchObject({ source: null, last4: null, updated_at: null })
     const config = () => request(agent(), 'GET', AGENT_ROUTE)
     // Nothing set up: the agent can start and gets nothing to work with yet.
-    expect((await config()).body).toEqual({ stt: null, llm: null, tts: null, recording: null })
+    expect((await config()).body).toEqual({ stt: null, llm: null, tts: null, tts_providers: [], recording: null })
 
     process.env.OPENAI_API_KEY = 'env-openai-key-0123456789'
     process.env.LLM_MODEL = 'model-from-env'
@@ -284,6 +284,7 @@ describe('provider keys', () => {
       stt: null,
       llm: { provider: 'openai', api_key: 'env-openai-key-0123456789', model: 'model-from-env', summary_model: null },
       tts: null,
+      tts_providers: [],
       recording: null,
     })
 
@@ -1507,6 +1508,7 @@ describe('impersonation', () => {
       'calendar.findSlots',
       'calendar.listCalendars',
       'call.clearReminder',
+      'call.export',
       'call.findForTest',
       'call.getEvaluation',
       'call.listEvaluations',
@@ -1517,11 +1519,16 @@ describe('impersonation', () => {
       'call.remind',
       'carrier.get',
       'carrier.transferTrunk',
+      'customField.list',
       'impersonation.stop',
+      'insights.get',
       'invitation.listMine',
+      'knowledge.search',
+      'member.list',
       'notifications.get',
       'provider.test',
       'team.list',
+      'voice.catalog',
       'voice.options',
       'voiceCloning.get',
       'webhook.deliveries',
@@ -1821,7 +1828,7 @@ describe('memberships across workspaces', () => {
       expect((await act(operator, 'invitation.resend', { invitationId })).status).toBe(200)
       expect(sent.filter(to => to === email.toLowerCase())).toHaveLength(2)
       // The resent email names who invited them, not the instance admin who resent it.
-      expect(texts.at(-1)).toMatch(/^Mike Brennan invited you/)
+      expect(texts.at(-1)).toMatch(/^Mike Brennan invited you/m)
       expect(texts.at(-1)).not.toMatch(/Ops Admin/)
       await db.update(user).set({ name: 'Test User' }).where(inArray(user.id, [other.owner.userId, operator.userId]))
       expect((await act(operator, 'invitation.revoke', { invitationId })).status).toBe(200)

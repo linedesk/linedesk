@@ -51,6 +51,7 @@ describe('notification settings', () => {
       defaults: { email: true, browser: true },
       canEditDefaults: false,
       push: { publicKey: null, devices: [], summary: false },
+      assignedEmail: true,
     })
 
     expect((await act(member, 'notifications.update', { email: false })).status).toBe(200)

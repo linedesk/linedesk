@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { callHash, listHash, parseHash } from './useRoute.ts'
 
-const list = { route: 'calls', callId: null, tab: 'you', search: null, known: true }
+const list = { route: 'calls', callId: null, tab: 'you', search: null, member: null, known: true }
 
 describe('route parsing', () => {
   it('keeps the tag filter and the search on a member view, and writes them back', () => {

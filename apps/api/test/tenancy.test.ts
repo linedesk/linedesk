@@ -43,6 +43,8 @@ function inputFor(def: ActionDef, ws: Workspace): Record<string, unknown> {
     'call.remind': { at: '2030-01-01T09:00:00Z' },
     'call.setActionItems': { items: [{ text: 'changed', done: true }] },
     'call.assign': { userId: null },
+    'call.setTag': { tag: null },
+    'call.setCustomValues': { values: {} },
   }
   const byTable: Record<string, Record<string, unknown>> = {
     calls: { callId: ws.call.id },
