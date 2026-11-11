@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
 import { lockWorkspaceCarrier } from '../src/workspace-carrier.ts'
+import { NUMBER_SETUP_BUSY } from '../src/number-purchases.ts'
 import { act, agent, createWorkspace, randomNumber, type User, type Workspace } from './helpers.ts'
 
 const SIP = 'sip.linedesk.test'
@@ -335,26 +336,33 @@ describe('carrier changes and number setup are serialised per workspace', () => 
     }
   }
 
-  const inputs: [string, () => Record<string, string>][] = [
-    ['carrier.set', () => ({ carrier: 'default' })],
-    ['phoneNumber.setup', () => ({ e164: randomNumber() })],
-  ]
-  for (const [name, makeInput] of inputs) {
-    test(`${name} waits while the carrier is locked`, async () => {
-      const input = makeInput()
-      if (input.e164) accountA.numbers.push({ sid: 'PNa9', phone_number: input.e164 })
-      const lock = await holdLock(wsA.id)
-      let finished = false
-      const pending = act(inWs(wsA.owner, wsA), name, input).then(res => {
-        finished = true
-        return res
-      })
-      await new Promise(resolve => setTimeout(resolve, 300))
-      expect(finished).toBe(false)
-      await lock.release()
-      expect((await pending).status).toBe(200)
+  test('carrier.set waits while the carrier is locked', async () => {
+    const lock = await holdLock(wsA.id)
+    let finished = false
+    const pending = act(inWs(wsA.owner, wsA), 'carrier.set', { carrier: 'default' }).then(res => {
+      finished = true
+      return res
     })
-  }
+    await new Promise(resolve => setTimeout(resolve, 300))
+    expect(finished).toBe(false)
+    await lock.release()
+    expect((await pending).status).toBe(200)
+  })
+
+  // A setup waiting would hold a database connection: a burst of them would fill the pool.
+  test('phoneNumber.setup is refused at once while the carrier is locked, and goes through after', async () => {
+    const e164 = randomNumber()
+    accountA.numbers.push({ sid: 'PNa9', phone_number: e164 })
+    const lock = await holdLock(wsA.id)
+    try {
+      const refused = await act(inWs(wsA.owner, wsA), 'phoneNumber.setup', { e164 })
+      expect(refused.status).not.toBe(200)
+      expect(JSON.stringify(refused.body)).toContain(NUMBER_SETUP_BUSY)
+    } finally {
+      await lock.release()
+    }
+    expect((await act(inWs(wsA.owner, wsA), 'phoneNumber.setup', { e164 })).status).toBe(200)
+  })
 })
 
 describe('warm transfers dial out through the account the called number is in', () => {

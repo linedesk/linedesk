@@ -96,6 +96,8 @@ export function phoneSetupErrorText(error: string): string {
     return "We couldn't find that number in the carrier account. Check the number, or get a new one."
   if (/no number available in area code/i.test(error))
     return 'No number is free in that area code right now. Try a nearby one.'
+  // The limits on buying through the install's carrier account (apps/api/src/number-purchases.ts) are written for people: shown as they are.
+  if (/this Linedesk|numbers today/i.test(error)) return error
   return "The number couldn't be connected. Try again in a moment."
 }
 

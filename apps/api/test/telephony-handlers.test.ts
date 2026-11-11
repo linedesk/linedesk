@@ -1,14 +1,17 @@
 // Handlers whose outcome depends on the carrier or on time: they run directly, with the provider
 // passed in, inside a transaction that is rolled back. Part of the Postgres-backed API suite.
 import { actions, rolePermissions } from '@linedesk/actions'
-import { calls, phone_numbers, type Tx } from '@linedesk/db'
+import { calls, number_purchases, phone_numbers, type Tx } from '@linedesk/db'
 import { devProvider, TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
-import { eq } from 'drizzle-orm'
-import { describe, expect, test, vi } from 'vitest'
+import { eq, inArray, sql } from 'drizzle-orm'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import { Reject, runHandler, type Undo } from '../src/handlers.ts'
 import { INSTALL_NUMBER_ADMIN_ONLY } from '../src/workspace-carrier.ts'
+import {
+  INSTALL_CAP_REACHED, INSTALL_NUMBERS_PER_WORKSPACE, INSTALL_PURCHASES_PER_HOUR, INSTALL_PURCHASES_PER_USER_PER_DAY, installPurchaseCaps, NOT_WITH_API_KEY, NUMBER_SETUP_BUSY, US_ONLY,
+} from '../src/number-purchases.ts'
 
 const WORKSPACE = `ws_test_${crypto.randomUUID().slice(0, 8)}`
 const owner: Actor = { actorId: 'user_test', role: 'owner', workspaceId: WORKSPACE, permissions: rolePermissions.owner }
@@ -36,6 +39,11 @@ function carrier(owned: string[] = [], overrides: Partial<TelephonyProvider> = {
 }
 
 describe('telephony handlers', () => {
+  // Purchases are logged outside the test's transaction (committed before the carrier is asked): cleared after each test.
+  afterEach(async () => {
+    await db.delete(number_purchases).where(eq(number_purchases.workspace_id, WORKSPACE))
+  })
+
   const run = (tx: Tx, actor: Actor, name: string, input: unknown, telephony: TelephonyProvider = devProvider) =>
     runHandler({ tx, actor, now: new Date().toISOString(), telephony }, actions.get(name)!, actions.get(name)!.input.parse(input))
 
@@ -82,12 +90,153 @@ describe('telephony handlers', () => {
       expect(install.routeToSip).not.toHaveBeenCalled()
       const admin: Actor = { ...owner, permissions: [...rolePermissions.owner, 'instance:admin'] }
       expect((await setup(tx, { e164: '+15035550978' }, install, admin)).rows.phone_numbers?.[0]?.e164).toBe('+15035550978')
-      // Buying a new number stays open to owners.
-      expect((await setup(tx, { e164: '+15035550979', purchase: true }, install)).rows.phone_numbers?.[0]?.purchased).toBe(true)
+      // Buying a new number stays open to owners, by US area code.
+      expect((await setup(tx, { areaCode: '503', purchase: true }, install)).rows.phone_numbers?.[0]?.purchased).toBe(true)
     } finally {
       vi.unstubAllEnvs()
     }
   }))
+
+  describe("buying on the install's carrier account", () => {
+    const admin: Actor = { ...owner, permissions: [...rolePermissions.owner, 'instance:admin'] }
+    const installCarrier = () => ({ ...carrier(), name: 'telnyx' as const })
+    const logged = (tx: Tx) => tx.select().from(number_purchases).where(eq(number_purchases.workspace_id, WORKSPACE)).orderBy(number_purchases.created_at)
+    const pastPurchases = (tx: Tx, rows: { workspace_id?: string; actor_id?: string; minutesAgo: number; by_admin?: boolean }[]) =>
+      tx.insert(number_purchases).values(rows.map((r, i) => ({ by_admin: r.by_admin ?? false,
+        id: `np_test_${crypto.randomUUID().slice(0, 8)}_${i}`, workspace_id: r.workspace_id ?? WORKSPACE, actor_id: r.actor_id ?? owner.actorId,
+        e164: `+1503555${String(1000 + i)}`, provider: 'telnyx', carrier_account: 'install' as const, created_at: new Date(Date.now() - r.minutesAgo * 60_000).toISOString(),
+      })))
+
+    const withSipEndpoint = (body: (tx: Tx) => Promise<void>) => inRollback(async tx => {
+      vi.stubEnv('LIVEKIT_SIP_ENDPOINT', 'sip.linedesk.test')
+      try {
+        await body(tx)
+      } finally {
+        vi.unstubAllEnvs()
+      }
+    })
+
+    test('only by US area code for owners; instance admins may name a number; every purchase is logged', () => withSipEndpoint(async tx => {
+      const install = installCarrier()
+      await expect(setup(tx, { e164: '+442071234567', purchase: true }, install)).rejects.toThrow(US_ONLY)
+      await expect(setup(tx, { e164: '+15035550979', purchase: true }, install)).rejects.toThrow(US_ONLY)
+      expect(install.buyNumber).not.toHaveBeenCalled()
+      await setup(tx, { areaCode: '503', purchase: true }, install)
+      await setup(tx, { e164: '+15035550979', purchase: true }, install, admin)
+      expect(await logged(tx)).toMatchObject([
+        { actor_id: owner.actorId, provider: 'telnyx', carrier_account: 'install' },
+        { e164: '+15035550979', carrier_account: 'install' },
+      ])
+    }))
+
+    test(`a workspace gets ${INSTALL_NUMBERS_PER_WORKSPACE} numbers; releasing one does not make room within 30 days; admins are not limited`, () => withSipEndpoint(async tx => {
+      const install = installCarrier()
+      const first = await setup(tx, { areaCode: '503', purchase: true }, install)
+      await setup(tx, { areaCode: '971', purchase: true }, { ...install, searchNumbers: async () => [{ e164: '+19715550111' }] })
+      await expect(setup(tx, { areaCode: '541', purchase: true }, install)).rejects.toThrow(`A workspace can get ${INSTALL_NUMBERS_PER_WORKSPACE} numbers`)
+      const id = (first.rows.phone_numbers as { id: string; e164: string }[])[0]!
+      await run(tx, owner, 'phoneNumber.release', { phoneNumberId: id.id, confirm: id.e164 }, install)
+      await expect(setup(tx, { areaCode: '541', purchase: true }, install)).rejects.toThrow(`A workspace can get ${INSTALL_NUMBERS_PER_WORKSPACE} numbers`)
+      expect((await setup(tx, { areaCode: '541', purchase: true }, { ...install, searchNumbers: async () => [{ e164: '+15415550111' }] }, admin)).rows.phone_numbers?.[0]?.purchased).toBe(true)
+    }))
+
+    test('a purchase older than 30 days no longer counts', () => withSipEndpoint(async tx => {
+      await pastPurchases(tx, [{ minutesAgo: 31 * 24 * 60 }, { minutesAgo: 31 * 24 * 60 }])
+      expect((await setup(tx, { areaCode: '503', purchase: true }, installCarrier())).rows.phone_numbers?.[0]?.purchased).toBe(true)
+    }))
+
+    test(`a user buys at most ${INSTALL_PURCHASES_PER_USER_PER_DAY} a day over all workspaces, and the install at most ${INSTALL_PURCHASES_PER_HOUR} an hour`, () => withSipEndpoint(async tx => {
+      await pastPurchases(tx, Array.from({ length: INSTALL_PURCHASES_PER_USER_PER_DAY }, () => ({ workspace_id: 'ws_elsewhere', minutesAgo: 60 })))
+      await expect(setup(tx, { areaCode: '503', purchase: true }, installCarrier())).rejects.toThrow('numbers today')
+      const someoneElse: Actor = { ...owner, actorId: 'user_other' }
+      await pastPurchases(tx, Array.from({ length: INSTALL_PURCHASES_PER_HOUR }, (_, i) => ({ workspace_id: `ws_many_${i}`, actor_id: `user_many_${i}`, minutesAgo: 5 })))
+      await expect(setup(tx, { areaCode: '503', purchase: true }, installCarrier(), someoneElse)).rejects.toThrow('in the last hour')
+    }))
+
+    test('a purchase that fails after the carrier sold the number still counts, and nothing is bought for a request that is refused anyway', () => withSipEndpoint(async tx => {
+      // A bogus assistant is refused before the carrier is asked: nothing bought, nothing to count.
+      const install = installCarrier()
+      await expect(setup(tx, { areaCode: '503', purchase: true, assistantId: 'as_bogus' }, install)).rejects.toThrow()
+      expect(install.buyNumber).not.toHaveBeenCalled()
+      expect(await logged(tx)).toEqual([])
+      // Routing fails after the purchase: the action rolls back and the number is released, but the attempt stays logged.
+      for (const areaCode of ['503', '971']) {
+        const failing = { ...installCarrier(), searchNumbers: async () => [{ e164: `+1${areaCode}5550123` }], routeToSip: async () => { throw new TelephonyError('telnyx', 'routing failed') } }
+        await expect(setup(tx, { areaCode, purchase: true }, failing)).rejects.toThrow('routing failed')
+      }
+      expect(await logged(tx)).toHaveLength(2)
+      await expect(setup(tx, { areaCode: '541', purchase: true }, installCarrier())).rejects.toThrow(`A workspace can get ${INSTALL_NUMBERS_PER_WORKSPACE} numbers`)
+    }))
+
+    test('the install as a whole: at most 20 a day and 100 in 30 days for everyone but instance admins, then an alert', () => withSipEndpoint(async tx => {
+      expect(installPurchaseCaps({})).toEqual({ perDay: 20, per30Days: 100 })
+      expect(installPurchaseCaps({ NUMBER_PURCHASES_PER_DAY: '5', NUMBER_PURCHASES_PER_30_DAYS: 'x' })).toEqual({ perDay: 5, per30Days: 100 })
+      const alert = vi.spyOn(console, 'error').mockImplementation(() => {})
+      try {
+        // Spread out so the hourly limit is not what refuses; admins' purchases do not count.
+        await pastPurchases(tx, Array.from({ length: 30 }, (_, i) => ({ workspace_id: `ws_admin_${i}`, actor_id: 'user_admin', minutesAgo: 90, by_admin: true })))
+        await pastPurchases(tx, Array.from({ length: 19 }, (_, i) => ({ workspace_id: `ws_day_${i}`, actor_id: `user_day_${i}`, minutesAgo: 120 + i })))
+        expect((await setup(tx, { areaCode: '503', purchase: true }, installCarrier())).rows.phone_numbers?.[0]?.purchased).toBe(true)
+        const someoneElse: Actor = { ...owner, actorId: 'user_other', workspaceId: WORKSPACE }
+        await expect(setup(tx, { areaCode: '971', purchase: true }, { ...installCarrier(), searchNumbers: async () => [{ e164: '+19715550123' }] }, someoneElse)).rejects.toThrow(INSTALL_CAP_REACHED)
+        expect(alert).toHaveBeenCalledWith(expect.stringMatching(/^ALERT number purchases: the install-wide cap is reached \(20\/20 today/))
+      } finally {
+        alert.mockRestore()
+      }
+    }))
+
+    test('an API key cannot buy on the install account; an instance admin is not limited', () => withSipEndpoint(async tx => {
+      const viaKey: Actor = { ...owner, apiKeyId: 'key_1' }
+      const install = installCarrier()
+      await expect(setup(tx, { areaCode: '503', purchase: true }, install, viaKey)).rejects.toThrow(NOT_WITH_API_KEY)
+      expect(install.buyNumber).not.toHaveBeenCalled()
+      await setup(tx, { areaCode: '503', purchase: true }, install, admin)
+      expect(await logged(tx)).toMatchObject([{ by_admin: true }])
+    }))
+
+    test('15 purchases at once: none waits for a lock holding a connection, every request is answered, and the database keeps answering', async () => {
+      vi.stubEnv('LIVEKIT_SIP_ENDPOINT', 'sip.linedesk.test')
+      const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+      const workspaces = Array.from({ length: 15 }, (_, i) => `ws_burst_${crypto.randomUUID().slice(0, 8)}_${i}`)
+      // A carrier that takes its time to sell a number, each request its own number.
+      const slowCarrier = (i: number) => ({
+        ...carrier(), name: 'telnyx' as const,
+        searchNumbers: async () => [{ e164: `+1503556${String(1000 + i)}` }],
+        buyNumber: async (e164: string) => {
+          await sleep(300)
+          return { e164, providerRef: `ref_${e164}` }
+        },
+      })
+      try {
+        // Five in one workspace, ten in workspaces of their own: more than the 10 connections of the pool.
+        const answers = workspaces.map((own, i) => {
+          const actor: Actor = { ...owner, actorId: `user_burst_${i}`, workspaceId: i < 5 ? workspaces[0]! : own }
+          return db.transaction(tx => run(tx, actor, 'phoneNumber.setup', { areaCode: '503', purchase: true }, slowCarrier(i)))
+            .then(() => 'set up', (e: Error) => e.message)
+        })
+        await sleep(100)
+        const asked = Date.now()
+        await db.execute(sql`select 1`)
+        expect(Date.now() - asked).toBeLessThan(2_000)
+        const all = await Promise.race([Promise.all(answers), sleep(10_000).then(() => 'hung' as const)])
+        expect(all).not.toBe('hung')
+        expect(all).toContain('set up')
+        for (const answer of all as string[]) expect(answer).toMatch(/^set up$|in the last hour|A workspace can get|Another number is being set up/)
+        expect(all).toContain(NUMBER_SETUP_BUSY)
+      } finally {
+        vi.unstubAllEnvs()
+        await db.delete(phone_numbers).where(inArray(phone_numbers.workspace_id, workspaces))
+        await db.delete(number_purchases).where(inArray(number_purchases.workspace_id, workspaces))
+      }
+    }, 20_000)
+
+    test('attaching a number, and the dev carrier, are not limited', () => withSipEndpoint(async tx => {
+      await pastPurchases(tx, Array.from({ length: INSTALL_PURCHASES_PER_HOUR }, (_, i) => ({ workspace_id: `ws_many_${i}`, actor_id: `user_many_${i}`, minutesAgo: 5 })))
+      expect((await setup(tx, { e164: '+15035550961', purchase: true }, carrier())).rows.phone_numbers?.[0]?.purchased).toBe(true)
+      const attach = { ...carrier(['+15035550962']), name: 'telnyx' as const }
+      expect((await setup(tx, { e164: '+15035550962' }, attach, admin)).rows.phone_numbers?.[0]?.purchased).toBe(false)
+    }))
+  })
 
   test('a number that is not in the account is rejected, not bought: a typo costs nothing', () => inRollback(async tx => {
     const twilio = carrier(['+15035550999'])

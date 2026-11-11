@@ -507,6 +507,26 @@ export const auth_events = pgTable(
   t => [index('auth_events_created').on(t.created_at), index('auth_events_user').on(t.user_id, t.created_at)],
 )
 
+// Every number bought through Linedesk, kept when the number is released: the purchase limits on the
+// install's carrier account count it (apps/api/src/number-purchases.ts). No foreign keys, never deleted,
+// not synced to browsers.
+export const number_purchases = pgTable(
+  'number_purchases',
+  {
+    id: id(),
+    created_at: createdAt(),
+    workspace_id: text('workspace_id').notNull(),
+    /** The user who bought it (the impersonated user while an instance admin is signed in as them). */
+    actor_id: text('actor_id').notNull(),
+    e164: text('e164').notNull(),
+    provider: text('provider').notNull(),
+    carrier_account: text('carrier_account', { enum: ['install', 'workspace'] }).notNull(),
+    /** Bought by an instance admin: not counted against the limits for everyone else. */
+    by_admin: boolean('by_admin').notNull().default(false),
+  },
+  t => [index('number_purchases_ws').on(t.workspace_id, t.created_at), index('number_purchases_created').on(t.created_at)],
+)
+
 // Provider keys set in the admin area, one row per provider field. Provider and field are plain text: the
 // list of providers lives in code (packages/actions/src/admin.ts), so a new one needs no migration.
 // Not synced to browsers. `workspace_id` is null for the value of the whole install; a per-workspace

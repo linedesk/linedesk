@@ -121,6 +121,12 @@ export async function readable<T>(run: () => Promise<T>): Promise<T> {
 export const lockWorkspaceCarrier = (tx: Tx, workspaceId: string) =>
   tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`carrier:${workspaceId}`}))`)
 
+/** The same lock without waiting: false when another transaction holds it (then nothing is locked). */
+export async function tryLockWorkspaceCarrier(tx: Tx, workspaceId: string) {
+  const { rows } = await tx.execute<{ locked: boolean }>(sql`select pg_try_advisory_xact_lock(hashtext(${`carrier:${workspaceId}`})) as locked`)
+  return rows[0]?.locked === true
+}
+
 export const INSTALL_NUMBER_ADMIN_ONLY =
   "Numbers already in this Linedesk's carrier account can only be connected by whoever runs your Linedesk. Get a new number, or use your own carrier account."
 

@@ -9,8 +9,8 @@ export * from './types.ts'
 
 export const schema = { ...appSchema, ...authSchema }
 
-export function createDb(url: string) {
-  const pool = new pg.Pool({ connectionString: url })
+export function createDb(url: string, options: Omit<pg.PoolConfig, 'connectionString'> = {}) {
+  const pool = new pg.Pool({ ...options, connectionString: url })
   return { db: drizzle(pool, { schema }), pool }
 }
 export type Db = ReturnType<typeof createDb>['db']

@@ -6,13 +6,13 @@ import {availability_rules, call_evaluations, calls, contacts, member, organizat
 } from '@linedesk/db'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
-import { and, asc, desc, eq, gte, or, } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, or, sql, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
 import { apiKeyHandlers } from './api-keys.ts'
 import { assistantForNumber, assistantHandlers, assistantIn } from './assistants.ts'
 import { bookingContext, bookingHandlers, bookingsForTest, DEFAULT_TIME_ZONE } from './bookings.ts'
 import { calendarConnectionHandlers } from './calendar-connections.ts'
-import { type CarrierAccount, carrierHandlers, INSTALL_NUMBER_ADMIN_ONLY, lockWorkspaceCarrier, ownCarrierProvider, telephonyForWorkspace } from './workspace-carrier.ts'
+import { type CarrierAccount, carrierHandlers, INSTALL_NUMBER_ADMIN_ONLY, lockWorkspaceCarrier, ownCarrierProvider, telephonyForWorkspace, tryLockWorkspaceCarrier } from './workspace-carrier.ts'
 import { refreshTransferTrunk, transferTrunkHandlers } from './transfer-trunk.ts'
 import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
@@ -20,6 +20,7 @@ import { type Handler, type HandlerCtx, type Preparer, Forbidden, Reject, type U
 import { telephonyProvider } from './provider-settings.ts'
 import { startTestCall } from './test-call.ts'
 import { membershipHandlers } from './memberships.ts'
+import { installPurchaseRefusal, logPurchase, NUMBER_SETUP_BUSY } from './number-purchases.ts'
 import { teamHandlers } from './team.ts'
 import { transferHandlers } from './transfers.ts'
 import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
@@ -405,8 +406,11 @@ const handlers: Record<string, Handler> = {
   'phoneNumber.setup': async ({ tx, actor, now, telephony, onRollback }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     const workspace_id = actor.workspaceId
-    // Serialised with carrier.set, so the carrier cannot change while a number is set up with it.
-    await lockWorkspaceCarrier(tx, workspace_id)
+    // Never waits long for a lock while it holds a connection: a burst of setups must not fill the pool.
+    await tx.execute(sql`set local lock_timeout = '5s'`)
+    // Serialised with carrier.set, so the carrier cannot change while a number is set up with it. A second
+    // setup in the workspace meanwhile is refused at once rather than waiting.
+    if (!(await tryLockWorkspaceCarrier(tx, workspace_id))) throw new Reject(NUMBER_SETUP_BUSY)
     const { provider, account: carrier_account } = await setupCarrier(tx, workspace_id, telephony)
     const sipEndpoint = process.env.LIVEKIT_SIP_ENDPOINT ?? ''
     if (provider.name !== 'dev' && !sipEndpoint) throw new Reject('phone setup is not configured: LIVEKIT_SIP_ENDPOINT is not set')
@@ -426,11 +430,19 @@ const handlers: Record<string, Handler> = {
     if (existing && carrier_account === 'install' && provider.name !== 'dev' && !actor.permissions.includes('instance:admin')) {
       throw new Forbidden(INSTALL_NUMBER_ADMIN_ONLY)
     }
-    const number = existing ?? (await atCarrier(() => provider.buyNumber(e164)))
-    if (!existing) onRollback?.(releaseBought(provider, number))
-
-    // Checked before the carrier is asked to route anything.
+    // Everything that can refuse is checked before anything is bought.
+    if (actor.workspaceDisabled) throw new Reject('this workspace is disabled')
     const assistant = await assistantIn(tx, workspace_id, input.assistantId)
+    const buying = !existing
+    if (buying && carrier_account === 'install' && provider.name !== 'dev') {
+      const refusal = await installPurchaseRefusal(tx, actor, workspace_id, { byNumber: !!input.e164 || !e164.startsWith('+1'), now })
+      if (refusal) throw new Reject(refusal)
+    }
+    // Logged (committed) before the carrier is asked: a purchase that fails later still counts.
+    if (buying) await logPurchase(actor, { workspaceId: workspace_id, e164, provider: provider.name, carrierAccount: carrier_account })
+    const number = existing ?? (await atCarrier(() => provider.buyNumber(e164)))
+    if (buying) onRollback?.(releaseBought(provider, number))
+
     await atCarrier(() => provider.routeToSip(number, sipEndpoint))
     const rows = await tx.insert(phone_numbers).values({
       id: newId('pn'), workspace_id, e164, provider: provider.name, provider_ref: number.providerRef, carrier_account,
