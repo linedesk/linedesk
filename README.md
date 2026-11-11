@@ -1,6 +1,6 @@
 # Linedesk
 
-**The open-source AI front desk.** An AI assistant answers every call, books the appointment and hands over to a person when it matters. Every call lands in a fast, keyboard-first inbox.
+**The open-source AI receptionist for businesses.** It answers every call, books the appointment and hands over to a person when needed, and you own the code and the data. Every call lands in a fast, keyboard-first inbox.
 
 [Roadmap](ROADMAP.md) · [Contributing](CONTRIBUTING.md) · [License](LICENSE)
 
