@@ -62,7 +62,7 @@ function ImpersonationBar({ impersonation }: { impersonation: Impersonation }) {
     <div className="imp-bar" role="region" aria-label="Signed in as another user">
       <span className="imp-text">
         <b>{text.who}</b>
-        <span className="imp-wide"> ({text.email})</span>
+        {text.email && <span className="imp-wide"> ({text.email})</span>}
         <span className="imp-wide"> · {text.by}</span>
         <span className="imp-left"> · {remainingText(left)}</span>
       </span>

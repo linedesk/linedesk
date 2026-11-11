@@ -27,7 +27,7 @@ import { SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { Field, Section, TextInput } from './fields.tsx'
 
 const carrierName = (provider: string | null) =>
-  provider === 'twilio' ? 'Twilio' : provider === 'telnyx' ? 'Telnyx' : provider === 'dev' ? 'Development' : null
+  provider === 'twilio' ? 'Twilio' : provider === 'telnyx' ? 'Telnyx' : null
 
 const modeOptions: SelectOption<PhoneNumberMode>[] = phoneNumberModes.map(mode => ({
   value: mode,
@@ -399,7 +399,7 @@ function ConnectNumber({
               setTyped(v)
               setProblem(null)
             }}
-            placeholder="+1 503 555 0142"
+            placeholder="+1 503 555 0100"
           />
         </Field>
       ) : (

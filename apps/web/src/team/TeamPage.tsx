@@ -98,6 +98,7 @@ function MemberRow({ data, m, run }: { data: TeamData; m: TeamMember; run: Run }
 }
 
 function InvitationRow({ invite, canManage, run }: { invite: TeamInvitation; canManage: boolean; run: Run }) {
+  const [confirming, setConfirming] = useState(false)
   return (
     <div className="st-li st-member">
       <Avatar name={invite.email} size={32} />
@@ -125,13 +126,16 @@ function InvitationRow({ invite, canManage, run }: { invite: TeamInvitation; can
           </Button>
           <Button
             size="sm"
-            variant="ghost"
-            title="The link stops working"
+            variant={confirming ? 'danger' : 'ghost'}
+            title={confirming ? 'Click again: the link stops working' : 'The link stops working'}
+            onBlur={() => setConfirming(false)}
             onClick={() =>
-              void run(() => teamApi.revoke(invite.invitationId), `Invitation for ${invite.email} revoked.`)
+              confirming
+                ? void run(() => teamApi.revoke(invite.invitationId), `Invitation for ${invite.email} revoked.`)
+                : setConfirming(true)
             }
           >
-            Revoke
+            {confirming ? 'Revoke invitation' : 'Revoke'}
           </Button>
         </span>
       ) : (

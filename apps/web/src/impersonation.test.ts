@@ -12,9 +12,10 @@ describe('impersonation banner', () => {
     expect(bannerText(imp)).toEqual({
       who: 'Signed in as Mike Brennan',
       email: 'mike@brightwater.example',
-      by: 'impersonating as Tim Admin',
+      by: 'by Tim Admin',
     })
-    expect(bannerText({ ...imp, user: { ...imp.user, name: '' } }).who).toBe('Signed in as mike@brightwater.example')
+    // Without a name the email names them already: it is not repeated.
+    expect(bannerText({ ...imp, user: { ...imp.user, name: '' } })).toMatchObject({ who: 'Signed in as mike@brightwater.example', email: null })
   })
 
   test('remaining minutes round up and stop at zero', () => {

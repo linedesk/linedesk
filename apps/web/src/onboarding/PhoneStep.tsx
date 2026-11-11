@@ -121,7 +121,7 @@ function Choose({ status, setupError, clearError, onBack }: Props) {
                 setProblem(null)
                 clearError()
               }}
-              placeholder="+1 503 555 0142"
+              placeholder="+1 503 555 0100"
             />
           </Field>
         ) : (

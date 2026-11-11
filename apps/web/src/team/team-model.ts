@@ -27,7 +27,7 @@ export function joinedLabel(iso: string, now = new Date()) {
 }
 
 export function invitationStatus(invite: TeamInvitation, now = Date.now()) {
-  if (invite.expired) return 'Expired'
+  if (invite.expired) return 'Resend to renew the link'
   const days = Math.ceil((Date.parse(invite.expiresAt) - now) / DAY_MS)
   return days <= 1 ? 'Expires today' : `Expires in ${days} days`
 }

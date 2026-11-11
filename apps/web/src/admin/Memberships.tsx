@@ -65,6 +65,7 @@ function MemberRow({ title, sub, role, locked, onRole, onRemove, removeLabel }: 
 type InviteRowProps = { title: string; sub: string; role: string; expired?: boolean; onResend: () => void; onRevoke: () => void }
 
 function InviteRow({ title, sub, role, expired, onResend, onRevoke }: InviteRowProps) {
+  const [confirming, setConfirming] = useState(false)
   return (
     <div className="st-li st-member adm-member">
       <Avatar name={title} size={32} />
@@ -80,8 +81,14 @@ function InviteRow({ title, sub, role, expired, onResend, onRevoke }: InviteRowP
         <Button size="sm" variant="ghost" title="Send the email again; the link works for another 7 days" onClick={onResend}>
           Resend
         </Button>
-        <Button size="sm" variant="ghost" title="The link stops working" onClick={onRevoke}>
-          Revoke
+        <Button
+          size="sm"
+          variant={confirming ? 'danger' : 'ghost'}
+          title={confirming ? 'Click again: the link stops working' : 'The link stops working'}
+          onBlur={() => setConfirming(false)}
+          onClick={() => (confirming ? onRevoke() : setConfirming(true))}
+        >
+          {confirming ? 'Revoke invitation' : 'Revoke'}
         </Button>
       </span>
     </div>

@@ -20,8 +20,9 @@ const nameOf = (p: Pick<Person, 'name' | 'email'>) => p.name || p.email
 /** The banner's parts: whose session this is and which admin is in it. */
 export const bannerText = (imp: Impersonation) => ({
   who: `Signed in as ${nameOf(imp.user)}`,
-  email: imp.user.email,
-  by: `impersonating as ${nameOf(imp.by)}`,
+  /** Only when the name is shown: someone without a name is already named by their email. */
+  email: imp.user.name ? imp.user.email : null,
+  by: `by ${nameOf(imp.by)}`,
 })
 
 export const confirmText = (name: string) =>

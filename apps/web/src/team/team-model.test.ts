@@ -37,6 +37,6 @@ describe('team model', () => {
     const invite = data(true).invitations[0]!
     expect(invitationStatus(invite, Date.parse('2026-11-10T10:00:00Z'))).toBe('Expires in 7 days')
     expect(invitationStatus(invite, Date.parse('2026-11-17T09:00:00Z'))).toBe('Expires today')
-    expect(invitationStatus({ ...invite, expired: true })).toBe('Expired')
+    expect(invitationStatus({ ...invite, expired: true })).toBe('Resend to renew the link')
   })
 })
