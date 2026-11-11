@@ -42,6 +42,12 @@
   max-width: 680px;
   min-width: 0;
 }
+/* A page whose sections are one form (Settings › Assistant): the sections keep the same gap inside it. */
+.sl-content > form {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
 @media (max-width: 719px) {
   .sl-body {
     grid-template-columns: minmax(0, 1fr);

@@ -16,6 +16,7 @@ import { useRef, useState } from 'react'
 import { useRows } from '../store.tsx'
 import { Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
+import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import type { Draft } from './assistantDraft.ts'
 import { Field, Section, TextArea } from './fields.tsx'
 import { documentsUse, fileSize, hasKnowledge } from './knowledgeModel.ts'
@@ -208,8 +209,26 @@ function AboutCard(props: Props & { name: string; empty: boolean }) {
   )
 }
 
+/** Which row of a list is open for editing; a new row opens itself, a row missing what it needs stays open. */
+function useOpenRow() {
+  const [open, setOpen] = useState<number | null>(null)
+  return { open, setOpen, toggle: (i: number) => setOpen(o => (o === i ? null : i)) }
+}
+
+/** Edit and Remove at the end of a compact row. */
+function RowActions({ what, open, canEdit, onEdit, onRemove }: { what: string; open: boolean; canEdit: boolean; onEdit: () => void; onRemove: () => void }) {
+  if (!canEdit) return null
+  return (
+    <>
+      <Button size="sm" variant="ghost" icon="pencil" aria-label={`Edit ${what}`} title={open ? 'Close' : 'Edit'} onClick={onEdit} aria-expanded={open} />
+      <Button size="sm" variant="ghost" icon="trash" aria-label={`Remove ${what}`} title="Remove" onClick={onRemove} />
+    </>
+  )
+}
+
 function ServicesCard({ draft, set, canEdit, name }: Props & { name: string }) {
   const services = draft.services
+  const rows = useOpenRow()
   const update = (i: number, change: Partial<Draft['services'][number]>) =>
     set(
       'services',
@@ -217,7 +236,12 @@ function ServicesCard({ draft, set, canEdit, name }: Props & { name: string }) {
     )
   const add = () => {
     set('services', [...services, { name: '', description: '', price: '' }])
+    rows.setOpen(services.length)
     setTimeout(() => document.getElementById(`kn-svc-${services.length}`)?.focus(), 0)
+  }
+  const remove = (i: number) => {
+    set('services', services.filter((_, j) => j !== i))
+    rows.setOpen(null)
   }
   return (
     <Section
@@ -237,52 +261,52 @@ function ServicesCard({ draft, set, canEdit, name }: Props & { name: string }) {
       }
     >
       {services.length === 0 ? (
-        <p className="help">No services yet. Without prices here, {name} never names a price and offers a call back.</p>
+        <ListEmpty>No services yet. Without prices here, {name} never names a price and offers a call back.</ListEmpty>
       ) : (
-        <ul className="kn-list">
-          {services.map((s, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: rows are edited in place; an index is their identity
-            <li key={i} className="kn-row kn-service">
-              <div className="kn-svc-fields">
-                <Input
-                  id={`kn-svc-${i}`}
-                  value={s.name}
-                  placeholder="Service"
-                  aria-label="Service"
-                  onChange={e => update(i, { name: e.target.value })}
-                />
-                <Input
-                  value={s.price}
-                  placeholder="Quote only"
-                  aria-label="Price"
-                  maxLength={PRICE_MAX}
-                  className="kn-price"
-                  onChange={e => update(i, { price: e.target.value })}
-                />
-                <Input
-                  value={s.description}
-                  placeholder="Short description (optional)"
-                  aria-label="Description"
-                  className="kn-desc"
-                  onChange={e => update(i, { description: e.target.value })}
-                />
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon="close"
-                aria-label={`Remove ${s.name || 'service'}`}
-                title="Remove"
-                onClick={() =>
-                  set(
-                    'services',
-                    services.filter((_, j) => j !== i),
+        <List label="Services and prices">
+          {services.map((s, i) => {
+            const open = rows.open === i || !s.name.trim()
+            return (
+              <ListRow
+                // biome-ignore lint/suspicious/noArrayIndexKey: rows are edited in place; an index is their identity
+                key={i}
+                title={s.name.trim() || <span className="kn-untitled">New service</span>}
+                sub={s.description.trim() || undefined}
+                aside={<span className={s.price.trim() ? 'kn-price-tag' : 'help'}>{s.price.trim() || 'Quote only'}</span>}
+                actions={<RowActions what={s.name || 'service'} open={open} canEdit={canEdit} onEdit={() => rows.toggle(i)} onRemove={() => remove(i)} />}
+                below={
+                  open && (
+                    <div className="kn-edit kn-svc-fields">
+                      <Input
+                        id={`kn-svc-${i}`}
+                        value={s.name}
+                        placeholder="Service"
+                        aria-label="Service"
+                        invalid={!s.name.trim() && rows.open !== i}
+                        onChange={e => update(i, { name: e.target.value })}
+                      />
+                      <Input
+                        value={s.price}
+                        placeholder="Quote only"
+                        aria-label="Price"
+                        maxLength={PRICE_MAX}
+                        className="kn-price"
+                        onChange={e => update(i, { price: e.target.value })}
+                      />
+                      <Input
+                        value={s.description}
+                        placeholder="Short description (optional)"
+                        aria-label="Description"
+                        className="kn-desc"
+                        onChange={e => update(i, { description: e.target.value })}
+                      />
+                    </div>
                   )
                 }
               />
-            </li>
-          ))}
-        </ul>
+            )
+          })}
+        </List>
       )}
       {services.length > 0 && (
         <span className="help">
@@ -295,6 +319,7 @@ function ServicesCard({ draft, set, canEdit, name }: Props & { name: string }) {
 
 function FaqsCard({ draft, set, canEdit }: Props) {
   const faqs = draft.faqs
+  const rows = useOpenRow()
   const update = (i: number, change: Partial<Draft['faqs'][number]>) =>
     set(
       'faqs',
@@ -302,7 +327,12 @@ function FaqsCard({ draft, set, canEdit }: Props) {
     )
   const add = () => {
     set('faqs', [...faqs, { q: '', a: '' }])
+    rows.setOpen(faqs.length)
     setTimeout(() => document.getElementById(`kn-faq-${faqs.length}`)?.focus(), 0)
+  }
+  const remove = (i: number) => {
+    set('faqs', faqs.filter((_, j) => j !== i))
+    rows.setOpen(null)
   }
   return (
     <Section
@@ -322,38 +352,36 @@ function FaqsCard({ draft, set, canEdit }: Props) {
       }
     >
       {faqs.length === 0 ? (
-        <p className="help">No FAQs yet.</p>
+        <ListEmpty>No FAQs yet.</ListEmpty>
       ) : (
-        <ul className="kn-list">
-          {faqs.map((f, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: rows are edited in place; an index is their identity
-            <li key={i} className="kn-row">
-              <div className="kn-faq-fields">
-                <Input
-                  id={`kn-faq-${i}`}
-                  value={f.q}
-                  placeholder="Question"
-                  aria-label="Question"
-                  onChange={e => update(i, { q: e.target.value })}
-                />
-                <TextArea value={f.a} placeholder="Answer" label="Answer" onChange={v => update(i, { a: v })} />
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon="close"
-                aria-label="Remove this FAQ"
-                title="Remove"
-                onClick={() =>
-                  set(
-                    'faqs',
-                    faqs.filter((_, j) => j !== i),
+        <List label="FAQs">
+          {faqs.map((f, i) => {
+            const open = rows.open === i || !f.q.trim() || !f.a.trim()
+            return (
+              <ListRow
+                // biome-ignore lint/suspicious/noArrayIndexKey: rows are edited in place; an index is their identity
+                key={i}
+                title={f.q.trim() || <span className="kn-untitled">New question</span>}
+                sub={f.a.trim() ? <span className="kn-answer">{f.a.trim()}</span> : undefined}
+                actions={<RowActions what="this FAQ" open={open} canEdit={canEdit} onEdit={() => rows.toggle(i)} onRemove={() => remove(i)} />}
+                below={
+                  open && (
+                    <div className="kn-edit kn-faq-fields">
+                      <Input
+                        id={`kn-faq-${i}`}
+                        value={f.q}
+                        placeholder="Question"
+                        aria-label="Question"
+                        onChange={e => update(i, { q: e.target.value })}
+                      />
+                      <TextArea value={f.a} placeholder="Answer" label="Answer" onChange={v => update(i, { a: v })} />
+                    </div>
                   )
                 }
               />
-            </li>
-          ))}
-        </ul>
+            )
+          })}
+        </List>
       )}
       {faqs.length > 0 && (
         <span className="help">
