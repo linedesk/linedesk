@@ -190,6 +190,7 @@ export function Row({ call, tab, search, segments, isCursor, motion, selected = 
           </span>
         )}
         {call.assignee_id && <AssigneeMark userId={call.assignee_id} />}
+        {call.source === 'sample' && <span className="r-sample">Sample</span>}
       </span>
       <Summary call={call} search={search} segments={segments} />
       <span className="r-status">

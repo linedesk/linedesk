@@ -2,7 +2,7 @@ import { passkeyClient } from '@better-auth/passkey/client'
 import { emailOTPClient, organizationClient } from 'better-auth/client/plugins'
 import type { AuthMethods, LegalLinks, SsoMethod } from '@linedesk/api/auth-types'
 import { createAuthClient } from 'better-auth/react'
-import type { OnboardingStep } from '@linedesk/actions'
+import type { FirstUse, OnboardingStep } from '@linedesk/actions'
 
 import type { Impersonation } from './impersonation.ts'
 import { readLastUsedMethod } from './sign-in-methods.ts'
@@ -32,6 +32,8 @@ export type Me = {
   impersonation: Impersonation | null
   /** An instance admin whose session lacks the passkey the admin area needs: add one, or sign in with it. */
   adminSecondFactor?: AdminSecondFactor | null
+  /** How this install introduces a new workspace after onboarding: tour, sample calls, both or off. */
+  firstUse?: FirstUse
 }
 
 export type AdminSecondFactor = 'setup' | 'confirm'

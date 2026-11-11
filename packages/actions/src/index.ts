@@ -7,6 +7,7 @@ import type { ActionDef } from './define.ts'
 import * as membership from './membership.ts'
 import * as notifications from './notifications.ts'
 import * as onboarding from './onboarding.ts'
+import * as sample from './sample.ts'
 import * as settings from './settings.ts'
 import * as team from './team.ts'
 import * as webhooks from './webhooks.ts'
@@ -24,6 +25,7 @@ export * from './membership.ts'
 export * from './notifications.ts'
 export * from './onboarding.ts'
 export * from './openapi.ts'
+export * from './sample.ts'
 export * from './settings.ts'
 export * from './team.ts'
 export * from './webhooks.ts'
@@ -67,6 +69,8 @@ const all = [
   settings.workspaceGetSettings,
   settings.workspaceUpdateSettings,
   settings.businessHoursSet,
+  sample.sampleAdd,
+  sample.sampleRemove,
   notifications.notificationsGet,
   notifications.notificationsUpdate,
   notifications.notificationsSetDefaults,

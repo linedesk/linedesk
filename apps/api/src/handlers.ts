@@ -20,6 +20,7 @@ import { startTestCall } from './test-call.ts'
 import { membershipHandlers } from './memberships.ts'
 import { teamHandlers } from './team.ts'
 import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
+import { sampleHandlers } from './sample-calls.ts'
 import { queueCallEvaluation, queueCallNotification } from './jobs.ts'
 import { evaluatedAutomatically, evaluationHandlers } from './evaluations.ts'
 import { notificationHandlers } from './notification-settings.ts'
@@ -164,6 +165,7 @@ const handlers: Record<string, Handler> = {
   ...teamHandlers,
   ...membershipHandlers,
   ...workspaceSettingsHandlers,
+  ...sampleHandlers,
   ...notificationHandlers,
   ...calendarConnectionHandlers,
   ...apiKeyHandlers,

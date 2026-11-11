@@ -109,8 +109,8 @@ export const calls = pgTable(
     direction: text('direction', { enum: ['in', 'out'] })
       .notNull()
       .default('in'),
-    /** `test`: a call a member made to the assistant from the web app, with no phone involved. */
-    source: text('source', { enum: ['phone', 'test'] })
+    /** `test`: a call a member made to the assistant from the web app, with no phone involved. `sample`: an example from sample.add. */
+    source: text('source', { enum: ['phone', 'test', 'sample'] })
       .notNull()
       .default('phone'),
     started_at: ts('started_at').notNull().defaultNow(),

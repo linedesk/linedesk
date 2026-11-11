@@ -32,6 +32,8 @@ export type CommandContext = {
   undo: () => void
   openSearch: () => void
   openHelp: () => void
+  /** Set where the install offers the first-use tour (FIRST_USE). */
+  showTour?: () => void
   openNav: () => void
   signOut: () => void
 }
@@ -167,6 +169,7 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
         { label: 'Undo', icon: 'restart', shortcut: ['Z'], run: c.undo },
         { label: 'Search calls', icon: 'search', shortcut: ['/'], run: c.openSearch },
         { label: 'Show keyboard shortcuts', icon: 'keyboard', shortcut: ['?'], run: c.openHelp },
+        ...(c.showTour ? [{ label: 'Show the tour', keywords: 'help intro', icon: 'spark' as const, run: c.showTour }] : []),
         { label: 'Open menu', icon: 'menu', shortcut: ['M'], run: c.openNav },
         { label: 'Account settings', icon: 'user', run: () => c.goPage('account') },
         { label: 'Sign out', icon: 'arrow-up-right', run: c.signOut },

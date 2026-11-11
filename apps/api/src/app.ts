@@ -30,6 +30,7 @@ import { isInstanceAdmin } from './instance-admin.ts'
 import { previewInvitation } from './invitations.ts'
 import { signUpOpen } from './signup-gate.ts'
 import { newAssistant, newWorkspaceSettings, onboardingFor, phoneSetupFor } from './onboarding.ts'
+import { firstUse } from './sample-calls.ts'
 import { voiceReady } from './provider-settings.ts'
 import { serveRecording } from './recording-route.ts'
 import { runAction } from './run-action.ts'
@@ -184,6 +185,8 @@ app.get('/v1/me', async c => {
     impersonation: await impersonationOf(actor),
     // An instance admin whose session lacks the second factor: 'setup' (no passkey yet) or 'confirm'.
     adminSecondFactor: actor.adminSecondFactor ?? null,
+    // How this install introduces a new workspace after onboarding (FIRST_USE).
+    firstUse: firstUse(),
   })
 })
 

@@ -1,4 +1,5 @@
 // The signed-in app: composes the inbox, the pages, the navigation, overlays and toasts.
+import { offersTour } from '@linedesk/actions'
 import type { Call } from '@linedesk/db/types'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from './cachedQuery.ts'
@@ -27,6 +28,9 @@ import { mayCreateWorkspace } from './NoWorkspace.tsx'
 import { Overlays } from './shell/Overlays.tsx'
 import { rejectionText } from './shell/rejections.ts'
 import { SetupBanner } from './shell/SetupBanner.tsx'
+import { Tour } from './shell/Tour.tsx'
+import { finishTour, tourDue } from './shell/tour.ts'
+import { SampleCallsBar } from './inbox/SampleCallsBar.tsx'
 import { SyncBar } from './shell/SyncBar.tsx'
 import { pages, type Page, type PageRoute } from './shell/pages.tsx'
 import { Toast } from './shell/Toast.tsx'
@@ -92,6 +96,13 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
   const isInstanceAdmin = me.permissions.includes('instance:admin')
   // An instance admin without the passkey sign-in still finds the admin area; it asks for the passkey.
   const canOpenAdmin = isInstanceAdmin || Boolean(me.adminSecondFactor)
+  // First-use tour (FIRST_USE): once after onboarding in this browser, and from ⌘K.
+  const tourOffered = offersTour(me.firstUse ?? 'off')
+  const [tourOpen, setTourOpen] = useState(() => tourOffered && tourDue(me.workspace!.id))
+  const closeTour = () => {
+    finishTour()
+    setTourOpen(false)
+  }
   // The same rule as the screen without a workspace (#220): sign-up open, or an instance admin.
   const authMethods = useQuery('auth-methods', loadAuthMethods, { persist: true }).data
   const canCreateWorkspace = !!authMethods && mayCreateWorkspace(authMethods.signUp !== false, me)
@@ -298,6 +309,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
     openSearch,
     signOut: () => void signOut(),
     openHelp: () => setOverlay('help'),
+    showTour: tourOffered ? () => setTourOpen(true) : undefined,
     openNav: () => setNavOpen(true),
   })
   function runCommand(command: Command, via: SelectVia) {
@@ -355,6 +367,9 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
       <main className="main">
         {nav.route !== 'settings' && (
           <SetupBanner canEdit={me.permissions.includes('settings:write')} onConnect={() => goPage('settings')} />
+        )}
+        {!page && !openCall && (
+          <SampleCallsBar canEdit={me.permissions.includes('settings:write')} toast={toaster.show} />
         )}
         {page ? (
           <>
@@ -472,6 +487,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
         onCommand={runCommand}
         onReminder={pickReminder}
       />
+      {tourOpen && !page && <Tour onClose={closeTour} />}
       {newWorkspace && <NewWorkspaceDialog onClose={() => setNewWorkspace(false)} />}
       {toaster.toast && <Toast toast={toaster.toast} onUndo={actions.undo} />}
     </div>
