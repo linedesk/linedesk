@@ -143,9 +143,14 @@ export type VoiceProviderConfig = Record<(typeof agentCategories)[number], Voice
   tts_providers: VoiceEntry[]
 }
 
-const entryOf = (provider: ProviderName, config: ProviderConfig): VoiceEntry => ({
+/** A provider's values for the agent; without its secret fields when `withSecrets` is false. */
+const entryOf = (provider: ProviderName, config: ProviderConfig, withSecrets = true): VoiceEntry => ({
   provider,
-  ...Object.fromEntries(Object.keys(providerSpec(provider).fields).map(field => [field, config[field]?.value ?? null])),
+  ...Object.fromEntries(
+    Object.entries(providerSpec(provider).fields)
+      .filter(([, spec]) => withSecrets || !spec.secret)
+      .map(([field]) => [field, config[field]?.value ?? null]),
+  ),
 })
 
 /**
@@ -166,14 +171,16 @@ export async function voiceReady(tx: Tx, env: Env = process.env): Promise<boolea
 /**
  * What the voice agent needs for a call: per category the active provider with its values in
  * clear, or null when none is set up (`recording`: null means not recorded, unless the agent's own
- * RECORDING_STORE says otherwise). Holds secrets, the S3 secret access key included: only ever
- * sent to the agent token.
+ * RECORDING_STORE says otherwise). Holds the speech and model keys: only ever sent to the agent
+ * token. The recording store's secret fields (the S3 secret access key) are left out: the API
+ * starts S3 recordings itself (`call.startRecording`, recording-egress.ts).
  */
 export async function voiceProviderConfig(tx: Tx): Promise<VoiceProviderConfig> {
   const config = {} as VoiceProviderConfig
   for (const category of agentCategories) {
     const active = await activeProvider(tx, category)
-    config[category] = active && entryOf(active.provider, active.config)
+    // The agent needs the speech and model keys; the S3 secret stays here (recording-egress.ts).
+    config[category] = active && entryOf(active.provider, active.config, category !== 'recording')
   }
   config.tts_providers = (await setUpProviders(tx, 'tts')).map(p => entryOf(p.provider, p.config))
   return config

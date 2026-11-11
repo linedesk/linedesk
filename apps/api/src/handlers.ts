@@ -8,6 +8,7 @@ import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { and, asc, desc, eq, gt, gte, or, sql, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
+import { startS3Recording } from './recording-egress.ts'
 import { apiKeyHandlers } from './api-keys.ts'
 import { assistantForNumber, assistantHandlers, assistantIn } from './assistants.ts'
 import { bookingContext, bookingHandlers, bookingsForTest, DEFAULT_TIME_ZONE } from './bookings.ts'
@@ -452,6 +453,17 @@ const handlers: Record<string, Handler> = {
       await queueSpendingAlerts(tx, call.workspace_id, now)
     }
     return { rows }
+  },
+
+  'call.startRecording': async ({ tx, actor }, input) => {
+    const call = await loadCall(tx, actor, input.callId)
+    // One start at a time per call, so a retry finds the egress the first one started (recording-egress.ts).
+    const [locked] = await tx.select({ status: calls.status }).from(calls).where(eq(calls.id, call.id)).for('update')
+    if (locked?.status !== 'live') throw new Reject('the call has ended')
+    const assistant = call.assistant_id ? await assistantIn(tx, call.workspace_id, call.assistant_id).catch(() => null) : null
+    if (assistant?.record_calls === false) throw new Reject("the call's assistant does not record calls")
+    const egressId = await startS3Recording(tx, call.room ?? call.id, recordingKey(call.workspace_id, call.id))
+    return { rows: {}, data: { egressId } }
   },
 
   'call.setRecording': async ({ tx, actor }, input) => {

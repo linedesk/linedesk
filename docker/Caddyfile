@@ -16,9 +16,12 @@
 	}
 }
 
-# The API, with retries while a container starts or stops.
+# The API, with retries while a container starts or stops. The argument says where the request came in
+# (`public` or `internal`); it replaces any X-Linedesk-Entry the client sent, and the API accepts the voice
+# agent's tokens only on `internal` requests (apps/api/src/context.ts).
 (api) {
 	reverse_proxy {
+		header_up X-Linedesk-Entry {args[0]}
 		dynamic a {
 			name {$API_HOST:api}
 			port 3100
@@ -35,7 +38,7 @@
 # Inside the compose network only (not published): the voice agent reaches the API here
 # (LINEDESK_API_URL=http://proxy:3100), so its calls to the API also ride over an API update.
 :3100 {
-	import api
+	import api internal
 }
 
 {$SITE_ADDRESS::80} {
@@ -60,10 +63,15 @@
 	# HSTS only where this Caddy serves HTTPS itself (docker-compose.https.yml). Behind your own TLS proxy, set it there.
 	@https protocol https
 	header @https Strict-Transport-Security "max-age=31536000"
+	# The voice agent's own routes are for the internal listener above only.
+	@agentOnly path /v1/agent /v1/agent/*
+	handle @agentOnly {
+		respond 404
+	}
 
 	@api path /api/* /v1/* /mcp
 	handle @api {
-		import api
+		import api public
 	}
 
 	# LiveKit signalling (WebSocket) on the same address: browsers need no extra port or certificate.

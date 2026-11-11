@@ -3,7 +3,7 @@
 import { createServer } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { ASSISTANT_CALL_MAX_MINUTES, callFlagUrgent, callTakeMessage } from '@linedesk/actions'
+import { agentTokenProblem, ASSISTANT_CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage } from '@linedesk/actions'
 import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant } from '@livekit/rtc-node'
 import { z } from 'zod'
@@ -15,7 +15,7 @@ import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log
 import { callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
 import { createConfigLoader, parseProviderSettings, type AgentConfig } from './config.ts'
-import { AGENT_NAME, requireEnv, requireLivekitEnv } from './env.ts'
+import { AGENT_NAME, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
 import { createPipeline, createTts, greetingVoice, summaryLlm, warmUpLlm } from './pipeline.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
@@ -372,7 +372,8 @@ async function entry(ctx: JobContext) {
 
   // From here on the call exists and must be finished: on hang-up (session close), on any error
   // while setting up the conversation, and at job shutdown as the last resort.
-  const recorder = livekitRecorder(config.recording)
+  const recorder = livekitRecorder(config.recording, process.env, async () =>
+    (await api.run(callStartRecording, { callId: call.callId }, call.workspaceId)).data!.egressId as string)
   const recording = startRecording(recorder, call, ctx.room.name ?? call.callId)
   // Stopped at hang-up, or earlier when a warm transfer connects (the on-call conversation is not recorded).
   const stopCallRecording = async () => stopRecording(recorder, await recording) // at hang-up
@@ -453,8 +454,8 @@ function idle(reason: string) {
 async function main() {
   try {
     // The worker cannot run without LiveKit and the API; it can run without speech and LLM keys.
-    requireEnv(['AGENT_API_TOKEN'])
-    if (process.env.AGENT_API_TOKEN === 'change-me') throw new Error('AGENT_API_TOKEN is still the placeholder from .env.example.')
+    const tokenProblem = agentTokenProblem(process.env.AGENT_API_TOKEN, { production: process.env.NODE_ENV === 'production' })
+    if (tokenProblem) throw new Error(tokenProblem)
     requireLivekitEnv()
   } catch (e) {
     const reason = e instanceof Error ? e.message : String(e)

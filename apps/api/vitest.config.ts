@@ -46,7 +46,7 @@ export default defineConfig(async () => {
         BETTER_AUTH_SECRET: 'test-secret-test-secret-test-secret',
         BETTER_AUTH_URL: 'http://localhost:5173',
         WEB_ORIGIN: 'http://localhost:5173',
-        AGENT_API_TOKEN: 'test-agent-token',
+        AGENT_API_TOKEN: 'test-agent-token-test-agent-token-0000',
         ELECTRIC_URL: 'http://electric.test',
         ELECTRIC_SECRET: 'test-electric-secret',
         // Tests must never reach a carrier, whatever .env selects.

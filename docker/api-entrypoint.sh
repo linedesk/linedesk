@@ -22,10 +22,17 @@ if [ "$LIVEKIT_API_SECRET" = "devsecret-change-me-at-least-32-chars" ]; then
   echo "LIVEKIT_API_KEY and LIVEKIT_API_SECRET are still the development values. Generate your own and put them in .env: docker run --rm livekit/livekit-server generate-keys" >&2
   exit 1
 fi
-# The placeholder token would let anyone act as the voice agent: treat it as not set (agent access off).
-if [ "$AGENT_API_TOKEN" = "change-me" ]; then
-  echo "AGENT_API_TOKEN is still the placeholder; agent access stays off until you set a random value in .env." >&2
-  unset AGENT_API_TOKEN
+# A placeholder token would let anyone act as the voice agent: treat it as not set (agent access off).
+# Any other token must be at least 32 characters (the API refuses to start otherwise).
+case "$AGENT_API_TOKEN" in
+  change-me | dev-agent-token-not-for-a-server-0000)
+    echo "AGENT_API_TOKEN is still the placeholder; agent access stays off until you set a random value in .env (openssl rand -hex 24)." >&2
+    unset AGENT_API_TOKEN
+    ;;
+esac
+if [ -n "$AGENT_API_TOKEN" ] && [ "${#AGENT_API_TOKEN}" -lt 32 ]; then
+  echo "AGENT_API_TOKEN is shorter than 32 characters. Put a random value in .env, e.g. the output of: openssl rand -hex 24" >&2
+  exit 1
 fi
 
 node packages/db/src/migrate.ts

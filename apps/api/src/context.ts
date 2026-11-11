@@ -5,6 +5,8 @@ import { member, organization, user } from '@linedesk/db'
 import { and, asc, eq } from 'drizzle-orm'
 import { actorForApiKey, isApiKey } from './api-keys.ts'
 import { auth } from './auth.ts'
+import { addressBucket } from './client-ip.ts'
+import { createFailureLimiter } from './rate-limit.ts'
 import { mustConfirmEmail } from './auth-methods.ts'
 import { db } from './db.ts'
 import { impersonationEndsAt } from './impersonation-guard.ts'
@@ -59,6 +61,26 @@ function sameToken(given: string, expected: string) {
   return a.length === b.length && timingSafeEqual(a, b)
 }
 
+/**
+ * Set by Caddy on every request through the public site (docker/Caddyfile), replacing whatever the
+ * client sent; the internal listener the agent uses sets `internal`.
+ */
+export const ENTRY_HEADER = 'x-linedesk-entry'
+
+/**
+ * Whether the agent token may be used on a request with this entry header: only through the internal
+ * listener. A request without the header (straight to the API, as `pnpm dev` runs it) counts only
+ * outside production; in production it reached the API around the proxy.
+ */
+export function agentEntryAllowed(entry: string | null, production = process.env.NODE_ENV === 'production') {
+  return entry === 'internal' || (entry === null && !production)
+}
+
+/** Refused agent tokens per client address in a window; then the address is refused at once until they age out. */
+export const INVALID_AGENT_TOKENS_PER_IP = 10
+const invalidAgentTokens = createFailureLimiter({ max: INVALID_AGENT_TOKENS_PER_IP, windowMs: 10 * 60_000 })
+export const tooManyInvalidAgentTokens = (ip: string | null) => invalidAgentTokens.blocked(addressBucket(ip))
+
 /** `clientIp` is where the request comes from (client-ip.ts); refused API keys are counted per address. */
 export async function resolveActor(headers: Headers, clientIp: string | null = null): Promise<Actor | null> {
   const resolved = await resolveCaller(headers, clientIp)
@@ -83,7 +105,12 @@ export async function resolveCaller(
       const actor = await actorForApiKey(bearer, clientIp)
       return actor ? { actor } : signedOut
     }
-    if (!process.env.AGENT_API_TOKEN || !sameToken(bearer, process.env.AGENT_API_TOKEN)) return signedOut
+    // The agent reaches the API through the internal listener only; anywhere else its token counts for nothing.
+    if (!agentEntryAllowed(headers.get(ENTRY_HEADER)) || tooManyInvalidAgentTokens(clientIp)) return signedOut
+    if (!process.env.AGENT_API_TOKEN || !sameToken(bearer, process.env.AGENT_API_TOKEN)) {
+      invalidAgentTokens.fail(addressBucket(clientIp))
+      return signedOut
+    }
     return { actor: { actorId: 'agent', role: 'agent', workspaceId: headers.get(WORKSPACE_HEADER), permissions: rolePermissions.agent } }
   }
   const session = await auth.api.getSession({ headers })

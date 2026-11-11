@@ -46,8 +46,9 @@ export async function signUp(email = `${uid('user')}@linedesk.test`): Promise<Us
   return { userId: user.id, headers: { cookie, origin: ORIGIN } }
 }
 
-export const agent = (workspaceId?: string, token = 'test-agent-token'): Caller => ({
-  headers: { authorization: `Bearer ${token}`, ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}) },
+/** The voice agent; each from its own address, so wrong tokens in one test never throttle another (context.ts). */
+export const agent = (workspaceId?: string, token = 'test-agent-token-test-agent-token-0000'): Caller => ({
+  headers: { authorization: `Bearer ${token}`, [FROM]: randomIp(), ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}) },
 })
 export const anonymous: Caller = { headers: {} }
 

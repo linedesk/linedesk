@@ -309,6 +309,15 @@ export function recordingObjectKey(prefix: string | null | undefined, key: strin
   return trimmed ? `${trimmed}/${key}` : key
 }
 
+// S3 recording: the API starts LiveKit egress for the call with the bucket's keys, which never go to
+// the agent; the agent stops it and reports it with call.setRecording as for the other stores.
+export const callStartRecording = defineAction({
+  name: 'call.startRecording',
+  description: "Start recording a call's room into the S3-compatible recording store; returns the egress id in `data.egressId`.",
+  input: callId,
+  permission: 'agent',
+})
+
 // The agent reports that the recording of a call is final; the server derives the key. Members play
 // it through GET /v1/calls/<id>/recording.
 export const callSetRecording = defineAction({

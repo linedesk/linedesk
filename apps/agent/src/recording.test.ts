@@ -120,3 +120,11 @@ test('a recording that fails to start is tried once more', async () => {
   expect(await startRecording(flaky, call(true), 'call-abc', 0)).toBe('EG_2')
   expect(flaky.start).toHaveBeenCalledTimes(2)
 })
+
+test('S3 without the secret (the API keeps it) is started by the API', async () => {
+  const livekit = { LIVEKIT_URL: 'ws://livekit.test:7880', LIVEKIT_API_KEY: 'k', LIVEKIT_API_SECRET: 's'.repeat(32) }
+  const viaApi = vi.fn(async () => 'EG_api')
+  const s3 = { endpoint: 'https://s3.test', bucket: 'calls', accessKeyId: 'id', forcePathStyle: true }
+  expect(await livekitRecorder({ store: 's3', s3 }, livekit, viaApi)!.start('room', 'ws_1/call_1.ogg')).toBe('EG_api')
+  expect(viaApi).toHaveBeenCalledOnce()
+})

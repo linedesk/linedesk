@@ -17,6 +17,7 @@ import * as voices from './voices.ts'
 import * as webhooks from './webhooks.ts'
 
 export * from './define.ts'
+export * from './agent-token.ts'
 export * from './client.ts'
 export * from './input-errors.ts'
 export * from './admin.ts'
@@ -58,6 +59,7 @@ const all = [
   calls.callFlagUrgent,
   calls.callStartTest,
   calls.callFindForTest,
+  calls.callStartRecording,
   calls.callSetRecording,
   transfer.callTransfer,
   settings.contactUpdate,

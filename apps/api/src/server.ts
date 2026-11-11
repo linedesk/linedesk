@@ -1,10 +1,19 @@
 import { serve } from '@hono/node-server'
+import { agentTokenProblem } from '@linedesk/actions'
 import { secondFactorOffWarning } from './admin-second-factor.ts'
 import { app } from './app.ts'
 import { db } from './db.ts'
 import { startJobs, stopJobs } from './jobs.ts'
 import { startOrphanRecordingSweep } from './orphan-recordings.ts'
 import { startStaleCallSweep } from './stale-calls.ts'
+
+// A short or placeholder agent token could be guessed: refuse to start (docker/api-entrypoint.sh turns the placeholders off first).
+const agentToken = process.env.AGENT_API_TOKEN
+const agentTokenRefused = agentToken && agentTokenProblem(agentToken, { production: process.env.NODE_ENV === 'production' })
+if (agentTokenRefused) {
+  console.error(agentTokenRefused)
+  process.exit(1)
+}
 
 const port = Number(process.env.PORT ?? 3000)
 const offWarning = secondFactorOffWarning()

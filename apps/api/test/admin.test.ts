@@ -598,19 +598,19 @@ describe('recording storage', () => {
       region: null,
       bucket: 'env-bucket',
       access_key_id: 'env-key-id',
-      secret_access_key: 'env-secret-0123456789',
       prefix: null,
       force_path_style: null,
     })
     expect(await fieldOf('s3', 'secret_access_key')).toMatchObject({ source: 'env', value: null, last4: null })
 
     expect((await act(operator, 'provider.setKeys', { provider: 's3', values: s3Keys })).status).toBe(200)
-    expect((await agentConfig()).recording).toEqual({ provider: 's3', ...s3Keys, force_path_style: null })
+    const { secret_access_key: _secret, ...withoutSecret } = s3Keys
+    expect((await agentConfig()).recording).toEqual({ provider: 's3', ...withoutSecret, force_path_style: null })
     expect(await fieldOf('s3', 'bucket')).toMatchObject({ source: 'app', value: 'calls' })
     expect(await fieldOf('s3', 'secret_access_key')).toMatchObject({ source: 'app', value: null, last4: '6789' })
   })
 
-  test('the S3 secret goes to the agent token only, and is redacted in the command log', async () => {
+  test('the S3 secret stays with the API: not to the agent, members or the command log', async () => {
     const key = crypto.randomUUID()
     await act(operator, 'provider.setKeys', { provider: 's3', values: s3Keys }, key)
     await act(operator, 'provider.setActive', { category: 'recording', provider: 's3' })
@@ -623,7 +623,8 @@ describe('recording storage', () => {
     const [command] = await db.select().from(commands).where(eq(commands.id, key))
     expect(JSON.stringify(command?.input)).not.toContain(S3_SECRET)
     expect(JSON.stringify(await db.select().from(provider_settings))).not.toContain(S3_SECRET)
-    expect((await agentConfig()).recording.secret_access_key).toBe(S3_SECRET)
+    expect((await agentConfig()).recording).toMatchObject({ provider: 's3', bucket: s3Keys.bucket })
+    expect(JSON.stringify(await agentConfig())).not.toContain(S3_SECRET)
   })
 
   test('setKeys checks the switch, the endpoint and the prefix without echoing them', async () => {

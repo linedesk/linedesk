@@ -32,6 +32,7 @@ import {
   accountRefusal,
   clientOutdated,
   resolveCaller,
+  tooManyInvalidAgentTokens,
   WORKSPACE_HEADER,
   WORKSPACE_STATE_HEADER,
   workspaceRefusal,
@@ -165,9 +166,15 @@ app.use('/v1/*', async (c, next) => {
   const actor = 'actor' in caller ? caller.actor : null
   if (!actor) {
     // An address that sent too many unknown keys is not looked up any more (api-keys.ts).
-    if (isApiKey(c.req.header('authorization')?.replace(/^Bearer /, '') ?? '') && tooManyInvalidApiKeys(ip)) {
+    const bearer = c.req.header('authorization')?.replace(/^Bearer /, '') ?? ''
+    if (isApiKey(bearer) && tooManyInvalidApiKeys(ip)) {
       c.header('retry-after', '600')
       return c.json({ ok: false, error: 'too many invalid API keys from this address; try again later' }, 429)
+    }
+    // Guessing the agent token: the address is refused for a while (context.ts).
+    if (bearer && !isApiKey(bearer) && tooManyInvalidAgentTokens(ip)) {
+      c.header('retry-after', '600')
+      return c.json({ ok: false, error: 'too many invalid tokens from this address; try again later' }, 429)
     }
     // `signed_out`: no valid session (expired, signed out, account disabled); `no_workspace`: signed in, member of none.
     const code = 'missing' in caller ? caller.missing : 'signed_out'

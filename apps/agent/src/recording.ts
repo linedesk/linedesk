@@ -160,14 +160,22 @@ export function recordingOutput(key: string, recording: RecordingConfig, env: En
 
 const failed = [EgressStatus.EGRESS_FAILED, EgressStatus.EGRESS_ABORTED, EgressStatus.EGRESS_LIMIT_REACHED]
 
-/** CallRecorder backed by LiveKit egress (audio only, OGG) for this call's store, or null when recording is off. */
-export function livekitRecorder(recording: RecordingConfig, env: Env = process.env): CallRecorder | null {
+/** Asks the API to start an S3 recording of the call (`call.startRecording`); the egress id. */
+export type StartViaApi = () => Promise<string>
+
+/**
+ * CallRecorder backed by LiveKit egress (audio only, OGG) for this call's store, or null when recording is off.
+ * S3 without the secret in the settings (the API keeps it) is started by the API through `startViaApi`;
+ * an older API still sends the secret, and the agent then starts it itself.
+ */
+export function livekitRecorder(recording: RecordingConfig, env: Env = process.env, startViaApi?: StartViaApi): CallRecorder | null {
   if (recording.store === 'off') return null
   const livekit = requireLivekitEnv(env)
   const egress = new EgressClient(livekitHttpUrl(livekit.LIVEKIT_URL), livekit.LIVEKIT_API_KEY, livekit.LIVEKIT_API_SECRET)
   return {
     store: recording.store,
     async start(room, key) {
+      if (recording.store === 's3' && !recording.s3.secretAccessKey && startViaApi) return startViaApi()
       return (await egress.startRoomCompositeEgress(room, { file: recordingOutput(key, recording, env) }, { audioOnly: true })).egressId
     },
     async stop(egressId) {

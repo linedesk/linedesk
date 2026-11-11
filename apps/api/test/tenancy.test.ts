@@ -105,6 +105,7 @@ describe('agent-facing actions', () => {
     ['call.finish', { callId, summary: 'taken over' }],
     ['call.takeMessage', { callId, message: 'taken over' }],
     ['call.flagUrgent', { callId }],
+    ['call.startRecording', { callId }],
     ['call.setRecording', { callId }],
     ['call.transfer', { callId, to: '+15035550199', result: 'not_answered' }],
   ]
