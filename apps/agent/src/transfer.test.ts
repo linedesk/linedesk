@@ -95,9 +95,11 @@ test('the plan stops after a few tries, so the caller is not on hold for minutes
 })
 
 test('the assistant hears what to tell the caller when nobody accepts', () => {
-  expect(notConnectedReply('message_urgent')).toMatch(/flagged as urgent/)
+  expect(notConnectedReply('message_urgent')).toMatch(/marked as urgent/)
   expect(notConnectedReply('message')).not.toMatch(/urgent/)
   expect(notConnectedReply('message')).toMatch(/saved already/)
+  // After a failed transfer nothing is on its way: the assistant is told so in both cases.
+  for (const fallback of ['message', 'message_urgent'] as const) expect(notConnectedReply(fallback)).toMatch(/nobody is on the way/)
 })
 
 test('when nobody took the call the team gets a message naming who was tried and why', () => {

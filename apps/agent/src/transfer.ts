@@ -139,7 +139,8 @@ export function notConnectedMessage({ callerName, about, tried }: { callerName?:
 /** What the assistant is told when nobody took the call; it then talks to the caller again. */
 export function notConnectedReply(fallback: Fallback): string {
   const saved = 'A message that they wanted to be put through is saved already; use take_message only for details the caller adds.'
+  const noPromises = 'Nothing else has happened: nobody is on the way and no visit or time is set. Never say or suggest otherwise.'
   return fallback === 'message_urgent'
-    ? `Nobody took the call. Tell the caller you could not reach anyone right now, ask how to reach them, and say the team will call back as soon as possible. The call is flagged as urgent. ${saved}`
-    : `Nobody took the call. Tell the caller you could not reach anyone right now, ask how to reach them, and say the team will get back to them. ${saved}`
+    ? `Nobody took the call. Tell the caller you could not reach anyone right now, that their message is passed on to the team marked as urgent, and that the team will call them back as soon as possible. ${noPromises} ${saved}`
+    : `Nobody took the call. Tell the caller you could not reach anyone right now, that their message is passed on to the team, and that the team will get back to them. ${noPromises} ${saved}`
 }
