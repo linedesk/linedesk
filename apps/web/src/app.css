@@ -1005,6 +1005,34 @@ a.k-btn {
 .pn-release {
   color: var(--danger);
 }
+.pn-carrier {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  min-height: 48px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+.pn-carrier-label {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.pn-carrier-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pn-carrier-form {
+  display: grid;
+  gap: 16px;
+}
+.pn-carrier-ok {
+  color: var(--ink);
+}
+.pn-carrier-error {
+  color: var(--danger);
+}
 .pn-release:hover {
   color: var(--danger);
   background: var(--danger-soft);

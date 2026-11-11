@@ -12,6 +12,7 @@ import { apiKeyHandlers } from './api-keys.ts'
 import { assistantForNumber, assistantHandlers, assistantIn } from './assistants.ts'
 import { bookingContext, bookingHandlers, bookingsForTest, DEFAULT_TIME_ZONE } from './bookings.ts'
 import { calendarConnectionHandlers } from './calendar-connections.ts'
+import { carrierHandlers, OWN_CARRIER_NOT_YET, workspaceCarrier } from './workspace-carrier.ts'
 import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, type Preparer, Reject, type Undo } from './handler-context.ts'
@@ -184,6 +185,7 @@ const handlers: Record<string, Handler> = {
   ...notificationHandlers,
   ...pushHandlers,
   ...calendarConnectionHandlers,
+  ...carrierHandlers(),
   ...apiKeyHandlers,
   ...bookingHandlers,
   ...evaluationHandlers(queueCallEvaluation),
@@ -347,6 +349,8 @@ const handlers: Record<string, Handler> = {
   'phoneNumber.setup': async ({ tx, actor, now, telephony, onRollback }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     const workspace_id = actor.workspaceId
+    // Numbers are not set up in a workspace's own carrier account yet: refuse instead of using the install's.
+    if ((await workspaceCarrier(tx, workspace_id)) !== 'default') throw new Reject(OWN_CARRIER_NOT_YET)
     const provider = telephony ?? (await configuredProvider(tx))
     const sipEndpoint = process.env.LIVEKIT_SIP_ENDPOINT ?? ''
     if (provider.name !== 'dev' && !sipEndpoint) throw new Reject('phone setup is not configured: LIVEKIT_SIP_ENDPOINT is not set')

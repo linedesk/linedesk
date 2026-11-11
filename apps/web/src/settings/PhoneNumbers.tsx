@@ -24,6 +24,7 @@ import { RadioCard, Select, type SelectOption } from '../ui/controls.tsx'
 import { Dialog } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
 import { SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
+import { CarrierRow, useCarrierStatus } from './Carrier.tsx'
 import { Field, Section, TextInput } from './fields.tsx'
 
 const carrierName = (provider: string | null) =>
@@ -49,7 +50,9 @@ export function PhoneNumbers({ canEdit, status, isInstanceAdmin }: Props) {
   const [adding, setAdding] = useState(false)
   const [managing, setManaging] = useState<string | null>(null)
   const managed = numbers.find(n => n.id === managing)
-  const canAdd = canEdit && !!status?.available
+  // Numbers cannot be connected through the workspace's own carrier account yet (the server refuses too).
+  const ownCarrier = (useCarrierStatus(canEdit)?.carrier ?? 'default') !== 'default'
+  const canAdd = canEdit && !!status?.available && !ownCarrier
   return (
     <Section
       id="st-phone"
@@ -62,6 +65,13 @@ export function PhoneNumbers({ canEdit, status, isInstanceAdmin }: Props) {
         )
       }
     >
+      {canEdit && <CarrierRow />}
+      {canEdit && ownCarrier && (
+        <p className="help" role="status">
+          Connecting numbers through your own carrier account is coming soon. Until then, switch back to Linedesk
+          default to add a number.
+        </p>
+      )}
       {canEdit && status && !status.available && (
         <Unavailable detail={status.detail} isInstanceAdmin={isInstanceAdmin} />
       )}

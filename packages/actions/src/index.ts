@@ -1,6 +1,7 @@
 import * as admin from './admin.ts'
 import * as apiKeys from './api-keys.ts'
 import * as calendar from './calendar.ts'
+import * as carrier from './carrier.ts'
 import * as calls from './calls.ts'
 import * as evaluations from './evaluations.ts'
 import type { ActionDef } from './define.ts'
@@ -20,6 +21,7 @@ export * from './admin.ts'
 export * from './api-keys.ts'
 export * from './assistant-prompt.ts'
 export * from './calendar.ts'
+export * from './carrier.ts'
 export * from './calls.ts'
 export * from './evaluations.ts'
 export * from './membership.ts'
@@ -71,6 +73,9 @@ const all = [
   settings.phoneNumberSetup,
   settings.phoneNumberUpdate,
   settings.phoneNumberRelease,
+  carrier.carrierSet,
+  carrier.carrierGet,
+  carrier.carrierTest,
   settings.assistantStartTestCall,
   settings.workspaceGetSettings,
   settings.workspaceUpdateSettings,

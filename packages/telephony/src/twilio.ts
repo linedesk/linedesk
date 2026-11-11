@@ -6,12 +6,14 @@ import { TelephonyError, type AvailableNumber, type CallStatus, type CallStatusE
 const TRUNKING = 'https://trunking.twilio.com/v1'
 const TRUNK_NAME = 'linedesk-livekit'
 
-export interface TwilioOptions {
+/**
+ * Either the auth token, or an API key (SID + secret) of the account. With an API key the adapter
+ * does everything but verify webhooks: Twilio signs those with the auth token only.
+ */
+export type TwilioOptions = {
   accountSid: string
-  /** Also the key Twilio signs webhooks with. */
-  authToken: string
   fetch?: typeof fetch
-}
+} & ({ authToken: string; apiKeySid?: undefined; apiKeySecret?: undefined } | { authToken?: undefined; apiKeySid: string; apiKeySecret: string })
 
 // biome-ignore lint/suspicious/noExplicitAny: Twilio's JSON is read field by field
 type Json = Record<string, any>
@@ -34,9 +36,11 @@ const fail = (message: string, status?: number) => new TelephonyError('twilio', 
 /** Twilio forwards to this URI; TCP is what LiveKit SIP expects from Twilio. */
 const originationUrl = (sipEndpoint: string) => `sip:${sipEndpoint};transport=tcp`
 
-export function createTwilioProvider({ accountSid, authToken, fetch: doFetch = fetch }: TwilioOptions): TelephonyProvider {
-  const account = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}`
-  const authorization = `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`
+export function createTwilioProvider(options: TwilioOptions): TelephonyProvider {
+  const { accountSid, authToken, fetch: doFetch = fetch } = options
+  const account = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}`
+  const [user, password] = options.apiKeySid ? [options.apiKeySid, options.apiKeySecret] : [accountSid, authToken]
+  const authorization = `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}`
 
   /** `what` names the step in error messages; URLs carry the account SID and stay out of them. */
   async function request(what: string, method: string, url: string, form?: Form): Promise<Json> {
@@ -85,6 +89,7 @@ export function createTwilioProvider({ accountSid, authToken, fetch: doFetch = f
 
   /** Twilio signs the full URL followed by every form field, sorted by name, as name + value. */
   function verifySignature(url: string | undefined, signature: string | undefined, params: URLSearchParams) {
+    if (!authToken) throw fail('webhooks are signed with the auth token; it is not set (an API key cannot verify them)')
     if (!url) throw fail('the webhook URL is needed to verify the signature')
     if (!signature) throw fail('webhook has no signature header')
     const signed = [...params.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).reduce((text, [name, value]) => text + name + value, url)
@@ -103,6 +108,11 @@ export function createTwilioProvider({ accountSid, authToken, fetch: doFetch = f
       return ((available_phone_numbers ?? []) as Json[]).map((n): AvailableNumber => ({
         e164: n.phone_number, locality: n.locality ?? undefined, region: n.region ?? undefined,
       }))
+    },
+
+    async listNumbers(limit) {
+      const { incoming_phone_numbers } = await request('list numbers', 'GET', `${account}/IncomingPhoneNumbers.json?PageSize=${limit}`)
+      return ((incoming_phone_numbers ?? []) as Json[]).map((n): OwnedNumber => ({ e164: n.phone_number, providerRef: n.sid }))
     },
 
     async findNumber(e164): Promise<OwnedNumber | null> {

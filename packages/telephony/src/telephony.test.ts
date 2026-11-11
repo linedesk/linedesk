@@ -40,6 +40,7 @@ const telnyxAccount = (account: Account = {}): Route => ({ method, path, body })
     account.owned = true
     return { json: { data: { id: 'order_1', status: 'pending' } } }
   }
+  if (method === 'GET' && path.startsWith('/phone_numbers?page')) return { json: { data: account.owned ? [{ id: 'num_1', phone_number: NUMBER }] : [] } }
   if (method === 'GET' && path.startsWith('/phone_numbers?')) return { json: { data: account.owned ? [{ id: 'num_1', phone_number: NUMBER }] : [] } }
   if (method === 'GET' && path.startsWith('/fqdn_connections')) return { json: { data: account.connection ? [{ id: 'conn_1', connection_name: 'linedesk-livekit' }] : [] } }
   if (method === 'POST' && path === '/fqdn_connections') {

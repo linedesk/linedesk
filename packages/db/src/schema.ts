@@ -187,6 +187,11 @@ export const workspace_settings = pgTable('workspace_settings', {
   recording_notice_on: boolean('recording_notice_on').notNull().default(false),
   /** The sentence it says; null: DEFAULT_RECORDING_NOTICE. */
   recording_notice: text('recording_notice'),
+  /**
+   * The carrier account the workspace's numbers use: `default` is the install's (Admin, Providers), `twilio`
+   * or `telnyx` the workspace's own account, its credentials in provider_settings rows with this workspace_id.
+   */
+  carrier: text('carrier', { enum: ['default', 'twilio', 'telnyx'] }).notNull().default('default'),
   created_at: createdAt(),
   version: version(),
 })

@@ -24,5 +24,14 @@ export function describeProviderContract(name: string, make: () => TelephonyProv
       const bought = await provider.buyNumber(found!.e164)
       expect(await provider.findNumber(found!.e164)).toEqual(bought)
     })
+
+    // `dev` has no account: it owns nothing and lists nothing.
+    test.skipIf(name === 'dev')('listNumbers lists the numbers of the account, with the same reference', async () => {
+      const provider = make()
+      expect(await provider.listNumbers(20)).toEqual([])
+      const [found] = await provider.searchNumbers({ country: 'US', areaCode: '503', limit: 1 })
+      const bought = await provider.buyNumber(found!.e164)
+      expect(await provider.listNumbers(20)).toEqual([bought])
+    })
   })
 }

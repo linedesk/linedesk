@@ -110,6 +110,11 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
       })
     },
 
+    async listNumbers(limit) {
+      const { data } = await request('GET', `/phone_numbers?page[size]=${limit}`)
+      return ((data ?? []) as Json[]).map((n): OwnedNumber => ({ e164: n.phone_number, providerRef: String(n.id) }))
+    },
+
     async findNumber(e164): Promise<OwnedNumber | null> {
       const id = await findNumberId(e164)
       return id ? { e164, providerRef: id } : null

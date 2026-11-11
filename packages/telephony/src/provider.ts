@@ -59,6 +59,8 @@ export class TelephonyError extends Error {
 export interface TelephonyProvider {
   readonly name: ProviderName
   searchNumbers(search: NumberSearch): Promise<AvailableNumber[]>
+  /** Numbers the account owns, at most `limit`. Only reads: "Test connection" for a workspace's own carrier. */
+  listNumbers(limit: number): Promise<OwnedNumber[]>
   /** The number if the account already owns it, else null. Never buys anything. */
   findNumber(e164: string): Promise<OwnedNumber | null>
   /** Buys the number: this costs money. Only for a number `findNumber` did not find. */

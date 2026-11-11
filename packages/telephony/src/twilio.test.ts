@@ -18,7 +18,11 @@ const ACCOUNT = '/2010-04-01/Accounts/AC1'
 const TOKEN = 'auth-token'
 
 /** A Twilio account in memory. `fail` makes one request return an error. */
-function mockTwilio(account: Account = {}, fail?: (call: Call) => { status: number; message: string } | undefined) {
+function mockTwilio(
+  account: Account = {},
+  fail?: (call: Call) => { status: number; message: string } | undefined,
+  auth: { authToken: string } | { apiKeySid: string; apiKeySecret: string } = { authToken: TOKEN },
+) {
   const calls: Call[] = []
   const state = { numbers: [], trunks: [], originations: [], attached: [], ...account } as Required<Account>
   const fakeFetch: typeof fetch = async (input, init) => {
@@ -37,7 +41,8 @@ function mockTwilio(account: Account = {}, fail?: (call: Call) => { status: numb
       return json({ available_phone_numbers: [{ phone_number: NUMBER, locality: 'Portland', region: 'OR' }] })
     }
     if (method === 'GET' && path === `${ACCOUNT}/IncomingPhoneNumbers.json`) {
-      return json({ incoming_phone_numbers: state.numbers.filter(n => n.phone_number === url.searchParams.get('PhoneNumber')) })
+      const wanted = url.searchParams.get('PhoneNumber')
+      return json({ incoming_phone_numbers: state.numbers.filter(n => !wanted || n.phone_number === wanted) })
     }
     if (method === 'POST' && path === `${ACCOUNT}/IncomingPhoneNumbers.json`) {
       state.numbers.push({ sid: 'PN1', phone_number: form!.PhoneNumber! })
@@ -72,7 +77,7 @@ function mockTwilio(account: Account = {}, fail?: (call: Call) => { status: numb
     }
     return json({ code: 20404, message: `no mock for ${method} ${path}` }, 404)
   }
-  const provider = createTwilioProvider({ accountSid: 'AC1', authToken: TOKEN, fetch: fakeFetch })
+  const provider = createTwilioProvider({ accountSid: 'AC1', ...auth, fetch: fakeFetch })
   return { provider, calls, state }
 }
 
@@ -80,6 +85,7 @@ const steps = (calls: Call[]) => calls.map(c => `${c.method} ${c.path.split('?')
 const routed = { e164: NUMBER, providerRef: 'PN1' }
 
 describeProviderContract('twilio', () => mockTwilio().provider)
+describeProviderContract('twilio with an API key', () => mockTwilio({}, undefined, { apiKeySid: 'SK1', apiKeySecret: 'key-secret' }).provider)
 
 describe('twilio adapter', () => {
   test('searches local voice numbers by country and area code, with basic auth', async () => {
@@ -87,6 +93,18 @@ describe('twilio adapter', () => {
     expect(await provider.searchNumbers({ country: 'US', areaCode: '503', limit: 5 })).toEqual([{ e164: NUMBER, locality: 'Portland', region: 'OR' }])
     expect(calls[0]).toMatchObject({ host: 'api.twilio.com', path: `${ACCOUNT}/AvailablePhoneNumbers/US/Local.json?VoiceEnabled=true&PageSize=5&AreaCode=503` })
     expect(calls[0]!.auth).toBe(`Basic ${Buffer.from(`AC1:${TOKEN}`).toString('base64')}`)
+  })
+
+  test('an API key authenticates as the key, in the account given by its SID', async () => {
+    const { provider, calls } = mockTwilio({ numbers: [{ sid: 'PN1', phone_number: NUMBER }] }, undefined, { apiKeySid: 'SK1', apiKeySecret: 'key-secret' })
+    expect(await provider.listNumbers(20)).toEqual([routed])
+    expect(calls[0]).toMatchObject({ method: 'GET', path: `${ACCOUNT}/IncomingPhoneNumbers.json?PageSize=20` })
+    expect(calls[0]!.auth).toBe(`Basic ${Buffer.from('SK1:key-secret').toString('base64')}`)
+  })
+
+  test('with an API key, webhooks are refused: Twilio signs them with the auth token', () => {
+    const { provider } = mockTwilio({}, undefined, { apiKeySid: 'SK1', apiKeySecret: 'key-secret' })
+    expect(() => provider.parseWebhook({ url: 'https://x.test', rawBody: 'CallSid=CA1', headers: { 'x-twilio-signature': 'AAAA' } })).toThrow('auth token')
   })
 
   test('buyNumber buys', async () => {
