@@ -14,6 +14,7 @@ import {
   createWorkspace,
   getAssistant,
   getAssistantCalendar,
+  getWebhookEndpoint,
   getCall,
   getContact,
   randomNumber,
@@ -46,6 +47,7 @@ function inputFor(def: ActionDef, ws: Workspace): Record<string, unknown> {
     contacts: { contactId: ws.contact.id, note: 'changed' },
     assistants: { assistantId: ws.assistant.id, greeting: 'changed' },
     assistant_calendars: { assistantCalendarId: ws.assistantCalendar.id, instruction: 'changed' },
+    webhook_endpoints: { endpointId: ws.webhookEndpoint.id, enabled: false },
   }
   const input = { ...byTable[def.patch!.table], ...extra[def.name] }
   if (!def.input.safeParse(input).success) {
@@ -62,7 +64,11 @@ const snapshot = async (ws: Workspace) => [
   await getContact(ws.contact.id),
   await getAssistant(ws.assistant.id),
   await getAssistantCalendar(ws.assistantCalendar.id),
+  await getWebhookEndpoint(ws.webhookEndpoint.id),
 ]
+
+/** Patch actions with a server handler of their own say so in their words. */
+const notFound: Record<string, string> = { 'webhook.update': 'webhook endpoint not found' }
 
 describe('patch actions', () => {
   test.each(patchActions.map(def => [def.name, def] as const))(
@@ -70,7 +76,7 @@ describe('patch actions', () => {
     async (name, def) => {
       const before = await snapshot(b)
       const guessed = await act(callerFor(def, a), name, inputFor(def, b))
-      expect(guessed).toMatchObject({ status: 409, body: { ok: false, error: `${def.patch!.table} row not found` } })
+      expect(guessed).toMatchObject({ status: 409, body: { ok: false, error: notFound[name] ?? `${def.patch!.table} row not found` } })
       // A member cannot pick the workspace with a header either: that is for the agent only.
       const withHeader = await request(a.owner, 'POST', `/v1/actions/${name}`, inputFor(def, b), {
         'x-workspace-id': b.id,
@@ -210,6 +216,13 @@ describe('shape proxy', () => {
     const params = Object.fromEntries(upstream.mock.calls[0]![0].searchParams)
     expect(params).toMatchObject({ table, 'params[1]': b.id })
     expect(params.where).toMatch(/^workspace_id = \$1( AND |$)/)
+  })
+
+  test('webhook endpoints (their URLs can carry a token) reach owners and admins only', async () => {
+    const upstream = stubElectric()
+    await request(memberOfA, 'GET', '/v1/shape/webhook_endpoints?offset=-1')
+    await request(a.owner, 'GET', '/v1/shape/webhook_endpoints?offset=-1')
+    expect(upstream.mock.calls.map(([url]) => url.searchParams.get('where'))).toEqual(['workspace_id = $1 AND false', 'workspace_id = $1'])
   })
 
   test('the agent reads the workspace it names, and nothing without one', async () => {

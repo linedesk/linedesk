@@ -1,0 +1,78 @@
+/* Settings > Webhooks: endpoints as rows, each with its actions and, when open, its delivery log. */
+.wh-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wh-row {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.wh-row:first-child {
+  border-top: 0;
+}
+.wh-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.wh-main {
+  display: grid;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+.wh-main b {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wh-sub {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.wh-reason {
+  color: var(--danger);
+}
+.wh-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: -8px;
+}
+.wh-log {
+  width: 100%;
+  margin-top: 4px;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.wh-log th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--ink-muted);
+  padding: 4px 8px 4px 0;
+}
+.wh-log td {
+  padding: 5px 8px 5px 0;
+  border-top: 1px solid var(--line);
+}
+.wh-events {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+}
+.wh-secret {
+  display: flex;
+  gap: 8px;
+}
+.wh-secret .k-input {
+  flex: 1;
+}
+.wh-secret input {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}

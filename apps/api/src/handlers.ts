@@ -22,6 +22,7 @@ import { teamHandlers } from './team.ts'
 import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
 import { queueCallNotification } from './jobs.ts'
 import { notificationHandlers } from './notification-settings.ts'
+import { clearCallPayloads, queueCallFinishedEvents, queueWebhookEvent, webhookData, webhookHandlers } from './webhooks.ts'
 
 export { Reject, type HandlerCtx, type Undo }
 
@@ -162,6 +163,14 @@ const handlers: Record<string, Handler> = {
   ...calendarConnectionHandlers,
   ...apiKeyHandlers,
   ...bookingHandlers,
+  ...webhookHandlers,
+
+  // The patch, and the webhook payloads that carry the call are cleared (they hold the caller's details).
+  'call.delete': async (ctx, input) => {
+    const result = await runPatch(ctx, actions.get('call.delete')!, input)
+    await clearCallPayloads(ctx.tx, ctx.actor.workspaceId!, input.callId)
+    return result
+  },
 
   'contact.create': async ({ tx, actor }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
@@ -263,7 +272,10 @@ const handlers: Record<string, Handler> = {
       if (contact && !contact.name) rows.contacts = await tx.update(contacts).set({ name: input.callerName }).where(eq(contacts.id, contact.id)).returning()
     }
     // Only the first finish notifies; a repeated one (agent retry after a timeout) is not news.
-    if (call.status !== 'completed') await queueCallNotification(tx, call.id)
+    if (call.status !== 'completed') {
+      await queueCallNotification(tx, call.id)
+      await queueCallFinishedEvents(tx, updated!, now)
+    }
     return { rows }
   },
 
@@ -275,9 +287,10 @@ const handlers: Record<string, Handler> = {
     return { rows: { calls: await tx.update(calls).set({ recording_key, recording_store }).where(eq(calls.id, call.id)).returning() } }
   },
 
-  'call.takeMessage': async ({ tx, actor }, input) => {
+  'call.takeMessage': async ({ tx, actor, now }, input) => {
     const call = await loadCall(tx, actor, input.callId)
     const action_items = [...call.action_items, { text: input.message }]
+    if (call.source !== 'test') await queueWebhookEvent(tx, call.workspace_id, 'message.taken', webhookData.messageTaken(call, input.message), now)
     return { rows: { calls: await tx.update(calls).set({ action_items }).where(eq(calls.id, call.id)).returning() } }
   },
 

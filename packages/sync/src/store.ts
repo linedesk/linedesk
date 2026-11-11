@@ -308,6 +308,8 @@ export async function createStore(opts: StoreOptions) {
   return {
     run,
     flush,
+    /** Asks the server for changes now, e.g. after an action that ran outside the outbox. */
+    refresh: () => opts.adapter.refresh?.(),
     subscribe: (l: () => void) => {
       listeners.add(l)
       return () => {

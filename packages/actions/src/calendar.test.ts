@@ -8,8 +8,8 @@ describe('calendar.findSlots', () => {
     expect(calendarFindSlots.patch).toBeUndefined()
   })
 
-  it('is read-only, like the provider connection test, the test-call token, team.list, the call-test lookup, the workspace settings read, the own invitations and the key list', () => {
-    expect([...actions.values()].filter(a => a.readOnly).map(a => a.name).sort()).toEqual(['apiKey.list', 'assistant.startTestCall', 'calendar.findSlots', 'calendar.listCalendars', 'call.findForTest', 'invitation.listMine', 'notifications.get', 'provider.test', 'team.list', 'workspace.getSettings'])
+  it('is read-only, like the provider connection test, the test-call token, team.list, the call-test lookup, the workspace settings read, the own invitations, the key list, the webhook log and test send', () => {
+    expect([...actions.values()].filter(a => a.readOnly).map(a => a.name).sort()).toEqual(['apiKey.list', 'assistant.startTestCall', 'calendar.findSlots', 'calendar.listCalendars', 'call.findForTest', 'invitation.listMine', 'notifications.get', 'provider.test', 'team.list', 'webhook.deliveries', 'webhook.test', 'workspace.getSettings'])
   })
 
   it.each(['owner', 'admin', 'member', 'agent'] satisfies Role[])('can be called by %s', role => {

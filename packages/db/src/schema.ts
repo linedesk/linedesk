@@ -19,7 +19,7 @@ import {
   timestamp,
   unique,
 } from 'drizzle-orm/pg-core'
-import type { ActionItem, AssistantVoice, BookingField, BusinessProfile, CallField, ToolEvent } from './types.ts'
+import type { ActionItem, AssistantVoice, BookingField, BusinessProfile, CallField, ToolEvent, WebhookEvent } from './types.ts'
 
 export const rowVersion = pgSequence('row_version')
 
@@ -474,7 +474,62 @@ export const instance_settings = pgTable('instance_settings', {
   updated_by: text('updated_by'),
 })
 
+// Where a workspace's events are sent (apps/api/src/webhooks.ts). Synced: holds no secret; the signing
+// secret is in webhook_secrets. `failure_count`: deliveries in a row that failed after every retry.
+export const webhook_endpoints = pgTable(
+  'webhook_endpoints',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    url: text('url').notNull(),
+    events: jsonb('events').$type<WebhookEvent[]>().notNull(),
+    /** `disabled`: by a member, or by the API after too many failed deliveries (`disabled_reason`). */
+    status: text('status', { enum: ['active', 'disabled'] }).notNull().default('active'),
+    disabled_reason: text('disabled_reason'),
+    failure_count: integer('failure_count').notNull().default(0),
+    last_delivery_at: ts('last_delivery_at'),
+    created_by: text('created_by').notNull(),
+    created_at: createdAt(),
+    version: version(),
+  },
+  t => [index('webhook_endpoints_ws').on(t.workspace_id)],
+)
+
+// The signing secret of a webhook endpoint, AES-256-GCM with SECRETS_KEY. Never synced.
+export const webhook_secrets = pgTable('webhook_secrets', {
+  endpoint_id: text('endpoint_id')
+    .primaryKey()
+    .references(() => webhook_endpoints.id, { onDelete: 'cascade' }),
+  workspace_id: workspaceId(),
+  secret_encrypted: text('secret_encrypted').notNull(),
+})
+
+// One event sent (or being sent) to one endpoint: the delivery log. Never synced; read with webhook.deliveries.
+export const webhook_deliveries = pgTable(
+  'webhook_deliveries',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    endpoint_id: text('endpoint_id')
+      .notNull()
+      .references(() => webhook_endpoints.id, { onDelete: 'cascade' }),
+    event: text('event').notNull(),
+    /** The event as sent. Cleared (null) after 30 days and when its call is deleted: it holds callers' details. */
+    payload: jsonb('payload').$type<Record<string, unknown>>(),
+    /** `pending` until it was delivered or every retry failed. */
+    status: text('status', { enum: ['pending', 'delivered', 'failed'] }).notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    /** The endpoint's HTTP status of the last attempt; null when there was no answer. */
+    response_status: integer('response_status'),
+    error: text('error'),
+    last_attempt_at: ts('last_attempt_at'),
+    created_at: createdAt(),
+  },
+  t => [index('webhook_deliveries_endpoint').on(t.endpoint_id, t.created_at)],
+)
+
 /** Tables that read sync delivers to clients, filtered by workspace_id. */
 export const syncedTables = {
   calls, contacts, assistants, phone_numbers, transcript_segments, appointment_types, bookings, calendar_connections, assistant_calendars,
+  webhook_endpoints,
 } as const

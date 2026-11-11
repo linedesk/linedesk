@@ -8,6 +8,7 @@ import * as notifications from './notifications.ts'
 import * as onboarding from './onboarding.ts'
 import * as settings from './settings.ts'
 import * as team from './team.ts'
+import * as webhooks from './webhooks.ts'
 
 export * from './define.ts'
 export * from './admin.ts'
@@ -21,6 +22,7 @@ export * from './onboarding.ts'
 export * from './openapi.ts'
 export * from './settings.ts'
 export * from './team.ts'
+export * from './webhooks.ts'
 
 const all = [
   calls.callMarkDone,
@@ -107,6 +109,11 @@ const all = [
   membership.invitationRevoke,
   membership.invitationResend,
   onboarding.onboardingSetStep,
+  webhooks.webhookCreate,
+  webhooks.webhookUpdate,
+  webhooks.webhookDelete,
+  webhooks.webhookTest,
+  webhooks.webhookDeliveries,
 ] as ActionDef[]
 
 /** The registry: every action by name. */

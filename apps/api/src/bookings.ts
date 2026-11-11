@@ -10,6 +10,7 @@ import {
 import { and, asc, eq, gt, gte, inArray, lt, lte, ne, sql } from 'drizzle-orm'
 import { WEB_ORIGIN } from './auth.ts'
 import { queueBookingConfirmation } from './jobs.ts'
+import { queueWebhookEvent, webhookData } from './webhooks.ts'
 import { providerFor } from './calendar-connections.ts'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, Reject } from './handler-context.ts'
@@ -260,6 +261,7 @@ export const bookingHandlers: Record<string, Handler> = {
     }).returning()
     // The confirmation email goes out after the booking committed (a job), so a slow mail server never holds up the call.
     if (confirmation === 'queued') await queueBookingConfirmation(tx, rows[0]!.id)
+    if (call?.source !== 'test') await queueWebhookEvent(tx, workspaceId, 'booking.created', webhookData.bookingCreated(rows[0]!), now)
     const data: BookData = { bookingId: rows[0]!.id, start, end, label: slotLabel(start, timeZone), calendarName: calendar.name }
     return { rows: { bookings: rows }, data }
   },

@@ -4,7 +4,7 @@
 import { actions, rolePermissions } from '@linedesk/actions'
 import type { CalendarEventInput, CalendarProvider, Interval } from '@linedesk/calendar'
 import { CalendarError } from '@linedesk/calendar'
-import { appointment_types, assistant_calendars, assistants, availability_rules, bookings, calls, type Tx, workspace_settings } from '@linedesk/db'
+import { appointment_types, assistant_calendars, assistants, availability_rules, bookings, calls, type Tx, webhook_deliveries, webhook_endpoints, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test } from 'vitest'
 import { confirmationEmail } from '../src/booking-confirmation.ts'
@@ -142,6 +142,18 @@ describe('free slots', () => {
 })
 
 describe('booking', () => {
+  test('queues booking.created for the endpoints that subscribed to it', async () => {
+    const { services } = fakeCalendar()
+    await inRollback(async tx => {
+      const subscribed = (id: string, events: ('booking.created' | 'call.completed')[]) => ({ id, workspace_id: ws.id, url: 'https://example.com/hook', events, created_by: ws.owner.userId })
+      await tx.insert(webhook_endpoints).values([subscribed('whe_bk_yes', ['booking.created']), subscribed('whe_bk_no', ['call.completed'])])
+      const { data } = await run(tx, owner, services, 'appointment.book', book(at('09:00')))
+      const queued = await tx.select().from(webhook_deliveries).where(eq(webhook_deliveries.workspace_id, ws.id))
+      expect(queued.map(d => [d.endpoint_id, d.event])).toEqual([['whe_bk_yes', 'booking.created']])
+      expect(queued[0]!.payload).toMatchObject({ type: 'booking.created', data: { booking: { id: data!.bookingId, call_id: ws.call.id, calendar_name: 'Office' } } })
+    })
+  })
+
   test('writes the event with caller, number, reason and address, and stores the booking on the call', async () => {
     const { services, events } = fakeCalendar()
     await inRollback(async tx => {

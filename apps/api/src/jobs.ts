@@ -10,6 +10,7 @@ import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { deleteExpiredRecordings } from './recording-retention.ts'
 import { recordingStoreCache } from './recording-store.ts'
+import { attemptDelivery, clearOldPayloads, WEBHOOK_ATTEMPTS } from './webhooks.ts'
 
 type Env = Record<string, string | undefined>
 
@@ -20,6 +21,11 @@ const RECORDING_CLEANUP_CRON = '17 3 * * *'
 export const CALL_NOTIFY = 'call.notify'
 /** The confirmation email to a caller who booked. */
 export const BOOKING_CONFIRM = 'booking.confirm'
+/** One webhook delivery (webhooks.ts). Retried with backoff: 1, 2, 4 … 32 minutes, about an hour in all. */
+export const WEBHOOK_DELIVER = 'webhook.deliver'
+/** Every day: webhook payloads older than 30 days are cleared (webhooks.ts). */
+export const WEBHOOK_CLEANUP = 'webhooks.cleanup'
+const WEBHOOK_CLEANUP_CRON = '37 3 * * *'
 
 let boss: PgBoss | null = null
 
@@ -41,6 +47,13 @@ async function runJobs(instance: PgBoss, env: Env) {
     return result
   })
   await instance.work<{ bookingId: string }>(BOOKING_CONFIRM, async ([job]) => sendBookingConfirmation(db, emailSender, job!.data.bookingId))
+  await instance.schedule(WEBHOOK_CLEANUP, WEBHOOK_CLEANUP_CRON)
+  await instance.work(WEBHOOK_CLEANUP, async () => ({ cleared: await clearOldPayloads(db) }))
+  await instance.work<{ deliveryId: string }>(WEBHOOK_DELIVER, async ([job]) => {
+    const outcome = await attemptDelivery(db, job!.data.deliveryId, env)
+    if (outcome === 'retry') throw new Error(`webhook delivery ${job!.data.deliveryId} failed; retrying`)
+    return { outcome }
+  })
 }
 
 export async function startJobs(env: Env = process.env): Promise<PgBoss> {
@@ -55,6 +68,8 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(RECORDING_CLEANUP)
   await instance.createQueue(CALL_NOTIFY, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(BOOKING_CONFIRM, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
+  await instance.createQueue(WEBHOOK_CLEANUP)
+  await instance.createQueue(WEBHOOK_DELIVER, { retryLimit: WEBHOOK_ATTEMPTS - 1, retryDelay: 60, retryBackoff: true })
   if (workHere) await runJobs(instance, env)
   boss = instance
   return instance
@@ -81,4 +96,9 @@ export async function queueCallNotification(tx: Tx, callId: string) {
 /** Queues the caller's confirmation email in the booking's transaction. Without a queue (tests) nothing is sent. */
 export async function queueBookingConfirmation(tx: Tx, bookingId: string) {
   await boss?.send(BOOKING_CONFIRM, { bookingId }, { db: fromDrizzle(tx, sql) })
+}
+
+/** Queues one webhook delivery in the transaction of the event. Without a queue (tests) it stays pending. */
+export async function queueWebhookDelivery(tx: Tx, deliveryId: string) {
+  await boss?.send(WEBHOOK_DELIVER, { deliveryId }, { db: fromDrizzle(tx, sql) })
 }

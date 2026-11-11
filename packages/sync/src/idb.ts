@@ -6,8 +6,8 @@ const stores = [...tableNames, 'outbox', 'meta'] as const
 export type StoreName = (typeof stores)[number]
 
 const OPEN_TIMEOUT_MS = 8000
-/** Bumped whenever a store is added. 2: appointment types, bookings, calendar accounts and the assistant's calendars. */
-const DB_VERSION = 2
+/** Bumped whenever a store is added. 2: appointment types, bookings, calendar accounts and the assistant's calendars. 3: webhook endpoints. */
+const DB_VERSION = 3
 
 /** Opening waits behind a pending delete or upgrade from another tab; it must fail rather than hang. */
 const open = (name: string, timeoutMs: number) => new Promise<IDBDatabase>((resolve, reject) => {

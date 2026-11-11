@@ -191,6 +191,13 @@ export function privateCacheControl(upstream: string | null) {
 }
 
 const streamParams = ['offset', 'handle', 'live', 'cursor', 'live_sse', 'experimental_live_sse']
+/** Which rows of a table a member's browser receives: their workspace's; webhook URLs (they can carry a token) only for owners and admins. */
+function shapeFilter(table: TableName, permissions: readonly string[]) {
+  if (table === 'calls') return 'workspace_id = $1 AND deleted_at IS NULL'
+  if (table === 'webhook_endpoints' && !permissions.includes('settings:write')) return 'workspace_id = $1 AND false'
+  return 'workspace_id = $1'
+}
+
 app.get('/v1/shape/:table', async c => {
   const table = c.req.param('table') as TableName
   const { workspaceId } = c.get('actor')
@@ -199,7 +206,7 @@ app.get('/v1/shape/:table', async c => {
   for (const [k, v] of new URL(c.req.url).searchParams) if (streamParams.includes(k)) target.searchParams.set(k, v)
   target.searchParams.set('table', table)
   target.searchParams.set('replica', 'full')
-  target.searchParams.set('where', table === 'calls' ? 'workspace_id = $1 AND deleted_at IS NULL' : 'workspace_id = $1')
+  target.searchParams.set('where', shapeFilter(table, c.get('actor').permissions))
   target.searchParams.set('params[1]', workspaceId)
   const res = await fetch(target, { signal: c.req.raw.signal })
   const headers = new Headers(res.headers)

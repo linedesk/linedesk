@@ -43,6 +43,8 @@ export default defineConfig(async () => {
         INSTANCE_ADMIN_EMAILS: '',
         // Admin tests sign in with passwords; the passkey rule for admins has its own tests that turn it on.
         ADMIN_SECOND_FACTOR: 'off',
+        // Webhook tests turn private addresses on for their local receiver themselves.
+        WEBHOOK_ALLOW_PRIVATE_URLS: 'false',
         // The registry's variables (packages/actions/src/admin.ts) and LiveKit's.
         ...Object.fromEntries(
           [

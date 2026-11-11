@@ -1,6 +1,6 @@
 // Test fixtures: real users and sessions through Better Auth, workspaces through the API,
 // rows straight into the test database. Every id is random, so test files can run in parallel.
-import { assistant_calendars, assistants, calendar_connections, calls, contacts, phone_numbers } from '@linedesk/db'
+import { assistant_calendars, assistants, calendar_connections, calls, contacts, phone_numbers, webhook_endpoints } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { app } from '../src/app.ts'
 import { auth } from '../src/auth.ts'
@@ -101,7 +101,11 @@ export async function createWorkspace(name: string) {
   const [assistantCalendar] = await db.insert(assistant_calendars)
     .values({ id: uid('acal'), workspace_id: id, assistant_id: assistant!.id, connection_id: connection!.id, external_id: 'primary', name: 'Office', is_default: true })
     .returning()
-  return { id, owner, assistant: assistant!, number, contact: contact!, call: call!, connection: connection!, assistantCalendar: assistantCalendar! }
+  // A webhook endpoint that receives nothing (no events), so patches on it can be tested.
+  const [webhookEndpoint] = await db.insert(webhook_endpoints)
+    .values({ id: uid('whe'), workspace_id: id, url: 'https://example.com/hook', events: [], created_by: owner.userId })
+    .returning()
+  return { id, owner, assistant: assistant!, number, contact: contact!, call: call!, connection: connection!, assistantCalendar: assistantCalendar!, webhookEndpoint: webhookEndpoint! }
 }
 export type Workspace = Awaited<ReturnType<typeof createWorkspace>>
 
@@ -114,4 +118,5 @@ export async function addMember(workspaceId: string, role: 'admin' | 'member'): 
 export const getCall = async (id: string) => (await db.select().from(calls).where(eq(calls.id, id)))[0]
 export const getContact = async (id: string) => (await db.select().from(contacts).where(eq(contacts.id, id)))[0]
 export const getAssistantCalendar = async (id: string) => (await db.select().from(assistant_calendars).where(eq(assistant_calendars.id, id)))[0]
+export const getWebhookEndpoint = async (id: string) => (await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.id, id)))[0]
 export const getAssistant = async (id: string) => (await db.select().from(assistants).where(eq(assistants.id, id)))[0]
