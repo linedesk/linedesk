@@ -1,5 +1,6 @@
 // Instance admin: the operator of the install. A property of the user, independent of workspace
 // roles. Granted to the first user, in the admin area, or by INSTANCE_ADMIN_EMAILS.
+import { markPasskeySession } from './admin-second-factor.ts'
 import { type Tx, user } from '@linedesk/db'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { APIError } from 'better-auth/api'
@@ -85,11 +86,13 @@ export const instanceAdminHooks = {
   },
   session: {
     create: {
-      before: async (session: { userId: string; impersonatedBy?: string | null }) => {
+      before: async (session: { userId: string; impersonatedBy?: string | null }, ctx?: unknown) => {
         const [account] = await db.select({ disabledAt: user.disabledAt }).from(user).where(eq(user.id, session.userId))
         if (account?.disabledAt) throw new APIError('FORBIDDEN', { message: 'This account is disabled.' })
         // An admin signing in as the user is not the user signing in.
         if (!session.impersonatedBy) await db.update(user).set({ lastSignInAt: new Date() }).where(eq(user.id, session.userId))
+        // A passkey sign-in counts as the second factor the admin area needs (admin-second-factor.ts).
+        return markPasskeySession(session, ctx)
       },
     },
     update: { before: async (data: { expiresAt?: Date }, ctx: unknown) => keepImpersonationExpiry(data, ctx as Parameters<typeof keepImpersonationExpiry>[1]) },

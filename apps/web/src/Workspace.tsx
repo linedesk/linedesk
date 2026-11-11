@@ -2,6 +2,7 @@
 import type { Call } from '@linedesk/db/types'
 import { useEffect, useRef, useState } from 'react'
 import { AdminMode } from './admin/AdminMode.tsx'
+import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import type { Me } from './auth.ts'
 import { CallView } from './call/CallView.tsx'
 import { ContactSide } from './call/ContactSide.tsx'
@@ -56,6 +57,8 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   const signOut = useSignOut({ workspaceId: me.workspace!.id, onSignedOut, toast: toaster.show })
   const { list, tab, search, openCall, target } = view
   const isInstanceAdmin = me.permissions.includes('instance:admin')
+  // An instance admin without the passkey sign-in still finds the admin area; it asks for the passkey.
+  const canOpenAdmin = isInstanceAdmin || Boolean(me.adminSecondFactor)
 
   const actions = useCallActions({
     list,
@@ -164,10 +167,10 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
       selectAll: selection.all,
       clearSelection: selection.clear,
       goChord: key => {
-        if (key === 'd' && isInstanceAdmin) goPage('admin')
+        if (key === 'd' && canOpenAdmin) goPage('admin')
         else if (chordPages[key]) goPage(chordPages[key])
         else if (chordTabs[key]) view.setTab(chordTabs[key])
-        return !!chordPages[key] || !!chordTabs[key] || (key === 'd' && isInstanceAdmin)
+        return !!chordPages[key] || !!chordTabs[key] || (key === 'd' && canOpenAdmin)
       },
     },
     toaster.via,
@@ -247,7 +250,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
         : null,
     goInbox: view.setTab,
     goPage,
-    isInstanceAdmin,
+    isInstanceAdmin: canOpenAdmin,
     openSearch,
     signOut: () => void signOut(),
     openHelp: () => setOverlay('help'),
@@ -264,6 +267,9 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   useEffect(() => {
     if (nav.route !== 'admin') beforeAdmin.current = window.location.hash || '#calls'
   }, [nav.route, nav.callId, nav.tab, nav.search])
+  if (nav.route === 'admin' && me.adminSecondFactor) {
+    return <SecondFactorPrompt state={me.adminSecondFactor} onExit={() => { window.location.hash = beforeAdmin.current }} />
+  }
   if (nav.route === 'admin' && isInstanceAdmin) {
     return (
       <AdminMode
@@ -290,7 +296,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
         workspaceName={me.workspace!.name}
         workspaceId={me.workspace!.id}
         onError={toaster.show}
-        isInstanceAdmin={isInstanceAdmin}
+        isInstanceAdmin={canOpenAdmin}
         onInbox={view.setTab}
         onPage={goPage}
         onHelp={() => setOverlay('help')}

@@ -1,5 +1,6 @@
 // Reads for the admin area and for the voice agent. They cross workspaces, so they are plain
 // routes with their own permission check instead of read sync.
+import { secondFactorRefusal } from './admin-second-factor.ts'
 import type { Permission } from '@linedesk/actions'
 import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
@@ -17,6 +18,8 @@ type Env = { Variables: { actor: Actor } }
 type Row = Record<string, any>
 
 const requirePermission = (permission: Permission) => async (c: Context<Env>, next: Next) => {
+  const refusal = secondFactorRefusal(c.get('actor'), permission)
+  if (refusal) return c.json(refusal, 403)
   if (!c.get('actor').permissions.includes(permission))
     return c.json({ ok: false, error: `missing permission ${permission}` }, 403)
   await next()

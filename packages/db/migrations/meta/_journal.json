@@ -155,6 +155,13 @@
       "when": 1794363034228,
       "tag": "0021_business_hours_opt_in",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1794363688372,
+      "tag": "0022_admin_second_factor",
+      "breakpoints": true
     }
   ]
 }

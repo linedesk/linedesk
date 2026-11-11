@@ -100,7 +100,13 @@ export const auth = betterAuth({
   disabledPaths: [...UNUSED_EMAIL_CODE_PATHS, ...TEAM_WRITE_PATHS],
   hooks: { before: beforeAuthEndpoints },
   // Set by user.impersonate only (impersonation.ts); `input: false` keeps clients from setting it.
-  session: { additionalFields: { impersonatedBy: { type: 'string', required: false, input: false } } },
+  // passkeyVerifiedAt: set by the session.create hook on a passkey sign-in (admin-second-factor.ts).
+  session: {
+    additionalFields: {
+      impersonatedBy: { type: 'string', required: false, input: false },
+      passkeyVerifiedAt: { type: 'date', required: false, input: false },
+    },
+  },
   plugins: [
     organization({
       organizationLimit: WORKSPACE_LIMIT,

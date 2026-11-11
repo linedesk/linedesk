@@ -107,6 +107,8 @@ app.get('/v1/me', async c => {
     onboarding: workspace ? await onboardingFor(actor) : null,
     phoneSetup: workspace ? await phoneSetupFor(actor) : null,
     impersonation: await impersonationOf(actor),
+    // An instance admin whose session lacks the second factor: 'setup' (no passkey yet) or 'confirm'.
+    adminSecondFactor: actor.adminSecondFactor ?? null,
   })
 })
 

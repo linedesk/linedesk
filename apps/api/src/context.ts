@@ -6,6 +6,7 @@ import { asc, eq } from 'drizzle-orm'
 import { auth } from './auth.ts'
 import { db } from './db.ts'
 import { impersonationEndsAt } from './impersonation-guard.ts'
+import { type AdminSecondFactor, adminSecondFactorGap } from './admin-second-factor.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 
 export interface Actor {
@@ -18,6 +19,8 @@ export interface Actor {
   workspaceDisabled?: true
   /** An instance admin (`by`) signed in as this user (docs/architecture.md §12). */
   impersonation?: Impersonation
+  /** An instance admin whose session lacks the second factor: no instance:admin until it is done. */
+  adminSecondFactor?: AdminSecondFactor
 }
 
 export type Impersonation = { by: string; sessionId: string; expiresAt: Date }
@@ -56,18 +59,20 @@ export async function resolveActor(headers: Headers): Promise<Actor | null> {
   const impersonation = impersonatedBy ? await checkImpersonation({ ...session.session, impersonatedBy }) : undefined
   if (impersonation === null) return null
   // While impersonating: the user's own permissions, never instance:admin, plus ending the impersonation.
+  // An instance admin gets instance:admin only in a session with the second factor (admin-second-factor.ts).
+  const secondFactorGap = !impersonation && isInstanceAdmin(account) ? await adminSecondFactorGap(account.id, session.session) : null
   const extraPermissions: Permission[] = impersonation
     ? ['impersonation:stop']
-    : isInstanceAdmin(account)
+    : isInstanceAdmin(account) && !secondFactorGap
       ? ['instance:admin']
       : []
-  const extra = impersonation ? { impersonation } : {}
+  const extra = { ...(impersonation ? { impersonation } : {}), ...(secondFactorGap ? { adminSecondFactor: secondFactorGap } : {}) }
   // The active workspace, or the member's first one right after sign-in.
   const active = session.session.activeOrganizationId
   const memberships = await db.select().from(member).where(eq(member.userId, session.user.id)).orderBy(asc(member.createdAt))
   const m = memberships.find(x => x.organizationId === active) ?? memberships[0]
   // An instance admin can use the admin area before they belong to a workspace, and an impersonation can be ended; everyone else needs one.
-  if (!m) return extraPermissions.length ? { actorId: account.id, role: 'member', workspaceId: null, permissions: extraPermissions, ...extra } : null
+  if (!m) return extraPermissions.length || secondFactorGap ? { actorId: account.id, role: 'member', workspaceId: null, permissions: extraPermissions, ...extra } : null
   const workspaceId = m.organizationId
   const role = (m.role in rolePermissions ? m.role : 'member') as Role
   const [workspace] = await db.select({ disabledAt: organization.disabledAt }).from(organization).where(eq(organization.id, workspaceId))

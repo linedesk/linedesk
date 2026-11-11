@@ -26,7 +26,11 @@ export type Me = {
   phoneSetup: PhoneSetupStatus | null
   /** Set while an instance admin is signed in as this user. */
   impersonation: Impersonation | null
+  /** An instance admin whose session lacks the passkey the admin area needs: add one, or sign in with it. */
+  adminSecondFactor?: AdminSecondFactor | null
 }
+
+export type AdminSecondFactor = 'setup' | 'confirm'
 
 /** Who am I and which workspace am I in? null when signed out or without a workspace. */
 export async function fetchMe(): Promise<Me | null> {

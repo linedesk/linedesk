@@ -6,9 +6,10 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { actions, REDACTED, recordingKey } from '@linedesk/actions'
-import { calls, commands, instance_settings, organization, provider_settings, session, user } from '@linedesk/db'
+import { calls, commands, instance_settings, organization, passkey, provider_settings, session, user } from '@linedesk/db'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
+import { adminSecondFactorRequired, markPasskeySession } from '../src/admin-second-factor.ts'
 import { emailSender } from '../src/email.ts'
 import { db } from '../src/db.ts'
 import { grantFirstUser, instanceAdminHooks, refuseUnverifiedAdminAddress } from '../src/instance-admin.ts'
@@ -1319,5 +1320,105 @@ describe('impersonation', () => {
   test('stop is refused for a session that is no impersonation', async () => {
     expect((await stop(operator)).status).toBe(403)
     expect((await stop(target)).status).toBe(403)
+  })
+})
+
+describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
+  const PASSKEY_PATH = '/passkey/verify-authentication'
+  let admin: User
+  const sessionOfAdmin = (values: { passkeyVerifiedAt?: Date | null; impersonatedBy?: string | null }) =>
+    db.update(session).set(values).where(eq(session.userId, admin.userId))
+  const addPasskey = () =>
+    db.insert(passkey).values({
+      id: `pk_${crypto.randomUUID().slice(0, 12)}`,
+      userId: admin.userId,
+      publicKey: 'cHVibGlj',
+      credentialID: `cred-${crypto.randomUUID()}`,
+      counter: 0,
+      deviceType: 'multiDevice',
+      backedUp: true,
+    })
+
+  beforeAll(async () => {
+    admin = await signUp()
+    await setAdmin(admin, true)
+  })
+  afterEach(async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'off'
+    await db.delete(passkey).where(eq(passkey.userId, admin.userId))
+    await sessionOfAdmin({ passkeyVerifiedAt: null, impersonatedBy: null })
+  })
+
+  test('without a passkey: no instance:admin, admin routes and actions refused with SECOND_FACTOR_REQUIRED, /v1/me says setup', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    const me = (await request(admin, 'GET', '/v1/me')).body
+    expect(me.permissions).not.toContain('instance:admin')
+    expect(me.adminSecondFactor).toBe('setup')
+    for (const path of adminRoutes) {
+      expect(await request(admin, 'GET', path), path).toMatchObject({
+        status: 403,
+        body: { code: 'SECOND_FACTOR_REQUIRED', secondFactor: 'setup' },
+      })
+    }
+    // user.impersonate runs only through its own route (POST /v1/actions refuses it before any permission check).
+    for (const def of adminActions.filter(d => d.name !== 'user.impersonate')) {
+      expect(await act(admin, def.name, {}), def.name).toMatchObject({ status: 403, body: { code: 'SECOND_FACTOR_REQUIRED' } })
+    }
+    expect(await request(admin, 'POST', '/v1/impersonation/start', { userId: member.userId })).toMatchObject({
+      status: 403,
+      body: { code: 'SECOND_FACTOR_REQUIRED' },
+    })
+    expect((await request(other.owner, 'GET', '/v1/me')).body.adminSecondFactor).toBeNull()
+  })
+
+  test('with a passkey, in a session not started by it: confirm', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    await addPasskey()
+    expect((await request(admin, 'GET', '/v1/me')).body.adminSecondFactor).toBe('confirm')
+    expect(await request(admin, 'GET', '/v1/admin/users')).toMatchObject({ status: 403, body: { secondFactor: 'confirm' } })
+  })
+
+  test('a passkey sign-in in the last 12 hours opens the admin area; an older one does not', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    await addPasskey()
+    await sessionOfAdmin({ passkeyVerifiedAt: new Date(Date.now() - 11 * 3_600_000) })
+    const me = (await request(admin, 'GET', '/v1/me')).body
+    expect(me.permissions).toContain('instance:admin')
+    expect(me.adminSecondFactor).toBeNull()
+    expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(200)
+    await sessionOfAdmin({ passkeyVerifiedAt: new Date(Date.now() - 13 * 3_600_000) })
+    expect((await request(admin, 'GET', '/v1/admin/users')).body.code).toBe('SECOND_FACTOR_REQUIRED')
+  })
+
+  test('only a passkey sign-in marks a session, never an impersonation', () => {
+    const plain = { userId: 'u', impersonatedBy: null }
+    expect(markPasskeySession(plain, { path: PASSKEY_PATH })?.data.passkeyVerifiedAt).toBeInstanceOf(Date)
+    for (const path of ['/sign-in/email', '/sign-in/email-otp', '/callback/github', '/passkey/verify-registration'])
+      expect(markPasskeySession(plain, { path }), path).toBeUndefined()
+    expect(markPasskeySession({ ...plain, impersonatedBy: 'admin' }, { path: PASSKEY_PATH })).toBeUndefined()
+    expect(markPasskeySession(plain, undefined)).toBeUndefined()
+  })
+
+  test('a client cannot mark its own session', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    await addPasskey()
+    await request(admin, 'POST', '/api/auth/update-session', { passkeyVerifiedAt: new Date().toISOString() })
+    expect((await db.select().from(session).where(eq(session.userId, admin.userId)))[0]!.passkeyVerifiedAt).toBeNull()
+    expect((await request(admin, 'GET', '/v1/me')).body.adminSecondFactor).toBe('confirm')
+  })
+
+  test('an impersonation session never counts, even when its row says passkey', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    await sessionOfAdmin({ passkeyVerifiedAt: new Date(), impersonatedBy: operator.userId })
+    const me = (await request(admin, 'GET', '/v1/me')).body
+    expect(me.permissions).not.toContain('instance:admin')
+    expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(403)
+  })
+
+  test('ADMIN_SECOND_FACTOR=off turns the rule off; it is on by default', async () => {
+    expect(adminSecondFactorRequired({})).toBe(true)
+    expect(adminSecondFactorRequired({ ADMIN_SECOND_FACTOR: 'OFF' })).toBe(false)
+    process.env.ADMIN_SECOND_FACTOR = 'off'
+    expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(200)
   })
 })

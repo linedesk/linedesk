@@ -1,6 +1,7 @@
 // The one path for actions. Validate, authorize, run in a transaction, record the command.
 // Idempotent per command id: a replayed command returns its first result.
 // Read-only actions skip the command log: nothing to replay, nothing to audit.
+import { secondFactorRefusal } from './admin-second-factor.ts'
 import { actions, redactInput, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
 import { commands } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
@@ -31,6 +32,8 @@ async function runReadOnly(def: ActionDef, input: unknown, actor: Actor): Promis
 export async function runAction(name: string, rawInput: unknown, actor: Actor, commandId: string = crypto.randomUUID()): Promise<RunResult> {
   const def = actions.get(name)
   if (!def) return rejection(404, `unknown action ${name}`)
+  const refusal = secondFactorRefusal(actor, def.permission)
+  if (refusal) return { status: 403, body: refusal }
   if (!actor.permissions.includes(def.permission)) return rejection(403, `missing permission ${def.permission}`)
   const parsed = def.input.safeParse(rawInput)
   if (!parsed.success) return rejection(422, parsed.error.message)

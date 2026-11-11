@@ -41,6 +41,8 @@ export default defineConfig(async () => {
         SECRETS_KEY: randomBytes(32).toString('base64'),
         // No admins or provider keys from the developer's .env.
         INSTANCE_ADMIN_EMAILS: '',
+        // Admin tests sign in with passwords; the passkey rule for admins has its own tests that turn it on.
+        ADMIN_SECOND_FACTOR: 'off',
         // The registry's variables (packages/actions/src/admin.ts) and LiveKit's.
         ...Object.fromEntries(
           [
