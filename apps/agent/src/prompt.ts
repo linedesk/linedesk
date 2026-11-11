@@ -1,6 +1,6 @@
 // The assistant's system prompt, built from its configuration.
 import { type BookingContext, type CallerHistory, callRulesOf } from '@linedesk/actions'
-import type { Assistant, Contact } from '@linedesk/db/types'
+import type { Assistant, Contact, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 
 export const FALLBACK_GREETING = 'Thanks for calling. How can I help?'
@@ -55,10 +55,24 @@ function hoursContext(hours: BusinessHours | null | undefined): string | null {
 }
 
 const MESSAGES_ONLY = 'You can do two things for the caller: save a message for the team with take_message, and flag the call as urgent with flag_urgent. You cannot book appointments, transfer calls, send anyone out or look anything up.'
-const MESSAGES_AND_TRANSFER = 'You can do three things for the caller: save a message for the team with take_message, flag the call as urgent with flag_urgent, and put an urgent caller through to the on-call person with transfer_call. You cannot book appointments, send anyone out or look anything up.'
+const MESSAGES_AND_TRANSFER = 'You can do three things for the caller: save a message for the team with take_message, flag the call as urgent with flag_urgent, and put the caller through to a person with transfer_call. You cannot book appointments, send anyone out or look anything up.'
 
-/** How to put an urgent caller through; only when the assistant transfers urgent calls right now. */
-export const TRANSFER_INSTRUCTIONS = "Urgent calls go to a person: this comes before the rules above, and applies while the office is closed too. For an emergency that needs a person right now (the instructions and rules above say what counts as one), do not take a message first: as soon as you know the caller's name and what happened, use transfer_call. Call it without saying anything yourself: it tells the caller that you are connecting them. Never transfer a call that is not urgent. Only if transfer_call says nobody took the call, tell the caller you could not reach anyone right now, take a message with how to reach them, and say the team will call back as soon as possible; the call is already flagged as urgent."
+/** A transfer contact as the assistant sees it: who, and when to put the caller through. */
+export type TransferRule = Pick<TransferContact, 'name' | 'condition'>
+
+/**
+ * When to put the caller through and to whom; only with the contacts the assistant can reach right now
+ * (transferContactsFor). They come before the call rules: a rule that says "take a message" for a
+ * caller who asks for a person gives way to a contact whose condition is exactly that.
+ */
+export function transferInstructions(rules: readonly TransferRule[]): string {
+  const list = rules.map((r, i) => `${i + 1}. ${r.name}: ${r.condition.trim().replace(/[.!?]+$/, '')}.`).join('\n')
+  return [
+    `Some calls go to a person. This comes before the rules above, also while the office is closed. The contacts, in order, with when each one takes calls:\n${list}`,
+    "When a contact's condition fits the call, do not take a message first: as soon as you know the caller's name and what they need, use transfer_call with every contact whose condition fits. Call it without saying anything yourself: it tells the caller whom you are connecting them with. Never transfer a call that fits no contact's condition; then handle it as the rules above say.",
+    'Only if transfer_call says nobody took the call, tell the caller you could not reach anyone right now, take a message with how to reach them, and say what transfer_call told you about when the team gets back to them.',
+  ].join('\n')
+}
 
 /**
  * Changing a booking: the assistant knows none of the caller's bookings (caller ID can be faked). The
@@ -89,7 +103,7 @@ export function bookingInstructions(booking: BookingContext, transfer = false, l
     .join('\n')
   return [
     transfer
-      ? 'You can do four things for the caller: book an appointment, save a message for the team with take_message, flag the call as urgent with flag_urgent, and put an urgent caller through to the on-call person with transfer_call. You cannot look anything else up.'
+      ? 'You can do four things for the caller: book an appointment, save a message for the team with take_message, flag the call as urgent with flag_urgent, and put the caller through to a person with transfer_call. You cannot look anything else up.'
       : 'You can do three things for the caller: book an appointment, save a message for the team with take_message, and flag the call as urgent with flag_urgent. You cannot transfer calls or look anything else up.',
     `Today is ${booking.today} (${booking.todayDate}, time zone ${booking.timeZone}).`,
     `Appointment types:\n${types}`,
@@ -213,7 +227,7 @@ export function personalGreeting(greeting: string, caller: CallerContext | null 
 }
 
 /**
- * `transfer`: the assistant puts urgent calls through to the on-call phone on this call (see transferNumberFor).
+ * `transfers`: the contacts the assistant can put the caller through to on this call (transferContactsFor); none: no transfer.
  * `caller`: the contact this call matched (null: withheld number); its note goes in as the team's notes, its
  * history (call.start's callerHistory) as what the records say.
  */
@@ -221,9 +235,10 @@ export function buildInstructions(
   assistant: Assistant | null,
   hours?: BusinessHours | null,
   booking?: BookingContext | null,
-  transfer = false,
+  transfers: readonly TransferRule[] = [],
   caller?: CallerContext | null,
 ): string {
+  const transfer = transfers.length > 0
   const name = assistant?.name ?? 'the assistant'
   const knowledge = assistant ? businessKnowledge(assistant) : ''
   return [
@@ -237,7 +252,7 @@ export function buildInstructions(
     knowledge ? `What the business wants you to know:\n${knowledge}` : null,
     `How to handle calls:\n${callRulesOf(assistant?.call_rules)}`,
     callerIdInstructions(caller),
-    transfer ? TRANSFER_INSTRUCTIONS : null,
+    transfer ? transferInstructions(transfers) : null,
     callerNotesInstructions(caller),
     callerHistoryInstructions(caller),
     caller?.greetedByName ? GREETED_BY_NAME : null,

@@ -64,20 +64,20 @@ test('the assistant keeps its instructions to itself', () => {
 
 test('the matched contact\'s note goes in as the team\'s notes, with how to use them; nothing without a contact or note', () => {
   const caller = { name: 'Dana Ortiz', note: 'Prefers  mornings.\n\nDog in the yard, gate code 4411.' }
-  const prompt = buildInstructions(assistant(), null, null, false, caller)
+  const prompt = buildInstructions(assistant(), null, null, [], caller)
   expect(prompt).toContain('Notes your team keeps about this caller, from the contact saved for the number that is calling (name on file: Dana Ortiz):')
   expect(prompt).toContain('<caller_notes>Prefers mornings. Dog in the yard, gate code 4411.</caller_notes>')
   expect(prompt).toMatch(/Never read them out, quote them or confirm what they say/)
   expect(prompt).toMatch(/Caller ID can be faked.*until the caller has told you their full name and it matches the name on file/)
 
   // No name on file: nothing private from the notes on this call.
-  expect(buildInstructions(assistant(), null, null, false, { name: null, note: 'Gate code 4411.' })).toMatch(/no name on file to check the caller against/)
+  expect(buildInstructions(assistant(), null, null, [], { name: null, note: 'Gate code 4411.' })).toMatch(/no name on file to check the caller against/)
 
   for (const none of [null, undefined, { name: 'Dana Ortiz', note: null }, { name: 'Dana Ortiz', note: ' \n ' }]) {
-    expect(buildInstructions(assistant(), null, null, false, none)).not.toContain('Notes your team keeps')
+    expect(buildInstructions(assistant(), null, null, [], none)).not.toContain('Notes your team keeps')
   }
   // Transfer on later in the call keeps the notes.
-  expect(buildInstructions(assistant(), null, null, true, caller)).toContain('<caller_notes>')
+  expect(buildInstructions(assistant(), null, null, [{ name: 'Mike', condition: 'Urgent' }], caller)).toContain('<caller_notes>')
 })
 
 test('a long note is cut to the cap and cannot close the notes block early', () => {
@@ -117,8 +117,8 @@ test('listed appointments switch the booking-change rules; the API check stays (
   const booking = { timeZone: 'America/Los_Angeles', today: 'Wednesday', todayDate: '2026-11-11', appointmentTypes: [], calendars: [], upcoming: [], canChangeBookings: true }
   expect(bookingInstructions(booking, false, true)).toContain(CHANGE_LISTED_BOOKING_INSTRUCTIONS)
   expect(bookingInstructions(booking, false, false)).toContain(CHANGE_BOOKING_INSTRUCTIONS)
-  expect(buildInstructions(assistant(), null, booking, false, { name: 'Linda Park', note: null, history: history() })).toContain(CHANGE_LISTED_BOOKING_INSTRUCTIONS)
-  expect(buildInstructions(assistant(), null, booking, false, { name: 'Linda Park', note: null, history: history({ upcomingBookings: [] }) })).toContain(CHANGE_BOOKING_INSTRUCTIONS)
+  expect(buildInstructions(assistant(), null, booking, [], { name: 'Linda Park', note: null, history: history() })).toContain(CHANGE_LISTED_BOOKING_INSTRUCTIONS)
+  expect(buildInstructions(assistant(), null, booking, [], { name: 'Linda Park', note: null, history: history({ upcomingBookings: [] }) })).toContain(CHANGE_BOOKING_INSTRUCTIONS)
   expect(bookingInstructions({ ...booking, canChangeBookings: false }, false, true)).not.toContain(CHANGE_LISTED_BOOKING_INSTRUCTIONS)
 })
 
@@ -135,9 +135,9 @@ test('greeting by first name: "again" only after earlier calls, the greeting\'s 
 })
 
 test('a greeting by name tells the assistant it proves nothing', () => {
-  const prompt = buildInstructions(assistant(), null, null, false, { name: 'Linda Park', note: null, history: history(), greetedByName: true })
+  const prompt = buildInstructions(assistant(), null, null, [], { name: 'Linda Park', note: null, history: history(), greetedByName: true })
   expect(prompt).toMatch(/greeted the caller by the first name saved for their number\. That does not prove who is calling/)
-  expect(buildInstructions(assistant(), null, null, false, { name: 'Linda Park', note: null, history: history() })).not.toMatch(/greeted the caller by the first name/)
+  expect(buildInstructions(assistant(), null, null, [], { name: 'Linda Park', note: null, history: history() })).not.toMatch(/greeted the caller by the first name/)
 })
 
 test('an unchanged earlier default counts as the default; edited rules stay', () => {

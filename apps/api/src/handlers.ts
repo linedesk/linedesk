@@ -4,7 +4,7 @@ import { businessHoursContext, type BusinessHoursContext, } from '@linedesk/cale
 import {availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, syncedTables,
   transcript_segments, workspace_members, workspace_settings, type Tx,
 } from '@linedesk/db'
-import type { Assistant, PhoneNumber } from '@linedesk/db/types'
+import type { Assistant, PhoneNumber, TransferContact } from '@linedesk/db/types'
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { and, asc, desc, eq, gt, gte, or, sql, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
@@ -283,7 +283,7 @@ const blockedCall = (now: string) => ({
  * install) nor a business line that forwards to one (`forwarded_from`): a transfer there would ring back
  * into Linedesk and be answered by an assistant.
  */
-async function checkOnCallNotLinedesk(tx: HandlerCtx['tx'], e164: string) {
+async function checkOnCallNotLinedesk(tx: HandlerCtx['tx'], e164: string, name: string) {
   const [linedesk] = await tx
     .select({ e164: phone_numbers.e164 })
     .from(phone_numbers)
@@ -292,8 +292,8 @@ async function checkOnCallNotLinedesk(tx: HandlerCtx['tx'], e164: string) {
   if (!linedesk) return
   throw new Reject(
     linedesk.e164 === e164
-      ? "the on-call number is a Linedesk number; enter the on-call person's own phone"
-      : "the on-call number forwards its calls to Linedesk; enter the on-call person's own phone",
+      ? `${name}'s number is a Linedesk number; enter the person's own phone`
+      : `${name}'s number forwards its calls to Linedesk; enter the person's own phone`,
   )
 }
 
@@ -305,7 +305,8 @@ const handlers: Record<string, Handler> = {
   'assistant.update': async (ctx, input) => {
     if (!ctx.actor.workspaceId) throw new Reject('no workspace')
     if (input.voice) await checkAssistantVoice(ctx.tx, ctx.actor.workspaceId, input.voice)
-    if (input.transfer_number) await checkOnCallNotLinedesk(ctx.tx, input.transfer_number)
+    for (const contact of (input.transfers ?? []) as TransferContact[])
+      if (contact.number) await checkOnCallNotLinedesk(ctx.tx, contact.number, contact.name)
     const result = await runPatch(ctx, actions.get('assistant.update')!, input)
     if (input.voice) await releaseUnusedClones(ctx.tx, ctx.actor.workspaceId)
     return result

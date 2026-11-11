@@ -17,8 +17,9 @@ import {
   user,
   webhook_endpoints,
 } from '@linedesk/db'
+import { DEFAULT_TRANSFERS } from '@linedesk/db/types'
 import { APIError } from 'better-auth/api'
-import { and, eq, inArray, isNotNull, isNull, ne, or } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import { recordAuthEvent } from './audit.ts'
 import { db } from './db.ts'
 
@@ -130,9 +131,12 @@ export async function dropUnprovenAccessOf(userId: string, keepAccountId?: strin
 /**
  * Where calls go, set up in the workspaces the account owns before its address was proven (an
  * unconfirmed account cannot be made owner of someone else's workspace, so these are the ones it
- * created): the assistants' warm transfer (on-call number and switch) and numbers marked as
+ * created): the assistants' transfer contacts (back to the default, without a number) and numbers marked as
  * forwarding every call go back to the defaults. Returns the workspaces where something changed.
  */
+/** An assistant with a transfer contact that has a number (switched on or not). */
+const hasTransferNumber = sql`jsonb_path_exists(${assistants.transfers}, '$[*] ? (@.number != null)')`
+
 async function resetCallRoutingOf(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], userId: string) {
   const owned = await tx
     .select({ id: member.organizationId })
@@ -142,8 +146,13 @@ async function resetCallRoutingOf(tx: Parameters<Parameters<typeof db.transactio
   if (!ids.length) return []
   const transfers = await tx
     .update(assistants)
-    .set({ transfer_urgent: false, transfer_number: null })
-    .where(and(inArray(assistants.workspace_id, ids), or(eq(assistants.transfer_urgent, true), isNotNull(assistants.transfer_number))))
+    .set({ transfers: DEFAULT_TRANSFERS, transfer_urgent: false, transfer_number: null })
+    .where(
+      and(
+        inArray(assistants.workspace_id, ids),
+        or(eq(assistants.transfer_urgent, true), isNotNull(assistants.transfer_number), hasTransferNumber),
+      ),
+    )
     .returning({ workspaceId: assistants.workspace_id })
   const forwards = await tx
     .update(phone_numbers)

@@ -28,8 +28,8 @@ import { buildInstructions, canChangeBookings, FALLBACK_GREETING } from './promp
 import { describeRecording, livekitRecorder, resolveRecording, saveRecording, startRecording, stopRecording, stopRecordingOrThrow } from './recording.ts'
 import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from './counterpart.ts'
 import { runTestCaller } from './test-caller/caller.ts'
-import { transferNumberFor } from './transfer.ts'
-import { onCallDialerFor, transferTool } from './transfer-tool.ts'
+import { type Dialable, transferContactsFor } from './transfer.ts'
+import { onCallDialerFor, type Reachable, transferTool } from './transfer-tool.ts'
 import { parseTestCallerMetadata, type TestCallerMetadata } from './test-caller/scenarios.ts'
 import { type OnCallResponderMetadata, parseOnCallResponderMetadata, runOnCallResponder } from './oncall-responder.ts'
 import { type AgentSetup, SETUP_ATTRIBUTE } from './test-caller/latency.ts'
@@ -99,7 +99,7 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
   }
 }
 
-/** transfer_call, only when the assistant puts urgent calls through on this call and someone can be dialled. */
+/** transfer_call, only when the assistant has transfer contacts on this call and someone can be dialled. */
 type Transfer = Omit<Parameters<typeof transferTool>[0], 'api' | 'call' | 'log'> | null
 
 function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: () => void, flagUrgent: () => Promise<void>, transfer: Transfer, collect: CollectContext) {
@@ -244,7 +244,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     },
   })
   session.on(voice.AgentSessionEventTypes.Close, cancelLimit)
-  const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, false, call.caller)
+  const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, [], call.caller)
   const collect: CollectContext = {
     log,
     room: ctx.room,
@@ -282,7 +282,7 @@ async function addTransfer(
     const caller = await callerJoined
     const transfer = await transferFor(ctx, api, call, config, caller.identity, stopRecording)
     if (!transfer) return false
-    await agent.updateInstructions(buildInstructions(call.assistant, call.businessHours, call.booking, true, call.caller))
+    await agent.updateInstructions(buildInstructions(call.assistant, call.businessHours, call.booking, transfer.contacts.map(c => c.contact), call.caller))
     await agent.updateTools(assistantTools(api, call, log, endCall, flagUrgent, transfer, collect))
     return true
   } catch (e) {
@@ -291,12 +291,16 @@ async function addTransfer(
   }
 }
 
-/** What transfer_call needs on this call, or null when the assistant does not transfer now (off, closed, nobody to dial). */
+/** What transfer_call needs on this call, or null when the assistant does not transfer now (no contact, closed, nobody to dial). */
 async function transferFor(ctx: JobContext, api: ApiClient, call: CallSession, config: AgentConfig, callerIdentity: string, stopRecording: () => Promise<void>): Promise<Transfer> {
-  const number = transferNumberFor(call.assistant, call.businessHours)
-  if (!number) return null
-  const dialer = await onCallDialerFor(call, number, config, api)
-  return dialer ? { ctx, config, callerIdentity, number, dialer, stopRecording } : null
+  const reachable = await Promise.all(
+    transferContactsFor(call.assistant, call.businessHours).map(async (contact: Dialable): Promise<Reachable | null> => {
+      const dialer = await onCallDialerFor(call, contact.number, config, api)
+      return dialer ? { contact, dialer } : null
+    }),
+  )
+  const contacts = reachable.filter((r): r is Reachable => r !== null)
+  return contacts.length ? { ctx, config, callerIdentity, contacts, stopRecording } : null
 }
 
 /** Times from the job's start to each setup step, logged once per call with the wall-clock start. */

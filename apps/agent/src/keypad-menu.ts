@@ -1,6 +1,6 @@
 // The optional keypad menu after the greeting ("For emergencies, press 1…"). Off unless the assistant
-// has one. A key steers the conversation: a `transfer` key is an urgent call (transfer_call when it is
-// on, else flagged urgent and a message), a `topic` key tells the assistant what the call is about.
+// has one. A key steers the conversation: a `transfer` key is an urgent call (transfer_call to the contacts
+// that fit an urgent call when there are any, else flagged urgent and a message), a `topic` key tells the assistant what the call is about.
 // Speaking instead of pressing works as always: the menu just stops listening.
 import { voice } from '@livekit/agents'
 import { type RemoteParticipant, type Room, RoomEvent } from '@livekit/rtc-node'
@@ -29,7 +29,7 @@ export function menuChoice(menu: KeypadMenu, key: string, canTransfer: boolean):
   return {
     event,
     instructions: canTransfer
-      ? `The caller pressed ${key} on the keypad for ${option.label}: treat this as an urgent call. Ask for their name and what happened in one short question, then use transfer_call.`
+      ? `The caller pressed ${key} on the keypad for ${option.label}: treat this as an urgent call. Ask for their name and what happened in one short question, then use transfer_call with every contact whose condition fits an urgent call; if none fits, use flag_urgent and take a message.`
       : `The caller pressed ${key} on the keypad for ${option.label}: treat this as an urgent call. Use flag_urgent, then ask for their name and what happened, and take a message.`,
   }
 }

@@ -31,6 +31,10 @@ export interface TransferSetup {
   voice?: AssistantVoice | null
   /** Said to the caller before the ringback ("I'm connecting you…"). */
   announcement?: Announcement
+  /** How long the phone rings (the contact's ring time). */
+  ringSeconds?: number
+  /** Which try of this call it is (1, 2, …): each has its own consult room, so closing one never ends the next. */
+  attempt?: number
 }
 
 /** What happened; `connected` comes with the bridge, which ends the call when the on-call person hangs up. */
@@ -152,7 +156,8 @@ export async function warmTransfer(
   },
 ): Promise<TransferOutcome> {
   const { livekit, callerRoom, callerIdentity } = setup
-  const consultName = `${callerRoom.name}-oncall`
+  const attempt = setup.attempt ?? 1
+  const consultName = attempt > 1 ? `${callerRoom.name}-oncall-${attempt}` : `${callerRoom.name}-oncall`
   const rooms = new RoomServiceClient(livekitHttpUrl(livekit.url), livekit.apiKey, livekit.apiSecret)
   // Deleting the consult room hangs up the on-call phone, whatever state the dial is in.
   const closeConsult = async (room: Room | null) => {
@@ -168,10 +173,10 @@ export async function warmTransfer(
   hooks.addCleanup(() => closeConsult(consult))
   try {
     consult = await joinConsultRoom(livekit, consultName)
-    await setup.dialer.dial({ room: consultName, identity: ON_CALL_IDENTITY, signal })
+    await setup.dialer.dial({ room: consultName, identity: ON_CALL_IDENTITY, signal, ringSeconds: setup.ringSeconds })
     if (signal.aborted) return { result: 'not_answered' }
 
-    const agent = new ConsultAgent({ instructions: 'You brief the on-call person about an urgent call.' })
+    const agent = new ConsultAgent({ instructions: 'You brief the person about a call to put through.' })
     session = new voice.AgentSession({
       vad: null,
       stt: createStt(setup.config.stt),

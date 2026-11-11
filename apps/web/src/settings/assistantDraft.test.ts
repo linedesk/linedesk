@@ -1,7 +1,7 @@
 import type { Assistant } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_CALL_RULES, DEFAULT_SILENCE_CLOSING } from '@linedesk/actions'
-import { callRulesToSave, disclosesAi, draftOf, isDefaultCallRules, draftProblem, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure, staleGreetingName, onCallProblem, transferToSave, silenceProblem, silenceSummary, silenceToSave, keypadProblem, keypadToSave, nextFreeKey } from './assistantDraft.ts'
+import { callRulesToSave, disclosesAi, draftOf, isDefaultCallRules, draftProblem, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure, staleGreetingName, transferProblem, transfersToSave, newTransferContact, moveTransfer, transferInactive, silenceProblem, silenceSummary, silenceToSave, keypadProblem, keypadToSave, nextFreeKey } from './assistantDraft.ts'
 
 const oldProfile = { description: 'Plumbing', services: ['Leak repair', ' ', 'Drains'], service_area: 'Portland', address: '1 Main St', hours: 'Mon–Fri', faqs: [{ q: 'Estimates?', a: 'Free.' }, { q: '', a: '' }] }
 const assistant = (over: Partial<Assistant> = {}) => ({ id: 'as1', name: 'Maya', greeting: 'Hello', disclose_ai: true, business_profile: oldProfile, voice: { provider: 'elevenlabs', voice_id: '' }, ...over }) as Assistant
@@ -92,22 +92,48 @@ it('a renamed assistant whose greeting still says the old name is noticed', () =
   expect(staleGreetingName('This is Maya.', 'Maya', '  ')).toBeNull()
 })
 
-describe('transfer', () => {
-  const on = (number: string) => ({ ...draftOf(assistant()), transfer_urgent: true, transfer_number: number })
-  it('shows the saved number formatted and saves what was typed as E.164', () => {
-    const saved = draftOf(assistant({ transfer_urgent: true, transfer_number: '+15035550199', transfer_hours_only: true }))
-    expect(saved).toMatchObject({ transfer_urgent: true, transfer_number: '+1 503 555 0199', transfer_hours_only: true })
-    expect(transferToSave({ ...on('(503) 555-0199'), transfer_hours_only: false })).toEqual({ transfer_urgent: true, transfer_number: '+15035550199', transfer_hours_only: false })
-    expect(transferToSave({ ...on(''), transfer_urgent: false })).toMatchObject({ transfer_urgent: false, transfer_number: null })
-    expect(isDirty(on('(503) 555-0199'), on('+1 503 555 0199'))).toBe(false)
+describe('transfer contacts', () => {
+  const mike = { id: 'oncall', name: 'Mike', number: '+15035550199', condition: 'Urgent: a burst pipe', hours_only: false, ring_seconds: 25, if_no_answer: 'message_urgent' as const, enabled: true }
+  const withList = (transfers: ReturnType<typeof draftOf>['transfers']) => ({ ...draftOf(assistant()), transfers })
+  it('shows saved numbers formatted and saves what was typed as E.164, empty as none', () => {
+    const saved = draftOf(assistant({ transfers: [mike, { ...mike, id: 'person', name: 'Owner', number: null }] }))
+    expect(saved.transfers.map(c => c.number)).toEqual(['+1 503 555 0199', ''])
+    expect(transfersToSave(withList([{ ...saved.transfers[0]!, number: '(503) 555-0199', name: ' Mike ' }, saved.transfers[1]!]))).toEqual([
+      mike,
+      { ...mike, id: 'person', name: 'Owner', number: null },
+    ])
+    expect(isDirty(withList([{ ...saved.transfers[0]!, number: '(503) 555-0199' }]), withList([saved.transfers[0]!]))).toBe(false)
   })
-  it('needs a number when on, and a callable US one when given', () => {
-    expect(onCallProblem({ transfer_urgent: false, transfer_number: '' })).toBeNull()
-    expect(onCallProblem({ transfer_urgent: true, transfer_number: '' })).toBe('Add the on-call number urgent calls go to.')
-    expect(onCallProblem({ transfer_urgent: true, transfer_number: '555-0199' })).toMatch(/area code/)
-    expect(onCallProblem({ transfer_urgent: false, transfer_number: '+1 900 555 0199' })).toMatch(/Premium-rate/)
-    expect(draftProblem(on(''))).toBe('Add the on-call number urgent calls go to.')
-    expect(draftProblem(on('503 555 0199'))).toBeNull()
+  it('the order of a contact\'s fields (Postgres keeps jsonb keys in its own) is no change', () => {
+    const reordered = Object.fromEntries(Object.entries(mike).reverse()) as typeof mike
+    expect(isDirty(draftOf(assistant({ transfers: [reordered] })), draftOf(assistant({ transfers: [mike] })))).toBe(false)
+  })
+  it('an assistant from before the list has none', () => {
+    expect(draftOf(assistant()).transfers).toEqual([])
+  })
+  it('points at the first contact and field with a problem', () => {
+    const draft = (over: object) => withList([{ ...mike, number: '+1 503 555 0199' }, { ...mike, id: 'b', name: 'Office', number: '', ...over }])
+    expect(transferProblem(draft({}))).toBeNull() // no number yet: fine, the contact waits for one
+    expect(transferProblem(draft({ name: ' ' }))).toMatchObject({ index: 1, field: 'name' })
+    expect(transferProblem(draft({ name: 'mike' }))).toMatchObject({ index: 1, field: 'name', message: 'Another contact is called "mike".' })
+    expect(transferProblem(draft({ number: '555-0199' }))).toMatchObject({ index: 1, field: 'number', message: expect.stringMatching(/area code/) })
+    expect(transferProblem(draft({ number: '+1 900 555 0199' }))).toMatchObject({ field: 'number', message: expect.stringMatching(/Premium-rate/) })
+    expect(transferProblem(draft({ condition: '' }))).toMatchObject({ index: 1, field: 'condition' })
+    expect(draftProblem(draft({ condition: '' }))).toBe('Say when calls go to this contact.')
+  })
+  it('adds presets with a free id and name, and moves contacts up and down', () => {
+    const list = draftOf(assistant({ transfers: [{ ...mike, id: 'tc_2', name: 'On-call' }] })).transfers
+    const emergency = newTransferContact(list, 'emergency')
+    expect(emergency).toMatchObject({ id: 'tc_3', name: 'On-call 2', if_no_answer: 'message_urgent', ring_seconds: 25, number: '', enabled: true })
+    expect(emergency.condition).toMatch(/burst pipe/)
+    expect(newTransferContact([], 'person')).toMatchObject({ id: 'tc_1', name: 'Owner', condition: 'The caller asks to speak to a person', hours_only: true })
+    expect(moveTransfer(['a', 'b', 'c'], 2, -1)).toEqual(['a', 'c', 'b'])
+    expect(moveTransfer(['a', 'b'], 0, -1)).toEqual(['a', 'b'])
+  })
+  it('says why a contact is not used', () => {
+    expect(transferInactive({ enabled: false, number: '+1 503 555 0199' })).toBe('Off')
+    expect(transferInactive({ enabled: true, number: ' ' })).toBe('Add a number to turn it on')
+    expect(transferInactive({ enabled: true, number: '+1 503 555 0199' })).toBeNull()
   })
 })
 

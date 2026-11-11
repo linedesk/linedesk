@@ -1,6 +1,7 @@
-// The assistant's transfer_call tool: puts an urgent caller through to the on-call phone (warm
-// transfer, transfer-call.ts) and records how it went with call.transfer.
-import { callTransfer } from '@linedesk/actions'
+// The assistant's transfer_call tool: puts the caller through to the transfer contact whose condition
+// fits (warm transfer, transfer-call.ts), tries the next one when the contact says so, and records how
+// each try went with call.transfer.
+import { callTransfer, type TransferResult } from '@linedesk/actions'
 import { llm, type JobContext } from '@livekit/agents'
 import { type RemoteParticipant, RoomEvent } from '@livekit/rtc-node'
 import { z } from 'zod'
@@ -14,7 +15,16 @@ import { lineAudio } from './busy-line.ts'
 import { type OnCallDialer, simulatedDialer, sipDialer } from './on-call-dialer.ts'
 import { findOutboundTrunk, sipClient, TRANSFER_TRUNK_NAME } from './sip-trunks.ts'
 import { ownTransferTrunk, reprovisionTrunk, transferRoute, workspaceTrunkDialer } from './workspace-trunk.ts'
-import { briefingText, CONNECTING_LINE, NOT_CONNECTED_REPLY, transferLabel } from './transfer.ts'
+import {
+  briefingText,
+  connectingLine as connectingText,
+  type Dialable,
+  type Fallback,
+  notConnectedReply,
+  transferLabel,
+  transferPlan,
+  tryingNextLine,
+} from './transfer.ts'
 import { type Livekit, warmTransfer } from './transfer-call.ts'
 
 const livekitOf = (): Livekit => {
@@ -52,7 +62,7 @@ export const liveTransferTestAllows = (number: string, env: Record<string, strin
 
 /**
  * Who picks up the transfer on this call: the simulated person in a no-phone call test, else the
- * on-call number through the "linedesk-outbound" trunk. null when there is no such trunk (run
+ * contact's number through the "linedesk-outbound" trunk. null when there is no such trunk (run
  * `setup-sip --outbound`): then the assistant cannot transfer and takes a message.
  */
 export async function onCallDialerFor(
@@ -96,9 +106,9 @@ export async function onCallDialerFor(
   return sipDialer({ sip, trunkId, to: number, from: call.businessNumber })
 }
 
-/** "I'm connecting you…" in the assistant's voice, mono; synthesized once per voice and kept like the greeting. */
-async function connectingLine(config: AgentConfig, call: CallSession): Promise<Announcement> {
-  const audio = await lineAudio(config, call, CONNECTING_LINE)
+/** A fixed line in the assistant's voice, mono; made once per voice and text and kept like the greeting. */
+async function connectingLine(config: AgentConfig, call: CallSession, text: string): Promise<Announcement> {
+  const audio = await lineAudio(config, call, text)
   const { channels, samples } = audio
   return {
     sampleRate: audio.sampleRate,
@@ -106,8 +116,11 @@ async function connectingLine(config: AgentConfig, call: CallSession): Promise<A
   }
 }
 
+/** A transfer contact the assistant can put callers through to on this call, and how to reach them. */
+export type Reachable = { contact: Dialable; dialer: OnCallDialer }
+
 type TransferToolDeps = {
-  /** Stops the call's recording: the conversation with the on-call person is not recorded. */
+  /** Stops the call's recording: the conversation with the person put through is not recorded. */
   stopRecording?: () => Promise<void>
   ctx: JobContext
   api: ApiClient
@@ -115,8 +128,8 @@ type TransferToolDeps = {
   log: CallLog
   config: AgentConfig
   callerIdentity: string
-  number: string
-  dialer: OnCallDialer
+  /** In the owner's order. */
+  contacts: Reachable[]
 }
 
 /** Aborts when the caller leaves the room. */
@@ -131,99 +144,120 @@ function callerLeft(ctx: JobContext, identity: string): AbortSignal {
   return controller.signal
 }
 
-/** Asks the API to start the transfer (call.transfer dialing): refused over the workspace's limits. */
-async function startTransfer(api: ApiClient, call: CallSession, to: string): Promise<string | null> {
+type Report = { to: string; name: string; urgent: boolean }
+
+/** Records a try's result with call.transfer (`dialing` asks to start it; refused over the workspace's limits). */
+async function report(api: ApiClient, call: CallSession, { to, name, urgent }: Report, result: TransferResult) {
+  await api.run(callTransfer, { callId: call.callId, to, name, urgent, result }, call)
+}
+
+/** Why the API refused to start the transfer, or null when it may go ahead. */
+async function startTransfer(api: ApiClient, call: CallSession, target: Report): Promise<string | null> {
   try {
-    await api.run(callTransfer, { callId: call.callId, to, result: 'dialing' }, call)
+    await report(api, call, target, 'dialing')
     return null
   } catch (e) {
     return e instanceof Error ? e.message : String(e)
   }
 }
 
-export function transferTool({
-  ctx,
-  api,
-  call,
-  log,
-  config,
-  callerIdentity,
-  number,
-  dialer,
-  stopRecording,
-}: TransferToolDeps) {
+/** The tool's description: every contact with when to put the caller through to them. */
+export function transferToolDescription(contacts: readonly Pick<Dialable, 'name' | 'condition'>[]): string {
+  const list = contacts.map(c => `"${c.name}": ${c.condition}`).join('; ')
+  return `Put the caller through to a person. The contacts, with when each one takes calls: ${list}. Use it only when a contact's condition fits the call, once you know the caller's name and what they need. It tells the caller itself that you are connecting them: say nothing else in the same response.`
+}
+
+export function transferTool({ ctx, api, call, log, config, callerIdentity, contacts, stopRecording }: TransferToolDeps) {
   let tried = false
+  const names = contacts.map(c => c.contact.name) as [string, ...string[]]
   return llm.tool({
-    description:
-      "Put an urgent caller through to the business's on-call person. Only for an emergency that needs a person right now, once you know the caller's name and what happened. It tells the caller itself that you are connecting them: say nothing else in the same response.",
+    description: transferToolDescription(contacts.map(c => c.contact)),
     parameters: z.object({
+      contacts: z
+        .array(z.enum(names))
+        .min(1)
+        .describe('Every contact whose condition fits this call, by name.'),
       caller_name: z.string().nullish().describe("The caller's name, if they gave it."),
-      about: z.string().describe('What the emergency is, in a few words, e.g. "a burst pipe flooding the kitchen".'),
+      about: z.string().describe('What the call is about, in a few words, e.g. "a burst pipe flooding the kitchen".'),
     }),
-    execute: async ({ caller_name, about }, { ctx: run }) => {
+    execute: async ({ contacts: picked, caller_name, about }, { ctx: run }) => {
       if (tried) return 'You already tried to transfer this call. Take a message instead.'
+      const plan = transferPlan(
+        contacts.map(c => c.contact),
+        picked,
+      )
+      if (!plan) return 'None of those is one of the contacts. Only transfer when a contact fits; else take a message.'
       tried = true
-      const refused = await startTransfer(api, call, number)
-      if (refused) {
-        console.warn(`transfer of call ${call.callId} not started: ${refused}`)
-        log.urgent = true
-        log.record('system', transferLabel('failed', number), callTransfer.name)
-        void api
-          .run(callTransfer, { callId: call.callId, to: number, result: 'failed' }, call)
-          .catch(() => {})
-        return NOT_CONNECTED_REPLY
-      }
+      const urgent = plan.fallback === 'message_urgent'
       await run.waitForPlayout()
       run.disallowInterruptions()
       const session = run.session
       // The caller is on hold: what they say now is not a turn for the assistant.
       session.input.setAudioEnabled(false)
-      // A fixed line, so the caller always hears what happens before the ringback (models often only call the tool).
-      const announcement = await connectingLine(config, call).catch(e => {
-        console.warn(`could not make the connecting line: ${e instanceof Error ? e.message : String(e)}`)
-        return undefined
-      })
-      if (announcement) log.record('agent', CONNECTING_LINE)
+      const left = callerLeft(ctx, callerIdentity)
       const briefing = briefingText({
         callerName: caller_name ?? call.contact?.name ?? null,
         callerNumber: call.contact?.phone ?? null,
         about,
+        urgent,
       })
-      const { result } = await warmTransfer(
-        {
-          livekit: livekitOf(),
-          callerRoom: ctx.room,
-          callerIdentity,
-          dialer,
-          config,
-          voice: call.assistant?.voice,
-          announcement,
-        },
-        briefing,
-        callerLeft(ctx, callerIdentity),
-        {
-          onBridgeEnded: () => void ctx.deleteRoom().catch(() => {}),
-          addCleanup: cleanup => ctx.addShutdownCallback(cleanup),
-          onConnecting: stopRecording,
-        },
-      )
-      log.urgent = true
-      log.record('system', transferLabel(result, number), callTransfer.name)
-      await api
-        .run(callTransfer, { callId: call.callId, to: number, result }, call)
-        .catch(e =>
+      let previous: Dialable | null = null
+      for (const [i, contact] of plan.tries.entries()) {
+        const dialer = contacts.find(c => c.contact.id === contact.id)!.dialer
+        const target = { to: contact.number, name: contact.name, urgent }
+        const refused = await startTransfer(api, call, target)
+        if (refused) {
+          console.warn(`transfer of call ${call.callId} not started: ${refused}`)
+          log.record('system', transferLabel('failed', contact.number, contact.name), callTransfer.name)
+          void report(api, call, target, 'failed').catch(() => {})
+          break // the workspace's limits: the next contact would be refused too
+        }
+        // A fixed line, so the caller always hears whom they are put through to before the ringback.
+        const text = previous ? tryingNextLine(previous.name, contact.name) : connectingText(contact.name)
+        const announcement = await connectingLine(config, call, text).catch(e => {
+          console.warn(`could not make the connecting line: ${e instanceof Error ? e.message : String(e)}`)
+          return undefined
+        })
+        if (announcement) log.record('agent', text)
+        const { result } = await warmTransfer(
+          {
+            livekit: livekitOf(),
+            callerRoom: ctx.room,
+            callerIdentity,
+            dialer,
+            config,
+            voice: call.assistant?.voice,
+            announcement,
+            ringSeconds: contact.ring_seconds,
+            attempt: i + 1,
+          },
+          briefing,
+          left,
+          {
+            onBridgeEnded: () => void ctx.deleteRoom().catch(() => {}),
+            addCleanup: cleanup => ctx.addShutdownCallback(cleanup),
+            onConnecting: stopRecording,
+          },
+        )
+        if (urgent) log.urgent = true
+        log.record('system', transferLabel(result, contact.number, contact.name), callTransfer.name)
+        await report(api, call, target, result).catch(e =>
           console.error(
             `could not record the transfer of call ${call.callId}: ${e instanceof Error ? e.message : String(e)}`,
           ),
         )
-      if (result === 'connected') {
-        // The caller and the on-call person talk now; the assistant stays out of it.
-        log.transferred = true
-        session.output.setAudioEnabled(false)
-        return undefined
+        if (result === 'connected') {
+          // The caller and the person talk now; the assistant stays out of it.
+          log.transferred = true
+          session.output.setAudioEnabled(false)
+          return undefined
+        }
+        if (left.aborted) break
+        previous = contact
       }
+      if (urgent) log.urgent = true
       session.input.setAudioEnabled(true)
-      return NOT_CONNECTED_REPLY
+      return notConnectedReply(plan.fallback satisfies Fallback)
     },
   })
 }

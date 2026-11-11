@@ -6,35 +6,101 @@ import { buildInstructions } from './prompt.ts'
 import { mergeToolResults } from './summary.ts'
 import { phoneRefused, scenarios } from './test-caller/scenarios.ts'
 import { isPhoneCallTest, liveTransferTestAllows, onCallDialerFor } from './transfer-tool.ts'
+import { simulatedContact } from './call-session.ts'
 import { maskedNumber, parseOnCallResponderMetadata } from './oncall-responder.ts'
 import { parseSetupOnCallTestArgs, parseSetupSipArgs } from './setup-args.ts'
 import { NotAnsweredError, sipDialer } from './on-call-dialer.ts'
-import { answerOf, answerOfDigit, briefingText, resultOf, transferLabel, transferNumberFor } from './transfer.ts'
+import type { TransferContact } from '@linedesk/db/types'
+import {
+  answerOf,
+  answerOfDigit,
+  briefingText,
+  type Dialable,
+  MAX_TRANSFER_TRIES,
+  notConnectedReply,
+  resultOf,
+  transferContactsFor,
+  transferLabel,
+  transferPlan,
+} from './transfer.ts'
+import { transferToolDescription } from './transfer-tool.ts'
 
+const contact = (over: Partial<TransferContact> = {}): TransferContact => ({
+  id: 'oncall',
+  name: 'Mike',
+  number: '+15035550199',
+  condition: 'Urgent: a burst pipe, a gas smell, no heat',
+  hours_only: false,
+  ring_seconds: 25,
+  if_no_answer: 'message_urgent',
+  enabled: true,
+  ...over,
+})
+const office = contact({ id: 'office', name: 'Office', number: '+15035550187', condition: 'Billing questions', if_no_answer: 'message', hours_only: true })
+const person = contact({ id: 'person', name: 'Owner', number: null, condition: 'The caller asks to speak to a person', if_no_answer: 'message' })
 const assistant = (over: Partial<Assistant> = {}) =>
   ({
     name: 'Maya',
     greeting: 'Hi.',
     business_profile: {},
     call_rules: null,
-    transfer_urgent: true,
-    transfer_number: '+15035550199',
-    transfer_hours_only: false,
+    transfers: [contact(), office, person],
     ...over,
   }) as Assistant
 const open = { openNow: true, summary: 'Open now.' }
 const closed = { openNow: false, summary: 'Closed now.' }
+const ids = (list: { id: string }[]) => list.map(c => c.id)
 
-test('transfer applies when it is on with a number; "only during business hours" blocks it while closed', () => {
-  expect(transferNumberFor(assistant(), null)).toBe('+15035550199')
-  expect(transferNumberFor(assistant({ transfer_urgent: false }), null)).toBeNull()
-  expect(transferNumberFor(assistant({ transfer_number: null }), null)).toBeNull()
-  expect(transferNumberFor(null, null)).toBeNull()
-  const hoursOnly = assistant({ transfer_hours_only: true })
-  expect(transferNumberFor(hoursOnly, open)).toBe('+15035550199')
-  expect(transferNumberFor(hoursOnly, closed)).toBeNull()
-  expect(transferNumberFor(hoursOnly, null)).toBe('+15035550199') // a workspace without hours is never "closed"
-  expect(transferNumberFor(assistant(), closed)).toBe('+15035550199')
+test('transfer contacts: switched on with a number; "only during business hours" drops them while closed', () => {
+  expect(ids(transferContactsFor(assistant(), open))).toEqual(['oncall', 'office']) // Owner has no number yet
+  expect(ids(transferContactsFor(assistant(), closed))).toEqual(['oncall'])
+  expect(ids(transferContactsFor(assistant(), null))).toEqual(['oncall', 'office']) // no hours: never "closed"
+  expect(ids(transferContactsFor(assistant({ transfers: [contact({ enabled: false })] }), open))).toEqual([])
+  expect(transferContactsFor(assistant({ transfers: [] }), open)).toEqual([])
+  expect(transferContactsFor(null, null)).toEqual([])
+})
+
+test('the plan tries the contacts that fit in the owner\'s order, whatever order the assistant named them in', () => {
+  const sarah = contact({ id: 'sarah', name: 'Sarah', number: '+15035550111' })
+  const mikeNext = contact({ if_no_answer: 'next' })
+  const list = transferContactsFor(assistant({ transfers: [mikeNext, office, sarah] }), open)
+  // Mike hands over to the next one that fits (Sarah, not the office: billing does not fit).
+  expect(transferPlan(list, ['Sarah', 'mike'])).toMatchObject({ tries: [{ id: 'oncall' }, { id: 'sarah' }], fallback: 'message_urgent' })
+  // Only the office fits: one try, and a plain message when nobody accepts.
+  expect(transferPlan(list, ['Office'])).toMatchObject({ tries: [{ id: 'office' }], fallback: 'message' })
+  // Mike's fallback is a message: Sarah is not tried even though she fits.
+  const plain = transferContactsFor(assistant({ transfers: [contact(), sarah] }), open)
+  expect(ids(transferPlan(plain, ['Mike', 'Sarah'])!.tries)).toEqual(['oncall'])
+  // "Try the next" with nobody left: a message marked urgent.
+  expect(transferPlan(list, ['Mike'])).toMatchObject({ tries: [{ id: 'oncall' }], fallback: 'message_urgent' })
+  // A name that is no contact (or a contact not reachable now): no transfer.
+  expect(transferPlan(list, ['Owner'])).toBeNull()
+})
+
+test('the plan stops after a few tries, so the caller is not on hold for minutes', () => {
+  const chain = Array.from({ length: 5 }, (_, i) =>
+    contact({ id: `c${i}`, name: `C${i}`, number: `+1503555010${i}`, if_no_answer: 'next' }),
+  )
+  const plan = transferPlan(chain as Dialable[], chain.map(c => c.name))!
+  expect(plan.tries).toHaveLength(MAX_TRANSFER_TRIES)
+  expect(plan.fallback).toBe('message_urgent')
+})
+
+test('the assistant hears what to tell the caller when nobody accepts', () => {
+  expect(notConnectedReply('message_urgent')).toMatch(/flagged as urgent/)
+  expect(notConnectedReply('message')).not.toMatch(/urgent/)
+})
+
+test('the tool names every contact with its condition', () => {
+  const description = transferToolDescription([contact(), office])
+  expect(description).toContain('"Mike": Urgent: a burst pipe, a gas smell, no heat')
+  expect(description).toContain('"Office": Billing questions')
+})
+
+test('the call test\'s simulated on-call person is one urgent contact', () => {
+  const sim = simulatedContact('+15035550199')
+  expect(transferContactsFor(assistant({ transfers: [sim] }), closed)).toEqual([sim])
+  expect(transferPlan([sim as never], ['Mike'])?.fallback).toBe('message_urgent')
 })
 
 test('the briefing names the caller (or reads the number) and what it is about, and says how to answer', () => {
@@ -47,6 +113,7 @@ test('the briefing names the caller (or reads the number) and what it is about, 
     /^Urgent call from 503 555 0142 about no heat\./,
   )
   expect(briefingText({ callerNumber: 'test', about: '' })).toMatch(/^Urgent call from a caller\. Press 1/)
+  expect(briefingText({ callerName: 'Dana', about: 'a bill', urgent: false })).toMatch(/^Call from Dana about a bill\./)
 })
 
 test('the on-call person answers by voice or key; unclear answers are no decision', () => {
@@ -155,14 +222,16 @@ test('what the call shows for each result', () => {
   expect(transferLabel('not_answered', '+15035550199')).toBe('Transfer not answered')
   expect(transferLabel('declined', '+15035550199')).toBe('Transfer declined by +1 503 555 0199')
   expect(transferLabel('failed', '+15035550199')).toBe('Transfer to +1 503 555 0199 could not be placed')
+  expect(transferLabel('connected', '+15035550199', 'Mike')).toBe('Transferred to Mike (+1 503 555 0199)')
 })
 
-test('the prompt offers transfer_call only when the assistant transfers on this call', () => {
-  const withTransfer = buildInstructions(assistant(), null, null, true)
-  expect(withTransfer).toContain('put an urgent caller through to the on-call person with transfer_call')
-  expect(withTransfer).toContain('Never transfer a call that is not urgent')
+test('the prompt offers transfer_call only when the assistant transfers on this call, with each contact\'s condition', () => {
+  const withTransfer = buildInstructions(assistant(), null, null, [contact(), office])
+  expect(withTransfer).toContain('put the caller through to a person with transfer_call')
+  expect(withTransfer).toContain('1. Mike: Urgent: a burst pipe, a gas smell, no heat.\n2. Office: Billing questions.')
+  expect(withTransfer).toContain('Never transfer a call that fits no contact')
   expect(withTransfer).not.toContain('You cannot book appointments, transfer calls')
-  const without = buildInstructions(assistant(), null, null, false)
+  const without = buildInstructions(assistant(), null, null, [])
   expect(without).toContain('You cannot book appointments, transfer calls')
   expect(without).not.toContain('transfer_call')
 })

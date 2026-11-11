@@ -1,24 +1,53 @@
-// Warm transfer, the decisions without any audio: whether the assistant puts urgent calls through on
-// this call, what the on-call person hears, and how their answer is read. The call itself is in
-// transfer-call.ts.
-import type { TransferResult } from '@linedesk/actions'
-import type { Assistant } from '@linedesk/db/types'
+// Warm transfer, the decisions without any audio: which transfer contacts the assistant may put
+// callers through to on this call, in which order it tries them and what happens when nobody accepts,
+// what the person hears, and how their answer is read. The call itself is in transfer-call.ts.
+import { isActiveContact, RING_SECONDS_DEFAULT, type TransferResult } from '@linedesk/actions'
+import type { Assistant, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 
-/** How long the on-call phone rings before the assistant goes back to the caller. */
-export const RING_SECONDS = 25
+/** How long a phone rings when the contact does not say (older settings). */
+export const RING_SECONDS = RING_SECONDS_DEFAULT
 /** How long the on-call person has to answer after each briefing; it is said twice at most. */
 export const DECISION_MS = 10_000
 
+/** A contact the assistant can dial on this call: active, with its number. */
+export type Dialable = TransferContact & { number: string }
+
 /**
- * The number to put urgent calls through to on this call, or null: transfer is off, has no number, or
- * the owner allows it only during business hours and the business is closed now. A workspace without
- * business hours has no "closed".
+ * The contacts the assistant may put callers through to on this call, in the owner's order: switched
+ * on, with a number, and not limited to business hours while the business is closed. A workspace
+ * without business hours has no "closed".
  */
-export function transferNumberFor(assistant: Assistant | null, hours: BusinessHours | null): string | null {
-  if (!assistant?.transfer_urgent || !assistant.transfer_number) return null
-  if (assistant.transfer_hours_only && hours && !hours.openNow) return null
-  return assistant.transfer_number
+export function transferContactsFor(assistant: Assistant | null, hours: BusinessHours | null): Dialable[] {
+  const closed = !!hours && !hours.openNow
+  return (assistant?.transfers ?? []).filter(
+    (c): c is Dialable => isActiveContact(c) && !(c.hours_only && closed),
+  )
+}
+
+/** A call never tries more contacts than this, so the caller does not wait on hold for minutes. */
+export const MAX_TRANSFER_TRIES = 3
+
+/** What the assistant does when nobody it tried accepts. */
+export type Fallback = 'message_urgent' | 'message'
+
+/**
+ * Whom to try, in order, for the contacts the assistant said fit this call (by name), and what to do
+ * when none of them accepts. The owner's list order wins over the order the assistant named them. A
+ * contact whose fallback is "next" hands over to the next one that fits; when there is none, the
+ * assistant takes a message marked urgent (someone wanted the call to reach a person).
+ */
+export function transferPlan(contacts: Dialable[], picked: readonly string[]): { tries: Dialable[]; fallback: Fallback } | null {
+  const names = new Set(picked.map(n => n.trim().toLowerCase()))
+  const fitting = contacts.filter(c => names.has(c.name.trim().toLowerCase()))
+  if (!fitting.length) return null
+  const tries: Dialable[] = []
+  for (const contact of fitting) {
+    tries.push(contact)
+    if (contact.if_no_answer !== 'next' || tries.length >= MAX_TRANSFER_TRIES) break
+  }
+  const last = tries[tries.length - 1]!
+  return { tries, fallback: last.if_no_answer === 'message' ? 'message' : 'message_urgent' }
 }
 
 /** +15035550142 → "503 555 0142", the way a voice reads a number digit group by digit group. */
@@ -30,14 +59,14 @@ export function spokenNumber(e164: string): string {
 /** +15035550142 → "+1 503 555 0142", the way the app shows numbers. */
 const displayNumber = (e164: string) => (/^\+1\d{10}$/.test(e164) ? `+1 ${spokenNumber(e164)}` : e164)
 
-export type Briefing = { callerName?: string | null; callerNumber?: string | null; about: string }
+export type Briefing = { callerName?: string | null; callerNumber?: string | null; about: string; urgent?: boolean }
 
-/** What the on-call person hears when they pick up. */
-export function briefingText({ callerName, callerNumber, about }: Briefing): string {
+/** What the person hears when they pick up. */
+export function briefingText({ callerName, callerNumber, about, urgent = true }: Briefing): string {
   const name = callerName?.trim()
   const who = name || (callerNumber && /^\+\d+$/.test(callerNumber) ? spokenNumber(callerNumber) : 'a caller')
   const topic = about.trim().replace(/[.!?]+$/, '')
-  return `Urgent call from ${who}${topic ? ` about ${topic}` : ''}. Press 1 or say yes to take it, or press 2 or say no.`
+  return `${urgent ? 'Urgent call' : 'Call'} from ${who}${topic ? ` about ${topic}` : ''}. Press 1 or say yes to take it, or press 2 or say no.`
 }
 
 export type Answer = 'yes' | 'no'
@@ -72,8 +101,8 @@ export const resultOf = (answer: Answer | null): TransferResult =>
   answer === 'yes' ? 'connected' : answer === 'no' ? 'declined' : 'not_answered'
 
 /** The line in the transcript, and what the call shows. */
-export function transferLabel(result: TransferResult, to: string): string {
-  const number = displayNumber(to)
+export function transferLabel(result: TransferResult, to: string, name?: string): string {
+  const number = name ? `${name} (${displayNumber(to)})` : displayNumber(to)
   if (result === 'connected') return `Transferred to ${number}`
   if (result === 'dialing') return `Transferring to ${number}`
   if (result === 'declined') return `Transfer declined by ${number}`
@@ -81,9 +110,16 @@ export function transferLabel(result: TransferResult, to: string): string {
   return 'Transfer not answered'
 }
 
-/** What the caller hears right before the ringback. */
-export const CONNECTING_LINE = "I'm connecting you with our on-call person now. Please stay on the line."
+/** What the caller hears right before the ringback: whom they are put through to. */
+export const connectingLine = (name: string) => `I'm connecting you with ${name} now. Please stay on the line.`
 
-/** What the assistant is told when the transfer did not connect; it then talks to the caller again. */
-export const NOT_CONNECTED_REPLY =
-  'Nobody took the call. Tell the caller you could not reach anyone right now, take a message with how to reach them, and say the team will call back as soon as possible. The call is flagged as urgent.'
+/** What the caller hears before the next contact's ringback, when the one before did not take the call. */
+export const tryingNextLine = (previous: string, next: string) =>
+  `${previous} can't take the call right now. Let me try ${next}. Please stay on the line.`
+
+/** What the assistant is told when nobody took the call; it then talks to the caller again. */
+export function notConnectedReply(fallback: Fallback): string {
+  return fallback === 'message_urgent'
+    ? 'Nobody took the call. Tell the caller you could not reach anyone right now, take a message with how to reach them, and say the team will call back as soon as possible. The call is flagged as urgent.'
+    : 'Nobody took the call. Tell the caller you could not reach anyone right now, take a message with how to reach them, and say the team will get back to them.'
+}

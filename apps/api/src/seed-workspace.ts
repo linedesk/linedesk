@@ -19,6 +19,7 @@ import {
   user,
   workspace_settings,
 } from '@linedesk/db'
+import { EMERGENCY_CONDITION, RING_SECONDS_DEFAULT } from '@linedesk/actions'
 import { and, asc, eq, inArray, like } from 'drizzle-orm'
 import { db } from './db.ts'
 import { DEMO_ASSISTANT, GREETING, type SeedCall, seedCalls } from './demo-calls.ts'
@@ -40,6 +41,7 @@ export type SeedOptions = { email: string; business?: string; reset?: boolean; n
 export type SeedResult = { workspaceId: string; skipped: boolean; counts: Record<string, number> }
 
 const ONCALL_NUMBER = '+15035550199'
+const OFFICE_NUMBER = '+15035550187'
 const greet: SeedCall['lines'][number] = ['agent', GREETING]
 const HOUR = 60
 
@@ -430,9 +432,28 @@ async function seedAssistant(workspaceId: string, business: string): Promise<str
       hours: 'Mon–Fri 7 am – 6 pm, Sat 8 am – noon',
     },
     call_rules: CALL_RULES,
-    transfer_urgent: true,
-    transfer_number: ONCALL_NUMBER,
-    transfer_hours_only: false,
+    transfers: [
+      {
+        id: 'oncall',
+        name: 'Mike (on-call)',
+        number: ONCALL_NUMBER,
+        condition: EMERGENCY_CONDITION,
+        hours_only: false,
+        ring_seconds: RING_SECONDS_DEFAULT,
+        if_no_answer: 'message_urgent' as const,
+        enabled: true,
+      },
+      {
+        id: 'office',
+        name: 'Office',
+        number: OFFICE_NUMBER,
+        condition: 'Billing questions, or the caller asks to speak to a person',
+        hours_only: true,
+        ring_seconds: RING_SECONDS_DEFAULT,
+        if_no_answer: 'message' as const,
+        enabled: true,
+      },
+    ],
   }
   if (first) {
     await db.update(assistants).set(values).where(eq(assistants.id, first.id))
@@ -573,6 +594,7 @@ async function seedCallsFor(ctx: CallContext, list: WorkspaceSeedCall[]) {
       reminder_label: c.remindInHours ? `In ${c.remindInHours} hours` : null,
       assignee_id: c.assign === 'owner' ? ctx.ownerId : c.assign === 'teammate' ? ctx.teammateId : null,
       transfer_to: c.transfer ? ONCALL_NUMBER : null,
+      transfer_name: c.transfer ? 'Mike (on-call)' : null,
       transfer_result: c.transfer?.result ?? null,
       transfer_at: c.transfer ? new Date(started.getTime() + 30_000).toISOString() : null,
     })

@@ -1,4 +1,5 @@
 import { account, api_keys, assistants, auth_events, calendar_connections, passkey, phone_numbers, session, user, webhook_endpoints } from '@linedesk/db'
+import { DEFAULT_TRANSFERS } from '@linedesk/db/types'
 import { APIError } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -14,17 +15,21 @@ import { act, anonymous, createWorkspace, FROM, randomIp, request } from './help
 
 afterEach(() => vi.restoreAllMocks())
 
-/** Warm transfer on and the number forwarding every call, as someone could have set them up before confirmation was required. */
+/** A transfer contact with a number and the number forwarding every call, as someone could have set them up before confirmation was required. */
+const PLANTED_CONTACT = {
+  id: 'oncall', name: 'On-call', number: '+15035550142', condition: 'Urgent', hours_only: false,
+  ring_seconds: 25, if_no_answer: 'message_urgent' as const, enabled: true,
+}
 const plantCallRouting = async (ws: { assistant: { id: string }; number: string }) => {
-  await db.update(assistants).set({ transfer_urgent: true, transfer_number: '+15035550142' }).where(eq(assistants.id, ws.assistant.id))
+  await db.update(assistants).set({ transfers: [PLANTED_CONTACT] }).where(eq(assistants.id, ws.assistant.id))
   await db.update(phone_numbers).set({ mode: 'forward_all' }).where(eq(phone_numbers.e164, ws.number))
 }
 const callRoutingOf = async (ws: { assistant: { id: string }; number: string }) => {
   const [a] = await db.select().from(assistants).where(eq(assistants.id, ws.assistant.id))
   const [n] = await db.select().from(phone_numbers).where(eq(phone_numbers.e164, ws.number))
-  return { transfer_urgent: a!.transfer_urgent, transfer_number: a!.transfer_number, mode: n!.mode }
+  return { transfers: a!.transfers, mode: n!.mode }
 }
-const PLANTED = { transfer_urgent: true, transfer_number: '+15035550142', mode: 'forward_all' }
+const PLANTED = { transfers: [PLANTED_CONTACT], mode: 'forward_all' }
 
 const bearer = (key: string) => ({ headers: { authorization: `Bearer ${key}` } })
 
@@ -41,12 +46,14 @@ test('unconfirmed members cannot perform sensitive actions, and their own confir
   for (const action of ['calendar.connectStart', 'calendar.connectFinish', 'phoneNumber.update'])
     expect(NEEDS_CONFIRMED_EMAIL).toContain(action)
   const assistantId = ws.assistant.id
-  for (const transfer of [{ transfer_number: '+15035550142' }, { transfer_urgent: true }])
+  const contact = { ...PLANTED_CONTACT, number: '+15035550199' }
+  for (const transfer of [{ transfers: [contact] }, { transfers: [{ ...contact, hours_only: true }, { ...contact, id: 'b', name: 'B', enabled: false }] }])
     expect(await act(ws.owner, 'assistant.update', { assistantId, ...transfer })).toMatchObject({
       status: 403,
       body: { code: 'EMAIL_NOT_VERIFIED' },
     })
-  for (const allowed of [{ greeting: 'Hi, Brightwater Plumbing.' }, { transfer_urgent: false, transfer_number: null }])
+  // Contacts switched off or without a number put nobody through.
+  for (const allowed of [{ greeting: 'Hi, Brightwater Plumbing.' }, { transfers: [{ ...contact, enabled: false }] }, { transfers: [{ ...contact, number: null }] }, { transfers: [] }])
     expect((await act(ws.owner, 'assistant.update', { assistantId, ...allowed })).status).toBe(200)
   const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
   await plantCallRouting(ws)
@@ -174,7 +181,7 @@ test('code sign-in removes legacy access only while the address is unconfirmed',
   // A calendar connected before the address was proven would receive bookings with callers' details.
   expect(await calendarsOf()).toHaveLength(0)
   // Warm transfer and forwarding go back to the defaults in the workspace it owns, logged per workspace.
-  expect(await callRoutingOf(ws)).toEqual({ transfer_urgent: false, transfer_number: null, mode: 'forward_conditional' })
+  expect(await callRoutingOf(ws)).toEqual({ transfers: DEFAULT_TRANSFERS, mode: 'forward_conditional' })
   expect((await resets()).map(e => e.workspace_id)).toEqual([ws.id])
   expect(await callRoutingOf(other)).toEqual(PLANTED)
   expect((await request(ws.owner, 'GET', '/v1/me')).status).toBe(401)

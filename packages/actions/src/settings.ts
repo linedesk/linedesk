@@ -1,7 +1,7 @@
 import { CALL_RULES_MAX } from './assistant-prompt.ts'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
-import { onCallNumber } from './transfer.ts'
+import { transferContacts } from './transfer.ts'
 import { voiceId } from './voices.ts'
 
 const defined = <T extends object>(o: T) =>
@@ -176,7 +176,7 @@ export const keypadMenu = z.object({
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
-    'Update the assistant: name, greeting, whether a known caller is greeted by first name (`greet_by_name`), voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` and `instructions_outside` are used outside business hours when the workspace uses them (null: the same as during hours). `transfer_urgent` puts urgent calls through to `transfer_number` (a US number in E.164), only while the business is open when `transfer_hours_only`. `keypad_menu` (null: off) plays "press 1 for …" after the greeting; a `transfer` key is an urgent call, a `topic` key tells the assistant what the caller wants.',
+    'Update the assistant: name, greeting, whether a known caller is greeted by first name (`greet_by_name`), voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` and `instructions_outside` are used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a US number in E.164, null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `keypad_menu` (null: off) plays "press 1 for …" after the greeting; a `transfer` key is an urgent call (put through to the first contact that is reachable, else flagged urgent and a message), a `topic` key tells the assistant what the caller wants.',
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().min(1).optional(),
@@ -190,10 +190,8 @@ export const assistantUpdate = defineAction({
     record_calls: z.boolean().optional(),
     /** Greet a caller whose number matches a contact with a name by first name. */
     greet_by_name: z.boolean().optional(),
-    transfer_urgent: z.boolean().optional(),
-    /** null: no on-call number (transfer stays off). */
-    transfer_number: onCallNumber.nullable().optional(),
-    transfer_hours_only: z.boolean().optional(),
+    /** The whole ordered list of transfer contacts. */
+    transfers: transferContacts.optional(),
     /** Silence on the line (SILENCE_*): seconds before the first "Are you still there?", how many, the closing line (null: default). */
     silence_first_gap_s: z.number().int().min(SILENCE_FIRST_GAP_MIN_S).max(SILENCE_FIRST_GAP_MAX_S).optional(),
     silence_reminders: z.number().int().min(0).max(SILENCE_REMINDERS_MAX).optional(),
@@ -222,7 +220,7 @@ export const assistantUpdate = defineAction({
 export const assistantCreate = defineAction({
   name: 'assistant.create',
   description:
-    'Add an assistant to the workspace, with a fresh name and greeting and the default call rules. With `copyOf`, a copy of that assistant of the workspace (its greeting, instructions, rules and voice). Numbers keep their assistant: assign one with phoneNumber.update.',
+    'Add an assistant to the workspace, with a fresh name and greeting and the default call rules. With `copyOf`, a copy of that assistant of the workspace (its greeting, instructions, rules and voice; its transfer contacts start from the default). Numbers keep their assistant: assign one with phoneNumber.update.',
   input: z.object({
     name: z.string().trim().min(1).max(60).optional(),
     copyOf: z.string().min(1).optional(),

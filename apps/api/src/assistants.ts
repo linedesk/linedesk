@@ -3,7 +3,7 @@
 // an assistant id from another workspace is refused, never used.
 import { assistant_calendars, assistants, organization, phone_numbers, type Tx } from '@linedesk/db'
 import { releaseUnusedClones } from './voices.ts'
-import type { Assistant } from '@linedesk/db/types'
+import { type Assistant, DEFAULT_TRANSFERS } from '@linedesk/db/types'
 import { and, asc, eq, ne } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 
@@ -73,6 +73,8 @@ export const assistantHandlers: Record<string, Handler> = {
           ...source,
           id: newId(),
           name: input.name ?? `${source.name} copy`,
+          // Transfer numbers are set on purpose per assistant (they need a confirmed email): a copy starts with the default.
+          transfers: DEFAULT_TRANSFERS,
           created_at: undefined,
           version: undefined,
         }

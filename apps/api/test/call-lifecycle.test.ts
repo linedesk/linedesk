@@ -1,6 +1,8 @@
 // What the voice agent writes during a call: start, transcript, finish.
-import { calls, contacts, phone_numbers, transcript_segments } from '@linedesk/db'
-import { and, asc, eq } from 'drizzle-orm'
+import { readFileSync } from 'node:fs'
+import { assistants, calls, contacts, phone_numbers, transcript_segments } from '@linedesk/db'
+import { DEFAULT_TRANSFERS } from '@linedesk/db/types'
+import { and, asc, eq, sql } from 'drizzle-orm'
 import { afterEach, beforeAll, expect, test } from 'vitest'
 import { db } from '../src/db.ts'
 import { keptUrgent, LIVE_CALLS_PER_WORKSPACE, MESSAGES_PER_CALL } from '../src/handlers.ts'
@@ -190,6 +192,10 @@ test('call.transfer records the number and the result and makes the call urgent;
   const res = await act(agent(ws.id), 'call.transfer', { callId, to: '+15035550199', result: 'not_answered' })
   expect(res.status).toBe(200)
   expect(await getCall(callId)).toMatchObject({ transfer_to: '+15035550199', transfer_result: 'not_answered', urgency: 'urgent', status: 'live' })
+  // A transfer contact that is not about an emergency keeps the urgency as it is, and the call shows the contact's name.
+  const billing = (await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data.callId
+  await act(agent(ws.id), 'call.transfer', { callId: billing, to: '+15035550187', name: 'Office', urgent: false, result: 'dialing' })
+  expect(await getCall(billing)).toMatchObject({ transfer_name: 'Office', transfer_result: 'dialing', urgency: 'normal' })
 })
 
 test('call.transfer limits per workspace: one leg at a time, six started an hour', async () => {
@@ -221,11 +227,17 @@ test('call.transfer limits per workspace: one leg at a time, six started an hour
   expect(await transfer(seventh, 'dialing')).toMatchObject({ status: 409, body: { error: 'transfer limit reached: 6 an hour' } })
 })
 
-test('assistant.update stores the transfer settings; an invalid on-call number is refused', async () => {
+const contact = (over: Record<string, unknown> = {}) => ({
+  id: 'oncall', name: 'Mike', number: '+15035550199', condition: 'Urgent: a burst pipe', hours_only: true,
+  ring_seconds: 25, if_no_answer: 'message_urgent', enabled: true, ...over,
+})
+
+test('assistant.update stores the transfer contacts in order; an invalid or Linedesk number is refused', async () => {
   const assistantId = ws.assistant.id
-  const ok = await act(ws.owner, 'assistant.update', { assistantId, transfer_urgent: true, transfer_number: '+15035550199', transfer_hours_only: true })
-  expect(ok.body.rows.assistants).toMatchObject([{ transfer_urgent: true, transfer_number: '+15035550199', transfer_hours_only: true }])
-  const bad = await act(ws.owner, 'assistant.update', { assistantId, transfer_number: '503-555-0199' })
+  const list = [contact(), contact({ id: 'office', name: 'Office', number: '+15035550187', condition: 'Billing questions', if_no_answer: 'next' })]
+  const ok = await act(ws.owner, 'assistant.update', { assistantId, transfers: list })
+  expect(ok.body.rows.assistants).toMatchObject([{ transfers: list }])
+  const bad = await act(ws.owner, 'assistant.update', { assistantId, transfers: [contact({ number: '503-555-0199' })] })
   expect(bad.status).toBe(422)
   // A Linedesk number (the workspace's own, or another workspace's) would ring back into Linedesk.
   // Callable US numbers (the helper's random ones may not be valid on-call numbers).
@@ -238,13 +250,44 @@ test('assistant.update stores the transfer settings; an invalid on-call number i
     { id: `pn_${crypto.randomUUID().slice(0, 8)}`, workspace_id: other.id, e164: elsewhere, provider: 'dev' },
   ])
   for (const linedesk of [own, elsewhere]) {
-    const looping = await act(ws.owner, 'assistant.update', { assistantId, transfer_number: linedesk })
-    expect(looping).toMatchObject({ status: 409, body: { error: expect.stringContaining('is a Linedesk number') } })
+    // Any contact of the list, not only the first.
+    const looping = await act(ws.owner, 'assistant.update', { assistantId, transfers: [contact(), contact({ id: 'x', name: 'Desk', number: linedesk })] })
+    expect(looping).toMatchObject({ status: 409, body: { error: expect.stringContaining("Desk's number is a Linedesk number") } })
   }
-  const forwarding = await act(ws.owner, 'assistant.update', { assistantId, transfer_number: officeLine })
+  const forwarding = await act(ws.owner, 'assistant.update', { assistantId, transfers: [contact({ number: officeLine })] })
   expect(forwarding).toMatchObject({ status: 409, body: { error: expect.stringContaining('forwards its calls to Linedesk') } })
   const started = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
-  expect(started.body.data.assistant).toMatchObject({ transfer_urgent: true, transfer_number: '+15035550199', transfer_hours_only: true })
+  expect(started.body.data.assistant).toMatchObject({ transfers: list })
+})
+
+test('a new assistant starts with one inactive contact for callers who ask for a person; a copy does not take the numbers', async () => {
+  const created = await act(ws.owner, 'assistant.create', { copyOf: ws.assistant.id })
+  const [copy] = await db.select().from(assistants).where(eq(assistants.id, created.body.data.assistantId))
+  expect(copy?.transfers).toEqual(DEFAULT_TRANSFERS)
+  expect(DEFAULT_TRANSFERS).toMatchObject([{ condition: 'The caller asks to speak to a person', number: null, enabled: true }])
+})
+
+test('migration 0046: the old on-call number becomes the first contact, before the default one', async () => {
+  const statements = readFileSync(new URL('../../../packages/db/migrations/0046_transfer_contacts.sql', import.meta.url), 'utf8')
+    .split('--> statement-breakpoint')
+  const migrate = statements.find(s => s.includes('UPDATE "assistants"'))!
+  const id = (tag: string) => `as_mig_${tag}_${crypto.randomUUID().slice(0, 8)}`
+  const [on, off, none] = [id('on'), id('off'), id('none')]
+  await db.insert(assistants).values([
+    { id: on, workspace_id: ws.id, transfer_urgent: true, transfer_number: '+15035550199', transfer_hours_only: true },
+    { id: off, workspace_id: ws.id, transfer_urgent: false, transfer_number: '+15035550111' },
+    { id: none, workspace_id: ws.id },
+  ])
+  await db.execute(sql.raw(migrate.replace('WHERE "transfer_number" IS NOT NULL', `WHERE "transfer_number" IS NOT NULL AND "id" IN ('${on}', '${off}', '${none}')`)))
+  const transfersOf = async (assistantId: string) => (await db.select().from(assistants).where(eq(assistants.id, assistantId)))[0]?.transfers
+  expect(await transfersOf(on)).toEqual([
+    { id: 'oncall', name: 'On-call', number: '+15035550199', condition: 'Urgent: an emergency that needs a person right now', hours_only: true, ring_seconds: 25, if_no_answer: 'message_urgent', enabled: true },
+    ...DEFAULT_TRANSFERS,
+  ])
+  // Transfer was off: the number is kept, switched off.
+  expect(await transfersOf(off)).toMatchObject([{ number: '+15035550111', enabled: false }, { id: 'person' }])
+  expect(await transfersOf(none)).toEqual(DEFAULT_TRANSFERS)
+  await db.delete(assistants).where(sql`${assistants.id} in (${on}, ${off}, ${none})`)
 })
 
 test(`the assistant takes at most ${MESSAGES_PER_CALL} messages on one call`, async () => {

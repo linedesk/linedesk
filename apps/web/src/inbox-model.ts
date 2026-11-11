@@ -196,9 +196,10 @@ export function formatPhone(e164: string): string {
 }
 
 /** How a warm transfer during the call went, for the call's header; null when there was none. */
-export function transferText(call: Pick<Call, 'transfer_to' | 'transfer_result'>): string | null {
+export function transferText(call: Pick<Call, 'transfer_to' | 'transfer_result'> & Partial<Pick<Call, 'transfer_name'>>): string | null {
   if (!call.transfer_result) return null
-  const to = call.transfer_to ? formatPhone(call.transfer_to) : 'the on-call phone'
+  const number = call.transfer_to ? formatPhone(call.transfer_to) : null
+  const to = call.transfer_name ? (number ? `${call.transfer_name} (${number})` : call.transfer_name) : (number ?? 'the on-call phone')
   if (call.transfer_result === 'connected') return `Transferred to ${to}`
   if (call.transfer_result === 'dialing') return `Transferring to ${to}`
   if (call.transfer_result === 'declined') return `Transfer declined by ${to}`

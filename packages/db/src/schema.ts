@@ -19,7 +19,7 @@ import {
   timestamp,
   unique,
 } from 'drizzle-orm/pg-core'
-import type { ActionItem, AssistantVoice, BookingField, BusinessProfile, KeypadMenu, CallField, ToolEvent, WebhookEvent } from './types.ts'
+import { DEFAULT_TRANSFERS, type ActionItem, type AssistantVoice, type BookingField, type BusinessProfile, type CallField, type KeypadMenu, type ToolEvent, type TransferContact, type WebhookEvent } from './types.ts'
 
 export const rowVersion = pgSequence('row_version')
 
@@ -76,7 +76,12 @@ export const assistants = pgTable(
     /** Outside business hours (only when the workspace uses them); null: the same as during hours. */
     greeting_outside: text('greeting_outside'),
     instructions_outside: text('instructions_outside'),
-    /** Warm transfer: urgent calls are put through to `transfer_number` (E.164, US) when this is on. */
+    /**
+     * Warm transfer: who the assistant puts callers through to, and when, in order (TransferContact).
+     * Replaces transfer_urgent/transfer_number/transfer_hours_only, which stay until the next release (expand/contract).
+     */
+    transfers: jsonb('transfers').$type<TransferContact[]>().notNull().default(DEFAULT_TRANSFERS),
+    /** @deprecated read `transfers`; migrated into its first contact (0046). */
     transfer_urgent: boolean('transfer_urgent').notNull().default(false),
     transfer_number: text('transfer_number'),
     /** Only while the business is open (business hours); outside them the assistant takes a message. */
@@ -170,6 +175,8 @@ export const calls = pgTable(
     assignee_id: text('assignee_id'),
     /** A warm transfer during the call (call.transfer): the number dialled and how it went; null: none. */
     transfer_to: text('transfer_to'),
+    /** The transfer contact's name at the time (TransferContact.name); null: none or an older call. */
+    transfer_name: text('transfer_name'),
     transfer_result: text('transfer_result', { enum: ['dialing', 'connected', 'not_answered', 'declined', 'failed'] }),
     /** When the transfer was started; counts toward the workspace's transfers per hour. */
     transfer_at: ts('transfer_at'),

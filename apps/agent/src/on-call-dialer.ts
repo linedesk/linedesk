@@ -22,7 +22,8 @@ import { createTts } from './pipeline.ts'
 import { rms } from './test-caller/latency.ts'
 import { RING_SECONDS } from './transfer.ts'
 
-export type DialRequest = { room: string; identity: string; signal: AbortSignal }
+/** `ringSeconds`: how long the phone rings (the contact's ring time; RING_SECONDS when not given). */
+export type DialRequest = { room: string; identity: string; signal: AbortSignal; ringSeconds?: number }
 
 /** Puts the on-call person into the consult room; resolves once they answered, rejects when nobody did. */
 export interface OnCallDialer {
@@ -55,7 +56,7 @@ export function sipDialer({
   from?: string
 }): OnCallDialer {
   return {
-    async dial({ room, identity, signal }) {
+    async dial({ room, identity, signal, ringSeconds = RING_SECONDS }) {
       if (signal.aborted) throw new NotAnsweredError('cancelled before dialling')
       // The SIP request cannot be cancelled; the caller of dial deletes the consult room, which ends the leg.
       const dialled = sip.createSipParticipant(trunkId, to, room, {
@@ -63,9 +64,9 @@ export function sipDialer({
         participantName: 'On call',
         ...(from ? { fromNumber: from } : {}),
         waitUntilAnswered: true,
-        ringingTimeout: RING_SECONDS,
+        ringingTimeout: ringSeconds,
         maxCallDuration: MAX_TRANSFER_SEC,
-        timeout: RING_SECONDS + 10,
+        timeout: ringSeconds + 10,
       })
       try {
         await Promise.race([dialled, aborted(signal)])
@@ -118,9 +119,9 @@ async function untilTheyStopTalking(stream: AsyncIterator<AudioFrame>, quietMs =
  */
 export function simulatedDialer(answer: SimulatedAnswer, livekit: Livekit, config: AgentConfig): OnCallDialer {
   return {
-    async dial({ room: roomName, identity, signal }) {
+    async dial({ room: roomName, identity, signal, ringSeconds = RING_SECONDS }) {
       if (answer === 'no-answer') {
-        await sleep(RING_SECONDS * 1000, signal)
+        await sleep(ringSeconds * 1000, signal)
         throw new NotAnsweredError('the simulated on-call phone rang out')
       }
       // Said with the test caller's voice, made before joining: the track's rate is the voice's.

@@ -3,7 +3,7 @@
 // Read-only actions skip the command log: nothing to replay, nothing to audit.
 import { secondFactorRefusal } from './admin-second-factor.ts'
 import { passkeyStepUpRefusal } from './admin-step-up.ts'
-import { actions, droppedFields, inputErrorText, redactInput, unknownFieldsText, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
+import { actions, droppedFields, setsTransferNumber, inputErrorText, redactInput, unknownFieldsText, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
 import { commands } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { replayedResult, storedInput, storedResult } from './command-log.ts'
@@ -63,15 +63,12 @@ export const NEEDS_CONFIRMED_EMAIL: ReadonlySet<string> = new Set([
   'calendar.connectFinish',
 ])
 
-/** An assistant change that puts calls through to a number (warm transfer); turning it off is fine. */
-const setsTransfer = (input: unknown) => {
-  const i = (input ?? {}) as { transfer_number?: unknown; transfer_urgent?: unknown }
-  return (typeof i.transfer_number === 'string' && i.transfer_number !== '') || i.transfer_urgent === true
-}
-
-/** Whether running `name` with this input waits for a confirmed email. */
+/**
+ * Whether running `name` with this input waits for a confirmed email. An assistant change that puts calls
+ * through to a number (a transfer contact switched on with a number) does; switching contacts off is fine.
+ */
 export const needsConfirmedEmail = (name: string, input: unknown) =>
-  NEEDS_CONFIRMED_EMAIL.has(name) || (name === 'assistant.update' && setsTransfer(input))
+  NEEDS_CONFIRMED_EMAIL.has(name) || (name === 'assistant.update' && setsTransferNumber(input))
 export const EMAIL_NOT_VERIFIED = 'EMAIL_NOT_VERIFIED'
 const emailNotVerified: RunResult = { status: 403, body: { ok: false, error: 'Confirm your email first', code: EMAIL_NOT_VERIFIED } as ActionRejection }
 

@@ -77,7 +77,7 @@ describe('using a key', () => {
     expect(await act(bearer(key), 'apiKey.list', {})).toMatchObject(publicOnly)
     expect((await act(bearer(key), 'team.invite', { email: 'x@example.com', role: 'member' })).status).toBe(403)
     // What a leaked key could otherwise do: point urgent calls at another phone, copy every call out, read settings.
-    expect(await act(bearer(key), 'assistant.update', { assistantId: ws.assistant.id, transfer_number: '+15035550142' })).toMatchObject(publicOnly)
+    expect(await act(bearer(key), 'assistant.update', { assistantId: ws.assistant.id, transfers: [] })).toMatchObject(publicOnly)
     expect(await act(bearer(key), 'webhook.create', { url: 'https://example.com/hook', events: ['call.finished'] })).toMatchObject(publicOnly)
     expect(await act(bearer(key), 'carrier.get', {})).toMatchObject(publicOnly)
     expect(await act(bearer(key), 'phoneNumber.release', { phoneNumberId: 'pn_x' })).toMatchObject(publicOnly)

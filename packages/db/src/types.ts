@@ -14,6 +14,43 @@ export type BookingField = 'phone' | 'email' | 'address'
 export const webhookEvents = ['call.completed', 'call.summary_ready', 'booking.created', 'message.taken'] as const
 export type WebhookEvent = (typeof webhookEvents)[number]
 export type AssistantVoice = { provider: string; voice_id: string }
+/** What happens when the transfer contact does not take the call. */
+export const transferFallbacks = ['message_urgent', 'message', 'next'] as const
+export type TransferFallback = (typeof transferFallbacks)[number]
+/**
+ * Someone the assistant puts callers through to (warm transfer) when `condition` fits the call. An
+ * assistant's contacts are an ordered list: when several fit, they are tried in that order.
+ */
+export type TransferContact = {
+  /** Unique within the assistant's list. */
+  id: string
+  name: string
+  /** E.164; null: no number yet, so the contact is inactive. */
+  number: string | null
+  /** When to put the caller through, in plain words ("The caller asks to speak to a person"). */
+  condition: string
+  /** Only while the business is open (business hours). */
+  hours_only: boolean
+  /** How long the phone rings before the assistant goes back to the caller. */
+  ring_seconds: number
+  /** Nobody accepts: take a message marked urgent, take a message, or try the next contact that fits. */
+  if_no_answer: TransferFallback
+  /** Switched off: kept in the list, never dialled. */
+  enabled: boolean
+}
+/** A new assistant's list: one inactive contact for callers who ask for a person, until a number is set. */
+export const DEFAULT_TRANSFERS: TransferContact[] = [
+  {
+    id: 'person',
+    name: 'Owner',
+    number: null,
+    condition: 'The caller asks to speak to a person',
+    hours_only: true,
+    ring_seconds: 25,
+    if_no_answer: 'message',
+    enabled: true,
+  },
+]
 /**
  * The optional keypad menu an assistant plays right after the greeting ("Press 1 for emergencies…").
  * `transfer`: the key is an urgent call (put through when transfer is on, else flagged urgent and a message);

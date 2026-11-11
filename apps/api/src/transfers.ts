@@ -9,7 +9,7 @@ import { type Handler, Reject } from './handler-context.ts'
 
 const HOUR_MS = 60 * 60 * 1000
 
-type Input = { callId: string; to: string; result: TransferResult }
+type Input = { callId: string; to: string; result: TransferResult; name?: string; urgent?: boolean }
 
 export const transferHandlers: Record<string, Handler> = {
   'call.transfer': async ({ tx, actor, now }, input: Input) => {
@@ -20,10 +20,13 @@ export const transferHandlers: Record<string, Handler> = {
       .from(calls)
       .where(and(eq(calls.id, input.callId), eq(calls.workspace_id, workspaceId)))
     if (!call) throw new Reject('call not found')
+    // A transfer that is not about an emergency (billing, asks for a person) keeps the call's urgency.
+    const urgency = input.urgent === false ? {} : { urgency: 'urgent' as const }
+    const transfer_name = input.name ?? null
     if (input.result !== 'dialing') {
       const rows = await tx
         .update(calls)
-        .set({ transfer_to: input.to, transfer_result: input.result, urgency: 'urgent' })
+        .set({ transfer_to: input.to, transfer_name, transfer_result: input.result, ...urgency })
         .where(eq(calls.id, call.id))
         .returning()
       return { rows: { calls: rows } }
@@ -49,7 +52,7 @@ export const transferHandlers: Record<string, Handler> = {
     if (active >= CONCURRENT_TRANSFERS) throw new Reject('another transfer of this workspace is in progress')
     const rows = await tx
       .update(calls)
-      .set({ transfer_to: input.to, transfer_result: 'dialing', transfer_at: now, urgency: 'urgent' })
+      .set({ transfer_to: input.to, transfer_name, transfer_result: 'dialing', transfer_at: now, ...urgency })
       .where(eq(calls.id, call.id))
       .returning()
     return { rows: { calls: rows } }

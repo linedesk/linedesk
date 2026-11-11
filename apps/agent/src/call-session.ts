@@ -1,6 +1,6 @@
 // One call as the agent sees it: start, append transcript segments, finish.
-import { type BookingContext, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest } from '@linedesk/actions'
-import type { Assistant, Contact, ToolEvent } from '@linedesk/db/types'
+import { type BookingContext, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, EMERGENCY_CONDITION } from '@linedesk/actions'
+import type { Assistant, Contact, ToolEvent, TransferContact } from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
 import { type SimulatedAnswer, simulatedAnswers } from './on-call-dialer.ts'
@@ -89,6 +89,12 @@ export type CallOrigin =
 /** The call test's simulated on-call person and the number it stands in for (transfer is on for the test). */
 export type SimulatedOnCall = { answer: SimulatedAnswer; number: string }
 
+/** The call test's only transfer contact: urgent calls to the simulated on-call person. */
+export const simulatedContact = (number: string): TransferContact => ({
+  id: 'oncall', name: 'Mike', number, condition: EMERGENCY_CONDITION, hours_only: false,
+  ring_seconds: 25, if_no_answer: 'message_urgent', enabled: true,
+})
+
 export async function startCall(api: ApiClient, origin: CallOrigin): Promise<CallSession> {
   const { data } = origin.kind === 'phone'
     ? await api.run(callStart, { from: origin.from, to: origin.to, room: origin.room })
@@ -104,7 +110,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     ? {
         ...started.assistant,
         ...(outsideGreeting ? { greeting_outside: outsideGreeting } : {}),
-        ...(onCall ? { transfer_urgent: true, transfer_number: onCall.number, transfer_hours_only: false } : {}),
+        ...(onCall ? { transfers: [simulatedContact(onCall.number)] } : {}),
       }
     : started.assistant
   // The greeting and instructions that apply now: outside business hours, the outside variants.

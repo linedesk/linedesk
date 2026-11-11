@@ -1,5 +1,13 @@
 import { expect, test } from 'vitest'
-import { actions, assistantUpdate, callTransfer, onCallNumberProblem } from './index.ts'
+import {
+  actions,
+  assistantUpdate,
+  callTransfer,
+  isActiveContact,
+  onCallNumberProblem,
+  setsTransferNumber,
+  TRANSFER_CONTACTS_MAX,
+} from './index.ts'
 
 test('on-call numbers: US landlines and mobiles only', () => {
   for (const ok of ['+15035550199', '+12125550123', '+13125550123', '+14155552671'])
@@ -35,20 +43,45 @@ test('premium rate (900, 976 anywhere), personal, 700, toll-free and N11 numbers
   expect(onCallNumberProblem('+15039110199')).toMatch(/Service numbers/)
 })
 
-test('assistant.update takes the transfer settings and validates the number', () => {
-  const base = { assistantId: 'as_1' }
-  expect(
-    assistantUpdate.input.safeParse({
-      ...base,
-      transfer_urgent: true,
-      transfer_number: '+15035550199',
-      transfer_hours_only: true,
-    }).success,
-  ).toBe(true)
-  expect(assistantUpdate.input.safeParse({ ...base, transfer_number: null }).success).toBe(true)
-  expect(assistantUpdate.input.safeParse({ ...base, transfer_number: '+19005550199' }).success).toBe(false)
-  expect(assistantUpdate.input.safeParse({ ...base, transfer_number: '+18765550123' }).success).toBe(false)
-  expect(assistantUpdate.input.safeParse({ ...base, transfer_number: '(503) 555-0199' }).success).toBe(false)
+const contact = (over: Record<string, unknown> = {}) => ({
+  id: 'oncall',
+  name: 'Mike',
+  number: '+15035550199',
+  condition: 'Urgent: a burst pipe',
+  hours_only: true,
+  ring_seconds: 25,
+  if_no_answer: 'message_urgent',
+  enabled: true,
+  ...over,
+})
+
+test('assistant.update takes the list of transfer contacts and validates each number', () => {
+  const update = (transfers: unknown) => assistantUpdate.input.safeParse({ assistantId: 'as_1', transfers }).success
+  expect(update([contact(), contact({ id: 'person', name: 'Owner', number: null, if_no_answer: 'next' })])).toBe(true)
+  expect(update([])).toBe(true)
+  expect(update([contact({ number: '+19005550199' })])).toBe(false)
+  expect(update([contact({ number: '+18765550123' })])).toBe(false)
+  expect(update([contact({ number: '(503) 555-0199' })])).toBe(false)
+  expect(update([contact({ condition: ' ' })])).toBe(false)
+  expect(update([contact({ ring_seconds: 5 })])).toBe(false)
+  expect(update([contact({ ring_seconds: 61 })])).toBe(false)
+  expect(update([contact({ if_no_answer: 'hang_up' })])).toBe(false)
+  // The assistant picks contacts by name: two of the same name (or id) are refused.
+  expect(update([contact(), contact({ id: 'other', name: 'mike' })])).toBe(false)
+  expect(update([contact(), contact({ name: 'Sarah' })])).toBe(false)
+  expect(update(Array.from({ length: TRANSFER_CONTACTS_MAX + 1 }, (_, i) => contact({ id: `c${i}`, name: `C${i}` })))).toBe(false)
+  // The old single on-call number is gone from the input.
+  expect(Object.keys(assistantUpdate.input.shape)).not.toContain('transfer_number')
+})
+
+test('which assistant.update inputs let calls be put through to a number', () => {
+  expect(setsTransferNumber({ transfers: [contact()] })).toBe(true)
+  expect(setsTransferNumber({ transfers: [contact({ enabled: false })] })).toBe(false)
+  expect(setsTransferNumber({ transfers: [contact({ number: null })] })).toBe(false)
+  expect(setsTransferNumber({ transfers: [] })).toBe(false)
+  expect(setsTransferNumber({ greeting: 'Hi' })).toBe(false)
+  expect(setsTransferNumber(null)).toBe(false)
+  expect(isActiveContact({ enabled: true, number: '+15035550199' })).toBe(true)
 })
 
 test('call.transfer: agent only, a server handler (the limits), dialing first', () => {
@@ -56,6 +89,10 @@ test('call.transfer: agent only, a server handler (the limits), dialing first', 
   expect(callTransfer.patch).toBeUndefined()
   expect(callTransfer.input.safeParse({ callId: 'call_1', to: '+15035550199', result: 'dialing' }).success).toBe(true)
   expect(callTransfer.input.safeParse({ callId: 'call_1', to: '+15035550199', result: 'maybe' }).success).toBe(false)
+  expect(
+    callTransfer.input.safeParse({ callId: 'call_1', to: '+15035550199', result: 'dialing', name: 'Office', urgent: false })
+      .success,
+  ).toBe(true)
   expect(callTransfer.input.safeParse({ callId: 'call_1', to: '+19005550199', result: 'connected' }).success).toBe(
     false,
   )

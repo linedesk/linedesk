@@ -269,6 +269,7 @@ describe('needs review', () => {
 describe('transferText', () => {
   it('says how the transfer went, and nothing without one', () => {
     expect(transferText({ transfer_to: '+15035550199', transfer_result: 'connected' })).toBe('Transferred to +1 503 555 0199')
+    expect(transferText({ transfer_to: '+15035550199', transfer_name: 'Mike', transfer_result: 'connected' })).toBe('Transferred to Mike (+1 503 555 0199)')
     expect(transferText({ transfer_to: '+15035550199', transfer_result: 'not_answered' })).toBe('Transfer not answered')
     expect(transferText({ transfer_to: '+15035550199', transfer_result: 'declined' })).toBe('Transfer declined by +1 503 555 0199')
     expect(transferText({ transfer_to: null, transfer_result: null })).toBeNull()

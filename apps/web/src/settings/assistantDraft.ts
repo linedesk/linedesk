@@ -1,11 +1,12 @@
 // The editable copy of the assistant's settings: how it is read from the row, merged with
 // changes that arrive through sync, checked and turned back into what assistant.update takes.
 import {
-  CALL_RULES_MAX, INSTRUCTIONS_MAX, callRulesOf, usesDefaultCallRules, onCallNumberProblem,
+  CALL_RULES_MAX, EMERGENCY_CONDITION, INSTRUCTIONS_MAX, RING_SECONDS_DEFAULT, TRANSFER_CONDITION_MAX,
+  TRANSFER_CONTACTS_MAX, TRANSFER_NAME_MAX, callRulesOf, usesDefaultCallRules, onCallNumberProblem,
   DEFAULT_SILENCE_CLOSING, SILENCE_CLOSING_MAX, SILENCE_FIRST_GAP_MAX_S, SILENCE_FIRST_GAP_MIN_S, SILENCE_REMINDERS_MAX,
   SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT, KEYPAD_MENU_MAX_OPTIONS,
 } from '@linedesk/actions'
-import type { Assistant, BusinessProfile, KeypadMenuOption } from '@linedesk/db/types'
+import type { Assistant, BusinessProfile, KeypadMenuOption, TransferContact } from '@linedesk/db/types'
 import { formatNumber, renameInGreeting, toE164 } from '../onboarding/flow.ts'
 
 /** `greeting_outside` and `instructions_outside`: used outside business hours; empty = the same as during hours. */
@@ -19,10 +20,8 @@ export type Draft = {
   call_rules: string
   greeting_outside: string
   instructions_outside: string
-  /** Warm transfer: urgent calls go to the on-call number (as typed; saved as E.164). */
-  transfer_urgent: boolean
-  transfer_number: string
-  transfer_hours_only: boolean
+  /** Warm transfer: who callers are put through to, and when, in order. */
+  transfers: TransferDraft[]
   /** Keypad menu after the greeting; the options are kept while it is off, but only saved when on. */
   keypad_on: boolean
   keypad_options: KeypadMenuOption[]
@@ -33,6 +32,9 @@ export type Draft = {
   silence_reminders: string
   silence_closing: string
 }
+
+/** A transfer contact as edited: the number as typed (saved as E.164, empty: none yet). */
+export type TransferDraft = Omit<TransferContact, 'number'> & { number: string }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 const line = (label: string, value?: string) => (value?.trim() ? `${label}: ${value.trim()}` : null)
@@ -61,9 +63,7 @@ export function draftOf(a: Assistant): Draft {
     call_rules: callRulesOf(a.call_rules), // none stored: the default rules, shown so they can be edited
     greeting_outside: a.greeting_outside ?? '',
     instructions_outside: a.instructions_outside ?? '',
-    transfer_urgent: a.transfer_urgent,
-    transfer_number: a.transfer_number ? formatNumber(a.transfer_number) : '',
-    transfer_hours_only: a.transfer_hours_only,
+    transfers: (a.transfers ?? []).map(c => transferDraftOf({ ...c, number: c.number ? formatNumber(c.number) : '' })),
     keypad_on: !!a.keypad_menu?.options?.length,
     keypad_options: a.keypad_menu?.options?.length ? a.keypad_menu.options.map(o => ({ ...o })) : DEFAULT_KEYPAD_OPTIONS,
     voice: { provider: a.voice.provider, voice_id: a.voice.voice_id },
@@ -93,11 +93,23 @@ export const normalized = (d: Draft): Draft => ({
   call_rules: d.call_rules.trim(),
   greeting_outside: d.greeting_outside.trim(),
   instructions_outside: d.instructions_outside.trim(),
-  transfer_number: normalizedNumber(d.transfer_number),
+  transfers: d.transfers.map(c => transferDraftOf({ ...c, name: c.name.trim(), condition: c.condition.trim(), number: normalizedNumber(c.number) })),
   keypad_options: d.keypad_options.map(o => ({ ...o, label: o.label.trim() })),
   silence_first_gap_s: d.silence_first_gap_s.trim(),
   silence_reminders: d.silence_reminders.trim(),
   silence_closing: d.silence_closing.trim(),
+})
+
+/** The contact with its fields in one fixed order: Postgres keeps jsonb keys in its own order, and drafts compare as JSON. */
+const transferDraftOf = (c: TransferDraft): TransferDraft => ({
+  id: c.id,
+  name: c.name,
+  number: c.number,
+  condition: c.condition,
+  hours_only: c.hours_only,
+  ring_seconds: c.ring_seconds,
+  if_no_answer: c.if_no_answer,
+  enabled: c.enabled,
 })
 
 const wholeIn = (typed: string, min: number, max: number) => /^\d+$/.test(typed.trim()) && Number(typed) >= min && Number(typed) <= max
@@ -163,20 +175,75 @@ function normalizedNumber(typed: string): string {
   return e164 ? formatNumber(e164) : typed.trim()
 }
 
-/** Why the on-call number cannot be used, or null (an empty number is fine while transfer is off). */
-export function onCallProblem(d: Pick<Draft, 'transfer_urgent' | 'transfer_number'>): string | null {
-  const typed = d.transfer_number.trim()
-  if (!typed) return d.transfer_urgent ? 'Add the on-call number urgent calls go to.' : null
+/** Why a transfer contact's number cannot be used, or null (empty is fine: the contact waits for one). */
+export function numberProblem(typed: string): string | null {
+  if (!typed.trim()) return null
   const e164 = toE164(typed)
   return e164 ? onCallNumberProblem(e164) : 'Enter a US number with its area code, like +1 503 555 0100.'
 }
 
-/** The transfer settings to save. */
-export const transferToSave = (d: Draft) => ({
-  transfer_urgent: d.transfer_urgent,
-  transfer_number: toE164(d.transfer_number),
-  transfer_hours_only: d.transfer_hours_only,
-})
+export type TransferField = 'name' | 'number' | 'condition'
+/** What is wrong with a contact, and in which field; the first problem of the list, or null. */
+export type TransferProblem = { index: number; field: TransferField; message: string }
+
+export function transferProblem(d: Pick<Draft, 'transfers'>): TransferProblem | null {
+  const names = new Set<string>()
+  for (const [index, c] of d.transfers.entries()) {
+    const name = c.name.trim()
+    if (!name) return { index, field: 'name', message: 'Give the contact a name.' }
+    if (name.length > TRANSFER_NAME_MAX) return { index, field: 'name', message: `At most ${TRANSFER_NAME_MAX} characters.` }
+    if (names.has(name.toLowerCase())) return { index, field: 'name', message: `Another contact is called "${name}".` }
+    names.add(name.toLowerCase())
+    const number = numberProblem(c.number)
+    if (number) return { index, field: 'number', message: number }
+    if (!c.condition.trim()) return { index, field: 'condition', message: 'Say when calls go to this contact.' }
+    if (c.condition.trim().length > TRANSFER_CONDITION_MAX)
+      return { index, field: 'condition', message: `At most ${TRANSFER_CONDITION_MAX} characters.` }
+  }
+  return null
+}
+
+/** The transfer contacts to save. */
+export const transfersToSave = (d: Pick<Draft, 'transfers'>): TransferContact[] =>
+  d.transfers.map(c => ({ ...c, name: c.name.trim(), condition: c.condition.trim(), number: toE164(c.number) }))
+
+/** Starting points for a new contact: blank, someone for callers who ask for a person, or emergencies. */
+export type TransferPreset = 'blank' | 'person' | 'emergency'
+const PRESETS: Record<TransferPreset, Pick<TransferDraft, 'name' | 'condition' | 'hours_only' | 'if_no_answer'>> = {
+  blank: { name: '', condition: '', hours_only: false, if_no_answer: 'message' },
+  person: { name: 'Owner', condition: 'The caller asks to speak to a person', hours_only: true, if_no_answer: 'message' },
+  emergency: { name: 'On-call', condition: EMERGENCY_CONDITION, hours_only: false, if_no_answer: 'message_urgent' },
+}
+
+/** A new contact from a preset, with an id and a name no other contact of the list has. */
+export function newTransferContact(list: readonly TransferDraft[], preset: TransferPreset): TransferDraft {
+  const ids = new Set(list.map(c => c.id))
+  let n = list.length + 1
+  while (ids.has(`tc_${n}`)) n++
+  const base = PRESETS[preset]
+  const taken = new Set(list.map(c => c.name.trim().toLowerCase()))
+  let name = base.name
+  for (let i = 2; name && taken.has(name.toLowerCase()); i++) name = `${base.name} ${i}`
+  return { id: `tc_${n}`, number: '', ring_seconds: RING_SECONDS_DEFAULT, enabled: true, ...base, name }
+}
+
+export const canAddTransfer = (d: Pick<Draft, 'transfers'>) => d.transfers.length < TRANSFER_CONTACTS_MAX
+
+/** The list with the contact at `index` moved one place up (-1) or down (+1). */
+export function moveTransfer<T>(list: readonly T[], index: number, by: -1 | 1): T[] {
+  const to = index + by
+  if (to < 0 || to >= list.length) return [...list]
+  const next = [...list]
+  ;[next[index], next[to]] = [next[to]!, next[index]!]
+  return next
+}
+
+/** Why a contact is not used on calls right now, in a few words; null when it is. */
+export function transferInactive(c: Pick<TransferDraft, 'enabled' | 'number'>): string | null {
+  if (!c.enabled) return 'Off'
+  if (!c.number.trim()) return 'Add a number to turn it on'
+  return null
+}
 
 /** Something to save: spaces around a value are not a change. */
 export const isDirty = (draft: Draft, saved: Draft) => !same(normalized(draft), normalized(saved))
@@ -223,7 +290,7 @@ export function draftProblem(draft: Draft): string | null {
   if (length > INSTRUCTIONS_MAX) return `The instructions are too long: ${length.toLocaleString('en-US')} of ${INSTRUCTIONS_MAX.toLocaleString('en-US')} characters.`
   const rules = draft.call_rules.trim().length
   if (rules > CALL_RULES_MAX) return `How to handle calls is too long: ${rules.toLocaleString('en-US')} of ${CALL_RULES_MAX.toLocaleString('en-US')} characters.`
-  return onCallProblem(draft) ?? silenceProblem(draft) ?? keypadProblem(draft)
+  return transferProblem(draft)?.message ?? silenceProblem(draft) ?? keypadProblem(draft)
 }
 
 /** The profile to save: the instructions replace the older fields they were folded from. */

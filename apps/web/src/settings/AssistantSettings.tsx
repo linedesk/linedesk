@@ -1,5 +1,5 @@
 // Assistant settings: name, greeting, AI disclosure, voice, the business's instructions, call rules,
-// transfer of urgent calls and the calendar, one section at a time (#assistant/<id>/<section>). Edits in the text sections are one local
+// transfer contacts and the calendar, one section at a time (#assistant/<id>/<section>). Edits in the text sections are one local
 // draft: Save runs assistant.update through the outbox; a section with unsaved
 // changes keeps a dot in the nav while you look at another one.
 import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS } from '@linedesk/actions'
@@ -27,14 +27,14 @@ import {
   keptDraft,
   mergeDraft,
   normalized,
-  onCallProblem,
   profileOf,
   silenceProblem,
   silenceSummary,
   silenceToSave,
   spokenLength,
   staleGreetingName,
-  transferToSave,
+  transferProblem,
+  transfersToSave,
   withDisclosure,
   withoutDisclosure,
 } from './assistantDraft.ts'
@@ -46,6 +46,7 @@ import { useWorkspaceSettings } from './settings-api.ts'
 import { VoiceSettings } from './VoiceSettings.tsx'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
+import { TransferContacts, transferFieldId } from './TransferContacts.tsx'
 
 type SectionId = 'greeting' | 'voice' | 'instructions' | 'rules' | 'transfer' | 'calendar' | 'advanced'
 const sections: readonly PageSection<SectionId>[] = [
@@ -53,7 +54,7 @@ const sections: readonly PageSection<SectionId>[] = [
   { id: 'voice', label: 'Voice', description: 'How the assistant sounds' },
   { id: 'instructions', label: 'Instructions', description: 'What the assistant knows about the business' },
   { id: 'rules', label: 'Call rules', description: 'How calls are handled' },
-  { id: 'transfer', label: 'Transfer', description: 'Urgent calls to your on-call phone' },
+  { id: 'transfer', label: 'Transfers', description: 'Who callers are put through to, and when' },
   { id: 'calendar', label: 'Calendar', description: 'Accounts, calendars and appointment types' },
   { id: 'advanced', label: 'Advanced', description: 'Silence on the line, keypad menu' },
 ]
@@ -63,7 +64,7 @@ const sectionFields: Record<Exclude<SectionId, 'calendar'>, (keyof Draft)[]> = {
   voice: ['voice'],
   instructions: ['instructions', 'instructions_outside'],
   rules: ['call_rules'],
-  transfer: ['transfer_urgent', 'transfer_number', 'transfer_hours_only'],
+  transfer: ['transfers'],
   advanced: ['silence_first_gap_s', 'silence_reminders', 'silence_closing', 'keypad_on', 'keypad_options'],
 }
 
@@ -240,41 +241,9 @@ function CallRules({ draft, set }: SectionProps) {
   )
 }
 
-function Transfer({ draft, set, hoursOn }: SectionProps & { hoursOn: boolean }) {
-  const problem = onCallProblem(draft)
-  return (
-    <Section
-      id="as-transfer"
-      title="Transfer"
-      help={`When a call is urgent, ${assistantName(draft)} first calls your on-call number and tells whoever answers who is calling and why. If they press 1 or say yes, ${assistantName(draft)} connects the caller; that conversation isn't recorded. If no one picks up within 25 seconds or they decline, ${assistantName(draft)} takes a message and marks it urgent.`}
-    >
-      <SwitchRow title="Transfer urgent calls" on={draft.transfer_urgent} onChange={on => set('transfer_urgent', on)} />
-      <Field id="as-oncall" label="On-call number" error={problem}>
-        <TextInput
-          id="as-oncall"
-          value={draft.transfer_number}
-          onChange={v => set('transfer_number', v)}
-          placeholder="+1 503 555 0100"
-          invalid={!!problem}
-        />
-        <span className="help">US mobile or landline.</span>
-      </Field>
-      {hoursOn ? (
-        <SwitchRow
-          title="Only during business hours"
-          on={draft.transfer_hours_only}
-          onChange={on => set('transfer_hours_only', on)}
-        />
-      ) : (
-        <span className="help">Any time (no business hours set).</span>
-      )}
-    </Section>
-  )
-}
-
 const keyOptions = ['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(k => ({ value: k, label: k }))
 const actionOptions: { value: KeypadMenuAction; label: string; description: string }[] = [
-  { value: 'transfer', label: 'Urgent', description: 'Put through to the on-call number when transfer is on, else marked urgent with a message' },
+  { value: 'transfer', label: 'Urgent', description: 'Put through to a transfer contact that fits urgent calls, else marked urgent with a message' },
   { value: 'topic', label: 'Topic', description: 'The assistant knows what the call is about and goes on' },
 ]
 
@@ -425,7 +394,8 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     e.preventDefault()
     // The greeting shows its error under the field: go there instead of a toast that outlives the fix.
     if (!draft.greeting.trim()) return goTo('greeting', 'as-greet')
-    if (onCallProblem(draft)) return goTo('transfer', 'as-oncall')
+    const transfer = transferProblem(draft)
+    if (transfer) return goTo('transfer', transferFieldId(transfer.index, transfer.field))
     if (silenceProblem(draft)) return goTo('advanced', 'as-silence-gap')
     if (keypadProblem(draft)) return goTo('advanced', 'as-keypad-label-0')
     const problem = draftProblem(draft)
@@ -441,7 +411,8 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         business_profile: profileOf(clean),
         call_rules: callRulesToSave(clean),
         ...outsideToSave(clean),
-        ...transferToSave(clean),
+        // Only when changed: putting calls through to a number waits for a confirmed email, other edits do not.
+        ...(unsaved.has('transfer') ? { transfers: transfersToSave(clean) } : {}),
         ...silenceToSave(clean),
         ...keypadToSave(clean),
         voice: clean.voice,
@@ -495,7 +466,14 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
           )}
           {current === 'instructions' && <Instructions draft={draft} set={set} hoursOn={hoursOn} />}
           {current === 'rules' && <CallRules draft={draft} set={set} />}
-          {current === 'transfer' && <Transfer draft={draft} set={set} hoursOn={hoursOn} />}
+          {current === 'transfer' && (
+            <TransferContacts
+              transfers={draft.transfers}
+              onChange={list => set('transfers', list)}
+              hoursOn={hoursOn}
+              assistantName={assistantName(draft)}
+            />
+          )}
           {current === 'advanced' && (
             <>
               <Advanced draft={draft} set={set} />
