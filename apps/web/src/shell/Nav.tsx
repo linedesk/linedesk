@@ -2,7 +2,7 @@ import { useRef, type ReactNode } from 'react'
 import { auth } from '../auth.ts'
 import type { InboxTab } from '../inbox-model.ts'
 import type { IconName } from '../ui/icons.ts'
-import { Button, Icon, Kbd } from '../ui/kit.tsx'
+import { Button, Icon, Kbd, LogoMark } from '../ui/kit.tsx'
 import { pages, type PageRoute, type Route } from './pages.tsx'
 import { useFocusTrap } from '../ui/useFocusTrap.ts'
 import { ProfileMenu } from './ProfileMenu.tsx'
@@ -45,7 +45,7 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
   return (
     <nav className="nav" aria-label="Main" ref={ref} inert={!open}>
       <div className="ws">
-        <span className="ws-mark"><Icon name="spark" size={13} /></span><b>Linedesk</b>
+        <span className="ws-mark"><LogoMark /></span><b>Linedesk</b>
         {!docked && <Button size="sm" variant="ghost" icon="left" aria-label="Close menu" title="Close (esc)" onClick={onClose} />}
       </div>
       <NavItem label="Inbox" icon="phone" keys={['G', 'I']} current={onCalls && tab !== 'reminders' && tab !== 'done'} onClick={go(() => on.onInbox('you'))}

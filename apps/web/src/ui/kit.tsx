@@ -54,12 +54,26 @@ export function Avatar({ name, size = 32 }: { name: string; size?: 24 | 32 | 40 
   return <span className={cx('k-avatar', `k-avatar-${size}`)} role="img" aria-label={name}>{initials(name) || '?'}</span>
 }
 
+/**
+ * The Linedesk mark (interim, "the lit line key"): a desk-phone line key whose light is on.
+ * Drawn in currentColor on the dark `.ws-mark` square; the light is the live green. Source files: brand/.
+ */
+export function LogoMark({ size = 21 }: { size?: number }) {
+  return (
+    <svg className="k-logo" width={size} height={size} viewBox="0 0 48 48" fill="none" aria-hidden="true" focusable="false">
+      <rect x="4" y="13" width="40" height="22" rx="11" stroke="currentColor" strokeWidth={4.5} />
+      <circle cx="15" cy="24" r="5" fill="#4ADE80" />
+      <line x1="24" y1="24" x2="34" y2="24" stroke="currentColor" strokeWidth={4.5} strokeLinecap="round" />
+    </svg>
+  )
+}
+
 /** The page around sign-in, sign-up and invitations: the Linedesk mark above a centred column, no card. */
 export function AuthPage({ children }: { children: ReactNode }) {
   return (
     <main className="auth">
       <div className="auth-column">
-        <span className="auth-mark" role="img" aria-label="Linedesk"><Icon name="spark" size={20} /></span>
+        <span className="auth-mark" role="img" aria-label="Linedesk"><LogoMark size={28} /></span>
         {children}
       </div>
     </main>

@@ -1,4 +1,4 @@
-import { Icon } from './kit.tsx'
+import { LogoMark } from './kit.tsx'
 
 /**
  * The first thing on screen while the session or the local store opens: the mark and a quiet line.
@@ -8,7 +8,7 @@ export function BootScreen({ line }: { line: string }) {
   return (
     <div className="boot boot-loading" role="status">
       <span className="ws-mark boot-mark" aria-hidden="true">
-        <Icon name="spark" size={13} />
+        <LogoMark />
       </span>
       <span>{line}</span>
     </div>

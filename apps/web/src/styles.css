@@ -460,6 +460,7 @@ body { font-size: 13px; }
 .app { grid-template-columns: 48px minmax(0, 1fr); }
 .nav { padding: 10px 6px; }
 .ws-mark { width: 24px; height: 24px; margin-bottom: 8px; }
+.ws-mark .k-logo { width: 19px; height: 19px; }
 
 
 
