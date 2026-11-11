@@ -371,12 +371,14 @@ function Languages({ draft, set, replace }: SectionProps & { replace: (draft: Dr
       title="Languages"
       help={`${assistantName(draft)} greets and speaks in the main language; the greeting, goodbye and other fixed lines are said in it (a greeting that is still the default changes with it). When a caller speaks another language you allow, it answers in that language from then on; otherwise it goes on in the main language. Summaries and messages for the team are in English, transcripts stay in the language spoken. Same price per minute; the first reply after a switch can take a moment longer.`}
     >
-      <Field id="as-languages-main" label="Main language">
-        <Select id="as-languages-main" label="Main language" value={main} options={languageOptions} onChange={code => replace(withMainLanguage(draft, code))} />
-      </Field>
-      <Field id="as-languages-mode" label="Also speak">
-        <Select id="as-languages-mode" label="Also speak" value={mode} options={alsoModes(LANGUAGES[main])} onChange={m => set('languages', { ...draft.languages, mode: m })} />
-      </Field>
+      <div className="as-languages-row">
+        <Field id="as-languages-main" label="Main language">
+          <Select id="as-languages-main" label="Main language" value={main} options={languageOptions} onChange={code => replace(withMainLanguage(draft, code))} />
+        </Field>
+        <Field id="as-languages-mode" label="Also speak">
+          <Select id="as-languages-mode" label="Also speak" value={mode} options={alsoModes(LANGUAGES[main])} onChange={m => set('languages', { ...draft.languages, mode: m })} />
+        </Field>
+      </div>
       {mode !== 'english' && (
         <div className="as-languages" role="group" aria-label={`Languages besides ${LANGUAGES[main]}`}>
           {languageCodes.filter(code => code !== main).map(code => (
