@@ -1315,21 +1315,22 @@ describe('impersonation', () => {
   })
 
   test('refused for yourself, another instance admin (also by INSTANCE_ADMIN_EMAILS), a disabled and an unknown user', async () => {
-    const reason = async (userId: string) => {
+    // Another instance admin is a rule about who asks (403); the others are about the user (409).
+    const reason = async (userId: string, status = 409) => {
       const res = await start(operator, userId)
-      expect(res.status).toBe(409)
+      expect(res.status).toBe(status)
       expect(res.as.headers.cookie).toBe(operator.headers.cookie) // no cookie changed
       return res.body.error as string
     }
     expect(await reason(operator.userId)).toMatch(/yourself/)
     const admin = await signUp()
     await setAdmin(admin, true)
-    expect(await reason(admin.userId)).toMatch(/another instance admin/)
+    expect(await reason(admin.userId, 403)).toMatch(/another instance admin/)
     await setAdmin(admin, false)
     const envAdmin = await signUp()
     await db.update(user).set({ emailVerified: true }).where(eq(user.id, envAdmin.userId))
     process.env.INSTANCE_ADMIN_EMAILS = await emailOf(envAdmin)
-    expect(await reason(envAdmin.userId)).toMatch(/another instance admin/)
+    expect(await reason(envAdmin.userId, 403)).toMatch(/another instance admin/)
     const disabled = await signUp()
     await db.update(user).set({ disabledAt: new Date() }).where(eq(user.id, disabled.userId))
     expect(await reason(disabled.userId)).toMatch(/disabled/)

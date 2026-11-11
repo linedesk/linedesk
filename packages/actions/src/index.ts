@@ -160,4 +160,8 @@ export type ActionResult = {
   deleted?: Partial<Record<import('@linedesk/db/types').TableName, string[]>>
   data?: Record<string, unknown>
 }
-export type ActionRejection = { ok: false; error: string }
+/**
+ * What `POST /v1/actions/<name>` returns when it does not run the action: 403 with `code: 'forbidden'`
+ * when this caller may not do it, 409 when the data's state does not allow it, 422 for invalid input.
+ */
+export type ActionRejection = { ok: false; error: string; code?: string }

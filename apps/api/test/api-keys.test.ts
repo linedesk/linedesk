@@ -70,8 +70,8 @@ describe('using a key', () => {
   test('an admin key has settings but never manages keys or the team', async () => {
     const { key } = await createKey(ws.owner, 'admin')
     expect((await request(bearer(key), 'GET', '/v1/me')).body.permissions).not.toContain('team:write')
-    expect(await act(bearer(key), 'apiKey.create', { name: 'more' })).toMatchObject({ status: 409, body: { error: expect.stringMatching(/cannot manage API keys/) } })
-    expect((await act(bearer(key), 'apiKey.list', {})).status).toBe(409)
+    expect(await act(bearer(key), 'apiKey.create', { name: 'more' })).toMatchObject({ status: 403, body: { error: expect.stringMatching(/cannot manage API keys/), code: 'forbidden' } })
+    expect((await act(bearer(key), 'apiKey.list', {})).status).toBe(403)
     expect((await act(bearer(key), 'team.invite', { email: 'x@example.com', role: 'member' })).status).toBe(403)
   })
 

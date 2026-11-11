@@ -13,7 +13,7 @@ import { queueBookingConfirmation } from './jobs.ts'
 import { queueWebhookEvent, webhookData } from './webhooks.ts'
 import { providerFor } from './calendar-connections.ts'
 import type { Actor } from './context.ts'
-import { type Handler, type HandlerCtx, Reject } from './handler-context.ts'
+import { type Handler, type HandlerCtx, Forbidden, Reject } from './handler-context.ts'
 
 const DAY_MS = 86_400_000
 /** Used until a workspace has stored its own time zone. */
@@ -212,7 +212,7 @@ async function describedBooking(tx: Tx, workspaceId: string, call: { contact_id:
  * A member names it by id, and with a call only one of that call's caller.
  */
 async function changeableBooking(tx: Tx, actor: Actor, workspaceId: string, input: WhichBooking, now: string) {
-  if (actor.role === 'agent' && !input.callId) throw new Reject('the assistant can only change a booking on a call')
+  if (actor.role === 'agent' && !input.callId) throw new Forbidden('the assistant can only change a booking on a call')
   const [call] = input.callId
     ? await tx.select({ contact_id: calls.contact_id }).from(calls).where(and(eq(calls.id, input.callId), eq(calls.workspace_id, workspaceId)))
     : []

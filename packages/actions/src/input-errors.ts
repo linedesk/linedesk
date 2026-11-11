@@ -24,8 +24,6 @@ function problem(issue: Issue, missing: boolean): string {
       return `must be at most ${issue.maximum}`
     case 'invalid_format':
       return issue.format === 'email' ? 'must be an email address' : 'has the wrong format'
-    case 'unrecognized_keys':
-      return `has unknown ${issue.keys.length === 1 ? 'field' : 'fields'} ${issue.keys.join(', ')}`
     default:
       return issue.message.charAt(0).toLowerCase() + issue.message.slice(1)
   }
@@ -47,10 +45,54 @@ function valueAt(input: unknown, path: readonly PropertyKey[]): unknown {
 export function inputErrorText(error: z.ZodError, input?: unknown): string {
   return error.issues
     .map(issue => {
-      const field = issue.path.map(String).join('.')
+      if (issue.code === 'unrecognized_keys') return unknownFieldsText(issue.keys)
+      const field = fieldLabel(issue.path)
       if (issue.code === 'custom') return sentence(field ? `${field}: ${issue.message}` : issue.message)
+      // A format the schema explains itself ("The Account SID starts with AC …"): its words, not "has the wrong format".
+      if (issue.code === 'invalid_format' && !/^invalid/i.test(issue.message)) return sentence(issue.message)
       const missing = issue.path.length > 0 && valueAt(input, issue.path) === undefined
       return sentence(field ? `${field} ${problem(issue, missing)}` : problem(issue, missing))
     })
     .join(' ')
+}
+
+/** Short words that read as one capitalised word ("Account SID", not "Account sid"). */
+const ACRONYMS = new Set(['id', 'ids', 'sid', 'url', 'uri', 'api', 'sip', 'ip', 'sms', 'tts', 'llm'])
+
+/**
+ * A field as people say it, without the path to it: `values.account_sid` is "Account SID",
+ * `memberId` "Member ID", `hours.2.start` "Start". Empty for the input as a whole.
+ */
+export function fieldLabel(path: readonly PropertyKey[]): string {
+  const name = [...path].reverse().find(key => typeof key === 'string' && !/^\d+$/.test(key))
+  if (typeof name !== 'string') return ''
+  const words = name
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map(word => (ACRONYMS.has(word.toLowerCase()) ? word.toUpperCase() : word.toLowerCase()))
+  return words.join(' ')
+}
+
+/** Fields an action does not take, by their exact names (a caller has to fix the spelling). */
+export function unknownFieldsText(keys: readonly string[]): string {
+  return keys.length === 1
+    ? `This action does not take the field ${keys[0]}.`
+    : `This action does not take the fields ${keys.join(', ')}.`
+}
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value)
+
+/**
+ * The fields that were sent but are not in the parsed input (Zod drops what a schema does not
+ * know), as paths like `voice.speed`. Records keep every key, so they never count.
+ */
+export function droppedFields(sent: unknown, parsed: unknown, path = ''): string[] {
+  if (Array.isArray(sent) && Array.isArray(parsed))
+    return sent.flatMap((item, i) => droppedFields(item, parsed[i], `${path}${i}.`))
+  if (!isPlainObject(sent) || !isPlainObject(parsed)) return []
+  return Object.keys(sent).flatMap(key =>
+    key in parsed ? droppedFields(sent[key], parsed[key], `${path}${key}.`) : [`${path}${key}`],
+  )
 }

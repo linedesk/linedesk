@@ -10,7 +10,7 @@ import { alias } from 'drizzle-orm/pg-core'
 import { invitationSubject, memberSubject } from './audit.ts'
 import type { Actor } from './context.ts'
 import { emailSender } from './email.ts'
-import { type Handler, Reject } from './handler-context.ts'
+import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { dropWorkspacePush } from './push.ts'
 import { createRateLimiter } from './rate-limit.ts'
@@ -87,7 +87,7 @@ async function guardOwner(tx: Tx, actor: Actor, target: { role: string; organiza
   if (target.role !== 'owner') return
   const owners = await tx.select({ id: member.id, userId: member.userId }).from(member)
     .where(and(eq(member.organizationId, target.organizationId), eq(member.role, 'owner'))).for('update')
-  if (!owners.some(o => o.userId === actor.actorId)) throw new Reject('only an owner can change or remove an owner')
+  if (!owners.some(o => o.userId === actor.actorId)) throw new Forbidden('only an owner can change or remove an owner')
   if (!owners.some(o => o.id !== target.id)) throw new Reject('the workspace needs an owner: this is the last one')
 }
 
@@ -95,7 +95,7 @@ async function guardOwner(tx: Tx, actor: Actor, target: { role: string; organiza
 async function requireOwner(tx: Tx, actor: Actor, workspaceId: string) {
   const owners = await tx.select({ userId: member.userId }).from(member)
     .where(and(eq(member.organizationId, workspaceId), eq(member.role, 'owner'))).for('update')
-  if (!owners.some(o => o.userId === actor.actorId)) throw new Reject('only an owner can make someone an owner')
+  if (!owners.some(o => o.userId === actor.actorId)) throw new Forbidden('only an owner can make someone an owner')
 }
 
 async function listTeam(tx: Tx, actor: Actor): Promise<TeamData> {
@@ -151,7 +151,7 @@ export const teamHandlers: Record<string, Handler> = {
   },
 
   'team.setRole': async ({ tx, actor }, input: { memberId: string; role: string }) => {
-    if (actor.impersonation) throw new Reject(NOT_WHILE_IMPERSONATING)
+    if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
     const workspaceId = workspaceOf(actor)
     const target = await loadMember(tx, workspaceId, input.memberId)
     await guardOwner(tx, actor, target)
@@ -161,7 +161,7 @@ export const teamHandlers: Record<string, Handler> = {
   },
 
   'team.leave': async ({ tx, actor }) => {
-    if (actor.impersonation) throw new Reject(NOT_WHILE_IMPERSONATING)
+    if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
     const workspaceId = workspaceOf(actor)
     const [me] = await tx.select().from(member).where(and(eq(member.organizationId, workspaceId), eq(member.userId, actor.actorId)))
     if (!me) throw new Reject('member not found')

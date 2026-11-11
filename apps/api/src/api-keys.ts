@@ -7,7 +7,7 @@ import { and, desc, eq, isNull } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { addressBucket } from './client-ip.ts'
-import { type Handler, Reject } from './handler-context.ts'
+import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { createFailureLimiter, createRateLimiter } from './rate-limit.ts'
 
 /** Shown in lists to tell keys apart: the prefix and 8 characters of the key. */
@@ -43,8 +43,8 @@ const creatorStillAllows = (keyRole: string, creatorRole: string | null, creator
 
 /** Key management is for people: a key never creates, lists or revokes keys. */
 function refuseKeyActor(actor: Actor) {
-  if (actor.apiKeyId) throw new Reject('API keys cannot manage API keys: do it in Settings, Developers')
-  if (actor.impersonation) throw new Reject('Not possible while signed in as another user.')
+  if (actor.apiKeyId) throw new Forbidden('API keys cannot manage API keys: do it in Settings, Developers')
+  if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
   if (!actor.workspaceId) throw new Reject('no workspace')
   return actor.workspaceId
 }

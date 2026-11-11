@@ -16,7 +16,7 @@ import { type CarrierAccount, carrierHandlers, INSTALL_NUMBER_ADMIN_ONLY, lockWo
 import { refreshTransferTrunk, transferTrunkHandlers } from './transfer-trunk.ts'
 import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
-import { type Handler, type HandlerCtx, type Preparer, Reject, type Undo } from './handler-context.ts'
+import { type Handler, type HandlerCtx, type Preparer, Forbidden, Reject, type Undo } from './handler-context.ts'
 import { telephonyProvider } from './provider-settings.ts'
 import { startTestCall } from './test-call.ts'
 import { membershipHandlers } from './memberships.ts'
@@ -33,7 +33,7 @@ import { contactImportHandlers } from './contact-import.ts'
 import { contactMergeHandlers } from './contact-merge.ts'
 import { clearCallPayloads, queueCallFinishedEvents, queueWebhookEvent, webhookData, webhookHandlers } from './webhooks.ts'
 
-export { Reject, type HandlerCtx, type Undo }
+export { Forbidden, Reject, type HandlerCtx, type Undo }
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 
@@ -424,7 +424,7 @@ const handlers: Record<string, Handler> = {
     // The install's account is shared by every workspace: only an instance admin may hand one of its
     // numbers to a workspace. Others buy a new one, or bring their own account. (`dev` has no account.)
     if (existing && carrier_account === 'install' && provider.name !== 'dev' && !actor.permissions.includes('instance:admin')) {
-      throw new Reject(INSTALL_NUMBER_ADMIN_ONLY)
+      throw new Forbidden(INSTALL_NUMBER_ADMIN_ONLY)
     }
     const number = existing ?? (await atCarrier(() => provider.buyNumber(e164)))
     if (!existing) onRollback?.(releaseBought(provider, number))

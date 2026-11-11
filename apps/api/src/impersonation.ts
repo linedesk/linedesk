@@ -7,7 +7,7 @@ import { member, session, user } from '@linedesk/db'
 import { asc, eq } from 'drizzle-orm'
 import { auth } from './auth.ts'
 import { db } from './db.ts'
-import { type Handler, Reject } from './handler-context.ts'
+import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 
 export const IMPERSONATION_SEC = IMPERSONATION_MINUTES * 60
@@ -22,7 +22,7 @@ export const impersonationHandlers: Record<string, Handler> = {
     const [target] = await tx.select().from(user).where(eq(user.id, input.userId))
     if (!target) throw new Reject('user not found')
     if (target.disabledAt) throw new Reject('this user is disabled')
-    if (isInstanceAdmin(target)) throw new Reject('you cannot sign in as another instance admin')
+    if (isInstanceAdmin(target)) throw new Forbidden('you cannot sign in as another instance admin')
     const [first] = await tx
       .select({ workspaceId: member.organizationId })
       .from(member)

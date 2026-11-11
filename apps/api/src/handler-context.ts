@@ -7,8 +7,14 @@ import type { CalendarServices } from './calendar-connections.ts'
 import type { Actor } from './context.ts'
 import type { RecordingStore } from './recording-store.ts'
 
-/** A business-rule rejection: the command is final, clients must not retry it. */
+/** A business-rule rejection: the command is final, clients must not retry it. Answered 409 (a conflict with the data's state). */
 export class Reject extends Error {}
+
+/**
+ * A rejection because of who asks, not of the data's state: a rule only an owner passes, something
+ * not possible while signed in as another user or with an API key. Answered 403 with `code: 'forbidden'`.
+ */
+export class Forbidden extends Reject {}
 
 /** Reverses something a handler did outside the database; resolves to a short note on what it did. */
 export type Undo = () => Promise<string>

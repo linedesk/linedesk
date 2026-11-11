@@ -2,17 +2,42 @@
 // Idempotent per command id: a replayed command returns its first result.
 // Read-only actions skip the command log: nothing to replay, nothing to audit.
 import { secondFactorRefusal } from './admin-second-factor.ts'
-import { actions, inputErrorText, REDACTED, redactInput, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
+import { actions, droppedFields, inputErrorText, REDACTED, redactInput, unknownFieldsText, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
 import { commands } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
-import { preparers, Reject, runHandler, type Undo } from './handlers.ts'
+import { Forbidden, preparers, Reject, runHandler, type Undo } from './handlers.ts'
 import { mayRunWhileImpersonating, NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 
 export type RunResult = { status: 200 | 403 | 404 | 409 | 422; body: ActionResult | ActionRejection }
 
 const rejection = (status: RunResult['status'], error: string): RunResult => ({ status, body: { ok: false, error } })
+const forbidden = (error: string): RunResult => ({ status: 403, body: { ok: false, error, code: 'forbidden' } })
+
+/** A handler's rejection: 403 when the caller may not do it, 409 when the data's state does not allow it. */
+const statusOf = (body: ActionRejection): RunResult['status'] => (body.code === 'forbidden' ? 403 : 409)
+const rejectionBody = (e: Reject, notes: string[] = []): ActionRejection => ({
+  ok: false,
+  error: [e.message, ...notes].join('; '),
+  ...(e instanceof Forbidden ? { code: 'forbidden' as const } : {}),
+})
+
+/**
+ * Input fields an action does not take. Our own clients (the browser, also when its outbox replays
+ * a command stored by an older release after a deploy, and the voice agent, which can run one
+ * release behind the API) get them dropped with a warning in the log, so a change made before an
+ * update is not lost. Everyone else (API keys, scripts) gets 422: a misspelt field must not pass silently.
+ */
+function unknownFieldsRefusal(name: string, rawInput: unknown, parsed: unknown, actor: Actor): RunResult | null {
+  const dropped = droppedFields(rawInput, parsed)
+  if (!dropped.length) return null
+  if (actor.sessionId || actor.role === 'agent') {
+    console.warn(`${name}: ignored input fields it does not take: ${dropped.join(', ')}`)
+    return null
+  }
+  return rejection(422, unknownFieldsText(dropped))
+}
 
 /** Runs every undo, newest first; each reports in a few words what it did, or that it failed. */
 async function runUndos(undos: Undo[]): Promise<string[]> {
@@ -26,7 +51,8 @@ async function runReadOnly(def: ActionDef, input: unknown, actor: Actor): Promis
     return { status: 200, body: { ok: true, ...(await runHandler({ tx: db, actor, now: new Date().toISOString() }, def, input)) } }
   } catch (e) {
     if (!(e instanceof Reject)) throw e
-    return rejection(409, e.message)
+    const body = rejectionBody(e)
+    return { status: statusOf(body), body }
   }
 }
 
@@ -35,18 +61,21 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   if (!def) return rejection(404, `unknown action ${name}`)
   const refusal = secondFactorRefusal(actor, def.permission)
   if (refusal) return { status: 403, body: refusal }
-  if (!actor.permissions.includes(def.permission)) return rejection(403, `missing permission ${def.permission}`)
+  if (!actor.permissions.includes(def.permission)) return forbidden(`missing permission ${def.permission}`)
   // An instance admin signed in as this user: reads and a short allow-list only (impersonation-guard.ts).
-  if (actor.impersonation && !mayRunWhileImpersonating(def)) return rejection(403, NOT_WHILE_IMPERSONATING)
+  if (actor.impersonation && !mayRunWhileImpersonating(def)) return forbidden(NOT_WHILE_IMPERSONATING)
   const parsed = def.input.safeParse(rawInput)
   if (!parsed.success) return rejection(422, inputErrorText(parsed.error, rawInput))
+  const unknown = unknownFieldsRefusal(name, rawInput, parsed.data, actor)
+  if (unknown) return unknown
   if (def.readOnly) return runReadOnly(def, parsed.data, actor)
 
   const [seen] = await db.select().from(commands).where(eq(commands.id, commandId))
   if (seen) {
     // A command id belongs to the workspace and action that used it first; nobody else gets its result.
     if (seen.workspace_id !== actor.workspaceId || seen.action !== name) return rejection(409, 'idempotency key was used for another command')
-    return { status: seen.rejected ? 409 : 200, body: seen.result as RunResult['body'] }
+    const body = seen.result as RunResult['body']
+    return { status: body.ok ? 200 : statusOf(body), body }
   }
 
   // The command log never holds a secret: sensitive input fields are stored redacted.
@@ -80,8 +109,8 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
       if (undone.length) console.error(`${name} failed after it had side effects: ${undone.join('; ')}`)
       throw e // unexpected: 500, the client retries
     }
-    const body: ActionRejection = { ok: false, error: [e.message, ...undone].join('; ') }
+    const body = rejectionBody(e, undone)
     await db.insert(commands).values({ ...record, result: body, rejected: true }).onConflictDoNothing()
-    return { status: 409, body }
+    return { status: statusOf(body), body }
   }
 }

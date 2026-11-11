@@ -11,7 +11,7 @@ import { assistant_calendars, assistants, calendar_connections, calendar_credent
 import { and, asc, eq, lt, ne } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
-import { type Handler, type HandlerCtx, Reject } from './handler-context.ts'
+import { type Handler, type HandlerCtx, Forbidden, Reject } from './handler-context.ts'
 import { decryptSecret, encryptSecret, hasSecretsKey, SecretsKeyError } from './secrets.ts'
 
 /** How the API reaches calendar providers; tests pass fakes through the handler context. */
@@ -139,7 +139,7 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
   'calendar.connectStart': async ({ tx, actor, now, ...ctx }, input: { provider: CalendarProviderId }) => {
     const workspace_id = workspaceOf(actor)
     // A calendar connected while signed in as someone else would put the admin's account into the user's workspace.
-    if (actor.impersonation) throw new Reject('Not possible while signed in as another user.')
+    if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
     const oauth = oauthOrReject(ctx, input.provider)
     if (!hasSecretsKey()) throw new Reject('SECRETS_KEY is not set, so calendar access cannot be stored. Generate one with `openssl rand -base64 32`, set it in the environment of the API and restart.')
     const { verifier, challenge } = await pkcePair()
@@ -155,7 +155,7 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
 
   'calendar.connectFinish': async ({ tx, actor, now, onRollback, ...ctx }, input: { provider: CalendarProviderId; state: string; code: string }) => {
     const workspace_id = workspaceOf(actor)
-    if (actor.impersonation) throw new Reject('Not possible while signed in as another user.')
+    if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
     // The state is single use and only good for the member who started the connect, in that workspace.
     const [started] = await tx.delete(calendar_oauth_states).where(eq(calendar_oauth_states.id, input.state)).returning()
     if (!started || started.user_id !== actor.actorId || started.provider !== input.provider || Date.parse(started.expires_at) < Date.parse(now)) {

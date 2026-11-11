@@ -12,7 +12,7 @@ import { and, desc, eq, inArray, isNull, ne } from 'drizzle-orm'
 import webpush from 'web-push'
 import { formatNumber } from './call-notifications.ts'
 import type { Actor } from './context.ts'
-import { type Handler, Reject } from './handler-context.ts'
+import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { publicLookup } from './webhooks.ts'
 
@@ -244,7 +244,7 @@ function pushPerson(actor: Actor): { workspaceId: string; userId: string } {
 /** Also not an instance admin acting as someone else: their browser must not get that person's pushes. */
 function pushMember(actor: Actor): { workspaceId: string; userId: string } {
   const person = pushPerson(actor)
-  if (actor.impersonation) throw new Reject('push notifications cannot be changed while acting as someone else')
+  if (actor.impersonation) throw new Forbidden('push notifications cannot be changed while acting as someone else')
   return person
 }
 

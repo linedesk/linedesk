@@ -221,7 +221,7 @@ describe('roles', () => {
     const lastOwner = { status: 409, body: { error: 'the workspace needs an owner: this is the last one' } }
     expect(await act(ws.owner, 'team.setRole', { memberId: ownerMemberId, role: 'admin' })).toMatchObject(lastOwner)
     expect(await act(ws.owner, 'team.removeMember', { memberId: ownerMemberId })).toMatchObject(lastOwner)
-    const onlyOwner = { status: 409, body: { error: 'only an owner can change or remove an owner' } }
+    const onlyOwner = { status: 403, body: { error: 'only an owner can change or remove an owner', code: 'forbidden' } }
     expect(await act(admin, 'team.setRole', { memberId: ownerMemberId, role: 'member' })).toMatchObject(onlyOwner)
     expect(await act(admin, 'team.removeMember', { memberId: ownerMemberId })).toMatchObject(onlyOwner)
     expect((await act(ws.owner, 'team.list', {})).body.data.members[0]).toMatchObject({ role: 'owner' })
@@ -241,10 +241,10 @@ describe('roles', () => {
     const [second, third] = [await addMember(own.id, 'admin'), await addMember(own.id, 'admin')]
     const secondId = await memberIdOf(own.id, second)
     expect(await act(third, 'team.setRole', { memberId: secondId, role: 'owner' })).toMatchObject({
-      status: 409,
-      body: { error: 'only an owner can make someone an owner' },
+      status: 403,
+      body: { error: 'only an owner can make someone an owner', code: 'forbidden' },
     })
-    expect(await act(third, 'team.setRole', { memberId: await memberIdOf(own.id, third), role: 'owner' })).toMatchObject({ status: 409 })
+    expect(await act(third, 'team.setRole', { memberId: await memberIdOf(own.id, third), role: 'owner' })).toMatchObject({ status: 403 })
     expect((await act(own.owner, 'team.setRole', { memberId: secondId, role: 'owner' })).status).toBe(200)
     const roles = async () => Object.fromEntries((await db.select().from(member).where(eq(member.organizationId, own.id))).map(m => [m.userId, m.role]))
     expect((await roles())[second.userId]).toBe('owner')
