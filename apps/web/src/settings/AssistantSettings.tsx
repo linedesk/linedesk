@@ -2,7 +2,7 @@
 // transfer contacts and the calendar, one section at a time (#assistant/<id>/<section>). Edits in the text sections are one local
 // draft: Save runs assistant.update through the outbox; a section with unsaved
 // changes keeps a dot in the nav while you look at another one.
-import { type AssistantLanguages, CALL_RULES_MAX, CALLER_LANGUAGES, type CallerLanguage, callerLanguageCodes, DEFAULT_CALL_RULES, DEFAULT_KNOWN_CALLER_GREETING, knownCallerGreetingProblem, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS } from '@linedesk/actions'
+import { type AssistantLanguages, CALL_RULES_MAX, CALLER_LANGUAGES, type CallerLanguage, callerLanguageCodes, DEFAULT_CALL_RULES, DEFAULT_KNOWN_CALLER_GREETING, GREETING_VARIABLES, knownCallerGreetingProblem, usesGreetingVariable, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS } from '@linedesk/actions'
 import type { Assistant, KeypadMenuAction, KeypadMenuOption, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
@@ -47,6 +47,7 @@ import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { Field, Section, SwitchRow, TextArea, TextInput, useRemembered } from './fields.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { Knowledge } from './Knowledge.tsx'
+import { VariableInput } from './VariableInput.tsx'
 import { VoiceSettings } from './VoiceSettings.tsx'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
@@ -128,17 +129,22 @@ function Greeting({
         </summary>
         <div className="vp-more-body">
           <Field id="as-greet-known" label="Returning callers" aside="Optional" error={knownProblem}>
-            <TextInput
+            <VariableInput
               id="as-greet-known"
+              label="Greeting for returning callers"
               value={draft.greeting_known_caller}
               onChange={v => set('greeting_known_caller', v)}
+              variables={GREETING_VARIABLES}
               placeholder={DEFAULT_KNOWN_CALLER_GREETING}
               invalid={!!knownProblem}
+              describedBy="as-greet-known-help"
             />
-            <span className="help">
-              {draft.greeting_known_caller.trim()
-                ? 'Said before the greeting when a saved contact calls again. {first_name} is their first name.'
-                : 'Empty: returning callers hear the usual greeting.'}
+            <span className="help" id="as-greet-known-help">
+              {!draft.greeting_known_caller.trim()
+                ? 'Empty: returning callers hear the usual greeting.'
+                : usesGreetingVariable(draft.greeting_known_caller, 'last_name')
+                  ? `Said before the greeting when a saved contact calls again. With the last name, anyone calling from that number hears the full name on file, so ${assistantName(draft)} shares nothing private on those calls.`
+                  : 'Said before the greeting when a saved contact calls again.'}
             </span>
           </Field>
           {hoursOn && (

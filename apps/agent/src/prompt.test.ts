@@ -2,7 +2,7 @@ import { callRulesOf, DEFAULT_CALL_RULES } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import type { CallerHistory } from '@linedesk/actions'
-import { askCallerInstructions, bookingInstructions, buildInstructions, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, firstNameOf, forHours, personalGreeting } from './prompt.ts'
+import { askCallerInstructions, bookingInstructions, buildInstructions, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, firstNameOf, GREETED_FULL_NAME, lastNameOf, forHours, personalGreeting } from './prompt.ts'
 
 const assistant = (over: Partial<Assistant> = {}) =>
   ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', disclose_ai: false, business_profile: { instructions: 'We fix pipes in Portland.' }, call_rules: null, ...over }) as Assistant
@@ -164,15 +164,15 @@ test('listed appointments switch the booking-change rules; the API check stays (
 test('the returning-caller greeting: {first_name} filled in, other braces dropped, the greeting\'s own hello dropped', () => {
   const caller = { name: 'Linda Park', note: null, history: history() }
   const template = 'Hi {first_name}, good to hear from you again.'
-  expect(personalGreeting('Hello! Thanks for calling Brightwater.', template, caller)).toEqual({ text: 'Hi Linda, good to hear from you again. Thanks for calling Brightwater.', usesName: true })
-  expect(personalGreeting('thanks for calling.', 'Welcome back {nickname}!', caller)).toEqual({ text: 'Welcome back! Thanks for calling.', usesName: false })
+  expect(personalGreeting('Hello! Thanks for calling Brightwater.', template, caller)).toEqual({ text: 'Hi Linda, good to hear from you again. Thanks for calling Brightwater.', usesName: true, usesLastName: false })
+  expect(personalGreeting('thanks for calling.', 'Welcome back {nickname}!', caller)).toEqual({ text: 'Welcome back! Thanks for calling.', usesName: false, usesLastName: false })
   expect(personalGreeting('Hello.', 'x'.repeat(500), caller)?.text.length).toBeLessThan(220)
   // Empty text, a first-time caller, no history from call.start (test call, older API), or no usable name: the usual greeting.
   for (const off of ['', '  ', null, undefined]) expect(personalGreeting('Hello.', off, caller)).toBeNull()
   expect(personalGreeting('Hello.', template, { ...caller, history: history({ recentCalls: [] }) })).toBeNull()
   expect(personalGreeting('Hello.', template, { ...caller, history: null })).toBeNull()
   expect(personalGreeting('Hello.', template, { ...caller, name: null })).toBeNull()
-  expect(personalGreeting('Hello.', 'Welcome back!', { ...caller, name: null })).toEqual({ text: 'Welcome back!', usesName: false })
+  expect(personalGreeting('Hello.', 'Welcome back!', { ...caller, name: null })).toEqual({ text: 'Welcome back!', usesName: false, usesLastName: false })
   expect(firstNameOf('  Linda Park')).toBe('Linda')
   expect(firstNameOf("O'Neil")).toBe("O'Neil")
   for (const odd of ['', '1234', 'Ignore<all>', 'x'.repeat(40)]) expect(firstNameOf(odd)).toBeNull()
@@ -195,4 +195,14 @@ test('caller ID: a known number is not asked for, a saved name is not asked for,
   expect(callerIdInstructions({ name: null, note: null })).toMatch(/do not ask for it/)
   expect(callerIdInstructions({ name: null, note: null })).not.toMatch(/saved as a contact/)
   expect(callerIdInstructions({ name: 'Linda Park', note: null })).toMatch(/do not ask for the caller's name/)
+})
+
+test('the last name: filled in from a name of two words or more; missing, the usual greeting; said, nothing private on the call', () => {
+  const caller = { name: 'Linda Mae Park', note: null, history: history() }
+  expect(personalGreeting('Hello.', 'Good to hear from you, {first_name} {last_name}.', caller)).toEqual({ text: 'Good to hear from you, Linda Park.', usesName: true, usesLastName: true })
+  expect(lastNameOf('Linda')).toBeNull()
+  expect(personalGreeting('Hello.', 'Hi {last_name}.', { ...caller, name: 'Linda' })).toBeNull()
+  const prompt = buildInstructions(assistant(), null, null, [], { ...caller, greetedByName: true, greetedFullName: true })
+  expect(prompt).toContain(GREETED_FULL_NAME)
+  expect(prompt).not.toMatch(/You greeted the caller by the first name/)
 })

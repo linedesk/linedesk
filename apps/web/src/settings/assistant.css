@@ -643,3 +643,64 @@
   display: grid;
   gap: 12px;
 }
+
+/* Text with variables as pills (VariableInput) */
+.vt {
+  display: grid;
+  gap: 6px;
+}
+.vt-frame {
+  position: relative;
+  height: auto;
+  min-height: 32px;
+}
+.vt-input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 0;
+  outline: none;
+  font-size: 13.5px;
+  line-height: 20px;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+/* The frame shows focus (focus-within), like every other input. */
+.vt-frame .vt-input:focus,
+.vt-frame .vt-input:focus-visible {
+  outline: none;
+}
+.vt-placeholder {
+  position: absolute;
+  inset: 5px 8px 5px 10px;
+  font-size: 13.5px;
+  line-height: 20px;
+  color: var(--ink-muted);
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vt-pill {
+  display: inline-block;
+  margin: 0 1px;
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-hover);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  font-size: 12.5px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink);
+  user-select: all;
+  white-space: nowrap;
+}
+.vt-placeholder .vt-pill {
+  color: var(--ink-muted);
+}
+.vt-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}

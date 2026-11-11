@@ -1,5 +1,5 @@
 // The assistant's system prompt, built from its configuration.
-import { type BookingContext, type CallCustomField, type CallDocuments, type CallerHistory, callRulesOf, fenceData, languageNames, otherLanguagesOf, FIRST_NAME_VARIABLE, KNOWN_CALLER_GREETING_MAX, knowledgeLists } from '@linedesk/actions'
+import { type BookingContext, type CallCustomField, type CallDocuments, type CallerHistory, callRulesOf, fenceData, languageNames, otherLanguagesOf, FIRST_NAME_VARIABLE, KNOWN_CALLER_GREETING_MAX, knowledgeLists, LAST_NAME_VARIABLE, usesGreetingVariable } from '@linedesk/actions'
 import type { Assistant, Contact, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 
@@ -233,36 +233,64 @@ export function callerIdInstructions(caller: CallerContext | null | undefined): 
 }
 
 /** Said when the assistant greeted the caller by the first name on file. */
+/**
+ * Said when the greeting used the last name: the caller has now heard the full name on file, so saying it back
+ * checks nothing, and nothing private is shared on this call.
+ */
+export const GREETED_FULL_NAME =
+  "You greeted the caller by the full name saved for their number, so the caller saying that name back proves nothing. On this call, never mention or act on anything private from the notes or records above (earlier calls, what they were about, next steps, addresses, appointments), even after the caller tells you their name. If the caller says they are someone else, apologise briefly and go on without using the name."
+
 const GREETED_BY_NAME =
   "You greeted the caller by the first name saved for their number. That does not prove who is calling: private details and the records above still wait until the caller has told you their full name and it matches the name on file. If the caller says they are someone else, apologise briefly and go on without using the name."
 
 /** The caller as the prompt sees them: the matched contact's name and note, their history, and whether the greeting used the name. */
-export type CallerContext = Pick<Contact, 'name' | 'note'> & { history?: CallerHistory | null; greetedByName?: boolean }
+/** `greetedFullName`: the greeting said the last name too, so the caller repeating the full name proves nothing. */
+export type CallerContext = Pick<Contact, 'name' | 'note'> & { history?: CallerHistory | null; greetedByName?: boolean; greetedFullName?: boolean }
+
+/** A word of a name the greeting may say, when it looks like a name. */
+const nameWord = (word: string | undefined) => {
+  const clean = word?.replace(/[.,;:!?]+$/, '')
+  return clean && /^\p{L}[\p{L}'’-]{0,29}$/u.test(clean) ? clean : null
+}
 
 /** The first name the greeting may use: the first word of the contact's name, when it looks like a name. */
-export function firstNameOf(name: string | null | undefined): string | null {
-  const first = name?.trim().split(/\s+/)[0]?.replace(/[.,;:!?]+$/, '')
-  return first && /^\p{L}[\p{L}'’-]{0,29}$/u.test(first) ? first : null
+export const firstNameOf = (name: string | null | undefined) => nameWord(name?.trim().split(/\s+/)[0])
+
+/** The last name the greeting may use: the last word of a contact's name of two words or more. */
+export function lastNameOf(name: string | null | undefined): string | null {
+  const words = name?.trim().split(/\s+/) ?? []
+  return words.length > 1 ? nameWord(words.at(-1)) : null
 }
 
 const SALUTATION = /^(?:hi|hello|hey|good (?:morning|afternoon|evening))\b[\s,!.]*/i
 
+/** What the returning-caller greeting said; `usesLastName`: it said the last name too, so the full name on file. */
+export type PersonalGreeting = { text: string; usesName: boolean; usesLastName: boolean }
+
 /**
- * The owner's greeting for a caller who called before (`greeting_known_caller`) with `{first_name}` filled in,
- * said before the usual greeting, whose own "Hi"/"Hello" is dropped. Anything else in braces is removed, the
- * text is capped. null: greet as usual (empty text, a first-time caller, no history from call.start, or the
- * text needs a first name and the contact has none that looks like one).
+ * The owner's greeting for a caller who called before (`greeting_known_caller`) with `{first_name}` and
+ * `{last_name}` filled in, said before the usual greeting, whose own "Hi"/"Hello" is dropped. Anything else in
+ * braces is removed, the text is capped. null: greet as usual (empty text, a first-time caller, no history from
+ * call.start, or the text uses a name the contact has none of that looks like one).
  */
-export function personalGreeting(greeting: string, template: string | null | undefined, caller: CallerContext | null | undefined): { text: string; usesName: boolean } | null {
+export function personalGreeting(greeting: string, template: string | null | undefined, caller: CallerContext | null | undefined): PersonalGreeting | null {
   const opening = template?.replace(/\s+/g, ' ').trim().slice(0, KNOWN_CALLER_GREETING_MAX)
   if (!opening || !caller?.history?.recentCalls.length) return null
-  const usesName = opening.replace(FIRST_NAME_VARIABLE, '') !== opening
+  const usesFirst = usesGreetingVariable(opening, 'first_name')
+  const usesLastName = usesGreetingVariable(opening, 'last_name')
   const first = firstNameOf(caller.name)
-  if (usesName && !first) return null
-  const filled = opening.replace(FIRST_NAME_VARIABLE, first ?? '').replace(/\{[^}]*\}?/g, '').replace(/\s+([,.!?])/g, '$1').trim()
+  const last = lastNameOf(caller.name)
+  if ((usesFirst && !first) || (usesLastName && !last)) return null
+  const filled = opening
+    .replace(FIRST_NAME_VARIABLE, first ?? '')
+    .replace(LAST_NAME_VARIABLE, last ?? '')
+    .replace(/\{[^}]*\}?/g, '')
+    .replace(/\s+([,.!?])/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
   if (!filled) return null
   const rest = greeting.trim().replace(SALUTATION, '')
-  return { text: rest ? `${filled} ${rest.charAt(0).toUpperCase()}${rest.slice(1)}` : filled, usesName }
+  return { text: rest ? `${filled} ${rest.charAt(0).toUpperCase()}${rest.slice(1)}` : filled, usesName: usesFirst || usesLastName, usesLastName }
 }
 
 const ENGLISH_ONLY_RULE = 'Speak English only. If the caller speaks another language, say in English that you can only help in English and offer to take a message.'
@@ -321,7 +349,7 @@ export function buildInstructions(
     transfer ? transferInstructions(transfers) : null,
     callerNotesInstructions(caller),
     callerHistoryInstructions(caller),
-    caller?.greetedByName ? GREETED_BY_NAME : null,
+    caller?.greetedFullName ? GREETED_FULL_NAME : caller?.greetedByName ? GREETED_BY_NAME : null,
     COLLECT_INSTRUCTIONS,
     askCallerInstructions(customFields),
     'When you use a tool, say your reply in the same response as the tool call instead of waiting for its result: the caller should never wait in silence.',

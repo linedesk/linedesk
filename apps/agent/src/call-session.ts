@@ -76,7 +76,12 @@ export function greetCaller(assistant: Assistant | null, contact: Contact | null
   const template = assistant?.greeting_known_caller ?? (assistant?.greet_by_name === false ? '' : DEFAULT_KNOWN_CALLER_GREETING)
   const personal = assistant ? personalGreeting(assistant.greeting, template, caller) : null
   if (!assistant || !personal) return { assistant, caller }
-  return { assistant: { ...assistant, greeting: personal.text }, caller: { ...caller, greetedByName: personal.usesName } }
+  // The full name was said: its check proves nothing, so no appointments are listed for the assistant to share.
+  const shared = personal.usesLastName && caller.history ? { ...caller.history, upcomingBookings: [] } : caller.history
+  return {
+    assistant: { ...assistant, greeting: personal.text },
+    caller: { ...caller, history: shared, greetedByName: personal.usesName, greetedFullName: personal.usesLastName },
+  }
 }
 
 /** The greeting followed by the recording notice, so both are said (and cached as audio) as one opening. */
