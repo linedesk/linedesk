@@ -67,6 +67,8 @@ test('find_slots asks for the chosen calendar and days on this call, and lists t
   // A day not listed is searched before the assistant says anything about it; dates are said as written.
   expect(text).toContain('call find_slots again with from_date and to_date set to that day')
   expect(text).toContain('exactly as written; never change the date')
+  // The times are local to the business; another zone is converted.
+  expect(text).toContain("All these times are in the business's time zone (America/Los_Angeles).")
   expect(log.lines.at(-1)).toEqual({ speaker: 'system', text: 'Checked availability · Repair visit · 2 slots' })
 })
 
@@ -189,6 +191,34 @@ test('a start that find_slots never offered is not sent: the model gets the offe
   )
   // The exact start of an offered time still works.
   await tools.book({ ...search, start: '2026-11-19T22:00:00.000Z', reason: 'r' })
+  expect(api.sent.map(([name]) => name)).toEqual(['calendar.findSlots', 'appointment.book'])
+})
+
+test('an email that is not valid is asked for again, not sent: the booking would fail on it', async () => {
+  const call = session()
+  const api = offering(() => ({ bookingId: 'bk_1', start: '2026-11-17T17:00:00.000Z', end: '', label: 'Tuesday', calendarName: 'Mike' }))
+  const tools = bookingTools(api, call, new CallLog(call))
+  await tools.findSlots(search)
+  expect(await tools.book({ ...search, start: 's1', reason: 'r', email: 'test at brightwater dot example' })).toMatch(/is not a valid email address\. Get it with get_email/)
+  await tools.book({ ...search, start: 's1', reason: 'r', email: ' test@brightwater.example ' })
+  expect(api.sent.map(([name]) => name)).toEqual(['calendar.findSlots', 'appointment.book'])
+  expect(api.sent[1]![1]).toMatchObject({ callerEmail: 'test@brightwater.example' })
+})
+
+test('no free times beyond the booking window: the assistant hears the last bookable day', async () => {
+  const call = session()
+  const api = fakeApi(() => ({ slots: [], bookableUntil: 'Wednesday, November 25' }))
+  const text = await bookingTools(api, call, new CallLog(call)).findSlots({ ...search, from_date: '2026-12-03', to_date: '2026-12-03' })
+  expect(text).toContain('This appointment can be booked up to Wednesday, November 25 at the latest')
+})
+
+test('the same time is not booked twice on one call', async () => {
+  const call = session()
+  const api = offering(() => ({ bookingId: 'bk_1', start: '2026-11-17T17:00:00.000Z', end: '', label: 'Tuesday, November 17 at 9:00 AM', calendarName: 'Mike' }))
+  const tools = bookingTools(api, call, new CallLog(call))
+  await tools.findSlots(search)
+  await tools.book({ ...search, start: 's1', reason: 'r' })
+  expect(await tools.book({ ...search, start: 's1', reason: 'r', address: '220 NE Alberta St' })).toMatch(/^That time is already booked on this call/)
   expect(api.sent.map(([name]) => name)).toEqual(['calendar.findSlots', 'appointment.book'])
 })
 

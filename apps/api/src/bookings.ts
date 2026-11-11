@@ -43,6 +43,10 @@ export function slotLabel(iso: string, timeZone: string) {
   return `${part('weekday')}, ${part('month')} ${part('day')} at ${part('hour')}:${part('minute')} ${part('dayPeriod')}`
 }
 
+/** The day of `iso` in the business time zone: "Wednesday, November 25". */
+export const dayLabel = (iso: string, timeZone: string) =>
+  new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'long', month: 'long', day: 'numeric' }).format(new Date(iso))
+
 /** slotLabel with the zone's short name, for emails read anywhere: "Tuesday, November 17 at 9:00 AM PST". */
 export function slotWithZone(at: Date | string, timeZone: string) {
   const iso = new Date(at).toISOString()
@@ -451,7 +455,8 @@ export const bookingHandlers: Record<string, Handler> = {
     const to = input.to ?? (input.toDate ? new Date(zonedTimeToInstant(input.toDate, '24:00', timeZone)).toISOString() : horizon)
     const window = { start: later(from, now), end: earlier(to, horizon) }
     const slots = await availableSlots(tx, workspaceId, timeZone, { type, window, now, limit: input.limit, calendar: calendar && { row: calendar.calendar, provider: calendar.provider } })
-    return { rows: {}, data: { appointmentTypeId: type.id, timeZone, slots } satisfies FindSlotsData }
+    const bookableUntil = dayLabel(shift(now, type.max_days_ahead * DAY_MS), timeZone)
+    return { rows: {}, data: { appointmentTypeId: type.id, timeZone, slots, bookableUntil } satisfies FindSlotsData }
   },
 
   // The slot is checked again right before the event is written, under a lock per calendar, so two

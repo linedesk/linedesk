@@ -37,7 +37,13 @@ export const calendarFindSlots = defineAction({
  * `data` of a successful `calendar.findSlots` result. Instants are ISO 8601 in UTC, earliest first;
  * `label` is the start as the business says it ("Tuesday, November 17 at 9:00 AM").
  */
-export type FindSlotsData = { appointmentTypeId: string; timeZone: string; slots: { start: string; end: string; label: string }[] }
+export type FindSlotsData = {
+  appointmentTypeId: string
+  timeZone: string
+  slots: { start: string; end: string; label: string }[]
+  /** The last day this type can be booked on ("Wednesday, November 25"); missing from an API of the release before. */
+  bookableUntil?: string
+}
 
 /** Longest condition on when the assistant uses a calendar or an appointment type (characters). */
 export const CONDITION_MAX = 300

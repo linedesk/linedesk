@@ -174,6 +174,8 @@ export function bookingInstructions(booking: BookingContext, transfer = false, l
       : null,
     'To book: find out what the caller needs, then use find_slots with the appointment type, the calendar and the days the caller wants. Offer at most two or three of the times it returns, in plain words. When the caller picks one, get the details that type needs (listed with it) that you do not have yet: the name with get_name if you do not have it confirmed, an address with get_address. Then use book_appointment with the key of that time (like s3). Only say the appointment is booked after book_appointment confirmed it. If no time suits or the calendar cannot be reached, take a message with the times the caller prefers.',
     'Never make up a free time: only offer times find_slots returned.',
+    'Book only a time the caller said yes to in their own words. If you suggest a time yourself, ask whether it works and wait for the answer; getting other details (an address) is not a yes.',
+    'If the day the caller names could mean two dates ("next Friday" can be this week\'s or the following week\'s), ask which date they mean before you search.',
     'If the caller gives an email address, pass it to book_appointment: they get the confirmation by email. Always confirm the day and time out loud.',
     canChangeBookings(booking)
       ? listed ? CHANGE_LISTED_BOOKING_INSTRUCTIONS : CHANGE_BOOKING_INSTRUCTIONS

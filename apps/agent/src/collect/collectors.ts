@@ -213,7 +213,7 @@ export const addressCollector: Collector<
   readBack: a =>
     `${a.street}${a.unit ? `, ${a.unit}` : ''}, ${a.city}, ${STATE_NAMES[a.state] ?? a.state}${a.zip ? `, ZIP ${readDigits(a.zip)}` : ''}`,
   instructions:
-    'You collect the street address of the visit (US format: number and street, unit if any, city, state, ZIP). Pass numbers as digits. If something is unclear, ask for the parts in order: street, unit, city and state, ZIP. Read ordinal street names in words ("Twenty-Third Avenue"). If a street name sounds unusual, ask the caller to spell it.',
+    'You collect the street address of the visit (US format: number and street, unit if any, city, state, ZIP). Pass numbers as digits. If something is unclear, ask for the parts in order: street, unit, city and state, ZIP. Read ordinal street names in words ("Twenty-Third Avenue"). If a street name sounds unusual, ask the caller to spell it. Only an address the caller said counts: never fill in an example or placeholder (like 123 Main Street); if you have none, ask for it.',
   ask: 'Ask for the address of the visit, including the ZIP code.',
 }
 

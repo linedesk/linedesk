@@ -70,7 +70,7 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
       execute: args => booking.findSlots(args),
     }),
     book_appointment: llm.tool({
-      description: 'Book a time the caller chose from find_slots. Only after the caller agreed to that exact time.',
+      description: 'Book a time the caller chose from find_slots. Only after the caller said yes to that exact time; never a time you picked for them without their yes.',
       parameters: z.object({
         appointment_type_id: typeId,
         calendar_id: calendarId,

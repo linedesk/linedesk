@@ -5,6 +5,7 @@ import { appointmentBook, appointmentCancel, appointmentReschedule, type BookDat
 import { ActionError, type ApiClient } from './api-client.ts'
 import type { CallLog } from './call-log.ts'
 import type { CallSession } from './call-session.ts'
+import { z } from 'zod'
 
 /** Times the model gets to choose from: a few per day over a few days reads well on the phone. */
 const PER_DAY = 2
@@ -48,6 +49,13 @@ const SLOT_RULES =
   'Say each time with its weekday and date exactly as written; never change the date. These are only the earliest free days: ' +
   'if the caller wants a day that is not listed, call find_slots again with from_date and to_date set to that day before you say anything about it.'
 
+/**
+ * The times are the business's local times. A caller in New York who asked for 1 PM Eastern was offered
+ * "1:00 PM Eastern Time" and booked at 1:00 PM Pacific.
+ */
+export const zoneRule = (timeZone: string) =>
+  `All these times are in the business's time zone (${timeZone}). If the caller means another time zone, convert, and say the time in both zones; never call a time by another zone's name without converting it.`
+
 const failure = (e: unknown) => (e instanceof ActionError ? e.message.replace(/^[\w.]+ failed \(\d+\): /, '') : 'the calendar did not answer')
 
 export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
@@ -59,6 +67,8 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
    * five in the morning in Portland); a key they copy, and a start nobody offered is never sent.
    */
   const offeredSlots = new Map<string, FindSlotsData['slots'][number]>()
+  /** What this call booked, by start. */
+  const bookedHere = new Map<string, string>()
   const offeredStart = (given: string) => {
     const key = given.trim().replace(/^\[|\]$/g, '').toLowerCase()
     const slot = offeredSlots.get(key) ?? [...offeredSlots.values()].find(s => s.start === key.toUpperCase() || Date.parse(s.start) === Date.parse(given))
@@ -75,13 +85,16 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
       }, call)
       const offered = spreadSlots((data as FindSlotsData).slots)
       log.record('system', `Checked availability · ${typeName(args.appointment_type_id)} · ${offered.length} slot${offered.length === 1 ? '' : 's'}`, calendarFindSlots.name)
-      if (!offered.length) return 'No free times in that range. Ask whether another day works, or take a message with the times the caller prefers.'
+      if (!offered.length) {
+        const until = (data as FindSlotsData).bookableUntil
+        return `No free times in that range.${until ? ` This appointment can be booked up to ${until} at the latest; say so if the caller asked for a later day.` : ''} Ask whether another day works, or take a message with the times the caller prefers.`
+      }
       const listed = offered.map(slot => {
         const key = `s${offeredSlots.size + 1}`
         offeredSlots.set(key, slot)
         return `- ${slot.label} [${key}]`
       })
-      return `Free times (offer two or three; book with the key in brackets):\n${listed.join('\n')}\n${SLOT_RULES}`
+      return `Free times (offer two or three; book with the key in brackets):\n${listed.join('\n')}\n${SLOT_RULES}\n${zoneRule((data as FindSlotsData).timeZone ?? call.booking?.timeZone ?? "local")}`
     } catch (e) {
       log.record('system', 'Could not check availability', calendarFindSlots.name)
       return `Checking the calendar failed (${failure(e)}). Apologize and take a message with the times the caller prefers.`
@@ -91,14 +104,21 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
   async function book(args: BookArgs): Promise<string> {
     const start = offeredStart(args.start)
     if (!start) return notOffered()
+    // Booked already on this call (the model sometimes books again after collecting more details).
+    const again = bookedHere.get(start)
+    if (again) return `That time is already booked on this call: ${again}. Do not book it again; tell the caller it is booked.`
+    // A garbled spoken email made the whole booking fail: ask for it again, or book without it.
+    if (args.email?.trim() && !z.email().safeParse(args.email.trim()).success)
+      return `"${args.email}" is not a valid email address. Get it with get_email, or book without an email (then there is no confirmation email).`
     try {
       const { data } = await api.run(appointmentBook, {
         appointmentTypeId: args.appointment_type_id, calendarId: args.calendar_id, start, reason: args.reason,
         ...(args.caller_name?.trim() ? { callerName: args.caller_name.trim() } : {}),
-        ...(args.address ? { address: args.address } : {}), ...(args.email ? { callerEmail: args.email } : {}), callId, ...(call.assistant ? { assistantId: call.assistant.id } : {}),
+        ...(args.address ? { address: args.address } : {}), ...(args.email?.trim() ? { callerEmail: args.email.trim() } : {}), callId, ...(call.assistant ? { assistantId: call.assistant.id } : {}),
       }, call)
       const booked = data as BookData
       const what = `${typeName(args.appointment_type_id)}, ${booked.label}`
+      bookedHere.set(start, what)
       log.bookings.push(what)
       log.record('system', `Booked · ${what} · ${booked.calendarName}`, appointmentBook.name)
       return `Booked: ${what}. Confirm the day and time to the caller exactly as written here: ${booked.label}.`
