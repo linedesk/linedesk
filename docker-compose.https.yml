@@ -2,7 +2,7 @@
 # certificate for PUBLIC_URL itself. Switch it on with one line in .env:
 #   COMPOSE_FILE=docker-compose.yml:docker-compose.https.yml
 services:
-  web:
+  proxy:
     environment:
       SITE_ADDRESS: ${PUBLIC_URL:?set PUBLIC_URL to https://your.domain in .env}
     ports:

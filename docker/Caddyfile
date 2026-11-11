@@ -1,6 +1,12 @@
-# Web entry point: the web app, /api and /v1 proxied to the API, /rtc to LiveKit.
+# Entry point (the `proxy` service): /api, /v1 and /mcp go to the API, /rtc to LiveKit, everything else
+# to the web app (the `web` service, docker/web.Caddyfile).
 # Default: plain HTTP on port 80 for any host name (directly, or behind another reverse proxy that
 # terminates TLS). With SITE_ADDRESS=https://your.domain Caddy gets the certificate itself.
+#
+# Updates without downtime (scripts/deploy.sh): this file changes rarely, so the proxy keeps running
+# while a new API or web container starts next to the old one. The upstreams are looked up by name
+# every second (all containers of the service answer), and a request that cannot connect, to a
+# container that is still starting or already stopping, is retried on another one for up to 30 s.
 {
 	servers {
 		# Behind your own reverse proxy: its address or range (LINEDESK_TRUSTED_PROXY_RANGES, e.g. the
@@ -10,13 +16,34 @@
 	}
 }
 
+# The API, with retries while a container starts or stops.
+(api) {
+	reverse_proxy {
+		dynamic a {
+			name {$API_HOST:api}
+			port 3100
+			refresh 1s
+		}
+		lb_try_duration 30s
+		lb_try_interval 250ms
+		fail_duration 10s
+		# Flush at once: /v1/shape/* responses are long-lived streams.
+		flush_interval -1
+	}
+}
+
+# Inside the compose network only (not published): the voice agent reaches the API here
+# (LINEDESK_API_URL=http://proxy:3100), so its calls to the API also ride over an API update.
+:3100 {
+	import api
+}
+
 {$SITE_ADDRESS::80} {
+	encode zstd gzip
+
 	@api path /api/* /v1/* /mcp
 	handle @api {
-		# Flush at once: /v1/shape/* responses are long-lived streams.
-		reverse_proxy {$API_UPSTREAM:api:3100} {
-			flush_interval -1
-		}
+		import api
 	}
 
 	# LiveKit signalling (WebSocket) on the same address: browsers need no extra port or certificate.
@@ -25,27 +52,16 @@
 		reverse_proxy {$LIVEKIT_UPSTREAM:livekit:7880}
 	}
 
-	root * /srv
-	encode zstd gzip
-
-	# Built assets have a content hash in their name: cache them for good. Only files that exist,
-	# so a missing asset (an old tab after an update) is a 404 and never a cached index.html.
-	@asset {
-		path /assets/*
-		file
-	}
-	handle @asset {
-		header Cache-Control "public, max-age=31536000, immutable"
-		file_server
-	}
-	handle /assets/* {
-		respond "Not found" 404
-	}
-
-	# Everything else is the app shell: always revalidated, so an update is picked up at once.
 	handle {
-		header Cache-Control "no-cache"
-		try_files {path} /index.html
-		file_server
+		reverse_proxy {
+			dynamic a {
+				name {$WEB_HOST:web}
+				port 80
+				refresh 1s
+			}
+			lb_try_duration 30s
+			lb_try_interval 250ms
+			fail_duration 10s
+		}
 	}
 }

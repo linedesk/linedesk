@@ -33,7 +33,7 @@ More in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Self-hosting
 
-One command starts the whole application in its own Docker project (`linedesk`): Postgres, Electric (read sync), the API, LiveKit with its SIP bridge and Valkey (calls), the voice agent, and Caddy, which serves the web app and is the single web entry point.
+One command starts the whole application in its own Docker project (`linedesk`): Postgres, Electric (read sync), the API, LiveKit with its SIP bridge and Valkey (calls), the voice agent, the web app's files, and Caddy, the single web entry point in front of the web app, the API and LiveKit signalling.
 
 Requirements: Docker with Compose v2.24 or newer and about 1.5 GB of free RAM. Everything stays inside the install folder and Docker: data in named volumes, no files written elsewhere, no host networking.
 
@@ -64,7 +64,10 @@ For the reverse proxy case, this is all the outer proxy needs (Caddy shown; WebS
 
 ```
 front.example.com {
-	reverse_proxy 127.0.0.1:8480
+	reverse_proxy 127.0.0.1:8480 {
+		# Holds requests for the few seconds Linedesk's Caddy itself restarts (rare; see Update below).
+		lb_try_duration 30s
+	}
 }
 ```
 
@@ -170,7 +173,13 @@ Set `RECORDING_STORE=file` (or `s3` with the `S3_*` settings) and add `--profile
 
 ### Update and backup
 
-Update: `git pull && docker compose up -d --build`. Data lives in the volumes `pgdata` (database), `recordings` (call recordings) and `caddy_data` (certificates). Back up before updating:
+Update without downtime and without dropping calls:
+
+```sh
+git pull && scripts/deploy.sh
+```
+
+It builds the new images while the running version keeps serving, then replaces only the services whose image or settings changed, each new container started next to the old one: the API and the web app switch over once the new container is healthy (Caddy retries requests on the other container meanwhile); the new voice agent registers with LiveKit before the old one stops, and the old one finishes the calls it has (up to 15 minutes, `LINEDESK_AGENT_DRAIN`) and takes no new ones. The new API applies the database migrations when it starts. A change to Caddy's own compose settings (ports, environment) recreates Caddy, which interrupts the site for a few seconds; the script says when. `docker compose up -d --build` also works, but restarts everything at once (the site is down until the API is up again; calls in progress are cut off). Data lives in the volumes `pgdata` (database), `recordings` (call recordings) and `caddy_data` (certificates). Back up before updating:
 
 ```sh
 docker compose exec -T postgres pg_dump -U linedesk -Fc linedesk > linedesk.dump

@@ -1,5 +1,6 @@
 // The voice agent: a LiveKit Agents worker. One job per call room; all writes go through the API.
 // Which speech and language vendors are used is decided in pipeline.ts.
+import { createServer } from 'node:http'
 import { fileURLToPath } from 'node:url'
 import { callFlagUrgent, callTakeMessage } from '@linedesk/actions'
 import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@livekit/agents'
@@ -346,7 +347,9 @@ function idle(reason: string) {
   console.log(`Voice agent is idle: ${reason} Calls are not answered until this is set and the agent is restarted.`)
   process.on('SIGTERM', () => process.exit(0))
   process.on('SIGINT', () => process.exit(0))
-  setInterval(() => {}, 2 ** 30)
+  // Healthy on the worker's health port (8081), so an update (scripts/deploy.sh) does not wait for a
+  // registration that never comes: an idle agent takes no calls, so replacing it loses none.
+  createServer((_req, res) => res.end('idle')).listen(8081)
 }
 
 async function main() {

@@ -6,7 +6,7 @@
 # restart policy, rotated logs and hard memory and CPU limits (override with the LINEDESK_* variables).
 # CPU: the call-audio services (LiveKit, SIP, the agent, egress) share one pinned core
 # (LINEDESK_VOICE_CPUSET) instead of a quota, because a quota stalls real-time audio even when idle;
-# the other services have quotas that add up to half a core. At most 1.5 CPUs in all.
+# the other services have quotas that add up to 0.55 of a core. At most 1.55 CPUs in all.
 # Published host ports: Caddy (LINEDESK_HTTP_BIND) and LiveKit's call audio and SIP ports. Nothing else.
 name: linedesk
 
@@ -73,25 +73,35 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       electric: { condition: service_healthy }
+    # Health: GET /healthz (Dockerfile). scripts/deploy.sh starts the new API next to the old one and
+    # stops the old one once the new one is healthy; migrations run once, in the new one, so they must
+    # work with the previous release too (docs/architecture.md, "Updates without downtime").
     mem_limit: ${LINEDESK_API_MEM:-128m}
     cpus: ${LINEDESK_API_CPUS:-0.1}
 
-  # Caddy: the web entry point. Serves the web app and proxies /api, /v1 and LiveKit signalling (/rtc).
-  # Plain HTTP here: on LINEDESK_HTTP_BIND (default: port 80 on all interfaces), or behind an existing
-  # reverse proxy with for example LINEDESK_HTTP_BIND=127.0.0.1:8480. docker-compose.https.yml makes
-  # this Caddy get the certificate itself.
-  web:
+  # Caddy: the entry point. Proxies /api, /v1 and /mcp to the API, LiveKit signalling (/rtc) to LiveKit and
+  # the rest to the web app (docker/Caddyfile). Plain HTTP here: on LINEDESK_HTTP_BIND (default: port 80
+  # on all interfaces), or behind an existing reverse proxy with for example LINEDESK_HTTP_BIND=127.0.0.1:8480.
+  # docker-compose.https.yml makes this Caddy get the certificate itself. It waits for nothing: while
+  # the API starts or is updated it holds requests and retries them (scripts/deploy.sh).
+  proxy:
     <<: *service
-    build: { context: ., target: web }
-    image: linedesk-web
+    build: { context: ., target: proxy }
+    image: linedesk-proxy
     ports: ["${LINEDESK_HTTP_BIND:-80}:80"]
     environment:
       # Behind your own reverse proxy: the ranges it connects from, so Caddy keeps its X-Forwarded-For (docker/Caddyfile).
       LINEDESK_TRUSTED_PROXY_RANGES: ${LINEDESK_TRUSTED_PROXY_RANGES:-}
     volumes: ["caddy_data:/data"]
-    depends_on:
-      api: { condition: service_healthy }
-    mem_limit: ${LINEDESK_WEB_MEM:-48m}
+    mem_limit: ${LINEDESK_PROXY_MEM:-48m}
+    cpus: ${LINEDESK_PROXY_CPUS:-0.05}
+
+  # The web app's built files, served by their own Caddy behind the proxy (docker/web.Caddyfile).
+  web:
+    <<: *service
+    build: { context: ., target: web }
+    image: linedesk-web
+    mem_limit: ${LINEDESK_WEB_MEM:-32m}
     cpus: ${LINEDESK_WEB_CPUS:-0.05}
 
   # Voice: LiveKit server, its SIP bridge and the Redis-compatible store they share.
@@ -153,21 +163,36 @@ services:
 
   # The voice agent: answers calls in LiveKit rooms and writes to the API.
   # Without its speech and LLM keys it starts, logs one line and waits.
+  # Updates (scripts/deploy.sh): the new worker registers with LiveKit (healthy) before the old one is
+  # stopped. On SIGTERM the old one takes no new calls and finishes the ones it has, for up to
+  # stop_grace_period; only then does Docker kill it.
   agent:
     <<: *service
     build: { context: ., target: agent }
     image: linedesk-agent
     env_file: [{ path: .env, required: false }]
     environment:
-      LINEDESK_API_URL: http://api:3100
+      # Through the proxy, which retries while the API is updated (docker/Caddyfile), not to api:3100.
+      LINEDESK_API_URL: http://proxy:3100
       LIVEKIT_URL: ws://livekit:7880
       AGENT_IDLE_PROCESSES: ${AGENT_IDLE_PROCESSES:-1} # processes kept warm for the next call
       # Greeting audio is made once per greeting and voice; on a volume it survives a new image,
       # so the first call after a deploy plays it stored instead of waiting for the voice provider.
       GREETING_CACHE_DIR: /var/cache/linedesk/greetings
     volumes: ["greetings:/var/cache/linedesk/greetings"]
+    # Healthy = connected and registered with LiveKit (the worker's health server on 8081). Checked every
+    # second while it starts, then once a minute: each check starts a Node process on the voice core.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8081/').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+      start_interval: 1s
+    stop_grace_period: ${LINEDESK_AGENT_DRAIN:-15m}
     depends_on:
       api: { condition: service_healthy }
+      proxy: { condition: service_started }
       livekit: { condition: service_started }
     mem_limit: ${LINEDESK_AGENT_MEM:-672m}
     cpuset: ${LINEDESK_VOICE_CPUSET:-1} # the voice core, shared by LiveKit, SIP, the agent and egress

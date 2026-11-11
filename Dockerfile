@@ -1,7 +1,8 @@
-# Three images from one file: `api` (Hono server, migrates on start), `web` (Caddy + the built SPA)
-# and `agent` (LiveKit voice agent, optional).
+# Four images from one file: `api` (Hono server, migrates on start), `web` (Caddy + the built SPA),
+# `proxy` (Caddy, the entry point in front of both) and `agent` (LiveKit voice agent, optional).
 #   docker build --target api -t linedesk-api .
 #   docker build --target web -t linedesk-web .
+#   docker build --target proxy -t linedesk-proxy .
 #   docker build --target agent -t linedesk-agent .
 
 FROM node:22-alpine AS base
@@ -53,9 +54,18 @@ COPY . .
 RUN pnpm --filter @linedesk/web build
 
 FROM caddy:2-alpine AS web
-COPY docker/Caddyfile /etc/caddy/Caddyfile
+COPY docker/web.Caddyfile /etc/caddy/Caddyfile
 COPY --from=web-build /app/apps/web/dist /srv
-# The caddy binary carries cap_net_bind_service, so it binds 80/443 without root.
+# The caddy binary carries cap_net_bind_service, so it binds 80 without root.
+RUN adduser -D -H -u 1000 caddy && chown -R caddy:caddy /data /config
+USER caddy
+HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --start-interval=1s \
+  CMD wget -q --spider http://127.0.0.1/ || exit 1
+
+# --- proxy: the entry point. Only the Caddyfile, so the image (and the running container) stays the
+# same across updates unless docker/Caddyfile changes. ---
+FROM caddy:2-alpine AS proxy
+COPY docker/Caddyfile /etc/caddy/Caddyfile
 RUN adduser -D -H -u 1000 caddy && chown -R caddy:caddy /data /config
 USER caddy
 

@@ -1,0 +1,30 @@
+# The web app's built files (the `web` service), served behind the entry point (docker/Caddyfile),
+# which also compresses. Only the proxy reaches this server.
+{
+	admin off
+}
+
+:80 {
+	root * /srv
+
+	# Built assets have a content hash in their name: cache them for good. Only files that exist,
+	# so a missing asset (an old tab after an update) is a 404 and never a cached index.html.
+	@asset {
+		path /assets/*
+		file
+	}
+	handle @asset {
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+	handle /assets/* {
+		respond "Not found" 404
+	}
+
+	# Everything else is the app shell: always revalidated, so an update is picked up at once.
+	handle {
+		header Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}
