@@ -9,9 +9,18 @@ const OPEN_TIMEOUT_MS = 8000
 /** Bumped whenever a store is added. 2: appointment types, bookings, calendar accounts and the assistant's calendars. 3: webhook endpoints. */
 const DB_VERSION = 3
 
-/** Opening waits behind a pending delete or upgrade from another tab; it must fail rather than hang. */
-const open = (name: string, timeoutMs: number) => new Promise<IDBDatabase>((resolve, reject) => {
-  const req = indexedDB.open(name, DB_VERSION)
+/**
+ * Opening waits behind a pending delete or upgrade from another tab; it must fail rather than hang.
+ * A database a newer build already upgraded (an older build after a rollback, or a tab still on the
+ * old build) is opened at its own version: versions only add stores, so it has every store this build needs.
+ */
+const open = (name: string, timeoutMs: number) => openAt(name, DB_VERSION, timeoutMs).catch((e: unknown) => {
+  if (e instanceof DOMException && e.name === 'VersionError') return openAt(name, undefined, timeoutMs)
+  throw e
+})
+
+const openAt = (name: string, version: number | undefined, timeoutMs: number) => new Promise<IDBDatabase>((resolve, reject) => {
+  const req = indexedDB.open(name, version)
   const timer = setTimeout(() => reject(new Error('The local database did not open. Another tab may be holding it.')), timeoutMs)
   // Each version only adds stores (a new synced table); the ones a device has already stay as they are.
   req.onupgradeneeded = () => { for (const s of stores) if (!req.result.objectStoreNames.contains(s)) req.result.createObjectStore(s) }

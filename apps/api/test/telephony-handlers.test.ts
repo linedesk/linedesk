@@ -140,8 +140,9 @@ describe('telephony handlers', () => {
   test('release: an attached number stays with the business but is taken off Linedesk\'s routing', () => inRollback(async tx => {
     const row = await numberRow(tx, '+15035550881')
     const account = telnyx(['+15035550881'])
-    const { data } = await run(tx, owner, 'phoneNumber.release', { phoneNumberId: row.id, confirm: '(503) 555-0881' }, account)
+    const { data, deleted } = await run(tx, owner, 'phoneNumber.release', { phoneNumberId: row.id, confirm: '(503) 555-0881' }, account)
     expect(data).toEqual({ releasedAtCarrier: false, unroutedAtCarrier: true })
+    expect(deleted).toEqual({ phone_numbers: [row.id] }) // browsers drop it at once
     expect(account.releaseNumber).not.toHaveBeenCalled()
     expect(account.unrouteNumber).toHaveBeenCalledWith({ e164: '+15035550881', providerRef: 'ref_+15035550881' })
     expect(account.account.has('+15035550881')).toBe(true)

@@ -239,7 +239,7 @@ describe('shape proxy', () => {
     })
   })
 
-  test('responses are never stored by shared caches and vary by caller', async () => {
+  test('responses are never stored, not even by the browser (a polled table asks again with the same URL after a write), and vary by caller', async () => {
     const electricHeaders = {
       'cache-control': 'public, max-age=604800, s-maxage=3600, stale-while-revalidate=2629746',
       vary: 'accept-encoding',
@@ -247,7 +247,7 @@ describe('shape proxy', () => {
     vi.stubGlobal('fetch', async () => new Response('[]', { status: 200, headers: electricHeaders }))
     const res = await app.request('/v1/shape/calls?offset=-1', { headers: a.owner.headers })
     expect(res.status).toBe(200)
-    expect(res.headers.get('cache-control')).toBe('private, max-age=604800, stale-while-revalidate=2629746')
+    expect(res.headers.get('cache-control')).toBe('no-store')
     const vary = res.headers.get('vary')!.toLowerCase()
     expect(vary).toContain('cookie')
     expect(vary).toContain('authorization')
@@ -255,7 +255,7 @@ describe('shape proxy', () => {
 
     vi.stubGlobal('fetch', async () => new Response('[]', { status: 200 }))
     const bare = await app.request('/v1/shape/calls?offset=-1', { headers: a.owner.headers })
-    expect(bare.headers.get('cache-control')).toBe('private')
+    expect(bare.headers.get('cache-control')).toBe('no-store')
   })
 
   test('does not proxy tables that are not synced', async () => {

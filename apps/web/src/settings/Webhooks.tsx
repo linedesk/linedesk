@@ -10,13 +10,13 @@ import {
 } from '@linedesk/actions'
 import type { WebhookEndpoint, WebhookEvent } from '@linedesk/db/types'
 import { type FormEvent, useEffect, useState } from 'react'
-import { useRows, useRun, useStore } from '../store.tsx'
+import { useRows, useRun } from '../store.tsx'
 import { SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { Checkbox, Switch } from '../ui/controls.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
 import { Field, Section } from './fields.tsx'
-import { callAction, readAction } from './settings-api.ts'
+import { callAction, readAction, useWriteAction } from './settings-api.ts'
 import './webhooks.css'
 
 const EVENT_LABEL: Record<WebhookEvent, string> = {
@@ -84,7 +84,7 @@ function StatusBadge({ endpoint }: { endpoint: WebhookEndpoint }) {
 
 function EndpointRow({ endpoint, onEdit, toast }: { endpoint: WebhookEndpoint; onEdit: () => void; toast: Props['toast'] }) {
   const run = useRun()
-  const store = useStore()
+  const write = useWriteAction()
   const [busy, setBusy] = useState(false)
   const [showLog, setShowLog] = useState(false)
   const [logVersion, setLogVersion] = useState(0)
@@ -106,8 +106,7 @@ function EndpointRow({ endpoint, onEdit, toast }: { endpoint: WebhookEndpoint; o
     if (!window.confirm(`Delete the endpoint ${endpoint.url}? It gets no more events, and its delivery log is deleted.`)) return
     setBusy(true)
     try {
-      await callAction('webhook.delete', { endpointId: endpoint.id })
-      store.refresh()
+      await write('webhook.delete', { endpointId: endpoint.id })
       toast('Endpoint deleted.')
     } catch (e) {
       toast((e as Error).message)
@@ -211,7 +210,7 @@ function DeliveryResult({ delivery }: { delivery: WebhookDeliverySummary }) {
 /** Add an endpoint (then its secret, once) or change one's URL and events. */
 function EndpointDialog({ endpoint, onClose, toast }: { endpoint: WebhookEndpoint | null; onClose: () => void; toast: Props['toast'] }) {
   const run = useRun()
-  const store = useStore()
+  const write = useWriteAction()
   const [url, setUrl] = useState(endpoint?.url ?? '')
   const [events, setEvents] = useState<WebhookEvent[]>(endpoint?.events ?? [...webhookEvents])
   const [error, setError] = useState<string | null>(null)
@@ -231,8 +230,7 @@ function EndpointDialog({ endpoint, onClose, toast }: { endpoint: WebhookEndpoin
     setError(null)
     const newSecret = newWebhookSecret()
     try {
-      await callAction('webhook.create', { endpointId: `whe_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`, url: url.trim(), events, secret: newSecret })
-      store.refresh()
+      await write('webhook.create', { endpointId: `whe_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`, url: url.trim(), events, secret: newSecret })
       setSecret(newSecret)
     } catch (err) {
       setError((err as Error).message)

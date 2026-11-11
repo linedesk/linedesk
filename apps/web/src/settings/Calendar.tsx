@@ -25,7 +25,7 @@ import {
   requiredLabel,
 } from './calendarModel.ts'
 import { Field, Section } from './fields.tsx'
-import { callAction } from './settings-api.ts'
+import { callAction, useWriteAction } from './settings-api.ts'
 import './calendar.css'
 
 type Props = { assistant: Assistant; canEdit: boolean; toast: (text: string) => void }
@@ -48,6 +48,7 @@ function useProviders(): ProviderId[] | null {
 }
 
 function Accounts({ assistant, canEdit, toast }: Props) {
+  const write = useWriteAction()
   const connections = useRows('calendar_connections').sort((a, b) => a.created_at.localeCompare(b.created_at))
   const connectionsLoad = useLoadState('calendar_connections')
   const providers = useProviders()
@@ -71,7 +72,7 @@ function Accounts({ assistant, canEdit, toast }: Props) {
     if (!window.confirm(`Disconnect ${connection.account_email}? The assistant stops booking into its calendars. Booked events stay.`)) return
     setBusy(connection.id)
     try {
-      const { note } = await callAction<DisconnectData>('calendar.disconnect', { connectionId: connection.id })
+      const { note } = await write<DisconnectData>('calendar.disconnect', { connectionId: connection.id })
       toast(note ?? `${connection.account_email} is disconnected.`)
     } catch (e) {
       toast((e as Error).message)
@@ -183,6 +184,7 @@ function CalendarRow({ calendar, account, canEdit, onRemove }: { calendar: Assis
 }
 
 function AddCalendar({ assistant, connections, onClose, toast }: { assistant: Assistant; connections: CalendarConnection[]; onClose: () => void; toast: (t: string) => void }) {
+  const write = useWriteAction()
   const [connectionId, setConnectionId] = useState(connections[0]?.id ?? '')
   const listed = useQuery(connectionId ? `calendar.list.${connectionId}` : null, () =>
     callAction<ListCalendarsData>('calendar.listCalendars', { connectionId }).then(data => data.calendars.filter(c => c.canWrite)),
@@ -195,7 +197,7 @@ function AddCalendar({ assistant, connections, onClose, toast }: { assistant: As
   async function add(externalId: string, name: string) {
     setAdding(externalId)
     try {
-      await callAction('assistantCalendar.add', { assistantId: assistant.id, connectionId, externalId })
+      await write('assistantCalendar.add', { assistantId: assistant.id, connectionId, externalId })
       toast(`${assistant.name} can book into ${name} now.`)
       onClose()
     } catch (e) {

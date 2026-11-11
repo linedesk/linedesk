@@ -367,7 +367,7 @@ const handlers: Record<string, Handler> = {
       }
     }
     // No rows: the delete reaches browsers through read sync (a returned row would be written back locally).
-    return { rows: {}, data: { releasedAtCarrier, unroutedAtCarrier } }
+    return { rows: {}, deleted: { phone_numbers: [number.id] }, data: { releasedAtCarrier, unroutedAtCarrier } }
   },
 }
 

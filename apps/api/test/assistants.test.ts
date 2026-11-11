@@ -82,7 +82,7 @@ describe('assistant.create and assistant.delete', () => {
     expect((await act(lone.owner, 'phoneNumber.update', { phoneNumberId: pn.id, assistantId: second })).status).toBe(
       200,
     )
-    expect((await act(lone.owner, 'assistant.delete', { assistantId: second })).status).toBe(200)
+    expect(await act(lone.owner, 'assistant.delete', { assistantId: second })).toMatchObject({ status: 200, body: { deleted: { assistants: [second], assistant_calendars: [] } } })
     expect(await getAssistant(second)).toBeUndefined()
     expect((await numberRow(lone.number)).assistant_id).toBe(lone.assistant.id)
     const last = await act(lone.owner, 'assistant.delete', { assistantId: lone.assistant.id })

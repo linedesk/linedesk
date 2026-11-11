@@ -297,7 +297,7 @@ describe('appointment types', () => {
       const id = (added.rows.appointment_types as { id: string }[])[0]!.id
       expect(added.rows.appointment_types).toMatchObject([{ name: 'Estimate', duration_min: 30, workspace_id: ws.id, enabled: true }])
       expect((await run(tx, owner, services, 'appointmentType.upsert', { appointmentTypeId: id, name: 'Free estimate', durationMin: 45 })).rows.appointment_types).toMatchObject([{ name: 'Free estimate', duration_min: 45 }])
-      expect((await run(tx, owner, services, 'appointmentType.delete', { appointmentTypeId: id })).data).toEqual({ deleted: true })
+      expect(await run(tx, owner, services, 'appointmentType.delete', { appointmentTypeId: id })).toMatchObject({ data: { deleted: true }, deleted: { appointment_types: [id] } })
       await run(tx, owner, services, 'appointment.book', book(at('09:00')))
       expect((await run(tx, owner, services, 'appointmentType.delete', { appointmentTypeId: typeId })).data).toEqual({ deleted: false })
       expect((await tx.select().from(appointment_types).where(eq(appointment_types.id, typeId)))[0]!.enabled).toBe(false)

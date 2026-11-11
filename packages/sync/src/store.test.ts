@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto'
-import type { Call } from '@linedesk/db/types'
+import { type Call, tableNames } from '@linedesk/db/types'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ReadSyncAdapter, TableSink } from './adapter.ts'
 import { createStore } from './store.ts'
@@ -47,6 +47,29 @@ describe('store', () => {
     })
     calls().upsert([call({ version: 2 })]) // a stale sync message must not undo it
     expect(store.rows('calls')[0]!.inbox_state).toBe('done')
+    store.stop()
+  })
+
+  it('drops the rows an action deleted as soon as the server answers, without waiting for read sync', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => respond(200, { ok: true, rows: {}, deleted: { calls: ['c1'] } })))
+    const { adapter, calls } = fakeAdapter()
+    const refresh = vi.fn()
+    const store = await open({ ...adapter, refresh })
+    calls().upsert([call(), call({ id: 'c2' })])
+    await store.run('call.markDone', { callId: 'c1' })
+    await eventually(() => expect(store.rows('calls').map(c => c.id)).toEqual(['c2']))
+    expect(refresh).toHaveBeenCalled()
+    store.stop()
+  })
+
+  it('shows the rows of an action that ran outside the outbox at once, and asks the server for the rest', async () => {
+    const { adapter, calls } = fakeAdapter()
+    const refresh = vi.fn()
+    const store = await open({ ...adapter, refresh })
+    calls().upsert([call({ id: 'old' })])
+    store.applyResult({ rows: { calls: [call({ id: 'new', version: 3 })] }, deleted: { calls: ['old'] } })
+    expect(store.rows('calls').map(c => c.id)).toEqual(['new'])
+    expect(refresh).toHaveBeenCalledOnce()
     store.stop()
   })
 
@@ -206,5 +229,29 @@ describe('store', () => {
     const again = await open(fakeAdapter().adapter) // opens at once, empty
     expect(again.rows('calls')).toEqual([])
     again.stop()
+  })
+})
+
+describe('local database', () => {
+  it('opens a database a newer build already upgraded (older build after a rollback), keeping its rows', async () => {
+    const name = `newer-${n}`
+    await new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open(name, 99)
+      req.onupgradeneeded = () => {
+        for (const s of [...tableNames, 'outbox', 'meta', 'a_table_from_the_future']) req.result.createObjectStore(s)
+      }
+      req.onsuccess = () => {
+        const tx = req.result.transaction('calls', 'readwrite')
+        tx.objectStore('calls').put(call({ id: 'kept' }), 'kept')
+        tx.oncomplete = () => {
+          req.result.close()
+          resolve()
+        }
+      }
+      req.onerror = () => reject(req.error)
+    })
+    const store = await open(fakeAdapter().adapter, { dbName: name })
+    expect(store.rows('calls').map(c => c.id)).toEqual(['kept'])
+    store.stop()
   })
 })

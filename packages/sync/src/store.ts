@@ -124,6 +124,30 @@ export async function createStore(opts: StoreOptions) {
       })
   }
 
+  /** Rows an action deleted on the server: gone here and in the other tabs at once. */
+  function removeDeleted(deleted: ActionResult['deleted']) {
+    for (const [table, ids] of Object.entries(deleted ?? {})) {
+      if (!ids?.length) continue
+      removeRows(table as TableName, ids)
+      tabs.post({ type: 'remove', table: table as TableName, ids })
+    }
+  }
+
+  /**
+   * The result of an action that ran directly, not through the outbox (it needed the server's answer
+   * first): its rows and deletions show at once, here and in the other tabs.
+   */
+  function applyResult(result: Pick<ActionResult, 'rows' | 'deleted'>) {
+    if (stopped) return
+    for (const [table, rows] of Object.entries(result.rows ?? {})) {
+      confirm(table as TableName, rows as AnyRow[])
+      tabs.post({ type: 'upsert', table: table as TableName, rows: rows as AnyRow[] })
+    }
+    removeDeleted(result.deleted)
+    recompute()
+    opts.adapter.refresh?.()
+  }
+
   /** Read sync runs in the leading tab only; what it brings is passed on to the other tabs. */
   const sinkFor = <T extends TableName>(table: T): TableSink<T> => ({
     upsert(rows) {
@@ -219,6 +243,7 @@ export async function createStore(opts: StoreOptions) {
         if (stopped) return
         if (body.ok) {
           for (const [table, rows] of Object.entries(body.rows)) confirm(table as TableName, rows as AnyRow[])
+          removeDeleted(body.deleted)
         } else if (mine.has(c.id)) {
           opts.onReject?.({ action: c.name, input: c.input, error: body.error }) // dropping it rolls the UI back
         }
@@ -308,6 +333,7 @@ export async function createStore(opts: StoreOptions) {
   return {
     run,
     flush,
+    applyResult,
     /** Asks the server for changes now, e.g. after an action that ran outside the outbox. */
     refresh: () => opts.adapter.refresh?.(),
     subscribe: (l: () => void) => {

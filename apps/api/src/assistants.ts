@@ -1,7 +1,7 @@
 // A workspace's assistants: which one answers a number or a test call, and the actions that add,
 // copy and delete them or move a number to another one. Every lookup is scoped to the workspace, so
 // an assistant id from another workspace is refused, never used.
-import { assistants, organization, phone_numbers, type Tx } from '@linedesk/db'
+import { assistant_calendars, assistants, organization, phone_numbers, type Tx } from '@linedesk/db'
 import type { Assistant } from '@linedesk/db/types'
 import { and, asc, eq, ne } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
@@ -97,9 +97,14 @@ export const assistantHandlers: Record<string, Handler> = {
       .set({ assistant_id: next.id })
       .where(and(eq(phone_numbers.workspace_id, workspaceId), eq(phone_numbers.assistant_id, doomed!.id)))
       .returning()
+    // Its calendars go with it (foreign key cascade).
+    const calendars = await tx.select({ id: assistant_calendars.id }).from(assistant_calendars).where(eq(assistant_calendars.assistant_id, doomed!.id))
     await tx.delete(assistants).where(and(eq(assistants.id, doomed!.id), eq(assistants.workspace_id, workspaceId)))
-    // The deleted row reaches browsers through read sync (a returned row would be written back locally).
-    return { rows: { phone_numbers: moved }, data: { movedTo: next.id } }
+    return {
+      rows: { phone_numbers: moved },
+      deleted: { assistants: [doomed!.id], assistant_calendars: calendars.map(c => c.id) },
+      data: { movedTo: next.id },
+    }
   },
 
   'phoneNumber.update': async ({ tx, actor }, input) => {

@@ -305,7 +305,7 @@ export const webhookHandlers: Record<string, Handler> = {
   'webhook.delete': async ({ tx, actor }, input: { endpointId: string }) => {
     const endpoint = await endpointIn(tx, workspaceOf(actor), input.endpointId)
     await tx.delete(webhook_endpoints).where(eq(webhook_endpoints.id, endpoint.id))
-    return { rows: {}, data: { endpointId: endpoint.id } }
+    return { rows: {}, deleted: { webhook_endpoints: [endpoint.id] }, data: { endpointId: endpoint.id } }
   },
 
   // Read-only in the registry, so it runs outside a transaction: the request to the endpoint never holds one open.

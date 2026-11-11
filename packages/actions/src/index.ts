@@ -123,6 +123,8 @@ export const actions: ReadonlyMap<string, ActionDef> = new Map(all.map(a => [a.n
 export type ActionResult = {
   ok: true
   rows: Partial<Record<import('@linedesk/db/types').TableName, Record<string, unknown>[]>>
+  /** Ids of synced rows the action deleted, so browsers drop them at once instead of at the next read sync. */
+  deleted?: Partial<Record<import('@linedesk/db/types').TableName, string[]>>
   data?: Record<string, unknown>
 }
 export type ActionRejection = { ok: false; error: string }

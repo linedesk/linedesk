@@ -330,7 +330,7 @@ export const bookingHandlers: Record<string, Handler> = {
     const [used] = await tx.select({ id: bookings.id }).from(bookings).where(eq(bookings.appointment_type_id, type.id)).limit(1)
     if (used) return { rows: { appointment_types: await tx.update(appointment_types).set({ enabled: false }).where(scope).returning() }, data: { deleted: false } }
     await tx.delete(appointment_types).where(scope)
-    return { rows: {}, data: { deleted: true } }
+    return { rows: {}, deleted: { appointment_types: [type.id] }, data: { deleted: true } }
   },
 }
 

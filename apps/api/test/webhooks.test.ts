@@ -272,7 +272,7 @@ describe('delivery', () => {
 
   test('deleting an endpoint removes its log and secret; its pending deliveries send nothing', async () => {
     const { endpointId, deliveryId } = await queuedDelivery()
-    expect((await act(ws.owner, 'webhook.delete', { endpointId })).status).toBe(200)
+    expect(await act(ws.owner, 'webhook.delete', { endpointId })).toMatchObject({ status: 200, body: { deleted: { webhook_endpoints: [endpointId] } } })
     expect(await deliveriesOf(endpointId)).toEqual([])
     expect(await db.select().from(webhook_secrets).where(and(eq(webhook_secrets.endpoint_id, endpointId)))).toEqual([])
     expect(await attemptDelivery(db, deliveryId)).toBe('skipped')

@@ -199,12 +199,13 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
     // Read before the delete: the tokens go with the connection (foreign key cascade), as do its assistant calendars.
     const [credentials] = await tx.select({ refresh: calendar_credentials.refresh_token_encrypted }).from(calendar_credentials)
       .where(and(eq(calendar_credentials.connection_id, input.connectionId), eq(calendar_credentials.workspace_id, workspace_id)))
+    const calendars = await tx.select({ id: assistant_calendars.id }).from(assistant_calendars)
+      .where(and(eq(assistant_calendars.connection_id, input.connectionId), eq(assistant_calendars.workspace_id, workspace_id)))
     const [connection] = await tx.delete(calendar_connections)
       .where(and(eq(calendar_connections.id, input.connectionId), eq(calendar_connections.workspace_id, workspace_id))).returning()
     if (!connection) throw new Reject('calendar account not found')
     const data: DisconnectData = await revokeGrant(ctx, connection, credentials?.refresh)
-    // No rows: the delete reaches browsers through read sync.
-    return { rows: {}, data }
+    return { rows: {}, deleted: { calendar_connections: [connection.id], assistant_calendars: calendars.map(c => c.id) }, data }
   },
 
   'assistantCalendar.add': async ({ tx, actor, ...ctx }, input: { assistantId: string; connectionId: string; externalId: string; instruction?: string }) => {
@@ -239,10 +240,11 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
   'assistantCalendar.remove': async ({ tx, actor }, input: { assistantCalendarId: string }) => {
     const removed = await loadAssistantCalendar(tx, workspaceOf(actor), input.assistantCalendarId)
     await tx.delete(assistant_calendars).where(eq(assistant_calendars.id, removed.id))
+    const deleted = { assistant_calendars: [removed.id] }
     // The assistant keeps a default as long as it has a calendar: the oldest remaining one.
-    if (!removed.is_default) return { rows: {} }
+    if (!removed.is_default) return { rows: {}, deleted }
     const [next] = await tx.select().from(assistant_calendars).where(eq(assistant_calendars.assistant_id, removed.assistant_id)).orderBy(asc(assistant_calendars.created_at)).limit(1)
-    return { rows: next ? { assistant_calendars: await tx.update(assistant_calendars).set({ is_default: true }).where(eq(assistant_calendars.id, next.id)).returning() } : {} }
+    return { rows: next ? { assistant_calendars: await tx.update(assistant_calendars).set({ is_default: true }).where(eq(assistant_calendars.id, next.id)).returning() } : {}, deleted }
   },
 }
 
