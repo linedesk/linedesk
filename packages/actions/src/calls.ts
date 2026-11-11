@@ -133,6 +133,35 @@ export type CallTestFinding = {
   turns: { caller: number; agent: number; system: number }
   /** The transcript in order; `at_ms` is when each line was written, from the start of the call. */
   lines: { speaker: string; text: string; at_ms: number }[]
+  /** Whether the workspace's assistant can book (an appointment type and an enabled calendar of a connected account). */
+  bookingReady?: boolean
+  /**
+   * The call's bookings. `event` is what the calendar provider says now: the event exists (`found`, at
+   * `event_start`), is gone (`missing`), or could not be asked (`unchecked`, with the reason).
+   */
+  bookings?: {
+    id: string
+    status: string
+    start_at: string
+    title: string | null
+    calendar_name: string | null
+    calendar_instruction: string | null
+    event: 'found' | 'missing' | 'unchecked'
+    event_start: string | null
+    note: string | null
+  }[]
+}
+
+/** What call.start tells the agent about booking; null when the assistant cannot book (no type or no calendar). */
+export type BookingContext = {
+  timeZone: string
+  /** Today in the business's time zone, as the assistant says it ("Wednesday, November 11, 2026"), and as YYYY-MM-DD. */
+  today: string
+  todayDate: string
+  appointmentTypes: { id: string; name: string; duration_min: number; required_fields: ('phone' | 'email' | 'address')[] }[]
+  calendars: { id: string; name: string; instruction: string; is_default: boolean }[]
+  /** The caller's upcoming bookings made through Linedesk: the only ones the assistant may cancel or move. */
+  upcoming: { id: string; label: string; title: string | null }[]
 }
 
 export const callAppendTranscript = defineAction({

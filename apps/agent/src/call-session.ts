@@ -1,5 +1,5 @@
 // One call as the agent sees it: start, append transcript segments, finish.
-import { callAppendTranscript, callFinish, callStart, callStartTest } from '@linedesk/actions'
+import { type BookingContext, callAppendTranscript, callFinish, callStart, callStartTest } from '@linedesk/actions'
 import type { Assistant, Contact, ToolEvent } from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
@@ -19,11 +19,13 @@ export interface CallSession {
   blocked: boolean
   /** null: the business has no hours set, and the assistant says nothing about them. */
   businessHours: BusinessHours | null
+  /** What the assistant can book; null: no appointment type or no calendar, so it only takes messages. */
+  booking: BookingContext | null
   append(speaker: Speaker, text: string, toolEvent?: ToolEvent): Promise<void>
   finish(result: CallResult): Promise<void>
 }
 
-type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'contact'> & { blocked?: boolean; businessHours?: BusinessHours | null }
+type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'contact'> & { blocked?: boolean; businessHours?: BusinessHours | null; booking?: BookingContext | null }
 
 /**
  * Where a call comes from. A test call may bring `businessHours` to use instead of the workspace's
@@ -40,9 +42,10 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   const started = data as StartData
   const { callId, workspaceId, assistant, contact, blocked = false } = started
   const businessHours = (origin.kind === 'test' && origin.businessHours) || started.businessHours || null
+  const booking = started.booking ?? null
   const startedAt = Date.now()
   return {
-    callId, workspaceId, assistant, contact, blocked, businessHours,
+    callId, workspaceId, assistant, contact, blocked, businessHours, booking,
     async append(speaker, text, toolEvent) {
       await api.run(callAppendTranscript, { callId, speaker, text, atMs: Date.now() - startedAt, toolEvent }, workspaceId)
     },

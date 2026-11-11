@@ -10,6 +10,8 @@ export class CallLog {
   readonly lines: TranscriptLine[] = []
   readonly messages: string[] = []
   urgent = false
+  /** What the assistant booked on this call ("Repair visit, Tuesday, November 17 at 9:00 AM"). */
+  readonly bookings: string[] = []
   private pending: Promise<unknown>[] = []
 
   private call: CallSession

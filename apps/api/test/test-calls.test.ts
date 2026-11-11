@@ -118,7 +118,7 @@ test('call.findForTest finds the newest call between two numbers since a moment,
   const since = new Date(Date.now() - 1000).toISOString()
   const from = '+15035550192'
   const none = await act(agent(), 'call.findForTest', { from, to: ws.number, since })
-  expect(none.body.data).toEqual({ workspaceId: ws.id, call: null, turns: { caller: 0, agent: 0, system: 0 }, lines: [] })
+  expect(none.body.data).toEqual({ workspaceId: ws.id, call: null, turns: { caller: 0, agent: 0, system: 0 }, lines: [], bookingReady: false, bookings: [] })
 
   const { body } = await act(agent(), 'call.start', { from, to: ws.number })
   const callId = body.data.callId

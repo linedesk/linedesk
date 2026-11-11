@@ -4,6 +4,7 @@
 import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
 import { fromDrizzle, PgBoss } from 'pg-boss'
+import { sendBookingConfirmation } from './booking-confirmation.ts'
 import { notifyCallFinished } from './call-notifications.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
@@ -17,6 +18,8 @@ export const RECORDING_CLEANUP = 'recordings.cleanup'
 const RECORDING_CLEANUP_CRON = '17 3 * * *'
 /** Emails about one finished call. Retried a few times when no email could go out at all. */
 export const CALL_NOTIFY = 'call.notify'
+/** The confirmation email to a caller who booked. */
+export const BOOKING_CONFIRM = 'booking.confirm'
 
 let boss: PgBoss | null = null
 
@@ -37,6 +40,7 @@ async function runJobs(instance: PgBoss, env: Env) {
     if (result.failed && !result.sent) throw new Error(`no call email could be sent (${result.failed} failed)`)
     return result
   })
+  await instance.work<{ bookingId: string }>(BOOKING_CONFIRM, async ([job]) => sendBookingConfirmation(db, emailSender, job!.data.bookingId))
 }
 
 export async function startJobs(env: Env = process.env): Promise<PgBoss> {
@@ -50,6 +54,7 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.start()
   await instance.createQueue(RECORDING_CLEANUP)
   await instance.createQueue(CALL_NOTIFY, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
+  await instance.createQueue(BOOKING_CONFIRM, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   if (workHere) await runJobs(instance, env)
   boss = instance
   return instance
@@ -71,4 +76,9 @@ export const setJobQueue = (queue: PgBoss | null) => {
  */
 export async function queueCallNotification(tx: Tx, callId: string) {
   await boss?.send(CALL_NOTIFY, { callId }, { db: fromDrizzle(tx, sql) })
+}
+
+/** Queues the caller's confirmation email in the booking's transaction. Without a queue (tests) nothing is sent. */
+export async function queueBookingConfirmation(tx: Tx, bookingId: string) {
+  await boss?.send(BOOKING_CONFIRM, { bookingId }, { db: fromDrizzle(tx, sql) })
 }

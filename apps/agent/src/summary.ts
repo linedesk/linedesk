@@ -32,7 +32,7 @@ Answer with one JSON object and nothing else:
   "action_items": things the owner still has to do, each a short imperative sentence, [] if none,
   "caller_name": the caller's name if they gave it, else null
 }
-Outcomes: "message" when the assistant took a message, "callback" when the caller expects a call back, "answered" when the question was fully answered, "hangup" when the caller said nothing or left right away, "spam" for sales and robocalls. Use "urgent" only for emergencies.
+Outcomes: "booked" when the assistant booked an appointment, "message" when the assistant took a message, "callback" when the caller expects a call back, "answered" when the question was fully answered, "hangup" when the caller said nothing or left right away, "spam" for sales and robocalls. Use "urgent" only for emergencies.
 Lines starting with "system:" are tools the assistant used. Messages the assistant already saved are listed after the transcript: they are action items already, never repeat or rephrase them in "action_items".`
 
 const formatTranscript = (lines: TranscriptLine[]) => lines.map(l => `${l.speaker}: ${l.text}`).join('\n')
@@ -79,10 +79,13 @@ export async function summarizeCall(lines: TranscriptLine[], complete: CompleteJ
   }
 }
 
-/** What goes into `call.finish`: tools used during the call win over the summary (a taken message makes it a message). */
-export function mergeToolResults(result: CallResult, tools: { messages: string[]; urgent: boolean }): CallResult {
+/**
+ * What goes into `call.finish`: tools used during the call win over the summary (a booking makes it
+ * booked, a taken message a message).
+ */
+export function mergeToolResults(result: CallResult, tools: { messages: string[]; urgent: boolean; bookings?: string[] }): CallResult {
   const taken = tools.messages.map(text => ({ text }))
   const extra = (result.actionItems ?? []).filter(item => !tools.messages.includes(item.text))
-  const outcome = taken.length && NOT_A_MESSAGE.has(result.outcome) ? 'message' : result.outcome
+  const outcome = tools.bookings?.length ? 'booked' : taken.length && NOT_A_MESSAGE.has(result.outcome) ? 'message' : result.outcome
   return { ...result, outcome, urgency: tools.urgent ? 'urgent' : result.urgency, actionItems: [...taken, ...extra] }
 }

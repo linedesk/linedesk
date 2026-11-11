@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { defineAction } from './define.ts'
 
 const instant = z.iso.datetime({ offset: true })
+const localDate = z.iso.date()
+export const bookingField = z.enum(['phone', 'email', 'address'])
 
 // The server handler lives in apps/api; the slots come back in the result's `data`.
 export const calendarFindSlots = defineAction({
@@ -12,14 +14,91 @@ export const calendarFindSlots = defineAction({
     /** Search window. Defaults to now until the type's booking horizon. */
     from: instant.optional(),
     to: instant.optional(),
+    /** The window as local dates in the workspace's time zone (both included), for callers that think in days (the voice agent). */
+    fromDate: localDate.optional(),
+    toDate: localDate.optional(),
+    /** One of the assistant's calendars (assistant_calendars id): its busy times at the provider count too. */
+    calendarId: z.string().min(1).optional(),
     limit: z.number().int().min(1).max(200).default(20),
   }),
   permission: 'calendar:read',
   readOnly: true,
 })
 
-/** `data` of a successful `calendar.findSlots` result. Instants are ISO 8601 in UTC, earliest first. */
-export type FindSlotsData = { appointmentTypeId: string; timeZone: string; slots: { start: string; end: string }[] }
+/**
+ * `data` of a successful `calendar.findSlots` result. Instants are ISO 8601 in UTC, earliest first;
+ * `label` is the start as the business says it ("Tuesday, November 17 at 9:00 AM").
+ */
+export type FindSlotsData = { appointmentTypeId: string; timeZone: string; slots: { start: string; end: string; label: string }[] }
+
+/** Longest caller name, reason and address on a booking (characters). */
+const BOOKING_TEXT_MAX = 500
+
+export const appointmentBook = defineAction({
+  name: 'appointment.book',
+  description:
+    "Book an appointment into one of the assistant's calendars: checks the slot is still free, writes the calendar event (caller, number, reason, address) and stores the booking, linked to the call.",
+  input: z.object({
+    appointmentTypeId: z.string().min(1),
+    /** The assistant_calendars id; it must be one of the assistant's enabled calendars. */
+    calendarId: z.string().min(1),
+    /** A slot start from calendar.findSlots. */
+    start: instant,
+    callerName: z.string().trim().min(1).max(BOOKING_TEXT_MAX),
+    reason: z.string().trim().min(1).max(BOOKING_TEXT_MAX),
+    address: z.string().trim().max(BOOKING_TEXT_MAX).optional(),
+    /** The caller's number; defaults to the number of the call. */
+    callerPhone: z.string().trim().max(40).optional(),
+    /** Where the confirmation is emailed; defaults to the contact's email. */
+    callerEmail: z.email().max(254).optional(),
+    callId: z.string().min(1).optional(),
+    /** The assistant that books: the calendar must be one of its. */
+    assistantId: z.string().min(1).optional(),
+  }),
+  permission: 'calendar:write',
+})
+
+/** `data` of appointment.book. */
+export type BookData = { bookingId: string; start: string; end: string; label: string; calendarName: string }
+
+/** On a call (`callId`), only the caller's own bookings: the agent must say which call it is on. */
+export const appointmentCancel = defineAction({
+  name: 'appointment.cancel',
+  description: 'Cancel a booking made through Linedesk: deletes its calendar event and marks it cancelled.',
+  input: z.object({ bookingId: z.string().min(1), callId: z.string().min(1).optional() }),
+  permission: 'calendar:write',
+})
+
+export const appointmentReschedule = defineAction({
+  name: 'appointment.reschedule',
+  description: 'Move a booking made through Linedesk to another free slot: the calendar event moves with it.',
+  input: z.object({ bookingId: z.string().min(1), start: instant, callId: z.string().min(1).optional() }),
+  permission: 'calendar:write',
+})
+
+export const appointmentTypeUpsert = defineAction({
+  name: 'appointmentType.upsert',
+  description: 'Add an appointment type (name, length in minutes), or change one when its id is given.',
+  input: z.object({
+    appointmentTypeId: z.string().min(1).optional(),
+    name: z.string().trim().min(1).max(80),
+    durationMin: z.number().int().min(5).max(24 * 60),
+    bufferMin: z.number().int().min(0).max(240).optional(),
+    minNoticeHours: z.number().int().min(0).max(24 * 30).optional(),
+    maxDaysAhead: z.number().int().min(1).max(365).optional(),
+    enabled: z.boolean().optional(),
+    /** Details the assistant must have before booking, on top of name and reason. */
+    requiredFields: z.array(bookingField).max(3).optional(),
+  }),
+  permission: 'settings:write',
+})
+
+export const appointmentTypeDelete = defineAction({
+  name: 'appointmentType.delete',
+  description: 'Delete an appointment type. One that has bookings is switched off instead, so its bookings keep their type.',
+  input: z.object({ appointmentTypeId: z.string().min(1) }),
+  permission: 'settings:write',
+})
 
 // Calendar accounts and the calendars an assistant books into. Connecting is OAuth: connectStart
 // returns the provider's consent URL; the provider sends the browser back to

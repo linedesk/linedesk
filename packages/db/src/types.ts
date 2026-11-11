@@ -7,6 +7,8 @@ import type {
 export type ActionItem = { text: string; done?: boolean }
 export type CallField = { label: string; value: string }
 export type ToolEvent = { tool: string; label: string }
+/** Booking details an appointment type can require on top of the caller's name and the reason. */
+export type BookingField = 'phone' | 'email' | 'address'
 export type AssistantVoice = { provider: string; voice_id: string }
 export type BusinessProfile = {
   /** Free text from the business: what the assistant should know and do. When set, the agent uses it instead of the fields below. */

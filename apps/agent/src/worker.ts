@@ -6,6 +6,7 @@ import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@l
 import type { RemoteParticipant } from '@livekit/rtc-node'
 import { z } from 'zod'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
+import { bookingTools } from './booking-tools.ts'
 import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log.ts'
 import { callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
@@ -40,9 +41,61 @@ function endTestCallLater(ctx: JobContext) {
   ctx.addShutdownCallback(async () => clearTimeout(timer))
 }
 
+/** find_slots and book_appointment, only when the assistant has an appointment type and a calendar. */
+// biome-ignore lint/suspicious/noExplicitAny: tools of different parameter types in one map
+function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record<string, llm.AnonFunctionTool<any, any, any>> {
+  if (!call.booking) return {}
+  const booking = bookingTools(api, call, log)
+  const typeId = z.string().describe('The id of the appointment type, from the list in your instructions.')
+  const calendarId = z.string().describe('The id of the calendar whose note fits the request, from the list in your instructions.')
+  return {
+    find_slots: llm.tool({
+      description: 'Look up free times for an appointment in one calendar. Say a short filler like "Let me check the calendar" in the same response.',
+      parameters: z.object({
+        appointment_type_id: typeId,
+        calendar_id: calendarId,
+        from_date: z.string().nullish().describe('First day to look at, YYYY-MM-DD; omit for today.'),
+        to_date: z.string().nullish().describe('Last day to look at, YYYY-MM-DD; omit to look ahead as far as possible.'),
+      }),
+      execute: args => booking.findSlots(args),
+    }),
+    book_appointment: llm.tool({
+      description: 'Book a time the caller chose from find_slots. Only after the caller agreed to that exact time.',
+      parameters: z.object({
+        appointment_type_id: typeId,
+        calendar_id: calendarId,
+        start: z.string().describe('The exact start in brackets from find_slots.'),
+        caller_name: z.string().describe("The caller's name."),
+        reason: z.string().describe('One sentence: what the appointment is for.'),
+        address: z.string().nullish().describe('Where the visit is, if it is on site.'),
+        email: z.string().nullish().describe("The caller's email address, if they gave one: the confirmation goes there."),
+      }),
+      execute: args => booking.book(args),
+    }),
+    ...(call.booking.upcoming.length
+      ? {
+          cancel_appointment: llm.tool({
+            description: "Cancel one of the caller's upcoming appointments listed in your instructions, after the caller confirmed which one.",
+            parameters: z.object({ booking_id: z.string().describe('The booking id from your instructions.') }),
+            execute: ({ booking_id }) => booking.cancel(booking_id),
+          }),
+          reschedule_appointment: llm.tool({
+            description: "Move one of the caller's upcoming appointments to a time from find_slots the caller agreed to.",
+            parameters: z.object({
+              booking_id: z.string().describe('The booking id from your instructions.'),
+              start: z.string().describe('The exact start in brackets from find_slots.'),
+            }),
+            execute: ({ booking_id, start }) => booking.reschedule(booking_id, start),
+          }),
+        }
+      : {}),
+  }
+}
+
 function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: () => void) {
   const { callId, workspaceId } = call
   return {
+    ...bookingToolset(api, call, log),
     take_message: llm.tool({
       description: 'Save a message for the team. Use it whenever the caller wants a callback, a visit, a quote or anything you cannot do yourself.',
       parameters: z.object({ message: z.string().describe('One complete sentence: who wants what, and how to reach them.') }),
@@ -123,7 +176,7 @@ async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClie
   logTurnMetrics(session, call.callId)
   skipQuietToolReplies(session, QUIET_TOOLS)
   session.on(voice.AgentSessionEventTypes.Close, onClose)
-  const instructions = buildInstructions(call.assistant, call.businessHours)
+  const instructions = buildInstructions(call.assistant, call.businessHours, call.booking)
   void warmUpLlm(config.llm, instructions)
   await session.start({
     agent: new voice.Agent({ instructions, tools: assistantTools(api, call, log, () => hangUpAfterSpeech(speakingOf(session), () => void ctx.deleteRoom().catch(() => {}))) }),

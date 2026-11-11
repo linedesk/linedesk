@@ -19,7 +19,7 @@ import {
   timestamp,
   unique,
 } from 'drizzle-orm/pg-core'
-import type { ActionItem, AssistantVoice, BusinessProfile, CallField, ToolEvent } from './types.ts'
+import type { ActionItem, AssistantVoice, BookingField, BusinessProfile, CallField, ToolEvent } from './types.ts'
 
 export const rowVersion = pgSequence('row_version')
 
@@ -249,6 +249,8 @@ export const appointment_types = pgTable(
       .notNull()
       .default('on_site'),
     enabled: boolean('enabled').notNull().default(true),
+    /** What the assistant must have before it books this type: the caller's name and the reason always, plus any of these. */
+    required_fields: jsonb('required_fields').$type<BookingField[]>().notNull().default([]),
     created_at: createdAt(),
     version: version(),
   },
@@ -362,6 +364,10 @@ export const bookings = pgTable(
     /** The event's title ("Repair visit · Sam Patel") and the calendar's name, as they were when booked. */
     title: text('title'),
     calendar_name: text('calendar_name'),
+    /** The caller's email address, if they gave one. */
+    caller_email: text('caller_email'),
+    /** The confirmation email: queued, or skipped by the limits (one per call, a few per workspace an hour). */
+    confirmation: text('confirmation', { enum: ['queued', 'skipped'] }),
     created_at: createdAt(),
     version: version(),
   },

@@ -1,15 +1,15 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, confirmsNumber, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type FindSlotsData } from '@linedesk/actions'
-import { businessHoursContext, type BusinessHoursContext, findSlots, type FindSlotsInput, type Interval } from '@linedesk/calendar'
-import {
-  appointment_types, availability_exceptions, availability_rules, bookings, calls, contacts, organization, phone_numbers, syncedTables,
+import { actions, confirmsNumber, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, } from '@linedesk/actions'
+import { businessHoursContext, type BusinessHoursContext, } from '@linedesk/calendar'
+import {availability_rules, calls, contacts, organization, phone_numbers, syncedTables,
   transcript_segments, workspace_settings, type Tx,
 } from '@linedesk/db'
 import type { Assistant } from '@linedesk/db/types'
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
-import { and, asc, desc, eq, gt, gte, lt, lte, ne } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
 import { assistantForNumber, assistantHandlers, assistantIn } from './assistants.ts'
+import { bookingContext, bookingHandlers, bookingsForTest, DEFAULT_TIME_ZONE } from './bookings.ts'
 import { calendarConnectionHandlers } from './calendar-connections.ts'
 import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
@@ -46,39 +46,6 @@ async function loadCall(tx: Tx, actor: Actor, callId: string) {
   return call
 }
 
-const DAY_MS = 86_400_000
-/** Used until a workspace has stored its own time zone. */
-const DEFAULT_TIME_ZONE = 'America/New_York'
-const shift = (iso: string, ms: number) => new Date(Date.parse(iso) + ms).toISOString()
-const earlier = (a: string, b: string) => (Date.parse(a) <= Date.parse(b) ? a : b)
-
-/** Bookings that can collide with a slot in `window`, the buffer on both sides included. */
-function loadBusy(tx: Tx, workspaceId: string, window: Interval, bufferMin: number) {
-  const bufferMs = bufferMin * 60_000
-  return tx.select({ start: bookings.start_at, end: bookings.end_at }).from(bookings).where(and(
-    eq(bookings.workspace_id, workspaceId), ne(bookings.status, 'cancelled'),
-    gt(bookings.end_at, shift(window.start, -bufferMs)), lt(bookings.start_at, shift(window.end, bufferMs)),
-  ))
-}
-
-/** Exceptions on the dates `window` can touch; a day of slack on each side covers every time zone. */
-function loadExceptions(tx: Tx, workspaceId: string, window: Interval) {
-  const day = (iso: string, days: number) => shift(iso, days * DAY_MS).slice(0, 10)
-  return tx.select().from(availability_exceptions).where(and(
-    eq(availability_exceptions.workspace_id, workspaceId),
-    gte(availability_exceptions.date, day(window.start, -1)), lte(availability_exceptions.date, day(window.end, 1)),
-  ))
-}
-
-/** Stored calendar setup the engine cannot work with is the caller's problem to fix, not a server error. */
-function findSlotsOrReject(input: FindSlotsInput) {
-  try {
-    return findSlots(input)
-  } catch (e) {
-    if (e instanceof RangeError) throw new Reject(`calendar setup is invalid: ${e.message}`)
-    throw e
-  }
-}
 
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -168,7 +135,8 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
     ...(blocked ? blockedCall(now) : {}),
   }).returning()
   const businessHours = await businessHoursFor(tx, workspace_id, now)
-  return { rows: { calls: [call!], contacts: [contact!] }, data: { callId: id, workspaceId: workspace_id, isNewContact, contact: contact!, assistant: assistant ?? null, blocked, businessHours } }
+  const booking = blocked ? null : await bookingContext(tx, workspace_id, now, { contactId: contact!.id, assistantId: assistant?.id ?? null })
+  return { rows: { calls: [call!], contacts: [contact!] }, data: { callId: id, workspaceId: workspace_id, isNewContact, contact: contact!, assistant: assistant ?? null, blocked, businessHours, booking } }
 }
 
 /** A call from a blocked number: over before it began, read, in Spam. */
@@ -185,30 +153,7 @@ const handlers: Record<string, Handler> = {
   ...workspaceSettingsHandlers,
   ...notificationHandlers,
   ...calendarConnectionHandlers,
-
-  'calendar.findSlots': async ({ tx, actor, now }, input) => {
-    const workspaceId = actor.workspaceId
-    if (!workspaceId) throw new Reject('no workspace')
-    const [type] = await tx.select().from(appointment_types).where(and(eq(appointment_types.id, input.appointmentTypeId), eq(appointment_types.workspace_id, workspaceId)))
-    if (!type?.enabled) throw new Reject('appointment type not found')
-    const [settings] = await tx.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
-    const timeZone = settings?.timezone ?? DEFAULT_TIME_ZONE
-
-    // Nothing is bookable after the horizon, so nothing is loaded for it either.
-    const horizon = shift(now, (type.max_days_ahead + 1) * DAY_MS)
-    const window = { start: input.from ?? now, end: earlier(input.to ?? horizon, horizon) }
-    const slots = findSlotsOrReject({
-      timeZone,
-      hours: await tx.select().from(availability_rules).where(eq(availability_rules.workspace_id, workspaceId)),
-      exceptions: await loadExceptions(tx, workspaceId, window),
-      appointmentType: type,
-      busy: await loadBusy(tx, workspaceId, window, type.buffer_min),
-      window,
-      now,
-      limit: input.limit,
-    })
-    return { rows: {}, data: { appointmentTypeId: type.id, timeZone, slots } satisfies FindSlotsData }
-  },
+  ...bookingHandlers,
 
   'contact.create': async ({ tx, actor }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
@@ -238,7 +183,7 @@ const handlers: Record<string, Handler> = {
     return openCall({ tx, now }, actor.workspaceId, { from: testCallContact.phone, to: testCallContact.phone, room: input.room, source: 'test', label: 'this test call', assistant })
   },
 
-  'call.findForTest': async ({ tx }, input) => {
+  'call.findForTest': async ({ tx, now, calendars }, input) => {
     const [number] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, input.to))
     if (!number) throw new Reject(`${input.to} is not set up in any workspace`)
     // A phone call comes in on the number; a no-phone test call is found by its room.
@@ -259,6 +204,8 @@ const handlers: Record<string, Handler> = {
       } : null,
       turns: { caller: count('caller'), agent: count('agent'), system: count('system') },
       lines: segments,
+      bookingReady: (await bookingContext(tx, number.workspace_id, now, { assistantId: number.assistant_id })) !== null,
+      bookings: call ? await bookingsForTest(tx, { calendars }, number.workspace_id, call.id) : [],
     }
     return { rows: {}, data }
   },

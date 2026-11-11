@@ -6,6 +6,7 @@ import { clock, dateTimeLabel, longDuration, parseTs, whenLabel } from '../time.
 import { Button, Icon } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { registerContactPanel } from './contactPanel.ts'
+import { BookingCards } from './BookingCard.tsx'
 import { LiveCard } from './LiveCard.tsx'
 import { RecordingPlayer } from './RecordingPlayer.tsx'
 import { SummaryCard } from './SummaryCard.tsx'
@@ -279,6 +280,7 @@ export function CallView({ call, segments, search, side, repeatCount = 1, ...bar
               {live && <LiveCard segments={segments} assistantName={assistant} />}
               {!live && call.recording_key && <RecordingPlayer callId={call.id} callDurationSec={call.duration_sec} />}
               <SummaryCard call={call} />
+              <BookingCards callId={call.id} />
               {turns ? (
                 <>
                   <div className="tr-h">

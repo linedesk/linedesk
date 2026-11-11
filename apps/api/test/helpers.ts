@@ -31,7 +31,7 @@ export type Caller = { headers: Record<string, string> }
 export type User = Caller & { userId: string }
 
 /** A new account with a password; its email is not verified. */
-export async function signUp(email = `${uid('user')}@linedesk.test`): Promise<User> {
+export async function signUp(email = `${uid('user')}@callfront.test`): Promise<User> {
   const res = await appRequest('/api/auth/sign-up/email', {
     method: 'POST',
     headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },
