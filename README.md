@@ -113,4 +113,4 @@ For anything else, write to [hello@linedesk.ai](mailto:hello@linedesk.ai).
 
 ## License
 
-Copyright © 2026 Sauerbier & Gutberlet GmbH and contributors. Licensed under the [AGPL-3.0](LICENSE). "Linedesk" and the Linedesk logo are trademarks of Sauerbier & Gutberlet GmbH; see [TRADEMARK.md](TRADEMARK.md). Privacy policy and legal notice for linedesk.ai: [linedesk.ai/privacy](https://linedesk.ai/privacy), [linedesk.ai/legal](https://linedesk.ai/legal).
+Copyright © 2026 Sauerbier & Gutberlet GmbH and contributors. Licensed under the [AGPL-3.0](LICENSE). "Linedesk" and the Linedesk logo are trademarks of Sauerbier & Gutberlet GmbH; see [TRADEMARK.md](TRADEMARK.md). [Legal notice](https://linedesk.ai/legal).
