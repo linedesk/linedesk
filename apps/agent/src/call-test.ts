@@ -1,12 +1,14 @@
 // Call test: our test-caller agent calls the business and the result is checked in the inbox.
-//   pnpm --filter @linedesk/agent call-test <scenario> [--phone] [--expect-recording]
+//   pnpm --filter @linedesk/agent call-test <scenario> [--phone] [--expect-recording] [--cancel-booking]
 //   in the agent container: node src/call-test.ts <scenario> [--phone]
+// Booking scenarios (booking, which-calendar) expect a real booking when the assistant has an appointment
+// type and a calendar: the event stays in the calendar to look at; --cancel-booking deletes it afterwards.
 // Default (no phone): the test caller and the business's assistant talk inside one LiveKit room,
 // speech and LLM only, filed in the inbox as a test call. --phone: a real call over Telnyx from
 // CALL_TEST_FROM to CALL_TEST_TO (run setup-test-caller once; costs a few cents).
 // Needs: the agent worker running, CALL_TEST_TO (the business number; it names the workspace),
 // LiveKit env, AGENT_API_TOKEN and LINEDESK_API_URL.
-import { callFindForTest, type CallTestFinding } from '@linedesk/actions'
+import { appointmentCancel, callFindForTest, type CallTestFinding } from '@linedesk/actions'
 import { AgentDispatchClient, RoomServiceClient } from 'livekit-server-sdk'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { AGENT_NAME, livekitHttpUrl, requireEnv, requireLivekitEnv, runScript } from './env.ts'
@@ -76,7 +78,7 @@ async function startByPhone({ name, room, to }: Run, from: string) {
 async function main() {
   const args = process.argv.slice(2)
   const name = args.find(a => !a.startsWith('--')) ?? ''
-  if (!isScenario(name)) throw new Error(`usage: call-test <scenario> [--phone] [--expect-recording]; scenarios: ${scenarioNames.join(', ')}`)
+  if (!isScenario(name)) throw new Error(`usage: call-test <scenario> [--phone] [--expect-recording] [--cancel-booking]; scenarios: ${scenarioNames.join(', ')}`)
   const mode: CallTestMode = args.includes('--phone') ? 'phone' : 'room'
   const { CALL_TEST_TO: to } = requireEnv(['CALL_TEST_TO'])
   const from = mode === 'phone' ? requireEnv(['CALL_TEST_FROM']).CALL_TEST_FROM : undefined
@@ -93,7 +95,20 @@ async function main() {
   const finding = await waitForFinishedCall(find, Date.now() + MAX_CALL_SEC * 1000 + RESULT_WAIT_MS, latency.poll, { expectRecording })
   const checks = evaluateCall(finding, scenarios[name], { expectRecording })
   console.log(formatReport(finding, checks, latency.get()))
+  if (args.includes('--cancel-booking')) await cancelTestBookings(run.api, finding)
   if (!checks.every(c => c.ok)) process.exitCode = 1
+}
+
+/** Deletes what the test booked: the bookings of the test call and their calendar events. */
+async function cancelTestBookings(api: ApiClient, { call, workspaceId, bookings = [] }: CallTestFinding) {
+  for (const booking of bookings.filter(b => b.status !== 'cancelled')) {
+    try {
+      await api.run(appointmentCancel, { bookingId: booking.id, callId: call!.id }, workspaceId)
+      console.log(`Cancelled the test booking ${booking.id} and its calendar event.`)
+    } catch (e) {
+      console.error(`Could not cancel the test booking ${booking.id}: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
 }
 
 runScript(main)

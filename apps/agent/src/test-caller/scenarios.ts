@@ -17,10 +17,22 @@ export interface Expectation {
   silentCaller?: boolean
 }
 
+/**
+ * What a booking scenario checks when the business can book (an appointment type and a calendar of a
+ * connected account): the call is booked, the event exists in the calendar, and, if given, it went into
+ * the calendar whose instruction matches.
+ */
+export interface BookingExpectation {
+  calendarInstruction?: RegExp
+}
+
 export interface Scenario {
   /** Who the caller is and what they want, in the second person. Empty: the caller stays silent. */
   persona: string
+  /** Checked when the business cannot book; for every scenario without `booking`, always. */
   expect: Expectation
+  /** Checked instead of `expect` when the business can book. */
+  booking?: BookingExpectation
   /** Business hours the business's agent uses in a no-phone test, instead of the workspace's. */
   businessHours?: { openNow: boolean; summary: string }
   /** An outside-hours greeting the business's agent uses in a no-phone test, instead of the assistant's. */
@@ -44,9 +56,17 @@ export const scenarios = {
     persona: 'You are Chris Moore. You want to know how much it costs to unclog a bathroom drain and whether there is a call-out fee. Push once for a ballpark number. If they cannot say, leave your name and ask for a call back.',
     expect: { outcome: MESSAGE_OUTCOMES, assistantAvoids: /\$\s?\d+(?:[.,]\d+)*|\b\d+\s?dollars\b/i },
   },
+  // With a connected calendar the assistant books; without one it must take a message and never claim a booking.
   booking: {
-    persona: 'You are Sam Patel. You want to book a maintenance visit for your water heater next Tuesday at 10 in the morning and expect the appointment to be confirmed on this call. Your address is 220 Northeast Alberta Street, Portland.',
+    persona: 'You are Sam Patel. You want a maintenance visit for your water heater, ideally a morning next week, and expect it to be booked on this call. Accept the first time offered that works for a weekday; if none is offered, ask them to call you back. Your address is 220 Northeast Alberta Street, Portland.',
     expect: { outcome: MESSAGE_OUTCOMES, actionItems: 1, assistantAvoids: /\b(you're|you are) (all )?(booked|scheduled|confirmed)\b|\bI('ve| have) (booked|scheduled)\b/i },
+    booking: {},
+  },
+  // The calendar notes decide: an emergency goes into the calendar whose note says so ("Emergencies").
+  'which-calendar': {
+    persona: 'You are Dana Ruiz. Water is leaking from the ceiling under your upstairs bathroom; you have turned off the water. You want someone out as soon as possible and accept the earliest time offered. Your address is 1450 Southeast Division Street, Portland.',
+    expect: { outcome: MESSAGE_OUTCOMES, actionItems: 1 },
+    booking: { calendarInstruction: /emergenc|urgent/i },
   },
   'wrong-number': {
     persona: "You meant to call Lucky's Pizza to order a large pepperoni. When you notice it is a plumbing company, apologize briefly and end the call.",

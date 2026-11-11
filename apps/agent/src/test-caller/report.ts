@@ -2,7 +2,7 @@
 // pass/fail per check, and how quickly the assistant answered.
 import type { CallTestFinding } from '@linedesk/actions'
 import type { LatencySample } from './latency.ts'
-import type { Scenario } from './scenarios.ts'
+import type { Expectation, Scenario } from './scenarios.ts'
 
 export type Check = { ok: boolean; label: string; detail: string }
 type Line = CallTestFinding['lines'][number]
@@ -18,10 +18,37 @@ const assistantReplies = (lines: Line[]) => {
   return first < 0 ? '' : assistantText(lines.slice(first + 1))
 }
 
+/** A booked call: outcome booked, a confirmed booking whose event the calendar has, in the right calendar. */
+function bookingChecks(finding: CallTestFinding, expectation: NonNullable<Scenario['booking']>): Check[] {
+  const booked = (finding.bookings ?? []).filter(b => b.status !== 'cancelled')
+  const first = booked[0]
+  const checks: Check[] = [
+    { ok: finding.call?.outcome === 'booked', label: 'outcome', detail: `${finding.call?.outcome ?? 'none'} (expected booked)` },
+    { ok: !!first, label: 'booking', detail: first ? `${first.title ?? 'booking'} at ${first.start_at} in ${first.calendar_name ?? '?'}` : 'no booking on the call' },
+  ]
+  if (first) {
+    checks.push({
+      ok: first.event === 'found' && first.event_start === first.start_at,
+      label: 'calendar event',
+      detail: first.event === 'found' ? `found at ${first.event_start}` : `${first.event}${first.note ? ` (${first.note})` : ''}`,
+    })
+  }
+  if (first && expectation.calendarInstruction) {
+    checks.push({
+      ok: expectation.calendarInstruction.test(first.calendar_instruction ?? ''),
+      label: 'calendar choice',
+      detail: `${first.calendar_name ?? '?'} ("${first.calendar_instruction ?? ''}"), expected a note matching ${expectation.calendarInstruction}`,
+    })
+  }
+  return checks
+}
+
 export function evaluateCall(finding: CallTestFinding, scenario: Scenario, { expectRecording = false } = {}): Check[] {
   const { call, turns, lines } = finding
   if (!call) return [{ ok: false, label: 'call in the inbox', detail: 'no call from the test caller arrived' }]
-  const expect = scenario.expect
+  const booking = scenario.booking && finding.bookingReady ? scenario.booking : null
+  // A booking scenario on a business that can book: the message expectations do not apply.
+  const expect: Expectation = booking ? {} : scenario.expect
   const transcriptOk = expect.silentCaller
     ? turns.agent >= 1 && turns.caller === 0
     : turns.agent >= 2 && turns.caller >= 1
@@ -76,6 +103,8 @@ export function evaluateCall(finding: CallTestFinding, scenario: Scenario, { exp
       detail: match ? `said "${match[0]}"` : `${expect.assistantAvoids} not said`,
     })
   }
+  if (booking) checks.push(...bookingChecks(finding, booking))
+  else if (scenario.booking) checks.push({ ok: true, label: 'booking', detail: 'the business cannot book (no appointment type or calendar): a message is expected' })
   checks.push({
     ok: !expectRecording || Boolean(call.recording_key),
     label: 'recording',

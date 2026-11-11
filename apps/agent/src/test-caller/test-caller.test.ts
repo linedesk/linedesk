@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import type { CallTestFinding } from '@linedesk/actions'
 import { createLatencyLog, createOnsetDetector, rms } from './latency.ts'
 import { isGoodbye } from './caller.ts'
@@ -31,8 +31,8 @@ test('the job metadata picks a known scenario and mode; nothing else turns an ag
   }
 })
 
-test('nine scenarios; every speaking caller is told to end the call and never reveal the test', () => {
-  expect(scenarioNames).toEqual(['callback-message', 'burst-pipe', 'price-question', 'booking', 'wrong-number', 'robot-question', 'interrupter', 'after-hours', 'silence'])
+test('ten scenarios; every speaking caller is told to end the call and never reveal the test', () => {
+  expect(scenarioNames).toEqual(['callback-message', 'burst-pipe', 'price-question', 'booking', 'which-calendar', 'wrong-number', 'robot-question', 'interrupter', 'after-hours', 'silence'])
   for (const name of scenarioNames.filter(n => scenarios[n].persona)) {
     expect(callerInstructions(scenarios[name])).toContain('end_call')
     expect(callerInstructions(scenarios[name])).toContain('Never say that you are an AI')
@@ -74,6 +74,31 @@ test('what the assistant says: AI disclosure when asked, no prices, no booked ti
   const booked = { ...finished, lines: [...lines, { speaker: 'agent', text: "Great, you're booked for Tuesday at 10.", at_ms: 20000 }] }
   expect(check(booked, 'booking', 'assistant avoids')?.ok).toBe(false)
   expect(check(finished, 'booking', 'assistant avoids')?.ok).toBe(true)
+})
+
+describe('booking scenarios', () => {
+  const booking = (over: Partial<NonNullable<CallTestFinding['bookings']>[number]> = {}) => ({
+    id: 'bk_1', status: 'confirmed', start_at: '2026-11-17T17:00:00.000Z', title: 'Repair visit · Sam Patel', calendar_name: 'Mike',
+    calendar_instruction: 'Emergencies', event: 'found' as const, event_start: '2026-11-17T17:00:00.000Z', note: null, ...over,
+  })
+  const booked: CallTestFinding = { ...finished, call: { ...finished.call!, outcome: 'booked', urgency: 'normal', action_items: 0 }, bookingReady: true, bookings: [booking()] }
+  const labels = (checks: { ok: boolean; label: string }[]) => checks.filter(c => !c.ok).map(c => c.label)
+
+  test('with a calendar: booked, the event is in the calendar, in the calendar whose note fits', () => {
+    expect(labels(evaluateCall(booked, scenarios.booking))).toEqual([])
+    expect(labels(evaluateCall(booked, scenarios['which-calendar']))).toEqual([])
+    expect(labels(evaluateCall({ ...booked, bookings: [booking({ calendar_instruction: 'Estimates' })] }, scenarios['which-calendar']))).toEqual(['calendar choice'])
+    expect(labels(evaluateCall({ ...booked, bookings: [booking({ event: 'missing', event_start: null })] }, scenarios.booking))).toEqual(['calendar event'])
+    expect(labels(evaluateCall({ ...booked, bookings: [] }, scenarios.booking))).toEqual(['booking'])
+    expect(labels(evaluateCall({ ...booked, call: { ...booked.call!, outcome: 'message' } }, scenarios.booking))).toEqual(['outcome'])
+  })
+
+  test('without a calendar: a message, and never a claimed booking', () => {
+    const noCalendar = { ...finished, call: { ...finished.call!, urgency: 'normal' }, bookingReady: false, bookings: [] }
+    const checks = evaluateCall(noCalendar, scenarios.booking)
+    expect(labels(checks)).toEqual([])
+    expect(checks.find(c => c.label === 'booking')?.detail).toMatch(/cannot book/)
+  })
 })
 
 test('a silent caller passes with a greeting and no caller turns', () => {
