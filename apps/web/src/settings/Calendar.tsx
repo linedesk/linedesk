@@ -71,13 +71,16 @@ export function ConnectButtons({ assistantId, toast }: { assistantId: string; to
 
   if (!providers) return <Skeleton className="sk-field" />
   if (!providers.length)
-    return (
-      <p className="help">No calendar provider is set up on this server. An admin sets GOOGLE_CLIENT_ID or MICROSOFT_CLIENT_ID and its secret.</p>
-    )
+    return <p className="help">No calendar provider on this server yet. Ask whoever runs your Linedesk.</p>
   return (
     <div className="cal-connect">
       {providers.map(p => (
-        <Button key={p} disabled={busy !== null} onClick={() => connect(p)} title={`Connect a ${PROVIDER_LABEL[p]} calendar`}>
+        <Button
+          key={p}
+          disabled={busy !== null}
+          onClick={() => connect(p)}
+          title={`Connect a ${PROVIDER_LABEL[p]} calendar`}
+        >
           <SignInMark method={p} />
           {busy === p ? `Opening ${PROVIDER_LABEL[p]}…` : `Connect ${PROVIDER_LABEL[p]}`}
         </Button>
@@ -117,7 +120,12 @@ function Accounts({ assistant, canEdit, toast }: Props) {
   const [busy, setBusy] = useState<string | null>(null)
 
   async function disconnect(connection: CalendarConnection) {
-    if (!window.confirm(`Disconnect ${connection.account_email}? The assistant stops booking into its calendars. Booked events stay.`)) return
+    if (
+      !window.confirm(
+        `Disconnect ${connection.account_email}? The assistant stops booking into its calendars. Booked events stay.`,
+      )
+    )
+      return
     setBusy(connection.id)
     try {
       const { note } = await write<DisconnectData>('calendar.disconnect', { connectionId: connection.id })
@@ -130,14 +138,20 @@ function Accounts({ assistant, canEdit, toast }: Props) {
   }
 
   return (
-    <Section id="as-cal-accounts" title="Calendar accounts" description="The assistant checks them for free times and books into them.">
+    <Section id="as-cal-accounts" title="Calendar accounts">
       {connectionsLoad !== 'ready' && <SkeletonRows label="Loading calendar accounts" rows={1} />}
       {connections.length > 0 && (
         <ul className="cal-list">
           {connections.map(c => (
             <AccountRow key={c.id} connection={c}>
               {canEdit && (
-                <Button size="sm" variant="ghost" disabled={busy === c.id} onClick={() => disconnect(c)} title={`Disconnect ${c.account_email}`}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy === c.id}
+                  onClick={() => disconnect(c)}
+                  title={`Disconnect ${c.account_email}`}
+                >
                   Disconnect
                 </Button>
               )}
@@ -151,13 +165,24 @@ function Accounts({ assistant, canEdit, toast }: Props) {
 }
 
 /** The note is saved when the field loses focus, so typing is not a command per key. */
-function CalendarRow({ calendar, account, canEdit, onRemove }: { calendar: AssistantCalendar; account?: CalendarConnection; canEdit: boolean; onRemove: () => void }) {
+function CalendarRow({
+  calendar,
+  account,
+  canEdit,
+  onRemove,
+}: {
+  calendar: AssistantCalendar
+  account?: CalendarConnection
+  canEdit: boolean
+  onRemove: () => void
+}) {
   const run = useRun()
   const [note, setNote] = useState(calendar.instruction)
   useEffect(() => setNote(calendar.instruction), [calendar.instruction])
   const saveNote = () => {
     const value = note.trim()
-    if (value !== calendar.instruction) void run('assistantCalendar.update', { assistantCalendarId: calendar.id, instruction: value })
+    if (value !== calendar.instruction)
+      void run('assistantCalendar.update', { assistantCalendarId: calendar.id, instruction: value })
   }
   return (
     <li className="cal-row cal-row-calendar">
@@ -165,9 +190,7 @@ function CalendarRow({ calendar, account, canEdit, onRemove }: { calendar: Assis
       <span className="cal-main">
         <b>
           {calendar.name}
-          {calendar.is_default && (
-            <Badge tone="outline">Default</Badge>
-          )}
+          {calendar.is_default && <Badge tone="outline">Default</Badge>}
         </b>
         <span className="cal-sub">{account?.account_email}</span>
         <Input
@@ -192,29 +215,54 @@ function CalendarRow({ calendar, account, canEdit, onRemove }: { calendar: Assis
           onChange={on => void run('assistantCalendar.update', { assistantCalendarId: calendar.id, enabled: on })}
         />
         {canEdit && !calendar.is_default && (
-          <Button size="sm" variant="ghost" onClick={() => void run('assistantCalendar.setDefault', { assistantCalendarId: calendar.id })}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => void run('assistantCalendar.setDefault', { assistantCalendarId: calendar.id })}
+          >
             Make default
           </Button>
         )}
         {canEdit && (
-          <Button size="sm" variant="ghost" icon="close" aria-label={`Remove ${calendar.name}`} title={`Remove ${calendar.name}`} onClick={onRemove} />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="close"
+            aria-label={`Remove ${calendar.name}`}
+            title={`Remove ${calendar.name}`}
+            onClick={onRemove}
+          />
         )}
       </span>
     </li>
   )
 }
 
-export function AddCalendar({ assistant, connections, onClose, toast }: { assistant: Assistant; connections: CalendarConnection[]; onClose: () => void; toast: (t: string) => void }) {
+export function AddCalendar({
+  assistant,
+  connections,
+  onClose,
+  toast,
+}: {
+  assistant: Assistant
+  connections: CalendarConnection[]
+  onClose: () => void
+  toast: (t: string) => void
+}) {
   const write = useWriteAction()
   const [connectionId, setConnectionId] = useState(connections[0]?.id ?? '')
   const listed = useQuery(connectionId ? `calendar.list.${connectionId}` : null, () =>
-    callAction<ListCalendarsData>('calendar.listCalendars', { connectionId }).then(data => data.calendars.filter(c => c.canWrite)),
+    callAction<ListCalendarsData>('calendar.listCalendars', { connectionId }).then(data =>
+      data.calendars.filter(c => c.canWrite),
+    ),
   )
   const calendars = listed.data ?? null
   const [addError, setError] = useState<string | null>(null)
   const error = addError ?? (calendars ? null : listed.error)
   const [adding, setAdding] = useState<string | null>(null)
-  const taken = useRows('assistant_calendars').filter(c => c.assistant_id === assistant.id && c.connection_id === connectionId).map(c => c.external_id)
+  const taken = useRows('assistant_calendars')
+    .filter(c => c.assistant_id === assistant.id && c.connection_id === connectionId)
+    .map(c => c.external_id)
   async function add(externalId: string, name: string) {
     setAdding(externalId)
     try {
@@ -228,10 +276,16 @@ export function AddCalendar({ assistant, connections, onClose, toast }: { assist
   }
   const accountOptions: SelectOption<string>[] = connections.map(c => ({ value: c.id, label: c.account_email }))
   return (
-    <Dialog title="Add a calendar" description={`${assistant.name} books into the calendars you add.`} onClose={onClose} size="sm">
+    <Dialog title="Add a calendar" onClose={onClose} size="sm">
       {connections.length > 1 && (
         <Field id="cal-account" label="Account">
-          <Select id="cal-account" label="Account" value={connectionId} options={accountOptions} onChange={setConnectionId} />
+          <Select
+            id="cal-account"
+            label="Account"
+            value={connectionId}
+            options={accountOptions}
+            onChange={setConnectionId}
+          />
         </Field>
       )}
       {error && <p className="k-field-msg">{error}</p>}
@@ -266,10 +320,10 @@ function Calendars({ assistant, canEdit, toast }: Props) {
     <Section
       id="as-cal-calendars"
       title="Calendars"
-      description={`Where ${assistant.name} books. Say when to use each one.`}
-      help="The assistant picks the calendar whose note fits the call, else the default one. It only offers times that are free in that calendar and within business hours (Monday to Friday 9 to 5 while business hours are off)."
+      help="The assistant books into the calendar whose note fits the call, else the default one, at free times within business hours (Monday to Friday 9 to 5 while they are off)."
       actions={
-        canEdit && connected.length > 0 && (
+        canEdit &&
+        connected.length > 0 && (
           <Button size="sm" icon="plus" onClick={() => setAdding(true)}>
             Add calendar
           </Button>
@@ -289,9 +343,15 @@ function Calendars({ assistant, canEdit, toast }: Props) {
           ))}
         </ul>
       ) : (
-        <p className="help">{connected.length ? `Add a calendar so ${assistant.name} can book.` : `Connect an account first. Until then ${assistant.name} takes messages.`}</p>
+        <p className="help">
+          {connected.length
+            ? `Add a calendar so ${assistant.name} can book.`
+            : `Connect an account first. Until then ${assistant.name} takes messages.`}
+        </p>
       )}
-      {adding && <AddCalendar assistant={assistant} connections={connected} onClose={() => setAdding(false)} toast={toast} />}
+      {adding && (
+        <AddCalendar assistant={assistant} connections={connected} onClose={() => setAdding(false)} toast={toast} />
+      )}
     </Section>
   )
 }
@@ -317,15 +377,32 @@ function TypeForm({ type, onDone }: { type?: AppointmentType; onDone: () => void
   return (
     <div className="cal-type-form">
       <Field id="cal-type-name" label="Name">
-        <Input id="cal-type-name" value={name} placeholder="Repair visit" autoFocus onKeyDown={noSubmit} onChange={e => setName(e.target.value)} />
+        <Input
+          id="cal-type-name"
+          value={name}
+          placeholder="Repair visit"
+          autoFocus
+          onKeyDown={noSubmit}
+          onChange={e => setName(e.target.value)}
+        />
       </Field>
       <Field id="cal-type-duration" label="Length">
-        <Select id="cal-type-duration" label="Length" value={duration} options={durationOptions} onChange={setDuration} />
+        <Select
+          id="cal-type-duration"
+          label="Length"
+          value={duration}
+          options={durationOptions}
+          onChange={setDuration}
+        />
       </Field>
       <Field label="Also ask for" tip="The assistant always asks for the caller's name and the reason.">
         <span className="cal-type-fields">
           {FIELDS.map(f => (
-            <Checkbox key={f} checked={fields.includes(f)} onChange={on => setFields(all => (on ? [...all, f] : all.filter(x => x !== f)))}>
+            <Checkbox
+              key={f}
+              checked={fields.includes(f)}
+              onChange={on => setFields(all => (on ? [...all, f] : all.filter(x => x !== f)))}
+            >
               {FIELD_LABEL[f]}
             </Checkbox>
           ))}
@@ -345,15 +422,17 @@ function TypeForm({ type, onDone }: { type?: AppointmentType; onDone: () => void
 
 function AppointmentTypes({ canEdit }: Omit<Props, 'assistant' | 'toast'>) {
   const run = useRun()
-  const types = useRows('appointment_types').filter(t => t.enabled).sort((a, b) => a.created_at.localeCompare(b.created_at))
+  const types = useRows('appointment_types')
+    .filter(t => t.enabled)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
   const [editing, setEditing] = useState<string | null>(null)
   return (
     <Section
       id="as-cal-types"
       title="Appointment types"
-      description="What callers can book, and how long it takes."
       actions={
-        canEdit && editing !== 'new' && (
+        canEdit &&
+        editing !== 'new' && (
           <Button size="sm" icon="plus" onClick={() => setEditing('new')}>
             Add type
           </Button>
@@ -379,7 +458,14 @@ function AppointmentTypes({ canEdit }: Omit<Props, 'assistant' | 'toast'>) {
                     <Button size="sm" variant="ghost" onClick={() => setEditing(t.id)} title={`Edit ${t.name}`}>
                       Edit
                     </Button>
-                    <Button size="sm" variant="ghost" icon="close" aria-label={`Delete ${t.name}`} title={`Delete ${t.name}`} onClick={() => void run('appointmentType.delete', { appointmentTypeId: t.id })} />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon="close"
+                      aria-label={`Delete ${t.name}`}
+                      title={`Delete ${t.name}`}
+                      onClick={() => void run('appointmentType.delete', { appointmentTypeId: t.id })}
+                    />
                   </span>
                 )}
               </li>

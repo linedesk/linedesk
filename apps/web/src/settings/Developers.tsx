@@ -21,7 +21,8 @@ const roles: SelectOption<Role>[] = [
   { value: 'admin', label: 'Admin', description: 'Also settings' },
 ]
 
-const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+const day = (iso: string) =>
+  new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 
 type Props = { canEdit: boolean; toast: (text: string) => void }
 
@@ -30,7 +31,7 @@ export function Developers({ canEdit, toast }: Props) {
   const [creating, setCreating] = useState(false)
   if (!canEdit)
     return (
-      <Section id="st-api-keys" title="API keys" description="Connect your own tools to Linedesk.">
+      <Section id="st-api-keys" title="API keys">
         <p className="help">Only owners and admins can manage API keys.</p>
       </Section>
     )
@@ -39,8 +40,7 @@ export function Developers({ canEdit, toast }: Props) {
     <Section
       id="st-api-keys"
       title="API keys"
-      description="Connect your own tools to Linedesk."
-      help="Send the key as Authorization: Bearer. The REST API is described at /v1/openapi.json; AI tools connect to the MCP server at /mcp with the same key."
+      help="Send the key as Authorization: Bearer. REST API: /v1/openapi.json. MCP server: /mcp."
       actions={
         <Button size="sm" icon="plus" onClick={() => setCreating(true)}>
           Create key
@@ -74,7 +74,9 @@ function KeyRow({ apiKey, toast }: { apiKey: ApiKeySummary; toast: Props['toast'
     setBusy(true)
     try {
       await callAction('apiKey.revoke', { apiKeyId: apiKey.id })
-      setQueryData<ApiKeyListData | undefined>(API_KEYS, d => d && { keys: d.keys.filter(k => k.id !== apiKey.id) }, { persist: true })
+      setQueryData<ApiKeyListData | undefined>(API_KEYS, d => d && { keys: d.keys.filter(k => k.id !== apiKey.id) }, {
+        persist: true,
+      })
       toast(`${apiKey.name} is revoked.`)
     } catch (e) {
       toast((e as Error).message)
@@ -112,10 +114,18 @@ function CreateKey({ onClose, toast }: { onClose: () => void; toast: Props['toas
     try {
       const result = await callAction<ApiKeyCreated>('apiKey.create', { name: name.trim(), role })
       const summary: ApiKeySummary = {
-        id: result.apiKeyId, name: name.trim(), prefix: result.prefix, role, created_by: '', created_at: new Date().toISOString(),
-        last_used_at: null, revoked_at: null,
+        id: result.apiKeyId,
+        name: name.trim(),
+        prefix: result.prefix,
+        role,
+        created_by: '',
+        created_at: new Date().toISOString(),
+        last_used_at: null,
+        revoked_at: null,
       }
-      setQueryData<ApiKeyListData | undefined>(API_KEYS, d => ({ keys: [summary, ...(d?.keys ?? [])] }), { persist: true })
+      setQueryData<ApiKeyListData | undefined>(API_KEYS, d => ({ keys: [summary, ...(d?.keys ?? [])] }), {
+        persist: true,
+      })
       setCreated(result.key)
     } catch (err) {
       setError((err as Error).message)
@@ -129,7 +139,7 @@ function CreateKey({ onClose, toast }: { onClose: () => void; toast: Props['toas
       <Dialog
         key="created" // a new dialog, so focus moves into it (Esc, Tab)
         title="Your API key"
-        description="Copy it now: it is not shown again."
+        description="Shown only once. Copy it now."
         onClose={onClose}
         footer={
           <Button variant="primary" onClick={onClose}>
@@ -168,7 +178,14 @@ function CreateKey({ onClose, toast }: { onClose: () => void; toast: Props['toas
       }
     >
       <Field id="dev-key-name" label="Name" error={error}>
-        <Input id="dev-key-name" maxLength={60} placeholder="e.g. Zapier" value={name} invalid={Boolean(error)} onChange={e => setName(e.target.value)} />
+        <Input
+          id="dev-key-name"
+          maxLength={60}
+          placeholder="e.g. Zapier"
+          value={name}
+          invalid={Boolean(error)}
+          onChange={e => setName(e.target.value)}
+        />
       </Field>
       <Field id="dev-key-role" label="Access">
         <div>

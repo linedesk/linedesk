@@ -21,7 +21,7 @@ async function browserAllows(): Promise<'granted' | 'denied' | 'unsupported'> {
   return (await Notification.requestPermission()) === 'granted' ? 'granted' : 'denied'
 }
 
-const blockedText = 'Blocked by the browser. Allow notifications for this site, then turn this on again.'
+const blockedText = 'Blocked by the browser. Allow notifications for this site, then try again.'
 
 export function Notifications({ toast }: { toast: (text: string) => void }) {
   const run = useRun()
@@ -80,18 +80,17 @@ export function Notifications({ toast }: { toast: (text: string) => void }) {
   const followsDefault = (channel: Channel) => (settings.own[channel] === null ? 'Team default' : undefined)
   return (
     <>
-      <Section id="st-notify" title="Notifications" description="Only for you. Each teammate sets their own.">
+      <Section id="st-notify" title="Notifications" description="Only for you.">
         <div className="st-swlist">
           <SwitchRow
             title="Email for every call"
-            description="The summary and a link, when a call ends."
             aside={followsDefault('email')}
             on={settings.effective.email}
             onChange={on => void setOwn('email', on)}
           />
           <SwitchRow
             title="Browser notifications"
-            description={browserNote ?? 'While Linedesk is open in a background tab.'}
+            description={browserNote ?? undefined}
             aside={followsDefault('browser')}
             on={settings.effective.browser && !browserNote}
             onChange={on => void setOwn('browser', on)}
@@ -100,11 +99,7 @@ export function Notifications({ toast }: { toast: (text: string) => void }) {
         </div>
       </Section>
       {settings.canEditDefaults && (
-        <Section
-          id="st-notify-defaults"
-          title="Team defaults"
-          description="For teammates who haven't changed their own."
-        >
+        <Section id="st-notify-defaults" title="Team defaults" description="For teammates without their own.">
           <div className="st-swlist">
             <SwitchRow
               title="Email for every call"

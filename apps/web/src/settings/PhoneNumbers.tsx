@@ -178,7 +178,7 @@ function ManageNumber({ number, assistants, canEdit, onClose }: ManageProps) {
             <Field
               id="pn-codes"
               label="Forwarding codes"
-              tip="Dial a code from your business phone. Missed and busy calls then go to your assistant."
+              tip="Dial a code on your business phone to send missed and busy calls to the assistant."
             >
               <Forwarding e164={number.e164} />
             </Field>
@@ -378,17 +378,8 @@ function ConnectNumber({
           checked={kind === 'existing'}
           onPick={() => pick('existing')}
           title={carrier ? `Use a number I have in ${carrier}` : 'Use a number I already have'}
-          description={
-            carrier ? `A number already in your ${carrier} account.` : 'A number already in your carrier account.'
-          }
         />
-        <RadioCard
-          name="st-pn-kind"
-          checked={kind === 'new'}
-          onPick={() => pick('new')}
-          title="Get a new number"
-          description="A local number in the area code you pick."
-        />
+        <RadioCard name="st-pn-kind" checked={kind === 'new'} onPick={() => pick('new')} title="Get a new number" />
       </div>
       {kind === 'existing' ? (
         <Field id="st-pn-number" label={carrier ? `Number in ${carrier}` : 'Number'}>

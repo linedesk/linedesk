@@ -92,7 +92,7 @@ function Greeting({
     set('greeting', on ? withDisclosure(draft.greeting, draft.name) : withoutDisclosure(draft.greeting))
   }
   return (
-    <Section id="as-greeting" title="Greeting" description="The first sentence of every call.">
+    <Section id="as-greeting" title="Greeting">
       {hoursOn && <VariantSwitch value={variant} onChange={setVariant} label="Greeting for" />}
       {outside ? (
         <Field id="as-greet-out" label="Greeting outside hours" aside="Optional">
@@ -147,7 +147,7 @@ function Instructions({ draft, set, hoursOn }: SectionProps & { hoursOn: boolean
       id="as-instructions"
       title="Instructions"
       description="Write it like you would brief a new hire."
-      help="Services, service area, prices, answers to common questions, what counts as urgent. Opening hours go in Settings, Business hours."
+      help="Services, area, prices, common questions, what counts as urgent. Opening hours go in Settings, Business hours."
     >
       {hoursOn && <VariantSwitch value={variant} onChange={setVariant} label="Instructions for" />}
       {outside ? (
@@ -191,8 +191,7 @@ function CallRules({ draft, set }: SectionProps) {
     <Section
       id="as-rules"
       title="Call rules"
-      description="What the assistant does on every call."
-      help="The assistant always takes a message and always says it is an AI when asked, whatever the rules say."
+      help="Whatever the rules say, the assistant always takes a message and says it is an AI when asked."
       actions={
         <Button
           size="sm"
@@ -355,7 +354,13 @@ const useBusinessHoursOn = (): boolean => useWorkspaceSettings().data?.businessH
 function AssistantSkeleton({ slow }: { slow: boolean }) {
   if (slow) return <LoadProblem what="The assistant" />
   return (
-    <SettingsLayout page="assistant" title="Assistant" heading={<Skeleton className="sk-title" />} sections={sections} current={sections[0]!.id}>
+    <SettingsLayout
+      page="assistant"
+      title="Assistant"
+      heading={<Skeleton className="sk-title" />}
+      sections={sections}
+      current={sections[0]!.id}
+    >
       <Skeleton className="sk-card" />
     </SettingsLayout>
   )
@@ -392,7 +397,6 @@ export function AssistantSettings(props: Props) {
       ) : (
         <div className="empty">
           <b>No assistant yet</b>
-          <span>This workspace has no assistant set up.</span>
         </div>
       )}
     </div>

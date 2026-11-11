@@ -170,8 +170,7 @@ export function BusinessHours({ canEdit, toast }: Props) {
     toast(`Time zone set to ${timeZoneLabel(zone)}.`)
   }
 
-  const help =
-    'When they are on, the assistant tells callers whether the office is open and when it opens, and greeting and instructions can have an outside-hours version.'
+  const help = 'The assistant tells callers when you are open. Greeting and instructions can differ outside hours.'
   const mainSwitch = (
     <span className="bh-main">
       <span className="help">Use business hours</span>

@@ -34,7 +34,7 @@ export function Webhooks({ canEdit, toast }: Props) {
   const [editing, setEditing] = useState<WebhookEndpoint | 'new' | null>(null)
   if (!canEdit)
     return (
-      <Section id="st-webhooks" title="Webhooks" description="Send calls, messages and bookings to your other tools.">
+      <Section id="st-webhooks" title="Webhooks">
         <p className="help">Only owners and admins can manage webhooks.</p>
       </Section>
     )
@@ -42,8 +42,7 @@ export function Webhooks({ canEdit, toast }: Props) {
     <Section
       id="st-webhooks"
       title="Webhooks"
-      description="Send calls, messages and bookings to your other tools."
-      help="Each event is a signed POST. Failed deliveries are retried for about an hour; an endpoint that keeps failing is switched off."
+      help="Calls, messages and bookings, as signed POSTs. Failed deliveries are retried for about an hour; an endpoint that keeps failing is turned off."
       actions={
         <Button size="sm" icon="plus" onClick={() => setEditing('new')}>
           Add endpoint
@@ -61,7 +60,9 @@ export function Webhooks({ canEdit, toast }: Props) {
           ))}
         </ul>
       )}
-      {editing && <EndpointDialog endpoint={editing === 'new' ? null : editing} onClose={() => setEditing(null)} toast={toast} />}
+      {editing && (
+        <EndpointDialog endpoint={editing === 'new' ? null : editing} onClose={() => setEditing(null)} toast={toast} />
+      )}
     </Section>
   )
 }
@@ -82,7 +83,15 @@ function StatusBadge({ endpoint }: { endpoint: WebhookEndpoint }) {
   )
 }
 
-function EndpointRow({ endpoint, onEdit, toast }: { endpoint: WebhookEndpoint; onEdit: () => void; toast: Props['toast'] }) {
+function EndpointRow({
+  endpoint,
+  onEdit,
+  toast,
+}: {
+  endpoint: WebhookEndpoint
+  onEdit: () => void
+  toast: Props['toast']
+}) {
   const run = useRun()
   const write = useWriteAction()
   const [busy, setBusy] = useState(false)
@@ -103,7 +112,10 @@ function EndpointRow({ endpoint, onEdit, toast }: { endpoint: WebhookEndpoint; o
   }
 
   async function remove() {
-    if (!window.confirm(`Delete the endpoint ${endpoint.url}? It gets no more events, and its delivery log is deleted.`)) return
+    if (
+      !window.confirm(`Delete the endpoint ${endpoint.url}? It gets no more events, and its delivery log is deleted.`)
+    )
+      return
     setBusy(true)
     try {
       await write('webhook.delete', { endpointId: endpoint.id })
@@ -168,7 +180,12 @@ function DeliveryLog({ endpointId, version }: { endpointId: string; version: num
       live = false
     }
   }, [endpointId, version])
-  if (error && !rows) return <p className="help" role="alert">{error}</p>
+  if (error && !rows)
+    return (
+      <p className="help" role="alert">
+        {error}
+      </p>
+    )
   if (!rows) return <SkeletonRows label="Loading deliveries" rows={3} className="wh-log" />
   if (!rows.length) return <p className="help wh-log">No deliveries yet.</p>
   return (
@@ -189,7 +206,14 @@ function DeliveryLog({ endpointId, version }: { endpointId: string; version: num
               <DeliveryResult delivery={d} />
             </td>
             <td>{d.attempts}</td>
-            <td>{new Date(d.last_attempt_at ?? d.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
+            <td>
+              {new Date(d.last_attempt_at ?? d.created_at).toLocaleString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+              })}
+            </td>
           </tr>
         ))}
       </tbody>
@@ -199,7 +223,8 @@ function DeliveryLog({ endpointId, version }: { endpointId: string; version: num
 
 function DeliveryResult({ delivery }: { delivery: WebhookDeliverySummary }) {
   if (delivery.status === 'delivered') return <Badge tone="ok">{delivery.response_status ?? 'OK'}</Badge>
-  if (delivery.status === 'pending') return <Badge title={delivery.error ?? undefined}>{delivery.attempts ? 'Retrying' : 'Queued'}</Badge>
+  if (delivery.status === 'pending')
+    return <Badge title={delivery.error ?? undefined}>{delivery.attempts ? 'Retrying' : 'Queued'}</Badge>
   return (
     <Badge tone="danger" title={delivery.error ?? undefined}>
       {delivery.response_status ?? 'Failed'}
@@ -208,7 +233,15 @@ function DeliveryResult({ delivery }: { delivery: WebhookDeliverySummary }) {
 }
 
 /** Add an endpoint (then its secret, once) or change one's URL and events. */
-function EndpointDialog({ endpoint, onClose, toast }: { endpoint: WebhookEndpoint | null; onClose: () => void; toast: Props['toast'] }) {
+function EndpointDialog({
+  endpoint,
+  onClose,
+  toast,
+}: {
+  endpoint: WebhookEndpoint | null
+  onClose: () => void
+  toast: Props['toast']
+}) {
   const run = useRun()
   const write = useWriteAction()
   const [url, setUrl] = useState(endpoint?.url ?? '')
@@ -217,7 +250,8 @@ function EndpointDialog({ endpoint, onClose, toast }: { endpoint: WebhookEndpoin
   const [saving, setSaving] = useState(false)
   const [secret, setSecret] = useState<string | null>(null)
 
-  const toggle = (event: WebhookEvent, on: boolean) => setEvents(list => (on ? [...list, event] : list.filter(e => e !== event)))
+  const toggle = (event: WebhookEvent, on: boolean) =>
+    setEvents(list => (on ? [...list, event] : list.filter(e => e !== event)))
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -230,7 +264,12 @@ function EndpointDialog({ endpoint, onClose, toast }: { endpoint: WebhookEndpoin
     setError(null)
     const newSecret = newWebhookSecret()
     try {
-      await write('webhook.create', { endpointId: `whe_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`, url: url.trim(), events, secret: newSecret })
+      await write('webhook.create', {
+        endpointId: `whe_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
+        url: url.trim(),
+        events,
+        secret: newSecret,
+      })
       setSecret(newSecret)
     } catch (err) {
       setError((err as Error).message)
@@ -244,7 +283,7 @@ function EndpointDialog({ endpoint, onClose, toast }: { endpoint: WebhookEndpoin
       <Dialog
         key="secret" // a new dialog, so focus moves into it (Esc, Tab)
         title="Signing secret"
-        description="Copy it now: it is not shown again."
+        description="Shown only once. Copy it now."
         onClose={onClose}
         footer={
           <Button variant="primary" onClick={onClose}>
@@ -265,7 +304,7 @@ function EndpointDialog({ endpoint, onClose, toast }: { endpoint: WebhookEndpoin
             Copy
           </Button>
         </div>
-        <p className="help">Check the Linedesk-Signature header of each request with it.</p>
+        <p className="help">Verifies the Linedesk-Signature header.</p>
       </Dialog>
     )
 
@@ -284,7 +323,15 @@ function EndpointDialog({ endpoint, onClose, toast }: { endpoint: WebhookEndpoin
       }
     >
       <Field id="wh-url" label="URL" error={error}>
-        <Input id="wh-url" type="url" required placeholder="https://example.com/linedesk" value={url} invalid={Boolean(error)} onChange={e => setUrl(e.target.value)} />
+        <Input
+          id="wh-url"
+          type="url"
+          required
+          placeholder="https://example.com/linedesk"
+          value={url}
+          invalid={Boolean(error)}
+          onChange={e => setUrl(e.target.value)}
+        />
       </Field>
       <Field label="Events">
         <div className="wh-events">

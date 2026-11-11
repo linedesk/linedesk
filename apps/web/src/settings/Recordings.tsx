@@ -39,11 +39,11 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
     <Section
       id="st-recordings"
       title="Recordings"
-      description={recordingOn ? 'Calls are recorded so you can listen back.' : 'Recording is off on this server.'}
+      description={recordingOn ? undefined : 'Recording is off on this server.'}
       help={
         recordingOn
-          ? 'Older recordings are deleted once a day. The call, its transcript and summary stay.'
-          : 'Whoever runs your Linedesk can turn it on. This setting then applies.'
+          ? 'Only the audio is deleted. The call, transcript and summary stay.'
+          : 'Whoever runs your Linedesk can turn it on.'
       }
     >
       {error && <LoadProblem what="Recording settings" message={error} onRetry={() => void settings.reload()} />}
@@ -109,7 +109,7 @@ function RecordingNotice({ on, saved, canEdit, toast }: NoticeProps) {
     <>
       <SwitchRow
         title="Say that the call may be recorded"
-        description="Right after the greeting. Check what your state requires."
+        description="Right after the greeting."
         on={on}
         onChange={toggle}
         disabled={!canEdit}
