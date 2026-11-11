@@ -1567,13 +1567,13 @@ button.k-link {
   line-height: 16px;
 }
 
-/* First-use tour: one small card at the bottom right, the thing it explains outlined. */
+/* First-use tour: a small card next to what it explains, its arrow pointing at it, the rest dimmed. */
 .tour {
   position: fixed;
-  right: max(16px, env(safe-area-inset-right, 0px));
-  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  top: 0;
+  left: 0;
   z-index: 60;
-  width: min(340px, calc(100vw - 32px));
+  width: min(320px, calc(100vw - 24px));
   box-sizing: border-box;
   display: grid;
   gap: 8px;
@@ -1582,6 +1582,18 @@ button.k-link {
   color: var(--ink);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-popover);
+}
+.tour:not([data-ready]) {
+  visibility: hidden; /* until it is placed, never a frame in the corner */
+}
+.tour:focus {
+  outline: none;
+}
+/* Nothing to point at (or it is hidden on this screen): the card waits in the middle. */
+.tour.is-centred {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 .tour h2 {
   margin: 0;
@@ -1603,20 +1615,58 @@ button.k-link {
   margin-right: auto;
   font-size: 12px;
   color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
 }
-.tour-target {
-  outline: 2px solid var(--action);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
+/* The arrow: a small square turned 45°, half of it under the card, on the side that faces the target. */
+.tour-arrow {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: var(--surface);
+  transform: rotate(45deg);
+}
+.tour[data-side="bottom"] .tour-arrow {
+  top: -5px;
+  box-shadow: -1px -1px 1px rgb(var(--ink-rgb) / 0.06);
+}
+.tour[data-side="top"] .tour-arrow {
+  bottom: -5px;
+  box-shadow: 1px 1px 1px rgb(var(--ink-rgb) / 0.06);
+}
+.tour[data-side="right"] .tour-arrow {
+  left: -5px;
+}
+.tour[data-side="left"] .tour-arrow {
+  right: -5px;
+}
+/* The spotlight: a rounded window around the target, the rest of the screen dimmed by its huge shadow.
+   Clicks go through it to the app. */
+.tour-spot {
+  position: fixed;
+  z-index: 59;
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 200vmax var(--scrim);
+  pointer-events: none;
+}
+.tour-spot.is-full {
+  inset: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--scrim);
 }
 @media (prefers-reduced-motion: no-preference) {
   .tour {
     animation: tour-in 160ms ease-out;
   }
+  .tour[data-side] {
+    transition: transform 180ms ease-out;
+  }
+  .tour-spot {
+    transition: top 180ms ease-out, left 180ms ease-out, width 180ms ease-out, height 180ms ease-out;
+  }
 }
 @keyframes tour-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
   }
 }

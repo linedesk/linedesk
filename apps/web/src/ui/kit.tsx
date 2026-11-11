@@ -1,5 +1,5 @@
 // The small pieces of the reference UI kit: Icon, Kbd, Button, Badge. Class names match styles.css.
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 import { filledIcons, icons, type IconName } from './icons.ts'
 
 export const cx = (...parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join(' ')
@@ -24,6 +24,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   size?: 'sm' | 'md'
   icon?: IconName
   shortcut?: string[]
+  ref?: Ref<HTMLButtonElement>
 }
 
 export function Button({ variant = 'secondary', size = 'md', icon, shortcut, className, children, ...rest }: ButtonProps) {
