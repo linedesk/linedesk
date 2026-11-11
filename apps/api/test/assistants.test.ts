@@ -41,7 +41,7 @@ describe('assistant.create and assistant.delete', () => {
     expect(created).toMatchObject({ workspace_id: ws.id, name: 'Ava', call_rules: null })
     expect(created!.name).not.toBe(ws.assistant.name)
     expect(created!.greeting).toBe(
-      'Thanks for calling Brightwater Plumbing & Heating. This is Ava, the AI assistant. How can I help?',
+      'Thanks for calling Brightwater Plumbing & Heating. This is Ava. How can I help?',
     )
     expect(DEFAULT_CALL_RULES.length).toBeGreaterThan(0)
   })
