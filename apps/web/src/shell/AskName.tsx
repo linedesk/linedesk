@@ -51,7 +51,6 @@ export function AskName({ impersonating }: { impersonating: boolean }) {
   return (
     <Dialog
       title="What's your name?"
-      description="Your teammates see it on calls and in invitations."
       size="sm"
       onClose={busy ? () => {} : postpone}
       onSubmit={save}

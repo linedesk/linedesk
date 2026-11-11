@@ -1,11 +1,5 @@
-import { auth } from '../auth.ts'
 import { useAssistantName } from '../store.tsx'
 import { Kbd } from '../ui/kit.tsx'
-
-function greeting(now = new Date()) {
-  const hour = now.getHours()
-  return hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
-}
 
 function Art() {
   return (
@@ -21,14 +15,13 @@ function Art() {
 
 /** Calm full-height state when nothing needs a person. A workspace without any calls gets a first-run line instead. */
 export function InboxZero({ handledCount, hasAnyCalls }: { handledCount: number; hasAnyCalls: boolean }) {
-  const firstName = auth.useSession().data?.user.name.split(' ')[0]
   const assistant = useAssistantName()
   if (!hasAnyCalls) {
     return (
       <div className="zero" role="status">
         <Art />
         <h2>No calls yet</h2>
-        <p className="zero-greet">When {assistant} answers one, it shows up here.</p>
+        <p className="zero-greet">Calls {assistant} answers show up here.</p>
       </div>
     )
   }
@@ -36,11 +29,15 @@ export function InboxZero({ handledCount, hasAnyCalls }: { handledCount: number;
     <div className="zero" role="status">
       <Art />
       <h2>All calls handled</h2>
-      <p className="zero-greet">{greeting()}{firstName ? `, ${firstName}` : ''}</p>
       {handledCount > 0 && (
         <>
-          <p className="zero-stat">{assistant} resolved <b>{handledCount}</b>{handledCount === 1 ? ' call on its own' : ' calls on its own'}</p>
-          <p className="zero-hint">Press <Kbd keys={['tab']} /> to check Handled by {assistant}</p>
+          <p className="zero-stat">
+            {assistant} resolved <b>{handledCount}</b>
+            {handledCount === 1 ? ' call on its own' : ' calls on its own'}
+          </p>
+          <p className="zero-hint">
+            Press <Kbd keys={['tab']} /> to check Handled by {assistant}
+          </p>
         </>
       )}
     </div>

@@ -30,7 +30,7 @@ export function NewWorkspaceDialog({ onClose }: { onClose: () => void }) {
   return (
     <Dialog
       title="New workspace"
-      description="For another business. Your assistant uses the name when it answers the phone."
+      description="The assistant says this name on calls."
       size="sm"
       onClose={busy ? () => {} : onClose}
       onSubmit={e => {

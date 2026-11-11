@@ -100,12 +100,11 @@ function Empty({ query }: { query: string }) {
       {query ? (
         <>
           <b>No contact matches “{query}”</b>
-          <span>Try a name, a company, an email or part of the number.</span>
         </>
       ) : (
         <>
           <b>No contacts yet</b>
-          <span>Everyone who calls shows up here, with their calls and what they called about.</span>
+          <span>Everyone who calls shows up here.</span>
         </>
       )}
     </div>

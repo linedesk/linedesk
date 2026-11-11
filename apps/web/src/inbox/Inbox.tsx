@@ -1,4 +1,3 @@
-import { NEEDS_REVIEW_MAX_SCORE } from '@linedesk/actions'
 import type { Call } from '@linedesk/db/types'
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { SegmentsByCall } from '../call/segments.ts'
@@ -42,22 +41,11 @@ const emptyTitle: Record<InboxTab, string> = {
   mine: 'Nothing assigned to you',
   review: 'Nothing to review',
 }
-const emptyHelp: Record<InboxTab, string> = {
-  you: 'Calls that need a person land here.',
-  ai: 'Calls the assistant resolved on its own land here.',
-  spam: 'Sales calls and robocalls the assistant blocked land here.',
-  done: 'Calls you mark done with E land here.',
-  reminders: 'Calls you set a reminder for with H wait here until they come back.',
-  mine: 'Calls assigned to you with A wait here until they are done.',
-  review: `Calls the assistant may have handled badly (an evaluation of ${NEEDS_REVIEW_MAX_SCORE} or lower) show up here.`,
-}
-
 function Empty({ tab, search }: { tab: InboxTab; search: string | null }) {
   return (
     <div className="empty">
       <Icon name={tab === 'done' ? 'check' : tab === 'reminders' ? 'clock' : 'tasks'} size={22} />
       <b>{search ? `No call mentions “${search}”` : emptyTitle[tab]}</b>
-      <span>{search ? 'Try a name, a number or a word from the conversation.' : emptyHelp[tab]}</span>
     </div>
   )
 }
