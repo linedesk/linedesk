@@ -5,6 +5,7 @@
 import type { MyInvitation } from '@linedesk/actions'
 import { auth } from '../auth.ts'
 import { fetchQuery, useQuery } from '../cachedQuery.ts'
+import { announceSwitch } from '../tabWorkspace.ts'
 
 async function runAction<T>(name: string, input: object): Promise<T> {
   const res = await fetch(`/v1/actions/${name}`, {
@@ -18,11 +19,15 @@ async function runAction<T>(name: string, input: object): Promise<T> {
   return body.data as T
 }
 
-/** Makes a workspace active and reloads into it: each workspace has its own local store. */
-export async function switchToWorkspace(id: string) {
+/**
+ * Makes a workspace active and reloads into it at `hash` (the inbox; null keeps the page): each
+ * workspace has its own local store. The other tabs hear of it and say which workspace they are on.
+ */
+export async function switchToWorkspace(id: string, hash: string | null = '#calls') {
   const r = await auth.organization.setActive({ organizationId: id })
   if (r.error) throw new Error(r.error.message ?? 'Could not switch the workspace')
-  window.location.hash = '#calls'
+  announceSwitch(id)
+  if (hash) window.location.hash = hash
   window.location.reload()
 }
 

@@ -1,7 +1,7 @@
 // A caller only ever reaches rows of their own workspace, whatever ids or parameters they send.
 import { actions, type ActionDef } from '@linedesk/actions'
-import { appointment_types, phone_numbers, tableNames, transcript_segments } from '@linedesk/db'
-import { eq } from 'drizzle-orm'
+import { appointment_types, contacts, member, phone_numbers, tableNames, transcript_segments } from '@linedesk/db'
+import { and, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { app } from '../src/app.ts'
 import { auth } from '../src/auth.ts'
@@ -10,6 +10,7 @@ import {
   act,
   addMember,
   agent,
+  anonymous,
   type Caller,
   createWorkspace,
   getAssistant,
@@ -77,11 +78,11 @@ describe('patch actions', () => {
       const before = await snapshot(b)
       const guessed = await act(callerFor(def, a), name, inputFor(def, b))
       expect(guessed).toMatchObject({ status: 409, body: { ok: false, error: notFound[name] ?? `${def.patch!.table} row not found` } })
-      // A member cannot pick the workspace with a header either: that is for the agent only.
+      // Naming a workspace one is not a member of is refused before the action runs.
       const withHeader = await request(a.owner, 'POST', `/v1/actions/${name}`, inputFor(def, b), {
         'x-workspace-id': b.id,
       })
-      expect(withHeader.status).toBe(def.permission === 'agent' ? 403 : 409)
+      expect(withHeader).toMatchObject({ status: 403, body: { code: 'workspace_access_lost' } })
       expect(await snapshot(b)).toEqual(before)
     },
   )
@@ -277,4 +278,86 @@ test('/v1/me lists the workspaces the member belongs to, by name, and no others'
     { id: b.id, name: 'Alder Heating' },
     { id: a.id, name: 'Zephyr Plumbing' },
   ])
+})
+
+describe("a tab's workspace (x-workspace-id) must be the session's", () => {
+  let home: Workspace
+  let side: Workspace
+  let both: User // owner of home, member of side
+  beforeAll(async () => {
+    home = await createWorkspace('Tab Home Plumbing')
+    side = await createWorkspace('Tab Side Heating')
+    both = home.owner
+    await auth.api.addMember({ body: { userId: both.userId, organizationId: side.id, role: 'member' } })
+  })
+  const switchTo = (workspaceId: string) =>
+    request(both, 'POST', '/api/auth/organization/set-active', { organizationId: workspaceId })
+  const inTab = (workspaceId: string, name: string, input: unknown) =>
+    request(both, 'POST', `/v1/actions/${name}`, input, { 'x-workspace-id': workspaceId })
+  const contactsNamed = async (workspaceId: string, name: string) =>
+    (await db.select().from(contacts).where(eq(contacts.workspace_id, workspaceId))).filter(c => c.name === name)
+  const membershipId = async (userId: string, workspaceId: string) =>
+    (await db.select().from(member).where(and(eq(member.userId, userId), eq(member.organizationId, workspaceId))))[0]!.id
+
+  test('a tab still on the old workspace after a switch elsewhere is refused, and writes nowhere', async () => {
+    expect((await switchTo(home.id)).status).toBe(200)
+    expect((await inTab(home.id, 'call.markRead', { callId: home.call.id })).status).toBe(200)
+    // Another tab switches the session to `side`.
+    expect((await switchTo(side.id)).status).toBe(200)
+    const refused = await inTab(home.id, 'contact.create', { phone: randomNumber(), name: 'Made in the home tab' })
+    expect(refused).toMatchObject({ status: 403, body: { ok: false, code: 'workspace_switched', activeWorkspaceId: side.id } })
+    expect(await contactsNamed(side.id, 'Made in the home tab')).toEqual([])
+    expect(await contactsNamed(home.id, 'Made in the home tab')).toEqual([])
+    // The tab that switched works in `side`; without the header the session's workspace is used, as before.
+    expect((await inTab(side.id, 'call.markRead', { callId: side.call.id })).status).toBe(200)
+    expect((await act(both, 'call.markRead', { callId: side.call.id })).status).toBe(200)
+    // Switching back makes the first tab work again.
+    expect((await switchTo(home.id)).status).toBe(200)
+    expect((await inTab(home.id, 'call.markUnread', { callId: home.call.id })).status).toBe(200)
+  })
+
+  test("shapes: the header and the workspace in the URL must both be the session's", async () => {
+    expect((await switchTo(home.id)).status).toBe(200)
+    const upstream = vi.fn(async (_url: URL) => new Response('[]', { status: 200 }))
+    vi.stubGlobal('fetch', upstream)
+    const shape = (header: string, inUrl: string) =>
+      request(both, 'GET', `/v1/shape/calls?offset=-1&workspace=${inUrl}`, undefined, { 'x-workspace-id': header })
+    expect((await shape(home.id, home.id)).status).toBe(200)
+    const sent = Object.fromEntries(upstream.mock.calls[0]![0].searchParams)
+    expect(sent).toMatchObject({ 'params[1]': home.id })
+    expect(sent.workspace).toBeUndefined() // not passed on to Electric
+    expect(await shape(side.id, side.id)).toMatchObject({ status: 403, body: { code: 'workspace_switched' } })
+    expect(await shape(home.id, side.id)).toMatchObject({ status: 403, body: { code: 'workspace_switched' } })
+    expect(await shape(home.id, b.id)).toMatchObject({ status: 403, body: { code: 'workspace_access_lost' } })
+    expect(upstream).toHaveBeenCalledOnce()
+  })
+
+  test('a member removed from the workspace their tab is on gets "no access", not "signed out"', async () => {
+    const tab = { 'x-workspace-id': home.id }
+    const leaving = await addMember(home.id, 'member')
+    expect((await act(home.owner, 'team.removeMember', { memberId: await membershipId(leaving.userId, home.id) })).status).toBe(200)
+    expect(await request(leaving, 'POST', '/v1/actions/call.markDone', { callId: home.call.id }, tab)).toMatchObject({
+      status: 403,
+      body: { code: 'workspace_access_lost' },
+    })
+    expect((await request(leaving, 'GET', '/v1/shape/calls?offset=-1', undefined, tab)).status).toBe(403)
+    // Without a tab's header (curl, an older page) it stays what it was.
+    expect((await request(leaving, 'GET', '/v1/me')).status).toBe(401)
+
+    // Removed from one of two workspaces: the other one is never used in its place.
+    const twoOf = await addMember(home.id, 'member')
+    await auth.api.addMember({ body: { userId: twoOf.userId, organizationId: side.id, role: 'member' } })
+    expect((await act(home.owner, 'team.removeMember', { memberId: await membershipId(twoOf.userId, home.id) })).status).toBe(200)
+    const created = await request(twoOf, 'POST', '/v1/actions/contact.create', { phone: randomNumber(), name: 'Lost tab contact' }, tab)
+    expect(created).toMatchObject({ status: 403, body: { code: 'workspace_access_lost' } })
+    expect(await contactsNamed(side.id, 'Lost tab contact')).toEqual([])
+  })
+
+  test('signed out stays 401 with a header', async () => {
+    expect((await request(anonymous, 'GET', '/v1/shape/calls?offset=-1', undefined, { 'x-workspace-id': home.id })).status).toBe(401)
+  })
+
+  test('the agent names a workspace with the header, as before', async () => {
+    expect((await act(agent(home.id), 'call.flagUrgent', { callId: home.call.id })).status).toBe(200)
+  })
 })

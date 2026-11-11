@@ -4,13 +4,14 @@ import type { ActionResult, WorkspaceSettingsData } from '@linedesk/actions'
 import { useCallback } from 'react'
 import { useStore } from '../store.tsx'
 import { fetchQuery, setQueryData, useQuery } from '../cachedQuery.ts'
+import { workspaceHeaders } from '../tabWorkspace.ts'
 
 /** Runs a read-only registry action and returns its `data`. */
 export async function readAction<T>(name: string, input: object = {}): Promise<T> {
   const res = await fetch(`/v1/actions/${name}`, {
     method: 'POST',
     credentials: 'include',
-    headers: { 'content-type': 'application/json' },
+    headers: { ...workspaceHeaders(), 'content-type': 'application/json' },
     body: JSON.stringify(input),
   })
   const body = (await res.json().catch(() => null)) as { ok?: boolean; data?: T } | null
@@ -23,7 +24,7 @@ async function runDirect(name: string, input: object): Promise<ActionResult> {
   const res = await fetch(`/v1/actions/${name}`, {
     method: 'POST',
     credentials: 'include',
-    headers: { 'content-type': 'application/json', 'idempotency-key': crypto.randomUUID() },
+    headers: { ...workspaceHeaders(), 'content-type': 'application/json', 'idempotency-key': crypto.randomUUID() },
     body: JSON.stringify(input),
   }).catch(() => null)
   const body = (await res?.json().catch(() => null)) as ActionResult | { ok: false; error?: string } | null

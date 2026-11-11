@@ -1284,6 +1284,10 @@ describe('impersonation', () => {
     const { as } = await start(operator, target.userId)
     const key = crypto.randomUUID()
     expect((await act(as, 'call.markRead', { callId: other.call.id }, key)).status).toBe(200)
+    // A tab names the user's workspace: works. The admin's own workspace is not the user's: refused.
+    const inTab = (workspaceId: string) => request(as, 'POST', '/v1/actions/call.markUnread', { callId: other.call.id }, { 'x-workspace-id': workspaceId })
+    expect((await inTab(other.id)).status).toBe(200)
+    expect(await inTab(home.id)).toMatchObject({ status: 403, body: { code: 'workspace_access_lost' } })
     expect((await db.select().from(commands).where(eq(commands.id, key)))[0]).toMatchObject({
       actor_id: target.userId,
       impersonated_by: operator.userId,

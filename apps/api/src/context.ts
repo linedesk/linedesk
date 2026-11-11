@@ -2,7 +2,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import { rolePermissions, type Permission, type Role } from '@linedesk/actions'
 import { member, organization, user } from '@linedesk/db'
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { actorForApiKey, isApiKey } from './api-keys.ts'
 import { auth } from './auth.ts'
 import { db } from './db.ts'
@@ -51,19 +51,35 @@ function sameToken(given: string, expected: string) {
 
 /** `clientIp` is where the request comes from (client-ip.ts); refused API keys are counted per address. */
 export async function resolveActor(headers: Headers, clientIp: string | null = null): Promise<Actor | null> {
+  const resolved = await resolveCaller(headers, clientIp)
+  return 'actor' in resolved ? resolved.actor : null
+}
+
+/**
+ * Who is calling, or why nobody usable is: `no_workspace` is a valid session of someone who belongs
+ * to no workspace (removed from their last one, or never joined one) and is not an instance admin.
+ */
+export async function resolveCaller(
+  headers: Headers,
+  clientIp: string | null = null,
+): Promise<{ actor: Actor } | { missing: 'signed_out' | 'no_workspace' }> {
+  const signedOut = { missing: 'signed_out' } as const
   const bearer = headers.get('authorization')?.replace(/^Bearer /, '')
   if (bearer) {
-    if (isApiKey(bearer)) return actorForApiKey(bearer, clientIp)
-    if (!process.env.AGENT_API_TOKEN || !sameToken(bearer, process.env.AGENT_API_TOKEN)) return null
-    return { actorId: 'agent', role: 'agent', workspaceId: headers.get('x-workspace-id'), permissions: rolePermissions.agent }
+    if (isApiKey(bearer)) {
+      const actor = await actorForApiKey(bearer, clientIp)
+      return actor ? { actor } : signedOut
+    }
+    if (!process.env.AGENT_API_TOKEN || !sameToken(bearer, process.env.AGENT_API_TOKEN)) return signedOut
+    return { actor: { actorId: 'agent', role: 'agent', workspaceId: headers.get(WORKSPACE_HEADER), permissions: rolePermissions.agent } }
   }
   const session = await auth.api.getSession({ headers })
-  if (!session) return null
+  if (!session) return signedOut
   const [account] = await db.select().from(user).where(eq(user.id, session.user.id))
-  if (!account || account.disabledAt) return null
+  if (!account || account.disabledAt) return signedOut
   const { impersonatedBy } = session.session
   const impersonation = impersonatedBy ? await checkImpersonation({ ...session.session, impersonatedBy }) : undefined
-  if (impersonation === null) return null
+  if (impersonation === null) return signedOut
   // While impersonating: the user's own permissions, never instance:admin, plus ending the impersonation.
   // An instance admin gets instance:admin only in a session with the second factor (admin-second-factor.ts).
   const secondFactorGap = !impersonation && isInstanceAdmin(account) ? await adminSecondFactorGap(account.id, session.session) : null
@@ -78,13 +94,60 @@ export async function resolveActor(headers: Headers, clientIp: string | null = n
   const memberships = await db.select().from(member).where(eq(member.userId, session.user.id)).orderBy(asc(member.createdAt))
   const m = memberships.find(x => x.organizationId === active) ?? memberships[0]
   // An instance admin can use the admin area before they belong to a workspace, and an impersonation can be ended; everyone else needs one.
-  if (!m) return extraPermissions.length || secondFactorGap ? { actorId: account.id, role: 'member', workspaceId: null, permissions: extraPermissions, ...extra } : null
+  if (!m)
+    return extraPermissions.length || secondFactorGap
+      ? { actor: { actorId: account.id, role: 'member', workspaceId: null, permissions: extraPermissions, ...extra } }
+      : { missing: 'no_workspace' }
   const workspaceId = m.organizationId
   const role = (m.role in rolePermissions ? m.role : 'member') as Role
   const [workspace] = await db.select({ disabledAt: organization.disabledAt }).from(organization).where(eq(organization.id, workspaceId))
   if (workspace?.disabledAt) {
     const permissions = [...readOnly(rolePermissions[role]), ...extraPermissions]
-    return { actorId: account.id, role, workspaceId, permissions, workspaceDisabled: true, ...extra }
+    return { actor: { actorId: account.id, role, workspaceId, permissions, workspaceDisabled: true, ...extra } }
   }
-  return { actorId: account.id, role, workspaceId, permissions: [...rolePermissions[role], ...extraPermissions], ...extra }
+  return { actor: { actorId: account.id, role, workspaceId, permissions: [...rolePermissions[role], ...extraPermissions], ...extra } }
+}
+
+/**
+ * The workspace a request is for. The agent names a call's workspace with it; a browser tab sends
+ * the workspace it was opened on, so a switch in another tab (the session's active workspace is one
+ * per cookie) never makes this tab read or write another workspace.
+ */
+export const WORKSPACE_HEADER = 'x-workspace-id'
+
+export type WorkspaceRefusal = {
+  ok: false
+  error: string
+  code: 'workspace_switched' | 'workspace_access_lost'
+  /** With `workspace_switched`: the workspace the session is on now. */
+  activeWorkspaceId?: string
+}
+
+/** Signed in, but not (or no longer) a member of the workspace the request names. */
+export const accessLost = (error = 'You no longer have access to this workspace.'): WorkspaceRefusal => ({
+  ok: false,
+  error,
+  code: 'workspace_access_lost',
+})
+
+/**
+ * Why a request that names its workspace must not run, or null when it may. The session moved to
+ * another workspace (a switch in another tab): `workspace_switched`, the tab can switch back. Not a
+ * member of it: `workspace_access_lost`. An API key works only in the workspace of its row. Both are
+ * answered with 403, never 409: Electric's client takes a 409 on a shape request for an expired shape.
+ */
+export async function workspaceRefusal(actor: Actor, requested: string | null): Promise<WorkspaceRefusal | null> {
+  if (!requested || requested === actor.workspaceId || actor.role === 'agent') return null
+  if (actor.apiKeyId) return accessLost('This API key belongs to another workspace.')
+  const [membership] = await db
+    .select({ id: member.id })
+    .from(member)
+    .where(and(eq(member.userId, actor.actorId), eq(member.organizationId, requested)))
+  if (!membership || !actor.workspaceId) return accessLost()
+  return {
+    ok: false,
+    error: 'This tab is on another workspace than your account now. Switch back or reload.',
+    code: 'workspace_switched',
+    activeWorkspaceId: actor.workspaceId,
+  }
 }

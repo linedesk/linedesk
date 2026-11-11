@@ -18,7 +18,7 @@ export function StoreProvider({ workspaceId, children }: { workspaceId: string; 
   const [rejection, setRejection] = useState<Rejection | null>(null)
   useEffect(() => {
     let live = true
-    const lease = leaseStore(localDbName(workspaceId), setRejection)
+    const lease = leaseStore(localDbName(workspaceId), workspaceId, setRejection)
     lease.ready.then(
       store => {
         if (live) setBoot({ state: 'ready', store })

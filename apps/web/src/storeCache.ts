@@ -16,8 +16,8 @@ const open = new Map<string, Entry>()
 
 export type StoreLease = { ready: Promise<Store>; release: () => void }
 
-/** A store for this database, shared by everyone who holds a lease. It stops a moment after the last lease is released. */
-export function leaseStore(dbName: string, onReject: (r: Rejection) => void): StoreLease {
+/** A store for this workspace's database, shared by everyone who holds a lease. It stops a moment after the last lease is released. */
+export function leaseStore(dbName: string, workspaceId: string, onReject: (r: Rejection) => void): StoreLease {
   let entry = open.get(dbName)
   if (!entry) {
     const listeners = new Set<(r: Rejection) => void>()
@@ -27,8 +27,9 @@ export function leaseStore(dbName: string, onReject: (r: Rejection) => void): St
       ready: createStore({
         api: '',
         dbName,
+        workspaceId,
         // Live only what changes during calls; settings-like tables are checked on focus, after a write and every minute.
-        adapter: electricAdapter(window.location.origin, { liveTables: LIVE_TABLES }),
+        adapter: electricAdapter(window.location.origin, { liveTables: LIVE_TABLES, workspaceId }),
         appVersion: import.meta.env.VITE_APP_BUILD,
         onReject: r => listeners.forEach(l => l(r)),
         onLocalDbLost: () => window.location.reload(), // another tab signed out and removed the local data

@@ -58,8 +58,12 @@ describe('using a key', () => {
     expect((await act(bearer(key), 'call.markDone', { callId: ws.call.id })).status).toBe(200)
     expect(await act(bearer(key), 'call.markDone', { callId: other.call.id })).toMatchObject({ status: 409 })
     expect((await db.select().from(calls).where(eq(calls.id, other.call.id)))[0]!.inbox_state).toBe('open')
-    // A key cannot pick another workspace with the agent's header.
-    expect((await request(bearer(key), 'POST', '/v1/actions/call.markDone', { callId: other.call.id }, { 'x-workspace-id': other.id })).status).toBe(409)
+    // A key cannot pick another workspace with the workspace header; its own still works.
+    expect(await request(bearer(key), 'POST', '/v1/actions/call.markDone', { callId: other.call.id }, { 'x-workspace-id': other.id })).toMatchObject({
+      status: 403,
+      body: { code: 'workspace_access_lost', error: 'This API key belongs to another workspace.' },
+    })
+    expect((await request(bearer(key), 'POST', '/v1/actions/call.markNotDone', { callId: ws.call.id }, { 'x-workspace-id': ws.id })).status).toBe(200)
     expect((await act(bearer(key), 'assistant.update', { assistantId: ws.assistant.id, greeting: 'hi' })).status).toBe(403)
   })
 

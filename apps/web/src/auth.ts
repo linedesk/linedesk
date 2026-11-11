@@ -5,6 +5,7 @@ import { createAuthClient } from 'better-auth/react'
 
 import type { Impersonation } from './impersonation.ts'
 import { readLastUsedMethod } from './sign-in-methods.ts'
+import { announceSwitch } from './tabWorkspace.ts'
 
 export type { AuthMethods, LegalLinks, SsoMethod }
 
@@ -67,7 +68,10 @@ export async function createWorkspace(name: string) {
     // The workspace's time zone for working hours; the API falls back to US Eastern.
     body: JSON.stringify({ name, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
   })
-  if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? 'Could not create the workspace')
+  const body = (await res.json().catch(() => ({}))) as { error?: string; workspace?: { id: string } }
+  if (!res.ok) throw new Error(body.error ?? 'Could not create the workspace')
+  // The new workspace is now the session's: other open tabs say which one they are on.
+  if (body.workspace) announceSwitch(body.workspace.id)
 }
 
 /** Where the API sends the browser back to: errors arrive as `?error=CODE` on the sign-in screen. */

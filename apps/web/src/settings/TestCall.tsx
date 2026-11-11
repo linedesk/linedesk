@@ -7,6 +7,7 @@ import { Room, RoomEvent, Track } from 'livekit-client'
 import { type RefObject, useEffect, useMemo, useRef, useState } from 'react'
 import { useVoiceReady } from '../shell/presence.ts'
 import { useAssistantName, useRows } from '../store.tsx'
+import { workspaceHeaders } from '../tabWorkspace.ts'
 import { Button, cx } from '../ui/kit.tsx'
 import '../ui/settings-layout.css'
 import { TEST_CALL_TIMEOUT_MS, TimedOut, testCallErrorText, within } from './testCallModel.ts'
@@ -18,7 +19,7 @@ async function requestTestCall(assistantId?: string): Promise<TestCallData> {
   const res = await fetch('/v1/actions/assistant.startTestCall', {
     method: 'POST',
     credentials: 'include',
-    headers: { 'content-type': 'application/json' },
+    headers: { ...workspaceHeaders(), 'content-type': 'application/json' },
     body: JSON.stringify(assistantId ? { assistantId } : {}),
   })
   const body = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; data?: TestCallData } | null

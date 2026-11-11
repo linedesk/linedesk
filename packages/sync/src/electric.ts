@@ -2,6 +2,7 @@ import { FetchError, isChangeMessage, isControlMessage, ShapeStream, type Row } 
 import type { TableName } from '@linedesk/db/types'
 import type { ReadSyncAdapter, TableSink } from './adapter.ts'
 import { inOrder, type RowChange } from './ordered.ts'
+import { asRefusal, WORKSPACE_HEADER } from './refusal.ts'
 
 type Cursor = { offset: string; handle: string }
 const json = (v: string) => JSON.parse(v) as unknown
@@ -33,10 +34,23 @@ type Options = {
   liveTables?: readonly TableName[]
   /** How often a table that is not live is checked again. */
   pollMs?: number
+  /** The workspace this tab reads: sent with every shape request, which the server checks against the session. */
+  workspaceId?: string
 }
 
 /** Shape requests yield to everything else the page asks for (writes, admin actions). */
 const LOW: RequestInit = { priority: 'low' } as RequestInit
+
+/** A table's shape URL. With the workspace in it, every workspace's shape has its own URL, so Electric's per-URL state (expired handles) never mixes workspaces. */
+export const shapeUrl = (api: string, table: TableName, workspaceId?: string) =>
+  `${api}/v1/shape/${table}${workspaceId ? `?workspace=${encodeURIComponent(workspaceId)}` : ''}`
+
+/** The request's headers with the tab's workspace added. */
+function withWorkspace(headers: HeadersInit | undefined, workspaceId: string | undefined): Headers {
+  const merged = new Headers(headers)
+  if (workspaceId) merged.set(WORKSPACE_HEADER, workspaceId)
+  return merged
+}
 
 /**
  * Electric through the API's shape proxy, which adds auth and the workspace filter.
@@ -47,7 +61,7 @@ const LOW: RequestInit = { priority: 'low' } as RequestInit
  */
 export const electricAdapter = (
   api: string,
-  { createStream = o => new ShapeStream(o), delayMs = restartDelayMs, liveTables, pollMs = 60_000 }: Options = {},
+  { createStream = o => new ShapeStream(o), delayMs = restartDelayMs, liveTables, pollMs = 60_000, workspaceId }: Options = {},
 ): ReadSyncAdapter => {
   /** Re-checks of the tables that are not live, by table. */
   const pokes = new Set<() => void>()
@@ -82,8 +96,8 @@ export const electricAdapter = (
         abort = controller
         reading = !live
         const stream = createStream({
-          url: `${api}/v1/shape/${table}`,
-          fetchClient: (input, init) => fetch(input, { ...init, ...LOW, credentials: 'include' }),
+          url: shapeUrl(api, table, workspaceId),
+          fetchClient: (input, init) => fetch(input, { ...init, ...LOW, credentials: 'include', headers: withWorkspace(init?.headers, workspaceId) }),
           signal: controller.signal,
           subscribe: live,
           offset: cursor?.offset as never,
@@ -93,6 +107,12 @@ export const electricAdapter = (
           onError: error => {
             if (controller.signal.aborted || stopped) return
             controller.abort()
+            // Not this tab's workspace any more: retrying cannot help, the store stops and says so.
+            const refusal = error instanceof FetchError && error.status === 403 ? asRefusal(error.json) : null
+            if (refusal) {
+              stopped = true
+              return sink.refuse(refusal)
+            }
             restartLater(isStaleCursor(error))
           },
         })

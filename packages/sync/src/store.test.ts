@@ -50,6 +50,60 @@ describe('store', () => {
     store.stop()
   })
 
+  it('sends its workspace with every action', async () => {
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) => respond(200, { ok: true, rows: {} }))
+    vi.stubGlobal('fetch', fetchMock)
+    const store = await open(fakeAdapter().adapter, { workspaceId: 'ws_a' })
+    await store.run('call.markDone', { callId: 'c1' })
+    await eventually(() => expect(store.getSnapshot().pending).toBe(0))
+    expect(new Headers(fetchMock.mock.calls[0]![1].headers).get('x-workspace-id')).toBe('ws_a')
+    store.stop()
+  })
+
+  it('stops sending and reading when the server refuses the workspace, keeping the change queued', async () => {
+    const refused = { ok: false, error: 'switched', code: 'workspace_switched', activeWorkspaceId: 'ws_b' }
+    const fetchMock = vi.fn(async () => respond(403, refused))
+    vi.stubGlobal('fetch', fetchMock)
+    const stopped = vi.fn()
+    const adapter: ReadSyncAdapter = { name: 'fake', start: () => stopped }
+    const onReject = vi.fn()
+    const store = await open(adapter, { workspaceId: 'ws_a', onReject })
+    await store.run('call.markDone', { callId: 'c1' })
+    await eventually(() => expect(store.getSnapshot().refused).toEqual({ code: 'workspace_switched', activeWorkspaceId: 'ws_b' }))
+    expect(stopped).toHaveBeenCalledTimes(tableNames.length) // read sync stopped
+    expect(store.getSnapshot().pending).toBe(1) // not rolled back, not rejected
+    expect(onReject).not.toHaveBeenCalled()
+    await quietFor(30)
+    expect(fetchMock).toHaveBeenCalledOnce() // and not retried
+    await store.run('call.markDone', { callId: 'c2' })
+    await quietFor(30)
+    expect(fetchMock).toHaveBeenCalledOnce()
+    store.stop()
+  })
+
+  it('a refusal from read sync stops the outbox too', async () => {
+    const fetchMock = vi.fn(async () => respond(200, { ok: true, rows: {} }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { adapter, calls } = fakeAdapter()
+    const store = await open(adapter, { workspaceId: 'ws_a' })
+    calls().refuse({ code: 'workspace_access_lost' })
+    expect(store.getSnapshot().refused).toEqual({ code: 'workspace_access_lost' })
+    await store.run('call.markDone', { callId: 'c1' })
+    await quietFor(30)
+    expect(fetchMock).not.toHaveBeenCalled()
+    store.stop()
+  })
+
+  it('a 403 that is not a workspace refusal still rejects the command', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => respond(403, { ok: false, error: 'forbidden: settings:write' })))
+    const onReject = vi.fn()
+    const store = await open(fakeAdapter().adapter, { onReject })
+    await store.run('call.markDone', { callId: 'c1' })
+    await eventually(() => expect(onReject).toHaveBeenCalledWith(expect.objectContaining({ error: 'forbidden: settings:write' })))
+    expect(store.getSnapshot().refused).toBeNull()
+    store.stop()
+  })
+
   it('drops the rows an action deleted as soon as the server answers, without waiting for read sync', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => respond(200, { ok: true, rows: {}, deleted: { calls: ['c1'] } })))
     const { adapter, calls } = fakeAdapter()

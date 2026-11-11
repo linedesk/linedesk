@@ -457,6 +457,12 @@ button.me:focus-visible {
 .boot .k-btn {
   margin-top: 8px;
 }
+.boot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
 .boot-loading {
   animation: boot-in 200ms ease-out 500ms both;
 }

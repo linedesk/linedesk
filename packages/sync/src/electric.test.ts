@@ -2,7 +2,8 @@ import 'fake-indexeddb/auto'
 import { FetchError } from '@electric-sql/client'
 import { describe, expect, it } from 'vitest'
 import type { TableSink } from './adapter.ts'
-import { electricAdapter, isStaleCursor } from './electric.ts'
+import { electricAdapter, isStaleCursor, shapeUrl } from './electric.ts'
+import type { WorkspaceRefusal } from './refusal.ts'
 import { openLocalDb } from './idb.ts'
 import { forgetCursorsOnNewVersion } from './store.ts'
 import { eventually } from './testing.ts'
@@ -40,7 +41,9 @@ function fakeStreams() {
 function memorySink(saved?: unknown) {
   const rows = new Map<string, { id: string }>()
   let cursor = saved
+  const refusals: WorkspaceRefusal[] = []
   const sink: TableSink = {
+    refuse: r => void refusals.push(r),
     upsert: r => r.forEach(row => rows.set(row.id, row)),
     remove: ids => ids.forEach(id => rows.delete(id)),
     replaceAll: r => {
@@ -52,7 +55,7 @@ function memorySink(saved?: unknown) {
       cursor = c
     },
   }
-  return { sink, rows, cursor: () => cursor }
+  return { sink, rows, refusals, cursor: () => cursor }
 }
 
 const insert = (id: string) => ({ key: id, value: { id }, headers: { operation: 'insert' } })
@@ -60,6 +63,58 @@ const upToDate = { headers: { control: 'up-to-date' } }
 const stale = (status: number) => new FetchError(status, 'stale', undefined, {}, 'http://x/v1/shape/calls')
 
 describe('electric adapter', () => {
+  it('puts the workspace in the shape URL, so each workspace has its own Electric state', () => {
+    expect(shapeUrl('', 'calls', 'ws_a')).toBe('/v1/shape/calls?workspace=ws_a')
+    expect(shapeUrl('', 'calls', 'ws_b')).not.toBe(shapeUrl('', 'calls', 'ws_a'))
+    expect(shapeUrl('', 'calls')).toBe('/v1/shape/calls')
+  })
+
+  it('sends the workspace with every shape request', async () => {
+    const { streams, createStream } = fakeStreams()
+    const store = memorySink()
+    const stop = electricAdapter('', { createStream, workspaceId: 'ws_a' }).start('calls', store.sink)
+    await eventually(() => expect(streams).toHaveLength(1))
+    const options = streams[0]!.options as Options & { url: string; fetchClient: typeof fetch }
+    expect(options.url).toBe('/v1/shape/calls?workspace=ws_a')
+    const seen: Headers[] = []
+    const realFetch = globalThis.fetch
+    globalThis.fetch = (async (_: unknown, init?: RequestInit) => {
+      seen.push(new Headers(init?.headers))
+      return new Response('[]')
+    }) as typeof fetch
+    try {
+      await options.fetchClient('/v1/shape/calls?workspace=ws_a', { headers: { accept: 'application/json' } })
+    } finally {
+      globalThis.fetch = realFetch
+    }
+    expect(seen[0]!.get('x-workspace-id')).toBe('ws_a')
+    expect(seen[0]!.get('accept')).toBe('application/json')
+    stop()
+  })
+
+  it('stops a table for good when the server refuses the workspace, and tells the sink', async () => {
+    const { streams, createStream } = fakeStreams()
+    const store = memorySink()
+    const stop = electricAdapter('', { createStream, delayMs: () => 0, workspaceId: 'ws_a' }).start('calls', store.sink)
+    await eventually(() => expect(streams).toHaveLength(1))
+    const refused = { ok: false, error: 'switched', code: 'workspace_switched', activeWorkspaceId: 'ws_b' }
+    streams[0]!.fail(new FetchError(403, undefined, refused, {}, 'http://x/v1/shape/calls'))
+    await eventually(() => expect(store.refusals).toEqual([{ code: 'workspace_switched', activeWorkspaceId: 'ws_b' }]))
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(streams).toHaveLength(1) // not started again
+    stop()
+  })
+
+  it('keeps retrying a 403 that is not a workspace refusal', async () => {
+    const { streams, createStream } = fakeStreams()
+    const store = memorySink()
+    const stop = electricAdapter('', { createStream, delayMs: () => 0 }).start('calls', store.sink)
+    await eventually(() => expect(streams).toHaveLength(1))
+    streams[0]!.fail(new FetchError(403, undefined, { ok: false, error: 'forbidden' }, {}, 'http://x/v1/shape/calls'))
+    await eventually(() => expect(streams).toHaveLength(2))
+    expect(store.refusals).toEqual([])
+    stop()
+  })
   it('drops a cursor the server no longer knows and loads the table again, replacing the old rows', async () => {
     const { streams, createStream } = fakeStreams()
     const store = memorySink({ offset: 'old', handle: 'gone' })

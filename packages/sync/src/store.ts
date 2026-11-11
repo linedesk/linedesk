@@ -6,16 +6,28 @@ import { actions, applyLocally, type ActionResult, type LocalTables } from '@lin
 import { tableNames, type TableName, type Tables } from '@linedesk/db/types'
 import type { ReadSyncAdapter, TableSink } from './adapter.ts'
 import { type LocalDb, openLocalDb } from './idb.ts'
+import { asRefusal, WORKSPACE_HEADER, type WorkspaceRefusal } from './refusal.ts'
 import { browserTabLink, type Command, type TabLink, type TabMessage } from './tabs.ts'
 
 type AnyRow = { id: string; version: number }
-/** `synced`: tables that have caught up with the server at least once (now or in an earlier session). Before that, an empty table means "not loaded yet", not "nothing there". */
-export type Snapshot = { tables: LocalTables; pending: number; online: boolean; synced: ReadonlySet<TableName> }
+/**
+ * `synced`: tables that have caught up with the server at least once (now or in an earlier session). Before that, an empty table means "not loaded yet", not "nothing there".
+ * `refused`: the server refuses this workspace for this tab; nothing is sent or read any more.
+ */
+export type Snapshot = {
+  tables: LocalTables
+  pending: number
+  online: boolean
+  synced: ReadonlySet<TableName>
+  refused: WorkspaceRefusal | null
+}
 export type Rejection = { action: string; input: unknown; error: string }
 
 export interface StoreOptions {
   api: string
   dbName: string
+  /** The workspace of this store: sent with every action, so the server never runs it in another one. */
+  workspaceId?: string
   adapter: ReadSyncAdapter
   onReject?: (r: Rejection) => void
   /** The local database was taken away by another tab (it signed out). The store has stopped. */
@@ -70,6 +82,7 @@ export async function createStore(opts: StoreOptions) {
   /** Commands issued by this tab: only this tab reports their rejection to the user. */
   const mine = new Set<string>()
   let online = true
+  let refused: WorkspaceRefusal | null = null
   const synced = new Set<TableName>()
   let lastSeq = 0
   let snapshot: Snapshot
@@ -100,7 +113,7 @@ export async function createStore(opts: StoreOptions) {
       const def = actions.get(c.name)
       if (def) applyLocally(tables, def, c.input, c.at)
     }
-    snapshot = { tables, pending: outbox.length, online, synced: new Set(synced) }
+    snapshot = { tables, pending: outbox.length, online, synced: new Set(synced), refused }
     listeners.forEach(l => l())
   }
 
@@ -174,7 +187,22 @@ export async function createStore(opts: StoreOptions) {
       void local.write('meta', s => s.put(cursor, `cursor:${table}`))
       if (cursor && !synced.has(table)) markSynced(table)
     },
+    refuse,
   })
+
+  /**
+   * The server refuses this tab's workspace: stop reading and sending. Pending writes stay in the
+   * outbox (unsent, not rolled back) for when this workspace is opened again; the other tabs of it hear it too.
+   */
+  function refuse(refusal: WorkspaceRefusal) {
+    if (stopped || refused) return
+    refused = refusal
+    stops.forEach(s => s())
+    stops = []
+    clearTimeout(retry)
+    tabs.post({ type: 'refused', refusal })
+    recompute()
+  }
 
   function forget(id: string) {
     outbox = outbox.filter(c => c.id !== id)
@@ -214,7 +242,7 @@ export async function createStore(opts: StoreOptions) {
    * Always takes the oldest command still waiting, so one added while a request is in flight is sent too.
    */
   async function flush() {
-    if (flushing || stopped || !leading) return
+    if (flushing || stopped || refused || !leading) return
     flushing = true
     try {
       for (let c = outbox[0]; c; c = outbox[0]) {
@@ -226,7 +254,11 @@ export async function createStore(opts: StoreOptions) {
             // Ahead of the read sync's requests when the browser has to queue them.
             priority: 'high',
             body: JSON.stringify(c.input),
-            headers: { 'content-type': 'application/json', 'idempotency-key': c.id },
+            headers: {
+              'content-type': 'application/json',
+              'idempotency-key': c.id,
+              ...(opts.workspaceId ? { [WORKSPACE_HEADER]: opts.workspaceId } : {}),
+            },
           })
         } catch {
           if (stopped) return
@@ -241,6 +273,9 @@ export async function createStore(opts: StoreOptions) {
         setOnline(true)
         const body = (await res.json()) as ActionResult | { ok: false; error: string }
         if (stopped) return
+        // Not a rejection of this command: the tab's workspace is refused. It stays queued, unsent.
+        const refusal = res.status === 403 ? asRefusal(body) : null
+        if (refusal) return refuse(refusal)
         if (body.ok) {
           for (const [table, rows] of Object.entries(body.rows)) confirm(table as TableName, rows as AnyRow[])
           removeDeleted(body.deleted)
@@ -294,6 +329,7 @@ export async function createStore(opts: StoreOptions) {
     else if (m.type === 'remove') removeRows(m.table, m.ids, false)
     else if (m.type === 'online' && !leading) online = m.online
     else if (m.type === 'synced') synced.add(m.table)
+    else if (m.type === 'refused') refused ??= m.refusal
     recompute()
   }
 
@@ -307,6 +343,7 @@ export async function createStore(opts: StoreOptions) {
     if (!starting) await loadFromDisk() // what the previous leader wrote, and commands whose announcement this tab missed
     if (stopped) return
     recompute()
+    if (refused) return // the leader before was refused: this one would be too
     stops = tableNames.map(t => opts.adapter.start(t, sinkFor(t)))
     void flush()
   }

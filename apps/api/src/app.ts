@@ -12,7 +12,7 @@ import { authMethods } from './auth-methods.ts'
 import { auth, WEB_ORIGIN, WORKSPACE_LIMIT } from './auth.ts'
 import { calendarCallback } from './calendar-callback.ts'
 import { configuredCalendarProviders } from '@linedesk/calendar'
-import { resolveActor, type Actor } from './context.ts'
+import { accessLost, resolveCaller, WORKSPACE_HEADER, workspaceRefusal, type Actor } from './context.ts'
 import { db } from './db.ts'
 import { COOKIE_ACTIONS } from './impersonation.ts'
 import { registerImpersonationRoutes } from './impersonation-routes.ts'
@@ -98,7 +98,11 @@ app.get('/v1/calendar/callback/:provider', async c => c.redirect(await calendarC
 
 app.use('/v1/*', async (c, next) => {
   const ip = clientIpOf(c)
-  const actor = await resolveActor(c.req.raw.headers, ip)
+  const requested = c.req.header(WORKSPACE_HEADER) ?? null
+  const caller = await resolveCaller(c.req.raw.headers, ip)
+  // A tab of a workspace its member was just removed from (or their last one): no access, not "signed out".
+  if ('missing' in caller && caller.missing === 'no_workspace' && requested) return c.json(accessLost(), 403)
+  const actor = 'actor' in caller ? caller.actor : null
   if (!actor) {
     // An address that sent too many unknown keys is not looked up any more (api-keys.ts).
     if (isApiKey(c.req.header('authorization')?.replace(/^Bearer /, '') ?? '') && tooManyInvalidApiKeys(ip)) {
@@ -111,6 +115,9 @@ app.use('/v1/*', async (c, next) => {
     c.header('retry-after', '60')
     return c.json({ ok: false, error: `rate limit: ${API_KEY_REQUESTS_PER_MINUTE} requests a minute per API key` }, 429)
   }
+  // The tab's workspace must be the session's: never read or write another one (a switch in another tab).
+  const refusal = await workspaceRefusal(actor, requested)
+  if (refusal) return c.json(refusal, 403)
   c.set('actor', actor)
   await next()
 })
@@ -181,7 +188,9 @@ app.post('/v1/actions/:name', async c => {
 app.get('/v1/calls/:id/recording', c => serveRecording(c.get('actor'), c.req.param('id'), c.req.header('range')))
 
 // Read sync: proxy to Electric. The server picks the table and adds the workspace filter;
-// the client only controls the stream position.
+// the client only controls the stream position. The browser puts its workspace in the URL too
+// (`?workspace=`), so each workspace's shape has its own URL and Electric's client keeps its
+// per-URL state (expired handles) apart; it must be the request's workspace.
 
 const streamParams = ['offset', 'handle', 'live', 'cursor', 'live_sse', 'experimental_live_sse']
 /** Which rows of a table a member's browser receives: their workspace's; webhook URLs (they can carry a token) only for owners and admins. */
@@ -195,6 +204,8 @@ app.get('/v1/shape/:table', async c => {
   const table = c.req.param('table') as TableName
   const { workspaceId } = c.get('actor')
   if (!tableNames.includes(table) || !workspaceId) return c.json({ ok: false, error: 'unknown table' }, 404)
+  const refusal = await workspaceRefusal(c.get('actor'), c.req.query('workspace') ?? null)
+  if (refusal) return c.json(refusal, 403)
   const target = new URL('/v1/shape', ELECTRIC_URL)
   for (const [k, v] of new URL(c.req.url).searchParams) if (streamParams.includes(k)) target.searchParams.set(k, v)
   target.searchParams.set('table', table)

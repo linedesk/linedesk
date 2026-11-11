@@ -47,6 +47,23 @@ describe('two tabs on one workspace', () => {
     first.stop(); second.stop()
   })
 
+  it('tells every tab of the workspace when the server refuses it, and the next leader does not start again', async () => {
+    const fetchMock = vi.fn(async () => respond(200, { ok: true, rows: {} }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { tab } = browser()
+    const a = tab(), b = tab()
+    const [first, second] = [await a.store, await b.store]
+    a.calls().refuse({ code: 'workspace_switched', activeWorkspaceId: 'ws_b' })
+    await eventually(() => expect(second.getSnapshot().refused).toEqual({ code: 'workspace_switched', activeWorkspaceId: 'ws_b' }))
+    first.stop() // the second tab leads now
+    await quietFor()
+    expect(b.syncStarted()).toBe(false)
+    await second.run('call.markDone', { callId: 'c1' })
+    await quietFor()
+    expect(fetchMock).not.toHaveBeenCalled()
+    second.stop()
+  })
+
   it("does not replay another tab's command when a tab starts while it is on its way", async () => {
     const sent: string[] = []
     let answer: () => void = () => {}
