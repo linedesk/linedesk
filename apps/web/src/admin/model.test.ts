@@ -1,8 +1,11 @@
 import { expect, test } from 'vitest'
 import type { ProviderField, ProviderStatus } from './api.ts'
 import {
-  fieldValueText,
-  shortValue,
+  changedValues,
+  connectionOf,
+  fieldErrors,
+  initialValues,
+  isConfigured,
   formatMinutes,
   monthLabel,
   nextSort,
@@ -70,18 +73,41 @@ test('a provider is set in the app as soon as one field is stored there', () => 
   expect(providerState(provider(field({ source: 'env' }), field({ source: 'app' })))).toBe('app')
 })
 
-test('a secret shows at most its last four characters', () => {
-  expect(fieldValueText(field({}))).toBe('Not set')
-  expect(fieldValueText(field({ source: 'app', last4: 't3lx' }))).toBe('••••t3lx')
-  expect(fieldValueText(field({ source: 'app' }))).toBe('••••')
-  expect(fieldValueText(field({ source: 'env' }))).toBe('Set')
-  expect(fieldValueText(field({ secret: false, source: 'env', value: 'ws://localhost:7880' }))).toBe(
-    'ws://localhost:7880',
+const sid = (over: Partial<ProviderField>) =>
+  field({ field: 'account_sid', label: 'Account SID', secret: false, ...over })
+const token = (over: Partial<ProviderField>) => field({ field: 'auth_token', label: 'Auth token', ...over })
+
+test('a provider is set up once every needed field has a value, here or on the server', () => {
+  expect(isConfigured(provider(sid({ source: 'env', value: 'AC1' }), token({})))).toBe(false)
+  expect(isConfigured(provider(sid({ source: 'env', value: 'AC1' }), token({ source: 'app', last4: 'abcd' })))).toBe(
+    true,
   )
+  expect(isConfigured({ provider: 'file', label: 'Local disk', category: 'recording', fields: [] })).toBe(true)
 })
 
-test('long values are cut in the middle, short ones stay whole', () => {
-  expect(shortValue('openai/gpt-5.4-mini')).toBe('openai/gpt-5.4-mini')
-  const key = 'MCowBQYDK2VwAyEAbcdefghijklmnopqrstuvwxyz0123456789='
-  expect(shortValue(key)).toBe('MCowBQYDK2VwAy…3456789=')
+test('the badge: not set up, checking, connected or error', () => {
+  const ready = provider(sid({ source: 'app', value: 'AC1' }), token({ source: 'app' }))
+  expect(connectionOf(provider(sid({}), token({})), undefined)).toBe('none')
+  expect(connectionOf(ready, 'running')).toBe('checking')
+  expect(connectionOf(ready, { ok: true, message: 'ok' })).toBe('connected')
+  expect(connectionOf(ready, { ok: false, message: 'Keys rejected' })).toBe('error')
+})
+
+test('Save sends only typed or changed values, never an emptied one', () => {
+  const p = provider(sid({ source: 'app', value: 'AC1' }), token({ source: 'app', last4: 'abcd' }))
+  expect(initialValues(p)).toEqual({ account_sid: 'AC1', auth_token: '' })
+  expect(changedValues(p, { account_sid: 'AC1', auth_token: '' })).toEqual({})
+  expect(changedValues(p, { account_sid: ' AC2 ', auth_token: 'new' })).toEqual({
+    account_sid: 'AC2',
+    auth_token: 'new',
+  })
+})
+
+test('a needed field without a value, or an emptied stored one, stops Save', () => {
+  const empty = provider(sid({}), token({}))
+  expect(fieldErrors(empty, { account_sid: 'AC1', auth_token: '' })).toEqual({ auth_token: 'Required.' })
+  const stored = provider(sid({ source: 'app', value: 'AC1' }), token({ source: 'app' }))
+  expect(fieldErrors(stored, { account_sid: '', auth_token: '' })).toEqual({
+    account_sid: 'Cannot be empty. Disconnect clears every key.',
+  })
 })

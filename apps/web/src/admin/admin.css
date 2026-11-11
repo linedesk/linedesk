@@ -181,23 +181,6 @@
   border-radius: var(--radius-sm);
   background: var(--surface-hover);
 }
-.adm-presets {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.adm-presets > .help:first-child {
-  margin-right: 4px;
-}
-.adm-preset-help {
-  flex-basis: 100%;
-  margin: 2px 0 0;
-}
-.adm-prov-help {
-  margin: 0;
-  max-width: 640px;
-}
 .adm-keys-foot {
   display: flex;
   align-items: center;
@@ -205,11 +188,6 @@
 }
 .adm-keys-foot .help {
   margin-right: auto;
-}
-
-/* Provider secrets: masked without type=password, so browsers do not offer to save them. */
-.adm-secret {
-  -webkit-text-security: disc;
 }
 
 /* Invite user: the key form's frame, a little wider; the admin checkbox on one line. */
@@ -263,7 +241,6 @@
 }
 .adm-back:focus-visible,
 .adm-crumb:focus-visible,
-.adm-seg-opt:focus-visible,
 .adm-row:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
@@ -481,60 +458,157 @@
   margin: 10px 0;
 }
 
-/* Providers: one card per category, a segmented control to pick the one in use. */
-.adm-cat {
-  gap: 0;
-}
-.adm-cat-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 14px;
-}
-.adm-cat-head h2 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-}
-.adm-cat-head .help {
-  margin: 2px 0 0;
-}
-.adm-cat .adm-prov {
-  padding: 14px 0;
-  border-top: 0;
-  box-shadow: 0 -1px 0 var(--line);
-}
-.adm-cat .adm-prov:last-child {
-  padding-bottom: 2px;
-}
-.adm-seg {
-  display: inline-flex;
+/* Providers: one card per category, each provider a row with its logo, status and Connect/Manage. */
+.adm-logo {
+  display: grid;
+  place-items: center;
   flex: none;
-  gap: 2px;
-  padding: 2px;
   border-radius: var(--radius-sm);
   background: var(--surface-hover);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--line);
 }
-.adm-seg-opt {
-  height: 26px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
+.adm-logo-28 {
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+  border-radius: 7px;
+}
+.adm-logo-36 {
+  width: 36px;
+  height: 36px;
+  font-size: 15px;
+}
+.adm-logo-40 {
+  width: 40px;
+  height: 40px;
+  font-size: 16px;
+}
+.adm-logo-mono {
+  background: var(--surface-strong);
+}
+.adm-cat {
+  gap: 4px;
+}
+.adm-conns {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.adm-conn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+.adm-conn:first-child {
+  border-top: 0;
+}
+.adm-conn:last-child {
+  padding-bottom: 0;
+}
+.adm-conn-text {
+  flex: 1;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.adm-conn-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+.adm-conn-name b {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.adm-conn-blurb {
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.adm-conn-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+/* The provider dialog */
+.adm-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 6px;
+}
+.adm-preset {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
   font: inherit;
   font-size: 12.5px;
   font-weight: 500;
-  color: var(--ink-muted);
+  text-align: left;
   cursor: pointer;
 }
-.adm-seg-opt:hover {
-  color: var(--ink);
+.adm-preset:hover:not(:disabled) {
+  background: var(--surface-hover);
 }
-.adm-seg-opt[aria-checked="true"] {
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: var(--shadow-xs);
+.adm-preset[aria-checked="true"] {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+}
+.adm-preset:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.adm-preset:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.adm-switch-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.adm-switch-field label {
+  margin-right: auto;
+  font-size: 13px;
+  font-weight: 500;
+}
+.adm-result {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.adm-result .k-btn {
+  margin-left: auto;
+}
+.adm-disconnect {
+  color: var(--danger);
+}
+.adm-disconnect:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+.adm-confirm-text {
+  font-size: 13px;
 }
 
 /* Narrow: the sections become a row of tabs above the content. */

@@ -271,6 +271,13 @@ type DialogProps = {
 export function Dialog({ title, description, icon, onClose, footer, onSubmit, size = 'md', children }: DialogProps) {
   const titleId = useId()
   const descId = useId()
+  const box = useRef<HTMLDivElement>(null)
+  // Focus starts in the first field (the backdrop's trap would pick the ✕, the first control in the DOM).
+  useEffect(() => {
+    const at = document.activeElement
+    if (at && box.current?.querySelector('.k-dialog-body')?.contains(at)) return
+    box.current?.querySelector<HTMLElement>('.k-dialog-body :is(input, textarea):not(:disabled)')?.focus()
+  }, [])
   function onKey(e: KeyboardEvent) {
     if (e.key !== 'Escape') return
     e.stopPropagation()
@@ -285,6 +292,7 @@ export function Dialog({ title, description, icon, onClose, footer, onSubmit, si
   return (
     <Backdrop onClose={onClose}>
       <div
+        ref={box}
         className={cx('k-dialog', `k-dialog-${size}`)}
         role="dialog"
         aria-modal="true"

@@ -164,7 +164,14 @@ export function Overview({ onOpen }: Props) {
   const overview = useLoad(loadOverview)
   const o = overview.value
   if (overview.error)
-    return <LoadProblem className="adm-card" what="The overview" message={overview.error} onRetry={() => void overview.retry()} />
+    return (
+      <LoadProblem
+        className="adm-card"
+        what="The overview"
+        message={overview.error}
+        onRetry={() => void overview.retry()}
+      />
+    )
   return (
     <>
       <div className="adm-stats">

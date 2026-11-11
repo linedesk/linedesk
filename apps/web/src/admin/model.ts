@@ -1,4 +1,5 @@
 // Pure helpers of the admin page: sorting, the usage grid, and the words for a provider's status.
+import { providers as providerSpecs, type ProviderTestData } from '@callfront/actions'
 import type { ProviderField, ProviderStatus, UsageRow } from './api.ts'
 
 export type SortDir = 'asc' | 'desc'
@@ -55,17 +56,50 @@ export function providerState(provider: ProviderStatus): ProviderState {
   if (provider.fields.some(f => f.source === 'app')) return 'app'
   return provider.fields.some(f => f.source === 'env') ? 'env' : 'none'
 }
-export const stateLabel: Record<ProviderState, string> = { app: 'Set in app', env: 'From environment', none: 'Not set' }
 
-/** What the page shows for one field. A secret is only ever its last four characters. */
-export function fieldValueText(field: ProviderField): string {
-  if (!field.source) return 'Not set'
-  if (!field.secret) return field.value ?? 'Set'
-  if (field.source === 'env') return 'Set'
-  return field.last4 ? `••••${field.last4}` : '••••'
+type FieldSpec = { optional?: true; switch?: true }
+const fieldSpecOf = (provider: ProviderStatus, field: string): FieldSpec | undefined =>
+  (providerSpecs[provider.provider].fields as Record<string, FieldSpec>)[field]
+export const isOptional = (provider: ProviderStatus, field: ProviderField) =>
+  !!fieldSpecOf(provider, field.field)?.optional
+export const isSwitch = (provider: ProviderStatus, field: ProviderField) => !!fieldSpecOf(provider, field.field)?.switch
+
+/** Every field a connection needs has a value, here or on the server. A provider without fields needs none. */
+export const isConfigured = (provider: ProviderStatus) =>
+  provider.fields.every(f => f.source !== null || isOptional(provider, f))
+
+export type Connection = 'none' | 'checking' | 'connected' | 'error'
+export type TestState = ProviderTestData | 'running' | undefined
+
+/** What the row's badge says: set up and tested ok, set up and failing, still checking, or not set up. */
+export function connectionOf(provider: ProviderStatus, test: TestState): Connection {
+  if (!isConfigured(provider)) return 'none'
+  if (test === undefined || test === 'running') return 'checking'
+  return test.ok ? 'connected' : 'error'
 }
 
-/** Longer values (a webhook public key) are cut in the middle so a row stays one line; Copy has the whole value. */
-export const SHORT_VALUE_MAX = 32
-export const shortValue = (value: string) =>
-  value.length > SHORT_VALUE_MAX ? `${value.slice(0, 14)}…${value.slice(-8)}` : value
+/** The form's start: non-secret values as stored, secrets always empty (they never come back). */
+export const initialValues = (provider: ProviderStatus): Record<string, string> =>
+  Object.fromEntries(provider.fields.map(f => [f.field, f.secret ? '' : (f.value ?? '')]))
+
+/** What Save sends: the fields that were typed or changed. Empty means "keep": a key cannot be half cleared. */
+export function changedValues(provider: ProviderStatus, values: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    provider.fields
+      .map(f => [f.field, (values[f.field] ?? '').trim(), f] as const)
+      .filter(([, value, f]) => value && (f.secret || value !== (f.value ?? '')))
+      .map(([name, value]) => [name, value]),
+  )
+}
+
+/** Per field, why Save cannot go ahead: a needed value is missing, or a stored one was emptied. */
+export function fieldErrors(provider: ProviderStatus, values: Record<string, string>): Record<string, string> {
+  const errors: Record<string, string> = {}
+  for (const f of provider.fields) {
+    const typed = (values[f.field] ?? '').trim()
+    if (typed) continue
+    if (f.source === 'app' && !f.secret && f.value) errors[f.field] = 'Cannot be empty. Disconnect clears every key.'
+    else if (!f.source && !isOptional(provider, f)) errors[f.field] = 'Required.'
+  }
+  return errors
+}

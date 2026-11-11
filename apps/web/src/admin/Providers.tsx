@@ -1,261 +1,21 @@
-// Provider keys. A stored secret never comes back from the API, so the inputs start empty
-// every time and the page only shows the last four characters.
+// Admin, Providers: the connections of the install, one card per category. Each provider is a row
+// with its logo, one line and its status; Connect or Manage opens its form (ProviderDialog). Every
+// provider that is set up is tested when the page opens, so the badges say what works right now.
 import {
-  categoryEnv,
   categoryNames,
-  providerCategories,
-  providers as providerSpecs,
   type ProviderCategory,
+  providerCategories,
   type ProviderName,
-  type ProviderPreset,
   type ProviderTestData,
 } from '@callfront/actions'
-import { useState, type FormEvent } from 'react'
-import { Checkbox } from '../ui/controls.tsx'
+import { useEffect, useRef, useState } from 'react'
+import { Card, HelpTip } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
-import { type ActiveProviders, type ProviderField, type ProviderStatus, runAdmin, testProvider } from './api.ts'
-import { CopyButton } from '../onboarding/Frame.tsx'
-import { fieldValueText, providerState, SHORT_VALUE_MAX, shortValue, stateLabel } from './model.ts'
-import { Confirm, when } from './parts.tsx'
+import { type ActiveProviders, type ProviderStatus, runAdmin, testProvider } from './api.ts'
+import { type Connection, connectionOf, isConfigured, providerState, type TestState } from './model.ts'
 import { errorText, type Notify } from './notify.ts'
-
-type SpecView = {
-  fields: Record<string, { env: string; switch?: true }>
-  help?: string
-  presets?: readonly ProviderPreset[]
-}
-/** The registry's entry, with the optional parts every provider may have. */
-const specOf = (provider: ProviderStatus) => providerSpecs[provider.provider] as SpecView
-const envName = (provider: ProviderStatus, field: ProviderField) => specOf(provider).fields[field.field]?.env ?? ''
-const isSwitch = (provider: ProviderStatus, field: ProviderField) => !!specOf(provider).fields[field.field]?.switch
-/** A switch is on unless it says "false" (force path style: on by default). */
-const switchText = (field: ProviderField) => (field.source ? (field.value === 'false' ? 'Off' : 'On') : 'Not set (on)')
-
-function fieldNote(provider: ProviderStatus, field: ProviderField): string {
-  if (field.source === 'env') return `from ${envName(provider, field)}`
-  if (field.source !== 'app') return ''
-  return `changed ${when(field.updated_at)}${field.updated_by ? ` by ${field.updated_by.name}` : ''}`
-}
-
-type FormProps = { provider: ProviderStatus; onSaved: () => Promise<void>; onCancel: () => void }
-
-function KeysForm({ provider, onSaved, onCancel }: FormProps) {
-  const [values, setValues] = useState<Record<string, string>>({})
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [preset, setPreset] = useState<ProviderPreset | null>(null)
-  const filled = Object.fromEntries(Object.entries(values).filter(([, value]) => value.trim()))
-  const presets = specOf(provider).presets ?? []
-
-  async function save(e: FormEvent) {
-    e.preventDefault()
-    if (busy || !Object.keys(filled).length) return
-    setBusy(true)
-    setError(null)
-    try {
-      await runAdmin('provider.setKeys', { provider: provider.provider, values: filled })
-      await onSaved()
-    } catch (err) {
-      setError(errorText(err))
-      setBusy(false)
-    }
-  }
-
-  return (
-    <form className="adm-keys" onSubmit={save} onKeyDown={e => e.key === 'Escape' && onCancel()}>
-      {presets.length > 0 && (
-        <div className="adm-presets">
-          <span className="help">Fill in for</span>
-          {presets.map(p => (
-            <Button
-              key={p.label}
-              size="sm"
-              variant="ghost"
-              aria-pressed={preset === p}
-              onClick={() => {
-                setPreset(p)
-                setValues(current => ({ ...current, ...p.values }))
-              }}
-            >
-              {p.label}
-            </Button>
-          ))}
-          {preset && <p className="help adm-preset-help">{preset.help}</p>}
-        </div>
-      )}
-      {provider.fields.map((field, i) => {
-        const id = `adm-${provider.provider}-${field.field}`
-        if (isSwitch(provider, field)) {
-          const on = (values[field.field] ?? field.value ?? 'true') !== 'false'
-          return (
-            <div key={field.field} className="field">
-              <Checkbox
-                className="adm-check"
-                checked={on}
-                onChange={checked => setValues(current => ({ ...current, [field.field]: String(checked) }))}
-              >
-                {field.label}
-              </Checkbox>
-              {field.hint && <span className="help">{field.hint}</span>}
-            </div>
-          )
-        }
-        return (
-          <div key={field.field} className="field">
-            <label htmlFor={id}>{field.label}</label>
-            <span className="k-input">
-              <input
-                id={id}
-                // Not type=password: browsers offer to save a password field as a login, and the key
-                // would end up in the password manager. Masked by CSS instead.
-                type="text"
-                className={field.secret ? 'adm-secret' : undefined}
-                autoComplete="off"
-                data-1p-ignore=""
-                data-lpignore="true"
-                spellCheck={false}
-                autoFocus={i === 0}
-                value={values[field.field] ?? ''}
-                placeholder={field.source === 'app' ? 'Leave empty to keep the stored value' : (field.hint ?? '')}
-                onChange={e => setValues(current => ({ ...current, [field.field]: e.target.value }))}
-              />
-            </span>
-          </div>
-        )
-      })}
-      <div className="adm-keys-foot">
-        <span className="help">Stored encrypted. Keys are not shown again after saving.</span>
-        <Button size="sm" variant="ghost" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit" size="sm" variant="primary" disabled={busy || !Object.keys(filled).length}>
-          Save keys
-        </Button>
-      </div>
-      {error && (
-        <span className="adm-error" role="alert">
-          {error}
-        </span>
-      )}
-    </form>
-  )
-}
-
-type RowProps = {
-  provider: ProviderStatus
-  /** The category uses this provider. */
-  inUse: boolean
-  canStore: boolean
-  toast: (text: string) => void
-  reload: () => Promise<void>
-}
-
-function ProviderRow({ provider, inUse, canStore, toast, reload }: RowProps) {
-  const [mode, setMode] = useState<'idle' | 'edit' | 'clear'>('idle')
-  const [test, setTest] = useState<ProviderTestData | 'running' | null>(null)
-  const state = providerState(provider)
-  // The local disk: nothing to enter, but its directory can still be tested.
-  const noKeys = provider.fields.length === 0
-  const help = specOf(provider).help
-
-  async function runTest() {
-    setTest('running')
-    setTest(await testProvider(provider.provider).catch(err => ({ ok: false, message: errorText(err) })))
-  }
-  async function saved() {
-    setMode('idle')
-    setTest(null)
-    await reload()
-    toast(`${provider.label} keys saved.`)
-  }
-  async function clear() {
-    await runAdmin('provider.clearKeys', { provider: provider.provider })
-    setMode('idle')
-    setTest(null)
-    await reload()
-    toast(`${provider.label} keys cleared.`)
-  }
-
-  return (
-    <div className="adm-prov">
-      <div className="adm-prov-head">
-        <b>{provider.label}</b>
-        <Badge>{noKeys ? 'No keys needed' : stateLabel[state]}</Badge>
-        {inUse && <Badge>In use</Badge>}
-        <span className="adm-prov-actions">
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={(state === 'none' && !noKeys) || test === 'running'}
-            onClick={() => void runTest()}
-          >
-            Test connection
-          </Button>
-          {!noKeys && (
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={!canStore}
-              aria-expanded={mode === 'edit'}
-              onClick={() => setMode('edit')}
-            >
-              Edit
-            </Button>
-          )}
-          {state === 'app' && (
-            <Button size="sm" variant="ghost" aria-expanded={mode === 'clear'} onClick={() => setMode('clear')}>
-              Clear
-            </Button>
-          )}
-        </span>
-      </div>
-      {help && <p className="help adm-prov-help">{help}</p>}
-      {!noKeys && (
-        <dl className="adm-prov-fields">
-          {provider.fields.map(field => (
-            <div key={field.field}>
-              <dt>{field.label}</dt>
-              <dd>
-                <span
-                  className={field.secret || !field.source ? undefined : 'adm-mono'}
-                  title={field.secret ? undefined : (field.value ?? undefined)}
-                >
-                  {isSwitch(provider, field) ? switchText(field) : shortValue(fieldValueText(field))}
-                </span>{' '}
-                {!field.secret && field.value && field.value.length > SHORT_VALUE_MAX && (
-                  <CopyButton text={field.value} label="Copy" />
-                )}{' '}
-                {provider.category !== 'recording' && <span className="help">{fieldNote(provider, field)}</span>}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      {test && (
-        <p className="adm-test" role="status">
-          {test === 'running' ? (
-            'Testing…'
-          ) : test.ok ? (
-            <b>Connected</b>
-          ) : (
-            <>
-              <b>Not connected.</b> {test.message}
-            </>
-          )}
-        </p>
-      )}
-      {mode === 'edit' && <KeysForm provider={provider} onSaved={saved} onCancel={() => setMode('idle')} />}
-      {mode === 'clear' && (
-        <Confirm
-          action="Clear keys"
-          onConfirm={clear}
-          onCancel={() => setMode('idle')}
-          text={`The stored ${provider.label} keys are deleted. Values from the environment apply again, if there are any.`}
-        />
-      )}
-    </div>
-  )
-}
+import { ProviderDialog, SERVER_SETTING_TIP } from './ProviderDialog.tsx'
+import { categoryBlurb, Logo, providerMeta } from './ProviderLogo.tsx'
 
 type Props = {
   providers: ProviderStatus[]
@@ -265,31 +25,106 @@ type Props = {
   reload: () => Promise<void>
 }
 
-/** What a category uses without a pick, matching the API and the voice agent. */
-function defaultNote(category: ProviderCategory): string {
-  if (category === 'telephony')
-    return 'Default: TELEPHONY_PROVIDER from the environment, else the first carrier that is set up (Telnyx before Twilio), else no carrier.'
-  if (category === 'recording') return 'Default: as set on the server, else off.'
-  return `Default: ${categoryEnv[category]} from the environment, else the first provider that is set up.`
+/** Changes whenever the keys in effect change, so the provider is tested again. */
+const keysSignature = (p: ProviderStatus) => JSON.stringify(p.fields.map(f => [f.source, f.last4, f.value]))
+
+/** Tests every provider that is set up, once per set of keys. */
+function useConnectionTests(providers: ProviderStatus[]) {
+  const [tests, setTests] = useState<Partial<Record<ProviderName, TestState>>>({})
+  const tested = useRef(new Map<ProviderName, string>())
+  const fresh = useRef(new Set<ProviderName>())
+  useEffect(() => {
+    for (const p of providers) {
+      if (!isConfigured(p)) continue
+      const signature = keysSignature(p)
+      if (tested.current.get(p.provider) === signature) continue
+      tested.current.set(p.provider, signature)
+      // The dialog just tested these keys itself.
+      if (fresh.current.delete(p.provider)) continue
+      setTests(t => ({ ...t, [p.provider]: 'running' }))
+      void testProvider(p.provider)
+        .catch(err => ({ ok: false, message: errorText(err) }))
+        .then(result => setTests(t => ({ ...t, [p.provider]: result })))
+    }
+  }, [providers])
+  const record = (name: ProviderName, result: ProviderTestData) => {
+    fresh.current.add(name)
+    setTests(t => ({ ...t, [name]: result }))
+  }
+  return { tests, record }
 }
 
-/** Says in one line which provider a category uses; the rule behind the default is in the tooltip. */
-function categoryNote(category: ProviderCategory, chosen: boolean, inUse: ProviderStatus | undefined): string {
-  if (!chosen) {
-    if (!inUse) {
-      if (category === 'telephony') return 'Uses: no carrier (development mode).'
-      if (category === 'recording') return 'Off.'
-      return 'Uses: nothing yet. Add keys below.'
-    }
-    if (category === 'recording') return `Uses: ${inUse.label}.`
-    return `Uses: ${inUse.label}${providerState(inUse) === 'env' ? ' (from server environment)' : ''}.`
-  }
-  if (inUse && inUse.fields.length > 0 && providerState(inUse) === 'none')
-    return `Picked here, but ${inUse.label} has no keys yet: set them below, or pick Default.`
-  return 'Picked here.'
+function StatusBadge({ connection, test }: { connection: Connection; test: TestState }) {
+  if (connection === 'none') return <Badge tone="outline">Not connected</Badge>
+  if (connection === 'checking') return <Badge>Checking…</Badge>
+  if (connection === 'connected')
+    return (
+      <Badge tone="ok" dot>
+        Connected
+      </Badge>
+    )
+  return (
+    <Badge tone="danger" dot title={typeof test === 'object' ? test.message : undefined}>
+      Error
+    </Badge>
+  )
+}
+
+type RowProps = {
+  provider: ProviderStatus
+  test: TestState
+  inUse: boolean
+  canUse: boolean
+  onOpen: () => void
+  onUse: () => void
+}
+
+function ProviderRow({ provider, test, inUse, canUse, onOpen, onUse }: RowProps) {
+  const meta = providerMeta[provider.provider]
+  const connection = connectionOf(provider, test)
+  const configured = connection !== 'none'
+  return (
+    <li className="adm-conn">
+      <Logo mark={meta.mark} />
+      <div className="adm-conn-text">
+        <div className="adm-conn-name">
+          <b>{provider.label}</b>
+          <StatusBadge connection={connection} test={test} />
+          {inUse && <Badge>In use</Badge>}
+          {configured && providerState(provider) === 'env' && (
+            <Badge tone="outline" title={SERVER_SETTING_TIP}>
+              From server settings
+            </Badge>
+          )}
+        </div>
+        <span className="adm-conn-blurb">
+          {connection === 'error' && typeof test === 'object' ? test.message : meta.blurb}
+        </span>
+      </div>
+      <div className="adm-conn-actions">
+        {canUse && !inUse && connection === 'connected' && (
+          <Button size="sm" variant="ghost" onClick={onUse} title={`Use ${provider.label}`}>
+            Use
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={onOpen}
+          title={configured ? `Manage ${provider.label}` : `Connect ${provider.label}`}
+        >
+          {configured ? 'Manage' : 'Connect'}
+        </Button>
+      </div>
+    </li>
+  )
 }
 
 export function Providers({ providers, active, canStore, notify, reload }: Props) {
+  const { tests, record } = useConnectionTests(providers)
+  const [open, setOpen] = useState<ProviderName | null>(null)
+  const opened = providers.find(p => p.provider === open)
+
   async function use(category: ProviderCategory, provider: ProviderName | null) {
     const before = active[category].chosen ? active[category].provider : null
     const set = async (next: ProviderName | null) => {
@@ -298,71 +133,69 @@ export function Providers({ providers, active, canStore, notify, reload }: Props
     }
     try {
       await set(provider)
-      const label = provider ? providers.find(p => p.provider === provider)!.label : 'the default'
-      notify(`${providerCategories[category]} uses ${label} now.`, () => set(before))
+      const label = provider ? providers.find(p => p.provider === provider)!.label : null
+      notify(
+        label
+          ? `${providerCategories[category]} uses ${label} now.`
+          : category === 'recording'
+            ? 'Calls are not recorded now.'
+            : `${providerCategories[category]} uses the default now.`,
+        () => set(before),
+      )
     } catch (err) {
       notify(errorText(err))
     }
   }
+
   return (
     <>
       {!canStore && (
         <p className="adm-notice" role="note">
-          Keys cannot be stored yet: <code>SECRETS_KEY</code> is not set. Generate one with{' '}
-          <code>openssl rand -base64 32</code>, set it in the environment of the API and restart.
+          Keys can't be saved yet: the server has no encryption key.{' '}
+          <HelpTip text="Set SECRETS_KEY in the API's environment (generate one with: openssl rand -base64 32) and restart the API." />
         </p>
       )}
       {categoryNames.map(category => {
         const inCategory = providers.filter(p => p.category === category)
-        const { provider: inUse, chosen } = active[category]
+        const { provider: inUse } = active[category]
+        // Recording has no fallback: without a pick, calls are not recorded.
+        const canUse = inCategory.length > 1 || category === 'recording'
+        const description =
+          category === 'recording' && !inUse ? 'Off: calls are not recorded.' : categoryBlurb[category]
         return (
-          <section key={category} className="adm-card adm-cat" aria-label={providerCategories[category]}>
-            <div className="adm-cat-head">
-              <div>
-                <h2>{providerCategories[category]}</h2>
-                <p className="help" title={defaultNote(category)}>
-                  {categoryNote(
-                    category,
-                    chosen,
-                    inCategory.find(p => p.provider === inUse),
-                  )}
-                </p>
-              </div>
-              {inCategory.length > 1 && (
-                <div className="adm-seg" role="radiogroup" aria-label={`${providerCategories[category]} provider`}>
-                  {[{ id: null, label: 'Default' }, ...inCategory.map(p => ({ id: p.provider, label: p.label }))].map(
-                    option => {
-                      const on = option.id === null ? !chosen : chosen && inUse === option.id
-                      return (
-                        <button
-                          key={option.label}
-                          type="button"
-                          role="radio"
-                          aria-checked={on}
-                          className="adm-seg-opt"
-                          onClick={() => !on && void use(category, option.id)}
-                        >
-                          {option.label}
-                        </button>
-                      )
-                    },
-                  )}
-                </div>
-              )}
-            </div>
-            {inCategory.map(p => (
-              <ProviderRow
-                key={p.provider}
-                provider={p}
-                inUse={inUse === p.provider}
-                canStore={canStore}
-                toast={notify}
-                reload={reload}
-              />
-            ))}
-          </section>
+          <Card key={category} title={providerCategories[category]} description={description} className="adm-cat">
+            <ul className="adm-conns">
+              {inCategory.map(p => (
+                <ProviderRow
+                  key={p.provider}
+                  provider={p}
+                  test={tests[p.provider]}
+                  inUse={inUse === p.provider}
+                  canUse={canUse}
+                  onOpen={() => setOpen(p.provider)}
+                  onUse={() => void use(category, p.provider)}
+                />
+              ))}
+            </ul>
+          </Card>
         )
       })}
+      {opened && (
+        <ProviderDialog
+          key={opened.provider}
+          provider={opened}
+          inUse={active[opened.category].provider === opened.provider}
+          chosen={active[opened.category].chosen}
+          canUse={providers.filter(p => p.category === opened.category).length > 1 || opened.category === 'recording'}
+          canStore={canStore}
+          onTested={result => record(opened.provider, result)}
+          onUse={() => use(opened.category, opened.provider)}
+          onStopUsing={() => use(opened.category, null)}
+          reload={reload}
+          notify={notify}
+          onClose={() => setOpen(null)}
+        />
+      )}
     </>
   )
 }
