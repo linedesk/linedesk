@@ -1376,6 +1376,38 @@ describe('impersonation', () => {
     await stop(as)
   })
 
+  test('as an owner, only reads and inbox triage run; every other write is refused centrally (security M3)', async () => {
+    const targetMember = and(eq(memberTable.organizationId, other.id), eq(memberTable.userId, target.userId))
+    await db.update(memberTable).set({ role: 'owner' }).where(targetMember)
+    try {
+      const { as } = await start(operator, target.userId)
+      const refused: [string, unknown][] = [
+        ['team.invite', { email: 'admin-backdoor@linedesk.test', role: 'owner' }],
+        ['team.removeMember', { memberId: 'any' }],
+        ['team.resendInvite', { invitationId: 'any' }],
+        ['webhook.create', { url: 'https://collector.example.com/hook', events: ['call.completed'] }],
+        ['webhook.update', { endpointId: other.webhookEndpoint.id, url: 'https://collector.example.com/hook' }],
+        ['apiKey.create', { name: 'Backdoor', role: 'admin' }],
+        ['carrier.set', {}],
+        ['phoneNumber.release', { phoneNumberId: 'any' }],
+        ['assistant.update', { id: other.assistant.id, patch: { name: 'Taken over' } }],
+        ['contact.delete', { contactId: other.contact.id }],
+        ['webhook.test', { endpointId: other.webhookEndpoint.id }],
+      ]
+      for (const [name, input] of refused) {
+        expect(await act(as, name, input), name).toMatchObject({ status: 403, body: { error: 'Not possible while signed in as another user.' } })
+      }
+      expect(await db.select().from(invitation).where(eq(invitation.email, 'admin-backdoor@linedesk.test'))).toEqual([])
+      // Reading and triaging the inbox work.
+      expect((await act(as, 'team.list', {})).status).toBe(200)
+      expect((await act(as, 'call.markRead', { callId: other.call.id })).status).toBe(200)
+      expect((await act(as, 'call.markDone', { callId: other.call.id })).status).toBe(200)
+      await stop(as)
+    } finally {
+      await db.update(memberTable).set({ role: 'member' }).where(targetMember)
+    }
+  })
+
   test('no role changes while impersonating, even as an owner', async () => {
     const targetMember = and(eq(memberTable.organizationId, other.id), eq(memberTable.userId, target.userId))
     await db.update(memberTable).set({ role: 'owner' }).where(targetMember)
@@ -1429,11 +1461,12 @@ describe('impersonation', () => {
       status: 403,
       body: { message: 'Not possible while signed in as another user.' },
     })
+    // Refused centrally now (run-action), before the handler's own refusal.
     expect(await act(as, 'invitation.accept', { invitationId: invite!.id })).toMatchObject({
-      status: 409,
+      status: 403,
       body: { error: 'Not possible while signed in as another user.' },
     })
-    expect(await act(as, 'invitation.decline', { invitationId: invite!.id })).toMatchObject({ status: 409 })
+    expect(await act(as, 'invitation.decline', { invitationId: invite!.id })).toMatchObject({ status: 403 })
     expect((await db.select().from(invitation).where(eq(invitation.id, invite!.id)))[0]?.status).toBe('pending')
     expect((await db.select().from(memberTable).where(eq(memberTable.userId, target.userId))).map(m => m.organizationId)).toEqual([other.id])
     await db.delete(invitation).where(eq(invitation.id, invite!.id))

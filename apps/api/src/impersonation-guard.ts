@@ -38,6 +38,32 @@ export const IMPERSONATION_REFUSED_PATHS = [
 
 export const NOT_WHILE_IMPERSONATING = 'Not possible while signed in as another user.'
 
+/**
+ * Registry actions an impersonated session may run, besides reading (docs/architecture.md §12). An
+ * impersonation is for seeing Linedesk as the user does: everything else is refused centrally in
+ * run-action, so no new action can give the admin access that outlasts the hour (invite themselves,
+ * mint an API key, point a webhook or a transfer elsewhere, change the carrier or numbers).
+ * Only the inbox triage the user would not mind, and ending the impersonation.
+ */
+export const IMPERSONATION_ALLOWED_WRITES: ReadonlySet<string> = new Set([
+  'impersonation.stop',
+  'call.markRead',
+  'call.markUnread',
+  'call.markDone',
+  'call.markNotDone',
+  'call.remind',
+  'call.clearReminder',
+])
+
+/** Read-only actions that still do something outside Linedesk (send a request, start a call): refused too. */
+const IMPERSONATION_REFUSED_READS: ReadonlySet<string> = new Set(['webhook.test', 'carrier.test', 'assistant.startTestCall'])
+
+/** Whether an impersonated session may run this action. */
+export function mayRunWhileImpersonating(def: { name: string; readOnly?: boolean }): boolean {
+  if (def.readOnly) return !IMPERSONATION_REFUSED_READS.has(def.name)
+  return IMPERSONATION_ALLOWED_WRITES.has(def.name)
+}
+
 const refusedPath = (path: string) => IMPERSONATION_REFUSED_PATHS.some(p => path === p || path.startsWith(`${p}/`))
 
 /** Throws 403 when the request is for a refused endpoint and its session is an impersonation. */

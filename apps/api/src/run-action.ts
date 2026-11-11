@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { preparers, Reject, runHandler, type Undo } from './handlers.ts'
+import { mayRunWhileImpersonating, NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 
 export type RunResult = { status: 200 | 403 | 404 | 409 | 422; body: ActionResult | ActionRejection }
 
@@ -35,6 +36,8 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   const refusal = secondFactorRefusal(actor, def.permission)
   if (refusal) return { status: 403, body: refusal }
   if (!actor.permissions.includes(def.permission)) return rejection(403, `missing permission ${def.permission}`)
+  // An instance admin signed in as this user: reads and a short allow-list only (impersonation-guard.ts).
+  if (actor.impersonation && !mayRunWhileImpersonating(def)) return rejection(403, NOT_WHILE_IMPERSONATING)
   const parsed = def.input.safeParse(rawInput)
   if (!parsed.success) return rejection(422, inputErrorText(parsed.error, rawInput))
   if (def.readOnly) return runReadOnly(def, parsed.data, actor)
