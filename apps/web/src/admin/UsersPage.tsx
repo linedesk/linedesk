@@ -1,12 +1,14 @@
 // Users: a searchable list with Invite user; a click opens the user with their workspaces and actions.
 import { useState } from 'react'
 import { confirmText, startImpersonation } from '../impersonation.ts'
+import { Card } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
 import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
 import { type AdminUser, runAdmin } from './api.ts'
 import { InviteUser } from './InviteUser.tsx'
 import { errorText, type Notify } from './notify.ts'
 import { Confirm, day, when } from './parts.tsx'
+import { ServerSet } from './ProviderDialog.tsx'
 import { ActionRow, Fact } from './WorkspacesPage.tsx'
 
 const label = (u: AdminUser) => u.name || u.email
@@ -114,12 +116,13 @@ export function UserDetail({ user: u, currentUserId, notify, reload }: DetailPro
 
   return (
     <>
-      <div className="adm-card">
+      <Card title="Details" className="adm-detail">
         <dl className="adm-facts">
           <Fact label="Email">{u.email}</Fact>
           <Fact label="Status">{u.disabled_at ? `Disabled ${when(u.disabled_at)}` : 'Active'}</Fact>
           <Fact label="Instance admin">
-            {u.instance_admin ? (u.instance_admin_by_env ? 'Yes, by INSTANCE_ADMIN_EMAILS' : 'Yes') : 'No'}
+            {u.instance_admin ? 'Yes' : 'No'}
+            {u.instance_admin_by_env && <ServerSet />}
           </Fact>
           <Fact label="Last sign-in">{when(u.last_sign_in_at)}</Fact>
           <Fact label="Created">{day(u.created_at)}</Fact>
@@ -133,8 +136,8 @@ export function UserDetail({ user: u, currentUserId, notify, reload }: DetailPro
               : 'None'}
           </Fact>
         </dl>
-      </div>
-      <div className="adm-card adm-actions-card">
+      </Card>
+      <Card title="Actions" className="adm-actions-card">
         {step ? (
           <Confirm {...steps[step]} onConfirm={steps[step].run} onCancel={() => setStep(null)} />
         ) : (
@@ -195,12 +198,10 @@ export function UserDetail({ user: u, currentUserId, notify, reload }: DetailPro
                 />
               )
             )}
-            {isSelf && (
-              <p className="help">This is you: you cannot disable yourself or remove your own admin access.</p>
-            )}
+            {isSelf && <p className="help">This is you: you can't disable yourself or remove your own admin access.</p>}
           </>
         )}
-      </div>
+      </Card>
     </>
   )
 }

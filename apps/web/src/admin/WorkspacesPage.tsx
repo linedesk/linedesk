@@ -1,5 +1,6 @@
 // Workspaces: a searchable list; a click opens the workspace with its facts and actions.
 import { useState } from 'react'
+import { Card } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
 import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
 import { type AdminWorkspace, runAdmin } from './api.ts'
@@ -91,7 +92,7 @@ export function WorkspaceDetail({ workspace: w, notify, reload }: DetailProps) {
 
   return (
     <>
-      <div className="adm-card">
+      <Card title="Details" className="adm-detail">
         <dl className="adm-facts">
           <Fact label="Status">{w.disabled_at ? `Disabled ${when(w.disabled_at)}` : 'Active'}</Fact>
           <Fact label="Phone numbers">
@@ -103,8 +104,8 @@ export function WorkspaceDetail({ workspace: w, notify, reload }: DetailProps) {
           <Fact label="Last call">{when(w.last_call_at)}</Fact>
           <Fact label="Created">{day(w.created_at)}</Fact>
         </dl>
-      </div>
-      <div className="adm-card adm-actions-card">
+      </Card>
+      <Card title="Actions" className="adm-actions-card">
         {w.disabled_at ? (
           <ActionRow
             title="Enable workspace"
@@ -139,7 +140,7 @@ export function WorkspaceDetail({ workspace: w, notify, reload }: DetailProps) {
             }
           />
         )}
-      </div>
+      </Card>
     </>
   )
 }

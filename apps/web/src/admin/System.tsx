@@ -1,7 +1,8 @@
 // LiveKit is part of the install: its keys are set in env at install time, so this is a
 // read-only status, loaded on its own because a server that is down takes seconds to say so.
 import { useCallback, useEffect, useState } from 'react'
-import { Button } from '../ui/kit.tsx'
+import { Card } from '../ui/form.tsx'
+import { Button, cx } from '../ui/kit.tsx'
 import { type LivekitStatus, loadLivekitStatus, type ServiceStatus } from './api.ts'
 
 function Service({ name, status }: { name: string; status: ServiceStatus | null }) {
@@ -9,15 +10,12 @@ function Service({ name, status }: { name: string; status: ServiceStatus | null 
     <div>
       <dt>{name}</dt>
       <dd>
-        {!status ? (
-          'Checking…'
-        ) : status.ok ? (
-          status.message
-        ) : (
-          <>
-            <b>Problem.</b> {status.message}
-          </>
-        )}
+        <span
+          className={cx('adm-tile-status', status && (status.ok ? 'adm-dot-muted' : 'adm-dot-danger'))}
+          title={status?.message}
+        >
+          {!status ? 'Checking…' : status.ok ? status.message : `Problem: ${status.message}`}
+        </span>
       </dd>
     </div>
   )
@@ -38,31 +36,29 @@ export function System() {
   useEffect(() => void check(), [check])
 
   return (
-    <div className="adm-card">
-      <div className="adm-prov">
-        <div className="adm-prov-head">
-          <b>LiveKit</b>
-          <span className="adm-prov-actions">
-            <Button size="sm" variant="ghost" disabled={!status && !error} onClick={() => void check()}>
-              Check again
-            </Button>
-          </span>
-        </div>
-        {error ? (
-          <p className="adm-test" role="alert">
-            Could not check: {error}
-          </p>
-        ) : (
-          <dl className="adm-prov-fields" aria-live="polite">
-            <div>
-              <dt>URL</dt>
-              <dd className="adm-mono">{status ? (status.url ?? 'Not set') : '…'}</dd>
-            </div>
-            <Service name="Server" status={status?.server ?? null} />
-            <Service name="SIP trunks" status={status?.sip ?? null} />
-          </dl>
-        )}
-      </div>
-    </div>
+    <Card
+      title="LiveKit"
+      description="Voice and phone calls."
+      actions={
+        <Button size="sm" variant="ghost" disabled={!status && !error} onClick={() => void check()}>
+          {!status && !error ? 'Checking…' : 'Check again'}
+        </Button>
+      }
+    >
+      {error ? (
+        <p className="k-field-msg" role="alert">
+          Could not check: {error}
+        </p>
+      ) : (
+        <dl className="adm-facts" aria-live="polite">
+          <div>
+            <dt>URL</dt>
+            <dd className="adm-mono">{status ? (status.url ?? 'Not set') : '…'}</dd>
+          </div>
+          <Service name="Server" status={status?.server ?? null} />
+          <Service name="SIP trunks" status={status?.sip ?? null} />
+        </dl>
+      )}
+    </Card>
   )
 }

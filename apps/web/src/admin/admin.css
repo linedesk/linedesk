@@ -120,87 +120,6 @@
   font-size: 12px;
 }
 
-.adm-prov {
-  display: grid;
-  gap: 8px;
-  padding: 12px 0;
-  border-top: 1px solid var(--line);
-}
-.adm-prov:first-child {
-  border-top: 0;
-  padding-top: 0;
-}
-.adm-prov:last-child {
-  padding-bottom: 0;
-}
-.adm-prov-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.adm-prov-head b {
-  font-size: 13.5px;
-  font-weight: 600;
-}
-.adm-prov-actions {
-  margin-left: auto;
-  display: flex;
-  gap: 4px;
-}
-.adm-prov-fields {
-  display: grid;
-  gap: 2px;
-  margin: 0;
-  font-size: 13px;
-}
-.adm-prov-fields > div {
-  display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
-  gap: 8px;
-}
-.adm-prov-fields dt {
-  color: var(--ink-muted);
-}
-.adm-prov-fields dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-.adm-test {
-  margin: 0;
-  font-size: 13px;
-}
-.adm-test b {
-  font-weight: 600;
-}
-.adm-keys {
-  display: grid;
-  gap: 10px;
-  max-width: 520px;
-  padding: 12px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-hover);
-}
-.adm-keys-foot {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.adm-keys-foot .help {
-  margin-right: auto;
-}
-
-/* Invite user: the key form's frame, a little wider; the admin checkbox on one line. */
-.adm-invite {
-  max-width: 640px;
-}
-.adm-check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-}
-
 /* ---- Admin mode: its own sidebar and a centred column, in the look of the Assistant settings. ---- */
 .adm-mode {
   display: grid;
@@ -431,10 +350,8 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
-.adm-actions-card {
-  gap: 0;
-  padding-top: 6px;
-  padding-bottom: 6px;
+.k-card.adm-actions-card {
+  gap: 4px;
 }
 .adm-action {
   display: flex;
@@ -588,6 +505,10 @@
 .adm-dot-danger {
   color: var(--danger);
 }
+.adm-facts .adm-server {
+  margin-left: 6px;
+  vertical-align: -1px;
+}
 .adm-server {
   display: inline-grid;
   color: var(--ink-muted);
@@ -716,9 +637,6 @@
   .adm-facts > div {
     grid-template-columns: minmax(0, 1fr);
     gap: 2px;
-  }
-  .adm-cat-head {
-    flex-direction: column;
   }
   .adm-action {
     flex-wrap: wrap;

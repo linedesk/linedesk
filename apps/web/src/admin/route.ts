@@ -3,28 +3,12 @@
 import { useEffect, useState } from 'react'
 
 export const adminSections = [
-  {
-    id: 'overview',
-    label: 'Overview',
-    description: 'How this install is used, roughly what it costs, and whether its parts work.',
-  },
+  { id: 'overview', label: 'Overview', description: 'Use, costs and health of this install.' },
   { id: 'workspaces', label: 'Workspaces', description: 'Every business on this install.' },
   { id: 'users', label: 'Users', description: 'Everyone with an account, in any workspace.' },
-  {
-    id: 'usage',
-    label: 'Usage',
-    description: 'Answered minutes per month, from the length of each call. Months are in UTC.',
-  },
-  {
-    id: 'providers',
-    label: 'Providers',
-    description: '',
-  },
-  {
-    id: 'system',
-    label: 'System',
-    description: 'Services that are part of this install. They are set up in the environment.',
-  },
+  { id: 'usage', label: 'Usage', description: 'Answered minutes per month (UTC).' },
+  { id: 'providers', label: 'Providers', description: '' },
+  { id: 'system', label: 'System', description: 'Part of this install, set up on the server.' },
 ] as const
 export type AdminSection = (typeof adminSections)[number]['id']
 export type AdminPlace = { section: AdminSection; id: string | null }
