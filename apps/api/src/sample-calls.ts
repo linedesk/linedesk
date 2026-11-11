@@ -27,9 +27,9 @@ const sampleId = (kind: string) => `${SAMPLE_ID_PREFIX}${kind}_${crypto.randomUU
 
 /** The demo's words with this workspace's business and assistant names in them. */
 export function renamed(text: string, business: string, assistant: string): string {
+  // One pass: a business name that itself contains "Brightwater" is not replaced twice.
   return text
-    .replaceAll(DEMO_BUSINESS, business)
-    .replaceAll('Brightwater', business)
+    .replace(/Brightwater Plumbing & Heating|Brightwater/g, business)
     .replaceAll(DEMO_ASSISTANT, assistant)
 }
 

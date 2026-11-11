@@ -3,14 +3,14 @@
 // contacts), notifications, booking, voice, and Advanced (languages, raw call rules, silence, keypad menu).
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays, notifications and booking save on their own.
-import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, CALL_RULES_MAX, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, DEFAULT_CALL_RULES, DEFAULT_KNOWN_CALLER_GREETING, knownCallerGreetingProblem, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS, type AssistantLanguages, type Language, languageCodes, LANGUAGES, GREETING_VARIABLES, usesGreetingVariable } from '@linedesk/actions'
+import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, CALL_RULES_MAX, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, DEFAULT_CALL_RULES, DEFAULT_KNOWN_CALLER_GREETING, knownCallerGreetingProblem, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS, type AssistantLanguages, type Language, languageCodes, LANGUAGES, GREETING_VARIABLES, greetingVariablePattern, usesGreetingVariable } from '@linedesk/actions'
 import type { Assistant, KeypadMenuAction, KeypadMenuOption, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
 import { onSaveKey, SaveBar } from '../ui/form.tsx'
 import { Checkbox, Select } from '../ui/controls.tsx'
-import { Button, Icon } from '../ui/kit.tsx'
+import { Button } from '../ui/kit.tsx'
 import { LoadProblem, Skeleton, useLoadState } from '../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, sectionHash, useSection } from '../ui/SettingsLayout.tsx'
 import {
@@ -47,7 +47,7 @@ import { AssistantHeader } from './AssistantHeader.tsx'
 import { CalendarSettings } from './Calendar.tsx'
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
 import { EditBusinessHours } from './BusinessHoursDialog.tsx'
-import { Field, Section, SelectRow, SwitchRow, TextArea, TextInput, useRemembered } from './fields.tsx'
+import { Field, Section, SelectRow, SwitchRow, TextArea, TextInput } from './fields.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { Knowledge } from './Knowledge.tsx'
 import { VariableInput } from './VariableInput.tsx'
@@ -97,8 +97,12 @@ const assistantName = (draft: Draft) => draft.name.trim() || 'The assistant'
 type SectionProps = { draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void }
 const count = (n: number) => n.toLocaleString('en-US')
 
-/** Whether the greeting's Advanced part is open; remembered in this browser. */
-const GREETING_ADVANCED_KEY = 'linedesk.assistant.greeting-advanced'
+/** An example contact for the returning-caller preview. */
+const EXAMPLE_CALLER = { first_name: 'Sarah', last_name: 'Miller' } as const
+/** The returning-caller text with the example contact filled in, as a caller would hear it. */
+const withExampleCaller = (text: string) =>
+  GREETING_VARIABLES.reduce((t, v) => t.replace(greetingVariablePattern(v.key), EXAMPLE_CALLER[v.key]), text)
+
 function Greeting({
   draft,
   set,
@@ -108,19 +112,23 @@ function Greeting({
 }: SectionProps & { renamedFrom: string | null; hoursOn: boolean; canEdit: boolean }) {
   const stale = renamedFrom ? staleGreetingName(draft.greeting, renamedFrom, draft.name) : null
   const knownProblem = knownCallerGreetingProblem(draft.greeting_known_caller)
-  const [remembered, remember] = useRemembered(GREETING_ADVANCED_KEY)
-  // A problem in there shows it open, so the error is never hidden.
-  const advancedOpen = remembered || !!knownProblem
+  const name = assistantName(draft)
+  const known = draft.greeting_known_caller.trim()
   return (
-    <Section id="as-greeting" title="Greeting">
-      <Field id="as-greet" label="Greeting" error={draft.greeting.trim() ? null : 'The greeting cannot be empty.'}>
+    <Section id="as-greeting" title="Greeting" description={`The first thing callers hear when ${name} picks up.`}>
+      <Field
+        id="as-greet"
+        label="Every caller hears"
+        aside={draft.greeting.trim() ? spokenLength(draft.greeting) : undefined}
+        error={draft.greeting.trim() ? null : 'The greeting cannot be empty.'}
+      >
         <TextArea
           id="as-greet"
           value={draft.greeting}
           onChange={v => set('greeting', v)}
           invalid={!draft.greeting.trim()}
+          placeholder={`Thanks for calling. This is ${name}. How can I help?`}
         />
-        <span className="help">{spokenLength(draft.greeting)}</span>
         {stale && (
           <span className="help as-stale">
             Still says "{stale}".
@@ -134,46 +142,42 @@ function Greeting({
           </span>
         )}
       </Field>
-      <details className="vp-more" open={advancedOpen} onToggle={e => remember(e.currentTarget.open)}>
-        <summary title="Returning callers, outside hours">
-          <Icon name="down" size={14} className="vp-chevron" />
-          More greetings
-        </summary>
-        <div className="vp-more-body">
-          <Field id="as-greet-known" label="Returning callers" aside="Optional" error={knownProblem}>
-            <VariableInput
-              id="as-greet-known"
-              label="Greeting for returning callers"
-              value={draft.greeting_known_caller}
-              onChange={v => set('greeting_known_caller', v)}
-              variables={GREETING_VARIABLES}
-              placeholder={DEFAULT_KNOWN_CALLER_GREETING}
-              invalid={!!knownProblem}
-              describedBy="as-greet-known-help"
-            />
-            <span className="help" id="as-greet-known-help">
-              {!draft.greeting_known_caller.trim()
-                ? 'Empty: returning callers hear the usual greeting.'
-                : usesGreetingVariable(draft.greeting_known_caller, 'last_name')
-                  ? `Said before the greeting when a saved contact calls again. With the last name, anyone calling from that number hears the full name on file, so ${assistantName(draft)} shares nothing private on those calls.`
-                  : 'Said before the greeting when a saved contact calls again.'}
-            </span>
-          </Field>
-          {hoursOn && (
-            <Field id="as-greet-out" label="Outside business hours" aside="Optional" labelAfter={<EditBusinessHours canEdit={canEdit} />}>
-              <TextArea
-                id="as-greet-out"
-                value={draft.greeting_outside}
-                onChange={v => set('greeting_outside', v)}
-                placeholder={draft.greeting}
-              />
-              <span className="help">
-                {draft.greeting_outside.trim() ? spokenLength(draft.greeting_outside) : 'Empty: the same as during hours.'}
-              </span>
-            </Field>
-          )}
-        </div>
-      </details>
+      <Field id="as-greet-known" label="Saved contacts hear first" aside="Optional" error={knownProblem}>
+        <VariableInput
+          id="as-greet-known"
+          label="Said first when a saved contact calls"
+          value={draft.greeting_known_caller}
+          onChange={v => set('greeting_known_caller', v)}
+          variables={GREETING_VARIABLES}
+          placeholder={DEFAULT_KNOWN_CALLER_GREETING}
+          invalid={!!knownProblem}
+          describedBy="as-greet-known-help"
+        />
+        <span className="help" id="as-greet-known-help">
+          {known && !knownProblem
+            ? `A saved contact hears: "${withExampleCaller(known)} ${draft.greeting.trim()}"`
+            : 'When someone in your contacts calls again, this is said before the greeting. Empty: they hear the usual greeting.'}
+          {known && usesGreetingVariable(known, 'last_name') && ' Anyone calling from that number hears the full name.'}
+        </span>
+      </Field>
+      {hoursOn && (
+        <Field
+          id="as-greet-out"
+          label="When you're closed, callers hear instead"
+          aside="Optional"
+          labelAfter={<EditBusinessHours canEdit={canEdit} />}
+        >
+          <TextArea
+            id="as-greet-out"
+            value={draft.greeting_outside}
+            onChange={v => set('greeting_outside', v)}
+            placeholder={draft.greeting}
+          />
+          <span className="help">
+            {draft.greeting_outside.trim() ? spokenLength(draft.greeting_outside) : 'Empty: the same greeting as during business hours.'}
+          </span>
+        </Field>
+      )}
     </Section>
   )
 }
