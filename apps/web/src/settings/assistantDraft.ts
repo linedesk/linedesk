@@ -87,7 +87,7 @@ export function onCallProblem(d: Pick<Draft, 'transfer_urgent' | 'transfer_numbe
   const typed = d.transfer_number.trim()
   if (!typed) return d.transfer_urgent ? 'Add the on-call number urgent calls go to.' : null
   const e164 = toE164(typed)
-  return e164 ? onCallNumberProblem(e164) : 'Enter a US number with its area code, like +1 503 555 0142.'
+  return e164 ? onCallNumberProblem(e164) : 'Enter a US number with its area code, like +1 503 555 0100.'
 }
 
 /** The transfer settings to save. */

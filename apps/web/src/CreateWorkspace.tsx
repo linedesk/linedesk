@@ -1,6 +1,7 @@
 import { type FormEvent, type ReactNode, useState } from 'react'
 import { createWorkspace } from './auth.ts'
 import { signOutAndForget } from './localData.ts'
+import { leftOnPurpose } from './session.ts'
 import { AuthPage } from './ui/kit.tsx'
 
 /**
@@ -36,7 +37,16 @@ export function CreateWorkspace({
       <form className="auth-card" onSubmit={submit} noValidate>
         {lostWorkspace && (
           <p className="auth-lost" role="status">
-            You no longer have access to <b>{lostWorkspace}</b>. Ask its owner to invite you again, or set up your own business.
+            {leftOnPurpose(lostWorkspace) ? (
+              <>
+                You left <b>{lostWorkspace}</b>. Set up your own business, or join one you are invited to.
+              </>
+            ) : (
+              <>
+                You no longer have access to <b>{lostWorkspace}</b>. Ask its owner to invite you again, or set up your
+                own business.
+              </>
+            )}
           </p>
         )}
         <h1>Name your business</h1>

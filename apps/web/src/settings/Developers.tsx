@@ -22,7 +22,7 @@ const roles: SelectOption<Role>[] = [
 ]
 
 const day = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
 type Props = { canEdit: boolean; toast: (text: string) => void }
 
@@ -69,8 +69,10 @@ export function Developers({ canEdit, toast }: Props) {
 
 function KeyRow({ apiKey, toast }: { apiKey: ApiKeySummary; toast: Props['toast'] }) {
   const [busy, setBusy] = useState(false)
+  /** Revoke asks once in place (click again), like revoking an invitation: no browser dialog. */
+  const [confirming, setConfirming] = useState(false)
   async function revoke() {
-    if (!window.confirm(`Revoke ${apiKey.name}? Tools using it stop working at once. This cannot be undone.`)) return
+    if (!confirming) return setConfirming(true)
     setBusy(true)
     try {
       await callAction('apiKey.revoke', { apiKeyId: apiKey.id })
@@ -93,8 +95,15 @@ function KeyRow({ apiKey, toast }: { apiKey: ApiKeySummary; toast: Props['toast'
         </span>
       </span>
       <Badge tone="outline">{apiKey.role === 'admin' ? 'Admin' : 'Member'}</Badge>
-      <Button size="sm" variant="ghost" disabled={busy} onClick={revoke} title={`Revoke ${apiKey.name}`}>
-        Revoke
+      <Button
+        size="sm"
+        variant={confirming ? 'danger' : 'ghost'}
+        disabled={busy}
+        onClick={revoke}
+        onBlur={() => setConfirming(false)}
+        title={confirming ? 'Click again: tools using it stop working at once' : `Revoke ${apiKey.name}`}
+      >
+        {confirming ? 'Revoke key' : 'Revoke'}
       </Button>
     </li>
   )

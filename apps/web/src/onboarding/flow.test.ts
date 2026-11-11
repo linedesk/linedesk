@@ -1,6 +1,7 @@
 import type { Call } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import {
+  buyQuestion,
   carriers,
   firstHoursDraft,
   firstTestCall,
@@ -111,4 +112,9 @@ test('renaming the assistant keeps the greeting in step', () => {
   )
   expect(renameInGreeting('Hi, Mayan Plumbing here.', 'Maya', 'Ava')).toBe('Hi, Mayan Plumbing here.')
   expect(renameInGreeting('Hello', 'Maya', 'Maya')).toBe('Hello')
+})
+
+test('the buy question does not speak of a bill in development mode', () => {
+  expect(buyQuestion('telnyx', '503')).toMatch(/billed every month/)
+  expect(buyQuestion('dev', '503')).not.toMatch(/billed every month/)
 })

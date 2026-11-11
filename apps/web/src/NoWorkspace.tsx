@@ -10,6 +10,7 @@ import { auth, fetchAuthMethods, type Me } from './auth.ts'
 import { CreateWorkspace } from './CreateWorkspace.tsx'
 import { AccountSettings } from './settings/account/index.tsx'
 import { signOutAndForget } from './localData.ts'
+import { leftOnPurpose } from './session.ts'
 import { AuthPage } from './ui/kit.tsx'
 
 export type PendingInvitation = { id: string; workspaceName: string; role: string }
@@ -157,7 +158,13 @@ function NoWorkspaceYet({
   return (
     <AuthPage>
       <div className="auth-card">
-        <h1>{lostWorkspace ? `You no longer have access to ${lostWorkspace}` : 'You are not in a workspace yet'}</h1>
+        <h1>
+          {lostWorkspace
+            ? leftOnPurpose(lostWorkspace)
+              ? `You left ${lostWorkspace}`
+              : `You no longer have access to ${lostWorkspace}`
+            : 'You are not in a workspace yet'}
+        </h1>
         <p>
           {hasInvitations
             ? 'Join a workspace you are invited to.'

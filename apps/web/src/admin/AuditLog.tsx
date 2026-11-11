@@ -237,7 +237,7 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
               {entries.map(e => (
                 <tr key={e.id}>
                   <td>
-                    <time dateTime={e.at} title={new Date(e.at).toLocaleString()}>
+                    <time dateTime={e.at} title={new Date(e.at).toLocaleString('en-US')}>
                       {dateTimeLabel(new Date(e.at))}
                     </time>
                   </td>

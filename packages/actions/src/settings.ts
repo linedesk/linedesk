@@ -47,9 +47,9 @@ export const contactUnblock = defineAction({
 /** Add someone by hand. A number that belonged to a deleted contact brings that contact back (with its calls). */
 export const contactCreate = defineAction({
   name: 'contact.create',
-  description: 'Add a contact by hand: a phone number in E.164 (+15035550142), and optionally a name and company.',
+  description: 'Add a contact by hand: a phone number in E.164 (+15035550100), and optionally a name and company.',
   input: z.object({
-    phone: z.string().regex(/^\+[1-9]\d{6,14}$/, 'a phone number in E.164, like +15035550142'),
+    phone: z.string().regex(/^\+[1-9]\d{6,14}$/, 'a phone number in E.164, like +15035550100'),
     name: z.string().trim().min(1).optional(),
     company: z.string().trim().min(1).optional(),
   }),
@@ -74,7 +74,7 @@ export const contactImport = defineAction({
     rows: z
       .array(
         z.object({
-          phone: z.string().regex(/^\+[1-9]\d{6,14}$/, 'a phone number in E.164, like +15035550142'),
+          phone: z.string().regex(/^\+[1-9]\d{6,14}$/, 'a phone number in E.164, like +15035550100'),
           name: importText(200),
           company: importText(200),
           email: importText(254),

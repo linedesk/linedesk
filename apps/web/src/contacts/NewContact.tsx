@@ -26,7 +26,7 @@ export function NewContact({ existing, onAdded, onClose }: Props) {
     const problem = !phone.trim()
       ? 'Enter a phone number.'
       : !e164
-        ? 'Enter a US phone number, like +1 503 555 0142.'
+        ? 'Enter a US phone number, like +1 503 555 0100.'
         : existing.has(e164)
           ? 'That number is already in Contacts.'
           : null
@@ -65,7 +65,7 @@ export function NewContact({ existing, onAdded, onClose }: Props) {
                 value={phone}
                 inputMode="tel"
                 autoComplete="off"
-                placeholder="+1 503 555 0142"
+                placeholder="+1 503 555 0100"
                 ref={phoneInput}
                 invalid={!!problem}
                 onChange={e => {

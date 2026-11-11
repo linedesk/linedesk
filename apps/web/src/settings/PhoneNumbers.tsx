@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
 import { CopyButton } from '../onboarding/Frame.tsx'
 import {
+  buyQuestion,
   carriers,
   forwardingDigits,
   formatNumber,
@@ -433,7 +434,7 @@ function ConnectNumber({
           </Field>
           {confirming && (
             <div className="ob-prompt" role="alert">
-              <span>Buy a number in {areaCode}? It is billed monthly until you release it.</span>
+              <span>{buyQuestion(status?.provider ?? null, areaCode)}</span>
               <span className="ob2-row">
                 <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={busy}>
                   Cancel

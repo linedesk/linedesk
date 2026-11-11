@@ -53,6 +53,31 @@ export function forgetMe() {
   forgetQueries()
 }
 
+const LEFT_KEY = 'linedesk.leftWorkspace'
+
+/** Before leaving a workspace on purpose: the screen after it says "You left …", not "You no longer have access". */
+export function markLeft() {
+  const name = remembered()?.workspace?.name
+  try {
+    if (name) sessionStorage.setItem(LEFT_KEY, name)
+  } catch {}
+}
+
+/** Whether this tab left the workspace of that name itself (markLeft). */
+export function leftOnPurpose(workspaceName: string | null): boolean {
+  try {
+    return !!workspaceName && sessionStorage.getItem(LEFT_KEY) === workspaceName
+  } catch {
+    return false
+  }
+}
+
+function forgetLeft() {
+  try {
+    sessionStorage.removeItem(LEFT_KEY)
+  } catch {}
+}
+
 /** The workspace this browser had open before its member lost access to it, and whose it was (see loadSession). */
 let lost: { account: string; name: string } | null = null
 
@@ -63,7 +88,7 @@ export async function loadSession(): Promise<Session> {
   try {
     const res = await reach('/v1/me', { credentials: 'include' })
     const me = res.ok ? ((await res.json()) as Me) : null
-    if (me?.workspace) { remember(me); primeQueries(me); return { state: 'ready', me, offline: false } }
+    if (me?.workspace) { remember(me); primeQueries(me); forgetLeft(); return { state: 'ready', me, offline: false } }
     // This browser had a workspace open before: its member was removed from it (or from their last one).
     // Kept for this page, as the remembered member is forgotten right below (a second load must say it too).
     const before = remembered()

@@ -7,7 +7,7 @@ import { useRows, useRun } from '../store.tsx'
 import { RadioCard } from '../ui/controls.tsx'
 import { Button, cx, Icon } from '../ui/kit.tsx'
 import { CopyButton, Foot, useStepKeys } from './Frame.tsx'
-import { carriers, formatNumber, forwardingDigits, phoneSetupInput, priceNote, type PhoneChoice } from './flow.ts'
+import { buyQuestion, carriers, formatNumber, forwardingDigits, phoneSetupInput, priceNote, type PhoneChoice } from './flow.ts'
 
 type Props = {
   status: PhoneSetupStatus
@@ -137,7 +137,7 @@ function Choose({ status, setupError, clearError, onBack }: Props) {
             <p className="ob2-note">{priceNote(status.provider)}</p>
             {confirming && (
               <div className="ob-prompt" role="alert">
-                <span>Buy a number in area code {areaCode}? It is billed every month until you release it.</span>
+                <span>{buyQuestion(status.provider, areaCode)}</span>
                 <span className="ob2-row">
                   <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={sending}>
                     Cancel

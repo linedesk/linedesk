@@ -80,7 +80,7 @@ export function phoneSetupInput(choice: PhoneChoice): { input: PhoneSetupInput }
     const e164 = toE164(choice.number)
     return e164
       ? { input: { e164, purchase: false } }
-      : { problem: 'Enter the number with its area code, like +1 503 555 0142.' }
+      : { problem: 'Enter the number with its area code, like +1 503 555 0100.' }
   }
   if (!/^\d{3}$/.test(choice.areaCode)) return { problem: 'Enter a 3-digit area code, like 503.' }
   if (!choice.confirmed) return { problem: 'Confirm the monthly cost first.' }
@@ -113,6 +113,12 @@ export function priceNote(provider: string | null): string {
   if (provider === 'telnyx') return 'About $1 a month plus call minutes, billed by Telnyx.'
   if (provider === 'dev') return 'Development mode: nothing is bought, the number is not real.'
   return 'A monthly fee plus call minutes, billed by your carrier.'
+}
+
+/** The question before buying: in development mode nothing is bought, so nothing is billed either. */
+export function buyQuestion(provider: string | null, areaCode: string): string {
+  if (provider === 'dev') return `Add a test number in area code ${areaCode}? Development mode: nothing is bought or billed.`
+  return `Buy a number in area code ${areaCode}? It is billed every month until you release it.`
 }
 
 export type Carrier = { id: string; name: string; on: (digits: string) => string; off: string }

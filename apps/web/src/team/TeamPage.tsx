@@ -12,6 +12,7 @@ import {
 import { type FormEvent, useState } from 'react'
 import { Section } from '../settings/fields.tsx'
 import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
+import { markLeft } from '../session.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
 import { Select } from '../ui/controls.tsx'
 import { Avatar, Badge, Button } from '../ui/kit.tsx'
@@ -264,6 +265,7 @@ function LeaveWorkspace({ data }: { data: TeamData }) {
     setError(null)
     try {
       const { nextWorkspaceId } = await teamApi.leave()
+      markLeft()
       if (nextWorkspaceId) await switchToWorkspace(nextWorkspaceId)
       else window.location.replace('/')
     } catch (err) {

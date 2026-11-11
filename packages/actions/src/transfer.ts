@@ -19,7 +19,7 @@ const CALLABLE_TYPES = new Set(['FIXED_LINE', 'MOBILE', 'FIXED_LINE_OR_MOBILE'])
  */
 export function onCallNumberProblem(e164: string): string | null {
   const m = NANP.exec(e164)
-  if (!m) return 'Enter a US phone number with its area code, like +1 503 555 0142.'
+  if (!m) return 'Enter a US phone number with its area code, like +1 503 555 0100.'
   const [, area, exchange] = m as unknown as [string, string, string]
   if (/^[2-9]11$/.test(area) || /^[2-9]11$/.test(exchange))
     return 'Service numbers (like 411) cannot take transferred calls.'

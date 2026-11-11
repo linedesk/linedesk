@@ -235,7 +235,7 @@ function Transfer({ draft, set, hoursOn }: SectionProps & { hoursOn: boolean }) 
           id="as-oncall"
           value={draft.transfer_number}
           onChange={v => set('transfer_number', v)}
-          placeholder="+1 503 555 0142"
+          placeholder="+1 503 555 0100"
           invalid={!!problem}
         />
         <span className="help">US mobile or landline.</span>

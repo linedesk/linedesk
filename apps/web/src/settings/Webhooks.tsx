@@ -207,7 +207,7 @@ function DeliveryLog({ endpointId, version }: { endpointId: string; version: num
             </td>
             <td>{d.attempts}</td>
             <td>
-              {new Date(d.last_attempt_at ?? d.created_at).toLocaleString(undefined, {
+              {new Date(d.last_attempt_at ?? d.created_at).toLocaleString('en-US', {
                 month: 'short',
                 day: 'numeric',
                 hour: 'numeric',
