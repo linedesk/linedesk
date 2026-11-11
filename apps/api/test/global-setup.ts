@@ -12,11 +12,22 @@ async function insertFirstUser(url: string) {
   }
 }
 
-/** Creates the run's database before the first test and drops it after the last. */
+/**
+ * Creates the run's databases before the first test and drops them after the last: one per project in
+ * vitest.config.ts (the instance-wide files have their own), each named by its project's DATABASE_URL.
+ */
 export default async function setup(project: TestProject) {
-  const url = project.config.env.DATABASE_URL
-  if (!url) return // no Postgres: vitest.config.ts has excluded the tests that need it
-  await createTestDatabase(url)
-  await insertFirstUser(url)
-  return () => dropTestDatabase(url)
+  const urls = [
+    ...new Set(
+      [project, ...project.vitest.projects].map(p => p.config.env?.DATABASE_URL).filter((u): u is string => !!u),
+    ),
+  ]
+  if (!urls.length) return // no Postgres: vitest.config.ts has excluded the tests that need it
+  await Promise.all(
+    urls.map(async url => {
+      await createTestDatabase(url)
+      await insertFirstUser(url)
+    }),
+  )
+  return () => Promise.all(urls.map(dropTestDatabase))
 }

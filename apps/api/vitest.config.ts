@@ -8,25 +8,41 @@ import { isReachable, runDatabaseUrl, testDatabaseBaseUrl } from './test/test-da
 const envFile = new URL('../../.env', import.meta.url)
 const fileEnv = existsSync(envFile) ? parseEnv(readFileSync(envFile, 'utf8')) : {}
 
-/** The database for this run. Without Postgres: null on a developer machine, an error in CI. */
-async function testDatabase(): Promise<string | null> {
+/** Where this run's databases go. Without Postgres: null on a developer machine, an error in CI. */
+async function testDatabaseBase(): Promise<string | null> {
   const base = testDatabaseBaseUrl({ ...fileEnv, ...process.env })
-  if (base && (await isReachable(base))) return runDatabaseUrl(base)
+  if (base && (await isReachable(base))) return base
   const problem = base ? `no Postgres at ${new URL(base).host}` : 'DATABASE_URL is not set'
   if (process.env.CI) throw new Error(`The API tests need Postgres: ${problem}`)
   console.warn(`\nSkipping the API integration tests: ${problem} (run \`pnpm db:up\`, and \`cp .env.example .env\`).\n`)
   return null
 }
 
-// The API tests run against a real Postgres, in a database of their own (never the dev database).
+/**
+ * Files that change what is global to an install (provider keys, instance settings, instance admins)
+ * or count across workspaces (the admin overview). They get a database of their own, so tests in
+ * other files, which run at the same time, never see their keys or their counts move under them.
+ */
+const INSTANCE_WIDE_FILES = ['test/admin.test.ts']
+
+// The API tests run against a real Postgres, in databases of their own (never the dev database): one
+// for the instance-wide files, one for everything else. global-setup.ts creates and drops each.
 export default defineConfig(async () => {
-  const databaseUrl = await testDatabase()
+  const base = await testDatabaseBase()
+  const withDatabase = (name: string, files: { include?: string[]; exclude?: string[] }) => ({
+    extends: true as const,
+    test: { name, ...files, env: { DATABASE_URL: base ? runDatabaseUrl(base) : '' } },
+  })
   return {
     test: {
       globalSetup: './test/global-setup.ts',
-      exclude: [...configDefaults.exclude, ...(databaseUrl ? [] : ['test/**'])],
+      projects: base
+        ? [
+            withDatabase('api', { exclude: [...configDefaults.exclude, ...INSTANCE_WIDE_FILES] }),
+            withDatabase('instance', { include: INSTANCE_WIDE_FILES }),
+          ]
+        : [{ extends: true as const, test: { name: 'api', exclude: [...configDefaults.exclude, 'test/**'] } }],
       env: {
-        DATABASE_URL: databaseUrl ?? '',
         BETTER_AUTH_SECRET: 'test-secret-test-secret-test-secret',
         BETTER_AUTH_URL: 'http://localhost:5173',
         WEB_ORIGIN: 'http://localhost:5173',
