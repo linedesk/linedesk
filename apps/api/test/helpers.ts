@@ -60,7 +60,8 @@ export async function request(
 ) {
   const res = await appRequest(path, {
     method,
-    headers: { ...who.headers, ...extra, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+    // Every write is JSON, as the web app sends it (csrf.ts refuses a cookie-signed write that is not).
+    headers: { ...who.headers, ...extra, ...(body === undefined && method === 'GET' ? {} : { 'content-type': 'application/json' }) },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   // biome-ignore lint/suspicious/noExplicitAny: response bodies are asserted on in the tests

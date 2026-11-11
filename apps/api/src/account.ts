@@ -4,7 +4,7 @@
 import { APIError } from 'better-auth/api'
 import type { Context } from 'hono'
 import { authMethods } from './auth-methods.ts'
-import { auth, WEB_ORIGIN } from './auth.ts'
+import { auth } from './auth.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { createRateLimiter } from './rate-limit.ts'
 
@@ -19,8 +19,7 @@ const allowAttempt = createRateLimiter({ max: 5, windowMs: 10 * 60_000 })
 export async function setFirstPassword(c: Context) {
   const refuse = (status: 400 | 401 | 403 | 422 | 429, error: string, code?: string) => c.json({ ok: false, error, code }, status)
   if (!authMethods.password) return refuse(400, 'Password sign-in is turned off')
-  // The session cookie alone must not be enough for another site to send this request.
-  if (c.req.header('origin') !== WEB_ORIGIN) return refuse(403, 'This request must come from the Linedesk app')
+  // Another site cannot send this with the session cookie: refuseCrossSite (csrf.ts) runs before every /v1 route.
   const headers = c.req.raw.headers
   const session = await auth.api.getSession({ headers })
   if (!session) return refuse(401, 'not signed in')

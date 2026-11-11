@@ -103,6 +103,7 @@ Reads are defined once as named queries and exposed to the UI (live via sync), R
 ## 6. Sync: "commands up, data down"
 
 - **Writes:** every registry call from the web app is a command. The client applies it to its local store immediately, persists it in an IndexedDB outbox and replays it in order to `POST /v1/actions/<name>` (idempotent per command id). The server is authoritative; a rejection rolls the local change back and shows a toast.
+- **Cross-site writes:** every non-GET request under `/v1` signed in by the session cookie (no `Authorization: Bearer`) must come from the web app's origin (`Origin` equal to `WEB_ORIGIN`) and be `application/json`, else 403 `cross_site_refused` (`apps/api/src/csrf.ts`, before every `/v1` route). The cookie is SameSite=Lax, so a page on another subdomain of the same site would still send it, and a `text/plain` POST needs no preflight. API keys and the agent (Bearer) are not affected; Better Auth checks the Origin of `/api/auth/*` itself.
 - **Reads:** Postgres → local store through our `ReadSyncAdapter` interface, scoped per workspace and permission. Default adapter: Electric. Swapping the provider touches only the adapter file, not the UI.
 - **Offline:** reads and queued writes survive a reload; a service worker serves the app shell.
 - **Live calls:** transcript segments are rows like any other, so they arrive through the same read sync (target < 1 s).

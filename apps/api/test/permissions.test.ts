@@ -133,7 +133,8 @@ test('creating a workspace needs a name', async () => {
     headers: user.headers,
     body: 'name=Brightwater',
   })
-  expect(notJson.status).toBe(422)
+  // Not JSON: refused before it is read (csrf.ts).
+  expect(notJson.status).toBe(403)
   expect((await request(user, 'POST', '/v1/workspaces', { name: 'Brightwater Plumbing & Heating' })).status).toBe(200)
   expect((await request(user, 'GET', '/v1/me')).body).toMatchObject({
     role: 'owner',

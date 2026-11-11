@@ -13,7 +13,8 @@ import { registerAdminRoutes } from './admin-routes.ts'
 import { clientIpOf, withClientIp } from './client-ip.ts'
 import { serveMcp } from './mcp.ts'
 import { authMethods } from './auth-methods.ts'
-import { auth, WEB_ORIGIN, WORKSPACE_LIMIT } from './auth.ts'
+import { auth, TRUSTED_ORIGINS, WEB_ORIGIN, WORKSPACE_LIMIT } from './auth.ts'
+import { refuseCrossSite } from './csrf.ts'
 import { calendarCallback } from './calendar-callback.ts'
 import { configuredCalendarProviders } from '@linedesk/calendar'
 import {
@@ -51,6 +52,9 @@ app.onError((err, c) => {
 
 app.get('/healthz', c => c.json({ ok: true }))
 app.on(['GET', 'POST'], '/api/auth/*', c => auth.handler(withClientIp(c)))
+
+// Before every /v1 route: a write signed in by the cookie only from the web app, as JSON (csrf.ts).
+app.use('/v1/*', refuseCrossSite(TRUSTED_ORIGINS))
 
 // Public: the sign-in screen asks which methods this install offers.
 app.get('/v1/auth-methods', c => c.json(authMethods))

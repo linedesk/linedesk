@@ -23,6 +23,9 @@ const { google, microsoft, github, oidc, trustedProviders, methods } = authConfi
 /** Where the web app is served from; the only origin browser requests are accepted from. */
 export const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
 
+/** The origins whose pages may use the session cookie: Better Auth's and /v1's cross-site checks (csrf.ts). */
+export const TRUSTED_ORIGINS: readonly string[] = [WEB_ORIGIN]
+
 /** A member can create this many workspaces. */
 export const WORKSPACE_LIMIT = 5
 
@@ -88,7 +91,7 @@ export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: 'pg' }),
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
-  trustedOrigins: [WEB_ORIGIN],
+  trustedOrigins: [...TRUSTED_ORIGINS],
   emailAndPassword: { enabled: methods.password },
   databaseHooks: mergeDatabaseHooks(instanceAdminHooks, accountLinkingHooks, auditHooks),
   emailVerification: { sendVerificationEmail, autoSignInAfterVerification: true },
