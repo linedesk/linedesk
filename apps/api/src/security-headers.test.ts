@@ -21,7 +21,8 @@ describe('security headers (docker/Caddyfile)', () => {
   test('the CSP allows only this origin, plus what the app connects to', () => {
     const csp = cspDirectives()
     expect(csp.get('default-src')).toEqual(["'self'"])
-    expect(csp.get('connect-src')).toEqual(["'self'", 'wss:', 'https://openrouter.ai'])
+    // LiveKit: on this origin ('self' covers ws/wss) or on the one address browsers are given; never any wss: host.
+    expect(csp.get('connect-src')).toEqual(["'self'", '{$LIVEKIT_PUBLIC_URL}', 'https://openrouter.ai'])
     expect(csp.get('img-src')).toEqual(["'self'", 'data:'])
     expect(csp.get('media-src')).toEqual(["'self'", 'blob:', 'https:'])
     expect(csp.get('frame-ancestors')).toEqual(["'none'"])
@@ -30,6 +31,12 @@ describe('security headers (docker/Caddyfile)', () => {
     // No inline or evaluated script anywhere.
     for (const values of csp.values()) expect(values).not.toContain("'unsafe-inline'")
     for (const values of csp.values()) expect(values).not.toContain("'unsafe-eval'")
+  })
+
+  test('the proxy gets LIVEKIT_PUBLIC_URL for the CSP', () => {
+    const compose = readFileSync(new URL('../../../docker-compose.yml', import.meta.url), 'utf8')
+    const proxy = compose.slice(compose.indexOf('\n  proxy:\n'), compose.indexOf('\n  web:\n'))
+    expect(proxy).toMatch(/^\s+LIVEKIT_PUBLIC_URL: \$\{LIVEKIT_PUBLIC_URL:-\}$/m)
   })
 
   test('no framing, no sniffing, a short referrer, the microphone for this origin only', () => {

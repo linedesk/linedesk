@@ -99,6 +99,8 @@ services:
     environment:
       # Behind your own reverse proxy: the ranges it connects from, so Caddy keeps its X-Forwarded-For (docker/Caddyfile).
       LINEDESK_TRUSTED_PROXY_RANGES: ${LINEDESK_TRUSTED_PROXY_RANGES:-}
+      # The LiveKit address browsers are given, allowed in the CSP's connect-src (docker/Caddyfile).
+      LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:-}
     volumes: ["caddy_data:/data"]
     mem_limit: ${LINEDESK_PROXY_MEM:-48m}
     cpus: ${LINEDESK_PROXY_CPUS:-0.05}
