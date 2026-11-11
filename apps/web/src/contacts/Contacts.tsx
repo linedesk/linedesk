@@ -229,6 +229,7 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
               onClose={page.close}
               onDelete={remove}
               onMerge={() => setMerging({ first: opened, second: null })}
+              runUndoable={runUndoable}
             />
           )
         )}

@@ -1,12 +1,14 @@
 // The contact's record beside the list (full width below 1100 px): a header with who it is and the
 // actions, the details as a form whose fields save themselves (contact.update), and their calls.
 import type { Call, Contact } from '@linedesk/db/types'
-import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
+import { Fragment, type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { CallBackLink } from '../call/ContactSide.tsx'
 import { useInlineEdit } from '../call/EditableFact.tsx'
-import { callTitle, formatPhone } from '../inbox-model.ts'
+import { formatPhone, tabOf } from '../inbox-model.ts'
+import { type Change, doneChange, notDoneChange, type Step, unreadChange } from '../inbox/changes.ts'
+import { Row } from '../inbox/Row.tsx'
 import { useAssistants, useRun } from '../store.tsx'
-import { dateTimeLabel, parseTs, shortDuration } from '../time.ts'
+import { dayLabel, parseTs } from '../time.ts'
 import { Card, FormField, Input, Textarea } from '../ui/form.tsx'
 import { Avatar, Button, Icon } from '../ui/kit.tsx'
 import { contactLabel, type ContactRow, noteHint } from './model.ts'
@@ -18,7 +20,10 @@ type Props = {
   onClose: () => void
   onDelete: (contactId: string) => void
   onMerge: () => void
+  runUndoable: RunUndoable
 }
+
+type RunUndoable = (steps: Step[], inverse: Step[], label: string, key: string) => void
 
 type Editable = 'name' | 'company' | 'email' | 'address' | 'note'
 
@@ -145,29 +150,51 @@ function MoreMenu({ label, onDelete, onMerge }: { label: string; onDelete: () =>
   )
 }
 
-function CallList({ calls, onOpen }: { calls: Call[]; onOpen: (call: Call) => void }) {
+/**
+ * The contact's calls as the inbox shows them: the inbox's own row (unread dot, caller, topic, status,
+ * length, time) under the same day labels, so the list is recognisable at a glance. Click or Enter
+ * opens the call; the dot marks it read or unread and, on hover, E marks it done, both with undo.
+ */
+function CallList({
+  calls,
+  onOpen,
+  runUndoable,
+}: {
+  calls: Call[]
+  onOpen: (call: Call) => void
+  runUndoable: RunUndoable
+}) {
   if (!calls.length) return <p className="help">No calls yet.</p>
+  const day = (c: Call) => dayLabel(parseTs(c.started_at))
+  const apply = (change: Change) => runUndoable(change.steps, change.inverse, change.label, change.key)
   return (
-    <ul className="ct-calls">
-      {calls.map(c => (
-        <li key={c.id}>
-          <button type="button" className="ct-call" onClick={() => onOpen(c)} title="Open the call">
-            <b>{callTitle(c)}</b>
-            <span className="ct-call-meta">
-              {c.direction === 'out' ? 'Outbound' : 'Inbound'}
-              {c.status === 'live' ? ' · live' : c.duration_sec ? ` · ${shortDuration(c.duration_sec)}` : ''}
-            </span>
-            <time className="ct-call-time" dateTime={c.started_at}>
-              {dateTimeLabel(parseTs(c.started_at))}
-            </time>
-          </button>
-        </li>
+    <div className="ib-list ct-calls" role="list" aria-label="Calls">
+      {calls.map((c, i) => (
+        <Fragment key={c.id}>
+          {(i === 0 || day(calls[i - 1]!) !== day(c)) && (
+            <div className="ib-day" role="presentation">
+              {day(c)}
+            </div>
+          )}
+          <Row
+            call={c}
+            tab={tabOf(c)}
+            search={null}
+            segments={[]}
+            isCursor={false}
+            motion={null}
+            focusable
+            onOpen={onOpen}
+            onToggleUnread={call => apply(unreadChange(call))}
+            onToggleDone={call => apply(call.inbox_state === 'done' ? notDoneChange(call) : doneChange(call))}
+          />
+        </Fragment>
       ))}
-    </ul>
+    </div>
   )
 }
 
-export function ContactDetail({ row, onOpenCall, onClose, onDelete, onMerge }: Props) {
+export function ContactDetail({ row, onOpenCall, onClose, onDelete, onMerge, runUndoable }: Props) {
   const { contact, calls } = row
   const assistantNames = useAssistants().map(a => a.name)
   const label = contactLabel(contact)
@@ -215,7 +242,7 @@ export function ContactDetail({ row, onOpenCall, onClose, onDelete, onMerge }: P
           </div>
         </Card>
         <Card title={calls.length ? `Calls · ${calls.length}` : 'Calls'} className="ct-card">
-          <CallList calls={calls} onOpen={onOpenCall} />
+          <CallList calls={calls} onOpen={onOpenCall} runUndoable={runUndoable} />
         </Card>
       </div>
     </aside>

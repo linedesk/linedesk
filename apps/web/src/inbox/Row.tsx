@@ -1,5 +1,5 @@
 import type { Call, TranscriptSegment } from '@linedesk/db/types'
-import type { MouseEvent } from 'react'
+import type { KeyboardEvent, MouseEvent } from 'react'
 import { callerName, callTitle, statusLabel, tabOf, type InboxTab } from '../inbox-model.ts'
 import { useAssistantName, useContact } from '../store.tsx'
 import { clock, parseTs, shortDuration, timeLabel, timeUnderDay } from '../time.ts'
@@ -10,13 +10,14 @@ import { Avatar, Badge, cx, Icon } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { highlight, searchHit } from './search.tsx'
 
+/** The inbox passes them all; a call list elsewhere (a contact's calls) only those it offers. */
 export type RowHandlers = {
   onOpen?: (call: Call) => void
-  onHover: (call: Call) => void
-  onToggleDone: (call: Call) => void
-  onToggleUnread: (call: Call) => void
-  onRemind: (call: Call) => void
-  onClearReminder: (call: Call) => void
+  onHover?: (call: Call) => void
+  onToggleDone?: (call: Call) => void
+  onToggleUnread?: (call: Call) => void
+  onRemind?: (call: Call) => void
+  onClearReminder?: (call: Call) => void
   onCommands?: (call: Call) => void
   /** Tick or untick a call; with shift, everything from the last ticked call to this one. */
   onSelect?: (call: Call, range: boolean) => void
@@ -32,6 +33,8 @@ type Props = RowHandlers & {
   selected?: boolean
   /** Repeat calls this row stands for (see groupRepeats), the row's own call first. */
   group?: Call[]
+  /** Reachable with Tab, Enter opens the call: for lists without the inbox's own cursor keys. */
+  focusable?: boolean
 }
 
 const stop = (run: () => void) => (e: MouseEvent) => {
@@ -140,7 +143,18 @@ function AssigneeMark({ userId }: { userId: string }) {
   )
 }
 
-export function Row({ call, tab, search, segments, isCursor, motion, selected = false, group, ...on }: Props) {
+export function Row({
+  call,
+  tab,
+  search,
+  segments,
+  isCursor,
+  motion,
+  selected = false,
+  group,
+  focusable,
+  ...on
+}: Props) {
   const contact = useContact(call.contact_id)
   const unread = call.unread || !!group?.some(c => c.unread)
   const live = call.status === 'live'
@@ -168,8 +182,16 @@ export function Row({ call, tab, search, segments, isCursor, motion, selected = 
       )}
       onClick={() => on.onOpen?.(call)}
       onMouseMove={() => {
-        if (!isCursor) on.onHover(call)
+        if (!isCursor) on.onHover?.(call)
       }}
+      {...(focusable && {
+        tabIndex: 0,
+        onKeyDown: (e: KeyboardEvent) => {
+          if (e.key !== 'Enter' || e.target !== e.currentTarget) return
+          e.preventDefault()
+          on.onOpen?.(call)
+        },
+      })}
     >
       <span
         className={cx('r-dot', unread && 'is-unread')}
@@ -177,7 +199,7 @@ export function Row({ call, tab, search, segments, isCursor, motion, selected = 
         tabIndex={-1}
         title={`${unread ? 'Mark read' : 'Mark unread'} (U)`}
         aria-label={unread ? 'Unread, mark read' : 'Read, mark unread'}
-        onClick={stop(() => on.onToggleUnread(call))}
+        onClick={stop(() => on.onToggleUnread?.(call))}
       >
         <i />
         {on.onSelect && <SelectBox call={call} selected={selected} onSelect={on.onSelect} />}
@@ -201,16 +223,18 @@ export function Row({ call, tab, search, segments, isCursor, motion, selected = 
         {(tab === 'reminders' && search === null ? timeLabel : timeUnderDay)(parseTs(call.started_at))}
       </span>
       <span className="r-acts">
-        <RowAction
-          title={done ? 'Mark not done (⇧E)' : 'Mark done (E)'}
-          icon={done ? 'restart' : 'check'}
-          onClick={() => on.onToggleDone(call)}
-        />
-        {reminded ? (
-          <RowAction title="Clear reminder (⇧H)" icon="restart" onClick={() => on.onClearReminder(call)} />
-        ) : (
-          <RowAction title="Remind me (H)" icon="clock" onClick={() => on.onRemind(call)} />
+        {on.onToggleDone && (
+          <RowAction
+            title={done ? 'Mark not done (⇧E)' : 'Mark done (E)'}
+            icon={done ? 'restart' : 'check'}
+            onClick={() => on.onToggleDone!(call)}
+          />
         )}
+        {reminded
+          ? on.onClearReminder && (
+              <RowAction title="Clear reminder (⇧H)" icon="restart" onClick={() => on.onClearReminder!(call)} />
+            )
+          : on.onRemind && <RowAction title="Remind me (H)" icon="clock" onClick={() => on.onRemind!(call)} />}
         {on.onCommands && <RowAction title="All commands (⌘ K)" icon="more" onClick={() => on.onCommands!(call)} />}
       </span>
     </div>
