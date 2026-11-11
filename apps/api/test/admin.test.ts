@@ -1231,6 +1231,12 @@ describe('impersonation', () => {
       await authCall('/list-sessions'),
       await authCall('/list-accounts'),
       await authCall('/unlink-account', { providerId: 'credential' }),
+      // Passkeys: no adding, renaming, removing or listing them as the user.
+      await authCall('/passkey/generate-register-options'),
+      await authCall('/passkey/verify-registration', { response: {} }),
+      await authCall('/passkey/update-passkey', { id: 'any', name: 'Taken over' }),
+      await authCall('/passkey/delete-passkey', { id: 'any' }),
+      await authCall('/passkey/list-user-passkeys'),
     ]
     for (const res of refused) {
       expect(res).toMatchObject({ status: 403, body: { message: 'Not possible while signed in as another user.' } })

@@ -6,8 +6,8 @@ const sso = [
   { id: 'oidc', label: 'Acme SSO' },
 ]
 const links = { terms: null, privacy: null, supportEmail: null }
-const on = { password: true, emailCode: true, sso, links }
-const off = { password: true, emailCode: false, sso: [], links }
+const on = { password: true, emailCode: true, passkey: false, sso, links }
+const off = { password: true, emailCode: false, passkey: false, sso: [], links }
 
 describe('sign-in methods', () => {
   it('knows whether a password is set', () => {

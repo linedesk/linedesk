@@ -11,6 +11,7 @@ import { refuseExistingMember, sendVerificationEmail } from './invitations.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { refuseWhileImpersonating } from './impersonation-guard.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
+import { passkeyPlugin, requireFreshSessionToRemovePasskey } from './passkeys.ts'
 import { maySendSignInCode } from './signup-gate.ts'
 
 const { google, microsoft, github, oidc, trustedProviders, methods } = authConfig
@@ -44,6 +45,7 @@ const limitEmailCodes = async (ctx: Parameters<typeof refuseWhileImpersonating>[
 const beforeAuthEndpoints = createAuthMiddleware(async ctx => {
   await limitEmailCodes(ctx)
   await refuseWhileImpersonating(ctx)
+  await requireFreshSessionToRemovePasskey(ctx)
 })
 
 /** The plugin's endpoints for password reset, email change and plain verification are not offered. */
@@ -106,6 +108,8 @@ export const auth = betterAuth({
     ...(methods.emailCode
       ? [emailOTP({ sendVerificationOTP: sendSignInCode, otpLength: 6, expiresIn: 600, allowedAttempts: 3, storeOTP: 'hashed', rateLimit: { window: 60, max: 3 } })]
       : []),
+    // Passkeys sign in existing accounts only; they are added in Account settings (passkeys.ts).
+    ...(methods.passkey ? [passkeyPlugin(process.env)] : []),
     ...(oidc ? [genericOAuth({ config: [{ providerId: 'oidc', clientId: oidc.clientId, clientSecret: oidc.clientSecret, discoveryUrl: oidc.discoveryUrl, scopes: ['openid', 'profile', 'email'], pkce: true }] })] : []),
   ],
 })

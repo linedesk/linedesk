@@ -2,9 +2,11 @@
 export type SsoMethod = { id: string; label: string }
 /** `signUp`: false when AUTH_SIGNUP_ENABLED=false; existing users still sign in. */
 /** `emailCode`: sign in with a code sent by email (needs email delivery). */
+/** `passkey`: sign in with a passkey added in Account settings (AUTH_PASSKEY_ENABLED, on by default). */
 export type AuthMethods = {
   password: boolean
   emailCode: boolean
+  passkey: boolean
   signUp?: boolean
   sso: SsoMethod[]
   links: LegalLinks

@@ -2,7 +2,7 @@
 // then the sign-in providers, and a password under "Show other options". New people are signed up on
 // first sign-in, unless sign-up is closed.
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react'
-import { type AuthMethods, auth, type LegalLinks, type SsoMethod, fetchAuthMethods, requestSignInCode, signInWithCode, startSso, takeRedirectError } from './auth.ts'
+import { type AuthMethods, auth, type LegalLinks, passkeySupported, type SsoMethod, fetchAuthMethods, requestSignInCode, signInWithCode, signInWithPasskey, startSso, takeRedirectError } from './auth.ts'
 import { authErrorMessage, authFormError, CODE_LENGTH, codeErrorMessage, normalizeCode, RESEND_AFTER_S } from './sign-in-code.ts'
 import { readLastUsedMethod, rememberSignInMethod } from './sign-in-methods.ts'
 import { LastUsed, ProviderButton } from './ui/brand-logos.tsx'
@@ -84,6 +84,15 @@ export function Login({ onDone }: { onDone: () => Promise<void> }) {
     })
   }
 
+  function continueWithPasskey() {
+    void attempt('passkey', async () => {
+      fail(await signInWithPasskey())
+      rememberSignInMethod('passkey')
+      await onDone()
+      return true
+    })
+  }
+
   if (!methods) return <AuthPage>{error ? <div className="auth-error" role="alert">{error}</div> : <p className="auth-wait">Connecting…</p>}</AuthPage>
 
   if (step === 'code') {
@@ -114,9 +123,11 @@ export function Login({ onDone }: { onDone: () => Promise<void> }) {
     )
   }
 
-  const hasProviders = methods.sso.length > 0
+  const withPasskey = methods.passkey && passkeySupported()
+  const hasProviders = methods.sso.length > 0 || withPasskey
   const hasOtherOptions = methods.password && methods.emailCode
-  const nothing = !methods.emailCode && !methods.password && !hasProviders
+  // A passkey alone is no way in: it is added after signing in some other way.
+  const nothing = !methods.emailCode && !methods.password && methods.sso.length === 0
   return (
     <AuthPage>
       <div className="auth-card">
@@ -140,6 +151,10 @@ export function Login({ onDone }: { onDone: () => Promise<void> }) {
           <ProviderButton key={m.id} method={m.id} label={m.label} lastUsed={lastUsed === m.id} busy={busy === m.id}
             disabled={busy !== null} onClick={() => continueWith(m)} />
         ))}
+        {withPasskey && (
+          <ProviderButton method="passkey" label="Passkey" lastUsed={lastUsed === 'passkey'} busy={busy === 'passkey'} busyText="Signing in…"
+            disabled={busy !== null} onClick={continueWithPasskey} />
+        )}
         {hasOtherOptions && (otherOptions
           ? <ProviderButton method="password" label="Password" lastUsed={lastUsed === 'password'} disabled={busy !== null} onClick={() => go('password')} />
           : <button type="button" className="auth-switch auth-more" onClick={() => setOtherOptions(true)}>Show other options</button>)}

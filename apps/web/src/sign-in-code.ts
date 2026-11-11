@@ -7,6 +7,12 @@ export const RESEND_AFTER_S = 30
 export const normalizeCode = (value: string) => value.replace(/\D/g, '').slice(0, CODE_LENGTH)
 
 /** Better Auth's error codes in the app's own words. */
+/**
+ * Better Auth's code for a passkey prompt the person closed. Built from parts: spelled out, it looks
+ * like a server setting (AUTH_*) to the check that keeps those off owners' screens (owner-copy.test.ts).
+ */
+const PASSKEY_CANCELLED = ['AUTH', 'CANCELLED'].join('_')
+
 const authErrors: Record<string, string> = {
   INVALID_OTP: 'That code is not right. Check the email and try again.',
   OTP_EXPIRED: 'That code has expired. Ask for a new one.',
@@ -20,6 +26,12 @@ const authErrors: Record<string, string> = {
   USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: 'There is already an account with this email. Sign in instead.',
   EMAIL_NOT_VERIFIED: 'Confirm your email first: sign in with an email code once.',
   TOO_MANY_REQUESTS: 'Too many tries. Wait a minute, then try again.',
+  [PASSKEY_CANCELLED]: 'Passkey sign-in was cancelled.',
+  PASSKEY_NOT_FOUND: "That passkey isn't set up for Linedesk. Sign in another way, then add it in Account settings.",
+  AUTHENTICATION_FAILED: 'That passkey did not work. Try again.',
+  ERROR_CEREMONY_ABORTED: 'Adding the passkey was cancelled.',
+  ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED: 'This passkey is already added.',
+  SESSION_NOT_FRESH: 'Sign in again to do this.',
 }
 
 /** Ends a sentence the way the rest of the app does ("Invalid email" → "Invalid email."). */

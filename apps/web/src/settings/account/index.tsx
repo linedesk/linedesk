@@ -2,14 +2,14 @@
 // (#account/<section>). Everything here is Better Auth's own data (see account-api.ts), so it does not
 // go through the outbox.
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
-import { signInAgain } from '../../auth.ts'
+import { passkeySupported, signInAgain } from '../../auth.ts'
 import { dateTimeLabel } from '../../time.ts'
 import { onSaveKey, SaveBar } from '../../ui/form.tsx'
 import { Badge, Button } from '../../ui/kit.tsx'
 import { type PageSection, SettingsLayout, useSection } from '../../ui/SettingsLayout.tsx'
 import { Field, Section, TextInput } from '../fields.tsx'
-import { type Account, changeName, changePassword, loadAccount, loadSessions, setFirstPassword, SignInAgain, signOutOtherSessions, signOutSession } from './account-api.ts'
-import { hasPassword, orderSessions, passwordProblem, type SessionRow, SESSIONS_SHOWN, signInMethodLabels } from './account-model.ts'
+import { type Account, addPasskey, changeName, changePassword, loadAccount, loadPasskeys, loadSessions, type PasskeyRow, removePasskey, setFirstPassword, SignInAgain, signOutOtherSessions, signOutSession } from './account-api.ts'
+import { describeDevice, hasPassword, orderSessions, passwordProblem, type SessionRow, SESSIONS_SHOWN, signInMethodLabels } from './account-model.ts'
 
 type SectionProps = { account: Account; reload: () => Promise<void> }
 
@@ -132,8 +132,73 @@ function SignIn(props: SectionProps) {
       <Field label="Methods">
         <div className="ac-badges">{signInMethodLabels(accounts, methods).map(label => <Badge key={label}>{label}</Badge>)}</div>
       </Field>
+      {methods.passkey && passkeySupported() && <Passkeys />}
       {methods.password && <PasswordForm {...props} />}
     </Section>
+  )
+}
+
+type PasskeyList = { state: 'loading' } | { state: 'failed'; error: string } | { state: 'ready'; passkeys: PasskeyRow[] }
+
+/** The member's passkeys: add one for this device, remove one (both need a recent sign-in). */
+function Passkeys() {
+  const [list, setList] = useState<PasskeyList>({ state: 'loading' })
+  const [confirming, setConfirming] = useState<string | null>(null)
+  const request = useRequest()
+  const load = useCallback(async () => {
+    try {
+      setList({ state: 'ready', passkeys: await loadPasskeys() })
+    } catch (err) {
+      setList({ state: 'failed', error: message(err) })
+    }
+  }, [])
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const add = () => request.run(async () => {
+    await addPasskey(describeDevice(navigator.userAgent))
+    await load()
+  }, 'Passkey added. Next time, choose Continue with Passkey.')
+  const remove = (id: string) => request.run(async () => {
+    await removePasskey(id)
+    setConfirming(null)
+    await load()
+  }, 'Passkey removed.')
+
+  return (
+    <div className="ac-form ac-divided">
+      <Field label="Passkeys" tip="Sign in with your fingerprint, face or device PIN instead of a code or password.">
+        {list.state === 'failed' && <div className="ac-error" role="alert">{list.error}</div>}
+        {list.state === 'ready' && list.passkeys.length === 0 && <span className="help">No passkeys yet.</span>}
+        {list.state === 'ready' && list.passkeys.length > 0 && (
+          <ul className="ac-list">
+            {list.passkeys.map(p => (
+              <li key={p.id} className="ac-session">
+                <div><b>{p.name}</b>{p.added && <span className="help">Added {dateTimeLabel(p.added)}</span>}</div>
+                <div className="ac-row-actions">
+                  {confirming === p.id
+                    ? (
+                      <>
+                        <span className="help">Remove this passkey?</span>
+                        <Button size="sm" variant="ghost" title="Keep this passkey" onClick={() => setConfirming(null)}>Cancel</Button>
+                        <Button size="sm" variant="danger" title="Remove it; it no longer signs you in" disabled={request.busy} onClick={() => void remove(p.id)}>Remove</Button>
+                      </>
+                    )
+                    : <Button size="sm" title={`Remove ${p.name}`} onClick={() => setConfirming(p.id)}>Remove</Button>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Field>
+      <FormStatus request={request} />
+      <div className="ac-actions">
+        <Button title="Create a passkey on this device for your account" disabled={request.busy} onClick={() => void add()}>
+          {request.busy ? 'Waiting for your device…' : 'Add passkey'}
+        </Button>
+      </div>
+    </div>
   )
 }
 
@@ -220,7 +285,7 @@ function Sessions() {
 type SectionId = 'profile' | 'security' | 'sessions'
 const sections: readonly PageSection<SectionId>[] = [
   { id: 'profile', label: 'Profile', description: 'Your name' },
-  { id: 'security', label: 'Sign-in & security', description: 'Sign-in methods and password' },
+  { id: 'security', label: 'Sign-in & security', description: 'Sign-in methods, passkeys and password' },
   { id: 'sessions', label: 'Sessions', description: 'Where you are signed in' },
 ]
 

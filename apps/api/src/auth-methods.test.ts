@@ -23,10 +23,11 @@ describe('readLegalLinks', () => {
 })
 
 describe('readAuthConfig', () => {
-  it('offers only the password with no env set', () => {
+  it('offers only the password (and passkeys, added after signing in) with no env set', () => {
     expect(readAuthConfig({}).methods).toEqual({
       password: true,
       emailCode: false,
+      passkey: true,
       signUp: true,
       sso: [],
       links: { terms: null, privacy: null, supportEmail: null },

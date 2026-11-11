@@ -1,3 +1,4 @@
+import { passkeyClient } from '@better-auth/passkey/client'
 import { emailOTPClient, organizationClient } from 'better-auth/client/plugins'
 import type { AuthMethods, LegalLinks, SsoMethod } from '@linedesk/api/auth-types'
 import { createAuthClient } from 'better-auth/react'
@@ -9,7 +10,7 @@ export type { AuthMethods, LegalLinks, SsoMethod }
 export const auth = createAuthClient({
   // Same origin as the page (the API is proxied). Not read at import time, so tests can load this module without a browser.
   baseURL: typeof window === 'undefined' ? undefined : window.location.origin,
-  plugins: [organizationClient(), emailOTPClient()],
+  plugins: [organizationClient(), emailOTPClient(), passkeyClient()],
 })
 
 /** Whether this server can set up phone numbers and with which carrier. `detail` (what the server lacks) only reaches instance admins. */
@@ -74,6 +75,16 @@ export function requestSignInCode(email: string) {
 /** Signs in (or, where sign-up is open, signs up) with the emailed code. */
 export function signInWithCode(email: string, otp: string) {
   return auth.signIn.emailOtp({ email, otp })
+}
+
+/** Whether this browser can use passkeys: WebAuthn, on https or localhost. */
+export function passkeySupported(): boolean {
+  return typeof window !== 'undefined' && window.isSecureContext && typeof window.PublicKeyCredential === 'function'
+}
+
+/** Asks the browser for one of this site's passkeys and signs in with it. Only existing accounts have one. */
+export function signInWithPasskey() {
+  return auth.signIn.passkey()
 }
 
 /** Leaves the page for the provider; the session exists when the browser comes back. */

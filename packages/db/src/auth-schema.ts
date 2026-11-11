@@ -4,6 +4,7 @@ import {
   text,
   timestamp,
   boolean,
+  integer,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -143,11 +144,44 @@ export const invitation = pgTable(
   ],
 );
 
+// Better Auth's passkey plugin (WebAuthn). One row per registered credential; `publicKey` and
+// `credentialID` are base64url, `counter` is the authenticator's signature counter.
+export const passkey = pgTable(
+  "passkey",
+  {
+    id: text("id").primaryKey(),
+    name: text("name"),
+    publicKey: text("public_key").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    credentialID: text("credential_id").notNull(),
+    counter: integer("counter").notNull(),
+    deviceType: text("device_type").notNull(),
+    backedUp: boolean("backed_up").notNull(),
+    transports: text("transports"),
+    createdAt: timestamp("created_at"),
+    aaguid: text("aaguid"),
+  },
+  (table) => [
+    index("passkey_userId_idx").on(table.userId),
+    uniqueIndex("passkey_credentialID_uidx").on(table.credentialID),
+  ],
+);
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
   members: many(member),
   invitations: many(invitation),
+  passkeys: many(passkey),
+}));
+
+export const passkeyRelations = relations(passkey, ({ one }) => ({
+  user: one(user, {
+    fields: [passkey.userId],
+    references: [user.id],
+  }),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({

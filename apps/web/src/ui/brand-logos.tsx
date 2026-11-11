@@ -66,6 +66,18 @@ const SsoMark = () =>
     </g>,
   )
 
+/** A person with a key, the usual sign for a passkey (our own drawing, no brand). */
+const PasskeyMark = () =>
+  svg(
+    '0 0 24 24',
+    <g fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="7.5" r="3.5" />
+      <path d="M2.5 20c0-3.6 2.9-6 6.5-6 1.4 0 2.7.3 3.7.9" />
+      <circle cx="17.5" cy="13.5" r="2.5" />
+      <path d="M17.5 16v5M17.5 19h2" />
+    </g>,
+  )
+
 const PasswordMark = () =>
   svg(
     '0 0 24 24',
@@ -80,6 +92,7 @@ const marks: Record<string, () => ReactNode> = {
   microsoft: MicrosoftMark,
   github: GitHubMark,
   password: PasswordMark,
+  passkey: PasskeyMark,
 }
 
 /** The mark for a sign-in method id; an unknown id (OIDC, named by the install) gets the building icon. */
@@ -93,16 +106,18 @@ type ProviderButtonProps = {
   label: string
   lastUsed: boolean
   busy?: boolean
+  /** What the button says while it runs; by default "Opening <label>…", for a provider that redirects. */
+  busyText?: string
   disabled?: boolean
   onClick: () => void
 }
 
 /** A full-width "Continue with …" button: the mark on the left, "Last used" on the right when it applies. */
-export function ProviderButton({ method, label, lastUsed, busy, disabled, onClick }: ProviderButtonProps) {
+export function ProviderButton({ method, label, lastUsed, busy, busyText, disabled, onClick }: ProviderButtonProps) {
   return (
     <button type="button" className="k-btn k-btn-secondary auth-provider" disabled={disabled} onClick={onClick}>
       <SignInMark method={method} />
-      <span>{busy ? `Opening ${label}…` : `Continue with ${label}`}</span>
+      <span>{busy ? (busyText ?? `Opening ${label}…`) : `Continue with ${label}`}</span>
       {lastUsed && <LastUsed />}
     </button>
   )

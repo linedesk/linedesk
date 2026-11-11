@@ -12,7 +12,7 @@ export const hasPassword = (accounts: LinkedAccount[]) => accounts.some(a => a.p
 /** Every way this member can sign in on this install, in a fixed order: "Password", "Google", ..., "Email code". */
 export function signInMethodLabels(accounts: LinkedAccount[], methods: AuthMethods): string[] {
   const names: Record<string, string> = {
-    [PASSWORD]: 'Password', google: 'Google', microsoft: 'Microsoft',
+    [PASSWORD]: 'Password', google: 'Google', microsoft: 'Microsoft', github: 'GitHub',
     oidc: methods.sso.find(m => m.id === 'oidc')?.label ?? 'Single sign-on',
   }
   const linked = new Set(accounts.map(a => a.providerId))

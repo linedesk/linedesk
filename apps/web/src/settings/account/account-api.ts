@@ -1,6 +1,7 @@
 // The Account page's calls. Everything goes to Better Auth: its client, or the one server-only
 // method (set a first password) through POST /v1/account/password.
 import { auth, type AuthMethods, fetchAuthMethods } from '../../auth.ts'
+import { authErrorMessage } from '../../sign-in-code.ts'
 import { describeDevice, type LinkedAccount, type SessionRow } from './account-model.ts'
 
 type Result<T> = { data: T | null; error: { message?: string; code?: string; status?: number } | null }
@@ -70,4 +71,31 @@ export async function signOutSession(id: string) {
 
 export async function signOutOtherSessions() {
   unwrap(await auth.revokeOtherSessions(), 'Could not sign the other sessions out.')
+}
+
+export type PasskeyRow = { id: string; name: string; added: Date | null }
+
+/** The member's passkeys, newest first. A passkey without a name is called after its device type. */
+export async function loadPasskeys(): Promise<PasskeyRow[]> {
+  const list = unwrap(
+    (await auth.$fetch('/passkey/list-user-passkeys', { method: 'GET' })) as Result<{ id: string; name?: string | null; createdAt?: string | null; deviceType: string }[]>,
+    'Could not load your passkeys.',
+  )
+  return list
+    .map(p => ({ id: p.id, name: p.name || (p.deviceType === 'multiDevice' ? 'Synced passkey' : 'Passkey on a device'), added: p.createdAt ? new Date(p.createdAt) : null }))
+    .sort((a, b) => (b.added?.getTime() ?? 0) - (a.added?.getTime() ?? 0))
+}
+
+/** Asks the browser to make a passkey for this account. Better Auth wants a sign-in within the last day. */
+export async function addPasskey(name: string) {
+  const result = await auth.passkey.addPasskey({ name })
+  if (result && 'error' in result && result.error) {
+    if ('code' in result.error && result.error.code === 'SESSION_NOT_FRESH') throw new SignInAgain('Sign in again to add a passkey.')
+    throw new Error(authErrorMessage(result.error))
+  }
+}
+
+/** Removes a passkey; like adding one, it needs a recent sign-in (the API checks). */
+export async function removePasskey(id: string) {
+  unwrap((await auth.$fetch('/passkey/delete-passkey', { method: 'POST', body: { id } })) as Result<unknown>, 'Could not remove the passkey.')
 }
