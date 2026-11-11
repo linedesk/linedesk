@@ -204,6 +204,32 @@ export type BookingContext = {
   canChangeBookings: boolean
 }
 
+/** How many earlier calls and upcoming bookings call.start gives for a returning caller. */
+export const CALLER_HISTORY_CALLS = 3
+export const CALLER_HISTORY_BOOKINGS = 3
+
+/**
+ * What call.start tells the agent about a caller whose number matched a contact of the workspace: their last
+ * calls (newest first) and their upcoming bookings. Only for a phone call from a dialable number; null else.
+ * Summaries and next steps come from earlier calls, so partly from what callers said: untrusted text.
+ */
+export type CallerHistory = {
+  recentCalls: {
+    /** When the call was, in the business's time zone ("Tuesday, November 3"). */
+    when: string
+    title: string | null
+    summary: string | null
+    outcome: string | null
+    /** Next steps not done yet. */
+    openSteps: string[]
+  }[]
+  /**
+   * Upcoming bookings booked under the contact's name, soonest first; empty when the caller cannot change
+   * bookings on this call (no booking setup, or locked after misses). `date` is YYYY-MM-DD for the tools.
+   */
+  upcomingBookings: { date: string; when: string; type: string | null }[]
+}
+
 export const callAppendTranscript = defineAction({
   name: 'call.appendTranscript',
   description: 'Append one transcript segment to a live call.',

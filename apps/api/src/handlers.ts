@@ -12,6 +12,7 @@ import { apiKeyHandlers } from './api-keys.ts'
 import { assistantForNumber, assistantHandlers, assistantIn } from './assistants.ts'
 import { bookingContext, bookingHandlers, bookingsForTest, DEFAULT_TIME_ZONE } from './bookings.ts'
 import { calendarConnectionHandlers } from './calendar-connections.ts'
+import { callerHistory } from './caller-history.ts'
 import { type CarrierAccount, carrierHandlers, INSTALL_NUMBER_ADMIN_ONLY, lockWorkspaceCarrier, ownCarrierProvider, telephonyForWorkspace, tryLockWorkspaceCarrier } from './workspace-carrier.ts'
 import { refreshTransferTrunk, transferTrunkHandlers } from './transfer-trunk.ts'
 import { impersonationHandlers } from './impersonation.ts'
@@ -171,9 +172,13 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   const booking = blocked ? null : await bookingContext(tx, workspace_id, now, { contactId: contact?.row.id ?? null, assistantId: assistant?.id ?? null })
   // Said right after the greeting; the agent appends it (null: off).
   const recordingNotice = blocked ? null : await recordingNoticeFor(tx, workspace_id)
+  // A returning caller's last calls and upcoming bookings: only a phone caller matched to a contact.
+  const history = source === 'phone' && contact && !blocked
+    ? await callerHistory(tx, workspace_id, contact.row, { callId: id, now, canChangeBookings: booking?.canChangeBookings === true })
+    : null
   return {
     rows: { calls: [call!], ...(contact ? { contacts: [contact.row] } : {}) },
-    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: assistant ?? null, blocked, businessHours, booking, recordingNotice },
+    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: assistant ?? null, blocked, businessHours, booking, recordingNotice, callerHistory: history },
   }
 }
 

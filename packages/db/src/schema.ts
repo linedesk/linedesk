@@ -67,6 +67,8 @@ export const assistants = pgTable(
     greeting: text('greeting').notNull().default(''),
     disclose_ai: boolean('disclose_ai').notNull().default(true),
     record_calls: boolean('record_calls').notNull().default(true),
+    /** A caller whose number matches a contact with a name is greeted by first name ("Hi Linda, …"). */
+    greet_by_name: boolean('greet_by_name').notNull().default(true),
     voice: jsonb('voice').$type<AssistantVoice>().notNull().default({ provider: 'elevenlabs', voice_id: '' }),
     business_profile: jsonb('business_profile').$type<BusinessProfile>().notNull().default({}),
     /** How to handle calls, as the owner wrote it; null: the default rules (DEFAULT_CALL_RULES in @linedesk/actions). */

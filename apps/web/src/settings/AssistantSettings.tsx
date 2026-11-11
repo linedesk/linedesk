@@ -51,7 +51,7 @@ const sections: readonly PageSection<SectionId>[] = [
 ]
 /** Which draft fields each section holds; the calendar has its own. */
 const sectionFields: Record<Exclude<SectionId, 'calendar'>, (keyof Draft)[]> = {
-  greeting: ['name', 'greeting', 'disclose_ai', 'greeting_outside'],
+  greeting: ['name', 'greeting', 'disclose_ai', 'greet_by_name', 'greeting_outside'],
   voice: ['voice'],
   instructions: ['instructions', 'instructions_outside'],
   rules: ['call_rules'],
@@ -145,6 +145,12 @@ function Greeting({
         description={draft.disclose_ai ? undefined : 'Some states require it.'}
         on={draft.disclose_ai}
         onChange={disclose}
+      />
+      <SwitchRow
+        title="Greet known callers by name"
+        description={`"Hi Linda, good to hear from you again." Anything private still waits until the caller says their full name.`}
+        on={draft.greet_by_name}
+        onChange={on => set('greet_by_name', on)}
       />
     </Section>
   )
@@ -317,6 +323,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         assistantId: assistant.id,
         greeting: clean.greeting,
         disclose_ai: clean.disclose_ai,
+        greet_by_name: clean.greet_by_name,
         business_profile: profileOf(clean),
         call_rules: callRulesToSave(clean),
         ...outsideToSave(clean),

@@ -49,7 +49,7 @@ export function slotWithZone(at: Date | string, timeZone: string) {
   return zone ? `${slotLabel(iso, timeZone)} ${zone}` : slotLabel(iso, timeZone)
 }
 
-async function timeZoneOf(tx: Tx, workspaceId: string) {
+export async function timeZoneOf(tx: Tx, workspaceId: string) {
   const [settings] = await tx.select({ timezone: workspace_settings.timezone }).from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
   return settings?.timezone ?? DEFAULT_TIME_ZONE
 }

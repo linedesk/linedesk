@@ -91,3 +91,22 @@ test('the contact call.start matched reaches the instructions with its note; a w
   const withheld = await startCall(api(null), { ...phone, from: 'anonymous' })
   expect(buildInstructions(withheld.assistant, withheld.businessHours, withheld.booking, false, withheld.contact)).not.toContain('caller_notes')
 })
+
+test('a known phone caller is greeted by first name unless the assistant turned it off; a withheld number is not', async () => {
+  const row = { id: 'as_1', greeting: 'Hello, this is Maya.', business_profile: {} }
+  const callerHistory = { recentCalls: [{ when: 'Tuesday, November 3', title: 'Leak', summary: null, outcome: 'message', openSteps: [] }], upcomingBookings: [] }
+  const api = (assistant: unknown, contact: unknown, history: unknown) =>
+    ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant, contact, callerHistory: history, recordingNotice: 'This call may be recorded.' } }) }) as never
+  const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
+  const linda = { id: 'ct_1', name: 'Linda Park', note: null }
+  const greeted = await startCall(api(row, linda, callerHistory), phone)
+  expect(greeted.assistant?.greeting).toBe('Hi Linda, good to hear from you again. This is Maya. This call may be recorded.')
+  expect(greeted.caller).toMatchObject({ name: 'Linda Park', greetedByName: true, history: callerHistory })
+  const off = await startCall(api({ ...row, greet_by_name: false }, linda, callerHistory), phone)
+  expect(off.assistant?.greeting).toBe('Hello, this is Maya. This call may be recorded.')
+  expect(off.caller?.greetedByName).toBe(false)
+  // An API without callerHistory (older, or a test call): the usual greeting.
+  expect((await startCall(api(row, linda, undefined), phone)).assistant?.greeting).toBe('Hello, this is Maya. This call may be recorded.')
+  const withheld = await startCall(api(row, null, null), { ...phone, from: 'anonymous' })
+  expect(withheld.caller).toBeNull()
+})

@@ -173,6 +173,11 @@ const greetingCache = createGreetingCache()
  */
 async function greet(session: voice.AgentSession, config: AgentConfig, call: CallSession, cached: Promise<Awaited<ReturnType<typeof greetingCache.get>>>, key: string) {
   const text = call.assistant?.greeting || FALLBACK_GREETING
+  // A greeting with the caller's name is said live and never stored: it is theirs alone.
+  if (call.caller?.greetedByName) {
+    session.say(text)
+    return 'personal'
+  }
   const audio = await cached
   if (audio) {
     session.say(text, { audio: audioStream(audio) })
@@ -194,7 +199,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const key = greetingKey({
     ...greetingVoice(config, call), text: call.assistant?.greeting || FALLBACK_GREETING,
   })
-  const cachedGreeting = greetingCache.get(key) // read while the session starts
+  const cachedGreeting = call.caller?.greetedByName ? Promise.resolve(null) : greetingCache.get(key) // read while the session starts
   let callerIdentity: string | undefined
   void callerJoined.then(caller => (callerIdentity = caller.identity), () => {})
   const session = new voice.AgentSession(createPipeline(config, call.assistant?.voice))
@@ -212,7 +217,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   skipQuietToolReplies(session, QUIET_TOOLS)
   session.on(voice.AgentSessionEventTypes.Close, onClose)
   const endCall = () => hangUpAfterSpeech(speakingOf(session), () => void ctx.deleteRoom().catch(() => {}))
-  const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, false, call.contact)
+  const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, false, call.caller)
   const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, flagUrgent, null) })
   void warmUpLlm(config.llm, instructions)
   await session.start({
@@ -235,7 +240,7 @@ async function addTransfer(
     const caller = await callerJoined
     const transfer = await transferFor(ctx, api, call, config, caller.identity, stopRecording)
     if (!transfer) return
-    await agent.updateInstructions(buildInstructions(call.assistant, call.businessHours, call.booking, true, call.contact))
+    await agent.updateInstructions(buildInstructions(call.assistant, call.businessHours, call.booking, true, call.caller))
     await agent.updateTools(assistantTools(api, call, log, endCall, flagUrgent, transfer))
   } catch (e) {
     console.warn(`call ${call.callId} goes on without transfer: ${e instanceof Error ? e.message : String(e)}`)

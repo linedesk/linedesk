@@ -9,6 +9,8 @@ export type Draft = {
   name: string
   greeting: string
   disclose_ai: boolean
+  /** Greet a caller whose number matches a contact with a name by first name. */
+  greet_by_name: boolean
   instructions: string
   call_rules: string
   greeting_outside: string
@@ -44,7 +46,7 @@ export function draftOf(a: Assistant): Draft {
   const p = a.business_profile
   // Same rule as the voice agent: empty instructions mean the older fields still apply, so show those.
   return {
-    name: a.name, greeting: a.greeting, disclose_ai: a.disclose_ai, instructions: p.instructions?.trim() ? p.instructions : foldProfile(p),
+    name: a.name, greeting: a.greeting, disclose_ai: a.disclose_ai, greet_by_name: a.greet_by_name, instructions: p.instructions?.trim() ? p.instructions : foldProfile(p),
     call_rules: callRulesOf(a.call_rules), // none stored: the default rules, shown so they can be edited
     greeting_outside: a.greeting_outside ?? '',
     instructions_outside: a.instructions_outside ?? '',

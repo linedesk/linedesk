@@ -1,10 +1,10 @@
 // One call as the agent sees it: start, append transcript segments, finish.
-import { type BookingContext, callAppendTranscript, callFinish, callStart, callStartTest } from '@linedesk/actions'
+import { type BookingContext, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest } from '@linedesk/actions'
 import type { Assistant, Contact, ToolEvent } from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
 import { type SimulatedAnswer, simulatedAnswers } from './on-call-dialer.ts'
-import { forHours } from './prompt.ts'
+import { type CallerContext, forHours, personalGreeting } from './prompt.ts'
 
 export type Speaker = z.input<typeof callAppendTranscript.input>['speaker']
 export type CallResult = Omit<z.input<typeof callFinish.input>, 'callId'>
@@ -24,6 +24,11 @@ export interface CallSession {
   businessHours: BusinessHours | null
   /** What the assistant can book; null: no appointment type or no calendar, so it only takes messages. */
   booking: BookingContext | null
+  /**
+   * The matched contact with their last calls and upcoming bookings, and whether the greeting used their first
+   * name (then it is not the cached greeting); null: no contact (withheld number).
+   */
+  caller: CallerContext | null
   /** The business's Linedesk number the caller dialled (a transfer shows it as caller ID); null for a test call. */
   businessNumber: string | null
   /** No-phone call test: a simulated on-call person answers transfers instead of a phone. */
@@ -38,6 +43,20 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
   booking?: BookingContext | null
   /** The workspace's recording notice, said right after the greeting; null or missing: off. */
   recordingNotice?: string | null
+  /** A phone caller matched to a contact: their last calls and upcoming bookings; null or missing (older API): none. */
+  callerHistory?: CallerHistory | null
+}
+
+/**
+ * The caller for the prompt, and the greeting by first name when the assistant greets known callers that way
+ * (greet_by_name, on unless turned off) and call.start sent the caller's history (a phone caller with a contact).
+ */
+export function greetCaller(assistant: Assistant | null, contact: Contact | null, history: CallerHistory | null | undefined): { assistant: Assistant | null; caller: CallerContext | null } {
+  if (!contact) return { assistant, caller: null }
+  const caller: CallerContext = { name: contact.name, note: contact.note, history: history ?? null, greetedByName: false }
+  const greeting = assistant && assistant.greet_by_name !== false ? personalGreeting(assistant.greeting, caller) : null
+  if (!assistant || !greeting) return { assistant, caller }
+  return { assistant: { ...assistant, greeting }, caller: { ...caller, greetedByName: true } }
 }
 
 /** The greeting followed by the recording notice, so both are said (and cached as audio) as one opening. */
@@ -77,11 +96,13 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
       }
     : started.assistant
   // The greeting and instructions that apply now: outside business hours, the outside variants.
-  const assistant = withRecordingNotice(forHours(configured, businessHours), started.recordingNotice)
+  const greeted = greetCaller(forHours(configured, businessHours), contact, started.callerHistory)
+  const assistant = withRecordingNotice(greeted.assistant, started.recordingNotice)
+  const caller = greeted.caller
   const booking = started.booking ?? null
   const startedAt = Date.now()
   return {
-    callId, workspaceId, assistant, contact, blocked, businessHours, booking,
+    callId, workspaceId, assistant, contact, blocked, businessHours, booking, caller,
     businessNumber: origin.kind === 'phone' ? origin.to : null,
     simulatedOnCall: onCall?.answer ?? null,
     async append(speaker, text, toolEvent) {
