@@ -1,8 +1,8 @@
 // Settings › Assistant › Voice › More voices: every voice of every text-to-speech provider that has a
 // key, read with the install's key on the server (the key never reaches the browser) and kept a few
 // minutes per provider. A workspace sees the provider's voices and its own clones, never another
-// workspace's clones or a clone made outside Linedesk (no consent record for it). Library and
-// designed voices the account added are listed.
+// workspace's clones or a clone the account made outside Linedesk (no consent record for it).
+// Voice Library and designed voices the account added are listed.
 import { createHash } from 'node:crypto'
 import {
   type CatalogProvider,

@@ -12,7 +12,8 @@ const CARTESIA_DEFAULT_MODEL = 'sonic-2'
 export type Audio = { bytes: Buffer; contentType: string }
 /**
  * A voice of the provider's list. `previewUrl`: a public sample the provider hosts (no key needed);
- * `clone`: the account cloned it from recordings of a person (ElevenLabs instant or professional clone).
+ * `clone`: the account itself cloned it from recordings of a person (ElevenLabs instant or professional
+ * clone; not a voice added from the Voice Library).
  */
 export type ProviderVoice = {
   id: string
@@ -64,7 +65,17 @@ type ElevenLabsVoice = {
   preview_url?: string | null
   labels?: Record<string, string | undefined> | null
   verified_languages?: { language?: string; accent?: string }[] | null
+  is_owner?: boolean
+  sharing?: { status?: string; original_voice_id?: string | null } | null
 }
+
+/**
+ * A voice added from ElevenLabs' public Voice Library: a copy of another account's shared voice (its
+ * consent is the library's sharing terms), not a voice this account made. A copy whose owner stopped
+ * sharing (`copied_disabled`) is left out.
+ */
+export const isLibraryVoice = (v: ElevenLabsVoice) =>
+  v.is_owner !== true && v.sharing?.status === 'copied' && !!text(v.sharing.original_voice_id)
 
 /** One voice of ElevenLabs' GET /v2/voices, or null when it has no id or name. */
 export function elevenLabsVoice(v: ElevenLabsVoice): ProviderVoice | null {
@@ -81,8 +92,9 @@ export function elevenLabsVoice(v: ElevenLabsVoice): ProviderVoice | null {
     gender: text(labels.gender),
     accent: text(labels.accent) ?? text(verified?.accent),
     previewUrl: httpsUrl(v.preview_url),
-    // Instant and professional clones: a person's voice, listed only with a Linedesk consent record.
-    clone: ['cloned', 'professional'].includes(v.category ?? ''),
+    // A clone this account made (instant or professional): a person's voice, listed only with a
+    // Linedesk consent record. Library voices are professional clones too, but of another account.
+    clone: ['cloned', 'professional'].includes(v.category ?? '') && !isLibraryVoice(v),
   }
 }
 

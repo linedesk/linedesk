@@ -20,6 +20,7 @@ const suffix = crypto.randomUUID().replaceAll('-', '').slice(0, 10)
 const ids = {
   premade: `premade${suffix}`,
   library: `library${suffix}`,
+  shared: `shared${suffix}`,
   ownClone: `ownclone${suffix}`,
   otherClone: `otherclone${suffix}`,
   foreignClone: `foreign${suffix}`,
@@ -47,7 +48,15 @@ function fakeElevenLabs() {
       voices: [
         voice(ids.premade, 'premade', { labels: { gender: 'female', accent: 'american', description: 'warm' } }),
         voice(ids.library, 'generated', { labels: { language: 'de', gender: 'male' }, preview_url: SAMPLE_URL }),
-        voice(`pro${suffix}`, 'professional'),
+        voice(ids.shared, 'professional', {
+          is_owner: false,
+          sharing: { status: 'copied', original_voice_id: 'orig1' },
+        }),
+        voice(`pro${suffix}`, 'professional', { is_owner: true, sharing: { status: 'enabled' } }),
+        voice(`gone${suffix}`, 'professional', {
+          is_owner: false,
+          sharing: { status: 'copied_disabled', original_voice_id: 'orig2' },
+        }),
       ],
       has_more: true,
       next_page_token: 'p2',
@@ -104,6 +113,13 @@ test('provider voices are parsed into one shape', () => {
     elevenLabsVoice({ voice_id: 'b2', name: 'Bo', category: 'cloned', preview_url: 'http://insecure' }),
   ).toMatchObject({ clone: true, previewUrl: null, language: null })
   expect(elevenLabsVoice({ name: 'no id' })).toBeNull()
+  const library = { voice_id: 'l1', name: 'Lea', category: 'professional', is_owner: false }
+  expect(elevenLabsVoice({ ...library, sharing: { status: 'copied', original_voice_id: 'o1' } })?.clone).toBe(false)
+  expect(elevenLabsVoice({ ...library, sharing: { status: 'copied', original_voice_id: null } })?.clone).toBe(true)
+  expect(
+    elevenLabsVoice({ ...library, is_owner: true, sharing: { status: 'copied', original_voice_id: 'o1' } })?.clone,
+  ).toBe(true)
+  expect(elevenLabsVoice({ ...library, sharing: { status: 'enabled', original_voice_id: null } })?.clone).toBe(true)
   expect(cartesiaVoice({ id: 'c3', name: 'Cy', language: 'en', gender: 'feminine', is_owner: false })).toMatchObject({
     gender: 'female',
     clone: false,
@@ -154,7 +170,8 @@ test("the catalog lists the providers' voices and the workspace's own clones, ne
     { provider: 'elevenlabs', label: 'ElevenLabs', active: true, configured: true, error: null },
     { provider: 'cartesia', label: 'Cartesia', active: false, configured: false, error: null },
   ])
-  expect(data.voices.map(v => v.id).sort()).toEqual([ids.library, ids.ownClone, ids.premade].sort())
+  // A Voice Library copy is listed; the account's own professional clone and a copy no longer shared are not.
+  expect(data.voices.map(v => v.id).sort()).toEqual([ids.library, ids.ownClone, ids.premade, ids.shared].sort())
   expect(data.voices.find(v => v.id === ids.premade)).toEqual({
     provider: 'elevenlabs',
     id: ids.premade,
