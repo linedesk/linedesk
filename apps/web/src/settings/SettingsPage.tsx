@@ -12,7 +12,7 @@ const sections: readonly PageSection<SectionId>[] = [
   { id: 'phone', label: 'Phone numbers', description: 'The numbers the assistant answers' },
   { id: 'hours', label: 'Business hours', description: 'When the office is open (optional)' },
   { id: 'notifications', label: 'Notifications', description: 'New calls by email and in the browser' },
-  { id: 'recordings', label: 'Recordings', description: 'How long recordings are kept' },
+  { id: 'recordings', label: 'Recordings', description: 'How long recordings are kept, recording notice' },
 ]
 
 type Props = {

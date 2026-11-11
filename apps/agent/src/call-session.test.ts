@@ -63,3 +63,16 @@ test('outside business hours the call uses the outside greeting; the call test m
   const origin = callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', businessHours: closed, outsideGreeting: 'After-hours line.' }), {}, 'r')
   expect((await startCall(api(null), origin)).assistant?.greeting).toBe('After-hours line.')
 })
+
+test('the recording notice from call.start is said right after the greeting, also outside hours', async () => {
+  const row = { id: 'as_1', greeting: 'Hello, this is Maya.', greeting_outside: 'We are closed.', business_profile: {} }
+  const api = (recordingNotice: unknown, hours: unknown = null) =>
+    ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {}, businessHours: hours, recordingNotice } }) }) as never
+  const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
+  const notice = 'This call may be recorded.'
+  expect((await startCall(api(notice), phone)).assistant?.greeting).toBe('Hello, this is Maya. This call may be recorded.')
+  expect((await startCall(api(notice, { openNow: false, summary: 'Closed now.' }), phone)).assistant?.greeting).toBe(
+    'We are closed. This call may be recorded.',
+  )
+  for (const off of [null, undefined, '  ']) expect((await startCall(api(off), phone)).assistant?.greeting).toBe(row.greeting)
+})

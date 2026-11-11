@@ -1,10 +1,13 @@
-// Settings, Recordings: how long call recordings are kept. Older ones are deleted by a daily job on
-// the server; the call itself, its transcript and summary stay.
-import { recordingRetentionChoices } from '@linedesk/actions'
+// Settings, Recordings: how long call recordings are kept, and the notice the assistant says after the
+// greeting. Older recordings are deleted by a daily job on the server; the call itself, its transcript
+// and summary stay.
+import { RECORDING_NOTICE_MAX, recordingRetentionChoices } from '@linedesk/actions'
+import { useState } from 'react'
 import { useRun } from '../store.tsx'
 import { Select, type SelectOption } from '../ui/controls.tsx'
+import { Button } from '../ui/kit.tsx'
 import { LoadProblem, Skeleton } from '../ui/LoadStates.tsx'
-import { Field, Section } from './fields.tsx'
+import { Field, Section, SwitchRow, TextInput } from './fields.tsx'
 import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
 
 type Days = (typeof recordingRetentionChoices)[number]
@@ -63,6 +66,78 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
           </div>
         </Field>
       )}
+      {settings.data && (
+        <RecordingNotice
+          on={settings.data.recordingNoticeOn}
+          saved={settings.data.recordingNotice}
+          canEdit={canEdit}
+          toast={toast}
+        />
+      )}
     </Section>
+  )
+}
+
+type NoticeProps = { on: boolean; saved: string; canEdit: boolean; toast: (text: string) => void }
+
+/** The switch and the sentence the assistant says right after the greeting. */
+function RecordingNotice({ on, saved, canEdit, toast }: NoticeProps) {
+  const run = useRun()
+  const [draft, setDraft] = useState(saved)
+  const text = draft.trim()
+  const problem = !text
+    ? 'Write the sentence the assistant says.'
+    : text.length > RECORDING_NOTICE_MAX
+      ? `Keep it under ${RECORDING_NOTICE_MAX} characters.`
+      : null
+
+  function toggle(next: boolean) {
+    patchWorkspaceSettings({ recordingNoticeOn: next })
+    void run('workspace.updateSettings', { recordingNoticeOn: next })
+    toast(next ? 'The assistant says the notice after the greeting.' : 'The assistant no longer says the notice.')
+  }
+
+  function save() {
+    if (problem || text === saved) return
+    setDraft(text)
+    patchWorkspaceSettings({ recordingNotice: text })
+    void run('workspace.updateSettings', { recordingNotice: text })
+    toast('Notice saved.')
+  }
+
+  return (
+    <>
+      <SwitchRow
+        title="Say that the call may be recorded"
+        description="Right after the greeting. Check what your state requires."
+        on={on}
+        onChange={toggle}
+        disabled={!canEdit}
+      />
+      {on && (
+        <Field id="st-notice" label="What the assistant says" error={problem}>
+          <form
+            className="st-notice"
+            onSubmit={e => {
+              e.preventDefault()
+              save()
+            }}
+          >
+            <TextInput
+              id="st-notice"
+              value={draft}
+              onChange={setDraft}
+              label="What the assistant says"
+              invalid={Boolean(problem)}
+            />
+            {canEdit && text !== saved && (
+              <Button type="submit" size="sm" variant="primary" title="Save the notice" disabled={Boolean(problem)}>
+                Save
+              </Button>
+            )}
+          </form>
+        </Field>
+      )}
+    </>
   )
 }

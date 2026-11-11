@@ -181,6 +181,10 @@ export const workspace_settings = pgTable('workspace_settings', {
   notify_browser_default: boolean('notify_browser_default').notNull().default(true),
   /** The workspace uses its business hours (availability_rules) for calls. Off: the assistant says nothing about hours. */
   business_hours_on: boolean('business_hours_on').notNull().default(false),
+  /** The assistant says a recording notice right after the greeting (off by default; no per-state rules). */
+  recording_notice_on: boolean('recording_notice_on').notNull().default(false),
+  /** The sentence it says; null: DEFAULT_RECORDING_NOTICE. */
+  recording_notice: text('recording_notice'),
   created_at: createdAt(),
   version: version(),
 })

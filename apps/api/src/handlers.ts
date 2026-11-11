@@ -18,7 +18,7 @@ import { telephonyProvider } from './provider-settings.ts'
 import { startTestCall } from './test-call.ts'
 import { membershipHandlers } from './memberships.ts'
 import { teamHandlers } from './team.ts'
-import { workspaceSettingsHandlers } from './workspace-settings.ts'
+import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
 import { queueCallNotification } from './jobs.ts'
 import { notificationHandlers } from './notification-settings.ts'
 
@@ -139,7 +139,9 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   }).returning()
   const businessHours = await businessHoursFor(tx, workspace_id, now)
   const booking = blocked ? null : await bookingContext(tx, workspace_id, now, { contactId: contact!.id, assistantId: assistant?.id ?? null })
-  return { rows: { calls: [call!], contacts: [contact!] }, data: { callId: id, workspaceId: workspace_id, isNewContact, contact: contact!, assistant: assistant ?? null, blocked, businessHours, booking } }
+  // Said right after the greeting; the agent appends it (null: off).
+  const recordingNotice = blocked ? null : await recordingNoticeFor(tx, workspace_id)
+  return { rows: { calls: [call!], contacts: [contact!] }, data: { callId: id, workspaceId: workspace_id, isNewContact, contact: contact!, assistant: assistant ?? null, blocked, businessHours, booking, recordingNotice } }
 }
 
 /** A call from a blocked number: over before it began, read, in Spam. */

@@ -26,7 +26,21 @@ export interface CallSession {
   finish(result: CallResult): Promise<void>
 }
 
-type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'contact'> & { blocked?: boolean; businessHours?: BusinessHours | null; booking?: BookingContext | null }
+type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'contact'> & {
+  blocked?: boolean
+  businessHours?: BusinessHours | null
+  booking?: BookingContext | null
+  /** The workspace's recording notice, said right after the greeting; null or missing: off. */
+  recordingNotice?: string | null
+}
+
+/** The greeting followed by the recording notice, so both are said (and cached as audio) as one opening. */
+export function withRecordingNotice(assistant: Assistant | null, notice: string | null | undefined): Assistant | null {
+  const sentence = notice?.trim()
+  if (!assistant || !sentence) return assistant
+  const greeting = assistant.greeting?.trim()
+  return { ...assistant, greeting: greeting ? `${greeting} ${sentence}` : sentence }
+}
 
 /**
  * Where a call comes from. A test call may bring `businessHours` to use instead of the workspace's
@@ -47,7 +61,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   const outsideGreeting = origin.kind === 'test' ? origin.outsideGreeting : undefined
   const configured = started.assistant && outsideGreeting ? { ...started.assistant, greeting_outside: outsideGreeting } : started.assistant
   // The greeting and instructions that apply now: outside business hours, the outside variants.
-  const assistant = forHours(configured, businessHours)
+  const assistant = withRecordingNotice(forHours(configured, businessHours), started.recordingNotice)
   const booking = started.booking ?? null
   const startedAt = Date.now()
   return {

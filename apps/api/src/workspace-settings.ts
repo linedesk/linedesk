@@ -1,6 +1,6 @@
 // Workspace settings that live in workspace_settings (not synced to browsers): read and change them
 // through the registry. One row per workspace; a workspace without one gets it on the first change.
-import { DEFAULT_RECORDING_RETENTION_DAYS, type WorkspaceSettingsData } from '@linedesk/actions'
+import { DEFAULT_RECORDING_NOTICE, DEFAULT_RECORDING_RETENTION_DAYS, type WorkspaceSettingsData } from '@linedesk/actions'
 import { availability_rules, type Tx, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
@@ -30,6 +30,8 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
     const data: WorkspaceSettingsData = {
       recordingRetentionDays: row ? row.recording_retention_days : DEFAULT_RECORDING_RETENTION_DAYS,
       businessHoursOn: row?.business_hours_on ?? false,
+      recordingNoticeOn: row?.recording_notice_on ?? false,
+      recordingNotice: row?.recording_notice ?? DEFAULT_RECORDING_NOTICE,
       timeZone: row?.timezone ?? DEFAULT_TIME_ZONE,
       businessHours: rules
         .map(r => ({ weekday: r.weekday, start: r.start_time.slice(0, 5), end: r.end_time.slice(0, 5) }))
@@ -41,12 +43,14 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
 
   'workspace.updateSettings': async (
     { tx, actor },
-    input: { recordingRetentionDays?: number | null; businessHoursOn?: boolean },
+    input: { recordingRetentionDays?: number | null; businessHoursOn?: boolean; recordingNoticeOn?: boolean; recordingNotice?: string },
   ) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     const set = {
       ...(input.recordingRetentionDays !== undefined ? { recording_retention_days: input.recordingRetentionDays } : {}),
       ...(input.businessHoursOn !== undefined ? { business_hours_on: input.businessHoursOn } : {}),
+      ...(input.recordingNoticeOn !== undefined ? { recording_notice_on: input.recordingNoticeOn } : {}),
+      ...(input.recordingNotice !== undefined ? { recording_notice: input.recordingNotice } : {}),
     }
     if (!Object.keys(set).length) return { rows: {} }
     const [row] = await tx
@@ -59,7 +63,9 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       data: {
         recordingRetentionDays: row!.recording_retention_days,
         businessHoursOn: row!.business_hours_on,
-      } satisfies Pick<WorkspaceSettingsData, 'recordingRetentionDays' | 'businessHoursOn'>,
+        recordingNoticeOn: row!.recording_notice_on,
+        recordingNotice: row!.recording_notice ?? DEFAULT_RECORDING_NOTICE,
+      } satisfies Pick<WorkspaceSettingsData, 'recordingRetentionDays' | 'businessHoursOn' | 'recordingNoticeOn' | 'recordingNotice'>,
     }
   },
 
@@ -81,4 +87,13 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
     }
     return { rows: {} }
   },
+}
+
+/** What the assistant says right after the greeting: the workspace's recording notice, or null when it is off. */
+export async function recordingNoticeFor(tx: Tx, workspaceId: string): Promise<string | null> {
+  const [row] = await tx
+    .select({ on: workspace_settings.recording_notice_on, text: workspace_settings.recording_notice })
+    .from(workspace_settings)
+    .where(eq(workspace_settings.workspace_id, workspaceId))
+  return row?.on ? row.text?.trim() || DEFAULT_RECORDING_NOTICE : null
 }

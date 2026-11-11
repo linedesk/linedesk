@@ -1414,3 +1414,13 @@ button.k-link {
 .me-ws-none {
   padding: 6px 8px;
 }
+
+/* Settings, Recordings: the notice sentence with its Save button on one line. */
+.st-notice {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.st-notice > :first-child {
+  flex: 1;
+}

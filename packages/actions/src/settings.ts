@@ -128,14 +128,20 @@ export const assistantDelete = defineAction({
 /** How long recordings may be kept; null keeps them until the call is deleted. */
 export const recordingRetentionChoices = [30, 60, 90, 180, 365] as const
 export const DEFAULT_RECORDING_RETENTION_DAYS = 90
+/** What the assistant says after the greeting when the recording notice is on and the owner wrote nothing else. */
+export const DEFAULT_RECORDING_NOTICE = 'This call may be recorded.'
+export const RECORDING_NOTICE_MAX = 200
 
 /** `data` of `workspace.getSettings`. */
 export type BusinessHoursSpan = { weekday: number; start: string; end: string }
 /** `data` of `workspace.getSettings`. `businessHours` empty: no hours set (the assistant says nothing about them). */
 /** `recordingOn`: this server records calls (a recording store is picked under Providers, or RECORDING_STORE names one; the voice agent gets the same setting). */
 /** `businessHoursOn`: the workspace uses its hours for calls (off by default). */
+/** `recordingNoticeOn`, `recordingNotice`: the sentence the assistant says right after the greeting (off by default). */
 export type WorkspaceSettingsData = {
   recordingRetentionDays: number | null
+  recordingNoticeOn: boolean
+  recordingNotice: string
   timeZone: string
   businessHours: BusinessHoursSpan[]
   businessHoursOn: boolean
@@ -168,10 +174,12 @@ export const workspaceGetSettings = defineAction({
 export const workspaceUpdateSettings = defineAction({
   name: 'workspace.updateSettings',
   description:
-    'Change workspace settings: `recordingRetentionDays` (30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup) and `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours).',
+    'Change workspace settings: `recordingRetentionDays` (30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting; off by default) and `recordingNotice` (that sentence, e.g. "This call may be recorded.").',
   input: z.object({
     recordingRetentionDays: z.union([z.literal(recordingRetentionChoices), z.null()]).optional(),
     businessHoursOn: z.boolean().optional(),
+    recordingNoticeOn: z.boolean().optional(),
+    recordingNotice: z.string().trim().min(1, 'Write the sentence the assistant says.').max(RECORDING_NOTICE_MAX).optional(),
   }),
   permission: 'settings:write',
 })

@@ -209,7 +209,8 @@ E marks done (Z undoes), H sets a reminder. The sidebar value counter is `count(
 US first. Guardrails come once we know the starting states and use cases; the design keeps them easy to add:
 
 - AI disclosure in the greeting: on by default, configurable.
-- Recording notice, outbound-call consent (TCPA), retention, data region: settings fields exist or are planned; nothing is enforced yet.
+- Recording notice: a workspace setting, off by default, with no per-state logic (Settings, Recordings: "Say that the call may be recorded" and the sentence, default "This call may be recorded."; `workspace_settings.recording_notice_on` / `recording_notice`). `call.start` returns it as `recordingNotice` (null when off or for a blocked caller), and the agent says it right after the greeting, also the outside-hours greeting (`withRecordingNotice` in `apps/agent/src/call-session.ts`); greeting and notice are cached as one audio.
+- Outbound-call consent (TCPA), data region: planned; nothing is enforced yet.
 - Data retention: recordings (the audio) are kept 90 days by default, per workspace (`workspace_settings.recording_retention_days`, Settings, Recordings; empty keeps them); a daily job (`apps/api/src/recording-retention.ts`) deletes older audio from its store and clears the call's `recording_key`, nothing else. Calls, their summaries and transcripts (`transcript_segments`) are never deleted by any job: the only code that deletes calls or transcripts is `pnpm db:seed -- --reset` for the demo workspace, and a transcript goes only with its call (foreign key, `on delete cascade`). `apps/api/test/recording-retention.test.ts` checks that the cleanup leaves the call, summary and transcript.
 - Spam scoring uses carrier attestation + number reputation.
 
