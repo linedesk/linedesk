@@ -2,7 +2,7 @@
 // creates an account. A full WebAuthn ceremony needs an authenticator, so registration is checked up
 // to its options; sign-in with an unknown credential is checked to make nobody.
 // Impersonation (no passkey changes as the user) is in admin.test.ts, the file with instance admins.
-import { passkey, session } from '@linedesk/db'
+import { auth_events, passkey, session } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, test } from 'vitest'
 import { readAuthConfig } from '../src/auth-methods.ts'
@@ -150,5 +150,9 @@ describe('listing and removing passkeys', () => {
     const own = await addPasskeyRow(fresh)
     expect((await authPost(fresh, '/passkey/delete-passkey', { id: own })).status).toBe(200)
     expect(await passkeyExists(own)).toBe(false)
+    // The audit log has it; the refused attempts above are not there.
+    const events = await db.select().from(auth_events).where(eq(auth_events.user_id, fresh.userId))
+    expect(events.map(e => e.event)).toEqual(expect.arrayContaining(['sign_up', 'passkey_removed']))
+    expect((await db.select().from(auth_events).where(eq(auth_events.user_id, owner.userId))).some(e => e.event === 'passkey_removed')).toBe(false)
   })
 })

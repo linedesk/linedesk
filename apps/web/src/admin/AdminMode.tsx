@@ -8,6 +8,7 @@ import { Icon, Kbd } from '../ui/kit.tsx'
 import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
 import type { ListKeys } from './AdminList.tsx'
 import { ADMIN_DATA, ADMIN_HEALTH, type AdminHealth, loadAdminData, loadHealth } from './api.ts'
+import { AuditLog } from './AuditLog.tsx'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { errorText, type Notify } from './notify.ts'
 import { Overview } from './Overview.tsx'
@@ -26,6 +27,7 @@ const icons: Record<AdminSection, IconName> = {
   usage: 'clock',
   providers: 'plug',
   system: 'gear',
+  audit: 'shield',
 }
 
 type ToastState = { text: string; undo?: () => Promise<unknown> }
@@ -160,12 +162,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
     if (place.section === 'overview') return <Overview onOpen={section => go({ section, id: null })} />
     if (!data)
       return error ? (
-        <LoadProblem
-          className="adm-card"
-          what="Admin"
-          message={error}
-          onRetry={() => void reload()}
-        />
+        <LoadProblem className="adm-card" what="Admin" message={error} onRetry={() => void reload()} />
       ) : (
         <div className="adm-card adm-listcard">
           <SkeletonRows label="Loading" />
@@ -198,6 +195,8 @@ export function AdminMode({ currentUserId, onExit }: Props) {
         )
       case 'system':
         return <System />
+      case 'audit':
+        return <AuditLog workspaces={data.workspaces} />
     }
   }
 
@@ -233,7 +232,9 @@ export function AdminMode({ currentUserId, onExit }: Props) {
         ))}
       </nav>
       <main className="adm-main">
-        <div className={place.section === 'providers' ? 'adm-col adm-col-wide' : 'adm-col'}>
+        <div
+          className={place.section === 'providers' || place.section === 'audit' ? 'adm-col adm-col-wide' : 'adm-col'}
+        >
           <header className="adm-head">
             {detailTitle ? (
               <>

@@ -422,6 +422,29 @@ export const commands = pgTable('commands', {
   created_at: createdAt(),
 })
 
+// The audit log's sign-in side (docs/architecture.md §12, Audit log): sign-ins with their method, sign-in
+// methods added or removed, invitations accepted. Actions are in `commands`. Never deleted, and no
+// foreign keys, so an entry outlives the user or workspace it names. Not synced to browsers.
+export const auth_events = pgTable(
+  'auth_events',
+  {
+    id: id(),
+    created_at: createdAt(),
+    user_id: text('user_id'),
+    /** The address at the time, kept in case the user changes or is removed. */
+    email: text('email'),
+    event: text('event', {
+      enum: ['sign_in', 'sign_up', 'provider_linked', 'passkey_added', 'passkey_removed', 'password_changed', 'invitation_accepted'],
+    }).notNull(),
+    /** sign_in / sign_up / provider_linked: password, email_code, passkey, google, microsoft, github, oidc. */
+    method: text('method'),
+    workspace_id: text('workspace_id'),
+    ip_address: text('ip_address'),
+    user_agent: text('user_agent'),
+  },
+  t => [index('auth_events_created').on(t.created_at), index('auth_events_user').on(t.user_id, t.created_at)],
+)
+
 // Provider keys set in the admin area, one row per provider field. Provider and field are plain text: the
 // list of providers lives in code (packages/actions/src/admin.ts), so a new one needs no migration.
 // Not synced to browsers. `workspace_id` is null for the value of the whole install; a per-workspace

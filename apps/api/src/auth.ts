@@ -4,7 +4,9 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { emailOTP, genericOAuth, organization } from 'better-auth/plugins'
 import { authConfig } from './auth-methods.ts'
 import { accountLinkingHooks, mapGoogleProfile, mapMicrosoftProfile } from './account-linking.ts'
+import { auditHooks, recordAuthEndpoint } from './audit.ts'
 import { CLIENT_IP_HEADER } from './client-ip.ts'
+import { mergeDatabaseHooks } from './db-hooks.ts'
 import { githubProvider } from './github-sign-in.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
@@ -78,7 +80,7 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
   trustedOrigins: [WEB_ORIGIN],
   emailAndPassword: { enabled: methods.password },
-  databaseHooks: { ...instanceAdminHooks, ...accountLinkingHooks },
+  databaseHooks: mergeDatabaseHooks(instanceAdminHooks, accountLinkingHooks, auditHooks),
   emailVerification: { sendVerificationEmail, autoSignInAfterVerification: true },
   socialProviders: {
     // A sign-in whose email the provider does not prove has no email and signs nobody in (account-linking.ts).
@@ -98,7 +100,8 @@ export const auth = betterAuth({
   // Members and invitations change only through the team.* actions (team.ts), which apply the
   // workspace's rules (last owner, who may change an owner). Accepting stays Better Auth's endpoint.
   disabledPaths: [...UNUSED_EMAIL_CODE_PATHS, ...TEAM_WRITE_PATHS],
-  hooks: { before: beforeAuthEndpoints },
+  // After: the audit log records the auth endpoints that change how someone signs in (audit.ts).
+  hooks: { before: beforeAuthEndpoints, after: recordAuthEndpoint },
   // Set by user.impersonate only (impersonation.ts); `input: false` keeps clients from setting it.
   // passkeyVerifiedAt: set by the session.create hook on a passkey sign-in (admin-second-factor.ts).
   session: {

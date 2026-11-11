@@ -1,5 +1,6 @@
 // Reads for the admin area and for the voice agent. They cross workspaces, so they are plain
 // routes with their own permission check instead of read sync.
+import { AUDIT_KINDS, type AuditKind, isAuditCursor, isCalendarDay, listAudit } from './audit.ts'
 import { secondFactorRefusal } from './admin-second-factor.ts'
 import type { Permission } from '@linedesk/actions'
 import type { Tx } from '@linedesk/db'
@@ -119,6 +120,30 @@ export function registerAdminRoutes(app: Hono<Env>) {
     const months = Math.min(24, Math.max(1, Number(c.req.query('months')) || 6))
     const usage = (await listUsage(db, months)).map(({ seconds, ...u }) => ({ ...u, minutes: minutes(seconds) }))
     return c.json({ months, usage })
+  })
+
+  // The audit log: newest first, filtered by kind, person, workspace and dates; `before` pages on.
+  app.get('/v1/admin/audit', async c => {
+    const q = (name: string) => c.req.query(name)?.trim() || undefined
+    const kind = q('kind')
+    if (kind && !(AUDIT_KINDS as readonly string[]).includes(kind)) return c.json({ ok: false, error: `unknown kind ${kind}` }, 400)
+    const from = q('from')
+    const to = q('to')
+    for (const [name, value] of [['from', from], ['to', to]] as const)
+      if (value !== undefined && !isCalendarDay(value)) return c.json({ ok: false, error: `${name} must be a date like 2026-11-30` }, 400)
+    const cursor = q('before')
+    if (cursor !== undefined && !isAuditCursor(cursor)) return c.json({ ok: false, error: 'bad cursor' }, 400)
+    return c.json(
+      await listAudit(db, {
+        kind: kind as AuditKind | undefined,
+        who: q('who'),
+        workspaceId: q('workspace'),
+        from,
+        to,
+        before: cursor,
+        limit: Number(q('limit')) || undefined,
+      }),
+    )
   })
 
   // Numbers for the overview: calls, minutes, estimated provider cost, workspaces and users.

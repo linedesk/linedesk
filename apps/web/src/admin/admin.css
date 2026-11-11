@@ -865,3 +865,19 @@
   gap: 8px;
   margin-top: 4px;
 }
+
+/* Audit log: filters in one wrapping row above the table, "Show older" below it. */
+.adm-audit-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.adm-audit-who {
+  flex: 1 1 200px;
+}
+.adm-audit-more {
+  display: flex;
+  justify-content: center;
+  padding-top: 12px;
+}

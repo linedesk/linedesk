@@ -6,10 +6,11 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { actions, REDACTED, recordingKey } from '@linedesk/actions'
-import { calls, commands, instance_settings, invitation, member as memberTable, organization, passkey, provider_settings, session, user } from '@linedesk/db'
+import { auth_events, calls, commands, instance_settings, invitation, member as memberTable, organization, passkey, provider_settings, session, user } from '@linedesk/db'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { adminSecondFactorRequired, markPasskeySession } from '../src/admin-second-factor.ts'
+import { signInMethod } from '../src/audit.ts'
 import { emailSender } from '../src/email.ts'
 import { db } from '../src/db.ts'
 import { grantFirstUser, instanceAdminHooks, refuseUnverifiedAdminAddress } from '../src/instance-admin.ts'
@@ -1349,6 +1350,28 @@ describe('impersonation', () => {
     expect((await stop(operator)).status).toBe(403)
     expect((await stop(target)).status).toBe(403)
   })
+
+  test('the audit log has the start, what was done as the user, and the stop, each naming the admin', async () => {
+    const { as } = await start(operator, target.userId)
+    expect((await act(as, 'call.markRead', { callId: other.call.id })).status).toBe(200)
+    await stop(as)
+    const { entries } = (await request(operator, 'GET', '/v1/admin/audit?kind=impersonation&limit=10')).body
+    const mine = entries.filter((e: { at: string }) => Date.now() - Date.parse(e.at) < 60_000)
+    const what = mine.map((e: { what: string }) => e.what)
+    expect(what).toEqual(expect.arrayContaining(['user.impersonate', 'call.markRead', 'impersonation.stop']))
+    const asUser = mine.find((e: { what: string }) => e.what === 'call.markRead')
+    expect(asUser).toMatchObject({
+      kind: 'impersonation',
+      actor: { id: target.userId },
+      impersonatedBy: { id: operator.userId },
+    })
+    // Everyday actions without impersonation are not audit entries.
+    await act(target, 'call.markRead', { callId: other.call.id })
+    const all = (await request(operator, 'GET', '/v1/admin/audit?limit=200')).body.entries
+    expect(
+      all.filter((e: { what: string; impersonatedBy: unknown }) => e.what === 'call.markRead' && !e.impersonatedBy),
+    ).toEqual([])
+  })
 })
 
 describe('memberships across workspaces', () => {
@@ -1573,5 +1596,129 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     expect(adminSecondFactorRequired({ ADMIN_SECOND_FACTOR: 'OFF' })).toBe(false)
     process.env.ADMIN_SECOND_FACTOR = 'off'
     expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(200)
+  })
+})
+
+describe('audit log', () => {
+  type Entry = {
+    id: string
+    at: string
+    kind: string
+    what: string
+    method: string | null
+    actor: { id: string | null; email: string | null }
+    workspace: { id: string; name: string | null } | null
+    input: unknown
+    refused: boolean
+  }
+  const audit = async (query = '') =>
+    (await request(operator, 'GET', `/v1/admin/audit${query}`)).body as { entries: Entry[]; next: string | null }
+
+  test('only instance admins read it', async () => {
+    expect((await request(other.owner, 'GET', '/v1/admin/audit')).status).toBe(403)
+    expect((await request(operator, 'GET', '/v1/admin/audit?kind=everything')).status).toBe(400)
+  })
+
+  test('a sign-in is recorded with its method and found by the person', async () => {
+    const person = await signUp()
+    const email = await emailOf(person)
+    expect((await signIn(person)).status).toBe(200)
+    const { entries } = await audit(`?kind=sign_in&who=${encodeURIComponent(email.toUpperCase())}`)
+    expect(entries.map(e => [e.what, e.method])).toEqual([
+      ['sign_in', 'password'],
+      ['sign_up', 'password'],
+    ])
+    expect(entries[0]!.actor).toMatchObject({ id: person.userId, email })
+  })
+
+  test('admin actions, refused ones too, and provider keys without their values', async () => {
+    const victim = await signUp()
+    await act(operator, 'user.disable', { userId: victim.userId })
+    await act(operator, 'user.enable', { userId: victim.userId })
+    // Speech to text, not telephony: other test files place calls at the same time.
+    await act(operator, 'provider.setKeys', { provider: 'deepgram', values: { api_key: SECRET } })
+    await act(operator, 'user.disable', { userId: operator.userId }) // refused: not yourself
+    const { entries } = await audit('?limit=50')
+    const recent = entries.filter(e => e.actor.id === operator.userId)
+    expect(recent.find(e => e.what === 'user.disable' && !e.refused)).toMatchObject({
+      kind: 'admin',
+      input: { userId: victim.userId },
+    })
+    const keys = recent.find(e => e.what === 'provider.setKeys')!
+    expect(keys.kind).toBe('keys')
+    expect(JSON.stringify(keys)).not.toContain(SECRET)
+    await clearAll()
+    expect((await audit('?kind=keys')).entries.every(e => e.kind === 'keys')).toBe(true)
+    expect(
+      recent.find(e => e.what === 'user.disable' && (e.input as { userId: string }).userId === operator.userId),
+    ).toMatchObject({ refused: true })
+  })
+
+  test('team changes carry their workspace and can be filtered by it', async () => {
+    const joined = await addMember(other.id, 'member')
+    const [row] = await db.select().from(memberTable).where(eq(memberTable.userId, joined.userId))
+    expect((await act(other.owner, 'team.setRole', { memberId: row!.id, role: 'admin' })).status).toBe(200)
+    const { entries } = await audit(`?kind=team&workspace=${other.id}`)
+    expect(entries[0]).toMatchObject({
+      what: 'team.setRole',
+      kind: 'team',
+      workspace: { id: other.id, name: 'Brightwater Plumbing & Heating' },
+    })
+    expect(
+      (await audit(`?kind=team&workspace=${home.id}`)).entries.some(
+        e => e.what === 'team.setRole' && e.workspace?.id === other.id,
+      ),
+    ).toBe(false)
+  })
+
+  test('pages go back in time without gaps or repeats', async () => {
+    const first = await audit('?limit=3')
+    expect(first.entries).toHaveLength(3)
+    expect(first.next).toBeTruthy()
+    const second = await audit(`?limit=3&before=${encodeURIComponent(first.next!)}`)
+    const ids = [...first.entries, ...second.entries].map(e => e.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    const both = (await audit('?limit=6')).entries.map(e => e.id)
+    expect(ids).toEqual(both.slice(0, ids.length))
+    expect((await request(operator, 'GET', '/v1/admin/audit?before=nonsense')).status).toBe(400)
+  })
+
+  test('a deleted user’s entries stay, without their email, address or browser', async () => {
+    const leaving = await signUp()
+    expect((await signIn(leaving)).status).toBe(200)
+    const before = await db.select().from(auth_events).where(eq(auth_events.user_id, leaving.userId))
+    expect(before.map(e => e.event)).toEqual(expect.arrayContaining(['sign_up', 'sign_in']))
+    expect(before.some(e => e.email !== null)).toBe(true)
+    await db.delete(user).where(eq(user.id, leaving.userId))
+    const after = await db.select().from(auth_events).where(eq(auth_events.user_id, leaving.userId))
+    expect(after.map(e => e.id).sort()).toEqual(before.map(e => e.id).sort())
+    for (const e of after) expect(e).toMatchObject({ email: 'deleted', ip_address: null, user_agent: null })
+    // Everyone else's entries are untouched.
+    const kept = await db.select().from(auth_events).where(eq(auth_events.user_id, operator.userId))
+    expect(kept.every(e => e.email !== 'deleted')).toBe(true)
+  })
+
+  test('impossible dates and cursors are refused with 400, never reach the database', async () => {
+    for (const query of [
+      'from=2026-02-30',
+      'to=2026-13-01',
+      'from=2026-1-5',
+      'to=yesterday',
+      'before=2026-02-30T10:00:00.000Z|ae_1',
+      'before=2026-11-11T25:61:00.000Z|ae_1',
+      `before=${encodeURIComponent("2026-11-11T10:00:00.000Z|x' or 1=1")}`,
+    ]) {
+      expect((await request(operator, 'GET', `/v1/admin/audit?${query}`)).status, query).toBe(400)
+    }
+    expect((await request(operator, 'GET', '/v1/admin/audit?from=2024-02-29&to=2026-11-11')).status).toBe(200)
+  })
+
+  test('the sign-in method comes from the endpoint that made the session; impersonation is not a sign-in', () => {
+    expect(signInMethod({ path: '/sign-in/email' })).toBe('password')
+    expect(signInMethod({ path: '/sign-in/email-otp' })).toBe('email_code')
+    expect(signInMethod({ path: '/passkey/verify-authentication' })).toBe('passkey')
+    expect(signInMethod({ path: '/callback/:id', params: { id: 'github' } })).toBe('github')
+    expect(signInMethod({ path: '/oauth2/callback/:providerId', params: { providerId: 'oidc' } })).toBe('oidc')
+    expect(signInMethod(undefined)).toBeNull()
   })
 })

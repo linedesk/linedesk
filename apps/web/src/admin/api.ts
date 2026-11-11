@@ -164,5 +164,26 @@ export const loadWorkspaceMembers = (workspaceId: string) =>
   get<WorkspaceMembers>(`/v1/admin/workspaces/${encodeURIComponent(workspaceId)}/members`)
 
 export const loadOverview = () => get<AdminOverview>('/v1/admin/overview')
+
+export type AuditKind = 'sign_in' | 'account' | 'admin' | 'team' | 'impersonation' | 'keys'
+/** One entry of GET /v1/admin/audit (apps/api/src/audit.ts). */
+export type AuditEntry = {
+  id: string
+  at: string
+  kind: AuditKind
+  what: string
+  method: string | null
+  actor: { id: string | null; email: string | null; name: string | null }
+  impersonatedBy: { id: string; email: string | null } | null
+  workspace: { id: string; name: string | null } | null
+  input: unknown
+  refused: boolean
+  ipAddress: string | null
+}
+/** `to` is exclusive (the day after the last day shown); `before` is the previous page's `next`. */
+export type AuditFilter = { kind?: AuditKind; who?: string; workspace?: string; from?: string; to?: string; before?: string }
+
+export const loadAudit = (filter: AuditFilter) =>
+  get<{ entries: AuditEntry[]; next: string | null }>(`/v1/admin/audit?${new URLSearchParams(filter as Record<string, string>)}`)
 /** Waits for LiveKit and the mail server: can take a few seconds. */
 export const loadHealth = () => get<AdminHealth>('/v1/admin/health')

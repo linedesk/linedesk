@@ -9,6 +9,7 @@ export const adminSections = [
   { id: 'usage', label: 'Usage', description: 'Answered minutes per month (UTC).' },
   { id: 'providers', label: 'Providers', description: '' },
   { id: 'system', label: 'System', description: 'Part of this install, set up on the server.' },
+  { id: 'audit', label: 'Audit log', description: 'Who did what. Kept forever.' },
 ] as const
 export type AdminSection = (typeof adminSections)[number]['id']
 export type AdminPlace = { section: AdminSection; id: string | null }

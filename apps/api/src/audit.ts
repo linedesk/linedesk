@@ -1,0 +1,288 @@
+// The audit log for instance admins (docs/architecture.md §12, Audit log): who did what. Two sources:
+// the command log (`commands`: admin actions, team and role changes, provider keys, impersonation),
+// and `auth_events` for what happens in Better Auth's own endpoints (sign-ins with their method,
+// sign-in methods added or removed, invitations accepted). Nothing here is ever deleted.
+import { auth_events, type Db, user } from '@linedesk/db'
+import { createAuthMiddleware, isAPIError } from 'better-auth/api'
+import { eq, sql } from 'drizzle-orm'
+import { db } from './db.ts'
+
+export type AuthEventName = (typeof auth_events.$inferInsert)['event']
+type AuthEvent = {
+  event: AuthEventName
+  userId: string | null
+  method?: string | null
+  workspaceId?: string | null
+  ipAddress?: string | null
+  userAgent?: string | null
+}
+
+const newId = () => `ae_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
+
+/**
+ * Writes one event. A failed write is logged and never stops the sign-in it describes: the person
+ * would otherwise be locked out by a broken log.
+ */
+export async function recordAuthEvent(e: AuthEvent, tx: Db = db) {
+  try {
+    const [who] = e.userId ? await tx.select({ email: user.email }).from(user).where(eq(user.id, e.userId)) : []
+    await tx.insert(auth_events).values({
+      id: newId(),
+      user_id: e.userId,
+      email: who?.email ?? null,
+      event: e.event,
+      method: e.method ?? null,
+      workspace_id: e.workspaceId ?? null,
+      // Better Auth writes the unspecified address (::) when it has none.
+      ip_address: e.ipAddress && !/^[0:.]+$/.test(e.ipAddress) ? e.ipAddress : null,
+      user_agent: e.userAgent ?? null,
+    })
+  } catch (err) {
+    console.error(`audit: could not record ${e.event}`, err)
+  }
+}
+
+type HookCtx = { path?: string; params?: Record<string, string | undefined> } | null | undefined
+
+/** How a session was started, from the Better Auth endpoint that made it; null when not a sign-in (impersonation). */
+export function signInMethod(ctx: HookCtx): string | null {
+  const path = ctx?.path
+  if (!path) return null
+  if (path === '/sign-in/email' || path === '/sign-up/email') return 'password'
+  if (path === '/sign-in/email-otp') return 'email_code'
+  if (path === '/passkey/verify-authentication') return 'passkey'
+  if (path.startsWith('/callback/') || path.startsWith('/oauth2/callback/'))
+    return ctx?.params?.id ?? ctx?.params?.providerId ?? 'provider'
+  if (path === '/verify-email') return 'email_link'
+  return null
+}
+
+/** Better Auth `session.create.after`: a sign-in (or the sign-in that ends a sign-up). Impersonation is in the command log. */
+export async function recordSignIn(
+  created: { userId: string; impersonatedBy?: string | null; ipAddress?: string | null; userAgent?: string | null },
+  ctx: unknown,
+) {
+  if (created.impersonatedBy) return
+  const hook = ctx as HookCtx
+  const method = signInMethod(hook)
+  if (!method) return
+  await recordAuthEvent({
+    event: hook?.path === '/sign-up/email' ? 'sign_up' : 'sign_in',
+    userId: created.userId,
+    method,
+    ipAddress: created.ipAddress,
+    userAgent: created.userAgent,
+  })
+}
+
+/** Better Auth database hooks of the audit log (merged with the others in auth.ts). */
+export const auditHooks = {
+  session: { create: { after: recordSignIn } },
+  account: { create: { after: recordLinkedAccount } },
+}
+
+/** Better Auth `account.create.after`: a sign-in method joined the account (a provider, or a password). */
+export async function recordLinkedAccount(created: { userId: string; providerId: string }) {
+  await recordAuthEvent({
+    event: 'provider_linked',
+    userId: created.userId,
+    method: created.providerId === 'credential' ? 'password' : created.providerId,
+  })
+}
+
+/** Endpoints whose success is an audit event; the user is the session's. */
+const afterEvents: Record<string, AuthEventName> = {
+  '/passkey/verify-registration': 'passkey_added',
+  '/passkey/delete-passkey': 'passkey_removed',
+  '/change-password': 'password_changed',
+  '/organization/accept-invitation': 'invitation_accepted',
+}
+
+/** Runs after Better Auth's endpoints: records the ones in `afterEvents` that succeeded. */
+export const recordAuthEndpoint = createAuthMiddleware(async ctx => {
+  const event = afterEvents[ctx.path]
+  if (!event || isAPIError(ctx.context.returned)) return
+  const session = (ctx.context.session ?? ctx.context.newSession) as {
+    user?: { id: string }
+    session?: { impersonatedBy?: string | null; ipAddress?: string | null; userAgent?: string | null }
+  } | null
+  if (!session?.user) return
+  const returned = ctx.context.returned as { member?: { organizationId?: string } } | undefined
+  await recordAuthEvent({
+    event,
+    userId: session.user.id,
+    workspaceId: returned?.member?.organizationId ?? null,
+    ipAddress: session.session?.ipAddress,
+    userAgent: session.session?.userAgent,
+  })
+})
+
+/** Which part of the log a row belongs to, for the filter. */
+export const AUDIT_KINDS = ['sign_in', 'account', 'admin', 'team', 'impersonation', 'keys'] as const
+export type AuditKind = (typeof AUDIT_KINDS)[number]
+
+/** Command-log actions that belong in the audit log, by kind. Everyday actions (calls, contacts) do not. */
+export const AUDITED_ACTIONS: Record<string, AuditKind> = {
+  'provider.setKeys': 'keys',
+  'provider.clearKeys': 'keys',
+  'provider.setActive': 'keys',
+  'user.invite': 'admin',
+  'user.disable': 'admin',
+  'user.enable': 'admin',
+  'workspace.disable': 'admin',
+  'workspace.enable': 'admin',
+  'instanceAdmin.grant': 'admin',
+  'instanceAdmin.revoke': 'admin',
+  'user.impersonate': 'impersonation',
+  'impersonation.stop': 'impersonation',
+  'team.invite': 'team',
+  'team.resendInvite': 'team',
+  'team.revokeInvite': 'team',
+  'team.setRole': 'team',
+  'team.removeMember': 'team',
+}
+
+const AUTH_EVENT_KIND: Record<AuthEventName, AuditKind> = {
+  sign_in: 'sign_in',
+  sign_up: 'sign_in',
+  provider_linked: 'account',
+  passkey_added: 'account',
+  passkey_removed: 'account',
+  password_changed: 'account',
+  invitation_accepted: 'team',
+}
+
+export type AuditEntry = {
+  id: string
+  at: string
+  kind: AuditKind
+  /** An action name (`team.setRole`) or an auth event (`sign_in`). */
+  what: string
+  /** sign-in method or provider, for auth events. */
+  method: string | null
+  actor: { id: string | null; email: string | null; name: string | null }
+  /** The instance admin acting as `actor` (impersonation). */
+  impersonatedBy: { id: string; email: string | null } | null
+  workspace: { id: string; name: string | null } | null
+  /** The action's input as the command log keeps it (secrets already redacted). */
+  input: unknown
+  refused: boolean
+  ipAddress: string | null
+}
+
+export type AuditFilter = {
+  kind?: AuditKind
+  /** Part of the actor's email or name. */
+  who?: string
+  workspaceId?: string
+  from?: string
+  to?: string
+  /** Paging: the `next` cursor of the previous page (`<at>|<id>` of its last entry). */
+  before?: string
+  limit?: number
+}
+
+/** A real calendar day, YYYY-MM-DD: 2026-02-30 and 2026-13-01 are not. */
+export function isCalendarDay(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const at = new Date(`${value}T00:00:00Z`)
+  return !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === value
+}
+
+/** A paging cursor as `listAudit` hands it out: `<ISO time>|<entry id>`, with a real time. */
+export function isAuditCursor(value: string): boolean {
+  const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z)\|([\w-]{1,64})$/.exec(value)
+  if (!match) return false
+  const at = Date.parse(match[1]!)
+  return !Number.isNaN(at) && new Date(at).toISOString().slice(0, 10) === match[1]!.slice(0, 10)
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: rows of a hand-written union query
+type Row = Record<string, any>
+
+/** Newest first, both sources merged. */
+export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: AuditEntry[]; next: string | null }> {
+  const limit = Math.min(200, Math.max(1, f.limit ?? 50))
+  const actions = Object.keys(AUDITED_ACTIONS)
+  const kindActions = f.kind ? actions.filter(a => AUDITED_ACTIONS[a] === f.kind) : actions
+  const kindEvents = (Object.keys(AUTH_EVENT_KIND) as AuthEventName[]).filter(
+    e => !f.kind || AUTH_EVENT_KIND[e] === f.kind,
+  )
+  // Everything done while an admin was signed in as someone else counts as impersonation, whatever the action.
+  const withImpersonated = !f.kind || f.kind === 'impersonation'
+  const listed = kindActions.length
+    ? sql`c.action in (${sql.join(
+        kindActions.map(a => sql`${a}`),
+        sql`, `,
+      )})`
+    : sql`false`
+  const commandRows =
+    kindActions.length || withImpersonated
+      ? sql`select c.id, c.created_at as at, c.action as what, null::text as method, c.actor_id, null::text as email_then,
+        c.impersonated_by, c.workspace_id, c.input, c.rejected as refused, null::text as ip_address, 'command' as source
+        from commands c where ${listed}${withImpersonated ? sql` or c.impersonated_by is not null` : sql``}`
+      : null
+  const eventRows = kindEvents.length
+    ? sql`select e.id, e.created_at as at, e.event as what, e.method, e.user_id as actor_id, e.email as email_then,
+        null::text as impersonated_by, e.workspace_id, null::jsonb as input, false as refused, e.ip_address, 'auth' as source
+        from auth_events e where e.event in (${sql.join(
+          kindEvents.map(e => sql`${e}`),
+          sql`, `,
+        )})`
+    : null
+  const parts = [commandRows, eventRows].filter(Boolean) as ReturnType<typeof sql>[]
+  if (!parts.length) return { entries: [], next: null }
+  const union = sql.join(parts, sql` union all `)
+  const conditions = [sql`true`]
+  if (f.workspaceId) conditions.push(sql`a.workspace_id = ${f.workspaceId}`)
+  if (f.from) conditions.push(sql`a.at >= ${f.from}::timestamptz`)
+  if (f.to) conditions.push(sql`a.at < ${f.to}::timestamptz`)
+  const [beforeAt, beforeId] = f.before?.split('|') ?? []
+  if (beforeAt && beforeId) conditions.push(sql`(a.at, a.id) < (${beforeAt}::timestamptz, ${beforeId})`)
+  if (f.who?.trim()) {
+    const like = `%${f.who
+      .trim()
+      .toLowerCase()
+      .replace(/[%_\\]/g, m => `\\${m}`)}%`
+    conditions.push(
+      sql`(lower(coalesce(u.email, a.email_then, '')) like ${like} or lower(coalesce(u.name, '')) like ${like})`,
+    )
+  }
+  const rows = (
+    await tx.execute(sql`
+      select a.*, to_char(a.at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as at_iso,
+        u.email as actor_email, u.name as actor_name, ib.email as impersonator_email, o.name as workspace_name
+      from (${union}) a
+      left join "user" u on u.id = a.actor_id
+      left join "user" ib on ib.id = a.impersonated_by
+      left join organization o on o.id = a.workspace_id
+      where ${sql.join(conditions, sql` and `)}
+      order by a.at desc, a.id desc
+      limit ${limit + 1}`)
+  ).rows as Row[]
+  const page = rows.slice(0, limit)
+  const entries = page.map(
+    (r): AuditEntry => ({
+      id: r.id,
+      at: r.at_iso,
+      kind:
+        r.source === 'command'
+          ? (AUDITED_ACTIONS[r.what] ?? 'impersonation')
+          : AUTH_EVENT_KIND[r.what as AuthEventName],
+      what: r.what,
+      method: r.method,
+      actor: {
+        id: r.actor_id === 'cli' ? null : r.actor_id,
+        email: r.actor_email ?? r.email_then ?? null,
+        name: r.actor_name ?? null,
+      },
+      impersonatedBy: r.impersonated_by ? { id: r.impersonated_by, email: r.impersonator_email ?? null } : null,
+      workspace: r.workspace_id ? { id: r.workspace_id, name: r.workspace_name ?? null } : null,
+      input: r.input,
+      refused: Boolean(r.refused),
+      ipAddress: r.ip_address,
+    }),
+  )
+  const last = page.at(-1)
+  return { entries, next: rows.length > limit && last ? `${last.at_iso}|${last.id}` : null }
+}
