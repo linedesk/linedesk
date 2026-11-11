@@ -996,7 +996,7 @@ describe('instance admins', () => {
 
   test('INSTANCE_ADMIN_EMAILS applies to an existing account once its address is verified; the app cannot revoke it', async () => {
     // A password account from before the variable was set: its address is not verified.
-    const ws = await createWorkspace('Env Admin Workspace')
+    const ws = await createWorkspace('Env Admin Workspace', false)
     process.env.INSTANCE_ADMIN_EMAILS = ` someone@else.test, ${(await emailOf(ws.owner)).toUpperCase()} `
     // Anyone can sign up with any address, so an unverified one grants nothing.
     expect((await request(ws.owner, 'GET', '/v1/admin/users')).status).toBe(403)
@@ -1864,6 +1864,8 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
   beforeAll(async () => {
     admin = await signUp()
     await setAdmin(admin, true)
+    // A confirmed address: an unconfirmed one cannot add passkeys at all.
+    await db.update(user).set({ emailVerified: true }).where(eq(user.id, admin.userId))
   })
   afterEach(async () => {
     process.env.ADMIN_SECOND_FACTOR = 'off'

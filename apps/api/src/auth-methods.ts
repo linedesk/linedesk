@@ -61,5 +61,13 @@ export function emailDelivery(env: Env): 'smtp' | 'log' | 'none' {
   return env.EMAIL_TO_LOG === 'true' ? 'log' : 'none'
 }
 
+/**
+ * Whether a member must still confirm their address before sensitive actions (run-action.ts). Not on
+ * an install without email delivery: no code could reach anyone, and nothing there proves an address
+ * by email either.
+ */
+export const mustConfirmEmail = (emailVerified: boolean | null | undefined, env: Env = process.env) =>
+  !emailVerified && emailDelivery(env) !== 'none'
+
 export const authConfig = readAuthConfig(process.env)
 export const authMethods = authConfig.methods

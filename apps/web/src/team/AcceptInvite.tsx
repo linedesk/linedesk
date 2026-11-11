@@ -1,9 +1,10 @@
 // The page an invitation link opens (`/?invite=<id>`). The person signs in or creates an account
 // with the invited address (a code by email proves it), confirms it if needed, and joins. Every
-// redirect (provider, verification link) comes back to this same URL, so the flow picks up where it was.
+// redirect (a provider) comes back to this same URL, so the flow picks up where it was.
 import type { InvitationPreview } from '@linedesk/actions'
 import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from 'react'
 import { type AuthMethods, auth, fetchAuthMethods, requestSignInCode } from '../auth.ts'
+import { ConfirmEmail } from '../ConfirmEmail.tsx'
 import { signOutAndForget } from '../localData.ts'
 import { CodeStep } from '../Login.tsx'
 import { authFormError } from '../sign-in-code.ts'
@@ -38,7 +39,6 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
   const [methods, setMethods] = useState<AuthMethods | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [sent, setSent] = useState<string | null>(null)
   const [codeSent, setCodeSent] = useState(false)
 
   const loadAccount = useCallback(async () => {
@@ -75,7 +75,6 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
   }
   const lead = <p>{invite.invitedBy || 'A teammate'} invited {invite.email} to join as {invite.role}.</p>
   const title = `Join ${invite.workspaceName}`
-  if (sent) return <Card title="Check your email"><p>{sent}</p>{errorLine}</Card>
 
   if (!account && codeSent) return <CodeStep email={invite.email} onDone={async () => { await loadAccount() }} onDifferentEmail={() => setCodeSent(false)} />
   if (!account) {
@@ -97,13 +96,10 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
   }
   if (!account.emailVerified) {
     return (
-      <Card title="Confirm your email">
-        <p>To join {invite.workspaceName}, confirm that {invite.email} is yours. We will email you a link.</p>
+      <Card title={title}>
         {errorLine}
-        <button type="button" className="k-btn k-btn-primary" disabled={busy} autoFocus onClick={() => attempt(async () => {
-          fail(await auth.sendVerificationEmail({ email: invite.email, callbackURL: here() }))
-          setSent(`We sent a confirmation link to ${invite.email}. Open it to join ${invite.workspaceName}.`)
-        })}>Email me a link</button>
+        <ConfirmEmail email={invite.email} onDone={loadAccount}
+          why={`To join ${invite.workspaceName}, confirm that ${invite.email} is yours. We email you a code.`} />
       </Card>
     )
   }

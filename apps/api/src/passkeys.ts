@@ -41,6 +41,9 @@ const PASSKEY_CHANGE_PATHS = [
   '/passkey/delete-passkey',
 ]
 
+/** The endpoints that add a passkey. */
+const ADD_PATHS = ['/passkey/generate-register-options', '/passkey/verify-registration']
+
 /** The code the web app answers with "Sign in with your passkey": a session started by a passkey is needed. */
 export const PASSKEY_CONFIRMATION_REQUIRED = 'PASSKEY_CONFIRMATION_REQUIRED'
 /** An instance admin's first passkey needs the one-time enrolment code (passkey-enrolment.ts). */
@@ -105,6 +108,10 @@ export async function guardPasskeyChanges(ctx: AuthCtx) {
   if (!PASSKEY_CHANGE_PATHS.includes(ctx.path)) return
   const session = await getSessionFromCtx(ctx).catch(() => null)
   if (!session?.session) return // the endpoint answers 401 itself
+  // An address nobody has proven yet: whoever signed up with it may not be its owner, and a passkey
+  // they add would survive the owner's confirmation. Adding one waits until the address is confirmed.
+  if (ADD_PATHS.includes(ctx.path) && !session.user.emailVerified)
+    throw new APIError('FORBIDDEN', { code: 'EMAIL_NOT_VERIFIED', message: 'Confirm your email address first, then add a passkey.' })
   const account = await passkeyAccount(session.user.id, ctx.headers?.get(ENROLMENT_HEADER) ?? null)
   const refusal = passkeyChangeRefusal(account, session.session as PasskeySession, ctx.path)
   if (refusal) throw new APIError('FORBIDDEN', refusal)

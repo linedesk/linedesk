@@ -1670,3 +1670,36 @@ button.k-link {
     opacity: 0;
   }
 }
+
+/* "Confirm your email": an inline card in onboarding, Account and the invitation page. */
+.confirm-email {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  margin: 0 0 16px;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+.confirm-email-text {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.confirm-email-text span {
+  color: var(--ink-muted);
+}
+.confirm-email-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.confirm-email-row .k-input {
+  width: 120px;
+}
+.confirm-email-error {
+  color: var(--danger);
+  font-size: 12.5px;
+}

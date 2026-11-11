@@ -5,6 +5,7 @@ import { member, organization, user } from '@linedesk/db'
 import { and, asc, eq } from 'drizzle-orm'
 import { actorForApiKey, isApiKey } from './api-keys.ts'
 import { auth } from './auth.ts'
+import { mustConfirmEmail } from './auth-methods.ts'
 import { db } from './db.ts'
 import { impersonationEndsAt } from './impersonation-guard.ts'
 import { type AdminSecondFactor, adminSecondFactorGap } from './admin-second-factor.ts'
@@ -26,6 +27,8 @@ export interface Actor {
   apiKeyId?: string
   /** The session of a signed-in member (not an API key or the agent). */
   sessionId?: string
+  /** The member's address (or an API key's creator's) is not confirmed yet: no sensitive actions (run-action.ts). */
+  emailUnverified?: true
 }
 
 export type Impersonation = { by: string; sessionId: string; expiresAt: Date }
@@ -92,6 +95,7 @@ export async function resolveCaller(
       : []
   const extra = {
     sessionId: session.session.id,
+    ...(mustConfirmEmail(account.emailVerified) ? { emailUnverified: true as const } : {}),
     ...(impersonation ? { impersonation } : {}),
     ...(secondFactorGap ? { adminSecondFactor: secondFactorGap } : {}),
   }

@@ -212,6 +212,7 @@ const AUTH_EVENT_KIND: Record<AuthEventName, AuditKind> = {
   passkey_removed: 'account',
   password_changed: 'account',
   invitation_accepted: 'team',
+  call_routing_reset: 'integrations',
 }
 
 export type AuditEntry = {

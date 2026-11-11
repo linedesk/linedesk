@@ -19,7 +19,7 @@ function unwrap<T>(result: Result<T>, fallback: string): T {
   return result.data
 }
 
-export type Account = { user: { name: string; email: string }; accounts: LinkedAccount[]; methods: AuthMethods }
+export type Account = { user: { name: string; email: string; emailVerified: boolean }; accounts: LinkedAccount[]; methods: AuthMethods }
 
 /** Cache keys (cachedQuery.ts). The account is kept across page loads; sessions and passkeys only in memory. */
 export const ACCOUNT = 'account'
@@ -31,7 +31,7 @@ export async function loadAccount(): Promise<Account> {
   const [session, accounts, methods] = await Promise.all([auth.getSession(), auth.listAccounts(), fetchAuthMethods({ attempts: 3 })])
   const current = unwrap(session, 'You are signed out.')
   return {
-    user: { name: current.user.name, email: current.user.email },
+    user: { name: current.user.name, email: current.user.email, emailVerified: current.user.emailVerified },
     accounts: unwrap(accounts, 'Could not load your sign-in methods.'),
     methods,
   }

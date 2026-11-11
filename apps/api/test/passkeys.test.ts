@@ -19,6 +19,13 @@ const authGet = (who: Caller, path: string) =>
 const authPost = (who: Caller, path: string, body: unknown) =>
   request(who, 'POST', `/api/auth${path}`, body, { ...ORIGIN, [FROM]: randomIp() })
 
+/** A member whose address is confirmed: an unconfirmed one cannot add passkeys (see below). */
+async function verifiedSignUp(email: string) {
+  const member = await signUp(email)
+  await db.update(user).set({ emailVerified: true }).where(eq(user.id, member.userId))
+  return member
+}
+
 /** Makes the caller's session look as if it started two days ago (Better Auth's fresh age is one day). */
 async function ageSession(who: User) {
   await db
@@ -87,7 +94,7 @@ describe('adding a passkey', () => {
   })
 
   test('a signed-in member gets options for their own account, bound to our relying party', async () => {
-    const member = await signUp(address('pk-add'))
+    const member = await verifiedSignUp(address('pk-add'))
     const res = await authGet(member, '/passkey/generate-register-options')
     expect(res.status).toBe(200)
     expect(res.body.rp).toEqual({ name: 'Linedesk', id: 'localhost' })
@@ -96,12 +103,23 @@ describe('adding a passkey', () => {
   })
 
   test('needs a recent sign-in', async () => {
-    const member = await signUp(address('pk-stale'))
+    const member = await verifiedSignUp(address('pk-stale'))
     await ageSession(member)
     expect(await authGet(member, '/passkey/generate-register-options')).toMatchObject({
       status: 403,
       body: { code: 'SESSION_NOT_FRESH' },
     })
+  })
+})
+
+describe('an address nobody has confirmed yet', () => {
+  test('cannot add a passkey: one added by whoever signed up with it would survive the owner confirming it', async () => {
+    const member = await signUp(address('pk-unverified'))
+    for (const res of [
+      await authGet(member, '/passkey/generate-register-options'),
+      await authPost(member, '/passkey/verify-registration', { response: { id: 'x', rawId: 'x', type: 'public-key', response: {} } }),
+    ])
+      expect(res).toMatchObject({ status: 403, body: { code: 'EMAIL_NOT_VERIFIED' } })
   })
 })
 
@@ -130,8 +148,8 @@ describe('signing in with a passkey', () => {
 
 describe('listing and removing passkeys', () => {
   test("lists only the member's own passkeys", async () => {
-    const owner = await signUp(address('pk-owner'))
-    const stranger = await signUp(address('pk-stranger'))
+    const owner = await verifiedSignUp(address('pk-owner'))
+    const stranger = await verifiedSignUp(address('pk-stranger'))
     const id = await addPasskeyRow(owner)
     expect((await authGet(owner, '/passkey/list-user-passkeys')).body.map((p: { id: string }) => p.id)).toEqual([id])
     expect((await authGet(stranger, '/passkey/list-user-passkeys')).body).toEqual([])
@@ -139,8 +157,8 @@ describe('listing and removing passkeys', () => {
   })
 
   test("removing needs a passkey sign-in and a recent session, and works only on the member's own passkey", async () => {
-    const owner = await signUp(address('pk-remove'))
-    const stranger = await signUp(address('pk-other'))
+    const owner = await verifiedSignUp(address('pk-remove'))
+    const stranger = await verifiedSignUp(address('pk-other'))
     const id = await addPasskeyRow(owner)
 
     expect((await authPost(anonymous, '/passkey/delete-passkey', { id })).status).toBe(401)
@@ -161,7 +179,7 @@ describe('listing and removing passkeys', () => {
     expect(await passkeyExists(id)).toBe(true)
 
     const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
-    const fresh = await signUp(address('pk-fresh'))
+    const fresh = await verifiedSignUp(address('pk-fresh'))
     const own = await addPasskeyRow(fresh)
     await confirmWithPasskey(fresh)
     expect((await authPost(fresh, '/passkey/delete-passkey', { id: own })).status).toBe(200)
@@ -176,7 +194,7 @@ describe('listing and removing passkeys', () => {
 
 describe('once an account has a passkey, it guards the passkeys', () => {
   test('adding or renaming another one needs a session started by a passkey sign-in in the last 12 hours', async () => {
-    const member = await signUp(address('pk-second'))
+    const member = await verifiedSignUp(address('pk-second'))
     const id = await addPasskeyRow(member)
     for (const res of [
       await authGet(member, '/passkey/generate-register-options'),
@@ -213,7 +231,7 @@ describe('once an account has a passkey, it guards the passkeys', () => {
   })
 
   test('a code works only as issued and until it expires', async () => {
-    const member = await signUp(address('pk-code'))
+    const member = await verifiedSignUp(address('pk-code'))
     const { enrolmentCode } = await issuePasskeyEnrolment(db, member.userId)
     const row = async () => (await db.select().from(user).where(eq(user.id, member.userId)))[0]!
     expect(enrolmentCodeValid(await row(), enrolmentCode)).toBe(true)
@@ -228,7 +246,7 @@ describe('once an account has a passkey, it guards the passkeys', () => {
 describe('emails about passkeys', () => {
   test('a passkey added: the account is told and an enrolment code is used up', async () => {
     const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
-    const member = await signUp(address('pk-added'))
+    const member = await verifiedSignUp(address('pk-added'))
     await issuePasskeyEnrolment(db, member.userId)
     const [account] = await db.select().from(user).where(eq(user.id, member.userId))
     const ctx = { path: '/passkey/verify-registration', context: { returned: { id: 'pk' }, session: { user: { id: member.userId, email: account!.email } } } }

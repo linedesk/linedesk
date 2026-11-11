@@ -204,6 +204,8 @@ app.get('/v1/me', async c => {
     adminSecondFactor: actor.adminSecondFactor ?? null,
     // An instance admin without a passkey: adding the first one asks for their enrolment code (passkey-enrolment.ts).
     passkeyEnrolment: await needsPasskeyEnrolment(actor),
+    // The member's address is not confirmed yet: the app asks for a code (sensitive actions wait for it).
+    emailUnconfirmed: Boolean(actor.emailUnverified && !actor.impersonation),
     // How this install introduces a new workspace after onboarding (FIRST_USE).
     firstUse: firstUse(),
     // The GitHub star prompt while it is due for this member (star-prompt.ts), else null.

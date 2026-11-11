@@ -42,6 +42,37 @@ function unknownFieldsRefusal(name: string, rawInput: unknown, parsed: unknown, 
   return rejection(422, unknownFieldsText(dropped))
 }
 
+/**
+ * What can let someone in later, carry data out or cost money waits until the member's address is
+ * confirmed: whoever signs up with someone else's address and a password must not set any of it up
+ * before the owner confirms the address (docs/architecture.md, account linking).
+ */
+export const NEEDS_CONFIRMED_EMAIL: ReadonlySet<string> = new Set([
+  'apiKey.create',
+  'webhook.create',
+  'webhook.update',
+  'team.invite',
+  'team.resendInvite',
+  'carrier.set',
+  'phoneNumber.setup',
+  // Where calls go: forwarding a number, bookings with callers' details into a calendar.
+  'phoneNumber.update',
+  'calendar.connectStart',
+  'calendar.connectFinish',
+])
+
+/** An assistant change that puts calls through to a number (warm transfer); turning it off is fine. */
+const setsTransfer = (input: unknown) => {
+  const i = (input ?? {}) as { transfer_number?: unknown; transfer_urgent?: unknown }
+  return (typeof i.transfer_number === 'string' && i.transfer_number !== '') || i.transfer_urgent === true
+}
+
+/** Whether running `name` with this input waits for a confirmed email. */
+export const needsConfirmedEmail = (name: string, input: unknown) =>
+  NEEDS_CONFIRMED_EMAIL.has(name) || (name === 'assistant.update' && setsTransfer(input))
+export const EMAIL_NOT_VERIFIED = 'EMAIL_NOT_VERIFIED'
+const emailNotVerified: RunResult = { status: 403, body: { ok: false, error: 'Confirm your email first', code: EMAIL_NOT_VERIFIED } as ActionRejection }
+
 /** Runs every undo, newest first; each reports in a few words what it did, or that it failed. */
 async function runUndos(undos: Undo[]): Promise<string[]> {
   const notes: string[] = []
@@ -69,6 +100,7 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   if (actor.impersonation && !mayRunWhileImpersonating(def)) return forbidden(NOT_WHILE_IMPERSONATING)
   // A leaked key must not reach settings: carrier, numbers, transfer number, webhooks, calendars.
   if (actor.apiKeyId && !def.public) return forbidden(API_KEY_PUBLIC_ONLY)
+  if (actor.emailUnverified && needsConfirmedEmail(name, rawInput)) return emailNotVerified
   const parsed = def.input.safeParse(rawInput)
   if (!parsed.success) return rejection(422, inputErrorText(parsed.error, rawInput))
   const unknown = unknownFieldsRefusal(name, rawInput, parsed.data, actor)

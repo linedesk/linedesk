@@ -1,6 +1,6 @@
 // Test fixtures: real users and sessions through Better Auth, workspaces through the API,
 // rows straight into the test database. Every id is random, so test files can run in parallel.
-import { assistant_calendars, assistants, calendar_connections, calls, contacts, phone_numbers, webhook_endpoints } from '@linedesk/db'
+import { assistant_calendars, assistants, calendar_connections, calls, contacts, phone_numbers, user as users, webhook_endpoints } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { app } from '../src/app.ts'
 import { auth } from '../src/auth.ts'
@@ -73,8 +73,9 @@ export const act = (who: Caller, name: string, input: unknown, key?: string) =>
   request(who, 'POST', `/v1/actions/${name}`, input, key ? { 'idempotency-key': key } : {})
 
 /** A workspace with its owner, assistant, a phone number, one contact and one call. */
-export async function createWorkspace(name: string) {
+export async function createWorkspace(name: string, emailVerified = true) {
   const owner = await signUp()
+  if (emailVerified) await db.update(users).set({ emailVerified: true }).where(eq(users.id, owner.userId))
   const { status, body } = await request(owner, 'POST', '/v1/workspaces', { name })
   if (status !== 200) throw new Error(`workspace not created: ${status} ${JSON.stringify(body)}`)
   const id: string = body.workspace.id
@@ -112,6 +113,7 @@ export type Workspace = Awaited<ReturnType<typeof createWorkspace>>
 
 export async function addMember(workspaceId: string, role: 'admin' | 'member'): Promise<User> {
   const user = await signUp()
+  await db.update(users).set({ emailVerified: true }).where(eq(users.id, user.userId))
   await auth.api.addMember({ body: { userId: user.userId, organizationId: workspaceId, role } })
   return user
 }

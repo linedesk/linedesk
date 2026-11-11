@@ -1,5 +1,6 @@
 // Team management: who may invite, who may accept, last owner protection, removal and closed sign-up.
-import { commands, invitation, member, user } from '@linedesk/db'
+import { account, api_keys, commands, invitation, member, passkey, session, user, webhook_endpoints } from '@linedesk/db'
+import { dropUnprovenAccess } from '../src/account-linking.ts'
 import { and, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { auth } from '../src/auth.ts'
@@ -323,6 +324,82 @@ describe('closed sign-up', () => {
   })
 })
 
+describe('confirming an address by email link (security M1)', () => {
+  const linkFor = (email: string) => {
+    const url = sent.findLast(e => e.to === email)?.text.match(/(https?:\/\/\S*verify-email\?token=\S+)/)?.[1]
+    if (!url) throw new Error(`no link for ${email}`)
+    const { pathname, search } = new URL(url)
+    return `${pathname}${search}`
+  }
+  const open = (path: string, cookie?: string) =>
+    appRequest(path, { headers: { ...(cookie ? { cookie } : {}), [FROM]: randomIp() }, redirect: 'manual' })
+  const credentialsOf = (userId: string) =>
+    db.select().from(account).where(and(eq(account.userId, userId), eq(account.providerId, 'credential')))
+  const sessionsOf = (userId: string) => db.select().from(session).where(eq(session.userId, userId))
+
+  test("someone who signed up with another person's address loses every way in and out once that person confirms it", async () => {
+    const victim = newEmail()
+    const attacker = await signUp(victim)
+    // What they set up before the owner confirmed: a workspace with an API key, a webhook, an invitation,
+    // a passkey (inserted: adding one is refused for an unconfirmed address) and another sign-in account.
+    const made = await request(attacker, 'POST', '/v1/workspaces', { name: 'Before Confirmation' })
+    expect(made.status).toBe(200)
+    // Legacy access from before confirmation was required. New creation is refused.
+    expect((await act(attacker, 'apiKey.create', { name: 'Exfil', role: 'admin' })).status).toBe(403)
+    await db.insert(api_keys).values({ id: crypto.randomUUID(), workspace_id: made.body.workspace.id, name: 'Legacy', prefix: 'ldk_legacy', key_hash: crypto.randomUUID(), role: 'admin', created_by: attacker.userId })
+    await db.insert(webhook_endpoints).values({ id: `whe_${crypto.randomUUID().slice(0, 12)}`, workspace_id: made.body.workspace.id, url: 'https://collector.example.com/hook', events: [], created_by: attacker.userId })
+    expect((await act(attacker, 'team.invite', { email: newEmail(), role: 'admin' })).status).toBe(403)
+    await db.insert(invitation).values({ id: crypto.randomUUID(), organizationId: made.body.workspace.id, email: newEmail(), role: 'admin', status: 'pending', inviterId: attacker.userId, expiresAt: new Date(Date.now() + 86400000) })
+    await db.insert(passkey).values({ id: `pk_${crypto.randomUUID().slice(0, 12)}`, userId: attacker.userId, publicKey: 'cHVibGlj', credentialID: `cred-${crypto.randomUUID()}`, counter: 0, deviceType: 'singleDevice', backedUp: false })
+    await db.insert(account).values({ id: `acc_${crypto.randomUUID().slice(0, 12)}`, userId: attacker.userId, accountId: 'attacker-sub', providerId: 'github', createdAt: new Date(), updatedAt: new Date() })
+    // No session needed to have our genuine link sent to the address.
+    const asked = await request(anonymous, 'POST', '/api/auth/send-verification-email', { email: victim, callbackURL: ORIGIN }, { origin: ORIGIN, [FROM]: randomIp() })
+    expect(asked.status).toBe(200)
+    // The real owner opens it in their own browser, without a session of that account.
+    const opened = await open(linkFor(victim))
+    expect(opened.status).toBeLessThan(400)
+    expect((await db.select().from(user).where(eq(user.id, attacker.userId)))[0]!.emailVerified).toBe(true)
+    expect(await credentialsOf(attacker.userId)).toEqual([])
+    // Only the session the link just started is left, and it is the owner's browser's.
+    const sessions = await sessionsOf(attacker.userId)
+    expect(sessions).toHaveLength(1)
+    expect(opened.headers.getSetCookie().join(';')).toContain(sessions[0]!.token)
+    expect((await request(attacker, 'GET', '/v1/me')).status).toBe(401)
+    const again = await request(anonymous, 'POST', '/api/auth/sign-in/email', { email: victim, password: 'test-password-1234' }, { origin: ORIGIN, [FROM]: randomIp() })
+    expect(again.status).toBeGreaterThanOrEqual(400)
+    // No other sign-in account, passkey, live API key, webhook or pending invitation of theirs is left.
+    expect(await db.select().from(account).where(eq(account.userId, attacker.userId))).toEqual([])
+    expect(await db.select().from(passkey).where(eq(passkey.userId, attacker.userId))).toEqual([])
+    expect((await db.select().from(api_keys).where(eq(api_keys.created_by, attacker.userId))).every(k => k.revoked_at)).toBe(true)
+    expect(await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.created_by, attacker.userId))).toEqual([])
+    expect((await db.select().from(invitation).where(eq(invitation.inviterId, attacker.userId))).map(i => i.status)).toEqual(['canceled'])
+    // The workspace stays, now the owner's.
+    expect((await db.select().from(member).where(eq(member.userId, attacker.userId))).length).toBe(1)
+  })
+
+  test('a provider proving the address drops the same, but keeps the provider account it links', async () => {
+    const victim = newEmail()
+    const attacker = await signUp(victim)
+    await db.insert(passkey).values({ id: `pk_${crypto.randomUUID().slice(0, 12)}`, userId: attacker.userId, publicKey: 'cHVibGlj', credentialID: `cred-${crypto.randomUUID()}`, counter: 0, deviceType: 'singleDevice', backedUp: false })
+    const [linked] = await db.insert(account).values({ id: `acc_${crypto.randomUUID().slice(0, 12)}`, userId: attacker.userId, accountId: 'victim-sub', providerId: 'google', createdAt: new Date(), updatedAt: new Date() }).returning()
+    await dropUnprovenAccess(linked!)
+    expect((await db.select().from(account).where(eq(account.userId, attacker.userId))).map(a => a.providerId)).toEqual(['google'])
+    expect(await db.select().from(passkey).where(eq(passkey.userId, attacker.userId))).toEqual([])
+    expect(await sessionsOf(attacker.userId)).toEqual([])
+  })
+
+  test('the person who signed up keeps their password when they open the link in their own session', async () => {
+    const email = newEmail()
+    const own = await signUp(email)
+    await request(own, 'POST', '/api/auth/send-verification-email', { email, callbackURL: ORIGIN }, { [FROM]: randomIp() })
+    const opened = await open(linkFor(email), own.headers.cookie)
+    expect(opened.status).toBeLessThan(400)
+    expect(await credentialsOf(own.userId)).toHaveLength(1)
+    const token = own.headers.cookie!.match(/session_token=([^.;]+)/)?.[1]
+    expect((await sessionsOf(own.userId)).some(s => s.token === token)).toBe(true)
+  })
+})
+
 describe('answering an invitation inside the app', () => {
   const mine = async (who: User) =>
     (await act(who, 'invitation.listMine', {})).body.data.invitations as { invitationId: string; workspaceName: string; role: string }[]
@@ -375,7 +452,7 @@ describe('answering an invitation inside the app', () => {
   })
 
   test('an unverified address sees nothing and cannot accept', async () => {
-    const theirs = await createWorkspace('Unverified Co')
+    const theirs = await createWorkspace('Unverified Co', false)
     const id = await invite(ws.owner, (await emailOf(theirs.owner)).toLowerCase())
     expect(await mine(theirs.owner)).toEqual([])
     expect((await act(theirs.owner, 'invitation.accept', { invitationId: id })).body.error).toBe('confirm your email address first')

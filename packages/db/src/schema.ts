@@ -496,7 +496,7 @@ export const auth_events = pgTable(
     /** The address at the time, kept in case the user changes or is removed. */
     email: text('email'),
     event: text('event', {
-      enum: ['sign_in', 'sign_up', 'provider_linked', 'passkey_added', 'passkey_removed', 'password_changed', 'invitation_accepted'],
+      enum: ['sign_in', 'sign_up', 'provider_linked', 'passkey_added', 'passkey_removed', 'password_changed', 'invitation_accepted', 'call_routing_reset'],
     }).notNull(),
     /** sign_in / sign_up / provider_linked: password, email_code, passkey, google, microsoft, github, oidc. */
     method: text('method'),

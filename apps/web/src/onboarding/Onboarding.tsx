@@ -3,6 +3,7 @@
 import { offersSampleCalls, offersTour } from '@linedesk/actions'
 import { useEffect, useState } from 'react'
 import type { Me, OnboardingState } from '../auth.ts'
+import { ConfirmEmail } from '../ConfirmEmail.tsx'
 import { usePresence } from '../shell/presence.ts'
 import { queueTour } from '../shell/tour.ts'
 import { preloadWorkspaceSettings, useWriteAction } from '../settings/settings-api.ts'
@@ -38,6 +39,8 @@ export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingSta
   useEffect(() => {
     void preloadWorkspaceSettings()
   }, [])
+  // The address was confirmed here: `me` is from the page load and still says otherwise.
+  const [confirmed, setConfirmed] = useState(false)
   const [setupError, setSetupError] = useState<string | null>(null)
   const [otherError, setOtherError] = useState<string | null>(null)
   const hasNumber = useRows('phone_numbers').length > 0
@@ -77,6 +80,10 @@ export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingSta
       complete={step === 'done' || (step === 'phone' && hasNumber)}
       onSkip={step === 'done' ? undefined : skip}
     >
+      {me.emailUnconfirmed && !confirmed && (
+        <ConfirmEmail onDone={() => setConfirmed(true)}
+          why="We email you a code to confirm your address. Setting up a phone number, a carrier, API keys, webhooks and invitations waits for it." />
+      )}
       {step === 'business' && <BusinessStep businessName={me.workspace!.name} onNext={forward} />}
       {step === 'phone' && (
         <PhoneStep

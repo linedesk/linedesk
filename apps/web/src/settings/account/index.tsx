@@ -3,6 +3,7 @@
 // go through the outbox.
 import { type FormEvent, useCallback, useState } from 'react'
 import { passkeySupported } from '../../auth.ts'
+import { ConfirmEmail } from '../../ConfirmEmail.tsx'
 import { signInAgain } from '../../localData.ts'
 import { refreshQuery, useQuery } from '../../cachedQuery.ts'
 import { refreshTeam } from '../../team/team-api.ts'
@@ -138,7 +139,14 @@ function Profile({ account, reload }: SectionProps) {
       await Promise.all([reload(), refreshTeam()]) // the Team list and call assignment show the new name
     }, 'Name saved.')
   }
+  // `=== false`: an account remembered from before this field existed says nothing either way.
+  const unconfirmed = account.user.emailVerified === false && account.methods.emailCode
   return (
+    <>
+    {unconfirmed && (
+      <ConfirmEmail email={account.user.email} onDone={reload}
+        why={`Confirm that ${account.user.email} is yours. Until then you cannot create API keys or webhooks, invite people, or set up a carrier or phone number.`} />
+    )}
     <form className="ac-form" onSubmit={save} onKeyDown={e => onSaveKey(e, dirty && !!trimmed)}>
       <Section id="ac-profile" title="Profile">
         <Field id="ac-name" label="Name" error={trimmed ? null : 'Enter your name.'}>
@@ -154,6 +162,7 @@ function Profile({ account, reload }: SectionProps) {
       </Section>
       <SaveBar dirty={dirty} saving={request.busy} disabled={!trimmed} onCancel={() => setName(account.user.name)} />
     </form>
+    </>
   )
 }
 

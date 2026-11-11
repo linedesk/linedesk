@@ -3,7 +3,14 @@ import { createAuthMiddleware } from 'better-auth/api'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { emailOTP, genericOAuth, organization } from 'better-auth/plugins'
 import { authConfig } from './auth-methods.ts'
-import { accountLinkingHooks, mapGoogleProfile, mapMicrosoftProfile, mapOidcProfile } from './account-linking.ts'
+import {
+  accountLinkingHooks,
+  dropUnprovenAccessBeforeEmailLink,
+  endSessionsAfterEmailLink,
+  mapGoogleProfile,
+  mapMicrosoftProfile,
+  mapOidcProfile,
+} from './account-linking.ts'
 import { auditHooks, recordAuthEndpoint } from './audit.ts'
 import { CLIENT_IP_HEADER } from './client-ip.ts'
 import { mergeDatabaseHooks } from './db-hooks.ts'
@@ -14,7 +21,7 @@ import { refuseExistingMember, sendVerificationEmail } from './invitations.ts'
 import { countSignInFailures, limitSignIns } from './sign-in-limits.ts'
 import { refuseWhileImpersonating } from './impersonation-guard.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
-import { guardPasskeyChanges, notifyPasskeyChange, passkeyPlugin } from './passkeys.ts'
+import { guardPasskeyChanges, notifyPasskeyChange, passkeyPlugin, passkeyRelyingParty } from './passkeys.ts'
 import { maySendSignInCode } from './signup-gate.ts'
 import { starOnGrantHooks } from './star-prompt.ts'
 import { releaseWorkspaceClones } from './voices.ts'
@@ -80,7 +87,7 @@ const INVITATION_READ_PATHS = ['/organization/get-full-organization', '/organiza
 // never needs them there, and a script injected into the page would get the member's GitHub token.
 const PROVIDER_TOKEN_PATHS = ['/get-access-token', '/account-info', '/refresh-token']
 const UNUSED_EMAIL_CODE_PATHS = [
-  '/email-otp/request-password-reset', '/forget-password/email-otp', '/email-otp/reset-password', '/email-otp/verify-email',
+  '/email-otp/request-password-reset', '/forget-password/email-otp', '/email-otp/reset-password',
   '/email-otp/check-verification-otp', '/email-otp/request-email-change', '/email-otp/change-email',
 ]
 
@@ -90,8 +97,25 @@ export const signInCodeEmail = (otp: string) => ({
   text: `${otp} is your Linedesk sign-in code.\n\nEnter it on the sign-in page. It works once and expires in 10 minutes. If you did not ask for it, you can ignore this email.`,
 })
 
-/** Only sign-in codes are sent; the plugin's other code types (password reset, email change) are not offered. */
+/**
+ * The code that confirms a signed-in member's own address (only asked for by them, see
+ * sign-in-limits.ts). Names the site it is for (the address people open, as for passkeys), so a code
+ * someone asks for elsewhere stands out.
+ */
+export const confirmationCodeEmail = (otp: string, env: Record<string, string | undefined> = process.env) => {
+  const site = passkeyRelyingParty(env).origin
+  return {
+    subject: `${otp} is your Linedesk confirmation code`,
+    text: `${otp} confirms this address for your Linedesk account at ${site}.\n\nEnter it on ${site}, where Linedesk asked for it. It works once and expires in 10 minutes. Don't share this code with anyone; Linedesk staff will never ask for it. If you did not ask for it, you can ignore this email.`,
+  }
+}
+
+/** Sign-in and confirmation codes are sent; the plugin's other code types (password reset, email change) are not offered. */
 async function sendSignInCode({ email, otp, type }: { email: string; otp: string; type: string }) {
+  if (type === 'email-verification') {
+    await emailSender.send({ to: email, ...confirmationCodeEmail(otp) })
+    return
+  }
   if (type !== 'sign-in') return
   // Closed sign-up: no code to an address that cannot sign in.
   if (!(await maySendSignInCode(db, email))) return
@@ -107,7 +131,21 @@ export const auth = betterAuth({
   trustedOrigins: [...TRUSTED_ORIGINS],
   emailAndPassword: { enabled: methods.password },
   databaseHooks: mergeDatabaseHooks(instanceAdminHooks, accountLinkingHooks, auditHooks, starOnGrantHooks),
-  emailVerification: { sendVerificationEmail, autoSignInAfterVerification: true },
+  emailVerification: {
+    sendVerificationEmail,
+    autoSignInAfterVerification: true,
+    // Opened without a session of that account: whatever got in before the address was proven goes
+    // (account-linking.ts). Before the address is marked verified, so a failure stops the confirmation.
+    beforeEmailVerification: async (target, request) => {
+      const current = request ? await auth.api.getSession({ headers: request.headers }).catch(() => null) : null
+      await dropUnprovenAccessBeforeEmailLink(target, current?.user.id ?? null)
+    },
+    // A session made while that cleanup ran goes too; the opener's new session is made after this.
+    afterEmailVerification: async (target, request) => {
+      const current = request ? await auth.api.getSession({ headers: request.headers }).catch(() => null) : null
+      await endSessionsAfterEmailLink(target, current?.user.id ?? null)
+    },
+  },
   socialProviders: {
     // A sign-in whose email the provider does not prove has no email and signs nobody in (account-linking.ts).
     ...(google && { google: { ...google, mapProfileToUser: mapGoogleProfile } }),

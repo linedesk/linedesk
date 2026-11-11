@@ -16,7 +16,7 @@ const accountOf = async (email: string) => (await db.select().from(user).where(e
 
 let ws: Workspace
 beforeAll(async () => {
-  ws = await createWorkspace('Email Code Workspace')
+  ws = await createWorkspace('Email Code Workspace', false)
 })
 afterEach(() => {
   process.env.AUTH_SIGNUP_ENABLED = 'true'
@@ -151,7 +151,7 @@ describe('signing in with a code', () => {
 
 describe('what is not offered', () => {
   const unused = [
-    '/email-otp/request-password-reset', '/forget-password/email-otp', '/email-otp/reset-password', '/email-otp/verify-email',
+    '/email-otp/request-password-reset', '/forget-password/email-otp', '/email-otp/reset-password',
     '/email-otp/check-verification-otp', '/email-otp/request-email-change', '/email-otp/change-email',
   ]
   test.each(unused)('POST /api/auth%s is not there', async path => {
@@ -159,9 +159,9 @@ describe('what is not offered', () => {
     expect(res.status).toBe(404)
   })
 
-  test('only sign-in codes are sent', async () => {
+  test('password reset and email change codes are not offered', async () => {
     const { send } = mailbox()
-    for (const type of ['email-verification', 'forget-password', 'change-email']) {
+    for (const type of ['forget-password', 'change-email']) {
       const res = await request(anonymous, 'POST', '/api/auth/email-otp/send-verification-otp', { email: await ownerEmail(), type }, { origin: ORIGIN, [FROM]: randomIp() })
       expect(res.status, type).toBe(400)
     }

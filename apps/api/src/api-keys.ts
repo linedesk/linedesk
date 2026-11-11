@@ -4,6 +4,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { API_KEY_PREFIX, type ApiKeyCreated, type ApiKeyListData, rolePermissions } from '@linedesk/actions'
 import { api_keys, member, organization, user } from '@linedesk/db'
 import { and, desc, eq, isNull } from 'drizzle-orm'
+import { mustConfirmEmail } from './auth-methods.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { addressBucket } from './client-ip.ts'
@@ -77,7 +78,7 @@ export async function actorForApiKey(key: string, ip: string | null): Promise<Ac
   const hash = hashApiKey(key)
   if (tooManyInvalidApiKeys(ip) && !(isWellFormedApiKey(key) && workedRecently(hash))) return null
   const [found] = await db
-    .select({ row: api_keys, workspaceDisabled: organization.disabledAt, creatorRole: member.role, creatorDisabled: user.disabledAt })
+    .select({ row: api_keys, workspaceDisabled: organization.disabledAt, creatorRole: member.role, creatorDisabled: user.disabledAt, creatorEmailVerified: user.emailVerified })
     .from(api_keys)
     .innerJoin(organization, eq(organization.id, api_keys.workspace_id))
     .leftJoin(member, and(eq(member.organizationId, api_keys.workspace_id), eq(member.userId, api_keys.created_by)))
@@ -100,6 +101,7 @@ export async function actorForApiKey(key: string, ip: string | null): Promise<Ac
     workspaceId: row.workspace_id,
     permissions: rolePermissions[row.role].filter(p => p !== 'team:write'),
     apiKeyId: row.id,
+    ...(mustConfirmEmail(found.creatorEmailVerified) ? { emailUnverified: true as const } : {}),
   }
 }
 

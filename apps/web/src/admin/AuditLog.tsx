@@ -53,6 +53,8 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
       return 'Changed the password'
     case 'invitation_accepted':
       return 'Joined a workspace'
+    case 'call_routing_reset':
+      return 'Warm transfer and call forwarding reset when the address was proven'
     case 'user.impersonate':
       return 'Signed in as a user'
     case 'impersonation.stop':
