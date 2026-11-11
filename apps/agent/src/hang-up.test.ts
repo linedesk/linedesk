@@ -180,3 +180,21 @@ test('a fixed line hangs up once it has played, or at the latest after the cap',
   await vi.advanceTimersByTimeAsync(0)
   expect(failed).toHaveBeenCalledOnce()
 })
+
+test('on hold while a transfer rings: no reminder and no closing line; after the hold the reminders start over', () => {
+  const { session, emit } = userStates()
+  const remind = vi.fn()
+  const close = vi.fn()
+  let onHold = true
+  remindOnSilence(session, { firstGapS: 8, reminders: 2 }, { remind, close, transferred: () => false, onHold: () => onHold })
+  emit('away') // quiet while it rings
+  vi.advanceTimersByTime(90_000)
+  expect(remind).not.toHaveBeenCalled()
+  expect(close).not.toHaveBeenCalled()
+  onHold = false // nobody took it; the caller stays silent
+  vi.advanceTimersByTime(8_000)
+  expect(remind).toHaveBeenCalledOnce()
+  vi.advanceTimersByTime(16_000 + 32_000)
+  expect(remind).toHaveBeenCalledTimes(2)
+  expect(close).toHaveBeenCalledOnce()
+})

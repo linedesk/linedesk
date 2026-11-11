@@ -188,6 +188,8 @@ export function transferTool({ ctx, api, call, log, config, callerIdentity, cont
       )
       if (!plan) return 'None of those is one of the contacts. Only transfer when a contact fits; else take a message.'
       tried = true
+      // The caller is on hold until this returns: no silence reminders and no collection steps meanwhile.
+      log.onHold = true
       const urgent = plan.fallback === 'message_urgent'
       await run.waitForPlayout()
       run.disallowInterruptions()
@@ -249,6 +251,7 @@ export function transferTool({ ctx, api, call, log, config, callerIdentity, cont
         if (result === 'connected') {
           // The caller and the person talk now; the assistant stays out of it.
           log.transferred = true
+          log.onHold = false
           session.output.setAudioEnabled(false)
           return undefined
         }
@@ -257,6 +260,7 @@ export function transferTool({ ctx, api, call, log, config, callerIdentity, cont
       }
       if (urgent) log.urgent = true
       session.input.setAudioEnabled(true)
+      log.onHold = false
       return notConnectedReply(plan.fallback satisfies Fallback)
     },
   })

@@ -259,6 +259,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
       hangUpAfterLine(sayLine(silence.closing), deleteRoom)
     },
     transferred,
+    onHold: () => log.onHold,
   })
   // A test call from the web app ends sooner, so a forgotten browser tab does not run up provider minutes.
   const isTest = call.businessNumber === null

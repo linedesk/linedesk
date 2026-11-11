@@ -14,6 +14,8 @@ export class CallLog {
   readonly bookings: string[] = []
   /** The caller was put through to the on-call person (a warm transfer that connected). */
   transferred = false
+  /** A transfer is ringing or the person is being briefed: the caller is on hold, so nobody asks them anything. */
+  onHold = false
   /** The caller's name as they confirmed it in the name step (get_name): bookings go under it. */
   confirmedName: string | undefined
   private pending: Promise<unknown>[] = []

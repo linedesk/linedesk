@@ -21,7 +21,17 @@ export type CollectContext = {
   languageRule?: string
 }
 
+/**
+ * Tools of one response run side by side: the model sometimes asks for the caller's name and puts them through in the
+ * same breath. A step waits this long, so a transfer_call of the same response has put the caller on hold.
+ */
+export const SAME_RESPONSE_MS = 300
+/** What a step returns when the caller is on hold for a transfer: it asks nothing. */
+export const ON_HOLD_REPLY = 'The caller is on hold while you put them through to a person: do not ask them anything now.'
+
 async function runStep(ctx: CollectContext, { ctx: run }: llm.ToolOptions, collector: AnyCollector, keypad: boolean) {
+  await new Promise(resolve => setTimeout(resolve, SAME_RESPONSE_MS))
+  if (ctx.log.onHold) return ON_HOLD_REPLY
   const chatCtx = run.session.currentAgent.chatCtx.copy({ excludeFunctionCall: true, excludeInstructions: true })
   const room = keypad ? ctx.room : null
   const callerIdentity = ctx.callerIdentity()

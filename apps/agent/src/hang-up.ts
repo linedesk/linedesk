@@ -105,15 +105,17 @@ type SilenceOptions = {
   close: () => void
   /** Put through to a person: the assistant is out of the call, so silence on its side means nothing. */
   transferred: () => boolean
+  /** On hold while a transfer rings: the caller is meant to be quiet; the reminders wait until the hold is over. */
+  onHold?: () => boolean
 }
 
 /**
  * Silence on the line. The session marks the caller "away" after `firstGapS` of silence on both sides (its away
  * timeout, set from the same policy): the assistant asks whether they are still there, waits twice as long, asks
  * again, up to `reminders` times, then says the closing line and hangs up. A word from the caller starts it over.
- * Never once the call was put through to a person.
+ * Never once the call was put through to a person, and not while the caller is on hold for a transfer.
  */
-export function remindOnSilence(session: UserStates, policy: Pick<SilencePolicy, 'firstGapS' | 'reminders'>, { remind, close, transferred }: SilenceOptions) {
+export function remindOnSilence(session: UserStates, policy: Pick<SilencePolicy, 'firstGapS' | 'reminders'>, { remind, close, transferred, onHold = () => false }: SilenceOptions) {
   const [, ...waits] = silenceSchedule(policy)
   let ended = false
   let asked = 0
@@ -125,6 +127,13 @@ export function remindOnSilence(session: UserStates, policy: Pick<SilencePolicy,
   const step = () => {
     pending = undefined
     if (ended || transferred()) return
+    if (onHold()) {
+      // Silence while on hold is expected: start over once the hold is over.
+      asked = 0
+      pending = setTimeout(step, policy.firstGapS * 1000)
+      pending.unref?.()
+      return
+    }
     if (asked >= policy.reminders) {
       ended = true
       return close()
