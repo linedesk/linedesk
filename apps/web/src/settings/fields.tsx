@@ -1,34 +1,95 @@
-// Small form pieces for settings pages. Class names match the reference UI.
+// Settings pages build on the kit's form pieces (ui/form.tsx); these keep the short names they use.
 import type { ReactNode } from 'react'
 import { Switch } from '../ui/controls.tsx'
+import { Card, FormField, Input, Textarea } from '../ui/form.tsx'
 
-export function Section({ id, title, description, children }: { id: string; title: string; description: string; children: ReactNode }) {
+type SectionProps = {
+  id: string
+  title: string
+  /** One short line. */
+  description?: string
+  /** Secondary detail, behind a (?) next to the title. */
+  help?: string
+  actions?: ReactNode
+  children: ReactNode
+}
+
+export function Section({ id, title, description, help, actions, children }: SectionProps) {
   return (
-    <section id={id} className="sec st-sec" aria-labelledby={`${id}-h`}>
-      <div className="st-sec-head"><div><h2 id={`${id}-h`}>{title}</h2><p>{description}</p></div></div>
+    <Card id={id} className="st-sec" title={title} description={description} help={help} actions={actions}>
       {children}
-    </section>
+    </Card>
   )
 }
 
-export function Field({ id, label, help, children }: { id?: string; label: string; help?: string; children: ReactNode }) {
-  return <div className="field"><label htmlFor={id}>{label}</label>{help && <span className="help">{help}</span>}{children}</div>
+type FieldProps = {
+  id?: string
+  label: string
+  /** Muted line under the label, only when the label is not enough. */
+  help?: string
+  error?: string | null
+  children: ReactNode
 }
 
-type TextProps = { id?: string; value: string; onChange: (value: string) => void; placeholder?: string; label?: string }
-
-export function TextInput({ id, value, onChange, placeholder, label }: TextProps) {
-  return <label className="k-input"><input id={id} value={value} placeholder={placeholder} aria-label={label} onChange={e => onChange(e.target.value)} /></label>
+export function Field({ id, label, help, error, children }: FieldProps) {
+  return (
+    <FormField id={id} label={label} description={help} error={error}>
+      {children}
+    </FormField>
+  )
 }
 
-export function TextArea({ id, value, onChange, placeholder, label, tall }: TextProps & { tall?: boolean }) {
-  return <textarea id={id} className={tall ? 'ta ta-tall' : 'ta'} value={value} placeholder={placeholder} aria-label={label} onChange={e => onChange(e.target.value)} />
+type TextProps = {
+  id?: string
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  label?: string
+  invalid?: boolean
 }
 
-export function SwitchRow({ title, description, on, onChange, disabled }: { title: string; description: string; on: boolean; onChange: (on: boolean) => void; disabled?: boolean }) {
+export function TextInput({ id, value, onChange, placeholder, label, invalid }: TextProps) {
+  return (
+    <Input
+      id={id}
+      value={value}
+      placeholder={placeholder}
+      aria-label={label}
+      invalid={invalid}
+      onChange={e => onChange(e.target.value)}
+    />
+  )
+}
+
+export function TextArea({ id, value, onChange, placeholder, label, tall, invalid }: TextProps & { tall?: boolean }) {
+  return (
+    <Textarea
+      id={id}
+      className={tall ? 'ta-tall' : undefined}
+      value={value}
+      placeholder={placeholder}
+      aria-label={label}
+      invalid={invalid}
+      onChange={e => onChange(e.target.value)}
+    />
+  )
+}
+
+type SwitchRowProps = {
+  title: string
+  description?: string
+  on: boolean
+  onChange: (on: boolean) => void
+  disabled?: boolean
+}
+
+export function SwitchRow({ title, description, on, onChange, disabled }: SwitchRowProps) {
   return (
     <div className="swrow">
-      <div><b>{title}</b><span className="help">{description}</span></div>
+      <div>
+        <b>{title}</b>
+        {description && <span className="help">{description}</span>}
+      </div>
       <Switch on={on} onChange={onChange} label={title} disabled={disabled} />
     </div>
   )

@@ -35,8 +35,17 @@ export function Button({ variant = 'secondary', size = 'md', icon, shortcut, cla
   )
 }
 
-export function Badge({ tone = 'neutral', dot, children }: { tone?: 'neutral' | 'danger' | 'info'; dot?: boolean; children: ReactNode }) {
-  return <span className={cx('k-badge', `k-badge-${tone}`, dot && 'k-badge-dot')}>{children}</span>
+type BadgeProps = {
+  /** `ok`: a working state (Connected), in ink; `danger` only for errors. */
+  tone?: 'neutral' | 'ok' | 'danger' | 'info' | 'outline'
+  dot?: boolean
+  /** Tooltip. */
+  title?: string
+  children: ReactNode
+}
+
+export function Badge({ tone = 'neutral', dot, title, children }: BadgeProps) {
+  return <span className={cx('k-badge', `k-badge-${tone}`, dot && 'k-badge-dot')} title={title}>{children}</span>
 }
 
 const initials = (name: string) => name.split(/[\s&]+/).filter(Boolean).slice(0, 2).map(w => w[0]!.toUpperCase()).join('')

@@ -2,8 +2,9 @@
 // Edits, business hours included, are one local draft; Save runs assistant.update and businessHours.set through the outbox.
 import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX } from '@callfront/actions'
 import type { Assistant } from '@callfront/db/types'
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useAssistant, useRun } from '../store.tsx'
+import { onSaveKey, SaveBar } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 import { type Draft, callRulesToSave, staleGreetingName, draftOf, draftProblem, isDefaultCallRules, isDirty, keepDraft, keptDraft, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure } from './assistantDraft.ts'
 import { Field, Section, SwitchRow, TextArea, TextInput } from './fields.tsx'
@@ -116,20 +117,14 @@ function Form({ assistant, canEdit, toast }: Props & { assistant: Assistant }) {
     hours.save()
     toast('Assistant settings saved.')
   }
-  /** ⌘S or ⌘↵ (Ctrl on Windows and Linux) saves from any field, instead of the browser saving the page. */
-  function saveKey(e: KeyboardEvent<HTMLFormElement>) {
-    if (!(e.metaKey || e.ctrlKey) || (e.key.toLowerCase() !== 's' && e.key !== 'Enter')) return
-    e.preventDefault()
-    if (canEdit && changed) e.currentTarget.requestSubmit()
-  }
   function discard() {
     setDraft(saved)
     hours.discard()
   }
 
   return (
-    <form className="page-in st-page" onSubmit={save} onKeyDown={saveKey}>
-      <div className="page-head"><div><h1>Assistant</h1><p>How {draft.name || 'your assistant'} answers your phone.</p></div></div>
+    <form className="page-in st-page" onSubmit={save} onKeyDown={e => onSaveKey(e, canEdit && changed)}>
+      <div className="page-head"><div><h1>Assistant</h1><p>{canEdit ? `How ${draft.name || 'your assistant'} answers your phone.` : 'Only owners and admins can change these settings.'}</p></div></div>
       <TestCall canStart={canEdit} />
       <fieldset className="st-fields" disabled={!canEdit}>
         <Greeting draft={draft} set={set} savedName={saved.name} />
@@ -137,11 +132,7 @@ function Form({ assistant, canEdit, toast }: Props & { assistant: Assistant }) {
         <BusinessHours hours={hours} canEdit={canEdit} name={draft.name.trim() || 'the assistant'} />
         <CallRules draft={draft} set={set} />
       </fieldset>
-      <div className="save-bar st-save">
-        <span className="help">{!canEdit ? 'Only owners and admins can change these settings.' : changed ? 'Unsaved changes. They stay here until you save or discard them.' : 'Changes apply to the next call.'}</span>
-        {canEdit && changed && <Button variant="ghost" onClick={discard}>Discard</Button>}
-        <Button type="submit" variant="primary" disabled={!canEdit || !changed} shortcut={['⌘', 'S']} title="Save (⌘S or ⌘↵)">Save</Button>
-      </div>
+      {canEdit && <SaveBar dirty={changed} onDiscard={discard} />}
     </form>
   )
 }

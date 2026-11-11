@@ -1,0 +1,350 @@
+/* Form pieces (form.tsx): card sections, fields, save bar, dialog. One look for every edit form:
+   label above the control, a muted line under the label only when needed, the message under it. */
+
+/* Card: a raised section with a title row */
+.k-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px 20px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+  scroll-margin-top: 56px;
+  min-width: 0;
+}
+.k-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.k-card-title {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.k-card-title h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+.k-card-title p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+.k-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+/* Field */
+.k-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.k-field-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 18px;
+}
+.k-field-label label {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.k-field-aside {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.k-field-desc {
+  margin: -2px 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+.k-field-msg {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--danger);
+}
+.k-fields {
+  display: grid;
+  gap: 16px;
+}
+.k-fields-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+/* Input states */
+.k-input.k-input-invalid,
+.ta.k-input-invalid {
+  border-color: var(--danger);
+}
+.k-input.k-input-invalid:focus-within,
+.ta.k-input-invalid:focus {
+  box-shadow: 0 0 0 1px var(--danger);
+  border-color: var(--danger);
+}
+.k-input:has(input:disabled) {
+  background: var(--surface-hover);
+}
+.k-input input:disabled {
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+.k-input-btn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin-right: -4px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.k-input-btn:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+.k-input-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.k-secret input {
+  -webkit-text-security: disc;
+}
+.k-secret-stored {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+.k-secret-dots {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+
+/* (?) help */
+.k-help {
+  position: relative;
+  display: inline-flex;
+}
+.k-help-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: help;
+}
+.k-help-btn:hover,
+.k-help-btn[aria-expanded="true"] {
+  color: var(--ink);
+  border-color: var(--ink-muted);
+}
+.k-help-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.k-help-pop {
+  position: absolute;
+  z-index: 60;
+  left: 50%;
+  top: calc(100% + 6px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 260px;
+  padding: 6px 8px;
+  border-radius: var(--radius-xs);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  text-align: left;
+  box-shadow: var(--shadow-2);
+  white-space: normal;
+}
+
+.k-sep {
+  height: 1px;
+  margin: 0;
+  border: 0;
+  background: var(--line);
+}
+
+/* Save bar: sticky at the bottom while there are changes */
+.k-savebar {
+  position: sticky;
+  bottom: 12px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 16px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+  animation: k-savebar-in 0.15s ease-out;
+}
+.k-savebar-note {
+  margin-right: auto;
+  font-size: 13px;
+  font-weight: 500;
+}
+@keyframes k-savebar-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .k-savebar {
+    animation: none;
+  }
+}
+
+/* Dialog */
+.overlay:has(> .k-dialog) {
+  align-items: center;
+  padding: 16px;
+}
+.k-dialog {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: min(720px, calc(100dvh - 32px));
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+  overflow: hidden;
+}
+.k-dialog-sm {
+  max-width: 400px;
+}
+.k-dialog-md {
+  max-width: 480px;
+}
+.k-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 12px 0 20px;
+}
+.k-dialog-title {
+  flex: 1;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.k-dialog-title h2 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+}
+.k-dialog-title p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+.k-dialog-form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.k-dialog-body {
+  display: grid;
+  gap: 16px;
+  padding: 16px 20px;
+  overflow: auto;
+  min-height: 0;
+}
+.k-dialog-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--line);
+}
+.k-dialog-foot .k-dialog-foot-start {
+  margin-right: auto;
+}
+
+/* Status note inside a form: a result, not an error */
+.k-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink);
+}
+.k-note .k-icon {
+  margin-top: 1px;
+}
+.k-note-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+@media (max-width: 560px) {
+  .k-card {
+    padding: 14px 16px;
+    gap: 14px;
+  }
+  .overlay:has(> .k-dialog) {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .k-dialog {
+    max-width: none;
+    max-height: calc(100dvh - 24px);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+  .k-dialog-foot {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+  .k-savebar {
+    bottom: 8px;
+    padding-left: 12px;
+  }
+}
