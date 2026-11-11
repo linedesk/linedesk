@@ -54,6 +54,7 @@ const all = [
   settings.contactCreate,
   settings.contactDelete,
   settings.contactRestore,
+  settings.contactImport,
   settings.contactMerge,
   settings.assistantUpdate,
   settings.assistantCreate,

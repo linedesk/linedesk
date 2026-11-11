@@ -55,6 +55,37 @@ export const contactCreate = defineAction({
   public: true,
 })
 
+/** Most rows one contact.import takes; the browser sends a longer file in parts. */
+export const CONTACT_IMPORT_MAX_ROWS = 500
+
+const importText = (max: number) => z.string().trim().max(max).optional()
+
+/**
+ * Contacts from a file (Contacts › Import). A row whose number or email is already a contact fills
+ * that contact's empty fields and changes nothing else; the rest become new contacts.
+ */
+export const contactImport = defineAction({
+  name: 'contact.import',
+  description:
+    'Add contacts from a list. A row with the number or email of an existing contact only fills its empty fields; numbers in E.164.',
+  input: z.object({
+    rows: z
+      .array(
+        z.object({
+          phone: z.string().regex(/^\+[1-9]\d{6,14}$/, 'a phone number in E.164, like +15035550142'),
+          name: importText(200),
+          company: importText(200),
+          email: importText(254),
+          address: importText(500),
+          note: importText(2000),
+        }),
+      )
+      .min(1)
+      .max(CONTACT_IMPORT_MAX_ROWS),
+  }),
+  permission: 'contact:write',
+})
+
 const mergedField = z.string().trim().max(2000).nullable()
 
 /**
@@ -76,6 +107,9 @@ export const contactMerge = defineAction({
   }),
   permission: 'contact:write',
 })
+
+/** `data` of contact.import. `skipped`: rows whose number belongs to a deleted contact. */
+export type ContactImportData = { created: number; updated: number; unchanged: number; skipped: number }
 
 /** Contacts leave the list but keep their calls; contact.restore undoes it. */
 export const contactDelete = defineAction({

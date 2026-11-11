@@ -23,6 +23,7 @@ import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-setti
 import { queueCallEvaluation, queueCallNotification } from './jobs.ts'
 import { evaluatedAutomatically, evaluationHandlers } from './evaluations.ts'
 import { notificationHandlers } from './notification-settings.ts'
+import { contactImportHandlers } from './contact-import.ts'
 import { contactMergeHandlers } from './contact-merge.ts'
 import { clearCallPayloads, queueCallFinishedEvents, queueWebhookEvent, webhookData, webhookHandlers } from './webhooks.ts'
 
@@ -190,6 +191,7 @@ const handlers: Record<string, Handler> = {
     return { rows: { contacts: [contact!] }, data: { contactId: contact!.id } }
   },
 
+  ...contactImportHandlers,
   ...contactMergeHandlers,
 
   'call.start': async ({ tx, now }, input) => {

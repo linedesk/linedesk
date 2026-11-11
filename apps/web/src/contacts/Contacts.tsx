@@ -8,6 +8,7 @@ import { Button, cx, Icon, Kbd } from '../ui/kit.tsx'
 import { LoadProblem, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { ContactDetail } from './ContactDetail.tsx'
 import './contacts.css'
+import { ImportContacts } from './ImportContacts.tsx'
 import { MergeContacts } from './MergeContacts.tsx'
 import { contactLabel, type ContactRow, duplicatePairs } from './model.ts'
 import { NewContact } from './NewContact.tsx'
@@ -148,6 +149,7 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
   const loadState = useLoadState('contacts')
   const numbers = useMemo(() => new Set(page.all.map(r => r.contact.phone)), [page.all])
   const { rows, cursor, opened, query } = page
+  const [importing, setImporting] = useState(false)
   const [merging, setMerging] = useState<{ first: ContactRow; second: ContactRow | null } | null>(null)
   const duplicates = useMemo(() => {
     const byId = new Map(page.all.map(r => [r.contact.id, r]))
@@ -172,6 +174,15 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
           onClick={page.startCreate}
         >
           New contact
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon="attach"
+          title="Import contacts from a CSV file"
+          onClick={() => setImporting(true)}
+        >
+          Import
         </Button>
       </div>
       <div className={cx('cv-main', 'cust-main', (opened || page.creating) && 'has-rec')}>
@@ -223,6 +234,9 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
           )
         )}
       </div>
+      {importing && (
+        <ImportContacts contacts={page.all.map(r => r.contact)} onClose={() => setImporting(false)} toast={toast} />
+      )}
       {merging && (
         <MergeContacts
           first={merging.first}

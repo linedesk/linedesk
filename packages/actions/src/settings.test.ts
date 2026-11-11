@@ -4,7 +4,9 @@ import { rolePermissions } from './define.ts'
 import { applyLocally, type LocalTables } from './index.ts'
 import {
   assistantUpdate,
+  CONTACT_IMPORT_MAX_ROWS,
   contactBlock,
+  contactImport,
   contactMerge,
   contactUnblock,
   workspaceGetSettings,
@@ -65,5 +67,15 @@ describe('contact.merge', () => {
     expect(rolePermissions.member).toContain('contact:write')
     expect(contactMerge.patch).toBeUndefined()
     expect(contactMerge.input.parse({ keepId: 'a', mergeId: 'b', name: ' Sam ', email: null })).toEqual({ keepId: 'a', mergeId: 'b', name: 'Sam', email: null })
+  })
+})
+
+describe('contact.import', () => {
+  it('is for anyone who edits contacts, takes E.164 numbers and at most CONTACT_IMPORT_MAX_ROWS rows', () => {
+    expect(contactImport.permission).toBe('contact:write')
+    expect(contactImport.input.safeParse({ rows: [{ phone: '+15035550142', name: ' Sam ' }] }).data).toEqual({ rows: [{ phone: '+15035550142', name: 'Sam' }] })
+    expect(contactImport.input.safeParse({ rows: [{ phone: '5035550142' }] }).success).toBe(false)
+    expect(contactImport.input.safeParse({ rows: [] }).success).toBe(false)
+    expect(contactImport.input.safeParse({ rows: Array(CONTACT_IMPORT_MAX_ROWS + 1).fill({ phone: '+15035550142' }) }).success).toBe(false)
   })
 })

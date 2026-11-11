@@ -235,3 +235,47 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
+
+/* Import: one row per column of the file (its title, what it is, an example), then the preview. */
+.imp-cols {
+  display: grid;
+  gap: 6px;
+}
+.imp-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+.imp-col-h {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.imp-col-ex {
+  color: var(--ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.imp-preview {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.imp-preview th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--ink-muted);
+  padding: 4px 8px 4px 0;
+}
+.imp-preview td {
+  padding: 5px 8px 5px 0;
+  border-top: 1px solid var(--line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
