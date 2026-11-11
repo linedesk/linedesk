@@ -30,6 +30,11 @@ export type Snapshot = {
   refused: WorkspaceRefusal | null
   discarded: number
   workspaceState: WorkspaceState | null
+  /**
+   * Tables being read again because something changed them outside the outbox (a redirect back from
+   * a provider): what is local may be out of date, so the UI shows them as loading, never the old state.
+   */
+  refreshing: ReadonlySet<TableName>
 }
 export type Rejection = { action: string; input: unknown; error: string }
 
@@ -49,6 +54,13 @@ export interface StoreOptions {
   appVersion?: string
   /** How this store finds the other tabs of the workspace. Default: Web Lock and BroadcastChannel named after the database. */
   tabs?: TabLink
+  /**
+   * Tables changed on the server while this page was away (a redirect back from an OAuth provider):
+   * shown as loading from the first frame until they are read again (see `refreshAfterWrite`).
+   */
+  refreshOnStart?: readonly TableName[]
+  /** How long a table waited for may show as loading at most; then the local rows show anyway. */
+  refreshWaitMs?: number
 }
 
 const emptyTables = () => Object.fromEntries(tableNames.map(t => [t, new Map()])) as unknown as LocalTables
@@ -58,6 +70,8 @@ const seqOf = (c: Command) => c.seq ?? Date.parse(c.at) * 1000
 const byAge = (a: Command, b: Command) => seqOf(a) - seqOf(b) || a.id.localeCompare(b.id)
 
 const VERSION_KEY = 'appVersion'
+/** A refresh nobody answers (the leading tab closed meanwhile) stops showing tables as loading after this. */
+const REFRESH_WAIT_MS = 4000
 
 /** A new build may sync a different shape of the tables: drop the read-sync cursors so each table loads again. */
 export async function forgetCursorsOnNewVersion(local: LocalDb, version: string): Promise<boolean> {
@@ -125,6 +139,10 @@ export async function createStore(opts: StoreOptions) {
   let discarded = 0
   let workspaceState: WorkspaceState | null = null
   const synced = new Set<TableName>()
+  /** Tables shown as loading until a refresh answers, with how many refreshes wait for each. */
+  const refreshing = new Map<TableName, number>()
+  /** This tab's refreshes the leader is reading for, by request id. */
+  const askedLeader = new Map<string, { tables?: readonly TableName[]; answered: () => void }>()
   let lastSeq = 0
   let snapshot: Snapshot
   const listeners = new Set<() => void>()
@@ -154,7 +172,16 @@ export async function createStore(opts: StoreOptions) {
       const def = actions.get(c.name)
       if (def) applyLocally(tables, def, c.input, c.at)
     }
-    snapshot = { tables, pending: outbox.length, online, synced: new Set(synced), refused, discarded, workspaceState }
+    snapshot = {
+      tables,
+      pending: outbox.length,
+      online,
+      synced: new Set(synced),
+      refused,
+      discarded,
+      workspaceState,
+      refreshing: new Set(refreshing.keys()),
+    }
     listeners.forEach(l => l())
   }
 
@@ -199,7 +226,7 @@ export async function createStore(opts: StoreOptions) {
     }
     removeDeleted(result.deleted)
     recompute()
-    opts.adapter.refresh?.()
+    void refresh() // what the action changed besides its rows (in a tab that does not lead too)
   }
 
   /**
@@ -365,7 +392,7 @@ export async function createStore(opts: StoreOptions) {
         }
         await settle(c, body.ok ? { rows: body.rows } : { error: body.error })
         // A write can change tables that are not followed live (a deleted row is not in the answer).
-        if (body.ok) opts.adapter.refresh?.()
+        if (body.ok) void readNow()
       }
     } finally {
       flushing = false
@@ -398,6 +425,49 @@ export async function createStore(opts: StoreOptions) {
     void flush()
   }
 
+  /** The leading tab reads the tables now; resolves once they are up to date. */
+  async function readNow(tables?: readonly TableName[]) {
+    await opts.adapter.refresh?.(tables)
+  }
+
+  /** A tab that does not lead asks the leader to read; resolves when the leader says it has. */
+  function askLeader(tables?: readonly TableName[]): Promise<void> {
+    const id = crypto.randomUUID()
+    const answered = new Promise<void>(resolve => askedLeader.set(id, { tables, answered: resolve }))
+    tabs.post({ type: 'refresh', id, ...(tables ? { tables: [...tables] } : {}) })
+    return answered
+  }
+
+  function markRefreshing(tables: readonly TableName[], by: 1 | -1) {
+    for (const t of tables) {
+      const count = (refreshing.get(t) ?? 0) + by
+      if (count > 0) refreshing.set(t, count)
+      else refreshing.delete(t)
+    }
+    recompute()
+  }
+
+  /**
+   * Reads the tables that are not followed live again now (all, or these), in whichever tab leads.
+   * With `wait`, the tables show as loading until then (at most `refreshWaitMs`): for a change made
+   * outside the outbox whose rows this tab has not got, so the UI never shows the state from before.
+   */
+  async function refresh(tables?: readonly TableName[], { wait = false }: { wait?: boolean } = {}) {
+    if (stopped || refused) return
+    const waited = wait ? (tables ?? tableNames) : []
+    if (waited.length) markRefreshing(waited, 1)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const capped = new Promise<void>(resolve => {
+      timer = setTimeout(resolve, opts.refreshWaitMs ?? REFRESH_WAIT_MS)
+    })
+    try {
+      await Promise.race([leading ? readNow(tables) : askLeader(tables), capped])
+    } finally {
+      clearTimeout(timer)
+      if (waited.length && !stopped) markRefreshing(waited, -1)
+    }
+  }
+
   /** What another tab did or learned. */
   function onTabMessage(m: TabMessage) {
     if (stopped) return
@@ -424,6 +494,14 @@ export async function createStore(opts: StoreOptions) {
       }
       leaveTabs() // a follower must not take the lead of a refused workspace either
     } else if (m.type === 'workspace-state') workspaceState = m.state
+    else if (m.type === 'refresh') {
+      if (leading) void readNow(m.tables).then(() => tabs.post({ type: 'refreshed', id: m.id }))
+      return
+    } else if (m.type === 'refreshed') {
+      askedLeader.get(m.id)?.answered()
+      askedLeader.delete(m.id)
+      return
+    }
     recompute()
   }
 
@@ -439,34 +517,58 @@ export async function createStore(opts: StoreOptions) {
     recompute()
     if (refused) return // the leader before was refused: this one would be too
     stops = tableNames.map(t => opts.adapter.start(t, sinkFor(t)))
+    // What this tab asked the leader before (it was not leading yet, or the leader closed): read it now.
+    for (const [id, ask] of askedLeader) {
+      askedLeader.delete(id)
+      void readNow(ask.tables).then(ask.answered)
+    }
     void flush()
   }
 
   const onOnline = () => void flush()
+  /** Back in this tab (focus, or the page shown again): what changed meanwhile shows at once. */
+  const onBack = () => {
+    if (globalThis.document?.visibilityState !== 'hidden') void refresh()
+  }
   function stop() {
     if (stopped) return
     stopped = true
     stops.forEach(s => s())
     clearTimeout(retry)
+    for (const ask of askedLeader.values()) ask.answered()
+    askedLeader.clear()
     globalThis.removeEventListener?.('online', onOnline)
+    globalThis.removeEventListener?.('focus', onBack)
+    globalThis.document?.removeEventListener('visibilitychange', onBack)
     leaveTabs() // hands the lead to another tab
     local.close()
   }
 
   await loadFromDisk()
+  const startWait = opts.refreshOnStart?.length ? opts.refreshOnStart : null
+  if (startWait) markRefreshing(startWait, 1) // from the first frame, before any read
   recompute()
   receive = onTabMessage
   early.forEach(onTabMessage)
   globalThis.addEventListener?.('online', onOnline)
+  globalThis.addEventListener?.('focus', onBack)
+  globalThis.document?.addEventListener('visibilitychange', onBack)
   tabs.whenLeading(() => void lead())
   starting = false
+  // A tab that opens while another leads: the leader's polled tables may be a minute old.
+  if (!leading) tabs.post({ type: 'refresh', id: crypto.randomUUID() })
+  // Back from a redirect: read those tables (in this tab once it leads, else in the leader), then show them.
+  if (startWait) void refresh(startWait).finally(() => markRefreshing(startWait, -1))
 
   return {
     run,
     flush,
     applyResult,
-    /** Asks the server for changes now, e.g. after an action that ran outside the outbox. */
-    refresh: () => opts.adapter.refresh?.(),
+    /**
+     * Asks the server for changes now: after a write that did not go through the outbox and whose
+     * result does not carry every row it changed. `{ wait: true }` shows the tables as loading until then.
+     */
+    refresh,
     subscribe: (l: () => void) => {
       listeners.add(l)
       return () => {

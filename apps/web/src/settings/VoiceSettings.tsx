@@ -3,7 +3,7 @@
 // (Save); cloning saves at once, since the provider creates the voice right away.
 import { CLONE_CONSENT_TEXT, type VoiceCloneData, type VoiceOptionsData } from '@linedesk/actions'
 import { useEffect, useRef, useState } from 'react'
-import { useQuery } from '../cachedQuery.ts'
+import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { Checkbox, RadioCard } from '../ui/controls.tsx'
 import { FormMessage } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
@@ -11,9 +11,10 @@ import { Field, Section, TextInput } from './fields.tsx'
 import { readAction, useWriteAction } from './settings-api.ts'
 import { cloneProblem, fileToBase64, previewUrl, voiceInEffect } from './voiceModel.ts'
 
-const loadOptions = () => readAction<VoiceOptionsData>('voice.options')
+const VOICE_OPTIONS = 'voice.options'
+const loadOptions = () => readAction<VoiceOptionsData>(VOICE_OPTIONS)
 /** The voices of the provider in effect; the same for every assistant of the install. */
-export const useVoiceOptions = () => useQuery('voice.options', loadOptions, { persist: true })
+export const useVoiceOptions = () => useQuery(VOICE_OPTIONS, loadOptions, { persist: true })
 
 /** One preview at a time: playing another stops the first. */
 function usePreview() {
@@ -97,6 +98,7 @@ function CloneVoice({
         audio,
         mimeType: file.type,
       })
+      void refreshQuery(VOICE_OPTIONS) // the new voice is in the list at once, not at the next focus
       toast(`Cloned "${name.trim()}". It is the assistant's voice now.`)
       setName('')
       setFile(null)

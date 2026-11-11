@@ -9,14 +9,21 @@ export const CONNECT_RETURN_KEY = 'linedesk.calendarConnectFor'
 
 /**
  * What the OAuth callback put into the hash (`#assistant/calendar?calendar=connected` or
- * `…?calendar=error&reason=…`): a toast text, or null when the hash carries no result.
+ * `…?calendar=error&reason=…`): a toast text, or null when the hash carries no result. After a
+ * connect, `connectionId` names the account (the page opens the picker of its calendars).
  */
-export function connectResult(hash: string): { ok: boolean; text: string } | null {
+export function connectResult(hash: string): { ok: boolean; text: string; connectionId?: string } | null {
   const query = hash.split('?')[1]
   if (!query) return null
   const params = new URLSearchParams(query)
   const result = params.get('calendar')
-  if (result === 'connected') return { ok: true, text: 'Calendar connected. Pick the calendars the assistant books into.' }
+  const connectionId = params.get('connection')
+  if (result === 'connected')
+    return {
+      ok: true,
+      text: 'Calendar connected. Pick the calendars the assistant books into.',
+      ...(connectionId ? { connectionId } : {}),
+    }
   if (result === 'error') return { ok: false, text: params.get('reason') || 'The calendar could not be connected.' }
   return null
 }

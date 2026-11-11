@@ -5,7 +5,8 @@
 import type { ConnectStartData, DisconnectData, ListCalendarsData } from '@linedesk/actions'
 import { CALENDAR_INSTRUCTION_MAX } from '@linedesk/actions'
 import type { AppointmentType, Assistant, AssistantCalendar, CalendarConnection } from '@linedesk/db/types'
-import { type KeyboardEvent, type ReactNode, useEffect, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { refreshOnReturn } from '../refreshOnReturn.ts'
 import { useRows, useRun } from '../store.tsx'
 import { SignInMark } from '../ui/brand-logos.tsx'
 import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
@@ -29,6 +30,16 @@ import { callAction, useWriteAction } from './settings-api.ts'
 import './calendar.css'
 
 type Props = { assistant: Assistant; canEdit: boolean; toast: (text: string) => void }
+
+/** What the OAuth callback writes: the page reads them again on return before showing them. */
+const CONNECT_TABLES = ['calendar_connections', 'assistant_calendars'] as const
+
+/** Whether the calendar accounts and calendars can be shown yet (loaded, and not from before a connect). */
+export function useCalendarsReady(): boolean {
+  const accounts = useLoadState('calendar_connections')
+  const calendars = useLoadState('assistant_calendars')
+  return accounts === 'ready' && calendars === 'ready'
+}
 
 /** Enter in a field of this section must not submit the page's form (the Assistant Save). */
 const noSubmit = (e: KeyboardEvent) => {
@@ -62,6 +73,7 @@ export function ConnectButtons({ assistantId, toast }: { assistantId: string; to
       try {
         sessionStorage.setItem(CONNECT_RETURN_KEY, assistantId)
       } catch {}
+      refreshOnReturn(CONNECT_TABLES)
       window.location.assign(url)
     } catch (e) {
       toast((e as Error).message)
@@ -116,7 +128,7 @@ export function AccountRow({ connection, children }: { connection: CalendarConne
 function Accounts({ assistant, canEdit, toast }: Props) {
   const write = useWriteAction()
   const connections = useRows('calendar_connections').sort((a, b) => a.created_at.localeCompare(b.created_at))
-  const connectionsLoad = useLoadState('calendar_connections')
+  const ready = useLoadState('calendar_connections') === 'ready'
   const [busy, setBusy] = useState<string | null>(null)
 
   async function disconnect(connection: CalendarConnection) {
@@ -139,8 +151,8 @@ function Accounts({ assistant, canEdit, toast }: Props) {
 
   return (
     <Section id="as-cal-accounts" title="Calendar accounts">
-      {connectionsLoad !== 'ready' && <SkeletonRows label="Loading calendar accounts" rows={1} />}
-      {connections.length > 0 && (
+      {!ready && <SkeletonRows label="Loading calendar accounts" rows={1} />}
+      {ready && connections.length > 0 && (
         <ul className="cal-list">
           {connections.map(c => (
             <AccountRow key={c.id} connection={c}>
@@ -159,7 +171,7 @@ function Accounts({ assistant, canEdit, toast }: Props) {
           ))}
         </ul>
       )}
-      {canEdit && <ConnectButtons assistantId={assistant.id} toast={toast} />}
+      {canEdit && ready && <ConnectButtons assistantId={assistant.id} toast={toast} />}
     </Section>
   )
 }
@@ -238,19 +250,27 @@ function CalendarRow({
   )
 }
 
+/**
+ * The calendars of a connected account, to add one. Opens on `initialConnectionId` (the account just
+ * connected) when given; the first calendar that can be added gets the focus, so Enter adds it.
+ */
 export function AddCalendar({
   assistant,
   connections,
+  initialConnectionId,
   onClose,
   toast,
 }: {
   assistant: Assistant
   connections: CalendarConnection[]
+  initialConnectionId?: string
   onClose: () => void
   toast: (t: string) => void
 }) {
   const write = useWriteAction()
-  const [connectionId, setConnectionId] = useState(connections[0]?.id ?? '')
+  const [connectionId, setConnectionId] = useState(
+    connections.find(c => c.id === initialConnectionId)?.id ?? connections[0]?.id ?? '',
+  )
   const listed = useQuery(connectionId ? `calendar.list.${connectionId}` : null, () =>
     callAction<ListCalendarsData>('calendar.listCalendars', { connectionId }).then(data =>
       data.calendars.filter(c => c.canWrite),
@@ -263,6 +283,14 @@ export function AddCalendar({
   const taken = useRows('assistant_calendars')
     .filter(c => c.assistant_id === assistant.id && c.connection_id === connectionId)
     .map(c => c.external_id)
+  // Keyboard first: once the calendars arrive, the first one that can be added has the focus.
+  const list = useRef<HTMLUListElement>(null)
+  const focused = useRef(false)
+  useEffect(() => {
+    if (!calendars || focused.current) return
+    focused.current = true
+    list.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
+  }, [calendars])
   async function add(externalId: string, name: string) {
     setAdding(externalId)
     try {
@@ -291,7 +319,7 @@ export function AddCalendar({
       {error && <p className="k-field-msg">{error}</p>}
       {!calendars && !error && <SkeletonRows label="Loading calendars" rows={3} />}
       {calendars && (
-        <ul className="cal-list">
+        <ul className="cal-list" ref={list}>
           {calendars.map(c => (
             <li key={c.id} className="cal-row">
               <span className="cal-main">
@@ -310,11 +338,14 @@ export function AddCalendar({
   )
 }
 
-function Calendars({ assistant, canEdit, toast }: Props) {
+/** `pickFrom`: the account just connected (back from its consent page): its calendars open to pick one. */
+function Calendars({ assistant, canEdit, toast, pickFrom }: Props & { pickFrom: string | null }) {
   const run = useRun()
   const connections = useRows('calendar_connections')
   const calendars = calendarsOf(useRows('assistant_calendars'), assistant.id)
-  const [adding, setAdding] = useState(false)
+  const ready = useCalendarsReady()
+  /** The picker is open, on this account ('' for the first one). */
+  const [adding, setAdding] = useState<string | null>(canEdit ? pickFrom : null)
   const connected = connections.filter(c => c.status === 'connected')
   return (
     <Section
@@ -323,14 +354,17 @@ function Calendars({ assistant, canEdit, toast }: Props) {
       help="The assistant books into the calendar whose note fits the call, else the default one, at free times within business hours (Monday to Friday 9 to 5 while they are off)."
       actions={
         canEdit &&
+        ready &&
         connected.length > 0 && (
-          <Button size="sm" icon="plus" onClick={() => setAdding(true)}>
+          <Button size="sm" icon="plus" onClick={() => setAdding('')}>
             Add calendar
           </Button>
         )
       }
     >
-      {calendars.length > 0 ? (
+      {!ready ? (
+        <SkeletonRows label="Loading calendars" rows={1} />
+      ) : calendars.length > 0 ? (
         <ul className="cal-list">
           {calendars.map(c => (
             <CalendarRow
@@ -349,8 +383,14 @@ function Calendars({ assistant, canEdit, toast }: Props) {
             : `Connect an account first. Until then ${assistant.name} takes messages.`}
         </p>
       )}
-      {adding && (
-        <AddCalendar assistant={assistant} connections={connected} onClose={() => setAdding(false)} toast={toast} />
+      {adding !== null && ready && connected.length > 0 && (
+        <AddCalendar
+          assistant={assistant}
+          connections={connected}
+          initialConnectionId={adding || undefined}
+          onClose={() => setAdding(null)}
+          toast={toast}
+        />
       )}
     </Section>
   )
@@ -479,22 +519,27 @@ function AppointmentTypes({ canEdit }: Omit<Props, 'assistant' | 'toast'>) {
   )
 }
 
-/** Shows what the OAuth callback said once, then takes it out of the address. */
-function useConnectResult(toast: (text: string) => void) {
+/**
+ * What the OAuth callback said, read on the first render (so the picker opens with the page), shown
+ * once as a toast and then taken out of the address. Returns the account just connected ('' when
+ * the callback did not name it), or null.
+ */
+function useConnectResult(toast: (text: string) => void): string | null {
+  const [result] = useState(() => connectResult(window.location.hash))
   useEffect(() => {
-    const result = connectResult(window.location.hash)
     if (!result) return
     toast(result.text)
     history.replaceState(null, '', window.location.hash.split('?')[0])
-  }, [toast])
+  }, [result, toast])
+  return result?.ok ? (result.connectionId ?? '') : null
 }
 
 export function CalendarSettings(props: Props) {
-  useConnectResult(props.toast)
+  const connected = useConnectResult(props.toast)
   return (
     <>
       <Accounts {...props} />
-      <Calendars {...props} />
+      <Calendars {...props} pickFrom={connected} />
       <AppointmentTypes canEdit={props.canEdit} />
     </>
   )

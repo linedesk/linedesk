@@ -20,6 +20,10 @@ export interface ReadSyncAdapter {
   name: string
   /** Start streaming one table into the sink. Returns a stop function. */
   start<T extends TableName>(table: T, sink: TableSink<T>): () => void
-  /** Check the tables that are not followed live now (after a write of this tab). */
-  refresh?(): void
+  /**
+   * Check the tables that are not followed live now (all, or these): after a write that did not go
+   * through the outbox, on return from a redirect, on focus. Resolves once they are read up to date
+   * by a read that started after the call.
+   */
+  refresh?(tables?: readonly TableName[]): Promise<void> | void
 }

@@ -27,7 +27,7 @@ type Options = {
   delayMs?: (attempt: number) => number
   /**
    * The tables followed live (a long-polling request each). The others are read up to date, then
-   * checked again every `pollMs`, when the window gets focus, and on `refresh()`. A browser opens at
+   * checked again every `pollMs` and on `refresh()` (the store calls it on focus and after writes). A browser opens at
    * most six connections per host over HTTP/1.1: a live request per table would leave writes waiting.
    * Default: every table is live.
    */
@@ -65,19 +65,23 @@ export const electricAdapter = (
   api: string,
   { createStream = o => new ShapeStream(o), delayMs = restartDelayMs, liveTables, pollMs = 60_000, workspaceId, account }: Options = {},
 ): ReadSyncAdapter => {
-  /** Re-checks of the tables that are not live, by table. */
-  const pokes = new Set<() => void>()
-  const pokeAll = () => {
-    for (const poke of pokes) poke()
-  }
+  /** Re-checks of the tables that are not live, by table. Each resolves once the table is read up to date. */
+  const pokes = new Map<TableName, () => Promise<void>>()
   return {
     name: 'electric',
-    refresh: pokeAll,
+    // A live table needs no refresh: its long-poll brings every change as it happens.
+    refresh: async tables => {
+      await Promise.all([...pokes].filter(([t]) => !tables || tables.includes(t)).map(([, poke]) => poke()))
+    },
     start(table, sink) {
       const live = !liveTables || liveTables.includes(table)
       let stopped = false
       /** A one-off read of a table that is not live is running. */
       let reading = false
+      /** Asked for a read while one was running: that read may have started before the change, so read once more. */
+      let again = false
+      /** Who waits for a read that starts after they asked (resolved at its up-to-date). */
+      let waiting: (() => void)[] = []
       let attempt = 0
       let abort: AbortController | null = null
       let timer: ReturnType<typeof setTimeout> | undefined
@@ -97,6 +101,9 @@ export const electricAdapter = (
         const controller = new AbortController()
         abort = controller
         reading = !live
+        again = false
+        const serving = waiting
+        waiting = []
         const stream = createStream({
           url: shapeUrl(api, table, workspaceId),
           fetchClient: async (input, init) => {
@@ -116,6 +123,7 @@ export const electricAdapter = (
           onError: error => {
             if (controller.signal.aborted || stopped) return
             controller.abort()
+            waiting = [...serving, ...waiting] // the next read answers them
             // Signed out, or not this tab's workspace any more: retrying cannot help, the store stops and says so.
             const refusal = error instanceof FetchError ? refusalOf(error.status, error.json) : null
             if (refusal) {
@@ -127,31 +135,39 @@ export const electricAdapter = (
         })
         follow(stream, sink, !cursor, () => {
           attempt = 0
+          for (const done of serving.splice(0)) done()
           if (live) return
           // Read up to date: check again later (or sooner, on focus or after a write).
           reading = false
           clearTimeout(timer)
-          timer = setTimeout(poke, pollMs)
+          if (again) return void begin(false)
+          timer = setTimeout(() => void poke(), pollMs)
         })
       }
-      /** A table that is not live: read it again now, unless a read is already running. */
-      function poke() {
-        if (stopped || reading) return
-        clearTimeout(timer)
-        void begin(false)
+      /**
+       * A table that is not live: read it again now. A read already running may have started before
+       * the change the caller waits for, so another follows it. Resolves once a read that started
+       * after the call is up to date.
+       */
+      function poke(): Promise<void> {
+        if (stopped) return Promise.resolve()
+        const done = new Promise<void>(resolve => waiting.push(resolve))
+        if (reading) again = true
+        else {
+          clearTimeout(timer)
+          void begin(false)
+        }
+        return done
       }
 
-      if (!live) {
-        pokes.add(poke)
-        if (pokes.size === 1) globalThis.addEventListener?.('focus', pokeAll)
-      }
+      if (!live) pokes.set(table, poke)
       void begin(false)
       return () => {
         stopped = true
         clearTimeout(timer)
         abort?.abort()
-        pokes.delete(poke)
-        if (!live && pokes.size === 0) globalThis.removeEventListener?.('focus', pokeAll)
+        if (pokes.get(table) === poke) pokes.delete(table)
+        for (const done of waiting.splice(0)) done() // nobody waits for a table that stopped
       }
     },
   }

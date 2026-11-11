@@ -1,6 +1,6 @@
 // The OAuth callback of a calendar connect: the provider redirects the member's browser here with
 // `code` and `state`. It runs calendar.connectFinish as the signed-in member and sends the browser
-// back to the calendar settings, with `calendar=connected` or `calendar=error&reason=…`.
+// back to the calendar settings, with `calendar=connected&connection=<id>` or `calendar=error&reason=…`.
 import { calendarProvider } from '@linedesk/actions'
 import { resolveActor } from './context.ts'
 import { runAction } from './run-action.ts'
@@ -20,5 +20,8 @@ export async function calendarCallback(providerParam: string, query: URLSearchPa
   const actor = await resolveActor(headers)
   if (!actor) return fail('You were signed out. Sign in and start again.')
   const { body } = await runAction('calendar.connectFinish', { provider: provider.data, state, code }, actor)
-  return body.ok ? back({ calendar: 'connected' }) : fail(body.error)
+  if (!body.ok) return fail(body.error)
+  // Which account: the page opens the picker of its calendars at once.
+  const connectionId = (body.data as { connectionId?: unknown } | undefined)?.connectionId
+  return back({ calendar: 'connected', ...(typeof connectionId === 'string' ? { connection: connectionId } : {}) })
 }

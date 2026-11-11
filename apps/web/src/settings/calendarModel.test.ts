@@ -3,6 +3,7 @@ import { calendarsOf, connectResult, durationLabel, requiredLabel } from './cale
 
 test('the OAuth callback result in the hash becomes a toast', () => {
   expect(connectResult('#assistant/as_1/calendar?calendar=connected')).toEqual({ ok: true, text: 'Calendar connected. Pick the calendars the assistant books into.' })
+  expect(connectResult('#assistant/as_1/calendar?calendar=connected&connection=calc_1')).toMatchObject({ ok: true, connectionId: 'calc_1' })
   expect(connectResult('#assistant/as_1/calendar?calendar=error&reason=Access%20was%20not%20granted.')).toEqual({ ok: false, text: 'Access was not granted.' })
   expect(connectResult('#assistant/as_1/calendar')).toBeNull()
   expect(connectResult('#assistant/as_1/calendar?other=1')).toBeNull()

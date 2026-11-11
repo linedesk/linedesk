@@ -36,7 +36,7 @@ Two-way contact sync (both sides edit the same fields) is left out: it needs con
 
 ## Shape (when built)
 
-- `packages/crm`: a `CrmProvider` interface (find contact by phone or email, create contact, fill empty fields, log call, read fields) with a HubSpot adapter; vendor SDKs only there (core rule 3), contract tests like the calendar adapters.
+- `packages/crm`: a `CrmProvider` interface (find contact by phone or email, create contact, fill empty fields, log call, read fields) with a HubSpot adapter; vendor SDKs only there (core rule 4), contract tests like the calendar adapters.
 - OAuth per workspace (a HubSpot public app; self-hosters set `HUBSPOT_CLIENT_ID` and `HUBSPOT_CLIENT_SECRET`, like the Google calendar app). Tables like the calendar ones: `crm_connections` (synced, no secret), `crm_credentials` (encrypted with `SECRETS_KEY`, never synced), `crm_links` (contact ↔ CRM id), the push log in the job table plus a short per-call status.
 - Actions through the registry: `crm.connectStart` / `crm.connectFinish` / `crm.disconnect` (owners and admins), `crm.setFields` (what the assistant may read). UI: Settings › Integrations › HubSpot: connect, what gets pushed, last pushes and failures.
 - Scopes asked: contacts read/write and the engagement (calls) scope; nothing else.

@@ -195,19 +195,45 @@ describe('tables that are not live', () => {
     await eventually(() => expect(streams).toHaveLength(2))
     expect(streams.map(s => (s.options as { subscribe?: boolean }).subscribe)).toEqual([true, false])
 
-    // Up to date: the next read waits; a refresh while it is still running does not start another.
+    // Up to date: the next read waits; a refresh starts one at once.
     streams[1]!.send([insert('as1'), upToDate])
     expect(settings.rows.has('as1')).toBe(true)
-    adapter.refresh?.()
+    void adapter.refresh?.()
     await eventually(() => expect(streams).toHaveLength(3))
     expect(streams[2]!.options).toMatchObject({ subscribe: false, handle: 'h1', url: '/v1/shape/assistants' })
-    adapter.refresh?.()
-    expect(streams).toHaveLength(3)
+    streams[2]!.send([upToDate])
 
     // Without a refresh it is read again after pollMs; the live table never is.
-    streams[2]!.send([upToDate])
     await eventually(() => expect(streams).toHaveLength(4))
     expect(streams[3]!.options).toMatchObject({ subscribe: false, url: '/v1/shape/assistants' })
+    stop()
+    stopLive()
+  })
+
+  it('a refresh resolves once a read that started after it is up to date, also when one was already running', async () => {
+    const { streams, createStream } = fakeStreams()
+    const adapter = electricAdapter('', { createStream, liveTables: ['calls'], pollMs: 60_000 })
+    const live = memorySink()
+    const settings = memorySink()
+    const stopLive = adapter.start('calls', live.sink)
+    const stop = adapter.start('calendar_connections', settings.sink)
+    await eventually(() => expect(streams).toHaveLength(2))
+
+    // A read is running (it may have started before the change): the refresh waits for the next one.
+    let done = false
+    void Promise.resolve(adapter.refresh?.(['calendar_connections', 'calls'])).then(() => {
+      done = true
+    })
+    streams[1]!.send([upToDate])
+    await eventually(() => expect(streams).toHaveLength(3))
+    expect(done).toBe(false)
+    streams[2]!.send([insert('calc1'), upToDate])
+    await eventually(() => expect(done).toBe(true))
+    expect(settings.rows.has('calc1')).toBe(true)
+
+    // Only the tables asked for are read; a live table needs no refresh.
+    await adapter.refresh?.(['calls'])
+    expect(streams).toHaveLength(3)
     stop()
     stopLive()
   })

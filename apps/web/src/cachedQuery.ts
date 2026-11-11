@@ -1,7 +1,8 @@
 // Reads that are not in the local store (workspace settings, team, account, admin, the workspace
 // list): shown at once from the last answer and refreshed in the background, like the inbox. A
 // query is loaded once and shared by every component that uses it; it is checked again when a
-// component that shows it mounts, when the window gets focus, and on refreshQuery(). With
+// component that shows it mounts, when the window gets focus or the tab is shown again, and on
+// refreshQuery() (call it, or setQueryData, right after a write that changes the answer). With
 // `persist`, the last answer is kept in localStorage too, so the next page load shows it at once.
 // Everything is kept per signed-in member and workspace (setQueryScope) and forgotten on sign-out.
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
@@ -159,6 +160,10 @@ function refreshShown() {
 }
 if (typeof window !== 'undefined') {
   window.addEventListener('focus', refreshShown)
+  // A tab shown again (switching tabs does not always move the window's focus).
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshShown()
+  })
 }
 
 /**

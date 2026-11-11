@@ -13,10 +13,12 @@ export type LoadState = 'ready' | 'loading' | 'slow'
 /**
  * Whether a synced list can be trusted to be empty. A table that never caught up with the server and
  * has no local rows is still loading, not empty; after a while that becomes a problem worth saying.
+ * A table being read again after a change made away from the page (the store's `refreshing`, e.g.
+ * back from an OAuth redirect) is loading too: its local rows are from before that change.
  */
 export function useLoadState(table: TableName): LoadState {
-  const { synced, tables } = useSnapshot()
-  const loading = !synced.has(table) && tables[table].size === 0
+  const { synced, tables, refreshing } = useSnapshot()
+  const loading = refreshing.has(table) || (!synced.has(table) && tables[table].size === 0)
   const [slow, setSlow] = useState(false)
   useEffect(() => {
     if (!loading) return setSlow(false)

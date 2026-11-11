@@ -23,6 +23,10 @@ export type TabMessage =
   | { type: 'refused'; refusal: WorkspaceRefusal }
   /** The leader heard from the server whether the workspace is disabled. */
   | { type: 'workspace-state'; state: WorkspaceState }
+  /** A tab asks the leader to read these tables (all when absent) again now. */
+  | { type: 'refresh'; id: string; tables?: TableName[] }
+  /** The leader has read the tables of that request up to date; their rows were posted before this. */
+  | { type: 'refreshed'; id: string }
 
 export interface TabLink {
   /** `lead` is called once, when this tab becomes the one that talks to the server (at once if it is alone). */

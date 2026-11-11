@@ -31,3 +31,4 @@ Linedesk should feel like a calm, native tool, not a dashboard. These rules come
 10. **Views follow who has to act.** Needs you / Handled by Maya / Spam (plus Reminders and Done). What the assistant did is a column, never a view.
 11. **Motion under 200 ms.** Rows fade and collapse on done, ease back in on undo; respect reduced motion.
 12. **Copy is short and human.** "Nothing needs you. Maya has it." beats "No items found". Use the terms Assistant (not Receptionist) and Remind (not Snooze).
+13. **Show the result of an action immediately; never require a reload.** What the user just did (connected a calendar, created a key, cloned a voice, set up a number) is on screen in the next frame, also after a redirect away and back. While it cannot be known yet, show a placeholder for under a second, never the state from before. How: CLAUDE.md, core rule 3.

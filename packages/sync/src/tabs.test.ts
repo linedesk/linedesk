@@ -14,17 +14,54 @@ afterEach(() => { n++; vi.unstubAllGlobals() })
 /** Two tabs of one browser: one database, one hub. Each tab has its own read-sync adapter. */
 function browser() {
   const hub = memoryTabHub()
-  function tab(extra = {}) {
+  function tab(extra: { refresh?: ReadSyncAdapter['refresh'] } & Record<string, unknown> = {}) {
     const sinks = new Map<string, TableSink>()
     let started = 0
-    const adapter: ReadSyncAdapter = { name: 'fake', start: (table, sink) => { started++; sinks.set(table, sink as never); return () => {} } }
+    const adapter: ReadSyncAdapter = { name: 'fake', start: (table, sink) => { started++; sinks.set(table, sink as never); return () => {} }, refresh: extra.refresh }
     const store = createStore({ api: '', dbName: `tabs${n}`, adapter, retryMs: 5, tabs: hub.link(), ...extra })
-    return { store, calls: () => sinks.get('calls') as TableSink<'calls'>, syncStarted: () => started > 0 }
+    return { store, sink: (table: string) => sinks.get(table)!, calls: () => sinks.get('calls') as TableSink<'calls'>, syncStarted: () => started > 0 }
   }
   return { tab }
 }
 
 describe('two tabs on one workspace', () => {
+  // The calendar bug: back from Google's consent page (the API's callback wrote the connection), the
+  // page showed the old "Connect" state until the leading tab's next poll, up to a minute later.
+  it('back from a redirect, the tables it changed show as loading, then the new rows, without waiting for a poll', async () => {
+    const connection = { id: 'calc1', provider: 'google', status: 'connected', version: 1 }
+    let leader: ReturnType<ReturnType<typeof browser>['tab']> | undefined
+    const refresh = vi.fn(async (tables?: readonly string[]) => {
+      if (tables?.includes('calendar_connections')) leader!.sink('calendar_connections').upsert([connection] as never)
+    })
+    const { tab } = browser()
+    leader = tab({ refresh }) // the inbox, open in another tab: it leads and polls the settings tables
+    await leader.store
+    const back = tab({ refreshOnStart: ['calendar_connections', 'assistant_calendars'], refreshWaitMs: 10_000 })
+    const page = await back.store
+    // The first frame: loading, not the empty list from before the connect.
+    expect(page.getSnapshot().refreshing.has('calendar_connections')).toBe(true)
+    expect(page.rows('calendar_connections')).toEqual([])
+    await eventually(() => {
+      expect(page.rows('calendar_connections')).toEqual([connection])
+      expect(page.getSnapshot().refreshing.size).toBe(0)
+    })
+    expect(refresh).toHaveBeenCalledWith(['calendar_connections', 'assistant_calendars'])
+    ;(await leader.store).stop(); page.stop()
+  })
+
+  it('a tab that does not lead has the leader read again on a write outside the outbox, and when it opens', async () => {
+    const refresh = vi.fn(async () => {})
+    const { tab } = browser()
+    const a = tab({ refresh }), b = tab()
+    const [first, second] = [await a.store, await b.store]
+    await eventually(() => expect(refresh).toHaveBeenCalledTimes(1)) // the second tab opened
+    second.applyResult({ rows: {} }) // e.g. a webhook created with useWriteAction in the second tab
+    await eventually(() => expect(refresh).toHaveBeenCalledTimes(2))
+    await second.refresh(['calendar_connections'])
+    expect(refresh).toHaveBeenLastCalledWith(['calendar_connections'])
+    first.stop(); second.stop()
+  })
+
   it('lets only the leading tab sync and send, and shows its rows in the other tab', async () => {
     const sent: string[] = []
     vi.stubGlobal('fetch', vi.fn(async (url: string) => { sent.push(url.split('/').pop()!); return respond(200, { ok: true, rows: { calls: [call({ inbox_state: 'done', unread: false, version: 5 })] } }) }))

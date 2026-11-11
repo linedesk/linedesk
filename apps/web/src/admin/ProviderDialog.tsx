@@ -126,6 +126,7 @@ export function ProviderDialog(props: Props) {
       try {
         const key = await exchangeCode(oauthReturn.code, oauthReturn.verifier)
         await runAdmin('provider.setKeys', { provider: provider.provider, values: { api_key: key } })
+        void reload() // shows as connected now, not only after the test
         setPhase('testing')
         const tested = await testProvider(provider.provider).catch(err => ({ ok: false, message: errorText(err) }))
         setResult(tested)

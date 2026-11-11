@@ -2,6 +2,7 @@
 // stop a provider twice in a row; without this the page held two stores on one database for a
 // moment and both sent the same command.
 import { createStore, electricAdapter, type Rejection, type Store } from '@linedesk/sync'
+import { takeRefreshOnReturn } from './refreshOnReturn.ts'
 
 /** Tables followed live: what changes while calls come in. Four long-polls leave room for writes over HTTP/1.1. */
 const LIVE_TABLES = ['calls', 'transcript_segments', 'contacts', 'bookings'] as const
@@ -34,6 +35,7 @@ export function leaseStore(dbName: string, workspaceId: string, account: string,
         appVersion: import.meta.env.VITE_APP_BUILD,
         onReject: r => listeners.forEach(l => l(r)),
         onLocalDbLost: () => window.location.reload(), // another tab signed out and removed the local data
+        refreshOnStart: takeRefreshOnReturn(), // back from a redirect that changed these on the server
       }),
     }
     created.ready.catch(() => open.delete(dbName)) // a later lease tries again
