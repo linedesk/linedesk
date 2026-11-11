@@ -28,8 +28,13 @@ export interface TelnyxOutboundOptions {
 type Json = Record<string, any>
 
 const DEFAULT_NAME = 'linedesk-test-caller'
-/** Outbound calls go to US numbers only: the US service plan, and only the US as destination. */
-const US_ONLY = { service_plan: 'us', whitelisted_destinations: ['US'] }
+/**
+ * Outbound calls go to US numbers only: the US is the only allowed destination. Telnyx creates new voice
+ * profiles only on the global plan now ("conversational, global, rate-deck"; the US plan is refused), so the
+ * destination list is what keeps them to the US.
+ */
+const US_ONLY = { whitelisted_destinations: ['US'] }
+const NEW_PROFILE_PLAN = { traffic_type: 'conversational', service_plan: 'global', usage_payment_method: 'rate-deck' }
 /** Linedesk only ever creates or changes Telnyx objects whose name starts with this. */
 export const OWN_PREFIX = 'linedesk-'
 /** The connection warm transfers go out through. */
@@ -48,12 +53,14 @@ export function createTelnyxOutbound({ apiKey, name = DEFAULT_NAME, fetch: doFet
   async function ensureVoiceProfile(): Promise<string> {
     const { data } = await request('GET', `/outbound_voice_profiles?filter[name][contains]=${encodeURIComponent(name)}`)
     const existing = byExactName(data, 'name')
-    if (existing) {
-      await request('PATCH', `/outbound_voice_profiles/${existing.id}`, US_ONLY)
-      return existing.id
-    }
-    const created = await request('POST', '/outbound_voice_profiles', { name, traffic_type: 'conversational', ...US_ONLY })
-    return created.data.id
+    const saved = existing
+      ? await request('PATCH', `/outbound_voice_profiles/${existing.id}`, US_ONLY)
+      : await request('POST', '/outbound_voice_profiles', { name, ...NEW_PROFILE_PLAN, ...US_ONLY })
+    // Fail closed: a profile that could call anywhere but the US is never used.
+    const destinations = saved.data?.whitelisted_destinations
+    if (!Array.isArray(destinations) || destinations.join() !== 'US')
+      throw fail(`voice profile "${name}" is not limited to US destinations (${JSON.stringify(destinations)})`)
+    return existing?.id ?? saved.data.id
   }
 
   /** Creates the connection, or sets a fresh password on it: Telnyx does not return a stored password. */

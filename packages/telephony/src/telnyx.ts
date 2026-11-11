@@ -43,6 +43,14 @@ export function telnyxRequest(apiKey: string, doFetch: typeof fetch = fetch) {
   }
 }
 
+/**
+ * Telnyx sends some ids as JSON numbers above 2^53 (fqdns' connection_id), which JSON.parse rounds; the
+ * same id as a string from another endpoint then no longer compares equal. A number is compared after the
+ * same rounding.
+ */
+const sameTelnyxId = (value: unknown, id: string) =>
+  String(value) === id || (typeof value === 'number' && value === Number(id))
+
 export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider {
   const { apiKey, publicKey, fetch: doFetch = fetch, now = Date.now } = options
   const wait = options.wait ?? ((ms: number) => new Promise(resolve => setTimeout(resolve, ms)))
@@ -78,7 +86,7 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
   /** Makes the connection forward to exactly this endpoint: adds it if missing, removes any other. */
   async function ensureFqdn(connectionId: string, sipEndpoint: string) {
     const { data } = await request('GET', `/fqdns?filter[connection_id]=${connectionId}`)
-    const fqdns = ((data ?? []) as Json[]).filter(f => String(f.connection_id) === connectionId)
+    const fqdns = ((data ?? []) as Json[]).filter(f => sameTelnyxId(f.connection_id, connectionId))
     if (!fqdns.some(f => f.fqdn === sipEndpoint)) {
       await request('POST', '/fqdns', { connection_id: connectionId, fqdn: sipEndpoint, port: 5060, dns_record_type: 'a' })
     }
@@ -145,7 +153,7 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
       if (!ours) return
       const { data } = await request('GET', `/phone_numbers/${number.providerRef}`)
       // Only Linedesk's own connection is taken off; a number on any other connection stays untouched.
-      if (String(data?.connection_id ?? '') !== String(ours)) return
+      if (!sameTelnyxId(data?.connection_id ?? '', String(ours))) return
       await request('PATCH', `/phone_numbers/${number.providerRef}`, { connection_id: null })
     },
 

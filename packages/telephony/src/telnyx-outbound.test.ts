@@ -7,6 +7,8 @@ type Account = {
   profiles: { id: string; name: string }[]
   connections: { id: string; connection_name: string }[]
   numbers: { id: string; phone_number: string; connection_id: string | null }[]
+  /** Telnyx keeps another destination list than the one sent. */
+  ignoresWhitelist?: boolean
 }
 
 const CALLER = '+19715550188'
@@ -22,7 +24,7 @@ function mockTelnyx(account: Account) {
     if (method === 'GET' && path.startsWith('/outbound_voice_profiles')) return ok(account.profiles)
     if (method === 'POST' && path === '/outbound_voice_profiles') {
       account.profiles.push({ id: 'ovp_1', name: body.name })
-      return ok(account.profiles.at(-1))
+      return ok({ ...account.profiles.at(-1), whitelisted_destinations: body.whitelisted_destinations })
     }
     if (method === 'GET' && path.startsWith('/credential_connections')) return ok(account.connections)
     if (method === 'POST' && path === '/credential_connections') {
@@ -30,7 +32,8 @@ function mockTelnyx(account: Account) {
       return ok(account.connections.at(-1))
     }
     if (method === 'PATCH' && path.startsWith('/credential_connections/')) return ok({ id: path.split('/')[2] })
-    if (method === 'PATCH' && path.startsWith('/outbound_voice_profiles/')) return ok({ id: path.split('/')[2] })
+    if (method === 'PATCH' && path.startsWith('/outbound_voice_profiles/'))
+      return ok({ id: path.split('/')[2], whitelisted_destinations: account.ignoresWhitelist ? ['US', 'CA'] : body.whitelisted_destinations })
     if (method === 'GET' && path.startsWith('/phone_numbers?')) return ok(account.numbers.filter(n => path.endsWith(n.phone_number)))
     if (method === 'PATCH' && path.startsWith('/phone_numbers/')) {
       const number = account.numbers.find(n => path.endsWith(n.id))!
@@ -98,15 +101,27 @@ describe('telnyx outbound for the call test', () => {
     await expect(transferOutboundSipFromEnv({ TELEPHONY_PROVIDER: 'telnyx' })).rejects.toThrow('TELNYX_API_KEY is not set')
   })
 
-  test('the voice profile is US-only: created with the US plan, and an existing one is put back to US-only', async () => {
+  test('the voice profile is US-only: created on the global plan with only the US as destination, and put back to US-only', async () => {
     const account = freshAccount()
     const first = mockTelnyx(account)
     await first.outbound.ensureOutboundSip(CALLER)
-    expect(first.calls.find(c => c.method === 'POST' && c.path === '/outbound_voice_profiles')?.body).toMatchObject({ service_plan: 'us', whitelisted_destinations: ['US'] })
-    expect(JSON.stringify(first.calls)).not.toContain('global')
+    // Telnyx refuses the US plan for new profiles; only conversational + global + rate-deck is accepted.
+    expect(first.calls.find(c => c.method === 'POST' && c.path === '/outbound_voice_profiles')?.body).toEqual({
+      name: 'linedesk-test-caller',
+      traffic_type: 'conversational',
+      service_plan: 'global',
+      usage_payment_method: 'rate-deck',
+      whitelisted_destinations: ['US'],
+    })
     const again = mockTelnyx(account)
     await again.outbound.ensureOutboundSip(CALLER)
-    expect(again.calls.find(c => c.method === 'PATCH' && c.path === '/outbound_voice_profiles/ovp_1')?.body).toEqual({ service_plan: 'us', whitelisted_destinations: ['US'] })
+    expect(again.calls.find(c => c.method === 'PATCH' && c.path === '/outbound_voice_profiles/ovp_1')?.body).toEqual({ whitelisted_destinations: ['US'] })
+  })
+
+  test('fails closed when Telnyx does not keep the profile to the US', async () => {
+    const account = { ...freshAccount(), ignoresWhitelist: true }
+    await mockTelnyx(account).outbound.ensureOutboundSip(CALLER)
+    await expect(mockTelnyx(account).outbound.ensureOutboundSip(CALLER)).rejects.toThrow(/not limited to US destinations/)
   })
 
   test('refuses to manage objects not named linedesk-*', () => {

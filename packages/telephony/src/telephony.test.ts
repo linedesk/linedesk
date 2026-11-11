@@ -138,6 +138,22 @@ describe('telnyx adapter', () => {
     expect(steps(second.calls)).toEqual(['GET /fqdn_connections', 'GET /fqdns', 'PATCH /phone_numbers/num_1'])
   })
 
+  test('recognises its FQDN when Telnyx sends the connection id as a number too large for JSON', async () => {
+    const BIG_ID = '3090231229346219988'
+    const account: Account = { owned: true }
+    const big = mockTelnyx(call => {
+      if (call.method === 'GET' && call.path.startsWith('/fqdn_connections'))
+        return { json: { data: [{ id: BIG_ID, connection_name: 'linedesk-livekit' }] } }
+      // As Telnyx sends it: a bare number, which JSON.parse rounds.
+      if (call.method === 'GET' && call.path.startsWith('/fqdns?'))
+        return { json: { data: [{ id: 'fqdn_1', connection_id: Number(BIG_ID), fqdn: SIP }] } }
+      return telnyxAccount(account)(call)
+    })
+    await big.provider.routeToSip(routed, SIP)
+    expect(steps(big.calls)).toEqual(['GET /fqdn_connections', 'GET /fqdns', 'PATCH /phone_numbers/num_1'])
+    expect(big.calls[2]!.body).toEqual({ connection_id: BIG_ID })
+  })
+
   test('repairs a connection that has no FQDN and replaces a changed endpoint', async () => {
     const account: Account = { owned: true, connection: true }
     await mockTelnyx(telnyxAccount(account)).provider.routeToSip(routed, SIP)
