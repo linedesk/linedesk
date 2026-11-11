@@ -65,6 +65,9 @@ export const contactCreate = defineAction({
 /** Most rows one contact.import takes; the browser sends a longer file in parts. */
 export const CONTACT_IMPORT_MAX_ROWS = 500
 
+/** Longest text contact.import keeps per field; the browser cuts longer values from a file to these. */
+export const CONTACT_IMPORT_LIMITS = { name: 200, company: 200, email: 254, address: 500, note: 2000 } as const
+
 const importText = (max: number) => z.string().trim().max(max).optional()
 
 /**
@@ -80,11 +83,11 @@ export const contactImport = defineAction({
       .array(
         z.object({
           phone: z.string().regex(/^\+[1-9]\d{6,14}$/, 'a phone number in E.164, like +15035550100'),
-          name: importText(200),
-          company: importText(200),
-          email: importText(254),
-          address: importText(500),
-          note: importText(2000),
+          name: importText(CONTACT_IMPORT_LIMITS.name),
+          company: importText(CONTACT_IMPORT_LIMITS.company),
+          email: importText(CONTACT_IMPORT_LIMITS.email),
+          address: importText(CONTACT_IMPORT_LIMITS.address),
+          note: importText(CONTACT_IMPORT_LIMITS.note),
         }),
       )
       .min(1)

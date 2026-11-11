@@ -6,12 +6,13 @@ const contact = (over: Partial<Contact>) =>
   ({ id: 'k', phone: '+15035550142', email: null, deleted_at: null, ...over }) as Contact
 
 describe('parseCsv', () => {
-  it('reads quoted fields with commas, doubled quotes and line breaks; CRLF; skips empty lines', () => {
+  it('reads quoted fields with commas, doubled quotes and line breaks; CRLF; keeps empty lines so rows keep their numbers', () => {
     const text =
       '﻿Name,Phone,Note\r\n"Patel, Sam",503-555-0142,"Said ""call after 5""\nGate code 12"\r\n\r\nDana,(503) 555 0199,\n'
     expect(parseCsv(text)).toEqual([
       ['Name', 'Phone', 'Note'],
       ['Patel, Sam', '503-555-0142', 'Said "call after 5"\nGate code 12'],
+      [''],
       ['Dana', '(503) 555 0199', ''],
     ])
   })
@@ -25,7 +26,7 @@ describe('parseCsv', () => {
 })
 
 describe('guessColumns', () => {
-  it('maps common headers, each field to its first column, the rest skipped', () => {
+  it('maps common headers; phone may be several columns, other fields their first column; the rest skipped', () => {
     expect(
       guessColumns([
         'Full name',
@@ -37,7 +38,7 @@ describe('guessColumns', () => {
         'Second phone',
         'Birthday',
       ]),
-    ).toEqual(['name', 'phone', 'email', 'company', 'address', 'note', 'skip', 'skip'])
+    ).toEqual(['name', 'phone', 'email', 'company', 'address', 'note', 'phone', 'skip'])
   })
 })
 
@@ -61,7 +62,15 @@ describe('planImport', () => {
       { name: 'Grace', phone: '+15035550177', email: 'grace@example.com' },
       { name: 'Known by email', phone: '+15035550188', email: 'KNOWN@example.com' },
     ])
-    expect(plan).toMatchObject({ added: 1, matched: 2, unreadable: [4, 6], repeated: 1 })
+    expect(plan).toMatchObject({
+      added: 1,
+      matched: 2,
+      unreadable: [
+        { row: 5, text: '' },
+        { row: 7, text: 'call me' },
+      ],
+      repeated: 1,
+    })
   })
 
   it('counts two numbers with one email as two new contacts, like contact.import', () => {

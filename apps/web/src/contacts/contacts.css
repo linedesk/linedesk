@@ -375,6 +375,8 @@
 }
 .imp-preview {
   width: 100%;
+  /* Fixed, so a very long value is cut with … instead of widening the dialog. */
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 12.5px;
 }

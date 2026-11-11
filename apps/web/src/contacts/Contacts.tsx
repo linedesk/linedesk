@@ -235,7 +235,7 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
         )}
       </div>
       {importing && (
-        <ImportContacts contacts={page.all.map(r => r.contact)} onClose={() => setImporting(false)} toast={toast} />
+        <ImportContacts onClose={() => setImporting(false)} toast={toast} />
       )}
       {merging && (
         <MergeContacts

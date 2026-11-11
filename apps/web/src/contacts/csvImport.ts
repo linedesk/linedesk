@@ -1,20 +1,79 @@
-// Contacts from a CSV file: parse it, guess which column is what, and plan the import (what is new,
-// what matches an existing contact by number or email, what cannot be read). Pure, so it is tested
-// without a browser; the dialog (ImportContacts.tsx) shows the plan and sends it with contact.import.
+// Contacts from a CSV file: read its bytes, parse it, guess which column is what, and plan the import
+// (what is new, what matches an existing contact by number or email, what cannot be read). Pure, so it
+// is tested without a browser; the dialog (ImportContacts.tsx) shows the plan and sends it with contact.import.
+import { CONTACT_IMPORT_LIMITS } from '@linedesk/actions'
 import type { Contact } from '@linedesk/db/types'
-import { toE164 } from '../onboarding/flow.ts'
+import { formatNumber, toE164 } from '../onboarding/flow.ts'
 
 export const IMPORT_FIELDS = ['phone', 'name', 'company', 'email', 'address', 'note'] as const
 export type ImportField = (typeof IMPORT_FIELDS)[number]
 /** Per column of the file: the contact field it fills, or `skip`. */
 export type ColumnMap = (ImportField | 'skip')[]
 export type ImportRow = { phone: string } & Partial<Record<Exclude<ImportField, 'phone'>, string>>
+type TextField = Exclude<ImportField, 'phone'>
 
-/** RFC 4180: commas (or semicolons, as some spreadsheets export), quotes doubled inside quoted fields, CRLF or LF. */
+/** Fields several columns can fill: the first readable number wins; name parts and address parts are joined. */
+export const MULTI_COLUMN_FIELDS: readonly (ImportField | 'skip')[] = ['phone', 'name', 'address']
+const JOIN: Partial<Record<TextField, string>> = { name: ' ', address: ', ' }
+
+export const MAX_FILE_BYTES = 10 * 1024 * 1024
+const EXCEL_FILE =
+  'This is an Excel workbook, not a CSV file. In Excel, choose File › Save As and pick “CSV UTF-8”, then import that file.'
+const NOT_CSV = 'This file is not a CSV file. Export your contacts as CSV (comma or semicolon separated) and try again.'
+
+/** Why a file of this size is not read, or null. */
+export function fileSizeProblem(bytes: number): string | null {
+  if (bytes === 0) return 'The file is empty.'
+  if (bytes <= MAX_FILE_BYTES) return null
+  const mb = (n: number) => `${Math.round((n / 1024 / 1024) * 10) / 10} MB`
+  return `The file is ${mb(bytes)}; files up to ${mb(MAX_FILE_BYTES)} can be imported. Split it into smaller files.`
+}
+
+const startsWith = (bytes: Uint8Array, magic: number[]) => magic.every((b, i) => bytes[i] === b)
+
+/** Excel saves UTF-8 (with a BOM), UTF-16 ("Unicode text") or Windows-1252 (plain "CSV" on Windows). */
+function decode(bytes: Uint8Array): string {
+  if (startsWith(bytes, [0xff, 0xfe])) return new TextDecoder('utf-16le').decode(bytes)
+  if (startsWith(bytes, [0xfe, 0xff])) return new TextDecoder('utf-16be').decode(bytes)
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    return new TextDecoder('windows-1252').decode(bytes)
+  }
+}
+
+/** The file's text, or why it cannot be imported (empty, too large, a workbook or not text at all). */
+export function decodeCsvFile(bytes: Uint8Array): { text: string } | { problem: string } {
+  const sizeProblem = fileSizeProblem(bytes.length)
+  if (sizeProblem) return { problem: sizeProblem }
+  // .xlsx is a zip file; .xls an OLE2 compound file.
+  if (startsWith(bytes, [0x50, 0x4b, 0x03, 0x04]) || startsWith(bytes, [0xd0, 0xcf, 0x11, 0xe0]))
+    return { problem: EXCEL_FILE }
+  const text = decode(bytes)
+  // Control characters other than tab and line breaks only appear in binary files (images, PDFs, archives).
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: that is what it looks for
+  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(text.slice(0, 8192))) return { problem: NOT_CSV }
+  return { text }
+}
+
+/** Comma, semicolon (spreadsheets in many countries) or tab, whichever the first lines use most. */
+function separatorOf(text: string): string {
+  const lines = text
+    .split(/\r\n|\r|\n/)
+    .filter(l => l.trim())
+    .slice(0, 5)
+    .join('\n')
+  const count = (sep: string) => lines.split(sep).length - 1
+  return ['\t', ';'].reduce((best, sep) => (count(sep) > count(best) ? sep : best), ',')
+}
+
+/**
+ * RFC 4180: quotes doubled inside quoted fields, CRLF, LF or CR. Blank lines stay in as rows of one
+ * empty cell, so a row's index + 1 is its row number in a spreadsheet.
+ */
 export function parseCsv(text: string): string[][] {
   const body = text.replace(/^﻿/, '')
-  const firstLine = body.split(/\r?\n/, 1)[0] ?? ''
-  const sep = (firstLine.match(/;/g)?.length ?? 0) > (firstLine.match(/,/g)?.length ?? 0) ? ';' : ','
+  const sep = separatorOf(body)
   const rows: string[][] = []
   let row: string[] = []
   let cell = ''
@@ -43,30 +102,59 @@ export function parseCsv(text: string): string[][] {
     row.push(cell)
     rows.push(row)
   }
-  return rows.filter(r => r.some(c => c.trim() !== ''))
+  return rows
+}
+
+const hasText = (cells: string[]) => cells.some(c => c.trim() !== '')
+
+export type CsvTable = {
+  header: string[]
+  data: string[][] /** Spreadsheet row number of data[0]. */
+  firstRow: number
+}
+
+/** The header is the first row that names a phone column (some exports put a title line above it), else the first row. */
+export function tableOf(rows: string[][]): CsvTable | { problem: string } {
+  const candidates = rows
+    .map((cells, index) => ({ cells, index }))
+    .filter(r => hasText(r.cells))
+    .slice(0, 10)
+  if (!candidates.length) return { problem: 'The file is empty.' }
+  const header = candidates.find(r => guessColumns(r.cells).includes('phone')) ?? candidates[0]!
+  const data = rows.slice(header.index + 1)
+  if (!data.some(hasText))
+    return { problem: 'The file has no rows under its column names. The first row names the columns.' }
+  return { header: header.cells.map(h => h.trim()), data, firstRow: header.index + 2 }
 }
 
 const HEADER_WORDS: Record<ImportField, RegExp> = {
-  phone: /phone|mobile|cell|tel|number|nummer/i,
-  email: /e-?mail/i,
-  company: /company|business|organi[sz]ation|firma/i,
-  address: /address|street|adresse/i,
-  note: /note|comment|notiz/i,
+  phone: /phone|\btel|mobil|handy|cell|festnetz|^(number|nummer|nr\.?)$/i,
+  email: /e-?mail|^mail$/i,
+  address: /address|street|adresse|stra(ß|ss)e|anschrift|city|\bort\b|wohnort|stadt|zip|postal|plz|postleitzahl/i,
+  company: /company|business|organi[sz]ation|firm|unternehmen/i,
+  note: /note|comment|notiz|bemerkung|kommentar/i,
   name: /name/i,
 }
+/** Checked in this order: "Phone number" is a phone, "Email name" an email, "Business address" an address. */
+const GUESS_ORDER = ['phone', 'email', 'address', 'company', 'note', 'name'] as const
+const NOT_A_FIELD = /fax|phonetic|yomi|prefix|suffix|nick|file as|user ?name/i
+/** First, middle and last name columns are joined; a full-name column is used alone. */
+const NAME_PART = /first|given|vor|middle|additional|last|family|sur|nach/i
 
-/** Which field each column is, from its header; a field goes to its first matching column only. */
+/** Which field each column is, from its header. Phone and address may be several columns, name too when it is split in parts. */
 export function guessColumns(header: string[]): ColumnMap {
   const taken = new Set<ImportField>()
-  return header.map(title => {
-    // Phone before name ("Phone number"), email before name ("Email name"): IMPORT_FIELDS order is not the check order.
-    const field = (['phone', 'email', 'company', 'address', 'note', 'name'] as const).find(
-      f => !taken.has(f) && HEADER_WORDS[f].test(title),
-    )
-    if (!field) return 'skip'
-    taken.add(field)
+  const columns: ColumnMap = header.map(title => {
+    // A column's kind comes from its header alone: a second email column ("E-mail 2 Address") is skipped, not an address.
+    const field = NOT_A_FIELD.test(title) ? undefined : GUESS_ORDER.find(f => HEADER_WORDS[f].test(title))
+    if (!field || taken.has(field)) return 'skip'
+    if (!MULTI_COLUMN_FIELDS.includes(field)) taken.add(field)
     return field
   })
+  const nameColumns = columns.flatMap((f, i) => (f === 'name' ? [i] : []))
+  const fullName = nameColumns.find(i => !NAME_PART.test(header[i]!))
+  if (fullName === undefined) return columns
+  return columns.map((f, i) => (f === 'name' && i !== fullName ? 'skip' : f))
 }
 
 export type ImportPlan = {
@@ -75,48 +163,107 @@ export type ImportPlan = {
   /** Rows that become new contacts, and rows that match an existing one (filling its empty fields). */
   added: number
   matched: number
-  /** Rows without a number that can be read (row numbers in the file, 1 = first data row). */
-  unreadable: number[]
+  /** Rows without a number that can be read: their spreadsheet row number and what the phone columns said. */
+  unreadable: { row: number; text: string }[]
   /** Rows whose number already came earlier in the file. */
   repeated: number
+  /** Rows whose number belongs to a contact someone deleted; contact.import leaves those out. */
+  deleted: number
+  /** Rows with a value longer than a contact keeps; it is cut to fit. */
+  shortened: number
 }
 
 const emailKey = (email: string | null | undefined) => email?.trim().toLowerCase() || null
 
-/** A number from a file in E.164: US numbers as people write them, others when they start with + and a country code. */
-export function importPhone(text: string): string | null {
-  const digits = text.replace(/\D/g, '')
-  if (text.trim().startsWith('+') && !text.trim().startsWith('+1') && digits.length >= 8 && digits.length <= 15)
-    return `+${digits}`
-  return toE164(text)
+const EXTENSION = /\s*(?:;?ext=|ext\.?|extension|x|#|durchwahl|dw\.?)\s*(\d{1,6})\s*$/i
+
+/** "503-555-0142 ext. 12" → the number and "12". */
+export function splitExtension(text: string): { number: string; extension: string | null } {
+  const m = EXTENSION.exec(text)
+  return m ? { number: text.slice(0, m.index), extension: m[1]! } : { number: text, extension: null }
 }
 
-/** The rows of the file (without the header) as contacts to import, checked against the existing ones. */
-export function planImport(data: string[][], columns: ColumnMap, existing: Iterable<Contact>): ImportPlan {
-  const phones = new Set<string>()
+/** One number in E.164: US numbers as people write them, others with + or 00 and the country code. */
+function onePhone(text: string): string | null {
+  let compact = splitExtension(text)
+    .number.replace(/\(0\)/g, '')
+    .replace(/[^\d+]/g, '')
+  if (compact.startsWith('00')) compact = `+${compact.slice(2)}`
+  if (compact.startsWith('+') && !compact.startsWith('+1')) return /^\+[1-9]\d{6,14}$/.test(compact) ? compact : null
+  return toE164(compact)
+}
+
+/** Every number in a cell ("503-555-0142 / 503-555-0199" has two), in E.164. */
+export function importPhones(text: string): string[] {
+  return text
+    .split(/\s*(?:\/|,|;|\bor\b|\boder\b)\s*/i)
+    .map(onePhone)
+    .filter((p): p is string => p !== null)
+}
+
+/** The first number in a cell, in E.164, or null. */
+export const importPhone = (text: string): string | null => importPhones(text)[0] ?? null
+
+/** One row of the file as contact fields: the first readable number; other numbers and an extension go in the note. */
+function rowOf(cells: string[], columns: ColumnMap) {
+  const fields: Partial<Record<TextField, string>> = {}
+  const phoneCells: string[] = []
+  columns.forEach((field, col) => {
+    const text = cells[col]?.trim()
+    if (field === 'skip' || !text) return
+    if (field === 'phone') return void phoneCells.push(text)
+    const join = JOIN[field]
+    if (!fields[field]) fields[field] = text
+    else if (join) fields[field] += join + text
+  })
+  const numbers = [...new Set(phoneCells.flatMap(importPhones))]
+  const extension = phoneCells.map(t => splitExtension(t).extension).find(Boolean)
+  const extra = [
+    extension && `Extension ${extension}`,
+    ...numbers.slice(1).map(n => `Other number: ${formatNumber(n)}`),
+  ].filter(Boolean)
+  if (numbers[0] && extra.length) fields.note = [fields.note, ...extra].filter(Boolean).join('\n')
+  let shortened = false
+  for (const field of Object.keys(fields) as TextField[]) {
+    if (fields[field]!.length <= CONTACT_IMPORT_LIMITS[field]) continue
+    fields[field] = fields[field]!.slice(0, CONTACT_IMPORT_LIMITS[field]).trim()
+    shortened = true
+  }
+  return { fields, phone: numbers[0] ?? null, phoneText: phoneCells.join(' / '), shortened }
+}
+
+/**
+ * The rows of the file (without the header) as contacts to import, checked against the existing ones
+ * (deleted ones included, as contact.import skips their numbers). `firstRow` is the spreadsheet row number of data[0].
+ */
+export function planImport(
+  data: string[][],
+  columns: ColumnMap,
+  existing: Iterable<Contact>,
+  firstRow = 2,
+): ImportPlan {
+  const phones = new Map<string, 'live' | 'deleted'>()
   const emails = new Set<string>()
   for (const c of existing) {
-    if (c.deleted_at) continue
-    phones.add(c.phone)
-    if (emailKey(c.email)) emails.add(emailKey(c.email)!)
+    // A merged contact's number fills the contact it went into.
+    phones.set(c.phone, c.deleted_at && !c.merged_into ? 'deleted' : 'live')
+    if (!c.deleted_at && emailKey(c.email)) emails.add(emailKey(c.email)!)
   }
   const byPhone = new Map<string, ImportRow>()
-  const plan: ImportPlan = { rows: [], added: 0, matched: 0, unreadable: [], repeated: 0 }
+  const plan: ImportPlan = { rows: [], added: 0, matched: 0, unreadable: [], repeated: 0, deleted: 0, shortened: 0 }
   data.forEach((cells, i) => {
-    const row: Partial<Record<ImportField, string>> = {}
-    columns.forEach((field, col) => {
-      const text = cells[col]?.trim()
-      if (field !== 'skip' && text && !row[field]) row[field] = text
-    })
-    const phone = row.phone ? importPhone(row.phone) : null
-    if (!phone) return void plan.unreadable.push(i + 1)
+    if (!hasText(cells)) return
+    const { fields, phone, phoneText, shortened } = rowOf(cells, columns)
+    if (!phone) return void plan.unreadable.push({ row: firstRow + i, text: phoneText })
+    if (phones.get(phone) === 'deleted') return void plan.deleted++
+    if (shortened) plan.shortened++
     const earlier = byPhone.get(phone)
     if (earlier) {
       plan.repeated++
-      for (const f of IMPORT_FIELDS) if (f !== 'phone' && !earlier[f] && row[f]) earlier[f] = row[f]
+      for (const f of IMPORT_FIELDS) if (f !== 'phone' && !earlier[f] && fields[f]) earlier[f] = fields[f]
       return
     }
-    const entry: ImportRow = { ...row, phone }
+    const entry: ImportRow = { ...fields, phone }
     byPhone.set(phone, entry)
     plan.rows.push(entry)
     if (phones.has(phone) || (emailKey(entry.email) && emails.has(emailKey(entry.email)!))) plan.matched++
