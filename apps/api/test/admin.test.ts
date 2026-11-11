@@ -166,6 +166,20 @@ describe('access', () => {
     await setAdmin(loner, false)
     expect((await request(loner, 'GET', '/v1/admin/users')).status).toBe(401)
   })
+
+  test('with sign-up closed, an instance admin still creates a workspace; anyone else is refused', async () => {
+    const loner = await signUp()
+    process.env.AUTH_SIGNUP_ENABLED = 'false'
+    try {
+      expect((await request(loner, 'POST', '/v1/workspaces', { name: 'Not Allowed Yet' })).body).toMatchObject({ code: 'workspace_creation_closed' })
+      await setAdmin(loner, true)
+      const created = await request(loner, 'POST', '/v1/workspaces', { name: 'Operator Workspace' })
+      expect(created).toMatchObject({ status: 200, body: { ok: true, workspace: { name: 'Operator Workspace' } } })
+    } finally {
+      delete process.env.AUTH_SIGNUP_ENABLED
+      await setAdmin(loner, false)
+    }
+  })
 })
 
 describe('provider keys', () => {

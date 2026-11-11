@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { CreateWorkspace } from './CreateWorkspace.tsx'
 import { forgetBeyond } from './localData.ts'
+import { NoWorkspace } from './NoWorkspace.tsx'
 import { Login } from './Login.tsx'
 import { backoffMs } from './retry.ts'
 import { loadSession, type Session } from './session.ts'
@@ -74,7 +74,7 @@ export function App() {
   if (session.state === 'needsWorkspace') {
     return (
       <ImpersonationFrame impersonation={session.impersonation}>
-        <CreateWorkspace onDone={refresh} />
+        <NoWorkspace me={session.me} onDone={refresh} onOpenInvite={setInviteId} />
       </ImpersonationFrame>
     )
   }

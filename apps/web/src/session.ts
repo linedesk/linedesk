@@ -9,7 +9,8 @@ import { setTabWorkspace } from './tabWorkspace.ts'
 export type Session =
   | { state: 'loading' }
   | { state: 'signedOut' }
-  | { state: 'needsWorkspace'; impersonation: Me['impersonation'] }
+  /** `me`: what /v1/me said (an instance admin without a workspace); null when it did not answer for this person. */
+  | { state: 'needsWorkspace'; impersonation: Me['impersonation']; me: Me | null }
   /** `offline`: opened from what this device remembers, while the server is unreachable. */
   | { state: 'ready'; me: Me; offline: boolean }
   | { state: 'unreachable' }
@@ -57,8 +58,8 @@ export async function loadSession(): Promise<Session> {
     remember(null)
     setTabWorkspace(null)
     // Signed in through a link or SSO for the first time: no workspace yet.
-    if (me) return { state: 'needsWorkspace', impersonation: me.impersonation ?? null }
-    return (await isSignedIn()) ? { state: 'needsWorkspace', impersonation: null } : { state: 'signedOut' }
+    if (me) return { state: 'needsWorkspace', impersonation: me.impersonation ?? null, me }
+    return (await isSignedIn()) ? { state: 'needsWorkspace', impersonation: null, me: null } : { state: 'signedOut' }
   } catch (error) {
     if (!(error instanceof Unreachable)) throw error
     const me = remembered()

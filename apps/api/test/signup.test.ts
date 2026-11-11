@@ -1,12 +1,13 @@
 // Closed sign-up (AUTH_SIGNUP_ENABLED=false). Accounts made by an instance admin (user.invite) are
 // tested in admin.test.ts, which is the only file that creates instance admins.
-import { invitation, user } from '@linedesk/db'
+import { invitation, organization, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test } from 'vitest'
 import { readAuthConfig } from '../src/auth-methods.ts'
 import { db } from '../src/db.ts'
 import { maySendSignInCode, refuseClosedSignUp } from '../src/signup-gate.ts'
-import { anonymous, createWorkspace, randomIp, request, type User, type Workspace, FROM } from './helpers.ts'
+import { WORKSPACE_CREATION_CLOSED } from '../src/app.ts'
+import { anonymous, createWorkspace, randomIp, request, signUp, type User, type Workspace, FROM } from './helpers.ts'
 
 const ORIGIN = { origin: 'http://localhost:5173' }
 const address = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}@linedesk.test`
@@ -19,6 +20,16 @@ const passwordSignUp = (email: string) =>
     { ...ORIGIN, [FROM]: randomIp() },
   )
 const accountOf = async (email: string) => (await db.select().from(user).where(eq(user.email, email)))[0]
+/** An account made while sign-up was open, member of no workspace. */
+const signUpWhileOpen = async () => {
+  const closed = process.env.AUTH_SIGNUP_ENABLED
+  delete process.env.AUTH_SIGNUP_ENABLED
+  try {
+    return await signUp()
+  } finally {
+    if (closed !== undefined) process.env.AUTH_SIGNUP_ENABLED = closed
+  }
+}
 
 let ws: Workspace
 let operator: User // owner of `ws`, a plain user here
@@ -81,6 +92,22 @@ describe('closed sign-up', () => {
     // A password sign-up does not prove the address, so it cannot use the invitation.
     await expect(refuseClosedSignUp(db, { email, emailVerified: false })).rejects.toThrow()
     expect((await passwordSignUp(email)).status).toBe(403)
+  })
+
+  test('creating a workspace is sign-up too: closed for members, invitees and the removed, open again when sign-up is', async () => {
+    process.env.AUTH_SIGNUP_ENABLED = 'false'
+    const name = `Side Business ${crypto.randomUUID().slice(0, 8)}`
+    // An owner of a workspace, a fresh account (an invitee who clicked "Not now", a removed member).
+    for (const who of [operator, await signUpWhileOpen()]) {
+      expect(await request(who, 'POST', '/v1/workspaces', { name })).toMatchObject({
+        status: 403,
+        body: { ok: false, code: 'workspace_creation_closed', error: WORKSPACE_CREATION_CLOSED },
+      })
+    }
+    expect(await db.select().from(organization).where(eq(organization.name, name))).toEqual([])
+    expect((await request(anonymous, 'POST', '/v1/workspaces', { name: 'Nobody' })).status).toBe(401)
+    delete process.env.AUTH_SIGNUP_ENABLED
+    expect((await request(operator, 'POST', '/v1/workspaces', { name })).status).toBe(200)
   })
 
   test('no sign-in code goes to an address without an account while sign-up is closed', async () => {

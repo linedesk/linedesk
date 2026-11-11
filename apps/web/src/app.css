@@ -126,6 +126,22 @@ body,
   color: var(--danger);
   font-size: 12.5px;
 }
+/* Pending invitations of someone without a workspace (a skipped "Not now" stays reachable here). */
+.auth-invites {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.auth-invite {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+  font-size: 13px;
+}
 .auth-switch {
   border: 0;
   padding: 0;

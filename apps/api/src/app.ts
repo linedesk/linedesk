@@ -16,7 +16,9 @@ import { accessLost, resolveCaller, WORKSPACE_HEADER, workspaceRefusal, type Act
 import { db } from './db.ts'
 import { COOKIE_ACTIONS } from './impersonation.ts'
 import { registerImpersonationRoutes } from './impersonation-routes.ts'
+import { isInstanceAdmin } from './instance-admin.ts'
 import { previewInvitation } from './invitations.ts'
+import { signUpOpen } from './signup-gate.ts'
 import { newAssistant, newWorkspaceSettings, onboardingFor, phoneSetupFor } from './onboarding.ts'
 import { voiceReady } from './provider-settings.ts'
 import { serveRecording } from './recording-route.ts'
@@ -40,12 +42,29 @@ app.get('/v1/auth-methods', c => c.json(authMethods))
 // Public: the invitation link shows whom it is for and which workspace, before sign-in.
 app.get('/v1/invitations/:id', async c => c.json(await previewInvitation(c.req.param('id'))))
 
+export const WORKSPACE_CREATION_CLOSED =
+  'New workspaces are created by an administrator on this server. Ask for an invitation to an existing one.'
+
+/**
+ * Creating a workspace is signing up a business: with sign-up closed (AUTH_SIGNUP_ENABLED=false) only
+ * an instance admin creates one. Invitees, members and removed members join by invitation instead.
+ * The admin's own account counts (a property of the user), also before their passkey second factor.
+ */
+async function mayCreateWorkspace(userId: string): Promise<boolean> {
+  if (signUpOpen()) return true
+  const [account] = await db.select().from(user).where(eq(user.id, userId))
+  return Boolean(account && !account.disabledAt && isInstanceAdmin(account))
+}
+
 // Create a workspace (= organization) for the signed-in user, with its assistant, and make it active.
 // Better Auth writes the organization on its own connection, so this is not one transaction:
 // if the assistant cannot be written the organization is removed again and the call can be repeated.
 app.post('/v1/workspaces', async c => {
   const headers = c.req.raw.headers
-  if (!(await auth.api.getSession({ headers }))) return c.json({ ok: false, error: 'not signed in' }, 401)
+  const session = await auth.api.getSession({ headers })
+  if (!session) return c.json({ ok: false, error: 'not signed in' }, 401)
+  if (!(await mayCreateWorkspace(session.user.id)))
+    return c.json({ ok: false, code: 'workspace_creation_closed', error: WORKSPACE_CREATION_CLOSED }, 403)
   const body = await c.req
     .json<{ name?: unknown; timeZone?: unknown }>()
     .catch(() => ({ name: undefined, timeZone: undefined }))

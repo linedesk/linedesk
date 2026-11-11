@@ -111,7 +111,7 @@ describe('once the session is known', () => {
   })
 
   it('removed from the last workspace, or signed out: everything goes', async () => {
-    for (const session of [{ state: 'needsWorkspace', impersonation: null }, { state: 'signedOut' }] as const) {
+    for (const session of [{ state: 'needsWorkspace', impersonation: null, me: null }, { state: 'signedOut' }] as const) {
       const idb = fakeIndexedDb(['linedesk-ws_a'])
       fakeStorage({ electric_expired_shapes: '{}' })
       await forgetBeyond(session)
