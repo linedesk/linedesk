@@ -52,6 +52,13 @@ const beforeAuthEndpoints = createAuthMiddleware(async ctx => {
 })
 
 /** The plugin's endpoints for password reset, email change and plain verification are not offered. */
+/**
+ * Workspaces are created, renamed and removed only through Linedesk: POST /v1/workspaces makes the
+ * assistant and settings with it, and nothing else may delete a workspace and leave its numbers,
+ * contacts and assistants behind. Better Auth's own endpoints for these are off over HTTP; the API
+ * still calls `auth.api.createOrganization` itself.
+ */
+const WORKSPACE_WRITE_PATHS = ['/organization/create', '/organization/update', '/organization/delete']
 const TEAM_WRITE_PATHS = ['/organization/invite-member', '/organization/cancel-invitation', '/organization/update-member-role', '/organization/remove-member', '/organization/leave', '/organization/reject-invitation']
 const UNUSED_EMAIL_CODE_PATHS = [
   '/email-otp/request-password-reset', '/forget-password/email-otp', '/email-otp/reset-password', '/email-otp/verify-email',
@@ -99,7 +106,7 @@ export const auth = betterAuth({
   advanced: { ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] } },
   // Members and invitations change only through the team.* actions (team.ts), which apply the
   // workspace's rules (last owner, who may change an owner). Accepting stays Better Auth's endpoint.
-  disabledPaths: [...UNUSED_EMAIL_CODE_PATHS, ...TEAM_WRITE_PATHS],
+  disabledPaths: [...UNUSED_EMAIL_CODE_PATHS, ...TEAM_WRITE_PATHS, ...WORKSPACE_WRITE_PATHS],
   // After: the audit log records the auth endpoints that change how someone signs in (audit.ts).
   hooks: { before: beforeAuthEndpoints, after: recordAuthEndpoint },
   // Set by user.impersonate only (impersonation.ts); `input: false` keeps clients from setting it.
