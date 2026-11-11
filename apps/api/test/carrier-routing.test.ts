@@ -2,7 +2,7 @@
 // workspace's credentials only, and the credentials cannot be switched away from numbers that need them.
 // Twilio is a fake with several accounts, told apart by the credentials, like Twilio's own API.
 import { commands, phone_numbers } from '@linedesk/db'
-import { eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
 import { lockWorkspaceCarrier } from '../src/workspace-carrier.ts'
@@ -467,10 +467,14 @@ describe('transfer trunk set-ups: order, audit, limits', () => {
     expect((await act(inWs(wsA.owner, wsA), 'phoneNumber.setup', { e164 })).status).toBe(200)
     return e164
   }
-  const provisions = async () =>
-    (await db.select().from(commands).where(eq(commands.workspace_id, wsA.id))).filter(
-      c => c.action === 'carrier.provisionTransferTrunk',
-    )
+  // In the order they were written: each comes from its own action's transaction, so created_at (its start) increases.
+  // Without the order, Postgres returns rows in any order, and under load it does.
+  const provisions = () =>
+    db
+      .select()
+      .from(commands)
+      .where(and(eq(commands.workspace_id, wsA.id), eq(commands.action, 'carrier.provisionTransferTrunk')))
+      .orderBy(asc(commands.created_at))
 
   test('a new trunk is created before the old one goes', async () => {
     await connect()
