@@ -95,3 +95,12 @@ COPY --from=agent-build --chown=node:node /app/packages ./packages
 USER node
 WORKDIR /app/apps/agent
 CMD ["node", "src/worker.ts", "start"]
+
+# --- live: the runtime for live mode (docker-compose.live.yml). No code inside: api, web and agent run
+# from the source checkout mounted at /app and their node_modules live in a volume (docker/live-run.mjs),
+# so a code change needs no new image. Debian like the agent, so one node_modules fits all three. ---
+FROM node:22-bookworm-slim AS live
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
+    && corepack enable && corepack prepare pnpm@10.11.0 --activate
+WORKDIR /app

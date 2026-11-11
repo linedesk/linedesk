@@ -7,6 +7,8 @@
 # while a new API or web container starts next to the old one. The upstreams are looked up by name
 # every second (all containers of the service answer), and a request that cannot connect, to a
 # container that is still starting or already stopping, is retried on another one for up to 30 s.
+# A container that failed a request is skipped for LINEDESK_PROXY_FAIL_DURATION (10 s). In live mode
+# (docker-compose.live.yml) a service restarts in place, on the same address, so 1 s there.
 {
 	servers {
 		# Behind your own reverse proxy: its address or range (LINEDESK_TRUSTED_PROXY_RANGES, e.g. the
@@ -29,7 +31,7 @@
 		}
 		lb_try_duration 30s
 		lb_try_interval 250ms
-		fail_duration 10s
+		fail_duration {$LINEDESK_PROXY_FAIL_DURATION:10s}
 		# Flush at once: /v1/shape/* responses are long-lived streams.
 		flush_interval -1
 	}
@@ -89,7 +91,7 @@
 			}
 			lb_try_duration 30s
 			lb_try_interval 250ms
-			fail_duration 10s
+			fail_duration {$LINEDESK_PROXY_FAIL_DURATION:10s}
 		}
 	}
 }

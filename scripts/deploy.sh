@@ -18,8 +18,30 @@
 # 5. agent: the new worker registers with LiveKit, then the old one gets SIGTERM, takes no new calls and
 #    finishes the ones it has (up to stop_grace_period, 15 minutes); this script waits for that.
 # First start (nothing running yet): a plain `docker compose up -d`.
+#
+# Live mode (LINEDESK_MODE=live in .env, docker-compose.live.yml, docs/live-mode.md): api, web and agent
+# run from this checkout, so there is nothing to build. scripts/deploy-live.sh moves the checkout to the
+# new main (it refuses when the checkout has local changes) and comes back here with --no-build.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+mode=${LINEDESK_MODE-$(sed -n 's/^LINEDESK_MODE=//p' .env 2>/dev/null | tail -1)}
+case "$mode" in
+  live)
+    if ! grep -qx linedesk-live <<<"$(docker compose config --images)"; then
+      echo "LINEDESK_MODE=live, but COMPOSE_FILE does not include docker-compose.live.yml (see docker-compose.live.yml)" >&2
+      exit 1
+    fi
+    [ -n "${LINEDESK_LIVE_UPDATED:-}" ] || exec scripts/deploy-live.sh
+    # Built once: one small image for api, web and agent (the code is not in it) and the proxy.
+    docker image inspect linedesk-live linedesk-proxy >/dev/null 2>&1 || docker compose build api proxy
+    ;;
+  "") ;;
+  *)
+    echo "LINEDESK_MODE is '$mode'; it is either live or empty (image mode)" >&2
+    exit 1
+    ;;
+esac
 
 HEALTH_TIMEOUT=${LINEDESK_DEPLOY_HEALTH_TIMEOUT:-600} # seconds a new container may take to become healthy
 ROLLED=(api web agent proxy) # handled one by one below; the rest goes through `docker compose up -d`
@@ -114,23 +136,29 @@ others() {
 
 # The proxy cannot run twice (it owns the published port), so a new Caddyfile is reloaded in place.
 update_proxy() {
-  local container
+  local container tries=0
   container=$(containers_of proxy | head -1)
-  if [ -z "$container" ]; then
+  if [ -z "$container" ] || ! same_settings proxy "$container"; then
+    [ -z "$container" ] || log "proxy: its compose settings changed; recreating it (the site is unreachable for a few seconds)"
     docker compose up -d --no-build --no-deps proxy
-  elif ! same_settings proxy "$container"; then
-    log "proxy: its compose settings changed; recreating it (the site is unreachable for a few seconds)"
-    docker compose up -d --no-build --no-deps proxy
-  elif is_current proxy || docker exec "$container" cat /etc/caddy/Caddyfile | cmp -s - docker/Caddyfile; then
-    log "proxy: unchanged"
-  else
-    # Same settings, new Caddyfile: load it into the running Caddy. caddy reload checks the file first
-    # and keeps the old configuration when it is invalid. The file is also written into the container,
-    # so a restart keeps it; `docker compose up -d proxy` moves to the new image (brief interruption).
-    log "proxy: loading the new Caddyfile into the running proxy"
-    docker cp docker/Caddyfile "$container:/etc/caddy/Caddyfile"
-    docker exec "$container" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+    container=$(containers_of proxy | head -1)
   fi
+  # Compared with the file in the container, not the image: live mode builds no new proxy image.
+  if docker exec "$container" cat /etc/caddy/Caddyfile | cmp -s - docker/Caddyfile; then
+    log "proxy: unchanged"
+    return
+  fi
+  # A new Caddyfile: load it into the running Caddy. caddy reload checks the file first and keeps the
+  # old configuration when it is invalid. The file is also written into the container, so a restart
+  # keeps it; `docker compose up -d proxy` moves to the new image (brief interruption).
+  log "proxy: loading the new Caddyfile into the running proxy"
+  docker cp docker/Caddyfile "$container:/etc/caddy/Caddyfile"
+  # A container that was just created may need a moment before Caddy takes a reload.
+  until docker exec "$container" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile; do
+    tries=$((tries + 1))
+    [ "$tries" -lt 10 ] || return 1
+    sleep 1
+  done
 }
 
 if [ "${1:-}" != --no-build ]; then
