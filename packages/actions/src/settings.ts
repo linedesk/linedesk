@@ -271,7 +271,12 @@ export const assistantDelete = defineAction({
 })
 
 /** How long recordings may be kept; null keeps them until the call is deleted. */
-export const recordingRetentionChoices = [30, 60, 90, 180, 365] as const
+/**
+ * Days a recording is kept. 0: not kept at all; the voice agent does not record (the transcript and summary
+ * come from live speech recognition), and a recording made anyway is deleted right after the call.
+ */
+export const RECORDINGS_NOT_KEPT = 0
+export const recordingRetentionChoices = [RECORDINGS_NOT_KEPT, 30, 60, 90, 180, 365] as const
 export const DEFAULT_RECORDING_RETENTION_DAYS = 90
 /** What the assistant says after the greeting when the recording notice is on and the owner wrote nothing else. */
 export const DEFAULT_RECORDING_NOTICE = 'This call may be recorded.'
@@ -331,7 +336,7 @@ export const workspaceGetSettings = defineAction({
 export const workspaceUpdateSettings = defineAction({
   name: 'workspace.updateSettings',
   description:
-    'Change workspace settings: `recordingRetentionDays` (30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting; off by default), `recordingNotice` (that sentence, e.g. "This call may be recorded."), `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles") and `jobValueCents` (what a booked job is worth on average, in cents, for Insights; null clears it).',
+    'Change workspace settings: `recordingRetentionDays` (0: no recordings are kept, calls are not recorded; 30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting; off by default), `recordingNotice` (that sentence, e.g. "This call may be recorded."), `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles") and `jobValueCents` (what a booked job is worth on average, in cents, for Insights; null clears it).',
   input: z.object({
     recordingRetentionDays: z.union([z.literal(recordingRetentionChoices), z.null()]).optional(),
     businessHoursOn: z.boolean().optional(),

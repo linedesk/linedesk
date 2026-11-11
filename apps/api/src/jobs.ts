@@ -11,7 +11,7 @@ import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { evaluateCall, evaluationModel } from './evaluations.ts'
 import { notifyCallPush, type PushKind, pushSender } from './push.ts'
-import { deleteExpiredRecordings } from './recording-retention.ts'
+import { deleteCallRecording, deleteExpiredRecordings } from './recording-retention.ts'
 import { pruneOldCommands } from './command-log.ts'
 import { recordingStoreCache } from './recording-store.ts'
 import { deleteClonedVoice } from './voices.ts'
@@ -23,6 +23,11 @@ type Env = Record<string, string | undefined>
 export const RECORDING_CLEANUP = 'recordings.cleanup'
 /** Every day at 03:17 UTC: quiet hours for US businesses. */
 const RECORDING_CLEANUP_CRON = '17 3 * * *'
+/**
+ * Deletes one call's recording right after the call, for a workspace that keeps none. Retried with backoff
+ * for about a day; the daily cleanup catches anything left after that.
+ */
+export const RECORDING_DELETE = 'recording.delete'
 /** Emails about one finished call. Retried a few times when no email could go out at all. */
 export const CALL_NOTIFY = 'call.notify'
 /** Push notifications about one call (push.ts): flagged urgent, message taken, or ended. */
@@ -66,6 +71,9 @@ async function runJobs(instance: PgBoss, env: Env) {
       console.log(`recordings cleanup: ${result.deleted} deleted, ${result.failed} failed`)
     return result
   })
+  await instance.work<{ callId: string }>(RECORDING_DELETE, async ([job]) => ({
+    deleted: await deleteCallRecording(db, recordingStoreCache(db, env), job!.data.callId),
+  }))
   await instance.work<{ callId: string }>(CALL_NOTIFY, async ([job]) => {
     const result = await notifyCallFinished(db, emailSender, job!.data.callId)
     // Nothing went out (mail server down?): fail, so pg-boss tries again later.
@@ -113,6 +121,7 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   instance.on('error', error => console.error('jobs:', error))
   await instance.start()
   await instance.createQueue(RECORDING_CLEANUP)
+  await instance.createQueue(RECORDING_DELETE, { retryLimit: 12, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(CALL_NOTIFY, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   // Few, quick retries: a push about a call is news only for a while.
   await instance.createQueue(CALL_PUSH, { retryLimit: 2, retryDelay: 30, retryBackoff: true })
@@ -145,6 +154,11 @@ export const setJobQueue = (queue: PgBoss | null) => {
  */
 export async function queueCallNotification(tx: Tx, callId: string) {
   await boss?.send(CALL_NOTIFY, { callId }, { db: fromDrizzle(tx, sql) })
+}
+
+/** Queues the deletion of a call's recording in the caller's transaction (a workspace that keeps none). */
+export async function queueRecordingDeletion(tx: Tx, callId: string) {
+  await boss?.send(RECORDING_DELETE, { callId }, { db: fromDrizzle(tx, sql), singletonKey: callId })
 }
 
 /** Queues the pushes about a call in the caller's transaction. Without a queue (tests) nothing is sent. */

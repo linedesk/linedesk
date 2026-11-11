@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { clock } from '../time.ts'
+import { RECORDINGS_NOT_KEPT } from '@linedesk/actions'
+import { useWorkspaceSettings } from '../settings/settings-api.ts'
 import { Icon } from '../ui/kit.tsx'
 import { nextSpeed, recordingLength, registerPlayer, SEEK_STEP_SECONDS, seekSeconds } from './playback.ts'
 
@@ -80,5 +82,16 @@ export function RecordingPlayer({ callId, callDurationSec }: Props) {
       <span className="vn-time">{clock(position)} / {clock(length)}</span>
       <button type="button" className="vn-speed" aria-label={`Playback speed ${speed}x`} onClick={changeSpeed}>{speed}×</button>
     </section>
+  )
+}
+
+/** In place of the player when the workspace keeps no recordings (Settings, Recordings: Don't keep). */
+export function RecordingNotKept() {
+  const settings = useWorkspaceSettings().data
+  if (!settings?.recordingOn || settings.recordingRetentionDays !== RECORDINGS_NOT_KEPT) return null
+  return (
+    <p className="cv-no-recording" title="Settings, Recordings: Don't keep">
+      Recording not kept
+    </p>
   )
 }

@@ -31,7 +31,7 @@ import { insightsHandlers } from './insights.ts'
 import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
 import { checkAssistantVoice, releaseUnusedClones, voiceHandlers, voicePreparers } from './voices.ts'
 import { sampleHandlers } from './sample-calls.ts'
-import { queueAssignNotification, queueCallEvaluation, queueCallNotification, queueCallPush } from './jobs.ts'
+import { queueAssignNotification, queueCallEvaluation, queueRecordingDeletion, queueCallNotification, queueCallPush } from './jobs.ts'
 import { queueSpendingAlerts, spendingCap } from './spending-cap.ts'
 import { evaluatedAutomatically, evaluationHandlers } from './evaluations.ts'
 import { documentsForCall, knowledgeHandlers, knowledgePreparers } from './knowledge.ts'
@@ -41,6 +41,7 @@ import { starHandlers } from './star-prompt.ts'
 import { pushHandlers } from './push.ts'
 import { contactImportHandlers } from './contact-import.ts'
 import { contactMergeHandlers } from './contact-merge.ts'
+import { keepsRecordings } from './recording-retention.ts'
 import { callDetailsHandlers, customFieldsOf, finishedDetails } from './call-details.ts'
 import { clearCallPayloads, queueCallFinishedEvents, queueWebhookEvent, webhookData, webhookHandlers } from './webhooks.ts'
 
@@ -198,6 +199,8 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   const booking = blocked ? null : await bookingContext(tx, workspace_id, now, { contactId: contact?.row.id ?? null, assistantId: assistant?.id ?? null })
   // Said right after the greeting; the agent appends it (null: off).
   const recordingNotice = blocked ? null : await recordingNoticeFor(tx, workspace_id)
+  // "Don't keep" recordings: the agent does not record at all (the transcript comes from live speech recognition).
+  const keepRecording = await keepsRecordings(tx, workspace_id)
   const documents = blocked ? null : await documentsForCall(tx, assistant?.id)
   // A returning caller's last calls and upcoming bookings: only a phone caller matched to a contact.
   const history = source === 'phone' && contact && !blocked
@@ -208,7 +211,7 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
     .map(f => ({ id: f.id, label: f.label, type: f.type, options: f.options, ask_caller: f.ask_caller, instruction: f.instruction }))
   return {
     rows: { calls: [call!], ...(contact ? { contacts: [contact.row] } : {}) },
-    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: assistant ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, callerHistory: history, documents, customFields },
+    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: assistant ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, keepRecording, callerHistory: history, documents, customFields },
   }
 }
 
@@ -527,7 +530,10 @@ const handlers: Record<string, Handler> = {
     const recording_key = recordingKey(call.workspace_id, call.id, input.format)
     // An agent that does not say (older versions) recorded into the store RECORDING_STORE names: null.
     const recording_store = input.store ?? null
-    return { rows: { calls: await tx.update(calls).set({ recording_key, recording_store }).where(eq(calls.id, call.id)).returning() } }
+    const rows = await tx.update(calls).set({ recording_key, recording_store }).where(eq(calls.id, call.id)).returning()
+    // A workspace that keeps no recordings (an agent that recorded anyway: older, or the setting changed mid-call).
+    if (!(await keepsRecordings(tx, call.workspace_id))) await queueRecordingDeletion(tx, call.id)
+    return { rows: { calls: rows } }
   },
 
   'call.takeMessage': async ({ tx, actor, now }, input) => {

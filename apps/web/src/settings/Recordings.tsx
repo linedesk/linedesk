@@ -1,7 +1,7 @@
 // Settings, Recordings: how long call recordings are kept, and the notice the assistant says after the
 // greeting. Older recordings are deleted by a daily job on the server; the call itself, its transcript
 // and summary stay.
-import { RECORDING_NOTICE_MAX, recordingRetentionChoices } from '@linedesk/actions'
+import { RECORDING_NOTICE_MAX, RECORDINGS_NOT_KEPT, recordingRetentionChoices } from '@linedesk/actions'
 import { useState } from 'react'
 import { useRun } from '../store.tsx'
 import { Select, type SelectOption } from '../ui/controls.tsx'
@@ -13,7 +13,8 @@ import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
 type Days = (typeof recordingRetentionChoices)[number]
 type Choice = `${Days}` | 'forever'
 
-const label = (days: number) => (days === 365 ? '1 year' : `${days} days`)
+const label = (days: number) =>
+  days === RECORDINGS_NOT_KEPT ? "Don't keep (delete after the summary)" : days === 365 ? '1 year' : `${days} days`
 const options: SelectOption<Choice>[] = [
   ...recordingRetentionChoices.map(days => ({ value: `${days}` as Choice, label: label(days) })),
   { value: 'forever', label: 'Keep forever' },
@@ -32,7 +33,13 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
     const next = daysOf(choice)
     patchWorkspaceSettings({ recordingRetentionDays: next })
     void run('workspace.updateSettings', { recordingRetentionDays: next })
-    toast(next === null ? 'Recordings are kept until you delete the call.' : `Recordings are kept for ${label(next)}.`)
+    toast(
+      next === null
+        ? 'Recordings are kept until you delete the call.'
+        : next === RECORDINGS_NOT_KEPT
+          ? 'Calls are no longer recorded. Transcripts and summaries stay.'
+          : `Recordings are kept for ${label(next)}.`,
+    )
   }
 
   return (
@@ -42,7 +49,7 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
       description={recordingOn ? undefined : 'Recording is off on this server.'}
       help={
         recordingOn
-          ? 'Recordings older than this are deleted automatically. Only the audio goes; the call, its transcript and summary stay.'
+          ? "Recordings older than this are deleted automatically. Only the audio goes; the call, its transcript and summary stay. With Don't keep, calls are not recorded at all: the transcript is written live and the summary comes from it."
           : 'Calls are not recorded. Whoever runs your Linedesk server can turn recording on.'
       }
     >

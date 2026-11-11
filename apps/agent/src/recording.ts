@@ -96,9 +96,12 @@ export function describeRecording(recording: RecordingConfig): string {
 /** Pause before the second try to start a recording (egress busy or the room not ready yet). */
 export const RECORDING_RETRY_MS = 1000
 
-/** The recording's id, or null: off for this workspace, or it could not start (tried twice). Never rejects. */
+/**
+ * The recording's id, or null: off for this assistant or workspace (one that keeps no recordings is not recorded:
+ * the transcript and summary come from live speech recognition), or it could not start (tried twice). Never rejects.
+ */
 export async function startRecording(recorder: CallRecorder | null, call: CallSession, room: string, retryMs = RECORDING_RETRY_MS): Promise<string | null> {
-  if (!recorder || call.assistant?.record_calls === false) return null
+  if (!recorder || call.assistant?.record_calls === false || call.keepRecording === false) return null
   const key = recordingKey(call.workspaceId, call.callId)
   try {
     return await recorder.start(room, key)

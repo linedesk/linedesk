@@ -9,7 +9,7 @@ import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { registerContactPanel } from './contactPanel.ts'
 import { BookingCards } from './BookingCard.tsx'
 import { LiveCard } from './LiveCard.tsx'
-import { RecordingPlayer } from './RecordingPlayer.tsx'
+import { RecordingNotKept, RecordingPlayer } from './RecordingPlayer.tsx'
 import { EvaluationCard } from './EvaluationCard.tsx'
 import { LeadCard } from './LeadCard.tsx'
 import { SummaryCard } from './SummaryCard.tsx'
@@ -333,6 +333,7 @@ export function CallView({ call, segments, search, side, repeatCount = 1, canRev
               />
               {live && <LiveCard segments={segments} assistantName={assistant} />}
               {!live && call.recording_key && <RecordingPlayer callId={call.id} callDurationSec={call.duration_sec} />}
+              {!live && !call.recording_key && call.source !== 'sample' && <RecordingNotKept />}
               <SummaryCard call={call} />
               <LeadCard call={call} />
               {canReview && <EvaluationCard call={call} />}

@@ -6,6 +6,8 @@
 import { recordingKey, type RecordingStoreName } from '@linedesk/actions'
 import { calls, type Tx } from '@linedesk/db'
 import { and, desc, eq, gt, isNull } from 'drizzle-orm'
+import { queueRecordingDeletion } from './jobs.ts'
+import { keepsRecordings } from './recording-retention.ts'
 import { activeRecordingStore, type RecordingStore } from './recording-store.ts'
 
 /** How far back, and how many calls per sweep, it looks. */
@@ -36,6 +38,8 @@ export async function linkOrphanRecordings(
       .where(and(eq(calls.id, call.id), isNull(calls.recording_key))) // not if the agent reported it meanwhile
       .returning({ id: calls.id })
     linked.push(...updated.map(u => u.id))
+    // Linked so the delete job finds it; a workspace that keeps no recordings loses it again right away.
+    if (updated.length && !(await keepsRecordings(tx, call.workspace_id))) await queueRecordingDeletion(tx, call.id)
   }
   return linked
 }

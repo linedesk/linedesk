@@ -18,6 +18,13 @@ test('records into the key derived from workspace and call', async () => {
   expect(await startRecording(recorder(), call(), 'call-abc')).toBe('EG_1') // no assistant row: default is on
 })
 
+test('does not record when the workspace keeps no recordings', async () => {
+  const rec = recorder()
+  expect(await startRecording(rec, { ...call(true), keepRecording: false }, 'call-abc')).toBeNull()
+  expect(rec.start).not.toHaveBeenCalled()
+  expect(await startRecording(rec, { ...call(true), keepRecording: true }, 'call-abc')).toBe('EG_1')
+})
+
 test('does not record when the workspace turned it off or recording is not configured', async () => {
   const rec = recorder()
   expect(await startRecording(rec, call(false), 'call-abc')).toBeNull()

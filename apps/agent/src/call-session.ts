@@ -34,6 +34,8 @@ export interface CallSession {
   booking: BookingContext | null
   /** The workspace's custom fields: the assistant asks for those with `ask_caller`, the summary fills all. */
   customFields: CallCustomField[]
+  /** false: the workspace keeps no recordings (Settings, Recordings: Don't keep), so the call is not recorded. Missing: record. */
+  keepRecording?: boolean
   /**
    * The matched contact with their last calls and upcoming bookings, and whether the greeting used their first
    * name (then it is not the cached greeting); null: no contact (withheld number).
@@ -60,6 +62,8 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
   recordingNotice?: string | null
   /** Missing from an API of an older version: none. */
   customFields?: CallCustomField[]
+  /** Missing (older API): recordings are kept. */
+  keepRecording?: boolean
   documents?: CallDocuments | null
   /** A phone caller matched to a contact: their last calls and upcoming bookings; null or missing (older API): none. */
   callerHistory?: CallerHistory | null
@@ -136,6 +140,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   return {
     callId, ...scope, assistant, contact, blocked, busy, overCap, businessHours, booking, caller, documents: started.documents ?? null,
     customFields: started.customFields ?? [],
+    keepRecording: started.keepRecording !== false,
     businessNumber: origin.kind === 'phone' ? origin.to : null,
     simulatedOnCall: onCall?.answer ?? null,
     async append(speaker, text, toolEvent) {
