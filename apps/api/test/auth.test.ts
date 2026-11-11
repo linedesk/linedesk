@@ -33,7 +33,7 @@ describe('auth rate limiting', () => {
 
 describe('account linking', () => {
   test('trusts no provider when none is configured', () => {
-    expect(auth.options.account?.accountLinking).toEqual({ enabled: true, trustedProviders: [] })
+    expect(auth.options.account?.accountLinking).toEqual({ enabled: true, trustedProviders: [], requireLocalEmailVerified: false })
   })
 })
 

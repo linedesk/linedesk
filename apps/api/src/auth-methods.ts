@@ -6,9 +6,6 @@ type Env = Record<string, string | undefined>
 
 const pair = (id?: string, secret?: string) => (id && secret ? { clientId: id, clientSecret: secret } : null)
 
-/** Microsoft tenants that anyone can sign in through; their email claim is not proof of ownership. */
-const SHARED_TENANTS = ['common', 'organizations', 'consumers']
-
 export function readAuthConfig(env: Env) {
   const google = pair(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET)
   const github = pair(env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET)
@@ -19,15 +16,11 @@ export function readAuthConfig(env: Env) {
     oidcKeys && env.OIDC_DISCOVERY_URL
       ? { ...oidcKeys, discoveryUrl: env.OIDC_DISCOVERY_URL, label: env.OIDC_DISPLAY_NAME || 'Single sign-on' }
       : null
-  // A trusted provider's sign-in joins the account with the same email without asking the provider
-  // whether that email is verified. Google verifies every address. Microsoft is only safe when the
-  // app is limited to one tenant: on a shared tenant any directory can assert any address.
-  // GitHub is never trusted by name: it joins an account only through the verified primary address
-  // its sign-in reports (github-sign-in.ts), like any provider that says the address is verified.
-  const trustedProviders = [
-    google && 'google',
-    microsoft && !SHARED_TENANTS.includes(microsoft.tenantId.toLowerCase()) && 'microsoft',
-  ].filter(Boolean) as string[]
+  // No provider is trusted by name (Better Auth's `trustedProviders` would join an account without
+  // asking whether the email is verified). Every provider sign-in must prove its address instead:
+  // Google's email_verified, Microsoft's personal accounts or domain-verified work email, GitHub's
+  // verified primary email (account-linking.ts, github-sign-in.ts), OIDC's email_verified.
+  const trustedProviders: string[] = []
   const methods: AuthMethods = {
     password: env.AUTH_PASSWORD_ENABLED !== 'false',
     emailCode: emailDelivery(env) !== 'none',

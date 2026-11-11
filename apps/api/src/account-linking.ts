@@ -1,0 +1,56 @@
+// One email, one account (docs/architecture.md, "Sign-in providers and account linking"). A provider
+// sign-in lands in the account with the same email, whichever way that account was made (email code,
+// invitation, another provider), but only when the provider proves the address is verified. A
+// provider that cannot prove it signs nobody in: its user has no email, and Better Auth stops with
+// `email_not_found` before it looks up or creates a user. GitHub's rule is in github-sign-in.ts.
+import { account, session, user } from '@linedesk/db'
+import { and, eq } from 'drizzle-orm'
+import { db } from './db.ts'
+
+/** Microsoft's tenant for personal accounts (Outlook.com, Hotmail, Live): Microsoft verifies their addresses. */
+export const MICROSOFT_CONSUMER_TENANT = '9188040d-6c67-4c5b-b112-36a304b66dad'
+
+const isTrue = (value: unknown) => value === true || value === 'true' || value === 1 || value === '1'
+
+/**
+ * Whether a Microsoft ID token proves its `email`: a personal account, or a work account whose
+ * tenant owns the email's domain (`xms_edov`, an optional claim the app registration must add) or
+ * that lists the address as a verified primary email (`verified_primary_email`, optional claim).
+ * A plain `email` claim from a work account is not proof: any tenant can set it to any address.
+ */
+export function microsoftEmailVerified(claims: Record<string, unknown>): boolean {
+  const email = typeof claims.email === 'string' ? claims.email.toLowerCase() : null
+  if (!email) return false
+  if (claims.tid === MICROSOFT_CONSUMER_TENANT) return true
+  if (isTrue(claims.xms_edov)) return true
+  const primary = claims.verified_primary_email
+  const listed = Array.isArray(primary) ? primary : typeof primary === 'string' ? [primary] : []
+  return listed.some(address => typeof address === 'string' && address.toLowerCase() === email)
+}
+
+/** Better Auth `mapProfileToUser` for Microsoft: no email unless the token proves it. */
+export const mapMicrosoftProfile = (claims: Record<string, unknown>) =>
+  microsoftEmailVerified(claims) ? { emailVerified: true } : { email: null, emailVerified: false }
+
+/** Better Auth `mapProfileToUser` for Google: no email unless Google says it is verified. */
+export const mapGoogleProfile = (profile: { email_verified?: unknown }) =>
+  isTrue(profile.email_verified) ? { emailVerified: true } : { email: null, emailVerified: false }
+
+/**
+ * Better Auth `account.create` hook. A provider account joins a user whose email was never verified
+ * (an invitation, `user.invite`, or a password sign-up): the provider just proved the address, so
+ * Better Auth marks it verified. Whatever got in before without proof goes: the password and the
+ * sessions. Otherwise someone who signed up with another person's address and a password would keep
+ * a way into that person's account once they sign in with Google. The new session is made after this.
+ */
+export async function dropUnprovenAccess(created: { userId: string; providerId: string }) {
+  if (created.providerId === 'credential') return
+  const [owner] = await db.select({ emailVerified: user.emailVerified }).from(user).where(eq(user.id, created.userId))
+  if (!owner || owner.emailVerified) return
+  await db.delete(account).where(and(eq(account.userId, created.userId), eq(account.providerId, 'credential')))
+  await db.delete(session).where(eq(session.userId, created.userId))
+}
+
+export const accountLinkingHooks = {
+  account: { create: { after: dropUnprovenAccess } },
+}

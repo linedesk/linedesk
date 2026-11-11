@@ -4,6 +4,7 @@ import type { AuthMethods, LegalLinks, SsoMethod } from '@linedesk/api/auth-type
 import { createAuthClient } from 'better-auth/react'
 
 import type { Impersonation } from './impersonation.ts'
+import { readLastUsedMethod } from './sign-in-methods.ts'
 
 export type { AuthMethods, LegalLinks, SsoMethod }
 
@@ -92,14 +93,23 @@ export function startSso(method: SsoMethod) {
   return auth.signIn.social({ provider: method.id, ...back() })
 }
 
-const redirectErrors: Record<string, string> = {
-  access_denied: 'Sign-in was cancelled.',
-  account_not_linked: 'This email already has an account. Sign in with an email code once, then this works too.',
-  SIGNUP_CLOSED: 'There is no account for this address. Ask your administrator for one.',
-  email_not_found:'Your account there has no verified email address. Verify your primary email with the provider, then try again.',
+const providerNames: Record<string, string> = { google: 'Google', microsoft: 'Microsoft', github: 'GitHub' }
+
+/** The provider didn't prove the address, so it signs nobody in (the API's account-linking rule). */
+const unprovenEmail = (provider: string | null) =>
+  `${(provider && providerNames[provider]) || 'The sign-in provider'} didn't confirm this email address, so it can't sign you in. Sign in with an email code instead.`
+
+const redirectErrors: Record<string, (provider: string | null) => string> = {
+  access_denied: () => 'Sign-in was cancelled.',
+  account_not_linked: unprovenEmail,
+  email_not_found: unprovenEmail,
+  SIGNUP_CLOSED: () => 'There is no account for this address. Ask your administrator for one.',
 }
 
-/** Reads and clears the `?error=` a failed SSO redirect leaves in the address bar. */
+/**
+ * Reads and clears the `?error=` a failed SSO redirect leaves in the address bar. The provider is the
+ * one this device started with (the sign-in page remembers it before leaving).
+ */
 export function takeRedirectError(): string | null {
   const url = new URL(window.location.href)
   const code = url.searchParams.get('error')
@@ -107,7 +117,8 @@ export function takeRedirectError(): string | null {
   url.searchParams.delete('error')
   url.searchParams.delete('error_description')
   window.history.replaceState(null, '', url)
-  return redirectErrors[code] ?? `Sign-in did not work (${code.replaceAll('_', ' ').toLowerCase()}). Try again.`
+  const message = redirectErrors[code]
+  return message ? message(readLastUsedMethod()) : `Sign-in did not work (${code.replaceAll('_', ' ').toLowerCase()}). Try again.`
 }
 
 /** Ends this session and shows the sign-in screen; signing in comes back to the same page. */

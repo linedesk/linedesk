@@ -86,39 +86,21 @@ describe('readAuthConfig', () => {
   })
 
   describe('providers trusted to join an account by email', () => {
-    const microsoft = { MICROSOFT_CLIENT_ID: 'id', MICROSOFT_CLIENT_SECRET: 's' }
-
-    it('trusts Google', () => {
-      expect(readAuthConfig({ GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 's' }).trustedProviders).toEqual(['google'])
-    })
-
-    it.each([undefined, 'common', 'organizations', 'consumers', 'Common'])(
-      'does not trust Microsoft on the shared tenant %s',
-      tenant => {
-        expect(readAuthConfig({ ...microsoft, MICROSOFT_TENANT_ID: tenant }).trustedProviders).toEqual([])
-      },
-    )
-
-    it('trusts Microsoft when the app is limited to one tenant', () => {
-      expect(
-        readAuthConfig({ ...microsoft, MICROSOFT_TENANT_ID: '6f2c1d4e-0b7a-4a55-9c0e-2a4d5b8e1f30' }).trustedProviders,
-      ).toEqual(['microsoft'])
-    })
-
-    it('offers GitHub with both keys but never trusts it by name (only its verified primary email counts)', () => {
-      const config = readAuthConfig({ GITHUB_CLIENT_ID: 'id', GITHUB_CLIENT_SECRET: 's' })
-      expect(config.methods.sso).toEqual([{ id: 'github', label: 'GitHub' }])
-      expect(config.trustedProviders).toEqual([])
-      expect(readAuthConfig({ GITHUB_CLIENT_ID: 'id' }).github).toBeNull()
-    })
-
-    it('never trusts the generic OpenID Connect provider', () => {
-      const oidc = {
+    it('trusts no provider by name: every sign-in must prove its email (account-linking.ts)', () => {
+      const all = {
+        GOOGLE_CLIENT_ID: 'id',
+        GOOGLE_CLIENT_SECRET: 's',
+        MICROSOFT_CLIENT_ID: 'id',
+        MICROSOFT_CLIENT_SECRET: 's',
+        MICROSOFT_TENANT_ID: '6f2c1d4e-0b7a-4a55-9c0e-2a4d5b8e1f30',
+        GITHUB_CLIENT_ID: 'id',
+        GITHUB_CLIENT_SECRET: 's',
         OIDC_CLIENT_ID: 'id',
         OIDC_CLIENT_SECRET: 's',
         OIDC_DISCOVERY_URL: 'https://id.example.com/.well-known/openid-configuration',
       }
-      expect(readAuthConfig(oidc).trustedProviders).toEqual([])
+      expect(readAuthConfig(all).trustedProviders).toEqual([])
+      expect(readAuthConfig(all).methods.sso.map(m => m.id)).toEqual(['google', 'microsoft', 'github', 'oidc'])
     })
   })
 })

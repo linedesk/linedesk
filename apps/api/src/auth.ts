@@ -3,6 +3,7 @@ import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { emailOTP, genericOAuth, organization } from 'better-auth/plugins'
 import { authConfig } from './auth-methods.ts'
+import { accountLinkingHooks, mapGoogleProfile, mapMicrosoftProfile } from './account-linking.ts'
 import { CLIENT_IP_HEADER } from './client-ip.ts'
 import { githubProvider } from './github-sign-in.ts'
 import { db } from './db.ts'
@@ -77,16 +78,19 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
   trustedOrigins: [WEB_ORIGIN],
   emailAndPassword: { enabled: methods.password },
-  databaseHooks: instanceAdminHooks,
+  databaseHooks: { ...instanceAdminHooks, ...accountLinkingHooks },
   emailVerification: { sendVerificationEmail, autoSignInAfterVerification: true },
   socialProviders: {
-    ...(google && { google }),
-    ...(microsoft && { microsoft }),
+    // A sign-in whose email the provider does not prove has no email and signs nobody in (account-linking.ts).
+    ...(google && { google: { ...google, mapProfileToUser: mapGoogleProfile } }),
+    ...(microsoft && { microsoft: { ...microsoft, mapProfileToUser: mapMicrosoftProfile } }),
     ...(github && { github: githubProvider(github) }),
   },
   // One person, one account: a provider sign-in joins the account with the same email. Which
   // providers are trusted for that without an email-verified claim: see auth-methods.ts.
-  account: { accountLinking: { enabled: true, trustedProviders } },
+  // One email, one account: a provider sign-in with a proven email joins the account with that
+  // email, also one whose email was never verified (an invitation); see account-linking.ts.
+  account: { accountLinking: { enabled: true, trustedProviders, requireLocalEmailVerified: false } },
   // On in every environment, not only when NODE_ENV says production.
   rateLimit: { enabled: true },
   // The client address comes from our own header (client-ip.ts), never from one the client sets.
