@@ -46,4 +46,47 @@ describe('createEmailSender', () => {
       silent.close()
     }
   })
+
+  it('sends a message through an SMTP server', async () => {
+    // A minimal SMTP server that accepts one message and keeps what it was sent.
+    let received = ''
+    const server = createServer(socket => {
+      let inData = false
+      socket.write('220 test ESMTP\r\n')
+      socket.on('data', chunk => {
+        const text = chunk.toString()
+        if (inData) {
+          received += text
+          if (received.includes('\r\n.\r\n')) {
+            inData = false
+            socket.write('250 queued\r\n')
+          }
+          return
+        }
+        for (const line of text.split('\r\n').filter(Boolean)) {
+          if (/^EHLO/i.test(line)) socket.write('250 test\r\n')
+          else if (/^DATA/i.test(line)) {
+            inData = true
+            socket.write('354 go on\r\n')
+          } else if (/^QUIT/i.test(line)) socket.end('221 bye\r\n')
+          else socket.write('250 ok\r\n')
+        }
+      })
+    })
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    const { port } = server.address() as { port: number }
+    try {
+      const sender = createEmailSender(
+        { SMTP_URL: `smtp://127.0.0.1:${port}`, EMAIL_FROM: 'Linedesk <no-reply@linedesk.test>' },
+        { connectMs: 1000, sendMs: 3000 },
+      )
+      await sender.send({ to: 'mike@brightwater.example', subject: '123456 is your code', text: 'Hello Mike' })
+      expect(received).toMatch(/^From: Linedesk <no-reply@linedesk\.test>\r$/m)
+      expect(received).toMatch(/^To: mike@brightwater\.example\r$/m)
+      expect(received).toMatch(/^Subject: 123456 is your code\r$/m)
+      expect(received).toContain('Hello Mike')
+    } finally {
+      server.close()
+    }
+  })
 })
