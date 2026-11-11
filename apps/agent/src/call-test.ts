@@ -17,7 +17,7 @@ import { CALLEE_IDENTITY } from './test-caller/caller.ts'
 import { type AgentSetup, LATENCY_ATTRIBUTE, type LatencySample, SETUP_ATTRIBUTE } from './test-caller/latency.ts'
 import { evaluateCall, formatReport, greetingCheck } from './test-caller/report.ts'
 import { waitForFinishedCall } from './test-caller/wait.ts'
-import { isScenario, phoneRefused, scenarioNames, scenarios, type CallTestMode, type Scenario, type ScenarioName, type TestCallerMetadata } from './test-caller/scenarios.ts'
+import { isScenario, parseCallTestArgs, phoneRefused, scenarioNames, scenarios, type CallTestMode, type Scenario, type ScenarioName, type TestCallerMetadata } from './test-caller/scenarios.ts'
 import { findOutboundTrunk, sipClient } from './sip-trunks.ts'
 
 /** A hard cap on a call, on top of the caller's own three minutes. */
@@ -101,9 +101,7 @@ async function startByPhone({ name, room, to, persona }: Run, from: string) {
 
 async function main() {
   const args = process.argv.slice(2)
-  const personaAt = args.indexOf('--persona')
-  const persona = personaAt >= 0 ? args[personaAt + 1] : undefined
-  const name = args.find((a, i) => !a.startsWith('--') && i !== personaAt + 1) ?? ''
+  const { name, persona } = parseCallTestArgs(args)
   if (!isScenario(name)) throw new Error(`usage: call-test <scenario> [--phone] [--expect-recording] [--cancel-booking] [--persona "…"]; scenarios: ${scenarioNames.join(', ')}`)
   const mode: CallTestMode = args.includes('--phone') ? 'phone' : 'room'
   // A transfer scenario over the phone would page a real on-call phone: only with the simulated person,

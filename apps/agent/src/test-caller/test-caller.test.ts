@@ -5,7 +5,7 @@ import { isGoodbye } from './caller.ts'
 import { waitForFinishedCall } from './wait.ts'
 import { describeMetrics } from '../turn-metrics.ts'
 import { evaluateCall, formatAgentSetup, formatCallerLatency, formatReport, greetingCheck, latencyOf, percentile } from './report.ts'
-import { callerInstructions, parseTestCallerMetadata, scenarioNames, scenarios } from './scenarios.ts'
+import { callerInstructions, parseCallTestArgs, parseTestCallerMetadata, scenarioNames, scenarios } from './scenarios.ts'
 
 const lines = [
   { speaker: 'agent', text: 'Thanks for calling Brightwater. This is Maya, the AI assistant. How can I help?', at_ms: 1800 },
@@ -31,6 +31,15 @@ test('the job metadata picks a known scenario and mode; nothing else turns an ag
   for (const metadata of ['', 'nope', '{"source":"test","workspaceId":"ws_1"}', '{"source":"test-caller","scenario":"rob-a-bank"}']) {
     expect(parseTestCallerMetadata(metadata)).toBeNull()
   }
+})
+
+test('the call-test command line: the scenario comes first or after flags, the persona text is never the scenario', () => {
+  expect(parseCallTestArgs(['burst-pipe'])).toEqual({ name: 'burst-pipe', persona: undefined })
+  expect(parseCallTestArgs(['silence-closing', '--phone'])).toEqual({ name: 'silence-closing', persona: undefined })
+  expect(parseCallTestArgs(['--phone', 'keypad-callback'])).toEqual({ name: 'keypad-callback', persona: undefined })
+  expect(parseCallTestArgs(['--persona', 'You are Pat.', 'booking'])).toEqual({ name: 'booking', persona: 'You are Pat.' })
+  expect(parseCallTestArgs(['booking', '--persona', 'You are Pat.', '--phone'])).toEqual({ name: 'booking', persona: 'You are Pat.' })
+  expect(parseCallTestArgs([]).name).toBe('')
 })
 
 test('every speaking caller is told to end the call, never reveal the test, and today\'s date', () => {

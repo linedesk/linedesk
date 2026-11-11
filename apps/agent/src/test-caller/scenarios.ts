@@ -208,6 +208,15 @@ export function parseTestCallerMetadata(metadata: string): TestCallerMetadata | 
   }
 }
 
+/** The call-test command line: the scenario name (the first word that is no flag and not the --persona text) and the persona. */
+export function parseCallTestArgs(args: readonly string[]): { name: string; persona: string | undefined } {
+  const personaAt = args.indexOf('--persona')
+  const personaText = personaAt >= 0 ? personaAt + 1 : -1
+  const persona = personaText >= 0 ? args[personaText] : undefined
+  const name = args.find((a, i) => !a.startsWith('--') && i !== personaText) ?? ''
+  return { name, persona }
+}
+
 /**
  * Transfer scenarios run without a phone only: over the phone they would page a real on-call phone.
  * Exception: the live warm-transfer test (CALL_TEST_ONCALL set), where the agent puts a phone call test
