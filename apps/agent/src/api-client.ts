@@ -1,6 +1,6 @@
 // The agent's only way to the API: POST /v1/actions/<name> to write, and its one read,
 // GET /v1/agent/provider-config. Always with the agent token.
-import type { ActionDef, ActionRejection, ActionResult } from '@callfront/actions'
+import type { ActionDef, ActionRejection, ActionResult } from '@linedesk/actions'
 import type { z } from 'zod'
 
 /** No action takes long; a hung request must not hold up a call or its hang-up. */
@@ -64,5 +64,5 @@ export function createApiClient({ baseUrl, token, fetch: doFetch = fetch }: ApiC
 export function apiClientFromEnv(env: NodeJS.ProcessEnv = process.env): ApiClient {
   const token = env.AGENT_API_TOKEN
   if (!token) throw new Error('AGENT_API_TOKEN is not set')
-  return createApiClient({ baseUrl: env.CALLFRONT_API_URL ?? 'http://localhost:3100', token })
+  return createApiClient({ baseUrl: env.LINEDESK_API_URL ?? env.CALLFRONT_API_URL ?? 'http://localhost:3100', token })
 }

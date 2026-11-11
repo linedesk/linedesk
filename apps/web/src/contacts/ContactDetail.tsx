@@ -1,6 +1,6 @@
 // The contact's record beside the list (full width below 1100 px): a header with who it is and the
 // actions, the details as a form whose fields save themselves (contact.update), and their calls.
-import type { Call, Contact } from '@callfront/db/types'
+import type { Call, Contact } from '@linedesk/db/types'
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { CallBackLink } from '../call/ContactSide.tsx'
 import { useInlineEdit } from '../call/EditableFact.tsx'

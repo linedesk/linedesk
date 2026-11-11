@@ -1,6 +1,6 @@
 // Settings, Notifications: your own new-call notifications (email per call, browser notifications
 // while Linedesk is open) and, for owners and admins, the defaults for teammates who never changed theirs.
-import type { NotificationChannels, NotificationSettingsData } from '@callfront/actions'
+import type { NotificationChannels, NotificationSettingsData } from '@linedesk/actions'
 import { useEffect, useState } from 'react'
 import {
   browserNotificationsSupported,

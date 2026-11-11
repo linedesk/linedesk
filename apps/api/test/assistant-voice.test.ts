@@ -1,5 +1,5 @@
 // The default voice of a new assistant is for the default text-to-speech provider (migration 0005).
-import { assistants } from '@callfront/db'
+import { assistants } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { expect, test } from 'vitest'
 import { db } from '../src/db.ts'

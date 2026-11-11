@@ -1,5 +1,5 @@
 // Pure helpers of the admin page: sorting, the usage grid, and the words for a provider's status.
-import { providers as providerSpecs, type ProviderTestData } from '@callfront/actions'
+import { providers as providerSpecs, type ProviderTestData } from '@linedesk/actions'
 import type { ProviderField, ProviderStatus, UsageRow } from './api.ts'
 
 export type SortDir = 'asc' | 'desc'

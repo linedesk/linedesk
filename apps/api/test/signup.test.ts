@@ -1,6 +1,6 @@
 // Closed sign-up (AUTH_SIGNUP_ENABLED=false). Accounts made by an instance admin (user.invite) are
 // tested in admin.test.ts, which is the only file that creates instance admins.
-import { invitation, user } from '@callfront/db'
+import { invitation, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test } from 'vitest'
 import { readAuthConfig } from '../src/auth-methods.ts'
@@ -9,7 +9,7 @@ import { maySendSignInCode, refuseClosedSignUp } from '../src/signup-gate.ts'
 import { anonymous, createWorkspace, randomIp, request, type User, type Workspace, FROM } from './helpers.ts'
 
 const ORIGIN = { origin: 'http://localhost:5173' }
-const address = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}@callfront.test`
+const address = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}@linedesk.test`
 const passwordSignUp = (email: string) =>
   request(
     anonymous,

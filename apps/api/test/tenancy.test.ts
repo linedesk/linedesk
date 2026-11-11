@@ -1,6 +1,6 @@
 // A caller only ever reaches rows of their own workspace, whatever ids or parameters they send.
-import { actions, type ActionDef } from '@callfront/actions'
-import { appointment_types, phone_numbers, tableNames, transcript_segments } from '@callfront/db'
+import { actions, type ActionDef } from '@linedesk/actions'
+import { appointment_types, phone_numbers, tableNames, transcript_segments } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { app } from '../src/app.ts'

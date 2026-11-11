@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { defineAction, type PatchSpec } from './define.ts'
-import type { Call } from '@callfront/db/types'
+import type { Call } from '@linedesk/db/types'
 
 const callId = z.object({ callId: z.string().min(1) })
 type CallId = z.infer<typeof callId>

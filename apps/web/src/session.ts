@@ -12,7 +12,7 @@ export type Session =
   | { state: 'ready'; me: Me; offline: boolean }
   | { state: 'unreachable' }
 
-const LAST_ME = 'callfront-last-me'
+const LAST_ME = 'linedesk-last-me'
 
 function remember(me: Me | null) {
   try {

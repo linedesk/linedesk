@@ -9,7 +9,7 @@ case "$BETTER_AUTH_SECRET" in
     ;;
 esac
 case "$DATABASE_URL" in
-  *://callfront:callfront@*)
+  *://linedesk:linedesk@*)
     echo "POSTGRES_PASSWORD is not set. Put a random value in .env before the first start, e.g. the output of: openssl rand -hex 24" >&2
     exit 1
     ;;

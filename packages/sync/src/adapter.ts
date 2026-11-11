@@ -1,6 +1,6 @@
 // Reads come from the server through a ReadSyncAdapter. Swapping the sync provider means
 // writing another adapter; the store and the UI never see vendor types.
-import type { TableName, Tables } from '@callfront/db/types'
+import type { TableName, Tables } from '@linedesk/db/types'
 
 export interface TableSink<T extends TableName = TableName> {
   upsert(rows: Tables[T][]): void

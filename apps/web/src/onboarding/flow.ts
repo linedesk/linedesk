@@ -1,6 +1,6 @@
 // Onboarding without React: step order, the phone setup input and the carrier forwarding codes.
-import { onboardingSteps, type OnboardingStep } from '@callfront/actions'
-import type { Call, PhoneNumber } from '@callfront/db/types'
+import { onboardingSteps, type OnboardingStep } from '@linedesk/actions'
+import type { Call, PhoneNumber } from '@linedesk/db/types'
 
 type PhoneNumberMode = PhoneNumber['mode']
 
@@ -112,7 +112,7 @@ export function firstTestCall(calls: readonly Call[], numbers: readonly string[]
 
 /** The simulator command that plays a scripted call to `e164` (development only, needs the agent token). */
 export const simulateCommand = (e164: string) =>
-  `SIM_TO_NUMBER='${e164}' pnpm --filter @callfront/agent simulate message`
+  `SIM_TO_NUMBER='${e164}' pnpm --filter @linedesk/agent simulate message`
 
 /** Keeps the greeting in step with a renamed assistant ("This is Maya" → "This is Ava"). */
 export function renameInGreeting(greeting: string, oldName: string, newName: string): string {

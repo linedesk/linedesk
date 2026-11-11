@@ -1,6 +1,6 @@
 // What the web app needs to show onboarding: where the workspace is, and whether phone setup can work here.
-import type { OnboardingStep } from '@callfront/actions'
-import { assistants, workspace_settings } from '@callfront/db'
+import type { OnboardingStep } from '@linedesk/actions'
+import { assistants, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'

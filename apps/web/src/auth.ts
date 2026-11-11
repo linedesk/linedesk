@@ -1,5 +1,5 @@
 import { emailOTPClient, organizationClient } from 'better-auth/client/plugins'
-import type { AuthMethods, LegalLinks, SsoMethod } from '@callfront/api/auth-types'
+import type { AuthMethods, LegalLinks, SsoMethod } from '@linedesk/api/auth-types'
 import { createAuthClient } from 'better-auth/react'
 
 import type { Impersonation } from './impersonation.ts'

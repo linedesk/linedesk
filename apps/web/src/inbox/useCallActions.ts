@@ -1,6 +1,6 @@
 // Triage actions on a call. Each one runs registry actions through the outbox, fades the row
 // out when it leaves the current view, moves on to the next call and can be undone.
-import type { Call } from '@callfront/db/types'
+import type { Call } from '@linedesk/db/types'
 import { useRef, useState } from 'react'
 import { tabOf, type InboxTab } from '../inbox-model.ts'
 import type { Toaster } from '../shell/useToast.ts'

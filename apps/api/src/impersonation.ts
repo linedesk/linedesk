@@ -2,8 +2,8 @@
 // actions (user.impersonate, impersonation.stop); since an action cannot set cookies, two thin
 // routes (impersonation-routes.ts) run them and move Better Auth's session cookie. Sessions are Better Auth's own, created
 // with its internal adapter; cookies are signed the way Better Auth signs them.
-import { IMPERSONATION_MINUTES, type UserImpersonateData } from '@callfront/actions'
-import { member, session, user } from '@callfront/db'
+import { IMPERSONATION_MINUTES, type UserImpersonateData } from '@linedesk/actions'
+import { member, session, user } from '@linedesk/db'
 import { asc, eq } from 'drizzle-orm'
 import { auth } from './auth.ts'
 import { db } from './db.ts'

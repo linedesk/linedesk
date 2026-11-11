@@ -1,5 +1,5 @@
 // Several calls picked at once (checkbox, X, ⇧J/⇧K, ⌘A). Actions then apply to all of them.
-import type { Call } from '@callfront/db/types'
+import type { Call } from '@linedesk/db/types'
 import { useCallback, useMemo, useState } from 'react'
 
 /** Ids from `from` to `to` (both included) in list order; empty when either is not in the list. */

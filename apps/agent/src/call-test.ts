@@ -1,12 +1,12 @@
 // Call test: our test-caller agent calls the business and the result is checked in the inbox.
-//   pnpm --filter @callfront/agent call-test <scenario> [--phone] [--expect-recording]
+//   pnpm --filter @linedesk/agent call-test <scenario> [--phone] [--expect-recording]
 //   in the agent container: node src/call-test.ts <scenario> [--phone]
 // Default (no phone): the test caller and the business's assistant talk inside one LiveKit room,
 // speech and LLM only, filed in the inbox as a test call. --phone: a real call over Telnyx from
 // CALL_TEST_FROM to CALL_TEST_TO (run setup-test-caller once; costs a few cents).
 // Needs: the agent worker running, CALL_TEST_TO (the business number; it names the workspace),
-// LiveKit env, AGENT_API_TOKEN and CALLFRONT_API_URL.
-import { callFindForTest, type CallTestFinding } from '@callfront/actions'
+// LiveKit env, AGENT_API_TOKEN and LINEDESK_API_URL.
+import { callFindForTest, type CallTestFinding } from '@linedesk/actions'
 import { AgentDispatchClient, RoomServiceClient } from 'livekit-server-sdk'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { AGENT_NAME, livekitHttpUrl, requireEnv, requireLivekitEnv, runScript } from './env.ts'
@@ -62,7 +62,7 @@ async function startInRoom({ name, room, to, since, api }: Run) {
 async function startByPhone({ name, room, to }: Run, from: string) {
   const sip = sipClient()
   const trunkId = await findOutboundTrunk(sip)
-  if (!trunkId) throw new Error('No outbound trunk "callfront-test-caller": run setup-test-caller first.')
+  if (!trunkId) throw new Error('No outbound trunk "linedesk-test-caller": run setup-test-caller first.')
   const caller: TestCallerMetadata = { source: 'test-caller', scenario: name, mode: 'phone' }
   await dispatcher().createDispatch(room, AGENT_NAME, { metadata: JSON.stringify(caller) })
   console.log(`Calling ${to} from ${from} (scenario ${name}, room ${room})…`)

@@ -1,7 +1,7 @@
 // Admin, Overview: the first thing an operator sees. Usage (calls, minutes), roughly what it costs
 // per provider, whether the parts of the install work, and how many workspaces and people there are.
 // Numbers and health load separately: health waits for LiveKit and the mail server.
-import { providerCategories } from '@callfront/actions'
+import { providerCategories } from '@linedesk/actions'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { Button } from '../ui/kit.tsx'
 import { LoadProblem, Skeleton } from '../ui/LoadStates.tsx'

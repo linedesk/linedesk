@@ -1,4 +1,4 @@
-import type { Call } from '@callfront/db/types'
+import type { Call } from '@linedesk/db/types'
 import type { ReactNode } from 'react'
 import { callerName, splits, type InboxTab } from '../inbox-model.ts'
 import { usePresence } from '../shell/presence.ts'

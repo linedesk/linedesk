@@ -1,6 +1,6 @@
 // The report of a call test, from what the business's side recorded: transcript, summary,
 // pass/fail per check, and how quickly the assistant answered.
-import type { CallTestFinding } from '@callfront/actions'
+import type { CallTestFinding } from '@linedesk/actions'
 import type { LatencySample } from './latency.ts'
 import type { Scenario } from './scenarios.ts'
 

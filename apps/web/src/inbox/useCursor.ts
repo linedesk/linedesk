@@ -1,4 +1,4 @@
-import type { Call } from '@callfront/db/types'
+import type { Call } from '@linedesk/db/types'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { resolveCursor } from '../inbox-model.ts'
 

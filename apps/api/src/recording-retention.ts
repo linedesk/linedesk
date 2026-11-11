@@ -1,10 +1,10 @@
 // Deletes call recordings older than their workspace keeps them (workspace_settings.recording_retention_days,
 // 90 days by default, null keeps them). Runs daily as a pg-boss job (jobs.ts). The call stays; only
 // its audio goes, and `recording_key` is cleared so the player disappears in every browser.
-import { DEFAULT_RECORDING_RETENTION_DAYS } from '@callfront/actions'
-import { calls, type Tx, workspace_settings } from '@callfront/db'
+import { DEFAULT_RECORDING_RETENTION_DAYS } from '@linedesk/actions'
+import { calls, type Tx, workspace_settings } from '@linedesk/db'
 import { and, eq, isNotNull, lt, sql } from 'drizzle-orm'
-import type { RecordingStoreName } from '@callfront/actions'
+import type { RecordingStoreName } from '@linedesk/actions'
 import type { RecordingStore } from './recording-store.ts'
 
 /** The store a recording is in, by calls.recording_store (null: recorded before stores were per call). */

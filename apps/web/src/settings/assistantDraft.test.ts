@@ -1,6 +1,6 @@
-import type { Assistant } from '@callfront/db/types'
+import type { Assistant } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CALL_RULES } from '@callfront/actions'
+import { DEFAULT_CALL_RULES } from '@linedesk/actions'
 import { callRulesToSave, disclosesAi, draftOf, isDefaultCallRules, draftProblem, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure, staleGreetingName } from './assistantDraft.ts'
 
 const oldProfile = { description: 'Plumbing', services: ['Leak repair', ' ', 'Drains'], service_area: 'Portland', address: '1 Main St', hours: 'Mon–Fri', faqs: [{ q: 'Estimates?', a: 'Free.' }, { q: '', a: '' }] }

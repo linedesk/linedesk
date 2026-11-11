@@ -1,10 +1,10 @@
 // The LiveKit side of outbound test calls: one SIP outbound trunk through Telnyx, by name.
 import { SIPTransport } from '@livekit/protocol'
-import type { OutboundSip } from '@callfront/telephony'
+import type { OutboundSip } from '@linedesk/telephony'
 import { SipClient } from 'livekit-server-sdk'
 import { livekitHttpUrl, requireLivekitEnv } from '../env.ts'
 
-export const OUTBOUND_TRUNK_NAME = 'callfront-test-caller'
+export const OUTBOUND_TRUNK_NAME = 'linedesk-test-caller'
 
 export function sipClient() {
   const env = requireLivekitEnv()

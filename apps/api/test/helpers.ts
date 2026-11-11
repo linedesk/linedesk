@@ -1,6 +1,6 @@
 // Test fixtures: real users and sessions through Better Auth, workspaces through the API,
 // rows straight into the test database. Every id is random, so test files can run in parallel.
-import { assistants, calls, contacts, phone_numbers } from '@callfront/db'
+import { assistants, calls, contacts, phone_numbers } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { app } from '../src/app.ts'
 import { auth } from '../src/auth.ts'
@@ -31,7 +31,7 @@ export type Caller = { headers: Record<string, string> }
 export type User = Caller & { userId: string }
 
 /** A new account with a password; its email is not verified. */
-export async function signUp(email = `${uid('user')}@callfront.test`): Promise<User> {
+export async function signUp(email = `${uid('user')}@linedesk.test`): Promise<User> {
   const res = await appRequest('/api/auth/sign-up/email', {
     method: 'POST',
     headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },

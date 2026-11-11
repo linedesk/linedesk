@@ -1,7 +1,7 @@
 // Closed sign-up: with AUTH_SIGNUP_ENABLED=false nobody creates an account on their own. Every way
 // a user is created (password sign-up, first email-code sign-in, first SSO sign-in) passes the
 // Better Auth `user.create` hook, so the gate sits there. Existing users sign in as before.
-import { invitation, type Tx, user } from '@callfront/db'
+import { invitation, type Tx, user } from '@linedesk/db'
 import { APIError } from 'better-auth/api'
 import { and, eq, gt, sql } from 'drizzle-orm'
 

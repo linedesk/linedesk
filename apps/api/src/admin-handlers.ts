@@ -1,6 +1,6 @@
 // Server handlers of the admin area actions (packages/actions/src/admin.ts).
-import type { ProviderName } from '@callfront/actions'
-import { organization, session, type Tx, user } from '@callfront/db'
+import type { ProviderName } from '@linedesk/actions'
+import { organization, session, type Tx, user } from '@linedesk/db'
 import { emailDelivery } from './auth-methods.ts'
 import { WEB_ORIGIN } from './auth.ts'
 import { emailSender } from './email.ts'

@@ -1,4 +1,4 @@
-import { rolePermissions } from '@callfront/actions'
+import { rolePermissions } from '@linedesk/actions'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Actor } from './context.ts'
 

@@ -1,7 +1,7 @@
 // The voice agent: a LiveKit Agents worker. One job per call room; all writes go through the API.
 // Which speech and language vendors are used is decided in pipeline.ts.
 import { fileURLToPath } from 'node:url'
-import { callFlagUrgent, callTakeMessage } from '@callfront/actions'
+import { callFlagUrgent, callTakeMessage } from '@linedesk/actions'
 import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant } from '@livekit/rtc-node'
 import { z } from 'zod'

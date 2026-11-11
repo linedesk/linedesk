@@ -1,6 +1,6 @@
 // One call as the agent sees it: start, append transcript segments, finish.
-import { callAppendTranscript, callFinish, callStart, callStartTest } from '@callfront/actions'
-import type { Assistant, Contact, ToolEvent } from '@callfront/db/types'
+import { callAppendTranscript, callFinish, callStart, callStartTest } from '@linedesk/actions'
+import type { Assistant, Contact, ToolEvent } from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
 

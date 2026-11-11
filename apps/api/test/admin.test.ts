@@ -5,8 +5,8 @@ import { randomBytes } from 'node:crypto'
 import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { actions, REDACTED, recordingKey } from '@callfront/actions'
-import { calls, commands, instance_settings, organization, provider_settings, session, user } from '@callfront/db'
+import { actions, REDACTED, recordingKey } from '@linedesk/actions'
+import { calls, commands, instance_settings, organization, provider_settings, session, user } from '@linedesk/db'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { emailSender } from '../src/email.ts'
@@ -72,7 +72,7 @@ const clearAll = async () => {
 }
 
 beforeAll(async () => {
-  home = await createWorkspace('Callfront Operations')
+  home = await createWorkspace('Linedesk Operations')
   other = await createWorkspace('Brightwater Plumbing & Heating')
   operator = home.owner
   await setAdmin(operator, true)
@@ -475,7 +475,7 @@ describe('recording storage', () => {
   const envBefore = { ...process.env }
   let dir: string
   beforeAll(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'callfront-recording-admin-'))
+    dir = await mkdtemp(join(tmpdir(), 'linedesk-recording-admin-'))
   })
   afterEach(async () => {
     process.env = { ...envBefore }
@@ -946,7 +946,7 @@ describe('instance admins', () => {
   })
 
   test('nobody can sign up by password for a listed address, so nobody can take it over later', async () => {
-    const email = `operator-${crypto.randomUUID().slice(0, 8)}@callfront.test`
+    const email = `operator-${crypto.randomUUID().slice(0, 8)}@linedesk.test`
     process.env.INSTANCE_ADMIN_EMAILS = email.toUpperCase()
     const signUpAs = (address: string) =>
       request(
@@ -960,7 +960,7 @@ describe('instance admins', () => {
     expect(refused.status).toBe(403)
     expect(refused.body.message).toMatch(/reserved for an administrator/)
     expect(await db.select().from(user).where(eq(user.email, email))).toEqual([])
-    expect((await signUpAs(`someone-${crypto.randomUUID().slice(0, 8)}@callfront.test`)).status).toBe(200)
+    expect((await signUpAs(`someone-${crypto.randomUUID().slice(0, 8)}@linedesk.test`)).status).toBe(200)
     // A verified address (email link, sign-in provider) may be created.
     await expect(refuseUnverifiedAdminAddress(db, { email, emailVerified: true })).resolves.toBeUndefined()
   })
@@ -972,7 +972,7 @@ describe('instance admins', () => {
         // An empty user table for this transaction only: the temporary table hides the real one.
         await tx.execute(sql`create temp table "user" (like public."user" including defaults) on commit drop`)
         const add = async (id: string) => {
-          await tx.insert(user).values({ id, name: id, email: `${id}@callfront.test` })
+          await tx.insert(user).values({ id, name: id, email: `${id}@linedesk.test` })
           await grantFirstUser(tx, id)
         }
         await add('first')
@@ -994,7 +994,7 @@ describe('instance admins', () => {
 })
 
 describe('user.invite', () => {
-  const address = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}@callfront.test`
+  const address = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}@linedesk.test`
   const accountOf = async (email: string) => (await db.select().from(user).where(eq(user.email, email)))[0]
   afterEach(() => {
     delete process.env.AUTH_SIGNUP_ENABLED
@@ -1224,7 +1224,7 @@ describe('impersonation', () => {
       request(as, body === undefined ? 'GET' : 'POST', `/api/auth${path}`, body)
     const refused = [
       await authCall('/change-password', { currentPassword: 'test-password-1234', newPassword: 'another-password-5678' }),
-      await authCall('/change-email', { newEmail: 'taken-over@callfront.test' }),
+      await authCall('/change-email', { newEmail: 'taken-over@linedesk.test' }),
       await authCall('/delete-user', {}),
       await authCall('/revoke-other-sessions', {}),
       await authCall('/revoke-sessions', {}),

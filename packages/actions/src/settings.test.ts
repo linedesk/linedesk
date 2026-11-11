@@ -1,4 +1,4 @@
-import type { Contact } from '@callfront/db/types'
+import type { Contact } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
 import { rolePermissions } from './define.ts'
 import { applyLocally, type LocalTables } from './index.ts'

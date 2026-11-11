@@ -1,6 +1,6 @@
 // Talk to the agent from the browser, no phone number needed: serves a tiny page that joins a new
 // room with the microphone and dispatches the agent into it, as if +15035550142 had been called.
-// Usage: pnpm --filter @callfront/agent talk, then open http://localhost:5174
+// Usage: pnpm --filter @linedesk/agent talk, then open http://localhost:5174
 import { createServer } from 'node:http'
 import { AccessToken, RoomAgentDispatch, RoomConfiguration } from 'livekit-server-sdk'
 import { AGENT_NAME, requireLivekitEnv, runScript } from './env.ts'

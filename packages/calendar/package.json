@@ -1,5 +1,5 @@
 {
-  "name": "@callfront/calendar",
+  "name": "@linedesk/calendar",
   "private": true,
   "type": "module",
   "exports": { ".": "./src/index.ts" },

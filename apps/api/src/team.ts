@@ -3,8 +3,8 @@
 // Better Auth's own endpoints for inviting and changing members are switched off there, so these
 // handlers are the only write path and the rules below always apply.
 import { randomBytes } from 'node:crypto'
-import { INVITATION_DAYS, type TeamData, type TeamInvitation, type TeamMember } from '@callfront/actions'
-import { invitation, member, organization, type Tx, user } from '@callfront/db'
+import { INVITATION_DAYS, type TeamData, type TeamInvitation, type TeamMember } from '@linedesk/actions'
+import { invitation, member, organization, type Tx, user } from '@linedesk/db'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { Actor } from './context.ts'

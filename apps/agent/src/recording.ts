@@ -4,7 +4,7 @@
 // Which store, with which keys: Linedesk's Providers > Recording storage (GET /v1/agent/provider-config),
 // else this agent's RECORDING_STORE and S3_* variables. S3 keys travel in each egress request, so
 // egress itself needs no storage settings.
-import { callSetRecording, recordingKey, recordingObjectKey, type RecordingStoreName } from '@callfront/actions'
+import { callSetRecording, recordingKey, recordingObjectKey, type RecordingStoreName } from '@linedesk/actions'
 import { EgressClient, EgressStatus, EncodedFileOutput, EncodedFileType, S3Upload } from 'livekit-server-sdk'
 import { z } from 'zod'
 import type { ApiClient } from './api-client.ts'

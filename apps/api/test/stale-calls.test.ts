@@ -1,5 +1,5 @@
 // Live calls whose agent went away are ended by the API after a quiet period, and filed honestly.
-import { calls, transcript_segments } from '@callfront/db'
+import { calls, transcript_segments } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { expect, test } from 'vitest'
 import { db } from '../src/db.ts'

@@ -1,6 +1,6 @@
 // The pages besides the inbox. To add one: add an entry here; its key is the route and the URL
 // hash (`#account`), and the navigation, ⌘K and the page title pick it up from this table.
-import type { Call } from '@callfront/db/types'
+import type { Call } from '@linedesk/db/types'
 import type { Step } from '../inbox/changes.ts'
 import type { ReactNode } from 'react'
 import { AdminNotice } from '../admin/AdminMode.tsx'

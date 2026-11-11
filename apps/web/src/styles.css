@@ -1510,7 +1510,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
 /* booking types: readable number fields */
 .st input[type=number], [class*="st-"] input[type=number] { min-width: 4ch; }
 
-/* Call header: title is the issue, caller below (from Callfront) */
+/* Call header: title is the issue, caller below (from Linedesk) */
 .cv-who { align-items: flex-start; }
 .cv-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-muted); }
 .cv-meta > span + span::before, .cv-line > * + *::before { content: '·'; margin-right: 6px; color: var(--ink-disabled); }

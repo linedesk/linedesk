@@ -1,7 +1,7 @@
 // notifications.* handlers: a member reads and changes only their own row in their workspace;
 // owners and admins set the workspace defaults (settings:write, checked by the registry).
-import { DEFAULT_NOTIFICATIONS, type NotificationSettingsData } from '@callfront/actions'
-import { member_notification_settings, type Tx, workspace_settings } from '@callfront/db'
+import { DEFAULT_NOTIFICATIONS, type NotificationSettingsData } from '@linedesk/actions'
+import { member_notification_settings, type Tx, workspace_settings } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { type Handler, Reject } from './handler-context.ts'

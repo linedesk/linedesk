@@ -1,7 +1,7 @@
 // Settings, Phone numbers: the numbers the assistant answers, how to forward a business line to
 // them, and connecting another one (attach a number from the carrier account, or buy one).
 // Connecting runs phoneNumber.setup through the outbox; the new row arrives by sync.
-import type { PhoneNumber } from '@callfront/db/types'
+import type { PhoneNumber } from '@linedesk/db/types'
 import { useEffect, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
 import { CopyButton } from '../onboarding/Frame.tsx'
@@ -15,7 +15,7 @@ import {
   priceNote,
   type PhoneChoice,
 } from '../onboarding/flow.ts'
-import { confirmsNumber } from '@callfront/actions'
+import { confirmsNumber } from '@linedesk/actions'
 import { usePresence } from '../shell/presence.ts'
 import { useAssistantName, useRejection, useRows, useRun } from '../store.tsx'
 import { RadioCard } from '../ui/controls.tsx'

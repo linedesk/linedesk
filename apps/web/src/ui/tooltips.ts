@@ -1,7 +1,7 @@
 // Shortcut tooltips: any element with a title like "Mark done (E)" shows the label and its keys
 // on hover. Clicking such an element emits a hint so the app can say "Next time, press E".
 export type ShortcutHint = { label: string; keys: string[] }
-export const HINT_EVENT = 'callfront-hint'
+export const HINT_EVENT = 'linedesk-hint'
 
 const SHOW_AFTER_MS = 550 // quick clicks never flash a tooltip
 const WARM_MS = 400 // once one is visible, neighbours appear at once

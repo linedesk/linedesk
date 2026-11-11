@@ -1,7 +1,7 @@
 // Workspace settings that live in workspace_settings (not synced to browsers): read and change them
 // through the registry. One row per workspace; a workspace without one gets it on the first change.
-import { DEFAULT_RECORDING_RETENTION_DAYS, type WorkspaceSettingsData } from '@callfront/actions'
-import { availability_rules, type Tx, workspace_settings } from '@callfront/db'
+import { DEFAULT_RECORDING_RETENTION_DAYS, type WorkspaceSettingsData } from '@linedesk/actions'
+import { availability_rules, type Tx, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 import { activeProvider } from './provider-settings.ts'

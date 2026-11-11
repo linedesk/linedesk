@@ -1,8 +1,8 @@
 // The one path for actions. Validate, authorize, run in a transaction, record the command.
 // Idempotent per command id: a replayed command returns its first result.
 // Read-only actions skip the command log: nothing to replay, nothing to audit.
-import { actions, redactInput, type ActionDef, type ActionRejection, type ActionResult } from '@callfront/actions'
-import { commands } from '@callfront/db'
+import { actions, redactInput, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
+import { commands } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'

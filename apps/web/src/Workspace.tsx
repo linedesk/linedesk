@@ -1,5 +1,5 @@
 // The signed-in app: composes the inbox, the pages, the navigation, overlays and toasts.
-import type { Call } from '@callfront/db/types'
+import type { Call } from '@linedesk/db/types'
 import { useEffect, useRef, useState } from 'react'
 import { AdminMode } from './admin/AdminMode.tsx'
 import type { Me } from './auth.ts'

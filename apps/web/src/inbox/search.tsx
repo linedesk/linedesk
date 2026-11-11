@@ -1,5 +1,5 @@
 // Search (/) covers every call: caller, number, title, summary and transcript text.
-import type { Call, Contact, TranscriptSegment } from '@callfront/db/types'
+import type { Call, Contact, TranscriptSegment } from '@linedesk/db/types'
 import type { ReactNode } from 'react'
 import { callTitle, formatPhone } from '../inbox-model.ts'
 

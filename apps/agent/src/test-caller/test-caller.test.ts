@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { CallTestFinding } from '@callfront/actions'
+import type { CallTestFinding } from '@linedesk/actions'
 import { createLatencyLog, createOnsetDetector, rms } from './latency.ts'
 import { isGoodbye } from './caller.ts'
 import { waitForFinishedCall } from './wait.ts'

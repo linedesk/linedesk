@@ -1,4 +1,4 @@
-import type { Call, TranscriptSegment } from '@callfront/db/types'
+import type { Call, TranscriptSegment } from '@linedesk/db/types'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { answeredByLabel, type CallStatus, callStatus, callTitle, formatPhone, hasReminder, STATUS_WORD } from '../inbox-model.ts'
 import { useAssistantName, useContact } from '../store.tsx'

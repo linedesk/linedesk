@@ -1,5 +1,5 @@
 // Team management: who may invite, who may accept, last owner protection, removal and closed sign-up.
-import { invitation, member, user } from '@callfront/db'
+import { invitation, member, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
@@ -11,7 +11,7 @@ const sent: Email[] = []
 // Email is off in the test env; collect what would be sent instead.
 Object.assign(emailSender, { kind: 'log', send: async (email: Email) => void sent.push(email) })
 
-const newEmail = () => `invitee_${crypto.randomUUID().slice(0, 8)}@callfront.test`
+const newEmail = () => `invitee_${crypto.randomUUID().slice(0, 8)}@linedesk.test`
 const verify = (u: User) => db.update(user).set({ emailVerified: true }).where(eq(user.id, u.userId))
 const linkTo = (to: string) => sent.findLast(e => e.to === to)?.text.match(/\?invite=([\w%-]+)/)?.[1]
 

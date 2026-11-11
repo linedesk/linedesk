@@ -1,7 +1,7 @@
 // Test calls from the web app: a token for one new room, signed for the caller's own workspace,
 // and the call the agent then opens in that workspace.
 import { createHmac } from 'node:crypto'
-import { calls, contacts } from '@callfront/db'
+import { calls, contacts } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { db } from '../src/db.ts'
@@ -47,7 +47,7 @@ test('an owner gets a token for one new room, dispatching the agent into their o
   // Only this room, only the microphone, no data messages, no admin rights.
   expect(claims.video).toEqual({ roomJoin: true, room, canPublish: true, canPublishSources: ['microphone'], canSubscribe: true, canPublishData: false })
   expect(claims.roomConfig.maxParticipants).toBe(3)
-  expect(claims.roomConfig.agents).toEqual([{ agentName: 'callfront', metadata: JSON.stringify({ source: 'test', workspaceId: ws.id }) }])
+  expect(claims.roomConfig.agents).toEqual([{ agentName: 'linedesk', metadata: JSON.stringify({ source: 'test', workspaceId: ws.id }) }])
   // Nothing is kept in the command log: the result holds a token.
   expect(JSON.stringify(await db.execute('select input from commands order by created_at desc limit 5'))).not.toContain(token)
 })

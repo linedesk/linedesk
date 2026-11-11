@@ -6,7 +6,7 @@ import {
   type TeamData,
   type TeamInvitation,
   type TeamMember,
-} from '@callfront/actions'
+} from '@linedesk/actions'
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import { Section } from '../settings/fields.tsx'
 import { FormField, Input } from '../ui/form.tsx'

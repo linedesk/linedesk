@@ -1,8 +1,8 @@
 // What every server handler gets and how it says no. Its own file so that handler modules can
 // share it without importing each other.
-import type { ActionResult } from '@callfront/actions'
-import type { Tx } from '@callfront/db'
-import type { TelephonyProvider } from '@callfront/telephony'
+import type { ActionResult } from '@linedesk/actions'
+import type { Tx } from '@linedesk/db'
+import type { TelephonyProvider } from '@linedesk/telephony'
 import type { Actor } from './context.ts'
 import type { RecordingStore } from './recording-store.ts'
 

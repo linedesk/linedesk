@@ -2,8 +2,8 @@
 // talks to the server (sends the outbox, runs read sync); the others hand it their commands
 // and get rows and results back over a channel. So a workspace uses the same few connections
 // however many tabs are open, and no command is sent twice.
-import type { ActionResult } from '@callfront/actions'
-import type { TableName } from '@callfront/db/types'
+import type { ActionResult } from '@linedesk/actions'
+import type { TableName } from '@linedesk/db/types'
 
 /** `seq` orders commands: strictly increasing within a tab, roughly by time across tabs (older stored commands have none). */
 export type Command = { id: string; name: string; input: unknown; at: string; seq?: number }

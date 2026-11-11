@@ -1,4 +1,4 @@
-import type { Call } from '@callfront/db/types'
+import type { Call } from '@linedesk/db/types'
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { SegmentsByCall } from '../call/segments.ts'
 import type { CallGroups, InboxTab } from '../inbox-model.ts'

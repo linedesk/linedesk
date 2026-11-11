@@ -2,8 +2,8 @@
 // response); pending commands live in a durable outbox and are re-applied on top of the
 // confirmed rows on every change, so the UI is instant and survives reloads and offline.
 // With several tabs open, one tab leads: it sends the outbox and runs read sync (see tabs.ts).
-import { actions, applyLocally, type ActionResult, type LocalTables } from '@callfront/actions'
-import { tableNames, type TableName, type Tables } from '@callfront/db/types'
+import { actions, applyLocally, type ActionResult, type LocalTables } from '@linedesk/actions'
+import { tableNames, type TableName, type Tables } from '@linedesk/db/types'
 import type { ReadSyncAdapter, TableSink } from './adapter.ts'
 import { type LocalDb, openLocalDb } from './idb.ts'
 import { browserTabLink, type Command, type TabLink, type TabMessage } from './tabs.ts'
@@ -49,7 +49,7 @@ export async function forgetCursorsOnNewVersion(local: LocalDb, version: string)
 export async function createStore(opts: StoreOptions) {
   let stopped = false
   let leading = false
-  const tabs = opts.tabs ?? browserTabLink(`callfront-tabs:${opts.dbName}`)
+  const tabs = opts.tabs ?? browserTabLink(`linedesk-tabs:${opts.dbName}`)
   const early: TabMessage[] = [] // messages that arrive while the database is still loading
   let receive = (message: TabMessage) => {
     early.push(message)

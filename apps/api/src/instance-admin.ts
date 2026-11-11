@@ -1,6 +1,6 @@
 // Instance admin: the operator of the install. A property of the user, independent of workspace
 // roles. Granted to the first user, in the admin area, or by INSTANCE_ADMIN_EMAILS.
-import { type Tx, user } from '@callfront/db'
+import { type Tx, user } from '@linedesk/db'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { APIError } from 'better-auth/api'
 import { db } from './db.ts'

@@ -1,5 +1,5 @@
 // What the inbox shows and what is selected: the view, the search, the list, the cursor and the open call.
-import type { Call } from '@callfront/db/types'
+import type { Call } from '@linedesk/db/types'
 import { useEffect, useMemo } from 'react'
 import { useSegmentsByCall } from '../call/segments.ts'
 import { type CallGroups, countsFor, groupRepeats, listFor, sortForList, tabOf, type InboxTab } from '../inbox-model.ts'

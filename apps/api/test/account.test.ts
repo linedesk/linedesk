@@ -1,5 +1,5 @@
 // POST /v1/account/password: a first password for a member who has none, only right after signing in.
-import { account, session } from '@callfront/db'
+import { account, session } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, test } from 'vitest'
 import { RECENT_SIGN_IN_MS, SIGN_IN_AGAIN, signedInRecently } from '../src/account.ts'

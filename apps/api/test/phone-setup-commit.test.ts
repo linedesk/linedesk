@@ -1,7 +1,7 @@
 // phoneNumber.setup through the API: a number bought by the command is released whenever the
 // command does not commit, also when the failure comes after the handler has finished.
-import { phone_numbers } from '@callfront/db'
-import { devProvider } from '@callfront/telephony'
+import { phone_numbers } from '@linedesk/db'
+import { devProvider } from '@linedesk/telephony'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'

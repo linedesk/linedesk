@@ -1,4 +1,4 @@
-import type { TranscriptSegment } from '@callfront/db/types'
+import type { TranscriptSegment } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
 import { groupSegments } from './segments.ts'
 

@@ -2,11 +2,11 @@
 // the workspace with an existing user as owner, its assistant and settings (onboarding done), and
 // optionally its phone number, attached (never bought) and routed to LiveKit SIP.
 // Safe to run again: it finishes a half setup and changes nothing that is already there.
-//   pnpm --filter @callfront/api workspace:create --name "Brightwater Plumbing" --owner mike@example.com [--number +15035550142] [--time-zone America/Los_Angeles]
+//   pnpm --filter @linedesk/api workspace:create --name "Brightwater Plumbing" --owner mike@example.com [--number +15035550142] [--time-zone America/Los_Angeles]
 //   in the api container: node apps/api/src/workspace-create.ts --name … --owner …
 import { parseArgs } from 'node:util'
-import { rolePermissions } from '@callfront/actions'
-import { member, organization, phone_numbers, user } from '@callfront/db'
+import { rolePermissions } from '@linedesk/actions'
+import { member, organization, phone_numbers, user } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { auth } from './auth.ts'
 import type { Actor } from './context.ts'

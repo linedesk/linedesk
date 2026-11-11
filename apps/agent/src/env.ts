@@ -1,6 +1,6 @@
 // Environment access for the agent: fail early and name what is missing.
 
-export const AGENT_NAME = 'callfront'
+export const AGENT_NAME = 'linedesk'
 
 /** The secret in .env.example and docker-compose.yml; fine on localhost, never anywhere else. */
 export const DEV_LIVEKIT_SECRET = 'devsecret-change-me-at-least-32-chars'

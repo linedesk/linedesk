@@ -2,7 +2,7 @@
 // dropped afterwards, so parallel runs (several checkouts, one Postgres) cannot disturb each other.
 // Its name starts with a base name that must end in `_test`: the database of TEST_DATABASE_URL,
 // or the one of DATABASE_URL with `_test` appended. The dev database is never touched.
-import { createDb } from '@callfront/db'
+import { createDb } from '@linedesk/db'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 
 const STALE_AFTER_MS = 60 * 60 * 1000

@@ -9,7 +9,7 @@ import { fakeS3 } from '../test/fake-s3.ts'
 const badKeys = ['../other-bucket/secret.txt', '../../etc/passwd.ogg', '/etc/passwd', 'ws_1/../ws_2/call.ogg', 'ws_1/call_1.txt', 'ws_1/sub/call_1.ogg', 'call_1.ogg', '']
 
 describe('file store', async () => {
-  const tmp = await mkdtemp(join(tmpdir(), 'callfront-recordings-'))
+  const tmp = await mkdtemp(join(tmpdir(), 'linedesk-recordings-'))
   const root = join(tmp, 'recordings')
   await mkdir(join(root, 'ws_1'), { recursive: true })
   await writeFile(join(root, 'ws_1/call_1.ogg'), new Uint8Array([1, 2, 3]))
@@ -137,7 +137,7 @@ describe('probe ("Test connection")', () => {
   })
 
   test('file: writes, reads and deletes a test file; creates the directory like egress would', async () => {
-    const tmp = await mkdtemp(join(tmpdir(), 'callfront-probe-'))
+    const tmp = await mkdtemp(join(tmpdir(), 'linedesk-probe-'))
     try {
       await createFileRecordingStore(join(tmp, 'recordings')).probe()
       expect(await readdir(join(tmp, 'recordings'))).toEqual([])

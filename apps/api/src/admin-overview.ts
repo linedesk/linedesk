@@ -1,8 +1,8 @@
 // The admin overview: how much the install is used, what that roughly costs per provider, and
 // whether its parts (API, LiveKit, SIP, voice agent, email) work. Numbers are cheap SQL; health is
 // a separate request because LiveKit and SMTP can take seconds to answer.
-import { categoryNames, type ProviderCategory, type ProviderName, providerSpec } from '@callfront/actions'
-import type { Tx } from '@callfront/db'
+import { categoryNames, type ProviderCategory, type ProviderName, providerSpec } from '@linedesk/actions'
+import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
 import { emailSender } from './email.ts'
 import { livekitStatus, type ServiceStatus } from './livekit-status.ts'

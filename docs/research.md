@@ -42,4 +42,4 @@ Notes behind the mock-up. Sources at the end.
 - Superhuman: [How to build a remarkable command palette](https://blog.superhuman.com/how-to-build-a-remarkable-command-palette/), [Shortcuts and Cmd+K](https://help.superhuman.com/article/478-superhuman-command)
 - AI receptionist onboarding checklist (vendor): [My AI Front Desk](https://llms.myaifrontdesk.com/ai-front-desk-onboarding-setup-checklist)
 - Transcripts and summaries as standard (vendor): [Picktime AI receptionist](https://picktime.com/features/ai-receptionist)
-- Market context: Callfront market matrix and one-pager (internal).
+- Market context: Linedesk market matrix and one-pager (internal).

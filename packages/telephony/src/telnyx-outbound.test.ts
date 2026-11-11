@@ -52,10 +52,10 @@ describe('telnyx outbound for the call test', () => {
     const account = freshAccount()
     const { outbound, calls } = mockTelnyx(account)
     const sip = await outbound.ensureOutboundSip(CALLER)
-    expect(sip).toMatchObject({ address: 'sip.telnyx.com', username: 'cfcallfronttestcaller', headers: { 'X-Telnyx-Username': 'cfcallfronttestcaller' } })
+    expect(sip).toMatchObject({ address: 'sip.telnyx.com', username: 'cflinedesktestcaller', headers: { 'X-Telnyx-Username': 'cflinedesktestcaller' } })
     expect(sip.password.length).toBeGreaterThanOrEqual(20)
     const created = calls.find(c => c.method === 'POST' && c.path === '/credential_connections')!
-    expect(created.body).toMatchObject({ connection_name: 'callfront-test-caller', user_name: 'cfcallfronttestcaller', password: sip.password, outbound: { outbound_voice_profile_id: 'ovp_1' } })
+    expect(created.body).toMatchObject({ connection_name: 'linedesk-test-caller', user_name: 'cflinedesktestcaller', password: sip.password, outbound: { outbound_voice_profile_id: 'ovp_1' } })
     expect(account.numbers.find(n => n.id === 'num_b')?.connection_id).toBe('conn_test')
   })
 
@@ -82,7 +82,7 @@ describe('telnyx outbound for the call test', () => {
   })
 
   test('SIP user names fit Telnyx rules', () => {
-    expect(sipUserName('callfront-test-caller')).toBe('cfcallfronttestcaller')
+    expect(sipUserName('linedesk-test-caller')).toBe('cflinedesktestcaller')
     expect(sipUserName('x'.repeat(60))).toHaveLength(32)
   })
 })

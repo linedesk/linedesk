@@ -1,7 +1,7 @@
 // What an instance admin may not do while signed in as another user (docs/architecture.md §12):
 // nothing that changes the account's credentials or security, and nothing that would let the
 // impersonation outlive its hour. Runs before Better Auth's own endpoints.
-import { IMPERSONATION_MINUTES } from '@callfront/actions'
+import { IMPERSONATION_MINUTES } from '@linedesk/actions'
 import { APIError, getSessionFromCtx } from 'better-auth/api'
 
 type AuthCtx = Parameters<typeof getSessionFromCtx>[0]

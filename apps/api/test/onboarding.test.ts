@@ -1,5 +1,5 @@
 // Onboarding progress on the workspace: starts with a new workspace, survives reloads (/v1/me), ends with done or skipped.
-import { workspace_settings } from '@callfront/db'
+import { workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, test } from 'vitest'
 import { db } from '../src/db.ts'

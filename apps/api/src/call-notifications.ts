@@ -1,7 +1,7 @@
 // Emails about finished calls: one per call to every member who wants it (their own setting, else
 // the workspace default). Sent by a pg-boss job after `call.finish` committed (jobs.ts), so a slow
 // mail server never holds up the agent. Test calls and spam send nothing.
-import { DEFAULT_NOTIFICATIONS } from '@callfront/actions'
+import { DEFAULT_NOTIFICATIONS } from '@linedesk/actions'
 import {
   assistants,
   calls,
@@ -11,8 +11,8 @@ import {
   type Tx,
   user,
   workspace_settings,
-} from '@callfront/db'
-import type { Call } from '@callfront/db/types'
+} from '@linedesk/db'
+import type { Call } from '@linedesk/db/types'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Email, EmailSender } from './email.ts'
 

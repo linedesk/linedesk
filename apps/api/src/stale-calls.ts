@@ -1,7 +1,7 @@
 // A live call whose agent went away (crash, deploy, lost connection) never gets call.finish and would
 // sit at the top of the inbox as "live" forever. The API ends such calls once nothing has happened on
 // them for a while, and files them honestly: cut off, with a callback when the caller had spoken.
-import { calls, transcript_segments, type Tx } from '@callfront/db'
+import { calls, transcript_segments, type Tx } from '@linedesk/db'
 import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 
 /** Minutes without a new transcript line after which a live call counts as over. */

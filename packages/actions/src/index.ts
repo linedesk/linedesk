@@ -82,7 +82,7 @@ export const actions: ReadonlyMap<string, ActionDef> = new Map(all.map(a => [a.n
 /** What `POST /v1/actions/<name>` returns on success: the rows the action wrote. */
 export type ActionResult = {
   ok: true
-  rows: Partial<Record<import('@callfront/db/types').TableName, Record<string, unknown>[]>>
+  rows: Partial<Record<import('@linedesk/db/types').TableName, Record<string, unknown>[]>>
   data?: Record<string, unknown>
 }
 export type ActionRejection = { ok: false; error: string }

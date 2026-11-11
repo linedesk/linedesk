@@ -1,6 +1,6 @@
 // Tiny IndexedDB wrapper. Stores: one per synced table (confirmed server rows), `outbox`
 // (pending commands, in order) and `meta` (read-sync cursors).
-import { tableNames } from '@callfront/db/types'
+import { tableNames } from '@linedesk/db/types'
 
 const stores = [...tableNames, 'outbox', 'meta'] as const
 export type StoreName = (typeof stores)[number]

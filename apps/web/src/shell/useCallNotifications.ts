@@ -1,8 +1,8 @@
 // Browser notifications for finished calls while Linedesk is open (Notification API, no push
 // service). Only when the tab is in the background, only for calls that finished after the app
 // opened, never for test calls or spam. Clicking one opens the call.
-import type { NotificationSettingsData } from '@callfront/actions'
-import type { Call } from '@callfront/db/types'
+import type { NotificationSettingsData } from '@linedesk/actions'
+import type { Call } from '@linedesk/db/types'
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { readAction } from '../settings/settings-api.ts'
 import { useRows } from '../store.tsx'

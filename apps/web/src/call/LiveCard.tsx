@@ -1,4 +1,4 @@
-import type { TranscriptSegment } from '@callfront/db/types'
+import type { TranscriptSegment } from '@linedesk/db/types'
 
 /** Shown while the call is running: the assistant is on the line, plus the latest thing it did. */
 export function LiveCard({ segments, assistantName }: { segments: TranscriptSegment[]; assistantName: string }) {

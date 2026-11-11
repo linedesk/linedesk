@@ -1,4 +1,4 @@
-import type { Call, Contact } from '@callfront/db/types'
+import type { Call, Contact } from '@linedesk/db/types'
 import { callTitle, formatPhone } from '../inbox-model.ts'
 import { useContact, useRows, useRun } from '../store.tsx'
 import { parseTs, shortDuration, timeLabel } from '../time.ts'

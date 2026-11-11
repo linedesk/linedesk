@@ -1,5 +1,5 @@
-import { DEFAULT_CALL_RULES } from '@callfront/actions'
-import type { Assistant } from '@callfront/db/types'
+import { DEFAULT_CALL_RULES } from '@linedesk/actions'
+import type { Assistant } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import { buildInstructions } from './prompt.ts'
 

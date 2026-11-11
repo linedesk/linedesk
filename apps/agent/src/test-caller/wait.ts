@@ -1,5 +1,5 @@
 // How the call test waits for the business's call to be finished (and, if expected, recorded).
-import type { CallTestFinding } from '@callfront/actions'
+import type { CallTestFinding } from '@linedesk/actions'
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 

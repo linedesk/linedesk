@@ -6,7 +6,7 @@ import {
   type ProviderTestData,
   providerCategories,
   providers as providerSpecs,
-} from '@callfront/actions'
+} from '@linedesk/actions'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { Switch } from '../ui/controls.tsx'
 import { Dialog, FormField, Input, SecretInput } from '../ui/form.tsx'

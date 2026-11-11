@@ -1,5 +1,5 @@
 {
-  "name": "callfront",
+  "name": "linedesk",
   "private": true,
   "packageManager": "pnpm@10.11.0",
   "engines": { "node": ">=22" },
@@ -12,9 +12,9 @@
     "db:up": "sh scripts/compose-dev.sh up -d postgres electric",
     "voice:up": "sh scripts/compose-dev.sh up -d redis livekit livekit-sip",
     "recording:up": "sh scripts/compose-dev.sh --profile recording up -d redis livekit livekit-egress",
-    "db:generate": "pnpm --filter @callfront/db generate",
-    "db:migrate": "pnpm --filter @callfront/db migrate",
-    "db:seed": "pnpm --filter @callfront/api seed"
+    "db:generate": "pnpm --filter @linedesk/db generate",
+    "db:migrate": "pnpm --filter @linedesk/db migrate",
+    "db:seed": "pnpm --filter @linedesk/api seed"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.6",

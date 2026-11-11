@@ -4,7 +4,7 @@
 import { voice, type JobContext } from '@livekit/agents'
 import { AudioStream, type AudioFrame, type RemoteParticipant, RoomEvent, TrackKind } from '@livekit/rtc-node'
 
-export const LATENCY_ATTRIBUTE = 'callfront.latency'
+export const LATENCY_ATTRIBUTE = 'linedesk.latency'
 export type LatencySample = { greetingMs: number | null; replyMs: number[] }
 
 /** Level above which a 10 ms frame counts as speech (16-bit PCM RMS). Phone and TTS audio sit far above it. */

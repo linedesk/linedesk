@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { categoryEnv, providerNames, providers } from '@callfront/actions'
+import { categoryEnv, providerNames, providers } from '@linedesk/actions'
 import { existsSync, readFileSync } from 'node:fs'
 import { parseEnv } from 'node:util'
 import { configDefaults, defineConfig } from 'vitest/config'

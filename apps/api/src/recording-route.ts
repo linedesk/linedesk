@@ -4,8 +4,8 @@
 // (calls.recording_store), resolved on each request: settings changed in the admin area apply at once.
 import { createReadStream } from 'node:fs'
 import { Readable } from 'node:stream'
-import { isRecordingKey, recordingFormats, recordingKey } from '@callfront/actions'
-import { calls } from '@callfront/db'
+import { isRecordingKey, recordingFormats, recordingKey } from '@linedesk/actions'
+import { calls } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'

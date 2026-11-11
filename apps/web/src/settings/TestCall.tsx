@@ -2,7 +2,7 @@
 // (assistant.startTestCall); the voice agent joins it and files the call in the inbox as "Test call".
 // Settings > Assistant shows a Start button in its header and a compact call bar under it; onboarding
 // shows the same button, bar and the transcript as it syncs in (TestCall).
-import type { TestCallData } from '@callfront/actions'
+import type { TestCallData } from '@linedesk/actions'
 import { Room, RoomEvent, Track } from 'livekit-client'
 import { type RefObject, useEffect, useMemo, useRef, useState } from 'react'
 import { useVoiceReady } from '../shell/presence.ts'

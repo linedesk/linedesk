@@ -1,5 +1,5 @@
 // What the Team page shows and offers, kept out of the component so it can be tested.
-import type { TeamData, TeamInvitation, TeamMember } from '@callfront/actions'
+import type { TeamData, TeamInvitation, TeamMember } from '@linedesk/actions'
 
 const DAY_MS = 86_400_000
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/

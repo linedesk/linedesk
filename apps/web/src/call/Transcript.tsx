@@ -1,4 +1,4 @@
-import type { TranscriptSegment } from '@callfront/db/types'
+import type { TranscriptSegment } from '@linedesk/db/types'
 import type { ReactNode } from 'react'
 import { highlight } from '../inbox/search.tsx'
 import { clock } from '../time.ts'

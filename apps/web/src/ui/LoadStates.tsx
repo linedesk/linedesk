@@ -1,6 +1,6 @@
 // Loading and load-problem states, one set for the whole app (inbox, contacts, admin): grey
 // placeholders while something loads, plain words and Try again when it does not arrive.
-import type { TableName } from '@callfront/db/types'
+import type { TableName } from '@linedesk/db/types'
 import { useEffect, useState } from 'react'
 import { useSnapshot } from '../store.tsx'
 import { Button, cx } from './kit.tsx'

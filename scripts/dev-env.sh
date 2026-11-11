@@ -7,13 +7,13 @@ set -eu
 name=$(printf '%s' "${1:?name}" | tr -c 'a-z0-9_' '_' | sed 's/_*$//')
 api=${2:?api port}
 web=${3:?web port}
-db="callfront_dev_${name}"
-docker compose -p "${COMPOSE_PROJECT_NAME:-callfront}" exec -T postgres psql -U callfront -d postgres -tAc "select 1 from pg_database where datname='$db'" | grep -q 1 \
-  || docker compose -p "${COMPOSE_PROJECT_NAME:-callfront}" exec -T postgres createdb -U callfront "$db"
+db="linedesk_dev_${name}"
+docker compose -p "${COMPOSE_PROJECT_NAME:-linedesk}" exec -T postgres psql -U linedesk -d postgres -tAc "select 1 from pg_database where datname='$db'" | grep -q 1 \
+  || docker compose -p "${COMPOSE_PROJECT_NAME:-linedesk}" exec -T postgres createdb -U linedesk "$db"
 cat <<OUT
-DATABASE_URL=postgres://callfront:callfront@localhost:5433/$db
+DATABASE_URL=postgres://linedesk:linedesk@localhost:5433/$db
 PORT=$api
 WEB_ORIGIN=http://$name.localhost:$web
 BETTER_AUTH_URL=http://$name.localhost:$web
-# then: pnpm db:migrate && pnpm db:seed; run the web app with: pnpm --filter @callfront/web exec vite --port $web --host $name.localhost
+# then: pnpm db:migrate && pnpm db:seed; run the web app with: pnpm --filter @linedesk/web exec vite --port $web --host $name.localhost
 OUT

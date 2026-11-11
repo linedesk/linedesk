@@ -8,7 +8,7 @@ import {
   providerCategories,
   type ProviderName,
   type ProviderTestData,
-} from '@callfront/actions'
+} from '@linedesk/actions'
 import { useEffect, useRef, useState } from 'react'
 import { HelpTip } from '../ui/form.tsx'
 import { cx } from '../ui/kit.tsx'

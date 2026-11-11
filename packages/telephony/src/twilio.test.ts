@@ -13,7 +13,7 @@ type Account = {
 }
 
 const NUMBER = '+15035550100'
-const SIP = 'sip.callfront.test'
+const SIP = 'sip.linedesk.test'
 const ACCOUNT = '/2010-04-01/Accounts/AC1'
 const TOKEN = 'auth-token'
 
@@ -111,7 +111,7 @@ describe('twilio adapter', () => {
       'GET /v1/Trunks', 'POST /v1/Trunks', 'GET /v1/Trunks/TK1/OriginationUrls', 'POST /v1/Trunks/TK1/OriginationUrls',
       'GET /v1/Trunks/TK1/PhoneNumbers', 'POST /v1/Trunks/TK1/PhoneNumbers',
     ])
-    expect(first.calls[1]).toMatchObject({ host: 'trunking.twilio.com', form: { FriendlyName: 'callfront-livekit' } })
+    expect(first.calls[1]).toMatchObject({ host: 'trunking.twilio.com', form: { FriendlyName: 'linedesk-livekit' } })
     expect(first.calls[3]!.form).toEqual({ FriendlyName: 'LiveKit SIP', SipUrl: `sip:${SIP};transport=tcp`, Weight: '1', Priority: '1', Enabled: 'true' })
     expect(first.calls[5]!.form).toEqual({ PhoneNumberSid: 'PN1' })
 
@@ -121,7 +121,7 @@ describe('twilio adapter', () => {
   })
 
   test('repairs a trunk without origination URI and replaces a changed endpoint', async () => {
-    const { provider, state, calls } = mockTwilio({ trunks: [{ sid: 'TK1', friendly_name: 'callfront-livekit' }], originations: [{ sid: 'OU1', sip_url: 'sip:old.test;transport=tcp' }] })
+    const { provider, state, calls } = mockTwilio({ trunks: [{ sid: 'TK1', friendly_name: 'linedesk-livekit' }], originations: [{ sid: 'OU1', sip_url: 'sip:old.test;transport=tcp' }] })
     await provider.routeToSip(routed, SIP)
     expect(state.originations).toEqual([{ sid: 'OU2', sip_url: `sip:${SIP};transport=tcp` }])
     expect(steps(calls)).toContain('DELETE /v1/Trunks/TK1/OriginationUrls/OU1')
@@ -156,7 +156,7 @@ describe('twilio adapter', () => {
     for (const secret of [TOKEN, 'AC1', '/Accounts/']) expect(error.message).not.toContain(secret)
   })
 
-  const url = 'https://api.callfront.test/v1/webhooks/telephony?source=twilio'
+  const url = 'https://api.linedesk.test/v1/webhooks/telephony?source=twilio'
   const fields = { CallSid: 'CA1', CallStatus: 'completed', From: '+15035550191', To: NUMBER, Timestamp: 'Tue, 10 Nov 2026 10:00:00 +0000' }
   function signed(form: Record<string, string>, signedUrl = url) {
     const text = Object.keys(form).sort().reduce((all, key) => all + key + form[key], signedUrl)
@@ -188,7 +188,7 @@ describe('twilio adapter', () => {
   })
 
   test('unroutes a number from Linedesk\'s trunk only, and never creates one', async () => {
-    const { provider, calls, state } = mockTwilio({ trunks: [{ sid: 'TK1', friendly_name: 'callfront-livekit' }], attached: ['PN1', 'PN2'] })
+    const { provider, calls, state } = mockTwilio({ trunks: [{ sid: 'TK1', friendly_name: 'linedesk-livekit' }], attached: ['PN1', 'PN2'] })
     await provider.unrouteNumber(routed)
     expect(steps(calls)).toEqual(['GET /v1/Trunks', 'GET /v1/Trunks/TK1/PhoneNumbers', 'DELETE /v1/Trunks/TK1/PhoneNumbers/PN1'])
     expect(state.attached).toEqual(['PN2'])

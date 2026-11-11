@@ -16,7 +16,7 @@ export function livekitToken(
   apiSecret: string,
   grants: object,
   nowSec = Math.floor(Date.now() / 1000),
-  { identity = 'callfront-admin', ttlSec = 60 }: { identity?: string; ttlSec?: number } = {},
+  { identity = 'linedesk-admin', ttlSec = 60 }: { identity?: string; ttlSec?: number } = {},
 ) {
   const head = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
   const claims = base64url(

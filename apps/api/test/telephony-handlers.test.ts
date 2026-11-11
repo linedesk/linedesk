@@ -1,8 +1,8 @@
 // Handlers whose outcome depends on the carrier or on time: they run directly, with the provider
 // passed in, inside a transaction that is rolled back. Part of the Postgres-backed API suite.
-import { actions, rolePermissions } from '@callfront/actions'
-import { calls, phone_numbers, type Tx } from '@callfront/db'
-import { devProvider, TelephonyError, type TelephonyProvider } from '@callfront/telephony'
+import { actions, rolePermissions } from '@linedesk/actions'
+import { calls, phone_numbers, type Tx } from '@linedesk/db'
+import { devProvider, TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { eq } from 'drizzle-orm'
 import { describe, expect, test, vi } from 'vitest'
 import type { Actor } from '../src/context.ts'

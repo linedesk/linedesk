@@ -1,7 +1,7 @@
 // One store per workspace database in this page. React's StrictMode (and a remount) start and
 // stop a provider twice in a row; without this the page held two stores on one database for a
 // moment and both sent the same command.
-import { createStore, electricAdapter, type Rejection, type Store } from '@callfront/sync'
+import { createStore, electricAdapter, type Rejection, type Store } from '@linedesk/sync'
 
 type Entry = {
   ready: Promise<Store>

@@ -1,6 +1,6 @@
 // What each triage action sends and how it is undone: registry actions and their inverses.
-import { actions } from '@callfront/actions'
-import type { Call, Contact } from '@callfront/db/types'
+import { actions } from '@linedesk/actions'
+import type { Call, Contact } from '@linedesk/db/types'
 import { parseTs } from '../time.ts'
 import type { ReminderOption } from './remind.ts'
 

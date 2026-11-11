@@ -1,5 +1,5 @@
 // The Contacts list is derived from the synced contacts and calls: who called, how often, when last and about what.
-import type { Call, Contact } from '@callfront/db/types'
+import type { Call, Contact } from '@linedesk/db/types'
 import { formatPhone } from '../inbox-model.ts'
 import { parseTs } from '../time.ts'
 

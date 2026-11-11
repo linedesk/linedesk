@@ -1,6 +1,6 @@
 // The keyboard model: one handler for the whole app. Everything it does is also reachable
 // with the mouse; the handler only maps keys to the same commands.
-import type { Call } from '@callfront/db/types'
+import type { Call } from '@linedesk/db/types'
 import { SEARCH_INPUT_ID } from '../inbox/InboxHead.tsx'
 import { splits, viewByKey, type InboxTab } from '../inbox-model.ts'
 

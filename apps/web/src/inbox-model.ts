@@ -1,5 +1,5 @@
 // Inbox views are derived, never stored: does a person still have to act? (architecture §9)
-import type { Call, Contact, TranscriptSegment } from '@callfront/db/types'
+import type { Call, Contact, TranscriptSegment } from '@linedesk/db/types'
 import { parseTs, whenLabel } from './time.ts'
 
 export type InboxTab = 'you' | 'ai' | 'spam' | 'reminders' | 'done'

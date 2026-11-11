@@ -8,9 +8,9 @@ import {
   providersIn,
   type ProviderCategory,
   type ProviderName,
-} from '@callfront/actions'
-import { instance_settings, provider_settings, type Tx, user } from '@callfront/db'
-import { telephonyProviderFromEnv, type TelephonyProvider } from '@callfront/telephony'
+} from '@linedesk/actions'
+import { instance_settings, provider_settings, type Tx, user } from '@linedesk/db'
+import { telephonyProviderFromEnv, type TelephonyProvider } from '@linedesk/telephony'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { decryptSecret, encryptSecret, hasSecretsKey } from './secrets.ts'
 

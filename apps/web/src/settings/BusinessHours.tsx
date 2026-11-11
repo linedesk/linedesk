@@ -2,7 +2,7 @@
 // agent gets them with each call, so outside them the assistant can say the office is closed, take a
 // message and say when someone calls back. Part of the Assistant page's one draft: its Save runs
 // businessHours.set when the hours changed.
-import type { BusinessHoursSpan, WorkspaceSettingsData } from '@callfront/actions'
+import type { BusinessHoursSpan, WorkspaceSettingsData } from '@linedesk/actions'
 import { useEffect, useState } from 'react'
 import { useRun } from '../store.tsx'
 import { Select, type SelectOption, Switch } from '../ui/controls.tsx'

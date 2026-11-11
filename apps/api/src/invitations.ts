@@ -1,7 +1,7 @@
 // Joining a workspace by invitation: what the invitation link shows before sign-in, and the
 // checks Better Auth runs when an invitation is accepted (wired in auth.ts).
-import type { InvitationPreview } from '@callfront/actions'
-import { invitation, member, organization, user } from '@callfront/db'
+import type { InvitationPreview } from '@linedesk/actions'
+import { invitation, member, organization, user } from '@linedesk/db'
 import { APIError } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'
 import { db } from './db.ts'

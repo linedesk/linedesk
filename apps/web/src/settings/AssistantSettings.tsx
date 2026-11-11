@@ -2,8 +2,8 @@
 // business hours, one section at a time (#assistant/<section>). Edits in every section are one local
 // draft: Save runs assistant.update and businessHours.set through the outbox; a section with unsaved
 // changes keeps a dot in the nav while you look at another one.
-import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX } from '@callfront/actions'
-import type { Assistant } from '@callfront/db/types'
+import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX } from '@linedesk/actions'
+import type { Assistant } from '@linedesk/db/types'
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useAssistant, useRun } from '../store.tsx'

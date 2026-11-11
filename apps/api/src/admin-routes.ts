@@ -1,7 +1,7 @@
 // Reads for the admin area and for the voice agent. They cross workspaces, so they are plain
 // routes with their own permission check instead of read sync.
-import type { Permission } from '@callfront/actions'
-import type { Tx } from '@callfront/db'
+import type { Permission } from '@linedesk/actions'
+import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
 import type { Context, Hono, Next } from 'hono'
 import { adminHealth, adminOverview, noteAgentSeen } from './admin-overview.ts'

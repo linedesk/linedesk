@@ -1,5 +1,5 @@
-import { actions } from '@callfront/actions'
-import { assistants, organization, user, workspace_settings, tableNames, type TableName } from '@callfront/db'
+import { actions } from '@linedesk/actions'
+import { assistants, organization, user, workspace_settings, tableNames, type TableName } from '@linedesk/db'
 import { APIError } from 'better-auth/api'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'

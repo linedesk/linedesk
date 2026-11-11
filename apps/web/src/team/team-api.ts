@@ -1,6 +1,6 @@
 // Team actions run online against the API: members and invitations are not in the local store,
 // and a role change or removal must not look done before the server has accepted it.
-import type { AssignableRole, InvitationPreview, TeamData } from '@callfront/actions'
+import type { AssignableRole, InvitationPreview, TeamData } from '@linedesk/actions'
 
 async function runTeamAction<T = unknown>(name: string, input: object): Promise<T> {
   const res = await fetch(`/v1/actions/${name}`, {

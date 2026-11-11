@@ -1,7 +1,7 @@
 // The editable copy of the assistant's settings: how it is read from the row, merged with
 // changes that arrive through sync, checked and turned back into what assistant.update takes.
-import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX, callRulesOf } from '@callfront/actions'
-import type { Assistant, BusinessProfile } from '@callfront/db/types'
+import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX, callRulesOf } from '@linedesk/actions'
+import type { Assistant, BusinessProfile } from '@linedesk/db/types'
 import { renameInGreeting } from '../onboarding/flow.ts'
 
 export type Draft = { name: string; greeting: string; disclose_ai: boolean; instructions: string; call_rules: string }

@@ -1,5 +1,5 @@
 // Step 2: connect a number the assistant answers, then (for a number the business keeps) the forwarding code.
-import type { PhoneNumber } from '@callfront/db/types'
+import type { PhoneNumber } from '@linedesk/db/types'
 import { useEffect, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
 import { Field, TextInput } from '../settings/fields.tsx'

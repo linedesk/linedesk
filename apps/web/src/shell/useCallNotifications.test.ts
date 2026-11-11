@@ -1,4 +1,4 @@
-import type { Call } from '@callfront/db/types'
+import type { Call } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import { newlyFinished } from './useCallNotifications.ts'
 

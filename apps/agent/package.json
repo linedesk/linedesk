@@ -1,5 +1,5 @@
 {
-  "name": "@callfront/agent",
+  "name": "@linedesk/agent",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,9 +13,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@callfront/actions": "workspace:*",
-    "@callfront/db": "workspace:*",
-    "@callfront/telephony": "workspace:*",
+    "@linedesk/actions": "workspace:*",
+    "@linedesk/db": "workspace:*",
+    "@linedesk/telephony": "workspace:*",
     "@livekit/agents": "^1.9.5",
     "@livekit/agents-plugin-cartesia": "^1.9.5",
     "@livekit/agents-plugin-deepgram": "^1.9.5",

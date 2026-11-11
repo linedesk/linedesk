@@ -1,5 +1,5 @@
 {
-  "name": "@callfront/api",
+  "name": "@linedesk/api",
   "private": true,
   "type": "module",
   "exports": {
@@ -15,10 +15,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@callfront/actions": "workspace:*",
-    "@callfront/calendar": "workspace:*",
-    "@callfront/db": "workspace:*",
-    "@callfront/telephony": "workspace:*",
+    "@linedesk/actions": "workspace:*",
+    "@linedesk/calendar": "workspace:*",
+    "@linedesk/db": "workspace:*",
+    "@linedesk/telephony": "workspace:*",
     "@hono/node-server": "^2.1.6",
     "aws4fetch": "^1.0.20",
     "better-auth": "^1.7.19",

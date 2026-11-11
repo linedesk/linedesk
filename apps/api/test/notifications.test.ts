@@ -1,6 +1,6 @@
 // New-call notifications: each member's own settings (else the workspace default), the defaults
 // only owners and admins change, and the email a finished call sends to whoever wants it.
-import { calls, user } from '@callfront/db'
+import { calls, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import type { PgBoss } from 'pg-boss'
 import { afterEach, describe, expect, test, vi } from 'vitest'

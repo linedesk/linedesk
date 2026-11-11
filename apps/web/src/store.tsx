@@ -1,6 +1,6 @@
 // One local store per workspace. Components read rows with useRows() and write with useRun().
-import type { TableName, Tables } from '@callfront/db/types'
-import type { Rejection, Store } from '@callfront/sync'
+import type { TableName, Tables } from '@linedesk/db/types'
+import type { Rejection, Store } from '@linedesk/sync'
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { leaseStore } from './storeCache.ts'
 import { BootScreen } from './ui/BootScreen.tsx'
@@ -8,7 +8,7 @@ import { BootScreen } from './ui/BootScreen.tsx'
 type Ctx = { store: Store; rejection: Rejection | null; clearRejection: () => void }
 const StoreContext = createContext<Ctx | null>(null)
 
-export const localDbName = (workspaceId: string) => `callfront-${workspaceId}`
+export const localDbName = (workspaceId: string) => `linedesk-${workspaceId}`
 
 type Boot = { state: 'loading' } | { state: 'failed'; error: string } | { state: 'ready'; store: Store }
 

@@ -3,7 +3,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { calls } from '@callfront/db'
+import { calls } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { app } from '../src/app.ts'
@@ -27,7 +27,7 @@ async function writeRecording(path: string, body: Uint8Array | string = audio) {
 }
 
 beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'callfront-recordings-'))
+  dir = await mkdtemp(join(tmpdir(), 'linedesk-recordings-'))
   process.env.RECORDING_STORE = 'file'
   process.env.RECORDINGS_DIR = dir
   ws = await createWorkspace('Brightwater Plumbing & Heating')

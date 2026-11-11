@@ -14,8 +14,8 @@ import {
   transcript_segments,
   user,
   workspace_settings,
-} from '@callfront/db'
-import { recordingKey } from '@callfront/actions'
+} from '@linedesk/db'
+import { recordingKey } from '@linedesk/actions'
 import { asc, eq } from 'drizzle-orm'
 import { auth } from './auth.ts'
 import { db, pool } from './db.ts'

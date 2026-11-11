@@ -1,5 +1,5 @@
 // Who may do what: roles, the agent token, and no access without a session.
-import { actions } from '@callfront/actions'
+import { actions } from '@linedesk/actions'
 import { beforeAll, describe, expect, test } from 'vitest'
 import { app } from '../src/app.ts'
 import { auth } from '../src/auth.ts'

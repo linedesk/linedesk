@@ -8,7 +8,7 @@ import * as cartesia from '@livekit/agents-plugin-cartesia'
 import * as deepgram from '@livekit/agents-plugin-deepgram'
 import * as elevenlabs from '@livekit/agents-plugin-elevenlabs'
 import * as openai from '@livekit/agents-plugin-openai'
-import type { AssistantVoice } from '@callfront/db/types'
+import type { AssistantVoice } from '@linedesk/db/types'
 import type { AgentConfig } from './config.ts'
 import type { CompleteJson } from './summary.ts'
 

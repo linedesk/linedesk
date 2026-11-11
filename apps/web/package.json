@@ -1,5 +1,5 @@
 {
-  "name": "@callfront/web",
+  "name": "@linedesk/web",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,9 +9,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@callfront/actions": "workspace:*",
-    "@callfront/db": "workspace:*",
-    "@callfront/sync": "workspace:*",
+    "@linedesk/actions": "workspace:*",
+    "@linedesk/db": "workspace:*",
+    "@linedesk/sync": "workspace:*",
     "@fontsource/geist": "5.3.0",
     "@fontsource/geist-mono": "5.3.0",
     "better-auth": "^1.7.19",
@@ -20,7 +20,7 @@
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "@callfront/api": "workspace:*",
+    "@linedesk/api": "workspace:*",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",

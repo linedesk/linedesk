@@ -1,7 +1,7 @@
 // Who is calling: a signed-in member (session cookie) or the voice agent (bearer token).
 import { timingSafeEqual } from 'node:crypto'
-import { rolePermissions, type Permission, type Role } from '@callfront/actions'
-import { member, organization, user } from '@callfront/db'
+import { rolePermissions, type Permission, type Role } from '@linedesk/actions'
+import { member, organization, user } from '@linedesk/db'
 import { asc, eq } from 'drizzle-orm'
 import { auth } from './auth.ts'
 import { db } from './db.ts'

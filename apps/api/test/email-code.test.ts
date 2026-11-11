@@ -1,6 +1,6 @@
 // Email sign-in by code: a 6-digit code by email, 10 minutes, 3 tries, limits per IP and per address,
 // and closed sign-up. Codes are read from a spy on the email sender.
-import { invitation, user, verification } from '@callfront/db'
+import { invitation, user, verification } from '@linedesk/db'
 import { eq, like } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
@@ -8,7 +8,7 @@ import { emailSender } from '../src/email.ts'
 import { anonymous, createWorkspace, randomIp, request, type Workspace, FROM } from './helpers.ts'
 
 const ORIGIN = 'http://localhost:5173'
-const address = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}@callfront.test`
+const address = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}@linedesk.test`
 const accountOf = async (email: string) => (await db.select().from(user).where(eq(user.email, email)))[0]
 
 let ws: Workspace
@@ -137,7 +137,7 @@ describe('what is not offered', () => {
     '/email-otp/check-verification-otp', '/email-otp/request-email-change', '/email-otp/change-email',
   ]
   test.each(unused)('POST /api/auth%s is not there', async path => {
-    const res = await request(anonymous, 'POST', `/api/auth${path}`, { email: 'a@callfront.test', otp: '123456', password: 'new-password-123', type: 'forget-password' }, { origin: ORIGIN, [FROM]: randomIp() })
+    const res = await request(anonymous, 'POST', `/api/auth${path}`, { email: 'a@linedesk.test', otp: '123456', password: 'new-password-123', type: 'forget-password' }, { origin: ORIGIN, [FROM]: randomIp() })
     expect(res.status).toBe(404)
   })
 

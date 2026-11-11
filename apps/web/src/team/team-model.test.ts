@@ -1,4 +1,4 @@
-import type { TeamData, TeamMember } from '@callfront/actions'
+import type { TeamData, TeamMember } from '@linedesk/actions'
 import { describe, expect, it } from 'vitest'
 import { canEditRole, canRemove, invitationStatus, isEmail, isOnTeam, joinedLabel } from './team-model.ts'
 

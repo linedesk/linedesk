@@ -1,7 +1,7 @@
 // Background jobs with pg-boss, in the API process: its tables live in the `pgboss` schema of the
 // same database, so self-hosting needs nothing extra. Several API replicas share the work.
 // JOBS_ENABLED=false: this process only queues jobs and runs none (another replica does them).
-import type { Tx } from '@callfront/db'
+import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
 import { fromDrizzle, PgBoss } from 'pg-boss'
 import { notifyCallFinished } from './call-notifications.ts'

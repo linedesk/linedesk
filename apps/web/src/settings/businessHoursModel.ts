@@ -1,6 +1,6 @@
 // Business hours without React: the week as rows of the form, and back to what businessHours.set takes.
 // The form has one span per day; the API allows more (a lunch break), but the form shows the first.
-import type { BusinessHoursSpan } from '@callfront/actions'
+import type { BusinessHoursSpan } from '@linedesk/actions'
 
 export type DayHours = { weekday: number; open: boolean; start: string; end: string }
 

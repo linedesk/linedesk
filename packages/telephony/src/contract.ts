@@ -12,7 +12,7 @@ export function describeProviderContract(name: string, make: () => TelephonyProv
       const owned = await provider.buyNumber(found!.e164)
       expect(owned.e164).toBe(found!.e164)
       expect(owned.providerRef).toBeTruthy()
-      await expect(provider.routeToSip(owned, 'sip.callfront.test')).resolves.toBeUndefined()
+      await expect(provider.routeToSip(owned, 'sip.linedesk.test')).resolves.toBeUndefined()
       await expect(provider.unrouteNumber(owned)).resolves.toBeUndefined()
       await expect(provider.unrouteNumber(owned)).resolves.toBeUndefined() // safe to repeat
       await expect(provider.releaseNumber(owned)).resolves.toBeUndefined()

@@ -7,8 +7,8 @@
 import { mkdir, readFile, realpath, stat, unlink, writeFile } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { isRecordingKey, recordingObjectKey, recordingStores, type RecordingStoreName } from '@callfront/actions'
-import type { Tx } from '@callfront/db'
+import { isRecordingKey, recordingObjectKey, recordingStores, type RecordingStoreName } from '@linedesk/actions'
+import type { Tx } from '@linedesk/db'
 import { AwsClient } from 'aws4fetch'
 import { activeProvider, resolveProvider } from './provider-settings.ts'
 

@@ -2269,8 +2269,8 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
         if (e.detail === 'fwd') setPos(Math.min(s.duration, s.pos + 5));
         if (e.detail === 'back') setPos(Math.max(0, s.pos - 5));
       }
-      window.addEventListener('callfront-player', onP);
-      return function () { window.removeEventListener('callfront-player', onP); };
+      window.addEventListener('linedesk-player', onP);
+      return function () { window.removeEventListener('linedesk-player', onP); };
     }, []);
     var visCount = c.id === 'live' ? L.items.filter(function (i) { return i.k === 'msg' ? i.start <= L.elapsed : i.at <= L.elapsed; }).length : 0;
     useEffect(function () {
@@ -2969,7 +2969,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
             h('input', { id: 'tel-' + o[0], type: 'radio', name: 'tel', checked: v.tel === o[0], onChange: function () { upd('tel')(o[0]); } }),
             h('div', null, h('b', null, o[1], o[3] ? h(K.Badge, { tone: 'signal', className: 'st-rec' }, 'Recommended') : null), h('span', null, o[2])));
         }))),
-      v.tel === 'sip' ? h('div', { className: 'field' }, h('label', { htmlFor: 'pv-sip' }, 'SIP URI'), h(K.Input, { id: 'pv-sip', value: v.sip, placeholder: 'sip:callfront@pbx.brightwater-plumbing.example', onChange: function (e) { upd('sip')(e.target.value); } })) : null,
+      v.tel === 'sip' ? h('div', { className: 'field' }, h('label', { htmlFor: 'pv-sip' }, 'SIP URI'), h(K.Input, { id: 'pv-sip', value: v.sip, placeholder: 'sip:linedesk@pbx.brightwater-plumbing.example', onChange: function (e) { upd('sip')(e.target.value); } })) : null,
       h('div', { className: 'st-grid3' },
         h(StProviderSelect, { id: 'pv-stt', label: 'Speech to text', value: v.stt, options: ST_STT, onChange: upd('stt'), help: 'Hears when the caller is done talking.' }),
         h(StProviderSelect, { id: 'pv-llm', label: 'Language model', value: v.llm, options: ST_LLM, onChange: upd('llm'), help: 'Decides what to say and do.' }),
@@ -3924,8 +3924,8 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
     var r = useState(readHash()), route = r[0], setRoute = r[1];
     var ov = useState(null), overlay = ov[0], setOverlay = ov[1];
     var no = useState(false), navOpen = no[0], setNavOpen = no[1];
-    var ob = useState(function () { try { return localStorage.getItem('callfront-onboarded') !== '1'; } catch (e) { return true; } }), obOpen = ob[0], setObOpen = ob[1];
-    function finishOnboarding() { try { localStorage.setItem('callfront-onboarded', '1'); } catch (e) { } setObOpen(false); restart(); } /* overlay: 'commands' | 'help' | 'remind' */
+    var ob = useState(function () { try { return localStorage.getItem('linedesk-onboarded') !== '1'; } catch (e) { return true; } }), obOpen = ob[0], setObOpen = ob[1];
+    function finishOnboarding() { try { localStorage.setItem('linedesk-onboarded', '1'); } catch (e) { } setObOpen(false); restart(); } /* overlay: 'commands' | 'help' | 'remind' */
     var rf = useState(null), remindId = rf[0], setRemindId = rf[1];
     var fk = useState([]), filterKey = fk[0], setFilterKey = fk[1];
     var lv2 = useState(null), leavingId = lv2[0], setLeaving = lv2[1];
@@ -3949,7 +3949,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
     var toastTimer = useRef(null), gPending = useRef(false), undoStack = useRef([]);
     /* how the current action was triggered: 'key' (shortcut), 'menu-key' (⌘K + Enter) or 'mouse' */
     var srcRef = useRef('mouse'), remindSrc = useRef('mouse'), usedKeys = useRef({});
-    var rc = useState(function () { try { return JSON.parse(localStorage.getItem('callfront-recent-cmds') || '[]'); } catch (e) { return []; } }), recentCmds = rc[0], setRecentCmds = rc[1];
+    var rc = useState(function () { try { return JSON.parse(localStorage.getItem('linedesk-recent-cmds') || '[]'); } catch (e) { return []; } }), recentCmds = rc[0], setRecentCmds = rc[1];
     function pushUndo(fn) { var s = undoStack.current; s.push(fn); if (s.length > 10) s.shift(); }
     /* Shortcut tip on mouse use, until that key has been used once from the keyboard */
     function withTip(label, sc) {
@@ -3963,7 +3963,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
     var lastToastAt = useRef(0);
     useEffect(function () {
       function onHint(e) { setTimeout(function () { if (Date.now() - lastToastAt.current > 80) toast((e.detail.label ? e.detail.label + ' · ' : '') + 'Next time, press ' + e.detail.keys.join(' ')); }, 30); }
-      window.addEventListener('callfront-hint', onHint); return function () { window.removeEventListener('callfront-hint', onHint); };
+      window.addEventListener('linedesk-hint', onHint); return function () { window.removeEventListener('linedesk-hint', onHint); };
     }, []);
     function toast(m, undo) { lastToastAt.current = Date.now(); setToastMsg({ text: m, undo: !!undo }); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(function () { setToastMsg(null); }, undo ? 5000 : 2600); }
     function go(to) { if (location.hash !== '#' + to) location.hash = to; setRoute(to); }
@@ -4151,9 +4151,9 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
       else if (k === '#') handled = onCalls && target ? doDelete() : false;
       else if (k === 'z') undo();
       else if (k === 'l' && onCalls && openId === 'live') listen();
-      else if (k === ' ' && onCalls && openId) window.dispatchEvent(new CustomEvent('callfront-player', { detail: 'toggle' }));
-      else if (k === 'ArrowRight' && onCalls && openId) window.dispatchEvent(new CustomEvent('callfront-player', { detail: 'fwd' }));
-      else if (k === 'ArrowLeft' && onCalls && openId) window.dispatchEvent(new CustomEvent('callfront-player', { detail: 'back' }));
+      else if (k === ' ' && onCalls && openId) window.dispatchEvent(new CustomEvent('linedesk-player', { detail: 'toggle' }));
+      else if (k === 'ArrowRight' && onCalls && openId) window.dispatchEvent(new CustomEvent('linedesk-player', { detail: 'fwd' }));
+      else if (k === 'ArrowLeft' && onCalls && openId) window.dispatchEvent(new CustomEvent('linedesk-player', { detail: 'back' }));
       else handled = false;
       if (handled) e.preventDefault();
     }
@@ -4218,7 +4218,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
     function rememberCmd(l) {
       var next = [l].concat(recentCmds.filter(function (x) { return x !== l; })).slice(0, 5);
       setRecentCmds(next);
-      try { localStorage.setItem('callfront-recent-cmds', JSON.stringify(next)); } catch (e) { }
+      try { localStorage.setItem('linedesk-recent-cmds', JSON.stringify(next)); } catch (e) { }
     }
     function needCall(fn) { if (!target) { toast('Select a call first.'); return; } fn(); }
     function onCmd(item, via) {
@@ -4302,7 +4302,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
       if (!e.isTrusted || e.detail === 0 || !e.target.closest) return;
       var el = e.target.closest('[data-sc], [title]'); if (!el || el.closest('.kt')) return;
       var info = parse(el.getAttribute('data-sc') || el.getAttribute('title'));
-      if (info.keys.length) window.dispatchEvent(new CustomEvent('callfront-hint', { detail: info }));
+      if (info.keys.length) window.dispatchEvent(new CustomEvent('linedesk-hint', { detail: info }));
     });
     document.addEventListener('mousedown', cancel, true); document.addEventListener('keydown', cancel, true); window.addEventListener('scroll', cancel, true);
   })();

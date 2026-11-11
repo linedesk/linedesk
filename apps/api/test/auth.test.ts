@@ -12,7 +12,7 @@ function signIn(ip: string) {
   return appRequest('/api/auth/sign-in/email', {
     method: 'POST',
     headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: ip },
-    body: JSON.stringify({ email: 'nobody@callfront.test', password: 'wrong-password-1234' }),
+    body: JSON.stringify({ email: 'nobody@linedesk.test', password: 'wrong-password-1234' }),
   })
 }
 

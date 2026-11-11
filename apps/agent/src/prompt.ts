@@ -1,6 +1,6 @@
 // The assistant's system prompt, built from its configuration.
-import { callRulesOf } from '@callfront/actions'
-import type { Assistant } from '@callfront/db/types'
+import { callRulesOf } from '@linedesk/actions'
+import type { Assistant } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 
 export const FALLBACK_GREETING = 'Thanks for calling. How can I help?'

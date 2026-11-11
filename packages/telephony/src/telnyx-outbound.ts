@@ -25,7 +25,7 @@ export interface TelnyxOutboundOptions {
 // biome-ignore lint/suspicious/noExplicitAny: Telnyx's JSON is read field by field
 type Json = Record<string, any>
 
-const DEFAULT_NAME = 'callfront-test-caller'
+const DEFAULT_NAME = 'linedesk-test-caller'
 const fail = (message: string) => new TelephonyError('telnyx', message)
 
 /** Telnyx user names: 4 to 32 letters and digits, a letter among the first five. */

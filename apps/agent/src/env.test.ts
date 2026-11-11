@@ -1,4 +1,4 @@
-import type { Assistant } from '@callfront/db/types'
+import type { Assistant } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import { DEV_LIVEKIT_SECRET, requireEnv, requireLivekitEnv } from './env.ts'
 import { buildInstructions } from './prompt.ts'

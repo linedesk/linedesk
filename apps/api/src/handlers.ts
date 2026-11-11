@@ -1,11 +1,11 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, confirmsNumber, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type FindSlotsData } from '@callfront/actions'
-import { businessHoursContext, type BusinessHoursContext, findSlots, type FindSlotsInput, type Interval } from '@callfront/calendar'
+import { actions, confirmsNumber, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type FindSlotsData } from '@linedesk/actions'
+import { businessHoursContext, type BusinessHoursContext, findSlots, type FindSlotsInput, type Interval } from '@linedesk/calendar'
 import {
   appointment_types, assistants, availability_exceptions, availability_rules, bookings, calls, contacts, organization, phone_numbers, syncedTables,
   transcript_segments, workspace_settings, type Tx,
-} from '@callfront/db'
-import { TelephonyError, type TelephonyProvider } from '@callfront/telephony'
+} from '@linedesk/db'
+import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { and, asc, desc, eq, gt, gte, lt, lte, ne } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
 import { impersonationHandlers } from './impersonation.ts'

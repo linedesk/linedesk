@@ -1,5 +1,5 @@
 // Plays a scripted call through the real API, so the inbox shows a live call without any
-// telephony or speech provider. Usage: pnpm --filter @callfront/agent simulate [script] [--fast]
+// telephony or speech provider. Usage: pnpm --filter @linedesk/agent simulate [script] [--fast]
 import { pathToFileURL } from 'node:url'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { startCall } from './call-session.ts'

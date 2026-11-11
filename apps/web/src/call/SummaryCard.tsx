@@ -1,4 +1,4 @@
-import type { ActionItem, Call } from '@callfront/db/types'
+import type { ActionItem, Call } from '@linedesk/db/types'
 import { Fragment } from 'react'
 import { useRun } from '../store.tsx'
 import { Checkbox } from '../ui/controls.tsx'

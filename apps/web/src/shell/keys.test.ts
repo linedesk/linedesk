@@ -1,4 +1,4 @@
-import type { Call } from '@callfront/db/types'
+import type { Call } from '@linedesk/db/types'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { handleKey, setPageKeys, type KeyContext } from './keys.ts'
 

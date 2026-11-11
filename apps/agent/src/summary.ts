@@ -1,5 +1,5 @@
 // After hang-up: one LLM call turns the transcript into the call's title, summary and outcome.
-import { outcome, urgency } from '@callfront/actions'
+import { outcome, urgency } from '@linedesk/actions'
 import { z } from 'zod'
 import type { CallResult, Speaker } from './call-session.ts'
 

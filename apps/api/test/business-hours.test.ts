@@ -1,6 +1,6 @@
 // Business hours: owners and admins set the weekly hours in Settings › Assistant; the voice agent gets
 // them with every call (call.start, call.startTest) as context: open now or not, and when that changes.
-import { workspace_settings } from '@callfront/db'
+import { workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, test } from 'vitest'
 import { db } from '../src/db.ts'

@@ -3,8 +3,8 @@
 // workspace and call, so this is one lookup per recently finished call without a recording.
 // Looks in the store new calls are recorded into (resolved on every sweep, so a switch in the admin
 // area applies within a minute); nothing when recording is off.
-import { recordingKey, type RecordingStoreName } from '@callfront/actions'
-import { calls, type Tx } from '@callfront/db'
+import { recordingKey, type RecordingStoreName } from '@linedesk/actions'
+import { calls, type Tx } from '@linedesk/db'
 import { and, desc, eq, gt, isNull } from 'drizzle-orm'
 import { activeRecordingStore, type RecordingStore } from './recording-store.ts'
 

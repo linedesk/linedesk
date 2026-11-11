@@ -3,8 +3,8 @@
 import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { recordingKey } from '@callfront/actions'
-import { calls, workspace_settings } from '@callfront/db'
+import { recordingKey } from '@linedesk/actions'
+import { calls, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { db } from '../src/db.ts'
@@ -18,7 +18,7 @@ const daysAgo = (days: number) => new Date(Date.parse(NOW) - days * DAY_MS).toIS
 
 let dir: string
 beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'callfront-retention-'))
+  dir = await mkdtemp(join(tmpdir(), 'linedesk-retention-'))
 })
 afterAll(() => rm(dir, { recursive: true, force: true }))
 

@@ -1,5 +1,5 @@
 // Contacts: everyone who has called, newest call first. Same list model as the inbox; the record opens beside it.
-import type { Call } from '@callfront/db/types'
+import type { Call } from '@linedesk/db/types'
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import type { Step } from '../inbox/changes.ts'
 import { callTitle } from '../inbox-model.ts'

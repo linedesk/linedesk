@@ -1,4 +1,4 @@
-import type { Call, TranscriptSegment } from '@callfront/db/types'
+import type { Call, TranscriptSegment } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
 import { matchesSearch, searchHit } from './search.tsx'
 

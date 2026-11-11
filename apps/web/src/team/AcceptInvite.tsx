@@ -1,7 +1,7 @@
 // The page an invitation link opens (`/?invite=<id>`). The person signs in or creates an account
 // with the invited address (a code by email proves it), confirms it if needed, and joins. Every
 // redirect (provider, verification link) comes back to this same URL, so the flow picks up where it was.
-import type { InvitationPreview } from '@callfront/actions'
+import type { InvitationPreview } from '@linedesk/actions'
 import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from 'react'
 import { type AuthMethods, auth, fetchAuthMethods, requestSignInCode } from '../auth.ts'
 import { CodeStep } from '../Login.tsx'

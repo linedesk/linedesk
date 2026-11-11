@@ -1,7 +1,7 @@
 // The admin area talks to the API directly. Its rows cross workspaces, so they are not in the
 // local store, and its writes skip the outbox on purpose: an outbox entry is kept in IndexedDB,
 // and a provider key must never be stored in the browser.
-import type { ProviderCategory, ProviderName, ProviderTestData } from '@callfront/actions'
+import type { ProviderCategory, ProviderName, ProviderTestData } from '@linedesk/actions'
 
 export type AdminWorkspace = {
   id: string

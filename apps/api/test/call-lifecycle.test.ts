@@ -1,5 +1,5 @@
 // What the voice agent writes during a call: start, transcript, finish.
-import { calls, contacts, transcript_segments } from '@callfront/db'
+import { calls, contacts, transcript_segments } from '@linedesk/db'
 import { asc, eq } from 'drizzle-orm'
 import { beforeAll, expect, test } from 'vitest'
 import { db } from '../src/db.ts'

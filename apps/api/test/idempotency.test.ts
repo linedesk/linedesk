@@ -1,5 +1,5 @@
 // One command id, one outcome: replays return the first result and never write again.
-import { appointment_types, calls, commands, contacts } from '@callfront/db'
+import { appointment_types, calls, commands, contacts } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { beforeAll, expect, test } from 'vitest'
 import { db } from '../src/db.ts'

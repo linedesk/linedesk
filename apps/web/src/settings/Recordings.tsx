@@ -1,6 +1,6 @@
 // Settings, Recordings: how long call recordings are kept. Older ones are deleted by a daily job on
 // the server; the call itself, its transcript and summary stay.
-import { recordingRetentionChoices, type WorkspaceSettingsData } from '@callfront/actions'
+import { recordingRetentionChoices, type WorkspaceSettingsData } from '@linedesk/actions'
 import { useEffect, useState } from 'react'
 import { useRun } from '../store.tsx'
 import { Select, type SelectOption } from '../ui/controls.tsx'

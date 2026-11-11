@@ -1,7 +1,7 @@
 // The two routes of an impersonation (docs/architecture.md §12): they run the registry actions
 // (impersonation.ts) and move Better Auth's session cookie, signed the way Better Auth signs it.
-import type { UserImpersonateData } from '@callfront/actions'
-import { session, user } from '@callfront/db'
+import type { UserImpersonateData } from '@linedesk/actions'
+import { session, user } from '@linedesk/db'
 import { constantTimeEqual, makeSignature } from 'better-auth/crypto'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Context, Hono } from 'hono'

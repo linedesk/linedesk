@@ -1,8 +1,8 @@
 # Three images from one file: `api` (Hono server, migrates on start), `web` (Caddy + the built SPA)
 # and `agent` (LiveKit voice agent, optional).
-#   docker build --target api -t callfront-api .
-#   docker build --target web -t callfront-web .
-#   docker build --target agent -t callfront-agent .
+#   docker build --target api -t linedesk-api .
+#   docker build --target web -t linedesk-web .
+#   docker build --target agent -t linedesk-agent .
 
 FROM node:22-alpine AS base
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
@@ -19,7 +19,7 @@ RUN find . -type f ! -name package.json ! -name pnpm-lock.yaml ! -name pnpm-work
 FROM base AS api-build
 COPY --from=manifests /app .
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile --prod --filter "@callfront/api..." \
+    pnpm install --frozen-lockfile --prod --filter "@linedesk/api..." \
     # better-auth lists vitest and drizzle-kit as optional peers; pnpm installs them (with vite,
     # rolldown, esbuild) because the workspace has them. Nothing imports them at runtime.
     && cd node_modules/.pnpm && rm -rf vitest@* @vitest+* vite@* rolldown@* @rolldown+* \
@@ -48,9 +48,9 @@ ENTRYPOINT ["/bin/sh", "/app/api-entrypoint.sh"]
 FROM base AS web-build
 COPY --from=manifests /app .
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile --filter "@callfront/web..."
+    pnpm install --frozen-lockfile --filter "@linedesk/web..."
 COPY . .
-RUN pnpm --filter @callfront/web build
+RUN pnpm --filter @linedesk/web build
 
 FROM caddy:2-alpine AS web
 COPY docker/Caddyfile /etc/caddy/Caddyfile
@@ -66,7 +66,7 @@ RUN corepack enable
 WORKDIR /app
 COPY --from=manifests /app .
 RUN --mount=type=cache,id=pnpm-glibc,target=/pnpm/store \
-    pnpm install --frozen-lockfile --prod --filter "@callfront/agent..." \
+    pnpm install --frozen-lockfile --prod --filter "@linedesk/agent..." \
     # Not needed at runtime: the speech model runtime's macOS and Windows binaries,
     # the TypeScript compiler (an optional peer) and Alpine builds of the image library.
     && cd node_modules/.pnpm && rm -rf onnxruntime-node@*/node_modules/onnxruntime-node/bin/*/darwin \

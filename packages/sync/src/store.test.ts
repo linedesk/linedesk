@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto'
-import type { Call } from '@callfront/db/types'
+import type { Call } from '@linedesk/db/types'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ReadSyncAdapter, TableSink } from './adapter.ts'
 import { createStore } from './store.ts'

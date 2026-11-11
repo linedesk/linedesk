@@ -1,5 +1,5 @@
 // ⌘K lists what can be done right now: the actions for the selected call, places to go, app commands.
-import type { Call } from '@callfront/db/types'
+import type { Call } from '@linedesk/db/types'
 import { hasReminder } from '../inbox-model.ts'
 import type { CommandGroup, CommandItem } from '../ui/CommandMenu.tsx'
 import type { PageRoute } from './pages.tsx'

@@ -2,14 +2,14 @@
 // The API only signs a LiveKit token. The token joins one new room, may publish the microphone
 // and nothing else, and carries the agent dispatch with the workspace in its metadata; the browser
 // cannot change any of it without breaking the signature.
-import type { TestCallData } from '@callfront/actions'
+import type { TestCallData } from '@linedesk/actions'
 import type { Actor } from './context.ts'
 import { Reject } from './handlers.ts'
 import { livekitToken } from './livekit-status.ts'
 import { createRateLimiter } from './rate-limit.ts'
 
 /** The voice agent's name (apps/agent/src/env.ts); it only joins rooms it is dispatched to by name. */
-const AGENT_NAME = 'callfront'
+const AGENT_NAME = 'linedesk'
 /** LiveKit checks a token only when joining: short, so it cannot open another test call after the room ends. */
 const TOKEN_TTL_SEC = 60
 /** A few test calls in a row are normal; more would only cost provider minutes. */

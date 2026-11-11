@@ -1,6 +1,6 @@
 // "Test connection": one cheap authenticated request per provider. The result is ok or a short
 // reason; it never contains a key.
-import { providerSpec, type ProviderName, type ProviderTestData, type RecordingStoreName } from '@callfront/actions'
+import { providerSpec, type ProviderName, type ProviderTestData, type RecordingStoreName } from '@linedesk/actions'
 import type { ProviderConfig } from './provider-settings.ts'
 import {
   createFileRecordingStore,

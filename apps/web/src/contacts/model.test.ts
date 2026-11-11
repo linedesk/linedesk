@@ -1,4 +1,4 @@
-import type { Call, Contact } from '@callfront/db/types'
+import type { Call, Contact } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
 import { contactLabel, contactRows, filterContactRows, matchesContact } from './model.ts'
 
