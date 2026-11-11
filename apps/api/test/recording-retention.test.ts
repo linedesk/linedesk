@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { recordingKey } from '@linedesk/actions'
-import { calls, workspace_settings } from '@linedesk/db'
+import { calls, transcript_segments, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { db } from '../src/db.ts'
@@ -59,7 +59,9 @@ describe('workspace.getSettings and workspace.updateSettings', () => {
     const ws = await createWorkspace('Retention Mine')
     const other = await createWorkspace('Retention Theirs')
     await act(ws.owner, 'workspace.updateSettings', { recordingRetentionDays: null })
-    expect((await act(other.owner, 'workspace.getSettings', {})).body.data).toMatchObject({ recordingRetentionDays: 90 })
+    expect((await act(other.owner, 'workspace.getSettings', {})).body.data).toMatchObject({
+      recordingRetentionDays: 90,
+    })
   })
 })
 
@@ -80,7 +82,8 @@ describe('deleteExpiredRecordings', () => {
 
     const store = createFileRecordingStore(dir)
     // Other test files leave recordings too; run until nothing of ours is left to delete.
-    for (let i = 0; i < 20 && (await getCall(old.id))?.recording_key; i++) await deleteExpiredRecordings(db, () => store, NOW)
+    for (let i = 0; i < 20 && (await getCall(old.id))?.recording_key; i++)
+      await deleteExpiredRecordings(db, () => store, NOW)
 
     expect((await getCall(old.id))?.recording_key).toBeNull()
     expect(await fileExists(old.key)).toBe(false)
@@ -90,6 +93,38 @@ describe('deleteExpiredRecordings', () => {
       expect((await getCall(call.id))?.recording_key).toBe(call.key)
       expect(await fileExists(call.key)).toBe(true)
     }
+  })
+
+  test('only the audio goes: the call, its summary and its transcript are never deleted', async () => {
+    const ws = await createWorkspace('Transcripts Stay Plumbing')
+    await act(ws.owner, 'workspace.updateSettings', { recordingRetentionDays: 30 })
+    const old = await recordedCall(ws, 400)
+    await db.update(calls).set({ summary: 'Leak under the kitchen sink.' }).where(eq(calls.id, old.id))
+    await db.insert(transcript_segments).values([
+      {
+        id: crypto.randomUUID(),
+        workspace_id: ws.id,
+        call_id: old.id,
+        speaker: 'caller',
+        text: 'My kitchen sink is leaking.',
+        at_ms: 1000,
+      },
+      {
+        id: crypto.randomUUID(),
+        workspace_id: ws.id,
+        call_id: old.id,
+        speaker: 'agent',
+        text: 'I can book a plumber for you.',
+        at_ms: 3000,
+      },
+    ])
+    const store = createFileRecordingStore(dir)
+    for (let i = 0; i < 20 && (await getCall(old.id))?.recording_key; i++)
+      await deleteExpiredRecordings(db, () => store, NOW)
+
+    expect(await getCall(old.id)).toMatchObject({ recording_key: null, summary: 'Leak under the kitchen sink.' })
+    const segments = await db.select().from(transcript_segments).where(eq(transcript_segments.call_id, old.id))
+    expect(segments.map(s => s.text)).toEqual(['My kitchen sink is leaking.', 'I can book a plumber for you.'])
   })
 
   test('a recording whose file cannot be deleted keeps its key and is retried next time', async () => {

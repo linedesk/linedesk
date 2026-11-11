@@ -210,6 +210,7 @@ US first. Guardrails come once we know the starting states and use cases; the de
 
 - AI disclosure in the greeting: on by default, configurable.
 - Recording notice, outbound-call consent (TCPA), retention, data region: settings fields exist or are planned; nothing is enforced yet.
+- Data retention: recordings (the audio) are kept 90 days by default, per workspace (`workspace_settings.recording_retention_days`, Settings, Recordings; empty keeps them); a daily job (`apps/api/src/recording-retention.ts`) deletes older audio from its store and clears the call's `recording_key`, nothing else. Calls, their summaries and transcripts (`transcript_segments`) are never deleted by any job: the only code that deletes calls or transcripts is `pnpm db:seed -- --reset` for the demo workspace, and a transcript goes only with its call (foreign key, `on delete cascade`). `apps/api/test/recording-retention.test.ts` checks that the cleanup leaves the call, summary and transcript.
 - Spam scoring uses carrier attestation + number reputation.
 
 ## 11. Repository and deployment
