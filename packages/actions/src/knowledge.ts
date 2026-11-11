@@ -51,7 +51,7 @@ export function servicesOf(p: BusinessProfile): Service[] {
  */
 export function fenceData(text: string, tags: readonly string[]): string {
   const names = tags.map(t => t.replace(/[^a-z_]/gi, '')).join('|')
-  return text.replace(new RegExp(`<\\s*\\/?\\s*(${names})\\b[^>]*>?`, 'gi'), m =>
+  return text.replace(new RegExp(`<\\s*\\/?\\s*(${names})\\b[^<>]*>?`, 'gi'), m =>
     m.replace(/</g, '‹').replace(/>/g, '›'),
   )
 }

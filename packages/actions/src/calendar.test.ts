@@ -8,12 +8,16 @@ describe('calendar.findSlots', () => {
     expect(calendarFindSlots.patch).toBeUndefined()
   })
 
-  it('is read-only, like the provider connection test, the test-call token, team.list, the call-test lookup, the workspace settings read, the own invitations, the key list, the webhook log and test send, the call evaluations, the voice options and the carrier read and test', () => {
-    expect([...actions.values()].filter(a => a.readOnly).map(a => a.name).sort()).toEqual(['apiKey.list', 'assistant.startTestCall', 'calendar.findSlots', 'calendar.listCalendars', 'call.findForTest', 'call.getEvaluation', 'call.listEvaluations', 'call.listen', 'call.takeOver', 'carrier.get', 'carrier.test', 'carrier.transferTrunk', 'insights.get', 'invitation.listMine', 'notifications.get', 'provider.test', 'team.list', 'voice.options', 'voiceCloning.get', 'webhook.deliveries', 'webhook.test', 'workspace.getSettings'])
+  it('is read-only, like the other reads, tests and proposals that change nothing', () => {
+    expect([...actions.values()].filter(a => a.readOnly).map(a => a.name).sort()).toEqual(['apiKey.list', 'assistant.startTestCall', 'calendar.findSlots', 'calendar.listCalendars', 'call.export', 'call.findForTest', 'call.getEvaluation', 'call.listEvaluations', 'call.listen', 'call.takeOver', 'carrier.get', 'carrier.test', 'carrier.transferTrunk', 'customField.list', 'insights.get', 'invitation.listMine', 'knowledge.import', 'knowledge.search', 'member.list', 'notifications.get', 'provider.test', 'team.list', 'voice.catalog', 'voice.options', 'voiceCloning.get', 'webhook.deliveries', 'webhook.test', 'workspace.getSettings'])
   })
 
-  it.each(['owner', 'admin', 'member', 'agent'] satisfies Role[])('can be called by %s', role => {
+  it.each(['owner', 'admin', 'member'] satisfies Role[])('can be called by %s', role => {
     expect(rolePermissions[role]).toContain(calendarFindSlots.permission)
+  })
+
+  it('can be called by the voice agent within its workspace', () => {
+    expect(calendarFindSlots.agent).toBe('workspace')
   })
 
   it('needs only the appointment type and defaults the limit', () => {

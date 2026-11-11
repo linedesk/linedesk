@@ -55,10 +55,10 @@ describe('contact.block and contact.unblock', () => {
 })
 
 describe('workspace.updateSettings', () => {
-  it('takes one of the offered retention periods, or null to keep recordings', () => {
-    for (const days of [30, 60, 90, 180, 365, null])
+  it('takes one of the offered retention periods, 0 to keep none, or null to keep recordings', () => {
+    for (const days of [0, 30, 60, 90, 180, 365, null])
       expect(workspaceUpdateSettings.input.safeParse({ recordingRetentionDays: days }).success).toBe(true)
-    for (const days of [0, 7, 91, -1, '90'])
+    for (const days of [7, 91, -1, '90'])
       expect(workspaceUpdateSettings.input.safeParse({ recordingRetentionDays: days }).success).toBe(false)
   })
 

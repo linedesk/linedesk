@@ -39,7 +39,7 @@ test('without instructions the prompt falls back to the structured business prof
   for (const instructions of [undefined, '', '   ']) {
     const prompt = buildInstructions({ ...assistant, business_profile: { ...assistant.business_profile, instructions } } as Assistant)
     expect(prompt).toContain('About: Family-run plumbing company in Portland.')
-    expect(prompt).toContain('Services: Leak repair, Water heaters')
+    expect(prompt).toContain('- Leak repair: quote only, no price on the phone\n- Water heaters: quote only, no price on the phone')
     expect(prompt).toContain('Q: Do you serve Lake Oswego?\nA: Yes.')
     expect(prompt).not.toContain('Address:')
   }
@@ -55,7 +55,7 @@ test('the prompt holds the product rules: messages only, no transfer, no booking
   expect(prompt).toContain('Appointments: if you can book, follow the booking steps. If not, ask which day and time suit the caller')
   expect(prompt).toContain('flag the call as urgent right away')
   expect(prompt).toContain('say your reply in the same response as the tool call')
-  expect(prompt).not.toMatch(/record/i) // no recording notice for now
+  expect(prompt).not.toMatch(/\brecord(ed|ing)\b/i) // no recording notice unless it is turned on
   expect(buildInstructions(null)).toContain('take_message')
   expect(buildInstructions({ ...assistant, greeting: '' })).not.toContain('already opened the call')
 })

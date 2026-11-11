@@ -31,8 +31,8 @@ test('the job metadata picks a known scenario and mode; nothing else turns an ag
   }
 })
 
-test('thirteen scenarios; every speaking caller is told to end the call and never reveal the test', () => {
-  expect(scenarioNames).toEqual(['callback-message', 'burst-pipe', 'price-question', 'booking', 'which-calendar', 'wrong-number', 'robot-question', 'interrupter', 'after-hours', 'transfer-accepted', 'transfer-no-answer', 'transfer-declined', 'silence'])
+test('fifteen scenarios; every speaking caller is told to end the call and never reveal the test', () => {
+  expect(scenarioNames).toEqual(['callback-message', 'burst-pipe', 'urgent-promise', 'price-question', 'booking', 'which-calendar', 'wrong-number', 'robot-question', 'interrupter', 'after-hours', 'transfer-accepted', 'transfer-no-answer', 'transfer-declined', 'keypad-callback', 'silence'])
   for (const name of scenarioNames.filter(n => scenarios[n].persona)) {
     expect(callerInstructions(scenarios[name])).toContain('end_call')
     expect(callerInstructions(scenarios[name])).toContain('Never say that you are an AI')
@@ -47,7 +47,7 @@ test('a finished burst-pipe call passes, with transcript, summary and latency in
   expect(report).toContain('Summary: Burst pipe: Dana needs a plumber now.')
   expect(report).toContain('greeting 1.8 s; caller turn to next assistant line: 3.5 s, 2.5 s (median 3.5 s)')
   expect(report).toContain('Latency heard by the caller: not measured')
-  expect(report).toMatch(/PASS {2}message taken: 1 action item\n {2}PASS {2}recording: none \(not expected\)\nCall test passed\.$/)
+  expect(report).toMatch(/PASS {2}message taken: 1 action item\n {2}PASS {2}flagged urgent: flagged at 7\.0 s\n {2}PASS {2}recording: none \(not expected\)\nCall test passed\.$/)
 })
 
 test('latency: greeting time and the gap from each caller turn to the next assistant line', () => {
