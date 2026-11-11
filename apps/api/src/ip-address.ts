@@ -1,7 +1,8 @@
-// Which addresses are not on the public internet, for requests the API makes to URLs that users
-// give (webhooks). IPv6 is parsed to its eight groups, so every way of writing an address is the
-// same address, and IPv4 addresses embedded in IPv6 (mapped, compatible, NAT64, 6to4) are checked
-// as the IPv4 address they reach.
+// IP addresses: the one IPv6 parser (also for the per-/64 rate-limit buckets in client-ip.ts), and
+// which addresses are not on the public internet, for requests the API makes to URLs that users give
+// (webhooks). IPv6 is parsed to its eight groups, so every way of writing an address is the same
+// address, and IPv4 addresses embedded in IPv6 (mapped, compatible, NAT64, 6to4) are checked as the
+// IPv4 address they reach.
 import { isIP } from 'node:net'
 
 function ipv4Octets(ip: string): number[] | null {
