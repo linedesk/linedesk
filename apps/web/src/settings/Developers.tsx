@@ -40,7 +40,7 @@ export function Developers({ canEdit, toast }: Props) {
       id="st-api-keys"
       title="API keys"
       description="Connect your own tools to Linedesk."
-      help="Send the key as Authorization: Bearer. The API is described at /v1/openapi.json."
+      help="Send the key as Authorization: Bearer. The REST API is described at /v1/openapi.json; AI tools connect to the MCP server at /mcp with the same key."
       actions={
         <Button size="sm" icon="plus" onClick={() => setCreating(true)}>
           Create key

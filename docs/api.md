@@ -14,3 +14,11 @@ curl -X POST "$LINEDESK_URL/v1/actions/call.markDone" \
 ```
 
 To publish another action, add `public: true` to its `defineAction` and make sure an API key's role may run it.
+
+## MCP
+
+`/mcp` is an MCP server (official TypeScript SDK v2, Streamable HTTP, stateless: one server per request, no sessions) for AI tools such as Claude or ChatGPT connectors (`apps/api/src/mcp.ts`).
+
+- **Auth:** the same workspace API key, `Authorization: Bearer ld_…`. Session cookies are not accepted. Refused keys and requests per key are limited as on `/v1`.
+- **Tools:** every public action the key's role may run, named with `_` for `.` (`call_markDone`, `appointment_book`), with the action's input schema; they run through the registry like `POST /v1/actions/<name>` (permissions, command log). Read tools: `calls_list` (open, done or all, newest first), `calls_get` (one call with its transcript), `contacts_search`.
+- **Clients:** both the current protocol (2026-07-28) and 2025-era clients, which are served statelessly.

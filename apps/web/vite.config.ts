@@ -9,6 +9,6 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     // The build's version: when it changes (a new deploy), the local store loads every table afresh.
     define: { 'import.meta.env.VITE_APP_BUILD': JSON.stringify(env.APP_BUILD || new Date().toISOString()) },
-    server: { port: 5173, strictPort: true, proxy: { '/api': api, '/v1': api } },
+    server: { port: 5173, strictPort: true, proxy: { '/api': api, '/v1': api, '/mcp': api } },
   }
 })

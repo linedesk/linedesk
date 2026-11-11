@@ -7,6 +7,7 @@ import { setFirstPassword } from './account.ts'
 import { API_KEY_REQUESTS_PER_MINUTE, apiKeyWithinLimit, isApiKey, tooManyInvalidApiKeys } from './api-keys.ts'
 import { registerAdminRoutes } from './admin-routes.ts'
 import { clientIpOf, withClientIp } from './client-ip.ts'
+import { serveMcp } from './mcp.ts'
 import { authMethods } from './auth-methods.ts'
 import { auth, WEB_ORIGIN, WORKSPACE_LIMIT } from './auth.ts'
 import { calendarCallback } from './calendar-callback.ts'
@@ -84,6 +85,9 @@ app.post('/v1/workspaces', async c => {
 // Public, before the guard: the API description lists no data, only the public actions' schemas.
 const openApi = openApiDocument(actions.values(), process.env.PUBLIC_URL || WEB_ORIGIN)
 app.get('/v1/openapi.json', c => c.json(openApi))
+
+// MCP for a workspace's own AI tools: API keys only, its own gate (mcp.ts).
+app.all('/mcp', c => serveMcp(c.req.raw, clientIpOf(c)))
 
 // Before the workspace guard: a member without a workspace has an account too.
 app.post('/v1/account/password', setFirstPassword)

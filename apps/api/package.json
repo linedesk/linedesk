@@ -21,6 +21,7 @@
     "@linedesk/calendar": "workspace:*",
     "@linedesk/db": "workspace:*",
     "@linedesk/telephony": "workspace:*",
+    "@modelcontextprotocol/server": "2.4.0",
     "aws4fetch": "^1.0.20",
     "better-auth": "^1.7.19",
     "drizzle-orm": "^0.45.4",
@@ -31,6 +32,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
     "@types/node": "^26.6.6",
     "@types/nodemailer": "^8.0.2",
     "tsx": "^4.23.15",

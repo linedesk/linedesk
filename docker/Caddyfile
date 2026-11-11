@@ -11,7 +11,7 @@
 }
 
 {$SITE_ADDRESS::80} {
-	@api path /api/* /v1/*
+	@api path /api/* /v1/* /mcp
 	handle @api {
 		# Flush at once: /v1/shape/* responses are long-lived streams.
 		reverse_proxy {$API_UPSTREAM:api:3100} {
