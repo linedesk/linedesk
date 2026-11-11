@@ -19,7 +19,7 @@ import {
   voiceId as voiceIdSchema,
 } from '@linedesk/actions'
 import { assistants, instance_settings, type Tx, voice_clones } from '@linedesk/db'
-import { and, eq, notInArray } from 'drizzle-orm'
+import { and, eq, isNull, notInArray, sql } from 'drizzle-orm'
 import { assistantIn } from './assistants.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
@@ -66,7 +66,13 @@ const clonesOf = (tx: Tx, workspaceId: string, provider: string) =>
   tx
     .select()
     .from(voice_clones)
-    .where(and(eq(voice_clones.workspace_id, workspaceId), eq(voice_clones.provider, provider)))
+    .where(
+      and(
+        eq(voice_clones.workspace_id, workspaceId),
+        eq(voice_clones.provider, provider),
+        isNull(voice_clones.deleted_at),
+      ),
+    )
 
 /**
  * Whether an assistant of this workspace may use the voice: the default (empty id), a curated voice,
@@ -82,14 +88,16 @@ export async function checkAssistantVoice(tx: Tx, workspaceId: string, voice: { 
         eq(voice_clones.workspace_id, workspaceId),
         eq(voice_clones.provider, voice.provider),
         eq(voice_clones.voice_id, voice.voice_id),
+        isNull(voice_clones.deleted_at),
       ),
     )
   if (!own) throw new Reject("that voice is not one of the curated voices or this workspace's cloned voices")
 }
 
 /**
- * Clones no assistant of the workspace uses any more: removed here, and deleted at the provider by a
- * job queued in the same transaction (it runs once the change is committed).
+ * Clones no assistant of the workspace uses any more: marked deleted here (the row stays as the
+ * consent record), and deleted at the provider by a job queued in the same transaction (it runs once
+ * the change is committed).
  */
 export async function releaseUnusedClones(tx: Tx, workspaceId: string) {
   const inUse = (
@@ -98,10 +106,12 @@ export async function releaseUnusedClones(tx: Tx, workspaceId: string) {
     .map(a => a.voice.voice_id)
     .filter(Boolean)
   const unused = await tx
-    .delete(voice_clones)
+    .update(voice_clones)
+    .set({ deleted_at: sql`now()` })
     .where(
       and(
         eq(voice_clones.workspace_id, workspaceId),
+        isNull(voice_clones.deleted_at),
         inUse.length ? notInArray(voice_clones.voice_id, inUse) : undefined,
       ),
     )
@@ -110,9 +120,13 @@ export async function releaseUnusedClones(tx: Tx, workspaceId: string) {
   return unused
 }
 
-/** A workspace is deleted: all its clones go, at the provider too. */
+/** A workspace is deleted: all its clones go at the provider; the rows stay as consent records. */
 export async function releaseWorkspaceClones(tx: Tx, workspaceId: string) {
-  const gone = await tx.delete(voice_clones).where(eq(voice_clones.workspace_id, workspaceId)).returning()
+  const gone = await tx
+    .update(voice_clones)
+    .set({ deleted_at: sql`now()` })
+    .where(and(eq(voice_clones.workspace_id, workspaceId), isNull(voice_clones.deleted_at)))
+    .returning()
   for (const clone of gone) await queueVoiceDeletion(tx, clone.provider, clone.voice_id)
   return gone
 }

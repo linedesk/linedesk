@@ -533,7 +533,8 @@ export const instance_settings = pgTable('instance_settings', {
 
 // Voices a workspace cloned at its text-to-speech provider (voice.clone), with the consent given
 // for it. Not synced. A clone no assistant of the workspace uses any more is deleted at the provider
-// and here (apps/api/src/voices.ts), also when its workspace is deleted.
+// and marked deleted here (apps/api/src/voices.ts), also when its workspace is deleted; the row is
+// kept as the record of who confirmed the speaker's consent, and when.
 export const voice_clones = pgTable(
   'voice_clones',
   {
@@ -547,6 +548,8 @@ export const voice_clones = pgTable(
     consent_at: ts('consent_at').notNull(),
     consent_text: text('consent_text').notNull(),
     created_at: createdAt(),
+    /** No assistant uses it any more: deleted at the provider; the row stays as the consent record. */
+    deleted_at: ts('deleted_at'),
   },
   t => [index('voice_clones_ws').on(t.workspace_id), unique('voice_clones_voice').on(t.provider, t.voice_id)],
 )

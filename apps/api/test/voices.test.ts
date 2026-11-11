@@ -245,7 +245,16 @@ test('a clone stores the consent, becomes the assistant’s voice, and the old c
     voice: { provider: 'elevenlabs', voice_id: JESSICA },
   })
   expect(back.status).toBe(200)
-  expect(await db.select().from(voice_clones).where(eq(voice_clones.voice_id, voiceId))).toEqual([])
+  // The row stays as the consent record, marked deleted; the clone is no longer offered or allowed.
+  const [kept] = await db.select().from(voice_clones).where(eq(voice_clones.voice_id, voiceId))
+  expect(kept).toMatchObject({ consent_text: CLONE_CONSENT_TEXT, consent_by: ws.owner.userId })
+  expect(kept?.deleted_at).toBeTruthy()
+  expect((await act(ws.owner, 'voice.options', {})).body.data.clones).toEqual([])
+  const reuse = await act(ws.owner, 'assistant.update', {
+    assistantId: ws.assistant.id,
+    voice: { provider: 'elevenlabs', voice_id: voiceId },
+  })
+  expect(reuse.status).toBe(409)
 })
 
 test('an assistant may only get curated voices or its own workspace’s clones', async () => {
@@ -296,7 +305,7 @@ test('cache prune leaves other files alone', async () => {
   expect((await readdir(dir)).sort()).toContain('notes.txt')
 })
 
-test('deleting a workspace releases all its clones', async () => {
+test('deleting a workspace releases all its clones; the consent records stay', async () => {
   const gone = await createWorkspace('Closing Down')
   await db.insert(voice_clones).values({
     id: `vc_${crypto.randomUUID().slice(0, 8)}`,
@@ -310,5 +319,9 @@ test('deleting a workspace releases all its clones', async () => {
   })
   const released = await db.transaction(tx => releaseWorkspaceClones(tx, gone.id))
   expect(released).toHaveLength(1)
-  expect(await db.select().from(voice_clones).where(eq(voice_clones.workspace_id, gone.id))).toEqual([])
+  const rows = await db.select().from(voice_clones).where(eq(voice_clones.workspace_id, gone.id))
+  expect(rows).toHaveLength(1)
+  expect(rows[0]?.deleted_at).toBeTruthy()
+  // Released once: a second release finds nothing left to delete at the provider.
+  expect(await db.transaction(tx => releaseWorkspaceClones(tx, gone.id))).toEqual([])
 })

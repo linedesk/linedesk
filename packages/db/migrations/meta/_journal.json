@@ -239,6 +239,13 @@
       "when": 1794386522614,
       "tag": "0033_warm_transfer",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794387065791,
+      "tag": "0034_voice_clone_deleted",
+      "breakpoints": true
     }
   ]
 }
