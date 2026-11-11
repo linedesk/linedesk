@@ -2,7 +2,7 @@
 
 **The open-source AI receptionist for businesses.** It answers every call, books the appointment and hands over to a person when needed, and you own the code and the data. Every call lands in a fast, keyboard-first inbox.
 
-[Website](https://linedesk.ai) · [Self-hosting](#self-hosting) · [Roadmap](ROADMAP.md) · [Contributing](CONTRIBUTING.md) · [License](LICENSE)
+[Website](https://linedesk.ai) · [Self-hosting](#self-hosting) · [Contributing](CONTRIBUTING.md) · [License](LICENSE)
 
 > **Status: in development, the code is not public yet.** Linedesk already takes real phone calls in our development version. We will publish the source here under the AGPL-3.0 with the first public release. Watch or star the repository to get notified.
 
