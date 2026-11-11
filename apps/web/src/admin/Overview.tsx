@@ -2,27 +2,25 @@
 // per provider, whether the parts of the install work, and how many workspaces and people there are.
 // Numbers and health load separately: health waits for LiveKit and the mail server.
 import { providerCategories } from '@linedesk/actions'
-import { type ReactNode, useCallback, useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
+import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { Button } from '../ui/kit.tsx'
 import { LoadProblem, Skeleton } from '../ui/LoadStates.tsx'
-import { type AdminHealth, type AdminOverview, loadHealth, loadOverview, type ServiceStatus } from './api.ts'
+import { ADMIN_HEALTH, type AdminHealth, type AdminOverview, loadHealth, loadOverview, type ServiceStatus } from './api.ts'
 
 const money = (usd: number) => (usd < 0.01 && usd > 0 ? '< $0.01' : `$${usd.toFixed(2)}`)
 const count = (n: number) => n.toLocaleString('en-US')
 
-function useLoad<T>(load: () => Promise<T>) {
-  const [value, setValue] = useState<T | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const run = useCallback(async () => {
-    setError(null)
-    try {
-      setValue(await load())
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
-  }, [load])
-  useEffect(() => void run(), [run])
-  return { value, error, retry: run, reset: () => setValue(null) }
+/** The last answer at once when admin is opened again, a fresh one in the background. */
+function useLoad<T>(key: string, load: () => Promise<T>) {
+  const query = useQuery(key, load)
+  return {
+    value: query.data ?? null,
+    error: query.data ? null : query.error,
+    retry: query.reload,
+    /** Before a check the operator asked for: show it as checking, not the old answer. */
+    reset: () => setQueryData<T | undefined>(key, undefined),
+  }
 }
 
 function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
@@ -80,7 +78,7 @@ function HealthRow({ label, status }: { label: string; status: ServiceStatus | u
 }
 
 function Health() {
-  const health = useLoad(loadHealth)
+  const health = useLoad(ADMIN_HEALTH, loadHealth)
   const checking = !health.value && !health.error
   return (
     <Card
@@ -161,7 +159,7 @@ function Costs({ overview }: { overview: AdminOverview }) {
 type Props = { onOpen: (section: 'workspaces' | 'users' | 'providers' | 'system') => void }
 
 export function Overview({ onOpen }: Props) {
-  const overview = useLoad(loadOverview)
+  const overview = useLoad('admin.overview', loadOverview)
   const o = overview.value
   if (overview.error)
     return (

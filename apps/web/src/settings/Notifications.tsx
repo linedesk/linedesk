@@ -4,10 +4,11 @@ import type { NotificationChannels, NotificationSettingsData } from '@linedesk/a
 import { useEffect, useState } from 'react'
 import {
   browserNotificationsSupported,
-  notificationSettings,
-  useNotificationSettings,
+  setNotificationSettings,
+  useNotificationQuery,
 } from '../shell/useCallNotifications.ts'
 import { useRun } from '../store.tsx'
+import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
 import { Section, SwitchRow } from './fields.tsx'
 
 type Channel = keyof NotificationChannels
@@ -24,12 +25,10 @@ const blockedText = 'Blocked by the browser. Allow notifications for this site, 
 
 export function Notifications({ toast }: { toast: (text: string) => void }) {
   const run = useRun()
-  const settings = useNotificationSettings()
-  const [error, setError] = useState<string | null>(null)
+  const query = useNotificationQuery()
+  const settings = query.data ?? null
+  const error = settings ? null : query.error
   const [browserNote, setBrowserNote] = useState<string | null>(null)
-  useEffect(() => {
-    notificationSettings.load().catch((e: Error) => setError(e.message))
-  }, [])
   useEffect(() => {
     if (!browserNotificationsSupported()) setBrowserNote('This browser cannot show notifications.')
     else if (Notification.permission === 'denied' && settings?.effective.browser) setBrowserNote(blockedText)
@@ -38,21 +37,19 @@ export function Notifications({ toast }: { toast: (text: string) => void }) {
   if (error)
     return (
       <Section id="st-notify" title="Notifications">
-        <p className="help" role="alert">
-          {error}
-        </p>
+        <LoadProblem what="Notification settings" message={error} onRetry={() => void query.reload()} />
       </Section>
     )
   if (!settings)
     return (
       <Section id="st-notify" title="Notifications">
-        <p className="help">Loading…</p>
+        <SkeletonRows label="Loading notification settings" rows={2} />
       </Section>
     )
 
   /** Applies at once on this page and in the browser-notification hook; the server gets it through the outbox. */
   function change(next: NotificationSettingsData) {
-    notificationSettings.set(next)
+    setNotificationSettings(next)
   }
 
   async function setOwn(channel: Channel, on: boolean) {

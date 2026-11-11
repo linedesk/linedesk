@@ -1,10 +1,12 @@
 // The workspaces a member belongs to, in the profile dropdown: the current one is checked, choosing
 // another makes it active and reloads into it (each workspace has its own local store).
-import { useEffect, useState, type KeyboardEvent } from 'react'
+import { useState, type KeyboardEvent } from 'react'
 import { auth } from '../auth.ts'
+import { fetchQuery, useQuery } from '../cachedQuery.ts'
+import { WORKSPACES_QUERY } from '../session.ts'
 import { Icon } from '../ui/kit.tsx'
 
-type Workspace = { id: string; name: string }
+export type Workspace = { id: string; name: string }
 
 /** From this many workspaces the list gets a filter field and scrolls instead of growing. */
 export const WORKSPACE_FILTER_FROM = 6
@@ -18,16 +20,23 @@ export function filterWorkspaces(all: Workspace[], currentId: string, query: str
   return q ? others : [...current, ...others]
 }
 
-function useWorkspaces(): Workspace[] | null {
-  const [list, setList] = useState<Workspace[] | null>(null)
-  useEffect(() => {
-    auth.organization.list().then(
-      r => setList((r.data ?? []).map(o => ({ id: o.id, name: o.name }))),
-      () => setList(null),
-    )
-  }, [])
-  return list
+async function loadWorkspaces(): Promise<Workspace[]> {
+  const r = await auth.organization.list()
+  if (r.error) throw new Error(r.error.message ?? 'Could not load your workspaces')
+  return (r.data ?? []).map(o => ({ id: o.id, name: o.name }))
 }
+
+/**
+ * The member's workspaces: known from the session at boot (and the last visit), checked again in
+ * the background when the menu opens and on focus. Used where it is always mounted (the profile
+ * row), so the open menu shows the list on its first frame and never waits for it.
+ */
+export function useWorkspaces(): Workspace[] | null {
+  return useQuery(WORKSPACES_QUERY, loadWorkspaces, { persist: true }).data ?? null
+}
+
+/** After joining or leaving a workspace (an accepted invitation, a removal): load the list again. */
+export const refreshWorkspaces = () => fetchQuery(WORKSPACES_QUERY, loadWorkspaces, { persist: true })
 
 async function switchTo(id: string) {
   const r = await auth.organization.setActive({ organizationId: id })
@@ -36,9 +45,10 @@ async function switchTo(id: string) {
   window.location.reload()
 }
 
+type Props = { all: Workspace[] | null; currentId: string; onError: (message: string) => void }
+
 /** The workspace section of the profile dropdown; renders nothing for a member of one workspace. */
-export function WorkspaceSwitcher({ currentId, onError }: { currentId: string; onError: (message: string) => void }) {
-  const all = useWorkspaces()
+export function WorkspaceSwitcher({ all, currentId, onError }: Props) {
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   if (!all || all.length < 2) return null

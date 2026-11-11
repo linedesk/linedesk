@@ -7,7 +7,8 @@ import type { IconName } from '../ui/icons.ts'
 import { Icon, Kbd } from '../ui/kit.tsx'
 import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
 import type { ListKeys } from './AdminList.tsx'
-import { type AdminData, type AdminHealth, loadAdminData, loadHealth } from './api.ts'
+import { ADMIN_DATA, ADMIN_HEALTH, type AdminHealth, loadAdminData, loadHealth } from './api.ts'
+import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { errorText, type Notify } from './notify.ts'
 import { Overview } from './Overview.tsx'
 import { Providers } from './Providers.tsx'
@@ -84,48 +85,28 @@ const partNames: Record<keyof AdminHealth, string> = {
 
 /** The parts of the install that report a problem, checked when admin opens and every few minutes. */
 function useHealthProblems(): string[] {
-  const [problems, setProblems] = useState<string[]>([])
+  // The same answer the overview's Health card shows; the overview says when it cannot be read.
+  const health = useQuery(ADMIN_HEALTH, loadHealth).data
   useEffect(() => {
-    let live = true
-    const check = () =>
-      loadHealth().then(
-        health => {
-          if (live)
-            setProblems(
-              (Object.keys(partNames) as (keyof AdminHealth)[]).filter(k => !health[k].ok).map(k => partNames[k]),
-            )
-        },
-        () => {}, // the overview says when health cannot be read
-      )
-    void check()
-    const timer = setInterval(check, 5 * 60_000)
-    return () => {
-      live = false
-      clearInterval(timer)
-    }
+    const timer = setInterval(() => void refreshQuery(ADMIN_HEALTH), 5 * 60_000)
+    return () => clearInterval(timer)
   }, [])
-  return problems
+  if (!health) return []
+  return (Object.keys(partNames) as (keyof AdminHealth)[]).filter(k => !health[k].ok).map(k => partNames[k])
 }
 
 type Props = { currentUserId: string; onExit: () => void }
 
 export function AdminMode({ currentUserId, onExit }: Props) {
   const { place, go } = useAdminPlace()
-  const [data, setData] = useState<AdminData | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  // Shown at once when admin is opened again in this page; loaded again in the background.
+  const adminData = useQuery(ADMIN_DATA, loadAdminData)
+  const data = adminData.data ?? null
+  const error = data ? null : adminData.error
+  const reload = adminData.reload
   const { toast, notify, undo } = useAdminToast()
   const listKeys = useRef<ListKeys | null>(null)
   const problems = useHealthProblems()
-
-  const reload = useCallback(async () => {
-    try {
-      setData(await loadAdminData())
-      setError(null)
-    } catch (err) {
-      setError(errorText(err))
-    }
-  }, [])
-  useEffect(() => void reload(), [reload])
 
   // Runs before the app's own key handler, which belongs to the inbox.
   useEffect(() => {
@@ -183,10 +164,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
           className="adm-card"
           what="Admin"
           message={error}
-          onRetry={() => {
-            setError(null)
-            void reload()
-          }}
+          onRetry={() => void reload()}
         />
       ) : (
         <div className="adm-card adm-listcard">

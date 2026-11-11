@@ -28,6 +28,8 @@ import { useRoute } from './shell/useRoute.ts'
 import { useSignOut } from './shell/useSignOut.ts'
 import { useCallNotifications } from './shell/useCallNotifications.ts'
 import { useToast, type Source } from './shell/useToast.ts'
+import { preloadWorkspaceSettings } from './settings/settings-api.ts'
+import { preloadTeam } from './team/team-api.ts'
 import { useAssistantName, useRejection } from './store.tsx'
 import type { SelectVia } from './ui/CommandMenu.tsx'
 import { ErrorBoundary } from './ui/ErrorBoundary.tsx'
@@ -59,6 +61,11 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
   const isInstanceAdmin = me.permissions.includes('instance:admin')
   // An instance admin without the passkey sign-in still finds the admin area; it asks for the passkey.
   const canOpenAdmin = isInstanceAdmin || Boolean(me.adminSecondFactor)
+  // What is not in the local store loads at start, so Settings, Assistant and Team open with it.
+  useEffect(() => {
+    void preloadWorkspaceSettings()
+    void preloadTeam()
+  }, [])
 
   const actions = useCallActions({
     list,

@@ -4,6 +4,7 @@ import { appointment_types, phone_numbers, tableNames, transcript_segments } fro
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { app } from '../src/app.ts'
+import { auth } from '../src/auth.ts'
 import { db } from '../src/db.ts'
 import {
   act,
@@ -251,4 +252,16 @@ describe('shape proxy', () => {
     }
     expect(upstream).not.toHaveBeenCalled()
   })
+})
+
+test('/v1/me lists the workspaces the member belongs to, by name, and no others', async () => {
+  const a = await createWorkspace('Zephyr Plumbing')
+  const b = await createWorkspace('Alder Heating')
+  await createWorkspace('Not Mine Roofing')
+  await auth.api.addMember({ body: { userId: a.owner.userId, organizationId: b.id, role: 'member' } })
+  const { body } = await request(a.owner, 'GET', '/v1/me')
+  expect(body.workspaces).toEqual([
+    { id: b.id, name: 'Alder Heating' },
+    { id: a.id, name: 'Zephyr Plumbing' },
+  ])
 })

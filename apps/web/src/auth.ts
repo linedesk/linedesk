@@ -21,6 +21,8 @@ export type OnboardingState = { step: 'business' | 'phone' | 'test_call'; phone:
 
 export type Me = {
   actorId: string; role: string; permissions: string[]; workspace: { id: string; name: string; disabled?: boolean } | null
+  /** Every workspace this member belongs to, by name (absent in what an older version remembered). */
+  workspaces?: { id: string; name: string }[]
   onboarding: OnboardingState | null
   /** null for members who cannot change settings. */
   phoneSetup: PhoneSetupStatus | null

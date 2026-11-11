@@ -1184,6 +1184,26 @@ button.k-link {
     animation: sk 1.2s ease-in-out infinite;
   }
 }
+/* Shapes for settings pages: a control, a page title, a section card, a line of text. */
+.sk-field {
+  height: 32px;
+  width: 220px;
+}
+.sk-title {
+  height: 26px;
+  width: 180px;
+  margin: 2px 0 4px;
+}
+.sk-card {
+  height: 180px;
+  margin-bottom: 16px;
+  border-radius: var(--radius-md, 10px);
+}
+.sk-line {
+  height: 12px;
+  width: 260px;
+  margin: 4px 0 14px;
+}
 
 /* A field that cannot be saved as it is: says why, right under it */
 .field-error {

@@ -7,12 +7,13 @@ import {
   type TeamInvitation,
   type TeamMember,
 } from '@linedesk/actions'
-import { type FormEvent, useCallback, useEffect, useState } from 'react'
+import { type FormEvent, useState } from 'react'
 import { Section } from '../settings/fields.tsx'
 import { FormField, Input } from '../ui/form.tsx'
 import { Select } from '../ui/controls.tsx'
 import { Avatar, Badge, Button } from '../ui/kit.tsx'
-import { teamApi } from './team-api.ts'
+import { Skeleton } from '../ui/LoadStates.tsx'
+import { teamApi, useTeam } from './team-api.ts'
 import { canEditRole, canRemove, invitationStatus, isEmail, isOnTeam, joinedLabel, roleLabel } from './team-model.ts'
 
 const roleHelp: Record<AssignableRole, string> = {
@@ -186,20 +187,10 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (te
 }
 
 export function TeamPage({ toast }: { toast: (text: string) => void }) {
-  const [data, setData] = useState<TeamData | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const load = useCallback(
-    () =>
-      teamApi.list().then(
-        d => {
-          setData(d)
-          setError(null)
-        },
-        (e: Error) => setError(e.message),
-      ),
-    [],
-  )
-  useEffect(() => void load(), [load])
+  const team = useTeam()
+  const data = team.data ?? null
+  const error = data ? null : team.error
+  const load = team.reload
 
   const run: Run = async (work, done) => {
     try {
@@ -217,10 +208,15 @@ export function TeamPage({ toast }: { toast: (text: string) => void }) {
   if (!data)
     return (
       <div className="page">
-        {error && (
+        {error ? (
           <div className="empty">
             <b>The team could not be loaded</b>
             <span>{error}</span>
+          </div>
+        ) : (
+          <div className="page-in st-page" role="status" aria-busy="true" aria-label="Loading the team">
+            <Skeleton className="sk-line" />
+            <Skeleton className="sk-card" />
           </div>
         )}
       </div>

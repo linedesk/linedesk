@@ -1,11 +1,11 @@
 // Settings, Recordings: how long call recordings are kept. Older ones are deleted by a daily job on
 // the server; the call itself, its transcript and summary stay.
-import { recordingRetentionChoices, type WorkspaceSettingsData } from '@linedesk/actions'
-import { useEffect, useState } from 'react'
+import { recordingRetentionChoices } from '@linedesk/actions'
 import { useRun } from '../store.tsx'
 import { Select, type SelectOption } from '../ui/controls.tsx'
+import { LoadProblem, Skeleton } from '../ui/LoadStates.tsx'
 import { Field, Section } from './fields.tsx'
-import { readAction } from './settings-api.ts'
+import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
 
 type Days = (typeof recordingRetentionChoices)[number]
 type Choice = `${Days}` | 'forever'
@@ -20,22 +20,14 @@ const daysOf = (choice: Choice): Days | null => (choice === 'forever' ? null : (
 
 export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => void }) {
   const run = useRun()
-  const [days, setDays] = useState<number | null | undefined>(undefined)
-  const [recordingOn, setRecordingOn] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  useEffect(() => {
-    readAction<WorkspaceSettingsData>('workspace.getSettings').then(
-      data => {
-        setDays(data.recordingRetentionDays)
-        setRecordingOn(data.recordingOn)
-      },
-      (e: Error) => setError(e.message),
-    )
-  }, [])
+  const settings = useWorkspaceSettings()
+  const days = settings.data?.recordingRetentionDays
+  const recordingOn = settings.data?.recordingOn ?? true
+  const error = settings.data ? null : settings.error
 
   function change(choice: Choice) {
     const next = daysOf(choice)
-    setDays(next)
+    patchWorkspaceSettings({ recordingRetentionDays: next })
     void run('workspace.updateSettings', { recordingRetentionDays: next })
     toast(next === null ? 'Recordings are kept until you delete the call.' : `Recordings are kept for ${label(next)}.`)
   }
@@ -51,12 +43,8 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
           : 'Whoever runs your Linedesk can turn it on. This setting then applies.'
       }
     >
-      {error && (
-        <p className="help" role="alert">
-          {error}
-        </p>
-      )}
-      {days === undefined && !error && <p className="help">Loading…</p>}
+      {error && <LoadProblem what="Recording settings" message={error} onRetry={() => void settings.reload()} />}
+      {days === undefined && !error && <Skeleton className="sk-field" />}
       {days !== undefined && (
         <Field
           id="st-retention"

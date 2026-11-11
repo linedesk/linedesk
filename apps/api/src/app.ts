@@ -1,7 +1,7 @@
 import { actions } from '@linedesk/actions'
-import { assistants, organization, user, workspace_settings, tableNames, type TableName } from '@linedesk/db'
+import { assistants, member, organization, user, workspace_settings, tableNames, type TableName } from '@linedesk/db'
 import { APIError } from 'better-auth/api'
-import { eq } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { setFirstPassword } from './account.ts'
 import { registerAdminRoutes } from './admin-routes.ts'
@@ -104,6 +104,8 @@ app.get('/v1/me', async c => {
     role: actor.role,
     permissions: actor.permissions,
     workspace: workspace ? { id: workspace.id, name: workspace.name, disabled: Boolean(workspace.disabledAt) } : null,
+    // Every workspace this member belongs to, for the switcher in the profile menu: known at boot, never fetched when it opens.
+    workspaces: await workspacesOf(actor.actorId),
     onboarding: workspace ? await onboardingFor(actor) : null,
     phoneSetup: workspace ? await phoneSetupFor(actor) : null,
     impersonation: await impersonationOf(actor),
@@ -111,6 +113,16 @@ app.get('/v1/me', async c => {
     adminSecondFactor: actor.adminSecondFactor ?? null,
   })
 })
+
+/** The workspaces a user is a member of, by name. */
+function workspacesOf(userId: string) {
+  return db
+    .select({ id: organization.id, name: organization.name })
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(eq(member.userId, userId))
+    .orderBy(asc(organization.name))
+}
 
 /** Who is signed in as this user, for the banner while impersonating. */
 async function impersonationOf({ actorId, impersonation }: Actor) {

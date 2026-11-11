@@ -5,6 +5,7 @@ import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'rea
 import { type AuthMethods, auth, type LegalLinks, passkeySupported, type SsoMethod, fetchAuthMethods, requestSignInCode, signInWithCode, signInWithPasskey, startSso, takeRedirectError } from './auth.ts'
 import { authErrorMessage, authFormError, CODE_LENGTH, codeErrorMessage, normalizeCode, RESEND_AFTER_S } from './sign-in-code.ts'
 import { readLastUsedMethod, rememberSignInMethod } from './sign-in-methods.ts'
+import { useQuery } from './cachedQuery.ts'
 import { LastUsed, ProviderButton } from './ui/brand-logos.tsx'
 import { AuthPage } from './ui/kit.tsx'
 
@@ -12,13 +13,17 @@ type Step = 'start' | 'code' | 'password'
 type Intent = 'signIn' | 'signUp'
 type Result = { error: { message?: string; code?: string; status?: number } | null }
 
+/** Keeps trying while the server is unreachable (a restart), so the page recovers by itself. */
+const loadAuthMethods = () => fetchAuthMethods()
+
 const fail = (res: Result) => {
   if (res.error) throw new Error(authErrorMessage(res.error))
 }
 
 /** `onDone` resolves once the app has loaded the account, so the form keeps its busy state until the app replaces it. */
 export function Login({ onDone }: { onDone: () => Promise<void> }) {
-  const [methods, setMethods] = useState<AuthMethods | null>(null)
+  // What this install offers: the last known at once (kept across visits), checked again in the background.
+  const methods = useQuery('auth-methods', loadAuthMethods, { persist: true }).data ?? null
   const [step, setStep] = useState<Step>('start')
   const [intent, setIntent] = useState<Intent>('signIn')
   const [form, setForm] = useState({ name: '', email: '', password: '' })
@@ -28,12 +33,6 @@ export function Login({ onDone }: { onDone: () => Promise<void> }) {
   const [lastUsed] = useState(readLastUsedMethod)
   const [otherOptions, setOtherOptions] = useState(lastUsed === 'password')
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm(f => ({ ...f, [key]: e.target.value }))
-
-  useEffect(() => {
-    fetchAuthMethods()
-      .then(setMethods)
-      .catch(err => setError(String(err.message ?? err)))
-  }, [])
 
   /** Runs one sign-in attempt; `leaves` is true when success hands over to another page (no flash of the form). */
   async function attempt(what: string, action: () => Promise<boolean>) {

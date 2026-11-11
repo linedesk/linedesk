@@ -2,12 +2,12 @@
 // agent with each call (open now or not, when that changes) and greeting and instructions may have an
 // outside-hours variant. Off, the assistant says nothing about hours. The switch saves at once; the
 // weekly grid is a draft with Cancel / Save (⌘S).
-import type { BusinessHoursSpan, WorkspaceSettingsData } from '@linedesk/actions'
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useState } from 'react'
 import { useRun } from '../store.tsx'
 import { Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { onSaveKey, SaveBar } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
+import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
 import { Section } from './fields.tsx'
 import {
   type DayHours,
@@ -19,7 +19,7 @@ import {
   timeOptions,
   WEEK_ORDER,
 } from './businessHoursModel.ts'
-import { readAction } from './settings-api.ts'
+import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
 
 const DAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const startOptions: SelectOption<string>[] = timeOptions.filter(o => o.value !== '24:00')
@@ -30,47 +30,38 @@ export type HoursDraft = ReturnType<typeof useBusinessHours>
 
 export function useBusinessHours() {
   const run = useRun()
-  const [saved, setSaved] = useState<BusinessHoursSpan[] | null>(null)
-  const [days, setDays] = useState<DayHours[]>([])
-  const [timeZone, setTimeZone] = useState('')
-  const [on, setOnState] = useState(false)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  useEffect(() => {
-    readAction<WorkspaceSettingsData>('workspace.getSettings').then(
-      data => {
-        setSaved(data.businessHours)
-        setDays(dayRows(data.businessHours))
-        setTimeZone(data.timeZone)
-        setOnState(data.businessHoursOn)
-      },
-      (e: Error) => setLoadError(e.message),
-    )
-  }, [])
-  const dirty = saved !== null && hoursChanged(saved, days)
+  const settings = useWorkspaceSettings()
+  const saved = settings.data?.businessHours ?? null
+  // The edited grid; null while it matches what is saved (then a fresh answer shows as it arrives).
+  const [draft, setDraft] = useState<DayHours[] | null>(null)
+  const days = draft ?? dayRows(saved ?? [])
+  const dirty = draft !== null && saved !== null && hoursChanged(saved, draft)
+  const edit = (change: (current: DayHours[]) => DayHours[]) => setDraft(change(days))
   return {
     saved,
     days,
-    timeZone,
-    on,
+    timeZone: settings.data?.timeZone ?? '',
+    on: settings.data?.businessHoursOn ?? false,
     /** Turns business hours on or off for the workspace, at once. */
     setOn: (next: boolean) => {
-      setOnState(next)
+      patchWorkspaceSettings({ businessHoursOn: next })
       void run('workspace.updateSettings', { businessHoursOn: next })
     },
-    loadError,
+    loadError: settings.data ? null : settings.error,
+    retry: settings.reload,
     dirty,
     problem: dirty ? hoursProblem(days) : null,
     set: (weekday: number, change: Partial<DayHours>) =>
-      setDays(all => all.map(d => (d.weekday === weekday ? { ...d, ...change } : d))),
-    clear: () => setDays(dayRows([])),
-    discard: () => saved && setDays(dayRows(saved)),
+      edit(all => all.map(d => (d.weekday === weekday ? { ...d, ...change } : d))),
+    clear: () => edit(() => dayRows([])),
+    discard: () => setDraft(null),
     /** Runs businessHours.set when the hours changed; call only when `problem` is null. */
     save: () => {
       if (!dirty) return
       const hours = spansOf(days)
       void run('businessHours.set', { hours })
-      setSaved(hours)
-      setDays(dayRows(hours))
+      patchWorkspaceSettings({ businessHours: hours })
+      setDraft(null)
     },
   }
 }
@@ -107,9 +98,11 @@ export function BusinessHours({ canEdit, toast }: Props) {
   if (!saved)
     return (
       <Section id="st-hours" title="Business hours" help={help} actions={mainSwitch}>
-        <p className="help" role={loadError ? 'alert' : undefined}>
-          {loadError ?? 'Loading…'}
-        </p>
+        {loadError ? (
+          <LoadProblem what="Business hours" message={loadError} onRetry={() => void hours.retry()} />
+        ) : (
+          <SkeletonRows label="Loading business hours" rows={3} />
+        )}
       </Section>
     )
   return (

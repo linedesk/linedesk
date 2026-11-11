@@ -23,6 +23,7 @@ import { useAssistantName, useAssistants, useRejection, useRows, useRun } from '
 import { RadioCard, Select, type SelectOption } from '../ui/controls.tsx'
 import { Dialog } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
+import { SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { Field, Section, TextInput } from './fields.tsx'
 
 const carrierName = (provider: string | null) =>
@@ -41,6 +42,7 @@ const answeredBy = (number: PhoneNumber, assistants: Assistant[]) =>
 
 export function PhoneNumbers({ canEdit, status, isInstanceAdmin }: Props) {
   const numbers = useRows('phone_numbers').sort((a, b) => a.created_at.localeCompare(b.created_at))
+  const numbersLoad = useLoadState('phone_numbers')
   const assistants = useAssistants()
   const presence = usePresence()
   const answering = presence.kind === 'answering'
@@ -63,7 +65,9 @@ export function PhoneNumbers({ canEdit, status, isInstanceAdmin }: Props) {
       {canEdit && status && !status.available && (
         <Unavailable detail={status.detail} isInstanceAdmin={isInstanceAdmin} />
       )}
-      {numbers.length > 0 ? (
+      {numbersLoad !== 'ready' ? (
+        <SkeletonRows label="Loading phone numbers" rows={1} />
+      ) : numbers.length > 0 ? (
         <ul className="pn-list">
           {numbers.map(n => (
             <li key={n.id} className="pn-row">

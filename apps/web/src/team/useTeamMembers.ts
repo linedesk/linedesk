@@ -1,29 +1,11 @@
-// The workspace's members, for assigning calls: loaded once per page and shared. Members are not in
-// the local store (team-api.ts); a member who is not listed (yet) shows as "a teammate".
+// The workspace's members, for assigning calls: the Team page's cached list (team-api.ts useTeam).
+// Members are not in the local store; a member who is not listed (yet) shows as "a teammate".
 import type { TeamMember } from '@linedesk/actions'
-import { useEffect, useState } from 'react'
-import { teamApi } from './team-api.ts'
+import { useTeam } from './team-api.ts'
 
-let loading: Promise<TeamMember[]> | null = null
+const NONE: TeamMember[] = []
 
-export function useTeamMembers(): TeamMember[] {
-  const [members, setMembers] = useState<TeamMember[]>([])
-  useEffect(() => {
-    let live = true
-    loading ??= teamApi.list().then(
-      data => data.members,
-      () => {
-        loading = null // try again on the next mount
-        return []
-      },
-    )
-    void loading.then(list => live && setMembers(list))
-    return () => {
-      live = false
-    }
-  }, [])
-  return members
-}
+export const useTeamMembers = (): TeamMember[] => useTeam().data?.members ?? NONE
 
 export const memberName = (members: TeamMember[], userId: string) => {
   const m = members.find(x => x.userId === userId)

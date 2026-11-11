@@ -1,5 +1,7 @@
 // Reads settings that are not in the local store (workspace_settings is not synced) through the
 // registry's read-only actions. Changes go through the outbox with useRun, like every other write.
+import type { WorkspaceSettingsData } from '@linedesk/actions'
+import { fetchQuery, setQueryData, useQuery } from '../cachedQuery.ts'
 
 /** Runs a read-only registry action and returns its `data`. */
 export async function readAction<T>(name: string, input: object = {}): Promise<T> {
@@ -29,3 +31,16 @@ export async function callAction<T>(name: string, input: object = {}): Promise<T
   if (!res?.ok || !body?.ok) throw new Error(body?.error ?? 'No connection to the server. Try again.')
   return body.data as T
 }
+
+const WORKSPACE_SETTINGS = 'workspace.settings'
+const loadWorkspaceSettings = () => readAction<WorkspaceSettingsData>('workspace.getSettings')
+
+/** The workspace's settings (hours, recordings): the last known at once, checked again in the background. */
+export const useWorkspaceSettings = () => useQuery(WORKSPACE_SETTINGS, loadWorkspaceSettings, { persist: true })
+
+/** Loads the settings ahead, at app start, so Settings and Assistant open with them. */
+export const preloadWorkspaceSettings = () => fetchQuery(WORKSPACE_SETTINGS, loadWorkspaceSettings, { persist: true })
+
+/** After a change the page sent through the outbox: show it at once, like the local store does. */
+export const patchWorkspaceSettings = (change: Partial<WorkspaceSettingsData>) =>
+  setQueryData<WorkspaceSettingsData | undefined>(WORKSPACE_SETTINGS, s => (s ? { ...s, ...change } : s), { persist: true })

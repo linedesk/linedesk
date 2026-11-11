@@ -2,6 +2,7 @@
 // was signed in on this device before opens the app from local data; anyone else waits for
 // the server with automatic retries instead of a dead screen.
 import { isSignedIn, type Me } from './auth.ts'
+import { forgetQueries, setQueryData, setQueryScope } from './cachedQuery.ts'
 import { reach, Unreachable } from './retry.ts'
 
 export type Session =
@@ -28,14 +29,26 @@ function remembered(): Me | null {
   } catch { return null }
 }
 
-/** Forget the member this device remembers (on sign-out). */
-export const forgetMe = () => remember(null)
+/** The cache key of the member's workspace list (WorkspaceSwitcher). */
+export const WORKSPACES_QUERY = 'workspaces'
+
+/** Cached reads belong to this member in this workspace; the workspace list came along with /v1/me. */
+function primeQueries(me: Me) {
+  setQueryScope(`${me.actorId}/${me.workspace?.id ?? ''}`)
+  if (me.workspaces) setQueryData(WORKSPACES_QUERY, me.workspaces, { persist: true })
+}
+
+/** Forget the member this device remembers and what was cached for them (on sign-out). */
+export function forgetMe() {
+  remember(null)
+  forgetQueries()
+}
 
 export async function loadSession(): Promise<Session> {
   try {
     const res = await reach('/v1/me', { credentials: 'include' })
     const me = res.ok ? ((await res.json()) as Me) : null
-    if (me?.workspace) { remember(me); return { state: 'ready', me, offline: false } }
+    if (me?.workspace) { remember(me); primeQueries(me); return { state: 'ready', me, offline: false } }
     remember(null)
     // Signed in through a link or SSO for the first time: no workspace yet.
     if (me) return { state: 'needsWorkspace', impersonation: me.impersonation ?? null }
@@ -43,6 +56,8 @@ export async function loadSession(): Promise<Session> {
   } catch (error) {
     if (!(error instanceof Unreachable)) throw error
     const me = remembered()
-    return me ? { state: 'ready', me, offline: true } : { state: 'unreachable' }
+    if (!me) return { state: 'unreachable' }
+    primeQueries(me)
+    return { state: 'ready', me, offline: true }
   }
 }

@@ -1,19 +1,17 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { fetchAuthMethods, type LegalLinks } from '../auth.ts'
+import { useQuery } from '../cachedQuery.ts'
 import { Avatar, Icon } from '../ui/kit.tsx'
 import type { IconName } from '../ui/icons.ts'
-import { WorkspaceSwitcher } from './WorkspaceSwitcher.tsx'
+import { refreshWorkspaces, useWorkspaces, WorkspaceSwitcher } from './WorkspaceSwitcher.tsx'
 
 /** `onAdmin` is set for instance admins only: Admin then leads the menu. */
 type Props = { name: string; workspaceName: string; workspaceId: string; onError: (message: string) => void; navOpen: boolean; onAdmin?: () => void; onAccount: () => void; onTeam: () => void; onSignOut: () => void }
 
-/** This install's terms, privacy and support links; none until loaded, and none that are not set. */
+/** This install's terms, privacy and support links: the last known ones at once, none that are not set. */
+export const loadAuthMethods = () => fetchAuthMethods({ attempts: 1 })
 function useLegalLinks(): LegalLinks | null {
-  const [links, setLinks] = useState<LegalLinks | null>(null)
-  useEffect(() => {
-    fetchAuthMethods({ attempts: 1 }).then(m => setLinks(m.links), () => setLinks(null))
-  }, [])
-  return links
+  return useQuery('auth-methods', loadAuthMethods, { persist: true }).data?.links ?? null
 }
 
 function LinkItem({ label, icon, href }: { label: string; icon: IconName; href: string }) {
@@ -29,6 +27,7 @@ function Item({ label, icon, onClick }: { label: string; icon: IconName; onClick
 export function ProfileMenu({ name, workspaceName, workspaceId, onError, navOpen, onAdmin, onAccount, onTeam, onSignOut }: Props) {
   const [open, setOpen] = useState(false)
   const links = useLegalLinks()
+  const workspaces = useWorkspaces() // known with the session; here so the menu never waits for it
   const hasLinks = !!(links?.terms || links?.privacy || links?.supportEmail)
   useEffect(() => { if (!navOpen) setOpen(false) }, [navOpen]) // the menu never outlives the navigation
   const root = useRef<HTMLDivElement>(null)
@@ -37,6 +36,7 @@ export function ProfileMenu({ name, workspaceName, workspaceId, onError, navOpen
 
   useEffect(() => {
     if (!open) return
+    void refreshWorkspaces() // in the background: the menu already shows the last known list
     root.current?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus()
     const onMouseDown = (e: MouseEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false) }
     document.addEventListener('mousedown', onMouseDown)
@@ -57,7 +57,7 @@ export function ProfileMenu({ name, workspaceName, workspaceId, onError, navOpen
     <div className="me-wrap" ref={root}>
       {open && (
         <div className="me-menu" role="menu" aria-label="Account" onKeyDown={onKeyDown}>
-          <WorkspaceSwitcher currentId={workspaceId} onError={m => { setOpen(false); onError(m) }} />
+          <WorkspaceSwitcher all={workspaces} currentId={workspaceId} onError={m => { setOpen(false); onError(m) }} />
           {onAdmin && <Item label="Admin" icon="shield" onClick={choose(onAdmin)} />}
           <Item label="Account settings" icon="user" onClick={choose(onAccount)} />
           <Item label="Team" icon="users" onClick={choose(onTeam)} />

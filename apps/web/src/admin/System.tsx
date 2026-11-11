@@ -1,9 +1,11 @@
 // LiveKit is part of the install: its keys are set in env at install time, so this is a
 // read-only status, loaded on its own because a server that is down takes seconds to say so.
-import { useCallback, useEffect, useState } from 'react'
+import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { Card } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
 import { type LivekitStatus, loadLivekitStatus, type ServiceStatus } from './api.ts'
+
+const LIVEKIT = 'admin.livekit'
 
 function Service({ name, status }: { name: string; status: ServiceStatus | null }) {
   return (
@@ -22,18 +24,13 @@ function Service({ name, status }: { name: string; status: ServiceStatus | null 
 }
 
 export function System() {
-  const [status, setStatus] = useState<LivekitStatus | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const check = useCallback(async () => {
-    setStatus(null)
-    setError(null)
-    try {
-      setStatus(await loadLivekitStatus())
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }, [])
-  useEffect(() => void check(), [check])
+  const query = useQuery(LIVEKIT, loadLivekitStatus)
+  const status = query.data ?? null
+  const error = status ? null : query.error
+  const check = () => {
+    setQueryData<LivekitStatus | undefined>(LIVEKIT, undefined) // a check the operator asked for shows as checking
+    return query.reload()
+  }
 
   return (
     <Card

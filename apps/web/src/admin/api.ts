@@ -95,6 +95,10 @@ async function body<T>(res: Response): Promise<T> {
 const HIGH = { priority: 'high' } as RequestInit
 const get = async <T>(path: string) => body<T>(await fetch(path, { ...HIGH, credentials: 'include' }))
 
+/** Cache keys (cachedQuery.ts), kept in memory only: admin rows cross workspaces and are not stored in the browser. */
+export const ADMIN_DATA = 'admin.data'
+export const ADMIN_HEALTH = 'admin.health'
+
 export async function loadAdminData(): Promise<AdminData> {
   const [w, u, usage, p] = await Promise.all([
     get<{ workspaces: AdminWorkspace[] }>('/v1/admin/workspaces'),

@@ -11,6 +11,8 @@ import { SignInMark } from '../ui/brand-logos.tsx'
 import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
+import { Skeleton, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
+import { useQuery } from '../cachedQuery.ts'
 import {
   CONNECT_RETURN_KEY,
   calendarsOf,
@@ -33,18 +35,21 @@ const noSubmit = (e: KeyboardEvent) => {
   if (e.key === 'Enter') e.preventDefault()
 }
 
-function useProviders() {
-  const [providers, setProviders] = useState<ProviderId[] | null>(null)
-  useEffect(() => {
-    fetch('/v1/calendar/providers', { credentials: 'include' })
-      .then(res => res.json() as Promise<{ providers: ProviderId[] }>)
-      .then(body => setProviders(body.providers), () => setProviders([]))
-  }, [])
-  return providers
+async function loadProviders(): Promise<ProviderId[]> {
+  const res = await fetch('/v1/calendar/providers', { credentials: 'include' })
+  if (!res.ok) throw new Error(`The server answered ${res.status}`)
+  return ((await res.json()) as { providers: ProviderId[] }).providers
+}
+
+/** The calendar providers this install can connect: the last known at once; none when they cannot be read. */
+function useProviders(): ProviderId[] | null {
+  const { data, error } = useQuery('calendar.providers', loadProviders, { persist: true })
+  return data ?? (error ? [] : null)
 }
 
 function Accounts({ assistant, canEdit, toast }: Props) {
   const connections = useRows('calendar_connections').sort((a, b) => a.created_at.localeCompare(b.created_at))
+  const connectionsLoad = useLoadState('calendar_connections')
   const providers = useProviders()
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -77,6 +82,7 @@ function Accounts({ assistant, canEdit, toast }: Props) {
 
   return (
     <Section id="as-cal-accounts" title="Calendar accounts" description="The assistant checks them for free times and books into them.">
+      {connectionsLoad !== 'ready' && <SkeletonRows label="Loading calendar accounts" rows={1} />}
       {connections.length > 0 && (
         <ul className="cal-list">
           {connections.map(c => (
@@ -104,6 +110,7 @@ function Accounts({ assistant, canEdit, toast }: Props) {
           ))}
         </ul>
       )}
+      {canEdit && !providers && <Skeleton className="sk-field" />}
       {canEdit && providers && providers.length > 0 && (
         <div className="cal-connect">
           {providers.map(p => (
@@ -177,19 +184,14 @@ function CalendarRow({ calendar, account, canEdit, onRemove }: { calendar: Assis
 
 function AddCalendar({ assistant, connections, onClose, toast }: { assistant: Assistant; connections: CalendarConnection[]; onClose: () => void; toast: (t: string) => void }) {
   const [connectionId, setConnectionId] = useState(connections[0]?.id ?? '')
-  const [calendars, setCalendars] = useState<ListCalendarsData['calendars'] | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const listed = useQuery(connectionId ? `calendar.list.${connectionId}` : null, () =>
+    callAction<ListCalendarsData>('calendar.listCalendars', { connectionId }).then(data => data.calendars.filter(c => c.canWrite)),
+  )
+  const calendars = listed.data ?? null
+  const [addError, setError] = useState<string | null>(null)
+  const error = addError ?? (calendars ? null : listed.error)
   const [adding, setAdding] = useState<string | null>(null)
   const taken = useRows('assistant_calendars').filter(c => c.assistant_id === assistant.id && c.connection_id === connectionId).map(c => c.external_id)
-  useEffect(() => {
-    if (!connectionId) return
-    setCalendars(null)
-    setError(null)
-    callAction<ListCalendarsData>('calendar.listCalendars', { connectionId }).then(
-      data => setCalendars(data.calendars.filter(c => c.canWrite)),
-      (e: Error) => setError(e.message),
-    )
-  }, [connectionId])
   async function add(externalId: string, name: string) {
     setAdding(externalId)
     try {
@@ -210,7 +212,7 @@ function AddCalendar({ assistant, connections, onClose, toast }: { assistant: As
         </Field>
       )}
       {error && <p className="k-field-msg">{error}</p>}
-      {!calendars && !error && <p className="help">Loading calendars…</p>}
+      {!calendars && !error && <SkeletonRows label="Loading calendars" rows={3} />}
       {calendars && (
         <ul className="cal-list">
           {calendars.map(c => (

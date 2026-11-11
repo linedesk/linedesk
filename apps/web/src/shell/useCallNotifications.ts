@@ -3,30 +3,21 @@
 // opened, never for test calls or spam. Clicking one opens the call.
 import type { NotificationSettingsData } from '@linedesk/actions'
 import type { Call } from '@linedesk/db/types'
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useRef } from 'react'
+import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { readAction } from '../settings/settings-api.ts'
 import { useRows } from '../store.tsx'
 import { callHash } from './useRoute.ts'
 
-// The member's settings, shared by this hook and Settings, Notifications (which updates it on change).
-let settings: NotificationSettingsData | null = null
-const listeners = new Set<() => void>()
-export const notificationSettings = {
-  get: () => settings,
-  set(next: NotificationSettingsData) {
-    settings = next
-    for (const listener of listeners) listener()
-  },
-  subscribe(listener: () => void) {
-    listeners.add(listener)
-    return () => listeners.delete(listener)
-  },
-  async load() {
-    notificationSettings.set(await readAction<NotificationSettingsData>('notifications.get'))
-  },
-}
-export const useNotificationSettings = () =>
-  useSyncExternalStore(notificationSettings.subscribe, notificationSettings.get)
+// The member's settings, shared by this hook and Settings, Notifications (which updates them on
+// change): the last known at once (also across page loads), checked again in the background.
+const NOTIFICATIONS = 'notifications'
+const loadNotificationSettings = () => readAction<NotificationSettingsData>('notifications.get')
+export const useNotificationQuery = () => useQuery(NOTIFICATIONS, loadNotificationSettings, { persist: true })
+export const useNotificationSettings = () => useNotificationQuery().data ?? null
+/** Applies a change at once, here and on the settings page; the server gets it through the outbox. */
+export const setNotificationSettings = (next: NotificationSettingsData) =>
+  setQueryData(NOTIFICATIONS, next, { persist: true })
 
 export const browserNotificationsSupported = () => typeof window !== 'undefined' && 'Notification' in window
 
@@ -72,10 +63,6 @@ export function useCallNotifications(callerName: (call: Call) => string) {
   const since = useRef(Date.now() - SLACK_MS)
   const name = useRef(callerName)
   name.current = callerName
-
-  useEffect(() => {
-    if (!notificationSettings.get()) notificationSettings.load().catch(() => {})
-  }, [])
 
   useEffect(() => {
     const before = seen.current

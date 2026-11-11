@@ -16,4 +16,6 @@ test('green only when a number is connected and the voice stack is ready', () =>
 test('offline wins, and an unanswered check shows nothing rather than a guess', () => {
   expect(presenceOf({ online: false, hasNumber: true, voiceReady: true })).toEqual({ kind: 'offline' })
   expect(presenceOf({ online: true, hasNumber: true, voiceReady: null })).toEqual({ kind: 'unknown' })
+  // Before the numbers arrive on a fresh device: not "no number connected".
+  expect(presenceOf({ online: true, hasNumber: null, voiceReady: true })).toEqual({ kind: 'unknown' })
 })

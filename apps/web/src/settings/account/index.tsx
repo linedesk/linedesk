@@ -1,14 +1,16 @@
 // Account settings: profile, sign-in and sessions of the signed-in member, one section at a time
 // (#account/<section>). Everything here is Better Auth's own data (see account-api.ts), so it does not
 // go through the outbox.
-import { type FormEvent, useCallback, useEffect, useState } from 'react'
+import { type FormEvent, useCallback, useState } from 'react'
 import { passkeySupported, signInAgain } from '../../auth.ts'
+import { refreshQuery, useQuery } from '../../cachedQuery.ts'
+import { Skeleton } from '../../ui/LoadStates.tsx'
 import { dateTimeLabel } from '../../time.ts'
 import { onSaveKey, SaveBar } from '../../ui/form.tsx'
 import { Badge, Button } from '../../ui/kit.tsx'
 import { type PageSection, SettingsLayout, useSection } from '../../ui/SettingsLayout.tsx'
 import { Field, Section, TextInput } from '../fields.tsx'
-import { type Account, addPasskey, changeName, changePassword, loadAccount, loadPasskeys, loadSessions, type PasskeyRow, removePasskey, setFirstPassword, SignInAgain, signOutOtherSessions, signOutSession } from './account-api.ts'
+import { ACCOUNT, type Account, addPasskey, PASSKEYS, SESSIONS, changeName, changePassword, loadAccount, loadPasskeys, loadSessions, removePasskey, setFirstPassword, SignInAgain, signOutOtherSessions, signOutSession } from './account-api.ts'
 import { describeDevice, hasPassword, orderSessions, passwordProblem, type SessionRow, SESSIONS_SHOWN, signInMethodLabels } from './account-model.ts'
 
 type SectionProps = { account: Account; reload: () => Promise<void> }
@@ -138,23 +140,13 @@ function SignIn(props: SectionProps) {
   )
 }
 
-type PasskeyList = { state: 'loading' } | { state: 'failed'; error: string } | { state: 'ready'; passkeys: PasskeyRow[] }
-
 /** The member's passkeys: add one for this device, remove one (both need a recent sign-in). */
 function Passkeys() {
-  const [list, setList] = useState<PasskeyList>({ state: 'loading' })
+  const passkeys = useQuery(PASSKEYS, loadPasskeys)
+  const list = passkeys.data
   const [confirming, setConfirming] = useState<string | null>(null)
   const request = useRequest()
-  const load = useCallback(async () => {
-    try {
-      setList({ state: 'ready', passkeys: await loadPasskeys() })
-    } catch (err) {
-      setList({ state: 'failed', error: message(err) })
-    }
-  }, [])
-  useEffect(() => {
-    void load()
-  }, [load])
+  const load = passkeys.reload
 
   const add = () => request.run(async () => {
     await addPasskey(describeDevice(navigator.userAgent))
@@ -169,11 +161,12 @@ function Passkeys() {
   return (
     <div className="ac-form ac-divided">
       <Field label="Passkeys" tip="Sign in with your fingerprint, face or device PIN instead of a code or password.">
-        {list.state === 'failed' && <div className="ac-error" role="alert">{list.error}</div>}
-        {list.state === 'ready' && list.passkeys.length === 0 && <span className="help">No passkeys yet.</span>}
-        {list.state === 'ready' && list.passkeys.length > 0 && (
+        {!list && passkeys.error && <div className="ac-error" role="alert">{passkeys.error}</div>}
+        {!list && !passkeys.error && <ListSkeleton label="Loading passkeys" rows={1} />}
+        {list && list.length === 0 && <span className="help">No passkeys yet.</span>}
+        {list && list.length > 0 && (
           <ul className="ac-list">
-            {list.passkeys.map(p => (
+            {list.map(p => (
               <li key={p.id} className="ac-session">
                 <div><b>{p.name}</b>{p.added && <span className="help">Added {dateTimeLabel(p.added)}</span>}</div>
                 <div className="ac-row-actions">
@@ -213,24 +206,34 @@ function Confirm({ question, busy, onCancel, onConfirm }: { question: string; bu
   )
 }
 
-type SessionList = { state: 'loading' } | { state: 'signInAgain' } | { state: 'failed'; error: string } | { state: 'ready'; sessions: SessionRow[] }
+/** Sessions in the order shown; SignInAgain when the session is too old to list them. */
+async function loadSessionList(): Promise<SessionRow[] | 'signInAgain'> {
+  try {
+    return orderSessions(await loadSessions())
+  } catch (err) {
+    if (err instanceof SignInAgain) return 'signInAgain'
+    throw err
+  }
+}
+
+/** Grey rows where a list of sessions or passkeys will be. */
+function ListSkeleton({ label, rows = 3 }: { label: string; rows?: number }) {
+  return (
+    <ul className="ac-list" aria-busy="true" aria-label={label}>
+      {Array.from({ length: rows }, (_, i) => `${label}-${i}`).map(key => <li key={key} className="ac-session ac-skel"><span /><span /></li>)}
+    </ul>
+  )
+}
 
 function Sessions() {
-  const [list, setList] = useState<SessionList>({ state: 'loading' })
+  const query = useQuery(SESSIONS, loadSessionList)
+  const list = query.data
   /** A session id, or 'others'. */
   const [confirming, setConfirming] = useState<string | null>(null)
   const [showAll, setShowAll] = useState(false)
   const request = useRequest()
-  const load = useCallback(async () => {
-    try {
-      setList({ state: 'ready', sessions: orderSessions(await loadSessions()) })
-    } catch (err) {
-      setList(err instanceof SignInAgain ? { state: 'signInAgain' } : { state: 'failed', error: message(err) })
-    }
-  }, [])
-  useEffect(() => {
-    void load()
-  }, [load])
+  const load = query.reload
+  const sessions = Array.isArray(list) ? list : null
 
   const signOut = (action: () => Promise<void>, doneText: string) => request.run(async () => {
     await action()
@@ -238,24 +241,20 @@ function Sessions() {
     await load()
   }, doneText)
 
-  const others = list.state === 'ready' ? list.sessions.length - 1 : 0
+  const others = sessions ? sessions.length - 1 : 0
   return (
     <Section id="ac-sessions" title="Sessions" description="Where you are signed in.">
-      {list.state === 'signInAgain' && (
+      {list === 'signInAgain' && (
         <div className="ac-inline">
           <span className="help">Sign in again to see your devices.</span>
           <SignInAgainButton />
         </div>
       )}
-      {list.state === 'loading' && (
-        <ul className="ac-list" aria-busy="true" aria-label="Loading sessions">
-          {['a', 'b', 'c'].map(key => <li key={key} className="ac-session ac-skel"><span /><span /></li>)}
-        </ul>
-      )}
-      {list.state === 'failed' && <div className="ac-error" role="alert">{list.error}</div>}
-      {list.state === 'ready' && (
+      {!list && !query.error && <ListSkeleton label="Loading sessions" />}
+      {!list && query.error && <div className="ac-error" role="alert">{query.error}</div>}
+      {sessions && (
         <ul className="ac-list">
-          {(showAll ? list.sessions : list.sessions.slice(0, SESSIONS_SHOWN)).map(s => (
+          {(showAll ? sessions : sessions.slice(0, SESSIONS_SHOWN)).map(s => (
             <li key={s.id} className="ac-session">
               <div><b>{s.device}</b><span className="help">Last active {dateTimeLabel(s.lastActive)}</span></div>
               <div className="ac-row-actions">
@@ -267,8 +266,8 @@ function Sessions() {
           ))}
         </ul>
       )}
-      {list.state === 'ready' && !showAll && list.sessions.length > SESSIONS_SHOWN && (
-        <div><Button size="sm" variant="ghost" onClick={() => setShowAll(true)}>Show {list.sessions.length - SESSIONS_SHOWN} more</Button></div>
+      {sessions && !showAll && sessions.length > SESSIONS_SHOWN && (
+        <div><Button size="sm" variant="ghost" onClick={() => setShowAll(true)}>Show {sessions.length - SESSIONS_SHOWN} more</Button></div>
       )}
       <FormStatus request={request} />
       {others > 0 && (
@@ -291,27 +290,24 @@ const sections: readonly PageSection<SectionId>[] = [
 
 /** The shell renders this for the `account` route, without props. */
 export function AccountSettings() {
-  const [account, setAccount] = useState<Account | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  // Counts reloads: a changed password signs other sessions out, so the session list starts over.
-  const [version, setVersion] = useState(0)
+  const query = useQuery(ACCOUNT, loadAccount, { persist: true })
+  const account = query.data
+  // A changed password signs other sessions out, so the session list is loaded again too.
   const reload = useCallback(async () => {
-    await loadAccount().then(setAccount, err => setError(message(err)))
-    setVersion(v => v + 1)
-  }, [])
-  useEffect(() => {
-    void reload()
-  }, [reload])
+    await Promise.all([query.reload(), refreshQuery(SESSIONS)])
+  }, [query.reload])
 
   const current = useSection('account', sections)
-  if (!account) return <div className="page">{error && <div className="empty"><b>Could not load your account</b><span>{error}</span></div>}</div>
-  const props = { account, reload }
+  const props = account ? { account, reload } : null
   return (
     <div className="page">
       <SettingsLayout page="account" title="Account" sections={sections} current={current}>
-        {current === 'profile' && <Profile {...props} />}
-        {current === 'security' && <SignIn {...props} />}
-        {current === 'sessions' && <Sessions key={version} />}
+        {!props && (query.error
+          ? <div className="empty"><b>Could not load your account</b><span>{query.error}</span></div>
+          : <Skeleton className="sk-card" />)}
+        {props && current === 'profile' && <Profile {...props} />}
+        {props && current === 'security' && <SignIn {...props} />}
+        {current === 'sessions' && <Sessions />}
       </SettingsLayout>
     </div>
   )

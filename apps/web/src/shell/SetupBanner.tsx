@@ -1,20 +1,14 @@
 // Says so while the assistant cannot answer calls because no number is connected; gone once one is.
-import { useEffect, useState } from 'react'
 import { useAssistantName, useRows } from '../store.tsx'
 import { Button, Icon } from '../ui/kit.tsx'
-
-const SETTLE_MS = 1500
+import { useLoadState } from '../ui/LoadStates.tsx'
 
 export function SetupBanner({ canEdit, onConnect }: { canEdit: boolean; onConnect: () => void }) {
   const hasNumber = useRows('phone_numbers').length > 0
   const name = useAssistantName()
-  // A fresh browser has no rows until the first sync: wait a moment so the bar does not flash.
-  const [settled, setSettled] = useState(false)
-  useEffect(() => {
-    const timer = setTimeout(() => setSettled(true), SETTLE_MS)
-    return () => clearTimeout(timer)
-  }, [])
-  if (hasNumber || !settled) return null
+  // A fresh browser has no rows until the first sync: only a synced empty list means no number.
+  const known = useLoadState('phone_numbers') === 'ready'
+  if (hasNumber || !known) return null
   return (
     <div className="setup-bar" role="status">
       <Icon name="phone-off" size={15} />

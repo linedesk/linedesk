@@ -2,13 +2,14 @@
 // calendar, one section at a time (#assistant/<id>/<section>). Edits in the text sections are one local
 // draft: Save runs assistant.update through the outbox; a section with unsaved
 // changes keeps a dot in the nav while you look at another one.
-import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX, type WorkspaceSettingsData } from '@linedesk/actions'
+import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
 import { onSaveKey, SaveBar } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
+import { LoadProblem, Skeleton, useLoadState } from '../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, sectionHash, useSection } from '../ui/SettingsLayout.tsx'
 import {
   callRulesToSave,
@@ -32,7 +33,7 @@ import { AssistantHeader } from './AssistantHeader.tsx'
 import { CalendarSettings } from './Calendar.tsx'
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
 import { Field, Section, SwitchRow, TextArea } from './fields.tsx'
-import { readAction } from './settings-api.ts'
+import { useWorkspaceSettings } from './settings-api.ts'
 import { TestCallBar, TestCallButton, useTestCall } from './TestCall.tsx'
 
 type SectionId = 'greeting' | 'instructions' | 'rules' | 'calendar'
@@ -348,19 +349,21 @@ function assistantInHash(assistants: Assistant[]): Assistant | undefined {
 }
 
 /** Whether the workspace uses business hours (Settings, Business hours): then greeting and instructions get an outside variant. */
-function useBusinessHoursOn(): boolean {
-  const [on, setOn] = useState(false)
-  useEffect(() => {
-    readAction<WorkspaceSettingsData>('workspace.getSettings').then(
-      data => setOn(data.businessHoursOn),
-      () => setOn(false),
-    )
-  }, [])
-  return on
+const useBusinessHoursOn = (): boolean => useWorkspaceSettings().data?.businessHoursOn ?? false
+
+/** Before the assistants first arrive on this device: the page's frame, never "No assistant yet". */
+function AssistantSkeleton({ slow }: { slow: boolean }) {
+  if (slow) return <LoadProblem what="The assistant" />
+  return (
+    <SettingsLayout page="assistant" title="Assistant" heading={<Skeleton className="sk-title" />} sections={sections} current={sections[0]!.id}>
+      <Skeleton className="sk-card" />
+    </SettingsLayout>
+  )
 }
 
 export function AssistantSettings(props: Props) {
   const assistants = useAssistants()
+  const loadState = useLoadState('assistants')
   const numbers = useRows('phone_numbers').sort((a, b) => a.created_at.localeCompare(b.created_at))
   const [, rerender] = useState(0)
   useEffect(() => {
@@ -384,6 +387,8 @@ export function AssistantSettings(props: Props) {
           onPick={onPick}
           {...props}
         />
+      ) : loadState !== 'ready' ? (
+        <AssistantSkeleton slow={loadState === 'slow'} />
       ) : (
         <div className="empty">
           <b>No assistant yet</b>
