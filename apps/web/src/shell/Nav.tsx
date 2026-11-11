@@ -78,6 +78,7 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
       )}
       <NavItem sub label="Done" icon="check" keys={['G', 'E']} current={onCalls && tab === 'done'} onClick={go(() => on.onInbox('done'))} />
       <NavItem label={pages.contacts.title} icon="contact" keys={['G', 'C']} current={route === 'contacts'} onClick={go(() => on.onPage('contacts'))} />
+      <NavItem label={pages.insights.title} icon="chart" keys={['G', 'N']} current={route === 'insights'} onClick={go(() => on.onPage('insights'))} />
       <NavItem label={pages.assistant.title} icon="waveform" keys={['G', 'A']} current={route === 'assistant'} onClick={go(() => on.onPage('assistant'))} />
       <NavItem label={pages.settings.title} icon="gear" keys={['G', 'S']} current={route === 'settings'} onClick={go(() => on.onPage('settings'))} />
       <div className="nav-foot">

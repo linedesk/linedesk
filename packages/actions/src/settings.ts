@@ -1,6 +1,7 @@
 import { CALL_RULES_MAX } from './assistant-prompt.ts'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
+import { JOB_VALUE_MAX_CENTS } from './insights.ts'
 import { FAQS_MAX, faqSchema, SERVICES_MAX, serviceSchema } from './knowledge.ts'
 import { transferContacts } from './transfer.ts'
 import { voiceId } from './voices.ts'
@@ -276,6 +277,8 @@ export type WorkspaceSettingsData = {
   businessHours: BusinessHoursSpan[]
   businessHoursOn: boolean
   recordingOn: boolean
+  /** The value of one booked job in cents (Insights); null: not set. */
+  jobValueCents: number | null
 }
 
 /** A real IANA time zone ("America/Los_Angeles"), as the server's and the browser's Intl know it. */
@@ -314,13 +317,14 @@ export const workspaceGetSettings = defineAction({
 export const workspaceUpdateSettings = defineAction({
   name: 'workspace.updateSettings',
   description:
-    'Change workspace settings: `recordingRetentionDays` (30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting; off by default), `recordingNotice` (that sentence, e.g. "This call may be recorded.") and `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles").',
+    'Change workspace settings: `recordingRetentionDays` (30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting; off by default), `recordingNotice` (that sentence, e.g. "This call may be recorded."), `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles") and `jobValueCents` (what a booked job is worth on average, in cents, for Insights; null clears it).',
   input: z.object({
     recordingRetentionDays: z.union([z.literal(recordingRetentionChoices), z.null()]).optional(),
     businessHoursOn: z.boolean().optional(),
     recordingNoticeOn: z.boolean().optional(),
     recordingNotice: z.string().trim().min(1, 'Write the sentence the assistant says.').max(RECORDING_NOTICE_MAX).optional(),
     timeZone: z.string().refine(isTimeZone, 'a time zone like America/Los_Angeles').optional(),
+    jobValueCents: z.number().int().min(0).max(JOB_VALUE_MAX_CENTS).nullable().optional(),
   }),
   permission: 'settings:write',
 })

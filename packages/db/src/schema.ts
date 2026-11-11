@@ -293,6 +293,8 @@ export const workspace_settings = pgTable('workspace_settings', {
    * or `telnyx` the workspace's own account, its credentials in provider_settings rows with this workspace_id.
    */
   carrier: text('carrier', { enum: ['default', 'twilio', 'telnyx'] }).notNull().default('default'),
+  /** What a booked job is worth on average, in cents, for Insights ("≈ $X in booked work"). null: not set. */
+  job_value_cents: integer('job_value_cents'),
   created_at: createdAt(),
   version: version(),
 })

@@ -5,6 +5,7 @@ import type { Step } from '../inbox/changes.ts'
 import type { ReactNode } from 'react'
 import { AdminNotice } from '../admin/AdminMode.tsx'
 import { Contacts } from '../contacts/Contacts.tsx'
+import { Insights } from '../insights/Insights.tsx'
 import { AccountSettings } from '../settings/account/index.tsx'
 import type { PhoneSetupStatus } from '../auth.ts'
 import { AssistantSettings } from '../settings/AssistantSettings.tsx'
@@ -34,6 +35,7 @@ export const pages = {
     ownHeader: true,
     render: p => <Contacts menu={p.menu} toast={p.toast} openCall={p.openCall} runUndoable={p.runUndoable} />,
   },
+  insights: { title: 'Insights', render: p => <Insights canEdit={p.canEditSettings} toast={p.toast} /> },
   assistant: {
     title: 'Assistant',
     sections: true,

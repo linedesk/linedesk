@@ -27,6 +27,7 @@ import { membershipHandlers } from './memberships.ts'
 import { installPurchaseRefusal, logPurchase, NUMBER_SETUP_BUSY } from './number-purchases.ts'
 import { teamHandlers } from './team.ts'
 import { transferHandlers } from './transfers.ts'
+import { insightsHandlers } from './insights.ts'
 import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
 import { checkAssistantVoice, releaseUnusedClones, voiceHandlers, voicePreparers } from './voices.ts'
 import { sampleHandlers } from './sample-calls.ts'
@@ -325,6 +326,7 @@ const handlers: Record<string, Handler> = {
   ...teamHandlers,
   ...membershipHandlers,
   ...workspaceSettingsHandlers,
+  ...insightsHandlers,
   ...transferHandlers,
   ...voiceHandlers,
   ...sampleHandlers,

@@ -16,6 +16,7 @@ export const icons = {
   contact: [['rect',{x:3,y:4,width:18,height:18,rx:2}],['path',{d:'M16 2v2M8 2v2M7 21v-1a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1'}],['circle',{cx:12,cy:11,r:3}]],
   left: [['path',{d:'M15 5l-7 7 7 7'}]],
   'arrow-up-right': [['path',{d:'M7 17L17 7M8 7h9v9'}]],
+  chart: [['path',{d:'M4 20h16'}],['path',{d:'M7 16v-5M12 16V6M17 16v-8'}]],
   waveform: [['path',{d:'M4 10v4M8 7v10M12 4v16M16 8v8M20 10.5v3'}]],
   up: [['path',{d:'M6 15l6-6 6 6'}]],
   down: [['path',{d:'M6 9l6 6 6-6'}]],

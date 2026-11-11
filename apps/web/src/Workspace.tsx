@@ -57,7 +57,7 @@ const NAV_DOCKED_QUERY = '(min-width: 1600px)'
 /** The not-found toasts (call, page) stay long enough to be read after the jump. */
 const NOT_FOUND_TOAST_MS = 4500
 const chordTabs: Record<string, InboxTab> = { i: 'you', e: 'done', h: 'reminders', m: 'mine', u: 'unassigned', r: 'review' }
-const chordPages: Record<string, PageRoute> = { a: 'assistant', c: 'contacts', t: 'team', s: 'settings' }
+const chordPages: Record<string, PageRoute> = { a: 'assistant', c: 'contacts', n: 'insights', t: 'team', s: 'settings' }
 
 type Props = {
   me: Me

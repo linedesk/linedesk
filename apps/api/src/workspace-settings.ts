@@ -37,13 +37,14 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
         .map(r => ({ weekday: r.weekday, start: r.start_time.slice(0, 5), end: r.end_time.slice(0, 5) }))
         .sort((a, b) => a.weekday - b.weekday || a.start.localeCompare(b.start)),
       recordingOn: await recordingOn(tx),
+      jobValueCents: row?.job_value_cents ?? null,
     }
     return { rows: {}, data }
   },
 
   'workspace.updateSettings': async (
     { tx, actor },
-    input: { recordingRetentionDays?: number | null; businessHoursOn?: boolean; recordingNoticeOn?: boolean; recordingNotice?: string; timeZone?: string },
+    input: { recordingRetentionDays?: number | null; businessHoursOn?: boolean; recordingNoticeOn?: boolean; recordingNotice?: string; timeZone?: string; jobValueCents?: number | null },
   ) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     const set = {
@@ -52,6 +53,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       ...(input.recordingNoticeOn !== undefined ? { recording_notice_on: input.recordingNoticeOn } : {}),
       ...(input.recordingNotice !== undefined ? { recording_notice: input.recordingNotice } : {}),
       ...(input.timeZone !== undefined ? { timezone: input.timeZone } : {}),
+      ...(input.jobValueCents !== undefined ? { job_value_cents: input.jobValueCents } : {}),
     }
     if (!Object.keys(set).length) return { rows: {} }
     const [row] = await tx
@@ -67,7 +69,8 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
         recordingNoticeOn: row!.recording_notice_on,
         recordingNotice: row!.recording_notice ?? DEFAULT_RECORDING_NOTICE,
         timeZone: row!.timezone,
-      } satisfies Pick<WorkspaceSettingsData, 'recordingRetentionDays' | 'businessHoursOn' | 'recordingNoticeOn' | 'recordingNotice' | 'timeZone'>,
+        jobValueCents: row!.job_value_cents,
+      } satisfies Pick<WorkspaceSettingsData, 'recordingRetentionDays' | 'businessHoursOn' | 'recordingNoticeOn' | 'recordingNotice' | 'timeZone' | 'jobValueCents'>,
     }
   },
 

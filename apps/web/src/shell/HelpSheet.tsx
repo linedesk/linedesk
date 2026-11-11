@@ -65,6 +65,7 @@ export const SHORTCUTS: Group[] = [
       ['Assigned to me', ['G', 'M']],
       ['Unassigned', ['G', 'U']],
       ['Contacts', ['G', 'C']],
+      ['Insights', ['G', 'N']],
       ['Assistant', ['G', 'A']],
       ['Team', ['G', 'T']],
       ['Settings', ['G', 'S']],

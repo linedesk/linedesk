@@ -1,0 +1,41 @@
+/* Insights: greyscale with ink for the main bars, red only for missed calls. */
+.in-page .page-head { align-items: center; }
+.in-range { margin-bottom: 0; }
+.in-loading { display: grid; gap: 12px; }
+
+.in-summary { padding: 20px 22px; display: grid; gap: 6px; }
+.in-sentence { margin: 0; font-size: 18px; line-height: 26px; font-weight: 500; letter-spacing: -0.01em; text-wrap: pretty; }
+.in-value { margin: 0; font-size: 14px; color: var(--ink); }
+.in-value b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.in-muted { color: var(--ink-muted); }
+
+.in-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 560px) { .in-tiles { grid-template-columns: 1fr 1fr; } .in-vs { display: none; } }
+.in-tile { padding: 14px 16px; display: grid; gap: 2px; }
+.in-tile-l { font-size: 12.5px; color: var(--ink-muted); }
+.in-tile-n { font-size: 24px; line-height: 32px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.in-tile-s { font-size: 12px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.in-danger { color: var(--danger); }
+
+.in-two { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 760px) { .in-two { grid-template-columns: 1fr; } }
+
+.in-chart { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.in-cols { display: flex; align-items: stretch; gap: 3px; height: 140px; }
+.in-cols-daily { height: 160px; gap: 2px; }
+.in-col { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; border-radius: 3px; }
+.in-col:hover { background: var(--surface-hover); }
+.in-bar { display: block; width: 100%; max-width: 44px; background: var(--ink); border-radius: 2px; min-height: 0; }
+.in-bar.in-quiet { background: var(--line-soft); }
+.in-bar.in-missed { background: var(--danger); }
+.in-col:hover .in-bar.in-quiet { background: var(--ink-disabled); }
+.in-axis { display: flex; gap: 2px; font-size: 11px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.in-axis span { flex: 1; min-width: 0; display: flex; justify-content: center; white-space: nowrap; }
+.in-axis span:first-child { justify-content: flex-start; }
+.in-axis span:last-child { justify-content: flex-end; }
+.in-peak { margin: 4px 0 0; font-size: 12.5px; color: var(--ink-muted); }
+.in-peak b { color: var(--ink); font-weight: 500; }
+
+.in-job-form { display: grid; gap: 4px; max-width: 220px; }
+.in-unit { padding-right: 10px; font-size: 12px; color: var(--ink-muted); }
+.in-error { font-size: 12px; color: var(--danger); }

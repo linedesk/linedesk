@@ -5,6 +5,7 @@ import * as callDetails from './call-details.ts'
 import * as carrier from './carrier.ts'
 import * as calls from './calls.ts'
 import * as evaluations from './evaluations.ts'
+import * as insights from './insights.ts'
 import type { ActionDef } from './define.ts'
 import * as knowledge from './knowledge.ts'
 import * as membership from './membership.ts'
@@ -30,6 +31,7 @@ export * from './call-details.ts'
 export * from './carrier.ts'
 export * from './calls.ts'
 export * from './evaluations.ts'
+export * from './insights.ts'
 export * from './knowledge.ts'
 export * from './membership.ts'
 export * from './notifications.ts'
@@ -161,6 +163,7 @@ const all = [
   evaluations.callGetEvaluation,
   evaluations.callListEvaluations,
   evaluations.callEvaluate,
+  insights.insightsGet,
   webhooks.webhookCreate,
   webhooks.webhookUpdate,
   webhooks.webhookDelete,
