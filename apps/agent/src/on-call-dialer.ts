@@ -98,17 +98,18 @@ const sleep = (ms: number, signal?: AbortSignal) =>
   })
 
 /** Waits until the other side has spoken and then been quiet for `quietMs`. */
-async function untilTheyStopTalking(stream: AsyncIterator<AudioFrame>, quietMs = 1200) {
-  let heard = false
+/** Waits until the other side spoke and then was quiet for `quietMs`; resolves with how long they spoke (ms). */
+async function untilTheyStopTalking(stream: AsyncIterator<AudioFrame>, quietMs = 1200): Promise<number> {
+  let firstLoud = 0
   let lastLoud = 0
   for (;;) {
     const { value: frame, done } = await stream.next()
-    if (done) return
+    if (done) return lastLoud - firstLoud
     const now = Date.now()
     if (rms(frame.data) > 500) {
-      heard = true
+      firstLoud ||= now
       lastLoud = now
-    } else if (heard && now - lastLoud >= quietMs) return
+    } else if (firstLoud && now - lastLoud >= quietMs) return lastLoud - firstLoud
   }
 }
 
@@ -191,10 +192,24 @@ function firstAudioTrack(room: Room): Promise<RemoteTrack> {
   })
 }
 
+/** How long the on-call person waits after saying yes for the next line ("Connecting you now.", or the briefing again). */
+const NEXT_LINE_MS = 8000
+/** Speech at least this long after the yes is the briefing again ("Connecting you now." is about a second). */
+const BRIEFING_MIN_MS = 2500
+/** Time for the bridge to be up after "Connecting you now." before the greeting, so the caller hears all of it. */
+const BRIDGE_SETTLE_MS = 2000
+
+/** What `done` resolves with if that happens within `ms`, else null. */
+const within = <T>(done: Promise<T>, ms: number) => Promise.race([done, sleep(ms).then(() => null)])
+
 /**
  * Listens to the briefing, then answers: key 2 to decline; to accept "yes" (and key 1 with `pressOne`,
  * for a phone line where speech recognition may miss it), then after "Connecting you now." the greeting,
  * then `hangUp`. No answer: stays silent.
+ *
+ * A pause in the briefing (a slow voice on a busy server) can pass for its end: the yes then comes too early and
+ * does not count, and the briefing goes on or is said again. Then the person answers once more. The next line is
+ * never waited for longer than NEXT_LINE_MS: "Connecting you now." may have played while they were still speaking.
  */
 export async function actOnCall(
   room: Room,
@@ -212,10 +227,13 @@ export async function actOnCall(
     await room.localParticipant!.publishDtmf(2, '2')
     return
   }
-  await speak(source, accept!)
-  if (pressOne) await room.localParticipant!.publishDtmf(1, '1')
-  await untilTheyStopTalking(heard) // "Connecting you now."
-  await sleep(800)
+  for (let answers = 0; answers < 2; answers++) {
+    await speak(source, accept!)
+    if (pressOne) await room.localParticipant!.publishDtmf(1, '1')
+    const spokeMs = await within(untilTheyStopTalking(heard), NEXT_LINE_MS)
+    if (spokeMs === null || spokeMs < BRIEFING_MIN_MS) break // "Connecting you now.", or it played while they spoke
+  }
+  await sleep(BRIDGE_SETTLE_MS)
   await speak(source, greeting!)
   await sleep(1500)
   await hangUp()
