@@ -2,17 +2,34 @@
 
 The open-source AI receptionist for businesses. It answers every call, books the appointment and hands over to a person when needed, and you own the code and the data.
 
-Status: prototypes and architecture; the backend is next. Private until the first public release.
+Status: in development, before the first public release. Phone and calendar first, US first.
 
 ## What's here
 
 | Path | What it is |
 | --- | --- |
-| [`prototypes/inbox-html/`](prototypes/inbox-html) | The chosen design: single-file clickable prototype (inbox, call view, bookings, customers, assistant settings, onboarding). Run: `cd prototypes/inbox-html && python3 -m http.server 4173` |
-| `src/` (root) | Janik's Next.js UX mock-up with the same scenario. Run: `npm install && npm run dev`. Moves to `prototypes/linedesk-next/` when the monorepo is created. |
+| [`apps/api`](apps/api) | API server (Hono): sign-in, the action registry (the one write path), read sync, MCP |
+| [`apps/web`](apps/web) | The inbox: a local-first, keyboard-first web app (installable) |
+| [`apps/agent`](apps/agent) | The voice assistant (LiveKit Agents) and a call simulator |
+| [`packages/`](packages) | Database schema, actions, sync, telephony and calendar adapters |
+| [`prototypes/inbox-html/`](prototypes/inbox-html) | The reference design as a single-file clickable prototype. Run: `cd prototypes/inbox-html && python3 -m http.server 4173` |
 | [`docs/`](docs) | Architecture, stack, plan, decisions, research, design principles |
 
-All data is fictional (Brightwater Plumbing & Heating, Portland; assistant "Maya"). Nothing talks to a backend yet.
+Demo data is fictional (Brightwater Plumbing & Heating, Portland; assistant "Maya").
+
+## Development quickstart
+
+Requirements: Node 22, pnpm 10, Docker.
+
+```sh
+pnpm install
+cp .env.example .env
+pnpm db:up && pnpm db:migrate && pnpm db:seed   # Postgres + Electric; the seed prints the demo sign-in
+pnpm dev                                        # API on 3100, web app on http://localhost:5173
+pnpm --filter @linedesk/agent simulate          # a simulated call lands in the inbox, no provider keys needed
+```
+
+More in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Self-hosting
 
@@ -145,4 +162,4 @@ docker compose --profile recording run --rm --no-deps -T --user 1001:0 --entrypo
 - [docs/research.md](docs/research.md): what an AI front desk must do well
 - [docs/design-principles.md](docs/design-principles.md): UI rules
 
-Working on the code: read [CLAUDE.md](CLAUDE.md) first.
+Working on the code: read [CONTRIBUTING.md](CONTRIBUTING.md) and [CLAUDE.md](CLAUDE.md) first. Security reports: [SECURITY.md](SECURITY.md).

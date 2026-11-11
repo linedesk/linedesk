@@ -1,0 +1,51 @@
+# Contributing to Linedesk
+
+Thanks for helping. Linedesk is an AI front desk for businesses: an assistant answers calls, sums them up and books appointments, and a keyboard-first inbox shows what needs a person.
+
+## Before you start
+
+- Bugs and small fixes: open a pull request directly.
+- Anything bigger (a new feature, a new provider, a schema change): open an issue first so we can agree on the approach before you spend time on it.
+- Security problems: never in a public issue. See [SECURITY.md](SECURITY.md).
+- Be kind. [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) applies everywhere in the project.
+
+## Set up
+
+Requirements: Node 22, pnpm 10, Docker.
+
+```sh
+pnpm install
+cp .env.example .env
+pnpm db:up        # Postgres on 5433, Electric on 3001
+pnpm db:migrate
+pnpm db:seed      # prints the demo sign-in
+pnpm dev          # API on 3100, web app on 5173
+```
+
+Simulate a call without any provider keys: `pnpm --filter @linedesk/agent simulate`. Real calls, voice and recordings: see [CLAUDE.md](CLAUDE.md) (commands) and [docs/architecture.md](docs/architecture.md).
+
+## How the code is built
+
+Read these first; pull requests that go against them are sent back:
+
+- [docs/architecture.md](docs/architecture.md): how the system works.
+- [docs/design-principles.md](docs/design-principles.md): UI rules.
+- [CLAUDE.md](CLAUDE.md): conventions and commands (written for every contributor, human or not).
+
+The rules that matter most:
+
+1. **Every write goes through the action registry** (`packages/actions`, `defineAction()`). No REST route, MCP tool, UI mutation or agent tool may bypass it.
+2. **Local-first.** The web app applies changes locally and sends them through the outbox; it never waits on the network for a user action.
+3. **Providers behind interfaces.** Vendor SDKs live only in their adapter (telephony, speech, language model, calendar, sync).
+4. **Postgres is the source of truth.** Schema changes only through Drizzle migrations (`pnpm db:generate`).
+5. **Self-hosting works at every commit.** `docker compose up` keeps working; a new service needs a compose entry and its variables in `.env.example`.
+6. **No secrets, keys, customer data or internal notes** in code, tests, fixtures or commits. Use the demo business (Brightwater Plumbing & Heating) and `555` phone numbers in examples.
+
+## Pull requests
+
+- Branch from `main`; one logical change per pull request. We squash on merge.
+- `pnpm typecheck`, `pnpm lint` and `pnpm test` must pass (CI runs all three). The API tests need Postgres (`pnpm db:up`).
+- `pnpm format <files>` formats only the files you touched; please don't reformat unrelated code.
+- New actions need tests (handler, `apply` and permission); new adapters need contract tests.
+- UI changes: add a screenshot to the pull request and check the change in the running app, not only in tests.
+- Describe what changed and why, and how you checked it. Product or architecture decisions go in the description under "Decisions".
