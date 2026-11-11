@@ -82,7 +82,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
   const canReview = me.permissions.includes('settings:write')
   const reviewQuery = useQuery(canReview ? REVIEW_KEY : null, loadReview)
   const review = useMemo(() => new Set((reviewQuery.data ?? []).map(e => e.callId)), [reviewQuery.data])
-  const view = useInboxView(nav, me.actorId, review)
+  const view = useInboxView(nav, me.actorId, review, !!me.impersonation)
   // Needs review is for owners and admins; a member's link or reload to it lands in Needs you.
   // biome-ignore lint/correctness/useExhaustiveDependencies: only when the view or the permission changes
   useEffect(() => {

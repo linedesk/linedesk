@@ -12,8 +12,11 @@ import { useCursor } from './useCursor.ts'
 
 const NO_REVIEW: ReadonlySet<string> = new Set()
 
-/** `me`: the signed-in member's user id (Assigned to me). `review`: calls whose evaluation needs a person (Needs review). */
-export function useInboxView(nav: RouteApi, me: string | null = null, review: ReadonlySet<string> = NO_REVIEW) {
+/**
+ * `me`: the signed-in member's user id (Assigned to me). `review`: calls whose evaluation needs a person (Needs review).
+ * `impersonating`: an instance admin looks as this user; opening a call does not mark it read for them.
+ */
+export function useInboxView(nav: RouteApi, me: string | null = null, review: ReadonlySet<string> = NO_REVIEW, impersonating = false) {
   const calls = useRows('calls')
   const contacts = useSnapshot().tables.contacts
   const segments = useSegmentsByCall()
@@ -70,6 +73,7 @@ export function useInboxView(nav: RouteApi, me: string | null = null, review: Re
   function show(call: Call) {
     nav.openCall(call.id)
     setCursor(call.id)
+    if (impersonating) return
     for (const c of groupOf(call)) if (c.unread) void run('call.markRead', { callId: c.id })
   }
   /** Open a call from anywhere: also switches to the view it lives in (viewForOpened). */

@@ -1,9 +1,9 @@
 import { betterAuth } from 'better-auth'
-import { APIError, createAuthMiddleware } from 'better-auth/api'
+import { createAuthMiddleware } from 'better-auth/api'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { emailOTP, genericOAuth, organization } from 'better-auth/plugins'
 import { authConfig } from './auth-methods.ts'
-import { accountLinkingHooks, mapGoogleProfile, mapMicrosoftProfile } from './account-linking.ts'
+import { accountLinkingHooks, mapGoogleProfile, mapMicrosoftProfile, mapOidcProfile } from './account-linking.ts'
 import { auditHooks, recordAuthEndpoint } from './audit.ts'
 import { CLIENT_IP_HEADER } from './client-ip.ts'
 import { mergeDatabaseHooks } from './db-hooks.ts'
@@ -11,7 +11,7 @@ import { githubProvider } from './github-sign-in.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { refuseExistingMember, sendVerificationEmail } from './invitations.ts'
-import { createRateLimiter } from './rate-limit.ts'
+import { countSignInFailures, limitSignIns } from './sign-in-limits.ts'
 import { refuseWhileImpersonating } from './impersonation-guard.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
 import { guardPasskeyChanges, notifyPasskeyChange, passkeyPlugin } from './passkeys.ts'
@@ -49,33 +49,17 @@ export const TRUSTED_ORIGINS: readonly string[] = [normaliseOrigin(WEB_ORIGIN)]
 /** A member can create this many workspaces. */
 export const WORKSPACE_LIMIT = 5
 
-// Per address, on top of Better Auth's limit per IP: 5 codes in 10 minutes (a code's lifetime), and
-// 10 sign-in tries in an hour across codes, since a new code starts its own 3 tries.
-const allowCodeFor = createRateLimiter({ max: 5, windowMs: 10 * 60_000 })
-const allowTryFor = createRateLimiter({ max: 10, windowMs: 60 * 60_000 })
-
-/**
- * Runs before the email-code endpoints, so a refused request creates no code and leaves the
- * current one (and its tries) as it is. Only sign-in codes exist here.
- */
-const limitEmailCodes = async (ctx: Parameters<typeof refuseWhileImpersonating>[0]) => {
-  const email = typeof ctx.body?.email === 'string' ? ctx.body.email.trim().toLowerCase() : ''
-  if (ctx.path === '/email-otp/send-verification-otp') {
-    if (ctx.body?.type !== 'sign-in') throw new APIError('BAD_REQUEST', { message: 'Only sign-in codes are offered.' })
-    if (!allowCodeFor(email)) throw new APIError('TOO_MANY_REQUESTS', { message: 'Too many codes for this email. Try again in a few minutes.' })
-  }
-  if (ctx.path === '/sign-in/email-otp' && !allowTryFor(email)) {
-    throw new APIError('TOO_MANY_REQUESTS', { message: 'Too many tries for this email. Try again later.' })
-  }
-}
-
 const beforeAuthEndpoints = createAuthMiddleware(async ctx => {
-  await limitEmailCodes(ctx)
+  await limitSignIns(ctx)
   await refuseWhileImpersonating(ctx)
   await guardPasskeyChanges(ctx)
 })
 
+// After: wrong codes and passwords count towards their limits (sign-in-limits.ts); the audit log
+// records the auth endpoints that change how someone signs in (audit.ts), and the account is
+// emailed when a passkey is added or removed (passkeys.ts).
 const afterAuthEndpoints = createAuthMiddleware(async ctx => {
+  await countSignInFailures(ctx)
   await recordAuthEndpoint(ctx)
   await notifyPasskeyChange(ctx)
 })
@@ -138,8 +122,6 @@ export const auth = betterAuth({
   // Members and invitations change only through the team.* actions (team.ts), which apply the
   // workspace's rules (last owner, who may change an owner). Accepting stays Better Auth's endpoint.
   disabledPaths: [...UNUSED_EMAIL_CODE_PATHS, ...TEAM_WRITE_PATHS, ...INVITATION_READ_PATHS, ...WORKSPACE_WRITE_PATHS],
-  // After: the audit log records the auth endpoints that change how someone signs in (audit.ts), and
-  // the account is emailed when a passkey is added or removed (passkeys.ts).
   hooks: { before: beforeAuthEndpoints, after: afterAuthEndpoints },
   // Set by user.impersonate only (impersonation.ts); `input: false` keeps clients from setting it.
   // passkeyVerifiedAt: set by the session.create hook on a passkey sign-in (admin-second-factor.ts).
@@ -168,6 +150,7 @@ export const auth = betterAuth({
       : []),
     // Passkeys sign in existing accounts only; they are added in Account settings (passkeys.ts).
     ...(methods.passkey ? [passkeyPlugin(process.env)] : []),
-    ...(oidc ? [genericOAuth({ config: [{ providerId: 'oidc', clientId: oidc.clientId, clientSecret: oidc.clientSecret, discoveryUrl: oidc.discoveryUrl, scopes: ['openid', 'profile', 'email'], pkce: true }] })] : []),
+    // Like Google: no email unless the provider says it is verified (`email_verified`) or the address is on a domain listed in OIDC_TRUST_EMAIL_DOMAINS, so an unproven address creates nobody.
+    ...(oidc ? [genericOAuth({ config: [{ providerId: 'oidc', clientId: oidc.clientId, clientSecret: oidc.clientSecret, discoveryUrl: oidc.discoveryUrl, scopes: ['openid', 'profile', 'email'], pkce: true, mapProfileToUser: profile => mapOidcProfile(profile) }] })] : []),
   ],
 })

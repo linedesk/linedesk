@@ -7,13 +7,16 @@ import { APIError, getSessionFromCtx } from 'better-auth/api'
 type AuthCtx = Parameters<typeof getSessionFromCtx>[0]
 
 /**
- * Better Auth endpoints refused while impersonating: passwords, email, deleting the account, other
+ * Better Auth endpoints refused while impersonating: passwords (also checking one), the profile, email, deleting the account, other
  * sessions (listing them would hand out their tokens), linked sign-in accounts and their tokens,
  * passkeys (adding, renaming, removing or listing them), and joining a workspace by invitation.
  */
 export const IMPERSONATION_REFUSED_PATHS = [
   '/change-password',
   '/set-password',
+  // Would let an admin test guesses at the user's password, or change their name and picture.
+  '/verify-password',
+  '/update-user',
   '/change-email',
   '/delete-user',
   '/list-sessions',

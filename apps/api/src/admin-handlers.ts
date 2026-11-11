@@ -5,7 +5,7 @@ import { emailDelivery } from './auth-methods.ts'
 import { WEB_ORIGIN } from './auth.ts'
 import { emailSender } from './email.ts'
 import { db } from './db.ts'
-import { eq, sql } from 'drizzle-orm'
+import { eq, or, sql } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 import { anotherAdminRemains, isEnvAdmin, isInstanceAdmin } from './instance-admin.ts'
 import { issuePasskeyEnrolment, removeAllPasskeys } from './passkey-enrolment.ts'
@@ -133,7 +133,8 @@ export const adminHandlers: Record<string, Handler> = {
       .update(user)
       .set({ disabledAt: new Date(now) })
       .where(eq(user.id, account.id))
-    await tx.delete(session).where(eq(session.userId, account.id))
+    // Their sessions end, and so do the impersonations they started (Better Auth's own endpoints do not check those).
+    await tx.delete(session).where(or(eq(session.userId, account.id), eq(session.impersonatedBy, account.id)))
     await dropUserPush(tx, account.id)
     return { rows: {}, data: { userId: account.id, disabled_at: now } }
   },
@@ -173,6 +174,8 @@ export const adminHandlers: Record<string, Handler> = {
       throw new Reject(`${account.email} is an instance admin through INSTANCE_ADMIN_EMAILS; remove the address there`)
     if (!(await anotherAdminRemains(tx, account.id))) throw new Reject('the last instance admin cannot be revoked')
     await tx.update(user).set({ instanceAdmin: false }).where(eq(user.id, account.id))
+    // The impersonations they started end now, not when their hour is up.
+    await tx.delete(session).where(eq(session.impersonatedBy, account.id))
     return { rows: {}, data: { userId: account.id, instance_admin: false } }
   },
 }

@@ -13,8 +13,14 @@ import { adminSecondFactorRequired, markPasskeySession } from '../src/admin-seco
 import { signInMethod } from '../src/audit.ts'
 import { emailSender } from '../src/email.ts'
 import { db } from '../src/db.ts'
-import { grantFirstUser, instanceAdminHooks, refuseUnverifiedAdminAddress } from '../src/instance-admin.ts'
+import { mapOidcProfile } from '../src/account-linking.ts'
+import { APIError } from 'better-auth/api'
+import { CLIENT_IP_HEADER } from '../src/client-ip.ts'
+import { countSignInFailures, limitSignIns } from '../src/sign-in-limits.ts'
+import { mayRunWhileImpersonating } from '../src/impersonation-guard.ts'
+import { createAdminWithPassword, grantFirstUser, instanceAdminHooks, refuseUnverifiedAdminAddress } from '../src/instance-admin.ts'
 import { issuePasskeyEnrolment } from '../src/passkey-enrolment.ts'
+import { mayCreateUser } from '../src/signup-gate.ts'
 import { telephonyProvider } from '../src/provider-settings.ts'
 import { deleteExpiredRecordings } from '../src/recording-retention.ts'
 import { recordingStoreCache } from '../src/recording-store.ts'
@@ -1035,31 +1041,133 @@ describe('instance admins', () => {
     await expect(refuseUnverifiedAdminAddress(db, { email, emailVerified: true })).resolves.toBeUndefined()
   })
 
-  test('the first user of an install becomes instance admin, later ones do not', async () => {
+  test('the first user of an install becomes instance admin only when INSTANCE_ADMIN_EMAILS lists their proven address (security L2)', async () => {
     class Rollback extends Error {}
-    await db
-      .transaction(async tx => {
-        // An empty user table for this transaction only: the temporary table hides the real one.
+    const firstOf = async (created: { id: string; email: string; emailVerified: boolean }) => {
+      let admin = false
+      await db
+        .transaction(async tx => {
+          // An empty user table for this transaction only: the temporary table hides the real one.
+          await tx.execute(sql`create temp table "user" (like public."user" including defaults) on commit drop`)
+          await tx.insert(user).values({ id: created.id, name: created.id, email: created.email })
+          await grantFirstUser(tx, created)
+          await tx.insert(user).values({ id: 'second', name: 'second', email: 'second@linedesk.test' })
+          await grantFirstUser(tx, { id: 'second', email: 'second@linedesk.test', emailVerified: true })
+          const rows = await tx.select({ id: user.id, instanceAdmin: user.instanceAdmin }).from(user)
+          admin = rows.find(r => r.id === created.id)!.instanceAdmin
+          expect(rows.find(r => r.id === 'second')!.instanceAdmin).toBe(false)
+          throw new Rollback()
+        })
+        .catch(e => {
+          if (!(e instanceof Rollback)) throw e
+        })
+      return admin
+    }
+    // Nobody listed: whoever reaches a fresh install first gets no admin.
+    expect(await firstOf({ id: 'first', email: 'first@linedesk.test', emailVerified: true })).toBe(false)
+    process.env.INSTANCE_ADMIN_EMAILS = 'operator@linedesk.test'
+    expect(await firstOf({ id: 'first', email: 'someone@linedesk.test', emailVerified: true })).toBe(false)
+    expect(await firstOf({ id: 'first', email: 'operator@linedesk.test', emailVerified: false })).toBe(false)
+    expect(await firstOf({ id: 'first', email: 'Operator@linedesk.test', emailVerified: true })).toBe(true)
+  })
+
+  test('closed sign-up on an empty install: only the listed address may create the first account (security L2)', async () => {
+    class RollbackOnly extends Error {}
+    process.env.AUTH_SIGNUP_ENABLED = 'false'
+    try {
+      await db.transaction(async tx => {
         await tx.execute(sql`create temp table "user" (like public."user" including defaults) on commit drop`)
-        const add = async (id: string) => {
-          await tx.insert(user).values({ id, name: id, email: `${id}@linedesk.test` })
-          await grantFirstUser(tx, id)
-        }
-        await add('first')
-        await add('second')
-        const rows = await tx
-          .select({ id: user.id, instanceAdmin: user.instanceAdmin })
-          .from(user)
-          .orderBy(user.createdAt)
-        expect(rows).toEqual([
-          { id: 'first', instanceAdmin: true },
-          { id: 'second', instanceAdmin: false },
-        ])
-        throw new Rollback()
+        expect(await mayCreateUser(tx, 'stranger@linedesk.test', true)).toBe(false)
+        process.env.INSTANCE_ADMIN_EMAILS = 'operator@linedesk.test'
+        expect(await mayCreateUser(tx, 'operator@linedesk.test', true)).toBe(true)
+        expect(await mayCreateUser(tx, 'operator@linedesk.test', false)).toBe(false)
+        throw new RollbackOnly()
+      }).catch(e => {
+        if (!(e instanceof RollbackOnly)) throw e
       })
-      .catch(e => {
-        if (!(e instanceof Rollback)) throw e
-      })
+    } finally {
+      delete process.env.AUTH_SIGNUP_ENABLED
+    }
+  })
+
+  test('disabling or revoking an admin ends the impersonations they started at once (security L5)', async () => {
+    const second = await signUp()
+    await setAdmin(second, true)
+    const impersonated = await signUp()
+    const [started] = await db.select().from(session).where(eq(session.userId, impersonated.userId))
+    await db.update(session).set({ impersonatedBy: second.userId }).where(eq(session.id, started!.id))
+    expect((await act(operator, 'instanceAdmin.revoke', { userId: second.userId })).status).toBe(200)
+    expect(await db.select().from(session).where(eq(session.id, started!.id))).toEqual([])
+    // And disabling (as admin again, a fresh impersonation).
+    await setAdmin(second, true)
+    const again = await signIn(impersonated)
+    expect(again.status).toBe(200)
+    await db.update(session).set({ impersonatedBy: second.userId }).where(eq(session.userId, impersonated.userId))
+    expect((await act(operator, 'user.disable', { userId: second.userId })).status).toBe(200)
+    expect(await db.select().from(session).where(eq(session.userId, impersonated.userId))).toEqual([])
+    await act(operator, 'user.enable', { userId: second.userId })
+    await setAdmin(second, false)
+  })
+
+  test('the OIDC provider is held to the proven-email rule like Google (security L1)', () => {
+    expect(mapOidcProfile({ email: 'a@x.test', email_verified: true })).toEqual({ emailVerified: true })
+    expect(mapOidcProfile({ email: 'a@x.test', email_verified: 'true' })).toEqual({ emailVerified: true })
+    expect(mapOidcProfile({ email: 'a@x.test' })).toEqual({ email: null, emailVerified: false })
+    expect(mapOidcProfile({ email: 'a@x.test', email_verified: false })).toEqual({ email: null, emailVerified: false })
+    // Opted in with OIDC_TRUST_EMAIL_DOMAINS (review B2): only those exact domains.
+    const env = { OIDC_TRUST_EMAIL_DOMAINS: ' Corp.test, other.test ' }
+    expect(mapOidcProfile({ email: 'a@corp.test' }, env)).toEqual({ emailVerified: true })
+    expect(mapOidcProfile({ email: 'A@CORP.TEST' }, env)).toEqual({ emailVerified: true })
+    expect(mapOidcProfile({ email: 'a@sub.corp.test' }, env)).toEqual({ email: null, emailVerified: false })
+    expect(mapOidcProfile({ email: 'a@corp.test.evil.test' }, env)).toEqual({ email: null, emailVerified: false })
+    expect(mapOidcProfile({ email: 'a@x.test' }, env)).toEqual({ email: null, emailVerified: false })
+    expect(mapOidcProfile({ email: 'a@corp.test' }, {})).toEqual({ email: null, emailVerified: false })
+    // A provider that says the address is not verified is believed, also on a listed domain.
+    expect(mapOidcProfile({ email: 'a@corp.test', email_verified: false }, env)).toEqual({ email: null, emailVerified: false })
+  })
+
+  const passwordTry = (email: string, ip: string, returned?: unknown) =>
+    ({ path: '/sign-in/email', body: { email, password: 'x' }, headers: new Headers({ [CLIENT_IP_HEADER]: ip }), context: { returned } }) as never
+  const wrongPassword = new APIError('UNAUTHORIZED', { code: 'INVALID_EMAIL_OR_PASSWORD' })
+
+  test('ten wrong passwords from one network (an IPv6 /64) pause password sign-in for that address there only (security L4, review B1/B3)', async () => {
+    const email = `net-${crypto.randomUUID().slice(0, 8)}@linedesk.test`
+    const net = `2001:db8:${Math.floor(Math.random() * 65536).toString(16)}:7`
+    for (let i = 1; i <= 10; i++) {
+      await limitSignIns(passwordTry(email, `${net}::${i}`))
+      await countSignInFailures(passwordTry(email, `${net}::${i}`, wrongPassword))
+    }
+    await expect(limitSignIns(passwordTry(email, `${net}::99`))).rejects.toMatchObject({ statusCode: 429 })
+    // The owner from their own network still gets in, and a success does not count.
+    await expect(limitSignIns(passwordTry(email, '198.51.100.30'))).resolves.toBeUndefined()
+    await countSignInFailures(passwordTry(email, '198.51.100.30', { token: 'ok' }))
+    await expect(limitSignIns(passwordTry(email, '198.51.100.30'))).resolves.toBeUndefined()
+  })
+
+  test('a hundred wrong passwords for an address from many networks pause it everywhere (security L4, review B3)', async () => {
+    const person = await signUp()
+    const email = await emailOf(person)
+    const tryPassword = (password: string) =>
+      request(anonymous, 'POST', '/api/auth/sign-in/email', { email, password }, { origin: 'http://localhost:5173', [FROM]: randomIp() })
+    for (let i = 0; i < 10; i++) expect((await tryPassword(`wrong-${i}-password`)).status).toBe(401)
+    // Ten from as many networks do not pause it ...
+    expect((await tryPassword('test-password-1234')).status).toBe(200)
+    // ... a hundred do (the rest counted directly, a hundred sign-ins over HTTP are slow).
+    for (let i = 10; i < 100; i++) await countSignInFailures(passwordTry(email, randomIp(), wrongPassword))
+    expect((await tryPassword('test-password-1234')).status).toBe(429)
+  })
+
+  test('user:create --admin without email delivery: a one-time password signs the new admin in (review B4)', async () => {
+    const email = `First-${crypto.randomUUID().slice(0, 8)}@linedesk.test`
+    const created = await createAdminWithPassword({ email, name: 'First Admin' })
+    expect(created.enrolmentCode).toBeTruthy()
+    const [row] = await db.select().from(user).where(eq(user.id, created.userId))
+    expect(row).toMatchObject({ email: email.toLowerCase(), emailVerified: true, instanceAdmin: true })
+    const signIn = (password: string) =>
+      request(anonymous, 'POST', '/api/auth/sign-in/email', { email: email.toLowerCase(), password }, { origin: 'http://localhost:5173', [FROM]: randomIp() })
+    expect((await signIn(created.password)).status).toBe(200)
+    expect((await signIn('not-the-password-1')).status).toBe(401)
+    await expect(createAdminWithPassword({ email, name: 'Again' })).rejects.toThrow('already has an account')
   })
 })
 
@@ -1377,6 +1485,35 @@ describe('impersonation', () => {
     await stop(as)
   })
 
+  test('what an impersonated session may run is pinned: a new read-only action or allowed write needs a look here', () => {
+    const allowed = [...actions.values()].filter(mayRunWhileImpersonating).map(def => def.name).sort()
+    expect(allowed).toEqual([
+      'apiKey.list',
+      'calendar.findSlots',
+      'calendar.listCalendars',
+      'call.clearReminder',
+      'call.findForTest',
+      'call.getEvaluation',
+      'call.listEvaluations',
+      'call.markDone',
+      'call.markNotDone',
+      'call.markRead',
+      'call.markUnread',
+      'call.remind',
+      'carrier.get',
+      'carrier.transferTrunk',
+      'impersonation.stop',
+      'invitation.listMine',
+      'notifications.get',
+      'provider.test',
+      'team.list',
+      'voice.options',
+      'voiceCloning.get',
+      'webhook.deliveries',
+      'workspace.getSettings',
+    ])
+  })
+
   test('as an owner, only reads and inbox triage run; every other write is refused centrally (security M3)', async () => {
     const targetMember = and(eq(memberTable.organizationId, other.id), eq(memberTable.userId, target.userId))
     await db.update(memberTable).set({ role: 'owner' }).where(targetMember)
@@ -1439,6 +1576,9 @@ describe('impersonation', () => {
       await authCall('/list-sessions'),
       await authCall('/list-accounts'),
       await authCall('/unlink-account', { providerId: 'credential' }),
+      // No testing guesses at their password, no changing their profile.
+      await authCall('/verify-password', { password: 'test-password-1234' }),
+      await authCall('/update-user', { name: 'Taken over' }),
       // Passkeys: no adding, renaming, removing or listing them as the user.
       await authCall('/passkey/generate-register-options'),
       await authCall('/passkey/verify-registration', { response: {} }),
@@ -1452,6 +1592,11 @@ describe('impersonation', () => {
     expect(
       (await request(as, 'POST', '/v1/account/password', { newPassword: 'another-password-5678' })).status,
     ).toBe(403)
+    // No workspace made as the user either: it would outlast the hour.
+    expect(await request(as, 'POST', '/v1/workspaces', { name: 'Made while impersonating' })).toMatchObject({
+      status: 403,
+      body: { error: 'Not possible while signed in as another user.' },
+    })
     // No joining a workspace as the user: not through Better Auth's endpoint, not through the registry.
     await db.update(user).set({ emailVerified: true }).where(eq(user.id, target.userId))
     const [invite] = await db.insert(invitation).values({

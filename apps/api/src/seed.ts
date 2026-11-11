@@ -151,7 +151,8 @@ async function seed() {
     returnHeaders: true,
   })
   // Verified, so an email sign-in link or SSO joins this account instead of resetting its password.
-  await db.update(user).set({ emailVerified: true }).where(eq(user.email, DEMO.email))
+  // And the dev install's instance admin: the first user is no longer made one automatically.
+  await db.update(user).set({ emailVerified: true, instanceAdmin: true }).where(eq(user.email, DEMO.email))
   const cookie = signUp.headers
     .getSetCookie()
     .map(c => c.split(';')[0])

@@ -1,11 +1,15 @@
 // Instance admin: the operator of the install. A property of the user, independent of workspace
-// roles. Granted to the first user, in the admin area, or by INSTANCE_ADMIN_EMAILS.
+// roles. Granted in the admin area, by the CLI (user:create --admin), or by INSTANCE_ADMIN_EMAILS (which
+// also makes the first user of an install one, once their address is proven).
+import { randomBytes } from 'node:crypto'
 import { markPasskeySession } from './admin-second-factor.ts'
-import { type Tx, user } from '@linedesk/db'
+import { account, type Tx, user } from '@linedesk/db'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { APIError } from 'better-auth/api'
+import { hashPassword } from 'better-auth/crypto'
 import { db } from './db.ts'
 import { keepImpersonationExpiry } from './impersonation-guard.ts'
+import { issuePasskeyEnrolment } from './passkey-enrolment.ts'
 import { refuseClosedSignUp } from './signup-gate.ts'
 
 type Account = { email: string; emailVerified: boolean; instanceAdmin: boolean }
@@ -47,28 +51,32 @@ export async function anotherAdminRemains(tx: Tx, userId: string): Promise<boole
   return admins.some(admin => admin.id !== userId && !admin.disabledAt)
 }
 
-/** The first user of an install becomes its instance admin. Two sign-ups at the very same moment on an empty install can both miss it; grant it then in the database. */
-export async function grantFirstUser(tx: Tx, userId: string) {
+/**
+ * The first user of an install becomes its instance admin only when INSTANCE_ADMIN_EMAILS lists their
+ * address and it is proven (an email code or a sign-in provider). Otherwise whoever reaches a fresh
+ * install first would own it. Without the variable, the operator makes the first admin with the CLI
+ * (`user:create --admin`) or sets INSTANCE_ADMIN_EMAILS. Two sign-ups at the very same moment on an
+ * empty install can both miss it; grant it then in the database.
+ */
+export async function grantFirstUser(tx: Tx, created: { id: string; email: string; emailVerified?: boolean }) {
+  if (!created.emailVerified || !envAdminEmails().includes(created.email.toLowerCase())) return
   await tx
     .update(user)
     .set({ instanceAdmin: true })
-    .where(and(eq(user.id, userId), sql`not exists (select 1 from ${user} other where other.id <> ${userId})`))
+    .where(and(eq(user.id, created.id), sql`not exists (select 1 from ${user} other where other.id <> ${created.id})`))
 }
 
 /**
  * Nobody may create an account for a listed address without proving it: a password sign-up is
  * refused. Otherwise someone could register the operator's address first; once the operator
  * verifies it (an email link marks the existing account verified), that account, with the
- * other person's password and sessions, would be an instance admin. The first user is exempt.
+ * other person's password and sessions, would be an instance admin. The first user too.
  */
-export async function refuseUnverifiedAdminAddress(tx: Tx, created: { email: string; emailVerified?: boolean }) {
+export async function refuseUnverifiedAdminAddress(_tx: Tx, created: { email: string; emailVerified?: boolean }) {
   if (created.emailVerified || !envAdminEmails().includes(created.email.toLowerCase())) return
-  const [anyone] = await tx.select({ id: user.id }).from(user).limit(1)
-  if (anyone) {
-    throw new APIError('FORBIDDEN', {
-      message: 'This address is reserved for an administrator. Sign up with an email link or a sign-in provider.',
-    })
-  }
+  throw new APIError('FORBIDDEN', {
+    message: 'This address is reserved for an administrator. Sign in with an email code or a sign-in provider.',
+  })
 }
 
 /** Better Auth database hooks: first user, no sign-in for disabled users, last sign-in time. */
@@ -79,8 +87,8 @@ export const instanceAdminHooks = {
         await refuseClosedSignUp(db, created)
         await refuseUnverifiedAdminAddress(db, created)
       },
-      after: async (created: { id: string }) => {
-        await grantFirstUser(db, created.id)
+      after: async (created: { id: string; email: string; emailVerified?: boolean }) => {
+        await grantFirstUser(db, created)
       },
     },
   },
@@ -90,11 +98,39 @@ export const instanceAdminHooks = {
         const [account] = await db.select({ disabledAt: user.disabledAt }).from(user).where(eq(user.id, session.userId))
         if (account?.disabledAt) throw new APIError('FORBIDDEN', { message: 'This account is disabled.' })
         // An admin signing in as the user is not the user signing in.
-        if (!session.impersonatedBy) await db.update(user).set({ lastSignInAt: new Date() }).where(eq(user.id, session.userId))
+        if (!session.impersonatedBy)
+          await db.update(user).set({ lastSignInAt: new Date() }).where(eq(user.id, session.userId))
         // A passkey sign-in counts as the second factor the admin area needs (admin-second-factor.ts).
         return markPasskeySession(session, ctx)
       },
     },
-    update: { before: async (data: { expiresAt?: Date }, ctx: unknown) => keepImpersonationExpiry(data, ctx as Parameters<typeof keepImpersonationExpiry>[1]) },
+    update: {
+      before: async (data: { expiresAt?: Date }, ctx: unknown) =>
+        keepImpersonationExpiry(data, ctx as Parameters<typeof keepImpersonationExpiry>[1]),
+    },
   },
+}
+
+const newId = () => crypto.randomUUID().replaceAll('-', '')
+
+/**
+ * `user:create --admin` on an install without email delivery (no SMTP_URL): nobody could get a
+ * sign-in code, so the operator gets a one-time password to hand over instead, and a passkey
+ * enrolment code. The address counts as proven: the operator, with shell access, vouches for it.
+ * The person signs in with the password and changes it under Account.
+ */
+export async function createAdminWithPassword(input: { email: string; name: string }) {
+  const email = input.email.trim().toLowerCase()
+  const password = randomBytes(18).toString('base64url')
+  const hashed = await hashPassword(password)
+  return db.transaction(async tx => {
+    const [taken] = await tx.select({ id: user.id }).from(user).where(sql`lower(${user.email}) = ${email}`)
+    if (taken) throw new Error(`${email} already has an account`)
+    const id = newId()
+    await tx.insert(user).values({ id, name: input.name, email, emailVerified: true, instanceAdmin: true })
+    await tx
+      .insert(account)
+      .values({ id: newId(), accountId: id, providerId: 'credential', userId: id, password: hashed })
+    return { userId: id, email, password, ...(await issuePasskeyEnrolment(tx, id)) }
+  })
 }

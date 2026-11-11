@@ -30,6 +30,7 @@ import {
 } from './context.ts'
 import { db } from './db.ts'
 import { COOKIE_ACTIONS } from './impersonation.ts'
+import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { registerImpersonationRoutes } from './impersonation-routes.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { previewInvitation } from './invitations.ts'
@@ -85,6 +86,8 @@ app.post('/v1/workspaces', async c => {
   const headers = c.req.raw.headers
   const session = await auth.api.getSession({ headers })
   if (!session) return c.json({ ok: false, error: 'not signed in' }, 401)
+  // A workspace made as the user would outlast the impersonation (impersonation-guard.ts).
+  if (session.session.impersonatedBy) return c.json({ ok: false, error: NOT_WHILE_IMPERSONATING }, 403)
   if (!(await mayCreateWorkspace(session.user.id)))
     return c.json({ ok: false, code: 'workspace_creation_closed', error: WORKSPACE_CREATION_CLOSED }, 403)
   const body = await c.req

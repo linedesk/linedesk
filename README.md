@@ -46,7 +46,9 @@ docker run --rm livekit/livekit-server generate-keys   # prints a LiveKit API ke
 docker compose up -d --build
 ```
 
-Then open `PUBLIC_URL` and create your account: the first account is the instance admin, who sets up the speech, language and voice providers in the admin area. Sign-up is open by default: anyone who can reach the URL can create an account and their own workspace (they cannot see yours). To close it, set `AUTH_SIGNUP_ENABLED=false` after creating your account; then only people you invite get in (Invite user in the admin area, or `docker compose exec api node apps/api/src/user-create.ts --email ann@example.com --name "Ann Lee"`).
+Then open `PUBLIC_URL` and create your account with your address from `INSTANCE_ADMIN_EMAILS` (set it in `.env` first; sign in with an email code or a sign-in provider): that account is the instance admin, who sets up the speech, language and voice providers in the admin area. Sign-up is open by default: anyone who can reach the URL can create an account and their own workspace (they cannot see yours). To close it, set `AUTH_SIGNUP_ENABLED=false` after creating your account; then only people you invite get in (Invite user in the admin area, or `docker compose exec api node apps/api/src/user-create.ts --email ann@example.com --name "Ann Lee"`).
+
+No mail server yet? Without `SMTP_URL` there are no email codes, so create the first admin from the shell instead: `docker compose exec api node apps/api/src/user-create.ts --admin --email you@example.com --name "Your Name"`. It prints a one-time password (sign in with it at `PUBLIC_URL`, then change it under Account) and a passkey enrolment code for the admin area's second factor. Set up `SMTP_URL` before you invite anyone else.
 
 The API applies database migrations on every start.
 

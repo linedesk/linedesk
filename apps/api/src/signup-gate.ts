@@ -4,20 +4,22 @@
 import { invitation, type Tx, user } from '@linedesk/db'
 import { APIError } from 'better-auth/api'
 import { and, eq, gt, sql } from 'drizzle-orm'
+import { envAdminEmails } from './instance-admin.ts'
 
 export const signUpOpen = (env: Record<string, string | undefined> = process.env) => env.AUTH_SIGNUP_ENABLED !== 'false'
 
 /**
  * Whether a new user with this address may be created now: sign-up is open, the install has no
- * users yet (the first one sets it up), or a pending, unexpired workspace invitation exists for it
+ * users yet and the address is listed in INSTANCE_ADMIN_EMAILS, or a pending, unexpired workspace invitation exists for it
  * and the address is proven (an email code or a sign-in provider): a password sign-up does not
  * prove it, so it cannot use someone else's invitation.
  */
 export async function mayCreateUser(tx: Tx, email: string, verified: boolean): Promise<boolean> {
   if (signUpOpen()) return true
-  const [anyone] = await tx.select({ id: user.id }).from(user).limit(1)
-  if (!anyone) return true
   if (!verified) return false
+  const [anyone] = await tx.select({ id: user.id }).from(user).limit(1)
+  // An empty install with sign-up closed: only the operator's own address (INSTANCE_ADMIN_EMAILS).
+  if (!anyone) return envAdminEmails().includes(email.toLowerCase())
   const [invited] = await tx
     .select({ id: invitation.id })
     .from(invitation)

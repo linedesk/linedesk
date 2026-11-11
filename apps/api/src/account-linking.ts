@@ -36,6 +36,45 @@ export const mapMicrosoftProfile = (claims: Record<string, unknown>) =>
 export const mapGoogleProfile = (profile: { email_verified?: unknown }) =>
   isTrue(profile.email_verified) ? { emailVerified: true } : { email: null, emailVerified: false }
 
+/** `OIDC_TRUST_EMAIL_DOMAINS`: the domains the OIDC provider owns, lower case. */
+export const oidcTrustedEmailDomains = (env: Record<string, string | undefined> = process.env) =>
+  (env.OIDC_TRUST_EMAIL_DOMAINS ?? '')
+    .split(',')
+    .map(d => d.trim().toLowerCase())
+    .filter(Boolean)
+
+/** Whether `email` is on one of `domains` exactly (a subdomain is another domain the IdP may not own). */
+function onTrustedDomain(email: unknown, domains: string[]): boolean {
+  if (typeof email !== 'string' || domains.length === 0) return false
+  const at = email.lastIndexOf('@')
+  return (
+    at > 0 &&
+    domains.includes(
+      email
+        .slice(at + 1)
+        .trim()
+        .toLowerCase(),
+    )
+  )
+}
+
+/**
+ * Better Auth `mapProfileToUser` for the OIDC provider: the same rule as Google (`email_verified`),
+ * or, opted in with `OIDC_TRUST_EMAIL_DOMAINS`, an address on a domain the provider owns (identity
+ * providers like a company's own Keycloak often send no `email_verified`). A provider that does send
+ * the claim is taken at its word, also when it says false.
+ */
+export function mapOidcProfile(
+  profile: Record<string, unknown>,
+  env: Record<string, string | undefined> = process.env,
+) {
+  const proven =
+    profile.email_verified === undefined
+      ? onTrustedDomain(profile.email, oidcTrustedEmailDomains(env))
+      : isTrue(profile.email_verified)
+  return proven ? { emailVerified: true } : { email: null, emailVerified: false }
+}
+
 /**
  * Better Auth `account.create` hook. A provider account joins a user whose email was never verified
  * (an invitation, `user.invite`, or a password sign-up): the provider just proved the address, so

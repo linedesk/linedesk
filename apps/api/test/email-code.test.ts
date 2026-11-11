@@ -5,6 +5,9 @@ import { eq, like } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
+import { APIError } from 'better-auth/api'
+import { CLIENT_IP_HEADER } from '../src/client-ip.ts'
+import { countSignInFailures, limitSignIns } from '../src/sign-in-limits.ts'
 import { anonymous, createWorkspace, randomIp, request, type Workspace, FROM } from './helpers.ts'
 
 const ORIGIN = 'http://localhost:5173'
@@ -102,33 +105,48 @@ describe('signing in with a code', () => {
     expect(statuses).toEqual([200, 200, 200, 429])
   })
 
-  test('past the per-address limit no new code is made: the last one still works', async () => {
+  test('codes are limited per address and IP: asking from many places never locks the address out (security L3)', async () => {
     const { sentTo, codeFor } = mailbox()
-    const email = address('five-codes')
-    for (let i = 0; i < 5; i++) expect((await requestCode(email)).status).toBe(200)
-    const last = await codeFor(email)
-    await vi.waitFor(() => expect(sentTo(email)).toHaveLength(5))
-    expect((await requestCode(email)).status).toBe(429)
-    await new Promise(resolve => setTimeout(resolve, 50))
-    expect(sentTo(email)).toHaveLength(5)
-    expect((await signIn(email, last)).status).toBe(200)
+    const email = address('many-places')
+    for (let i = 0; i < 7; i++) expect((await requestCode(email)).status).toBe(200)
+    await vi.waitFor(() => expect(sentTo(email)).toHaveLength(7))
+    expect((await signIn(email, await codeFor(email))).status).toBe(200)
   })
 
-  test('new codes do not give endless tries: 10 tries per address and hour across codes', async () => {
-    const { sentTo, codeFor } = mailbox()
+  test('codes and wrong codes from one IPv6 /64 count in one bucket however the addresses rotate (review B1)', async () => {
+    const at = (email: string, ip: string, path: string, returned?: unknown) =>
+      ({ path, body: { email, otp: '000000', type: 'sign-in' }, headers: new Headers({ [CLIENT_IP_HEADER]: ip }), context: { returned } }) as never
+    const email = address('rotating')
+    const net = `2001:db8:${Math.floor(Math.random() * 65536).toString(16)}:9`
+    const send = '/email-otp/send-verification-otp'
+    for (let i = 1; i <= 5; i++) await limitSignIns(at(email, `${net}::${i}`, send))
+    await expect(limitSignIns(at(email, `${net}::6`, send))).rejects.toMatchObject({ statusCode: 429 })
+    await expect(limitSignIns(at(email, '198.51.100.40', send))).resolves.toBeUndefined()
+    const wrong = new APIError('BAD_REQUEST', { code: 'INVALID_OTP' })
+    for (let i = 1; i <= 10; i++) await countSignInFailures(at(email, `${net}:ffff::${i}`, '/sign-in/email-otp', wrong))
+    await expect(limitSignIns(at(email, `${net}::1234`, '/sign-in/email-otp'))).rejects.toMatchObject({ statusCode: 429 })
+  })
+
+  test('wrong codes count per address and IP, and only failures (security L3)', async () => {
+    const at = (email: string, ip: string, path = '/sign-in/email-otp', returned?: unknown) =>
+      ({ path, body: { email, otp: '000000' }, headers: new Headers({ [CLIENT_IP_HEADER]: ip }), context: { returned } }) as never
     const email = address('guesser')
-    let tries = 0
-    for (let round = 0; round < 4 && tries < 10; round++) {
-      await requestCode(email)
-      await vi.waitFor(() => expect(sentTo(email)).toHaveLength(round + 1))
-      const code = await codeFor(email)
-      const wrong = code === '123456' ? '654321' : '123456'
-      for (let i = 0; i < 3 && tries < 10; i++, tries++) expect((await signIn(email, wrong)).status).toBe(400)
+    const wrong = new APIError('BAD_REQUEST', { code: 'INVALID_OTP' })
+    for (let i = 0; i < 10; i++) {
+      await limitSignIns(at(email, '203.0.113.7'))
+      await countSignInFailures(at(email, '203.0.113.7', '/sign-in/email-otp', wrong))
     }
-    expect(tries).toBe(10)
-    expect((await signIn(email, await codeFor(email))).status).toBe(429)
+    await expect(limitSignIns(at(email, '203.0.113.7'))).rejects.toMatchObject({ statusCode: 429 })
+    // The owner, from their own address, still gets in.
+    await expect(limitSignIns(at(email, '198.51.100.20'))).resolves.toBeUndefined()
+    // A success or a refusal for too many requests does not count.
+    const other = address('fine')
+    for (let i = 0; i < 20; i++) {
+      await countSignInFailures(at(other, '203.0.113.8', '/sign-in/email-otp', { token: 'ok' }))
+      await countSignInFailures(at(other, '203.0.113.8', '/sign-in/email-otp', new APIError('TOO_MANY_REQUESTS')))
+    }
+    await expect(limitSignIns(at(other, '203.0.113.8'))).resolves.toBeUndefined()
   })
-
 })
 
 describe('what is not offered', () => {
