@@ -1,5 +1,5 @@
-// Sample calls for a new workspace ("Try with sample calls"): the demo morning, renamed to the
-// workspace's business and assistant, filed with source `sample` so the inbox marks them, and removed
+// Sample calls for a new workspace ("Try with sample calls"): a trade-neutral morning (sample-morning.ts),
+// renamed to the workspace's business and assistant, filed with source `sample` so the inbox marks them, and removed
 // again in one go. Sample callers are contacts whose id starts with SAMPLE_ID_PREFIX.
 import { type FirstUse, firstUseVariants, SAMPLE_ID_PREFIX } from '@linedesk/actions'
 import {
@@ -13,8 +13,9 @@ import {
   type Tx,
 } from '@linedesk/db'
 import { and, asc, eq, inArray, like, notExists } from 'drizzle-orm'
-import { DEMO_ASSISTANT, DEMO_BUSINESS, type SeedCall, seedCalls } from './demo-calls.ts'
+import { DEMO_ASSISTANT, DEMO_BUSINESS, type SeedCall } from './demo-calls.ts'
 import { type Handler, Reject } from './handler-context.ts'
+import { sampleMorning } from './sample-morning.ts'
 
 /** FIRST_USE: how a new workspace is introduced (tour, sample, both, off); both when unset or unknown. */
 export function firstUse(env: Record<string, string | undefined> = process.env): FirstUse {
@@ -104,7 +105,7 @@ export const sampleHandlers: Record<string, Handler> = {
     const now = Date.now()
     const callers = new Map<string, string>()
     const newContacts: (typeof contacts.$inferInsert)[] = []
-    const rows = seedCalls.map(c => {
+    const rows = sampleMorning.map(c => {
       let contact_id = callers.get(c.phone)
       if (!contact_id) {
         contact_id = sampleId('ct')

@@ -28,6 +28,8 @@ describe('sample calls', () => {
     const words = JSON.stringify(body.rows.transcript_segments)
     expect(words).toContain('Riverside Electric')
     expect(words).not.toContain('Brightwater')
+    // They fit any trade: no plumbing, no demo owner's name.
+    for (const word of ['Mike', 'pipe', 'water heater', 'disposal', 'toilet']) expect(words).not.toContain(word)
     const once = await countOf(ws.id)
     expect((await act(ws.owner, 'sample.add', {})).body.rows).toEqual({})
     expect(await countOf(ws.id)).toEqual(once)

@@ -920,6 +920,32 @@ describe('overview', () => {
     await db.delete(calls).where(eq(calls.id, call!.id))
   })
 
+  test('sample calls are not usage: not in calls, minutes or the workspace list', async () => {
+    const before = (await request(operator, 'GET', '/v1/admin/overview')).body
+    const listed = async () =>
+      ((await request(operator, 'GET', '/v1/admin/workspaces')).body.workspaces as { id: string; calls_30d: number }[]).find(
+        w => w.id === home.id,
+      )!.calls_30d
+    const listedBefore = await listed()
+    const [sample] = await db
+      .insert(calls)
+      .values({
+        id: `call_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
+        workspace_id: home.id,
+        from_number: '+15035550100',
+        to_number: home.number,
+        status: 'completed',
+        source: 'sample',
+        duration_sec: 600,
+      })
+      .returning()
+    const after = (await request(operator, 'GET', '/v1/admin/overview')).body
+    expect(after.calls).toEqual(before.calls)
+    expect(after.minutes).toEqual(before.minutes)
+    expect(await listed()).toBe(listedBefore)
+    await db.delete(calls).where(eq(calls.id, sample!.id))
+  })
+
   test('health names each part; the agent shows up once it has asked for its settings', async () => {
     const before = (await request(operator, 'GET', '/v1/admin/health')).body
     expect(Object.keys(before).sort()).toEqual(['agent', 'api', 'email', 'livekit', 'sip'])

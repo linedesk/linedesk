@@ -41,9 +41,9 @@ const listWorkspaces = (tx: Tx) =>
   select o.id, o.name, ${utc('o.created_at')} as created_at, ${utc('o.disabled_at')} as disabled_at,
     (select count(*)::int from member m where m.organization_id = o.id) as members,
     coalesce((select json_agg(p.e164 order by p.e164) from phone_numbers p where p.workspace_id = o.id), '[]'::json) as phone_numbers,
-    (select count(*)::int from calls c where c.workspace_id = o.id and c.started_at > now() - interval '30 days') as calls_30d,
-    (select ${tz('max(c.started_at)')} from calls c where c.workspace_id = o.id) as last_call_at,
-    coalesce((select sum(c.duration_sec) from calls c where c.workspace_id = o.id
+    (select count(*)::int from calls c where c.workspace_id = o.id and c.source <> 'sample' and c.started_at > now() - interval '30 days') as calls_30d,
+    (select ${tz('max(c.started_at)')} from calls c where c.workspace_id = o.id and c.source <> 'sample') as last_call_at,
+    coalesce((select sum(c.duration_sec) from calls c where c.workspace_id = o.id and c.source <> 'sample'
       and c.started_at >= date_trunc('month', now() at time zone 'utc') at time zone 'utc'), 0)::int as seconds_this_month
   from organization o order by o.created_at, o.id`,
   )
@@ -93,7 +93,8 @@ const listUsage = (tx: Tx, months: number) =>
   select c.workspace_id, o.name as workspace_name, to_char(c.started_at at time zone 'utc', 'YYYY-MM') as month,
     count(*)::int as calls, coalesce(sum(c.duration_sec), 0)::int as seconds
   from calls c left join organization o on o.id = c.workspace_id
-  where c.started_at >= (date_trunc('month', now() at time zone 'utc') - make_interval(months => ${months - 1})) at time zone 'utc'
+  where c.source <> 'sample'
+    and c.started_at >= (date_trunc('month', now() at time zone 'utc') - make_interval(months => ${months - 1})) at time zone 'utc'
   group by 1, 2, 3 order by 3 desc, 2, 1`,
   )
 

@@ -48,7 +48,7 @@ const dollars = (value: number) => Math.round(value * 100) / 100
 // biome-ignore lint/suspicious/noExplicitAny: one row of a hand-written aggregate query
 const one = async (tx: Tx, query: ReturnType<typeof sql>) => (await tx.execute(query)).rows[0] as Record<string, any>
 
-/** Calls and seconds since UTC midnight, in the last 7 days and this UTC month; phone calls only for telephony. */
+/** Calls and seconds since UTC midnight, in the last 7 days and this UTC month; phone calls only for telephony. Sample calls are not usage. */
 function callTotals(tx: Tx) {
   const today = sql`date_trunc('day', now() at time zone 'utc') at time zone 'utc'`
   const month = sql`date_trunc('month', now() at time zone 'utc') at time zone 'utc'`
@@ -65,7 +65,7 @@ function callTotals(tx: Tx) {
       coalesce(sum(duration_sec) filter (where started_at >= ${month}), 0)::int as sec_month,
       coalesce(sum(duration_sec) filter (where started_at >= ${week} and source = 'phone'), 0)::int as phone_sec_7d,
       coalesce(sum(duration_sec) filter (where started_at >= ${month} and source = 'phone'), 0)::int as phone_sec_month
-    from calls where deleted_at is null and started_at >= least(${week}, ${month})`,
+    from calls where deleted_at is null and source <> 'sample' and started_at >= least(${week}, ${month})`,
   )
 }
 
