@@ -1,7 +1,7 @@
 // The assistant's transfer_call tool: puts the caller through to the transfer contact whose condition
 // fits (warm transfer, transfer-call.ts), tries the next one when the contact says so, and records how
 // each try went with call.transfer.
-import { callTransfer, type TransferResult } from '@linedesk/actions'
+import { callTakeMessage, callTransfer, type TransferResult } from '@linedesk/actions'
 import { llm, type JobContext } from '@livekit/agents'
 import { type RemoteParticipant, RoomEvent } from '@livekit/rtc-node'
 import { z } from 'zod'
@@ -20,6 +20,7 @@ import {
   connectingLine as connectingText,
   type Dialable,
   type Fallback,
+  notConnectedMessage,
   notConnectedReply,
   transferLabel,
   transferPlan,
@@ -146,6 +147,17 @@ function callerLeft(ctx: JobContext, identity: string): AbortSignal {
 
 type Report = { to: string; name: string; urgent: boolean }
 
+/** The team's to-do when nobody took the call (call.takeMessage); a failure is logged, the call goes on. */
+async function saveNotConnectedMessage(api: ApiClient, call: CallSession, log: CallLog, message: string) {
+  try {
+    await api.run(callTakeMessage, { callId: call.callId, message }, call)
+    log.messages.push(message)
+    log.record('system', 'Took a message', callTakeMessage.name)
+  } catch (e) {
+    console.error(`could not save the message for call ${call.callId}: ${e instanceof Error ? e.message : String(e)}`)
+  }
+}
+
 /** Records a try's result with call.transfer (`dialing` asks to start it; refused over the workspace's limits). */
 async function report(api: ApiClient, call: CallSession, { to, name, urgent }: Report, result: TransferResult) {
   await api.run(callTransfer, { callId: call.callId, to, name, urgent, result }, call)
@@ -204,9 +216,11 @@ export function transferTool({ ctx, api, call, log, config, callerIdentity, cont
         urgent,
       })
       let previous: Dialable | null = null
+      const triedNames: string[] = []
       for (const [i, contact] of plan.tries.entries()) {
         const dialer = contacts.find(c => c.contact.id === contact.id)!.dialer
         const target = { to: contact.number, name: contact.name, urgent }
+        triedNames.push(contact.name) // also when refused: the caller wanted a person and got none
         const refused = await startTransfer(api, call, target)
         if (refused) {
           console.warn(`transfer of call ${call.callId} not started: ${refused}`)
@@ -259,6 +273,7 @@ export function transferTool({ ctx, api, call, log, config, callerIdentity, cont
         previous = contact
       }
       if (urgent) log.urgent = true
+      if (triedNames.length) await saveNotConnectedMessage(api, call, log, notConnectedMessage({ callerName: caller_name ?? call.contact?.name, about, tried: triedNames }))
       session.input.setAudioEnabled(true)
       log.onHold = false
       return notConnectedReply(plan.fallback satisfies Fallback)

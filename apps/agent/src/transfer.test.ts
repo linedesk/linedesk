@@ -17,6 +17,7 @@ import {
   briefingText,
   type Dialable,
   MAX_TRANSFER_TRIES,
+  notConnectedMessage,
   notConnectedReply,
   resultOf,
   transferContactsFor,
@@ -89,6 +90,14 @@ test('the plan stops after a few tries, so the caller is not on hold for minutes
 test('the assistant hears what to tell the caller when nobody accepts', () => {
   expect(notConnectedReply('message_urgent')).toMatch(/flagged as urgent/)
   expect(notConnectedReply('message')).not.toMatch(/urgent/)
+  expect(notConnectedReply('message')).toMatch(/saved already/)
+})
+
+test('when nobody took the call the team gets a message naming who was tried and why', () => {
+  expect(notConnectedMessage({ callerName: 'Dana Ruiz', about: 'a burst pipe.', tried: ['On-call', 'Backup'] })).toBe(
+    'Dana Ruiz wanted to be put through to On-call, then Backup about a burst pipe; nobody took the call. Call them back.',
+  )
+  expect(notConnectedMessage({ callerName: ' ', about: '', tried: ['Mike'] })).toBe('The caller wanted to be put through to Mike; nobody took the call. Call them back.')
 })
 
 test('the tool names every contact with its condition', () => {

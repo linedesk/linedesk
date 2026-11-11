@@ -176,7 +176,8 @@ function recordConversation(session: voice.AgentSession, log: CallLog) {
   session.on(voice.AgentSessionEventTypes.ConversationItemAdded, ({ item }) => {
     if (item.type !== 'message' || !item.textContent) return
     if (item.role === 'user') log.record('caller', item.textContent)
-    if (item.role === 'assistant') log.record('agent', item.textContent)
+    // Put through to a person, the assistant is muted: a reply it still makes (to a tool of the same response) is never heard.
+    if (item.role === 'assistant' && !log.transferred) log.record('agent', item.textContent)
   })
 }
 

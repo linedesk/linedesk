@@ -120,9 +120,20 @@ export const connectingLine = (name: string) => `I'm connecting you with ${name}
 export const tryingNextLine = (previous: string, next: string) =>
   `${previous} can't take the call right now. Let me try ${next}. Please stay on the line.`
 
+/**
+ * The message the team gets when nobody took the call, saved by the transfer itself: the assistant does not always
+ * take one afterwards, and without it the call has nothing to do for the team.
+ */
+export function notConnectedMessage({ callerName, about, tried }: { callerName?: string | null; about: string; tried: string[] }): string {
+  const who = callerName?.trim() || 'The caller'
+  const topic = about.trim().replace(/[.!?]+$/, '')
+  return `${who} wanted to be put through to ${tried.join(', then ')}${topic ? ` about ${topic}` : ''}; nobody took the call. Call them back.`
+}
+
 /** What the assistant is told when nobody took the call; it then talks to the caller again. */
 export function notConnectedReply(fallback: Fallback): string {
+  const saved = 'A message that they wanted to be put through is saved already; use take_message only for details the caller adds.'
   return fallback === 'message_urgent'
-    ? 'Nobody took the call. Tell the caller you could not reach anyone right now, take a message with how to reach them, and say the team will call back as soon as possible. The call is flagged as urgent.'
-    : 'Nobody took the call. Tell the caller you could not reach anyone right now, take a message with how to reach them, and say the team will get back to them.'
+    ? `Nobody took the call. Tell the caller you could not reach anyone right now, ask how to reach them, and say the team will call back as soon as possible. The call is flagged as urgent. ${saved}`
+    : `Nobody took the call. Tell the caller you could not reach anyone right now, ask how to reach them, and say the team will get back to them. ${saved}`
 }
