@@ -8,6 +8,8 @@ export type BulkActions = {
   onDone: () => void
   onRemind: () => void
   onToggleRead: () => void
+  /** The member picker under the Assign button; unset while the workspace has a single member. */
+  onAssign?: (anchor: DOMRect) => void
   onDelete: () => void
   onCommands: () => void
   onClear: () => void
@@ -41,6 +43,20 @@ export function BulkBar(b: BulkActions) {
         >
           Remind
         </Button>
+        {b.onAssign && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ib-bulk-label"
+            icon="user"
+            aria-label="Assign"
+            aria-haspopup="dialog"
+            title="Assign (A)"
+            onClick={e => b.onAssign!(e.currentTarget.getBoundingClientRect())}
+          >
+            Assign
+          </Button>
+        )}
         <Button
           size="sm"
           variant="ghost"

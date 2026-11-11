@@ -1,6 +1,7 @@
 // ⌘K lists what can be done right now: the actions for the selected call, places to go, app commands.
-import type { Call } from '@linedesk/db/types'
+import type { Call, WorkspaceMember } from '@linedesk/db/types'
 import { hasReminder } from '../inbox-model.ts'
+import { memberLabel } from '../team/members.ts'
 import type { CommandGroup, CommandItem } from '../ui/CommandMenu.tsx'
 import type { PageRoute } from './pages.tsx'
 
@@ -17,14 +18,22 @@ export type CommandContext = {
   remove: (call: Call) => void
   toggleSpam: (call: Call) => void
   toggleBlock: (call: Call) => void
-  toggleAssign: (call: Call) => void
   /** The signed-in member's user id. */
   me: string
+  /** Assigning; null while the workspace has a single member (then nothing about it is offered). */
+  assign: {
+    members: WorkspaceMember[]
+    /** The member picker (A). */
+    open: (call: Call) => void
+    to: (call: Call, userId: string | null, name: string) => void
+    /** The calls assigned to a teammate. */
+    showMember: (userId: string) => void
+  } | null
   /** Whether the call's number is blocked. */
   isBlocked: (call: Call) => boolean
   /** Selecting calls in the list; null when the list is not on screen (a call or another page is open). */
   selection: { count: number; toggle: () => void; all: () => void; clear: () => void } | null
-  goInbox: (tab: 'you' | 'done' | 'reminders' | 'mine' | 'review') => void
+  goInbox: (tab: 'you' | 'done' | 'reminders' | 'mine' | 'unassigned' | 'review') => void
   /** Owners and admins: the Needs review mode. */
   canReview?: boolean
   goPage: (route: PageRoute) => void
@@ -45,13 +54,7 @@ function callCommands(call: Call, c: CommandContext): Command[] {
       ? { label: 'Mark not done', icon: 'restart', shortcut: ['⇧', 'E'], run: () => c.markNotDone(call) }
       : { label: 'Mark done', icon: 'check', shortcut: ['E'], run: () => c.markDone(call) },
     { label: 'Remind me', icon: 'clock', shortcut: ['H'], run: () => c.openRemind(call) },
-    {
-      label: call.assignee_id === c.me ? 'Unassign' : 'Assign to me',
-      keywords: 'assign mine teammate',
-      icon: 'user',
-      shortcut: ['A'],
-      run: () => c.toggleAssign(call),
-    },
+    ...(c.assign ? assignCommands(call, c.assign, c.me) : []),
     ...(hasReminder(call) && !done
       ? [
           {
@@ -92,6 +95,47 @@ function callCommands(call: Call, c: CommandContext): Command[] {
       run: () => c.toggleBlock(call),
     },
     { label: 'Delete call', keywords: 'remove trash', icon: 'trash', shortcut: ['#'], run: () => c.remove(call) },
+  ]
+}
+
+/**
+ * Assign… opens the picker; Unassign when someone has the call. Typing a teammate's name finds
+ * "Assign to <name>" directly (never yourself: that goes through the picker).
+ */
+function assignCommands(call: Call, a: NonNullable<CommandContext['assign']>, me: string): Command[] {
+  const teammates = a.members.filter(m => m.user_id !== me && m.user_id !== call.assignee_id)
+  return [
+    { label: 'Assign…', keywords: 'assign teammate hand over owner', icon: 'user', shortcut: ['A'], run: () => a.open(call) },
+    ...(call.assignee_id
+      ? [{ label: 'Unassign', keywords: 'assign nobody remove', icon: 'close', run: () => a.to(call, null, '') } satisfies Command]
+      : []),
+    ...teammates.map(
+      (m): Command => ({
+        label: `Assign to ${memberLabel(m)}`,
+        keywords: 'assign teammate',
+        avatar: memberLabel(m),
+        searchOnly: true,
+        run: () => a.to(call, m.user_id, memberLabel(m)),
+      }),
+    ),
+  ]
+}
+
+function assigneeViewCommands(a: NonNullable<CommandContext['assign']>, c: CommandContext): Command[] {
+  return [
+    { label: 'Go to Assigned to me', icon: 'user', shortcut: ['G', 'M'], run: () => c.goInbox('mine') },
+    { label: 'Go to Unassigned', keywords: 'nobody no one', icon: 'users', shortcut: ['G', 'U'], run: () => c.goInbox('unassigned') },
+    ...a.members
+      .filter(m => m.user_id !== c.me)
+      .map(
+        (m): Command => ({
+          label: `Go to ${memberLabel(m)}'s calls`,
+          keywords: 'assigned to filter teammate',
+          avatar: memberLabel(m),
+          searchOnly: true,
+          run: () => a.showMember(m.user_id),
+        }),
+      ),
   ]
 }
 
@@ -139,7 +183,7 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
         { label: 'Go to Inbox', icon: 'phone', shortcut: ['G', 'I'], run: () => c.goInbox('you') },
         { label: 'Go to Done', icon: 'check', shortcut: ['G', 'E'], run: () => c.goInbox('done') },
         { label: 'Go to Reminders', icon: 'clock', shortcut: ['G', 'H'], run: () => c.goInbox('reminders') },
-        { label: 'Go to Assigned to me', icon: 'user', shortcut: ['G', 'M'], run: () => c.goInbox('mine') },
+        ...(c.assign ? assigneeViewCommands(c.assign, c) : []),
         ...(c.canReview ? [{ label: 'Go to Needs review', icon: 'flag' as const, shortcut: ['G', 'R'], run: () => c.goInbox('review') }] : []),
         { label: 'Go to Contacts', icon: 'contact', shortcut: ['G', 'C'], run: () => c.goPage('contacts') },
         { label: 'Go to Assistant', icon: 'waveform', shortcut: ['G', 'A'], run: () => c.goPage('assistant') },

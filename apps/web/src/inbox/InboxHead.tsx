@@ -1,6 +1,6 @@
 import type { Call } from '@linedesk/db/types'
 import type { ReactNode } from 'react'
-import { callerName, splits, type InboxTab } from '../inbox-model.ts'
+import { assigneeTabs, callerName, splits, type InboxTab } from '../inbox-model.ts'
 import { usePresence } from '../shell/presence.ts'
 import { useAssistantName, useContact } from '../store.tsx'
 import { clock, parseTs } from '../time.ts'
@@ -20,10 +20,21 @@ export type InboxHeadProps = {
   onOpen?: (call: Call) => void
   /** Instance admins can set up the voice stack themselves (Admin, Providers). */
   canFixVoice?: boolean
+  /** The teammate whose calls the `member` view lists. */
+  memberName?: string
+  /** In an assignee view: switch to another one (a picker under the title). */
+  onAssigneeViews?: (anchor: DOMRect) => void
 }
 
 export const SEARCH_INPUT_ID = 'call-search'
-const modeTitle: Partial<Record<InboxTab, string>> = { done: 'Done', reminders: 'Reminders', mine: 'Assigned to me', review: 'Needs review' }
+const modeTitle: Partial<Record<InboxTab, string>> = {
+  done: 'Done',
+  reminders: 'Reminders',
+  mine: 'Assigned to me',
+  member: 'Assigned to a teammate',
+  unassigned: 'Unassigned',
+  review: 'Needs review',
+}
 
 function SearchBar({
   search,
@@ -89,7 +100,9 @@ function Tabs({ tab, setTab, counts }: Pick<InboxHeadProps, 'tab' | 'setTab' | '
   )
 }
 
-function Mode({ title, count, setTab }: { title: string; count: number; setTab: (tab: InboxTab) => void }) {
+type ModeProps = { title: string; count: number; setTab: (tab: InboxTab) => void; onSwitch?: (anchor: DOMRect) => void }
+
+function Mode({ title, count, setTab, onSwitch }: ModeProps) {
   return (
     <div className="ib-mode">
       <Button size="sm" variant="ghost" icon="left" title="Back to Needs you (esc)" onClick={() => setTab('you')}>
@@ -98,7 +111,20 @@ function Mode({ title, count, setTab }: { title: string; count: number; setTab: 
       <span className="ib-mode-sep" aria-hidden="true">
         /
       </span>
-      <b>{title}</b>
+      {onSwitch ? (
+        <button
+          type="button"
+          className="ib-mode-switch"
+          title="Show calls assigned to someone else"
+          aria-haspopup="dialog"
+          onClick={e => onSwitch(e.currentTarget.getBoundingClientRect())}
+        >
+          <b>{title}</b>
+          <Icon name="down" size={14} />
+        </button>
+      ) : (
+        <b>{title}</b>
+      )}
       {count ? <span className="n">{count}</span> : null}
     </div>
   )
@@ -173,7 +199,7 @@ export function InboxHead({
   bulk,
   ...p
 }: InboxHeadProps & { resultCount: number; menu?: ReactNode; bulk?: BulkActions }) {
-  const mode = modeTitle[p.tab]
+  const mode = p.tab === 'member' && p.memberName ? `Assigned to ${p.memberName}` : modeTitle[p.tab]
   if (bulk && bulk.count > 0)
     return (
       <div className="ib-head">
@@ -187,7 +213,12 @@ export function InboxHead({
       {p.search !== null ? (
         <SearchBar search={p.search} onSearchChange={p.onSearchChange} onSearchClose={p.onSearchClose} />
       ) : mode ? (
-        <Mode title={mode} count={resultCount} setTab={p.setTab} />
+        <Mode
+          title={mode}
+          count={resultCount}
+          setTab={p.setTab}
+          onSwitch={assigneeTabs.includes(p.tab) ? p.onAssigneeViews : undefined}
+        />
       ) : (
         <Tabs tab={p.tab} setTab={p.setTab} counts={p.counts} />
       )}

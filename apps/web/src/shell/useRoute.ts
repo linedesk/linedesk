@@ -1,21 +1,24 @@
 // Where the app is, kept in the URL hash so reload and the browser's Back work:
 // `#calls` (Needs you), `#calls/done` (another view), `#calls?q=leak` (search),
-// `#call/<id>` (one call), `#assistant`, `#assistant/<section>`, `#account`, `#admin/<section>`.
+// `#calls/member/<user id>` (calls assigned to a member), `#call/<id>` (one call), `#assistant`,
+// `#assistant/<section>`, `#account`, `#admin/<section>`.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { InboxTab } from '../inbox-model.ts'
 import { hasSections, isPageRoute, type Route } from './pages.tsx'
 
-export type InboxPlace = { tab: InboxTab; search: string | null }
+/** `member`: whose calls the `member` view lists (null in every other view). */
+export type InboxPlace = { tab: InboxTab; search: string | null; member?: string | null }
 /** `known` is false when the hash names nothing the app has; the inbox shows instead. */
 export type Location = InboxPlace & { route: Route; callId: string | null; known: boolean }
 
 const CALL_PREFIX = 'call/'
-const tabs: readonly InboxTab[] = ['you', 'ai', 'spam', 'reminders', 'done', 'mine', 'review']
-const HOME: InboxPlace = { tab: 'you', search: null }
+const tabs: readonly InboxTab[] = ['you', 'ai', 'spam', 'reminders', 'done', 'mine', 'unassigned', 'review']
+const HOME: InboxPlace = { tab: 'you', search: null, member: null }
 
 export const callHash = (id: string) => `#${CALL_PREFIX}${id}`
-export function listHash({ tab, search }: InboxPlace): string {
-  return `#calls${tab === 'you' ? '' : `/${tab}`}${search === null ? '' : `?q=${encodeURIComponent(search)}`}`
+export function listHash({ tab, search, member }: InboxPlace): string {
+  const view = tab === 'member' && member ? `/member/${encodeURIComponent(member)}` : tab === 'you' || tab === 'member' ? '' : `/${tab}`
+  return `#calls${view}${search === null ? '' : `?q=${encodeURIComponent(search)}`}`
 }
 
 function decode(value: string): string {
@@ -35,10 +38,12 @@ export function parseHash(hash: string, last: InboxPlace = HOME): Location {
   // Admin mode has sections of its own (`#admin/users/<id>`); admin/route.ts reads them.
   if (path.startsWith('admin/')) return { ...last, route: 'admin', callId: null, known: true }
   const [head, view = 'you', ...rest] = path.split('/')
+  if (head === 'calls' && view === 'member' && rest.length === 1 && rest[0])
+    return { route: 'calls', callId: null, tab: 'member', member: decode(rest[0]), search: null, known: true }
   const isList = (head === 'calls' || path === '') && tabs.includes(view as InboxTab) && rest.length === 0
   if (!isList) return { ...HOME, route: 'calls', callId: null, known: false }
   const q = query?.startsWith('q=') ? decode(query.slice(2)) : null
-  return { route: 'calls', callId: null, tab: view as InboxTab, search: q, known: true }
+  return { route: 'calls', callId: null, tab: view as InboxTab, search: q, member: null, known: true }
 }
 
 /** A new history entry. */

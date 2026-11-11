@@ -1,8 +1,8 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
 import { actions, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, } from '@linedesk/actions'
 import { businessHoursContext, type BusinessHoursContext, } from '@linedesk/calendar'
-import {availability_rules, call_evaluations, calls, contacts, member, organization, phone_numbers, syncedTables,
-  transcript_segments, workspace_settings, type Tx,
+import {availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, syncedTables,
+  transcript_segments, workspace_members, workspace_settings, type Tx,
 } from '@linedesk/db'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
@@ -28,7 +28,7 @@ import { transferHandlers } from './transfers.ts'
 import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
 import { checkAssistantVoice, releaseUnusedClones, voiceHandlers, voicePreparers } from './voices.ts'
 import { sampleHandlers } from './sample-calls.ts'
-import { queueCallEvaluation, queueCallNotification, queueCallPush } from './jobs.ts'
+import { queueAssignNotification, queueCallEvaluation, queueCallNotification, queueCallPush } from './jobs.ts'
 import { queueSpendingAlerts, spendingCap } from './spending-cap.ts'
 import { evaluatedAutomatically, evaluationHandlers } from './evaluations.ts'
 import { notificationHandlers } from './notification-settings.ts'
@@ -404,18 +404,39 @@ const handlers: Record<string, Handler> = {
     return { rows: {}, data: await startTestCall(tx, actor, assistant?.id) }
   },
 
-  // Only a member of the call's workspace can be its assignee (a user of another workspace is refused).
-  'call.assign': async ({ tx, actor }, input) => {
+  // Only an active member of the call's workspace can be its assignee; the voice assistant cannot assign.
+  // Each change is recorded in the call's activity (call_events) and, when someone else assigned it,
+  // the assignee is told (assign-notifications.ts).
+  'call.assign': async ({ tx, actor, now }, input: { callId: string; userId: string | null; notify?: boolean }) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
+    if (actor.role === 'agent') throw new Forbidden('the assistant cannot assign calls')
     // Same answer as the patch it stands in for: a call of another workspace is not found.
     const [call] = await tx.select().from(calls).where(and(eq(calls.id, input.callId), eq(calls.workspace_id, actor.workspaceId)))
     if (!call) throw new Reject('calls row not found')
     if (input.userId) {
-      const [isMember] = await tx.select({ id: member.id }).from(member)
-        .where(and(eq(member.organizationId, call.workspace_id), eq(member.userId, input.userId)))
-      if (!isMember) throw new Reject('that user is not a member of this workspace')
+      const [assignee] = await tx.select({ disabled: workspace_members.disabled }).from(workspace_members)
+        .where(and(eq(workspace_members.workspace_id, call.workspace_id), eq(workspace_members.user_id, input.userId)))
+      if (!assignee) throw new Reject('that user is not a member of this workspace')
+      if (assignee.disabled) throw new Reject('that member\'s account is disabled')
     }
-    return { rows: { calls: await tx.update(calls).set({ assignee_id: input.userId }).where(eq(calls.id, call.id)).returning() } }
+    if (call.assignee_id === input.userId) return { rows: { calls: [call] } }
+    const actorId = actor.apiKeyId ? null : actor.actorId
+    const [event] = await tx.insert(call_events).values({
+      id: newId('cev'), workspace_id: call.workspace_id, call_id: call.id, kind: 'assigned', actor_id: actorId, assignee_id: input.userId, created_at: now,
+    }).returning()
+    if (input.userId && input.userId !== actorId && input.notify !== false) await queueAssignNotification(tx, event!.id)
+    const updated = await tx.update(calls).set({ assignee_id: input.userId }).where(eq(calls.id, call.id)).returning()
+    return { rows: { calls: updated, call_events: [event!] } }
+  },
+
+  // The members calls can be assigned to (API keys and MCP clients look up a userId here).
+  'member.list': async ({ tx, actor }) => {
+    if (!actor.workspaceId) throw new Reject('no workspace')
+    const rows = await tx.select({ userId: workspace_members.user_id, name: workspace_members.name, role: workspace_members.role })
+      .from(workspace_members)
+      .where(and(eq(workspace_members.workspace_id, actor.workspaceId), eq(workspace_members.disabled, false)))
+      .orderBy(asc(workspace_members.name))
+    return { rows: {}, data: { members: rows } }
   },
 
   'call.appendTranscript': async ({ tx, actor }, input) => {

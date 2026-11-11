@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useCanAssign } from '../team/members.ts'
 import { Icon, Kbd } from '../ui/kit.tsx'
 
 export type Group = { group: string; rows: [label: string, keys: string[]][] }
@@ -26,7 +27,7 @@ export const SHORTCUTS: Group[] = [
       ['Mark not done', ['⇧', 'E']],
       ['Remind me', ['H']],
       ['Clear reminder', ['⇧', 'H']],
-      ['Assign to me, or unassign', ['A']],
+      ['Assign to a teammate, or unassign', ['A']],
       ['Pick in a menu', ['1', '–', '9']],
       ['Mark read or unread', ['U']],
       ['Spam, or not spam', ['!']],
@@ -62,6 +63,7 @@ export const SHORTCUTS: Group[] = [
       ['Done', ['G', 'E']],
       ['Reminders', ['G', 'H']],
       ['Assigned to me', ['G', 'M']],
+      ['Unassigned', ['G', 'U']],
       ['Contacts', ['G', 'C']],
       ['Assistant', ['G', 'A']],
       ['Team', ['G', 'T']],
@@ -80,6 +82,13 @@ export const SHORTCUTS: Group[] = [
   },
 ]
 
+/** The rows about assigning: shown only while the workspace has more than one member. */
+const ASSIGN_ROWS = new Set(['Assign to a teammate, or unassign', 'Assigned to me', 'Unassigned'])
+
+/** The shortcuts that apply here; without teammates the assign ones are left out. */
+export const shortcutsFor = (canAssign: boolean): Group[] =>
+  canAssign ? SHORTCUTS : SHORTCUTS.map(g => ({ ...g, rows: g.rows.filter(([label]) => !ASSIGN_ROWS.has(label)) }))
+
 /** Matches the action, its group and its keys ("tab", "esc", "⇧ e"), word by word. */
 export function filterShortcuts(groups: Group[], query: string): Group[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean)
@@ -94,7 +103,7 @@ export function filterShortcuts(groups: Group[], query: string): Group[] {
 
 export function HelpSheet() {
   const [query, setQuery] = useState('')
-  const groups = filterShortcuts(SHORTCUTS, query)
+  const groups = filterShortcuts(shortcutsFor(useCanAssign()), query)
   return (
     <div className="help-sheet" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
       <div className="help-head">

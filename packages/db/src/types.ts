@@ -1,7 +1,7 @@
 // Row types shared with the browser. Type-only: importing this never pulls in pg or drizzle.
 import type {
   api_keys, appointment_types, assistant_calendars, assistants, availability_exceptions, availability_rules, bookings, calendar_connections, calls, contacts,
-  phone_numbers, transcript_segments, webhook_endpoints, workspace_settings,
+  phone_numbers, transcript_segments, webhook_endpoints, workspace_settings, workspace_members, call_events,
 } from './schema.ts'
 
 /** `kind: 'message'`: a message the assistant took during the call (call.takeMessage), counted for MESSAGES_PER_CALL. */
@@ -48,6 +48,8 @@ export type CalendarConnection = typeof calendar_connections.$inferSelect
 export type AssistantCalendar = typeof assistant_calendars.$inferSelect
 export type ApiKey = typeof api_keys.$inferSelect
 export type WebhookEndpoint = typeof webhook_endpoints.$inferSelect
+export type WorkspaceMember = typeof workspace_members.$inferSelect
+export type CallEvent = typeof call_events.$inferSelect
 
 export type Tables = {
   calls: Call
@@ -60,9 +62,11 @@ export type Tables = {
   calendar_connections: CalendarConnection
   assistant_calendars: AssistantCalendar
   webhook_endpoints: WebhookEndpoint
+  workspace_members: WorkspaceMember
+  call_events: CallEvent
 }
 export type TableName = keyof Tables
 export const tableNames = [
   'calls', 'contacts', 'assistants', 'phone_numbers', 'transcript_segments', 'appointment_types', 'bookings', 'calendar_connections', 'assistant_calendars',
-  'webhook_endpoints',
+  'webhook_endpoints', 'workspace_members', 'call_events',
 ] as const satisfies readonly TableName[]

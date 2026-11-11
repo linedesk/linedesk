@@ -1,7 +1,7 @@
 import type { MyInvitation } from '@linedesk/actions'
 import { useRef, type ReactNode } from 'react'
 import { auth } from '../auth.ts'
-import type { InboxTab } from '../inbox-model.ts'
+import { assigneeTabs, type InboxTab } from '../inbox-model.ts'
 import type { IconName } from '../ui/icons.ts'
 import { Button, Icon, Kbd, LogoMark } from '../ui/kit.tsx'
 import { pages, type PageRoute, type Route } from './pages.tsx'
@@ -16,8 +16,9 @@ type Props = {
   tab: InboxTab
   unreadCount: number
   reminderCount: number
-  /** Open calls assigned to the signed-in member. */
-  mineCount: number
+  /** Open calls assigned to the signed-in member, and Needs you calls nobody has; null hides both (a workspace of one). */
+  mineCount: number | null
+  unassignedCount: number | null
   /** Owners and admins: calls whose evaluation needs a person; null hides Needs review. */
   reviewCount: number | null
   workspaceName: string
@@ -47,7 +48,7 @@ function NavItem({ label, icon, keys, current, sub, badge, onClick }: { label: s
 
 /** Slide-in navigation: opens from ☰ or M; closes with Esc, the close button, a click outside or after choosing.
  * On very wide windows it is docked: always open beside the content. */
-export function Nav({ open, docked = false, route, tab, unreadCount, reminderCount, mineCount, reviewCount, workspaceName, workspaceId, toast, invitations, onInvitationsChanged, isInstanceAdmin, onNewWorkspace, onClose, ...on }: Props) {
+export function Nav({ open, docked = false, route, tab, unreadCount, reminderCount, mineCount, unassignedCount, reviewCount, workspaceName, workspaceId, toast, invitations, onInvitationsChanged, isInstanceAdmin, onNewWorkspace, onClose, ...on }: Props) {
   const ref = useRef<HTMLElement>(null)
   useFocusTrap(ref, open && !docked, { initial: '.nav-item[aria-current="page"]' }) // opens on the current page, gives focus back when it closes
   const userName = auth.useSession().data?.user.name ?? ''
@@ -59,12 +60,18 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
         <span className="ws-mark"><LogoMark /></span><b>Linedesk</b>
         {!docked && <Button size="sm" variant="ghost" icon="left" aria-label="Close menu" title="Close (esc)" onClick={onClose} />}
       </div>
-      <NavItem label="Inbox" icon="phone" keys={['G', 'I']} current={onCalls && tab !== 'reminders' && tab !== 'done' && tab !== 'mine' && tab !== 'review'} onClick={go(() => on.onInbox('you'))}
+      <NavItem label="Inbox" icon="phone" keys={['G', 'I']} current={onCalls && tab !== 'reminders' && tab !== 'done' && tab !== 'review' && !assigneeTabs.includes(tab)} onClick={go(() => on.onInbox('you'))}
         badge={unreadCount ? <span className="k-count">{unreadCount}</span> : null} />
       <NavItem sub label="Reminders" icon="clock" keys={['G', 'H']} current={onCalls && tab === 'reminders'} onClick={go(() => on.onInbox('reminders'))}
         badge={reminderCount ? <span className="nav-n">{reminderCount}</span> : null} />
-      <NavItem sub label="Assigned to me" icon="user" keys={['G', 'M']} current={onCalls && tab === 'mine'} onClick={go(() => on.onInbox('mine'))}
-        badge={mineCount ? <span className="nav-n">{mineCount}</span> : null} />
+      {mineCount !== null && (
+        <NavItem sub label="Assigned to me" icon="user" keys={['G', 'M']} current={onCalls && tab === 'mine'} onClick={go(() => on.onInbox('mine'))}
+          badge={mineCount ? <span className="nav-n">{mineCount}</span> : null} />
+      )}
+      {unassignedCount !== null && (
+        <NavItem sub label="Unassigned" icon="users" keys={['G', 'U']} current={onCalls && tab === 'unassigned'} onClick={go(() => on.onInbox('unassigned'))}
+          badge={unassignedCount ? <span className="nav-n">{unassignedCount}</span> : null} />
+      )}
       {reviewCount !== null && (
         <NavItem sub label="Needs review" icon="flag" keys={['G', 'R']} current={onCalls && tab === 'review'} onClick={go(() => on.onInbox('review'))}
           badge={reviewCount ? <span className="nav-n">{reviewCount}</span> : null} />

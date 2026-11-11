@@ -287,6 +287,48 @@ export function callEmail(call: CallEmail, origin = WEB_ORIGIN): RenderedEmail {
   })
 }
 
+export type AssignedCallEmail = {
+  callId: string
+  title: string | null
+  summary: string | null
+  urgent: boolean
+  fromNumber: string
+  callerName: string | null
+  /** Who assigned it; email-safe (emailSafeName). */
+  assignedBy: string
+  /** Email-safe (emailSafeName). */
+  workspace: string
+}
+
+/** A teammate assigned the recipient a call: who did, the caller, the summary and a link. */
+export function assignedCallEmail(a: AssignedCallEmail, origin = WEB_ORIGIN): RenderedEmail {
+  const number = formatNumber(a.fromNumber)
+  const callerName = a.callerName ? defuseLinks(a.callerName) : null
+  const topic = a.title ? defuseLinks(a.title) : `Call from ${callerName ?? number}`
+  const blocks: Block[] = [
+    {
+      kind: 'facts',
+      rows: [
+        ['Caller', callerName ?? 'Unknown caller'],
+        ['Number', number],
+      ],
+    },
+  ]
+  if (a.summary) blocks.push({ kind: 'text', text: defuseLinks(a.summary) })
+  blocks.push({ kind: 'button', label: 'Open the call', url: `${origin}/#call/${encodeURIComponent(a.callId)}` })
+  return renderEmail({
+    subject: `${a.assignedBy} assigned you a call: ${topic}`,
+    preheader: `${a.assignedBy} assigned you a call from ${callerName ?? number}.`,
+    eyebrow: `Assigned to you by ${a.assignedBy}`,
+    urgent: a.urgent ? 'Urgent' : undefined,
+    heading: topic,
+    blocks,
+    reason: `You got this email because a teammate in ${a.workspace} assigned you a call.`,
+    settings: { label: 'Change in Settings, Notifications', url: `${origin}/#settings/notifications` },
+    origin,
+  })
+}
+
 // ---------------------------------------------------------------- to callers
 
 export type BookingConfirmation = {

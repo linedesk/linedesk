@@ -11,12 +11,13 @@ import { CallView } from './call/CallView.tsx'
 import { ContactSide } from './call/ContactSide.tsx'
 import { toggleContactPanel } from './call/contactPanel.ts'
 import { togglePlayback } from './call/playback.ts'
+import { assignGroups, assigneeViewGroups } from './inbox/assign.ts'
 import { Inbox } from './inbox/Inbox.tsx'
 import type { ReminderOption } from './inbox/remind.ts'
 import { useSelection } from './inbox/selection.ts'
 import { useCallActions } from './inbox/useCallActions.ts'
 import { useInboxView } from './inbox/useInboxView.ts'
-import { callerName, callTitle, type InboxTab } from './inbox-model.ts'
+import { assigneeTabs, callerName, callTitle, type InboxTab } from './inbox-model.ts'
 import { commandGroups, type Command } from './shell/commands.ts'
 import type { Overlay } from './shell/keys.ts'
 import { invitationNotice, unannounced, useMyInvitations } from './shell/invitations.ts'
@@ -25,7 +26,7 @@ import { MenuButton, Nav } from './shell/Nav.tsx'
 import { NewWorkspaceDialog } from './shell/NewWorkspace.tsx'
 import { loadAuthMethods } from './shell/ProfileMenu.tsx'
 import { mayCreateWorkspace } from './NoWorkspace.tsx'
-import { Overlays } from './shell/Overlays.tsx'
+import { Overlays, type Picker } from './shell/Overlays.tsx'
 import { rejectionText } from './shell/rejections.ts'
 import { SetupBanner } from './shell/SetupBanner.tsx'
 import { Tour } from './shell/Tour.tsx'
@@ -41,6 +42,7 @@ import { useSignOut } from './shell/useSignOut.ts'
 import { useCallNotifications } from './shell/useCallNotifications.ts'
 import { useToast, type Source } from './shell/useToast.ts'
 import { preloadWorkspaceSettings } from './settings/settings-api.ts'
+import { memberLabel, useAssignableMembers } from './team/members.ts'
 import { preloadTeam } from './team/team-api.ts'
 import { useAssistantName, useRejection, useWorkspaceState } from './store.tsx'
 import type { SelectVia } from './ui/CommandMenu.tsx'
@@ -53,7 +55,7 @@ const NAV_DOCKED_QUERY = '(min-width: 1600px)'
 
 /** The not-found toasts (call, page) stay long enough to be read after the jump. */
 const NOT_FOUND_TOAST_MS = 4500
-const chordTabs: Record<string, InboxTab> = { i: 'you', e: 'done', h: 'reminders', m: 'mine', r: 'review' }
+const chordTabs: Record<string, InboxTab> = { i: 'you', e: 'done', h: 'reminders', m: 'mine', u: 'unassigned', r: 'review' }
 const chordPages: Record<string, PageRoute> = { a: 'assistant', c: 'contacts', t: 'team', s: 'settings' }
 
 type Props = {
@@ -97,6 +99,10 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
   // On very wide windows the menu stays open beside the content instead of sliding over it.
   const navDocked = useMediaQuery(NAV_DOCKED_QUERY)
   const remindFor = useRef<{ calls: Call[]; source: Source } | null>(null)
+  const [picker, setPicker] = useState<Picker | null>(null)
+  // Assigning exists once the workspace has a second member (members.ts useCanAssign).
+  const members = useAssignableMembers()
+  const canAssign = members.length > 1
   const signOut = useSignOut({ onSignedOut, toast: toaster.show })
   const { list, tab, search, openCall, target } = view
   const isInstanceAdmin = me.permissions.includes('instance:admin')
@@ -176,6 +182,40 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
     )
     if (bulk) selection.clear()
   }
+  /** The member picker (A, a row's or the call's assign button): for the selection, else the call (and its repeats). */
+  function openAssign(call: Call, anchor?: DOMRect) {
+    if (!canAssign) return
+    const wasBulk = bulk
+    const calls = wasBulk ? selection.calls.flatMap(view.groupOf) : view.groupOf(call)
+    const source = toaster.currentSource()
+    const pick = (userId: string | null, name: string) => {
+      toaster.via(source, () =>
+        calls.length > 1 ? actions.many.assign(calls, userId, name) : actions.assign(calls[0]!, userId, name),
+      )
+      if (wasBulk) selection.clear()
+    }
+    const groups = assignGroups(members, me.actorId, calls).map(g => ({
+      label: g.label,
+      items: g.items.map(item => ({ ...item, run: () => pick(item.userId, item.label) })),
+    }))
+    setPicker({ label: 'Assign', placeholder: 'Assign to…', groups, anchor })
+    setOverlay('pick')
+  }
+  /** Switch between the assignee views (the title of one, as a menu). */
+  function openAssigneeViews(anchor: DOMRect) {
+    const groups = assigneeViewGroups(members, me.actorId).map(g => ({
+      label: g.label,
+      items: g.items.map(item => ({ ...item, run: () => view.setTab(item.tab, item.member) })),
+    }))
+    setPicker({ label: 'Assigned to', placeholder: 'Show calls assigned to…', groups, anchor })
+    setOverlay('pick')
+  }
+  // The last teammate left: the assignee views are gone, back to Needs you.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only when assigning comes or goes, or the view changes
+  useEffect(() => {
+    if (!canAssign && members.length > 0 && assigneeTabs.includes(view.tab)) view.setTabState('you')
+  }, [canAssign, view.tab])
+  const memberName = view.member ? memberLabel(members.find(m => m.user_id === view.member)) : undefined
   const toggleDone = (call: Call) =>
     call.inbox_state === 'done'
       ? perRow(actions.markNotDone, actions.many.markNotDone)(call)
@@ -188,7 +228,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
     remove: each(actions.remove, actions.many.remove),
     toggleSpam: each(actions.toggleSpam, actions.many.toggleSpam),
     toggleBlock: actions.toggleBlock,
-    toggleAssign: each(actions.toggleAssign, actions.many.toggleAssign),
+    openAssign: (call: Call) => openAssign(call),
     clearReminder: each(actions.clearReminder, actions.many.clearReminder),
     undo: actions.undo,
     openRemind,
@@ -208,6 +248,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
       navOpen: navOpen && !navDocked,
       setNavOpen,
       onInbox: view.onInbox,
+      canAssign,
       tab,
       searching: search !== null,
       target,
@@ -228,7 +269,8 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
       goChord: key => {
         if (key === 'd' && canOpenAdmin) goPage('admin')
         else if (chordPages[key]) goPage(chordPages[key])
-        else if (chordTabs[key] && (key !== 'r' || canReview)) view.setTab(chordTabs[key])
+        else if (chordTabs[key] && (key !== 'r' || canReview) && (!assigneeTabs.includes(chordTabs[key]) || canAssign))
+          view.setTab(chordTabs[key])
         else return false
         return true
       },
@@ -269,6 +311,8 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
     reminders: 'Reminders',
     done: 'Done',
     mine: 'Assigned to me',
+    member: memberName ? `Assigned to ${memberName}` : 'Assigned',
+    unassigned: 'Unassigned',
     review: 'Needs review',
   }
   const where =
@@ -293,6 +337,14 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
   const commands = commandGroups({
     ...callHandlers,
     me: me.actorId,
+    assign: canAssign
+      ? {
+          members,
+          open: call => openAssign(call),
+          to: (call, userId, name) => each(c => actions.assign(c, userId, name), list => actions.many.assign(list, userId, name))(call),
+          showMember: userId => view.setTab('member', userId),
+        }
+      : null,
     isBlocked: call => !!(call.contact_id && view.contacts.get(call.contact_id)?.blocked_at),
     target,
     targetName: bulk
@@ -355,7 +407,8 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
         tab={tab}
         unreadCount={view.unreadNeedsYou}
         reminderCount={view.counts.reminders}
-        mineCount={view.counts.mine}
+        mineCount={canAssign ? view.counts.mine : null}
+        unassignedCount={canAssign ? view.counts.unassigned : null}
         reviewCount={canReview ? view.counts.review : null}
         workspaceName={me.workspace!.name}
         workspaceId={me.workspace!.id}
@@ -427,6 +480,8 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
             onClearReminder={actions.clearReminder}
             onCommands={() => setOverlay('commands')}
             onToggleSpam={callHandlers.toggleSpam}
+            onAssign={canAssign ? openAssign : undefined}
+            me={me.actorId}
             canReview={canReview}
             side={
               <ContactSide
@@ -454,6 +509,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
               onDone: () => (tab === 'done' ? callHandlers.markNotDone : callHandlers.markDone)(selection.calls[0]!),
               onRemind: () => openRemind(selection.calls[0]!),
               onToggleRead: () => callHandlers.toggleUnread(selection.calls[0]!),
+              onAssign: canAssign ? anchor => openAssign(selection.calls[0]!, anchor) : undefined,
               onDelete: () => callHandlers.remove(selection.calls[0]!),
               onCommands: () => setOverlay('commands'),
               onClear: selection.clear,
@@ -473,6 +529,9 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
             onToggleUnread={callHandlers.toggleUnread}
             onRemind={openRemind}
             onClearReminder={actions.clearReminder}
+            onAssign={canAssign ? openAssign : undefined}
+            memberName={memberName}
+            onAssigneeViews={canAssign ? openAssigneeViews : undefined}
             onCommands={c => {
               view.setCursor(c.id)
               setOverlay('commands')
@@ -490,6 +549,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
       <Overlays
         overlay={overlay}
         commands={commands}
+        picker={picker}
         onClose={() => setOverlay(null)}
         onCommand={runCommand}
         onReminder={pickReminder}

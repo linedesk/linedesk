@@ -1,11 +1,20 @@
 // Palette used for ⌘K and for pick lists (numbered: 1–9 pick an item).
 import { useId, useState, type KeyboardEvent } from 'react'
 import type { IconName } from './icons.ts'
-import { Icon, Kbd } from './kit.tsx'
+import { Avatar, Icon, Kbd } from './kit.tsx'
 
 /** `hint` is a quiet detail after the label, for example the time behind "Tomorrow morning". */
 /** `keywords` are other words that find the item ("unread" finds "Mark read"). */
-export type CommandItem = { label: string; icon?: IconName; shortcut?: string[]; hint?: string; keywords?: string }
+/** `avatar`: a person's name, shown as their initials in place of an icon. `searchOnly`: listed only once something is typed. */
+export type CommandItem = {
+  label: string
+  icon?: IconName
+  avatar?: string
+  shortcut?: string[]
+  hint?: string
+  keywords?: string
+  searchOnly?: boolean
+}
 export type CommandGroup<T extends CommandItem = CommandItem> = { label: string | null; items: T[] }
 export type SelectVia = 'key' | 'mouse'
 
@@ -30,7 +39,8 @@ export function commandScore(label: string, query: string): number {
 }
 
 export function rank<T extends CommandItem>(groups: CommandGroup<T>[], query: string): CommandGroup<T>[] {
-  if (!query.trim()) return groups.filter(g => g.items.length)
+  if (!query.trim())
+    return groups.map(g => ({ ...g, items: g.items.filter(it => !it.searchOnly) })).filter(g => g.items.length)
   const seen = new Set<string>()
   const ranked = groups
     .flatMap(g => g.items)
@@ -129,7 +139,7 @@ export function CommandMenu<T extends CommandItem>({
                   onMouseEnter={() => setActive(me)}
                   onClick={() => onSelect(it, 'mouse')}
                 >
-                  {it.icon && <Icon name={it.icon} />}
+                  {it.avatar !== undefined ? <Avatar name={it.avatar} size={20} /> : it.icon && <Icon name={it.icon} />}
                   <span>
                     {it.label}
                     {it.hint && <small className="k-cmd-hint">{it.hint}</small>}

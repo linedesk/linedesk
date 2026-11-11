@@ -4,7 +4,8 @@ import type { Call } from '@linedesk/db/types'
 import { SEARCH_INPUT_ID } from '../inbox/InboxHead.tsx'
 import { splits, viewByKey, type InboxTab } from '../inbox-model.ts'
 
-export type Overlay = 'remind' | 'commands' | 'help' | null
+/** `pick`: a pick list such as the member picker (A). */
+export type Overlay = 'remind' | 'commands' | 'pick' | 'help' | null
 
 export type KeyContext = {
   overlay: Overlay
@@ -37,8 +38,9 @@ export type KeyContext = {
   toggleSpam: (call: Call) => void
   /** ⇧B blocks the caller's number (and files the call in Spam), or unblocks it. */
   toggleBlock: (call: Call) => void
-  /** A assigns the call to you, or takes it back when it is yours. */
-  toggleAssign: (call: Call) => void
+  /** A: pick who the call goes to (only while the workspace has more than one member). */
+  openAssign: (call: Call) => void
+  canAssign: boolean
   openRemind: (call: Call) => void
   clearReminder: (call: Call) => void
   undo: () => void
@@ -104,7 +106,7 @@ function onCallKey(key: string, call: Call, c: KeyContext): boolean {
     '#': c.remove,
     '!': c.toggleSpam,
     B: c.toggleBlock,
-    a: c.toggleAssign,
+    ...(c.canAssign ? { a: c.openAssign } : {}),
   }
   if (!run[key]) return false
   run[key](call)

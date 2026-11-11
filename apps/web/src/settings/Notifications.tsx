@@ -10,6 +10,7 @@ import {
   useNotificationQuery,
 } from '../shell/useCallNotifications.ts'
 import { useRun } from '../store.tsx'
+import { useCanAssign } from '../team/members.ts'
 import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
 import { Section, SwitchRow } from './fields.tsx'
 
@@ -53,6 +54,7 @@ function useThisDevice(devices: readonly string[]) {
 
 export function Notifications({ toast }: { toast: (text: string) => void }) {
   const run = useRun()
+  const canAssign = useCanAssign()
   const query = useNotificationQuery()
   const settings = query.data ?? null
   const error = settings ? null : query.error
@@ -141,6 +143,12 @@ export function Notifications({ toast }: { toast: (text: string) => void }) {
     void run('notifications.update', { pushSummary: on })
   }
 
+  function setAssignedEmail(on: boolean) {
+    if (!settings) return
+    change({ ...settings, assignedEmail: on })
+    void run('notifications.update', { assignedEmail: on })
+  }
+
   const blocker = pushBlocker(settings.push.publicKey)
   const followsDefault = (channel: Channel) => (settings.own[channel] === null ? 'Team default' : undefined)
   return (
@@ -174,6 +182,14 @@ export function Notifications({ toast }: { toast: (text: string) => void }) {
               description="Adds one line to each push. It shows on your lock screen."
               on={settings.push.summary}
               onChange={setPushSummary}
+            />
+          )}
+          {canAssign && (
+            <SwitchRow
+              title="Email me when a call is assigned to me"
+              description="When a teammate assigns you a call. Never for calls you take yourself."
+              on={settings.assignedEmail}
+              onChange={setAssignedEmail}
             />
           )}
         </div>

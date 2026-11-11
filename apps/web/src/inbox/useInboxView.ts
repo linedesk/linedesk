@@ -24,7 +24,8 @@ export function useInboxView(nav: RouteApi, me: string | null = null, review: Re
   const now = useNow()
   const run = useRun()
   const { tab, search } = nav // the view and the search live in the URL, so a reload keeps them
-  const setTabState = (next: InboxTab) => nav.setView({ tab: next, search })
+  const member = tab === 'member' ? (nav.member ?? null) : null
+  const setTabState = (next: InboxTab) => nav.setView({ tab: next, search, member: next === 'member' ? member : null })
 
   const { list, groups } = useMemo((): { list: Call[]; groups: CallGroups } => {
     if (search !== null) {
@@ -43,12 +44,12 @@ export function useInboxView(nav: RouteApi, me: string | null = null, review: Re
       )
       return { list: sortForList(hits, false), groups: new Map() }
     }
-    const inTab = listFor(calls, tab, now, me, review)
+    const inTab = listFor(calls, tab, now, me, review, member)
     return tab === 'you' ? groupRepeats(inTab) : { list: inTab, groups: new Map() }
-  }, [calls, contacts, segments, assistantName, tab, search, now, me, review])
+  }, [calls, contacts, segments, assistantName, tab, search, now, me, review, member])
   /** Every call a row stands for: a folded row's repeat calls, else the call alone. */
   const groupOf = (call: Call): Call[] => groups.get(call.id) ?? [call]
-  const counts = useMemo(() => countsFor(calls, now, me, review), [calls, now, me, review])
+  const counts = useMemo(() => countsFor(calls, now, me, review, member), [calls, now, me, review, member])
   /** The menu's Inbox badge: the unread dots a person sees in Needs you. */
   const unreadNeedsYou = useMemo(() => {
     const needsYou = groupRepeats(listFor(calls, 'you', now))
@@ -93,16 +94,17 @@ export function useInboxView(nav: RouteApi, me: string | null = null, review: Re
     if (next && openCall) show(next)
     else setCursor(next?.id ?? null)
   }
-  function setTab(next: InboxTab) {
+  /** `forMember`: whose calls the `member` view lists. */
+  function setTab(next: InboxTab, forMember: string | null = null) {
     if (nav.callId) nav.closeCall()
     else if (!onInbox) nav.go('calls')
-    nav.setView({ tab: next, search: null })
+    nav.setView({ tab: next, search: null, member: next === 'member' ? forMember : null })
     setCursor(null)
   }
   function openSearch() {
     if (nav.callId) nav.closeCall()
     else if (!onInbox) nav.go('calls')
-    nav.setView({ tab, search: search ?? '' })
+    nav.setView({ tab, search: search ?? '', member })
     setTimeout(() => {
       const el = document.getElementById(SEARCH_INPUT_ID) as HTMLInputElement | null
       el?.focus()
@@ -121,6 +123,7 @@ export function useInboxView(nav: RouteApi, me: string | null = null, review: Re
     unreadNeedsYou,
     liveCall,
     tab,
+    member,
     search,
     cursorId,
     openCall,
@@ -136,11 +139,11 @@ export function useInboxView(nav: RouteApi, me: string | null = null, review: Re
     openSearch,
     back: nav.closeCall,
     changeSearch: (query: string) => {
-      nav.setView({ tab, search: query })
+      nav.setView({ tab, search: query, member })
       setCursor(null)
     },
     closeSearch: () => {
-      nav.setView({ tab, search: null })
+      nav.setView({ tab, search: null, member })
       setCursor(null)
     },
   }

@@ -48,7 +48,7 @@ type Context = {
   /** Show this call full width (marking it read), or go back to the list with null. */
   showCall: (id: string | null) => void
   toaster: Toaster
-  /** The signed-in member's user id: A assigns calls to them. */
+  /** The signed-in member's user id: toasts say "you" for them. */
   me: string
 }
 
@@ -84,8 +84,8 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     }
   }
 
-  function act(call: Call, { steps, inverse, label, key }: Change) {
-    if (call.status === 'live') return toaster.show(LIVE_NOTE)
+  function act(call: Call, { steps, inverse, label, key, onLive }: Change) {
+    if (call.status === 'live' && !onLive) return toaster.show(LIVE_NOTE)
     if (isNoOp(call, steps)) return // nothing to send, nothing to undo
     const after = preview(call, steps)
     const leaves = !!after.deleted_at || (!searching && tabOf(after) !== tab) // a deleted call leaves every view
@@ -106,9 +106,9 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
   /** The same change on several calls: sent at once, one toast, one undo for all of them. */
   function actMany(calls: Call[], make: (call: Call) => Change | null, label: (n: number) => string) {
     const changes = calls
-      .filter(c => c.status !== 'live')
       .map(c => ({ call: c, change: make(c) }))
       .filter((x): x is { call: Call; change: Change } => !!x.change && !isNoOp(x.call, x.change.steps))
+      .filter(x => x.call.status !== 'live' || x.change.onLive)
     if (!changes.length) return toaster.show(calls.some(c => c.status === 'live') ? LIVE_NOTE : 'Nothing to change.')
     for (const { change } of changes) runAll(change.steps)
     const leaving = new Set(
@@ -184,7 +184,8 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     clearReminder: (call: Call) =>
       tabOf(call) === 'reminders' ? act(call, clearReminderChange(call)) : toaster.show('No reminder on this call.'),
     remove: (call: Call) => act(call, deleteChange(call)),
-    toggleAssign: (call: Call) => act(call, assignChange(call, me)),
+    /** Assign to a member (null: nobody); `who` names them in the toast. */
+    assign: (call: Call, userId: string | null, who: string) => act(call, assignChange(call, userId, userId === me ? 'you' : who)),
     toggleSpam: (call: Call) => act(call, spamChange(call)),
     toggleBlock: (call: Call) => {
       const contact = call.contact_id ? contacts.get(call.contact_id) : undefined
@@ -226,7 +227,12 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
           n => `Reminder cleared on ${calls(n)}.`,
         ),
       remove: (list: Call[]) => actMany(list, deleteChange, n => `${calls(n)} deleted.`),
-      toggleAssign: (list: Call[]) => actMany(list, c => assignChange(c, me), n => `${calls(n)} assigned.`),
+      assign: (list: Call[], userId: string | null, who: string) =>
+        actMany(
+          list,
+          c => assignChange(c, userId, who),
+          n => (userId ? `${calls(n)} assigned to ${userId === me ? 'you' : who}.` : `${calls(n)} unassigned.`),
+        ),
       /** All to Spam, unless all of them are spam already: then all back to Needs you. */
       toggleSpam: (list: Call[]) => {
         const toSpam = list.some(c => c.outcome !== 'spam')

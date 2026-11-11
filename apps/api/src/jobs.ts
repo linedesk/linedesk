@@ -4,6 +4,7 @@
 import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
 import { fromDrizzle, PgBoss } from 'pg-boss'
+import { notifyAssigned } from './assign-notifications.ts'
 import { sendBookingConfirmation } from './booking-confirmation.ts'
 import { notifyCallFinished } from './call-notifications.ts'
 import { db } from './db.ts'
@@ -25,6 +26,10 @@ const RECORDING_CLEANUP_CRON = '17 3 * * *'
 export const CALL_NOTIFY = 'call.notify'
 /** Push notifications about one call (push.ts): flagged urgent, message taken, or ended. */
 export const CALL_PUSH = 'call.push'
+/** Email and push to a member a teammate assigned a call to (assign-notifications.ts). */
+export const CALL_ASSIGNED = 'call.assigned'
+/** Seconds before the assignee hears of it: an undo or a quick reassignment in between sends nothing. */
+const ASSIGNED_DELAY_SECONDS = 10
 /** The confirmation email to a caller who booked. */
 export const BOOKING_CONFIRM = 'booking.confirm'
 /** How the assistant handled a finished call, judged by the language model (evaluations.ts). */
@@ -69,6 +74,11 @@ async function runJobs(instance: PgBoss, env: Env) {
     if (result.failed && !result.sent) throw new Error(`no push could be sent (${result.failed} failed)`)
     return result
   })
+  await instance.work<{ eventId: string }>(CALL_ASSIGNED, async ([job]) => {
+    const result = await notifyAssigned(db, emailSender, pushSender(), job!.data.eventId)
+    if (result.email === 'failed' && !result.push?.sent) throw new Error('the assignment notification could not be sent')
+    return result
+  })
   await instance.work<SpendingAlert>(SPENDING_CAP_ALERT, async ([job]) => {
     const result = await sendSpendingAlert(db, emailSender, job!.data)
     if (result.failed && !result.sent) throw new Error(`no spending cap email could be sent (${result.failed} failed)`)
@@ -100,6 +110,7 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(CALL_NOTIFY, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   // Few, quick retries: a push about a call is news only for a while.
   await instance.createQueue(CALL_PUSH, { retryLimit: 2, retryDelay: 30, retryBackoff: true })
+  await instance.createQueue(CALL_ASSIGNED, { retryLimit: 2, retryDelay: 30, retryBackoff: true })
   await instance.createQueue(SPENDING_CAP_ALERT, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(BOOKING_CONFIRM, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(CALL_EVALUATE, { retryLimit: 2, retryDelay: 120, retryBackoff: true })
@@ -132,6 +143,11 @@ export async function queueCallNotification(tx: Tx, callId: string) {
 /** Queues the pushes about a call in the caller's transaction. Without a queue (tests) nothing is sent. */
 export async function queueCallPush(tx: Tx, callId: string, kind: PushKind) {
   await boss?.send(CALL_PUSH, { callId, kind }, { db: fromDrizzle(tx, sql) })
+}
+
+/** Queues the assignee's notification in call.assign's transaction; sent after ASSIGNED_DELAY_SECONDS if it still stands. */
+export async function queueAssignNotification(tx: Tx, eventId: string) {
+  await boss?.send(CALL_ASSIGNED, { eventId }, { db: fromDrizzle(tx, sql), startAfter: ASSIGNED_DELAY_SECONDS })
 }
 
 /** Queues a spending-cap email in the caller's transaction. Without a queue (tests) nothing is sent. */

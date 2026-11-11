@@ -72,16 +72,34 @@ export const callRemind = defineAction({
 })
 
 /**
- * Hand a call to a teammate (a member of the workspace), or take it back with null. Applied at once
- * in the browser; the server also checks that the user is a member (apps/api/src/handlers.ts).
+ * Hand a call to a member of the workspace, or take it back with null. Applied at once in the browser;
+ * the server checks the member, records it in the call's activity and tells the assignee
+ * (apps/api/src/assign-notifications.ts). The voice assistant cannot assign.
  */
 export const callAssign = defineAction({
   name: 'call.assign',
-  description: 'Assign a call to a member of the workspace (their user id), or unassign it with null.',
-  input: callId.extend({ userId: z.string().min(1).nullable() }),
+  description:
+    'Assign a call to a member of the workspace (their userId from member.list), or unassign it with userId null. The member is notified unless notify is false.',
+  input: callId.extend({
+    userId: z.string().min(1).nullable(),
+    /** false: no notification to the assignee (undo puts a call back where it was). */
+    notify: z.boolean().optional(),
+  }),
   permission: 'call:write',
   public: true,
   patch: { table: 'calls', id: i => i.callId, set: i => ({ assignee_id: i.userId }) },
+})
+
+/** One member calls can be assigned to (member.list). */
+export type AssignableMember = { userId: string; name: string; role: string }
+
+export const memberList = defineAction({
+  name: 'member.list',
+  description: 'List the members of the workspace that calls can be assigned to: their userId, name and role.',
+  input: z.object({}),
+  permission: 'call:read',
+  public: true,
+  readOnly: true,
 })
 
 export const callSetActionItems = defineAction({

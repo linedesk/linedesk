@@ -11,7 +11,7 @@ import { pushSettings } from './push.ts'
 const DEFAULT_TIME_ZONE = 'America/New_York'
 
 type Channels = { email?: boolean | null; browser?: boolean | null }
-type OwnInput = Channels & { pushSummary?: boolean }
+type OwnInput = Channels & { pushSummary?: boolean; assignedEmail?: boolean }
 
 /** A member of a workspace, not the voice agent: only people have notification settings. */
 function memberOf(actor: Actor): { workspaceId: string; userId: string } {
@@ -39,6 +39,7 @@ async function loadSettings(tx: Tx, actor: Actor): Promise<NotificationSettingsD
     defaults,
     canEditDefaults: actor.permissions.includes('settings:write'),
     push: await pushSettings(tx, workspaceId, userId, own?.push_summary ?? null),
+    assignedEmail: own?.assigned_email ?? true,
   }
 }
 
@@ -49,9 +50,13 @@ const named = (input: Channels) =>
 export const notificationHandlers: Record<string, Handler> = {
   'notifications.get': async ({ tx, actor }) => ({ rows: {}, data: await loadSettings(tx, actor) }),
 
-  'notifications.update': async ({ tx, actor, now }, { pushSummary, ...channels }: OwnInput) => {
+  'notifications.update': async ({ tx, actor, now }, { pushSummary, assignedEmail, ...channels }: OwnInput) => {
     const { workspaceId, userId } = memberOf(actor)
-    const changes = { ...named(channels), ...(pushSummary === undefined ? {} : { push_summary: pushSummary }) }
+    const changes = {
+      ...named(channels),
+      ...(pushSummary === undefined ? {} : { push_summary: pushSummary }),
+      ...(assignedEmail === undefined ? {} : { assigned_email: assignedEmail }),
+    }
     await tx
       .insert(member_notification_settings)
       .values({ workspace_id: workspaceId, user_id: userId, ...changes, updated_at: now })

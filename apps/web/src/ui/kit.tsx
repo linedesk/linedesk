@@ -52,7 +52,7 @@ export function Badge({ tone = 'neutral', dot, title, children }: BadgeProps) {
 
 const initials = (name: string) => name.split(/[\s&]+/).filter(Boolean).slice(0, 2).map(w => w[0]!.toUpperCase()).join('')
 
-export function Avatar({ name, size = 32 }: { name: string; size?: 24 | 32 | 40 }) {
+export function Avatar({ name, size = 32 }: { name: string; size?: 20 | 24 | 32 | 40 }) {
   return <span className={cx('k-avatar', `k-avatar-${size}`)} role="img" aria-label={name}>{initials(name) || '?'}</span>
 }
 

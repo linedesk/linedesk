@@ -18,8 +18,8 @@ import { publicLookup } from './webhooks.ts'
 
 type Env = Record<string, string | undefined>
 
-/** What happened: the agent flagged the call urgent, took a message, or the call ended. */
-export type PushKind = 'urgent' | 'message' | 'finished'
+/** What happened: the agent flagged the call urgent, took a message, the call ended, or a teammate assigned it to you. */
+export type PushKind = 'urgent' | 'message' | 'finished' | 'assigned'
 
 /** What the service worker gets (public/sw.js). */
 export type PushPayload = { callId: string; kind: PushKind; urgent: boolean; title: string; body: string }
@@ -119,8 +119,8 @@ export function pushPayload(
 
 export type PushResult = { sent: number; gone: number; failed: number; skipped?: 'missing' | 'test' | 'spam' | 'off' }
 
-/** Members of the call's workspace (still members, not disabled) with push on, per browser. */
-async function pushRecipients(tx: Tx, workspaceId: string) {
+/** Members of the call's workspace (still members, not disabled) with push on, per browser; with `userId` only theirs. */
+async function pushRecipients(tx: Tx, workspaceId: string, userId?: string) {
   return tx
     .select({
       endpoint: push_subscriptions.endpoint,
@@ -141,7 +141,13 @@ async function pushRecipients(tx: Tx, workspaceId: string) {
         eq(member_notification_settings.user_id, push_subscriptions.user_id),
       ),
     )
-    .where(and(eq(push_subscriptions.workspace_id, workspaceId), isNull(user.disabledAt)))
+    .where(
+      and(
+        eq(push_subscriptions.workspace_id, workspaceId),
+        isNull(user.disabledAt),
+        userId ? eq(push_subscriptions.user_id, userId) : undefined,
+      ),
+    )
 }
 
 /** Rejects after `ms`, so one hanging push service cannot hold up the job (the sender has its own timeout too). */
@@ -163,31 +169,26 @@ async function inParallel<T>(items: readonly T[], limit: number, work: (item: T)
 }
 
 type SendOptions = { timeoutMs?: number; concurrency?: number }
+type Recipient = Awaited<ReturnType<typeof pushRecipients>>[number]
 
 /**
- * Sends the pushes about one call, a few at a time, each with a deadline. A failed browser does not
- * stop the others; gone ones are deleted.
+ * Sends one push per browser, a few at a time, each with a deadline. A failed browser does not stop
+ * the others; gone ones are deleted.
  */
-export async function notifyCallPush(
+async function deliver(
   tx: Tx,
   sender: PushSender,
-  callId: string,
-  kind: PushKind,
-  { timeoutMs = SEND_TIMEOUT_MS, concurrency = SEND_CONCURRENCY }: SendOptions = {},
+  call: Call,
+  recipients: Recipient[],
+  payloadFor: (r: Recipient) => PushPayload,
+  { timeoutMs = SEND_TIMEOUT_MS, concurrency = SEND_CONCURRENCY }: SendOptions,
 ): Promise<PushResult> {
   const result: PushResult = { sent: 0, gone: 0, failed: 0 }
-  if (!sender.publicKey) return { ...result, skipped: 'off' }
-  const [call] = await tx.select().from(calls).where(eq(calls.id, callId))
-  if (!call || call.deleted_at) return { ...result, skipped: 'missing' }
-  if (call.source === 'test') return { ...result, skipped: 'test' }
-  if (call.outcome === 'spam') return { ...result, skipped: 'spam' }
-  const [contact] = call.contact_id ? await tx.select().from(contacts).where(eq(contacts.id, call.contact_id)) : []
   const gone: string[] = []
-  await inParallel(await pushRecipients(tx, call.workspace_id), concurrency, async r => {
-    const payload = pushPayload(call, kind, contact?.name ?? null, r.summary === true)
+  await inParallel(recipients, concurrency, async r => {
     const target = { endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } }
     try {
-      if ((await withTimeout(sender.send(target, payload), timeoutMs)) === 'sent') result.sent++
+      if ((await withTimeout(sender.send(target, payloadFor(r)), timeoutMs)) === 'sent') result.sent++
       else gone.push(r.endpoint)
     } catch (e) {
       result.failed++
@@ -197,6 +198,69 @@ export async function notifyCallPush(
   result.gone = gone.length
   if (gone.length) await tx.delete(push_subscriptions).where(inArray(push_subscriptions.endpoint, gone))
   return result
+}
+
+/** The call a push is about, or why none goes out. */
+async function pushableCall(tx: Tx, sender: PushSender, callId: string): Promise<Call | PushResult> {
+  const none: PushResult = { sent: 0, gone: 0, failed: 0 }
+  if (!sender.publicKey) return { ...none, skipped: 'off' }
+  const [call] = await tx.select().from(calls).where(eq(calls.id, callId))
+  if (!call || call.deleted_at) return { ...none, skipped: 'missing' }
+  if (call.source === 'test') return { ...none, skipped: 'test' }
+  if (call.outcome === 'spam') return { ...none, skipped: 'spam' }
+  return call
+}
+
+const callerNameOf = async (tx: Tx, call: Call) =>
+  call.contact_id ? ((await tx.select().from(contacts).where(eq(contacts.id, call.contact_id)))[0]?.name ?? null) : null
+
+/** Sends the pushes about one call to every member with push on. */
+export async function notifyCallPush(
+  tx: Tx,
+  sender: PushSender,
+  callId: string,
+  kind: PushKind,
+  options: SendOptions = {},
+): Promise<PushResult> {
+  const call = await pushableCall(tx, sender, callId)
+  if (!('id' in call)) return call
+  const callerName = await callerNameOf(tx, call)
+  const recipients = await pushRecipients(tx, call.workspace_id)
+  return deliver(tx, sender, call, recipients, r => pushPayload(call, kind, callerName, r.summary === true), options)
+}
+
+/** Tells one member on their browsers that `byName` assigned them the call. */
+export async function notifyAssignedPush(
+  tx: Tx,
+  sender: PushSender,
+  callId: string,
+  userId: string,
+  byName: string,
+  options: SendOptions = {},
+): Promise<PushResult> {
+  const call = await pushableCall(tx, sender, callId)
+  if (!('id' in call)) return call
+  const callerName = await callerNameOf(tx, call)
+  const recipients = await pushRecipients(tx, call.workspace_id, userId)
+  return deliver(tx, sender, call, recipients, r => assignedPushPayload(call, callerName, byName, r.summary === true), options)
+}
+
+/** "Mike assigned you a call", who called, and with `withSummary` what about. */
+export function assignedPushPayload(
+  call: Pick<Call, 'id' | 'from_number' | 'urgency' | 'title'>,
+  callerName: string | null,
+  byName: string,
+  withSummary: boolean,
+): PushPayload {
+  const who = callerName || formatNumber(call.from_number)
+  const about = withSummary && call.title ? ` · ${call.title}` : ''
+  return {
+    callId: call.id,
+    kind: 'assigned',
+    urgent: call.urgency === 'urgent',
+    title: `${byName} assigned you a call`,
+    body: oneLine(`From ${who}${about}`),
+  }
 }
 
 /** The caller's push settings in their workspace, for notifications.get. */

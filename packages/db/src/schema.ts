@@ -196,6 +196,45 @@ export const transcript_segments = pgTable(
   t => [index('segments_call').on(t.call_id, t.at_ms)],
 )
 
+// The members of a workspace as the browser sees them: who calls can be assigned to. Only safe fields
+// (name, role; no email, no picture, no sign-in data). Kept in step with Better Auth's `member` and `user` by triggers
+// (migrations/0039_workspace_members.sql), whoever writes them; never written by the app. id = member.id.
+export const workspace_members = pgTable(
+  'workspace_members',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    user_id: text('user_id').notNull(),
+    name: text('name').notNull(),
+    role: text('role').notNull(),
+    /** The account is disabled by an instance admin: shown on calls it had, never offered to assign. */
+    disabled: boolean('disabled').notNull().default(false),
+    version: version(),
+  },
+  t => [index('workspace_members_ws').on(t.workspace_id)],
+)
+
+// What people did with a call, shown as its activity: assigned (assignee_id set) or unassigned (null).
+// Written by the server (call.assign), never by the browser.
+export const call_events = pgTable(
+  'call_events',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    call_id: text('call_id')
+      .notNull()
+      .references(() => calls.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: ['assigned'] }).notNull(),
+    /** The member who did it; null: an API key or the system. */
+    actor_id: text('actor_id'),
+    /** For `assigned`: the new assignee; null: unassigned. */
+    assignee_id: text('assignee_id'),
+    created_at: createdAt(),
+    version: version(),
+  },
+  t => [index('call_events_call').on(t.call_id, t.created_at)],
+)
+
 // Per-workspace settings that Better Auth's organization table does not hold. One row per workspace.
 export const workspace_settings = pgTable('workspace_settings', {
   workspace_id: text('workspace_id').primaryKey(),
@@ -234,6 +273,8 @@ export const member_notification_settings = pgTable(
     browser: boolean('browser'),
     /** Push notifications carry what the call was about (one line); null/false: only who called. */
     push_summary: boolean('push_summary'),
+    /** An email when a teammate assigns a call to this member; null: on. */
+    assigned_email: boolean('assigned_email'),
     updated_at: ts('updated_at').notNull().defaultNow(),
   },
   t => [primaryKey({ columns: [t.workspace_id, t.user_id] })],
@@ -663,7 +704,7 @@ export const webhook_deliveries = pgTable(
 /** Tables that read sync delivers to clients, filtered by workspace_id. */
 export const syncedTables = {
   calls, contacts, assistants, phone_numbers, transcript_segments, appointment_types, bookings, calendar_connections, assistant_calendars,
-  webhook_endpoints,
+  webhook_endpoints, workspace_members, call_events,
 } as const
 
 // A member's answer to the GitHub star prompt (apps/api/src/star-prompt.ts): once answered, it is

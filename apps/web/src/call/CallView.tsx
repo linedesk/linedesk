@@ -1,11 +1,11 @@
 import type { Call, TranscriptSegment } from '@linedesk/db/types'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { answeredByLabel, type CallStatus, callStatus, callTitle, formatPhone, hasReminder, STATUS_WORD, transferText } from '../inbox-model.ts'
-import { useCallAssistantName, useContact, useRun } from '../store.tsx'
-import { useTeamMembers } from '../team/useTeamMembers.ts'
-import { Select } from '../ui/controls.tsx'
+import { useCallAssistantName, useContact } from '../store.tsx'
+import { firstName, memberLabel, useMember } from '../team/members.ts'
 import { clock, dateTimeLabel, longDuration, parseTs, whenLabel } from '../time.ts'
-import { Button, Icon } from '../ui/kit.tsx'
+import { Avatar, Button, Icon } from '../ui/kit.tsx'
+import { CallActivity } from './CallActivity.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { registerContactPanel } from './contactPanel.ts'
 import { BookingCards } from './BookingCard.tsx'
@@ -27,6 +27,8 @@ export type CallViewActions = {
   onCommands?: () => void
   /** Takes a spam call back to Needs you (the only way out of Spam besides Done). */
   onToggleSpam?: (call: Call) => void
+  /** The member picker under the assign button; unset while the workspace has a single member. */
+  onAssign?: (call: Call, anchor: DOMRect) => void
 }
 
 type Props = CallViewActions & {
@@ -41,11 +43,13 @@ type Props = CallViewActions & {
   repeatCount?: number
   /** Owners and admins: the call's evaluation under the summary. */
   canReview?: boolean
+  /** The signed-in member's user id (the activity says "You"). */
+  me: string
 }
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-type BarProps = Omit<Props, 'segments' | 'search' | 'side' | 'repeatCount' | 'canReview'> & {
+type BarProps = Omit<Props, 'segments' | 'search' | 'side' | 'repeatCount' | 'canReview' | 'me'> & {
   sideOpen: boolean
   onToggleSide: () => void
 }
@@ -99,6 +103,11 @@ function Bar({ call, index, count, menu, sideOpen, onToggleSide, ...on }: BarPro
         title="Contact (I)"
         onClick={onToggleSide}
       />
+      {on.onAssign && (
+        <span className="cv-assign">
+          <AssignButton call={call} onAssign={on.onAssign} />
+        </span>
+      )}
       {!live && (
         <div className="cv-acts">
           {on.onCommands && (
@@ -172,26 +181,29 @@ function Bar({ call, index, count, menu, sideOpen, onToggleSide, ...on }: BarPro
   )
 }
 
-/** Who the call is assigned to; A assigns it to you. A teammate is picked here. */
-function Assignee({ call }: { call: Call }) {
-  const run = useRun()
-  const members = useTeamMembers()
-  if (members.length < 2 && !call.assignee_id) return null
-  const NOBODY = 'nobody'
-  const options = [
-    { value: NOBODY, label: 'Nobody' },
-    ...members.map(m => ({ value: m.userId, label: m.name || m.email })),
-  ]
+/** Who has the call: their initials and first name, or Assign. Opens the member picker under itself (A). */
+function AssignButton({ call, onAssign }: { call: Call; onAssign: (call: Call, anchor: DOMRect) => void }) {
+  const assignee = useMember(call.assignee_id)
+  const name = memberLabel(assignee)
   return (
-    <span className="cv-assign">
-      <Select
-        size="sm"
-        value={call.assignee_id ?? NOBODY}
-        options={options}
-        label="Assigned to"
-        onChange={value => void run('call.assign', { callId: call.id, userId: value === NOBODY ? null : value })}
-      />
-    </span>
+    <Button
+      size="sm"
+      variant="ghost"
+      icon={call.assignee_id ? undefined : 'user'}
+      className="cv-assign-btn"
+      aria-haspopup="dialog"
+      title={call.assignee_id ? `Assigned to ${name}: reassign (A)` : 'Assign (A)'}
+      onClick={e => onAssign(call, e.currentTarget.getBoundingClientRect())}
+    >
+      {call.assignee_id ? (
+        <>
+          <Avatar name={name} size={20} />
+          {firstName(assignee)}
+        </>
+      ) : (
+        'Assign'
+      )}
+    </Button>
   )
 }
 
@@ -221,7 +233,6 @@ function Header({ call, segments, repeatCount }: { call: Call; segments: Transcr
           {repeatCount > 1 && <span>{repeatCount} calls from this number</span>}
           {hasReminder(call) && <span>Reminder: {whenLabel(parseTs(call.reminder_at!))}</span>}
           {transferText(call) && <span className="cv-transfer">{transferText(call)}</span>}
-          <Assignee call={call} />
         </div>
       </div>
     </div>
@@ -264,7 +275,7 @@ function CopyNumber({ number }: { number: string }) {
 }
 
 /** One call, full width: what it was about, the conversation, and the caller on the side. Mount with key={call.id} so each call starts at the top. */
-export function CallView({ call, segments, search, side, repeatCount = 1, canReview = false, ...bar }: Props) {
+export function CallView({ call, segments, search, side, repeatCount = 1, canReview = false, me, ...bar }: Props) {
   const [sideOpen, setSideOpen] = useState(false)
   useEffect(() => registerContactPanel(() => setSideOpen(open => !open)), [])
   const assistant = useCallAssistantName(call.assistant_id)
@@ -297,6 +308,7 @@ export function CallView({ call, segments, search, side, repeatCount = 1, canRev
               <SummaryCard call={call} />
               {canReview && <EvaluationCard call={call} />}
               <BookingCards callId={call.id} />
+              {bar.onAssign && <CallActivity callId={call.id} me={me} />}
               {turns ? (
                 <>
                   <div className="tr-h">

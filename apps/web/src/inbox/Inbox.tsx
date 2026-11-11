@@ -30,6 +30,8 @@ const viewHeading: Record<InboxTab, string> = {
   reminders: 'Reminders',
   done: 'Done',
   mine: 'Assigned to me',
+  member: 'Assigned to a teammate',
+  unassigned: 'Unassigned',
   review: 'Needs review',
 }
 const emptyTitle: Record<InboxTab, string> = {
@@ -39,6 +41,8 @@ const emptyTitle: Record<InboxTab, string> = {
   done: 'Nothing done yet',
   reminders: 'No reminders',
   mine: 'Nothing assigned to you',
+  member: 'Nothing assigned to them',
+  unassigned: 'Every call that needs someone has someone',
   review: 'Nothing to review',
 }
 function Empty({ tab, search }: { tab: InboxTab; search: string | null }) {
@@ -95,7 +99,9 @@ export function Inbox({ list, segments, cursor, leaving, entering, menu, selecte
 
   return (
     <div className="cv">
-      <h1 className="sr-only">{search !== null ? 'Search calls' : viewHeading[tab]}</h1>
+      <h1 className="sr-only">
+        {search !== null ? 'Search calls' : tab === 'member' && rest.memberName ? `Assigned to ${rest.memberName}` : viewHeading[tab]}
+      </h1>
       <InboxHead {...rest} resultCount={list.length} menu={menu} bulk={bulk} />
       <div className="sr-only" aria-live="polite">
         {spoken}

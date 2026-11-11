@@ -20,6 +20,8 @@ export type NotificationSettingsData = {
   defaults: NotificationChannels
   canEditDefaults: boolean
   push: PushSettings
+  /** An email when a teammate assigns a call to you (on unless you turned it off). */
+  assignedEmail: boolean
 }
 
 /** Until a workspace sets its own defaults: email and browser notifications are on. */
@@ -44,6 +46,8 @@ export const notificationsUpdate = defineAction({
     browser: z.boolean().nullable().optional(),
     /** Push notifications say what the call was about (one line), not only who called. */
     pushSummary: z.boolean().optional(),
+    /** An email when a teammate assigns a call to you. */
+    assignedEmail: z.boolean().optional(),
   }),
   permission: 'call:read',
 })

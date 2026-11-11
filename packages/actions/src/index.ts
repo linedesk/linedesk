@@ -46,6 +46,7 @@ const all = [
   calls.callMarkUnread,
   calls.callRemind,
   calls.callAssign,
+  calls.memberList,
   calls.callClearReminder,
   calls.callDelete,
   calls.callRestore,

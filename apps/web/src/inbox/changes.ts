@@ -5,7 +5,8 @@ import { parseTs } from '../time.ts'
 import type { ReminderOption } from './remind.ts'
 
 export type Step = [action: string, input: Record<string, unknown>]
-export type Change = { steps: Step[]; inverse: Step[]; label: string; key: string }
+/** `onLive`: the change is fine while the call is still going (assigning it). */
+export type Change = { steps: Step[]; inverse: Step[]; label: string; key: string; onLive?: true }
 
 const id = (call: Call) => ({ callId: call.id })
 
@@ -123,16 +124,17 @@ export const clearReminderChange = (call: Call): Change => ({
   key: '⇧H',
 })
 
-/** A: the call is yours; on a call that is already yours, nobody's. */
-export const assignChange = (call: Call, me: string): Change => {
-  const mine = call.assignee_id === me
-  return {
-    steps: [['call.assign', { ...id(call), userId: mine ? null : me }]],
-    inverse: [['call.assign', { ...id(call), userId: call.assignee_id }]],
-    label: mine ? 'Unassigned.' : 'Assigned to you.',
-    key: 'A',
-  }
-}
+/**
+ * Assign the call to `userId` (null: nobody). `who` names them in the toast ("you", "Sam"). Undo puts
+ * the call back without telling the previous assignee again (notify: false).
+ */
+export const assignChange = (call: Call, userId: string | null, who: string): Change => ({
+  steps: [['call.assign', { ...id(call), userId }]],
+  inverse: [['call.assign', { ...id(call), userId: call.assignee_id, notify: false }]],
+  label: userId ? `Assigned to ${who}.` : 'Unassigned.',
+  key: 'A',
+  onLive: true,
+})
 
 export const deleteChange = (call: Call): Change => ({
   steps: [['call.delete', id(call)]],

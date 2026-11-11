@@ -5,7 +5,7 @@ import { useAssistantName, useContact } from '../store.tsx'
 import { clock, parseTs, shortDuration, timeLabel, timeUnderDay } from '../time.ts'
 import type { IconName } from '../ui/icons.ts'
 import { Checkbox } from '../ui/controls.tsx'
-import { memberName, useTeamMembers } from '../team/useTeamMembers.ts'
+import { memberLabel, useMember } from '../team/members.ts'
 import { Avatar, Badge, cx, Icon } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { highlight, searchHit } from './search.tsx'
@@ -19,6 +19,8 @@ export type RowHandlers = {
   onRemind?: (call: Call) => void
   onClearReminder?: (call: Call) => void
   onCommands?: (call: Call) => void
+  /** The member picker, under the row's assign button; unset while the workspace has a single member (no assign UI). */
+  onAssign?: (call: Call, anchor: DOMRect) => void
   /** Tick or untick a call; with shift, everything from the last ticked call to this one. */
   onSelect?: (call: Call, range: boolean) => void
 }
@@ -132,14 +134,34 @@ function SelectBox({
   )
 }
 
-/** The member a call is assigned to: a small avatar, the name in the tooltip. */
+/** The member a call is assigned to: their initials, the name in the tooltip. */
 function AssigneeMark({ userId }: { userId: string }) {
-  const members = useTeamMembers()
-  const name = memberName(members, userId)
+  const name = memberLabel(useMember(userId))
   return (
     <span className="r-assignee" title={`Assigned to ${name}`}>
-      <Avatar name={name} size={24} />
+      <Avatar name={name} size={20} />
     </span>
+  )
+}
+
+/** Opens the member picker under itself; shows the assignee's initials when the call has one. */
+function AssignAction({ call, onAssign }: { call: Call; onAssign: (call: Call, anchor: DOMRect) => void }) {
+  const assignee = useMember(call.assignee_id)
+  const title = call.assignee_id ? `Assigned to ${memberLabel(assignee)}: reassign (A)` : 'Assign (A)'
+  return (
+    <button
+      type="button"
+      className="r-act r-act-assign"
+      title={title}
+      aria-label={call.assignee_id ? `Assigned to ${memberLabel(assignee)}, reassign` : 'Assign'}
+      aria-haspopup="dialog"
+      onClick={e => {
+        e.stopPropagation()
+        onAssign(call, e.currentTarget.getBoundingClientRect())
+      }}
+    >
+      {call.assignee_id ? <Avatar name={memberLabel(assignee)} size={20} /> : <Icon name="user" size={14} />}
+    </button>
   )
 }
 
@@ -211,7 +233,7 @@ export function Row({
             {group.length}
           </span>
         )}
-        {call.assignee_id && <AssigneeMark userId={call.assignee_id} />}
+        {call.assignee_id && on.onAssign && <AssigneeMark userId={call.assignee_id} />}
         {call.source === 'sample' && <span className="r-sample">Sample</span>}
       </span>
       <Summary call={call} search={search} segments={segments} />
@@ -230,6 +252,7 @@ export function Row({
             onClick={() => on.onToggleDone!(call)}
           />
         )}
+        {on.onAssign && <AssignAction call={call} onAssign={on.onAssign} />}
         {reminded
           ? on.onClearReminder && (
               <RowAction title="Clear reminder (⇧H)" icon="restart" onClick={() => on.onClearReminder!(call)} />
