@@ -159,14 +159,18 @@ describe('a key is only as strong as the member who created it', () => {
 })
 
 describe('invalid keys per client address', () => {
-  test(`from the ${INVALID_API_KEYS_PER_IP}th refused key on an address gets 429 and is not looked up, even with a valid key; others are not affected`, async () => {
+  test(`from the ${INVALID_API_KEYS_PER_IP}th refused key on an address gets 429; a valid key from it still works, others are not affected`, async () => {
     const { key } = await createKey(ws.owner)
     const from = (ip: string, k: string) => request(bearer(k), 'GET', '/v1/me', undefined, { [FROM]: ip })
     const ip = randomIp()
     for (let i = 1; i < INVALID_API_KEYS_PER_IP; i++) expect((await from(ip, `ld_wrong-${i}`)).status).toBe(401)
     // The last refused key that is looked up already answers 429, so the client knows to stop.
     expect((await from(ip, 'ld_wrong-last')).status).toBe(429)
-    expect((await from(ip, key)).status).toBe(429)
+    // One host behind a shared address cannot lock out a working integration: a well-formed key is still looked up.
+    expect((await from(ip, key)).status).toBe(200)
+    // An unknown well-formed key is looked up too, and refused with 429; a revoked one as well.
+    expect((await from(ip, `ld_${'A'.repeat(43)}`)).status).toBe(429)
+    expect((await from(ip, 'ld_wrong-again')).status).toBe(429)
     expect((await from(randomIp(), key)).status).toBe(200)
   })
 })

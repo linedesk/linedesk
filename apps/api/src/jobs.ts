@@ -30,6 +30,8 @@ export const BOOKING_CONFIRM = 'booking.confirm'
 export const CALL_EVALUATE = 'call.evaluate'
 /** One webhook delivery (webhooks.ts). Retried with backoff: 1, 2, 4 … 32 minutes, about an hour in all. */
 export const WEBHOOK_DELIVER = 'webhook.deliver'
+/** Webhook deliveries one API process sends at the same time. */
+export const WEBHOOK_WORKERS = 5
 /** Every day: webhook payloads older than 30 days are cleared (webhooks.ts). */
 export const WEBHOOK_CLEANUP = 'webhooks.cleanup'
 /** Deletes a cloned voice at its provider once no assistant uses it (voices.ts). Retried for a day. */
@@ -69,7 +71,8 @@ async function runJobs(instance: PgBoss, env: Env) {
   await instance.work<{ callId: string }>(CALL_EVALUATE, async ([job]) => evaluateCall(db, job!.data.callId, await evaluationModel(db)))
   await instance.schedule(WEBHOOK_CLEANUP, WEBHOOK_CLEANUP_CRON)
   await instance.work(WEBHOOK_CLEANUP, async () => ({ cleared: await clearOldPayloads(db) }))
-  await instance.work<{ deliveryId: string }>(WEBHOOK_DELIVER, async ([job]) => {
+  // Several at once, so a few slow endpoints (each up to the 10 s timeout) do not hold up everyone's deliveries.
+  await instance.work<{ deliveryId: string }>(WEBHOOK_DELIVER, { localConcurrency: WEBHOOK_WORKERS }, async ([job]) => {
     const outcome = await attemptDelivery(db, job!.data.deliveryId, env)
     if (outcome === 'retry') throw new Error(`webhook delivery ${job!.data.deliveryId} failed; retrying`)
     return { outcome }

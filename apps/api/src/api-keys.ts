@@ -22,18 +22,21 @@ const newKey = () => `${API_KEY_PREFIX}${randomBytes(32).toString('base64url')}`
 const newId = () => `key_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 
 export const isApiKey = (bearer: string) => bearer.startsWith(API_KEY_PREFIX)
+/** The shape every issued key has (newKey): the prefix and 32 bytes in base64url. */
+const WELL_FORMED_KEY = new RegExp(`^${API_KEY_PREFIX}[A-Za-z0-9_-]{43}$`)
+export const isWellFormedApiKey = (key: string) => WELL_FORMED_KEY.test(key)
 
 const allowRequest = createRateLimiter({ max: API_KEY_REQUESTS_PER_MINUTE, windowMs: 60_000 })
 /** Whether a key may make another request now (per key, sliding minute). */
 export const apiKeyWithinLimit = (apiKeyId: string) => allowRequest(apiKeyId)
 
-/** Refused keys per client address in INVALID_API_KEY_WINDOW_MS; then no more lookups from it until they age out. */
+/** Refused keys per client address in INVALID_API_KEY_WINDOW_MS; then only well-formed keys are looked up from it until they age out. */
 export const INVALID_API_KEYS_PER_IP = 20
 export const INVALID_API_KEY_WINDOW_MS = 10 * 60_000
 const invalidKeys = createFailureLimiter({ max: INVALID_API_KEYS_PER_IP, windowMs: INVALID_API_KEY_WINDOW_MS })
 /** IPv6 counts per /64 (client-ip.ts). */
 const ipBucket = addressBucket
-/** Too many refused keys came from this address lately: its keys are not looked up. */
+/** Too many refused keys came from this address lately: refused keys from it answer 429. */
 export const tooManyInvalidApiKeys = (ip: string | null) => invalidKeys.blocked(ipBucket(ip))
 
 /** A key is as strong as its creator today: still a member, not disabled, with at least the key's role. */
@@ -53,11 +56,12 @@ function refuseKeyActor(actor: Actor) {
  * The actor for a Bearer API key, or null when the key is unknown or revoked, its workspace is gone
  * or disabled, or the member who created it was removed, disabled or now has a lower role than the
  * key. Permissions are the key's role's, never an owner's and never the team's (team:write); key
- * management refuses keys in its handlers. A refused key counts against the client's address, and
- * an address with too many is not looked up at all (tooManyInvalidApiKeys).
+ * management refuses keys in its handlers. A refused key counts against the client's address. From
+ * an address with too many, malformed keys are not looked up; a well-formed one still is (one indexed
+ * hash lookup), so a working integration behind a shared address is not locked out by another host.
  */
 export async function actorForApiKey(key: string, ip: string | null): Promise<Actor | null> {
-  if (tooManyInvalidApiKeys(ip)) return null
+  if (tooManyInvalidApiKeys(ip) && !isWellFormedApiKey(key)) return null
   const [found] = await db
     .select({ row: api_keys, workspaceDisabled: organization.disabledAt, creatorRole: member.role, creatorDisabled: user.disabledAt })
     .from(api_keys)

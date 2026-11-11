@@ -40,12 +40,17 @@ const short = (text: string) => (text.length > 300 ? `${text.slice(0, 297)}...` 
 /** WEBHOOK_ALLOW_PRIVATE_URLS=true: development and closed networks may send to http and private addresses. */
 const allowPrivate = (env: Env) => env.WEBHOOK_ALLOW_PRIVATE_URLS === 'true'
 const PRIVATE = 'that address is private; webhooks go to public ones only'
+/** Ports a webhook may use: HTTPS ones only, so a URL cannot aim at another service on a public host. */
+export const WEBHOOK_PORTS = ['443', '8443']
+/** Endpoints per workspace: each slow one holds a delivery worker for up to the timeout. */
+export const WEBHOOK_ENDPOINTS_PER_WORKSPACE = 10
 
 /** https, and not a private address written as such. Names are checked when they are resolved (publicLookup). */
 function addressProblem(url: string, env: Env): string | null {
   if (allowPrivate(env)) return null
-  const { protocol, hostname } = new URL(url)
+  const { protocol, hostname, port } = new URL(url)
   if (protocol !== 'https:') return 'Use an https address.'
+  if (port && !WEBHOOK_PORTS.includes(port)) return `Use port ${WEBHOOK_PORTS.join(' or ')}.`
   const host = hostname.replace(/^\[|\]$/g, '')
   return isIP(host) && isPrivateAddress(host) ? PRIVATE : null
 }
@@ -281,6 +286,9 @@ export const webhookHandlers: Record<string, Handler> = {
     await checkUrl(input.url)
     const [taken] = await tx.select({ id: webhook_endpoints.id }).from(webhook_endpoints).where(eq(webhook_endpoints.id, input.endpointId))
     if (taken) throw new Reject('that endpoint id is taken')
+    const [{ endpoints } = { endpoints: 0 }] = await tx.select({ endpoints: sql<number>`count(*)::int` }).from(webhook_endpoints).where(eq(webhook_endpoints.workspace_id, workspace_id))
+    if (endpoints >= WEBHOOK_ENDPOINTS_PER_WORKSPACE)
+      throw new Reject(`At most ${WEBHOOK_ENDPOINTS_PER_WORKSPACE} webhook endpoints per workspace. Delete one you no longer use.`)
     const [endpoint] = await tx.insert(webhook_endpoints).values({
       id: input.endpointId, workspace_id, url: input.url, events: [...new Set(input.events)], created_by: actor.actorId,
     }).returning()

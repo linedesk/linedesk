@@ -7,10 +7,10 @@ import type { AddressInfo } from 'node:net'
 import { newWebhookSecret } from '@linedesk/actions'
 import { calls, commands, webhook_deliveries, webhook_endpoints, webhook_secrets } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import { db } from '../src/db.ts'
 import {
-  attemptDelivery, clearOldPayloads, isPrivateAddress, publicLookup, SIGNATURE_HEADER, sendWebhook, urlProblem, WEBHOOK_ATTEMPTS,
+  attemptDelivery, clearOldPayloads, isPrivateAddress, publicLookup, SIGNATURE_HEADER, sendWebhook, urlProblem, WEBHOOK_ATTEMPTS, WEBHOOK_ENDPOINTS_PER_WORKSPACE,
   WEBHOOK_DISABLE_AFTER, WEBHOOK_PAYLOAD_DAYS, WEBHOOK_TESTS_PER_MINUTE,
 } from '../src/webhooks.ts'
 import { act, addMember, agent, createWorkspace, type User, type Workspace } from './helpers.ts'
@@ -52,9 +52,14 @@ async function addEndpoint(events: string[] = ['call.completed', 'call.summary_r
   const endpointId = `whe_${crypto.randomUUID().slice(0, 12)}`
   const secret = newWebhookSecret()
   const res = await act(owner, 'webhook.create', { endpointId, url: `${base}/hook`, events, secret })
-  expect(res.status).toBe(200)
+  expect(res.status, JSON.stringify(res.body)).toBe(200)
   return { endpointId, secret }
 }
+
+// Each test adds its own endpoints to the shared workspace: drop the ones of earlier tests, so the cap is never reached.
+beforeEach(async () => {
+  await db.delete(webhook_endpoints).where(eq(webhook_endpoints.workspace_id, ws.id))
+})
 
 const deliveriesOf = (endpointId: string) => db.select().from(webhook_deliveries).where(eq(webhook_deliveries.endpoint_id, endpointId))
 const endpointRow = async (endpointId: string) => (await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.id, endpointId)))[0]!
@@ -96,6 +101,28 @@ describe('endpoints', () => {
     for (const ip of ['8.8.8.8', '172.32.0.1', '2606:4700::1']) expect(isPrivateAddress(ip)).toBe(false)
   })
 
+  test('site-local and IPv4-translated (SIIT) IPv6 addresses are private; webhooks use port 443 or 8443 only', async () => {
+    for (const ip of ['fec0::1', 'feff::1', '::ffff:0:808:808', '::ffff:0:7f00:1']) expect(isPrivateAddress(ip), ip).toBe(true)
+    const env = {}
+    expect(await urlProblem('https://93.184.215.14:22/hook', env)).toMatch(/port 443 or 8443/)
+    expect(await urlProblem('https://93.184.215.14:6379/hook', env)).toMatch(/port 443 or 8443/)
+    expect(await urlProblem('https://93.184.215.14:8443/hook', env)).toBeNull()
+    expect(await urlProblem('https://93.184.215.14:443/hook', env)).toBeNull()
+  })
+
+  test(`at most ${WEBHOOK_ENDPOINTS_PER_WORKSPACE} endpoints per workspace`, async () => {
+    const own = await createWorkspace('Endpoint Cap Plumbing')
+    const existing = (await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.workspace_id, own.id))).length
+    for (let i = existing; i < WEBHOOK_ENDPOINTS_PER_WORKSPACE; i++) await addEndpoint(['call.completed'], own.owner)
+    const more = await act(own.owner, 'webhook.create', {
+      endpointId: `whe_${crypto.randomUUID().slice(0, 12)}`, url: `${base}/hook`, events: ['call.completed'], secret: newWebhookSecret(),
+    })
+    expect(more).toMatchObject({ status: 409, body: { error: expect.stringMatching(/At most 10 webhook endpoints/) } })
+    // Another workspace is not affected.
+    await addEndpoint(['call.completed'], other.owner)
+    await db.delete(webhook_endpoints).where(eq(webhook_endpoints.workspace_id, other.id))
+  })
+
   test('IPv4 inside IPv6 is checked as the IPv4 address it reaches, however it is written', async () => {
     const privateOnes = [
       '::ffff:7f00:1', '[::ffff:a9fe:a9fe]', '::ffff:127.0.0.1', '0:0:0:0:0:ffff:7f00:0001', '::7f00:1', '::127.0.0.1', '::', '::1',
@@ -126,8 +153,13 @@ describe('sending goes to the address that was checked', () => {
     // localhost resolves to 127.0.0.1: the connection's own lookup refuses it (no private switch).
     const port = (server.address() as AddressInfo).port
     received.length = 0
-    expect(await sendWebhook(`https://localhost:${port}/hook`, 'whsec_x', 'whd_1', 'webhook.test', '{}', {})).toEqual({
+    // On the default port, so the port check passes and the connection's lookup is what refuses it.
+    expect(await sendWebhook('https://localhost/hook', 'whsec_x', 'whd_1', 'webhook.test', '{}', {})).toEqual({
       ok: false, responseStatus: null, error: 'that address is private; webhooks go to public ones only',
+    })
+    // Another port is refused before any connection.
+    expect(await sendWebhook(`https://localhost:${port}/hook`, 'whsec_x', 'whd_1', 'webhook.test', '{}', {})).toMatchObject({
+      ok: false, responseStatus: null, error: 'Use port 443 or 8443.',
     })
     expect(received).toEqual([])
   })

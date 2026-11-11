@@ -47,11 +47,14 @@ function privateIpv6(g: number[]): boolean {
   if (zeroUpTo(6) || (zeroUpTo(5) && g[5] === 0xffff)) return privateIpv4(embeddedIpv4(g[6]!, g[7]!))
   // 64:ff9b::/96 (NAT64): the IPv4 address decides; 64:ff9b:1::/48 is for local networks.
   if (g[0] === 0x64 && g[1] === 0xff9b) return g[2] === 1 || privateIpv4(embeddedIpv4(g[6]!, g[7]!))
+  // ::ffff:0:0:0/96 (SIIT, IPv4-translated): never a public webhook address.
+  if (zeroUpTo(4) && g[4] === 0xffff && g[5] === 0) return true
   // 2002::/16 (6to4): the IPv4 address is in the second and third group.
   if (g[0] === 0x2002) return privateIpv4(embeddedIpv4(g[1]!, g[2]!))
   return (
     (g[0]! & 0xfe00) === 0xfc00 || // unique local
     (g[0]! & 0xffc0) === 0xfe80 || // link-local
+    (g[0]! & 0xffc0) === 0xfec0 || // site-local (deprecated, still routed inside some networks)
     (g[0]! & 0xff00) === 0xff00 || // multicast
     (g[0] === 0x2001 && g[1] === 0) || // Teredo (hides an IPv4 address)
     (g[0] === 0x2001 && g[1] === 0xdb8) || // documentation

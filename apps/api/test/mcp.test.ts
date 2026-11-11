@@ -69,7 +69,8 @@ describe('access', () => {
     const from = { [FROM]: randomIp() }
     for (let i = 0; i < 19; i++) expect((await mcp(`ld_wrong-${i}`, 'tools/list', {}, from)).status).toBe(401)
     expect((await mcp('ld_wrong-last', 'tools/list', {}, from)).status).toBe(429)
-    expect((await mcp(memberKey, 'tools/list', {}, from)).status).toBe(429)
+    // A valid key from that address still works (only refused keys are throttled).
+    expect((await mcp(memberKey, 'tools/list', {}, from)).status).toBe(200)
   })
 })
 
@@ -262,6 +263,26 @@ describe('one message per request', () => {
     expect(res.status).toBe(400)
     expect(await res.json()).toEqual({ error: 'JSON-RPC batches are not supported: send one message per request' })
     expect((await getCall(ws.call.id))!.inbox_state).toBe('open')
+  })
+
+  test('a chunked body without content-length is cut off at the limit while it is read', async () => {
+    const chunk = new TextEncoder().encode('x'.repeat(64 * 1024))
+    let sent = 0
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        // Far more than the limit if nobody stopped reading: 16 MB.
+        if (sent++ >= 256) return controller.close()
+        controller.enqueue(chunk)
+      },
+    })
+    const res = await appRequest('/mcp', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${memberKey}` },
+      body,
+      duplex: 'half',
+    } as RequestInit)
+    expect(res.status).toBe(413)
+    expect(sent).toBeLessThan(10)
   })
 
   test('no change subscriptions, no session requests, no oversized bodies', async () => {

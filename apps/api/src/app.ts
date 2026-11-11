@@ -11,7 +11,7 @@ import { setFirstPassword } from './account.ts'
 import { API_KEY_REQUESTS_PER_MINUTE, apiKeyWithinLimit, isApiKey, tooManyInvalidApiKeys } from './api-keys.ts'
 import { registerAdminRoutes } from './admin-routes.ts'
 import { clientIpOf, withClientIp } from './client-ip.ts'
-import { serveMcp } from './mcp.ts'
+import { MCP_MAX_BODY_BYTES, serveMcp } from './mcp.ts'
 import { authMethods } from './auth-methods.ts'
 import { auth, TRUSTED_ORIGINS, WEB_ORIGIN, WORKSPACE_LIMIT } from './auth.ts'
 import { refuseCrossSite } from './csrf.ts'
@@ -131,6 +131,8 @@ const openApi = openApiDocument(actions.values(), process.env.PUBLIC_URL || WEB_
 app.get('/v1/openapi.json', c => c.json(openApi))
 
 // MCP for a workspace's own AI tools: API keys only, its own gate (mcp.ts).
+// The size limit applies while the body is read, also to a chunked one without content-length.
+app.use('/mcp', bodyLimit({ maxSize: MCP_MAX_BODY_BYTES, onError: c => c.json({ error: 'request too large' }, 413) }))
 app.all('/mcp', c => serveMcp(c.req.raw, clientIpOf(c)))
 
 // Before the workspace guard: a member without a workspace has an account too.
@@ -312,6 +314,8 @@ app.get('/v1/shape/:table', async c => {
   const headers = new Headers(res.headers)
   headers.delete('content-encoding')
   headers.delete('content-length')
+  // Electric allows any origin; this API answers its own app only (cookies, no CORS).
+  for (const name of [...headers.keys()]) if (name.startsWith('access-control-')) headers.delete(name)
   // Never from the browser's cache: a polled table asks again with the same URL after a write.
   headers.set('cache-control', 'no-store')
   headers.append('vary', 'Cookie, Authorization')

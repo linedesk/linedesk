@@ -11,6 +11,7 @@ import {
   addMember,
   agent,
   anonymous,
+  appRequest,
   type Caller,
   createWorkspace,
   getAssistant,
@@ -194,6 +195,29 @@ describe('shape proxy', () => {
     vi.stubGlobal('fetch', upstream)
     return upstream
   }
+
+  test("Electric's CORS headers are not passed on; its other headers are", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response('[]', {
+            status: 200,
+            headers: {
+              'content-type': 'application/json',
+              'access-control-allow-origin': '*',
+              'access-control-expose-headers': 'electric-handle, electric-offset',
+              'electric-handle': 'h1',
+            },
+          }),
+      ),
+    )
+    const res = await appRequest('/v1/shape/calls?offset=-1', { headers: memberOfA.headers })
+    expect(res.status).toBe(200)
+    expect(res.headers.get('access-control-allow-origin')).toBeNull()
+    expect(res.headers.get('access-control-expose-headers')).toBeNull()
+    expect(res.headers.get('electric-handle')).toBe('h1')
+  })
 
   test("sends the caller's workspace filter and Electric's secret, and ignores table, where and secret from the client", async () => {
     const upstream = stubElectric()
