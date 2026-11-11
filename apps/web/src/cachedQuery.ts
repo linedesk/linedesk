@@ -133,6 +133,18 @@ export function forgetQueries() {
   }
 }
 
+/** Another account signed in on this browser: the answers stored for every other member go; this member's stay. */
+export function forgetOtherMembersQueries(actorId: string) {
+  const signedOut = `${STORAGE_PREFIX}:` // what the sign-in page shows
+  const own = `${STORAGE_PREFIX}${actorId}/`
+  try {
+    for (const key of Object.keys(localStorage))
+      if (key.startsWith(STORAGE_PREFIX) && !key.startsWith(signedOut) && !key.startsWith(own)) localStorage.removeItem(key)
+  } catch {
+    /* nothing was stored */
+  }
+}
+
 /** Queries someone is looking at are checked again when the window gets focus back (not right after a load). */
 function refreshShown() {
   const now = Date.now()

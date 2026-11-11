@@ -6,7 +6,7 @@ import { actions, applyLocally, type ActionResult, type LocalTables } from '@lin
 import { tableNames, type TableName, type Tables } from '@linedesk/db/types'
 import type { ReadSyncAdapter, TableSink } from './adapter.ts'
 import { type LocalDb, openLocalDb } from './idb.ts'
-import { asRefusal, WORKSPACE_HEADER, type WorkspaceRefusal } from './refusal.ts'
+import { asRefusal, type WorkspaceRefusal, workspaceRequestHeaders } from './refusal.ts'
 import { browserTabLink, type Command, type TabLink, type TabMessage } from './tabs.ts'
 
 type AnyRow = { id: string; version: number }
@@ -28,6 +28,8 @@ export interface StoreOptions {
   dbName: string
   /** The workspace of this store: sent with every action, so the server never runs it in another one. */
   workspaceId?: string
+  /** The account this page was opened for: sent with every action, and the local database's rows belong to it. */
+  account?: string
   adapter: ReadSyncAdapter
   onReject?: (r: Rejection) => void
   /** The local database was taken away by another tab (it signed out). The store has stopped. */
@@ -58,10 +60,35 @@ export async function forgetCursorsOnNewVersion(local: LocalDb, version: string)
   return true
 }
 
+const ACCOUNT_KEY = 'account'
+
+/**
+ * The local database belongs to one account. Opened for another one (someone else signed in on this
+ * browser without signing the first out), it is emptied first: the first account's rows are not shown
+ * and its unsent changes are never sent as the second. A database from before this marker (whose
+ * account is unknown) keeps its rows, which the read sync replaces anyway, but not its unsent changes.
+ */
+export async function claimForAccount(local: LocalDb, account: string): Promise<boolean> {
+  const owner = (await local.all<unknown>('meta')).find(([key]) => key === ACCOUNT_KEY)?.[1]
+  if (owner === account) return false
+  const stores = owner === undefined ? (['outbox'] as const) : ([...tableNames, 'outbox', 'meta'] as const)
+  for (const store of stores) await local.write(store, s => s.clear())
+  await local.write('meta', s => s.put(account, ACCOUNT_KEY))
+  return true
+}
+
+/**
+ * The tabs that share one leader: same database and same account. Another account's tabs on this
+ * browser (someone signed in in another tab) never follow a leader that sends as the first account.
+ */
+export const tabGroupName = (dbName: string, account?: string) => `linedesk-tabs:${dbName}${account ? `:${account}` : ''}`
+
 export async function createStore(opts: StoreOptions) {
   let stopped = false
+  /** Out of the tab group (see leaveTabs). */
+  let leftTabs = false
   let leading = false
-  const tabs = opts.tabs ?? browserTabLink(`linedesk-tabs:${opts.dbName}`)
+  const tabs = opts.tabs ?? browserTabLink(tabGroupName(opts.dbName, opts.account))
   const early: TabMessage[] = [] // messages that arrive while the database is still loading
   let receive = (message: TabMessage) => {
     early.push(message)
@@ -74,6 +101,7 @@ export async function createStore(opts: StoreOptions) {
       opts.onLocalDbLost?.()
     },
   })
+  if (opts.account) await claimForAccount(local, opts.account)
   if (opts.appVersion) await forgetCursorsOnNewVersion(local, opts.appVersion)
   const confirmed = emptyTables()
   let outbox: Command[] = []
@@ -161,29 +189,32 @@ export async function createStore(opts: StoreOptions) {
     opts.adapter.refresh?.()
   }
 
-  /** Read sync runs in the leading tab only; what it brings is passed on to the other tabs. */
+  /**
+   * Read sync runs in the leading tab only; what it brings is passed on to the other tabs. Once refused,
+   * an answer still on its way is dropped (it may come after another account emptied the database).
+   */
   const sinkFor = <T extends TableName>(table: T): TableSink<T> => ({
     upsert(rows) {
-      if (stopped) return
+      if (stopped || refused) return
       confirm(table, rows as AnyRow[])
       tabs.post({ type: 'upsert', table, rows: rows as AnyRow[] })
       recompute()
     },
     remove(ids) {
-      if (stopped) return
+      if (stopped || refused) return
       removeRows(table, ids)
       tabs.post({ type: 'remove', table, ids })
       recompute()
     },
     replaceAll(rows) {
-      if (stopped) return
+      if (stopped || refused) return
       replaceRows(table, rows as AnyRow[])
       tabs.post({ type: 'replace', table, rows: rows as AnyRow[] })
       recompute()
     },
     loadCursor: async () => (await local.all('meta')).find(([k]) => k === `cursor:${table}`)?.[1],
     saveCursor: cursor => {
-      if (stopped) return
+      if (stopped || refused) return
       void local.write('meta', s => s.put(cursor, `cursor:${table}`))
       if (cursor && !synced.has(table)) markSynced(table)
     },
@@ -201,7 +232,19 @@ export async function createStore(opts: StoreOptions) {
     stops = []
     clearTimeout(retry)
     tabs.post({ type: 'refused', refusal })
+    leaveTabs()
     recompute()
+  }
+
+  /**
+   * Out of the workspace's tab group: a refused tab must not keep the lead (a tab opened later for this
+   * workspace would follow a leader that never sends or reads), nor take it later. Queued writes stay
+   * on disk for the next leader.
+   */
+  function leaveTabs() {
+    if (leftTabs) return
+    leftTabs = true
+    tabs.close()
   }
 
   function forget(id: string) {
@@ -257,7 +300,7 @@ export async function createStore(opts: StoreOptions) {
             headers: {
               'content-type': 'application/json',
               'idempotency-key': c.id,
-              ...(opts.workspaceId ? { [WORKSPACE_HEADER]: opts.workspaceId } : {}),
+              ...workspaceRequestHeaders({ workspaceId: opts.workspaceId, account: opts.account }),
             },
           })
         } catch {
@@ -329,7 +372,10 @@ export async function createStore(opts: StoreOptions) {
     else if (m.type === 'remove') removeRows(m.table, m.ids, false)
     else if (m.type === 'online' && !leading) online = m.online
     else if (m.type === 'synced') synced.add(m.table)
-    else if (m.type === 'refused') refused ??= m.refusal
+    else if (m.type === 'refused' && !refused) {
+      refused = m.refusal
+      leaveTabs() // a follower must not take the lead of a refused workspace either
+    }
     recompute()
   }
 
@@ -355,7 +401,7 @@ export async function createStore(opts: StoreOptions) {
     stops.forEach(s => s())
     clearTimeout(retry)
     globalThis.removeEventListener?.('online', onOnline)
-    tabs.close() // hands the lead to another tab
+    leaveTabs() // hands the lead to another tab
     local.close()
   }
 

@@ -64,6 +64,30 @@ describe('two tabs on one workspace', () => {
     second.stop()
   })
 
+  it('a refused leader gives up the lead: a tab opened later for the workspace leads and sends what waited', async () => {
+    const sent: string[] = []
+    let refuse = true
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      sent.push(url.split('/').pop()!)
+      return refuse
+        ? respond(403, { ok: false, error: 'switched', code: 'workspace_switched', activeWorkspaceId: 'ws_b' })
+        : respond(200, { ok: true, rows: {} })
+    }))
+    const { tab } = browser()
+    const a = tab()
+    const first = await a.store
+    await first.run('call.markDone', { callId: 'c1' })
+    await eventually(() => expect(first.getSnapshot().refused).toMatchObject({ code: 'workspace_switched' }))
+    // The session is switched back elsewhere; a new tab of this workspace opens while the refused one stays open.
+    refuse = false
+    const c = tab()
+    const later = await c.store
+    await eventually(() => expect(c.syncStarted()).toBe(true)) // it leads: the refused tab let go
+    await eventually(() => expect(later.getSnapshot().pending).toBe(0)) // and sent the queued change
+    expect(sent).toEqual(['call.markDone', 'call.markDone'])
+    first.stop(); later.stop()
+  })
+
   it("does not replay another tab's command when a tab starts while it is on its way", async () => {
     const sent: string[] = []
     let answer: () => void = () => {}

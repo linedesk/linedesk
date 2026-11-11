@@ -2,6 +2,7 @@
 // local store, and its writes skip the outbox on purpose: an outbox entry is kept in IndexedDB,
 // and a provider key must never be stored in the browser.
 import type { MembershipRole, ProviderCategory, ProviderName, ProviderTestData } from '@linedesk/actions'
+import { workspaceHeaders } from '../tabWorkspace.ts'
 
 export type AdminWorkspace = {
   id: string
@@ -148,7 +149,7 @@ export async function runAdmin<N extends keyof AdminInputs>(name: N, input: Admi
     ...HIGH,
     method: 'POST',
     credentials: 'include',
-    headers: { 'content-type': 'application/json' },
+    headers: { ...workspaceHeaders(), 'content-type': 'application/json' },
     body: JSON.stringify(input),
   })
   return (await body<{ data?: Record<string, unknown> }>(res)).data ?? {}

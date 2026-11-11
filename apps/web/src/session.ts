@@ -39,7 +39,7 @@ export const WORKSPACES_QUERY = 'workspaces'
  * The workspace is this tab's from now on (tabWorkspace.ts).
  */
 function primeQueries(me: Me) {
-  setTabWorkspace(me.workspace?.id ?? null)
+  setTabWorkspace(me.workspace?.id ?? null, me.actorId)
   setQueryScope(`${me.actorId}/${me.workspace?.id ?? ''}`)
   if (me.workspaces) setQueryData(WORKSPACES_QUERY, me.workspaces, { persist: true })
 }

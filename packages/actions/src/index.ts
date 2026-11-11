@@ -12,6 +12,7 @@ import * as team from './team.ts'
 import * as webhooks from './webhooks.ts'
 
 export * from './define.ts'
+export * from './client.ts'
 export * from './input-errors.ts'
 export * from './admin.ts'
 export * from './api-keys.ts'

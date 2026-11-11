@@ -1,5 +1,5 @@
 // A caller only ever reaches rows of their own workspace, whatever ids or parameters they send.
-import { actions, type ActionDef } from '@linedesk/actions'
+import { actions, CLIENT_PROTOCOL, type ActionDef } from '@linedesk/actions'
 import { appointment_types, contacts, member, phone_numbers, tableNames, transcript_segments } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
@@ -359,5 +359,36 @@ describe("a tab's workspace (x-workspace-id) must be the session's", () => {
 
   test('the agent names a workspace with the header, as before', async () => {
     expect((await act(agent(home.id), 'call.flagUrgent', { callId: home.call.id })).status).toBe(200)
+  })
+
+  test("a page opened for another account (someone else signed in on this browser) is refused, even in a workspace both are in", async () => {
+    expect((await switchTo(home.id)).status).toBe(200)
+    const name = `Other account ${crypto.randomUUID().slice(0, 6)}`
+    const asPage = (account: string) =>
+      request(both, 'POST', '/v1/actions/contact.create', { phone: randomNumber(), name }, { 'x-workspace-id': home.id, 'x-linedesk-account': account })
+    expect(await asPage('someone-who-signed-out')).toMatchObject({ status: 403, body: { code: 'account_switched' } })
+    expect(await contactsNamed(home.id, name)).toEqual([])
+    expect((await asPage(both.userId)).status).toBe(200)
+  })
+
+  test('a browser page from before the deploy (no protocol, no workspace) is told to reload, and writes nothing', async () => {
+    expect((await switchTo(home.id)).status).toBe(200)
+    const browser = { 'sec-fetch-site': 'same-origin' }
+    const current = { ...browser, 'x-workspace-id': home.id, 'x-linedesk-client': String(CLIENT_PROTOCOL) }
+    const outdated = { ok: false, code: 'client_outdated', error: 'Linedesk was updated. Reload the page to continue.' }
+    const name = `Old page ${crypto.randomUUID().slice(0, 6)}`
+    const create = (headers: Record<string, string>) =>
+      request(both, 'POST', '/v1/actions/contact.create', { phone: randomNumber(), name }, headers)
+    expect(await create(browser)).toMatchObject({ status: 403, body: outdated })
+    expect(await create({ ...browser, 'x-workspace-id': home.id })).toMatchObject({ status: 403, body: outdated }) // a workspace but no protocol
+    expect(await contactsNamed(home.id, name)).toEqual([])
+    vi.stubGlobal('fetch', async () => new Response('[]', { status: 200 }))
+    expect(await request(both, 'GET', '/v1/shape/calls?offset=-1', undefined, browser)).toMatchObject({ status: 403, body: outdated })
+    // The current page works; /v1/me (which a page reads before it knows its workspace) is not asked.
+    expect((await create(current)).status).toBe(200)
+    expect((await request(both, 'GET', `/v1/shape/calls?offset=-1&workspace=${home.id}`, undefined, current)).status).toBe(200)
+    expect((await request(both, 'GET', '/v1/me', undefined, browser)).status).toBe(200)
+    // Not a browser (API clients, scripts): as before.
+    expect((await act(both, 'call.markRead', { callId: home.call.id })).status).toBe(200)
   })
 })

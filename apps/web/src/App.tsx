@@ -82,6 +82,7 @@ export function App() {
     <ImpersonationFrame impersonation={session.me.impersonation ?? null}>
       <StoreProvider
         workspaceId={session.me.workspace!.id}
+        account={session.me.actorId}
         readOnly={session.me.workspace?.disabled ? DISABLED_WORKSPACE : undefined}
       >
         <TabWorkspaceGuard me={session.me}>

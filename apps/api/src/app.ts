@@ -12,7 +12,7 @@ import { authMethods } from './auth-methods.ts'
 import { auth, WEB_ORIGIN, WORKSPACE_LIMIT } from './auth.ts'
 import { calendarCallback } from './calendar-callback.ts'
 import { configuredCalendarProviders } from '@linedesk/calendar'
-import { accessLost, resolveCaller, WORKSPACE_HEADER, workspaceRefusal, type Actor } from './context.ts'
+import { ACCOUNT_HEADER, accessLost, accountRefusal, clientOutdated, resolveCaller, WORKSPACE_HEADER, workspaceRefusal, type Actor } from './context.ts'
 import { db } from './db.ts'
 import { COOKIE_ACTIONS } from './impersonation.ts'
 import { registerImpersonationRoutes } from './impersonation-routes.ts'
@@ -135,7 +135,10 @@ app.use('/v1/*', async (c, next) => {
     return c.json({ ok: false, error: `rate limit: ${API_KEY_REQUESTS_PER_MINUTE} requests a minute per API key` }, 429)
   }
   // The tab's workspace must be the session's: never read or write another one (a switch in another tab).
-  const refusal = await workspaceRefusal(actor, requested)
+  const refusal =
+    accountRefusal(actor, c.req.header(ACCOUNT_HEADER) ?? null) ??
+    clientOutdated(actor, { method: c.req.method, path: c.req.path, header: name => c.req.header(name) }) ??
+    (await workspaceRefusal(actor, requested))
   if (refusal) return c.json(refusal, 403)
   c.set('actor', actor)
   await next()

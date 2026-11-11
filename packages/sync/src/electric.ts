@@ -2,7 +2,7 @@ import { FetchError, isChangeMessage, isControlMessage, ShapeStream, type Row } 
 import type { TableName } from '@linedesk/db/types'
 import type { ReadSyncAdapter, TableSink } from './adapter.ts'
 import { inOrder, type RowChange } from './ordered.ts'
-import { asRefusal, WORKSPACE_HEADER } from './refusal.ts'
+import { asRefusal, type PageScope, workspaceRequestHeaders } from './refusal.ts'
 
 type Cursor = { offset: string; handle: string }
 const json = (v: string) => JSON.parse(v) as unknown
@@ -36,6 +36,8 @@ type Options = {
   pollMs?: number
   /** The workspace this tab reads: sent with every shape request, which the server checks against the session. */
   workspaceId?: string
+  /** The account the page was opened for, sent too: the server refuses it once someone else signed in. */
+  account?: string
 }
 
 /** Shape requests yield to everything else the page asks for (writes, admin actions). */
@@ -45,10 +47,10 @@ const LOW: RequestInit = { priority: 'low' } as RequestInit
 export const shapeUrl = (api: string, table: TableName, workspaceId?: string) =>
   `${api}/v1/shape/${table}${workspaceId ? `?workspace=${encodeURIComponent(workspaceId)}` : ''}`
 
-/** The request's headers with the tab's workspace added. */
-function withWorkspace(headers: HeadersInit | undefined, workspaceId: string | undefined): Headers {
+/** The request's headers with the tab's workspace and the page's protocol added. */
+function withWorkspace(headers: HeadersInit | undefined, scope: PageScope): Headers {
   const merged = new Headers(headers)
-  if (workspaceId) merged.set(WORKSPACE_HEADER, workspaceId)
+  for (const [name, value] of Object.entries(workspaceRequestHeaders(scope))) merged.set(name, value)
   return merged
 }
 
@@ -61,7 +63,7 @@ function withWorkspace(headers: HeadersInit | undefined, workspaceId: string | u
  */
 export const electricAdapter = (
   api: string,
-  { createStream = o => new ShapeStream(o), delayMs = restartDelayMs, liveTables, pollMs = 60_000, workspaceId }: Options = {},
+  { createStream = o => new ShapeStream(o), delayMs = restartDelayMs, liveTables, pollMs = 60_000, workspaceId, account }: Options = {},
 ): ReadSyncAdapter => {
   /** Re-checks of the tables that are not live, by table. */
   const pokes = new Set<() => void>()
@@ -97,7 +99,7 @@ export const electricAdapter = (
         reading = !live
         const stream = createStream({
           url: shapeUrl(api, table, workspaceId),
-          fetchClient: (input, init) => fetch(input, { ...init, ...LOW, credentials: 'include', headers: withWorkspace(init?.headers, workspaceId) }),
+          fetchClient: (input, init) => fetch(input, { ...init, ...LOW, credentials: 'include', headers: withWorkspace(init?.headers, { workspaceId, account }) }),
           signal: controller.signal,
           subscribe: live,
           offset: cursor?.offset as never,

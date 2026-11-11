@@ -1,6 +1,6 @@
 // Who is calling: a signed-in member (session cookie) or the voice agent (bearer token).
 import { timingSafeEqual } from 'node:crypto'
-import { rolePermissions, type Permission, type Role } from '@linedesk/actions'
+import { CLIENT_PROTOCOL, CLIENT_PROTOCOL_HEADER, rolePermissions, type Permission, type Role } from '@linedesk/actions'
 import { member, organization, user } from '@linedesk/db'
 import { and, asc, eq } from 'drizzle-orm'
 import { actorForApiKey, isApiKey } from './api-keys.ts'
@@ -118,9 +118,39 @@ export const WORKSPACE_HEADER = 'x-workspace-id'
 export type WorkspaceRefusal = {
   ok: false
   error: string
-  code: 'workspace_switched' | 'workspace_access_lost'
+  code: 'workspace_switched' | 'workspace_access_lost' | 'client_outdated' | 'account_switched'
   /** With `workspace_switched`: the workspace the session is on now. */
   activeWorkspaceId?: string
+}
+
+/** The account a page was opened for (`me.actorId`), sent with its workspace requests. */
+export const ACCOUNT_HEADER = 'x-linedesk-account'
+
+/**
+ * Someone else signed in in another tab: the cookie is theirs now. A page opened for another account
+ * must not read their data or send its own queued changes as them, even in a workspace both belong to.
+ */
+export function accountRefusal(actor: Actor, pageAccount: string | null): WorkspaceRefusal | null {
+  if (!pageAccount || actor.apiKeyId || actor.role === 'agent' || pageAccount === actor.actorId) return null
+  return { ok: false, error: 'Someone else signed in on this browser. Reload to continue as them.', code: 'account_switched' }
+}
+
+type BrowserRequest ={ method: string; path: string; header: (name: string) => string | undefined }
+
+/**
+ * A page loaded before a deploy that changed what workspace requests carry (CLIENT_PROTOCOL): its
+ * reads and writes are refused until it reloads, so it can never act the old way (an old page sends
+ * no workspace and would follow a switch made in another tab). Only browser pages are asked: they
+ * send Sec-Fetch-Site, which API clients, the agent and tests do not. Only requests that read or
+ * write a workspace's data (actions, shapes) of a session that has a workspace.
+ */
+export function clientOutdated(actor: Actor, req: BrowserRequest): WorkspaceRefusal | null {
+  if (!req.header('sec-fetch-site') || actor.apiKeyId || actor.role === 'agent' || !actor.workspaceId) return null
+  const workspaceData = (req.method === 'POST' && req.path.startsWith('/v1/actions/')) || (req.method === 'GET' && req.path.startsWith('/v1/shape/'))
+  if (!workspaceData) return null
+  const protocol = Number(req.header(CLIENT_PROTOCOL_HEADER) ?? 0)
+  if (protocol >= CLIENT_PROTOCOL && req.header(WORKSPACE_HEADER)) return null
+  return { ok: false, error: 'Linedesk was updated. Reload the page to continue.', code: 'client_outdated' }
 }
 
 /** Signed in, but not (or no longer) a member of the workspace the request names. */

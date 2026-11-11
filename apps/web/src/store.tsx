@@ -17,14 +17,20 @@ export const DISABLED_WORKSPACE = 'This workspace is disabled, so nothing can be
 
 /**
  * Opens the local store. While it opens a quiet loading line shows; if it cannot open, an error with Reload: never a blank page.
+ * `account`: whose local data this is (the database is emptied when another account opens it).
  * `readOnly`: the reason writes are refused at once (no optimistic change that rolls back after the server's 403).
  */
-export function StoreProvider({ workspaceId, readOnly, children }: { workspaceId: string; readOnly?: string; children: ReactNode }) {
+export function StoreProvider({
+  workspaceId,
+  account,
+  readOnly,
+  children,
+}: { workspaceId: string; account: string; readOnly?: string; children: ReactNode }) {
   const [boot, setBoot] = useState<Boot>({ state: 'loading' })
   const [rejection, setRejection] = useState<Rejection | null>(null)
   useEffect(() => {
     let live = true
-    const lease = leaseStore(localDbName(workspaceId), workspaceId, setRejection)
+    const lease = leaseStore(localDbName(workspaceId), workspaceId, account, setRejection)
     lease.ready.then(
       store => {
         if (live) setBoot({ state: 'ready', store })
@@ -38,7 +44,7 @@ export function StoreProvider({ workspaceId, readOnly, children }: { workspaceId
       lease.release()
       setBoot({ state: 'loading' })
     }
-  }, [workspaceId])
+  }, [workspaceId, account])
   const store = boot.state === 'ready' ? boot.store : null
   const value = useMemo(() => {
     if (!store) return null

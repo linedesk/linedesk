@@ -1,8 +1,9 @@
 import 'fake-indexeddb/auto'
+import { CLIENT_PROTOCOL } from '@linedesk/actions'
 import { type Call, tableNames } from '@linedesk/db/types'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ReadSyncAdapter, TableSink } from './adapter.ts'
-import { createStore } from './store.ts'
+import { createStore, tabGroupName } from './store.ts'
 import { eventually, quietFor } from './testing.ts'
 
 const call = (over: Partial<Call> = {}) =>
@@ -56,7 +57,59 @@ describe('store', () => {
     const store = await open(fakeAdapter().adapter, { workspaceId: 'ws_a' })
     await store.run('call.markDone', { callId: 'c1' })
     await eventually(() => expect(store.getSnapshot().pending).toBe(0))
-    expect(new Headers(fetchMock.mock.calls[0]![1].headers).get('x-workspace-id')).toBe('ws_a')
+    const sent = new Headers(fetchMock.mock.calls[0]![1].headers)
+    expect(sent.get('x-workspace-id')).toBe('ws_a')
+    expect(sent.get('x-linedesk-client')).toBe(String(CLIENT_PROTOCOL))
+    store.stop()
+  })
+
+  it('sends the account the page is for, and a database opened for another account starts empty', async () => {
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) => respond(503, {}))
+    vi.stubGlobal('fetch', fetchMock)
+    const dbName = `owned${n}`
+    const first = fakeAdapter()
+    const a = await open(first.adapter, { dbName, workspaceId: 'ws_x', account: 'user_a' })
+    first.calls().upsert([call()])
+    await a.run('call.markDone', { callId: 'c1' }) // unsent (the server is down)
+    await eventually(() => expect(fetchMock).toHaveBeenCalled())
+    expect(new Headers(fetchMock.mock.calls[0]![1].headers).get('x-linedesk-account')).toBe('user_a')
+    a.stop()
+    vi.stubGlobal('fetch', vi.fn(async () => respond(200, { ok: true, rows: {} })))
+    const sameAccount = await open(fakeAdapter().adapter, { dbName, workspaceId: 'ws_x', account: 'user_a' })
+    expect(sameAccount.getSnapshot()).toMatchObject({ pending: 1 }) // still theirs
+    sameAccount.stop()
+    const other = await open(fakeAdapter().adapter, { dbName, workspaceId: 'ws_x', account: 'user_b' })
+    expect(other.getSnapshot().pending).toBe(0) // never sent as user_b
+    expect(other.rows('calls')).toEqual([]) // nor shown
+    other.stop()
+  })
+
+  it('a database from before the account marker keeps its rows but not its unsent changes', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => respond(503, {})))
+    const dbName = `unmarked${n}`
+    const first = fakeAdapter()
+    const before = await open(first.adapter, { dbName }) // an older build: no account
+    first.calls().upsert([call()])
+    await before.run('call.markDone', { callId: 'c1' })
+    before.stop()
+    const claimed = await open(fakeAdapter().adapter, { dbName, account: 'user_b' })
+    expect(claimed.getSnapshot().pending).toBe(0) // whose change it was is unknown: never sent as user_b
+    expect(claimed.rows('calls').map(c => c.id)).toEqual(['c1'])
+    claimed.stop()
+  })
+
+  it("each account has its own tab group, so one account's tab never follows another's leader", () => {
+    expect(tabGroupName('linedesk-ws_x', 'user_a')).not.toBe(tabGroupName('linedesk-ws_x', 'user_b'))
+    expect(tabGroupName('linedesk-ws_x', 'user_a')).toBe('linedesk-tabs:linedesk-ws_x:user_a')
+  })
+
+  it('after a refusal, read sync still on its way writes nothing', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => respond(200, { ok: true, rows: {} })))
+    const { adapter, calls } = fakeAdapter()
+    const store = await open(adapter, { workspaceId: 'ws_a' })
+    calls().refuse({ code: 'account_switched' })
+    calls().upsert([call()])
+    expect(store.rows('calls')).toEqual([])
     store.stop()
   })
 

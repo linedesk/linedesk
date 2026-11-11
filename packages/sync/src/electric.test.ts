@@ -1,4 +1,5 @@
 import 'fake-indexeddb/auto'
+import { CLIENT_PROTOCOL } from '@linedesk/actions'
 import { FetchError } from '@electric-sql/client'
 import { describe, expect, it } from 'vitest'
 import type { TableSink } from './adapter.ts'
@@ -88,6 +89,7 @@ describe('electric adapter', () => {
       globalThis.fetch = realFetch
     }
     expect(seen[0]!.get('x-workspace-id')).toBe('ws_a')
+    expect(seen[0]!.get('x-linedesk-client')).toBe(String(CLIENT_PROTOCOL)) // this page's protocol
     expect(seen[0]!.get('accept')).toBe('application/json')
     stop()
   })

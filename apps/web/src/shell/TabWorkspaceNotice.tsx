@@ -16,6 +16,22 @@ export type TabNotice = { title: string; text: string; switchBack: string | null
 
 /** What the notice says: the tab's workspace by name, and the one the session is on now when known. */
 export function tabNotice(refusal: WorkspaceRefusal, tab: Named, workspaces: Named[]): TabNotice {
+  if (refusal.code === 'account_switched') {
+    return {
+      title: 'Someone else signed in',
+      text: 'Another account signed in on this browser in another tab. Changes made here were not sent as them.',
+      switchBack: null,
+      reload: 'Reload',
+    }
+  }
+  if (refusal.code === 'client_outdated') {
+    return {
+      title: 'Linedesk was updated',
+      text: 'Reload to continue with the new version. Changes made here are kept and sent after the reload.',
+      switchBack: null,
+      reload: 'Reload',
+    }
+  }
   if (refusal.code === 'workspace_access_lost') {
     return {
       title: `You no longer have access to ${tab.name}`,
@@ -40,7 +56,17 @@ export function TabWorkspaceGuard({ me, children }: { me: Me; children: ReactNod
   const tab = me.workspace!
   // Heard from the tab that switched: shown at once, before this tab's next request is refused.
   const [switchedTo, setSwitchedTo] = useState<string | null>(null)
-  useEffect(() => onSwitchElsewhere(id => setSwitchedTo(id === tab.id ? null : id)), [tab.id])
+  useEffect(
+    () =>
+      onSwitchElsewhere(id => {
+        if (id !== tab.id) return setSwitchedTo(id)
+        // Switched back to this tab's workspace elsewhere. A store that was refused meanwhile has
+        // stopped for good: reload, so this tab reads and sends again (its queued changes too).
+        if (store.getSnapshot().refused) return window.location.reload()
+        setSwitchedTo(null)
+      }),
+    [tab.id, store],
+  )
   const refusal: WorkspaceRefusal | null =
     refused ?? (switchedTo ? { code: 'workspace_switched', activeWorkspaceId: switchedTo } : null)
   if (!refusal) return children

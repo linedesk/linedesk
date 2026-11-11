@@ -27,4 +27,20 @@ describe('the notice of a tab whose workspace is not the session’s', () => {
       reload: 'Reload',
     })
   })
+
+  it('someone else signed in on this browser: Reload', () => {
+    expect(tabNotice({ code: 'account_switched' }, bravo, [alpha, bravo])).toMatchObject({
+      title: 'Someone else signed in',
+      switchBack: null,
+      reload: 'Reload',
+    })
+  })
+
+  it('a page older than the server: Linedesk was updated, Reload', () => {
+    expect(tabNotice({ code: 'client_outdated' }, bravo, [alpha, bravo])).toMatchObject({
+      title: 'Linedesk was updated',
+      switchBack: null,
+      reload: 'Reload',
+    })
+  })
 })

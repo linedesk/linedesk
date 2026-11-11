@@ -5,13 +5,13 @@
 import type { MyInvitation } from '@linedesk/actions'
 import { auth } from '../auth.ts'
 import { fetchQuery, useQuery } from '../cachedQuery.ts'
-import { announceSwitch } from '../tabWorkspace.ts'
+import { announceSwitch, workspaceHeaders } from '../tabWorkspace.ts'
 
 async function runAction<T>(name: string, input: object): Promise<T> {
   const res = await fetch(`/v1/actions/${name}`, {
     method: 'POST',
     credentials: 'include',
-    headers: { 'content-type': 'application/json', 'idempotency-key': crypto.randomUUID() },
+    headers: { ...workspaceHeaders(), 'content-type': 'application/json', 'idempotency-key': crypto.randomUUID() },
     body: JSON.stringify(input),
   })
   const body = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; data?: T } | null

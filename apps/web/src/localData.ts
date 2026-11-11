@@ -4,6 +4,7 @@
 // so every way out (sign-out, another account, removal, an impersonation that starts or ends)
 // deletes all of it, not only the workspace that happens to be open.
 import { auth } from './auth.ts'
+import { forgetOtherMembersQueries } from './cachedQuery.ts'
 import { forgetMe, type Session } from './session.ts'
 import { stopAllStores } from './storeCache.ts'
 
@@ -43,7 +44,32 @@ export async function forgetLocalData() {
   const open = await stopAllStores()
   forgetMe()
   forgetElectricState()
+  forgetKeys([ACCOUNT_KEY, SEEN_INVITATIONS_KEY])
   await Promise.all((await localDatabaseNames(open)).map(deleteDatabase))
+}
+
+/** The account this browser's local data belongs to (set when a session opens, see forgetBeyond). */
+const ACCOUNT_KEY = 'linedesk-account'
+/** Invitations this browser already announced (shell/invitations.ts): they name the person's workspaces. */
+const SEEN_INVITATIONS_KEY = 'linedesk.seenInvitations'
+
+function forgetKeys(keys: string[]) {
+  try {
+    for (const key of keys) localStorage.removeItem(key)
+  } catch {
+    /* private window: nothing was stored */
+  }
+}
+
+/** Remembers whose local data this is; returns the account it belonged to before (null: nobody known). */
+function claimLocalData(account: string): string | null {
+  try {
+    const before = localStorage.getItem(ACCOUNT_KEY)
+    localStorage.setItem(ACCOUNT_KEY, account)
+    return before
+  } catch {
+    return null
+  }
 }
 
 /** Ends the session and deletes what this browser kept of it ("Use a different account" and the like). */
@@ -67,6 +93,15 @@ export async function forgetBeyond(session: Session) {
   if (session.state === 'signedOut' || session.state === 'needsWorkspace') return forgetLocalData()
   if (session.state !== 'ready' || session.offline) return
   const { me } = session
+  const before = claimLocalData(me.actorId)
+  if (before && before !== me.actorId) {
+    // Someone else signed in without signing the last person out (another tab): nothing of theirs
+    // stays. The workspace opening now is emptied by its store (claimForAccount), the rest goes here.
+    forgetElectricState()
+    forgetOtherMembersQueries(me.actorId)
+    forgetKeys([SEEN_INVITATIONS_KEY])
+    return forgetOtherWorkspaces(me.workspace ? [me.workspace.id] : [])
+  }
   await forgetOtherWorkspaces(me.workspaces?.map(w => w.id) ?? (me.workspace ? [me.workspace.id] : []))
 }
 

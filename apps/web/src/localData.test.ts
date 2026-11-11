@@ -63,6 +63,8 @@ describe('leaving a session deletes everything this browser kept of it', () => {
       'linedesk-last-me': '{}',
       'linedesk-q:u1/ws_open:team': '[]',
       'linedesk-q::auth-methods': '{}', // what the sign-in page shows: no member, stays
+      'linedesk.seenInvitations': '["inv_1"]',
+      'linedesk-account': 'u1',
       'theme-of-the-page': 'dark',
     })
     await forgetLocalData()
@@ -94,6 +96,35 @@ describe('leaving a session deletes everything this browser kept of it', () => {
 })
 
 describe('once the session is known', () => {
+  it('another account than the last one (signed in in another tab): nothing of the last one stays', async () => {
+    const idb = fakeIndexedDb(['linedesk-ws_shared', 'linedesk-ws_only_theirs'])
+    const storage = fakeStorage({
+      'linedesk-account': 'u_before',
+      electric_expired_shapes: '{}',
+      'linedesk-q:u_before/ws_shared:team': '[]',
+      'linedesk-q:u1/ws_shared:workspaces': '[]',
+      'linedesk-q::auth-methods': '{}',
+      'linedesk.seenInvitations': '["inv_1"]',
+    })
+    const me = {
+      ...member,
+      workspace: { id: 'ws_shared', name: 'Shared' },
+      workspaces: [
+        { id: 'ws_shared', name: 'Shared' },
+        { id: 'ws_only_theirs', name: 'X' },
+      ],
+    }
+    await forgetBeyond({ state: 'ready', me, offline: false })
+    // The workspace opening now is emptied by its store (it is marked with its account); every other database goes.
+    expect(idb.left()).toEqual(['linedesk-ws_shared'])
+    expect(storage.keys()).toEqual([
+      'linedesk-account',
+      'linedesk-q::auth-methods',
+      'linedesk-q:u1/ws_shared:workspaces',
+    ])
+    expect(localStorage.getItem('linedesk-account')).toBe('u1')
+  })
+
   it('signed in: databases of workspaces the member is no longer in go, theirs stay', async () => {
     const idb = fakeIndexedDb(['linedesk-ws_a', 'linedesk-ws_b', 'linedesk-ws_removed'])
     fakeStorage({})
