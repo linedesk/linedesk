@@ -74,22 +74,12 @@ export const BEHAVIOURS = [
     on: false,
     say: 'Before you save a message, read the number the team will call back on to the caller and ask them to confirm it.',
   },
-  {
-    id: 'emergency_fee',
-    label: 'Mention the emergency call-out fee',
-    on: false,
-    say: 'When a caller has an emergency or wants someone to come outside business hours, tell them about the emergency or after-hours fee from the services and prices list before you put them through or take the message. If the list has no such fee, do not mention one.',
-  },
-  {
-    id: 'ask_referral',
-    label: 'Ask new callers how they heard about you',
-    on: false,
-    say: 'When the caller is new to the business, ask once, near the end, how they heard about the business, and put the answer in the message.',
-  },
 ] as const satisfies readonly { id: string; label: string; on: boolean; say: string | null; sayOff?: string }[]
 
 export type BehaviourId = (typeof BEHAVIOURS)[number]['id']
 export const BEHAVIOUR_IDS = BEHAVIOURS.map(b => b.id) as [BehaviourId, ...BehaviourId[]]
+/** Switches that were removed; still accepted from an older web app and dropped, and ignored when stored. */
+export const REMOVED_BEHAVIOUR_IDS = ['emergency_fee', 'ask_referral'] as const
 
 /** Whether a behaviour is on for an assistant: its own choice, else the default. */
 export const behaviourOn = (stored: Readonly<Record<string, boolean>> | null | undefined, id: BehaviourId): boolean =>
