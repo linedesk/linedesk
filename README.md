@@ -1,8 +1,31 @@
-# Linedesk
+<p align="center">
+  <a href="https://linedesk.ai">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/images/linedesk-logo-dark.svg">
+      <img src="docs/images/linedesk-logo.svg" alt="Linedesk" width="260">
+    </picture>
+  </a>
+</p>
 
-**The open-source AI receptionist for businesses.** It answers every call, books the appointment and hands over to a person when needed, and you own the code and the data. Every call lands in a fast, keyboard-first inbox.
+<h3 align="center">The open-source AI receptionist for businesses</h3>
 
-[Website](https://linedesk.ai) · [Self-hosting](#self-hosting) · [Contributing](CONTRIBUTING.md) · [License](LICENSE)
+<p align="center">
+  Answers every call, books the appointment and hands over to a person when needed.<br>
+  You own the code and the data. Every call lands in a fast, keyboard-first inbox.
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-1C1917?style=flat-square" alt="License: AGPL-3.0"></a>
+  <img src="https://img.shields.io/badge/status-pre--release-22C55E?style=flat-square" alt="Status: pre-release">
+  <a href="https://github.com/linedesk/linedesk/stargazers"><img src="https://img.shields.io/github/stars/linedesk/linedesk?style=flat-square&color=1C1917" alt="GitHub stars"></a>
+</p>
+
+<p align="center">
+  <a href="https://linedesk.ai"><b>Website</b></a> ·
+  <a href="#self-hosting"><b>Self-hosting</b></a> ·
+  <a href="CONTRIBUTING.md"><b>Contributing</b></a> ·
+  <a href="mailto:hello@linedesk.ai"><b>Contact</b></a>
+</p>
 
 > **Status: in development, the code is not public yet.** Linedesk already takes real phone calls in our development version. We will publish the source here under the AGPL-3.0 with the first public release. Watch or star the repository to get notified.
 
