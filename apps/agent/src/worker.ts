@@ -164,13 +164,19 @@ async function greet(session: voice.AgentSession, config: AgentConfig, call: Cal
   return 'synthesized'
 }
 
-/** Greets the caller and runs the conversation until the session closes. */
-async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClient, config: AgentConfig, call: CallSession, log: CallLog, onClose: () => void, setup: SetupTimer, stopRecordingForTransfer: () => Promise<void>) {
+/**
+ * Greets the caller and runs the conversation until the session closes. The session starts without
+ * waiting for the caller: it links to them once they join (on a phone call they are there already),
+ * and the greeting plays as soon as they hear the agent's audio. Transfer is added once it is known.
+ */
+async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant>, api: ApiClient, config: AgentConfig, call: CallSession, log: CallLog, onClose: () => void, setup: SetupTimer, stopRecordingForTransfer: () => Promise<void>) {
   const key = greetingKey({
     provider: config.tts.provider, model: ttsModelOf(config.tts), voiceId: voiceFor(config.tts, call.assistant?.voice),
     text: call.assistant?.greeting || FALLBACK_GREETING,
   })
   const cachedGreeting = greetingCache.get(key) // read while the session starts
+  let callerIdentity: string | undefined
+  void callerJoined.then(caller => (callerIdentity = caller.identity), () => {})
   const session = new voice.AgentSession(createPipeline(config, call.assistant?.voice))
   const onSpeaking = ({ newState }: { newState: string }) => {
     if (newState !== 'speaking') return
@@ -183,17 +189,35 @@ async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClie
   logTurnMetrics(session, call.callId)
   skipQuietToolReplies(session, QUIET_TOOLS)
   session.on(voice.AgentSessionEventTypes.Close, onClose)
-  const transfer = await transferFor(ctx, api, call, config, caller.identity, stopRecordingForTransfer)
-  const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, transfer !== null)
-  void warmUpLlm(config.llm, instructions)
   const endCall = () => hangUpAfterSpeech(speakingOf(session), () => void ctx.deleteRoom().catch(() => {}))
+  const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, false)
+  const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, null) })
+  void warmUpLlm(config.llm, instructions)
   await session.start({
-    agent: new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, transfer) }),
+    agent,
     room: ctx.room,
-    inputOptions: { participantIdentity: caller.identity, participantKinds: ALL_PARTICIPANT_KINDS, closeOnDisconnect: true },
+    // Linked to the caller when known by now, else to the first participant that joins (only the caller does).
+    inputOptions: { ...(callerIdentity ? { participantIdentity: callerIdentity } : {}), participantKinds: ALL_PARTICIPANT_KINDS, closeOnDisconnect: true },
   })
   setup.mark('session')
   setup.note(await greet(session, config, call, cachedGreeting, key))
+  void addTransfer(agent, callerJoined, { ctx, api, call, config, log, endCall, stopRecording: stopRecordingForTransfer })
+}
+
+/** Gives the assistant transfer_call, and the instructions for it, once it is known that it can transfer now. */
+async function addTransfer(
+  agent: voice.Agent, callerJoined: Promise<RemoteParticipant>,
+  { ctx, api, call, config, log, endCall, stopRecording }: { ctx: JobContext; api: ApiClient; call: CallSession; config: AgentConfig; log: CallLog; endCall: () => void; stopRecording: () => Promise<void> },
+) {
+  try {
+    const caller = await callerJoined
+    const transfer = await transferFor(ctx, api, call, config, caller.identity, stopRecording)
+    if (!transfer) return
+    await agent.updateInstructions(buildInstructions(call.assistant, call.businessHours, call.booking, true))
+    await agent.updateTools(assistantTools(api, call, log, endCall, transfer))
+  } catch (e) {
+    console.warn(`call ${call.callId} goes on without transfer: ${e instanceof Error ? e.message : String(e)}`)
+  }
 }
 
 /** What transfer_call needs on this call, or null when the assistant does not transfer now (off, closed, nobody to dial). */
@@ -244,10 +268,14 @@ async function entry(ctx: JobContext) {
   // Started now, so the config lookup overlaps with waiting for the caller and registering the call.
   const ready = checkReadiness(loadAgentConfig)
   // A test call's caller may be our own test-caller agent (no-phone call test), which LiveKit's own wait skips.
-  const caller = parseTestMetadata(ctx.job.metadata) ? await waitForCounterpart(ctx) : await ctx.waitForParticipant()
-  setup.mark('caller')
-  const origin = callOrigin(ctx.job.metadata, caller.attributes, ctx.room.name ?? '')
-  const call = (await early) ?? (await startCall(api, origin))
+  // Nothing below waits for the caller, unless the call could not be registered without them.
+  const isTest = parseTestMetadata(ctx.job.metadata) !== null
+  const callerJoined = (isTest ? waitForCounterpart(ctx) : ctx.waitForParticipant()).then(caller => {
+    setup.mark('caller')
+    return caller
+  })
+  callerJoined.catch(() => {}) // a caller who never comes: the session closes with the room; awaited below where needed
+  const call = (await early) ?? (await startCall(api, callOrigin(ctx.job.metadata, (await callerJoined).attributes, ctx.room.name ?? '')))
   setup.mark('registered')
   if (call.blocked) {
     await ctx.deleteRoom() // blocked caller: the API already filed the call in Spam
@@ -278,8 +306,8 @@ async function entry(ctx: JobContext) {
   const finishOnce = once(finish, `could not finish call ${call.callId}`)
   ctx.addShutdownCallback(finishOnce)
   try {
-    await converse(ctx, caller, api, config, call, log, finishOnce, setup, stopRecordingForTransfer)
-    if (origin.kind === 'test') endTestCallLater(ctx)
+    await converse(ctx, callerJoined, api, config, call, log, finishOnce, setup, stopRecordingForTransfer)
+    if (isTest) endTestCallLater(ctx)
   } catch (e) {
     await finishOnce()
     throw e

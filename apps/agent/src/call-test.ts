@@ -56,15 +56,28 @@ function dispatcher() {
   return new AgentDispatchClient(livekitHttpUrl(livekit.LIVEKIT_URL), livekit.LIVEKIT_API_KEY, livekit.LIVEKIT_API_SECRET)
 }
 
-/** Both agents in one room: the business's as a test call of its workspace, and the test caller. */
+/** Resolves once someone is in `room`; throws after `timeoutMs`. */
+async function waitForParticipant(room: string, timeoutMs = 20_000) {
+  const livekit = requireLivekitEnv()
+  const rooms = new RoomServiceClient(livekitHttpUrl(livekit.LIVEKIT_URL), livekit.LIVEKIT_API_KEY, livekit.LIVEKIT_API_SECRET)
+  for (const deadline = Date.now() + timeoutMs; Date.now() < deadline; await new Promise(resolve => setTimeout(resolve, 100))) {
+    if ((await rooms.listParticipants(room).catch(() => [])).length) return
+  }
+  throw new Error(`the test caller did not join room ${room} within ${timeoutMs / 1000} s`)
+}
+
+/** Both agents in one room: the test caller, and the business's as a test call of its workspace. */
 async function startInRoom({ name, room, to, since, api }: Run) {
   const { workspaceId } = (await api.run(callFindForTest, { to, since, room })).data as CallTestFinding
   const dispatch = dispatcher()
   const caller: TestCallerMetadata = { source: 'test-caller', scenario: name, mode: 'room' }
   const { businessHours, outsideGreeting, onCall } = scenarios[name] as Scenario
   const metadata = { source: 'test', workspaceId, ...(businessHours ? { businessHours } : {}), ...(outsideGreeting ? { outsideGreeting } : {}), ...(onCall ? { onCall } : {}) }
-  await dispatch.createDispatch(room, AGENT_NAME, { metadata: JSON.stringify(metadata) })
+  // The caller first, as on a phone call: the caller is in the room when the business's job starts,
+  // so the business's own timing from its job start is not the time the test caller takes to join.
   await dispatch.createDispatch(room, AGENT_NAME, { metadata: JSON.stringify(caller) })
+  await waitForParticipant(room)
+  await dispatch.createDispatch(room, AGENT_NAME, { metadata: JSON.stringify(metadata) })
   console.log(`Test call in room ${room} with workspace ${workspaceId} (scenario ${name}, no phone)…`)
 }
 

@@ -46,17 +46,24 @@ export function createOnsetDetector() {
   }
 }
 
-/** Collects greeting and reply times; `onset` and `callerStopped` are fed by the test caller. */
-export function createLatencyLog(startedAt: number) {
+/**
+ * Collects greeting and reply times; `onset` and `callerStopped` are fed by the test caller. `startedAt`
+ * null: the dialled call still rings, and what is heard before `pickedUp` (a ringback tone) is no greeting.
+ */
+export function createLatencyLog(startedAt: number | null) {
   const sample: LatencySample = { greetingMs: null, replyMs: [] }
   let callerStoppedAt: number | null = null
   return {
     sample,
+    pickedUp(atMs: number) {
+      startedAt = atMs
+    },
     callerStopped(atMs: number) {
       callerStoppedAt = atMs
     },
     /** The business started speaking, `onsetMs` back from when it was detected. */
     businessStarted(atMs: number, onsetMs = ONSET_MS) {
+      if (startedAt === null) return
       const startedSpeaking = atMs - onsetMs
       if (sample.greetingMs === null) sample.greetingMs = Math.max(0, startedSpeaking - startedAt)
       else if (callerStoppedAt !== null) sample.replyMs.push(Math.max(0, startedSpeaking - callerStoppedAt))
@@ -65,9 +72,26 @@ export function createLatencyLog(startedAt: number) {
   }
 }
 
+/** LiveKit SIP's status of a dialled participant, which joins the room while the call still rings. */
+const SIP_CALL_STATUS = 'sip.callStatus'
+export const isRinging = (attributes: Record<string, string>) => Boolean(attributes[SIP_CALL_STATUS]) && attributes[SIP_CALL_STATUS] !== 'active'
+
+/** Calls `pickedUp` when the business answers the dialled call. */
+function onPickup(ctx: JobContext, counterpart: RemoteParticipant, pickedUp: (atMs: number) => void) {
+  const onChange = (_changed: Record<string, string>, participant: { identity: string; attributes: Record<string, string> }) => {
+    if (participant.identity !== counterpart.identity || participant.attributes[SIP_CALL_STATUS] !== 'active') return
+    ctx.room.off(RoomEvent.ParticipantAttributesChanged, onChange)
+    pickedUp(Date.now())
+  }
+  ctx.room.on(RoomEvent.ParticipantAttributesChanged, onChange)
+}
+
 /** Measures on the counterpart's audio and publishes the numbers on every change. */
 export function measureLatency(ctx: JobContext, counterpart: RemoteParticipant, session: voice.AgentSession | null) {
-  const log = createLatencyLog(Date.now())
+  // Over the phone the greeting is timed from pickup, not from when the call started ringing.
+  const ringing = isRinging(counterpart.attributes)
+  const log = createLatencyLog(ringing ? null : Date.now())
+  if (ringing) onPickup(ctx, counterpart, log.pickedUp)
   const publish = () => void ctx.room.localParticipant?.setAttributes({ [LATENCY_ATTRIBUTE]: JSON.stringify(log.sample) }).catch(() => {})
   session?.on(voice.AgentSessionEventTypes.AgentStateChanged, ({ oldState }) => {
     if (oldState === 'speaking') log.callerStopped(Date.now())

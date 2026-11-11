@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import type { CallTestFinding } from '@linedesk/actions'
-import { createLatencyLog, createOnsetDetector, rms } from './latency.ts'
+import { createLatencyLog, createOnsetDetector, isRinging, rms } from './latency.ts'
 import { isGoodbye } from './caller.ts'
 import { waitForFinishedCall } from './wait.ts'
 import { describeMetrics } from '../turn-metrics.ts'
@@ -132,6 +132,18 @@ test('greeting from the start, replies from the end of each caller turn', () => 
   expect(percentile([5, 1, 3, 2, 4], 50)).toBe(3)
   expect(percentile([5, 1, 3, 2, 4, 6, 7, 8, 9, 10], 90)).toBe(9)
   expect(percentile([], 90)).toBeNull()
+})
+
+test('a dialled call times the greeting from pickup and ignores the ringback before it', () => {
+  expect(isRinging({ 'sip.callStatus': 'ringing' })).toBe(true)
+  expect(isRinging({ 'sip.callStatus': 'active' })).toBe(false)
+  expect(isRinging({})).toBe(false)
+  const log = createLatencyLog(null)
+  log.businessStarted(3000) // ringback tone
+  expect(log.sample.greetingMs).toBeNull()
+  log.pickedUp(5000)
+  log.businessStarted(5860) // greeting starts at 5800
+  expect(log.sample.greetingMs).toBe(800)
 })
 
 test('the test caller may only hang up after saying goodbye', () => {
