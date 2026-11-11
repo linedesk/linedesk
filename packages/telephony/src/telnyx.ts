@@ -4,8 +4,6 @@ import { TelephonyError, type AvailableNumber, type CallStatus, type CallStatusE
 
 const API = 'https://api.telnyx.com/v2'
 const CONNECTION_NAME = 'linedesk-livekit'
-// The name before the rename to Linedesk: an account that already has that connection keeps using it.
-const LEGACY_CONNECTION_NAME = 'callfront-livekit'
 const WEBHOOK_TOLERANCE_SEC = 300
 const ORDER_LOOKUPS = 10
 // DER prefix that turns a raw 32-byte Ed25519 public key into SPKI.
@@ -57,10 +55,8 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
 
   /** Linedesk's FQDN connection to LiveKit SIP, if the account has one. */
   async function findConnection(): Promise<string | undefined> {
-    // Both names end in "-livekit", so one look-up finds either.
-    const { data } = await request('GET', '/fqdn_connections?filter[connection_name][contains]=-livekit')
-    const all = (data ?? []) as Json[]
-    return (all.find(c => c.connection_name === CONNECTION_NAME) ?? all.find(c => c.connection_name === LEGACY_CONNECTION_NAME))?.id
+    const { data } = await request('GET', `/fqdn_connections?filter[connection_name][contains]=${CONNECTION_NAME}`)
+    return (data as Json[] | undefined)?.find(c => c.connection_name === CONNECTION_NAME)?.id
   }
 
   /** The FQDN connection that forwards to LiveKit SIP, looked up by name and created if missing. */

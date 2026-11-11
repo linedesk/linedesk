@@ -64,5 +64,5 @@ export function createApiClient({ baseUrl, token, fetch: doFetch = fetch }: ApiC
 export function apiClientFromEnv(env: NodeJS.ProcessEnv = process.env): ApiClient {
   const token = env.AGENT_API_TOKEN
   if (!token) throw new Error('AGENT_API_TOKEN is not set')
-  return createApiClient({ baseUrl: env.LINEDESK_API_URL ?? env.CALLFRONT_API_URL ?? 'http://localhost:3100', token })
+  return createApiClient({ baseUrl: env.LINEDESK_API_URL ?? 'http://localhost:3100', token })
 }

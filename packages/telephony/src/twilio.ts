@@ -5,8 +5,6 @@ import { TelephonyError, type AvailableNumber, type CallStatus, type CallStatusE
 
 const TRUNKING = 'https://trunking.twilio.com/v1'
 const TRUNK_NAME = 'linedesk-livekit'
-// The name before the rename to Linedesk: an account that already has that trunk keeps using it.
-const LEGACY_TRUNK_NAME = 'callfront-livekit'
 
 export interface TwilioOptions {
   accountSid: string
@@ -60,8 +58,7 @@ export function createTwilioProvider({ accountSid, authToken, fetch: doFetch = f
   /** Linedesk's Elastic SIP trunk to LiveKit SIP, if the account has one. */
   async function findTrunk(): Promise<string | undefined> {
     const { trunks } = await request('list trunks', 'GET', `${TRUNKING}/Trunks?PageSize=1000`)
-    const all = (trunks ?? []) as Json[]
-    return (all.find(t => t.friendly_name === TRUNK_NAME) ?? all.find(t => t.friendly_name === LEGACY_TRUNK_NAME))?.sid
+    return (trunks as Json[] | undefined)?.find(t => t.friendly_name === TRUNK_NAME)?.sid
   }
 
   /** The Elastic SIP trunk that forwards to LiveKit SIP, looked up by name and created if missing. */

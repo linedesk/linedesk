@@ -127,18 +127,6 @@ describe('telnyx adapter', () => {
     expect(steps(second.calls)).toEqual(['GET /fqdn_connections', 'GET /fqdns', 'PATCH /phone_numbers/num_1'])
   })
 
-  test('reuses a connection made before the rename to Linedesk', async () => {
-    const account = telnyxAccount({ owned: true })
-    const legacy = mockTelnyx(call =>
-      call.method === 'GET' && call.path.startsWith('/fqdn_connections')
-        ? { json: { data: [{ id: 'conn_old', connection_name: 'callfront-livekit' }] } }
-        : account(call),
-    )
-    await legacy.provider.routeToSip(routed, SIP)
-    expect(steps(legacy.calls)).toEqual(['GET /fqdn_connections', 'GET /fqdns', 'POST /fqdns', 'PATCH /phone_numbers/num_1'])
-    expect(legacy.calls[3]!.body).toEqual({ connection_id: 'conn_old' })
-  })
-
   test('repairs a connection that has no FQDN and replaces a changed endpoint', async () => {
     const account: Account = { owned: true, connection: true }
     await mockTelnyx(telnyxAccount(account)).provider.routeToSip(routed, SIP)

@@ -5,8 +5,6 @@ import { RoomAgentDispatch, RoomConfiguration, SipClient } from 'livekit-server-
 import { AGENT_NAME, livekitHttpUrl, requireLivekitEnv, runScript } from './env.ts'
 
 const NAME = 'linedesk-inbound'
-// Trunk and rule made before the rename to Linedesk are replaced too.
-const NAMES = [NAME, 'callfront-inbound']
 const DEMO_NUMBER = '+15035550142'
 
 async function main() {
@@ -15,8 +13,8 @@ async function main() {
   if (!numbers.length) numbers.push(DEMO_NUMBER)
   const sip = new SipClient(livekitHttpUrl(env.LIVEKIT_URL), env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET)
 
-  for (const rule of await sip.listSipDispatchRule()) if (NAMES.includes(rule.name)) await sip.deleteSipDispatchRule(rule.sipDispatchRuleId)
-  for (const trunk of await sip.listSipInboundTrunk()) if (NAMES.includes(trunk.name)) await sip.deleteSipTrunk(trunk.sipTrunkId)
+  for (const rule of await sip.listSipDispatchRule()) if (rule.name === NAME) await sip.deleteSipDispatchRule(rule.sipDispatchRuleId)
+  for (const trunk of await sip.listSipInboundTrunk()) if (trunk.name === NAME) await sip.deleteSipTrunk(trunk.sipTrunkId)
 
   const trunk = await sip.createSipInboundTrunk(NAME, numbers)
   const rule = await sip.createSipDispatchRule({ type: 'individual', roomPrefix: 'call-' }, {

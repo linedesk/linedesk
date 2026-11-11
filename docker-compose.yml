@@ -8,8 +8,6 @@
 # (LINEDESK_VOICE_CPUSET) instead of a quota, because a quota stalls real-time audio even when idle;
 # the other services have quotas that add up to half a core. At most 1.5 CPUs in all.
 # Published host ports: Caddy (LINEDESK_HTTP_BIND) and LiveKit's call audio and SIP ports. Nothing else.
-# An install from before the rename to Linedesk keeps working: its CALLFRONT_* variables are still read,
-# and COMPOSE_PROJECT_NAME, POSTGRES_USER and POSTGRES_DB in .env keep its project, volumes and database.
 name: linedesk
 
 x-service: &service
@@ -32,8 +30,8 @@ services:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
       interval: 2s
       retries: 20
-    mem_limit: ${LINEDESK_POSTGRES_MEM:-${CALLFRONT_POSTGRES_MEM:-128m}}
-    cpus: ${LINEDESK_POSTGRES_CPUS:-${CALLFRONT_POSTGRES_CPUS:-0.1}}
+    mem_limit: ${LINEDESK_POSTGRES_MEM:-128m}
+    cpus: ${LINEDESK_POSTGRES_CPUS:-0.1}
 
   electric:
     <<: *service
@@ -48,8 +46,8 @@ services:
       test: ["CMD-SHELL", "curl -fs http://localhost:3000/v1/health | grep -q active"]
       interval: 2s
       retries: 30
-    mem_limit: ${LINEDESK_ELECTRIC_MEM:-${CALLFRONT_ELECTRIC_MEM:-320m}}
-    cpus: ${LINEDESK_ELECTRIC_CPUS:-${CALLFRONT_ELECTRIC_CPUS:-0.2}}
+    mem_limit: ${LINEDESK_ELECTRIC_MEM:-320m}
+    cpus: ${LINEDESK_ELECTRIC_CPUS:-0.2}
 
   api:
     <<: *service
@@ -74,8 +72,8 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       electric: { condition: service_healthy }
-    mem_limit: ${LINEDESK_API_MEM:-${CALLFRONT_API_MEM:-128m}}
-    cpus: ${LINEDESK_API_CPUS:-${CALLFRONT_API_CPUS:-0.1}}
+    mem_limit: ${LINEDESK_API_MEM:-128m}
+    cpus: ${LINEDESK_API_CPUS:-0.1}
 
   # Caddy: the web entry point. Serves the web app and proxies /api, /v1 and LiveKit signalling (/rtc).
   # Plain HTTP here: on LINEDESK_HTTP_BIND (default: port 80 on all interfaces), or behind an existing
@@ -85,12 +83,12 @@ services:
     <<: *service
     build: { context: ., target: web }
     image: linedesk-web
-    ports: ["${LINEDESK_HTTP_BIND:-${CALLFRONT_HTTP_BIND:-80}}:80"]
+    ports: ["${LINEDESK_HTTP_BIND:-80}:80"]
     volumes: ["caddy_data:/data"]
     depends_on:
       api: { condition: service_healthy }
-    mem_limit: ${LINEDESK_WEB_MEM:-${CALLFRONT_WEB_MEM:-48m}}
-    cpus: ${LINEDESK_WEB_CPUS:-${CALLFRONT_WEB_CPUS:-0.05}}
+    mem_limit: ${LINEDESK_WEB_MEM:-48m}
+    cpus: ${LINEDESK_WEB_CPUS:-0.05}
 
   # Voice: LiveKit server, its SIP bridge and the Redis-compatible store they share.
   # The key and secret must be in .env (.env.example has development values; the API and the agent
@@ -100,8 +98,8 @@ services:
   redis:
     <<: *service
     image: valkey/valkey:8.1.11-alpine
-    mem_limit: ${LINEDESK_REDIS_MEM:-${CALLFRONT_REDIS_MEM:-48m}}
-    cpus: ${LINEDESK_REDIS_CPUS:-${CALLFRONT_REDIS_CPUS:-0.05}}
+    mem_limit: ${LINEDESK_REDIS_MEM:-48m}
+    cpus: ${LINEDESK_REDIS_CPUS:-0.05}
 
   livekit:
     <<: *service
@@ -127,8 +125,8 @@ services:
       - "${LIVEKIT_BIND_IP:-127.0.0.1}:5060:5060/tcp"
       - "${LIVEKIT_BIND_IP:-127.0.0.1}:10000-10100:10000-10100/udp" # SIP media (RTP)
     depends_on: [redis]
-    mem_limit: ${LINEDESK_LIVEKIT_MEM:-${CALLFRONT_LIVEKIT_MEM:-96m}}
-    cpuset: ${LINEDESK_VOICE_CPUSET:-${CALLFRONT_VOICE_CPUSET:-1}} # the voice core, shared by LiveKit, SIP, the agent and egress
+    mem_limit: ${LINEDESK_LIVEKIT_MEM:-96m}
+    cpuset: ${LINEDESK_VOICE_CPUSET:-1} # the voice core, shared by LiveKit, SIP, the agent and egress
 
   livekit-sip:
     <<: *service
@@ -146,8 +144,8 @@ services:
         # true on a server that carriers reach from the internet: SIP then announces the public IP
         use_external_ip: ${LIVEKIT_SIP_USE_EXTERNAL_IP:-false}
     depends_on: [livekit, redis]
-    mem_limit: ${LINEDESK_SIP_MEM:-${CALLFRONT_SIP_MEM:-96m}}
-    cpuset: ${LINEDESK_VOICE_CPUSET:-${CALLFRONT_VOICE_CPUSET:-1}} # the voice core, shared by LiveKit, SIP, the agent and egress
+    mem_limit: ${LINEDESK_SIP_MEM:-96m}
+    cpuset: ${LINEDESK_VOICE_CPUSET:-1} # the voice core, shared by LiveKit, SIP, the agent and egress
 
   # The voice agent: answers calls in LiveKit rooms and writes to the API.
   # Without its speech and LLM keys it starts, logs one line and waits.
@@ -163,8 +161,8 @@ services:
     depends_on:
       api: { condition: service_healthy }
       livekit: { condition: service_started }
-    mem_limit: ${LINEDESK_AGENT_MEM:-${CALLFRONT_AGENT_MEM:-672m}}
-    cpuset: ${LINEDESK_VOICE_CPUSET:-${CALLFRONT_VOICE_CPUSET:-1}} # the voice core, shared by LiveKit, SIP, the agent and egress
+    mem_limit: ${LINEDESK_AGENT_MEM:-672m}
+    cpuset: ${LINEDESK_VOICE_CPUSET:-1} # the voice core, shared by LiveKit, SIP, the agent and egress
 
   # Call recordings (optional): add `--profile recording`, or `pnpm recording:up` in development.
   # LiveKit egress records each call room into the recordings volume, where the API reads the files.
@@ -186,8 +184,8 @@ services:
       livekit: { condition: service_started }
       redis: { condition: service_started }
       recordings-init: { condition: service_completed_successfully }
-    mem_limit: ${LINEDESK_EGRESS_MEM:-${CALLFRONT_EGRESS_MEM:-512m}}
-    cpuset: ${LINEDESK_VOICE_CPUSET:-${CALLFRONT_VOICE_CPUSET:-1}} # the voice core, shared by LiveKit, SIP, the agent and egress
+    mem_limit: ${LINEDESK_EGRESS_MEM:-512m}
+    cpuset: ${LINEDESK_VOICE_CPUSET:-1} # the voice core, shared by LiveKit, SIP, the agent and egress
 
   # Egress runs as uid 1001 and a new volume belongs to root: hand the directory over once. The API runs
   # as the same uid, so it can delete recordings egress wrote.
