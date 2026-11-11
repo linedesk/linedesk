@@ -119,6 +119,28 @@ export async function recordAuthEndpoint(ctx: AfterCtx) {
   })
 }
 
+/** A webhook URL's host only: its path or query can carry the receiver's bearer token. */
+export function urlHost(url: unknown): string {
+  try {
+    return new URL(String(url)).host || 'a URL'
+  } catch {
+    return 'a URL'
+  }
+}
+
+/**
+ * What the audit log shows of an action's input. The command log keeps it as sent (secrets already
+ * redacted); here a webhook URL becomes its host and an invitation id, which opens the invitation's
+ * page, keeps only its first characters.
+ */
+export function maskAuditInput(input: unknown): unknown {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return input
+  const masked: Record<string, unknown> = { ...(input as Record<string, unknown>) }
+  if (typeof masked.url === 'string') masked.url = urlHost(masked.url)
+  if (typeof masked.invitationId === 'string') masked.invitationId = `${masked.invitationId.slice(0, 6)}…`
+  return masked
+}
+
 /** Which part of the log a row belongs to, for the filter. */
 export const AUDIT_KINDS = ['sign_in', 'account', 'admin', 'team', 'impersonation', 'keys', 'integrations'] as const
 export type AuditKind = (typeof AUDIT_KINDS)[number]
@@ -323,7 +345,7 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
       impersonatedBy: r.impersonated_by ? { id: r.impersonated_by, email: r.impersonator_email ?? null } : null,
       workspace: r.workspace_id ? { id: r.workspace_id, name: r.workspace_name ?? null } : null,
       subject: r.subject_email ? { email: r.subject_email } : null,
-      input: r.input,
+      input: maskAuditInput(r.input),
       refused: Boolean(r.refused),
       ipAddress: r.ip_address,
     }),

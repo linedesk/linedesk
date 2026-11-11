@@ -1,6 +1,8 @@
 // Cross-site requests (csrf.ts): a write under /v1 signed in by the cookie runs only from the web
 // app's origin and as JSON; Bearer callers (API keys, the agent) are not affected.
 import { describe, expect, test } from 'vitest'
+import { maskAuditInput } from '../src/audit.ts'
+import { normaliseOrigin } from '../src/auth.ts'
 import { crossSiteRefusal } from '../src/csrf.ts'
 import { agent, appRequest, createWorkspace, getCall, request, type User } from './helpers.ts'
 
@@ -69,4 +71,28 @@ test('the rule (unit)', () => {
   expect(crossSiteRefusal(req('DELETE', { ...cookie, origin: WEB }), trusted)).not.toBeNull()
   expect(crossSiteRefusal(req('POST', { ...cookie, authorization: 'Bearer ld_key' }), trusted)).toBeNull()
   expect(crossSiteRefusal(req('POST', {}), trusted)).toBeNull()
+})
+
+test('a configured origin is compared as the browser sends it: case, default port and trailing slash do not matter', () => {
+  const trusted = [normaliseOrigin('https://App.Example.com:443/')]
+  expect(trusted).toEqual(['https://app.example.com'])
+  const req = (origin: string) => ({
+    method: 'POST',
+    header: (n: string) => ({ cookie: 's=1', origin, 'content-type': 'application/json' })[n],
+  })
+  expect(crossSiteRefusal(req('https://app.example.com'), trusted)).toBeNull()
+  expect(crossSiteRefusal(req('https://app.example.com:8443'), trusted)).not.toBeNull()
+  expect(normaliseOrigin('http://secfix.localhost:5191/')).toBe('http://secfix.localhost:5191')
+  for (const bad of ['not a url', 'null', '*', 'https://*.example.com', 'file:///tmp/app', 'javascript:alert(1)', 'data:text/html,x', 'ftp://example.com'])
+    expect(() => normaliseOrigin(bad), bad).toThrow(/WEB_ORIGIN/)
+})
+
+test('the audit log shows a webhook URL as its host and only the start of an invitation id', () => {
+  expect(maskAuditInput({ url: 'https://hooks.example.com/in/abc?token=SECRET', events: [] })).toEqual({
+    url: 'hooks.example.com',
+    events: [],
+  })
+  expect(maskAuditInput({ invitationId: 'inv_0123456789abcdef' })).toEqual({ invitationId: 'inv_01…' })
+  expect(maskAuditInput(null)).toBeNull()
+  expect(maskAuditInput({ userId: 'u1' })).toEqual({ userId: 'u1' })
 })

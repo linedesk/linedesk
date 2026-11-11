@@ -23,8 +23,28 @@ const { google, microsoft, github, oidc, trustedProviders, methods } = authConfi
 /** Where the web app is served from; the only origin browser requests are accepted from. */
 export const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
 
+/**
+ * An origin as a browser sends it in `Origin`: scheme, lower-case host, port only when not the
+ * default. A configured `https://App.example.com:443/` would otherwise never match and refuse every
+ * cookie-signed write (csrf.ts).
+ */
+export function normaliseOrigin(origin: string): string {
+  const bad = (why: string) => new Error(`WEB_ORIGIN must be an http(s) address like https://app.example.com (${why}): ${origin}`)
+  if (origin.includes('*')) throw bad('no wildcards')
+  let url: URL
+  try {
+    url = new URL(origin)
+  } catch {
+    throw bad('not a URL')
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw bad('not http or https')
+  // An opaque origin ("null") would match the Origin a sandboxed or file:// page sends.
+  if (url.origin === 'null' || !url.hostname) throw bad('no host')
+  return url.origin
+}
+
 /** The origins whose pages may use the session cookie: Better Auth's and /v1's cross-site checks (csrf.ts). */
-export const TRUSTED_ORIGINS: readonly string[] = [WEB_ORIGIN]
+export const TRUSTED_ORIGINS: readonly string[] = [normaliseOrigin(WEB_ORIGIN)]
 
 /** A member can create this many workspaces. */
 export const WORKSPACE_LIMIT = 5

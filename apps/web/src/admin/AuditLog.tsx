@@ -90,9 +90,9 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
     case 'apiKey.revoke':
       return 'Revoked an API key'
     case 'webhook.create':
-      return `Added a webhook to ${String(input.url ?? 'a URL')}`
+      return `Added a webhook to ${hostOf(input.url)}`
     case 'webhook.update':
-      return input.url ? `Changed a webhook to ${String(input.url)}` : 'Changed a webhook'
+      return input.url ? `Changed a webhook to ${hostOf(input.url)}` : 'Changed a webhook'
     case 'user.resetPasskeys':
       return "Reset a user's passkeys"
     case 'webhook.delete':
@@ -101,6 +101,15 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
       return 'Sent a test to a webhook'
     default:
       return e.what
+  }
+}
+
+/** A webhook URL's host only: its path or query can carry a bearer token (the API sends only the host already). */
+const hostOf = (url: unknown) => {
+  try {
+    return new URL(String(url)).host || 'a URL'
+  } catch {
+    return typeof url === 'string' && url && !url.includes('/') ? url : 'a URL'
   }
 }
 
