@@ -183,7 +183,7 @@ async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClie
   logTurnMetrics(session, call.callId)
   skipQuietToolReplies(session, QUIET_TOOLS)
   session.on(voice.AgentSessionEventTypes.Close, onClose)
-  const transfer = await transferFor(ctx, call, config, caller.identity, stopRecordingForTransfer)
+  const transfer = await transferFor(ctx, api, call, config, caller.identity, stopRecordingForTransfer)
   const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, transfer !== null)
   void warmUpLlm(config.llm, instructions)
   const endCall = () => hangUpAfterSpeech(speakingOf(session), () => void ctx.deleteRoom().catch(() => {}))
@@ -197,10 +197,10 @@ async function converse(ctx: JobContext, caller: RemoteParticipant, api: ApiClie
 }
 
 /** What transfer_call needs on this call, or null when the assistant does not transfer now (off, closed, nobody to dial). */
-async function transferFor(ctx: JobContext, call: CallSession, config: AgentConfig, callerIdentity: string, stopRecording: () => Promise<void>): Promise<Transfer> {
+async function transferFor(ctx: JobContext, api: ApiClient, call: CallSession, config: AgentConfig, callerIdentity: string, stopRecording: () => Promise<void>): Promise<Transfer> {
   const number = transferNumberFor(call.assistant, call.businessHours)
   if (!number) return null
-  const dialer = await onCallDialerFor(call, number, config)
+  const dialer = await onCallDialerFor(call, number, config, api)
   return dialer ? { ctx, config, callerIdentity, number, dialer, stopRecording } : null
 }
 

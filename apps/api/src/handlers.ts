@@ -13,6 +13,7 @@ import { assistantForNumber, assistantHandlers, assistantIn } from './assistants
 import { bookingContext, bookingHandlers, bookingsForTest, DEFAULT_TIME_ZONE } from './bookings.ts'
 import { calendarConnectionHandlers } from './calendar-connections.ts'
 import { type CarrierAccount, carrierHandlers, INSTALL_NUMBER_ADMIN_ONLY, lockWorkspaceCarrier, ownCarrierProvider, telephonyForWorkspace } from './workspace-carrier.ts'
+import { refreshTransferTrunk, transferTrunkHandlers } from './transfer-trunk.ts'
 import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, type Preparer, Reject, type Undo } from './handler-context.ts'
@@ -210,6 +211,7 @@ const handlers: Record<string, Handler> = {
   ...pushHandlers,
   ...calendarConnectionHandlers,
   ...carrierHandlers(),
+  ...transferTrunkHandlers(),
   ...apiKeyHandlers,
   ...bookingHandlers,
   ...evaluationHandlers(queueCallEvaluation),
@@ -410,6 +412,8 @@ const handlers: Record<string, Handler> = {
       purchased: !existing,
       verified_at: existing ? null : now,
     }).returning()
+    // Warm transfers from a number in the workspace account dial through that account: set its trunk up now.
+    if (carrier_account === 'workspace') await refreshTransferTrunk(tx, workspace_id, { actorId: actor.actorId, trigger: 'phoneNumber.setup', impersonatedBy: actor.impersonation?.by })
     return { rows: { phone_numbers: rows } }
   },
 
@@ -445,6 +449,8 @@ const handlers: Record<string, Handler> = {
       }
     }
     // No rows: the delete reaches browsers through read sync (a returned row would be written back locally).
+    // The trunk keeps only the remaining numbers as caller IDs (or goes, without any).
+    if (number.carrier_account === 'workspace') await refreshTransferTrunk(tx, actor.workspaceId, { actorId: actor.actorId, trigger: 'phoneNumber.release', impersonatedBy: actor.impersonation?.by })
     return { rows: {}, deleted: { phone_numbers: [number.id] }, data: { releasedAtCarrier, unroutedAtCarrier } }
   },
 }

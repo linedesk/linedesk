@@ -79,6 +79,8 @@ const all = [
   carrier.carrierSet,
   carrier.carrierGet,
   carrier.carrierTest,
+  carrier.carrierTransferTrunk,
+  carrier.carrierProvisionTransferTrunk,
   settings.assistantStartTestCall,
   settings.workspaceGetSettings,
   settings.workspaceUpdateSettings,

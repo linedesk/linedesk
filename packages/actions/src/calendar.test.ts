@@ -9,7 +9,7 @@ describe('calendar.findSlots', () => {
   })
 
   it('is read-only, like the provider connection test, the test-call token, team.list, the call-test lookup, the workspace settings read, the own invitations, the key list, the webhook log and test send, the call evaluations, the voice options and the carrier read and test', () => {
-    expect([...actions.values()].filter(a => a.readOnly).map(a => a.name).sort()).toEqual(['apiKey.list', 'assistant.startTestCall', 'calendar.findSlots', 'calendar.listCalendars', 'call.findForTest', 'call.getEvaluation', 'call.listEvaluations', 'carrier.get', 'carrier.test', 'invitation.listMine', 'notifications.get', 'provider.test', 'team.list', 'voice.options', 'voiceCloning.get', 'webhook.deliveries', 'webhook.test', 'workspace.getSettings'])
+    expect([...actions.values()].filter(a => a.readOnly).map(a => a.name).sort()).toEqual(['apiKey.list', 'assistant.startTestCall', 'calendar.findSlots', 'calendar.listCalendars', 'call.findForTest', 'call.getEvaluation', 'call.listEvaluations', 'carrier.get', 'carrier.test', 'carrier.transferTrunk', 'invitation.listMine', 'notifications.get', 'provider.test', 'team.list', 'voice.options', 'voiceCloning.get', 'webhook.deliveries', 'webhook.test', 'workspace.getSettings'])
   })
 
   it.each(['owner', 'admin', 'member', 'agent'] satisfies Role[])('can be called by %s', role => {

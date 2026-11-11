@@ -14,6 +14,7 @@ import { createGreetingCache, greetingKey, synthesize } from './greeting-cache.t
 import { createTts, ttsModelOf, voiceFor } from './pipeline.ts'
 import { type OnCallDialer, simulatedDialer, sipDialer } from './on-call-dialer.ts'
 import { findOutboundTrunk, sipClient, TRANSFER_TRUNK_NAME } from './sip-trunks.ts'
+import { ownTransferTrunk, reprovisionTrunk, transferRoute, workspaceTrunkDialer } from './workspace-trunk.ts'
 import { briefingText, CONNECTING_LINE, NOT_CONNECTED_REPLY, transferLabel } from './transfer.ts'
 import { type Livekit, warmTransfer } from './transfer-call.ts'
 
@@ -52,11 +53,27 @@ export async function onCallDialerFor(
   call: CallSession,
   number: string,
   config: AgentConfig,
+  api: ApiClient,
 ): Promise<OnCallDialer | null> {
   if (call.simulatedOnCall) return simulatedDialer(call.simulatedOnCall, livekitOf(), config)
   if (!call.businessNumber) return null // a browser test call never dials a real phone
   if (isPhoneCallTest(call)) return null // nor does a phone call test
   const sip = sipClient()
+  const from = call.businessNumber
+  // A number in the workspace's own carrier account dials out through that account, never the install's.
+  const route = await transferRoute(api, call.workspaceId, from).catch(e => {
+    console.warn(`could not tell how call ${call.callId} transfers: ${e instanceof Error ? e.message : String(e)}`)
+    return null
+  })
+  if (route === null) return null
+  const { trunkName } = route
+  if (route.carrier !== 'default' && trunkName) {
+    return workspaceTrunkDialer(
+      () => ownTransferTrunk(api, sip, call.workspaceId, trunkName, from),
+      () => reprovisionTrunk(api, call.workspaceId),
+      trunkId => sipDialer({ sip, trunkId, to: number, from }),
+    )
+  }
   const trunkId = await transferTrunk(sip)
   if (!trunkId) {
     console.warn(

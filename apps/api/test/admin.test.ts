@@ -371,6 +371,18 @@ describe('provider keys', () => {
     expect(await fieldOf('openai', 'api_key')).toMatchObject({ source: 'app', last4: 'abcd' })
   })
 
+  test("a workspace's own carrier is refused while the install's carrier keys cannot be read: the same-account check cannot run", async () => {
+    const sid = `AC${'c3'.repeat(16)}`
+    await act(operator, 'provider.setKeys', { provider: 'twilio', values: { account_sid: sid, auth_token: SECRET } })
+    process.env.SECRETS_KEY = randomBytes(32).toString('base64')
+    const res = await act({ headers: { ...other.owner.headers, 'x-workspace-id': other.id } }, 'carrier.set', {
+      carrier: 'twilio',
+      values: { account_sid: `AC${'d4'.repeat(16)}`, auth_token: 'workspace-token-0123456789' },
+    })
+    expect(res.status).toBe(409)
+    expect(res.body.error).toBe('Your carrier account cannot be checked against this Linedesk right now. Ask whoever runs your Linedesk.')
+  })
+
   test('test connection: ok, a rejected key, and keys that are not set; it is not logged as a command', async () => {
     const before = await db
       .select({ n: sql<number>`count(*)::int` })

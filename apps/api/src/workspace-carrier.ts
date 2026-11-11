@@ -16,7 +16,8 @@ import { createTelnyxProvider, createTwilioProvider, TelephonyError, type Teleph
 import { and, eq, sql } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 import { DEFAULT_TIME_ZONE } from './bookings.ts'
-import { telephonyProvider } from './provider-settings.ts'
+import { resolveProvider, telephonyProvider } from './provider-settings.ts'
+import { refreshTransferTrunk, removeTransferTrunks } from './transfer-trunk.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { decryptSecret, encryptSecret, hasSecretsKey, SecretsKeyError } from './secrets.ts'
 
@@ -32,7 +33,7 @@ const slot = (workspaceId: string, carrier: OwnCarrier, field: string) => `works
 const newId = () => `ps_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 const lastFour = (value: string) => (value.length >= 12 ? value.slice(-4) : null)
 const ownCarriers = Object.keys(carrierFields) as OwnCarrier[]
-const carrierLabel: Record<OwnCarrier, string> = { twilio: 'Twilio', telnyx: 'Telnyx' }
+export const carrierLabel: Record<OwnCarrier, string> = { twilio: 'Twilio', telnyx: 'Telnyx' }
 
 /** The owner sees this instead of the operator's SECRETS_KEY text. */
 const UNREADABLE = 'The saved carrier credentials cannot be read on this server. Enter them again.'
@@ -104,7 +105,7 @@ export async function ownCarrierProvider(
   return own && carrierProvider(own.carrier, own.values, doFetch)
 }
 
-async function readable<T>(run: () => Promise<T>): Promise<T> {
+export async function readable<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run()
   } catch (e) {
@@ -140,7 +141,7 @@ export async function telephonyForWorkspace(
 }
 
 /** The workspace's numbers that are in its own carrier account. */
-const ownAccountNumbers = (tx: Tx, workspaceId: string) =>
+export const ownAccountNumbers = (tx: Tx, workspaceId: string) =>
   tx
     .select()
     .from(phone_numbers)
@@ -185,6 +186,29 @@ async function checkCarrierChange(
 }
 
 const sipReady = () => !!process.env.LIVEKIT_SIP_ENDPOINT
+
+/**
+ * A workspace may not bring the install's own account: its numbers and SIP objects would be managed
+ * by two parties with different rules. Compared by Twilio Account SID, and by Telnyx API key: Telnyx's API
+ * names no account id without another request per key, so a second key of the install's Telnyx account is
+ * not recognised (the per-workspace names keep the SIP objects apart even then). When the install's keys
+ * cannot be read (another SECRETS_KEY), the check cannot run and saving is refused.
+ */
+async function refuseInstallAccount(tx: Tx, carrier: OwnCarrier, values: Record<string, string | undefined>) {
+  const install = await resolveProvider(tx, carrier).catch(() => {
+    throw new Reject(
+      'Your carrier account cannot be checked against this Linedesk right now. Ask whoever runs your Linedesk.',
+    )
+  })
+  const same =
+    carrier === 'twilio'
+      ? !!values.account_sid && install.account_sid?.value === values.account_sid
+      : !!values.api_key && install.api_key?.value === values.api_key
+  if (same)
+    throw new Reject(
+      `That is the ${carrierLabel[carrier]} account this Linedesk runs on. Use your own account, or Linedesk default.`,
+    )
+}
 
 /** What Settings shows: the carrier, which fields are set, never a secret. */
 export async function carrierStatus(tx: Tx, workspaceId: string): Promise<CarrierStatusData> {
@@ -300,8 +324,19 @@ export function carrierHandlers(doFetch: () => typeof fetch = () => fetch): Reco
     'carrier.set': async ({ tx, actor, now }, input) => {
       if (!actor.workspaceId) throw new Reject('no workspace')
       await lockWorkspaceCarrier(tx, actor.workspaceId)
+      if (input.carrier !== 'default') await refuseInstallAccount(tx, input.carrier, input.values)
       await readable(() => checkCarrierChange(tx, actor.workspaceId!, input.carrier, input.values ?? {}, doFetch()))
       await setWorkspaceCarrier(tx, actor.workspaceId, input.carrier, input.values ?? {}, actor.actorId, now)
+      // A trunk of the old account is never dialled through again; with numbers in the (same) account it is set up anew.
+      await removeTransferTrunks(actor.workspaceId, { fetch: doFetch() }).catch(e =>
+        console.warn(`old transfer trunks of ${actor.workspaceId} not removed: ${e instanceof Error ? e.message : e}`),
+      )
+      await refreshTransferTrunk(
+        tx,
+        actor.workspaceId,
+        { actorId: actor.actorId, trigger: 'carrier.set', impersonatedBy: actor.impersonation?.by },
+        { fetch: doFetch() },
+      )
       return { rows: {}, data: await carrierStatus(tx, actor.workspaceId) }
     },
 

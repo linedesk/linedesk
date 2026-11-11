@@ -36,14 +36,15 @@ const fail = (message: string, status?: number) => new TelephonyError('twilio', 
 /** Twilio forwards to this URI; TCP is what LiveKit SIP expects from Twilio. */
 const originationUrl = (sipEndpoint: string) => `sip:${sipEndpoint};transport=tcp`
 
-export function createTwilioProvider(options: TwilioOptions): TelephonyProvider {
+/**
+ * One authenticated Twilio API call, with the auth token or an API key. `what` names the step in error
+ * messages; URLs carry the account SID and stay out of them, and so does every credential.
+ */
+export function twilioRequest(options: TwilioOptions) {
   const { accountSid, authToken, fetch: doFetch = fetch } = options
-  const account = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}`
   const [user, password] = options.apiKeySid ? [options.apiKeySid, options.apiKeySecret] : [accountSid, authToken]
   const authorization = `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}`
-
-  /** `what` names the step in error messages; URLs carry the account SID and stay out of them. */
-  async function request(what: string, method: string, url: string, form?: Form): Promise<Json> {
+  return async function request(what: string, method: string, url: string, form?: Form): Promise<Json> {
     const res = await doFetch(url, {
       method,
       headers: { authorization, accept: 'application/json', ...(form ? { 'content-type': 'application/x-www-form-urlencoded' } : {}) },
@@ -53,6 +54,16 @@ export function createTwilioProvider(options: TwilioOptions): TelephonyProvider 
     if (!res.ok) throw fail(`${what} failed: ${json.message ?? res.statusText}`, res.status)
     return json
   }
+}
+
+/** The account's REST base URL. */
+export const twilioAccountUrl = (accountSid: string) => `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}`
+export const TWILIO_TRUNKING = TRUNKING
+
+export function createTwilioProvider(options: TwilioOptions): TelephonyProvider {
+  const { accountSid, authToken } = options
+  const account = twilioAccountUrl(accountSid)
+  const request = twilioRequest(options)
 
   async function findNumberSid(e164: string): Promise<string | undefined> {
     const { incoming_phone_numbers } = await request('look up number', 'GET', `${account}/IncomingPhoneNumbers.json?PhoneNumber=${encodeURIComponent(e164)}`)

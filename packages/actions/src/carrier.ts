@@ -111,3 +111,34 @@ export type CarrierStatusData = {
 }
 /** `data` of carrier.test. */
 export type CarrierTestData = { ok: boolean; message: string }
+
+const e164 = z.string().regex(/^\+[1-9]\d{6,14}$/)
+
+/**
+ * For the voice agent: how a warm transfer from a call to `from` (the business's number that was called)
+ * dials out. `default`: the number is in the install's account, so the install's `linedesk-outbound`
+ * trunk. Else the LiveKit trunk of the workspace's own account (`trunkName`, which carries the account),
+ * set up by the API when the carrier is set or a number is connected. No credential ever goes to the agent.
+ */
+export const carrierTransferTrunk = defineAction({
+  name: 'carrier.transferTrunk',
+  description:
+    "Voice agent only: whether a warm transfer from the workspace's number `from` dials through the install's trunk or the workspace's own account's, and that trunk's name.",
+  input: z.object({ from: e164 }).strict(),
+  permission: 'agent',
+  readOnly: true,
+})
+export type CarrierTransferTrunkData = { carrier: WorkspaceCarrier; trunkName: string | null }
+
+/**
+ * For the voice agent, when the workspace's trunk is missing or its carrier refused the credentials: sets
+ * the carrier side up again (`linedesk-outbound-<workspace id>` in the workspace's account, a new SIP
+ * password) and replaces the LiveKit trunk. Logged like any command, so the audit log shows it.
+ */
+export const carrierProvisionTransferTrunk = defineAction({
+  name: 'carrier.provisionTransferTrunk',
+  description: "Voice agent only: set up the outbound trunk of the workspace's own carrier account again.",
+  input: z.object({}).strict(),
+  permission: 'agent',
+})
+export type CarrierProvisionData = { trunkId: string | null }
