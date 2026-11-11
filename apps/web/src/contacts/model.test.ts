@@ -1,6 +1,6 @@
 import type { Call, Contact } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
-import { contactLabel, contactRows, duplicatePairs, filterContactRows, matchesContact, mergeDefaults } from './model.ts'
+import { contactLabel, contactRows, duplicatePairs, filterContactRows, matchesContact, mergeDefaults, noteHint } from './model.ts'
 
 const contact = (over: Partial<Contact>) =>
   ({
@@ -135,5 +135,13 @@ describe('duplicates', () => {
       values: { name: 'Sam', company: 'Patel Bakery', email: 'sam@example.com', address: null, note: 'Gate code 1234' },
       choices: ['name'],
     })
+  })
+})
+
+describe('noteHint', () => {
+  it('names the assistant that gets the note when this contact calls', () => {
+    expect(noteHint(['Maya'])).toBe('Maya sees this note when this contact calls.')
+    expect(noteHint(['Maya', 'Night line'])).toBe('Your assistants see this note when this contact calls.')
+    expect(noteHint([])).toBe('The assistant sees this note when this contact calls.')
   })
 })

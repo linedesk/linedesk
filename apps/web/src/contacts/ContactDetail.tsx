@@ -5,11 +5,11 @@ import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { CallBackLink } from '../call/ContactSide.tsx'
 import { useInlineEdit } from '../call/EditableFact.tsx'
 import { callTitle, formatPhone } from '../inbox-model.ts'
-import { useRun } from '../store.tsx'
+import { useAssistants, useRun } from '../store.tsx'
 import { dateTimeLabel, parseTs, shortDuration } from '../time.ts'
 import { Card, FormField, Input, Textarea } from '../ui/form.tsx'
 import { Avatar, Button, Icon } from '../ui/kit.tsx'
-import { contactLabel, type ContactRow } from './model.ts'
+import { contactLabel, type ContactRow, noteHint } from './model.ts'
 
 type Props = {
   row: ContactRow
@@ -28,15 +28,19 @@ function DetailField({
   label,
   placeholder,
   multiline,
+  hint,
 }: {
   contact: Contact
   field: Editable
   label: string
   placeholder: string
   multiline?: boolean
+  /** A line under the field on what the value is used for. */
+  hint?: string
 }) {
   const run = useRun()
   const id = `ct-${field}`
+  const hintId = hint ? `${id}-hint` : undefined
   const edit = useInlineEdit({
     value: contact[field],
     onSave: value => void run('contact.update', { contactId: contact.id, [field]: value }),
@@ -45,9 +49,14 @@ function DetailField({
   return (
     <FormField id={id} label={label} className={multiline ? 'ct-wide' : undefined}>
       {multiline ? (
-        <Textarea id={id} rows={3} placeholder={placeholder} {...edit} />
+        <Textarea id={id} rows={3} placeholder={placeholder} aria-describedby={hintId} {...edit} />
       ) : (
-        <Input id={id} autoComplete="off" placeholder={placeholder} {...edit} />
+        <Input id={id} autoComplete="off" placeholder={placeholder} aria-describedby={hintId} {...edit} />
+      )}
+      {hint && (
+        <p id={hintId} className="k-field-desc">
+          {hint}
+        </p>
       )}
     </FormField>
   )
@@ -160,6 +169,7 @@ function CallList({ calls, onOpen }: { calls: Call[]; onOpen: (call: Call) => vo
 
 export function ContactDetail({ row, onOpenCall, onClose, onDelete, onMerge }: Props) {
   const { contact, calls } = row
+  const assistantNames = useAssistants().map(a => a.name)
   const label = contactLabel(contact)
   const phone = formatPhone(contact.phone)
   return (
@@ -194,7 +204,14 @@ export function ContactDetail({ row, onOpenCall, onClose, onDelete, onMerge }: P
             </FormField>
             <DetailField contact={contact} field="email" label="Email" placeholder="name@example.com" />
             <DetailField contact={contact} field="address" label="Address" placeholder="Street, city" />
-            <DetailField contact={contact} field="note" label="Note" placeholder="Anything to remember" multiline />
+            <DetailField
+              contact={contact}
+              field="note"
+              label="Note"
+              placeholder="Anything to remember"
+              multiline
+              hint={noteHint(assistantNames)}
+            />
           </div>
         </Card>
         <Card title={calls.length ? `Calls · ${calls.length}` : 'Calls'} className="ct-card">

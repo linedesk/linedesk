@@ -119,3 +119,10 @@ export function mergeDefaults(keep: Contact, other: Contact) {
   }
   return { values, choices }
 }
+
+/** Under a contact's note: who gets it (the assistant answering, when this contact is the caller). */
+export function noteHint(assistantNames: string[]): string {
+  const who =
+    assistantNames.length === 1 ? assistantNames[0] : assistantNames.length ? 'Your assistants' : 'The assistant'
+  return `${who} ${assistantNames.length > 1 ? 'see' : 'sees'} this note when this contact calls.`
+}

@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import { callOrigin, startCall } from './call-session.ts'
+import { buildInstructions } from './prompt.ts'
 
 const sip = { 'sip.phoneNumber': '+15035550191', 'sip.trunkPhoneNumber': '+15035550142' }
 
@@ -80,4 +81,13 @@ test('the recording notice from call.start is said right after the greeting, als
     'We are closed. This call may be recorded.',
   )
   for (const off of [null, undefined, '  ']) expect((await startCall(api(off), phone)).assistant?.greeting).toBe(row.greeting)
+})
+
+test('the contact call.start matched reaches the instructions with its note; a withheld number brings none', async () => {
+  const api = (contact: unknown) => ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: null, contact } }) }) as never
+  const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
+  const known = await startCall(api({ id: 'ct_1', name: 'Dana Ortiz', note: 'Prefers mornings.' }), phone)
+  expect(buildInstructions(known.assistant, known.businessHours, known.booking, false, known.contact)).toContain('<caller_notes>Prefers mornings.</caller_notes>')
+  const withheld = await startCall(api(null), { ...phone, from: 'anonymous' })
+  expect(buildInstructions(withheld.assistant, withheld.businessHours, withheld.booking, false, withheld.contact)).not.toContain('caller_notes')
 })

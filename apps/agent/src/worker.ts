@@ -195,7 +195,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   skipQuietToolReplies(session, QUIET_TOOLS)
   session.on(voice.AgentSessionEventTypes.Close, onClose)
   const endCall = () => hangUpAfterSpeech(speakingOf(session), () => void ctx.deleteRoom().catch(() => {}))
-  const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, false)
+  const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, false, call.contact)
   const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, null) })
   void warmUpLlm(config.llm, instructions)
   await session.start({
@@ -218,7 +218,7 @@ async function addTransfer(
     const caller = await callerJoined
     const transfer = await transferFor(ctx, api, call, config, caller.identity, stopRecording)
     if (!transfer) return
-    await agent.updateInstructions(buildInstructions(call.assistant, call.businessHours, call.booking, true))
+    await agent.updateInstructions(buildInstructions(call.assistant, call.businessHours, call.booking, true, call.contact))
     await agent.updateTools(assistantTools(api, call, log, endCall, transfer))
   } catch (e) {
     console.warn(`call ${call.callId} goes on without transfer: ${e instanceof Error ? e.message : String(e)}`)
