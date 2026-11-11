@@ -1505,6 +1505,8 @@ describe('impersonation', () => {
     const allowed = [...actions.values()].filter(mayRunWhileImpersonating).map(def => def.name).sort()
     expect(allowed).toEqual([
       'apiKey.list',
+      'assistant.version',
+      'assistant.versions',
       'calendar.findSlots',
       'calendar.listCalendars',
       'call.clearReminder',
