@@ -3,7 +3,8 @@ import { Card } from '../ui/form.tsx'
 import { Badge } from '../ui/kit.tsx'
 import { ActionBar, RowActions, useActionRunner, workspaceActions } from './actions.tsx'
 import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
-import type { AdminWorkspace } from './api.ts'
+import type { AdminUser, AdminWorkspace } from './api.ts'
+import { WorkspaceMembersCard } from './Memberships.tsx'
 import { formatMinutes } from './model.ts'
 import type { Notify } from './notify.ts'
 import { day, when } from './parts.tsx'
@@ -79,9 +80,9 @@ export function WorkspacesList({ workspaces, onOpen, keysRef, notify, reload }: 
   )
 }
 
-type DetailProps = { workspace: AdminWorkspace; notify: Notify; reload: () => Promise<void> }
+type DetailProps = { workspace: AdminWorkspace; users: AdminUser[]; notify: Notify; reload: () => Promise<void> }
 
-export function WorkspaceDetail({ workspace: w, notify, reload }: DetailProps) {
+export function WorkspaceDetail({ workspace: w, users, notify, reload }: DetailProps) {
   const runner = useActionRunner(notify)
   return (
     <>
@@ -92,13 +93,13 @@ export function WorkspaceDetail({ workspace: w, notify, reload }: DetailProps) {
           <Fact label="Phone numbers">
             <span className="adm-mono">{w.phone_numbers.map(formatNumber).join(', ') || 'None'}</span>
           </Fact>
-          <Fact label="Members">{w.members}</Fact>
           <Fact label="Calls, last 30 days">{w.calls_30d}</Fact>
           <Fact label="Answered this month">{formatMinutes(w.minutes_this_month)}</Fact>
           <Fact label="Last call">{when(w.last_call_at)}</Fact>
           <Fact label="Created">{day(w.created_at)}</Fact>
         </dl>
       </Card>
+      <WorkspaceMembersCard workspace={w} users={users} notify={notify} reload={reload} />
       {runner.dialog}
     </>
   )

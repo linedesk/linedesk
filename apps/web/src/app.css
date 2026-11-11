@@ -1366,6 +1366,43 @@ button.k-link {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Invitations in the profile menu: the workspace, role and inviter, then Join and Decline. */
+.me-inv {
+  display: grid;
+  gap: 6px;
+  padding: 4px 8px 8px;
+}
+.me-inv-t {
+  display: grid;
+  min-width: 0;
+}
+.me-inv-t .lbl {
+  font-weight: 500;
+}
+.me-inv-t small {
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+.me-inv-acts {
+  display: flex;
+  gap: 4px;
+}
+.me-avatar {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+/* Something new is waiting (an invitation): the unread signal. */
+.me-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: 0 0 0 2px var(--surface);
+}
 .me-ws-mark {
   opacity: 0;
 }

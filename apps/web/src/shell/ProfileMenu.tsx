@@ -3,10 +3,12 @@ import { fetchAuthMethods, type LegalLinks } from '../auth.ts'
 import { useQuery } from '../cachedQuery.ts'
 import { Avatar, Icon } from '../ui/kit.tsx'
 import type { IconName } from '../ui/icons.ts'
+import type { MyInvitation } from '@linedesk/actions'
+import { refreshInvitations } from './invitations.ts'
 import { refreshWorkspaces, useWorkspaces, WorkspaceSwitcher } from './WorkspaceSwitcher.tsx'
 
 /** `onAdmin` is set for instance admins only: Admin then leads the menu. */
-type Props = { name: string; workspaceName: string; workspaceId: string; onError: (message: string) => void; navOpen: boolean; onAdmin?: () => void; onAccount: () => void; onTeam: () => void; onSignOut: () => void }
+type Props = { name: string; workspaceName: string; workspaceId: string; toast: (message: string) => void; invitations: MyInvitation[]; onInvitationsChanged: () => void; navOpen: boolean; onAdmin?: () => void; onAccount: () => void; onTeam: () => void; onSignOut: () => void }
 
 /** This install's terms, privacy and support links: the last known ones at once, none that are not set. */
 export const loadAuthMethods = () => fetchAuthMethods({ attempts: 1 })
@@ -24,7 +26,7 @@ function Item({ label, icon, onClick }: { label: string; icon: IconName; onClick
 }
 
 /** The profile row at the bottom of the navigation. Clicking it opens a small menu above it. */
-export function ProfileMenu({ name, workspaceName, workspaceId, onError, navOpen, onAdmin, onAccount, onTeam, onSignOut }: Props) {
+export function ProfileMenu({ name, workspaceName, workspaceId, toast, invitations, onInvitationsChanged, navOpen, onAdmin, onAccount, onTeam, onSignOut }: Props) {
   const [open, setOpen] = useState(false)
   const links = useLegalLinks()
   const workspaces = useWorkspaces() // known with the session; here so the menu never waits for it
@@ -36,7 +38,9 @@ export function ProfileMenu({ name, workspaceName, workspaceId, onError, navOpen
 
   useEffect(() => {
     if (!open) return
-    void refreshWorkspaces() // in the background: the menu already shows the last known list
+    // In the background: the menu already shows the last known lists.
+    void refreshWorkspaces()
+    void refreshInvitations()
     root.current?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus()
     const onMouseDown = (e: MouseEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false) }
     document.addEventListener('mousedown', onMouseDown)
@@ -57,7 +61,7 @@ export function ProfileMenu({ name, workspaceName, workspaceId, onError, navOpen
     <div className="me-wrap" ref={root}>
       {open && (
         <div className="me-menu" role="menu" aria-label="Account" onKeyDown={onKeyDown}>
-          <WorkspaceSwitcher all={workspaces} currentId={workspaceId} onError={m => { setOpen(false); onError(m) }} />
+          <WorkspaceSwitcher all={workspaces} currentId={workspaceId} invitations={invitations} onInvitationsChanged={onInvitationsChanged} onError={m => { setOpen(false); toast(m) }} />
           {onAdmin && <Item label="Admin" icon="shield" onClick={choose(onAdmin)} />}
           <Item label="Account settings" icon="user" onClick={choose(onAccount)} />
           <Item label="Team" icon="users" onClick={choose(onTeam)} />
@@ -69,8 +73,11 @@ export function ProfileMenu({ name, workspaceName, workspaceId, onError, navOpen
           <Item label="Sign out" icon="arrow-up-right" onClick={choose(onSignOut)} />
         </div>
       )}
-      <button type="button" ref={trigger} className="me" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <Avatar name={name || workspaceName} size={24} />
+      <button type="button" ref={trigger} className="me" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)} title={invitations.length ? `${invitations.length === 1 ? 'An invitation' : `${invitations.length} invitations`} to join` : undefined}>
+        <span className="me-avatar">
+          <Avatar name={name || workspaceName} size={24} />
+          {invitations.length > 0 && <span className="me-dot" aria-hidden="true" />}
+        </span>
         <div><b>{name}</b><small>{workspaceName}</small></div>
         <Icon name="down" size={14} className="me-chevron" />
       </button>

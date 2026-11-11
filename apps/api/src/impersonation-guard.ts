@@ -9,7 +9,7 @@ type AuthCtx = Parameters<typeof getSessionFromCtx>[0]
 /**
  * Better Auth endpoints refused while impersonating: passwords, email, deleting the account, other
  * sessions (listing them would hand out their tokens), linked sign-in accounts and their tokens,
- * and passkeys (adding, renaming, removing or listing them).
+ * passkeys (adding, renaming, removing or listing them), and joining a workspace by invitation.
  */
 export const IMPERSONATION_REFUSED_PATHS = [
   '/change-password',
@@ -33,6 +33,7 @@ export const IMPERSONATION_REFUSED_PATHS = [
   '/passkey/update-passkey',
   '/passkey/delete-passkey',
   '/passkey/list-user-passkeys',
+  '/organization/accept-invitation',
 ] as const
 
 export const NOT_WHILE_IMPERSONATING = 'Not possible while signed in as another user.'

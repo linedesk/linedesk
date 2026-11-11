@@ -1,7 +1,7 @@
 // The admin area talks to the API directly. Its rows cross workspaces, so they are not in the
 // local store, and its writes skip the outbox on purpose: an outbox entry is kept in IndexedDB,
 // and a provider key must never be stored in the browser.
-import type { ProviderCategory, ProviderName, ProviderTestData } from '@linedesk/actions'
+import type { MembershipRole, ProviderCategory, ProviderName, ProviderTestData } from '@linedesk/actions'
 
 export type AdminWorkspace = {
   id: string
@@ -24,8 +24,14 @@ export type AdminUser = {
   last_sign_in_at: string | null
   instance_admin: boolean
   instance_admin_by_env: boolean
-  workspaces: { id: string; name: string; role: string }[]
+  workspaces: { id: string; name: string; role: string; member_id: string }[]
+  /** Pending invitations to the user's address, from any workspace. */
+  invitations: { id: string; workspace_id: string; workspace_name: string; role: string; expires_at: string }[]
 }
+
+export type WorkspaceMember = { member_id: string; user_id: string; name: string; email: string; role: string; joined_at: string }
+export type WorkspaceInvitation = { id: string; email: string; role: string; invited_by: string; expires_at: string; expired: boolean }
+export type WorkspaceMembers = { members: WorkspaceMember[]; invitations: WorkspaceInvitation[] }
 
 export type UsageRow = {
   workspace_id: string
@@ -129,6 +135,11 @@ type AdminInputs = {
   'workspace.enable': { workspaceId: string }
   'instanceAdmin.grant': { userId: string }
   'instanceAdmin.revoke': { userId: string }
+  'membership.add': { userId: string; workspaceId: string; role: MembershipRole }
+  'membership.setRole': { memberId: string; role: MembershipRole }
+  'membership.remove': { memberId: string }
+  'invitation.revoke': { invitationId: string }
+  'invitation.resend': { invitationId: string }
 }
 
 /** Runs an admin action through the registry. Throws with the server's reason when it is rejected. */
@@ -148,6 +159,9 @@ export const testProvider = async (provider: ProviderName) =>
 
 /** LiveKit is part of the install: its status is read-only. Can take a few seconds when the server is down. */
 export const loadLivekitStatus = async () => (await get<{ livekit: LivekitStatus }>('/v1/admin/system')).livekit
+
+export const loadWorkspaceMembers = (workspaceId: string) =>
+  get<WorkspaceMembers>(`/v1/admin/workspaces/${encodeURIComponent(workspaceId)}/members`)
 
 export const loadOverview = () => get<AdminOverview>('/v1/admin/overview')
 /** Waits for LiveKit and the mail server: can take a few seconds. */

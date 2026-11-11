@@ -41,13 +41,14 @@ function workspaceOf(actor: Actor) {
   return actor.workspaceId
 }
 
-async function sendInvitation(tx: Tx, invite: { id: string; email: string; organizationId: string }, actor: Actor) {
+/** The email names the member who sent the invitation (`inviterId`), also when someone else resends it. */
+export async function sendInvitation(tx: Tx, invite: { id: string; email: string; organizationId: string; inviterId: string }) {
   if (emailSender.kind === 'none') throw new Reject('email is not set up, so invitations cannot be sent (set SMTP_URL)')
   if (!allowEmailFor(invite.organizationId)) throw new Reject('too many invitations in the last hour; try again later')
   // The same answer whether or not the address has an account anywhere.
   if (!allowEmailTo(invite.email.toLowerCase())) throw new Reject('too many invitations to this address in the last hour; try again later')
   const [ws] = await tx.select({ name: organization.name }).from(organization).where(eq(organization.id, invite.organizationId))
-  const [inviter] = await tx.select({ name: user.name }).from(user).where(eq(user.id, actor.actorId))
+  const [inviter] = await tx.select({ name: user.name }).from(user).where(eq(user.id, invite.inviterId))
   const who = emailSafeName(inviter?.name, 'A teammate')
   const workspaceName = emailSafeName(ws?.name, 'their workspace')
   const text = `${who} invited you to join ${workspaceName} on Linedesk.\n\nOpen this link to accept:\n\n${invitationLink(invite.id)}\n\nThe link works for ${INVITATION_DAYS} days. Sign in or create your account with this email address (${invite.email}). If you did not expect this, you can ignore it.`
@@ -61,7 +62,7 @@ async function sendInvitation(tx: Tx, invite: { id: string; email: string; organ
 
 async function loadPendingInvitation(tx: Tx, workspaceId: string, invitationId: string) {
   const [row] = await tx.select().from(invitation)
-    .where(and(eq(invitation.id, invitationId), eq(invitation.organizationId, workspaceId), eq(invitation.status, 'pending')))
+    .where(and(eq(invitation.id, invitationId), eq(invitation.organizationId, workspaceId), eq(invitation.status, 'pending'))).for('update')
   if (!row) throw new Reject('invitation not found')
   return row
 }
@@ -118,14 +119,14 @@ export const teamHandlers: Record<string, Handler> = {
       id: newInvitationId(), organizationId: workspaceId, email: input.email, role: input.role, status: 'pending',
       expiresAt: new Date(Date.parse(now) + INVITATION_DAYS * DAY_MS), createdAt: new Date(now), inviterId: actor.actorId,
     }).returning()
-    await sendInvitation(tx, row!, actor)
+    await sendInvitation(tx, row!)
     return { rows: {}, data: { invitationId: row!.id } }
   },
 
   'team.resendInvite': async ({ tx, actor, now }, input: { invitationId: string }) => {
     const invite = await loadPendingInvitation(tx, workspaceOf(actor), input.invitationId)
     await tx.update(invitation).set({ expiresAt: new Date(Date.parse(now) + INVITATION_DAYS * DAY_MS) }).where(eq(invitation.id, invite.id))
-    await sendInvitation(tx, invite, actor)
+    await sendInvitation(tx, invite)
     return { rows: {} }
   },
 

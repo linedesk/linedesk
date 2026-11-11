@@ -37,7 +37,8 @@ async function checkImpersonation(s: { id: string; createdAt: Date; expiresAt: D
   return { by: admin.id, sessionId: s.id, expiresAt: new Date(Math.min(s.expiresAt.getTime(), endsAt.getTime())) }
 }
 
-const readOnly = (permissions: readonly Permission[]) => permissions.filter(p => p.endsWith(':read'))
+/** A disabled workspace's members keep reading, and can still answer invitations to other workspaces. */
+const readOnly = (permissions: readonly Permission[]) => permissions.filter(p => p.endsWith(':read') || p === 'invitation:respond')
 
 /** Constant-time: the agent token also reads the provider keys. */
 function sameToken(given: string, expected: string) {

@@ -54,10 +54,33 @@ const listUsers = (tx: Tx) =>
   select u.id, u.name, u.email, u.email_verified, u.instance_admin,
     ${utc('u.created_at')} as created_at, ${utc('u.disabled_at')} as disabled_at,
     ${utc('coalesce(u.last_sign_in_at, (select max(s.created_at) from session s where s.user_id = u.id))')} as last_sign_in_at,
-    coalesce((select json_agg(json_build_object('id', o.id, 'name', o.name, 'role', m.role) order by o.name)
-      from member m join organization o on o.id = m.organization_id where m.user_id = u.id), '[]'::json) as workspaces
+    coalesce((select json_agg(json_build_object('id', o.id, 'name', o.name, 'role', m.role, 'member_id', m.id) order by o.name)
+      from member m join organization o on o.id = m.organization_id where m.user_id = u.id), '[]'::json) as workspaces,
+    coalesce((select json_agg(json_build_object('id', i.id, 'workspace_id', o.id, 'workspace_name', o.name, 'role', coalesce(i.role, 'member'),
+        'expires_at', ${utc('i.expires_at')}) order by i.created_at)
+      from invitation i join organization o on o.id = i.organization_id
+      where i.status = 'pending' and lower(i.email) = lower(u.email)), '[]'::json) as invitations
   from "user" u order by u.created_at, u.id`,
   )
+
+/** A workspace's members and pending invitations, for its admin detail page. */
+const listWorkspaceMembers = async (tx: Tx, workspaceId: string) => ({
+  members: await rows(
+    tx,
+    sql`
+  select m.id as member_id, u.id as user_id, u.name, u.email, m.role, ${utc('m.created_at')} as joined_at
+  from member m join "user" u on u.id = m.user_id where m.organization_id = ${workspaceId}
+  order by case m.role when 'owner' then 0 when 'admin' then 1 else 2 end, u.name, u.email`,
+  ),
+  invitations: await rows(
+    tx,
+    sql`
+  select i.id, i.email, coalesce(i.role, 'member') as role, inv.name as invited_by, ${utc('i.expires_at')} as expires_at,
+    i.expires_at < now() at time zone 'utc' as expired
+  from invitation i join "user" inv on inv.id = i.inviter_id
+  where i.organization_id = ${workspaceId} and i.status = 'pending' order by i.created_at`,
+  ),
+})
 
 const listUsage = (tx: Tx, months: number) =>
   rows(
@@ -88,6 +111,8 @@ export function registerAdminRoutes(app: Hono<Env>) {
     })
     return c.json({ users })
   })
+
+  app.get('/v1/admin/workspaces/:id/members', async c => c.json(await listWorkspaceMembers(db, c.req.param('id'))))
 
   // Calls and answered minutes per workspace and calendar month (UTC), newest month first.
   app.get('/v1/admin/usage', async c => {

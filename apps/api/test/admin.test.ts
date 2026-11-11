@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { actions, REDACTED, recordingKey } from '@linedesk/actions'
-import { calls, commands, instance_settings, organization, passkey, provider_settings, session, user } from '@linedesk/db'
+import { calls, commands, instance_settings, invitation, member as memberTable, organization, passkey, provider_settings, session, user } from '@linedesk/db'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { adminSecondFactorRequired, markPasskeySession } from '../src/admin-second-factor.ts'
@@ -101,10 +101,15 @@ describe('access', () => {
     expect((await request(anonymous, 'GET', path)).status).toBe(401)
   })
 
-  test('the registry has the twelve admin actions', () => {
+  test('the registry has the seventeen admin actions', () => {
     expect(adminActions.map(def => def.name).sort()).toEqual([
       'instanceAdmin.grant',
       'instanceAdmin.revoke',
+      'invitation.resend',
+      'invitation.revoke',
+      'membership.add',
+      'membership.remove',
+      'membership.setRole',
       'provider.clearKeys',
       'provider.setActive',
       'provider.setKeys',
@@ -128,6 +133,9 @@ describe('access', () => {
         values: { api_key: SECRET },
         userId: operator.userId,
         workspaceId: home.id,
+        role: 'owner',
+        memberId: 'any',
+        invitationId: 'any',
       }
       for (const who of [other.owner, member, agent(home.id), agent()]) {
         expect(await act(who, name, input), name).toMatchObject({
@@ -726,6 +734,7 @@ describe('users', () => {
       'id',
       'instance_admin',
       'instance_admin_by_env',
+      'invitations',
       'last_sign_in_at',
       'name',
       'workspaces',
@@ -809,7 +818,8 @@ describe('workspaces', () => {
     await act(operator, 'workspace.disable', { workspaceId: ws.id })
     const me = (await request(ws.owner, 'GET', '/v1/me')).body
     expect(me.workspace).toMatchObject({ id: ws.id, disabled: true })
-    expect(me.permissions.every((p: string) => p.endsWith(':read'))).toBe(true)
+    // Reading, and answering invitations to other workspaces.
+    expect(me.permissions.every((p: string) => p.endsWith(':read') || p === 'invitation:respond')).toBe(true)
     expect(await act(ws.owner, 'call.markDone', { callId: ws.call.id })).toMatchObject({ status: 403 })
     expect(
       await act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, greeting: 'still here' }),
@@ -1245,6 +1255,24 @@ describe('impersonation', () => {
     expect(
       (await request(as, 'POST', '/v1/account/password', { newPassword: 'another-password-5678' })).status,
     ).toBe(403)
+    // No joining a workspace as the user: not through Better Auth's endpoint, not through the registry.
+    await db.update(user).set({ emailVerified: true }).where(eq(user.id, target.userId))
+    const [invite] = await db.insert(invitation).values({
+      id: `inv_${crypto.randomUUID()}`, organizationId: home.id, email: await emailOf(target), role: 'admin', status: 'pending',
+      expiresAt: new Date(Date.now() + 86_400_000), inviterId: operator.userId,
+    }).returning()
+    expect(await authCall('/organization/accept-invitation', { invitationId: invite!.id })).toMatchObject({
+      status: 403,
+      body: { message: 'Not possible while signed in as another user.' },
+    })
+    expect(await act(as, 'invitation.accept', { invitationId: invite!.id })).toMatchObject({
+      status: 409,
+      body: { error: 'Not possible while signed in as another user.' },
+    })
+    expect(await act(as, 'invitation.decline', { invitationId: invite!.id })).toMatchObject({ status: 409 })
+    expect((await db.select().from(invitation).where(eq(invitation.id, invite!.id)))[0]?.status).toBe('pending')
+    expect((await db.select().from(memberTable).where(eq(memberTable.userId, target.userId))).map(m => m.organizationId)).toEqual([other.id])
+    await db.delete(invitation).where(eq(invitation.id, invite!.id))
     // Still the same account, email and password.
     expect((await db.select().from(user).where(eq(user.id, target.userId)))[0]!.email).toBe(await emailOf(target))
     expect((await signIn(target)).status).toBe(200)
@@ -1320,6 +1348,131 @@ describe('impersonation', () => {
   test('stop is refused for a session that is no impersonation', async () => {
     expect((await stop(operator)).status).toBe(403)
     expect((await stop(target)).status).toBe(403)
+  })
+})
+
+describe('memberships across workspaces', () => {
+  const membersOf = async (wsId: string) => (await request(operator, 'GET', `/v1/admin/workspaces/${wsId}/members`)).body
+  const memberRow = async (wsId: string, who: User) =>
+    (await db.select().from(memberTable).where(eq(memberTable.userId, who.userId))).find(m => m.organizationId === wsId)
+  const userRow = async (who: User) =>
+    (await request(operator, 'GET', '/v1/admin/users')).body.users.find((u: { id: string }) => u.id === who.userId)
+
+  test('an instance admin adds an existing user to any workspace, changes the role and removes them; all logged', async () => {
+    const outsider = await signUp()
+    const added = await act(operator, 'membership.add', { userId: outsider.userId, workspaceId: other.id, role: 'admin' })
+    expect(added).toMatchObject({ status: 200, body: { ok: true } })
+    expect(await memberRow(other.id, outsider)).toMatchObject({ role: 'admin' })
+    expect((await membersOf(other.id)).members.map((m: { email: string; role: string }) => m.role)).toContain('admin')
+    expect((await userRow(outsider)).workspaces).toEqual([
+      { id: other.id, name: 'Brightwater Plumbing & Heating', role: 'admin', member_id: added.body.data.memberId },
+    ])
+    // The workspace's own owner sees the new member at once.
+    expect((await act(other.owner, 'team.list', {})).body.data.members.some((m: { userId: string }) => m.userId === outsider.userId)).toBe(true)
+    expect(await act(operator, 'membership.add', { userId: outsider.userId, workspaceId: other.id, role: 'member' })).toMatchObject({
+      status: 409,
+      body: { error: expect.stringMatching(/already a member/) },
+    })
+    const memberId = added.body.data.memberId
+    expect((await act(operator, 'membership.setRole', { memberId, role: 'member' })).status).toBe(200)
+    expect(await memberRow(other.id, outsider)).toMatchObject({ role: 'member' })
+    expect((await act(operator, 'membership.remove', { memberId })).status).toBe(200)
+    expect(await memberRow(other.id, outsider)).toBeUndefined()
+    const log = await db.select().from(commands).where(eq(commands.actor_id, operator.userId))
+    expect(log.filter(c => c.action.startsWith('membership.')).map(c => c.action)).toEqual(
+      expect.arrayContaining(['membership.add', 'membership.setRole', 'membership.remove']),
+    )
+  })
+
+  test('the last owner of a workspace can be neither demoted nor removed; with a second owner both work', async () => {
+    const ws = await createWorkspace('Last Owner Test')
+    const ownerId = (await memberRow(ws.id, ws.owner))!.id
+    const lastOwner = { status: 409, body: { error: 'the workspace needs an owner: this is the last one' } }
+    expect(await act(operator, 'membership.setRole', { memberId: ownerId, role: 'admin' })).toMatchObject(lastOwner)
+    expect(await act(operator, 'membership.remove', { memberId: ownerId })).toMatchObject(lastOwner)
+    expect(await memberRow(ws.id, ws.owner)).toMatchObject({ role: 'owner' })
+    const second = await signUp()
+    expect((await act(operator, 'membership.add', { userId: second.userId, workspaceId: ws.id, role: 'owner' })).status).toBe(200)
+    expect((await act(operator, 'membership.setRole', { memberId: ownerId, role: 'member' })).status).toBe(200)
+    expect((await act(operator, 'membership.remove', { memberId: ownerId })).status).toBe(200)
+  })
+
+  test('one membership per user and workspace: the database refuses a second row', async () => {
+    const row = await memberRow(other.id, member)
+    await expect(
+      db.insert(memberTable).values({ id: `dup_${crypto.randomUUID()}`, organizationId: other.id, userId: member.userId, role: 'admin', createdAt: new Date() }),
+    ).rejects.toThrow()
+    expect((await db.select().from(memberTable).where(eq(memberTable.userId, member.userId))).filter(m => m.organizationId === other.id)).toEqual([row])
+  })
+
+  test('unknown users, workspaces, members and invitations are refused', async () => {
+    expect((await act(operator, 'membership.add', { userId: 'nope', workspaceId: other.id, role: 'member' })).body.error).toBe('user not found')
+    expect((await act(operator, 'membership.add', { userId: member.userId, workspaceId: 'nope', role: 'member' })).body.error).toBe('workspace not found')
+    expect((await act(operator, 'membership.remove', { memberId: 'nope' })).body.error).toBe('member not found')
+    expect((await act(operator, 'invitation.revoke', { invitationId: 'nope' })).body.error).toBe('invitation not found')
+  })
+
+  test('pending invitations show on the workspace and the user; the admin revokes and resends them; adding answers them', async () => {
+    const sent: string[] = []
+    const texts: string[] = []
+    const send = vi.spyOn(emailSender, 'send').mockImplementation(async e => {
+      sent.push(e.to)
+      texts.push(e.text)
+    })
+    const kind = emailSender.kind
+    Object.assign(emailSender, { kind: 'log' })
+    try {
+      const invitee = await signUp()
+      const email = (await emailOf(invitee)).toUpperCase()
+      const invited = await act(other.owner, 'team.invite', { email: email.toLowerCase(), role: 'member' })
+      const invitationId = invited.body.data.invitationId
+      expect((await membersOf(other.id)).invitations).toEqual([
+        expect.objectContaining({ id: invitationId, email: email.toLowerCase(), role: 'member', expired: false }),
+      ])
+      expect((await userRow(invitee)).invitations).toEqual([
+        expect.objectContaining({ id: invitationId, workspace_id: other.id, role: 'member' }),
+      ])
+      await db.update(user).set({ name: 'Mike Brennan' }).where(eq(user.id, other.owner.userId))
+      await db.update(user).set({ name: 'Ops Admin' }).where(eq(user.id, operator.userId))
+      expect((await act(operator, 'invitation.resend', { invitationId })).status).toBe(200)
+      expect(sent.filter(to => to === email.toLowerCase())).toHaveLength(2)
+      // The resent email names who invited them, not the instance admin who resent it.
+      expect(texts.at(-1)).toMatch(/^Mike Brennan invited you/)
+      expect(texts.at(-1)).not.toMatch(/Ops Admin/)
+      await db.update(user).set({ name: 'Test User' }).where(inArray(user.id, [other.owner.userId, operator.userId]))
+      expect((await act(operator, 'invitation.revoke', { invitationId })).status).toBe(200)
+      expect((await membersOf(other.id)).invitations).toEqual([])
+      // An invitation that is still open is answered by adding the user directly.
+      const again = (await act(other.owner, 'team.invite', { email: email.toLowerCase(), role: 'admin' })).body.data.invitationId
+      expect((await act(operator, 'membership.add', { userId: invitee.userId, workspaceId: other.id, role: 'member' })).status).toBe(200)
+      expect((await db.select().from(invitation).where(eq(invitation.id, again)))[0]?.status).toBe('canceled')
+    } finally {
+      send.mockRestore()
+      Object.assign(emailSender, { kind })
+    }
+  })
+
+  test('an accepted invitation can no longer be revoked or resent', async () => {
+    const invitee = await signUp()
+    await db.update(user).set({ emailVerified: true }).where(eq(user.id, invitee.userId))
+    const [invite] = await db.insert(invitation).values({
+      id: `inv_${crypto.randomUUID()}`, organizationId: home.id, email: await emailOf(invitee), role: 'member', status: 'pending',
+      expiresAt: new Date(Date.now() + 86_400_000), inviterId: operator.userId,
+    }).returning()
+    const accepted = await request(invitee, 'POST', '/api/auth/organization/accept-invitation', { invitationId: invite!.id }, { [FROM]: randomIp() })
+    expect(accepted.status).toBe(200)
+    for (const name of ['invitation.revoke', 'invitation.resend'])
+      expect(await act(operator, name, { invitationId: invite!.id })).toMatchObject({ status: 409, body: { error: 'invitation not found' } })
+    expect((await db.select().from(invitation).where(eq(invitation.id, invite!.id)))[0]?.status).toBe('accepted')
+    // Adding the same person again is refused with a clear reason.
+    expect(await act(operator, 'membership.add', { userId: invitee.userId, workspaceId: home.id, role: 'admin' })).toMatchObject({
+      status: 409,
+      body: { error: expect.stringMatching(/already a member of Linedesk Operations/) },
+    })
+  })
+
+  test('a workspace owner who is no instance admin cannot read another workspace\'s members', async () => {
+    expect((await request(other.owner, 'GET', `/v1/admin/workspaces/${home.id}/members`)).status).toBe(403)
   })
 })
 

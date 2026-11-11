@@ -3,8 +3,9 @@ import { Card } from '../ui/form.tsx'
 import { Badge } from '../ui/kit.tsx'
 import { ActionBar, RowActions, useActionRunner, userActions } from './actions.tsx'
 import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
-import type { AdminUser } from './api.ts'
+import type { AdminUser, AdminWorkspace } from './api.ts'
 import { InviteUser } from './InviteUser.tsx'
+import { UserWorkspaces } from './Memberships.tsx'
 import type { Notify } from './notify.ts'
 import { day, when } from './parts.tsx'
 import { ServerSet } from './ProviderDialog.tsx'
@@ -69,9 +70,9 @@ export function UsersList({ users, currentUserId, onOpen, keysRef, notify, reloa
   )
 }
 
-type DetailProps = { user: AdminUser; currentUserId: string; notify: Notify; reload: () => Promise<void> }
+type DetailProps = { user: AdminUser; workspaces: AdminWorkspace[]; currentUserId: string; notify: Notify; reload: () => Promise<void> }
 
-export function UserDetail({ user: u, currentUserId, notify, reload }: DetailProps) {
+export function UserDetail({ user: u, workspaces, currentUserId, notify, reload }: DetailProps) {
   const runner = useActionRunner(notify)
   const actions = userActions(u, currentUserId, reload)
   return (
@@ -87,17 +88,9 @@ export function UserDetail({ user: u, currentUserId, notify, reload }: DetailPro
           </Fact>
           <Fact label="Last sign-in">{when(u.last_sign_in_at)}</Fact>
           <Fact label="Created">{day(u.created_at)}</Fact>
-          <Fact label="Workspaces">
-            {u.workspaces.length
-              ? u.workspaces.map(w => (
-                  <span key={w.id} className="adm-line">
-                    {w.name} <span className="adm-sub-inline">{w.role.charAt(0).toUpperCase() + w.role.slice(1)}</span>
-                  </span>
-                ))
-              : 'None'}
-          </Fact>
         </dl>
       </Card>
+      <UserWorkspaces user={u} workspaces={workspaces} notify={notify} reload={reload} />
       {runner.dialog}
     </>
   )

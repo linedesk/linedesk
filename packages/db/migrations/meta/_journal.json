@@ -162,6 +162,13 @@
       "when": 1794363688372,
       "tag": "0022_admin_second_factor",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794365067074,
+      "tag": "0023_member_unique",
+      "breakpoints": true
     }
   ]
 }

@@ -50,7 +50,7 @@ const beforeAuthEndpoints = createAuthMiddleware(async ctx => {
 })
 
 /** The plugin's endpoints for password reset, email change and plain verification are not offered. */
-const TEAM_WRITE_PATHS = ['/organization/invite-member', '/organization/cancel-invitation', '/organization/update-member-role', '/organization/remove-member', '/organization/leave']
+const TEAM_WRITE_PATHS = ['/organization/invite-member', '/organization/cancel-invitation', '/organization/update-member-role', '/organization/remove-member', '/organization/leave', '/organization/reject-invitation']
 const UNUSED_EMAIL_CODE_PATHS = [
   '/email-otp/request-password-reset', '/forget-password/email-otp', '/email-otp/reset-password', '/email-otp/verify-email',
   '/email-otp/check-verification-otp', '/email-otp/request-email-change', '/email-otp/change-email',

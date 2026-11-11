@@ -2,6 +2,7 @@ import * as admin from './admin.ts'
 import * as calendar from './calendar.ts'
 import * as calls from './calls.ts'
 import type { ActionDef } from './define.ts'
+import * as membership from './membership.ts'
 import * as notifications from './notifications.ts'
 import * as onboarding from './onboarding.ts'
 import * as settings from './settings.ts'
@@ -12,6 +13,7 @@ export * from './admin.ts'
 export * from './assistant-prompt.ts'
 export * from './calendar.ts'
 export * from './calls.ts'
+export * from './membership.ts'
 export * from './notifications.ts'
 export * from './onboarding.ts'
 export * from './settings.ts'
@@ -90,6 +92,14 @@ const all = [
   team.teamRevokeInvite,
   team.teamSetRole,
   team.teamRemoveMember,
+  membership.invitationListMine,
+  membership.invitationAccept,
+  membership.invitationDecline,
+  membership.membershipAdd,
+  membership.membershipSetRole,
+  membership.membershipRemove,
+  membership.invitationRevoke,
+  membership.invitationResend,
   onboarding.onboardingSetStep,
 ] as ActionDef[]
 

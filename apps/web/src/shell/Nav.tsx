@@ -1,3 +1,4 @@
+import type { MyInvitation } from '@linedesk/actions'
 import { useRef, type ReactNode } from 'react'
 import { auth } from '../auth.ts'
 import type { InboxTab } from '../inbox-model.ts'
@@ -19,7 +20,11 @@ type Props = {
   mineCount: number
   workspaceName: string
   workspaceId: string
-  onError: (message: string) => void
+  /** A short notice at the bottom of the screen. */
+  toast: (message: string) => void
+  /** Invitations to other workspaces, shown in the profile menu. */
+  invitations: MyInvitation[]
+  onInvitationsChanged: () => void
   onInbox: (tab: InboxTab) => void
   onPage: (route: PageRoute) => void
   isInstanceAdmin: boolean
@@ -38,7 +43,7 @@ function NavItem({ label, icon, keys, current, sub, badge, onClick }: { label: s
 
 /** Slide-in navigation: opens from ☰ or M; closes with Esc, the close button, a click outside or after choosing.
  * On very wide windows it is docked: always open beside the content. */
-export function Nav({ open, docked = false, route, tab, unreadCount, reminderCount, mineCount, workspaceName, workspaceId, onError, isInstanceAdmin, onClose, ...on }: Props) {
+export function Nav({ open, docked = false, route, tab, unreadCount, reminderCount, mineCount, workspaceName, workspaceId, toast, invitations, onInvitationsChanged, isInstanceAdmin, onClose, ...on }: Props) {
   const ref = useRef<HTMLElement>(null)
   useFocusTrap(ref, open && !docked, { initial: '.nav-item[aria-current="page"]' }) // opens on the current page, gives focus back when it closes
   const userName = auth.useSession().data?.user.name ?? ''
@@ -62,12 +67,14 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
       <NavItem label={pages.settings.title} icon="gear" keys={['G', 'S']} current={route === 'settings'} onClick={go(() => on.onPage('settings'))} />
       <div className="nav-foot">
         <NavItem label="Keyboard shortcuts" icon="keyboard" keys={['?']} onClick={go(on.onHelp)} />
-        <ProfileMenu navOpen={open} name={userName} workspaceName={workspaceName} workspaceId={workspaceId} onError={onError} onAdmin={isInstanceAdmin ? go(() => on.onPage('admin')) : undefined} onAccount={go(() => on.onPage('account'))} onTeam={go(() => on.onPage('team'))} onSignOut={go(on.onSignOut)} />
+        <ProfileMenu navOpen={open} name={userName} workspaceName={workspaceName} workspaceId={workspaceId} toast={toast} invitations={invitations} onInvitationsChanged={onInvitationsChanged} onAdmin={isInstanceAdmin ? go(() => on.onPage('admin')) : undefined} onAccount={go(() => on.onPage('account'))} onTeam={go(() => on.onPage('team'))} onSignOut={go(on.onSignOut)} />
       </div>
     </nav>
   )
 }
 
-export function MenuButton({ open, onOpen }: { open: boolean; onOpen: () => void }) {
-  return <Button size="sm" variant="ghost" icon="menu" className="menu-btn" aria-label="Open menu" aria-expanded={open} title="Menu (M)" onClick={onOpen} />
+/** `badge`: something waits in the menu (an invitation). */
+export function MenuButton({ open, onOpen, badge = false }: { open: boolean; onOpen: () => void; badge?: boolean }) {
+  const button = <Button size="sm" variant="ghost" icon="menu" className="menu-btn" aria-label={badge ? 'Open menu, an invitation is waiting' : 'Open menu'} aria-expanded={open} title="Menu (M)" onClick={onOpen} />
+  return badge ? <span className="me-avatar menu-btn-wrap">{button}<span className="me-dot" aria-hidden="true" /></span> : button
 }

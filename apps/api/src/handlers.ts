@@ -16,6 +16,7 @@ import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, Reject, type Undo } from './handler-context.ts'
 import { telephonyProvider } from './provider-settings.ts'
 import { startTestCall } from './test-call.ts'
+import { membershipHandlers } from './memberships.ts'
 import { teamHandlers } from './team.ts'
 import { workspaceSettingsHandlers } from './workspace-settings.ts'
 import { queueCallNotification } from './jobs.ts'
@@ -152,6 +153,7 @@ const handlers: Record<string, Handler> = {
   ...assistantHandlers,
   ...impersonationHandlers,
   ...teamHandlers,
+  ...membershipHandlers,
   ...workspaceSettingsHandlers,
   ...notificationHandlers,
   ...calendarConnectionHandlers,

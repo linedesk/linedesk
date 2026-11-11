@@ -35,7 +35,7 @@ describe('roles', () => {
     expect((await request(admin, 'GET', '/v1/me')).body).toMatchObject({ role: 'admin', workspace: { id: ws.id } })
     expect((await request(member, 'GET', '/v1/me')).body).toMatchObject({
       role: 'member',
-      permissions: ['call:read', 'call:write', 'contact:write', 'calendar:read', 'calendar:write', 'team:read'],
+      permissions: ['call:read', 'call:write', 'contact:write', 'calendar:read', 'calendar:write', 'team:read', 'invitation:respond'],
       workspace: { id: ws.id },
     })
   })

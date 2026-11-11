@@ -1,10 +1,13 @@
 // The workspaces a member belongs to, in the profile dropdown: the current one is checked, choosing
-// another makes it active and reloads into it (each workspace has its own local store).
+// another makes it active and reloads into it (each workspace has its own local store). Below them,
+// invitations to other workspaces: Join or Decline.
+import type { MyInvitation } from '@linedesk/actions'
 import { useState, type KeyboardEvent } from 'react'
 import { auth } from '../auth.ts'
 import { fetchQuery, useQuery } from '../cachedQuery.ts'
 import { WORKSPACES_QUERY } from '../session.ts'
-import { Icon } from '../ui/kit.tsx'
+import { Button, Icon } from '../ui/kit.tsx'
+import { declineInvitation, joinWorkspace, roleLabel, switchToWorkspace } from './invitations.ts'
 
 export type Workspace = { id: string; name: string }
 
@@ -38,27 +41,71 @@ export function useWorkspaces(): Workspace[] | null {
 /** After joining or leaving a workspace (an accepted invitation, a removal): load the list again. */
 export const refreshWorkspaces = () => fetchQuery(WORKSPACES_QUERY, loadWorkspaces, { persist: true })
 
-async function switchTo(id: string) {
-  const r = await auth.organization.setActive({ organizationId: id })
-  if (r.error) throw new Error(r.error.message ?? 'Could not switch the workspace')
-  window.location.hash = '#calls'
-  window.location.reload()
+type Props = {
+  all: Workspace[] | null
+  currentId: string
+  invitations: MyInvitation[]
+  /** After a decline: load the invitations again. */
+  onInvitationsChanged: () => void
+  onError: (message: string) => void
 }
 
-type Props = { all: Workspace[] | null; currentId: string; onError: (message: string) => void }
-
-/** The workspace section of the profile dropdown; renders nothing for a member of one workspace. */
-export function WorkspaceSwitcher({ all, currentId, onError }: Props) {
+/** The workspace section of the profile dropdown; nothing for a member of one workspace without invitations. */
+export function WorkspaceSwitcher({ all, currentId, invitations, onInvitationsChanged, onError }: Props) {
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
-  if (!all || all.length < 2) return null
+  const switcher = !!all && all.length >= 2
+  if (!switcher && !invitations.length) return null
+  const fail = (e: unknown) => {
+    setBusy(null)
+    onError(e instanceof Error ? e.message : String(e))
+  }
+  const join = (i: MyInvitation) => () => {
+    if (busy) return
+    setBusy(i.invitationId)
+    // Reloads into the workspace; the session then brings the new list of workspaces.
+    joinWorkspace(i.invitationId).catch(fail)
+  }
+  const decline = (i: MyInvitation) => () => {
+    if (busy) return
+    setBusy(i.invitationId)
+    declineInvitation(i.invitationId).then(() => {
+      setBusy(null)
+      onError(`Declined the invitation to ${i.workspaceName}.`)
+      onInvitationsChanged()
+    }, fail)
+  }
+  const invitationList = invitations.length > 0 && (
+    <>
+      <div className="me-ws-head">Invitations</div>
+      {invitations.map(i => (
+        <div key={i.invitationId} className="me-inv">
+          <div className="me-inv-t">
+            <span className="lbl" title={i.workspaceName}>{i.workspaceName}</span>
+            <small>
+              {roleLabel(i.role)} · from {i.invitedBy}
+            </small>
+          </div>
+          <div className="me-inv-acts">
+            <Button size="sm" variant="primary" role="menuitem" disabled={!!busy} onClick={join(i)} title={`Join ${i.workspaceName} as ${i.role} and switch to it`}>
+              {busy === i.invitationId ? 'Joining…' : 'Join'}
+            </Button>
+            <Button size="sm" variant="ghost" role="menuitem" disabled={!!busy} onClick={decline(i)} title={`Decline the invitation to ${i.workspaceName}`}>
+              Decline
+            </Button>
+          </div>
+        </div>
+      ))}
+    </>
+  )
+  if (!switcher) return <div className="me-ws" role="group" aria-label="Invitations">{invitationList}</div>
   const many = all.length >= WORKSPACE_FILTER_FROM
   const shown = filterWorkspaces(all, currentId, query)
 
   const choose = (id: string) => () => {
     if (id === currentId || busy) return
     setBusy(id)
-    switchTo(id).catch(e => { setBusy(null); onError(e instanceof Error ? e.message : String(e)) })
+    switchToWorkspace(id).catch(fail)
   }
   // Arrow down from the filter moves into the list; other keys type into it.
   const onFilterKey = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -91,6 +138,7 @@ export function WorkspaceSwitcher({ all, currentId, onError }: Props) {
         ))}
         {shown.length === 0 && <div className="me-ws-none">No workspace matches “{query}”.</div>}
       </div>
+      {invitationList}
     </div>
   )
 }

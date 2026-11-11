@@ -16,6 +16,7 @@ import { useInboxView } from './inbox/useInboxView.ts'
 import { callerName, callTitle, type InboxTab } from './inbox-model.ts'
 import { commandGroups, type Command } from './shell/commands.ts'
 import type { Overlay } from './shell/keys.ts'
+import { invitationNotice, unannounced, useMyInvitations } from './shell/invitations.ts'
 import { MenuButton, Nav } from './shell/Nav.tsx'
 import { Overlays } from './shell/Overlays.tsx'
 import { rejectionText } from './shell/rejections.ts'
@@ -47,6 +48,12 @@ const chordPages: Record<string, PageRoute> = { a: 'assistant', c: 'contacts', t
 export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void | Promise<void> }) {
   const nav = useRoute()
   const toaster = useToast()
+  // Invitations to other workspaces: a dot on the menu, a toast once per invitation, Join in the profile menu.
+  const invites = useMyInvitations()
+  useEffect(() => {
+    const fresh = unannounced(invites.invitations)
+    if (fresh.length) toaster.show(invitationNotice(fresh), false, 8000)
+  }, [invites.invitations, toaster.show])
   const view = useInboxView(nav, me.actorId)
   // A notification when a call ends while this tab is in the background (Settings, Notifications).
   useCallNotifications(call => callerName(call, call.contact_id ? view.contacts.get(call.contact_id) : undefined))
@@ -288,7 +295,7 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
     )
   }
 
-  const menu = <MenuButton open={navOpen} onOpen={() => setNavOpen(true)} />
+  const menu = <MenuButton open={navOpen} onOpen={() => setNavOpen(true)} badge={invites.invitations.length > 0} />
   const page: Page | null = nav.route === 'calls' ? null : pages[nav.route]
   return (
     <div className={cx('app', navDocked ? 'nav-docked' : navOpen && 'nav-open')}>
@@ -302,7 +309,9 @@ export function Workspace({ me, onSignedOut }: { me: Me; onSignedOut: () => void
         mineCount={view.counts.mine}
         workspaceName={me.workspace!.name}
         workspaceId={me.workspace!.id}
-        onError={toaster.show}
+        toast={toaster.show}
+        invitations={invites.invitations}
+        onInvitationsChanged={invites.reload}
         isInstanceAdmin={canOpenAdmin}
         onInbox={view.setTab}
         onPage={goPage}

@@ -175,13 +175,13 @@ export function AdminMode({ currentUserId, onExit }: Props) {
     switch (place.section) {
       case 'workspaces':
         return workspace ? (
-          <WorkspaceDetail workspace={workspace} {...shared} />
+          <WorkspaceDetail workspace={workspace} users={data.users} {...shared} />
         ) : (
           <WorkspacesList workspaces={data.workspaces} onOpen={open} keysRef={listKeys} {...shared} />
         )
       case 'users':
         return user ? (
-          <UserDetail user={user} currentUserId={currentUserId} {...shared} />
+          <UserDetail user={user} workspaces={data.workspaces} currentUserId={currentUserId} {...shared} />
         ) : (
           <UsersList users={data.users} currentUserId={currentUserId} onOpen={open} keysRef={listKeys} {...shared} />
         )

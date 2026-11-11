@@ -1,10 +1,10 @@
 // Team management: who may invite, who may accept, last owner protection, removal and closed sign-up.
-import { invitation, member, user } from '@linedesk/db'
-import { eq } from 'drizzle-orm'
+import { commands, invitation, member, user } from '@linedesk/db'
+import { and, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
 import { type Email, emailSender } from '../src/email.ts'
-import { act, addMember, anonymous, appRequest, createWorkspace, FROM, randomIp, request, signUp, type User, type Workspace } from './helpers.ts'
+import { act, addMember, agent, anonymous, appRequest, createWorkspace, FROM, randomIp, request, signUp, type User, type Workspace } from './helpers.ts'
 
 const ORIGIN = 'http://localhost:5173'
 const sent: Email[] = []
@@ -278,5 +278,84 @@ describe('closed sign-up', () => {
     const res = await request(invitee, 'POST', '/api/auth/send-verification-email', { email, callbackURL: ORIGIN }, { [FROM]: randomIp() })
     expect(res.status).toBe(200)
     expect(sent.find(e => e.to === email)?.text).toMatch(/verify-email\?token=/)
+  })
+})
+
+describe('answering an invitation inside the app', () => {
+  const mine = async (who: User) =>
+    (await act(who, 'invitation.listMine', {})).body.data.invitations as { invitationId: string; workspaceName: string; role: string }[]
+  const emailOf = async (who: User) => (await db.select().from(user).where(eq(user.id, who.userId)))[0]!.email
+  const statusOf = async (id: string) => (await db.select().from(invitation).where(eq(invitation.id, id)))[0]?.status
+
+  /** Someone with a workspace of their own, invited to `ws`. */
+  async function invitedOwner(role: 'admin' | 'member' = 'member') {
+    const theirs = await createWorkspace('Janik Electric')
+    await verify(theirs.owner)
+    const id = await invite(ws.owner, (await emailOf(theirs.owner)).toLowerCase(), role)
+    return { who: theirs.owner, id }
+  }
+
+  test('an existing user sees the invitation, accepts it and becomes a member with the invited role; logged as a command', async () => {
+    const { who, id } = await invitedOwner('admin')
+    expect(await mine(who)).toEqual([
+      expect.objectContaining({ invitationId: id, workspaceId: ws.id, workspaceName: 'Brightwater Plumbing & Heating', role: 'admin' }),
+    ])
+    const res = await act(who, 'invitation.accept', { invitationId: id })
+    expect(res).toMatchObject({ status: 200, body: { ok: true, data: { workspaceId: ws.id } } })
+    expect((await db.select().from(member).where(eq(member.userId, who.userId))).find(m => m.organizationId === ws.id)?.role).toBe('admin')
+    expect(await statusOf(id)).toBe('accepted')
+    expect(await mine(who)).toEqual([])
+    const [logged] = await db.select().from(commands).where(and(eq(commands.actor_id, who.userId), eq(commands.action, 'invitation.accept')))
+    expect(logged).toMatchObject({ input: { invitationId: id }, rejected: false })
+    expect((await act(who, 'invitation.accept', { invitationId: id })).body.error).toBe('invitation not found')
+  })
+
+  test('declining ends the invitation; it is gone from the list and cannot be accepted', async () => {
+    const { who, id } = await invitedOwner()
+    expect((await act(who, 'invitation.decline', { invitationId: id })).status).toBe(200)
+    expect(await statusOf(id)).toBe('rejected')
+    expect(await mine(who)).toEqual([])
+    expect((await act(who, 'invitation.accept', { invitationId: id })).body.error).toBe('invitation not found')
+  })
+
+  test("only the invitee: someone else's invitation is not found, neither listed nor accepted nor declined", async () => {
+    const { id } = await invitedOwner()
+    const verified = (await createWorkspace('Someone Else Co')).owner
+    await verify(verified)
+    for (const stranger of [ws.owner, admin, plain, verified]) {
+      expect((await mine(stranger)).map(i => i.invitationId)).not.toContain(id)
+      // Unverified: asked to confirm first (before any lookup); verified: not found.
+      expect((await act(stranger, 'invitation.accept', { invitationId: id })).status).toBe(409)
+      expect(await act(stranger, 'invitation.decline', { invitationId: id })).toMatchObject({ status: 409, body: { error: 'invitation not found' } })
+    }
+    expect((await act(verified, 'invitation.accept', { invitationId: id })).body.error).toBe('invitation not found')
+    expect(await statusOf(id)).toBe('pending')
+  })
+
+  test('an unverified address sees nothing and cannot accept', async () => {
+    const theirs = await createWorkspace('Unverified Co')
+    const id = await invite(ws.owner, (await emailOf(theirs.owner)).toLowerCase())
+    expect(await mine(theirs.owner)).toEqual([])
+    expect((await act(theirs.owner, 'invitation.accept', { invitationId: id })).body.error).toBe('confirm your email address first')
+  })
+
+  test('an expired invitation is not listed and cannot be accepted', async () => {
+    const { who, id } = await invitedOwner()
+    await db.update(invitation).set({ expiresAt: new Date(Date.now() - 60_000) }).where(eq(invitation.id, id))
+    expect(await mine(who)).toEqual([])
+    expect((await act(who, 'invitation.accept', { invitationId: id })).body.error).toBe('this invitation has expired; ask for a new one')
+  })
+
+  test("Better Auth's own reject endpoint is off: declining goes through the registry", async () => {
+    const { who, id } = await invitedOwner()
+    const res = await request(who, 'POST', '/api/auth/organization/reject-invitation', { invitationId: id }, { [FROM]: randomIp() })
+    expect(res.status).toBe(404)
+    expect(await statusOf(id)).toBe('pending')
+  })
+
+  test('the agent cannot list or answer invitations', async () => {
+    const { id } = await invitedOwner()
+    expect((await act(agent(ws.id), 'invitation.accept', { invitationId: id })).status).toBe(403)
+    expect((await act(agent(ws.id), 'invitation.listMine', {})).status).toBe(403)
   })
 })
