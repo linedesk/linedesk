@@ -52,7 +52,19 @@ export function normaliseOrigin(origin: string): string {
 }
 
 /** The origins whose pages may use the session cookie: Better Auth's and /v1's cross-site checks (csrf.ts). */
-export const TRUSTED_ORIGINS: readonly string[] = [normaliseOrigin(WEB_ORIGIN)]
+/**
+ * Extra origins for local development only (LINEDESK_DEV_ORIGINS, comma-separated), e.g. the stack's
+ * localhost address next to its public tunnel (live mode runs with NODE_ENV=production, so this is not
+ * tied to it). Every origin listed can use the session cookie: leave it empty on real installs.
+ */
+function devOrigins(): string[] {
+  const raw = process.env.LINEDESK_DEV_ORIGINS?.trim()
+  if (!raw) return []
+  console.warn(`LINEDESK_DEV_ORIGINS is set: sign-ins are also accepted from ${raw} (local development only).`)
+  return raw.split(',').map(o => o.trim()).filter(Boolean).map(normaliseOrigin)
+}
+
+export const TRUSTED_ORIGINS: readonly string[] = [...new Set([normaliseOrigin(WEB_ORIGIN), ...devOrigins()])]
 
 /** A member can create this many workspaces. */
 export const WORKSPACE_LIMIT = 5
