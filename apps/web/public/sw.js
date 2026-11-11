@@ -70,3 +70,52 @@ self.addEventListener('fetch', event => {
   if (request.mode === 'navigate') return event.respondWith(page(request))
   if (url.pathname.startsWith('/assets/')) return event.respondWith(asset(request))
 })
+
+// Push notifications about calls (apps/api/src/push.ts): who called and, if the member opted in, one
+// line on what about. One notification per call: a later push (message taken, call ended) replaces
+// the earlier one; only urgent calls sound again. Nothing from a push is stored here.
+self.addEventListener('push', event => {
+  let data = null
+  try {
+    data = event.data ? event.data.json() : null
+  } catch {
+    /* not ours */
+  }
+  if (!data || typeof data.callId !== 'string' || typeof data.title !== 'string') return
+  event.waitUntil(
+    (async () => {
+      // A Linedesk window in front shows the call itself; a background tab also gets the page's own
+      // notification, which has the same tag, so the two never show twice.
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      if (windows.some(w => w.focused && w.visibilityState === 'visible')) return
+      await self.registration.showNotification(data.title, {
+        body: data.body || undefined,
+        tag: `call-${data.callId}`,
+        renotify: data.urgent === true,
+        requireInteraction: data.urgent === true,
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        data: { callId: data.callId },
+      })
+    })(),
+  )
+})
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close()
+  const callId = event.notification.data?.callId
+  if (typeof callId !== 'string') return
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      const open = windows.find(w => new URL(w.url).origin === self.location.origin)
+      if (open) {
+        open.postMessage({ type: 'linedesk:open-call', callId })
+        // Focusing can be refused (no user gesture); the call is open either way.
+        await open.focus().catch(() => {})
+        return
+      }
+      await self.clients.openWindow(`/#call/${encodeURIComponent(callId)}`)
+    })(),
+  )
+})

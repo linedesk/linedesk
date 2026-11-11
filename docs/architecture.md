@@ -129,7 +129,7 @@ Reads are defined once as named queries and exposed to the UI (live via sync), R
 6. **Live view.** Transcript streams to the web app. The owner can **Listen** (joins muted) or **Take over** (joins with mic, or LiveKit dials the owner's phone; the agent hands off).
 7. **Hang-up.** Recording finalised to object storage.
 8. **Post-call job.** An LLM pass returns structured JSON: `title`, `summary`, `outcome`, `urgency`, `intent`, `actionItems[]`, `fields[]`, spam score. The call moves to the right view.
-9. **Notify.** Push / email for urgent and callback-needed calls; daily digest for the rest.
+9. **Notify.** Email per finished call and Web Push (opt-in per member and browser; VAPID keys from env; one notification per call that a flagged-urgent, message-taken or finished push updates; payload is who called plus, if opted in, one line); daily digest for the rest later. See README, Push notifications.
 
 Target latencies: answer < 1 ring after forward, first agent word < 1.2 s, turn latency < 800 ms, call summary ready < 10 s after hang-up.
 

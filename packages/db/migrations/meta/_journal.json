@@ -218,6 +218,13 @@
       "when": 1794384572899,
       "tag": "0030_voice_clones",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1794385943310,
+      "tag": "0031_push_subscriptions",
+      "breakpoints": true
     }
   ]
 }

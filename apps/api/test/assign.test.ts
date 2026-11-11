@@ -37,7 +37,7 @@ describe('call.assign', () => {
   })
 })
 
-test('only assistant.update (checks the voice), call.assign, call.delete (clears webhook payloads) and webhook.update (checks the URL) have both a patch and a handler', () => {
+test('only assistant.update (checks the voice), call.assign, call.delete (clears webhook payloads), call.flagUrgent (queues a push) and webhook.update (checks the URL) have both a patch and a handler', () => {
   const both = [...actions.values()].filter(def => def.patch && handlerNames.has(def.name)).map(def => def.name)
-  expect(both.sort()).toEqual(['assistant.update', 'call.assign', 'call.delete', 'webhook.update'])
+  expect(both.sort()).toEqual(['assistant.update', 'call.assign', 'call.delete', 'call.flagUrgent', 'webhook.update'])
 })

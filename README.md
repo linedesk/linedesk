@@ -128,6 +128,20 @@ CPU is split in two. The call-audio services (LiveKit, the SIP bridge, the agent
 
 Whole stack at rest: 880 MB to 1 GB, measured on three runs. Each call in progress adds memory in the agent, so the default is sized for one or two calls at a time; raise `LINEDESK_AGENT_MEM` for more. Every memory limit has a variable `LINEDESK_<SERVICE>_MEM`, every quota `LINEDESK_<SERVICE>_CPUS` (`POSTGRES`, `ELECTRIC`, `API`, `WEB`, `REDIS`, `LIVEKIT`, `SIP`, `AGENT`, `EGRESS`).
 
+### Push notifications (optional)
+
+Members can get a push for new calls (urgent ones first) on their phone or computer, even when Linedesk is closed: Settings, Notifications, "Push notifications on this device". It needs one VAPID key pair per install, generated once and kept (a new pair ends every existing subscription):
+
+```sh
+docker run --rm node:22-alpine npx -y web-push generate-vapid-keys   # or: pnpm --filter @linedesk/api exec web-push generate-vapid-keys
+```
+
+Put the two keys into `.env` as `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`, set `VAPID_SUBJECT` to a `mailto:` or `https:` address where push services can reach you, and restart the API. Without the keys the setting says push is not set up.
+
+- Push needs HTTPS (or `localhost` for development). Chrome, Edge and Firefox work on desktop and Android. On iPhone and iPad (iOS 16.4+) people first add Linedesk to the Home Screen from Safari (Share, Add to Home Screen) and turn push on in the installed app.
+- What a push contains: who called (contact name or number) and, only for members who turn on "Say what the call was about", one line (the call's topic). Never the transcript or the summary. The payload is encrypted for the browser; the browser's push service (Google, Apple, Mozilla) only delivers it.
+- Subscriptions are stored per member and workspace and removed on sign-out, when a member leaves or is removed, when an account is disabled, and when the push service reports them gone. The service worker caches only the app shell (no API, sync or recording responses).
+
 ### Call recordings (optional)
 
 Set `RECORDING_STORE=file` (or `s3` with the `S3_*` settings) and add `--profile recording` to the compose commands. LiveKit egress then writes recordings into the `recordings` volume, which the API reads. Egress comes on top of the memory above (up to 512 MB) and runs on the voice core.

@@ -22,9 +22,10 @@ import { teamHandlers } from './team.ts'
 import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
 import { checkAssistantVoice, releaseUnusedClones, voiceHandlers, voicePreparers } from './voices.ts'
 import { sampleHandlers } from './sample-calls.ts'
-import { queueCallEvaluation, queueCallNotification } from './jobs.ts'
+import { queueCallEvaluation, queueCallNotification, queueCallPush } from './jobs.ts'
 import { evaluatedAutomatically, evaluationHandlers } from './evaluations.ts'
 import { notificationHandlers } from './notification-settings.ts'
+import { pushHandlers } from './push.ts'
 import { contactImportHandlers } from './contact-import.ts'
 import { contactMergeHandlers } from './contact-merge.ts'
 import { clearCallPayloads, queueCallFinishedEvents, queueWebhookEvent, webhookData, webhookHandlers } from './webhooks.ts'
@@ -181,6 +182,7 @@ const handlers: Record<string, Handler> = {
   ...voiceHandlers,
   ...sampleHandlers,
   ...notificationHandlers,
+  ...pushHandlers,
   ...calendarConnectionHandlers,
   ...apiKeyHandlers,
   ...bookingHandlers,
@@ -301,6 +303,7 @@ const handlers: Record<string, Handler> = {
     // Only the first finish notifies; a repeated one (agent retry after a timeout) is not news.
     if (call.status !== 'completed') {
       await queueCallNotification(tx, call.id)
+      await queueCallPush(tx, call.id, 'finished')
       // Test calls are evaluated only when the call view asks (call.evaluate).
       if (evaluatedAutomatically(updated!)) await queueCallEvaluation(tx, call.id)
       await queueCallFinishedEvents(tx, updated!, now)
@@ -319,8 +322,19 @@ const handlers: Record<string, Handler> = {
   'call.takeMessage': async ({ tx, actor, now }, input) => {
     const call = await loadCall(tx, actor, input.callId)
     const action_items = [...call.action_items, { text: input.message }]
-    if (call.source !== 'test') await queueWebhookEvent(tx, call.workspace_id, 'message.taken', webhookData.messageTaken(call, input.message), now)
+    if (call.source !== 'test') {
+      await queueWebhookEvent(tx, call.workspace_id, 'message.taken', webhookData.messageTaken(call, input.message), now)
+      await queueCallPush(tx, call.id, 'message')
+    }
     return { rows: { calls: await tx.update(calls).set({ action_items }).where(eq(calls.id, call.id)).returning() } }
+  },
+
+  // The same update as the action's patch, plus a push the first time a call becomes urgent.
+  'call.flagUrgent': async ({ tx, actor }, input: { callId: string }) => {
+    const call = await loadCall(tx, actor, input.callId)
+    const rows = await tx.update(calls).set({ urgency: 'urgent' }).where(eq(calls.id, call.id)).returning()
+    if (call.urgency !== 'urgent' && call.source !== 'test') await queueCallPush(tx, call.id, 'urgent')
+    return { rows: { calls: rows } }
   },
 
   'onboarding.setStep': async ({ tx, actor }, input) => {

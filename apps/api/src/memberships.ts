@@ -8,6 +8,7 @@ import { alias } from 'drizzle-orm/pg-core'
 import type { Actor } from './context.ts'
 import { type Handler, Reject } from './handler-context.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
+import { dropWorkspacePush } from './push.ts'
 import { sendInvitation } from './team.ts'
 
 const DAY_MS = 86_400_000
@@ -138,6 +139,7 @@ export const membershipHandlers: Record<string, Handler> = {
     const target = await loadMember(tx, input.memberId)
     await keepAnOwner(tx, target)
     await tx.delete(member).where(eq(member.id, target.id))
+    await dropWorkspacePush(tx, target.organizationId, target.userId)
     return { rows: {} }
   },
 

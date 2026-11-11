@@ -5,6 +5,7 @@
 // deletes all of it, not only the workspace that happens to be open.
 import { auth } from './auth.ts'
 import { forgetOtherMembersQueries } from './cachedQuery.ts'
+import { endBrowserPush, stopPushOnSignOut } from './push.ts'
 import { forgetMe, type Session } from './session.ts'
 import { stopAllStores } from './storeCache.ts'
 
@@ -46,6 +47,8 @@ export async function forgetLocalData() {
   forgetElectricState()
   forgetKeys([ACCOUNT_KEY, SEEN_INVITATIONS_KEY])
   await Promise.all((await localDatabaseNames(open)).map(deleteDatabase))
+  // Pushes belong to the session too; the service worker itself keeps only the app shell.
+  await endBrowserPush()
 }
 
 /** The account this browser's local data belongs to (set when a session opens, see forgetBeyond). */
@@ -74,6 +77,7 @@ function claimLocalData(account: string): string | null {
 
 /** Ends the session and deletes what this browser kept of it ("Use a different account" and the like). */
 export async function signOutAndForget() {
+  await stopPushOnSignOut()
   await auth.signOut()
   await forgetLocalData()
 }

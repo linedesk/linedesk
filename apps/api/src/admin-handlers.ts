@@ -16,6 +16,7 @@ import {
   setProviderKeys,
 } from './provider-settings.ts'
 import { testProvider } from './provider-test.ts'
+import { dropUserPush } from './push.ts'
 import { SecretsKeyError } from './secrets.ts'
 
 /** A missing or wrong SECRETS_KEY is the operator's to fix: show the reason instead of a server error. */
@@ -127,6 +128,7 @@ export const adminHandlers: Record<string, Handler> = {
       .set({ disabledAt: new Date(now) })
       .where(eq(user.id, account.id))
     await tx.delete(session).where(eq(session.userId, account.id))
+    await dropUserPush(tx, account.id)
     return { rows: {}, data: { userId: account.id, disabled_at: now } }
   },
 

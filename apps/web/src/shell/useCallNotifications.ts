@@ -5,6 +5,7 @@ import type { NotificationSettingsData } from '@linedesk/actions'
 import type { Call } from '@linedesk/db/types'
 import { useEffect, useRef } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
+import { onPushOpensCall } from '../push.ts'
 import { readAction } from '../settings/settings-api.ts'
 import { useRows } from '../store.tsx'
 import { callHash } from './useRoute.ts'
@@ -63,6 +64,15 @@ export function useCallNotifications(callerName: (call: Call) => string) {
   const since = useRef(Date.now() - SLACK_MS)
   const name = useRef(callerName)
   name.current = callerName
+
+  // A click on a push notification (service worker) opens its call here.
+  useEffect(
+    () =>
+      onPushOpensCall(id => {
+        window.location.hash = callHash(id)
+      }),
+    [],
+  )
 
   useEffect(() => {
     const before = seen.current

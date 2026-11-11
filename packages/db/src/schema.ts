@@ -200,9 +200,28 @@ export const member_notification_settings = pgTable(
     user_id: text('user_id').notNull(),
     email: boolean('email'),
     browser: boolean('browser'),
+    /** Push notifications carry what the call was about (one line); null/false: only who called. */
+    push_summary: boolean('push_summary'),
     updated_at: ts('updated_at').notNull().defaultNow(),
   },
   t => [primaryKey({ columns: [t.workspace_id, t.user_id] })],
+)
+
+// Web Push: one row per browser (its push service endpoint) and workspace a member turned push on in.
+// Not synced. The endpoint and keys let anyone send to that browser, so they never leave the server
+// and are redacted in the command log. Rows go when the member signs out, leaves or is removed, is
+// disabled, or when the push service says the subscription is gone.
+export const push_subscriptions = pgTable(
+  'push_subscriptions',
+  {
+    workspace_id: text('workspace_id').notNull(),
+    user_id: text('user_id').notNull(),
+    endpoint: text('endpoint').notNull(),
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
+    created_at: createdAt(),
+  },
+  t => [primaryKey({ columns: [t.workspace_id, t.endpoint] }), index('push_subscriptions_user_idx').on(t.user_id)],
 )
 
 // Weekly working hours: wall-clock times in the workspace time zone. Several rows per weekday are allowed.

@@ -69,7 +69,7 @@ const snapshot = async (ws: Workspace) => [
 ]
 
 /** Patch actions with a server handler of their own say so in their words. */
-const notFound: Record<string, string> = { 'webhook.update': 'webhook endpoint not found' }
+const notFound: Record<string, string> = { 'webhook.update': 'webhook endpoint not found', 'call.flagUrgent': 'call not found' }
 
 describe('patch actions', () => {
   test.each(patchActions.map(def => [def.name, def] as const))(

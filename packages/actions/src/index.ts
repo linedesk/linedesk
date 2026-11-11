@@ -80,6 +80,8 @@ const all = [
   notifications.notificationsGet,
   notifications.notificationsUpdate,
   notifications.notificationsSetDefaults,
+  notifications.pushSubscribe,
+  notifications.pushUnsubscribe,
   calendar.calendarFindSlots,
   calendar.appointmentBook,
   calendar.appointmentCancel,

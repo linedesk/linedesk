@@ -11,6 +11,7 @@ import type { Actor } from './context.ts'
 import { emailSender } from './email.ts'
 import { type Handler, Reject } from './handler-context.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
+import { dropWorkspacePush } from './push.ts'
 import { createRateLimiter } from './rate-limit.ts'
 
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
@@ -170,6 +171,7 @@ export const teamHandlers: Record<string, Handler> = {
       if (!owners.some(o => o.id !== me.id)) throw new Reject('you are the last owner: make someone else owner first')
     }
     await tx.delete(member).where(eq(member.id, me.id))
+    await dropWorkspacePush(tx, workspaceId, actor.actorId)
     const [next] = await tx.select({ id: member.organizationId }).from(member)
       .where(eq(member.userId, actor.actorId)).orderBy(asc(member.createdAt)).limit(1)
     return { rows: {}, data: { nextWorkspaceId: next?.id ?? null } }
@@ -179,6 +181,7 @@ export const teamHandlers: Record<string, Handler> = {
     const target = await loadMember(tx, workspaceOf(actor), input.memberId)
     await guardOwner(tx, actor, target)
     await tx.delete(member).where(eq(member.id, target.id))
+    await dropWorkspacePush(tx, target.organizationId, target.userId)
     return { rows: {} }
   },
 }

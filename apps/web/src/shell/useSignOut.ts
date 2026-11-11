@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { auth } from '../auth.ts'
 import { forgetLocalData } from '../localData.ts'
+import { stopPushOnSignOut } from '../push.ts'
 import { useStore } from '../store.tsx'
 
 const SETTLE_MS = 2000
@@ -32,6 +33,8 @@ export function useSignOut({ onSignedOut, toast }: Options) {
       warnedAbout.current = unsent
       return toast(`${unsent} ${unsent === 1 ? 'change has' : 'changes have'} not been sent yet. Reconnect to keep ${unsent === 1 ? 'it' : 'them'}, or sign out again to discard.`)
     }
+    // Pushes stop for this browser before the session ends (the server needs it to know whose they are).
+    await stopPushOnSignOut()
     await auth.signOut()
     // Every workspace's local rows, Electric's state and cached reads belong to the member who leaves.
     await forgetLocalData()
