@@ -87,10 +87,6 @@ export const setsTransferNumber = (input: unknown) => {
   return Array.isArray(list) && list.some(c => isActiveContact((c ?? {}) as TransferContact))
 }
 
-/** The Emergency preset's condition (settings, the call test): trade examples help the assistant tell what counts. */
-export const EMERGENCY_CONDITION =
-  'Urgent: an emergency that needs a person right now, like a burst pipe, flooding, a gas smell or no heat in freezing weather'
-
 /**
  * How a transfer went: `dialing` while the on-call phone rings or the person is briefed, then put
  * through, nobody answered (or no decision), the person said no, or it could not be placed.

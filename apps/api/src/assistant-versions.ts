@@ -1,6 +1,6 @@
 // Versions of an assistant's call settings (docs/architecture.md, Assistant versions). Every write that
 // changes them ends with recordVersion in the same transaction; calls look up the version they run with.
-import { type AssistantSnapshot, type AssistantVersionData, type AssistantVersionItem, type AssistantVersionsData, snapshotOf, stableJson, versionSummary } from '@linedesk/actions'
+import { type AssistantSnapshot, type AssistantVersionData, type AssistantVersionItem, type AssistantVersionsData, snapshotOf, stableJson, storedSnapshot, versionSummary } from '@linedesk/actions'
 import { assistant_calendars, assistant_versions, assistants, user, type Tx } from '@linedesk/db'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { type Handler, type HandlerCtx, Reject } from './handler-context.ts'
@@ -38,7 +38,7 @@ export async function recordVersion(tx: Tx, workspaceId: string, assistantId: st
   const now = await currentSnapshot(tx, workspaceId, assistantId)
   if (!now) return null
   const latest = await latestVersion(tx, assistantId)
-  const before = latest?.settings as AssistantSnapshot | undefined
+  const before = latest ? storedSnapshot(latest.settings) : undefined
   if (before && stableJson(before) === stableJson(now) && !restoredFrom) return latest!.number
   const number = (latest?.number ?? 0) + 1
   await tx.insert(assistant_versions).values({
@@ -95,7 +95,7 @@ export async function versionOf(tx: Tx, workspaceId: string, assistantId: string
     .leftJoin(user, eq(user.id, assistant_versions.changed_by))
     .where(and(eq(assistant_versions.assistant_id, assistantId), eq(assistant_versions.workspace_id, workspaceId), eq(assistant_versions.number, number)))
   if (!found) throw new Reject(`version ${number} not found`)
-  return { ...found, settings: found.settings as AssistantSnapshot }
+  return { ...found, settings: storedSnapshot(found.settings) }
 }
 
 export const assistantVersionHandlers: Record<string, Handler> = {

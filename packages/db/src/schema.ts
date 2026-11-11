@@ -113,8 +113,6 @@ export const assistants = pgTable(
     keypad_menu: jsonb('keypad_menu').$type<KeypadMenu>(),
     /** The behaviour checklist (BEHAVIOURS in @linedesk/actions): only the switches the owner changed; the rest use their default. */
     behaviours: jsonb('behaviours').$type<Record<string, boolean>>().notNull().default({}),
-    /** What the assistant tells a caller with an emergency (e.g. "If you smell gas, leave the house"); empty: nothing extra. */
-    emergency_note: text('emergency_note').notNull().default(''),
     /** Languages the assistant speaks with callers: English only (the default), English + an allow-list, or any it supports. */
     languages: jsonb('languages').$type<AssistantLanguages>().notNull().default({ mode: 'english', allowed: [] }),
     created_at: createdAt(),

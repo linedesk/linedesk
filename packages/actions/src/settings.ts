@@ -1,4 +1,4 @@
-import { AI_DISCLOSURE_MODES, BEHAVIOUR_IDS, COMMUNICATION_STYLES, CALL_RULES_MAX, EMERGENCY_NOTE_MAX } from './assistant-prompt.ts'
+import { AI_DISCLOSURE_MODES, BEHAVIOUR_IDS, COMMUNICATION_STYLES, CALL_RULES_MAX } from './assistant-prompt.ts'
 import type { Closure } from '@linedesk/db/types'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
@@ -207,7 +207,7 @@ export const keypadMenu = z.object({
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
-    'Update the assistant: name, greeting, what a caller who called before hears before the greeting (`greeting_known_caller`, `{first_name}` and `{last_name}` filled in; empty: nothing), voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a US number in E.164, null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `keypad_menu` (null: off) plays "press 1 for …" after the greeting; a `transfer` key is an urgent call (put through to the first contact that is reachable, else flagged urgent and a message), a `topic` key tells the assistant what the caller wants. `languages`: `english` (English only, the default), `allowed` (English plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in English. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, listed_prices_only, confirm_number, emergency_fee, ask_referral); `emergency_note` is what the assistant tells a caller with an emergency. `ai_disclosure`: whether and when it mentions being an AI (never, when_asked, at_start, at_start_consent: says it and asks whether that is okay); it never claims to be human. `communication_style`: the tone (standard, professional, casual, formal, empathetic).',
+    'Update the assistant: name, greeting, what a caller who called before hears before the greeting (`greeting_known_caller`, `{first_name}` and `{last_name}` filled in; empty: nothing), voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a US number in E.164, null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `keypad_menu` (null: off) plays "press 1 for …" after the greeting; a `transfer` key is an urgent call (put through to the first contact that is reachable, else flagged urgent and a message), a `topic` key tells the assistant what the caller wants. `languages`: `english` (English only, the default), `allowed` (English plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in English. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, listed_prices_only, confirm_number, emergency_fee, ask_referral); `ai_disclosure`: whether and when it mentions being an AI (never, when_asked, at_start, at_start_consent: says it and asks whether that is okay); it never claims to be human. `communication_style`: the tone (standard, professional, casual, formal, empathetic).',
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().min(1).optional(),
@@ -237,8 +237,6 @@ export const assistantUpdate = defineAction({
     keypad_menu: keypadMenu.nullable().optional(),
     /** The behaviour checklist: the switches the owner changed (BEHAVIOURS); a missing one uses its default. */
     behaviours: z.partialRecord(z.enum(BEHAVIOUR_IDS), z.boolean()).optional(),
-    /** What the assistant tells a caller with an emergency; empty: nothing extra. */
-    emergency_note: z.string().trim().max(EMERGENCY_NOTE_MAX).optional(),
     /** Which languages the assistant speaks with callers besides English. */
     languages: assistantLanguages.optional(),
     /** An empty voice_id: the provider's default voice. */
@@ -340,7 +338,6 @@ export const closureSchema = z
     from: isoDate,
     until: isoDate,
     greeting: z.string().trim().max(CLOSURE_GREETING_MAX),
-    transfers: z.enum(['none', 'urgent']),
   })
   .refine(c => c.until >= c.from, { message: 'the last day cannot be before the first' }) satisfies z.ZodType<Closure>
 

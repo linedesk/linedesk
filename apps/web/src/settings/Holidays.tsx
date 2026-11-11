@@ -5,7 +5,7 @@ import type { ClosedDay } from '@linedesk/actions'
 import type { Closure } from '@linedesk/db/types'
 import { type FormEvent, useState } from 'react'
 import { useRun } from '../store.tsx'
-import { Select, type SelectOption, Switch } from '../ui/controls.tsx'
+import { Switch } from '../ui/controls.tsx'
 import { Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow } from '../ui/list.tsx'
@@ -127,11 +127,6 @@ export function Holidays({ canEdit, toast }: Props) {
   )
 }
 
-const transferOptions: SelectOption<Closure['transfers']>[] = [
-  { value: 'urgent', label: 'Still put emergencies through', description: 'Only to transfer contacts for urgent calls' },
-  { value: 'none', label: 'Take a message on every call', description: 'Nobody is called, emergencies are marked urgent' },
-]
-
 /** Vacation or closure mode: off, being set up, or on (scheduled, running or ended) with Edit and Turn off. */
 export function VacationMode({ canEdit, toast }: Props) {
   const { loaded, today, closure, setClosure } = useClosedDays()
@@ -139,7 +134,7 @@ export function VacationMode({ canEdit, toast }: Props) {
   const active = closure && closureState(closure, today) !== 'ended' ? closure : null
   function start() {
     const until = addDays(today, 6)
-    setDraft(closure && closureState(closure, today) !== 'ended' ? closure : { from: today, until, greeting: defaultClosureGreeting(until), transfers: 'urgent' })
+    setDraft(closure && closureState(closure, today) !== 'ended' ? closure : { from: today, until, greeting: defaultClosureGreeting(until) })
   }
   function save(e: FormEvent) {
     e.preventDefault()
@@ -167,7 +162,7 @@ export function VacationMode({ canEdit, toast }: Props) {
       id="as-vacation"
       title="Vacation mode"
       description={active ? closureSummary(active, today) : 'Closed for a few days or weeks, with its own greeting.'}
-      help="While it is on, the assistant greets callers with the vacation greeting, says when you are back, takes messages and books nothing. Urgent calls can still be put through to your emergency contacts. It ends by itself after the last day."
+      help="While it is on, the assistant greets callers with the vacation greeting, says when you are back, takes messages and books nothing. Nobody is put through; urgent calls are marked urgent. It ends by itself after the last day."
       actions={
         <Switch
           on={on}
@@ -190,16 +185,6 @@ export function VacationMode({ canEdit, toast }: Props) {
           <Field id="hd-greeting" label="Greeting while closed" aside="Optional">
             <TextArea id="hd-greeting" value={draft.greeting} onChange={greeting => setDraft({ ...draft, greeting })} placeholder="Empty: the outside-hours greeting" />
           </Field>
-          <Field id="hd-urgent" label="Urgent calls">
-            <Select
-              id="hd-urgent"
-              size="sm"
-              value={draft.transfers}
-              options={transferOptions}
-              onChange={transfers => setDraft({ ...draft, transfers })}
-              label="Urgent calls"
-            />
-          </Field>
           <div className="hd-actions">
             <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
               Cancel
@@ -212,7 +197,7 @@ export function VacationMode({ canEdit, toast }: Props) {
       ) : active ? (
         <div className="hd-on">
           <p className="hd-quote">"{active.greeting || 'The outside-hours greeting'}"</p>
-          <span className="help">{active.transfers === 'urgent' ? 'Emergencies are still put through.' : 'Every call gets a message, nobody is called.'}</span>
+          <span className="help">Every call gets a message, nobody is called.</span>
           {canEdit && (
             <div className="hd-actions">
               <Button size="sm" variant="ghost" onClick={turnOff}>

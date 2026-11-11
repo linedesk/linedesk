@@ -103,12 +103,6 @@ export function behaviourLines(stored: Readonly<Record<string, boolean>> | null 
   })
 }
 
-/** Longest emergency note (what the assistant tells a caller with an emergency). */
-export const EMERGENCY_NOTE_MAX = 1000
-
-/** Whether a transfer contact is for emergencies: its condition says urgent or emergency (the Emergency preset does). */
-export const isEmergencyCondition = (condition: string) => /\burgent|\bemergenc/i.test(condition)
-
 /**
  * Whether and when the assistant mentions it is an AI (`assistants.ai_disclosure`). Whatever the mode, it
  * never claims to be human and answers truthfully when asked (a fixed rule of the prompt).

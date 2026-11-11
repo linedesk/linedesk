@@ -2,10 +2,10 @@
 // changes that arrive through sync, checked and turned back into what assistant.update takes.
 import {
   knownCallerGreetingProblem,
-  CALL_RULES_MAX, EMERGENCY_CONDITION, type Faq, FAQS_MAX, INSTRUCTIONS_MAX, RING_SECONDS_DEFAULT, TRANSFER_CONDITION_MAX,
+  CALL_RULES_MAX, type Faq, FAQS_MAX, INSTRUCTIONS_MAX, RING_SECONDS_DEFAULT, TRANSFER_CONDITION_MAX,
   TRANSFER_CONTACTS_MAX, type Service, SERVICES_MAX, servicesOf, TRANSFER_NAME_MAX, callRulesOf, usesDefaultCallRules, onCallNumberProblem,
   DEFAULT_SILENCE_CLOSING, SILENCE_CLOSING_MAX, SILENCE_FIRST_GAP_MAX_S, SILENCE_FIRST_GAP_MIN_S, SILENCE_REMINDERS_MAX,
-  SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT, KEYPAD_MENU_MAX_OPTIONS, BEHAVIOURS, type BehaviourId, behaviourOn, EMERGENCY_NOTE_MAX, type AiDisclosure, DEFAULT_AI_DISCLOSURE, type CommunicationStyle, DEFAULT_COMMUNICATION_STYLE, type AssistantLanguages, ENGLISH_ONLY, type Language, languageCodes, LANGUAGES, mainLanguageOf, swapDefault,
+  SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT, KEYPAD_MENU_MAX_OPTIONS, BEHAVIOURS, type BehaviourId, behaviourOn, type AiDisclosure, DEFAULT_AI_DISCLOSURE, type CommunicationStyle, DEFAULT_COMMUNICATION_STYLE, type AssistantLanguages, ENGLISH_ONLY, type Language, languageCodes, LANGUAGES, mainLanguageOf, swapDefault,
 } from '@linedesk/actions'
 import type { Assistant, BusinessProfile, KeypadMenuOption, TransferContact } from '@linedesk/db/types'
 import { formatNumber, renameInGreeting, toE164 } from '../onboarding/flow.ts'
@@ -41,8 +41,6 @@ export type Draft = {
   silence_closing: string
   /** The behaviour checklist, every switch with its value (the default where the owner set none). */
   behaviours: Record<BehaviourId, boolean>
-  /** What the assistant tells a caller with an emergency. */
-  emergency_note: string
   /** Languages besides English; the picked ones are kept while English only is chosen, but saved empty. */
   languages: AssistantLanguages
 }
@@ -84,7 +82,6 @@ export function draftOf(a: Assistant): Draft {
     // None stored: the default line, shown so it can be edited (like the call rules).
     silence_closing: a.silence_closing ?? DEFAULT_SILENCE_CLOSING,
     behaviours: behavioursOf(a.behaviours),
-    emergency_note: a.emergency_note ?? '',
     languages: languagesOf(a.languages),
   }
 }
@@ -164,7 +161,6 @@ export const normalized = (d: Draft): Draft => ({
   silence_first_gap_s: d.silence_first_gap_s.trim(),
   silence_reminders: d.silence_reminders.trim(),
   silence_closing: d.silence_closing.trim(),
-  emergency_note: d.emergency_note.trim(),
 })
 
 /** The contact with its fields in one fixed order: Postgres keeps jsonb keys in its own order, and drafts compare as JSON. */
@@ -274,12 +270,11 @@ export function transferProblem(d: Pick<Draft, 'transfers'>): TransferProblem | 
 export const transfersToSave = (d: Pick<Draft, 'transfers'>): TransferContact[] =>
   d.transfers.map(c => ({ ...c, name: c.name.trim(), condition: c.condition.trim(), number: toE164(c.number) }))
 
-/** Starting points for a new contact: blank, someone for callers who ask for a person, or emergencies. */
-export type TransferPreset = 'blank' | 'person' | 'emergency'
+/** Starting points for a new contact: blank, or someone for callers who ask for a person. */
+export type TransferPreset = 'blank' | 'person'
 const PRESETS: Record<TransferPreset, Pick<TransferDraft, 'name' | 'condition' | 'hours_only' | 'if_no_answer'>> = {
   blank: { name: '', condition: '', hours_only: false, if_no_answer: 'message' },
   person: { name: 'Owner', condition: 'The caller asks to speak to a person', hours_only: true, if_no_answer: 'message' },
-  emergency: { name: 'On-call', condition: EMERGENCY_CONDITION, hours_only: false, if_no_answer: 'message_urgent' },
 }
 
 /** A new contact from a preset, with an id and a name no other contact of the list has. */
@@ -343,8 +338,6 @@ export function draftProblem(draft: Draft): string | null {
   if (length > INSTRUCTIONS_MAX) return `The instructions are too long: ${length.toLocaleString('en-US')} of ${INSTRUCTIONS_MAX.toLocaleString('en-US')} characters.`
   const rules = draft.call_rules.trim().length
   if (rules > CALL_RULES_MAX) return `How to handle calls is too long: ${rules.toLocaleString('en-US')} of ${CALL_RULES_MAX.toLocaleString('en-US')} characters.`
-  const note = draft.emergency_note.trim().length
-  if (note > EMERGENCY_NOTE_MAX) return `What to tell callers in an emergency is too long: ${note.toLocaleString('en-US')} of ${EMERGENCY_NOTE_MAX.toLocaleString('en-US')} characters.`
   return knowledgeProblem(normalized(draft)) ?? transferProblem(draft)?.message ?? silenceProblem(draft) ?? keypadProblem(draft) ?? languagesProblem(draft)
 }
 

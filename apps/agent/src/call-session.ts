@@ -1,5 +1,5 @@
 // One call as the agent sees it: start, append transcript segments, finish.
-import { type BookingContext, type CallCustomField, type CallDocuments, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, DEFAULT_AI_DISCLOSURE, DEFAULT_KNOWN_CALLER_GREETING, EMERGENCY_CONDITION, greetingWithDisclosure, localizedDefault, mainLanguageOf, silenceClosingOf } from '@linedesk/actions'
+import { type BookingContext, type CallCustomField, type CallDocuments, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, DEFAULT_AI_DISCLOSURE, DEFAULT_KNOWN_CALLER_GREETING, greetingWithDisclosure, localizedDefault, mainLanguageOf, silenceClosingOf } from '@linedesk/actions'
 import type { Assistant, Contact, ToolEvent, TransferContact } from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
@@ -11,9 +11,9 @@ export type CallResult = Omit<z.input<typeof callFinish.input>, 'callId'>
 
 /**
  * The business's hours as `call.start` reports them: `summary` is a ready sentence for the assistant.
- * `closure`: vacation or closure mode is on today (its greeting, and whether urgent calls are still put through).
+ * `closure`: vacation or closure mode is on today (its greeting); nobody is put through then.
  */
-export type BusinessHours = { openNow: boolean; summary: string; closure?: { greeting: string; transfers: 'none' | 'urgent' } }
+export type BusinessHours = { openNow: boolean; summary: string; closure?: { greeting: string } }
 
 export interface CallSession {
   callId: string
@@ -136,7 +136,7 @@ export type SimulatedOnCall = { answer: SimulatedAnswer; number: string }
 
 /** The call test's only transfer contact: urgent calls to the simulated on-call person. */
 export const simulatedContact = (number: string): TransferContact => ({
-  id: 'oncall', name: 'Mike', number, condition: EMERGENCY_CONDITION, hours_only: false,
+  id: 'oncall', name: 'Mike', number, condition: 'Urgent: a burst pipe, flooding, a gas smell or no heat in freezing weather', hours_only: false,
   ring_seconds: 25, if_no_answer: 'message_urgent', enabled: true,
 })
 

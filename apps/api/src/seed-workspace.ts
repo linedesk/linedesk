@@ -19,7 +19,7 @@ import {
   user,
   workspace_settings,
 } from '@linedesk/db'
-import { EMERGENCY_CONDITION, RING_SECONDS_DEFAULT } from '@linedesk/actions'
+import { RING_SECONDS_DEFAULT } from '@linedesk/actions'
 import { and, asc, eq, inArray, like } from 'drizzle-orm'
 import { db } from './db.ts'
 import { DEMO_ASSISTANT, GREETING, leadOf, type SeedCall, seedCalls } from './demo-calls.ts'
@@ -435,7 +435,7 @@ async function seedAssistant(workspaceId: string, business: string): Promise<str
         id: 'oncall',
         name: 'Mike (on-call)',
         number: ONCALL_NUMBER,
-        condition: EMERGENCY_CONDITION,
+        condition: 'Urgent: a burst pipe, flooding, a gas smell or no heat in freezing weather',
         hours_only: false,
         ring_seconds: RING_SECONDS_DEFAULT,
         if_no_answer: 'message_urgent' as const,

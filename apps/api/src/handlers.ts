@@ -143,7 +143,7 @@ const releaseBought = (provider: TelephonyProvider, number: { e164: string; prov
 
 /** The business hours `call.start` gives the agent; `closure` while vacation or closure mode is on. */
 export type CallHours = Pick<BusinessHoursContext, 'openNow' | 'summary'> &
-  Partial<BusinessHoursContext> & { closure?: Pick<Closure, 'greeting' | 'transfers'> }
+  Partial<BusinessHoursContext> & { closure?: Pick<Closure, 'greeting'> }
 
 /** The closure as the agent hears it, when today (in the workspace's zone) is one of its days; else null. */
 export function closureNow(closure: Closure | null | undefined, timeZone: string, nowMs: number): CallHours | null {
@@ -154,7 +154,7 @@ export function closureNow(closure: Closure | null | undefined, timeZone: string
   return {
     openNow: false,
     summary: `The business is closed for a break from ${dateLabel(closure.from)} to ${dateLabel(closure.until)}, and back on ${back}. Regular hours and appointments resume then.`,
-    closure: { greeting: closure.greeting, transfers: closure.transfers },
+    closure: { greeting: closure.greeting },
   }
 }
 

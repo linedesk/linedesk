@@ -1,7 +1,7 @@
 // Warm transfer, the decisions without any audio: which transfer contacts the assistant may put
 // callers through to on this call, in which order it tries them and what happens when nobody accepts,
 // what the person hears, and how their answer is read. The call itself is in transfer-call.ts.
-import { isActiveContact, isEmergencyCondition, RING_SECONDS_DEFAULT, type TransferResult } from '@linedesk/actions'
+import { isActiveContact, RING_SECONDS_DEFAULT, type TransferResult } from '@linedesk/actions'
 import type { Assistant, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 
@@ -20,12 +20,11 @@ export type Dialable = TransferContact & { number: string }
  */
 export function transferContactsFor(assistant: Assistant | null, hours: BusinessHours | null): Dialable[] {
   const closed = !!hours && !hours.openNow
-  // Vacation or closure mode: nobody, or only the emergency contacts.
-  const closure = hours?.closure?.transfers
-  if (closure === 'none') return []
+  // Vacation or closure mode: nobody is put through.
+  if (hours?.closure) return []
   return (assistant?.transfers ?? []).filter(
     (c): c is Dialable =>
-      isActiveContact(c) && !(c.hours_only && closed) && (closure !== 'urgent' || isEmergencyCondition(c.condition)),
+      isActiveContact(c) && !(c.hours_only && closed),
   )
 }
 

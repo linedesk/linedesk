@@ -72,9 +72,9 @@ export const DEFAULT_TRANSFERS: TransferContact[] = [
 /**
  * Vacation or closure mode: from `from` to `until` (dates in the workspace time zone, both closed) the business
  * is closed whatever its hours say. `greeting` replaces the greeting (empty: the outside-hours one, else the
- * usual); `transfers`: `none` takes a message on every call, `urgent` still puts emergencies through.
+ * usual). Nobody is put through: every call gets a message. A `transfers` key saved by an older release is ignored.
  */
-export type Closure = { from: string; until: string; greeting: string; transfers: 'none' | 'urgent' }
+export type Closure = { from: string; until: string; greeting: string }
 export type KeypadMenuAction = 'transfer' | 'topic'
 export type KeypadMenuOption = { key: string; label: string; action: KeypadMenuAction }
 export type KeypadMenu = { options: KeypadMenuOption[] }

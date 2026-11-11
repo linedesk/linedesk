@@ -141,10 +141,8 @@ describe('transfer contacts', () => {
     expect(draftProblem(draft({ condition: '' }))).toBe('Say when calls go to this contact.')
   })
   it('adds presets with a free id and name, and moves contacts up and down', () => {
-    const list = draftOf(assistant({ transfers: [{ ...mike, id: 'tc_2', name: 'On-call' }] })).transfers
-    const emergency = newTransferContact(list, 'emergency')
-    expect(emergency).toMatchObject({ id: 'tc_3', name: 'On-call 2', if_no_answer: 'message_urgent', ring_seconds: 25, number: '', enabled: true })
-    expect(emergency.condition).toMatch(/burst pipe/)
+    const list = draftOf(assistant({ transfers: [{ ...mike, id: 'tc_2', name: 'Owner' }] })).transfers
+    expect(newTransferContact(list, 'person')).toMatchObject({ id: 'tc_3', name: 'Owner 2', if_no_answer: 'message', ring_seconds: 25, number: '', enabled: true })
     expect(newTransferContact([], 'person')).toMatchObject({ id: 'tc_1', name: 'Owner', condition: 'The caller asks to speak to a person', hours_only: true })
     expect(moveTransfer(['a', 'b', 'c'], 2, -1)).toEqual(['a', 'c', 'b'])
     expect(moveTransfer(['a', 'b'], 0, -1)).toEqual(['a', 'b'])

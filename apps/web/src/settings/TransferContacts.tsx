@@ -2,7 +2,7 @@
 // each with a plain-language condition, in order. One compact row per contact; a row opens in place to
 // edit it (Done closes it). Part of the assistant's draft: saved with the page's Save. A field's error
 // shows once the field was left or a save was tried, never on a row just added.
-import { EMERGENCY_CONDITION, RING_SECONDS_MAX, RING_SECONDS_MIN } from '@linedesk/actions'
+import { RING_SECONDS_MAX, RING_SECONDS_MIN } from '@linedesk/actions'
 import type { TransferFallback } from '@linedesk/db/types'
 import { useRef, useState } from 'react'
 import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
@@ -45,19 +45,16 @@ type Props = {
   assistantName: string
   /** A save was refused: every problem shows, and the row with the first one opens. */
   showErrors?: boolean
-  /** The contact shown open at first (Edit from Emergencies). */
-  initiallyOpen?: string | null
 }
 
-/** Condition examples under an empty condition; the emergency one also makes the fallback an urgent message. */
+/** Condition examples under an empty condition. */
 const EXAMPLES: { label: string; patch: Partial<TransferDraft> }[] = [
   { label: 'Asks for a person', patch: { condition: 'The caller asks to speak to a person' } },
-  { label: 'Emergency', patch: { condition: EMERGENCY_CONDITION, if_no_answer: 'message_urgent', hours_only: false } },
   { label: 'Billing questions', patch: { condition: 'Billing questions' } },
 ]
 
-export function TransferContacts({ transfers, onChange, hoursOn, assistantName, showErrors = false, initiallyOpen = null }: Props) {
-  const [open, setOpen] = useState<string | null>(initiallyOpen)
+export function TransferContacts({ transfers, onChange, hoursOn, assistantName, showErrors = false }: Props) {
+  const [open, setOpen] = useState<string | null>(null)
   /** Fields left at least once, as `<contact id>:<field>`: their errors show. */
   const [touched, setTouched] = useState<ReadonlySet<string>>(new Set())
   const problem = transferProblem({ transfers })

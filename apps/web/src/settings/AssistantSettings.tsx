@@ -1,5 +1,5 @@
 // Assistant settings by topic, one section at a time (#assistant/<id>/<section>): business info, hours and
-// holidays, calls and transfers (greeting, behaviour checklist, transfer contacts), emergencies,
+// holidays, calls and transfers (greeting, behaviour checklist, transfer contacts),
 // notifications, booking, voice, and Advanced (languages, raw call rules, silence, keypad menu); AI disclosure is the first row of the checklist.
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays, notifications and booking save on their own.
@@ -16,7 +16,6 @@ import { type PageSection, SettingsLayout, sectionHash, useSection } from '../ui
 import {
   behavioursToSave,
   callRulesToSave,
-  newTransferContact,
   outsideToSave,
   type Draft,
   draftOf,
@@ -58,16 +57,14 @@ import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
 import { TransferContacts, transferFieldId } from './TransferContacts.tsx'
 import { BusinessHours } from './BusinessHours.tsx'
-import { Emergencies } from './Emergencies.tsx'
 import { Holidays, VacationMode } from './Holidays.tsx'
 import { Notifications } from './Notifications.tsx'
 
-type SectionId = 'business' | 'hours' | 'calls' | 'emergencies' | 'notifications' | 'booking' | 'voice' | 'advanced'
+type SectionId = 'business' | 'hours' | 'calls' | 'notifications' | 'booking' | 'voice' | 'advanced'
 const sections: readonly PageSection<SectionId>[] = [
   { id: 'business', label: 'Business info', description: 'What you do, services, prices, FAQs and documents' },
   { id: 'hours', label: 'Hours & holidays', description: 'Weekly hours, holidays, vacation mode' },
   { id: 'calls', label: 'Calls & transfers', description: 'Greeting, how calls are handled, who calls go to' },
-  { id: 'emergencies', label: 'Emergencies', description: 'Who takes urgent calls, what callers hear' },
   { id: 'notifications', label: 'Notifications', description: 'New calls by email, in the browser and by push' },
   { id: 'booking', label: 'Booking', description: 'Calendars and appointment types' },
   { id: 'voice', label: 'Voice', description: 'How the assistant sounds' },
@@ -79,7 +76,6 @@ type OwnSection = 'hours' | 'notifications' | 'booking'
 const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   business: ['instructions', 'services', 'faqs', 'website'],
   calls: ['name', 'greeting', 'greeting_known_caller', 'greeting_outside', 'ai_disclosure', 'communication_style', 'behaviours', 'transfers'],
-  emergencies: ['emergency_note'],
   voice: ['voice'],
   advanced: ['call_rules', 'silence_first_gap_s', 'silence_reminders', 'silence_closing', 'keypad_on', 'keypad_options', 'languages'],
 }
@@ -90,6 +86,7 @@ const OLD_SECTIONS: Record<string, SectionId> = {
   rules: 'advanced',
   transfer: 'calls',
   calendar: 'booking',
+  emergencies: 'calls',
 }
 
 /** The assistant's name as the help texts say it, also while the name field is being edited. */
@@ -445,18 +442,6 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     if (previous !== saved) setDraft(d => mergeDraft(d, previous, saved))
   }, [saved])
   const set: SectionProps['set'] = (key, value) => setDraft(d => ({ ...d, [key]: value }))
-  // The transfer contact Emergencies sent the user to edit: shown open under Calls & transfers.
-  const [openTransfer, setOpenTransfer] = useState<string | null>(null)
-  function editTransfer(index: number) {
-    setOpenTransfer(draft.transfers[index]?.id ?? null)
-    goTo('calls', transferFieldId(index, 'number'))
-  }
-  function addEmergencyContact() {
-    const contact = newTransferContact(draft.transfers, 'emergency')
-    set('transfers', [...draft.transfers, contact])
-    setOpenTransfer(contact.id)
-    goTo('calls', transferFieldId(draft.transfers.length, 'number'))
-  }
   const hoursOn = useBusinessHoursOn()
   const changed = dirty
   const unsaved = useMemo(() => {
@@ -509,7 +494,6 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         ...silenceToSave(clean),
         ...keypadToSave(clean),
         behaviours: behavioursToSave(clean),
-        emergency_note: clean.emergency_note,
         ...languagesToSave(clean),
         voice: clean.voice,
       })
@@ -550,20 +534,8 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
               hoursOn={hoursOn}
               assistantName={assistantName(draft)}
               showErrors={transferSaveTried}
-              initiallyOpen={openTransfer}
             />
           </>
-        )}
-        {current === 'emergencies' && (
-          <Emergencies
-            draft={draft}
-            set={set}
-            name={assistantName(draft)}
-            hoursOn={hoursOn}
-            canEdit={canEdit}
-            onEdit={editTransfer}
-            onAdd={addEmergencyContact}
-          />
         )}
         {current === 'voice' && (
           <VoiceSettings
