@@ -17,7 +17,6 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-1C1917?style=flat-square" alt="License: AGPL-3.0"></a>
   <img src="https://img.shields.io/badge/status-pre--release-22C55E?style=flat-square" alt="Status: pre-release">
-  <a href="https://github.com/linedesk/linedesk/stargazers"><img src="https://img.shields.io/github/stars/linedesk/linedesk?style=flat-square&color=1C1917" alt="GitHub stars"></a>
 </p>
 
 <p align="center">
