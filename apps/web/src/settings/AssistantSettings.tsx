@@ -29,18 +29,21 @@ import {
 } from './assistantDraft.ts'
 import { AssistantHeader } from './AssistantHeader.tsx'
 import { BusinessHours, useBusinessHours } from './BusinessHours.tsx'
+import { CalendarSettings } from './Calendar.tsx'
+import { CONNECT_RETURN_KEY } from './calendarModel.ts'
 import { Field, Section, SwitchRow, TextArea } from './fields.tsx'
 import { TestCallBar, TestCallButton, useTestCall } from './TestCall.tsx'
 
-type SectionId = 'greeting' | 'instructions' | 'rules' | 'hours'
+type SectionId = 'greeting' | 'instructions' | 'rules' | 'hours' | 'calendar'
 const sections: readonly PageSection<SectionId>[] = [
   { id: 'greeting', label: 'Greeting', description: 'Name, first sentence, AI disclosure' },
   { id: 'instructions', label: 'Instructions', description: 'What the assistant knows about the business' },
   { id: 'rules', label: 'Call rules', description: 'How calls are handled' },
   { id: 'hours', label: 'Business hours', description: 'When the office is open' },
+  { id: 'calendar', label: 'Calendar', description: 'Accounts, calendars and appointment types' },
 ]
 /** Which draft fields each section holds; hours are their own draft. */
-const sectionFields: Record<Exclude<SectionId, 'hours'>, (keyof Draft)[]> = {
+const sectionFields: Record<Exclude<SectionId, 'hours' | 'calendar'>, (keyof Draft)[]> = {
   greeting: ['name', 'greeting', 'disclose_ai'],
   instructions: ['instructions'],
   rules: ['call_rules'],
@@ -179,7 +182,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
   const unsaved = useMemo(() => {
     const clean = [normalized(draft), normalized(saved)] as const
     const marked = new Set<SectionId>(
-      (Object.keys(sectionFields) as Exclude<SectionId, 'hours'>[]).filter(id =>
+      (Object.keys(sectionFields) as Exclude<SectionId, 'hours' | 'calendar'>[]).filter(id =>
         sectionFields[id].some(key => JSON.stringify(clean[0][key]) !== JSON.stringify(clean[1][key])),
       ),
     )
@@ -255,10 +258,27 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
             <BusinessHours hours={hours} canEdit={canEdit} name={draft.name.trim() || 'the assistant'} />
           )}
         </fieldset>
+        {current === 'calendar' && <CalendarSettings assistant={assistant} canEdit={canEdit} toast={toast} />}
         {canEdit && <SaveBar dirty={changed} onCancel={cancel} note={note} />}
       </SettingsLayout>
     </form>
   )
+}
+
+/**
+ * The calendar connect returns to `#assistant/calendar?…` (the API does not know which assistant):
+ * back to the assistant it started from, with the result for the page to show.
+ */
+function returnFromCalendarConnect(assistants: Assistant[]) {
+  const [path, query] = window.location.hash.replace(/^#/, '').split('?')
+  if (path !== 'assistant/calendar') return
+  let id: string | null = null
+  try {
+    id = sessionStorage.getItem(CONNECT_RETURN_KEY)
+    sessionStorage.removeItem(CONNECT_RETURN_KEY)
+  } catch {}
+  const assistant = assistants.find(a => a.id === id) ?? assistants[0]
+  if (assistant) history.replaceState(null, '', `#assistant/${assistant.id}/calendar${query ? `?${query}` : ''}`)
 }
 
 /** The assistant the hash names (`#assistant/<id>/<section>`), else the workspace's first. */
@@ -276,6 +296,7 @@ export function AssistantSettings(props: Props) {
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
+  if (assistants.length) returnFromCalendarConnect(assistants)
   const assistant = assistantInHash(assistants)
   const onPick = useCallback((id: string) => {
     window.location.hash = `#assistant/${id}/greeting`

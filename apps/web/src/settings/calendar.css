@@ -1,0 +1,78 @@
+/* Settings > Assistant > Calendar: accounts, calendars and appointment types as rows. */
+.cal-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cal-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.cal-row:first-child {
+  border-top: 0;
+}
+.cal-row-calendar {
+  align-items: flex-start;
+}
+.cal-row-calendar .auth-logo {
+  margin-top: 3px;
+}
+.cal-main {
+  display: grid;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.cal-main b {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-sub {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.cal-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.cal-connect {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cal-connect .k-btn {
+  gap: 8px;
+}
+.cal-type-form {
+  display: grid;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.cal-type-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.cal-type-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+@media (max-width: 559px) {
+  .cal-row {
+    flex-wrap: wrap;
+  }
+}
