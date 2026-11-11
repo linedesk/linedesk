@@ -316,6 +316,13 @@
       "when": 1794405856858,
       "tag": "0044_workspace_members",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1794405991465,
+      "tag": "0045_command_log_pruned",
+      "breakpoints": true
     }
   ]
 }

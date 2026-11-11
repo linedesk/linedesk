@@ -42,8 +42,17 @@ export interface ActionDef<S extends z.ZodType = z.ZodType, T extends TableName 
    * and offers it only to admin keys: an assistant reading caller text must not be steered into it.
    */
   destructive?: true
-  /** Top-level input fields that hold secrets. The API replaces their values before it stores or logs the input. */
+  /**
+   * Top-level fields that hold secrets, in the input and in the result's `data` (an invitation id opens
+   * the invitation). The API replaces their values before it stores or logs either.
+   */
   sensitive?: readonly string[]
+  /**
+   * `ids`: the command log keeps only the ids of the input and of the result's data, never the rest
+   * (transcript lines, messages, caller names, numbers and addresses): the voice agent's per-call
+   * actions, bookings, contact imports and merges. apps/api/src/command-log.ts.
+   */
+  logged?: 'ids'
   /**
    * The result's `data` holds a secret shown once (a new API key): the command log keeps the result without it.
    * A list names only the `data` fields that are secret (an agent call token); the rest is kept.
@@ -71,15 +80,6 @@ export function redactInput(def: Pick<ActionDef, 'sensitive'>, input: unknown): 
     redacted[field] = isRecord ? Object.fromEntries(Object.keys(value).map(key => [key, REDACTED])) : REDACTED
   }
   return redacted
-}
-
-/** The result as the command log may keep it: secret `data` fields (or all of `data`) replaced. */
-export function redactResult<R extends { data?: Record<string, unknown> }>(def: Pick<ActionDef, 'secretResult'>, result: R): R {
-  if (!def.secretResult || !result.data) return result
-  if (def.secretResult === true) return { ...result, data: { redacted: REDACTED } }
-  const data = { ...result.data }
-  for (const field of def.secretResult) if (data[field] !== undefined) data[field] = REDACTED
-  return { ...result, data }
 }
 
 /** Rows per table, keyed by id: the shape of the browser's local store. */

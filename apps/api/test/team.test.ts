@@ -426,7 +426,8 @@ describe('answering an invitation inside the app', () => {
     expect(await statusOf(id)).toBe('accepted')
     expect(await mine(who)).toEqual([])
     const [logged] = await db.select().from(commands).where(and(eq(commands.actor_id, who.userId), eq(commands.action, 'invitation.accept')))
-    expect(logged).toMatchObject({ input: { invitationId: id }, rejected: false })
+    // The invitation id opens the invitation: the log keeps it redacted.
+    expect(logged).toMatchObject({ input: { invitationId: '[redacted]' }, rejected: false })
     expect((await act(who, 'invitation.accept', { invitationId: id })).body.error).toBe('invitation not found')
   })
 

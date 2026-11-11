@@ -10,6 +10,7 @@ import { and, asc, desc, eq, gt, gte, or, sql, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
 import { issueCallToken } from './agent-token.ts'
 import { startS3Recording } from './recording-egress.ts'
+import { purgeCommandsAbout } from './command-log.ts'
 import { apiKeyHandlers } from './api-keys.ts'
 import { assistantForNumber, assistantHandlers, assistantIn } from './assistants.ts'
 import { bookingContext, bookingHandlers, bookingsForTest, DEFAULT_TIME_ZONE } from './bookings.ts'
@@ -330,12 +331,20 @@ const handlers: Record<string, Handler> = {
   ...evaluationHandlers(queueCallEvaluation),
   ...webhookHandlers,
 
-  // The patch, and the webhook payloads that carry the call are cleared (they hold the caller's details).
+  // The patch, and the webhook payloads and command log entries that carry the call are cleared (they hold the caller's details).
   'call.delete': async (ctx, input) => {
     const result = await runPatch(ctx, actions.get('call.delete')!, input)
     await clearCallPayloads(ctx.tx, ctx.actor.workspaceId!, input.callId)
+    await purgeCommandsAbout(ctx.tx, ctx.actor.workspaceId!, 'callId', input.callId)
     // Its evaluation goes too (it quotes what went wrong on the call); a restored call can be evaluated again.
     await ctx.tx.delete(call_evaluations).where(and(eq(call_evaluations.call_id, input.callId), eq(call_evaluations.workspace_id, ctx.actor.workspaceId!)))
+    return result
+  },
+
+  // The patch, and the command log keeps only ids of what was done to the contact (command-log.ts).
+  'contact.delete': async (ctx, input) => {
+    const result = await runPatch(ctx, actions.get('contact.delete')!, input)
+    await purgeCommandsAbout(ctx.tx, ctx.actor.workspaceId!, 'contactId', input.contactId)
     return result
   },
 

@@ -12,6 +12,7 @@ import { emailSender } from './email.ts'
 import { evaluateCall, evaluationModel } from './evaluations.ts'
 import { notifyCallPush, type PushKind, pushSender } from './push.ts'
 import { deleteExpiredRecordings } from './recording-retention.ts'
+import { pruneOldCommands } from './command-log.ts'
 import { recordingStoreCache } from './recording-store.ts'
 import { deleteClonedVoice } from './voices.ts'
 import { sendSpendingAlert, type SpendingAlert } from './spending-cap.ts'
@@ -43,6 +44,9 @@ export const WEBHOOK_CLEANUP = 'webhooks.cleanup'
 /** Deletes a cloned voice at its provider once no assistant uses it (voices.ts). Retried for a day. */
 export const VOICE_DELETE = 'voice.delete'
 const WEBHOOK_CLEANUP_CRON = '37 3 * * *'
+/** Daily: command log inputs and results older than 90 days keep only ids (command-log.ts). */
+export const COMMAND_PRUNE = 'commands.prune'
+const COMMAND_PRUNE_CRON = '47 3 * * *'
 /** The email to owners and instance admins when a workspace reaches 80 % or 100 % of its spending cap. */
 export const SPENDING_CAP_ALERT = 'spending.capAlert'
 
@@ -87,6 +91,8 @@ async function runJobs(instance: PgBoss, env: Env) {
   await instance.work<{ bookingId: string }>(BOOKING_CONFIRM, async ([job]) => sendBookingConfirmation(db, emailSender, job!.data.bookingId))
   // No language model set up: nothing to do, and no retry. A failed request (provider down) is retried.
   await instance.work<{ callId: string }>(CALL_EVALUATE, async ([job]) => evaluateCall(db, job!.data.callId, await evaluationModel(db)))
+  await instance.schedule(COMMAND_PRUNE, COMMAND_PRUNE_CRON)
+  await instance.work(COMMAND_PRUNE, async () => ({ pruned: await pruneOldCommands(db) }))
   await instance.schedule(WEBHOOK_CLEANUP, WEBHOOK_CLEANUP_CRON)
   await instance.work(WEBHOOK_CLEANUP, async () => ({ cleared: await clearOldPayloads(db) }))
   // Several at once, so a few slow endpoints (each up to the 10 s timeout) do not hold up everyone's deliveries.
@@ -115,6 +121,7 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(BOOKING_CONFIRM, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(CALL_EVALUATE, { retryLimit: 2, retryDelay: 120, retryBackoff: true })
   await instance.createQueue(WEBHOOK_CLEANUP)
+  await instance.createQueue(COMMAND_PRUNE)
   await instance.createQueue(VOICE_DELETE, { retryLimit: 24, retryDelay: 3600 })
   await instance.createQueue(WEBHOOK_DELIVER, { retryLimit: WEBHOOK_ATTEMPTS - 1, retryDelay: 60, retryBackoff: true })
   if (workHere) await runJobs(instance, env)

@@ -26,6 +26,7 @@ export const invitationAccept = defineAction({
   description: 'Join a workspace you were invited to. Your email address must be verified and match the invitation.',
   input: invitationId,
   permission: 'invitation:respond',
+  sensitive: ['invitationId'],
 })
 
 export const invitationDecline = defineAction({
@@ -33,6 +34,7 @@ export const invitationDecline = defineAction({
   description: 'Decline an invitation to your email address; its link stops working.',
   input: invitationId,
   permission: 'invitation:respond',
+  sensitive: ['invitationId'],
 })
 
 export const membershipAdd = defineAction({
@@ -61,6 +63,7 @@ export const invitationRevoke = defineAction({
   description: "Revoke a pending invitation of any workspace; its link stops working.",
   input: invitationId,
   permission: 'instance:admin',
+  sensitive: ['invitationId'],
 })
 
 export const invitationResend = defineAction({
@@ -68,4 +71,5 @@ export const invitationResend = defineAction({
   description: 'Send a pending invitation of any workspace again; the link works for another seven days.',
   input: invitationId,
   permission: 'instance:admin',
+  sensitive: ['invitationId'],
 })

@@ -140,6 +140,7 @@ export const callStart = defineAction({
   input: z.object({ from: z.string().min(3), to: z.string().min(3), room: z.string().optional() }),
   permission: 'agent',
   secretResult: ['callToken'],
+  logged: 'ids',
 })
 /**
  * Whether a caller ID is a real, dialable number (E.164). Withheld numbers arrive as "anonymous",
@@ -268,6 +269,7 @@ export const callAppendTranscript = defineAction({
     toolEvent: z.object({ tool: z.string(), label: z.string() }).optional(),
   }),
   permission: 'agent',
+  logged: 'ids',
 })
 export const callFinish = defineAction({
   name: 'call.finish',
@@ -282,6 +284,7 @@ export const callFinish = defineAction({
     callerName: z.string().optional(),
   }),
   permission: 'agent',
+  logged: 'ids',
 })
 
 // Tools the assistant can use during a call.
@@ -290,6 +293,7 @@ export const callTakeMessage = defineAction({
   description: 'Take a message for the business: adds an action item to the call.',
   input: callId.extend({ message: z.string().min(1).max(500) }),
   permission: 'agent',
+  logged: 'ids',
 })
 export const callFlagUrgent = defineAction({
   name: 'call.flagUrgent',

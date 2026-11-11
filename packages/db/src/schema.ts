@@ -516,7 +516,14 @@ export const commands = pgTable('commands', {
   /** The instance admin who did this while signed in as `actor_id` (impersonation); null otherwise. */
   impersonated_by: text('impersonated_by'),
   created_at: createdAt(),
-})
+  /** When input and result were cut down to ids: 90 days on, or when the call or contact was deleted (apps/api/src/command-log.ts). */
+  pruned_at: ts('pruned_at'),
+}, t => [
+  // The daily prune finds old commands not yet pruned; deleting a call or contact finds the commands naming it.
+  index('commands_unpruned_created').on(t.created_at).where(sql`${t.pruned_at} is null`),
+  index('commands_unpruned_input').using('gin', t.input.op('jsonb_path_ops')).where(sql`${t.pruned_at} is null`),
+  index('commands_unpruned_result').using('gin', t.result.op('jsonb_path_ops')).where(sql`${t.pruned_at} is null`),
+])
 
 // How well the assistant handled a call, judged by the language model after the summary: a score
 // (1 to 5) and up to three issues. One row per call, replaced when it is evaluated again. For owners

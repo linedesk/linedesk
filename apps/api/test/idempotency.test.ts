@@ -12,7 +12,7 @@ beforeAll(async () => {
 
 const recorded = (key: string) => db.select().from(commands).where(eq(commands.id, key))
 
-test('an accepted command replayed returns the first result and does not write again', async () => {
+test('an accepted command replayed does not write again; it returns its rows as they are now (the log keeps them by id)', async () => {
   const key = crypto.randomUUID()
   const first = await act(ws.owner, 'call.markRead', { callId: ws.call.id }, key)
   expect(first).toMatchObject({ status: 200, body: { ok: true, rows: { calls: [{ unread: false }] } } })
@@ -20,7 +20,7 @@ test('an accepted command replayed returns the first result and does not write a
   const before = await getCall(ws.call.id)
 
   const replay = await act(ws.owner, 'call.markRead', { callId: ws.call.id }, key)
-  expect(replay).toEqual(first)
+  expect(replay).toEqual({ status: 200, body: { ...first.body, rows: { calls: [before] } } })
   expect(await getCall(ws.call.id)).toEqual(before) // still unread, version untouched
   expect(await recorded(key)).toMatchObject([
     { action: 'call.markRead', workspace_id: ws.id, actor_id: ws.owner.userId, rejected: false },
@@ -33,9 +33,11 @@ test('call.start replayed creates one call and one contact', async () => {
   const first = await act(agent(), 'call.start', { from, to: ws.number }, key)
   const replay = await act(agent(), 'call.start', { from, to: ws.number }, key)
   expect(first.status).toBe(200)
+  // The log keeps call.start by ids only (command-log.ts): the replay has the same rows, and of its data the ids.
   // The call token is shown once: the log, and so a replay, keeps it redacted.
   expect(first.body.data.callToken).toMatch(/^ldcall_/)
-  expect(replay).toEqual({ ...first, body: { ...first.body, data: { ...first.body.data, callToken: '[redacted]' } } })
+  expect(replay.body.rows).toEqual(first.body.rows)
+  expect(replay.body.data).toMatchObject({ callId: first.body.data.callId, workspaceId: ws.id, contact: '[omitted]', isNewContact: true, callToken: '[redacted]' })
   expect(await db.select().from(calls).where(eq(calls.from_number, from))).toHaveLength(1)
   expect(await db.select().from(contacts).where(eq(contacts.phone, from))).toHaveLength(1)
 })

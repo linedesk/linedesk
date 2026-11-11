@@ -36,6 +36,7 @@ export const teamInvite = defineAction({
   description: 'Invite someone by email to join the workspace as admin or member. Sends the invitation email; the link works for seven days.',
   input: z.object({ email: z.string().trim().toLowerCase().pipe(z.email()), role: z.enum(assignableRoles) }),
   permission: 'team:write',
+  sensitive: ['invitationId'],
 })
 
 export const teamResendInvite = defineAction({
@@ -43,6 +44,7 @@ export const teamResendInvite = defineAction({
   description: 'Send an invitation email again; the link works for another seven days.',
   input: z.object({ invitationId: z.string().min(1) }),
   permission: 'team:write',
+  sensitive: ['invitationId'],
 })
 
 export const teamRevokeInvite = defineAction({
@@ -50,6 +52,7 @@ export const teamRevokeInvite = defineAction({
   description: 'Revoke an invitation; its link stops working.',
   input: z.object({ invitationId: z.string().min(1) }),
   permission: 'team:write',
+  sensitive: ['invitationId'],
 })
 
 export const teamSetRole = defineAction({

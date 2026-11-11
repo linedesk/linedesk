@@ -61,6 +61,7 @@ export const appointmentBook = defineAction({
   }),
   permission: 'calendar:write',
   agent: 'call',
+  logged: 'ids',
   public: true,
 })
 
@@ -86,6 +87,7 @@ export const appointmentCancel = defineAction({
   input: z.object(whichBooking),
   permission: 'calendar:write',
   agent: 'call',
+  logged: 'ids',
   public: true,
   destructive: true,
 })
@@ -96,6 +98,7 @@ export const appointmentReschedule = defineAction({
   input: z.object({ ...whichBooking, start: instant }),
   permission: 'calendar:write',
   agent: 'call',
+  logged: 'ids',
   public: true,
   destructive: true,
 })

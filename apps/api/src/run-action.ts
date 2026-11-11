@@ -3,9 +3,10 @@
 // Read-only actions skip the command log: nothing to replay, nothing to audit.
 import { secondFactorRefusal } from './admin-second-factor.ts'
 import { passkeyStepUpRefusal } from './admin-step-up.ts'
-import { actions, droppedFields, inputErrorText, redactInput, redactResult, unknownFieldsText, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
+import { actions, droppedFields, inputErrorText, redactInput, unknownFieldsText, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
 import { commands } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
+import { replayedResult, storedInput, storedResult } from './command-log.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { Forbidden, preparers, Reject, runHandler, type Undo } from './handlers.ts'
@@ -141,7 +142,8 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   if (seen) {
     // A command id belongs to the workspace and action that used it first; nobody else gets its result.
     if (seen.workspace_id !== actor.workspaceId || seen.action !== name) return rejection(409, 'idempotency key was used for another command')
-    const body = seen.result as RunResult['body']
+    // Rows are read again by id (command-log.ts).
+    const body = (await replayedResult(db, seen.workspace_id, seen.result)) as RunResult['body']
     return { status: body.ok ? 200 : statusOf(body), body }
   }
 
@@ -153,7 +155,7 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
     actor_id: actor.actorId,
     impersonated_by: actor.impersonation?.by ?? null,
     action: name,
-    input: redactInput(def, parsed.data) as object,
+    input: storedInput(def, redactInput(def, parsed.data)) as object,
   }
   // What handlers did outside the database (a bought phone number) is undone whenever the
   // transaction does not commit: the handler threw, the command could not be logged, or the commit failed.
@@ -166,7 +168,8 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
       const ctx = { tx, actor, now: new Date().toISOString(), onRollback, prepared }
       const result: ActionResult = { ok: true, ...(await runHandler(ctx, def, parsed.data)) }
       // A secret in the result (a new API key) goes to the caller once and never into the log, so a replay does not repeat it.
-      await tx.insert(commands).values({ ...record, result: redactResult(def, result) })
+      // Rows only by id (a replay reads them again), and no secret or personal data (command-log.ts).
+      await tx.insert(commands).values({ ...record, result: storedResult(def, result) })
       return result
     })
     return { status: 200, body }

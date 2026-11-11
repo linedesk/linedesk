@@ -60,4 +60,5 @@ export const callTransfer = defineAction({
   description: `Record a warm transfer of a live call to the on-call number. \`dialing\` first (refused above ${TRANSFERS_PER_HOUR} transfers an hour or while another transfer of the workspace is ringing or connected), then how it went (connected, not_answered, declined, failed). Marks the call urgent.`,
   input: z.object({ callId: z.string().min(1), to: onCallNumber, result: z.enum(transferResults) }),
   permission: 'agent',
+  logged: 'ids',
 })

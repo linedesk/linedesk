@@ -87,6 +87,7 @@ export const contactImport = defineAction({
       .max(CONTACT_IMPORT_MAX_ROWS),
   }),
   permission: 'contact:write',
+  logged: 'ids',
 })
 
 const mergedField = z.string().trim().max(2000).nullable()
@@ -109,6 +110,8 @@ export const contactMerge = defineAction({
     note: mergedField.optional(),
   }),
   permission: 'contact:write',
+  // The merged details stay on the contact; the command log keeps only the two ids.
+  logged: 'ids',
 })
 
 /** `data` of contact.import. `skipped`: rows whose number belongs to a deleted contact. */

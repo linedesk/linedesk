@@ -2,6 +2,7 @@
 // the command log (`commands`: admin actions, team and role changes, provider keys, impersonation),
 // and `auth_events` for what happens in Better Auth's own endpoints (sign-ins with their method,
 // sign-in methods added or removed, invitations accepted). Nothing here is ever deleted.
+import { REDACTED } from '@linedesk/actions'
 import { auth_events, type Db, type Tx, user } from '@linedesk/db'
 import { type createAuthMiddleware, isAPIError } from 'better-auth/api'
 import { eq, sql } from 'drizzle-orm'
@@ -137,7 +138,8 @@ export function maskAuditInput(input: unknown): unknown {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return input
   const masked: Record<string, unknown> = { ...(input as Record<string, unknown>) }
   if (typeof masked.url === 'string') masked.url = urlHost(masked.url)
-  if (typeof masked.invitationId === 'string') masked.invitationId = `${masked.invitationId.slice(0, 6)}…`
+  // Stored redacted since 2026-11-11 (the action lists it as sensitive); older entries hold it in clear.
+  if (typeof masked.invitationId === 'string' && masked.invitationId !== REDACTED) masked.invitationId = `${masked.invitationId.slice(0, 6)}…`
   return masked
 }
 
