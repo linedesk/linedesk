@@ -16,6 +16,7 @@ import { refuseWhileImpersonating } from './impersonation-guard.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
 import { guardPasskeyChanges, notifyPasskeyChange, passkeyPlugin } from './passkeys.ts'
 import { maySendSignInCode } from './signup-gate.ts'
+import { starOnGrantHooks } from './star-prompt.ts'
 import { releaseWorkspaceClones } from './voices.ts'
 
 const { google, microsoft, github, oidc, trustedProviders, methods } = authConfig
@@ -75,6 +76,9 @@ const WORKSPACE_WRITE_PATHS = ['/organization/create', '/organization/update', '
 const TEAM_WRITE_PATHS = ['/organization/invite-member', '/organization/cancel-invitation', '/organization/update-member-role', '/organization/remove-member', '/organization/leave', '/organization/reject-invitation']
 // Better Auth's reads that show pending invitees' addresses to every member; team.list shows them to owners and admins only.
 const INVITATION_READ_PATHS = ['/organization/get-full-organization', '/organization/list-invitations']
+// Better Auth's endpoints that hand a signed-in account's provider tokens to the browser. Linedesk
+// never needs them there, and a script injected into the page would get the member's GitHub token.
+const PROVIDER_TOKEN_PATHS = ['/get-access-token', '/account-info', '/refresh-token']
 const UNUSED_EMAIL_CODE_PATHS = [
   '/email-otp/request-password-reset', '/forget-password/email-otp', '/email-otp/reset-password', '/email-otp/verify-email',
   '/email-otp/check-verification-otp', '/email-otp/request-email-change', '/email-otp/change-email',
@@ -102,7 +106,7 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
   trustedOrigins: [...TRUSTED_ORIGINS],
   emailAndPassword: { enabled: methods.password },
-  databaseHooks: mergeDatabaseHooks(instanceAdminHooks, accountLinkingHooks, auditHooks),
+  databaseHooks: mergeDatabaseHooks(instanceAdminHooks, accountLinkingHooks, auditHooks, starOnGrantHooks),
   emailVerification: { sendVerificationEmail, autoSignInAfterVerification: true },
   socialProviders: {
     // A sign-in whose email the provider does not prove has no email and signs nobody in (account-linking.ts).
@@ -114,14 +118,15 @@ export const auth = betterAuth({
   // providers are trusted for that without an email-verified claim: see auth-methods.ts.
   // One email, one account: a provider sign-in with a proven email joins the account with that
   // email, also one whose email was never verified (an invitation); see account-linking.ts.
-  account: { accountLinking: { enabled: true, trustedProviders, requireLocalEmailVerified: false } },
+  // Provider tokens are stored encrypted with BETTER_AUTH_SECRET (rows from before stay readable as they are).
+  account: { accountLinking: { enabled: true, trustedProviders, requireLocalEmailVerified: false }, encryptOAuthTokens: true },
   // On in every environment, not only when NODE_ENV says production.
   rateLimit: { enabled: true },
   // The client address comes from our own header (client-ip.ts), never from one the client sets.
   advanced: { ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] } },
   // Members and invitations change only through the team.* actions (team.ts), which apply the
   // workspace's rules (last owner, who may change an owner). Accepting stays Better Auth's endpoint.
-  disabledPaths: [...UNUSED_EMAIL_CODE_PATHS, ...TEAM_WRITE_PATHS, ...INVITATION_READ_PATHS, ...WORKSPACE_WRITE_PATHS],
+  disabledPaths: [...UNUSED_EMAIL_CODE_PATHS, ...PROVIDER_TOKEN_PATHS, ...TEAM_WRITE_PATHS, ...INVITATION_READ_PATHS, ...WORKSPACE_WRITE_PATHS],
   hooks: { before: beforeAuthEndpoints, after: afterAuthEndpoints },
   // Set by user.impersonate only (impersonation.ts); `input: false` keeps clients from setting it.
   // passkeyVerifiedAt: set by the session.create hook on a passkey sign-in (admin-second-factor.ts).

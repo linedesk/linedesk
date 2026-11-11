@@ -10,6 +10,7 @@ import * as notifications from './notifications.ts'
 import * as onboarding from './onboarding.ts'
 import * as sample from './sample.ts'
 import * as settings from './settings.ts'
+import * as star from './star.ts'
 import * as team from './team.ts'
 import * as transfer from './transfer.ts'
 import * as voices from './voices.ts'
@@ -31,6 +32,7 @@ export * from './onboarding.ts'
 export * from './openapi.ts'
 export * from './sample.ts'
 export * from './settings.ts'
+export * from './star.ts'
 export * from './team.ts'
 export * from './transfer.ts'
 export * from './voices.ts'
@@ -92,6 +94,7 @@ const all = [
   notifications.notificationsSetDefaults,
   notifications.pushSubscribe,
   notifications.pushUnsubscribe,
+  star.starPromptAnswer,
   calendar.calendarFindSlots,
   calendar.appointmentBook,
   calendar.appointmentCancel,

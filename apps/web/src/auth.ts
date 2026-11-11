@@ -2,7 +2,7 @@ import { passkeyClient } from '@better-auth/passkey/client'
 import { emailOTPClient, organizationClient } from 'better-auth/client/plugins'
 import type { AuthMethods, LegalLinks, SsoMethod } from '@linedesk/api/auth-types'
 import { createAuthClient } from 'better-auth/react'
-import type { FirstUse, OnboardingStep } from '@linedesk/actions'
+import type { FirstUse, OnboardingStep, StarPrompt } from '@linedesk/actions'
 
 import type { Impersonation } from './impersonation.ts'
 import { readLastUsedMethod } from './sign-in-methods.ts'
@@ -37,6 +37,8 @@ export type Me = {
   passkeyEnrolment?: boolean
   /** How this install introduces a new workspace after onboarding: tour, sample calls, both or off. */
   firstUse?: FirstUse
+  /** The GitHub star prompt while it is due for this member (absent in what an older version remembered). */
+  starPrompt?: StarPrompt | null
 }
 
 export type AdminSecondFactor = 'setup' | 'confirm'

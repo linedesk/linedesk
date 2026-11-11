@@ -31,6 +31,7 @@ import { SetupBanner } from './shell/SetupBanner.tsx'
 import { Tour } from './shell/Tour.tsx'
 import { finishTour, tourDue } from './shell/tour.ts'
 import { SampleCallsBar } from './inbox/SampleCallsBar.tsx'
+import { StarPrompt } from './shell/StarPrompt.tsx'
 import { SyncBar } from './shell/SyncBar.tsx'
 import { pages, type Page, type PageRoute } from './shell/pages.tsx'
 import { Toast } from './shell/Toast.tsx'
@@ -494,6 +495,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
         onReminder={pickReminder}
       />
       {tourOpen && !page && <Tour onClose={closeTour} />}
+      <StarPrompt prompt={me.starPrompt ?? null} quiet={tourOpen || !!page || !!openCall || overlay !== null || newWorkspace} />
       {newWorkspace && <NewWorkspaceDialog onClose={() => setNewWorkspace(false)} />}
       {toaster.toast && <Toast toast={toaster.toast} onUndo={actions.undo} />}
     </div>

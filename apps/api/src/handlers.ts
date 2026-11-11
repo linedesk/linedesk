@@ -29,6 +29,7 @@ import { sampleHandlers } from './sample-calls.ts'
 import { queueCallEvaluation, queueCallNotification, queueCallPush } from './jobs.ts'
 import { evaluatedAutomatically, evaluationHandlers } from './evaluations.ts'
 import { notificationHandlers } from './notification-settings.ts'
+import { starHandlers } from './star-prompt.ts'
 import { pushHandlers } from './push.ts'
 import { contactImportHandlers } from './contact-import.ts'
 import { contactMergeHandlers } from './contact-merge.ts'
@@ -238,6 +239,7 @@ const handlers: Record<string, Handler> = {
   ...voiceHandlers,
   ...sampleHandlers,
   ...notificationHandlers,
+  ...starHandlers,
   ...pushHandlers,
   ...calendarConnectionHandlers,
   ...carrierHandlers(),

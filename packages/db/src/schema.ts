@@ -638,3 +638,12 @@ export const syncedTables = {
   calls, contacts, assistants, phone_numbers, transcript_segments, appointment_types, bookings, calendar_connections, assistant_calendars,
   webhook_endpoints,
 } as const
+
+// A member's answer to the GitHub star prompt (apps/api/src/star-prompt.ts): once answered, it is
+// never shown to them again, in any browser. Not synced; one row per user, not per workspace.
+export const star_prompts = pgTable('star_prompts', {
+  user_id: text('user_id').primaryKey(),
+  /** starred: through Linedesk (github.star); opened: went to the repository page; dismissed: No thanks or closed. */
+  answer: text('answer', { enum: ['starred', 'opened', 'dismissed'] }).notNull(),
+  answered_at: ts('answered_at').notNull().defaultNow(),
+})

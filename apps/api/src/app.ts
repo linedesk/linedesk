@@ -37,6 +37,7 @@ import { previewInvitation } from './invitations.ts'
 import { signUpOpen } from './auth-methods.ts'
 import { newAssistant, newWorkspaceSettings, onboardingFor, phoneSetupFor } from './onboarding.ts'
 import { firstUse } from './sample-calls.ts'
+import { starPromptFor } from './star-prompt.ts'
 import { voiceReady } from './provider-settings.ts'
 import { serveRecording } from './recording-route.ts'
 import { servePreview } from './voices.ts'
@@ -205,6 +206,8 @@ app.get('/v1/me', async c => {
     passkeyEnrolment: await needsPasskeyEnrolment(actor),
     // How this install introduces a new workspace after onboarding (FIRST_USE).
     firstUse: firstUse(),
+    // The GitHub star prompt while it is due for this member (star-prompt.ts), else null.
+    starPrompt: await starPromptFor(actor),
   })
 })
 
