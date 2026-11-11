@@ -4,7 +4,7 @@ import { carrierInput, carrierSummary, draftErrors, initialDraft, isChanged, vis
 
 const SID = `AC${'a1'.repeat(16)}`
 const KEY_SID = `SK${'b2'.repeat(16)}`
-const defaultStatus: CarrierStatusData = { carrier: 'default', canStore: true, fields: [], updatedAt: null }
+const defaultStatus: CarrierStatusData = { carrier: 'default', canStore: true, sipReady: true, fields: [], updatedAt: null }
 const field = (name: string, set: boolean, value: string | null = null, secret = false) => ({
   field: name,
   label: name,
@@ -16,6 +16,7 @@ const field = (name: string, set: boolean, value: string | null = null, secret =
 const twilioWithKey: CarrierStatusData = {
   carrier: 'twilio',
   canStore: true,
+  sipReady: true,
   updatedAt: '2026-11-11T09:00:00.000Z',
   fields: [
     field('account_sid', true, SID),
@@ -30,19 +31,24 @@ describe('carrier form', () => {
     expect(initialDraft(defaultStatus)).toEqual({
       carrier: 'default',
       twilioAuth: 'api_key',
-      values: { account_sid: '', api_key_sid: '' },
+      values: { account_sid: '', api_key_sid: '', public_key: '' },
     })
     expect(initialDraft(twilioWithKey)).toEqual({
       carrier: 'twilio',
       twilioAuth: 'api_key',
-      values: { account_sid: SID, api_key_sid: KEY_SID },
+      values: { account_sid: SID, api_key_sid: KEY_SID, public_key: '' },
     })
   })
 
   test('shows the fields of the carrier and of the chosen Twilio sign-in', () => {
     const draft = initialDraft(defaultStatus)
     expect(visibleFields(draft)).toEqual([])
-    expect(visibleFields({ ...draft, carrier: 'telnyx' })).toEqual(['api_key'])
+    expect(visibleFields({ ...draft, carrier: 'telnyx' })).toEqual(['api_key', 'public_key'])
+    expect(draftErrors({ ...draft, carrier: 'telnyx', values: { api_key: 'KEY' } })).toEqual({})
+    expect(carrierInput({ ...draft, carrier: 'telnyx', values: { api_key: 'KEY', public_key: '' } })).toEqual({
+      carrier: 'telnyx',
+      values: { api_key: 'KEY' },
+    })
     expect(visibleFields({ ...draft, carrier: 'twilio' })).toEqual(['account_sid', 'api_key_sid', 'api_key_secret'])
     expect(visibleFields({ ...draft, carrier: 'twilio', twilioAuth: 'auth_token' })).toEqual([
       'account_sid',

@@ -246,6 +246,13 @@
       "when": 1794387065791,
       "tag": "0034_voice_clone_deleted",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794387472270,
+      "tag": "0035_phone_number_carrier_account",
+      "breakpoints": true
     }
   ]
 }

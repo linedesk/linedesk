@@ -60,9 +60,10 @@ describe('phone setup status', () => {
 
   test('only instance admins see what the server lacks; owners get available or not', () => {
     const missing = { provider: 'twilio', problem: 'LIVEKIT_SIP_ENDPOINT is not set' }
-    expect(phoneSetupView(missing, { permissions: ['settings:write'] })).toEqual({ provider: 'twilio', available: false, detail: null })
-    expect(phoneSetupView(missing, { permissions: ['settings:write', 'instance:admin'] })).toEqual({ provider: 'twilio', available: false, detail: 'LIVEKIT_SIP_ENDPOINT is not set' })
-    expect(phoneSetupView({ provider: 'dev', problem: null }, { permissions: [] })).toEqual({ provider: 'dev', available: true, detail: null })
+    expect(phoneSetupView(missing, { permissions: ['settings:write'] })).toEqual({ provider: 'twilio', available: false, detail: null, canAttach: false })
+    expect(phoneSetupView(missing, { permissions: ['settings:write', 'instance:admin'] })).toEqual({ provider: 'twilio', available: false, detail: 'LIVEKIT_SIP_ENDPOINT is not set', canAttach: true })
+    expect(phoneSetupView({ provider: 'dev', problem: null }, { permissions: [] })).toEqual({ provider: 'dev', available: true, detail: null, canAttach: true })
+    expect(phoneSetupView(missing, { permissions: ['settings:write'] }, 'workspace').canAttach).toBe(true)
   })
 
   test('/v1/me tells owners whether phone setup works, members get nothing', async () => {

@@ -8,6 +8,7 @@ import { describe, expect, test, vi } from 'vitest'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import { Reject, runHandler, type Undo } from '../src/handlers.ts'
+import { INSTALL_NUMBER_ADMIN_ONLY } from '../src/workspace-carrier.ts'
 
 const WORKSPACE = `ws_test_${crypto.randomUUID().slice(0, 8)}`
 const owner: Actor = { actorId: 'user_test', role: 'owner', workspaceId: WORKSPACE, permissions: rolePermissions.owner }
@@ -68,6 +69,24 @@ describe('telephony handlers', () => {
 
     await expect(setup(tx, { e164: '+15035550999' }, twilio)).rejects.toThrow('already set up')
     expect((await setup(tx, { e164: '+15035550990', mode: 'ported' }, carrier(['+15035550990']))).rows.phone_numbers?.[0]?.mode).toBe('ported')
+  }))
+
+  test("a number already in the install's account is attached by instance admins only", () => inRollback(async tx => {
+    vi.stubEnv('LIVEKIT_SIP_ENDPOINT', 'sip.linedesk.test')
+    try {
+      const install = { ...carrier(['+15035550977', '+15035550978']), name: 'telnyx' as const }
+      for (const input of [{ e164: '+15035550977' }, { e164: '+15035550977', purchase: true }]) {
+        const error = await setup(tx, input, install).catch(e => e)
+        expect(error.message).toBe(INSTALL_NUMBER_ADMIN_ONLY)
+      }
+      expect(install.routeToSip).not.toHaveBeenCalled()
+      const admin: Actor = { ...owner, permissions: [...rolePermissions.owner, 'instance:admin'] }
+      expect((await setup(tx, { e164: '+15035550978' }, install, admin)).rows.phone_numbers?.[0]?.e164).toBe('+15035550978')
+      // Buying a new number stays open to owners.
+      expect((await setup(tx, { e164: '+15035550979', purchase: true }, install)).rows.phone_numbers?.[0]?.purchased).toBe(true)
+    } finally {
+      vi.unstubAllEnvs()
+    }
   }))
 
   test('a number that is not in the account is rejected, not bought: a typo costs nothing', () => inRollback(async tx => {

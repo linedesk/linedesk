@@ -21,13 +21,17 @@ export function initialDraft(status: CarrierStatusData): CarrierDraft {
   return {
     carrier: status.carrier,
     twilioAuth: usesToken ? 'auth_token' : 'api_key',
-    values: { account_sid: savedValue('account_sid'), api_key_sid: savedValue('api_key_sid') },
+    values: {
+      account_sid: savedValue('account_sid'),
+      api_key_sid: savedValue('api_key_sid'),
+      public_key: savedValue('public_key'),
+    },
   }
 }
 
 /** The fields the form shows for a draft, in order. */
 export function visibleFields(draft: CarrierDraft): string[] {
-  if (draft.carrier === 'telnyx') return ['api_key']
+  if (draft.carrier === 'telnyx') return ['api_key', 'public_key']
   if (draft.carrier === 'twilio')
     return draft.twilioAuth === 'api_key'
       ? ['account_sid', 'api_key_sid', 'api_key_secret']
@@ -52,8 +56,9 @@ export function draftErrors(draft: CarrierDraft): Record<string, string> {
   const errors: Record<string, string> = {}
   for (const field of visibleFields(draft)) {
     const value = (draft.values[field] ?? '').trim()
-    if (!value) errors[field] = 'Required'
-    else if (SID[field] && !SID[field]!.test(value))
+    if (!value) {
+      if (field !== 'public_key') errors[field] = 'Required'
+    } else if (SID[field] && !SID[field]!.test(value))
       errors[field] = `Starts with ${field === 'account_sid' ? 'AC' : 'SK'} and 32 letters and digits`
   }
   return errors
@@ -62,7 +67,11 @@ export function draftErrors(draft: CarrierDraft): Record<string, string> {
 /** The input of carrier.set for a draft. */
 export function carrierInput(draft: CarrierDraft) {
   if (draft.carrier === 'default') return { carrier: 'default' as const }
-  const values = Object.fromEntries(visibleFields(draft).map(field => [field, (draft.values[field] ?? '').trim()]))
+  const values = Object.fromEntries(
+    visibleFields(draft)
+      .map(field => [field, (draft.values[field] ?? '').trim()])
+      .filter(([, value]) => value),
+  )
   return { carrier: draft.carrier, values }
 }
 

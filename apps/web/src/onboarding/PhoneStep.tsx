@@ -43,7 +43,9 @@ function Unavailable({ detail, onBack, onNext }: { detail: string | null; onBack
 
 function Choose({ status, setupError, clearError, onBack }: Props) {
   const run = useRun()
-  const [kind, setKind] = useState<PhoneChoice['kind']>('existing')
+  // Numbers already in the install's carrier account are for instance admins only: then only a new one.
+  const canAttach = status?.canAttach !== false
+  const [kind, setKind] = useState<PhoneChoice['kind']>(canAttach ? 'existing' : 'new')
   const [typed, setTyped] = useState('')
   const [areaCode, setAreaCode] = useState('')
   const [confirming, setConfirming] = useState(false)
@@ -91,12 +93,14 @@ function Choose({ status, setupError, clearError, onBack }: Props) {
       <div className="ob-body">
         <h1>Which number should your assistant answer?</h1>
         <div className="k-radios" role="radiogroup" aria-label="Phone number">
-          <RadioCard
-            name="ob-mode"
-            checked={kind === 'existing'}
-            onPick={() => pick('existing')}
-            title={carrier ? `Use a number I have in ${carrier}` : 'Use a number I already have'}
-          />
+          {canAttach && (
+            <RadioCard
+              name="ob-mode"
+              checked={kind === 'existing'}
+              onPick={() => pick('existing')}
+              title={carrier ? `Use a number I have in ${carrier}` : 'Use a number I already have'}
+            />
+          )}
           <RadioCard name="ob-mode" checked={kind === 'new'} onPick={() => pick('new')} title="Get a new number" />
         </div>
         {status.provider === 'dev' && kind === 'existing' && (

@@ -11,11 +11,12 @@ import {
   type OwnCarrier,
   type WorkspaceCarrier,
 } from '@linedesk/actions'
-import { provider_settings, type Tx, workspace_settings } from '@linedesk/db'
+import { phone_numbers, provider_settings, type Tx, workspace_settings } from '@linedesk/db'
 import { createTelnyxProvider, createTwilioProvider, TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 import { DEFAULT_TIME_ZONE } from './bookings.ts'
+import { telephonyProvider } from './provider-settings.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { decryptSecret, encryptSecret, hasSecretsKey, SecretsKeyError } from './secrets.ts'
 
@@ -23,9 +24,6 @@ export const CARRIER_TIMEOUT_MS = 8000
 /** "Test connection" asks the carrier each time: a few in a row are normal, more per workspace are refused. */
 export const CARRIER_TESTS_PER_10_MIN = 10
 const allowCarrierTest = createRateLimiter({ max: CARRIER_TESTS_PER_10_MIN, windowMs: 10 * 60_000 })
-/** Until numbers can be set up in a workspace's own account (next step), phoneNumber.setup says so. */
-export const OWN_CARRIER_NOT_YET =
-  'Numbers cannot be connected through your own carrier account yet. Switch the carrier back to Linedesk default to add a number.'
 /** How many numbers "Test connection" lists at most. */
 const LIST_LIMIT = 20
 const MAX_MESSAGE = 200
@@ -77,7 +75,8 @@ export function carrierProvider(
 ): TelephonyProvider {
   if (carrier === 'telnyx') {
     if (!values.api_key) throw new Reject('The Telnyx API key is not set')
-    return createTelnyxProvider({ apiKey: values.api_key, fetch: doFetch })
+    // Webhooks of this account verify with this account's own public key, never the install's.
+    return createTelnyxProvider({ apiKey: values.api_key, publicKey: values.public_key, fetch: doFetch })
   }
   if (!values.account_sid) throw new Reject('The Twilio Account SID is not set')
   if (values.api_key_sid && values.api_key_secret) {
@@ -113,10 +112,85 @@ async function readable<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * Serialises everything that depends on the workspace's carrier: carrier.set, phoneNumber.setup and
+ * phoneNumber.release take it first, so a number is never set up or released with a carrier that is
+ * being switched in a concurrent transaction. Held until the transaction ends.
+ */
+export const lockWorkspaceCarrier = (tx: Tx, workspaceId: string) =>
+  tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`carrier:${workspaceId}`}))`)
+
+export const INSTALL_NUMBER_ADMIN_ONLY =
+  "Numbers already in this Linedesk's carrier account can only be connected by whoever runs your Linedesk. Get a new number, or use your own carrier account."
+
+export type CarrierAccount = 'install' | 'workspace'
+
+/**
+ * The carrier a workspace's new numbers are set up with: its own account when it has one, else the
+ * install's. `account` is stored with the number (phone_numbers.carrier_account), so a number is later
+ * released or un-routed in the account it is in, never in another workspace's or the install's.
+ */
+export async function telephonyForWorkspace(
+  tx: Tx,
+  workspaceId: string,
+  doFetch: typeof fetch = fetch,
+): Promise<{ provider: TelephonyProvider; account: CarrierAccount }> {
+  const own = await ownCarrierProvider(tx, workspaceId, doFetch)
+  return own ? { provider: own, account: 'workspace' } : { provider: await telephonyProvider(tx), account: 'install' }
+}
+
+/** The workspace's numbers that are in its own carrier account. */
+const ownAccountNumbers = (tx: Tx, workspaceId: string) =>
+  tx
+    .select()
+    .from(phone_numbers)
+    .where(and(eq(phone_numbers.workspace_id, workspaceId), eq(phone_numbers.carrier_account, 'workspace')))
+
+/**
+ * Numbers in the workspace's own account keep it: switching carrier (or back to the default) is
+ * refused while there are any, and new credentials must reach every one of them (read-only look-ups),
+ * so a number can never end up managed with credentials of an account it is not in.
+ */
+async function checkCarrierChange(
+  tx: Tx,
+  workspaceId: string,
+  carrier: WorkspaceCarrier,
+  values: Record<string, string | undefined>,
+  doFetch: typeof fetch,
+) {
+  const numbers = await ownAccountNumbers(tx, workspaceId)
+  if (!numbers.length) return
+  const current = await workspaceCarrier(tx, workspaceId)
+  const list = numbers.map(n => n.e164).join(', ')
+  if (carrier !== current) {
+    throw new Reject(
+      `${list} ${numbers.length === 1 ? 'is' : 'are'} in your own ${current === 'default' ? 'carrier' : carrierLabel[current]} account. Disconnect ${numbers.length === 1 ? 'it' : 'them'} first.`,
+    )
+  }
+  const provider = carrierProvider(carrier as OwnCarrier, values as Record<string, string>, doFetch)
+  for (const number of numbers) {
+    const found = await provider.findNumber(number.e164).catch(e => {
+      throw new Reject(
+        e instanceof TelephonyError && (e.status === 401 || e.status === 403)
+          ? `${carrierLabel[carrier as OwnCarrier]} rejected the new credentials (HTTP ${e.status})`
+          : `Could not check the new credentials with ${carrierLabel[carrier as OwnCarrier]}. Try again.`,
+      )
+    })
+    if (!found || String(found.providerRef) !== number.provider_ref) {
+      throw new Reject(
+        `${number.e164} is not in the account of the new credentials. Use credentials of the account it is in.`,
+      )
+    }
+  }
+}
+
+const sipReady = () => !!process.env.LIVEKIT_SIP_ENDPOINT
+
 /** What Settings shows: the carrier, which fields are set, never a secret. */
 export async function carrierStatus(tx: Tx, workspaceId: string): Promise<CarrierStatusData> {
   const carrier = await workspaceCarrier(tx, workspaceId)
-  if (carrier === 'default') return { carrier, canStore: hasSecretsKey(), fields: [], updatedAt: null }
+  if (carrier === 'default')
+    return { carrier, canStore: hasSecretsKey(), sipReady: sipReady(), fields: [], updatedAt: null }
   const rows = await credentialRows(tx, workspaceId, carrier)
   const fields = Object.entries(carrierFields[carrier]).map(([field, spec]): CarrierFieldStatus => {
     const row = rows.find(r => r.field === field)
@@ -138,7 +212,7 @@ export async function carrierStatus(tx: Tx, workspaceId: string): Promise<Carrie
     }
   })
   const updated = rows.map(r => new Date(r.updated_at).toISOString()).sort()
-  return { carrier, canStore: hasSecretsKey(), fields, updatedAt: updated.at(-1) ?? null }
+  return { carrier, canStore: hasSecretsKey(), sipReady: sipReady(), fields, updatedAt: updated.at(-1) ?? null }
 }
 
 /** Stores the choice; an own carrier's credentials replace every credential the workspace had. */
@@ -225,6 +299,8 @@ export function carrierHandlers(doFetch: () => typeof fetch = () => fetch): Reco
 
     'carrier.set': async ({ tx, actor, now }, input) => {
       if (!actor.workspaceId) throw new Reject('no workspace')
+      await lockWorkspaceCarrier(tx, actor.workspaceId)
+      await readable(() => checkCarrierChange(tx, actor.workspaceId!, input.carrier, input.values ?? {}, doFetch()))
       await setWorkspaceCarrier(tx, actor.workspaceId, input.carrier, input.values ?? {}, actor.actorId, now)
       return { rows: {}, data: await carrierStatus(tx, actor.workspaceId) }
     },

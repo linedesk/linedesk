@@ -41,7 +41,14 @@ type Props = { canEdit: boolean; status: PhoneSetupStatus | null; isInstanceAdmi
 const answeredBy = (number: PhoneNumber, assistants: Assistant[]) =>
   assistants.find(a => a.id === number.assistant_id) ?? assistants[0]
 
-export function PhoneNumbers({ canEdit, status, isInstanceAdmin }: Props) {
+export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }: Props) {
+  // A workspace with its own carrier account can add numbers there, whatever the install has; the
+  // session's status may be from before the carrier was changed here.
+  const carrier = useCarrierStatus(canEdit)
+  const status: PhoneSetupStatus | null =
+    carrier && carrier.carrier !== 'default'
+      ? { provider: carrier.carrier, available: carrier.sipReady, detail: null, canAttach: true }
+      : serverStatus
   const numbers = useRows('phone_numbers').sort((a, b) => a.created_at.localeCompare(b.created_at))
   const numbersLoad = useLoadState('phone_numbers')
   const assistants = useAssistants()
@@ -50,9 +57,7 @@ export function PhoneNumbers({ canEdit, status, isInstanceAdmin }: Props) {
   const [adding, setAdding] = useState(false)
   const [managing, setManaging] = useState<string | null>(null)
   const managed = numbers.find(n => n.id === managing)
-  // Numbers cannot be connected through the workspace's own carrier account yet (the server refuses too).
-  const ownCarrier = (useCarrierStatus(canEdit)?.carrier ?? 'default') !== 'default'
-  const canAdd = canEdit && !!status?.available && !ownCarrier
+  const canAdd = canEdit && !!status?.available
   return (
     <Section
       id="st-phone"
@@ -66,14 +71,12 @@ export function PhoneNumbers({ canEdit, status, isInstanceAdmin }: Props) {
       }
     >
       {canEdit && <CarrierRow />}
-      {canEdit && ownCarrier && (
-        <p className="help" role="status">
-          Connecting numbers through your own carrier account is coming soon. Until then, switch back to Linedesk
-          default to add a number.
-        </p>
-      )}
       {canEdit && status && !status.available && (
-        <Unavailable detail={status.detail} isInstanceAdmin={isInstanceAdmin} />
+        <Unavailable
+          detail={status.detail}
+          isInstanceAdmin={isInstanceAdmin}
+          ownCarrier={!!carrier && carrier.carrier !== 'default'}
+        />
       )}
       {numbersLoad !== 'ready' ? (
         <SkeletonRows label="Loading phone numbers" rows={1} />
@@ -110,10 +113,13 @@ export function PhoneNumbers({ canEdit, status, isInstanceAdmin }: Props) {
   )
 }
 
-function Unavailable({ detail, isInstanceAdmin }: { detail: string | null; isInstanceAdmin: boolean }) {
+type UnavailableProps = { detail: string | null; isInstanceAdmin: boolean; ownCarrier: boolean }
+
+function Unavailable({ detail, isInstanceAdmin, ownCarrier }: UnavailableProps) {
   return (
     <p className="help" role="status">
-      No phone carrier on this server yet.{' '}
+      {/* With its own carrier account only the server's side can be missing (where calls are sent). */}
+      {ownCarrier ? 'This server cannot connect numbers yet.' : 'No phone carrier on this server yet.'}{' '}
       {isInstanceAdmin ? (
         <a className="k-link" href="#admin/providers" title={detail ?? undefined}>
           Connect one in Admin
@@ -137,7 +143,11 @@ function ManageNumber({ number, assistants, canEdit, onClose }: ManageProps) {
   return (
     <Dialog
       title={formatNumber(number.e164)}
-      description={carrier ? `${carrier}${number.purchased ? ' · bought through Linedesk' : ''}` : undefined}
+      description={
+        carrier
+          ? `${carrier}${number.carrier_account === 'workspace' ? ' · your own account' : ''}${number.purchased ? ' · bought through Linedesk' : ''}`
+          : undefined
+      }
       onClose={onClose}
       footer={
         !releasing && (
@@ -245,7 +255,7 @@ function ReleaseNumber({ number, onCancel }: { number: PhoneNumber; onCancel: ()
       <span className="help">
         {bought
           ? `${name} stops answering it and the number goes back to ${carrier}. Its monthly cost stops, and you cannot get the number back.`
-          : `${name} stops answering it. The number stays in your ${carrier === 'the carrier' ? 'carrier' : carrier} account.${number.mode === 'forward_conditional' || number.mode === 'forward_all' ? ' Turn off call forwarding on your business phone too.' : ''}`}
+          : `${name} stops answering it. The number stays in your ${carrier === 'the carrier' ? 'carrier' : carrier} account.${number.carrier_account === 'workspace' ? " It is taken off Linedesk's routing there and stops answering until you route it again." : ''}${number.mode === 'forward_conditional' || number.mode === 'forward_all' ? ' Turn off call forwarding on your business phone too.' : ''}`}
       </span>
       <Field id={`rel-in-${number.id}`} label="Type the number to confirm">
         <TextInput
@@ -330,7 +340,9 @@ function ConnectNumber({
   const run = useRun()
   const count = useRows('phone_numbers').length
   const { rejection } = useRejection()
-  const [kind, setKind] = useState<PhoneChoice['kind']>('existing')
+  // Numbers already in the install's carrier account are for instance admins only: then only a new one.
+  const canAttach = status?.canAttach !== false
+  const [kind, setKind] = useState<PhoneChoice['kind']>(canAttach ? 'existing' : 'new')
   const [typed, setTyped] = useState('')
   const [areaCode, setAreaCode] = useState('')
   const [confirming, setConfirming] = useState(false)
@@ -383,12 +395,14 @@ function ConnectNumber({
       }}
     >
       <div className="k-radios" role="radiogroup" aria-label="Which number">
-        <RadioCard
-          name="st-pn-kind"
-          checked={kind === 'existing'}
-          onPick={() => pick('existing')}
-          title={carrier ? `Use a number I have in ${carrier}` : 'Use a number I already have'}
-        />
+        {canAttach && (
+          <RadioCard
+            name="st-pn-kind"
+            checked={kind === 'existing'}
+            onPick={() => pick('existing')}
+            title={carrier ? `Use a number I have in ${carrier}` : 'Use a number I already have'}
+          />
+        )}
         <RadioCard name="st-pn-kind" checked={kind === 'new'} onPick={() => pick('new')} title="Get a new number" />
       </div>
       {kind === 'existing' ? (

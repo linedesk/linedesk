@@ -41,6 +41,11 @@ export const phone_numbers = pgTable(
       .default('forward_conditional'),
     forwarded_from: text('forwarded_from'),
     provider_ref: text('provider_ref'),
+    /**
+     * Whose carrier account the number is in: `install` (Admin, Providers) or `workspace` (the workspace's own
+     * Twilio or Telnyx account, workspace_settings.carrier). Releasing and un-routing use that account only.
+     */
+    carrier_account: text('carrier_account', { enum: ['install', 'workspace'] }).notNull().default('install'),
     /** Bought through Linedesk (phoneNumber.setup with purchase): only these are released at the carrier. */
     purchased: boolean('purchased').notNull().default(false),
     /** The assistant that answers this number (one of the workspace's); null: the workspace's first one. */

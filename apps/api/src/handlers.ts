@@ -4,7 +4,7 @@ import { businessHoursContext, type BusinessHoursContext, } from '@linedesk/cale
 import {availability_rules, call_evaluations, calls, contacts, member, organization, phone_numbers, syncedTables,
   transcript_segments, workspace_settings, type Tx,
 } from '@linedesk/db'
-import type { Assistant } from '@linedesk/db/types'
+import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { and, asc, desc, eq, gte, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
@@ -12,7 +12,7 @@ import { apiKeyHandlers } from './api-keys.ts'
 import { assistantForNumber, assistantHandlers, assistantIn } from './assistants.ts'
 import { bookingContext, bookingHandlers, bookingsForTest, DEFAULT_TIME_ZONE } from './bookings.ts'
 import { calendarConnectionHandlers } from './calendar-connections.ts'
-import { carrierHandlers, OWN_CARRIER_NOT_YET, workspaceCarrier } from './workspace-carrier.ts'
+import { type CarrierAccount, carrierHandlers, INSTALL_NUMBER_ADMIN_ONLY, lockWorkspaceCarrier, ownCarrierProvider, telephonyForWorkspace } from './workspace-carrier.ts'
 import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, type Preparer, Reject, type Undo } from './handler-context.ts'
@@ -80,6 +80,28 @@ async function configuredProvider(tx: Tx): Promise<TelephonyProvider> {
   } catch (e) {
     throw new Reject(`phone setup is not configured: ${errorMessage(e)}`)
   }
+}
+
+/** The carrier a workspace sets numbers up with (its own account, else the install's). `telephony` overrides it in tests. */
+async function setupCarrier(tx: Tx, workspaceId: string, telephony?: TelephonyProvider): Promise<{ provider: TelephonyProvider; account: CarrierAccount }> {
+  try {
+    const resolved = await telephonyForWorkspace(tx, workspaceId)
+    return telephony ? { provider: telephony, account: resolved.account } : resolved
+  } catch (e) {
+    if (e instanceof Reject) throw e
+    throw new Reject(`phone setup is not configured: ${errorMessage(e)}`)
+  }
+}
+
+/**
+ * The carrier account a number is in: the workspace's own (only ever the number's own workspace) or the
+ * install's. A number in the workspace's account is never handed to the install's carrier, or the reverse.
+ */
+async function releaseCarrier(tx: Tx, number: PhoneNumber): Promise<TelephonyProvider> {
+  if (number.carrier_account === 'install') return configuredProvider(tx)
+  const own = await ownCarrierProvider(tx, number.workspace_id)
+  if (!own) throw new Reject(`${number.e164} is in the workspace's own carrier account, which is not set up any more: release it there`)
+  return own
 }
 
 /** Carrier failures are final for the command: the user sees the reason, the client does not retry. */
@@ -352,9 +374,9 @@ const handlers: Record<string, Handler> = {
   'phoneNumber.setup': async ({ tx, actor, now, telephony, onRollback }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     const workspace_id = actor.workspaceId
-    // Numbers are not set up in a workspace's own carrier account yet: refuse instead of using the install's.
-    if ((await workspaceCarrier(tx, workspace_id)) !== 'default') throw new Reject(OWN_CARRIER_NOT_YET)
-    const provider = telephony ?? (await configuredProvider(tx))
+    // Serialised with carrier.set, so the carrier cannot change while a number is set up with it.
+    await lockWorkspaceCarrier(tx, workspace_id)
+    const { provider, account: carrier_account } = await setupCarrier(tx, workspace_id, telephony)
     const sipEndpoint = process.env.LIVEKIT_SIP_ENDPOINT ?? ''
     if (provider.name !== 'dev' && !sipEndpoint) throw new Reject('phone setup is not configured: LIVEKIT_SIP_ENDPOINT is not set')
 
@@ -368,6 +390,11 @@ const handlers: Record<string, Handler> = {
     if (!existing && !input.purchase) {
       throw new Reject(`${e164} is not in the ${provider.name} account. Check the number; to buy it, pass purchase: true`)
     }
+    // The install's account is shared by every workspace: only an instance admin may hand one of its
+    // numbers to a workspace. Others buy a new one, or bring their own account. (`dev` has no account.)
+    if (existing && carrier_account === 'install' && provider.name !== 'dev' && !actor.permissions.includes('instance:admin')) {
+      throw new Reject(INSTALL_NUMBER_ADMIN_ONLY)
+    }
     const number = existing ?? (await atCarrier(() => provider.buyNumber(e164)))
     if (!existing) onRollback?.(releaseBought(provider, number))
 
@@ -375,7 +402,7 @@ const handlers: Record<string, Handler> = {
     const assistant = await assistantIn(tx, workspace_id, input.assistantId)
     await atCarrier(() => provider.routeToSip(number, sipEndpoint))
     const rows = await tx.insert(phone_numbers).values({
-      id: newId('pn'), workspace_id, e164, provider: provider.name, provider_ref: number.providerRef,
+      id: newId('pn'), workspace_id, e164, provider: provider.name, provider_ref: number.providerRef, carrier_account,
       assistant_id: assistant?.id ?? null,
       // A bought number is the business's new number; an attached one is taken as a forwarding
       // target, the product's default, and counts as verified only after a test call.
@@ -395,12 +422,13 @@ const handlers: Record<string, Handler> = {
       .where(and(eq(phone_numbers.id, input.phoneNumberId), eq(phone_numbers.workspace_id, actor.workspaceId)))
     if (!number) throw new Reject('phone number not found')
     if (!confirmsNumber(input.confirm, number.e164)) throw new Reject(`type the number ${number.e164} to confirm`)
+    await lockWorkspaceCarrier(tx, actor.workspaceId)
     await tx.delete(phone_numbers).where(eq(phone_numbers.id, number.id))
     const owned = number.provider_ref ? { e164: number.e164, providerRef: number.provider_ref } : null
     let releasedAtCarrier = false
     let unroutedAtCarrier = false
     if (number.provider !== 'dev') {
-      const provider = telephony ?? (await configuredProvider(tx))
+      const provider = telephony ?? (await releaseCarrier(tx, number))
       if (number.purchased) {
         // A bought number goes back to the carrier: only at the carrier that has it.
         if (provider.name !== number.provider) {

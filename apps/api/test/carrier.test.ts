@@ -1,13 +1,14 @@
 // A workspace's own carrier account: who may set it, that its credentials never come back or reach
 // the command log, that "Test connection" only reads, and that one workspace's credentials are never
 // another's. HTTP through the app; carrier HTTP is a stubbed fetch.
+import { createHmac, generateKeyPairSync, sign } from 'node:crypto'
 import { REDACTED } from '@linedesk/actions'
 import { commands, provider_settings } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
-import { CARRIER_TESTS_PER_10_MIN, OWN_CARRIER_NOT_YET, ownCarrierProvider } from '../src/workspace-carrier.ts'
-import { act, addMember, agent, createWorkspace, randomNumber, request, type User, type Workspace } from './helpers.ts'
+import { CARRIER_TESTS_PER_10_MIN, ownCarrierProvider } from '../src/workspace-carrier.ts'
+import { act, addMember, agent, createWorkspace, request, type User, type Workspace } from './helpers.ts'
 
 const ACCOUNT_SID = `AC${'a1'.repeat(16)}`
 const API_KEY_SID = `SK${'b2'.repeat(16)}`
@@ -50,7 +51,7 @@ function stubCarrier(status = 200, body: unknown = undefined) {
 describe('carrier.set / carrier.get', () => {
   test('a workspace uses the default carrier until an owner or admin picks its own', async () => {
     const res = await act(inWs(a.owner, a), 'carrier.get', {})
-    expect(res.body.data).toEqual({ carrier: 'default', canStore: true, fields: [], updatedAt: null })
+    expect(res.body.data).toEqual({ carrier: 'default', canStore: true, sipReady: false, fields: [], updatedAt: null })
   })
 
   test('members and the agent may neither read nor set it', async () => {
@@ -221,21 +222,7 @@ describe('isolation between workspaces', () => {
   })
 })
 
-describe('until numbers can use it', () => {
-  test('phoneNumber.setup is refused while the workspace has its own carrier, and works again on default', async () => {
-    const ws = await createWorkspace('Own Carrier Business')
-    await act(inWs(ws.owner, ws), 'carrier.set', { carrier: 'telnyx', values: { api_key: TELNYX_KEY } })
-    const seen = stubCarrier()
-    for (const input of [{ e164: randomNumber() }, { areaCode: '503', purchase: true }]) {
-      const res = await act(inWs(ws.owner, ws), 'phoneNumber.setup', input)
-      expect(res.status).toBe(409)
-      expect(res.body.error).toBe(OWN_CARRIER_NOT_YET)
-    }
-    expect(seen).toEqual([])
-    await act(inWs(ws.owner, ws), 'carrier.set', { carrier: 'default' })
-    expect((await act(inWs(ws.owner, ws), 'phoneNumber.setup', { e164: randomNumber() })).status).toBe(200)
-  })
-
+describe('carrier.test limits', () => {
   test('carrier.test is rate limited per workspace', async () => {
     const ws = await createWorkspace('Tester Business')
     await act(inWs(ws.owner, ws), 'carrier.set', { carrier: 'telnyx', values: { api_key: TELNYX_KEY } })
@@ -247,5 +234,68 @@ describe('until numbers can use it', () => {
     expect(refused.status).toBe(409)
     expect(refused.body.error).toBe('Too many connection tests. Try again in a few minutes.')
     expect(seen).toHaveLength(CARRIER_TESTS_PER_10_MIN)
+  })
+})
+
+describe("webhooks verify with the workspace's own key", () => {
+  test('Telnyx: the public key saved with the workspace, not another workspace or the install', async () => {
+    const own = generateKeyPairSync('ed25519')
+    const other = generateKeyPairSync('ed25519')
+    const raw = (k: typeof own) => k.publicKey.export({ format: 'der', type: 'spki' }).subarray(-32).toString('base64')
+    await act(inWs(a.owner, a), 'carrier.set', {
+      carrier: 'telnyx',
+      values: { api_key: TELNYX_KEY, public_key: raw(own) },
+    })
+    await act(inWs(b.owner, b), 'carrier.set', {
+      carrier: 'telnyx',
+      values: { api_key: 'KEY-of-workspace-b-0123456789', public_key: raw(other) },
+    })
+    const rawBody = JSON.stringify({ data: { id: 'ev1', event_type: 'call.hangup', payload: {} } })
+    const timestamp = String(Math.floor(Date.now() / 1000))
+    const signedBy = (k: typeof own) => ({
+      rawBody,
+      headers: {
+        'telnyx-timestamp': timestamp,
+        'telnyx-signature-ed25519': sign(null, Buffer.from(`${timestamp}|${rawBody}`), k.privateKey).toString('base64'),
+      },
+    })
+    const providerA = (await ownCarrierProvider(db, a.id))!
+    expect(providerA.parseWebhook(signedBy(own)).status).toBe('hangup')
+    expect(() => providerA.parseWebhook(signedBy(other))).toThrow('signature is not valid')
+    expect(() => providerA.parseWebhook({ ...signedBy(own), headers: {} })).toThrow('no signature headers')
+    const providerB = (await ownCarrierProvider(db, b.id))!
+    expect(() => providerB.parseWebhook(signedBy(own))).toThrow('signature is not valid')
+  })
+
+  test("Twilio: the workspace's auth token; with an API key webhooks are refused", async () => {
+    await act(inWs(a.owner, a), 'carrier.set', {
+      carrier: 'twilio',
+      values: { account_sid: ACCOUNT_SID, auth_token: AUTH_TOKEN },
+    })
+    const url = 'https://linedesk.test/hook'
+    const form = { CallSid: 'CA1', CallStatus: 'completed' }
+    const signature = (token: string) =>
+      createHmac('sha1', token)
+        .update(
+          Object.entries(form)
+            .sort()
+            .reduce((t, [k, v]) => t + k + v, url),
+        )
+        .digest('base64')
+    const request = (token: string) => ({
+      url,
+      rawBody: new URLSearchParams(form).toString(),
+      headers: { 'x-twilio-signature': signature(token) },
+    })
+    const providerA = (await ownCarrierProvider(db, a.id))!
+    expect(providerA.parseWebhook(request(AUTH_TOKEN)).status).toBe('hangup')
+    expect(() => providerA.parseWebhook(request('another-token'))).toThrow('signature is not valid')
+    await act(inWs(a.owner, a), 'carrier.set', {
+      carrier: 'twilio',
+      values: { account_sid: ACCOUNT_SID, api_key_sid: API_KEY_SID, api_key_secret: API_KEY_SECRET },
+    })
+    await expect(ownCarrierProvider(db, a.id).then(p => p!.parseWebhook(request(AUTH_TOKEN)))).rejects.toThrow(
+      'auth token',
+    )
   })
 })

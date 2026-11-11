@@ -17,7 +17,8 @@ export const auth = createAuthClient({
 })
 
 /** Whether this server can set up phone numbers and with which carrier. `detail` (what the server lacks) only reaches instance admins. */
-export type PhoneSetupStatus = { provider: string | null; available: boolean; detail: string | null }
+/** `canAttach`: the member may connect a number already in the carrier account (else only a new one). */
+export type PhoneSetupStatus = { provider: string | null; available: boolean; detail: string | null; canAttach: boolean }
 /** Present while the workspace is in onboarding and this member may finish it. */
 export type OnboardingState = { step: Exclude<OnboardingStep, 'done'>; phone: PhoneSetupStatus }
 

@@ -165,7 +165,13 @@ function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose
             const id = `carrier-${field}`
             const saved = stored(field)
             return (
-              <Field key={field} id={id} label={spec.label} error={errors[field]}>
+              <Field
+                key={field}
+                id={id}
+                label={spec.label}
+                error={errors[field]}
+                aside={spec.optional ? 'Optional' : undefined}
+              >
                 {spec.secret ? (
                   <SecretInput
                     // A new save shows the stored "•••• 1234" again instead of the emptied input.

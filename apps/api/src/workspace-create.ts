@@ -34,12 +34,15 @@ async function ensureWorkspace(name: string, ownerId: string): Promise<{ id: str
   return { id: org.id, created: true }
 }
 
-/** Attaches the number through the registry, as the owner, like onboarding does. Never buys one. */
+/**
+ * Attaches the number through the registry, as the owner, like onboarding does. Never buys one. The CLI runs
+ * as the operator, who may hand a number of the install's account to a workspace (instance:admin).
+ */
 async function ensureNumber(e164: string, workspaceId: string, ownerId: string): Promise<string> {
   const [taken] = await db.select().from(phone_numbers).where(eq(phone_numbers.e164, e164))
   if (taken?.workspace_id === workspaceId) return `${e164} was already set up`
   if (taken) throw new Error(`${e164} belongs to another workspace`)
-  const owner: Actor = { actorId: ownerId, role: 'owner', workspaceId, permissions: rolePermissions.owner }
+  const owner: Actor = { actorId: ownerId, role: 'owner', workspaceId, permissions: [...rolePermissions.owner, 'instance:admin'] }
   const { body } = await runAction('phoneNumber.setup', { e164, purchase: false }, owner)
   if (!body.ok) throw new Error(`phone setup failed: ${body.error}`)
   return `${e164} attached and routed to LiveKit SIP (${process.env.LIVEKIT_SIP_ENDPOINT ?? 'no endpoint set'})`

@@ -8,7 +8,7 @@ export const workspaceCarriers = ['default', 'twilio', 'telnyx'] as const
 export type WorkspaceCarrier = (typeof workspaceCarriers)[number]
 export type OwnCarrier = Exclude<WorkspaceCarrier, 'default'>
 
-type CarrierField = { label: string; secret: boolean }
+type CarrierField = { label: string; secret: boolean; optional?: true }
 /** The fields of each own carrier, in the order the form shows them. */
 export const carrierFields: Record<OwnCarrier, Record<string, CarrierField>> = {
   twilio: {
@@ -17,7 +17,11 @@ export const carrierFields: Record<OwnCarrier, Record<string, CarrierField>> = {
     api_key_secret: { label: 'API key secret', secret: true },
     auth_token: { label: 'Auth token', secret: true },
   },
-  telnyx: { api_key: { label: 'API key', secret: true } },
+  telnyx: {
+    api_key: { label: 'API key', secret: true },
+    /** Verifies Telnyx's webhooks for this account (Telnyx signs with the account's own key pair). */
+    public_key: { label: 'Webhook public key', secret: false, optional: true },
+  },
 }
 
 const secret = z.string().trim().min(1).max(2000)
@@ -47,7 +51,21 @@ export const carrierSet = defineAction({
   input: z.discriminatedUnion('carrier', [
     z.object({ carrier: z.literal('default') }).strict(),
     z.object({ carrier: z.literal('twilio'), values: twilioValues }).strict(),
-    z.object({ carrier: z.literal('telnyx'), values: z.object({ api_key: secret }).strict() }).strict(),
+    z
+      .object({
+        carrier: z.literal('telnyx'),
+        values: z
+          .object({
+            api_key: secret,
+            public_key: z
+              .string()
+              .trim()
+              .regex(/^[A-Za-z0-9+/]{43}=$/, 'the public key is 44 base64 characters')
+              .optional(),
+          })
+          .strict(),
+      })
+      .strict(),
   ]),
   permission: 'settings:write',
   sensitive: ['values'],
@@ -86,6 +104,8 @@ export type CarrierStatusData = {
   carrier: WorkspaceCarrier
   /** Whether the server can store credentials (SECRETS_KEY is set). */
   canStore: boolean
+  /** Whether this server can route numbers to its SIP endpoint (LIVEKIT_SIP_ENDPOINT); without it no number can be connected. */
+  sipReady: boolean
   fields: CarrierFieldStatus[]
   updatedAt: string | null
 }
