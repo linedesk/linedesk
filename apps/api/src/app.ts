@@ -284,9 +284,13 @@ function shapeFilter(table: TableName, permissions: readonly string[]) {
   return 'workspace_id = $1'
 }
 
+/** Read sync is the browser's: it streams whole tables, settings included (assistants, numbers, calendars, webhooks). */
+export const SHAPE_NOT_FOR_API_KEYS = 'API keys cannot use read sync; use the public API (GET /v1/openapi.json) or the MCP read tools'
+
 app.get('/v1/shape/:table', async c => {
   const table = c.req.param('table') as TableName
-  const { workspaceId } = c.get('actor')
+  const { workspaceId, apiKeyId } = c.get('actor')
+  if (apiKeyId) return c.json({ ok: false, error: SHAPE_NOT_FOR_API_KEYS, code: 'forbidden' }, 403)
   if (!tableNames.includes(table) || !workspaceId) return c.json({ ok: false, error: 'unknown table' }, 404)
   const refusal = await workspaceRefusal(c.get('actor'), c.req.query('workspace') ?? null)
   if (refusal) return c.json(refusal, 403)

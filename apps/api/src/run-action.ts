@@ -12,6 +12,9 @@ import { mayRunWhileImpersonating, NOT_WHILE_IMPERSONATING } from './impersonati
 
 export type RunResult = { status: 200 | 403 | 404 | 409 | 422; body: ActionResult | ActionRejection }
 
+/** API keys run only the actions of the public API (`public` in the registry, GET /v1/openapi.json). */
+export const API_KEY_PUBLIC_ONLY = 'API keys can only run the actions of the public API (GET /v1/openapi.json); do this in the app'
+
 const rejection = (status: RunResult['status'], error: string): RunResult => ({ status, body: { ok: false, error } })
 const forbidden = (error: string): RunResult => ({ status: 403, body: { ok: false, error, code: 'forbidden' } })
 
@@ -64,6 +67,8 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   if (!actor.permissions.includes(def.permission)) return forbidden(`missing permission ${def.permission}`)
   // An instance admin signed in as this user: reads and a short allow-list only (impersonation-guard.ts).
   if (actor.impersonation && !mayRunWhileImpersonating(def)) return forbidden(NOT_WHILE_IMPERSONATING)
+  // A leaked key must not reach settings: carrier, numbers, transfer number, webhooks, calendars.
+  if (actor.apiKeyId && !def.public) return forbidden(API_KEY_PUBLIC_ONLY)
   const parsed = def.input.safeParse(rawInput)
   if (!parsed.success) return rejection(422, inputErrorText(parsed.error, rawInput))
   const unknown = unknownFieldsRefusal(name, rawInput, parsed.data, actor)

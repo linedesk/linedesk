@@ -5,13 +5,14 @@ import type { Call } from '@linedesk/db/types'
 const callId = z.object({ callId: z.string().min(1) })
 type CallId = z.infer<typeof callId>
 
-const callPatch = (name: string, description: string, set: (now: string) => Partial<Call>) =>
+const callPatch = (name: string, description: string, set: (now: string) => Partial<Call>, destructive?: true) =>
   defineAction({
     name,
     description,
     input: callId,
     permission: 'call:write',
     public: true,
+    ...(destructive ? { destructive } : {}),
     patch: { table: 'calls', id: i => i.callId, set: (_i, now) => set(now) } satisfies PatchSpec<CallId, 'calls'>,
   })
 
@@ -28,12 +29,18 @@ export const callClearReminder = callPatch('call.clearReminder', 'Remove the rem
   reminder_at: null,
   reminder_label: null,
 }))
-export const callDelete = callPatch('call.delete', 'Delete a call.', now => ({ deleted_at: now }))
+export const callDelete = callPatch('call.delete', 'Delete a call.', now => ({ deleted_at: now }), true)
 export const callRestore = callPatch('call.restore', 'Restore a deleted call.', () => ({ deleted_at: null }))
-export const callMarkSpam = callPatch('call.markSpam', 'File a call as spam (a sales call or robocall).', () => ({
-  outcome: 'spam',
-  unread: false,
-}))
+/**
+ * Destructive: it takes the call out of the inbox and its outcome is lost (call.markNotSpam makes it a
+ * callback), and it is exactly what a caller would ask an assistant reading the transcript to do.
+ */
+export const callMarkSpam = callPatch(
+  'call.markSpam',
+  'File a call as spam (a sales call or robocall).',
+  () => ({ outcome: 'spam', unread: false }),
+  true,
+)
 /** `outcome`: what the call was before it was filed as spam (undo); without it a callback, so a person looks at it. */
 const notSpamInput = z.object({
   callId: z.string().min(1),

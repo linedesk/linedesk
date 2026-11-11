@@ -152,8 +152,8 @@ describe('subscriptions', () => {
     const created = await act(ws.owner, 'apiKey.create', { name: 'Zapier', role: 'admin' })
     const bearer = { headers: { authorization: `Bearer ${created.body.data.key}` } }
     const endpoint = await subscribe(ws.owner)
-    expect(await act(bearer, 'push.subscribe', { endpoint: endpointFor('key'), keys })).toMatchObject({ status: 409 })
-    expect(await act(bearer, 'push.unsubscribe', { endpoint, everywhere: true })).toMatchObject({ status: 409 })
+    expect(await act(bearer, 'push.subscribe', { endpoint: endpointFor('key'), keys })).toMatchObject({ status: 403 })
+    expect(await act(bearer, 'push.unsubscribe', { endpoint, everywhere: true })).toMatchObject({ status: 403 })
     expect(await rowsOf(ws.owner)).toHaveLength(1)
   })
 

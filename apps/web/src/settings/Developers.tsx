@@ -18,7 +18,7 @@ const loadKeys = () => readAction<ApiKeyListData>('apiKey.list')
 type Role = ApiKeySummary['role']
 const roles: SelectOption<Role>[] = [
   { value: 'member', label: 'Member', description: 'Calls, contacts and bookings' },
-  { value: 'admin', label: 'Admin', description: 'Also settings' },
+  { value: 'admin', label: 'Admin', description: 'Also deleting, cancelling, blocking and spam in MCP tools' },
 ]
 
 const day = (iso: string) =>

@@ -32,6 +32,7 @@ export const contactBlock = defineAction({
   input: contactId,
   permission: 'contact:write',
   public: true,
+  destructive: true,
   patch: { table: 'contacts', id: i => i.contactId, set: (_i, now) => ({ blocked_at: now }) },
 })
 
@@ -120,6 +121,7 @@ export const contactDelete = defineAction({
   input: contactId,
   permission: 'contact:write',
   public: true,
+  destructive: true,
   patch: { table: 'contacts', id: i => i.contactId, set: (_i, now) => ({ deleted_at: now }) },
 })
 

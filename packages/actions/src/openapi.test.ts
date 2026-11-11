@@ -17,6 +17,12 @@ describe('OpenAPI document', () => {
     for (const a of actions.values()) if (a.public) expect(['agent', 'instance:admin', 'team:write', 'settings:write']).not.toContain(a.permission)
   })
 
+  test('deleting, cancelling, moving, blocking and filing as spam are marked destructive (MCP: admin keys only)', () => {
+    const destructive = [...actions.values()].filter(a => a.destructive).map(a => a.name)
+    expect(destructive.sort()).toEqual(['appointment.cancel', 'appointment.reschedule', 'call.delete', 'call.markSpam', 'contact.block', 'contact.delete'])
+    for (const a of actions.values()) if (a.destructive) expect(a.public).toBe(true)
+  })
+
   test("each operation carries the action's input schema and Bearer auth", () => {
     const remind = doc.paths['/v1/actions/call.remind']!.post
     expect(remind.requestBody.content['application/json'].schema).toMatchObject({

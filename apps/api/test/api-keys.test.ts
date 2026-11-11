@@ -2,9 +2,11 @@
 // with their role's permissions, revocable, rate limited, never managing keys themselves.
 import { api_keys, calls, commands, member as memberTable, organization, user } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
-import { beforeAll, describe, expect, test } from 'vitest'
+import { beforeAll, describe, expect, test, vi } from 'vitest'
 import { API_KEY_REQUESTS_PER_MINUTE, apiKeyWithinLimit, hashApiKey, INVALID_API_KEYS_PER_IP } from '../src/api-keys.ts'
 import { db } from '../src/db.ts'
+import { SHAPE_NOT_FOR_API_KEYS } from '../src/app.ts'
+import { API_KEY_PUBLIC_ONLY } from '../src/run-action.ts'
 import { act, addMember, type Caller, createWorkspace, FROM, randomIp, request, type User, type Workspace } from './helpers.ts'
 
 let ws: Workspace
@@ -67,12 +69,40 @@ describe('using a key', () => {
     expect((await act(bearer(key), 'assistant.update', { assistantId: ws.assistant.id, greeting: 'hi' })).status).toBe(403)
   })
 
-  test('an admin key has settings but never manages keys or the team', async () => {
+  test('an admin key runs only the public API: no settings, keys or team, even with settings:write', async () => {
     const { key } = await createKey(ws.owner, 'admin')
     expect((await request(bearer(key), 'GET', '/v1/me')).body.permissions).not.toContain('team:write')
-    expect(await act(bearer(key), 'apiKey.create', { name: 'more' })).toMatchObject({ status: 403, body: { error: expect.stringMatching(/cannot manage API keys/), code: 'forbidden' } })
-    expect((await act(bearer(key), 'apiKey.list', {})).status).toBe(403)
+    const publicOnly = { status: 403, body: { ok: false, error: API_KEY_PUBLIC_ONLY, code: 'forbidden' } }
+    expect(await act(bearer(key), 'apiKey.create', { name: 'more' })).toMatchObject(publicOnly)
+    expect(await act(bearer(key), 'apiKey.list', {})).toMatchObject(publicOnly)
     expect((await act(bearer(key), 'team.invite', { email: 'x@example.com', role: 'member' })).status).toBe(403)
+    // What a leaked key could otherwise do: point urgent calls at another phone, copy every call out, read settings.
+    expect(await act(bearer(key), 'assistant.update', { assistantId: ws.assistant.id, transfer_number: '+15035550142' })).toMatchObject(publicOnly)
+    expect(await act(bearer(key), 'webhook.create', { url: 'https://example.com/hook', events: ['call.finished'] })).toMatchObject(publicOnly)
+    expect(await act(bearer(key), 'carrier.get', {})).toMatchObject(publicOnly)
+    expect(await act(bearer(key), 'phoneNumber.release', { phoneNumberId: 'pn_x' })).toMatchObject(publicOnly)
+    expect(await db.select().from(commands).where(and(eq(commands.workspace_id, ws.id), eq(commands.action, 'assistant.update')))).toEqual([])
+    // The public API works as before.
+    expect((await act(bearer(key), 'call.markDone', { callId: ws.call.id })).status).toBe(200)
+    expect((await act(bearer(key), 'contact.update', { contactId: ws.contact.id, note: 'Gate code 4411' })).status).toBe(200)
+  })
+
+  test('no key reads the synced tables: settings, numbers, calendars and webhook URLs stay in the app', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    try {
+      for (const role of ['member', 'admin'] as const) {
+        const { key } = await createKey(ws.owner, role)
+        for (const table of ['assistants', 'phone_numbers', 'calendar_connections', 'webhook_endpoints', 'calls']) {
+          expect(await request(bearer(key), 'GET', `/v1/shape/${table}?offset=-1`)).toMatchObject({
+            status: 403,
+            body: { ok: false, error: SHAPE_NOT_FOR_API_KEYS, code: 'forbidden' },
+          })
+        }
+      }
+      expect(fetchSpy.mock.calls.filter(([url]) => String(url).includes('electric.test'))).toEqual([])
+    } finally {
+      fetchSpy.mockRestore()
+    }
   })
 
   test('unknown, revoked and disabled-workspace keys are refused', async () => {
