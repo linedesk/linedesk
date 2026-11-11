@@ -242,15 +242,20 @@ function ContactRow(props: RowProps) {
             </Field>
           </div>
           <div className="tc-foot">
+            {/* The icon is inside the page's fieldset: disabled with it for members who cannot edit. */}
             {hoursOn ? (
-              <Checkbox checked={c.hours_only} onChange={on => onChange({ hours_only: on })}>
-                Only during business hours
-              </Checkbox>
+              <span className="bh-with">
+                <Checkbox checked={c.hours_only} onChange={on => onChange({ hours_only: on })}>
+                  Only during business hours
+                </Checkbox>
+                <EditBusinessHours canEdit />
+              </span>
             ) : (
-              <span className="tc-anytime">Any time (no business hours set)</span>
+              <span className="bh-with tc-anytime">
+                Any time (no business hours set)
+                <EditBusinessHours canEdit label="Set business hours" />
+              </span>
             )}
-            {/* Inside the page's fieldset: disabled with it for members who cannot edit. */}
-            <EditBusinessHours canEdit label={hoursOn ? 'Edit hours' : 'Set business hours'} />
             <Button size="sm" className="tc-done" onClick={onClose} title="Close this contact; Save keeps the changes">
               Done
             </Button>

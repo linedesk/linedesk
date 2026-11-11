@@ -568,14 +568,12 @@ function TypeForm({ type, onDone }: { type?: AppointmentType; onDone: () => void
           <Select id="cal-type-after" label="Buffer after" value={after} options={bufferOptions} onChange={setAfter} />
         </Field>
         <Field id="cal-type-hours" label="Can be booked">
-          <Select id="cal-type-hours" label="Can be booked" value={when} options={bookWhenOptions} onChange={setWhen} />
+          <span className="bh-with">
+            <Select id="cal-type-hours" label="Can be booked" value={when} options={bookWhenOptions} onChange={setWhen} />
+            {when !== 'any_time' && <EditBusinessHours canEdit />}
+          </span>
         </Field>
       </div>
-      {when !== 'any_time' && (
-        <span className="cal-type-hours">
-          <EditBusinessHours canEdit />
-        </span>
-      )}
       <Field
         label="Ask for"
         tip="Your assistant always asks what the appointment is for. Tick anything else it should ask before booking this type."

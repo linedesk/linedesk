@@ -32,12 +32,14 @@ type FieldProps = {
   aside?: ReactNode
   /** Detail behind a (?) next to the label. */
   tip?: string
+  /** Right after the label, outside it (e.g. the edit-business-hours icon). */
+  labelAfter?: ReactNode
   children: ReactNode
 }
 
-export function Field({ id, label, help, error, aside, tip, children }: FieldProps) {
+export function Field({ id, label, help, error, aside, tip, labelAfter, children }: FieldProps) {
   return (
-    <FormField id={id} label={label} description={help} error={error} aside={aside} help={tip}>
+    <FormField id={id} label={label} description={help} error={error} aside={aside} help={tip} labelAfter={labelAfter}>
       {children}
     </FormField>
   )

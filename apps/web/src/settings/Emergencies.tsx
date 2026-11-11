@@ -44,7 +44,16 @@ export function Emergencies({ draft, set, name, hoursOn, canEdit, onEdit, onAdd 
                   title={c.name || 'No name yet'}
                   sub={c.number || 'No number yet'}
                   off={!!inactive}
-                  aside={<span className="help">{inactive ?? (hoursOn && c.hours_only ? 'Business hours only' : 'Any time')}</span>}
+                  aside={
+                    inactive || !(hoursOn && c.hours_only) ? (
+                      <span className="help">{inactive ?? 'Any time'}</span>
+                    ) : (
+                      <span className="help bh-with">
+                        Business hours only
+                        <EditBusinessHours canEdit={canEdit} />
+                      </span>
+                    )
+                  }
                   actions={
                     <Button size="sm" variant="ghost" onClick={() => onEdit(index)} title="Edit under Calls & transfers">
                       Edit
@@ -56,11 +65,6 @@ export function Emergencies({ draft, set, name, hoursOn, canEdit, onEdit, onAdd 
           </List>
         ) : (
           <ListEmpty>No emergency contact: urgent calls become a message marked urgent.</ListEmpty>
-        )}
-        {hoursOn && contacts.some(({ c }) => c.hours_only) && (
-          <span className="as-hours-line">
-            <EditBusinessHours canEdit={canEdit} />
-          </span>
         )}
       </Section>
       <Section

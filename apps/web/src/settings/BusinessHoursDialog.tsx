@@ -1,4 +1,4 @@
-// "Edit business hours" next to any setting that depends on them (outside-hours greeting and
+// A small "Edit business hours" icon next to the words "business hours" in any setting that depends on them (outside-hours greeting and
 // instructions, transfer, when an appointment type may be booked): the same editor as Settings ›
 // Business hours in a dialog, so the hours can be changed without leaving the page. As there, the
 // switch and the time zone save at once and the weekly grid is a draft with Cancel / Save (⌘S).
@@ -11,23 +11,37 @@ import { SkeletonRows } from '../ui/LoadStates.tsx'
 import { HoursGrid, TimeZoneSelect, useBusinessHours } from './BusinessHours.tsx'
 import { patchWorkspaceSettings } from './settings-api.ts'
 
-type Props = { canEdit: boolean; label?: string }
+type Props = {
+  canEdit: boolean
+  /** The tooltip and accessible name of the icon, or the button's text. */
+  label?: string
+  /**
+   * `icon` (the default): a small pencil right next to the words "business hours" in a setting. `button`: a
+   * labelled button, where the hours are the subject (Assistant › Hours & holidays).
+   */
+  variant?: 'icon' | 'button'
+}
 
-/** A small button that opens the business hours in a dialog. */
-export function EditBusinessHours({ canEdit, label = 'Edit business hours' }: Props) {
+/** Opens the business hours in a dialog. */
+export function EditBusinessHours({ canEdit, label = 'Edit business hours', variant = 'icon' }: Props) {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <Button
-        size="sm"
-        variant="ghost"
-        icon="clock"
-        className="bh-edit"
-        onClick={() => setOpen(true)}
-        title="Change your business hours without leaving this page"
-      >
-        {label}
-      </Button>
+      {variant === 'icon' ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          icon="pencil"
+          className="bh-edit-icon"
+          onClick={() => setOpen(true)}
+          title={label}
+          aria-label={label}
+        />
+      ) : (
+        <Button size="sm" variant="ghost" icon="clock" onClick={() => setOpen(true)} title="Change your business hours">
+          {label}
+        </Button>
+      )}
       {open && <BusinessHoursDialog canEdit={canEdit} onClose={() => setOpen(false)} />}
     </>
   )

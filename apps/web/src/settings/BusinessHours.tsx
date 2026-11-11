@@ -163,7 +163,7 @@ export function BusinessHours({ canEdit }: { canEdit: boolean }) {
       title="Business hours"
       description={on ? undefined : 'Off'}
       help="Your assistant tells callers when you are open and, when you are closed, when to expect a call back. Appointments are only booked inside these hours unless a type says otherwise, and the greeting can be different outside them."
-      actions={<EditBusinessHours canEdit={canEdit} label={on ? 'Edit business hours' : 'Set business hours'} />}
+      actions={<EditBusinessHours canEdit={canEdit} variant="button" label={on ? 'Edit business hours' : 'Set business hours'} />}
     >
       {!saved ? (
         loadError ? (

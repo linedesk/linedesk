@@ -68,15 +68,18 @@ type FieldProps = {
   error?: string | null
   /** Shown next to the label, e.g. "Optional". */
   aside?: ReactNode
+  /** Right after the label, outside it: a small button about the label's words (e.g. edit business hours). */
+  labelAfter?: ReactNode
   className?: string
   children: ReactNode
 }
 
-export function FormField({ id, label, description, help, error, aside, className, children }: FieldProps) {
+export function FormField({ id, label, description, help, error, aside, labelAfter, className, children }: FieldProps) {
   return (
     <div className={cx('k-field', error && 'k-field-invalid', className)}>
       <div className="k-field-label">
         <label htmlFor={id}>{label}</label>
+        {labelAfter}
         {help && <HelpTip text={help} />}
         {aside && <span className="k-field-aside">{aside}</span>}
       </div>

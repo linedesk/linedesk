@@ -592,9 +592,6 @@
   align-items: center;
   gap: 4px 12px;
 }
-.tc-foot .bh-edit {
-  margin-left: 0;
-}
 .tc-anytime {
   color: var(--ink-muted);
   font-size: 13px;
@@ -675,12 +672,26 @@
     grid-template-columns: 1fr;
   }
 }
-/* "Edit business hours" next to a setting that depends on them; it opens BusinessHoursDialog. */
-.as-hours-line {
-  display: flex;
+/* The small "Edit business hours" icon right after the words "business hours"; it opens BusinessHoursDialog. */
+.bh-with {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
 }
-.bh-edit {
-  margin-left: -8px;
+.bh-with > .k-select {
+  flex: 1;
+  min-width: 0;
+}
+.bh-edit-icon {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--ink-muted);
+}
+.k-field-label > .bh-edit-icon {
+  margin: -4px 0 -4px 2px;
 }
 .bh-dialog {
   display: grid;

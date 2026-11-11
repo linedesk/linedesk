@@ -157,7 +157,7 @@ function Greeting({
             </span>
           </Field>
           {hoursOn && (
-            <Field id="as-greet-out" label="Outside business hours" aside="Optional">
+            <Field id="as-greet-out" label="Outside business hours" aside="Optional" labelAfter={<EditBusinessHours canEdit={canEdit} />}>
               <TextArea
                 id="as-greet-out"
                 value={draft.greeting_outside}
@@ -166,9 +166,6 @@ function Greeting({
               />
               <span className="help">
                 {draft.greeting_outside.trim() ? spokenLength(draft.greeting_outside) : 'Empty: the same as during hours.'}
-              </span>
-              <span className="as-hours-line">
-                <EditBusinessHours canEdit={canEdit} />
               </span>
             </Field>
           )}
