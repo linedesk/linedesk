@@ -17,6 +17,7 @@ const kinds: SelectOption<AuditKind | 'all'>[] = [
   { value: 'admin', label: 'Admin actions' },
   { value: 'team', label: 'Team changes' },
   { value: 'keys', label: 'Provider keys' },
+  { value: 'integrations', label: 'API keys and webhooks' },
   { value: 'impersonation', label: 'Signed in as a user' },
 ]
 
@@ -33,8 +34,10 @@ const methods: Record<string, string> = {
 const method = (m: string | null) => (m ? (methods[m] ?? m) : '')
 
 /** What happened, in a few words. */
-export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input'>): string {
+export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'subject'>): string {
   const input = (e.input ?? {}) as Record<string, unknown>
+  const who = e.subject?.email ?? 'a member'
+  const invitee = e.subject?.email ?? 'someone'
   switch (e.what) {
     case 'sign_in':
       return `Signed in with ${method(e.method)}`
@@ -61,13 +64,47 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input'>): st
     case 'provider.setActive':
       return `Picked ${String(input.provider ?? 'none')} for ${String(input.category ?? 'a category')}`
     case 'team.setRole':
-      return `Changed a role to ${String(input.role ?? '')}`
+    case 'membership.setRole':
+      return `Made ${who} ${roleName(input.role)}`
     case 'team.invite':
       return `Invited ${String(input.email ?? 'someone')}`
+    case 'team.resendInvite':
+    case 'invitation.resend':
+      return `Sent the invitation to ${invitee} again`
+    case 'team.revokeInvite':
+    case 'invitation.revoke':
+      return `Revoked the invitation to ${invitee}`
+    case 'team.removeMember':
+    case 'membership.remove':
+      return `Removed ${who} from the workspace`
+    case 'team.leave':
+      return 'Left the workspace'
+    case 'membership.add':
+      return `Added ${who} as ${roleName(input.role)}`
+    case 'invitation.accept':
+      return 'Accepted an invitation'
+    case 'invitation.decline':
+      return 'Declined an invitation'
+    case 'apiKey.create':
+      return `Created API key ${quoted(input.name)}`.trim()
+    case 'apiKey.revoke':
+      return 'Revoked an API key'
+    case 'webhook.create':
+      return `Added a webhook to ${String(input.url ?? 'a URL')}`
+    case 'webhook.update':
+      return input.url ? `Changed a webhook to ${String(input.url)}` : 'Changed a webhook'
+    case 'webhook.delete':
+      return 'Removed a webhook'
+    case 'webhook.test':
+      return 'Sent a test to a webhook'
     default:
       return e.what
   }
 }
+
+/** "owner", "an admin", "a member": a role as it reads in a sentence. */
+const roleName = (role: unknown) => (role === 'owner' ? 'owner' : role === 'admin' ? 'an admin' : 'a member')
+const quoted = (name: unknown) => (typeof name === 'string' && name ? `“${name}”` : '')
 
 const today = () => new Date().toISOString().slice(0, 10)
 /** The day after, so "to" includes the whole day picked. */

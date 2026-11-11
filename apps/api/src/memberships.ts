@@ -5,6 +5,7 @@ import { INVITATION_DAYS, type MyInvitation } from '@linedesk/actions'
 import { invitation, member, organization, type Tx, user } from '@linedesk/db'
 import { and, asc, eq, gt, ne, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
+import { invitationSubject, memberSubject } from './audit.ts'
 import type { Actor } from './context.ts'
 import { type Handler, Reject } from './handler-context.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
@@ -102,14 +103,14 @@ export const membershipHandlers: Record<string, Handler> = {
     if (await isMember(tx, invite.organizationId, account.id)) throw new Reject(already)
     await insertMember(tx, { id: newMemberId(), organizationId: invite.organizationId, userId: account.id, role: invite.role ?? 'member', createdAt: new Date(now) }, already)
     await tx.update(invitation).set({ status: 'accepted' }).where(and(eq(invitation.id, invite.id), eq(invitation.status, 'pending')))
-    return { rows: {}, data: { workspaceId: invite.organizationId } }
+    return { rows: {}, data: { workspaceId: invite.organizationId, subject: { email: account.email, workspaceId: invite.organizationId } } }
   },
 
   'invitation.decline': async ({ tx, actor }, input: { invitationId: string }) => {
     const account = await invitee(tx, actor)
     const invite = await myPendingInvitation(tx, account.email, input.invitationId)
     await tx.update(invitation).set({ status: 'rejected' }).where(and(eq(invitation.id, invite.id), eq(invitation.status, 'pending')))
-    return { rows: {} }
+    return { rows: {}, data: { subject: { email: account.email, workspaceId: invite.organizationId } } }
   },
 
   'membership.add': async ({ tx, now }, input: { userId: string; workspaceId: string; role: string }) => {
@@ -125,14 +126,14 @@ export const membershipHandlers: Record<string, Handler> = {
     // An invitation to the same workspace is answered by this.
     await tx.update(invitation).set({ status: 'canceled' })
       .where(and(eq(invitation.organizationId, workspace.id), eq(invitation.status, 'pending'), sameEmail(account.email)))
-    return { rows: {}, data: { memberId: id } }
+    return { rows: {}, data: { memberId: id, subject: { email: account.email, workspaceId: workspace.id } } }
   },
 
   'membership.setRole': async ({ tx }, input: { memberId: string; role: string }) => {
     const target = await loadMember(tx, input.memberId)
     if (input.role !== 'owner') await keepAnOwner(tx, target)
     await tx.update(member).set({ role: input.role }).where(eq(member.id, target.id))
-    return { rows: {} }
+    return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
   },
 
   'membership.remove': async ({ tx }, input: { memberId: string }) => {
@@ -140,13 +141,13 @@ export const membershipHandlers: Record<string, Handler> = {
     await keepAnOwner(tx, target)
     await tx.delete(member).where(eq(member.id, target.id))
     await dropWorkspacePush(tx, target.organizationId, target.userId)
-    return { rows: {} }
+    return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
   },
 
   'invitation.revoke': async ({ tx }, input: { invitationId: string }) => {
     const invite = await loadPendingInvitation(tx, input.invitationId)
     await tx.update(invitation).set({ status: 'canceled' }).where(and(eq(invitation.id, invite.id), eq(invitation.status, 'pending')))
-    return { rows: {} }
+    return { rows: {}, data: { subject: invitationSubject(invite) } }
   },
 
   'invitation.resend': async ({ tx, now }, input: { invitationId: string }) => {
@@ -154,6 +155,6 @@ export const membershipHandlers: Record<string, Handler> = {
     await tx.update(invitation).set({ expiresAt: new Date(Date.parse(now) + INVITATION_DAYS * DAY_MS) })
       .where(and(eq(invitation.id, invite.id), eq(invitation.status, 'pending')))
     await sendInvitation(tx, invite)
-    return { rows: {} }
+    return { rows: {}, data: { subject: invitationSubject(invite) } }
   },
 }

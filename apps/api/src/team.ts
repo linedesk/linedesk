@@ -7,6 +7,7 @@ import { INVITATION_DAYS, type TeamData, type TeamInvitation, type TeamMember } 
 import { invitation, member, organization, type Tx, user } from '@linedesk/db'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
+import { invitationSubject, memberSubject } from './audit.ts'
 import type { Actor } from './context.ts'
 import { emailSender } from './email.ts'
 import { type Handler, Reject } from './handler-context.ts'
@@ -140,13 +141,13 @@ export const teamHandlers: Record<string, Handler> = {
     const invite = await loadPendingInvitation(tx, workspaceOf(actor), input.invitationId)
     await tx.update(invitation).set({ expiresAt: new Date(Date.parse(now) + INVITATION_DAYS * DAY_MS) }).where(eq(invitation.id, invite.id))
     await sendInvitation(tx, invite)
-    return { rows: {} }
+    return { rows: {}, data: { subject: invitationSubject(invite) } }
   },
 
   'team.revokeInvite': async ({ tx, actor }, input: { invitationId: string }) => {
     const invite = await loadPendingInvitation(tx, workspaceOf(actor), input.invitationId)
     await tx.update(invitation).set({ status: 'canceled' }).where(eq(invitation.id, invite.id))
-    return { rows: {} }
+    return { rows: {}, data: { subject: invitationSubject(invite) } }
   },
 
   'team.setRole': async ({ tx, actor }, input: { memberId: string; role: string }) => {
@@ -156,7 +157,7 @@ export const teamHandlers: Record<string, Handler> = {
     await guardOwner(tx, actor, target)
     if (input.role === 'owner') await requireOwner(tx, actor, workspaceId)
     await tx.update(member).set({ role: input.role }).where(eq(member.id, target.id))
-    return { rows: {} }
+    return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
   },
 
   'team.leave': async ({ tx, actor }) => {
@@ -182,6 +183,6 @@ export const teamHandlers: Record<string, Handler> = {
     await guardOwner(tx, actor, target)
     await tx.delete(member).where(eq(member.id, target.id))
     await dropWorkspacePush(tx, target.organizationId, target.userId)
-    return { rows: {} }
+    return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
   },
 }

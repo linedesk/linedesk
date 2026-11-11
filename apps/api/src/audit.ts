@@ -2,7 +2,7 @@
 // the command log (`commands`: admin actions, team and role changes, provider keys, impersonation),
 // and `auth_events` for what happens in Better Auth's own endpoints (sign-ins with their method,
 // sign-in methods added or removed, invitations accepted). Nothing here is ever deleted.
-import { auth_events, type Db, user } from '@linedesk/db'
+import { auth_events, type Db, type Tx, user } from '@linedesk/db'
 import { createAuthMiddleware, isAPIError } from 'better-auth/api'
 import { eq, sql } from 'drizzle-orm'
 import { db } from './db.ts'
@@ -118,7 +118,7 @@ export const recordAuthEndpoint = createAuthMiddleware(async ctx => {
 })
 
 /** Which part of the log a row belongs to, for the filter. */
-export const AUDIT_KINDS = ['sign_in', 'account', 'admin', 'team', 'impersonation', 'keys'] as const
+export const AUDIT_KINDS = ['sign_in', 'account', 'admin', 'team', 'impersonation', 'keys', 'integrations'] as const
 export type AuditKind = (typeof AUDIT_KINDS)[number]
 
 /** Command-log actions that belong in the audit log, by kind. Everyday actions (calls, contacts) do not. */
@@ -142,7 +142,42 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'team.revokeInvite': 'team',
   'team.setRole': 'team',
   'team.removeMember': 'team',
+  'team.leave': 'team',
+  'invitation.accept': 'team',
+  'invitation.decline': 'team',
+  // An instance admin changing who is in which workspace, also their own membership.
+  'membership.add': 'admin',
+  'membership.setRole': 'admin',
+  'membership.remove': 'admin',
+  'invitation.revoke': 'admin',
+  'invitation.resend': 'admin',
+  // Ways in from outside that outlast a session: API keys and where call data is sent.
+  'apiKey.create': 'integrations',
+  'apiKey.revoke': 'integrations',
+  'webhook.create': 'integrations',
+  'webhook.update': 'integrations',
+  'webhook.delete': 'integrations',
+  'webhook.test': 'integrations',
 }
+
+/**
+ * Whom a team or membership change was about, put in the action's result (`data.subject`) by its
+ * handler, since a removed member's row is gone afterwards. The audit log shows the address and
+ * lists the entry under the workspace changed, which for an instance admin is not their own.
+ */
+export type AuditSubject = { email: string | null; workspaceId: string }
+
+/** The subject of a change to `userId`'s membership of `workspaceId`. */
+export async function memberSubject(tx: Tx, userId: string, workspaceId: string): Promise<AuditSubject> {
+  const [who] = await tx.select({ email: user.email }).from(user).where(eq(user.id, userId))
+  return { email: who?.email ?? null, workspaceId }
+}
+
+/** The subject of a change to an invitation: the invited address. */
+export const invitationSubject = (invite: { email: string; organizationId: string }): AuditSubject => ({
+  email: invite.email,
+  workspaceId: invite.organizationId,
+})
 
 const AUTH_EVENT_KIND: Record<AuthEventName, AuditKind> = {
   sign_in: 'sign_in',
@@ -166,6 +201,8 @@ export type AuditEntry = {
   /** The instance admin acting as `actor` (impersonation). */
   impersonatedBy: { id: string; email: string | null } | null
   workspace: { id: string; name: string | null } | null
+  /** Whom a team or membership change was about (`AuditSubject`). */
+  subject: { email: string | null } | null
   /** The action's input as the command log keeps it (secrets already redacted). */
   input: unknown
   refused: boolean
@@ -221,12 +258,14 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
   const commandRows =
     kindActions.length || withImpersonated
       ? sql`select c.id, c.created_at as at, c.action as what, null::text as method, c.actor_id, null::text as email_then,
-        c.impersonated_by, c.workspace_id, c.input, c.rejected as refused, null::text as ip_address, 'command' as source
+        c.impersonated_by,
+        coalesce(c.result->'data'->'subject'->>'workspaceId', c.input->>'workspaceId', c.workspace_id) as workspace_id,
+        c.input, c.result->'data'->'subject'->>'email' as subject_email, c.rejected as refused, null::text as ip_address, 'command' as source
         from commands c where ${listed}${withImpersonated ? sql` or c.impersonated_by is not null` : sql``}`
       : null
   const eventRows = kindEvents.length
     ? sql`select e.id, e.created_at as at, e.event as what, e.method, e.user_id as actor_id, e.email as email_then,
-        null::text as impersonated_by, e.workspace_id, null::jsonb as input, false as refused, e.ip_address, 'auth' as source
+        null::text as impersonated_by, e.workspace_id, null::jsonb as input, null::text as subject_email, false as refused, e.ip_address, 'auth' as source
         from auth_events e where e.event in (${sql.join(
           kindEvents.map(e => sql`${e}`),
           sql`, `,
@@ -280,6 +319,7 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
       },
       impersonatedBy: r.impersonated_by ? { id: r.impersonated_by, email: r.impersonator_email ?? null } : null,
       workspace: r.workspace_id ? { id: r.workspace_id, name: r.workspace_name ?? null } : null,
+      subject: r.subject_email ? { email: r.subject_email } : null,
       input: r.input,
       refused: Boolean(r.refused),
       ipAddress: r.ip_address,

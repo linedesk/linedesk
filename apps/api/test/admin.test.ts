@@ -1703,6 +1703,45 @@ describe('audit log', () => {
     ).toMatchObject({ refused: true })
   })
 
+  test('an admin adding themselves to a workspace is listed under that workspace, with whom it was about', async () => {
+    const operatorEmail = await emailOf(operator)
+    const added = await act(operator, 'membership.add', { userId: operator.userId, workspaceId: other.id, role: 'owner' })
+    expect(added.status).toBe(200)
+    const removed = await act(operator, 'membership.remove', { memberId: added.body.data.memberId })
+    expect(removed.status).toBe(200)
+    const { entries } = await audit(`?kind=admin&workspace=${other.id}`)
+    // Newest first; other tests in this file change memberships of `other` too.
+    const mine = entries.filter(e => e.actor.id === operator.userId && e.what.startsWith('membership.')).slice(0, 2)
+    expect(mine.map(e => e.what)).toEqual(['membership.remove', 'membership.add'])
+    for (const e of mine) expect(e).toMatchObject({ kind: 'admin', workspace: { id: other.id }, subject: { email: operatorEmail } })
+    expect(mine[1]!.input).toMatchObject({ role: 'owner' })
+  })
+
+  test('removing a member, leaving, API keys and webhooks are recorded, the member named', async () => {
+    const ws = await createWorkspace('Audit Trail Plumbing')
+    const leaver = await addMember(ws.id, 'member')
+    const removed = await addMember(ws.id, 'admin')
+    const removedEmail = await emailOf(removed)
+    const [row] = await db.select().from(memberTable).where(eq(memberTable.userId, removed.userId))
+    expect((await act(ws.owner, 'team.setRole', { memberId: row!.id, role: 'member' })).status).toBe(200)
+    expect((await act(ws.owner, 'team.removeMember', { memberId: row!.id })).status).toBe(200)
+    expect((await act(leaver, 'team.leave', {})).status).toBe(200)
+    const key = await act(ws.owner, 'apiKey.create', { name: 'Zapier', role: 'member' })
+    expect(key.status).toBe(200)
+    expect((await act(ws.owner, 'webhook.delete', { endpointId: ws.webhookEndpoint.id })).status).toBe(200)
+    const { entries } = await audit(`?workspace=${ws.id}&limit=50`)
+    const byWhat = (what: string) => entries.find(e => e.what === what)
+    expect(byWhat('team.setRole')).toMatchObject({ kind: 'team', subject: { email: removedEmail }, input: { role: 'member' } })
+    expect(byWhat('team.removeMember')).toMatchObject({ kind: 'team', subject: { email: removedEmail } })
+    expect(byWhat('team.leave')).toMatchObject({ kind: 'team', actor: { id: leaver.userId } })
+    expect(byWhat('apiKey.create')).toMatchObject({ kind: 'integrations', input: { name: 'Zapier' } })
+    expect(byWhat('webhook.delete')).toMatchObject({ kind: 'integrations' })
+    // The key itself is never in the log.
+    expect(JSON.stringify(byWhat('apiKey.create'))).not.toContain(key.body.data.key)
+    const integrations = (await audit(`?kind=integrations&workspace=${ws.id}`)).entries
+    expect(integrations.map(e => e.what).sort()).toEqual(['apiKey.create', 'webhook.delete'])
+  })
+
   test('team changes carry their workspace and can be filtered by it', async () => {
     const joined = await addMember(other.id, 'member')
     const [row] = await db.select().from(memberTable).where(eq(memberTable.userId, joined.userId))

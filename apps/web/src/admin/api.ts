@@ -168,7 +168,7 @@ export const loadWorkspaceMembers = (workspaceId: string) =>
 
 export const loadOverview = () => get<AdminOverview>('/v1/admin/overview')
 
-export type AuditKind = 'sign_in' | 'account' | 'admin' | 'team' | 'impersonation' | 'keys'
+export type AuditKind = 'sign_in' | 'account' | 'admin' | 'team' | 'impersonation' | 'keys' | 'integrations'
 /** One entry of GET /v1/admin/audit (apps/api/src/audit.ts). */
 export type AuditEntry = {
   id: string
@@ -179,6 +179,8 @@ export type AuditEntry = {
   actor: { id: string | null; email: string | null; name: string | null }
   impersonatedBy: { id: string; email: string | null } | null
   workspace: { id: string; name: string | null } | null
+  /** Whom a team or membership change was about. */
+  subject: { email: string | null } | null
   input: unknown
   refused: boolean
   ipAddress: string | null
