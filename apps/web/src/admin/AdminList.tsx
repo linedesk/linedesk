@@ -1,5 +1,5 @@
 // A list for the admin pages: search, sorting by a column, a keyboard cursor (J/K, Enter opens,
-// / searches) and a click that opens the row. Comfortable rows, no inline controls.
+// / searches) and a click that opens the row. `rowActions` adds quick actions at the end of a row.
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { cx, Icon } from '../ui/kit.tsx'
 import { type SortDir, sortRows } from './model.ts'
@@ -29,6 +29,8 @@ type Props<T> = {
   onOpen: (row: T) => void
   keysRef: { current: ListKeys | null }
   empty: string
+  /** Quick actions at the right end of a row (shown on hover, focus or the cursor). */
+  rowActions?: (row: T) => ReactNode
 }
 
 export function AdminList<T>({
@@ -41,6 +43,7 @@ export function AdminList<T>({
   onOpen,
   keysRef,
   empty,
+  rowActions,
 }: Props<T>) {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState(initialSort)
@@ -144,6 +147,7 @@ export function AdminList<T>({
                 {c.render(row)}
               </div>
             ))}
+            {rowActions && <div className="adm-cell adm-cell-acts">{rowActions(row)}</div>}
           </div>
         ))}
         {!shown.length && <p className="adm-empty">{query ? `Nothing matches “${query}”.` : empty}</p>}

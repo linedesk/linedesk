@@ -1,8 +1,7 @@
-// Shared pieces of the admin tables: a sortable column head, an inline confirmation, dates.
+// Shared pieces of the admin tables: a sortable column head and dates.
 // Loading and error states are the app's own (ui/LoadStates.tsx).
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useState } from 'react'
 import { dateTimeLabel } from '../time.ts'
-import { Button } from '../ui/kit.tsx'
 import { nextSort, type Sort, type SortDir } from './model.ts'
 
 export const day = (iso: string) =>
@@ -42,69 +41,5 @@ export function SortTh<K extends string>({ label, column, first = 'asc', sort, o
         <span aria-hidden="true">{active ? (sort.dir === 'asc' ? '↑' : '↓') : ''}</span>
       </button>
     </th>
-  )
-}
-
-type ConfirmProps = {
-  /** What happens, in one sentence. */
-  text: ReactNode
-  action: string
-  /** Set for the heaviest actions: the button unlocks once this is typed. */
-  typed?: string
-  /** Red for destructive actions (the default); `primary` for one that destroys nothing. */
-  variant?: 'danger' | 'primary'
-  onConfirm: () => Promise<void>
-  onCancel: () => void
-}
-
-/** The second step of a destructive action, in place: says what will happen, Esc or Cancel backs out. */
-export function Confirm({ text, action, typed, variant = 'danger', onConfirm, onCancel }: ConfirmProps) {
-  const [entered, setEntered] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const form = useRef<HTMLFormElement>(null)
-  // Focus moves to the field to type in, else to Cancel: a repeated Enter must not confirm.
-  useEffect(() => form.current?.querySelector<HTMLElement>('input, .adm-confirm-cancel')?.focus(), [])
-  const unlocked = !typed || entered.trim().toLowerCase() === typed.trim().toLowerCase()
-
-  async function submit(e: FormEvent) {
-    e.preventDefault()
-    if (!unlocked || busy) return
-    setBusy(true)
-    setError(null)
-    try {
-      await onConfirm()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-      setBusy(false)
-    }
-  }
-
-  return (
-    <form ref={form} className="adm-confirm" onSubmit={submit} onKeyDown={e => e.key === 'Escape' && onCancel()}>
-      <span className="adm-confirm-text">{text}</span>
-      {typed && (
-        <label className="k-input adm-confirm-typed">
-          <input
-            value={entered}
-            placeholder={typed}
-            aria-label={`Type ${typed} to confirm`}
-            autoComplete="off"
-            onChange={e => setEntered(e.target.value)}
-          />
-        </label>
-      )}
-      <Button type="submit" size="sm" variant={variant} disabled={!unlocked || busy}>
-        {action}
-      </Button>
-      <Button size="sm" variant="ghost" className="adm-confirm-cancel" onClick={onCancel}>
-        Cancel
-      </Button>
-      {error && (
-        <span className="adm-error" role="alert">
-          {error}
-        </span>
-      )}
-    </form>
   )
 }

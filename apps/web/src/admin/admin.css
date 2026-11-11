@@ -78,31 +78,6 @@
   font-family: var(--font-mono);
   font-size: 12px;
 }
-.adm-actions {
-  text-align: right;
-}
-.adm-actions .k-btn,
-.adm-actions .help {
-  margin-left: 4px;
-}
-
-.adm-confirm {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-hover);
-  font-size: 13px;
-}
-.adm-confirm-text {
-  flex: 1 1 260px;
-}
-.adm-confirm-typed {
-  width: 220px;
-  height: 28px;
-}
 .adm-error {
   flex-basis: 100%;
   font-size: 12.5px;
@@ -270,7 +245,7 @@
   font-weight: 500;
   color: var(--ink-muted);
 }
-.adm-row:has(> :nth-child(4)) {
+.adm-row:has(> :nth-child(4):not(.adm-cell-acts)) {
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1fr);
 }
 .adm-cell {
@@ -350,29 +325,60 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
-.k-card.adm-actions-card {
-  gap: 4px;
-}
-.adm-action {
+/* Actions: a row of buttons under a detail's title; quick icon buttons at the end of a list row
+   (on hover, focus or the cursor), a ⋯ menu instead on touch screens. */
+.adm-actbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 0;
+  flex-wrap: wrap;
+  gap: 8px;
 }
-.adm-action + .adm-action {
-  box-shadow: 0 -1px 0 var(--line);
+.adm-row:has(> .adm-cell-acts) {
+  position: relative;
 }
-.adm-action > div {
-  display: grid;
+.adm-cell.adm-cell-acts {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  overflow: visible;
+}
+.adm-rowacts-icons {
+  display: flex;
   gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  opacity: 0;
+  pointer-events: none;
 }
-.adm-action b {
-  font-size: 13.5px;
-  font-weight: 500;
+.adm-row:hover .adm-rowacts-icons,
+.adm-row.is-cursor .adm-rowacts-icons,
+.adm-rowacts:focus-within .adm-rowacts-icons {
+  opacity: 1;
+  pointer-events: auto;
 }
-.adm-actions-card .adm-confirm {
-  margin: 10px 0;
+.adm-rowacts-more {
+  display: none;
+  position: relative;
+}
+.adm-rowmenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 30;
+  min-width: 200px;
+  padding: 4px;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+}
+@media (hover: none) {
+  .adm-rowacts-icons {
+    display: none;
+  }
+  .adm-rowacts-more {
+    display: inline-flex;
+  }
 }
 
 /* Providers: logos */
@@ -631,7 +637,7 @@
     display: none;
   }
   .adm-row,
-  .adm-row:has(> :nth-child(4)) {
+  .adm-row:has(> :nth-child(4):not(.adm-cell-acts)) {
     grid-template-columns: minmax(0, 1fr) auto;
   }
   .adm-facts > div {

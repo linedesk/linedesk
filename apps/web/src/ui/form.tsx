@@ -3,6 +3,7 @@
 // needed, the validation message under it), a SaveBar that shows only while the form has changes,
 // and a Dialog for forms that open from a list. Styles in form.css (k-card, k-field, k-dialog, …).
 import {
+  Children,
   type ComponentProps,
   type FormEvent,
   type KeyboardEvent,
@@ -296,7 +297,7 @@ export function Dialog({ title, description, icon, onClose, footer, onSubmit, si
   }
   const content = (
     <>
-      <div className="k-dialog-body">{children}</div>
+      {Children.toArray(children).length > 0 && <div className="k-dialog-body">{children}</div>}
       {footer && <footer className="k-dialog-foot">{footer}</footer>}
     </>
   )

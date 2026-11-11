@@ -1,12 +1,12 @@
 // Workspaces: a searchable list; a click opens the workspace with its facts and actions.
-import { useState } from 'react'
 import { Card } from '../ui/form.tsx'
-import { Badge, Button } from '../ui/kit.tsx'
+import { Badge } from '../ui/kit.tsx'
+import { ActionBar, RowActions, useActionRunner, workspaceActions } from './actions.tsx'
 import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
-import { type AdminWorkspace, runAdmin } from './api.ts'
+import type { AdminWorkspace } from './api.ts'
 import { formatMinutes } from './model.ts'
-import { errorText, type Notify } from './notify.ts'
-import { Confirm, day, when } from './parts.tsx'
+import type { Notify } from './notify.ts'
+import { day, when } from './parts.tsx'
 import { formatNumber } from '../onboarding/flow.ts'
 
 const columns: Column<AdminWorkspace>[] = [
@@ -50,48 +50,42 @@ const columns: Column<AdminWorkspace>[] = [
   },
 ]
 
-type ListProps = { workspaces: AdminWorkspace[]; onOpen: (id: string) => void; keysRef: { current: ListKeys | null } }
+type ListProps = {
+  workspaces: AdminWorkspace[]
+  onOpen: (id: string) => void
+  keysRef: { current: ListKeys | null }
+  notify: Notify
+  reload: () => Promise<void>
+}
 
-export function WorkspacesList({ workspaces, onOpen, keysRef }: ListProps) {
+export function WorkspacesList({ workspaces, onOpen, keysRef, notify, reload }: ListProps) {
+  const runner = useActionRunner(notify)
   return (
-    <AdminList
-      rows={workspaces}
-      rowId={w => w.id}
-      columns={columns}
-      initialSort={{ key: 'name', dir: 'asc' }}
-      searchText={w => `${w.name} ${w.phone_numbers.join(' ')}`}
-      searchLabel="Search workspaces"
-      onOpen={w => onOpen(w.id)}
-      keysRef={keysRef}
-      empty="No workspaces yet."
-    />
+    <>
+      <AdminList
+        rows={workspaces}
+        rowId={w => w.id}
+        columns={columns}
+        initialSort={{ key: 'name', dir: 'asc' }}
+        searchText={w => `${w.name} ${w.phone_numbers.join(' ')}`}
+        searchLabel="Search workspaces"
+        onOpen={w => onOpen(w.id)}
+        keysRef={keysRef}
+        empty="No workspaces yet."
+        rowActions={w => <RowActions actions={workspaceActions(w, reload)} onPick={runner.pick} />}
+      />
+      {runner.dialog}
+    </>
   )
 }
 
 type DetailProps = { workspace: AdminWorkspace; notify: Notify; reload: () => Promise<void> }
 
 export function WorkspaceDetail({ workspace: w, notify, reload }: DetailProps) {
-  const [confirming, setConfirming] = useState(false)
-  const set = async (disabled: boolean) => {
-    await runAdmin(disabled ? 'workspace.disable' : 'workspace.enable', { workspaceId: w.id })
-    await reload()
-  }
-  async function disable() {
-    await set(true)
-    setConfirming(false)
-    notify(`${w.name} is disabled. Its calls are no longer answered.`)
-  }
-  async function enable() {
-    try {
-      await set(false)
-      notify(`${w.name} is enabled. Its calls are answered again.`)
-    } catch (err) {
-      notify(errorText(err))
-    }
-  }
-
+  const runner = useActionRunner(notify)
   return (
     <>
+      <ActionBar actions={workspaceActions(w, reload)} onPick={runner.pick} />
       <Card title="Details" className="adm-detail">
         <dl className="adm-facts">
           <Fact label="Status">{w.disabled_at ? `Disabled ${when(w.disabled_at)}` : 'Active'}</Fact>
@@ -105,42 +99,7 @@ export function WorkspaceDetail({ workspace: w, notify, reload }: DetailProps) {
           <Fact label="Created">{day(w.created_at)}</Fact>
         </dl>
       </Card>
-      <Card title="Actions" className="adm-actions-card">
-        {w.disabled_at ? (
-          <ActionRow
-            title="Enable workspace"
-            text="Calls to its numbers are answered again."
-            button={
-              <Button size="sm" onClick={() => void enable()}>
-                Enable
-              </Button>
-            }
-          />
-        ) : confirming ? (
-          <Confirm
-            typed={w.name}
-            action="Disable workspace"
-            onConfirm={disable}
-            onCancel={() => setConfirming(false)}
-            text={
-              <>
-                Calls to {w.name} will no longer be answered and its members can only read. Type the workspace name to
-                confirm.
-              </>
-            }
-          />
-        ) : (
-          <ActionRow
-            title="Disable workspace"
-            text="Its numbers stop being answered; members can still sign in and read."
-            button={
-              <Button size="sm" onClick={() => setConfirming(true)}>
-                Disable…
-              </Button>
-            }
-          />
-        )}
-      </Card>
+      {runner.dialog}
     </>
   )
 }
@@ -150,18 +109,6 @@ export function Fact({ label, children }: { label: string; children: React.React
     <div>
       <dt>{label}</dt>
       <dd>{children}</dd>
-    </div>
-  )
-}
-
-export function ActionRow({ title, text, button }: { title: string; text: string; button: React.ReactNode }) {
-  return (
-    <div className="adm-action">
-      <div>
-        <b>{title}</b>
-        <span className="help">{text}</span>
-      </div>
-      {button}
     </div>
   )
 }
