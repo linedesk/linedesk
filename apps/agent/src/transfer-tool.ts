@@ -45,6 +45,13 @@ export const isPhoneCallTest = (
 ) => !!env.CALL_TEST_FROM && call.contact.phone === env.CALL_TEST_FROM
 
 /**
+ * The live warm-transfer test's opt-in: with CALL_TEST_ONCALL set (the test on-call number, answered by
+ * the on-call responder), a phone call test may be put through to exactly that number and no other.
+ */
+export const liveTransferTestAllows = (number: string, env: Record<string, string | undefined> = process.env) =>
+  !!env.CALL_TEST_ONCALL && number === env.CALL_TEST_ONCALL
+
+/**
  * Who picks up the transfer on this call: the simulated person in a no-phone call test, else the
  * on-call number through the "linedesk-outbound" trunk. null when there is no such trunk (run
  * `setup-sip --outbound`): then the assistant cannot transfer and takes a message.
@@ -57,7 +64,13 @@ export async function onCallDialerFor(
 ): Promise<OnCallDialer | null> {
   if (call.simulatedOnCall) return simulatedDialer(call.simulatedOnCall, livekitOf(), config)
   if (!call.businessNumber) return null // a browser test call never dials a real phone
-  if (isPhoneCallTest(call)) return null // nor does a phone call test
+  if (number === call.businessNumber) {
+    // It would ring straight back into this assistant (assistant.update refuses it; older settings may have it).
+    console.warn(`transfer is on for call ${call.callId}, but the on-call number is the business's own Linedesk number`)
+    return null
+  }
+  // Nor does a phone call test, except to the test on-call number when the live transfer test is on.
+  if (isPhoneCallTest(call) && !liveTransferTestAllows(number)) return null
   const sip = sipClient()
   const from = call.businessNumber
   // A number in the workspace's own carrier account dials out through that account, never the install's.

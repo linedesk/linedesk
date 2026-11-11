@@ -100,8 +100,9 @@ async function main() {
   const name = args.find(a => !a.startsWith('--')) ?? ''
   if (!isScenario(name)) throw new Error(`usage: call-test <scenario> [--phone] [--expect-recording] [--cancel-booking]; scenarios: ${scenarioNames.join(', ')}`)
   const mode: CallTestMode = args.includes('--phone') ? 'phone' : 'room'
-  // A transfer scenario over the phone would page a real on-call phone: only with the simulated person.
-  if (mode === 'phone' && phoneRefused(scenarios[name])) throw new Error(`${name} runs without a phone only (a simulated on-call person answers); --phone is refused`)
+  // A transfer scenario over the phone would page a real on-call phone: only with the simulated person,
+  // or in the live transfer test (CALL_TEST_ONCALL), where the agent dials nothing but the test on-call number.
+  if (mode === 'phone' && phoneRefused(scenarios[name])) throw new Error(`${name} runs without a phone only (a simulated on-call person answers); --phone is refused (live transfer test: set CALL_TEST_ONCALL, see docs/architecture.md)`)
   const { CALL_TEST_TO: to } = requireEnv(['CALL_TEST_TO'])
   const from = mode === 'phone' ? requireEnv(['CALL_TEST_FROM']).CALL_TEST_FROM : undefined
   const run: Run = { name, mode, to, room: `call-test-${crypto.randomUUID().slice(0, 8)}`, since: new Date().toISOString(), api: apiClientFromEnv() }

@@ -6,28 +6,28 @@
 // carrier side is set up at TELEPHONY_PROVIDER (Telnyx for now) with a new password, and the numbers
 // are the caller IDs a transfer may show (each business's own Linedesk number).
 // --print-allowed-addresses prints the address list, one per line, and changes nothing (for a firewall).
-// Usage: pnpm --filter @linedesk/agent setup-sip [--outbound] [--print-allowed-addresses] [+15035550142 ...]
+// The numbers replace the trunk's whole list, so every number that must keep working is passed each time;
+// no number or an unknown option prints the usage and changes nothing.
+// Usage: pnpm --filter @linedesk/agent setup-sip [--outbound] <+15035550142 ...> | --print-allowed-addresses
 import { transferOutboundSipFromEnv } from '@linedesk/telephony'
 import { RoomAgentDispatch, RoomConfiguration, SipClient } from 'livekit-server-sdk'
 import { AGENT_NAME, livekitHttpUrl, requireLivekitEnv, runScript } from './env.ts'
 import { inboundAllowlistFromEnv } from './inbound-allowlist.ts'
+import { parseSetupSipArgs } from './setup-args.ts'
 import { ensureInboundTrunk, INBOUND_TRUNK_NAME, openInboundWarnings, replaceOutboundTrunk, TRANSFER_TRUNK_NAME } from './sip-trunks.ts'
 
 const NAME = INBOUND_TRUNK_NAME
-const DEMO_NUMBER = '+15035550142'
 
 async function main() {
-  const args = process.argv.slice(2)
+  const args = parseSetupSipArgs(process.argv.slice(2))
   const allowlist = inboundAllowlistFromEnv()
-  if (args.includes('--print-allowed-addresses')) {
+  if (args.printAllowedAddresses) {
     if (!allowlist.addresses.length) throw new Error('LIVEKIT_SIP_ALLOWED_ADDRESSES is "any": there is no address list')
     for (const address of allowlist.addresses) console.log(address)
     return
   }
   const env = requireLivekitEnv()
-  const outbound = args.includes('--outbound')
-  const numbers = args.filter(a => !a.startsWith('--'))
-  if (!numbers.length) numbers.push(DEMO_NUMBER)
+  const { outbound, numbers } = args
   const sip = new SipClient(livekitHttpUrl(env.LIVEKIT_URL), env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET)
 
   const trunkId = await ensureInboundTrunk(sip, numbers, allowlist.addresses)

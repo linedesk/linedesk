@@ -26,6 +26,7 @@ import { runTestCaller } from './test-caller/caller.ts'
 import { transferNumberFor } from './transfer.ts'
 import { onCallDialerFor, transferTool } from './transfer-tool.ts'
 import { parseTestCallerMetadata, type TestCallerMetadata } from './test-caller/scenarios.ts'
+import { type OnCallResponderMetadata, parseOnCallResponderMetadata, runOnCallResponder } from './oncall-responder.ts'
 import { type AgentSetup, SETUP_ATTRIBUTE } from './test-caller/latency.ts'
 
 let configLoader: (() => Promise<AgentConfig>) | undefined
@@ -259,6 +260,12 @@ async function entry(ctx: JobContext) {
     await ctx.connect()
     return runAsTestCaller(ctx, testCaller)
   }
+  // A call to the test on-call number (live warm-transfer test): this agent plays the on-call person.
+  const responder = parseOnCallResponderMetadata(ctx.job.metadata)
+  if (responder) {
+    await ctx.connect()
+    return runAsOnCallResponder(ctx, responder)
+  }
   const api = apiClientFromEnv()
   // The call is registered while the agent joins the room when its origin is known already;
   // a failure there is not final: it is registered again the normal way after joining.
@@ -333,6 +340,15 @@ async function runAsTestCaller(ctx: JobContext, scenario: TestCallerMetadata) {
     return ctx.deleteRoom()
   }
   await runTestCaller(ctx, scenario, readiness.config)
+}
+
+async function runAsOnCallResponder(ctx: JobContext, responder: OnCallResponderMetadata) {
+  const readiness = await checkReadiness(loadAgentConfig)
+  if (!readiness.ready) {
+    console.error(`on-call responder cannot answer: ${readiness.reason}`)
+    return ctx.deleteRoom()
+  }
+  await runOnCallResponder(ctx, responder, readiness.config)
 }
 
 export default defineAgent({

@@ -123,9 +123,7 @@ export function simulatedDialer(answer: SimulatedAnswer, livekit: Livekit, confi
         throw new NotAnsweredError('the simulated on-call phone rang out')
       }
       // Said with the test caller's voice, made before joining: the track's rate is the voice's.
-      const lines = await Promise.all(
-        (answer === 'accept' ? [ACCEPT_LINE, GREETING_LINE] : []).map(text => voiceOf(config, text)),
-      )
+      const lines = await onCallLines(config, answer)
       const token = new AccessToken(livekit.apiKey, livekit.apiSecret, { identity, name: 'On call (simulated)' })
       token.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true })
       const room = new Room()
@@ -134,12 +132,8 @@ export function simulatedDialer(answer: SimulatedAnswer, livekit: Livekit, confi
         await room.disconnect()
         throw new NotAnsweredError('cancelled while dialling')
       }
-      const source = new AudioSource(lines[0]?.sampleRate ?? 24_000, lines[0]?.channels ?? 1)
-      await room.localParticipant!.publishTrack(
-        LocalAudioTrack.createAudioTrack('phone', source),
-        new TrackPublishOptions({ source: TrackSource.SOURCE_MICROPHONE }),
-      )
-      void actOnCall(room, source, answer, lines).catch(e =>
+      const source = await publishVoice(room, lines)
+      void actOnCall(room, source, answer, lines, { hangUp: () => room.disconnect() }).catch(e =>
         console.warn(`simulated on-call person: ${e instanceof Error ? e.message : String(e)}`),
       )
     },
@@ -147,8 +141,24 @@ export function simulatedDialer(answer: SimulatedAnswer, livekit: Livekit, confi
 }
 
 const ACCEPT_LINE = 'Yes, put them through.'
-const GREETING_LINE =
-  "Hi, this is Mike from the on-call team. I'm on my way and will be there in about thirty minutes. Bye for now."
+/** What the on-call person says once put through; distinctive, so the caller's transcript proves the bridge. */
+export const GREETING_LINE =
+  "Hi, this is Mike, the on-call plumber. I'm on my way and will be there in about thirty minutes. Bye for now."
+
+/** The on-call person's lines in the test caller's voice: "yes" and the greeting when accepting, else none. */
+export function onCallLines(config: AgentConfig, answer: SimulatedAnswer): Promise<GreetingAudio[]> {
+  return Promise.all((answer === 'accept' ? [ACCEPT_LINE, GREETING_LINE] : []).map(text => voiceOf(config, text)))
+}
+
+/** Publishes the on-call person's microphone in the room, at the rate of their voice. */
+export async function publishVoice(room: Room, lines: GreetingAudio[]): Promise<AudioSource> {
+  const source = new AudioSource(lines[0]?.sampleRate ?? 24_000, lines[0]?.channels ?? 1)
+  await room.localParticipant!.publishTrack(
+    LocalAudioTrack.createAudioTrack('phone', source),
+    new TrackPublishOptions({ source: TrackSource.SOURCE_MICROPHONE }),
+  )
+  return source
+}
 
 function voiceOf(config: AgentConfig, text: string): Promise<GreetingAudio> {
   const voiceId = process.env.TEST_CALLER_VOICE_ID
@@ -179,12 +189,19 @@ function firstAudioTrack(room: Room): Promise<RemoteTrack> {
   })
 }
 
-async function actOnCall(
+/**
+ * Listens to the briefing, then answers: key 2 to decline; to accept "yes" (and key 1 with `pressOne`,
+ * for a phone line where speech recognition may miss it), then after "Connecting you now." the greeting,
+ * then `hangUp`. No answer: stays silent.
+ */
+export async function actOnCall(
   room: Room,
   source: AudioSource,
   answer: SimulatedAnswer,
   [accept, greeting]: GreetingAudio[],
+  { hangUp, pressOne = false }: { hangUp: () => Promise<void>; pressOne?: boolean },
 ) {
+  if (answer === 'no-answer') return
   const heard = (new AudioStream(await firstAudioTrack(room), 16_000, 1) as unknown as AsyncIterable<AudioFrame>)[
     Symbol.asyncIterator
   ]()
@@ -194,9 +211,10 @@ async function actOnCall(
     return
   }
   await speak(source, accept!)
+  if (pressOne) await room.localParticipant!.publishDtmf(1, '1')
   await untilTheyStopTalking(heard) // "Connecting you now."
   await sleep(800)
   await speak(source, greeting!)
   await sleep(1500)
-  await room.disconnect()
+  await hangUp()
 }

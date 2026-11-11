@@ -145,5 +145,10 @@ export function parseTestCallerMetadata(metadata: string): TestCallerMetadata | 
   }
 }
 
-/** Transfer scenarios run without a phone only: over the phone they would page a real on-call phone. */
-export const phoneRefused = (scenario: Scenario) => scenario.onCall !== undefined
+/**
+ * Transfer scenarios run without a phone only: over the phone they would page a real on-call phone.
+ * Exception: the live warm-transfer test (CALL_TEST_ONCALL set), where the agent puts a phone call test
+ * through only to that number, the on-call responder.
+ */
+export const phoneRefused = (scenario: Scenario, env: Record<string, string | undefined> = process.env) =>
+  scenario.onCall !== undefined && !env.CALL_TEST_ONCALL

@@ -1,11 +1,13 @@
 import type { Assistant } from '@linedesk/db/types'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { ringbackFrame } from './audio-bridge.ts'
 import { parseTestMetadata } from './call-session.ts'
 import { buildInstructions } from './prompt.ts'
 import { mergeToolResults } from './summary.ts'
 import { phoneRefused, scenarios } from './test-caller/scenarios.ts'
-import { isPhoneCallTest } from './transfer-tool.ts'
+import { isPhoneCallTest, liveTransferTestAllows, onCallDialerFor } from './transfer-tool.ts'
+import { parseOnCallResponderMetadata } from './oncall-responder.ts'
+import { parseSetupOnCallTestArgs, parseSetupSipArgs } from './setup-args.ts'
 import { NotAnsweredError, sipDialer } from './on-call-dialer.ts'
 import { answerOf, answerOfDigit, briefingText, resultOf, transferLabel, transferNumberFor } from './transfer.ts'
 
@@ -71,8 +73,72 @@ test('a phone call test never transfers; transfer scenarios refuse --phone', () 
   expect(isPhoneCallTest({ contact: { phone: '+15035550192' } as never }, env)).toBe(true)
   expect(isPhoneCallTest({ contact: { phone: '+15035550142' } as never }, env)).toBe(false)
   expect(isPhoneCallTest({ contact: { phone: '+15035550192' } as never }, {})).toBe(false)
-  expect(phoneRefused(scenarios['transfer-accepted'])).toBe(true)
-  expect(phoneRefused(scenarios['burst-pipe'])).toBe(false)
+  expect(phoneRefused(scenarios['transfer-accepted'], {})).toBe(true)
+  expect(phoneRefused(scenarios['burst-pipe'], {})).toBe(false)
+})
+
+test('live transfer test: with CALL_TEST_ONCALL a phone call test goes through to that number only', async () => {
+  const oncall = '+19715550123'
+  expect(liveTransferTestAllows(oncall, { CALL_TEST_ONCALL: oncall })).toBe(true)
+  expect(liveTransferTestAllows('+15035550199', { CALL_TEST_ONCALL: oncall })).toBe(false)
+  expect(liveTransferTestAllows(oncall, {})).toBe(false)
+  expect(liveTransferTestAllows('', { CALL_TEST_ONCALL: '' })).toBe(false)
+  expect(phoneRefused(scenarios['transfer-accepted'], { CALL_TEST_ONCALL: oncall })).toBe(false)
+
+  // The dialer: a phone call test to any other number still gets none (nothing is dialled), with or without the opt-in.
+  const phoneTest = {
+    callId: 'c1',
+    businessNumber: '+15035550194',
+    simulatedOnCall: null,
+    contact: { phone: '+15035550192' },
+  } as never
+  vi.stubEnv('CALL_TEST_FROM', '+15035550192')
+  try {
+    expect(await onCallDialerFor(phoneTest, '+15035550199', {} as never, {} as never)).toBeNull()
+    vi.stubEnv('CALL_TEST_ONCALL', oncall)
+    expect(await onCallDialerFor(phoneTest, '+15035550199', {} as never, {} as never)).toBeNull()
+    // The business's own number is never dialled: it would ring back into the assistant.
+    vi.stubEnv('CALL_TEST_ONCALL', '+15035550194')
+    expect(await onCallDialerFor(phoneTest, '+15035550194', {} as never, {} as never)).toBeNull()
+  } finally {
+    vi.unstubAllEnvs()
+  }
+})
+
+test('the on-call responder is chosen only by its own metadata', () => {
+  expect(parseOnCallResponderMetadata('{"source":"oncall-responder","answer":"accept"}')).toEqual({
+    source: 'oncall-responder',
+    answer: 'accept',
+  })
+  expect(parseOnCallResponderMetadata('{"source":"oncall-responder","answer":"hang-up"}')).toBeNull()
+  expect(parseOnCallResponderMetadata('{"source":"test","workspaceId":"w"}')).toBeNull()
+  expect(parseOnCallResponderMetadata('')).toBeNull()
+})
+
+test('setup-sip refuses unknown options and a missing number instead of using a default', () => {
+  expect(parseSetupSipArgs(['--outbound', '+15035550194', '+19715550123'])).toEqual({
+    printAllowedAddresses: false,
+    outbound: true,
+    numbers: ['+15035550194', '+19715550123'],
+  })
+  expect(parseSetupSipArgs(['--print-allowed-addresses'])).toEqual({ printAllowedAddresses: true })
+  expect(() => parseSetupSipArgs([])).toThrow(/No number given[\s\S]*usage: setup-sip/)
+  expect(() => parseSetupSipArgs(['--outbound'])).toThrow(/No number given/)
+  expect(() => parseSetupSipArgs(['--help'])).toThrow(/Unknown option: --help/)
+  expect(() => parseSetupSipArgs(['--outbond', '+15035550194'])).toThrow(/Unknown option: --outbond/)
+  expect(() => parseSetupSipArgs(['5035550194'])).toThrow(/E\.164/)
+})
+
+test('setup-oncall-test takes one number and what the responder answers', () => {
+  expect(parseSetupOnCallTestArgs(['+19715550123'])).toEqual({ number: '+19715550123', answer: 'accept' })
+  expect(parseSetupOnCallTestArgs(['--answer', 'no-answer', '+19715550123'])).toEqual({
+    number: '+19715550123',
+    answer: 'no-answer',
+  })
+  expect(() => parseSetupOnCallTestArgs([])).toThrow(/No number given/)
+  expect(() => parseSetupOnCallTestArgs(['+19715550123', '--answer', 'maybe'])).toThrow(/--answer takes/)
+  expect(() => parseSetupOnCallTestArgs(['+19715550123', '+15035550194'])).toThrow(/one test on-call number/)
+  expect(() => parseSetupOnCallTestArgs(['+19715550123', '--force'])).toThrow(/Unknown option/)
 })
 
 test('what the call shows for each result', () => {

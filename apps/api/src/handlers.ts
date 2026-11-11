@@ -185,6 +185,15 @@ const blockedCall = (now: string) => ({
   title: 'Blocked caller', summary: 'This number is blocked, so the call was not answered.',
 })
 
+/**
+ * The on-call number is a person's phone, never a Linedesk number (the workspace's own or any other on the
+ * install): a transfer there would ring back into Linedesk and be answered by an assistant.
+ */
+async function checkOnCallNotLinedesk(tx: HandlerCtx['tx'], e164: string) {
+  const [linedesk] = await tx.select({ id: phone_numbers.id }).from(phone_numbers).where(eq(phone_numbers.e164, e164)).limit(1)
+  if (linedesk) throw new Reject("the on-call number is a Linedesk number; enter the on-call person's own phone")
+}
+
 /** Actions with work before their transaction (handler-context.ts, Preparer). */
 export const preparers: Record<string, Preparer> = { ...voicePreparers }
 
@@ -193,6 +202,7 @@ const handlers: Record<string, Handler> = {
   'assistant.update': async (ctx, input) => {
     if (!ctx.actor.workspaceId) throw new Reject('no workspace')
     if (input.voice) await checkAssistantVoice(ctx.tx, ctx.actor.workspaceId, input.voice)
+    if (input.transfer_number) await checkOnCallNotLinedesk(ctx.tx, input.transfer_number)
     const result = await runPatch(ctx, actions.get('assistant.update')!, input)
     if (input.voice) await releaseUnusedClones(ctx.tx, ctx.actor.workspaceId)
     return result
