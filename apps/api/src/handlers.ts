@@ -4,7 +4,7 @@ import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, lo
 import {assistant_calendars, assistants, availability_exceptions, availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, syncedTables,
   transcript_segments, workspace_members, workspace_settings, type Tx,
 } from '@linedesk/db'
-import type { Assistant, Closure, PhoneNumber, TransferContact } from '@linedesk/db/types'
+import type { ActionItem, Assistant, Closure, PhoneNumber, TransferContact } from '@linedesk/db/types'
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { and, asc, desc, eq, gt, gte, or, sql, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
@@ -341,6 +341,13 @@ async function checkOnCallNotLinedesk(tx: HandlerCtx['tx'], e164: string, name: 
 /** Actions with work before their transaction (handler-context.ts, Preparer). */
 export const preparers: Record<string, Preparer> = { ...voicePreparers, ...knowledgePreparers }
 
+/**
+ * The next steps the API itself put on a call while it ran (BOOKING_MISSES_NOTE when booking changes were locked):
+ * call.finish replaces the assistant's list, these stay. Messages the assistant took come back in its list.
+ */
+export const teamNotesOf = (stored: ActionItem[], finished: { text: string }[]) =>
+  stored.filter(item => item.kind !== 'message' && !finished.some(f => f.text === item.text))
+
 const handlers: Record<string, Handler> = {
   // The patch, plus: a voice must be one the workspace may use, and a clone it stops using is released.
   'assistant.update': async (ctx, input) => {
@@ -562,7 +569,8 @@ const handlers: Record<string, Handler> = {
       status: 'completed', ended_at: now, duration_sec,
       outcome, urgency,
       title: input.title ?? call.title, summary: input.summary ?? call.summary,
-      action_items: input.actionItems ?? call.action_items, fields: input.fields ?? call.fields,
+      action_items: input.actionItems ? [...input.actionItems, ...teamNotesOf(call.action_items, input.actionItems)] : call.action_items,
+      fields: input.fields ?? call.fields,
     }).where(eq(calls.id, call.id)).returning()
     const rows: ActionResult['rows'] = { calls: [updated!] }
     if (input.callerName && call.contact_id) {

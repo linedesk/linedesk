@@ -493,6 +493,10 @@ describe('booking', () => {
       // Another caller is not affected.
       expect((await callFrom(tx, services, '+15035550998')).booking).toMatchObject({ canChangeBookings: true })
 
+      // The assistant's own next steps at the end of the call do not replace the note for the team.
+      const finished = await run(tx, agent_(ws.id), services, 'call.finish', { callId: second.callId, outcome: 'callback', actionItems: [{ text: 'Call Sam back' }] })
+      expect(finished.rows.calls).toMatchObject([{ action_items: [{ text: 'Call Sam back' }, { text: BOOKING_MISSES_NOTE }] }])
+
       // Misses older than a day no longer count.
       await tx.update(calls).set({ started_at: new Date(Date.now() - 25 * 3_600_000).toISOString() }).where(eq(calls.contact_id, ws.contact.id))
       expect((await callFrom(tx, services, ws.call.from_number)).booking).toMatchObject({ canChangeBookings: true })
