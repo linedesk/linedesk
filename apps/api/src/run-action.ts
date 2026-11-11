@@ -2,7 +2,7 @@
 // Idempotent per command id: a replayed command returns its first result.
 // Read-only actions skip the command log: nothing to replay, nothing to audit.
 import { secondFactorRefusal } from './admin-second-factor.ts'
-import { actions, redactInput, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
+import { actions, REDACTED, redactInput, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
 import { commands } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
@@ -63,7 +63,8 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
     const body = await db.transaction(async tx => {
       const ctx = { tx, actor, now: new Date().toISOString(), onRollback: (undo: Undo) => undos.push(undo) }
       const result: ActionResult = { ok: true, ...(await runHandler(ctx, def, parsed.data)) }
-      await tx.insert(commands).values({ ...record, result })
+      // A secret in the result (a new API key) goes to the caller once and never into the log, so a replay does not repeat it.
+      await tx.insert(commands).values({ ...record, result: def.secretResult ? { ...result, data: { redacted: REDACTED } } : result })
       return result
     })
     return { status: 200, body }

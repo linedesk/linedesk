@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { rolePermissions, type Permission, type Role } from '@linedesk/actions'
 import { member, organization, user } from '@linedesk/db'
 import { asc, eq } from 'drizzle-orm'
+import { actorForApiKey, isApiKey } from './api-keys.ts'
 import { auth } from './auth.ts'
 import { db } from './db.ts'
 import { impersonationEndsAt } from './impersonation-guard.ts'
@@ -21,6 +22,8 @@ export interface Actor {
   impersonation?: Impersonation
   /** An instance admin whose session lacks the second factor: no instance:admin until it is done. */
   adminSecondFactor?: AdminSecondFactor
+  /** The request came with this workspace API key (api-keys.ts), not a session. */
+  apiKeyId?: string
 }
 
 export type Impersonation = { by: string; sessionId: string; expiresAt: Date }
@@ -46,9 +49,11 @@ function sameToken(given: string, expected: string) {
   return a.length === b.length && timingSafeEqual(a, b)
 }
 
-export async function resolveActor(headers: Headers): Promise<Actor | null> {
+/** `clientIp` is where the request comes from (client-ip.ts); refused API keys are counted per address. */
+export async function resolveActor(headers: Headers, clientIp: string | null = null): Promise<Actor | null> {
   const bearer = headers.get('authorization')?.replace(/^Bearer /, '')
   if (bearer) {
+    if (isApiKey(bearer)) return actorForApiKey(bearer, clientIp)
     if (!process.env.AGENT_API_TOKEN || !sameToken(bearer, process.env.AGENT_API_TOKEN)) return null
     return { actorId: 'agent', role: 'agent', workspaceId: headers.get('x-workspace-id'), permissions: rolePermissions.agent }
   }

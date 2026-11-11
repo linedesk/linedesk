@@ -387,6 +387,27 @@ export const bookings = pgTable(
   ],
 )
 
+// API keys of a workspace, for its own integrations (REST, MCP). Only a SHA-256 hash of the key is
+// stored: the key itself is shown once, when it is created. Never synced.
+export const api_keys = pgTable(
+  'api_keys',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    name: text('name').notNull(),
+    /** The key's first characters ("ld_AbCd1234"), to tell keys apart; not enough to use one. */
+    prefix: text('prefix').notNull(),
+    key_hash: text('key_hash').notNull().unique(),
+    /** What the key may do: a member's or an admin's permissions (never an owner's, never key management). */
+    role: text('role', { enum: ['member', 'admin'] }).notNull().default('member'),
+    created_by: text('created_by').notNull(),
+    created_at: createdAt(),
+    last_used_at: ts('last_used_at'),
+    revoked_at: ts('revoked_at'),
+  },
+  t => [index('api_keys_ws').on(t.workspace_id)],
+)
+
 // Every command the API accepted or rejected: idempotency per command id + audit log.
 export const commands = pgTable('commands', {
   id: text('id').primaryKey(),

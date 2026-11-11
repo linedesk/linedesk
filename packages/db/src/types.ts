@@ -1,6 +1,6 @@
 // Row types shared with the browser. Type-only: importing this never pulls in pg or drizzle.
 import type {
-  appointment_types, assistant_calendars, assistants, availability_exceptions, availability_rules, bookings, calendar_connections, calls, contacts,
+  api_keys, appointment_types, assistant_calendars, assistants, availability_exceptions, availability_rules, bookings, calendar_connections, calls, contacts,
   phone_numbers, transcript_segments, workspace_settings,
 } from './schema.ts'
 
@@ -34,6 +34,7 @@ export type AppointmentType = typeof appointment_types.$inferSelect
 export type Booking = typeof bookings.$inferSelect
 export type CalendarConnection = typeof calendar_connections.$inferSelect
 export type AssistantCalendar = typeof assistant_calendars.$inferSelect
+export type ApiKey = typeof api_keys.$inferSelect
 
 export type Tables = {
   calls: Call

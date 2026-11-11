@@ -2,6 +2,7 @@
 // in TRUSTED_PROXIES (addresses or IPv4 ranges: Caddy, the Vite dev proxy), the last address before our proxies in
 // X-Forwarded-For. Headers from anyone else are ignored, so a client cannot pick its own bucket.
 import { getConnInfo } from '@hono/node-server/conninfo'
+import { isIP } from 'node:net'
 import type { Context } from 'hono'
 
 /** The header the API sets for Better Auth; any value a client sends in it is replaced. */
@@ -53,11 +54,41 @@ function socketAddress(c: Context): string | undefined {
   }
 }
 
+/** The eight groups of an IPv6 address (hex, no leading zeros), or null when it is not one. */
+function ipv6Groups(ip: string): string[] | null {
+  if (isIP(ip) !== 6) return null
+  let text = ip.split('%')[0]!
+  const dotted = /(\d+\.\d+\.\d+\.\d+)$/.exec(text)?.[1]
+  if (dotted) {
+    const n = ipv4(dotted)!
+    text = `${text.slice(0, -dotted.length)}${(n >>> 16).toString(16)}:${(n & 0xffff).toString(16)}`
+  }
+  const [head, tail] = text.split('::')
+  const left = head ? head.split(':') : []
+  const right = tail ? tail.split(':') : []
+  const zeros = tail === undefined ? [] : Array<string>(8 - left.length - right.length).fill('0')
+  return [...left, ...zeros, ...right].map(g => Number.parseInt(g, 16).toString(16))
+}
+
+/**
+ * The bucket a per-address limit counts in: an IPv4 address, or an IPv6 address's /64 network
+ * (one customer usually holds a whole /64, so single addresses would let them rotate past a limit).
+ */
+export function addressBucket(ip: string | null): string {
+  if (!ip) return 'unknown'
+  const groups = ipv6Groups(ip)
+  return groups ? `${groups.slice(0, 4).join(':')}::/64` : ip
+}
+
+/** The address the request comes from (see the top of this file), or null without a socket. */
+export const clientIpOf = (c: Context) =>
+  resolveClientIp(socketAddress(c), c.req.header('x-forwarded-for'), trustedProxies())
+
 /** The request Better Auth sees: our client IP header, never the client's own. */
 export function withClientIp(c: Context): Request {
   const headers = new Headers(c.req.raw.headers)
   headers.delete(CLIENT_IP_HEADER)
-  const ip = resolveClientIp(socketAddress(c), c.req.header('x-forwarded-for'), trustedProxies())
+  const ip = clientIpOf(c)
   if (ip) headers.set(CLIENT_IP_HEADER, ip)
   return new Request(c.req.raw, { headers })
 }

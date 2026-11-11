@@ -36,6 +36,8 @@ export interface ActionDef<S extends z.ZodType = z.ZodType, T extends TableName 
   readOnly?: true
   /** Top-level input fields that hold secrets. The API replaces their values before it stores or logs the input. */
   sensitive?: readonly string[]
+  /** The result's `data` holds a secret shown once (a new API key): the command log keeps the result without it. */
+  secretResult?: true
 }
 
 export const defineAction = <S extends z.ZodType, T extends TableName>(def: ActionDef<S, T>) => def

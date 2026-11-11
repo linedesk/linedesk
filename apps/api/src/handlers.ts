@@ -8,6 +8,7 @@ import type { Assistant } from '@linedesk/db/types'
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { and, asc, desc, eq, gte, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
+import { apiKeyHandlers } from './api-keys.ts'
 import { assistantForNumber, assistantHandlers, assistantIn } from './assistants.ts'
 import { bookingContext, bookingHandlers, bookingsForTest, DEFAULT_TIME_ZONE } from './bookings.ts'
 import { calendarConnectionHandlers } from './calendar-connections.ts'
@@ -159,6 +160,7 @@ const handlers: Record<string, Handler> = {
   ...workspaceSettingsHandlers,
   ...notificationHandlers,
   ...calendarConnectionHandlers,
+  ...apiKeyHandlers,
   ...bookingHandlers,
 
   'contact.create': async ({ tx, actor }, input) => {

@@ -1,4 +1,5 @@
 import * as admin from './admin.ts'
+import * as apiKeys from './api-keys.ts'
 import * as calendar from './calendar.ts'
 import * as calls from './calls.ts'
 import type { ActionDef } from './define.ts'
@@ -10,6 +11,7 @@ import * as team from './team.ts'
 
 export * from './define.ts'
 export * from './admin.ts'
+export * from './api-keys.ts'
 export * from './assistant-prompt.ts'
 export * from './calendar.ts'
 export * from './calls.ts'
@@ -73,6 +75,9 @@ const all = [
   calendar.assistantCalendarUpdate,
   calendar.assistantCalendarSetDefault,
   calendar.assistantCalendarRemove,
+  apiKeys.apiKeyCreate,
+  apiKeys.apiKeyList,
+  apiKeys.apiKeyRevoke,
   admin.providerSetKeys,
   admin.providerClearKeys,
   admin.providerSetActive,

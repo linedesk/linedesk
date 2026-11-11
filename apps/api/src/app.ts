@@ -4,8 +4,9 @@ import { APIError } from 'better-auth/api'
 import { asc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { setFirstPassword } from './account.ts'
+import { API_KEY_REQUESTS_PER_MINUTE, apiKeyWithinLimit, isApiKey, tooManyInvalidApiKeys } from './api-keys.ts'
 import { registerAdminRoutes } from './admin-routes.ts'
-import { withClientIp } from './client-ip.ts'
+import { clientIpOf, withClientIp } from './client-ip.ts'
 import { authMethods } from './auth-methods.ts'
 import { auth, WEB_ORIGIN, WORKSPACE_LIMIT } from './auth.ts'
 import { calendarCallback } from './calendar-callback.ts'
@@ -88,8 +89,20 @@ app.post('/v1/account/password', setFirstPassword)
 app.get('/v1/calendar/callback/:provider', async c => c.redirect(await calendarCallback(c.req.param('provider'), new URL(c.req.url).searchParams, c.req.raw.headers, WEB_ORIGIN)))
 
 app.use('/v1/*', async (c, next) => {
-  const actor = await resolveActor(c.req.raw.headers)
-  if (!actor) return c.json({ ok: false, error: 'not signed in or no workspace' }, 401)
+  const ip = clientIpOf(c)
+  const actor = await resolveActor(c.req.raw.headers, ip)
+  if (!actor) {
+    // An address that sent too many unknown keys is not looked up any more (api-keys.ts).
+    if (isApiKey(c.req.header('authorization')?.replace(/^Bearer /, '') ?? '') && tooManyInvalidApiKeys(ip)) {
+      c.header('retry-after', '600')
+      return c.json({ ok: false, error: 'too many invalid API keys from this address; try again later' }, 429)
+    }
+    return c.json({ ok: false, error: 'not signed in or no workspace' }, 401)
+  }
+  if (actor.apiKeyId && !apiKeyWithinLimit(actor.apiKeyId)) {
+    c.header('retry-after', '60')
+    return c.json({ ok: false, error: `rate limit: ${API_KEY_REQUESTS_PER_MINUTE} requests a minute per API key` }, 429)
+  }
   c.set('actor', actor)
   await next()
 })
