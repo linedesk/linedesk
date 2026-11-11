@@ -129,9 +129,23 @@ export type CallOrigin =
 
 /**
  * The call test's simulated on-call person and the number it stands in for (transfer is on for the test).
- * `for`: which calls go to it, urgent ones (default) or callers who ask for a person.
+ * `for`: which calls go to it, urgent ones (default) or callers who ask for a person. `backup`: a second urgent
+ * contact with the same condition, tried next (both answer as `answer`).
  */
-export type SimulatedOnCall = { answer: SimulatedAnswer; number: string; for?: 'urgent' | 'person' }
+export type SimulatedOnCall = { answer: SimulatedAnswer; number: string; for?: 'urgent' | 'person'; backup?: boolean }
+
+/** The second contact of a `backup` test: Mike's condition, its own number, rings shorter so the test stays short. */
+export const SIMULATED_BACKUP_NUMBER = '+15035550188'
+
+/** The call test's transfer contacts: the simulated on-call person, and with `backup` a second one tried next. */
+export function simulatedContacts({ number, for: forCalls, backup }: Pick<SimulatedOnCall, 'number' | 'for' | 'backup'>): TransferContact[] {
+  const first = simulatedContact(number, forCalls)
+  if (!backup) return [first]
+  return [
+    { ...first, if_no_answer: 'next', ring_seconds: 15 },
+    { ...first, id: 'backup', name: 'Sarah', number: SIMULATED_BACKUP_NUMBER, ring_seconds: 15 },
+  ]
+}
 
 /** The call test's only transfer contact: the simulated on-call person, for urgent calls or for callers who ask for a person. */
 export const simulatedContact = (number: string, forCalls: SimulatedOnCall['for'] = 'urgent'): TransferContact =>
@@ -166,7 +180,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     ? {
         ...started.assistant,
         ...(outsideGreeting ? { greeting_outside: outsideGreeting } : {}),
-        ...(onCall ? { transfers: [simulatedContact(onCall.number, onCall.for)] } : {}),
+        ...(onCall ? { transfers: simulatedContacts(onCall) } : {}),
         ...(languages ? { languages: { mode: 'allowed' as const, allowed: languages } } : {}),
       }
     : started.assistant
@@ -235,5 +249,5 @@ function parseSimulatedOnCall(value: unknown): SimulatedOnCall | undefined {
   const v = value as Partial<SimulatedOnCall> | undefined
   if (!v || typeof v.number !== 'string' || !/^\+\d{8,15}$/.test(v.number)) return undefined
   if (!simulatedAnswers.includes(v.answer as SimulatedAnswer)) return undefined
-  return { answer: v.answer as SimulatedAnswer, number: v.number, ...(v.for === 'person' ? { for: 'person' as const } : {}) }
+  return { answer: v.answer as SimulatedAnswer, number: v.number, ...(v.for === 'person' ? { for: 'person' as const } : {}), ...(v.backup === true ? { backup: true } : {}) }
 }

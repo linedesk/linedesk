@@ -6,7 +6,7 @@ import { buildInstructions } from './prompt.ts'
 import { mergeToolResults } from './summary.ts'
 import { phoneRefused, scenarios } from './test-caller/scenarios.ts'
 import { isPhoneCallTest, liveTransferTestAllows, onCallDialerFor } from './transfer-tool.ts'
-import { simulatedContact } from './call-session.ts'
+import { simulatedContact, simulatedContacts } from './call-session.ts'
 import { maskedNumber, parseOnCallResponderMetadata } from './oncall-responder.ts'
 import { parseSetupOnCallTestArgs, parseSetupSipArgs } from './setup-args.ts'
 import { NotAnsweredError, sipDialer } from './on-call-dialer.ts'
@@ -285,6 +285,13 @@ test('a test room can bring a simulated on-call person; anything malformed is ig
   const person = parseTestMetadata(meta({ answer: 'accept', number: '+15035550199', for: 'person' }))?.onCall
   expect(person).toEqual({ answer: 'accept', number: '+15035550199', for: 'person' })
   expect(simulatedContact(person!.number, person!.for)).toMatchObject({ condition: 'The caller asks to speak to a person', if_no_answer: 'message', hours_only: false, number: '+15035550199' })
+  // A backup: two urgent contacts with the same condition, the first tries the next; the plan walks both.
+  const backup = parseTestMetadata(meta({ answer: 'no-answer', number: '+15035550199', backup: true }))?.onCall
+  expect(backup).toEqual({ answer: 'no-answer', number: '+15035550199', backup: true })
+  const contacts = simulatedContacts(backup!)
+  expect(contacts.map(c => [c.name, c.if_no_answer])).toEqual([['Mike', 'next'], ['Sarah', 'message_urgent']])
+  expect(transferPlan(contacts as Dialable[], ['Mike'])!.tries.map(c => c.name)).toEqual(['Mike', 'Sarah'])
+  expect(parseTestMetadata(meta({ answer: 'accept', number: '+15035550199', backup: 'yes' }))?.onCall).not.toHaveProperty('backup')
 })
 
 test('a test room can allow other languages; unknown codes are dropped', () => {

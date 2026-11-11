@@ -163,6 +163,12 @@ export const scenarios = {
     silentForMs: 100_000,
     expect: { stillThere: 2, lastLine: /can't hear anyone on the line/i },
   },
+  // Two urgent contacts with the same condition, the first set to "try the next": nobody answers, both are tried in order.
+  'transfer-next': {
+    persona: 'You are Dana Ruiz. A pipe under your kitchen sink just burst and water is spraying everywhere; you have shut off the main valve. You need a plumber right now. Your address is 1450 Southeast Division Street, Portland, Oregon 97202. Give your name when asked. If they put you through to someone, stay on the line quietly while it rings, also when they try someone else. If nobody answers, say this number is the best way to reach you and say goodbye.',
+    expect: { outcome: MESSAGE_OUTCOMES, urgency: 'urgent', actionItems: 1, transferResult: 'not_answered', assistantSays: /let me try sarah/i },
+    onCall: { answer: 'no-answer', number: '+15035550199', backup: true },
+  },
   // Transfer rule "The caller asks to speak to a person" (not an emergency): put through, and the call stays not urgent.
   'transfer-person': {
     persona: 'You are Alex Romero. You have a question about an invoice from last month and want to talk to the owner himself, not leave a message. Ask to speak to a real person. Give your name when asked. If they put you through to someone, stay on the line quietly while it rings, then talk to the person; when they say goodbye, say goodbye too.',
