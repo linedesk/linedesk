@@ -1,12 +1,15 @@
 // What the voice agent writes during a call: start, transcript, finish.
 import { calls, contacts, phone_numbers, transcript_segments } from '@linedesk/db'
-import { asc, eq } from 'drizzle-orm'
-import { beforeAll, expect, test } from 'vitest'
+import { and, asc, eq } from 'drizzle-orm'
+import { afterEach, beforeAll, expect, test } from 'vitest'
 import { db } from '../src/db.ts'
+import { LIVE_CALLS_PER_WORKSPACE } from '../src/handlers.ts'
+import { CALL_PUSH, setJobQueue } from '../src/jobs.ts'
 import { act, agent, createWorkspace, getCall, getContact, randomNumber, type Workspace } from './helpers.ts'
 
 let ws: Workspace
 let other: Workspace
+afterEach(() => setJobQueue(null))
 beforeAll(async () => {
   ws = await createWorkspace('Brightwater Plumbing & Heating')
   other = await createWorkspace('Other Business')
@@ -175,6 +178,8 @@ test('after call.start the agent has to name the workspace of the call', async (
 })
 
 test('call.transfer records the number and the result and makes the call urgent; members cannot write it', async () => {
+  // Its own workspace: the calls of the tests above are still live and count toward the calls at once.
+  const ws = await createWorkspace('Transfer Plumbing')
   const { body } = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
   const callId: string = body.data.callId
   const refused = await act(ws.owner, 'call.transfer', { callId, to: '+15035550199', result: 'connected' })
@@ -240,4 +245,40 @@ test('assistant.update stores the transfer settings; an invalid on-call number i
   expect(forwarding).toMatchObject({ status: 409, body: { error: expect.stringContaining('forwards its calls to Linedesk') } })
   const started = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
   expect(started.body.data.assistant).toMatchObject({ transfer_urgent: true, transfer_number: '+15035550199', transfer_hours_only: true })
+})
+
+test(`at most ${LIVE_CALLS_PER_WORKSPACE} calls at once per workspace: the next one is filed as missed, not answered`, async () => {
+  const busy = await createWorkspace('Busy Plumbing')
+  const pushes: { name: string; data: { callId: string; kind: string } }[] = []
+  setJobQueue({ send: async (name: string, data: { callId: string; kind: string }) => void pushes.push({ name, data }) } as never)
+  const live = async () => (await db.select().from(calls).where(and(eq(calls.workspace_id, busy.id), eq(calls.status, 'live'), eq(calls.source, 'phone')))).length
+  // Test calls from the web app have their own limits: they neither count nor are refused.
+  const tests = await Promise.all(Array.from({ length: LIVE_CALLS_PER_WORKSPACE }, (_, i) => act(agent(busy.id), 'call.startTest', { room: `busy-test-${i}` })))
+  expect(tests.every(t => t.status === 200 && !t.body.data.busy)).toBe(true)
+  // Ten callers at once (the workspace has one live call already): no two see room for the same last line.
+  const started = await Promise.all(Array.from({ length: 10 }, () => act(agent(), 'call.start', { from: randomNumber(), to: busy.number })))
+  expect(started.every(s => s.status === 200)).toBe(true)
+  expect(await live()).toBe(LIVE_CALLS_PER_WORKSPACE)
+  const refused = started.filter(s => s.body.data.busy)
+  expect(refused).toHaveLength(10 - (LIVE_CALLS_PER_WORKSPACE - 1))
+  // An agent of any version hangs up: `blocked` is set too.
+  expect(refused.every(s => s.body.data.blocked === true)).toBe(true)
+  expect(await getCall(refused[0]!.body.data.callId)).toMatchObject({
+    status: 'completed', outcome: 'hangup', title: 'Missed call', unread: true, action_items: [{ text: 'Call back' }], duration_sec: 0,
+  })
+  // The team gets the usual push for each missed one, and only for those.
+  expect(pushes.filter(p => p.name === CALL_PUSH).map(p => p.data).sort((a, b) => a.callId.localeCompare(b.callId)))
+    .toEqual(refused.map(s => ({ callId: s.body.data.callId, kind: 'finished' })).sort((a, b) => a.callId.localeCompare(b.callId)))
+
+  // One call ends: the next caller is answered.
+  const answered = started.find(s => !s.body.data.busy)!
+  expect((await act(agent(busy.id), 'call.finish', { callId: answered.body.data.callId })).status).toBe(200)
+  const next = await act(agent(), 'call.start', { from: randomNumber(), to: busy.number })
+  expect(next.body.data).toMatchObject({ busy: false, blocked: false })
+
+  // A live call older than the longest call has no agent any more and does not count.
+  await db.update(calls).set({ started_at: new Date(Date.now() - 31 * 60_000).toISOString() }).where(and(eq(calls.workspace_id, busy.id), eq(calls.status, 'live')))
+  expect((await act(agent(), 'call.start', { from: randomNumber(), to: busy.number })).body.data.busy).toBe(false)
+  // Another workspace is not affected.
+  expect((await act(agent(), 'call.start', { from: randomNumber(), to: other.number })).body.data.busy).toBe(false)
 })

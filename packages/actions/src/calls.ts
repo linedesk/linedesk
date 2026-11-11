@@ -108,6 +108,14 @@ export const outcome = z.enum([
 ])
 export const urgency = z.enum(['urgent', 'normal', 'low'])
 
+/**
+ * The longest the assistant stays on a call: it says goodbye and hangs up then (the agent's timer). The limit is
+ * about what the assistant costs, so a call it put through to a person goes on.
+ */
+export const ASSISTANT_CALL_MAX_MINUTES = 25
+/** The longest any call lasts, one put through to a person included: the inbound trunk hangs up then. */
+export const CALL_MAX_MINUTES = 120
+
 export const callStart = defineAction({
   name: 'call.start',
   description: 'Register an incoming call. The workspace is resolved from the dialled number.',

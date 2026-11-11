@@ -18,8 +18,12 @@ export interface CallSession {
   assistant: Assistant | null
   /** null: the caller ID is withheld or not a number ("anonymous"), so the caller has no contact. */
   contact: Contact | null
-  /** The caller's number is blocked: the API filed the call in Spam; hang up without answering. */
+  /**
+   * Hang up without answering: the API filed the call already, in Spam (a blocked number) or as missed (`busy`,
+   * the workspace has as many calls in progress as its assistant answers at once).
+   */
   blocked: boolean
+  busy: boolean
   /** null: the business has no hours set, and the assistant says nothing about them. */
   businessHours: BusinessHours | null
   /** What the assistant can book; null: no appointment type or no calendar, so it only takes messages. */
@@ -39,6 +43,7 @@ export interface CallSession {
 
 type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'contact'> & {
   blocked?: boolean
+  busy?: boolean
   businessHours?: BusinessHours | null
   booking?: BookingContext | null
   /** The workspace's recording notice, said right after the greeting; null or missing: off. */
@@ -83,7 +88,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     ? await api.run(callStart, { from: origin.from, to: origin.to, room: origin.room })
     : await api.run(callStartTest, { room: origin.room, ...(origin.assistantId ? { assistantId: origin.assistantId } : {}) }, origin.workspaceId)
   const started = data as StartData
-  const { callId, workspaceId, contact, blocked = false } = started
+  const { callId, workspaceId, contact, blocked = false, busy = false } = started
   const businessHours = (origin.kind === 'test' && origin.businessHours) || started.businessHours || null
   // The call test may set an outside greeting to check without touching the real assistant.
   const outsideGreeting = origin.kind === 'test' ? origin.outsideGreeting : undefined
@@ -102,7 +107,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   const booking = started.booking ?? null
   const startedAt = Date.now()
   return {
-    callId, workspaceId, assistant, contact, blocked, businessHours, booking, caller,
+    callId, workspaceId, assistant, contact, blocked, busy, businessHours, booking, caller,
     businessNumber: origin.kind === 'phone' ? origin.to : null,
     simulatedOnCall: onCall?.answer ?? null,
     async append(speaker, text, toolEvent) {

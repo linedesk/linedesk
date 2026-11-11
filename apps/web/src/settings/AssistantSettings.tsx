@@ -2,7 +2,7 @@
 // transfer of urgent calls and the calendar, one section at a time (#assistant/<id>/<section>). Edits in the text sections are one local
 // draft: Save runs assistant.update through the outbox; a section with unsaved
 // changes keeps a dot in the nav while you look at another one.
-import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX } from '@linedesk/actions'
+import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX, SILENCE_CLOSING_MAX } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
@@ -25,6 +25,9 @@ import {
   normalized,
   onCallProblem,
   profileOf,
+  silenceProblem,
+  silenceSummary,
+  silenceToSave,
   spokenLength,
   staleGreetingName,
   transferToSave,
@@ -40,7 +43,7 @@ import { VoiceSettings } from './VoiceSettings.tsx'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
 
-type SectionId = 'greeting' | 'voice' | 'instructions' | 'rules' | 'transfer' | 'calendar'
+type SectionId = 'greeting' | 'voice' | 'instructions' | 'rules' | 'transfer' | 'calendar' | 'advanced'
 const sections: readonly PageSection<SectionId>[] = [
   { id: 'greeting', label: 'Greeting', description: 'First sentence, AI disclosure' },
   { id: 'voice', label: 'Voice', description: 'How the assistant sounds' },
@@ -48,6 +51,7 @@ const sections: readonly PageSection<SectionId>[] = [
   { id: 'rules', label: 'Call rules', description: 'How calls are handled' },
   { id: 'transfer', label: 'Transfer', description: 'Urgent calls to your on-call phone' },
   { id: 'calendar', label: 'Calendar', description: 'Accounts, calendars and appointment types' },
+  { id: 'advanced', label: 'Advanced', description: 'Silence on the line' },
 ]
 /** Which draft fields each section holds; the calendar has its own. */
 const sectionFields: Record<Exclude<SectionId, 'calendar'>, (keyof Draft)[]> = {
@@ -56,6 +60,7 @@ const sectionFields: Record<Exclude<SectionId, 'calendar'>, (keyof Draft)[]> = {
   instructions: ['instructions', 'instructions_outside'],
   rules: ['call_rules'],
   transfer: ['transfer_urgent', 'transfer_number', 'transfer_hours_only'],
+  advanced: ['silence_first_gap_s', 'silence_reminders', 'silence_closing'],
 }
 
 /** The assistant's name as the help texts say it, also while the name field is being edited. */
@@ -263,6 +268,28 @@ function Transfer({ draft, set, hoursOn }: SectionProps & { hoursOn: boolean }) 
   )
 }
 
+function Advanced({ draft, set }: SectionProps) {
+  const problem = silenceProblem(draft)
+  return (
+    <Section
+      id="as-advanced"
+      title="Silence on the line"
+      help={`When nobody speaks, ${assistantName(draft)} asks whether the caller is still there, waits twice as long each time, and before it hangs up always says the closing line.`}
+    >
+      <Field id="as-silence-gap" label="First wait, in seconds" error={problem?.startsWith('The first wait') ? problem : null}>
+        <TextInput id="as-silence-gap" value={draft.silence_first_gap_s} onChange={v => set('silence_first_gap_s', v)} />
+      </Field>
+      <Field id="as-silence-times" label='Times to ask "Are you still there?"' error={problem?.startsWith('Ask') ? problem : null}>
+        <TextInput id="as-silence-times" value={draft.silence_reminders} onChange={v => set('silence_reminders', v)} />
+      </Field>
+      <Field id="as-silence-closing" label="Closing line" error={problem?.startsWith('The closing') ? problem : null}>
+        <TextArea id="as-silence-closing" value={draft.silence_closing} onChange={v => set('silence_closing', v)} />
+        <span className="help">{problem ? `${count(draft.silence_closing.trim().length)} / ${count(SILENCE_CLOSING_MAX)}` : silenceSummary(draft)}</span>
+      </Field>
+    </Section>
+  )
+}
+
 type Props = { canEdit: boolean; toast: (text: string) => void }
 
 type FormProps = Props & {
@@ -314,6 +341,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     // The greeting shows its error under the field: go there instead of a toast that outlives the fix.
     if (!draft.greeting.trim()) return goTo('greeting', 'as-greet')
     if (onCallProblem(draft)) return goTo('transfer', 'as-oncall')
+    if (silenceProblem(draft)) return goTo('advanced', 'as-silence-gap')
     const problem = draftProblem(draft)
     if (problem) return toast(problem)
     if (dirty) {
@@ -328,6 +356,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         call_rules: callRulesToSave(clean),
         ...outsideToSave(clean),
         ...transferToSave(clean),
+        ...silenceToSave(clean),
         voice: clean.voice,
       })
       setDraft(clean) // the form shows what was saved, so it is not "dirty" any more
@@ -380,6 +409,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
           {current === 'instructions' && <Instructions draft={draft} set={set} hoursOn={hoursOn} />}
           {current === 'rules' && <CallRules draft={draft} set={set} />}
           {current === 'transfer' && <Transfer draft={draft} set={set} hoursOn={hoursOn} />}
+          {current === 'advanced' && <Advanced draft={draft} set={set} />}
         </fieldset>
         {current === 'calendar' && <CalendarSettings assistant={assistant} canEdit={canEdit} toast={toast} />}
         {canEdit && <SaveBar dirty={changed} onCancel={cancel} note={note} />}

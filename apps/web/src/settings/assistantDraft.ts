@@ -1,6 +1,10 @@
 // The editable copy of the assistant's settings: how it is read from the row, merged with
 // changes that arrive through sync, checked and turned back into what assistant.update takes.
-import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX, callRulesOf, onCallNumberProblem } from '@linedesk/actions'
+import {
+  CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX, callRulesOf, onCallNumberProblem,
+  DEFAULT_SILENCE_CLOSING, SILENCE_CLOSING_MAX, SILENCE_FIRST_GAP_MAX_S, SILENCE_FIRST_GAP_MIN_S, SILENCE_REMINDERS_MAX,
+  SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT,
+} from '@linedesk/actions'
 import type { Assistant, BusinessProfile } from '@linedesk/db/types'
 import { formatNumber, renameInGreeting, toE164 } from '../onboarding/flow.ts'
 
@@ -21,6 +25,10 @@ export type Draft = {
   transfer_hours_only: boolean
   /** The voice: provider and voice id (empty: the provider's default). */
   voice: { provider: string; voice_id: string }
+  /** Silence on the line, as typed: seconds before the first "Are you still there?", how many, the closing line. */
+  silence_first_gap_s: string
+  silence_reminders: string
+  silence_closing: string
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
@@ -54,6 +62,11 @@ export function draftOf(a: Assistant): Draft {
     transfer_number: a.transfer_number ? formatNumber(a.transfer_number) : '',
     transfer_hours_only: a.transfer_hours_only,
     voice: { provider: a.voice.provider, voice_id: a.voice.voice_id },
+    // A row synced before these columns existed has none: the defaults.
+    silence_first_gap_s: String(a.silence_first_gap_s ?? SILENCE_FIRST_GAP_DEFAULT_S),
+    silence_reminders: String(a.silence_reminders ?? SILENCE_REMINDERS_DEFAULT),
+    // None stored: the default line, shown so it can be edited (like the call rules).
+    silence_closing: a.silence_closing ?? DEFAULT_SILENCE_CLOSING,
   }
 }
 
@@ -76,7 +89,42 @@ export const normalized = (d: Draft): Draft => ({
   greeting_outside: d.greeting_outside.trim(),
   instructions_outside: d.instructions_outside.trim(),
   transfer_number: normalizedNumber(d.transfer_number),
+  silence_first_gap_s: d.silence_first_gap_s.trim(),
+  silence_reminders: d.silence_reminders.trim(),
+  silence_closing: d.silence_closing.trim(),
 })
+
+const wholeIn = (typed: string, min: number, max: number) => /^\d+$/.test(typed.trim()) && Number(typed) >= min && Number(typed) <= max
+
+/** Why the silence settings cannot be saved, or null. */
+export function silenceProblem(d: Pick<Draft, 'silence_first_gap_s' | 'silence_reminders' | 'silence_closing'>): string | null {
+  if (!wholeIn(d.silence_first_gap_s, SILENCE_FIRST_GAP_MIN_S, SILENCE_FIRST_GAP_MAX_S)) return `The first wait is ${SILENCE_FIRST_GAP_MIN_S} to ${SILENCE_FIRST_GAP_MAX_S} seconds.`
+  if (!wholeIn(d.silence_reminders, 0, SILENCE_REMINDERS_MAX)) return `Ask 0 to ${SILENCE_REMINDERS_MAX} times.`
+  if (d.silence_closing.trim().length > SILENCE_CLOSING_MAX) return `The closing line is at most ${SILENCE_CLOSING_MAX} characters.`
+  return null
+}
+
+/** The silence settings to save: the closing line is null when it is the default (or empty). */
+export const silenceToSave = (d: Draft) => {
+  const closing = d.silence_closing.trim()
+  return {
+    silence_first_gap_s: Number(d.silence_first_gap_s),
+    silence_reminders: Number(d.silence_reminders),
+    silence_closing: closing && closing !== DEFAULT_SILENCE_CLOSING ? closing : null,
+  }
+}
+
+/** What the caller hears when the line stays silent, in words for the help line. */
+export function silenceSummary(d: Pick<Draft, 'silence_first_gap_s' | 'silence_reminders'>): string {
+  const gap = Number(d.silence_first_gap_s)
+  const times = Number(d.silence_reminders)
+  // Seconds of silence at each step: the first gap, then each wait twice the one before.
+  const at: number[] = []
+  for (let i = 0; i <= times; i++) at.push((at[i - 1] ?? 0) + gap * 2 ** i)
+  const end = at.pop()!
+  if (!times) return `After ${gap} seconds of silence the assistant says the closing line and hangs up. Never while a call is transferred.`
+  return `Asks "Are you still there?" after ${at.join(', ')} seconds of silence, says the closing line and hangs up at ${end} seconds. Never while a call is transferred.`
+}
 
 /** "(503) 555-0199" and "+1 503 555 0199" are the same number: both show as the latter. */
 function normalizedNumber(typed: string): string {
@@ -144,7 +192,7 @@ export function draftProblem(draft: Draft): string | null {
   if (length > INSTRUCTIONS_MAX) return `The instructions are too long: ${length.toLocaleString('en-US')} of ${INSTRUCTIONS_MAX.toLocaleString('en-US')} characters.`
   const rules = draft.call_rules.trim().length
   if (rules > CALL_RULES_MAX) return `How to handle calls is too long: ${rules.toLocaleString('en-US')} of ${CALL_RULES_MAX.toLocaleString('en-US')} characters.`
-  return onCallProblem(draft)
+  return onCallProblem(draft) ?? silenceProblem(draft)
 }
 
 /** The profile to save: the instructions replace the older fields they were folded from. */

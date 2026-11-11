@@ -1,12 +1,12 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, confirmsNumber, isE164, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, } from '@linedesk/actions'
+import { actions, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, } from '@linedesk/actions'
 import { businessHoursContext, type BusinessHoursContext, } from '@linedesk/calendar'
 import {availability_rules, call_evaluations, calls, contacts, member, organization, phone_numbers, syncedTables,
   transcript_segments, workspace_settings, type Tx,
 } from '@linedesk/db'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
-import { and, asc, desc, eq, gte, or, sql, } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, or, sql, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
 import { apiKeyHandlers } from './api-keys.ts'
 import { assistantForNumber, assistantHandlers, assistantIn } from './assistants.ts'
@@ -162,12 +162,17 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   const contact = source === 'test' || isE164(from) ? await callerContact(tx, workspace_id, from, source) : null
   const id = newId('call')
   // A blocked caller is not answered: the call is filed quietly in Spam and the agent hangs up (`blocked`).
-  const blocked = source === 'phone' && !!contact?.row.blocked_at
+  const spam = source === 'phone' && !!contact?.row.blocked_at
+  const busy = source === 'phone' && !spam && (await atLiveCallLimit(tx, workspace_id, now))
+  // Older agents only know `blocked`: hang up without answering. It covers both.
+  const blocked = spam || busy
   const [call] = await tx.insert(calls).values({
     id, workspace_id, contact_id: contact?.row.id ?? null, from_number: from, to_number: to, source, started_at: now, room: room ?? id,
     assistant_id: assistant?.id ?? null,
-    ...(blocked ? blockedCall(now) : {}),
+    ...(spam ? blockedCall(now) : busy ? busyCall(now) : {}),
   }).returning()
+  // A busy call is filed as missed right away: the team hears of it like of any other finished call.
+  if (busy) await queueCallPush(tx, id, 'finished')
   const businessHours = await businessHoursFor(tx, workspace_id, now)
   const booking = blocked ? null : await bookingContext(tx, workspace_id, now, { contactId: contact?.row.id ?? null, assistantId: assistant?.id ?? null })
   // Said right after the greeting; the agent appends it (null: off).
@@ -178,7 +183,7 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
     : null
   return {
     rows: { calls: [call!], ...(contact ? { contacts: [contact.row] } : {}) },
-    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: assistant ?? null, blocked, businessHours, booking, recordingNotice, callerHistory: history },
+    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: assistant ?? null, blocked, busy, businessHours, booking, recordingNotice, callerHistory: history },
   }
 }
 
@@ -194,6 +199,39 @@ async function callerContact(tx: Tx, workspace_id: string, phone: string, source
   const [created] = await tx.insert(contacts).values({ id: newId('ct'), workspace_id, phone, name }).returning()
   return { row: created!, isNew: true }
 }
+
+/**
+ * Calls a workspace's assistant answers at the same time. One more is not answered: filed as missed, so the team
+ * calls back, and the agent hangs up. Every call costs speech and model minutes; nobody can run up a bill
+ * with many lines at once.
+ */
+export const LIVE_CALLS_PER_WORKSPACE = 5
+/**
+ * Live calls started longer ago than the assistant stays on a call (plus a margin) are not counted: their agent is
+ * gone, or they were put through to a person and cost no assistant minutes any more.
+ */
+const LIVE_CALL_MAX_MS = (ASSISTANT_CALL_MAX_MINUTES + 5) * 60_000
+
+/** Whether the workspace has as many phone calls in progress as its assistant answers at once (test calls have their own limits). */
+async function atLiveCallLimit(tx: Tx, workspace_id: string, now: string) {
+  // Two calls arriving at once cannot both see room for one more.
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`live-calls:${workspace_id}`}))`)
+  const [row] = await tx.select({ live: sql<number>`count(*)::int` }).from(calls).where(and(
+    eq(calls.workspace_id, workspace_id), eq(calls.status, 'live'), eq(calls.source, 'phone'),
+    gt(calls.started_at, new Date(Date.parse(now) - LIVE_CALL_MAX_MS).toISOString()),
+  ))
+  return (row?.live ?? 0) >= LIVE_CALLS_PER_WORKSPACE
+}
+
+/**
+ * A call over the workspace's limit of calls at once: filed as missed, unread, with a callback. The agent tells the
+ * caller the lines are busy and hangs up (BUSY_LINE in apps/agent).
+ */
+const busyCall = (now: string) => ({
+  status: 'completed' as const, ended_at: now, duration_sec: 0, outcome: 'hangup' as const,
+  title: 'Missed call', summary: `Nobody answered this call: ${LIVE_CALLS_PER_WORKSPACE} other calls were in progress. Call the caller back.`,
+  action_items: [{ text: 'Call back' }],
+})
 
 /** A call from a blocked number: over before it began, read, in Spam. */
 const blockedCall = (now: string) => ({

@@ -81,6 +81,14 @@ export const assistants = pgTable(
     transfer_number: text('transfer_number'),
     /** Only while the business is open (business hours); outside them the assistant takes a message. */
     transfer_hours_only: boolean('transfer_hours_only').notNull().default(false),
+    /**
+     * Silence on the line (SILENCE_* in @linedesk/actions): after `silence_first_gap_s` seconds without a word the
+     * assistant asks whether the caller is still there, up to `silence_reminders` times with the gap doubling each
+     * time, then says `silence_closing` (null: the default line) and hangs up.
+     */
+    silence_first_gap_s: integer('silence_first_gap_s').notNull().default(8),
+    silence_reminders: integer('silence_reminders').notNull().default(2),
+    silence_closing: text('silence_closing'),
     created_at: createdAt(),
     version: version(),
   },

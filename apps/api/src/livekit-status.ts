@@ -58,6 +58,26 @@ async function check(run: () => Promise<ServiceStatus>): Promise<ServiceStatus> 
   }
 }
 
+/** LiveKit's API base for a server URL (ws:// or http://). */
+const twirpBase = (url: string) => `${url.replace(/^ws/, 'http').replace(/\/+$/, '')}/twirp`
+
+/**
+ * Deletes a LiveKit room: whoever is in it is disconnected, so a phone caller is hung up on and an agent still
+ * in it stops. True when the room is gone (deleted, or not there); false when LiveKit is not set up or refused.
+ */
+export async function deleteLivekitRoom(room: string, env: Env = process.env, doFetch: typeof fetch = fetch): Promise<boolean> {
+  const { LIVEKIT_URL: url, LIVEKIT_API_KEY: key, LIVEKIT_API_SECRET: secret } = env
+  if (!url || !key || !secret) return false
+  const res = await doFetch(`${twirpBase(url)}/livekit.RoomService/DeleteRoom`, {
+    method: 'POST',
+    body: JSON.stringify({ room }),
+    headers: { authorization: `Bearer ${livekitToken(key, secret, { video: { roomCreate: true } })}`, 'content-type': 'application/json' },
+    redirect: 'manual',
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  })
+  return res.ok || res.status === 404
+}
+
 /** Asks the LiveKit server for its rooms and its SIP trunks. `doFetch` is replaced in tests. */
 export async function livekitStatus(env: Env = process.env, doFetch: typeof fetch = fetch): Promise<LivekitStatus> {
   const { LIVEKIT_URL: url, LIVEKIT_API_KEY: key, LIVEKIT_API_SECRET: secret } = env
@@ -69,7 +89,7 @@ export async function livekitStatus(env: Env = process.env, doFetch: typeof fetc
     // SIP lives on the LiveKit server: say so once, not the same env message twice.
     return { url: url ?? null, server: missing, sip: { ok: false, message: 'Not checked: LiveKit is not set up' } }
   }
-  const base = `${url.replace(/^ws/, 'http').replace(/\/+$/, '')}/twirp`
+  const base = twirpBase(url)
   const server = await check(async () => {
     const { status, body } = await call(
       doFetch,

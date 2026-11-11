@@ -1,8 +1,9 @@
 // The voice agent: a LiveKit Agents worker. One job per call room; all writes go through the API.
 // Which speech and language vendors are used is decided in pipeline.ts.
 import { createServer } from 'node:http'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { callFlagUrgent, callTakeMessage } from '@linedesk/actions'
+import { ASSISTANT_CALL_MAX_MINUTES, callFlagUrgent, callTakeMessage } from '@linedesk/actions'
 import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant } from '@livekit/rtc-node'
 import { z } from 'zod'
@@ -13,13 +14,14 @@ import { callOrigin, parseTestMetadata, startCall, type CallSession } from './ca
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
 import { createConfigLoader, parseProviderSettings, type AgentConfig } from './config.ts'
 import { AGENT_NAME, requireEnv, requireLivekitEnv } from './env.ts'
-import { checkReadiness, declineCall, describeReadiness } from './not-ready.ts'
+import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
 import { createPipeline, createTts, greetingVoice, summaryLlm, warmUpLlm } from './pipeline.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
 import { logTurnMetrics } from './turn-metrics.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
+import { CALL_LIMIT_LINE, GOODBYE_LINE, hangUpAfterLine, hangUpAfterSpeech, hangUpAtCallLimit, remindOnSilence, silencePolicyOf, speakingOf, STILL_THERE_LINE, TEST_CALL_LIMIT_LINE } from './hang-up.ts'
+import { playLine, unansweredLine } from './busy-line.ts'
 import { promisesUrgent, urgentFlagger } from './urgent-promise.ts'
-import { hangUpAfterSpeech, speakingOf } from './hang-up.ts'
 import { buildInstructions, canChangeBookings, FALLBACK_GREETING } from './prompt.ts'
 import { describeRecording, livekitRecorder, resolveRecording, saveRecording, startRecording, stopRecording, stopRecordingOrThrow } from './recording.ts'
 import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from './counterpart.ts'
@@ -40,12 +42,6 @@ function loadAgentConfig(): Promise<AgentConfig> {
 /** A test call ends by itself after this long, so a forgotten browser tab does not run up provider minutes. */
 export const TEST_CALL_LIMIT_MS = 5 * 60_000
 
-/** Deleting the room disconnects the browser; the session then closes and the call is finished as usual. */
-function endTestCallLater(ctx: JobContext) {
-  const timer = setTimeout(() => void ctx.deleteRoom().catch(() => {}), TEST_CALL_LIMIT_MS)
-  timer.unref()
-  ctx.addShutdownCallback(async () => clearTimeout(timer))
-}
 
 /** find_slots and book_appointment, only when the assistant has an appointment type and a calendar. */
 // biome-ignore lint/suspicious/noExplicitAny: tools of different parameter types in one map
@@ -202,7 +198,8 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const cachedGreeting = call.caller?.greetedByName ? Promise.resolve(null) : greetingCache.get(key) // read while the session starts
   let callerIdentity: string | undefined
   void callerJoined.then(caller => (callerIdentity = caller.identity), () => {})
-  const session = new voice.AgentSession(createPipeline(config, call.assistant?.voice))
+  const silence = silencePolicyOf(call.assistant)
+  const session = new voice.AgentSession(createPipeline(config, call.assistant?.voice, silence.firstGapS))
   const onSpeaking = ({ newState }: { newState: string }) => {
     if (newState !== 'speaking') return
     session.off(voice.AgentSessionEventTypes.AgentStateChanged, onSpeaking)
@@ -216,7 +213,34 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   logTurnMetrics(session, call.callId)
   skipQuietToolReplies(session, QUIET_TOOLS)
   session.on(voice.AgentSessionEventTypes.Close, onClose)
-  const endCall = () => hangUpAfterSpeech(speakingOf(session), () => void ctx.deleteRoom().catch(() => {}))
+  const deleteRoom = () => void ctx.deleteRoom().catch(() => {})
+  // The assistant always says something before the call ends: its goodbye (else GOODBYE_LINE), the closing line
+  // after silence, or the goodbye at its time limit.
+  const sayLine = (text: string) => session.say(text, { allowInterruptions: false }).waitForPlayout()
+  const speaking = speakingOf(session)
+  const endCall = () => hangUpAfterSpeech(speaking, deleteRoom, () => sayLine(GOODBYE_LINE))
+  // After a warm transfer the caller talks with a person and the assistant is out of it: neither silence on its
+  // side nor its time limit ends that call (the trunk's CALL_MAX_MINUTES does).
+  const transferred = () => log.transferred
+  remindOnSilence(session, silence, {
+    remind: () => void session.say(STILL_THERE_LINE),
+    close: () => {
+      log.record('system', 'Hung up after silence on the line')
+      hangUpAfterLine(sayLine(silence.closing), deleteRoom)
+    },
+    transferred,
+  })
+  // A test call from the web app ends sooner, so a forgotten browser tab does not run up provider minutes.
+  const isTest = call.businessNumber === null
+  const limitMinutes = isTest ? TEST_CALL_LIMIT_MS / 60_000 : ASSISTANT_CALL_MAX_MINUTES
+  const cancelLimit = hangUpAtCallLimit(limitMinutes * 60_000, {
+    transferred,
+    goodbye: () => {
+      log.record('system', `Call ended after ${limitMinutes} minutes`)
+      hangUpAfterLine(sayLine(isTest ? TEST_CALL_LIMIT_LINE : CALL_LIMIT_LINE), deleteRoom)
+    },
+  })
+  session.on(voice.AgentSessionEventTypes.Close, cancelLimit)
   const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, false, call.caller)
   const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, flagUrgent, null) })
   void warmUpLlm(config.llm, instructions)
@@ -311,8 +335,11 @@ async function entry(ctx: JobContext) {
   const call = (await early) ?? (await startCall(api, callOrigin(ctx.job.metadata, (await callerJoined).attributes, ctx.room.name ?? '')))
   setup.mark('registered')
   if (call.blocked) {
-    await ctx.deleteRoom() // blocked caller: the API already filed the call in Spam
-    return ctx.shutdown('blocked caller')
+    // The API already filed the call: in Spam (blocked caller) or as missed with a callback (busy). Either caller
+    // hears one line first, once the voice is set up.
+    await tellCaller(ctx, call, unansweredLine(call), ready, callerJoined)
+    await ctx.deleteRoom()
+    return ctx.shutdown(call.busy ? 'too many calls at once in the workspace' : 'blocked caller')
   }
   const readiness = await ready
   if (!readiness.ready) {
@@ -340,11 +367,21 @@ async function entry(ctx: JobContext) {
   ctx.addShutdownCallback(finishOnce)
   try {
     await converse(ctx, callerJoined, api, config, call, log, finishOnce, setup, stopRecordingForTransfer)
-    if (isTest) endTestCallLater(ctx)
   } catch (e) {
     await finishOnce()
     throw e
   }
+}
+
+/** How long an unanswered call waits for the caller to be in the room before it hangs up without the line. */
+const BUSY_CALLER_WAIT_MS = 5000
+
+/** Plays `line` to the caller once they are in the room; nothing when the voice is not set up. */
+async function tellCaller(ctx: JobContext, call: CallSession, line: string, ready: Promise<Readiness>, callerJoined: Promise<RemoteParticipant>) {
+  const readiness = await ready
+  if (!readiness.ready) return
+  const joined = await Promise.race([callerJoined.then(() => true, () => false), sleep(BUSY_CALLER_WAIT_MS).then(() => false)])
+  if (joined) await playLine(ctx.room, readiness.config, call, line)
 }
 
 /** call.start for an origin known before joining; null when it is not known or the request failed. */

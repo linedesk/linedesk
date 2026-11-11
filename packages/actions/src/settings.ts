@@ -137,6 +137,20 @@ export const contactRestore = defineAction({
 /** Longest free-text instructions an assistant takes (characters). */
 export const INSTRUCTIONS_MAX = 20_000
 
+/**
+ * Silence on the line: after a first quiet gap the assistant asks "Are you still there?", again after a gap twice as
+ * long, and so on for the number of reminders; then it says the closing line and hangs up. Never during a transfer.
+ */
+export const SILENCE_FIRST_GAP_DEFAULT_S = 8
+export const SILENCE_FIRST_GAP_MIN_S = 4
+export const SILENCE_FIRST_GAP_MAX_S = 30
+export const SILENCE_REMINDERS_DEFAULT = 2
+export const SILENCE_REMINDERS_MAX = 4
+export const SILENCE_CLOSING_MAX = 200
+export const DEFAULT_SILENCE_CLOSING = "I can't hear anyone on the line, so I'll hang up now. Please call us back anytime."
+/** The closing line an assistant says: its own, or the default. */
+export const silenceClosingOf = (stored: string | null | undefined) => stored?.trim() || DEFAULT_SILENCE_CLOSING
+
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
@@ -158,6 +172,10 @@ export const assistantUpdate = defineAction({
     /** null: no on-call number (transfer stays off). */
     transfer_number: onCallNumber.nullable().optional(),
     transfer_hours_only: z.boolean().optional(),
+    /** Silence on the line (SILENCE_*): seconds before the first "Are you still there?", how many, the closing line (null: default). */
+    silence_first_gap_s: z.number().int().min(SILENCE_FIRST_GAP_MIN_S).max(SILENCE_FIRST_GAP_MAX_S).optional(),
+    silence_reminders: z.number().int().min(0).max(SILENCE_REMINDERS_MAX).optional(),
+    silence_closing: z.string().trim().max(SILENCE_CLOSING_MAX).nullable().optional(),
     /** An empty voice_id: the provider's default voice. */
     voice: z.object({ provider: z.string(), voice_id: z.union([z.literal(''), voiceId]) }).optional(),
     business_profile: z

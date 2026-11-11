@@ -3,6 +3,7 @@
 // text to speech ElevenLabs or Cartesia. Turns are detected by Deepgram Flux, not by a local
 // voice-activity model: that saves the CPU a small server does not have, and the endpointing delay.
 // The worker only sees LiveKit's interfaces and `CompleteJson`.
+import { SILENCE_FIRST_GAP_DEFAULT_S } from '@linedesk/actions'
 import type { voice } from '@livekit/agents'
 import * as cartesia from '@livekit/agents-plugin-cartesia'
 import * as deepgram from '@livekit/agents-plugin-deepgram'
@@ -74,7 +75,7 @@ function createLlm({ apiKey, baseUrl, model, fallbacks }: AgentConfig['llm']) {
 }
 
 /** Session options for one call. */
-export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVoice | null): voice.AgentSessionOptions {
+export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVoice | null, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S): voice.AgentSessionOptions {
   // Flux turn detection needs Flux; with another Deepgram model the session falls back to its own detection.
   const fluxTurns = config.stt.model.startsWith('flux')
   return {
@@ -83,6 +84,9 @@ export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVo
     llm: createLlm(config.llm),
     tts: createTts(config.tts, assistantVoice),
     turnHandling: { turnDetection: fluxTurns ? 'stt' : undefined, endpointing: ENDPOINTING, preemptiveGeneration: { enabled: true } },
+    // The caller counts as away after this much silence on both sides; the worker then asks whether they are still
+    // there, and in the end says goodbye and hangs up (remindOnSilence in hang-up.ts).
+    userAwayTimeout: silenceFirstGapS,
   }
 }
 

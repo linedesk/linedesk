@@ -2,7 +2,7 @@ import { SIPDispatchRuleInfo, SIPInboundTrunkInfo } from '@livekit/protocol'
 import { CARRIER_SIGNALING_ADDRESSES } from '@linedesk/telephony'
 import { describe, expect, test } from 'vitest'
 import { ALLOWED_ADDRESSES_ENV, inboundAllowlistFromEnv, isAddressOrRange, parseInboundAllowlist } from './inbound-allowlist.ts'
-import { ensureInboundTrunk, INBOUND_TRUNK_NAME, openInboundWarnings } from './sip-trunks.ts'
+import { ensureInboundTrunk, INBOUND_TRUNK_NAME, MAX_CALL_MINUTES, openInboundWarnings } from './sip-trunks.ts'
 
 const telnyx = CARRIER_SIGNALING_ADDRESSES.telnyx.addresses
 const twilio = CARRIER_SIGNALING_ADDRESSES.twilio.addresses
@@ -86,6 +86,11 @@ function fakeSip(initial: SIPInboundTrunkInfo[] = []) {
       if (fields.allowedAddresses) trunk.allowedAddresses = fields.allowedAddresses.clear ? [] : fields.allowedAddresses.set
       return trunk
     },
+    async updateSipInboundTrunk(id: string, replacement: SIPInboundTrunkInfo) {
+      calls.push(`replace ${id}`)
+      trunks = trunks.map(t => (t.sipTrunkId === id ? new SIPInboundTrunkInfo({ ...replacement, sipTrunkId: id }) : t))
+      return replacement
+    },
     async deleteSipTrunk(id: string) {
       calls.push(`delete ${id}`)
       trunks = trunks.filter(t => t.sipTrunkId !== id)
@@ -129,6 +134,40 @@ describe('ensureInboundTrunk', () => {
     expect(await ensureInboundTrunk(sip as never, numbers, [])).toBe('ST_a')
     expect(sip.calls).toEqual(['delete ST_b', 'update ST_a'])
     expect(sip.trunks().map(t => [t.sipTrunkId, t.allowedAddresses])).toEqual([['ST_a', []], ['ST_other', []]])
+  })
+})
+
+describe('the longest call', () => {
+  const numbers = ['+15035550142', '+15035550143']
+
+  test('setup-sip writes the trunk back whole with the maximum call length: every number, the address list, its other settings', async () => {
+    const sip = fakeSip([new SIPInboundTrunkInfo({ sipTrunkId: 'ST_old', name: INBOUND_TRUNK_NAME, numbers: ['+15035550100'], krispEnabled: true })])
+    const id = await ensureInboundTrunk(sip as never, numbers, [...telnyx], INBOUND_TRUNK_NAME, { maxCallMinutes: MAX_CALL_MINUTES })
+    expect(id).toBe('ST_old')
+    expect(sip.calls).toEqual(['update ST_old', 'replace ST_old'])
+    const [trunk] = sip.trunks()
+    expect(trunk).toMatchObject({ sipTrunkId: 'ST_old', name: INBOUND_TRUNK_NAME, numbers, allowedAddresses: [...telnyx], krispEnabled: true })
+    expect(Number(trunk!.maxCallDuration?.seconds)).toBe(MAX_CALL_MINUTES * 60)
+  })
+
+  test('a new trunk gets it too; without the option nothing is replaced', async () => {
+    const sip = fakeSip()
+    await ensureInboundTrunk(sip as never, numbers, ['192.0.2.10'], INBOUND_TRUNK_NAME, { maxCallMinutes: 25 })
+    expect(sip.calls).toEqual(['create linedesk-inbound', 'replace ST_new1'])
+    expect(Number(sip.trunks()[0]!.maxCallDuration?.seconds)).toBe(1500)
+    const other = fakeSip()
+    await ensureInboundTrunk(other as never, numbers, ['192.0.2.10'])
+    expect(other.calls).toEqual(['create linedesk-inbound'])
+  })
+
+  test('the replacement carries the numbers given, never fewer, even when the trunk read back has fewer', async () => {
+    const sip = fakeSip()
+    // LiveKit answers the read-back with fewer numbers than were set (a race, or a bug).
+    const shortened = { ...sip, async listSipInboundTrunk() {
+      return sip.trunks().map(t => new SIPInboundTrunkInfo({ ...t, numbers: t.numbers.slice(0, 1) }))
+    } }
+    await ensureInboundTrunk(shortened as never, numbers, ['192.0.2.10'], INBOUND_TRUNK_NAME, { maxCallMinutes: 25 })
+    expect(sip.trunks()[0]!.numbers).toEqual(numbers)
   })
 })
 

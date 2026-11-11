@@ -1,7 +1,8 @@
 // Creates or updates the LiveKit SIP inbound trunk and the dispatch rule: every inbound call gets its own
 // room and the Linedesk agent is dispatched into it. The trunk only takes calls from the carriers' published
 // signaling addresses (LIVEKIT_SIP_ALLOWED_ADDRESSES, default "telnyx twilio"; see inbound-allowlist.ts).
-// Safe to run again: the trunk is updated in place, the dispatch rule replaced.
+// Safe to run again: the trunk is updated in place, the dispatch rule replaced. Calls through the trunk end after
+// MAX_CALL_MINUTES, 2 hours (LiveKit hangs up; the assistant itself leaves after 25 minutes), set by writing the trunk back whole with the same numbers and addresses.
 // With --outbound also the outbound trunk warm transfers dial through ("linedesk-outbound"): the
 // carrier side is set up at TELEPHONY_PROVIDER (Telnyx for now) with a new password, and the numbers
 // are the caller IDs a transfer may show (each business's own Linedesk number).
@@ -14,7 +15,7 @@ import { RoomAgentDispatch, RoomConfiguration, SipClient } from 'livekit-server-
 import { AGENT_NAME, livekitHttpUrl, requireLivekitEnv, runScript } from './env.ts'
 import { inboundAllowlistFromEnv } from './inbound-allowlist.ts'
 import { parseSetupSipArgs } from './setup-args.ts'
-import { ensureInboundTrunk, INBOUND_TRUNK_NAME, openInboundWarnings, replaceOutboundTrunk, TRANSFER_TRUNK_NAME } from './sip-trunks.ts'
+import { ensureInboundTrunk, INBOUND_TRUNK_NAME, MAX_CALL_MINUTES, openInboundWarnings, replaceOutboundTrunk, TRANSFER_TRUNK_NAME } from './sip-trunks.ts'
 
 const NAME = INBOUND_TRUNK_NAME
 
@@ -30,7 +31,7 @@ async function main() {
   const { outbound, numbers } = args
   const sip = new SipClient(livekitHttpUrl(env.LIVEKIT_URL), env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET)
 
-  const trunkId = await ensureInboundTrunk(sip, numbers, allowlist.addresses)
+  const trunkId = await ensureInboundTrunk(sip, numbers, allowlist.addresses, NAME, { maxCallMinutes: MAX_CALL_MINUTES })
   for (const rule of await sip.listSipDispatchRule())
     if (rule.name === NAME) await sip.deleteSipDispatchRule(rule.sipDispatchRuleId)
   const rule = await sip.createSipDispatchRule(
@@ -41,7 +42,7 @@ async function main() {
       roomConfig: new RoomConfiguration({ agents: [new RoomAgentDispatch({ agentName: AGENT_NAME })] }),
     },
   )
-  console.log(`inbound trunk ${trunkId} accepts ${numbers.join(', ')}`)
+  console.log(`inbound trunk ${trunkId} accepts ${numbers.join(', ')}; calls end after ${MAX_CALL_MINUTES} minutes`)
   if (allowlist.addresses.length) {
     console.log(`  only from ${allowlist.sources.join(' + ')} signaling addresses (${allowlist.addresses.length}): ${allowlist.addresses.join(' ')}`)
   } else {

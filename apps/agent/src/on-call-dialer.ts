@@ -13,6 +13,7 @@ import {
   TrackPublishOptions,
   TrackSource,
 } from '@livekit/rtc-node'
+import { CALL_MAX_MINUTES } from '@linedesk/actions'
 import { AccessToken } from 'livekit-server-sdk'
 import type { SipClient } from 'livekit-server-sdk'
 import type { AgentConfig } from './config.ts'
@@ -38,8 +39,8 @@ const aborted = (signal: AbortSignal) =>
     signal.addEventListener('abort', () => reject(new Error('dial cancelled')), { once: true })
   })
 
-/** A transferred call never lasts longer than this on the on-call side. */
-const MAX_TRANSFER_SEC = 60 * 60
+/** A transferred call never lasts longer than this on the on-call side: the longest any call lasts. */
+const MAX_TRANSFER_SEC = CALL_MAX_MINUTES * 60
 
 /** Dials the on-call number through the outbound trunk, showing the business's Linedesk number. */
 export function sipDialer({
@@ -165,7 +166,7 @@ function voiceOf(config: AgentConfig, text: string): Promise<GreetingAudio> {
   return synthesize(createTts(config.tts, voiceId ? { provider: config.tts.provider, voice_id: voiceId } : null), text)
 }
 
-async function speak(source: AudioSource, audio: GreetingAudio) {
+export async function speak(source: AudioSource, audio: GreetingAudio) {
   const perFrame = (audio.sampleRate / 50) * audio.channels
   for (let at = 0; at < audio.samples.length; at += perFrame) {
     const chunk = audio.samples.slice(at, at + perFrame)

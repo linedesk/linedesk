@@ -2,7 +2,8 @@
 // limited to the carriers' signaling addresses. Outbound: one for the phone call test
 // ("linedesk-test-caller") and one for warm transfers ("linedesk-outbound"), each through the carrier's
 // credentials (OutboundSip).
-import { ListUpdate, type SIPDispatchRuleInfo, type SIPInboundTrunkInfo, SIPTransport } from '@livekit/protocol'
+import { ListUpdate, type SIPDispatchRuleInfo, SIPInboundTrunkInfo, SIPTransport } from '@livekit/protocol'
+import { CALL_MAX_MINUTES } from '@linedesk/actions'
 import { TRANSFER_OUTBOUND_NAME, type OutboundSip } from '@linedesk/telephony'
 import { SipClient } from 'livekit-server-sdk'
 import { livekitHttpUrl, requireLivekitEnv } from './env.ts'
@@ -38,7 +39,13 @@ export async function findOutboundTrunk(sip: SipClient, name = OUTBOUND_TRUNK_NA
   return (await sip.listSipOutboundTrunk()).find(trunk => trunk.name === name)?.sipTrunkId ?? null
 }
 
-type InboundSip = Pick<SipClient, 'listSipInboundTrunk' | 'createSipInboundTrunk' | 'updateSipInboundTrunkFields' | 'deleteSipTrunk'>
+type InboundSip = Pick<SipClient, 'listSipInboundTrunk' | 'createSipInboundTrunk' | 'updateSipInboundTrunkFields' | 'updateSipInboundTrunk' | 'deleteSipTrunk'>
+
+/**
+ * The longest a call through the inbound trunk lasts: LiveKit hangs up then, whatever the agent does. A call put
+ * through to a person may run this long; the assistant itself hangs up after ASSISTANT_CALL_MAX_MINUTES.
+ */
+export const MAX_CALL_MINUTES = CALL_MAX_MINUTES
 
 /**
  * Makes the inbound trunk of that name accept exactly these numbers from exactly these source addresses
@@ -46,16 +53,41 @@ type InboundSip = Pick<SipClient, 'listSipInboundTrunk' | 'createSipInboundTrunk
  * no call is refused while it runs; creates it if missing and deletes extra trunks of the same name.
  * Returns the trunk's id.
  */
-export async function ensureInboundTrunk(sip: InboundSip, numbers: string[], allowedAddresses: string[], name = INBOUND_TRUNK_NAME): Promise<string> {
+export async function ensureInboundTrunk(
+  sip: InboundSip, numbers: string[], allowedAddresses: string[], name = INBOUND_TRUNK_NAME, { maxCallMinutes }: { maxCallMinutes?: number } = {},
+): Promise<string> {
   const [existing, ...duplicates] = (await sip.listSipInboundTrunk()).filter(trunk => trunk.name === name)
   for (const duplicate of duplicates) await sip.deleteSipTrunk(duplicate.sipTrunkId)
-  if (!existing) return (await sip.createSipInboundTrunk(name, numbers, { allowedAddresses })).sipTrunkId
-  await sip.updateSipInboundTrunkFields(existing.sipTrunkId, {
-    numbers: new ListUpdate({ set: numbers }),
-    // An empty `set` would leave the list as it is; clearing it is how "any address" is written.
-    allowedAddresses: new ListUpdate(allowedAddresses.length ? { set: allowedAddresses } : { clear: true }),
+  let trunkId: string
+  if (existing) {
+    await sip.updateSipInboundTrunkFields(existing.sipTrunkId, {
+      numbers: new ListUpdate({ set: numbers }),
+      // An empty `set` would leave the list as it is; clearing it is how "any address" is written.
+      allowedAddresses: new ListUpdate(allowedAddresses.length ? { set: allowedAddresses } : { clear: true }),
+    })
+    trunkId = existing.sipTrunkId
+  } else trunkId = (await sip.createSipInboundTrunk(name, numbers, { allowedAddresses })).sipTrunkId
+  if (maxCallMinutes) await limitCallDuration(sip, trunkId, numbers, allowedAddresses, maxCallMinutes)
+  return trunkId
+}
+
+/**
+ * Sets the trunk's maximum call length. LiveKit only takes it in a whole new trunk (a replace), so the trunk as it
+ * is now is written back with it, carrying exactly the numbers and addresses just set: a replace with fewer
+ * numbers would take the missing ones offline, so it is refused before anything is sent.
+ */
+async function limitCallDuration(sip: InboundSip, trunkId: string, numbers: string[], allowedAddresses: string[], minutes: number) {
+  const current = (await sip.listSipInboundTrunk()).find(trunk => trunk.sipTrunkId === trunkId)
+  if (!current) throw new Error(`inbound trunk ${trunkId} is gone: its call length was not set`)
+  const replacement = SIPInboundTrunkInfo.fromJson({
+    ...(current.toJson() as Record<string, unknown>),
+    numbers, allowedAddresses, maxCallDuration: `${minutes * 60}s`,
   })
-  return existing.sipTrunkId
+  const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && [...a].sort().every((v, i) => v === [...b].sort()[i])
+  if (!same(replacement.numbers, numbers) || !same(replacement.allowedAddresses, allowedAddresses)) {
+    throw new Error(`inbound trunk ${trunkId}: the replacement would not carry every number and address; nothing changed`)
+  }
+  await sip.updateSipInboundTrunk(trunkId, replacement)
 }
 
 /**

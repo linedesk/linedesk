@@ -1,7 +1,7 @@
 import type { Assistant } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CALL_RULES } from '@linedesk/actions'
-import { callRulesToSave, disclosesAi, draftOf, isDefaultCallRules, draftProblem, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure, staleGreetingName, onCallProblem, transferToSave } from './assistantDraft.ts'
+import { DEFAULT_CALL_RULES, DEFAULT_SILENCE_CLOSING } from '@linedesk/actions'
+import { callRulesToSave, disclosesAi, draftOf, isDefaultCallRules, draftProblem, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure, staleGreetingName, onCallProblem, transferToSave, silenceProblem, silenceSummary, silenceToSave } from './assistantDraft.ts'
 
 const oldProfile = { description: 'Plumbing', services: ['Leak repair', ' ', 'Drains'], service_area: 'Portland', address: '1 Main St', hours: 'Mon–Fri', faqs: [{ q: 'Estimates?', a: 'Free.' }, { q: '', a: '' }] }
 const assistant = (over: Partial<Assistant> = {}) => ({ id: 'as1', name: 'Maya', greeting: 'Hello', disclose_ai: true, business_profile: oldProfile, voice: { provider: 'elevenlabs', voice_id: '' }, ...over }) as Assistant
@@ -108,5 +108,24 @@ describe('transfer', () => {
     expect(onCallProblem({ transfer_urgent: false, transfer_number: '+1 900 555 0199' })).toMatch(/Premium-rate/)
     expect(draftProblem(on(''))).toBe('Add the on-call number urgent calls go to.')
     expect(draftProblem(on('503 555 0199'))).toBeNull()
+  })
+})
+
+describe('silence on the line', () => {
+  it('defaults on: 8 s, asked twice, the default closing line (saved as null)', () => {
+    const d = draftOf(assistant())
+    expect(d).toMatchObject({ silence_first_gap_s: '8', silence_reminders: '2', silence_closing: DEFAULT_SILENCE_CLOSING })
+    expect(silenceProblem(d)).toBeNull()
+    expect(silenceToSave(d)).toEqual({ silence_first_gap_s: 8, silence_reminders: 2, silence_closing: null })
+    expect(silenceSummary(d)).toBe('Asks "Are you still there?" after 8, 24 seconds of silence, says the closing line and hangs up at 56 seconds. Never while a call is transferred.')
+  })
+  it('own values are kept and checked', () => {
+    const d = draftOf(assistant({ silence_first_gap_s: 5, silence_reminders: 0, silence_closing: 'Bye for now.' } as Partial<Assistant>))
+    expect(silenceToSave(d)).toEqual({ silence_first_gap_s: 5, silence_reminders: 0, silence_closing: 'Bye for now.' })
+    expect(silenceSummary(d)).toMatch(/^After 5 seconds of silence the assistant says the closing line/)
+    for (const bad of [{ silence_first_gap_s: '2' }, { silence_first_gap_s: 'ten' }, { silence_reminders: '9' }, { silence_closing: 'x'.repeat(201) }]) {
+      expect(silenceProblem({ ...d, ...bad }), JSON.stringify(bad).slice(0, 40)).not.toBeNull()
+      expect(draftProblem({ ...d, ...bad })).not.toBeNull()
+    }
   })
 })

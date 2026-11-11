@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto'
 import { expect, test, vi } from 'vitest'
-import { livekitStatus } from './livekit-status.ts'
+import { deleteLivekitRoom, livekitStatus } from './livekit-status.ts'
 
 const env = {
   LIVEKIT_URL: 'wss://livekit.example.test/',
@@ -76,4 +76,17 @@ test('a server without an inbound trunk cannot receive calls', async () => {
   const status = await livekitStatus(env, fetchMock as unknown as typeof fetch)
   expect(status.server.ok).toBe(true)
   expect(status.sip).toEqual({ ok: false, message: 'No inbound trunk, so no call can arrive (run setup-sip)' })
+})
+
+test('deleting a room: one signed DeleteRoom request; gone already counts as deleted; no LiveKit set up is false', async () => {
+  const fetchMock = answers({ DeleteRoom: [200, {}] })
+  expect(await deleteLivekitRoom('call-abc', env, fetchMock as unknown as typeof fetch)).toBe(true)
+  const [url, init] = fetchMock.mock.calls[0] as unknown as Call
+  expect(url).toBe('https://livekit.example.test/twirp/livekit.RoomService/DeleteRoom')
+  expect(JSON.parse(String(init.body))).toEqual({ room: 'call-abc' })
+  const claims = new Headers(init.headers).get('authorization')!.replace('Bearer ', '').split('.')[1]!
+  expect(JSON.parse(Buffer.from(claims, 'base64url').toString())).toMatchObject({ video: { roomCreate: true } })
+  expect(await deleteLivekitRoom('call-gone', env, answers({ DeleteRoom: [404, { code: 'not_found' }] }) as unknown as typeof fetch)).toBe(true)
+  expect(await deleteLivekitRoom('call-x', env, answers({ DeleteRoom: [401, {}] }) as unknown as typeof fetch)).toBe(false)
+  expect(await deleteLivekitRoom('call-x', {}, fetchMock as unknown as typeof fetch)).toBe(false)
 })
