@@ -45,3 +45,22 @@ export function hoursChanged(saved: readonly BusinessHoursSpan[], days: readonly
 /** Why the hours cannot be saved, in words for the user; null when they can. */
 export const hoursProblem = (days: readonly DayHours[]): string | null =>
   spansOf(days).some(h => h.end <= h.start) ? 'Each open day needs a closing time after its opening time.' : null
+
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+/** The week in one line, days with the same hours grouped: "Mon–Fri 7:00 AM–6:00 PM · Sat 8:00 AM–Noon". */
+export function weekSummary(days: readonly DayHours[]): string {
+  const groups: { first: number; last: number; text: string }[] = []
+  for (const weekday of WEEK_ORDER) {
+    const day = days.find(d => d.weekday === weekday)
+    if (!day?.open) continue
+    const text = `${timeOptionLabel(day.start)}–${timeOptionLabel(day.end)}`
+    const prev = groups.at(-1)
+    if (prev && prev.text === text && WEEK_ORDER.indexOf(prev.last as never) + 1 === WEEK_ORDER.indexOf(weekday)) prev.last = weekday
+    else groups.push({ first: weekday, last: weekday, text })
+  }
+  if (!groups.length) return 'Closed every day'
+  return groups
+    .map(g => `${DAY_SHORT[g.first]}${g.first === g.last ? '' : `–${DAY_SHORT[g.last]}`} ${g.text}`)
+    .join(' · ')
+}

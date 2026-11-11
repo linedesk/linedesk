@@ -2,6 +2,7 @@
 // `#calls` (Needs you), `#calls/done` (another view), `#calls?q=leak` (search),
 // `#calls/member/<user id>` (calls assigned to a member), `#calls?tag=new_lead` (calls with a tag; with a
 // search: `?q=…&tag=…`), `#call/<id>` (one call), `#assistant`, `#assistant/<section>`, `#account`, `#admin/<section>`.
+// Old links to moved sections are rewritten (movedHash).
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { type CallTag, callTags } from '@linedesk/db/types'
 import type { InboxTab } from '../inbox-model.ts'
@@ -57,13 +58,30 @@ export function parseHash(hash: string, last: InboxPlace = HOME): Location {
   return { route: 'calls', callId: null, tab: view as InboxTab, member: null, ...filters, known: true }
 }
 
+/** Sections that moved to another page: Business hours and Notifications are in the assistant's settings now. */
+const MOVED: Record<string, string> = { 'settings/hours': 'assistant/hours', 'settings/notifications': 'assistant/notifications' }
+
+/** Where an old link now points (`#settings/hours` → `#assistant/hours`), or null when it did not move. */
+export function movedHash(hash: string): string | null {
+  const [path = '', query] = hash.replace(/^#/, '').split('?')
+  const to = MOVED[path]
+  return to ? `#${to}${query ? `?${query}` : ''}` : null
+}
+
+/** The hash, after rewriting an old link in place (Back skips the old one). */
+function currentHash(): string {
+  const moved = movedHash(window.location.hash)
+  if (moved) window.history.replaceState(null, '', moved)
+  return window.location.hash
+}
+
 /** A new history entry. */
 const push = (hash: string) => { window.location.hash = hash }
 /** The same history entry, so Back skips it. */
 const replace = (hash: string) => window.history.replaceState(null, '', hash)
 
 export function useRoute() {
-  const [location, setLocation] = useState(() => parseHash(window.location.hash))
+  const [location, setLocation] = useState(() => parseHash(currentHash()))
   /** The latest location, also between a change and the next render (several changes can happen in one handler). */
   const current = useRef(location)
   /** True when the open call was reached from the inbox or a page in this tab, so closing it is a step back (to Contacts, say). */
@@ -71,7 +89,7 @@ export function useRoute() {
   const apply = useCallback((next: Location) => { current.current = next; setLocation(next) }, [])
 
   useEffect(() => {
-    const onHash = () => apply(parseHash(window.location.hash, current.current))
+    const onHash = () => apply(parseHash(currentHash(), current.current))
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [apply])

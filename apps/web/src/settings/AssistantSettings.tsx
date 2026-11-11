@@ -1,8 +1,9 @@
-// Assistant settings: name, greeting, AI disclosure, voice, the business's instructions, call rules,
-// transfer contacts and the calendar, one section at a time (#assistant/<id>/<section>). Edits in the text sections are one local
-// draft: Save runs assistant.update through the outbox; a section with unsaved
-// changes keeps a dot in the nav while you look at another one.
-import { type AssistantLanguages, CALL_RULES_MAX, CALLER_LANGUAGES, type CallerLanguage, callerLanguageCodes, DEFAULT_CALL_RULES, DEFAULT_KNOWN_CALLER_GREETING, GREETING_VARIABLES, knownCallerGreetingProblem, usesGreetingVariable, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS } from '@linedesk/actions'
+// Assistant settings by topic, one section at a time (#assistant/<id>/<section>): business info, hours and
+// holidays, calls and transfers (greeting, behaviour checklist, transfer contacts), emergencies,
+// notifications, booking, voice, and Advanced (languages, raw call rules, silence, keypad menu); AI disclosure is the first row of the checklist.
+// The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
+// with unsaved changes keeps a dot in the nav. Hours, holidays, notifications and booking save on their own.
+import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, CALL_RULES_MAX, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, DEFAULT_CALL_RULES, DEFAULT_KNOWN_CALLER_GREETING, knownCallerGreetingProblem, SILENCE_CLOSING_MAX, KEYPAD_MENU_LABEL_MAX, KEYPAD_MENU_MAX_OPTIONS, type AssistantLanguages, CALLER_LANGUAGES, type CallerLanguage, callerLanguageCodes, GREETING_VARIABLES, usesGreetingVariable } from '@linedesk/actions'
 import type { Assistant, KeypadMenuAction, KeypadMenuOption, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
@@ -13,7 +14,9 @@ import { Button, Icon } from '../ui/kit.tsx'
 import { LoadProblem, Skeleton, useLoadState } from '../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, sectionHash, useSection } from '../ui/SettingsLayout.tsx'
 import {
+  behavioursToSave,
   callRulesToSave,
+  newTransferContact,
   outsideToSave,
   type Draft,
   draftOf,
@@ -37,14 +40,12 @@ import {
   staleGreetingName,
   transferProblem,
   transfersToSave,
-  withDisclosure,
-  withoutDisclosure,
 } from './assistantDraft.ts'
 import { AssistantHeader } from './AssistantHeader.tsx'
 import { CalendarSettings } from './Calendar.tsx'
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
 import { EditBusinessHours } from './BusinessHoursDialog.tsx'
-import { Field, Section, SwitchRow, TextArea, TextInput, useRemembered } from './fields.tsx'
+import { Field, Section, SelectRow, SwitchRow, TextArea, TextInput, useRemembered } from './fields.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { Knowledge } from './Knowledge.tsx'
 import { VariableInput } from './VariableInput.tsx'
@@ -52,25 +53,39 @@ import { VoiceSettings } from './VoiceSettings.tsx'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
 import { TransferContacts, transferFieldId } from './TransferContacts.tsx'
+import { BusinessHours } from './BusinessHours.tsx'
+import { Emergencies } from './Emergencies.tsx'
+import { Holidays, VacationMode } from './Holidays.tsx'
+import { Notifications } from './Notifications.tsx'
 
-type SectionId = 'greeting' | 'voice' | 'knowledge' | 'rules' | 'transfer' | 'calendar' | 'advanced'
+type SectionId = 'business' | 'hours' | 'calls' | 'emergencies' | 'notifications' | 'booking' | 'voice' | 'advanced'
 const sections: readonly PageSection<SectionId>[] = [
-  { id: 'greeting', label: 'Greeting', description: 'First sentence, returning callers, AI disclosure' },
+  { id: 'business', label: 'Business info', description: 'What you do, services, prices, FAQs and documents' },
+  { id: 'hours', label: 'Hours & holidays', description: 'Weekly hours, holidays, vacation mode' },
+  { id: 'calls', label: 'Calls & transfers', description: 'Greeting, how calls are handled, who calls go to' },
+  { id: 'emergencies', label: 'Emergencies', description: 'Who takes urgent calls, what callers hear' },
+  { id: 'notifications', label: 'Notifications', description: 'New calls by email, in the browser and by push' },
+  { id: 'booking', label: 'Booking', description: 'Calendars and appointment types' },
   { id: 'voice', label: 'Voice', description: 'How the assistant sounds' },
-  { id: 'knowledge', label: 'Knowledge', description: 'Your business, services, prices and FAQs' },
-  { id: 'rules', label: 'Call rules', description: 'How calls are handled' },
-  { id: 'transfer', label: 'Transfers', description: 'Who callers are put through to, and when' },
-  { id: 'calendar', label: 'Calendar', description: 'Accounts, calendars and appointment types' },
-  { id: 'advanced', label: 'Advanced', description: 'Languages, silence on the line, keypad menu' },
+  { id: 'advanced', label: 'Advanced', description: 'Languages, call rules, silence, keypad menu' },
 ]
-/** Which draft fields each section holds; the calendar has its own. */
-const sectionFields: Record<Exclude<SectionId, 'calendar'>, (keyof Draft)[]> = {
-  greeting: ['name', 'greeting', 'disclose_ai', 'greeting_known_caller', 'greeting_outside'],
+/** Sections that save on their own, outside the assistant's draft. */
+type OwnSection = 'hours' | 'notifications' | 'booking'
+/** Which draft fields each section holds. */
+const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
+  business: ['instructions', 'services', 'faqs', 'website'],
+  calls: ['name', 'greeting', 'greeting_known_caller', 'greeting_outside', 'ai_disclosure', 'communication_style', 'behaviours', 'transfers'],
+  emergencies: ['emergency_note'],
   voice: ['voice'],
-  knowledge: ['instructions', 'services', 'faqs', 'website'],
-  rules: ['call_rules'],
-  transfer: ['transfers'],
-  advanced: ['silence_first_gap_s', 'silence_reminders', 'silence_closing', 'keypad_on', 'keypad_options', 'languages'],
+  advanced: ['call_rules', 'silence_first_gap_s', 'silence_reminders', 'silence_closing', 'keypad_on', 'keypad_options', 'languages'],
+}
+/** Section ids from before the regrouping, so old links and bookmarks still land in the right place. */
+const OLD_SECTIONS: Record<string, SectionId> = {
+  greeting: 'calls',
+  knowledge: 'business',
+  rules: 'advanced',
+  transfer: 'calls',
+  calendar: 'booking',
 }
 
 /** The assistant's name as the help texts say it, also while the name field is being edited. */
@@ -81,7 +96,6 @@ const count = (n: number) => n.toLocaleString('en-US')
 
 /** Whether the greeting's Advanced part is open; remembered in this browser. */
 const GREETING_ADVANCED_KEY = 'linedesk.assistant.greeting-advanced'
-
 function Greeting({
   draft,
   set,
@@ -94,11 +108,6 @@ function Greeting({
   const [remembered, remember] = useRemembered(GREETING_ADVANCED_KEY)
   // A problem in there shows it open, so the error is never hidden.
   const advancedOpen = remembered || !!knownProblem
-  /** The switch and the greeting say the same thing: turning it on or off adds or removes the disclosure. */
-  function disclose(on: boolean) {
-    set('disclose_ai', on)
-    set('greeting', on ? withDisclosure(draft.greeting, draft.name) : withoutDisclosure(draft.greeting))
-  }
   return (
     <Section id="as-greeting" title="Greeting">
       <Field id="as-greet" label="Greeting" error={draft.greeting.trim() ? null : 'The greeting cannot be empty.'}>
@@ -123,9 +132,9 @@ function Greeting({
         )}
       </Field>
       <details className="vp-more" open={advancedOpen} onToggle={e => remember(e.currentTarget.open)}>
-        <summary title="Returning callers, outside hours, AI disclosure">
+        <summary title="Returning callers, outside hours">
           <Icon name="down" size={14} className="vp-chevron" />
-          Advanced
+          More greetings
         </summary>
         <div className="vp-more-body">
           <Field id="as-greet-known" label="Returning callers" aside="Optional" error={knownProblem}>
@@ -163,15 +172,70 @@ function Greeting({
               </span>
             </Field>
           )}
-          <SwitchRow
-            title="Say it's an AI assistant"
-            description={draft.disclose_ai ? undefined : 'Some states require it.'}
-            on={draft.disclose_ai}
-            onChange={disclose}
-          />
         </div>
       </details>
     </Section>
+  )
+}
+
+/** The behaviour checklist: plain-language switches that add a line to the assistant's instructions. */
+function Behaviours({ draft, set }: SectionProps) {
+  return (
+    <Section
+      id="as-behaviour"
+      title="How calls are handled"
+      description="Switch on what fits your business."
+      help={`Each switch adds a sentence to ${assistantName(draft)}'s instructions. They come before the call rules under Advanced where the two differ.`}
+    >
+      <div className="as-checklist">
+        <AiDisclosureRow draft={draft} set={set} />
+        <SelectRow
+          id="as-style"
+          title="Communication style"
+          description="The tone your assistant uses"
+          value={draft.communication_style}
+          options={styleOptions}
+          onChange={style => set('communication_style', style)}
+        />
+        {BEHAVIOURS.map(b => (
+          <SwitchRow
+            key={b.id}
+            title={b.label}
+            aside={draft.behaviours[b.id] === b.on ? undefined : 'Changed'}
+            on={draft.behaviours[b.id]}
+            onChange={on => set('behaviours', { ...draft.behaviours, [b.id]: on })}
+          />
+        ))}
+      </div>
+    </Section>
+  )
+}
+
+const disclosureOptions = AI_DISCLOSURE_MODES.map(mode => ({ value: mode, label: AI_DISCLOSURE_LABELS[mode] }))
+const styleOptions = COMMUNICATION_STYLES.map(style => ({ value: style, label: COMMUNICATION_STYLE_LABELS[style] }))
+
+/**
+ * AI disclosure, the first row of the checklist. Picking a mode that says it at the start adds the note to
+ * the greeting (so the field shows what callers hear); the others take it out.
+ */
+function AiDisclosureRow({ draft, set }: SectionProps) {
+  function pick(mode: AiDisclosure) {
+    set('ai_disclosure', mode)
+    set('greeting', disclosesAtStart(mode) ? withDisclosure(draft.greeting, draft.name) : withoutDisclosure(draft.greeting))
+  }
+  const heard = disclosesAtStart(draft.ai_disclosure) && draft.greeting.trim()
+    ? greetingWithDisclosure(draft.greeting, draft.name, draft.ai_disclosure)
+    : null
+  return (
+    <SelectRow
+      id="as-ai-disclosure"
+      title="AI disclosure"
+      description="Whether and when your assistant mentions it's an AI"
+      note={heard && `Callers hear: "${heard}"`}
+      value={draft.ai_disclosure}
+      options={disclosureOptions}
+      onChange={pick}
+    />
   )
 }
 
@@ -181,7 +245,8 @@ function CallRules({ draft, set }: SectionProps) {
     <Section
       id="as-rules"
       title="Call rules"
-      help={`How ${assistantName(draft)} handles a call: what to ask, what to do with emergencies, prices and sales calls. Whatever the rules say, ${assistantName(draft)} always says it is an AI when asked and offers to take a message when it can't help.`}
+      description="The instructions behind the checklist, as text."
+      help={`How ${assistantName(draft)} handles a call: what to ask, what to do with emergencies, prices and sales calls. The checklist under Calls & transfers comes on top. Whatever the rules say, ${assistantName(draft)} always says it is an AI when asked and offers to take a message when it can't help.`}
       actions={
         <Button
           size="sm"
@@ -374,12 +439,24 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     if (previous !== saved) setDraft(d => mergeDraft(d, previous, saved))
   }, [saved])
   const set: SectionProps['set'] = (key, value) => setDraft(d => ({ ...d, [key]: value }))
+  // The transfer contact Emergencies sent the user to edit: shown open under Calls & transfers.
+  const [openTransfer, setOpenTransfer] = useState<string | null>(null)
+  function editTransfer(index: number) {
+    setOpenTransfer(draft.transfers[index]?.id ?? null)
+    goTo('calls', transferFieldId(index, 'number'))
+  }
+  function addEmergencyContact() {
+    const contact = newTransferContact(draft.transfers, 'emergency')
+    set('transfers', [...draft.transfers, contact])
+    setOpenTransfer(contact.id)
+    goTo('calls', transferFieldId(draft.transfers.length, 'number'))
+  }
   const hoursOn = useBusinessHoursOn()
   const changed = dirty
   const unsaved = useMemo(() => {
     const clean = [normalized(draft), normalized(saved)] as const
     const marked = new Set<SectionId>(
-      (Object.keys(sectionFields) as Exclude<SectionId, 'calendar'>[]).filter(id =>
+      (Object.keys(sectionFields) as Exclude<SectionId, OwnSection>[]).filter(id =>
         sectionFields[id].some(key => JSON.stringify(clean[0][key]) !== JSON.stringify(clean[1][key])),
       ),
     )
@@ -395,12 +472,12 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
   function save(e: FormEvent) {
     e.preventDefault()
     // The greeting shows its error under the field: go there instead of a toast that outlives the fix.
-    if (!draft.greeting.trim()) return goTo('greeting', 'as-greet')
-    if (knownCallerGreetingProblem(draft.greeting_known_caller)) return goTo('greeting', 'as-greet-known')
+    if (!draft.greeting.trim()) return goTo('calls', 'as-greet')
+    if (knownCallerGreetingProblem(draft.greeting_known_caller)) return goTo('calls', 'as-greet-known')
     const transfer = transferProblem(draft)
     if (transfer) {
       setTransferSaveTried(true)
-      return goTo('transfer', transferFieldId(transfer.index, transfer.field))
+      return goTo('calls', transferFieldId(transfer.index, transfer.field))
     }
     if (silenceProblem(draft)) return goTo('advanced', 'as-silence-gap')
     if (keypadProblem(draft)) return goTo('advanced', 'as-keypad-label-0')
@@ -413,15 +490,20 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
       void run('assistant.update', {
         assistantId: assistant.id,
         greeting: clean.greeting,
-        disclose_ai: clean.disclose_ai,
+        ai_disclosure: clean.ai_disclosure,
+        communication_style: clean.communication_style,
+        // For a web app of the release before, which still shows the switch.
+        disclose_ai: disclosesAtStart(clean.ai_disclosure),
         greeting_known_caller: clean.greeting_known_caller,
         business_profile: profileOf(clean),
         call_rules: callRulesToSave(clean),
         ...outsideToSave(clean),
         // Only when changed: putting calls through to a number waits for a confirmed email, other edits do not.
-        ...(unsaved.has('transfer') ? { transfers: transfersToSave(clean) } : {}),
+        ...(JSON.stringify(clean.transfers) !== JSON.stringify(normalized(saved).transfers) ? { transfers: transfersToSave(clean) } : {}),
         ...silenceToSave(clean),
         ...keypadToSave(clean),
+        behaviours: behavioursToSave(clean),
+        emergency_note: clean.emergency_note,
         ...languagesToSave(clean),
         voice: clean.voice,
       })
@@ -438,72 +520,103 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
       ? `Unsaved changes in ${elsewhere.map(id => sections.find(s => s.id === id)!.label).join(', ')}${unsaved.has(current) ? ' and here' : ''}`
       : undefined
 
-  return (
-    <form onSubmit={save} onKeyDown={e => onSaveKey(e, canEdit && changed)}>
-      <SettingsLayout
-        page={page}
-        title="Assistant"
-        heading={
-          <AssistantHeader
+  // Hours and holidays have forms of their own; everything else is inside the draft's form.
+  const body = (
+    <>
+      <fieldset className="st-fields" disabled={!canEdit}>
+        {current === 'business' && (
+          <Knowledge
             assistant={assistant}
-            assistants={assistants}
-            numbers={numbers}
+            draft={draft}
+            set={set}
+            replace={setDraft}
             canEdit={canEdit}
-            onPick={onPick}
-            onRenamed={setRenamedFrom}
             toast={toast}
           />
-        }
-        description={canEdit ? undefined : 'Only owners and admins can change these.'}
-        actions={<TestCallButton session={testCall} />}
-        banner={<TestCallPanel session={testCall} />}
-        sections={sections}
-        current={current}
-        unsaved={unsaved}
-      >
-        <fieldset className="st-fields" disabled={!canEdit}>
-          {current === 'greeting' && <Greeting draft={draft} set={set} renamedFrom={renamedFrom} hoursOn={hoursOn} canEdit={canEdit} />}
-          {current === 'voice' && (
-            <VoiceSettings
-              assistantId={assistant.id}
-              voice={draft.voice}
-              onPick={v => set('voice', v)}
-              canEdit={canEdit}
-              toast={toast}
-            />
-          )}
-          {current === 'knowledge' && (
-            <Knowledge
-              assistant={assistant}
-              draft={draft}
-              set={set}
-              replace={setDraft}
-              canEdit={canEdit}
-              toast={toast}
-            />
-          )}
-          {current === 'rules' && <CallRules draft={draft} set={set} />}
-          {current === 'transfer' && (
+        )}
+        {current === 'calls' && (
+          <>
+            <Greeting draft={draft} set={set} renamedFrom={renamedFrom} hoursOn={hoursOn} canEdit={canEdit} />
+            <Behaviours draft={draft} set={set} />
             <TransferContacts
               transfers={draft.transfers}
               onChange={list => set('transfers', list)}
               hoursOn={hoursOn}
               assistantName={assistantName(draft)}
               showErrors={transferSaveTried}
+              initiallyOpen={openTransfer}
             />
-          )}
-          {current === 'advanced' && (
-            <>
-              <Languages draft={draft} set={set} />
-              <Advanced draft={draft} set={set} />
-              <KeypadMenu draft={draft} set={set} />
-            </>
-          )}
-        </fieldset>
-        {current === 'calendar' && <CalendarSettings assistant={assistant} canEdit={canEdit} toast={toast} />}
-        {canEdit && <SaveBar dirty={changed} onCancel={cancel} note={note} />}
-      </SettingsLayout>
-    </form>
+          </>
+        )}
+        {current === 'emergencies' && (
+          <Emergencies
+            draft={draft}
+            set={set}
+            name={assistantName(draft)}
+            hoursOn={hoursOn}
+            canEdit={canEdit}
+            onEdit={editTransfer}
+            onAdd={addEmergencyContact}
+          />
+        )}
+        {current === 'voice' && (
+          <VoiceSettings
+            assistantId={assistant.id}
+            voice={draft.voice}
+            onPick={v => set('voice', v)}
+            canEdit={canEdit}
+            toast={toast}
+          />
+        )}
+        {current === 'advanced' && (
+          <>
+            <Languages draft={draft} set={set} />
+            <CallRules draft={draft} set={set} />
+            <Advanced draft={draft} set={set} />
+            <KeypadMenu draft={draft} set={set} />
+          </>
+        )}
+      </fieldset>
+      {current === 'notifications' && <Notifications toast={toast} />}
+      {current === 'booking' && <CalendarSettings assistant={assistant} canEdit={canEdit} toast={toast} />}
+      {canEdit && <SaveBar dirty={changed} onCancel={cancel} note={note} />}
+    </>
+  )
+
+  return (
+    <SettingsLayout
+      page={page}
+      title="Assistant"
+      heading={
+        <AssistantHeader
+          assistant={assistant}
+          assistants={assistants}
+          numbers={numbers}
+          canEdit={canEdit}
+          onPick={onPick}
+          onRenamed={setRenamedFrom}
+          toast={toast}
+        />
+      }
+      description={canEdit ? undefined : 'Only owners and admins can change these.'}
+      actions={<TestCallButton session={testCall} />}
+      banner={<TestCallPanel session={testCall} />}
+      sections={sections}
+      current={current}
+      unsaved={unsaved}
+    >
+      {current === 'hours' ? (
+        <>
+          <BusinessHours canEdit={canEdit} />
+          <Holidays canEdit={canEdit} toast={toast} />
+          <VacationMode canEdit={canEdit} toast={toast} />
+        </>
+      ) : (
+        <form onSubmit={save} onKeyDown={e => onSaveKey(e, canEdit && changed)}>
+          {body}
+        </form>
+      )}
+    </SettingsLayout>
   )
 }
 
@@ -513,14 +626,31 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
  */
 function returnFromCalendarConnect(assistants: Assistant[]) {
   const [path, query] = window.location.hash.replace(/^#/, '').split('?')
-  if (path !== 'assistant/calendar') return
+  if (path !== 'assistant/calendar' && path !== 'assistant/booking') return
   let id: string | null = null
   try {
     id = sessionStorage.getItem(CONNECT_RETURN_KEY)
     sessionStorage.removeItem(CONNECT_RETURN_KEY)
   } catch {}
   const assistant = assistants.find(a => a.id === id) ?? assistants[0]
-  if (assistant) history.replaceState(null, '', `#assistant/${assistant.id}/calendar${query ? `?${query}` : ''}`)
+  if (assistant) history.replaceState(null, '', `#assistant/${assistant.id}/booking${query ? `?${query}` : ''}`)
+}
+
+/**
+ * Old and short links in place: `#assistant/<section>` (no assistant) goes to the first assistant, and a
+ * section id from before the regrouping (`greeting`, `knowledge`, `rules`, `transfer`, `calendar`) to its new one.
+ */
+function canonicalAssistantHash(assistants: Assistant[]) {
+  const [path = '', query] = window.location.hash.replace(/^#/, '').split('?')
+  const [page, ...parts] = path.split('/')
+  if (page !== 'assistant' || !parts.length) return
+  const isAssistant = assistants.some(a => a.id === parts[0])
+  const id = isAssistant ? parts[0]! : assistants[0]?.id
+  const section = isAssistant ? parts[1] : parts[0]
+  if (!id || !section) return
+  const next = OLD_SECTIONS[section] ?? section
+  if (isAssistant && next === section) return
+  history.replaceState(null, '', `#assistant/${id}/${next}${query ? `?${query}` : ''}`)
 }
 
 /** The assistant the hash names (`#assistant/<id>/<section>`), else the workspace's first. */
@@ -558,10 +688,13 @@ export function AssistantSettings(props: Props) {
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
-  if (assistants.length) returnFromCalendarConnect(assistants)
+  if (assistants.length) {
+    returnFromCalendarConnect(assistants)
+    canonicalAssistantHash(assistants)
+  }
   const assistant = assistantInHash(assistants)
   const onPick = useCallback((id: string) => {
-    window.location.hash = `#assistant/${id}/greeting`
+    window.location.hash = `#assistant/${id}/${sections[0]!.id}`
   }, [])
   return (
     <div className="page">

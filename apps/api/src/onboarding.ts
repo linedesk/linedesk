@@ -71,6 +71,8 @@ export const newAssistant = (workspaceId: string, businessName: string) => ({
   id: `as_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
   workspace_id: workspaceId,
   greeting: `Thanks for calling ${businessName}. This is Maya, the AI assistant. How can I help?`,
+  // The greeting says it: the mode that keeps it there.
+  ai_disclosure: 'at_start' as const,
 })
 
 /** The rows every workspace needs besides the organization: its assistant and its settings. Missing ones are added. */

@@ -78,7 +78,7 @@ export const assistantHandlers: Record<string, Handler> = {
           created_at: undefined,
           version: undefined,
         }
-      : { id: newId(), workspace_id: workspaceId, name, greeting: greetingFor(org?.name ?? 'us', name) }
+      : { id: newId(), workspace_id: workspaceId, name, greeting: greetingFor(org?.name ?? 'us', name), ai_disclosure: 'at_start' as const }
     const rows = await tx.insert(assistants).values(values).returning()
     return { rows: { assistants: rows }, data: { assistantId: rows[0]!.id } }
   },

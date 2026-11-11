@@ -1,7 +1,7 @@
 import type { Assistant } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CALL_RULES, DEFAULT_SILENCE_CLOSING } from '@linedesk/actions'
-import { callRulesToSave, disclosesAi, draftOf, isDefaultCallRules, draftProblem, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, withDisclosure, withoutDisclosure, staleGreetingName, transferProblem, transfersToSave, newTransferContact, moveTransfer, transferInactive, silenceProblem, silenceSummary, silenceToSave, keypadProblem, keypadToSave, nextFreeKey } from './assistantDraft.ts'
+import { DEFAULT_CALL_RULES, DEFAULT_SILENCE_CLOSING, disclosesAi, withDisclosure, withoutDisclosure } from '@linedesk/actions'
+import { callRulesToSave, draftOf, isDefaultCallRules, draftProblem, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, staleGreetingName, transferProblem, transfersToSave, newTransferContact, moveTransfer, transferInactive, silenceProblem, silenceSummary, silenceToSave, keypadProblem, keypadToSave, nextFreeKey } from './assistantDraft.ts'
 
 const oldProfile = { description: 'Plumbing', services: ['Leak repair', ' ', 'Drains'], service_area: 'Portland', address: '1 Main St', hours: 'Mon–Fri', faqs: [{ q: 'Estimates?', a: 'Free.' }, { q: '', a: '' }] }
 const assistant = (over: Partial<Assistant> = {}) => ({ id: 'as1', name: 'Maya', greeting: 'Hello', disclose_ai: true, business_profile: oldProfile, voice: { provider: 'elevenlabs', voice_id: '' }, ...over }) as Assistant

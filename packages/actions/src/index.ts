@@ -105,6 +105,7 @@ const all = [
   settings.workspaceGetSettings,
   settings.workspaceUpdateSettings,
   settings.businessHoursSet,
+  settings.closedDaysSet,
   sample.sampleAdd,
   sample.sampleRemove,
   notifications.notificationsGet,

@@ -55,8 +55,8 @@ async function seedBusinessHours(workspace_id: string) {
   await db
     .insert(availability_exceptions)
     .values([
-      { id: id('ae', 0), workspace_id, date: '2026-11-26' }, // Thanksgiving
-      { id: id('ae', 1), workspace_id, date: '2026-12-25' },
+      { id: id('ae', 0), workspace_id, date: '2026-11-26', name: 'Thanksgiving' },
+      { id: id('ae', 1), workspace_id, date: '2026-12-25', name: 'Christmas Day' },
     ])
     .onConflictDoNothing()
 }

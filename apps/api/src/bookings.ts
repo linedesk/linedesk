@@ -2,11 +2,12 @@
 // calendar's busy times at the provider), booking into one of the assistant's calendars, cancelling,
 // and the appointment types. Also what call.start tells the agent about booking.
 import { type BookData, type BookingContext, type BookingFieldInput, type CallTestFinding, type FindSlotsData, isE164 } from '@linedesk/actions'
-import { type BookWhen, buffersOf, CalendarError, type CalendarProvider, findSlots, type FindSlotsInput, hoursFor, type Interval, type WorkingHours, zonedTimeToInstant } from '@linedesk/calendar'
+import { addDays, type BookWhen, buffersOf, CalendarError, type CalendarProvider, findSlots, type FindSlotsInput, type HoursException, hoursFor, type Interval, type WorkingHours, zonedTimeToInstant } from '@linedesk/calendar'
 import {
   appointment_types, assistant_calendars, assistants, availability_exceptions, availability_rules, bookings, calendar_connections, calls, contacts, 
   type AppointmentType, type AssistantCalendar, type BookingField, type Tx, workspace_settings,
 } from '@linedesk/db'
+import type { Closure } from '@linedesk/db/types'
 import { and, asc, eq, gt, gte, inArray, lt, lte, ne, sql } from 'drizzle-orm'
 import { WEB_ORIGIN } from './auth.ts'
 import { queueBookingConfirmation, queueCallPush } from './jobs.ts'
@@ -74,6 +75,28 @@ function loadExceptions(tx: Tx, workspaceId: string, window: Interval) {
   ))
 }
 
+/** The workspace's vacation or closure mode, or null. */
+async function closureOf(tx: Tx, workspaceId: string): Promise<Closure | null> {
+  const [row] = await tx.select({ closure: workspace_settings.closure }).from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
+  return row?.closure ?? null
+}
+
+/** The closure's dates that `window` can touch, as closed days (a day of slack on each side, as for exceptions). */
+export function closureDays(closure: Closure | null, window: Interval): HoursException[] {
+  if (!closure) return []
+  const first = [closure.from, shift(window.start, -DAY_MS).slice(0, 10)].sort().at(-1)!
+  const last = [closure.until, shift(window.end, DAY_MS).slice(0, 10)].sort()[0]!
+  const days: HoursException[] = []
+  for (let date = first; date <= last; date = addDays(date, 1)) days.push({ date, start_time: null, end_time: null })
+  return days
+}
+
+/** Closure days win over a holiday with its own hours on the same date. */
+const withClosure = (exceptions: readonly HoursException[], closed: HoursException[]) => {
+  const dates = new Set(closed.map(d => d.date))
+  return [...exceptions.filter(e => !dates.has(e.date)), ...closed]
+}
+
 /** Stored calendar setup the engine cannot work with is the caller's problem to fix, not a server error. */
 function findSlotsOrReject(input: FindSlotsInput) {
   try {
@@ -131,11 +154,13 @@ async function availableSlots(tx: Tx, workspaceId: string, timeZone: string, { t
     calendar ? atProvider(() => calendar.provider.busy([calendar.row.external_id], { start: shift(window.start, -buffer), end: shift(window.end, buffer) })) : [],
   ])
   // The type says how it relates to the business hours (yours when switched on, else the default ones).
-  const when = hoursFor(type.book_when, rules ?? DEFAULT_BOOKING_HOURS, rules ? await loadExceptions(tx, workspaceId, window) : [])
+  // Holidays apply to the default hours too.
+  const when = hoursFor(type.book_when, rules ?? DEFAULT_BOOKING_HOURS, await loadExceptions(tx, workspaceId, window))
   return findSlotsOrReject({
     timeZone,
     hours: when.hours,
-    exceptions: when.exceptions,
+    // Vacation or closure mode closes its days whatever the type's hours say.
+    exceptions: withClosure(when.exceptions, closureDays(await closureOf(tx, workspaceId), window)),
     appointmentType: type,
     busy: [...local, ...remote],
     window,

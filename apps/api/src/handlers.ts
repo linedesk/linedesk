@@ -1,10 +1,10 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
 import { actions, ASSISTANT_CALL_MAX_MINUTES, type CallCustomField, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, } from '@linedesk/actions'
-import { businessHoursContext, type BusinessHoursContext, } from '@linedesk/calendar'
-import {availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, syncedTables,
+import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, localDate } from '@linedesk/calendar'
+import {availability_exceptions, availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, syncedTables,
   transcript_segments, workspace_members, workspace_settings, type Tx,
 } from '@linedesk/db'
-import type { Assistant, PhoneNumber, TransferContact } from '@linedesk/db/types'
+import type { Assistant, Closure, PhoneNumber, TransferContact } from '@linedesk/db/types'
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { and, asc, desc, eq, gt, gte, or, sql, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
@@ -139,22 +139,52 @@ const releaseBought = (provider: TelephonyProvider, number: { e164: string; prov
   }
 }
 
+/** The business hours `call.start` gives the agent; `closure` while vacation or closure mode is on. */
+export type CallHours = Pick<BusinessHoursContext, 'openNow' | 'summary'> &
+  Partial<BusinessHoursContext> & { closure?: Pick<Closure, 'greeting' | 'transfers'> }
+
+/** The closure as the agent hears it, when today (in the workspace's zone) is one of its days; else null. */
+export function closureNow(closure: Closure | null | undefined, timeZone: string, nowMs: number): CallHours | null {
+  if (!closure) return null
+  const today = localDate(nowMs, timeZone)
+  if (today < closure.from || today > closure.until) return null
+  const back = dateLabel(addDays(closure.until, 1))
+  return {
+    openNow: false,
+    summary: `The business is closed for a break from ${dateLabel(closure.from)} to ${dateLabel(closure.until)}, and back on ${back}. Regular hours and appointments resume then.`,
+    closure: { greeting: closure.greeting, transfers: closure.transfers },
+  }
+}
+
 /**
  * The workspace's business hours for the voice agent: open now or not, when that changes, and a
- * sentence it can use ("Closed now; opens tomorrow at 7:00 AM"). null when no hours are set.
+ * sentence it can use ("Closed now; opens tomorrow at 7:00 AM"), holidays included. Vacation or
+ * closure mode wins over the hours, also when the workspace does not use hours. null: nothing to say.
  */
-async function businessHoursFor(tx: Tx, workspace_id: string, now: string): Promise<BusinessHoursContext | null> {
+async function businessHoursFor(tx: Tx, workspace_id: string, now: string): Promise<CallHours | null> {
+  const [settings] = await tx.select({ timezone: workspace_settings.timezone, on: workspace_settings.business_hours_on, closure: workspace_settings.closure }).from(workspace_settings).where(eq(workspace_settings.workspace_id, workspace_id))
+  const timeZone = settings?.timezone ?? DEFAULT_TIME_ZONE
+  const closed = closureNow(settings?.closure, timeZone, Date.parse(now))
+  if (closed) return closed
   // Hours are opt-in: until the workspace turns them on the assistant says nothing about them.
-  const [settings] = await tx.select({ timezone: workspace_settings.timezone, on: workspace_settings.business_hours_on }).from(workspace_settings).where(eq(workspace_settings.workspace_id, workspace_id))
   if (!settings?.on) return null
   const rules = await tx.select().from(availability_rules).where(eq(availability_rules.workspace_id, workspace_id))
   if (!rules.length) return null
+  const exceptions = await tx.select().from(availability_exceptions).where(and(eq(availability_exceptions.workspace_id, workspace_id), gte(availability_exceptions.date, localDate(Date.parse(now), timeZone))))
   try {
-    return businessHoursContext(rules, settings?.timezone ?? DEFAULT_TIME_ZONE, Date.parse(now))
+    const hours = businessHoursContext(rules, timeZone, Date.parse(now), exceptions)
+    return hours && withUpcomingClosure(hours, settings.closure, timeZone, Date.parse(now))
   } catch (e) {
     console.warn(`business hours of ${workspace_id} could not be read: ${errorMessage(e)}`)
     return null
   }
+}
+
+/** A closure that starts in the next two weeks is mentioned, so the assistant can tell callers ahead. */
+function withUpcomingClosure(hours: CallHours, closure: Closure | null | undefined, timeZone: string, nowMs: number): CallHours {
+  const today = localDate(nowMs, timeZone)
+  if (!closure || closure.from <= today || closure.from > addDays(today, 14)) return hours
+  return { ...hours, summary: `${hours.summary} The business will be closed for a break from ${dateLabel(closure.from)} to ${dateLabel(closure.until)}.` }
 }
 
 type OpenCall = { from: string; to: string; room?: string; source?: 'phone' | 'test'; label: string; assistant: Assistant | null }

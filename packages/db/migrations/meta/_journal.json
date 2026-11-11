@@ -393,6 +393,13 @@
       "when": 1794408414932,
       "tag": "0055_assistant_languages",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1794408922654,
+      "tag": "0056_settings_sections",
+      "breakpoints": true
     }
   ]
 }

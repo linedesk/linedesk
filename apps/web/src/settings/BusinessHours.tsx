@@ -1,12 +1,10 @@
-// Settings, Business hours: opt-in and workspace-wide. Turned on, the weekly hours reach the voice
-// agent with each call (open now or not, when that changes) and greeting and instructions may have an
-// outside-hours variant. Off, the assistant says nothing about hours. The switch saves at once; the
-// weekly grid is a draft with Cancel / Save (⌘S).
-import { type FormEvent, useState } from 'react'
+// Business hours, opt-in and workspace-wide. Turned on, the weekly hours reach the voice agent with each
+// call (open now or not, when that changes) and the greeting may have an outside-hours variant. Off, the
+// assistant says nothing about hours. Edited in BusinessHoursDialog (its grid and time zone are here);
+// Assistant › Hours & holidays shows them in one line.
+import { useState } from 'react'
 import { useRun } from '../store.tsx'
 import { Select, type SelectOption, Switch } from '../ui/controls.tsx'
-import { onSaveKey, SaveBar } from '../ui/form.tsx'
-import { Button } from '../ui/kit.tsx'
 import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
 import { Section } from './fields.tsx'
 import {
@@ -18,7 +16,9 @@ import {
   spansOf,
   timeOptions,
   WEEK_ORDER,
+  weekSummary,
 } from './businessHoursModel.ts'
+import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
 import { timeZoneLabel, timeZoneOptions } from './timeZones.ts'
 
@@ -66,8 +66,6 @@ export function useBusinessHours() {
     },
   }
 }
-
-type Props = { canEdit: boolean; toast: (text: string) => void }
 
 /** Opens or closes a day. A day that opens takes the hours of the day before it, else 8:00 AM–5:00 PM. */
 function openChange(days: readonly DayHours[], weekday: number, open: boolean): Partial<DayHours> {
@@ -152,74 +150,35 @@ export function TimeZoneSelect({
   )
 }
 
-/** The Business hours section of Settings: the main switch, and the weekly grid while it is on. */
-export function BusinessHours({ canEdit, toast }: Props) {
-  const run = useRun()
+/**
+ * Assistant › Hours & holidays: the weekly hours in one line and whether they are used; "Edit business hours"
+ * opens the same editor as everywhere else that depends on them (BusinessHoursDialog).
+ */
+export function BusinessHours({ canEdit }: { canEdit: boolean }) {
   const hours = useBusinessHours()
-  const { saved, days, timeZone, loadError, problem, set, on, dirty } = hours
-  function save(e: FormEvent) {
-    e.preventDefault()
-    if (problem) return toast(problem)
-    hours.save()
-    toast('Business hours saved.')
-  }
-  // The time zone saves at once, like the switch: it is one choice, not part of the grid's draft.
-  function changeTimeZone(zone: string) {
-    patchWorkspaceSettings({ timeZone: zone })
-    void run('workspace.updateSettings', { timeZone: zone })
-    toast(`Time zone set to ${timeZoneLabel(zone)}.`)
-  }
-
-  const help =
-    'Your assistant tells callers when you are open and, when you are closed, when to expect a call back. Appointment types are booked inside these hours unless a type says otherwise, and the greeting and instructions can be different outside them.'
-  const mainSwitch = (
-    <span className="bh-main">
-      <span className="help">Use business hours</span>
-      <Switch on={on} onChange={hours.setOn} label="Use business hours" disabled={!canEdit || !saved} />
-    </span>
-  )
-  if (!saved)
-    return (
-      <Section id="st-hours" title="Business hours" help={help} actions={mainSwitch}>
-        {loadError ? (
+  const { saved, days, timeZone, loadError, on } = hours
+  return (
+    <Section
+      id="st-hours"
+      title="Business hours"
+      description={on ? undefined : 'Off'}
+      help="Your assistant tells callers when you are open and, when you are closed, when to expect a call back. Appointments are only booked inside these hours unless a type says otherwise, and the greeting can be different outside them."
+      actions={<EditBusinessHours canEdit={canEdit} label={on ? 'Edit business hours' : 'Set business hours'} />}
+    >
+      {!saved ? (
+        loadError ? (
           <LoadProblem what="Business hours" message={loadError} onRetry={() => void hours.retry()} />
         ) : (
-          <SkeletonRows label="Loading business hours" rows={3} />
-        )}
-      </Section>
-    )
-  return (
-    <form onSubmit={save} onKeyDown={e => onSaveKey(e, canEdit && dirty)}>
-      <Section
-        id="st-hours"
-        title="Business hours"
-        description={on ? undefined : 'Off'}
-        help={help}
-        actions={mainSwitch}
-      >
-        {on && (
-          <>
-            <HoursGrid days={days} set={set} canEdit={canEdit} />
-            {problem && (
-              <p className="field-error" role="alert">
-                {problem}
-              </p>
-            )}
-            <div className="st-hours-foot">
-              <span className="st-tz">
-                <span className="help">Times in</span>
-                <TimeZoneSelect value={timeZone} onChange={changeTimeZone} disabled={!canEdit} />
-              </span>
-              {canEdit && days.some(d => d.open) && (
-                <Button size="sm" variant="ghost" onClick={hours.clear} title="Close every day">
-                  Clear hours
-                </Button>
-              )}
-            </div>
-          </>
-        )}
-      </Section>
-      {canEdit && <SaveBar dirty={dirty} onCancel={hours.discard} />}
-    </form>
+          <SkeletonRows label="Loading business hours" rows={1} />
+        )
+      ) : on ? (
+        <p className="bh-summary">
+          {weekSummary(days)}
+          <span className="help"> · {timeZoneLabel(timeZone)}</span>
+        </p>
+      ) : (
+        <p className="help">Not used: bookings use Monday to Friday, 9 to 5, and greetings and transfers do not depend on the time.</p>
+      )}
+    </Section>
   )
 }

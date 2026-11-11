@@ -94,7 +94,7 @@ describe('call summary', () => {
     expect(email.text).toContain('- Call back before noon')
     expect(email.text).toContain('https://desk.example.com/#call/call_1')
     expect(email.html).toContain('href="https://desk.example.com/#call/call_1"')
-    expect(email.html).toContain('href="https://desk.example.com/#settings/notifications"')
+    expect(email.html).toContain('href="https://desk.example.com/#assistant/notifications"')
     expect(email.html).not.toContain('class="ld-badge"')
   })
 

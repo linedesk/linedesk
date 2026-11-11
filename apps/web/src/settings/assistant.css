@@ -633,6 +633,49 @@
   }
 }
 
+/* Calls & transfers: the behaviour checklist, one switch per line */
+.as-checklist {
+  display: grid;
+  gap: 10px;
+}
+.as-checklist > .swrow:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Hours & holidays: add a day, vacation mode */
+.hd-add {
+  margin-top: 4px;
+}
+.hd-add .hd-date {
+  flex: 0 0 160px;
+}
+.hd-vac,
+.hd-on {
+  display: grid;
+  gap: 12px;
+}
+.hd-range {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 200px));
+  gap: 12px;
+}
+.hd-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.hd-quote {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink);
+}
+@media (max-width: 520px) {
+  .hd-range {
+    grid-template-columns: 1fr;
+  }
+}
+/* "Edit business hours" next to a setting that depends on them; it opens BusinessHoursDialog. */
 .as-hours-line {
   display: flex;
 }
@@ -642,6 +685,50 @@
 .bh-dialog {
   display: grid;
   gap: 12px;
+}
+
+/* Hours & holidays: the weekly hours in one line */
+.bh-summary {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+/* A setting with a dropdown in place of a switch (SelectRow): AI disclosure, communication style */
+.selrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.as-checklist > .selrow:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.selrow-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.selrow-text b {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.selrow > .k-select {
+  flex: none;
+}
+.selrow-note {
+  margin-top: 2px;
+  font-style: italic;
+}
+@media (max-width: 560px) {
+  .selrow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
 }
 
 /* Text with variables as pills (VariableInput) */

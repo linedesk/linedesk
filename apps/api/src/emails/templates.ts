@@ -282,7 +282,7 @@ export function callEmail(call: CallEmail, origin = WEB_ORIGIN): RenderedEmail {
     heading: topic,
     blocks,
     reason: `You get one email per call to ${call.workspace}.`,
-    settings: { label: 'Change in Settings, Notifications', url: `${origin}/#settings/notifications` },
+    settings: { label: 'Change in Assistant, Notifications', url: `${origin}/#assistant/notifications` },
     origin,
   })
 }
@@ -324,7 +324,7 @@ export function assignedCallEmail(a: AssignedCallEmail, origin = WEB_ORIGIN): Re
     heading: topic,
     blocks,
     reason: `You got this email because a teammate in ${a.workspace} assigned you a call.`,
-    settings: { label: 'Change in Settings, Notifications', url: `${origin}/#settings/notifications` },
+    settings: { label: 'Change in Assistant, Notifications', url: `${origin}/#assistant/notifications` },
     origin,
   })
 }

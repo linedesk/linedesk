@@ -50,31 +50,66 @@ function whenLabel(date: string, today: string, time: string): string {
   return `${day} at ${timeLabel(time)}`
 }
 
-/** Null when the workspace has no hours: the assistant then says nothing about opening times. */
+/** A holiday or closure day: closed all day (no times) or open only start–end. */
+export type DayException = { date: string; start_time: string | null; end_time: string | null; name?: string }
+
+/** "Thursday, November 26". */
+export function dateLabel(date: string): string {
+  return new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })
+}
+
+/** How far ahead the next opening is looked for (a closure can be weeks long). */
+const LOOKAHEAD_DAYS = 45
+/** Holidays this many days ahead are mentioned, so the assistant can answer "are you open on…". */
+const UPCOMING_DAYS = 14
+
+/** The open spans of one date: its exceptions if it has any, else the weekly hours. */
+function daySpans(date: string, weekly: BusinessHoursContext['weekly'], exceptions: readonly DayException[]) {
+  const own = exceptions.filter(e => e.date === date)
+  if (!own.length) return weekly.filter(w => w.weekday === weekdayOf(date))
+  return own.flatMap(e => (e.start_time && e.end_time ? [{ weekday: weekdayOf(date), start: hhmm(e.start_time), end: hhmm(e.end_time) }] : []))
+}
+
+/** "Thanksgiving, Thursday, November 26: closed." for the holidays of the next two weeks; null when there are none. */
+function upcomingLabel(exceptions: readonly DayException[], today: string): string | null {
+  const last = addDays(today, UPCOMING_DAYS)
+  const days = exceptions.filter(e => e.date >= today && e.date <= last).sort((a, b) => a.date.localeCompare(b.date))
+  if (!days.length) return null
+  const line = (e: DayException) => {
+    const when = e.date === today ? 'Today' : dateLabel(e.date)
+    const what = e.start_time && e.end_time ? `open only ${timeLabel(e.start_time)}–${timeLabel(e.end_time)}` : 'closed'
+    return `${when}${e.name?.trim() ? ` (${e.name.trim()})` : ''}: ${what}.`
+  }
+  return `Holidays and special hours: ${days.map(line).join(' ')}`
+}
+
+/**
+ * Null when the workspace has no hours: the assistant then says nothing about opening times.
+ * `exceptions`: holidays and closure days, which replace the weekly hours on their date.
+ */
 export function businessHoursContext(
   rules: readonly WorkingHours[],
   timeZone: string,
   nowMs: number,
+  exceptions: readonly DayException[] = [],
 ): BusinessHoursContext | null {
   if (!rules.length) return null
   const weekly = rules.map(r => ({ weekday: r.weekday, start: hhmm(r.start_time), end: hhmm(r.end_time) }))
   const today = localDate(nowMs, timeZone)
-  // Every span of the coming week as instants, in order.
-  const spans = Array.from({ length: 8 }, (_, i) => addDays(today, i))
+  // Every span of the coming weeks as instants, in order.
+  const spans = Array.from({ length: LOOKAHEAD_DAYS }, (_, i) => addDays(today, i))
     .flatMap(date =>
-      weekly
-        .filter(w => w.weekday === weekdayOf(date))
-        .map(w => ({
-          date,
-          ...w,
-          from: zonedTimeToInstant(date, w.start, timeZone),
-          to: zonedTimeToInstant(date, w.end, timeZone),
-        })),
+      daySpans(date, weekly, exceptions).map(w => ({
+        date,
+        ...w,
+        from: zonedTimeToInstant(date, w.start, timeZone),
+        to: zonedTimeToInstant(date, w.end, timeZone),
+      })),
     )
     .sort((a, b) => a.from - b.from)
   const current = spans.find(s => s.from <= nowMs && nowMs < s.to)
   const next = spans.find(s => s.from > nowMs)
-  const hours = `Business hours: ${weeklyLabel(weekly)} (${timeZone}).`
+  const hours = [`Business hours: ${weeklyLabel(weekly)} (${timeZone}).`, upcomingLabel(exceptions, today)].filter(Boolean).join(' ')
   if (current) {
     return {
       timeZone,
@@ -84,11 +119,12 @@ export function businessHoursContext(
       summary: `${hours} Open now, until ${timeLabel(current.end)}.`,
     }
   }
+  const opens = next ? (next.date <= addDays(today, 6) ? whenLabel(next.date, today, next.start) : `on ${dateLabel(next.date)} at ${timeLabel(next.start)}`) : null
   return {
     timeZone,
     weekly,
     openNow: false,
     nextChangeAt: next ? new Date(next.from).toISOString() : null,
-    summary: `${hours} Closed now${next ? `; opens ${whenLabel(next.date, today, next.start)}` : ''}.`,
+    summary: `${hours} Closed now${opens ? `; opens ${opens}` : ''}.`,
   }
 }

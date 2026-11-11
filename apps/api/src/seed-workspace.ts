@@ -404,9 +404,9 @@ async function seedSettings(workspaceId: string, tag: string, business: string) 
       })),
     )
   await db.insert(availability_exceptions).values([
-    { id: seedId(tag, 'ae', 1), workspace_id: workspaceId, date: '2026-11-26' }, // Thanksgiving, closed
-    { id: seedId(tag, 'ae', 2), workspace_id: workspaceId, date: '2026-12-24', start_time: '08:00', end_time: '12:00' },
-    { id: seedId(tag, 'ae', 3), workspace_id: workspaceId, date: '2026-12-25' },
+    { id: seedId(tag, 'ae', 1), workspace_id: workspaceId, date: '2026-11-26', name: 'Thanksgiving' },
+    { id: seedId(tag, 'ae', 2), workspace_id: workspaceId, date: '2026-12-24', name: 'Christmas Eve', start_time: '08:00', end_time: '12:00' },
+    { id: seedId(tag, 'ae', 3), workspace_id: workspaceId, date: '2026-12-25', name: 'Christmas Day' },
   ])
 }
 

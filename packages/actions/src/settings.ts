@@ -1,4 +1,5 @@
-import { CALL_RULES_MAX } from './assistant-prompt.ts'
+import { AI_DISCLOSURE_MODES, BEHAVIOUR_IDS, COMMUNICATION_STYLES, CALL_RULES_MAX, EMERGENCY_NOTE_MAX } from './assistant-prompt.ts'
+import type { Closure } from '@linedesk/db/types'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 import { JOB_VALUE_MAX_CENTS } from './insights.ts'
@@ -203,12 +204,17 @@ export const keypadMenu = z.object({
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
-    'Update the assistant: name, greeting, what a caller who called before hears before the greeting (`greeting_known_caller`, `{first_name}` and `{last_name}` filled in; empty: nothing), voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a US number in E.164, null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `keypad_menu` (null: off) plays "press 1 for …" after the greeting; a `transfer` key is an urgent call (put through to the first contact that is reachable, else flagged urgent and a message), a `topic` key tells the assistant what the caller wants. `languages`: `english` (English only, the default), `allowed` (English plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in English.',
+    'Update the assistant: name, greeting, what a caller who called before hears before the greeting (`greeting_known_caller`, `{first_name}` and `{last_name}` filled in; empty: nothing), voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a US number in E.164, null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `keypad_menu` (null: off) plays "press 1 for …" after the greeting; a `transfer` key is an urgent call (put through to the first contact that is reachable, else flagged urgent and a message), a `topic` key tells the assistant what the caller wants. `languages`: `english` (English only, the default), `allowed` (English plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in English. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, listed_prices_only, confirm_number, emergency_fee, ask_referral); `emergency_note` is what the assistant tells a caller with an emergency. `ai_disclosure`: whether and when it mentions being an AI (never, when_asked, at_start, at_start_consent: says it and asks whether that is okay); it never claims to be human. `communication_style`: the tone (standard, professional, casual, formal, empathetic).',
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().min(1).optional(),
     greeting: z.string().optional(),
+    /** Replaced by ai_disclosure; still taken from a web app of the release before. */
     disclose_ai: z.boolean().optional(),
+    /** Whether and when the assistant mentions it is an AI: never, when_asked (default), at_start, at_start_consent. */
+    ai_disclosure: z.enum(AI_DISCLOSURE_MODES).optional(),
+    /** The tone it uses: standard (default), professional, casual, formal, empathetic. */
+    communication_style: z.enum(COMMUNICATION_STYLES).optional(),
     /** null goes back to the default rules. */
     call_rules: z.string().max(CALL_RULES_MAX).nullable().optional(),
     /** Used outside business hours, when the workspace uses them; null: the same as during hours. */
@@ -226,6 +232,10 @@ export const assistantUpdate = defineAction({
     silence_closing: z.string().trim().max(SILENCE_CLOSING_MAX).nullable().optional(),
     /** null: no keypad menu (the default). */
     keypad_menu: keypadMenu.nullable().optional(),
+    /** The behaviour checklist: the switches the owner changed (BEHAVIOURS); a missing one uses its default. */
+    behaviours: z.partialRecord(z.enum(BEHAVIOUR_IDS), z.boolean()).optional(),
+    /** What the assistant tells a caller with an emergency; empty: nothing extra. */
+    emergency_note: z.string().trim().max(EMERGENCY_NOTE_MAX).optional(),
     /** Which languages the assistant speaks with callers besides English. */
     languages: assistantLanguages.optional(),
     /** An empty voice_id: the provider's default voice. */
@@ -296,9 +306,16 @@ export type WorkspaceSettingsData = {
   businessHours: BusinessHoursSpan[]
   businessHoursOn: boolean
   recordingOn: boolean
+  /** Holidays and other days with their own hours (availability_exceptions), by date; missing from an older API. */
+  closedDays?: ClosedDay[]
+  /** Vacation or closure mode; null: off. Missing from an older API. */
+  closure?: Closure | null
   /** The value of one booked job in cents (Insights); null: not set. */
   jobValueCents: number | null
 }
+
+/** A holiday or closure day: closed all day (no times) or open only `start`–`end`. */
+export type ClosedDay = { date: string; name: string; start: string | null; end: string | null }
 
 /** A real IANA time zone ("America/Los_Angeles"), as the server's and the browser's Intl know it. */
 export function isTimeZone(value: string): boolean {
@@ -310,6 +327,20 @@ export function isTimeZone(value: string): boolean {
   }
 }
 
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'a date like 2026-12-24')
+
+/** Longest closure greeting. */
+export const CLOSURE_GREETING_MAX = 600
+
+export const closureSchema = z
+  .object({
+    from: isoDate,
+    until: isoDate,
+    greeting: z.string().trim().max(CLOSURE_GREETING_MAX),
+    transfers: z.enum(['none', 'urgent']),
+  })
+  .refine(c => c.until >= c.from, { message: 'the last day cannot be before the first' }) satisfies z.ZodType<Closure>
+
 const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$|^24:00$/, 'a time like 07:00')
 
 export const businessHoursSet = defineAction({
@@ -320,6 +351,22 @@ export const businessHoursSet = defineAction({
     hours: z
       .array(z.object({ weekday: z.number().int().min(0).max(6), start: clockTime, end: clockTime }).refine(h => h.end > h.start, { message: 'end must be after start' }))
       .max(21),
+  }),
+  permission: 'settings:write',
+})
+
+export const closedDaysSet = defineAction({
+  name: 'closedDays.set',
+  description:
+    'Set the holidays and other closure days: dates (YYYY-MM-DD, in the workspace time zone) when the business is closed all day, or open only `start`–`end`. Replaces the whole list. The assistant treats them as closed (or as those hours) and books no appointments outside them.',
+  input: z.object({
+    days: z
+      .array(
+        z
+          .object({ date: isoDate, name: z.string().trim().max(80).default(''), start: clockTime.nullable().default(null), end: clockTime.nullable().default(null) })
+          .refine(d => (d.start === null) === (d.end === null) && (d.start === null || d.end! > d.start), { message: 'a day open part-time needs an end after its start' }),
+      )
+      .max(200),
   }),
   permission: 'settings:write',
 })
@@ -336,13 +383,15 @@ export const workspaceGetSettings = defineAction({
 export const workspaceUpdateSettings = defineAction({
   name: 'workspace.updateSettings',
   description:
-    'Change workspace settings: `recordingRetentionDays` (0: no recordings are kept, calls are not recorded; 30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting; off by default), `recordingNotice` (that sentence, e.g. "This call may be recorded."), `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles") and `jobValueCents` (what a booked job is worth on average, in cents, for Insights; null clears it).',
+    'Change workspace settings: `recordingRetentionDays` (0: no recordings are kept, calls are not recorded; 30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting; off by default), `recordingNotice` (that sentence, e.g. "This call may be recorded."), `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles") and `jobValueCents` (what a booked job is worth on average, in cents, for Insights; null clears it); `closure` (vacation or closure mode: closed from `from` to `until`, with its own `greeting`, and `transfers` none or urgent only; null: off).',
   input: z.object({
     recordingRetentionDays: z.union([z.literal(recordingRetentionChoices), z.null()]).optional(),
     businessHoursOn: z.boolean().optional(),
     recordingNoticeOn: z.boolean().optional(),
     recordingNotice: z.string().trim().min(1, 'Write the sentence the assistant says.').max(RECORDING_NOTICE_MAX).optional(),
     timeZone: z.string().refine(isTimeZone, 'a time zone like America/Los_Angeles').optional(),
+    /** Vacation or closure mode; null turns it off. */
+    closure: closureSchema.nullable().optional(),
     jobValueCents: z.number().int().min(0).max(JOB_VALUE_MAX_CENTS).nullable().optional(),
   }),
   permission: 'settings:write',

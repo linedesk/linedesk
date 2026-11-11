@@ -45,6 +45,8 @@ type Props = {
   assistantName: string
   /** A save was refused: every problem shows, and the row with the first one opens. */
   showErrors?: boolean
+  /** The contact shown open at first (Edit from Emergencies). */
+  initiallyOpen?: string | null
 }
 
 /** Condition examples under an empty condition; the emergency one also makes the fallback an urgent message. */
@@ -54,8 +56,8 @@ const EXAMPLES: { label: string; patch: Partial<TransferDraft> }[] = [
   { label: 'Billing questions', patch: { condition: 'Billing questions' } },
 ]
 
-export function TransferContacts({ transfers, onChange, hoursOn, assistantName, showErrors = false }: Props) {
-  const [open, setOpen] = useState<string | null>(null)
+export function TransferContacts({ transfers, onChange, hoursOn, assistantName, showErrors = false, initiallyOpen = null }: Props) {
+  const [open, setOpen] = useState<string | null>(initiallyOpen)
   /** Fields left at least once, as `<contact id>:<field>`: their errors show. */
   const [touched, setTouched] = useState<ReadonlySet<string>>(new Set())
   const problem = transferProblem({ transfers })

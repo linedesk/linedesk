@@ -37,3 +37,158 @@ export const usesDefaultCallRules = (stored: string | null | undefined): boolean
 /** The rules in effect: the stored ones, or the default when none or an unchanged earlier default are stored. */
 export const callRulesOf = (stored: string | null | undefined): string =>
   usesDefaultCallRules(stored) ? DEFAULT_CALL_RULES : stored!.trim()
+
+/**
+ * The behaviour checklist (Settings, Assistant, Calls): plain-language switches that add a line to the
+ * assistant's instructions. An assistant stores only the switches the owner changed (`assistants.behaviours`);
+ * the others use `on` here, so a better default reaches it. `say` is the line when on, `sayOff` when off.
+ */
+export const BEHAVIOURS = [
+  {
+    id: 'ask_name',
+    label: "Ask for the caller's name if unknown",
+    on: true,
+    say: "Ask for the caller's name when you do not know it yet.",
+    sayOff: "Do not ask for the caller's name unless you need it to book an appointment; a message without a name is fine.",
+  },
+  {
+    id: 'offer_callback',
+    label: "Offer a callback when you can't answer",
+    on: true,
+    say: 'When you cannot answer a question or help with a request, offer that someone from the team calls the caller back, and take a message.',
+  },
+  {
+    id: 'listed_prices_only',
+    label: 'Never quote prices that are not in your list',
+    on: true,
+    say: null,
+    sayOff:
+      'Prices: for anything that is not in the services and prices list you may give a rough idea based on the listed prices, saying it is only an estimate and the team will confirm it.',
+  },
+  {
+    id: 'confirm_number',
+    label: 'Confirm the callback number',
+    on: false,
+    say: 'Before you save a message, read the number the team will call back on to the caller and ask them to confirm it.',
+  },
+  {
+    id: 'emergency_fee',
+    label: 'Mention the emergency call-out fee',
+    on: false,
+    say: 'When a caller has an emergency or wants someone to come outside business hours, tell them about the emergency or after-hours fee from the services and prices list before you put them through or take the message. If the list has no such fee, do not mention one.',
+  },
+  {
+    id: 'ask_referral',
+    label: 'Ask new callers how they heard about you',
+    on: false,
+    say: 'When the caller is new to the business, ask once, near the end, how they heard about the business, and put the answer in the message.',
+  },
+] as const satisfies readonly { id: string; label: string; on: boolean; say: string | null; sayOff?: string }[]
+
+export type BehaviourId = (typeof BEHAVIOURS)[number]['id']
+export const BEHAVIOUR_IDS = BEHAVIOURS.map(b => b.id) as [BehaviourId, ...BehaviourId[]]
+
+/** Whether a behaviour is on for an assistant: its own choice, else the default. */
+export const behaviourOn = (stored: Readonly<Record<string, boolean>> | null | undefined, id: BehaviourId): boolean =>
+  stored?.[id] ?? BEHAVIOURS.find(b => b.id === id)!.on
+
+/** The lines the checklist adds to the instructions, in list order; empty when none applies. */
+export function behaviourLines(stored: Readonly<Record<string, boolean>> | null | undefined): string[] {
+  return BEHAVIOURS.flatMap(b => {
+    const line = behaviourOn(stored, b.id) ? b.say : 'sayOff' in b ? b.sayOff : null
+    return line ? [line] : []
+  })
+}
+
+/** Longest emergency note (what the assistant tells a caller with an emergency). */
+export const EMERGENCY_NOTE_MAX = 1000
+
+/** Whether a transfer contact is for emergencies: its condition says urgent or emergency (the Emergency preset does). */
+export const isEmergencyCondition = (condition: string) => /\burgent|\bemergenc/i.test(condition)
+
+/**
+ * Whether and when the assistant mentions it is an AI (`assistants.ai_disclosure`). Whatever the mode, it
+ * never claims to be human and answers truthfully when asked (a fixed rule of the prompt).
+ */
+export const AI_DISCLOSURE_MODES = ['never', 'when_asked', 'at_start', 'at_start_consent'] as const
+export type AiDisclosure = (typeof AI_DISCLOSURE_MODES)[number]
+export const DEFAULT_AI_DISCLOSURE: AiDisclosure = 'when_asked'
+export const AI_DISCLOSURE_LABELS: Record<AiDisclosure, string> = {
+  never: "Don't mention",
+  when_asked: 'Only when asked',
+  at_start: 'At the start of the call',
+  at_start_consent: 'At the start, caller must agree',
+}
+/** The modes whose greeting says it is an AI. */
+export const disclosesAtStart = (mode: AiDisclosure) => mode === 'at_start' || mode === 'at_start_consent'
+
+const DISCLOSURE = /,?\s*(?:the|an|your|a)\s+(?:virtual|AI)\s+assistant\b/i
+export const disclosesAi = (greeting: string) => DISCLOSURE.test(greeting)
+
+/** The greeting with "…, the AI assistant" after the assistant's name, or a sentence that says it. */
+export function withDisclosure(greeting: string, name: string): string {
+  if (disclosesAi(greeting)) return greeting
+  const who = name.trim() || 'the assistant'
+  const named = new RegExp(`(\\bthis is ${who.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'i')
+  if (named.test(greeting)) return greeting.replace(named, '$1, the AI assistant')
+  const sentence = `This is ${who}, the AI assistant.`
+  const firstEnd = greeting.search(/[.!?]\s/)
+  if (firstEnd < 0) return greeting.trim() ? `${greeting.trim()} ${sentence}` : sentence
+  return `${greeting.slice(0, firstEnd + 1)} ${sentence}${greeting.slice(firstEnd + 1)}`
+}
+
+/** The greeting without the AI disclosure. */
+export const withoutDisclosure = (greeting: string) => greeting.replace(DISCLOSURE, '')
+
+/** What the caller is asked in the consent mode, in place of the greeting's closing question. */
+export const AI_CONSENT_QUESTION = 'Is that okay with you?'
+
+/**
+ * The greeting as said on the call: with the AI note when the mode says so at the start, and in the consent
+ * mode ending with the consent question instead of its own closing question ("How can I help?").
+ */
+export function greetingWithDisclosure(greeting: string, name: string, mode: AiDisclosure): string {
+  if (!greeting.trim() || !disclosesAtStart(mode)) return greeting
+  const noted = withDisclosure(greeting.trim(), name)
+  if (mode === 'at_start') return noted
+  const sentences = noted.match(/[^.!?]+[.!?]+|[^.!?]+$/g)?.map(s => s.trim()) ?? [noted]
+  const kept = sentences.at(-1)?.endsWith('?') && sentences.length > 1 ? sentences.slice(0, -1) : sentences
+  return `${kept.join(' ')} ${AI_CONSENT_QUESTION}`
+}
+
+/** The prompt's part about mentioning being an AI, on top of the fixed honesty rule; null when there is nothing to add. */
+export function aiDisclosureInstructions(mode: AiDisclosure | null | undefined): string | null {
+  switch (mode ?? DEFAULT_AI_DISCLOSURE) {
+    case 'never':
+      return 'Do not bring up on your own that you are an AI. Only if the caller asks directly, answer truthfully.'
+    case 'when_asked':
+      return 'You do not need to say you are an AI unless the caller asks; when they ask, say it plainly.'
+    case 'at_start':
+      return null
+    case 'at_start_consent':
+      return `Your greeting told the caller you are an AI assistant and asked "${AI_CONSENT_QUESTION}". If they agree, ask how you can help and go on as usual. If they do not want to talk to an AI, do not try to persuade them: if a transfer contact fits (for example one for callers who ask for a person), put them through; otherwise offer to take a message so a person from the team calls them back, and take it with their name and what it is about.`
+  }
+}
+
+/** The tone the assistant uses (`assistants.communication_style`); each but `standard` adds one line to the instructions. */
+export const COMMUNICATION_STYLES = ['standard', 'professional', 'casual', 'formal', 'empathetic'] as const
+export type CommunicationStyle = (typeof COMMUNICATION_STYLES)[number]
+export const DEFAULT_COMMUNICATION_STYLE: CommunicationStyle = 'standard'
+export const COMMUNICATION_STYLE_LABELS: Record<CommunicationStyle, string> = {
+  standard: 'Standard',
+  professional: 'Professional and friendly',
+  casual: 'Casual and relaxed',
+  formal: 'Formal and factual',
+  empathetic: 'Empathetic and warm',
+}
+const STYLE_LINES: Record<CommunicationStyle, string | null> = {
+  standard: null,
+  professional: 'Tone: professional and friendly. Polite and clear, warm without being chatty.',
+  casual: 'Tone: casual and relaxed. Talk like a friendly local business, in everyday words, still clear and to the point.',
+  formal: 'Tone: formal and factual. Courteous and precise, no small talk and no jokes.',
+  empathetic: 'Tone: empathetic and warm. Acknowledge how the caller feels, especially when something went wrong, and reassure them before you move on.',
+}
+
+/** The tone line for the instructions; null for the standard tone (or an API of an older version). */
+export const communicationStyleInstructions = (style: CommunicationStyle | null | undefined): string | null =>
+  STYLE_LINES[style ?? DEFAULT_COMMUNICATION_STYLE] ?? null

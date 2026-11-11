@@ -1,6 +1,6 @@
 // Settings pages build on the kit's form pieces (ui/form.tsx); these keep the short names they use.
 import { type ReactNode, useCallback, useState } from 'react'
-import { Switch } from '../ui/controls.tsx'
+import { Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Card, FormField, Input, Textarea } from '../ui/form.tsx'
 
 type SectionProps = {
@@ -125,4 +125,29 @@ export function useRemembered(key: string): [boolean, (open: boolean) => void] {
     [key],
   )
   return [open, remember]
+}
+
+type SelectRowProps<T extends string> = {
+  id: string
+  title: string
+  description?: string
+  /** A quiet line under the description (e.g. what callers hear). */
+  note?: ReactNode
+  value: T
+  options: readonly SelectOption<T>[]
+  onChange: (value: T) => void
+}
+
+/** Like SwitchRow, with a dropdown at the right; on a phone the dropdown goes under the text. */
+export function SelectRow<T extends string>({ id, title, description, note, value, options, onChange }: SelectRowProps<T>) {
+  return (
+    <div className="selrow">
+      <div className="selrow-text">
+        <b>{title}</b>
+        {description && <span className="help">{description}</span>}
+        {note && <span className="help selrow-note">{note}</span>}
+      </div>
+      <Select id={id} size="sm" align="end" value={value} options={options} onChange={onChange} label={title} />
+    </div>
+  )
 }

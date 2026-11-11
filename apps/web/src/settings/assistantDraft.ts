@@ -5,7 +5,7 @@ import {
   CALL_RULES_MAX, EMERGENCY_CONDITION, type Faq, FAQS_MAX, INSTRUCTIONS_MAX, RING_SECONDS_DEFAULT, TRANSFER_CONDITION_MAX,
   TRANSFER_CONTACTS_MAX, type Service, SERVICES_MAX, servicesOf, TRANSFER_NAME_MAX, callRulesOf, usesDefaultCallRules, onCallNumberProblem,
   DEFAULT_SILENCE_CLOSING, SILENCE_CLOSING_MAX, SILENCE_FIRST_GAP_MAX_S, SILENCE_FIRST_GAP_MIN_S, SILENCE_REMINDERS_MAX,
-  SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT, KEYPAD_MENU_MAX_OPTIONS, type AssistantLanguages, ENGLISH_ONLY, otherLanguagesOf,
+  SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT, KEYPAD_MENU_MAX_OPTIONS, BEHAVIOURS, type BehaviourId, behaviourOn, EMERGENCY_NOTE_MAX, type AiDisclosure, DEFAULT_AI_DISCLOSURE, type CommunicationStyle, DEFAULT_COMMUNICATION_STYLE, type AssistantLanguages, ENGLISH_ONLY, otherLanguagesOf,
 } from '@linedesk/actions'
 import type { Assistant, BusinessProfile, KeypadMenuOption, TransferContact } from '@linedesk/db/types'
 import { formatNumber, renameInGreeting, toE164 } from '../onboarding/flow.ts'
@@ -14,7 +14,10 @@ import { formatNumber, renameInGreeting, toE164 } from '../onboarding/flow.ts'
 export type Draft = {
   name: string
   greeting: string
-  disclose_ai: boolean
+  /** Whether and when the assistant mentions it is an AI. */
+  ai_disclosure: AiDisclosure
+  /** The tone it uses. */
+  communication_style: CommunicationStyle
   /** Greet a caller whose number matches a contact with a name by first name. */
   /** Said before the greeting to a caller who called before; `{first_name}` filled in; empty: nothing. */
   greeting_known_caller: string
@@ -36,6 +39,10 @@ export type Draft = {
   silence_first_gap_s: string
   silence_reminders: string
   silence_closing: string
+  /** The behaviour checklist, every switch with its value (the default where the owner set none). */
+  behaviours: Record<BehaviourId, boolean>
+  /** What the assistant tells a caller with an emergency. */
+  emergency_note: string
   /** Languages besides English; the picked ones are kept while English only is chosen, but saved empty. */
   languages: AssistantLanguages
 }
@@ -61,7 +68,7 @@ export function draftOf(a: Assistant): Draft {
   const p = a.business_profile
   // Same rule as the voice agent: empty instructions mean the older fields still apply, so show those.
   return {
-    name: a.name, greeting: a.greeting, disclose_ai: a.disclose_ai, greeting_known_caller: a.greeting_known_caller ?? '', instructions: p.instructions?.trim() ? p.instructions : foldProfile(p),
+    name: a.name, greeting: a.greeting, ai_disclosure: a.ai_disclosure ?? (a.disclose_ai ? 'at_start' : DEFAULT_AI_DISCLOSURE), communication_style: a.communication_style ?? DEFAULT_COMMUNICATION_STYLE, greeting_known_caller: a.greeting_known_caller ?? '', instructions: p.instructions?.trim() ? p.instructions : foldProfile(p),
     call_rules: callRulesOf(a.call_rules), // none stored: the default rules, shown so they can be edited
     greeting_outside: a.greeting_outside ?? '',
     transfers: (a.transfers ?? []).map(c => transferDraftOf({ ...c, number: c.number ? formatNumber(c.number) : '' })),
@@ -76,9 +83,19 @@ export function draftOf(a: Assistant): Draft {
     silence_reminders: String(a.silence_reminders ?? SILENCE_REMINDERS_DEFAULT),
     // None stored: the default line, shown so it can be edited (like the call rules).
     silence_closing: a.silence_closing ?? DEFAULT_SILENCE_CLOSING,
+    behaviours: behavioursOf(a.behaviours),
+    emergency_note: a.emergency_note ?? '',
     languages: languagesOf(a.languages),
   }
 }
+
+/** Every switch of the checklist, in list order: the stored choice or the default. */
+const behavioursOf = (stored: Assistant['behaviours'] | undefined) =>
+  Object.fromEntries(BEHAVIOURS.map(b => [b.id, behaviourOn(stored, b.id)])) as Record<BehaviourId, boolean>
+
+/** Only the switches that differ from their default are stored, so a better default reaches the others. */
+export const behavioursToSave = (d: Pick<Draft, 'behaviours'>): Partial<Record<BehaviourId, boolean>> =>
+  Object.fromEntries(BEHAVIOURS.filter(b => d.behaviours[b.id] !== b.on).map(b => [b.id, d.behaviours[b.id]]))
 
 /** The stored setting with only known codes; a row synced before the column existed: English only. */
 function languagesOf(stored: Assistant['languages'] | undefined): AssistantLanguages {
@@ -124,6 +141,7 @@ export const normalized = (d: Draft): Draft => ({
   silence_first_gap_s: d.silence_first_gap_s.trim(),
   silence_reminders: d.silence_reminders.trim(),
   silence_closing: d.silence_closing.trim(),
+  emergency_note: d.emergency_note.trim(),
 })
 
 /** The contact with its fields in one fixed order: Postgres keeps jsonb keys in its own order, and drafts compare as JSON. */
@@ -290,23 +308,7 @@ export function spokenLength(greeting: string): string {
   return `about ${seconds} ${seconds === 1 ? 'second' : 'seconds'} spoken`
 }
 
-const DISCLOSURE = /,?\s*(?:the|an|your|a)\s+(?:virtual|AI)\s+assistant\b/i
-export const disclosesAi = (greeting: string) => DISCLOSURE.test(greeting)
 
-/** The greeting with "…, the AI assistant" after the assistant's name, or a sentence that says it. */
-export function withDisclosure(greeting: string, name: string): string {
-  if (disclosesAi(greeting)) return greeting
-  const who = name.trim() || 'the assistant'
-  const named = new RegExp(`(\\bthis is ${who.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'i')
-  if (named.test(greeting)) return greeting.replace(named, '$1, the AI assistant')
-  const sentence = `This is ${who}, the AI assistant.`
-  const firstEnd = greeting.search(/[.!?]\s/)
-  if (firstEnd < 0) return greeting.trim() ? `${greeting.trim()} ${sentence}` : sentence
-  return `${greeting.slice(0, firstEnd + 1)} ${sentence}${greeting.slice(firstEnd + 1)}`
-}
-
-/** The greeting without the AI disclosure. */
-export const withoutDisclosure = (greeting: string) => greeting.replace(DISCLOSURE, '')
 
 /** Why the draft cannot be saved yet, in words for the user; null when it can. */
 export function draftProblem(draft: Draft): string | null {
@@ -318,6 +320,8 @@ export function draftProblem(draft: Draft): string | null {
   if (length > INSTRUCTIONS_MAX) return `The instructions are too long: ${length.toLocaleString('en-US')} of ${INSTRUCTIONS_MAX.toLocaleString('en-US')} characters.`
   const rules = draft.call_rules.trim().length
   if (rules > CALL_RULES_MAX) return `How to handle calls is too long: ${rules.toLocaleString('en-US')} of ${CALL_RULES_MAX.toLocaleString('en-US')} characters.`
+  const note = draft.emergency_note.trim().length
+  if (note > EMERGENCY_NOTE_MAX) return `What to tell callers in an emergency is too long: ${note.toLocaleString('en-US')} of ${EMERGENCY_NOTE_MAX.toLocaleString('en-US')} characters.`
   return knowledgeProblem(normalized(draft)) ?? transferProblem(draft)?.message ?? silenceProblem(draft) ?? keypadProblem(draft) ?? languagesProblem(draft)
 }
 

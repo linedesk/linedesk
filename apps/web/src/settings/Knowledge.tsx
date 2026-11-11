@@ -187,7 +187,7 @@ function AboutCard(props: Props & { name: string; empty: boolean }) {
           Write with help
         </Button>
       }
-      help={`What ${name} should know and how to answer: what you do, the area you cover, how you handle prices, what to ask callers. Opening hours go under Settings, Business hours; ${name} reads them from there.`}
+      help={`What ${name} should know and how to answer: what you do, the area you cover, how you handle prices, what to ask callers. Opening hours and holidays go under Hours & holidays; ${name} reads them from there.`}
     >
       <Field id="as-instr" label={`What ${name} should know`}>
         <TextArea

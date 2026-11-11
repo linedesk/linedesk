@@ -69,6 +69,12 @@ export const DEFAULT_TRANSFERS: TransferContact[] = [
  * `transfer`: the key is an urgent call (put through when transfer is on, else flagged urgent and a message);
  * `topic`: the assistant goes on knowing what the caller wants.
  */
+/**
+ * Vacation or closure mode: from `from` to `until` (dates in the workspace time zone, both closed) the business
+ * is closed whatever its hours say. `greeting` replaces the greeting (empty: the outside-hours one, else the
+ * usual); `transfers`: `none` takes a message on every call, `urgent` still puts emergencies through.
+ */
+export type Closure = { from: string; until: string; greeting: string; transfers: 'none' | 'urgent' }
 export type KeypadMenuAction = 'transfer' | 'topic'
 export type KeypadMenuOption = { key: string; label: string; action: KeypadMenuAction }
 export type KeypadMenu = { options: KeypadMenuOption[] }

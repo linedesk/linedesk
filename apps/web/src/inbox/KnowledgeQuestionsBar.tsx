@@ -21,7 +21,7 @@ export function KnowledgeQuestionsBar() {
         size="sm"
         variant="ghost"
         onClick={() => {
-          window.location.hash = `#assistant/${open[0]!.assistant_id}/knowledge`
+          window.location.hash = `#assistant/${open[0]!.assistant_id}/business`
         }}
         title="Open Knowledge in the assistant's settings"
       >

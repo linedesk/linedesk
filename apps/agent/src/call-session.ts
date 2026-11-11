@@ -1,5 +1,5 @@
 // One call as the agent sees it: start, append transcript segments, finish.
-import { type BookingContext, type CallCustomField, type CallDocuments, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, DEFAULT_KNOWN_CALLER_GREETING, EMERGENCY_CONDITION } from '@linedesk/actions'
+import { type BookingContext, type CallCustomField, type CallDocuments, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, DEFAULT_AI_DISCLOSURE, DEFAULT_KNOWN_CALLER_GREETING, EMERGENCY_CONDITION, greetingWithDisclosure } from '@linedesk/actions'
 import type { Assistant, Contact, ToolEvent, TransferContact } from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
@@ -9,8 +9,11 @@ import { type CallerContext, forHours, personalGreeting } from './prompt.ts'
 export type Speaker = z.input<typeof callAppendTranscript.input>['speaker']
 export type CallResult = Omit<z.input<typeof callFinish.input>, 'callId'>
 
-/** The business's hours as `call.start` reports them: `summary` is a ready sentence for the assistant. */
-export type BusinessHours = { openNow: boolean; summary: string }
+/**
+ * The business's hours as `call.start` reports them: `summary` is a ready sentence for the assistant.
+ * `closure`: vacation or closure mode is on today (its greeting, and whether urgent calls are still put through).
+ */
+export type BusinessHours = { openNow: boolean; summary: string; closure?: { greeting: string; transfers: 'none' | 'urgent' } }
 
 export interface CallSession {
   callId: string
@@ -89,6 +92,13 @@ export function greetCaller(assistant: Assistant | null, contact: Contact | null
 }
 
 /** The greeting followed by the recording notice, so both are said (and cached as audio) as one opening. */
+/** The greeting with the AI note when the assistant says it at the start; an API of an older version sends no mode. */
+export function withAiNote(assistant: Assistant | null): Assistant | null {
+  if (!assistant?.greeting) return assistant
+  const mode = assistant.ai_disclosure ?? DEFAULT_AI_DISCLOSURE
+  return { ...assistant, greeting: greetingWithDisclosure(assistant.greeting, assistant.name, mode) }
+}
+
 export function withRecordingNotice(assistant: Assistant | null, notice: string | null | undefined): Assistant | null {
   const sentence = notice?.trim()
   if (!assistant || !sentence) return assistant
@@ -132,7 +142,8 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
       }
     : started.assistant
   // The greeting and instructions that apply now: outside business hours, the outside variants.
-  const greeted = greetCaller(forHours(configured, businessHours), contact, started.callerHistory)
+  // …with the AI note (and in the consent mode the question) the owner chose for the start of the call.
+  const greeted = greetCaller(withAiNote(forHours(configured, businessHours)), contact, started.callerHistory)
   const assistant = withRecordingNotice(greeted.assistant, started.recordingNotice)
   const caller = greeted.caller
   const booking = started.booking ?? null

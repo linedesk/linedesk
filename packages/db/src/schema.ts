@@ -21,7 +21,7 @@ import {
   unique,
 } from 'drizzle-orm/pg-core'
 import {
-  DEFAULT_TRANSFERS, type ActionItem, type AssistantLanguages, type AssistantVoice, type BookingField, type BusinessProfile, type CallField, callTags, type CustomValues,
+  DEFAULT_TRANSFERS, type ActionItem, type AssistantLanguages, type AssistantVoice, type BookingField, type BusinessProfile, type CallField, callTags, type Closure, type CustomValues,
   customFieldTypes, type KeypadMenu, type ToolEvent, type TransferContact, type WebhookEvent,
 } from './types.ts'
 
@@ -69,7 +69,12 @@ export const assistants = pgTable(
     workspace_id: workspaceId(),
     name: text('name').notNull().default('Maya'),
     greeting: text('greeting').notNull().default(''),
+    /** Replaced by `ai_disclosure` (0054 migrated it); kept until the release after it is gone. */
     disclose_ai: boolean('disclose_ai').notNull().default(true),
+    /** Whether and when the assistant mentions it is an AI (AI_DISCLOSURE_MODES in @linedesk/actions). */
+    ai_disclosure: text('ai_disclosure', { enum: ['never', 'when_asked', 'at_start', 'at_start_consent'] }).notNull().default('when_asked'),
+    /** The tone it uses (COMMUNICATION_STYLES in @linedesk/actions); `standard` adds nothing to the instructions. */
+    communication_style: text('communication_style', { enum: ['standard', 'professional', 'casual', 'formal', 'empathetic'] }).notNull().default('standard'),
     record_calls: boolean('record_calls').notNull().default(true),
     /** Replaced by `greeting_known_caller` (empty: off); kept until the release before it is gone. */
     greet_by_name: boolean('greet_by_name').notNull().default(true),
@@ -106,6 +111,10 @@ export const assistants = pgTable(
     silence_closing: text('silence_closing'),
     /** Keypad menu after the greeting ("press 1 for…"); null: off (the default). */
     keypad_menu: jsonb('keypad_menu').$type<KeypadMenu>(),
+    /** The behaviour checklist (BEHAVIOURS in @linedesk/actions): only the switches the owner changed; the rest use their default. */
+    behaviours: jsonb('behaviours').$type<Record<string, boolean>>().notNull().default({}),
+    /** What the assistant tells a caller with an emergency (e.g. "If you smell gas, leave the house"); empty: nothing extra. */
+    emergency_note: text('emergency_note').notNull().default(''),
     /** Languages the assistant speaks with callers: English only (the default), English + an allow-list, or any it supports. */
     languages: jsonb('languages').$type<AssistantLanguages>().notNull().default({ mode: 'english', allowed: [] }),
     created_at: createdAt(),
@@ -295,6 +304,8 @@ export const workspace_settings = pgTable('workspace_settings', {
    * or `telnyx` the workspace's own account, its credentials in provider_settings rows with this workspace_id.
    */
   carrier: text('carrier', { enum: ['default', 'twilio', 'telnyx'] }).notNull().default('default'),
+  /** Vacation or closure mode: closed on these dates whatever the hours say, with its own greeting; null: off. */
+  closure: jsonb('closure').$type<Closure>(),
   /** What a booked job is worth on average, in cents, for Insights ("≈ $X in booked work"). null: not set. */
   job_value_cents: integer('job_value_cents'),
   created_at: createdAt(),
@@ -364,6 +375,8 @@ export const availability_exceptions = pgTable(
     id: id(),
     workspace_id: workspaceId(),
     date: date('date', { mode: 'string' }).notNull(),
+    /** What the day is ("Thanksgiving"); empty when none was given. */
+    name: text('name').notNull().default(''),
     start_time: time('start_time'),
     end_time: time('end_time'),
     created_at: createdAt(),
