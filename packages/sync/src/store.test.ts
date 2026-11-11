@@ -3,6 +3,7 @@ import { CLIENT_PROTOCOL } from '@linedesk/actions'
 import { type Call, tableNames } from '@linedesk/db/types'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ReadSyncAdapter, TableSink } from './adapter.ts'
+import { openLocalDb, resetLocalCache } from './idb.ts'
 import { createStore, tabGroupName } from './store.ts'
 import { eventually, quietFor } from './testing.ts'
 
@@ -432,7 +433,54 @@ describe('store', () => {
   })
 })
 
+/** A database an older build created: every store but `missing`, one call row and one unsent command. */
+const olderDb = (name: string, version: number, missing: readonly string[]) =>
+  new Promise<void>((resolve, reject) => {
+    const req = indexedDB.open(name, version)
+    req.onupgradeneeded = () => {
+      for (const s of [...tableNames, 'outbox', 'meta']) if (!missing.includes(s)) req.result.createObjectStore(s)
+    }
+    req.onsuccess = () => {
+      const tx = req.result.transaction(['calls', 'outbox'], 'readwrite')
+      tx.objectStore('calls').put(call({ id: 'kept' }), 'kept')
+      tx.objectStore('outbox').put({ id: 'cmd' }, 'cmd')
+      tx.oncomplete = () => {
+        req.result.close()
+        resolve()
+      }
+    }
+    req.onerror = () => reject(req.error)
+  })
+
 describe('local database', () => {
+  it('adds the store of every synced table an older build did not have, keeping its rows', async () => {
+    const name = `older-${n}`
+    const newest = tableNames.slice(-2) // whatever was added last: no version number to remember
+    await olderDb(name, 4, newest)
+    const local = await openLocalDb(name)
+    for (const table of newest) expect(await local.all(table)).toEqual([])
+    expect((await local.all('calls')).map(([key]) => key)).toEqual(['kept'])
+    local.close()
+  })
+
+  it('adds a missing store to a database another build left at a higher version', async () => {
+    const name = `branch-${n}`
+    await olderDb(name, 42, ['knowledge_questions'])
+    const local = await openLocalDb(name)
+    expect(await local.all('knowledge_questions')).toEqual([])
+    local.close()
+  })
+
+  it('resetting the local cache empties the synced rows and keeps unsent commands', async () => {
+    const name = `reset-${n}`
+    await olderDb(name, 4, [])
+    await resetLocalCache(name)
+    const local = await openLocalDb(name)
+    expect(await local.all('calls')).toEqual([])
+    expect((await local.all('outbox')).map(([key]) => key)).toEqual(['cmd'])
+    local.close()
+  })
+
   it('opens a database a newer build already upgraded (older build after a rollback), keeping its rows', async () => {
     const name = `newer-${n}`
     await new Promise<void>((resolve, reject) => {

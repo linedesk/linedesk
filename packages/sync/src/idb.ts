@@ -6,24 +6,40 @@ const stores = [...tableNames, 'outbox', 'meta'] as const
 export type StoreName = (typeof stores)[number]
 
 const OPEN_TIMEOUT_MS = 8000
-/** Bumped whenever a store is added. 2: appointment types, bookings, calendar accounts and the assistant's calendars. 3: webhook endpoints. 4: workspace members and call activity. */
-const DB_VERSION = 4
+/** Upgrade attempts before giving up; another tab upgrading at the same moment costs one. */
+const UPGRADE_ATTEMPTS = 3
+
+const missingStores = (db: IDBDatabase) => stores.filter(s => !db.objectStoreNames.contains(s))
 
 /**
- * Opening waits behind a pending delete or upgrade from another tab; it must fail rather than hang.
- * A database a newer build already upgraded (an older build after a rollback, or a tab still on the
- * old build) is opened at its own version: versions only add stores, so it has every store this build needs.
+ * Opens at whatever version the device has, then upgrades by one only if a store this build needs
+ * is missing. There is no hand-kept version number: a new synced table gets its store on the next
+ * open, and a database a newer build (or another branch) upgraded opens as it is when it has every
+ * store. Opening waits behind a pending delete or upgrade from another tab; it fails rather than hangs.
  */
-const open = (name: string, timeoutMs: number) => openAt(name, DB_VERSION, timeoutMs).catch((e: unknown) => {
-  if (e instanceof DOMException && e.name === 'VersionError') return openAt(name, undefined, timeoutMs)
-  throw e
-})
+async function open(name: string, timeoutMs: number) {
+  for (let attempt = 0; attempt < UPGRADE_ATTEMPTS; attempt++) {
+    const db = await openAt(name, undefined, timeoutMs)
+    if (missingStores(db).length === 0) return db
+    const next = db.version + 1
+    db.close()
+    try {
+      const upgraded = await openAt(name, next, timeoutMs)
+      if (missingStores(upgraded).length === 0) return upgraded
+      upgraded.close()
+    } catch (e) {
+      // another tab upgraded first: look again
+      if (!(e instanceof DOMException && e.name === 'VersionError')) throw e
+    }
+  }
+  throw new Error('The local database could not be set up.')
+}
 
 const openAt = (name: string, version: number | undefined, timeoutMs: number) => new Promise<IDBDatabase>((resolve, reject) => {
   const req = indexedDB.open(name, version)
   const timer = setTimeout(() => reject(new Error('The local database did not open. Another tab may be holding it.')), timeoutMs)
-  // Each version only adds stores (a new synced table); the ones a device has already stay as they are.
-  req.onupgradeneeded = () => { for (const s of stores) if (!req.result.objectStoreNames.contains(s)) req.result.createObjectStore(s) }
+  // Upgrades only add the stores this build is missing; the ones a device has already stay as they are.
+  req.onupgradeneeded = () => { for (const s of missingStores(req.result)) req.result.createObjectStore(s) }
   req.onsuccess = () => { clearTimeout(timer); resolve(req.result) }
   req.onerror = () => { clearTimeout(timer); reject(req.error) }
   req.onblocked = () => { clearTimeout(timer); reject(new Error('The local database is in use by another tab.')) }
@@ -72,3 +88,32 @@ export async function openLocalDb(name: string, { onLost, timeoutMs = OPEN_TIMEO
   }
 }
 export type LocalDb = Awaited<ReturnType<typeof openLocalDb>>
+
+/**
+ * Empties the local copy of server data so the next open syncs it again. Unsent changes (`outbox`)
+ * stay. A database that does not open at all is deleted, outbox included: nothing could read it anyway.
+ */
+export async function resetLocalCache(name: string, { timeoutMs = OPEN_TIMEOUT_MS }: Pick<Options, 'timeoutMs'> = {}) {
+  let db: IDBDatabase
+  try {
+    db = await openAt(name, undefined, timeoutMs)
+  } catch {
+    return deleteDatabase(name)
+  }
+  try {
+    const cached = [...db.objectStoreNames].filter(s => s !== 'outbox')
+    if (cached.length > 0) {
+      const tx = db.transaction(cached, 'readwrite')
+      for (const s of cached) tx.objectStore(s).clear()
+      await done(tx)
+    }
+  } finally {
+    db.close()
+  }
+}
+
+/** Resolves when the database is gone, or when the browser keeps it for a moment because another tab holds it. */
+const deleteDatabase = (name: string) => new Promise<void>(resolve => {
+  const req = indexedDB.deleteDatabase(name)
+  req.onsuccess = req.onerror = req.onblocked = () => resolve()
+})

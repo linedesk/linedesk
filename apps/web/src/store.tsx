@@ -1,7 +1,8 @@
 // One local store per workspace. Components read rows with useRows() and write with useRun().
 import type { TableName, Tables } from '@linedesk/db/types'
-import type { Rejection, Store } from '@linedesk/sync'
+import { resetLocalCache, type Rejection, type Store } from '@linedesk/sync'
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { forgetElectricState } from './localData.ts'
 import { leaseStore } from './storeCache.ts'
 import { BootScreen } from './ui/BootScreen.tsx'
 
@@ -10,7 +11,7 @@ const StoreContext = createContext<Ctx | null>(null)
 
 export const localDbName = (workspaceId: string) => `linedesk-${workspaceId}`
 
-type Boot = { state: 'loading' } | { state: 'failed'; error: string } | { state: 'ready'; store: Store }
+type Boot = { state: 'loading' } | { state: 'failed' } | { state: 'ready'; store: Store }
 
 /** Why nothing can be changed (a disabled workspace): writes are refused here, before anything changes on screen. */
 export const DISABLED_WORKSPACE = 'This workspace is disabled, so nothing can be changed.'
@@ -36,7 +37,8 @@ export function StoreProvider({
         if (live) setBoot({ state: 'ready', store })
       },
       (error: unknown) => {
-        if (live) setBoot({ state: 'failed', error: error instanceof Error ? error.message : String(error) })
+        console.error('The local store did not open', error)
+        if (live) setBoot({ state: 'failed' })
       },
     )
     return () => {
@@ -56,14 +58,24 @@ export function StoreProvider({
     return (
       <div className="boot" role="alert">
         <b>Your calls could not be loaded</b>
-        <span>{boot.error}</span>
-        <button type="button" className="k-btn k-btn-primary k-btn-md" onClick={() => window.location.reload()}>
+        <span>Reloading fetches them from the server again. Changes you have not sent yet are kept.</span>
+        <button type="button" className="k-btn k-btn-primary k-btn-md" onClick={() => void reloadFromServer(workspaceId)}>
           Reload
         </button>
       </div>
     )
   }
   return <BootScreen line="Loading your calls…" />
+}
+
+/** Empties this workspace's local copy (unsent changes stay) and reloads, so everything syncs fresh. */
+async function reloadFromServer(workspaceId: string) {
+  try {
+    forgetElectricState()
+    await resetLocalCache(localDbName(workspaceId))
+  } finally {
+    window.location.reload()
+  }
 }
 
 function useCtx() {
