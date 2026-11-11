@@ -225,6 +225,20 @@ test('call.transfer limits per workspace: one leg at a time, six started an hour
   }
   const seventh = await startCall()
   expect(await transfer(seventh, 'dialing')).toMatchObject({ status: 409, body: { error: 'transfer limit reached: 6 an hour' } })
+  // A test call (the call test's simulated on-call person) dials no real phone: it is not limited.
+  const testCall = (await act(agent(limited.id), 'call.startTest', { room: 'transfer-limit-test' })).body.data.callId as string
+  expect((await transfer(testCall, 'dialing')).status).toBe(200)
+})
+
+test('call.transfer: transfers of test calls do not count toward the limits', async () => {
+  const tested = await createWorkspace('Tested Plumbing')
+  const transfer = (callId: string, result: string) => act(agent(tested.id), 'call.transfer', { callId, to: '+15035550199', result })
+  for (let i = 0; i < 7; i++) {
+    const testCall = (await act(agent(tested.id), 'call.startTest', { room: `transfer-count-${i}` })).body.data.callId as string
+    expect((await transfer(testCall, 'dialing')).status).toBe(200) // one still dialing does not hold up the next either
+  }
+  const phoneCall = (await act(agent(), 'call.start', { from: randomNumber(), to: tested.number })).body.data.callId as string
+  expect((await transfer(phoneCall, 'dialing')).status).toBe(200)
 })
 
 const contact = (over: Record<string, unknown> = {}) => ({
