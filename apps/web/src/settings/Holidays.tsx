@@ -19,7 +19,6 @@ import {
   defaultClosureGreeting,
   shortDate,
   todayIn,
-  usHolidaysAhead,
   withDays,
 } from './closedDaysModel.ts'
 import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
@@ -54,7 +53,6 @@ export function Holidays({ canEdit, toast }: Props) {
   const [name, setName] = useState('')
   // Past days stay saved (they change nothing) but are not shown.
   const upcoming = days.filter(d => d.date >= today)
-  const missing = usHolidaysAhead(today).filter(h => !days.some(d => d.date === h.date))
   function add(e: FormEvent) {
     e.preventDefault()
     if (!date || date < today) return toast('Pick a day from today on.')
@@ -73,19 +71,6 @@ export function Holidays({ canEdit, toast }: Props) {
       title="Holidays and closures"
       description="Days you are closed, whatever the weekly hours say."
       help="On these days the assistant tells callers you are closed and when you open again, and books no appointments. It also mentions holidays in the next two weeks when callers ask about your hours."
-      actions={
-        canEdit && missing.length > 0 ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            icon="plus"
-            onClick={() => setDays(withDays(days, missing))}
-            title={missing.map(h => h.name).join(', ')}
-          >
-            Add US holidays
-          </Button>
-        ) : undefined
-      }
     >
       {!loaded ? null : upcoming.length ? (
         <List label="Holidays and closures">

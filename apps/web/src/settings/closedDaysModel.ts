@@ -1,5 +1,5 @@
-// Holidays, closure days and vacation mode without React: dates in the workspace's time zone,
-// the US holidays most small businesses close on, and the labels the page shows.
+// Holidays, closure days and vacation mode without React: dates in the workspace's time zone
+// and the labels the page shows.
 import type { ClosedDay } from '@linedesk/actions'
 import type { Closure } from '@linedesk/db/types'
 import { timeOptionLabel } from './businessHoursModel.ts'
@@ -15,40 +15,6 @@ export function todayIn(timeZone: string, now = Date.now()): string {
 
 export const addDays = (date: string, days: number) =>
   new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
-
-const iso = (year: number, month: number, day: number) =>
-  `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-
-/** The `n`th `weekday` (0 = Sunday) of a month; n = -1 is the last one. */
-function nthWeekday(year: number, month: number, weekday: number, n: number): string {
-  if (n > 0) {
-    const first = new Date(Date.UTC(year, month - 1, 1)).getUTCDay()
-    return iso(year, month, 1 + ((weekday - first + 7) % 7) + (n - 1) * 7)
-  }
-  const lastDay = new Date(Date.UTC(year, month, 0))
-  const back = (lastDay.getUTCDay() - weekday + 7) % 7
-  return iso(year, month, lastDay.getUTCDate() - back)
-}
-
-/** The US holidays most small businesses close on, in one year. */
-function usHolidaysIn(year: number): ClosedDay[] {
-  const closed = (date: string, name: string): ClosedDay => ({ date, name, start: null, end: null })
-  return [
-    closed(iso(year, 1, 1), "New Year's Day"),
-    closed(nthWeekday(year, 5, 1, -1), 'Memorial Day'),
-    closed(iso(year, 7, 4), 'Independence Day'),
-    closed(nthWeekday(year, 9, 1, 1), 'Labor Day'),
-    closed(nthWeekday(year, 11, 4, 4), 'Thanksgiving'),
-    closed(iso(year, 12, 25), 'Christmas Day'),
-  ]
-}
-
-/** Those holidays in the coming twelve months from `today`. */
-export function usHolidaysAhead(today: string): ClosedDay[] {
-  const year = Number(today.slice(0, 4))
-  const last = addDays(today, 365)
-  return [...usHolidaysIn(year), ...usHolidaysIn(year + 1)].filter(d => d.date >= today && d.date <= last)
-}
 
 /** The list with `added` merged in: a date already there keeps its entry. Sorted by date. */
 export function withDays(days: readonly ClosedDay[], added: readonly ClosedDay[]): ClosedDay[] {
