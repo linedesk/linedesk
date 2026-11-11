@@ -5,6 +5,7 @@ import { type FormEvent, useCallback, useState } from 'react'
 import { passkeySupported } from '../../auth.ts'
 import { signInAgain } from '../../localData.ts'
 import { refreshQuery, useQuery } from '../../cachedQuery.ts'
+import { refreshTeam } from '../../team/team-api.ts'
 import { Skeleton } from '../../ui/LoadStates.tsx'
 import { dateTimeLabel } from '../../time.ts'
 import { onSaveKey, SaveBar } from '../../ui/form.tsx'
@@ -132,7 +133,7 @@ function Profile({ account, reload }: SectionProps) {
     if (!trimmed || !dirty) return
     void request.run(async () => {
       await changeName(trimmed)
-      await reload()
+      await Promise.all([reload(), refreshTeam()]) // the Team list and call assignment show the new name
     }, 'Name saved.')
   }
   return (

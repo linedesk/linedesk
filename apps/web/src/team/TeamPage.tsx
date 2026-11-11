@@ -212,7 +212,10 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (te
     const address = email.trim().toLowerCase()
     if (!valid) return
     if (isOnTeam(data, address)) return toast(`${address} is already on the team or invited.`)
-    if (await run(() => teamApi.invite(address, role), `Invitation sent to ${address}.`)) setEmail('')
+    if (await run(() => teamApi.invite(address, role), `Invitation sent to ${address}.`)) {
+      setEmail('')
+      setRole('member') // the next invitation starts with the least access again
+    }
   }
   const [sending, setSending] = useState(false)
   return (

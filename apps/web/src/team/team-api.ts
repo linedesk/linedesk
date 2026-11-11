@@ -1,7 +1,7 @@
 // Team actions run online against the API: members and invitations are not in the local store,
 // and a role change or removal must not look done before the server has accepted it.
 import type { AssignableRole, InvitationPreview, TeamRole, TeamData, TeamLeaveData } from '@linedesk/actions'
-import { fetchQuery, useQuery } from '../cachedQuery.ts'
+import { fetchQuery, refreshQuery, useQuery } from '../cachedQuery.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 
 const TEAM = 'team'
@@ -30,6 +30,8 @@ export const teamApi = {
 
 /** Members and invitations: the last known at once (also across page loads), refreshed in the background. Shared by the Team page and call assignment. */
 export const useTeam = () => useQuery(TEAM, teamApi.list, { persist: true })
+/** After a change outside the Team page that the list shows (your own name): the list has it at once. */
+export const refreshTeam = () => refreshQuery(TEAM)
 /** Loads the team ahead, at app start: the Team page and call assignment then open with it. */
 export const preloadTeam = () => fetchQuery(TEAM, teamApi.list, { persist: true })
 
