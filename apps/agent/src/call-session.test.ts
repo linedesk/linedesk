@@ -52,3 +52,14 @@ test('a test room names the assistant picked in the web app, and call.startTest 
   await startCall(api, { kind: 'test', workspaceId: 'ws_1', room: 'other' })
   expect(sent).toEqual([{ room: 'room', assistantId: 'as_2' }, { room: 'other' }])
 })
+
+test('outside business hours the call uses the outside greeting; the call test may set one', async () => {
+  const closed = { openNow: false, summary: 'Closed now.' }
+  const row = { id: 'as_1', greeting: 'Hello, this is Maya.', greeting_outside: 'We are closed.', business_profile: {} }
+  const api = (hours: unknown) =>
+    ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {}, businessHours: hours } }) }) as never
+  expect((await startCall(api(closed), { kind: 'test', workspaceId: 'ws_1', room: 'r' })).assistant?.greeting).toBe('We are closed.')
+  expect((await startCall(api({ openNow: true, summary: 'Open.' }), { kind: 'test', workspaceId: 'ws_1', room: 'r' })).assistant?.greeting).toBe('Hello, this is Maya.')
+  const origin = callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', businessHours: closed, outsideGreeting: 'After-hours line.' }), {}, 'r')
+  expect((await startCall(api(null), origin)).assistant?.greeting).toBe('After-hours line.')
+})

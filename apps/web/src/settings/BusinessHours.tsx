@@ -1,11 +1,12 @@
-// Settings › Assistant, Business hours (optional): when the office is open, per weekday. The voice
-// agent gets them with each call, so outside them the assistant can say the office is closed, take a
-// message and say when someone calls back. Part of the Assistant page's one draft: its Save runs
-// businessHours.set when the hours changed.
+// Settings, Business hours: opt-in and workspace-wide. Turned on, the weekly hours reach the voice
+// agent with each call (open now or not, when that changes) and greeting and instructions may have an
+// outside-hours variant. Off, the assistant says nothing about hours. The switch saves at once; the
+// weekly grid is a draft with Cancel / Save (⌘S).
 import type { BusinessHoursSpan, WorkspaceSettingsData } from '@linedesk/actions'
-import { useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { useRun } from '../store.tsx'
 import { Select, type SelectOption, Switch } from '../ui/controls.tsx'
+import { onSaveKey, SaveBar } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 import { Section } from './fields.tsx'
 import {
@@ -32,6 +33,7 @@ export function useBusinessHours() {
   const [saved, setSaved] = useState<BusinessHoursSpan[] | null>(null)
   const [days, setDays] = useState<DayHours[]>([])
   const [timeZone, setTimeZone] = useState('')
+  const [on, setOnState] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   useEffect(() => {
     readAction<WorkspaceSettingsData>('workspace.getSettings').then(
@@ -39,6 +41,7 @@ export function useBusinessHours() {
         setSaved(data.businessHours)
         setDays(dayRows(data.businessHours))
         setTimeZone(data.timeZone)
+        setOnState(data.businessHoursOn)
       },
       (e: Error) => setLoadError(e.message),
     )
@@ -48,6 +51,12 @@ export function useBusinessHours() {
     saved,
     days,
     timeZone,
+    on,
+    /** Turns business hours on or off for the workspace, at once. */
+    setOn: (next: boolean) => {
+      setOnState(next)
+      void run('workspace.updateSettings', { businessHoursOn: next })
+    },
     loadError,
     dirty,
     problem: dirty ? hoursProblem(days) : null,
@@ -66,10 +75,18 @@ export function useBusinessHours() {
   }
 }
 
-type Props = { hours: HoursDraft; canEdit: boolean; name: string }
+type Props = { canEdit: boolean; toast: (text: string) => void }
 
-export function BusinessHours({ hours, canEdit, name }: Props) {
-  const { saved, days, timeZone, loadError, problem, set } = hours
+/** The Business hours section of Settings: the main switch, and the weekly grid while it is on. */
+export function BusinessHours({ canEdit, toast }: Props) {
+  const hours = useBusinessHours()
+  const { saved, days, timeZone, loadError, problem, set, on, dirty } = hours
+  function save(e: FormEvent) {
+    e.preventDefault()
+    if (problem) return toast(problem)
+    hours.save()
+    toast('Business hours saved.')
+  }
   function toggle(weekday: number, open: boolean) {
     // A day that opens takes the hours of the day before it, else 8:00 AM–5:00 PM.
     const before = [...days].reverse().find(d => d.open && d.weekday !== weekday)
@@ -79,75 +96,89 @@ export function BusinessHours({ hours, canEdit, name }: Props) {
     )
   }
 
-  const description = `Optional. Outside them, ${name} takes a message.`
-  const help = `Outside these hours ${name} tells callers the office is closed, takes a message and says when someone will call back.`
+  const help =
+    'When they are on, the assistant tells callers whether the office is open and when it opens, and greeting and instructions can have an outside-hours version.'
+  const mainSwitch = (
+    <span className="bh-main">
+      <span className="help">Use business hours</span>
+      <Switch on={on} onChange={hours.setOn} label="Use business hours" disabled={!canEdit || !saved} />
+    </span>
+  )
   if (!saved)
     return (
-      <Section id="as-hours" title="Business hours" description={description} help={help}>
+      <Section id="st-hours" title="Business hours" help={help} actions={mainSwitch}>
         <p className="help" role={loadError ? 'alert' : undefined}>
           {loadError ?? 'Loading…'}
         </p>
       </Section>
     )
   return (
-    <Section id="as-hours" title="Business hours" description={description} help={help}>
-      <div className="st-list" role="group" aria-label="Opening hours by day">
-        {WEEK_ORDER.map(weekday => {
-          const day = days.find(d => d.weekday === weekday)!
-          return (
-            <div key={weekday} className="st-li st-day">
-              <b>{DAY[weekday]}</b>
-              <Switch
-                on={day.open}
-                onChange={open => toggle(weekday, open)}
-                label={`Open on ${DAY[weekday]}`}
-                disabled={!canEdit}
-              />
-              {day.open ? (
-                <span className="st-times">
-                  <Select
-                    size="sm"
-                    value={day.start}
-                    options={startOptions}
-                    onChange={start => set(weekday, { start })}
-                    label={`${DAY[weekday]} opens`}
-                    disabled={!canEdit}
-                  />
-                  <span className="help">to</span>
-                  <Select
-                    size="sm"
-                    value={day.end}
-                    options={endOptions}
-                    onChange={end => set(weekday, { end })}
-                    label={`${DAY[weekday]} closes`}
-                    disabled={!canEdit}
-                  />
-                </span>
-              ) : (
-                <span className="help">Closed</span>
+    <form onSubmit={save} onKeyDown={e => onSaveKey(e, canEdit && dirty)}>
+      <Section
+        id="st-hours"
+        title="Business hours"
+        description={on ? undefined : 'Off'}
+        help={help}
+        actions={mainSwitch}
+      >
+        {on && (
+          <>
+            <div className="st-list" role="group" aria-label="Opening hours by day">
+              {WEEK_ORDER.map(weekday => {
+                const day = days.find(d => d.weekday === weekday)!
+                return (
+                  <div key={weekday} className="st-li st-day">
+                    <b>{DAY[weekday]}</b>
+                    <Switch
+                      on={day.open}
+                      onChange={open => toggle(weekday, open)}
+                      label={`Open on ${DAY[weekday]}`}
+                      disabled={!canEdit}
+                    />
+                    {day.open ? (
+                      <span className="st-times">
+                        <Select
+                          size="sm"
+                          value={day.start}
+                          options={startOptions}
+                          onChange={start => set(weekday, { start })}
+                          label={`${DAY[weekday]} opens`}
+                          disabled={!canEdit}
+                        />
+                        <span className="help">to</span>
+                        <Select
+                          size="sm"
+                          value={day.end}
+                          options={endOptions}
+                          onChange={end => set(weekday, { end })}
+                          label={`${DAY[weekday]} closes`}
+                          disabled={!canEdit}
+                        />
+                      </span>
+                    ) : (
+                      <span className="help">Closed</span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            {problem && (
+              <p className="field-error" role="alert">
+                {problem}
+              </p>
+            )}
+            <div className="st-hours-foot">
+              <span className="help">{timeZone ? `Times in ${timeZone.replaceAll('_', ' ')}.` : ''}</span>
+              {canEdit && days.some(d => d.open) && (
+                <Button size="sm" variant="ghost" onClick={hours.clear} title="Close every day">
+                  Clear hours
+                </Button>
               )}
             </div>
-          )
-        })}
-      </div>
-      {problem && (
-        <p className="field-error" role="alert">
-          {problem}
-        </p>
-      )}
-      <div className="st-hours-foot">
-        <span className="help">{timeZone ? `Times in ${timeZone.replaceAll('_', ' ')}.` : ''}</span>
-        {canEdit && days.some(d => d.open) && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={hours.clear}
-            title="Close every day: the assistant then says nothing about opening times. Saved with Save."
-          >
-            Clear hours
-          </Button>
+          </>
         )}
-      </div>
-    </Section>
+      </Section>
+      {canEdit && <SaveBar dirty={dirty} onCancel={hours.discard} />}
+    </form>
   )
 }

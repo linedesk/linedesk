@@ -4,7 +4,16 @@ import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX, callRulesOf } fro
 import type { Assistant, BusinessProfile } from '@linedesk/db/types'
 import { renameInGreeting } from '../onboarding/flow.ts'
 
-export type Draft = { name: string; greeting: string; disclose_ai: boolean; instructions: string; call_rules: string }
+/** `greeting_outside` and `instructions_outside`: used outside business hours; empty = the same as during hours. */
+export type Draft = {
+  name: string
+  greeting: string
+  disclose_ai: boolean
+  instructions: string
+  call_rules: string
+  greeting_outside: string
+  instructions_outside: string
+}
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 const line = (label: string, value?: string) => (value?.trim() ? `${label}: ${value.trim()}` : null)
@@ -31,6 +40,8 @@ export function draftOf(a: Assistant): Draft {
   return {
     name: a.name, greeting: a.greeting, disclose_ai: a.disclose_ai, instructions: p.instructions?.trim() ? p.instructions : foldProfile(p),
     call_rules: callRulesOf(a.call_rules), // none stored: the default rules, shown so they can be edited
+    greeting_outside: a.greeting_outside ?? '',
+    instructions_outside: a.instructions_outside ?? '',
   }
 }
 
@@ -44,7 +55,15 @@ export function mergeDraft(draft: Draft, previousSaved: Draft, nextSaved: Draft)
 }
 
 /** What would be saved: trimmed. */
-export const normalized = (d: Draft): Draft => ({ ...d, name: d.name.trim(), greeting: d.greeting.trim(), instructions: d.instructions.trim(), call_rules: d.call_rules.trim() })
+export const normalized = (d: Draft): Draft => ({
+  ...d,
+  name: d.name.trim(),
+  greeting: d.greeting.trim(),
+  instructions: d.instructions.trim(),
+  call_rules: d.call_rules.trim(),
+  greeting_outside: d.greeting_outside.trim(),
+  instructions_outside: d.instructions_outside.trim(),
+})
 
 /** Something to save: spaces around a value are not a change. */
 export const isDirty = (draft: Draft, saved: Draft) => !same(normalized(draft), normalized(saved))
@@ -87,7 +106,7 @@ export const withoutDisclosure = (greeting: string) => greeting.replace(DISCLOSU
 export function draftProblem(draft: Draft): string | null {
   if (!draft.name.trim()) return 'The assistant needs a name.'
   if (!draft.greeting.trim()) return 'The greeting cannot be empty: it is the first thing callers hear.'
-  const length = draft.instructions.trim().length
+  const length = Math.max(draft.instructions.trim().length, draft.instructions_outside.trim().length)
   if (length > INSTRUCTIONS_MAX) return `The instructions are too long: ${length.toLocaleString('en-US')} of ${INSTRUCTIONS_MAX.toLocaleString('en-US')} characters.`
   const rules = draft.call_rules.trim().length
   if (rules > CALL_RULES_MAX) return `How to handle calls is too long: ${rules.toLocaleString('en-US')} of ${CALL_RULES_MAX.toLocaleString('en-US')} characters.`
@@ -104,6 +123,12 @@ export const callRulesToSave = (d: Draft): string | null => {
 }
 
 export const isDefaultCallRules = (d: Draft) => callRulesToSave(d) === null
+
+/** The outside-hours variants to save: null when empty (the same as during hours). */
+export const outsideToSave = (d: Draft) => ({
+  greeting_outside: d.greeting_outside.trim() || null,
+  instructions_outside: d.instructions_outside.trim() || null,
+})
 
 /** The greeting still names the assistant by its saved name after a rename ("This is Maya" → Ava). */
 export function staleGreetingName(greeting: string, savedName: string, name: string): string | null {

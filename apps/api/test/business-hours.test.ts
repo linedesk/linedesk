@@ -1,10 +1,10 @@
-// Business hours: owners and admins set the weekly hours in Settings › Assistant; the voice agent gets
+// Business hours (opt-in): owners and admins set the weekly hours in Settings and turn them on; the voice agent gets
 // them with every call (call.start, call.startTest) as context: open now or not, and when that changes.
 import { workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, test } from 'vitest'
 import { db } from '../src/db.ts'
-import { act, addMember, agent, createWorkspace, randomNumber } from './helpers.ts'
+import { act, addMember, agent, createWorkspace, getAssistant, randomNumber } from './helpers.ts'
 
 const weekdays = [1, 2, 3, 4, 5].map(weekday => ({ weekday, start: '07:00', end: '18:00' }))
 
@@ -59,6 +59,12 @@ describe('business hours', () => {
       .set({ timezone: 'America/Los_Angeles' })
       .where(eq(workspace_settings.workspace_id, ws.id))
     await act(ws.owner, 'businessHours.set', { hours: weekdays })
+    // Hours are opt-in: set but not turned on, the agent still hears nothing about them.
+    const notOn = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
+    expect(notOn.body.data.businessHours).toBeNull()
+    expect((await act(ws.owner, 'workspace.getSettings', {})).body.data.businessHoursOn).toBe(false)
+    const on = await act(ws.owner, 'workspace.updateSettings', { businessHoursOn: true })
+    expect(on.body.data).toMatchObject({ businessHoursOn: true })
     const { body } = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
     expect(body.data.businessHours).toMatchObject({
       timeZone: 'America/Los_Angeles',
@@ -68,5 +74,21 @@ describe('business hours', () => {
         /^Business hours: Monday to Friday 7:00 AM–6:00 PM \(America\/Los_Angeles\)\. (Open now|Closed now)/,
       ),
     })
+    // Turned off again: nothing about hours, though they stay saved.
+    await act(ws.owner, 'workspace.updateSettings', { businessHoursOn: false })
+    expect((await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data.businessHours).toBeNull()
+    expect((await act(ws.owner, 'workspace.getSettings', {})).body.data.businessHours).toHaveLength(5)
+  })
+
+  test('the outside-hours greeting and instructions are stored per assistant; members cannot change them', async () => {
+    const ws = await createWorkspace('Outside Hours Plumbing')
+    const member = await addMember(ws.id, 'member')
+    const set = { assistantId: ws.assistant.id, greeting_outside: 'We are closed. This is Maya.', instructions_outside: 'Take a message.' }
+    expect((await act(member, 'assistant.update', set)).status).toBe(403)
+    expect((await act(ws.owner, 'assistant.update', set)).status).toBe(200)
+    const { body } = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
+    expect(body.data.assistant).toMatchObject({ greeting_outside: 'We are closed. This is Maya.', instructions_outside: 'Take a message.' })
+    await act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, greeting_outside: null })
+    expect((await getAssistant(ws.assistant.id))!.greeting_outside).toBeNull()
   })
 })

@@ -1,7 +1,7 @@
 import { DEFAULT_CALL_RULES } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
-import { buildInstructions } from './prompt.ts'
+import { buildInstructions, forHours } from './prompt.ts'
 
 const assistant = (over: Partial<Assistant> = {}) =>
   ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', disclose_ai: false, business_profile: { instructions: 'We fix pipes in Portland.' }, call_rules: null, ...over }) as Assistant
@@ -40,5 +40,19 @@ test('business hours: the ready sentence goes into the prompt; closed means a me
   expect(buildInstructions(assistant(), open)).toContain(open.summary)
   expect(buildInstructions(assistant(), open)).not.toContain('closed right now')
   expect(buildInstructions(assistant(), closed)).toContain(`${closed.summary} The office is closed right now: take a message as usual and tell the caller the team will call back when the office opens`)
-  expect(buildInstructions(assistant(), null)).toContain('No business hours are set: do not tell callers when the office is open')
+  // Hours off (null): no sentence about hours at all.
+  expect(buildInstructions(assistant(), null)).not.toMatch(/business hours|office is (open|closed)/i)
+})
+
+test('outside business hours the outside greeting and instructions apply; empty ones fall back', () => {
+  const closed = { openNow: false, summary: 'Closed now; opens tomorrow at 7 AM.' }
+  const open = { openNow: true, summary: 'Open now, until 6 PM.' }
+  const both = assistant({ greeting_outside: 'We are closed. This is Maya.', instructions_outside: 'Only take messages.' })
+  expect(forHours(both, closed)).toMatchObject({ greeting: 'We are closed. This is Maya.', business_profile: { instructions: 'Only take messages.' } })
+  expect(buildInstructions(forHours(both, closed), closed)).toContain('What the business wants you to know:\nOnly take messages.')
+  expect(forHours(both, open)).toBe(both)
+  expect(forHours(both, null)).toBe(both)
+  const blank = assistant({ greeting_outside: '  ', instructions_outside: null })
+  expect(forHours(blank, closed)).toMatchObject({ greeting: 'Thanks for calling Brightwater.', business_profile: { instructions: 'We fix pipes in Portland.' } })
+  expect(forHours(null, closed)).toBeNull()
 })

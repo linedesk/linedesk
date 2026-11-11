@@ -24,7 +24,7 @@ export type PageProps = {
 }
 /**
  * `ownHeader`: the page draws its own header (with `menu`) instead of the title bar. `sections`: the
- * page shows one section at a time, named in the hash after the page (`#assistant/hours`).
+ * page shows one section at a time, named in the hash after the page (`#settings/hours`).
  */
 export type Page = { title: string; render: (props: PageProps) => ReactNode; ownHeader?: boolean; sections?: true }
 

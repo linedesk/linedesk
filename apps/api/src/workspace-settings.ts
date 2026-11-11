@@ -29,6 +29,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       .where(eq(availability_rules.workspace_id, actor.workspaceId))
     const data: WorkspaceSettingsData = {
       recordingRetentionDays: row ? row.recording_retention_days : DEFAULT_RECORDING_RETENTION_DAYS,
+      businessHoursOn: row?.business_hours_on ?? false,
       timeZone: row?.timezone ?? DEFAULT_TIME_ZONE,
       businessHours: rules
         .map(r => ({ weekday: r.weekday, start: r.start_time.slice(0, 5), end: r.end_time.slice(0, 5) }))
@@ -38,20 +39,27 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
     return { rows: {}, data }
   },
 
-  'workspace.updateSettings': async ({ tx, actor }, input: { recordingRetentionDays?: number | null }) => {
+  'workspace.updateSettings': async (
+    { tx, actor },
+    input: { recordingRetentionDays?: number | null; businessHoursOn?: boolean },
+  ) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
-    if (input.recordingRetentionDays === undefined) return { rows: {} }
-    const recording_retention_days = input.recordingRetentionDays
-    await tx
+    const set = {
+      ...(input.recordingRetentionDays !== undefined ? { recording_retention_days: input.recordingRetentionDays } : {}),
+      ...(input.businessHoursOn !== undefined ? { business_hours_on: input.businessHoursOn } : {}),
+    }
+    if (!Object.keys(set).length) return { rows: {} }
+    const [row] = await tx
       .insert(workspace_settings)
-      .values({ workspace_id: actor.workspaceId, timezone: DEFAULT_TIME_ZONE, recording_retention_days })
-      .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { recording_retention_days } })
+      .values({ workspace_id: actor.workspaceId, timezone: DEFAULT_TIME_ZONE, ...set })
+      .onConflictDoUpdate({ target: workspace_settings.workspace_id, set })
+      .returning()
     return {
       rows: {},
-      data: { recordingRetentionDays: recording_retention_days } satisfies Pick<
-        WorkspaceSettingsData,
-        'recordingRetentionDays'
-      >,
+      data: {
+        recordingRetentionDays: row!.recording_retention_days,
+        businessHoursOn: row!.business_hours_on,
+      } satisfies Pick<WorkspaceSettingsData, 'recordingRetentionDays' | 'businessHoursOn'>,
     }
   },
 

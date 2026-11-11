@@ -95,9 +95,11 @@ const releaseBought = (provider: TelephonyProvider, number: { e164: string; prov
  * sentence it can use ("Closed now; opens tomorrow at 7:00 AM"). null when no hours are set.
  */
 async function businessHoursFor(tx: Tx, workspace_id: string, now: string): Promise<BusinessHoursContext | null> {
+  // Hours are opt-in: until the workspace turns them on the assistant says nothing about them.
+  const [settings] = await tx.select({ timezone: workspace_settings.timezone, on: workspace_settings.business_hours_on }).from(workspace_settings).where(eq(workspace_settings.workspace_id, workspace_id))
+  if (!settings?.on) return null
   const rules = await tx.select().from(availability_rules).where(eq(availability_rules.workspace_id, workspace_id))
   if (!rules.length) return null
-  const [settings] = await tx.select({ timezone: workspace_settings.timezone }).from(workspace_settings).where(eq(workspace_settings.workspace_id, workspace_id))
   try {
     return businessHoursContext(rules, settings?.timezone ?? DEFAULT_TIME_ZONE, Date.parse(now))
   } catch (e) {

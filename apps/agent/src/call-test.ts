@@ -52,8 +52,9 @@ async function startInRoom({ name, room, to, since, api }: Run) {
   const { workspaceId } = (await api.run(callFindForTest, { to, since, room })).data as CallTestFinding
   const dispatch = dispatcher()
   const caller: TestCallerMetadata = { source: 'test-caller', scenario: name, mode: 'room' }
-  const { businessHours } = scenarios[name] as Scenario
-  await dispatch.createDispatch(room, AGENT_NAME, { metadata: JSON.stringify({ source: 'test', workspaceId, ...(businessHours ? { businessHours } : {}) }) })
+  const { businessHours, outsideGreeting } = scenarios[name] as Scenario
+  const metadata = { source: 'test', workspaceId, ...(businessHours ? { businessHours } : {}), ...(outsideGreeting ? { outsideGreeting } : {}) }
+  await dispatch.createDispatch(room, AGENT_NAME, { metadata: JSON.stringify(metadata) })
   await dispatch.createDispatch(room, AGENT_NAME, { metadata: JSON.stringify(caller) })
   console.log(`Test call in room ${room} with workspace ${workspaceId} (scenario ${name}, no phone)…`)
 }

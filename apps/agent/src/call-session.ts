@@ -3,6 +3,7 @@ import { type BookingContext, callAppendTranscript, callFinish, callStart, callS
 import type { Assistant, Contact, ToolEvent } from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
+import { forHours } from './prompt.ts'
 
 export type Speaker = z.input<typeof callAppendTranscript.input>['speaker']
 export type CallResult = Omit<z.input<typeof callFinish.input>, 'callId'>
@@ -33,15 +34,20 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
  */
 export type CallOrigin =
   | { kind: 'phone'; from: string; to: string; room?: string }
-  | { kind: 'test'; workspaceId: string; room: string; assistantId?: string; businessHours?: BusinessHours }
+  | { kind: 'test'; workspaceId: string; room: string; assistantId?: string; businessHours?: BusinessHours; outsideGreeting?: string }
 
 export async function startCall(api: ApiClient, origin: CallOrigin): Promise<CallSession> {
   const { data } = origin.kind === 'phone'
     ? await api.run(callStart, { from: origin.from, to: origin.to, room: origin.room })
     : await api.run(callStartTest, { room: origin.room, ...(origin.assistantId ? { assistantId: origin.assistantId } : {}) }, origin.workspaceId)
   const started = data as StartData
-  const { callId, workspaceId, assistant, contact, blocked = false } = started
+  const { callId, workspaceId, contact, blocked = false } = started
   const businessHours = (origin.kind === 'test' && origin.businessHours) || started.businessHours || null
+  // The call test may set an outside greeting to check without touching the real assistant.
+  const outsideGreeting = origin.kind === 'test' ? origin.outsideGreeting : undefined
+  const configured = started.assistant && outsideGreeting ? { ...started.assistant, greeting_outside: outsideGreeting } : started.assistant
+  // The greeting and instructions that apply now: outside business hours, the outside variants.
+  const assistant = forHours(configured, businessHours)
   const booking = started.booking ?? null
   const startedAt = Date.now()
   return {
@@ -69,6 +75,7 @@ export function callOrigin(jobMetadata: string, attributes: Record<string, strin
       room,
       ...(test.assistantId ? { assistantId: test.assistantId } : {}),
       ...(test.businessHours ? { businessHours: test.businessHours } : {}),
+      ...(test.outsideGreeting ? { outsideGreeting: test.outsideGreeting } : {}),
     }
   const from = attributes['sip.phoneNumber']
   const to = attributes['sip.trunkPhoneNumber']
@@ -77,15 +84,23 @@ export function callOrigin(jobMetadata: string, attributes: Record<string, strin
 }
 
 /** The workspace (and the assistant picked in the web app) of a test room the API signed, or null for any other room. */
-export function parseTestMetadata(metadata: string): { workspaceId: string; assistantId?: string; businessHours?: BusinessHours } | null {
+export function parseTestMetadata(
+  metadata: string,
+): { workspaceId: string; assistantId?: string; businessHours?: BusinessHours; outsideGreeting?: string } | null {
   if (!metadata) return null
   try {
-    const parsed = JSON.parse(metadata) as { source?: unknown; workspaceId?: unknown; assistantId?: unknown; businessHours?: unknown }
+    const parsed = JSON.parse(metadata) as { source?: unknown; workspaceId?: unknown; assistantId?: unknown; businessHours?: unknown; outsideGreeting?: unknown }
     if (parsed.source !== 'test' || typeof parsed.workspaceId !== 'string' || !parsed.workspaceId) return null
     const hours = parsed.businessHours as Partial<BusinessHours> | undefined
     const businessHours = hours && typeof hours.openNow === 'boolean' && typeof hours.summary === 'string' ? { openNow: hours.openNow, summary: hours.summary } : undefined
     const assistantId = typeof parsed.assistantId === 'string' && parsed.assistantId ? parsed.assistantId : undefined
-    return { workspaceId: parsed.workspaceId, ...(assistantId ? { assistantId } : {}), ...(businessHours ? { businessHours } : {}) }
+    const outsideGreeting = typeof parsed.outsideGreeting === 'string' && parsed.outsideGreeting ? parsed.outsideGreeting : undefined
+    return {
+      workspaceId: parsed.workspaceId,
+      ...(assistantId ? { assistantId } : {}),
+      ...(businessHours ? { businessHours } : {}),
+      ...(outsideGreeting ? { outsideGreeting } : {}),
+    }
   } catch {
     return null
   }

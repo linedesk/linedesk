@@ -74,7 +74,7 @@ export const INSTRUCTIONS_MAX = 20_000
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
-    'Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default).',
+    'Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` and `instructions_outside` are used outside business hours when the workspace uses them (null: the same as during hours).',
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().min(1).optional(),
@@ -82,6 +82,9 @@ export const assistantUpdate = defineAction({
     disclose_ai: z.boolean().optional(),
     /** null goes back to the default rules. */
     call_rules: z.string().max(CALL_RULES_MAX).nullable().optional(),
+    /** Used outside business hours, when the workspace uses them; null: the same as during hours. */
+    greeting_outside: z.string().nullable().optional(),
+    instructions_outside: z.string().max(INSTRUCTIONS_MAX).nullable().optional(),
     record_calls: z.boolean().optional(),
     voice: z.object({ provider: z.string(), voice_id: z.string() }).optional(),
     business_profile: z
@@ -130,7 +133,14 @@ export const DEFAULT_RECORDING_RETENTION_DAYS = 90
 export type BusinessHoursSpan = { weekday: number; start: string; end: string }
 /** `data` of `workspace.getSettings`. `businessHours` empty: no hours set (the assistant says nothing about them). */
 /** `recordingOn`: this server records calls (a recording store is picked under Providers, or RECORDING_STORE names one; the voice agent gets the same setting). */
-export type WorkspaceSettingsData = { recordingRetentionDays: number | null; timeZone: string; businessHours: BusinessHoursSpan[]; recordingOn: boolean }
+/** `businessHoursOn`: the workspace uses its hours for calls (off by default). */
+export type WorkspaceSettingsData = {
+  recordingRetentionDays: number | null
+  timeZone: string
+  businessHours: BusinessHoursSpan[]
+  businessHoursOn: boolean
+  recordingOn: boolean
+}
 
 const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$|^24:00$/, 'a time like 07:00')
 
@@ -158,9 +168,10 @@ export const workspaceGetSettings = defineAction({
 export const workspaceUpdateSettings = defineAction({
   name: 'workspace.updateSettings',
   description:
-    'Change workspace settings: `recordingRetentionDays` (30, 60, 90, 180 or 365; null keeps recordings). Older recordings are deleted by the daily cleanup.',
+    'Change workspace settings: `recordingRetentionDays` (30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup) and `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours).',
   input: z.object({
     recordingRetentionDays: z.union([z.literal(recordingRetentionChoices), z.null()]).optional(),
+    businessHoursOn: z.boolean().optional(),
   }),
   permission: 'settings:write',
 })

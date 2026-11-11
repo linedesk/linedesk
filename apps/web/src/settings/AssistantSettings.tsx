@@ -1,17 +1,18 @@
-// Assistant settings: name, greeting, AI disclosure, the business's instructions, call rules and
-// business hours, one section at a time (#assistant/<section>). Edits in every section are one local
-// draft: Save runs assistant.update and businessHours.set through the outbox; a section with unsaved
+// Assistant settings: name, greeting, AI disclosure, the business's instructions, call rules and the
+// calendar, one section at a time (#assistant/<id>/<section>). Edits in the text sections are one local
+// draft: Save runs assistant.update through the outbox; a section with unsaved
 // changes keeps a dot in the nav while you look at another one.
-import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX } from '@linedesk/actions'
+import { CALL_RULES_MAX, DEFAULT_CALL_RULES, INSTRUCTIONS_MAX, type WorkspaceSettingsData } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
 import { onSaveKey, SaveBar } from '../ui/form.tsx'
-import { Button } from '../ui/kit.tsx'
+import { Button, cx } from '../ui/kit.tsx'
 import { type PageSection, SettingsLayout, sectionHash, useSection } from '../ui/SettingsLayout.tsx'
 import {
   callRulesToSave,
+  outsideToSave,
   type Draft,
   draftOf,
   draftProblem,
@@ -28,33 +29,62 @@ import {
   withoutDisclosure,
 } from './assistantDraft.ts'
 import { AssistantHeader } from './AssistantHeader.tsx'
-import { BusinessHours, useBusinessHours } from './BusinessHours.tsx'
 import { CalendarSettings } from './Calendar.tsx'
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
 import { Field, Section, SwitchRow, TextArea } from './fields.tsx'
+import { readAction } from './settings-api.ts'
 import { TestCallBar, TestCallButton, useTestCall } from './TestCall.tsx'
 
-type SectionId = 'greeting' | 'instructions' | 'rules' | 'hours' | 'calendar'
+type SectionId = 'greeting' | 'instructions' | 'rules' | 'calendar'
 const sections: readonly PageSection<SectionId>[] = [
-  { id: 'greeting', label: 'Greeting', description: 'Name, first sentence, AI disclosure' },
+  { id: 'greeting', label: 'Greeting', description: 'First sentence, AI disclosure' },
   { id: 'instructions', label: 'Instructions', description: 'What the assistant knows about the business' },
   { id: 'rules', label: 'Call rules', description: 'How calls are handled' },
-  { id: 'hours', label: 'Business hours', description: 'When the office is open' },
   { id: 'calendar', label: 'Calendar', description: 'Accounts, calendars and appointment types' },
 ]
-/** Which draft fields each section holds; hours are their own draft. */
-const sectionFields: Record<Exclude<SectionId, 'hours' | 'calendar'>, (keyof Draft)[]> = {
-  greeting: ['name', 'greeting', 'disclose_ai'],
-  instructions: ['instructions'],
+/** Which draft fields each section holds; the calendar has its own. */
+const sectionFields: Record<Exclude<SectionId, 'calendar'>, (keyof Draft)[]> = {
+  greeting: ['name', 'greeting', 'disclose_ai', 'greeting_outside'],
+  instructions: ['instructions', 'instructions_outside'],
   rules: ['call_rules'],
 }
 
 type SectionProps = { draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void }
+/** Which variant a field shows: during business hours, or outside them (only when the workspace uses hours). */
+type Variant = 'during' | 'outside'
+
+/** "During hours / Outside hours" above a field, when the workspace uses business hours. */
+function VariantSwitch({ value, onChange, label }: { value: Variant; onChange: (v: Variant) => void; label: string }) {
+  return (
+    <div className="st-seg as-variant" role="radiogroup" aria-label={label}>
+      {(['during', 'outside'] as const).map(v => (
+        <button
+          key={v}
+          type="button"
+          role="radio"
+          aria-checked={value === v}
+          className={cx('st-seg-b', value === v && 'on')}
+          onClick={() => onChange(v)}
+          title={v === 'outside' ? 'Optional. Empty: the same as during hours' : undefined}
+        >
+          {v === 'during' ? 'During hours' : 'Outside hours'}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 const count = (n: number) => n.toLocaleString('en-US')
 
-function Greeting({ draft, set, renamedFrom }: SectionProps & { renamedFrom: string | null }) {
+function Greeting({
+  draft,
+  set,
+  renamedFrom,
+  hoursOn,
+}: SectionProps & { renamedFrom: string | null; hoursOn: boolean }) {
   const stale = renamedFrom ? staleGreetingName(draft.greeting, renamedFrom, draft.name) : null
+  const [variant, setVariant] = useState<Variant>('during')
+  const outside = hoursOn && variant === 'outside'
   /** The switch and the greeting say the same thing: turning it on or off adds or removes the disclosure. */
   function disclose(on: boolean) {
     set('disclose_ai', on)
@@ -62,27 +92,42 @@ function Greeting({ draft, set, renamedFrom }: SectionProps & { renamedFrom: str
   }
   return (
     <Section id="as-greeting" title="Greeting" description="The first sentence of every call.">
-      <Field id="as-greet" label="Greeting" error={draft.greeting.trim() ? null : 'The greeting cannot be empty.'}>
-        <TextArea
-          id="as-greet"
-          value={draft.greeting}
-          onChange={v => set('greeting', v)}
-          invalid={!draft.greeting.trim()}
-        />
-        <span className="help">{spokenLength(draft.greeting)}</span>
-        {stale && (
-          <span className="help as-stale">
-            Still says "{stale}".
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => set('greeting', renameInGreeting(draft.greeting, stale, draft.name.trim()))}
-            >
-              Use {draft.name.trim()}
-            </Button>
+      {hoursOn && <VariantSwitch value={variant} onChange={setVariant} label="Greeting for" />}
+      {outside ? (
+        <Field id="as-greet-out" label="Greeting outside hours" aside="Optional">
+          <TextArea
+            id="as-greet-out"
+            value={draft.greeting_outside}
+            onChange={v => set('greeting_outside', v)}
+            placeholder={draft.greeting}
+          />
+          <span className="help">
+            {draft.greeting_outside.trim() ? spokenLength(draft.greeting_outside) : 'Empty: the same as during hours'}
           </span>
-        )}
-      </Field>
+        </Field>
+      ) : (
+        <Field id="as-greet" label="Greeting" error={draft.greeting.trim() ? null : 'The greeting cannot be empty.'}>
+          <TextArea
+            id="as-greet"
+            value={draft.greeting}
+            onChange={v => set('greeting', v)}
+            invalid={!draft.greeting.trim()}
+          />
+          <span className="help">{spokenLength(draft.greeting)}</span>
+          {stale && (
+            <span className="help as-stale">
+              Still says "{stale}".
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => set('greeting', renameInGreeting(draft.greeting, stale, draft.name.trim()))}
+              >
+                Use {draft.name.trim()}
+              </Button>
+            </span>
+          )}
+        </Field>
+      )}
       <SwitchRow
         title="Say it's an AI assistant"
         description={draft.disclose_ai ? undefined : 'Some states require it.'}
@@ -93,28 +138,48 @@ function Greeting({ draft, set, renamedFrom }: SectionProps & { renamedFrom: str
   )
 }
 
-function Instructions({ draft, set }: SectionProps) {
+function Instructions({ draft, set, hoursOn }: SectionProps & { hoursOn: boolean }) {
+  const [variant, setVariant] = useState<Variant>('during')
+  const outside = hoursOn && variant === 'outside'
   return (
     <Section
       id="as-instructions"
       title="Instructions"
       description="Write it like you would brief a new hire."
-      help="Services, service area, prices, answers to common questions, what counts as urgent. Opening hours go in Business hours."
+      help="Services, service area, prices, answers to common questions, what counts as urgent. Opening hours go in Settings, Business hours."
     >
-      <Field id="as-instr" label="Instructions">
-        <TextArea
-          id="as-instr"
-          tall
-          value={draft.instructions}
-          onChange={v => set('instructions', v)}
-          placeholder={
-            'We are a family-run plumbing company in Portland.\nServices: leak repair, water heaters, drain cleaning.\nService area: Portland, Beaverton, Lake Oswego.'
-          }
-        />
-        <span className="help">
-          {count(draft.instructions.trim().length)} / {count(INSTRUCTIONS_MAX)}
-        </span>
-      </Field>
+      {hoursOn && <VariantSwitch value={variant} onChange={setVariant} label="Instructions for" />}
+      {outside ? (
+        <Field id="as-instr-out" label="Instructions outside hours" aside="Optional">
+          <TextArea
+            id="as-instr-out"
+            tall
+            value={draft.instructions_outside}
+            onChange={v => set('instructions_outside', v)}
+            placeholder={draft.instructions || 'Empty: the same as during hours'}
+          />
+          <span className="help">
+            {draft.instructions_outside.trim()
+              ? `${count(draft.instructions_outside.trim().length)} / ${count(INSTRUCTIONS_MAX)}`
+              : 'Empty: the same as during hours'}
+          </span>
+        </Field>
+      ) : (
+        <Field id="as-instr" label="Instructions">
+          <TextArea
+            id="as-instr"
+            tall
+            value={draft.instructions}
+            onChange={v => set('instructions', v)}
+            placeholder={
+              'We are a family-run plumbing company in Portland.\nServices: leak repair, water heaters, drain cleaning.\nService area: Portland, Beaverton, Lake Oswego.'
+            }
+          />
+          <span className="help">
+            {count(draft.instructions.trim().length)} / {count(INSTRUCTIONS_MAX)}
+          </span>
+        </Field>
+      )}
     </Section>
   )
 }
@@ -177,18 +242,17 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     if (previous !== saved) setDraft(d => mergeDraft(d, previous, saved))
   }, [saved])
   const set: SectionProps['set'] = (key, value) => setDraft(d => ({ ...d, [key]: value }))
-  const hours = useBusinessHours()
-  const changed = dirty || hours.dirty
+  const hoursOn = useBusinessHoursOn()
+  const changed = dirty
   const unsaved = useMemo(() => {
     const clean = [normalized(draft), normalized(saved)] as const
     const marked = new Set<SectionId>(
-      (Object.keys(sectionFields) as Exclude<SectionId, 'hours' | 'calendar'>[]).filter(id =>
+      (Object.keys(sectionFields) as Exclude<SectionId, 'calendar'>[]).filter(id =>
         sectionFields[id].some(key => JSON.stringify(clean[0][key]) !== JSON.stringify(clean[1][key])),
       ),
     )
-    if (hours.dirty) marked.add('hours')
     return marked
-  }, [draft, saved, hours.dirty])
+  }, [draft, saved])
 
   /** Shows the section a field is in, then puts the cursor there. */
   function goTo(section: SectionId, field: string) {
@@ -200,7 +264,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     e.preventDefault()
     // The greeting shows its error under the field: go there instead of a toast that outlives the fix.
     if (!draft.greeting.trim()) return goTo('greeting', 'as-greet')
-    const problem = draftProblem(draft) ?? hours.problem
+    const problem = draftProblem(draft)
     if (problem) return toast(problem)
     if (dirty) {
       const clean = normalized(draft)
@@ -211,15 +275,14 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         disclose_ai: clean.disclose_ai,
         business_profile: profileOf(clean),
         call_rules: callRulesToSave(clean),
+        ...outsideToSave(clean),
       })
       setDraft(clean) // the form shows what was saved, so it is not "dirty" any more
     }
-    hours.save()
     toast('Assistant settings saved.')
   }
   function cancel() {
     setDraft(saved)
-    hours.discard()
   }
   const elsewhere = [...unsaved].filter(id => id !== current)
   const note =
@@ -251,12 +314,9 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         unsaved={unsaved}
       >
         <fieldset className="st-fields" disabled={!canEdit}>
-          {current === 'greeting' && <Greeting draft={draft} set={set} renamedFrom={renamedFrom} />}
-          {current === 'instructions' && <Instructions draft={draft} set={set} />}
+          {current === 'greeting' && <Greeting draft={draft} set={set} renamedFrom={renamedFrom} hoursOn={hoursOn} />}
+          {current === 'instructions' && <Instructions draft={draft} set={set} hoursOn={hoursOn} />}
           {current === 'rules' && <CallRules draft={draft} set={set} />}
-          {current === 'hours' && (
-            <BusinessHours hours={hours} canEdit={canEdit} name={draft.name.trim() || 'the assistant'} />
-          )}
         </fieldset>
         {current === 'calendar' && <CalendarSettings assistant={assistant} canEdit={canEdit} toast={toast} />}
         {canEdit && <SaveBar dirty={changed} onCancel={cancel} note={note} />}
@@ -285,6 +345,18 @@ function returnFromCalendarConnect(assistants: Assistant[]) {
 function assistantInHash(assistants: Assistant[]): Assistant | undefined {
   const [, id] = window.location.hash.replace(/^#/, '').split('?')[0]!.split('/')
   return assistants.find(a => a.id === id) ?? assistants[0]
+}
+
+/** Whether the workspace uses business hours (Settings, Business hours): then greeting and instructions get an outside variant. */
+function useBusinessHoursOn(): boolean {
+  const [on, setOn] = useState(false)
+  useEffect(() => {
+    readAction<WorkspaceSettingsData>('workspace.getSettings').then(
+      data => setOn(data.businessHoursOn),
+      () => setOn(false),
+    )
+  }, [])
+  return on
 }
 
 export function AssistantSettings(props: Props) {

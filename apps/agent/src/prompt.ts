@@ -16,7 +16,9 @@ function businessFacts({ business_profile: p }: Assistant): string {
     line('Address', p.address),
     line('Hours', p.hours),
     faqs ? `Frequently asked questions:\n${faqs}` : null,
-  ].filter(Boolean).join('\n')
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 /** What the business told the assistant: its free-text instructions, or the older structured fields. */
@@ -30,9 +32,24 @@ function businessKnowledge(assistant: Assistant): string {
  * assistant can do and how to use its tools. Editable by the owner: what the business wants it to
  * know (instructions) and how to handle calls (call_rules, or the default rules).
  */
-/** What the assistant says about opening hours: the hours and where now falls, or nothing when none are set. */
-function hoursContext(hours: BusinessHours | null | undefined): string {
-  if (!hours) return 'No business hours are set: do not tell callers when the office is open, unless the business text below says so.'
+/**
+ * Outside business hours an assistant may greet and know something else: its outside variants, where
+ * it has them. During hours, or when the workspace does not use hours (null), the usual ones.
+ */
+export function forHours(assistant: Assistant | null, hours: BusinessHours | null | undefined): Assistant | null {
+  if (!assistant || !hours || hours.openNow) return assistant
+  const greeting = assistant.greeting_outside?.trim() || assistant.greeting
+  const instructions = assistant.instructions_outside?.trim()
+  return {
+    ...assistant,
+    greeting,
+    business_profile: instructions ? { ...assistant.business_profile, instructions } : assistant.business_profile,
+  }
+}
+
+/** What the assistant says about opening hours: the hours and where now falls; nothing when the workspace does not use hours. */
+function hoursContext(hours: BusinessHours | null | undefined): string | null {
+  if (!hours) return null
   if (hours.openNow) return hours.summary
   return `${hours.summary} The office is closed right now: take a message as usual and tell the caller the team will call back when the office opens, saying when. An emergency is still flagged as urgent.`
 }
@@ -83,5 +100,7 @@ export function buildInstructions(assistant: Assistant | null, hours?: BusinessH
     'When you use a tool, say your reply in the same response as the tool call instead of waiting for its result: the caller should never wait in silence.',
     'Use take_message once per call, when you have what the team needs; do not save the same request twice.',
     'When the caller has nothing else, say goodbye briefly. After the caller has said goodbye too, say a short goodbye and use end_call in the same response; never keep talking after both of you said goodbye.',
-  ].filter(Boolean).join('\n\n')
+  ]
+    .filter(Boolean)
+    .join('\n\n')
 }

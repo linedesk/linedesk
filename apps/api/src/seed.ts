@@ -242,6 +242,8 @@ const DEMO_SLUG = 'brightwater'
 // Business hours Mon–Fri 7 am – 6 pm Pacific, closed on two holidays. No booking types: v1 does not book.
 async function seedBusinessHours(workspace_id: string) {
   await db.insert(workspace_settings).values({ workspace_id, timezone: 'America/Los_Angeles' }).onConflictDoNothing()
+  // The demo uses its hours (they are opt-in).
+  await db.update(workspace_settings).set({ business_hours_on: true }).where(eq(workspace_settings.workspace_id, workspace_id))
   await db
     .insert(availability_rules)
     .values(

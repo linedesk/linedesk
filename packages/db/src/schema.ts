@@ -66,6 +66,9 @@ export const assistants = pgTable(
     business_profile: jsonb('business_profile').$type<BusinessProfile>().notNull().default({}),
     /** How to handle calls, as the owner wrote it; null: the default rules (DEFAULT_CALL_RULES in @linedesk/actions). */
     call_rules: text('call_rules'),
+    /** Outside business hours (only when the workspace uses them); null: the same as during hours. */
+    greeting_outside: text('greeting_outside'),
+    instructions_outside: text('instructions_outside'),
     created_at: createdAt(),
     version: version(),
   },
@@ -175,6 +178,8 @@ export const workspace_settings = pgTable('workspace_settings', {
   /** New-call notifications for members who have not set their own (member_notification_settings). */
   notify_email_default: boolean('notify_email_default').notNull().default(true),
   notify_browser_default: boolean('notify_browser_default').notNull().default(true),
+  /** The workspace uses its business hours (availability_rules) for calls. Off: the assistant says nothing about hours. */
+  business_hours_on: boolean('business_hours_on').notNull().default(false),
   created_at: createdAt(),
   version: version(),
 })

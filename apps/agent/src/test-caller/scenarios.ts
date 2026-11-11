@@ -9,6 +9,8 @@ export interface Expectation {
   actionItems?: number
   /** Something the assistant must say at least once (for example that it is an AI). */
   assistantSays?: RegExp
+  /** The assistant's first words must match (for example the outside-hours greeting). */
+  greeting?: RegExp
   /** Something the assistant must never say (for example a price or a booked time). */
   assistantAvoids?: RegExp
   /** The caller says nothing: the transcript check expects no caller turns. */
@@ -21,6 +23,8 @@ export interface Scenario {
   expect: Expectation
   /** Business hours the business's agent uses in a no-phone test, instead of the workspace's. */
   businessHours?: { openNow: boolean; summary: string }
+  /** An outside-hours greeting the business's agent uses in a no-phone test, instead of the assistant's. */
+  outsideGreeting?: string
 }
 
 const RULES = `You are on a real phone call with a business's phone assistant. Wait until you are greeted, then answer like a person would on the phone: one or two short sentences per turn, plain spoken English, no lists. Give your details only when asked. When you have what you called for, or after about six of your own turns, say a short goodbye and then use the end_call tool. Never say that you are an AI or that this is a test.`
@@ -59,8 +63,15 @@ export const scenarios = {
   // Without a phone the business is closed by the scenario; over the phone the workspace's real hours apply.
   'after-hours': {
     persona: 'You are Jordan Kim. Your toilet keeps running; it is not an emergency. Ask whether they are open right now and when someone will call you back, then leave your name and ask for a call back.',
-    expect: { outcome: MESSAGE_OUTCOMES, actionItems: 1, urgency: 'normal', assistantSays: /\b(closed|opens?|open (again|tomorrow|on|at)|business hours|office hours)\b/i },
+    expect: {
+      outcome: MESSAGE_OUTCOMES,
+      actionItems: 1,
+      urgency: 'normal',
+      assistantSays: /\b(closed|opens?|open (again|tomorrow|on|at)|business hours|office hours)\b/i,
+      greeting: /after-hours line/i,
+    },
     businessHours: { openNow: false, summary: 'Business hours: Monday–Friday 7 AM–6 PM (America/Los_Angeles). Closed now; opens tomorrow at 7 AM.' },
+    outsideGreeting: "Thanks for calling. You've reached our after-hours line; the office is closed right now. How can I help?",
   },
   silence: {
     persona: '',
