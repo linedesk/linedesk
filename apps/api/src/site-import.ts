@@ -254,7 +254,6 @@ export async function readSite(
 const GOAL_TEXT: Record<AssistantGoal, string> = {
   messages: 'take messages and callback requests for the team',
   booking: 'book jobs and appointments',
-  emergencies: 'recognise emergencies and get them to a person fast',
   prices: 'answer questions about prices and common questions',
   spam: 'screen out sales calls and spam politely',
 }

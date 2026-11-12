@@ -19,7 +19,6 @@ import {
   briefingText,
   connectingLine as connectingText,
   type Dialable,
-  type Fallback,
   notConnectedMessage,
   notConnectedReply,
   transferLabel,
@@ -145,7 +144,7 @@ function callerLeft(ctx: JobContext, identity: string): AbortSignal {
   return controller.signal
 }
 
-type Report = { to: string; name: string; urgent: boolean }
+type Report = { to: string; name: string }
 
 /** The team's to-do when nobody took the call (call.takeMessage); a failure is logged, the call goes on. */
 async function saveNotConnectedMessage(api: ApiClient, call: CallSession, log: CallLog, message: string) {
@@ -159,8 +158,8 @@ async function saveNotConnectedMessage(api: ApiClient, call: CallSession, log: C
 }
 
 /** Records a try's result with call.transfer (`dialing` asks to start it; refused over the workspace's limits). */
-async function report(api: ApiClient, call: CallSession, { to, name, urgent }: Report, result: TransferResult) {
-  await api.run(callTransfer, { callId: call.callId, to, name, urgent, result }, call)
+async function report(api: ApiClient, call: CallSession, { to, name }: Report, result: TransferResult) {
+  await api.run(callTransfer, { callId: call.callId, to, name, result }, call)
 }
 
 /** Why the API refused to start the transfer, or null when it may go ahead. */
@@ -182,7 +181,7 @@ export function transferToolDescription(contacts: readonly Pick<Dialable, 'name'
 /**
  * transfer_call, given from the start of the call: nothing is dialled until the assistant uses it, once a contact's
  * condition fits. A contact that cannot be dialled counts as not answered: the next one is tried only when its
- * "if nobody accepts" says so (transferPlan), else its fallback applies.
+ * "if nobody accepts" says so (transferPlan), else the assistant takes a message.
  */
 export function transferTool({ ctx, api, call, log, config, callerIdentity, contacts, dialerOf, stopRecording }: TransferToolDeps) {
   let tried = false
@@ -204,7 +203,6 @@ export function transferTool({ ctx, api, call, log, config, callerIdentity, cont
       tried = true
       // The caller is on hold until this returns: no silence reminders and no collection steps meanwhile.
       log.onHold = true
-      const urgent = plan.fallback === 'message_urgent'
       await run.waitForPlayout()
       run.disallowInterruptions()
       const session = run.session
@@ -218,12 +216,11 @@ export function transferTool({ ctx, api, call, log, config, callerIdentity, cont
         callerName,
         callerNumber: call.contact?.phone ?? null,
         about,
-        urgent,
       })
       let previous: Dialable | null = null
       const triedNames: string[] = []
       for (const [i, contact] of plan.tries.entries()) {
-        const target = { to: contact.number, name: contact.name, urgent }
+        const target = { to: contact.number, name: contact.name }
         triedNames.push(contact.name) // also when refused: the caller wanted a person and got none
         const dialer = await dialerOf(contact)
         if (!dialer) {
@@ -268,7 +265,6 @@ export function transferTool({ ctx, api, call, log, config, callerIdentity, cont
             onConnecting: stopRecording,
           },
         )
-        if (urgent) log.urgent = true
         log.record('system', transferLabel(result, contact.number, contact.name), callTransfer.name)
         await report(api, call, target, result).catch(e =>
           console.error(
@@ -285,11 +281,10 @@ export function transferTool({ ctx, api, call, log, config, callerIdentity, cont
         if (left.aborted) break
         previous = contact
       }
-      if (urgent) log.urgent = true
       if (triedNames.length) await saveNotConnectedMessage(api, call, log, notConnectedMessage({ callerName, about, tried: triedNames }))
       session.input.setAudioEnabled(true)
       log.onHold = false
-      return notConnectedReply(plan.fallback satisfies Fallback)
+      return notConnectedReply()
     },
   })
 }

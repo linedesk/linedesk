@@ -35,7 +35,7 @@ const contact = (over: Partial<TransferContact> = {}): TransferContact => ({
   condition: 'Urgent: a burst pipe, a gas smell, no heat',
   hours_only: false,
   ring_seconds: 25,
-  if_no_answer: 'message_urgent',
+  if_no_answer: 'message',
   enabled: true,
   ...over,
 })
@@ -67,18 +67,18 @@ test('the plan tries the contacts that fit in the owner\'s order, whatever order
   const mikeNext = contact({ if_no_answer: 'next' })
   const list = transferContactsFor(assistant({ transfers: [mikeNext, office, sarah] }), open)
   // Mike hands over to the next one that fits (Sarah, not the office: billing does not fit).
-  expect(transferPlan(list, ['Sarah', 'mike'])).toMatchObject({ tries: [{ id: 'oncall' }, { id: 'sarah' }], fallback: 'message_urgent' })
-  // Only the office fits: one try, and a plain message when nobody accepts.
-  expect(transferPlan(list, ['Office'])).toMatchObject({ tries: [{ id: 'office' }], fallback: 'message' })
+  expect(transferPlan(list, ['Sarah', 'mike'])).toMatchObject({ tries: [{ id: 'oncall' }, { id: 'sarah' }] })
+  // Only the office fits: one try.
+  expect(transferPlan(list, ['Office'])).toMatchObject({ tries: [{ id: 'office' }] })
   // Mike's fallback is a message: Sarah is not tried even though she fits.
   const plain = transferContactsFor(assistant({ transfers: [contact(), sarah] }), open)
   expect(ids(transferPlan(plain, ['Mike', 'Sarah'])!.tries)).toEqual(['oncall'])
   // Sarah has Mike's condition: she fits too, even when only Mike is named (the model often names one).
   expect(ids(transferPlan(list, ['Mike'])!.tries)).toEqual(['oncall', 'sarah'])
   expect(ids(transferPlan(list, ['sarah'])!.tries)).toEqual(['oncall', 'sarah']) // the owner's order, from the first that fits
-  // "Try the next" with nobody left: a message marked urgent.
+  // "Try the next" with nobody left: one try (then a message).
   const alone = transferContactsFor(assistant({ transfers: [mikeNext, office] }), open)
-  expect(transferPlan(alone, ['Mike'])).toMatchObject({ tries: [{ id: 'oncall' }], fallback: 'message_urgent' })
+  expect(transferPlan(alone, ['Mike'])).toMatchObject({ tries: [{ id: 'oncall' }] })
   // The same condition written differently (case, spaces, a full stop) is the same condition.
   const backup = contact({ id: 'backup', name: 'Backup', number: '+15035550122', condition: ' urgent:  a burst pipe, a gas smell, no heat. ' })
   expect(ids(transferPlan(transferContactsFor(assistant({ transfers: [mikeNext, backup] }), open), ['Mike'])!.tries)).toEqual(['oncall', 'backup'])
@@ -92,15 +92,13 @@ test('the plan stops after a few tries, so the caller is not on hold for minutes
   )
   const plan = transferPlan(chain as Dialable[], chain.map(c => c.name))!
   expect(plan.tries).toHaveLength(MAX_TRANSFER_TRIES)
-  expect(plan.fallback).toBe('message_urgent')
 })
 
-test('the assistant hears what to tell the caller when nobody accepts', () => {
-  expect(notConnectedReply('message_urgent')).toMatch(/marked as urgent/)
-  expect(notConnectedReply('message')).not.toMatch(/urgent/)
-  expect(notConnectedReply('message')).toMatch(/saved already/)
-  // After a failed transfer nothing is on its way: the assistant is told so in both cases.
-  for (const fallback of ['message', 'message_urgent'] as const) expect(notConnectedReply(fallback)).toMatch(/nobody is on the way/)
+test('the assistant hears what to tell the caller when nobody accepts: a message, never urgent', () => {
+  expect(notConnectedReply()).not.toMatch(/urgent/)
+  expect(notConnectedReply()).toMatch(/saved already/)
+  // After a failed transfer nothing is on its way: the assistant is told so.
+  expect(notConnectedReply()).toMatch(/nobody is on the way/)
 })
 
 test('when nobody took the call the team gets a message naming who was tried and why', () => {
@@ -116,23 +114,22 @@ test('the tool names every contact with its condition', () => {
   expect(description).toContain('"Office": Billing questions')
 })
 
-test('the call test\'s simulated on-call person is one urgent contact', () => {
+test('the call test\'s simulated on-call person is one contact for urgent calls', () => {
   const sim = simulatedContact('+15035550199')
   expect(transferContactsFor(assistant({ transfers: [sim] }), closed)).toEqual([sim])
-  expect(transferPlan([sim as never], ['Mike'])?.fallback).toBe('message_urgent')
+  expect(transferPlan([sim as never], ['Mike'])?.tries).toEqual([sim])
 })
 
 test('the briefing names the caller (or reads the number) and what it is about, and says how to answer', () => {
   expect(
     briefingText({ callerName: 'Dana Ruiz', callerNumber: '+15035550142', about: 'a burst pipe in the kitchen.' }),
   ).toBe(
-    'Urgent call from Dana Ruiz about a burst pipe in the kitchen. Press 1 or say yes to take it, or press 2 or say no.',
+    'Call from Dana Ruiz about a burst pipe in the kitchen. Press 1 or say yes to take it, or press 2 or say no.',
   )
   expect(briefingText({ callerName: ' ', callerNumber: '+15035550142', about: 'no heat' })).toMatch(
-    /^Urgent call from 503 555 0142 about no heat\./,
+    /^Call from 503 555 0142 about no heat\./,
   )
-  expect(briefingText({ callerNumber: 'test', about: '' })).toMatch(/^Urgent call from a caller\. Press 1/)
-  expect(briefingText({ callerName: 'Dana', about: 'a bill', urgent: false })).toMatch(/^Call from Dana about a bill\./)
+  expect(briefingText({ callerNumber: 'test', about: '' })).toMatch(/^Call from a caller\. Press 1/)
 })
 
 test('the on-call person answers by voice or key; unclear answers are no decision', () => {
@@ -290,7 +287,7 @@ test('a test room can bring a simulated on-call person; anything malformed is ig
   const backup = parseTestMetadata(meta({ answer: 'no-answer', number: '+15035550199', backup: true }))?.onCall
   expect(backup).toEqual({ answer: 'no-answer', number: '+15035550199', backup: true })
   const contacts = simulatedContacts(backup!)
-  expect(contacts.map(c => [c.name, c.if_no_answer])).toEqual([['Mike', 'next'], ['Sarah', 'message_urgent']])
+  expect(contacts.map(c => [c.name, c.if_no_answer])).toEqual([['Mike', 'next'], ['Sarah', 'message']])
   expect(transferPlan(contacts as Dialable[], ['Mike'])!.tries.map(c => c.name)).toEqual(['Mike', 'Sarah'])
   expect(parseTestMetadata(meta({ answer: 'accept', number: '+15035550199', backup: 'yes' }))?.onCall).not.toHaveProperty('backup')
 })
@@ -379,15 +376,17 @@ test('a contact that cannot be dialled counts as not answered: the next one only
   const first = { ...contact({ if_no_answer: 'next' }), number: '+15035550199' }
   const backup = { ...contact({ id: 'backup', name: 'Sarah', number: '+15035550188' }), number: '+15035550188' }
   const { execute, requests, dialed, log } = runTransfer([first, backup], () => false)
-  expect(await execute(['Mike'])).toBe(notConnectedReply('message_urgent'))
+  expect(await execute(['Mike'])).toBe(notConnectedReply())
   expect(dialed).toEqual(['Mike', 'Sarah'])
   // Nothing was started at the API (no `dialing`): both are recorded as failed, and the team gets the message.
   expect(requests.filter(r => r.name === 'call.transfer').map(r => r.input.result)).toEqual(['failed', 'failed'])
   expect(requests.some(r => r.name === 'call.takeMessage')).toBe(true)
-  expect(log.urgent).toBe(true)
+  // A transfer never makes the call urgent.
+  expect(log.urgent).toBe(false)
+  expect(requests.every(r => !('urgent' in r.input))).toBe(true)
 
   // "If nobody accepts: take a message": the backup with the same condition is not tried.
   const only = runTransfer([{ ...first, if_no_answer: 'message' }, backup], () => false)
-  expect(await only.execute(['Mike'])).toBe(notConnectedReply('message'))
+  expect(await only.execute(['Mike'])).toBe(notConnectedReply())
   expect(only.dialed).toEqual(['Mike'])
 })

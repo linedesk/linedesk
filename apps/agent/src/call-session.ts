@@ -143,7 +143,7 @@ export function simulatedContacts({ number, for: forCalls, backup }: Pick<Simula
 export const simulatedContact = (number: string, forCalls: SimulatedOnCall['for'] = 'urgent'): TransferContact =>
   forCalls === 'person'
     ? { ...DEFAULT_TRANSFERS[0]!, name: 'Mike', number, hours_only: false }
-    : { id: 'oncall', name: 'Mike', number, condition: 'Urgent: a burst pipe, flooding, a gas smell or no heat in freezing weather', hours_only: false, ring_seconds: 25, if_no_answer: 'message_urgent', enabled: true }
+    : { id: 'oncall', name: 'Mike', number, condition: 'Urgent: a burst pipe, flooding, a gas smell or no heat in freezing weather', hours_only: false, ring_seconds: 25, if_no_answer: 'message', enabled: true }
 
 /** What a test room's job metadata may carry: the workspace, and settings the call test uses instead of the assistant's. */
 type TestMetadata = {

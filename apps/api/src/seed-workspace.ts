@@ -434,7 +434,7 @@ async function seedAssistant(workspaceId: string, business: string): Promise<str
         condition: 'Urgent: a burst pipe, flooding, a gas smell or no heat in freezing weather',
         hours_only: false,
         ring_seconds: RING_SECONDS_DEFAULT,
-        if_no_answer: 'message_urgent' as const,
+        if_no_answer: 'message' as const,
         enabled: true,
       },
       {

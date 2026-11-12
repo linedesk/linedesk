@@ -22,12 +22,10 @@ import { Field, Section } from './fields.tsx'
 import { brandName } from '../brand.ts'
 
 const fallbackOptions: SelectOption<TransferFallback>[] = [
-  { value: 'message_urgent', label: 'Take a message, mark it urgent' },
   { value: 'message', label: 'Take a message' },
   { value: 'next', label: 'Try the next contact that fits' },
 ]
 const fallbackShort: Record<TransferFallback, string> = {
-  message_urgent: 'then an urgent message',
   message: 'then a message',
   next: 'then the next contact',
 }

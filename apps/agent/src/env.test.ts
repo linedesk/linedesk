@@ -46,7 +46,7 @@ test('without instructions the prompt falls back to the structured business prof
   }
 })
 
-test('the prompt holds the product rules: messages only, no transfer, no booking, urgent is a flag', () => {
+test('the prompt holds the product rules: messages only, no transfer, no booking, no fixed emergency rule', () => {
   const prompt = buildInstructions(assistant)
   expect(prompt).toContain('say truthfully that you are an AI assistant')
   // Asked, it always says it is an AI; disclose_ai only changes the greeting (in the settings page).
@@ -54,7 +54,9 @@ test('the prompt holds the product rules: messages only, no transfer, no booking
   expect(prompt).toContain('You cannot book appointments, transfer calls')
   expect(prompt).toContain('take a message for that person and say they will call back')
   expect(prompt).toContain('Appointments: ask which day and time suit the caller')
-  expect(prompt).toContain('flag the call as urgent right away')
+  // What is urgent comes from the business's own text, not from a fixed (plumbing) list.
+  expect(prompt).not.toMatch(/burst pipe|gas smell|Emergencies or danger/)
+  expect(prompt).toContain('flag_urgent')
   expect(prompt).toContain('say your reply in the same response as the tool call')
   expect(prompt).not.toMatch(/\brecord(ed|ing)\b/i) // no recording notice unless it is turned on
   expect(buildInstructions(null)).toContain('take_message')

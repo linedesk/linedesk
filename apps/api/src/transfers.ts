@@ -21,13 +21,12 @@ export const transferHandlers: Record<string, Handler> = {
       .from(calls)
       .where(and(eq(calls.id, input.callId), eq(calls.workspace_id, workspaceId)))
     if (!call) throw new Reject('call not found')
-    // A transfer that is not about an emergency (billing, asks for a person) keeps the call's urgency.
-    const urgency = input.urgent === false ? {} : { urgency: 'urgent' as const }
+    // A transfer never changes the call's urgency (`urgent` from an older agent is ignored).
     const transfer_name = input.name ?? null
     if (input.result !== 'dialing') {
       const rows = await tx
         .update(calls)
-        .set({ transfer_to: input.to, transfer_name, transfer_result: input.result, ...urgency })
+        .set({ transfer_to: input.to, transfer_name, transfer_result: input.result })
         .where(eq(calls.id, call.id))
         .returning()
       return { rows: { calls: rows } }
@@ -35,7 +34,7 @@ export const transferHandlers: Record<string, Handler> = {
     if (call.source === 'phone') await checkTransferLimits(tx, workspaceId, call.id, now)
     const rows = await tx
       .update(calls)
-      .set({ transfer_to: input.to, transfer_name, transfer_result: 'dialing', transfer_at: now, ...urgency })
+      .set({ transfer_to: input.to, transfer_name, transfer_result: 'dialing', transfer_at: now })
       .where(eq(calls.id, call.id))
       .returning()
     return { rows: { calls: rows } }

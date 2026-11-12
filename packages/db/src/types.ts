@@ -34,7 +34,8 @@ export type WebhookLookup = { name: string; when: string; fields: LookupField[] 
 export type CallerDetails = Record<string, string | number | boolean>
 export type AssistantVoice = { provider: string; voice_id: string }
 /** What happens when the transfer contact does not take the call. */
-export const transferFallbacks = ['message_urgent', 'message', 'next'] as const
+/** When nobody accepts: take a message, or try the next contact that fits. ("message_urgent" was removed: now a plain message.) */
+export const transferFallbacks = ['message', 'next'] as const
 export type TransferFallback = (typeof transferFallbacks)[number]
 /**
  * Someone the assistant puts callers through to (warm transfer) when `condition` fits the call. An

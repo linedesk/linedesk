@@ -81,7 +81,8 @@ export const scenarios = {
   },
   'burst-pipe': {
     persona: 'You are Dana Ruiz. A pipe under your kitchen sink just burst and water is spraying everywhere; you have shut off the main valve. You want a plumber out as soon as possible. Your address is 1450 Southeast Division Street, Portland, and this number is the best way to reach you.',
-    expect: { outcome: MESSAGE_OUTCOMES, urgency: 'urgent', actionItems: 1, flaggedByTool: true },
+    // Whether this is urgent is the business's call (its own text), not a fixed rule: only the message is checked.
+    expect: { outcome: MESSAGE_OUTCOMES, actionItems: 1 },
   },
   // The assistant tends to say "I'll flag this as urgent" first: the flag must follow the words.
   'urgent-promise': {
@@ -132,17 +133,17 @@ export const scenarios = {
   // Warm transfer (no phone: a simulated on-call person in the consult room, nothing is dialled).
   'transfer-accepted': {
     persona: 'You are Dana Ruiz. A pipe under your kitchen sink just burst and water is spraying everywhere; you have shut off the main valve. You need a plumber right now. Your address is 1450 Southeast Division Street, Portland, Oregon 97202. Give your name when asked. If they put you through to someone, stay on the line quietly while it rings, then talk to the person; when they say goodbye, say goodbye too.',
-    expect: { outcome: ['transferred'], urgency: 'urgent', transferResult: 'connected' },
+    expect: { outcome: ['transferred'], transferResult: 'connected' },
     onCall: { answer: 'accept', number: '+15035550199' },
   },
   'transfer-no-answer': {
     persona: 'You are Dana Ruiz. A pipe under your kitchen sink just burst and water is spraying everywhere; you have shut off the main valve. You need a plumber right now. Your address is 1450 Southeast Division Street, Portland, Oregon 97202. Give your name when asked. If they put you through to someone, stay on the line quietly while it rings. If nobody answers, leave a message that this number is the best way to reach you.',
-    expect: { outcome: MESSAGE_OUTCOMES, urgency: 'urgent', actionItems: 1, transferResult: 'not_answered' },
+    expect: { outcome: MESSAGE_OUTCOMES, actionItems: 1, transferResult: 'not_answered' },
     onCall: { answer: 'no-answer', number: '+15035550199' },
   },
   'transfer-declined': {
     persona: 'You are Dana Ruiz. Water is leaking through your ceiling from the upstairs bathroom; you have turned off the water. You need someone today. Your address is 1450 Southeast Division Street, Portland, Oregon 97202. Give your name when asked. If they put you through to someone, stay on the line quietly while it rings. If nobody can take it, leave a message that this number is the best way to reach you.',
-    expect: { outcome: MESSAGE_OUTCOMES, urgency: 'urgent', actionItems: 1, transferResult: 'declined' },
+    expect: { outcome: MESSAGE_OUTCOMES, actionItems: 1, transferResult: 'declined' },
     onCall: { answer: 'decline', number: '+15035550199' },
   },
   silence: {
@@ -166,7 +167,7 @@ export const scenarios = {
   // Two urgent contacts with the same condition, the first set to "try the next": nobody answers, both are tried in order.
   'transfer-next': {
     persona: 'You are Dana Ruiz. A pipe under your kitchen sink just burst and water is spraying everywhere; you have shut off the main valve. You need a plumber right now. Your address is 1450 Southeast Division Street, Portland, Oregon 97202. Give your name when asked. If they put you through to someone, stay on the line quietly while it rings, also when they try someone else. If nobody answers, say this number is the best way to reach you and say goodbye.',
-    expect: { outcome: MESSAGE_OUTCOMES, urgency: 'urgent', actionItems: 1, transferResult: 'not_answered', assistantSays: /let me try sarah/i },
+    expect: { outcome: MESSAGE_OUTCOMES, actionItems: 1, transferResult: 'not_answered', assistantSays: /let me try sarah/i },
     onCall: { answer: 'no-answer', number: '+15035550199', backup: true },
   },
   // Transfer rule "The caller asks to speak to a person" (not an emergency): put through, and the call stays not urgent.

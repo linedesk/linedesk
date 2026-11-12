@@ -7,13 +7,13 @@ import { bookingInstructions, buildInstructions, callerDetailsInstructions, held
 const assistant = (over: Partial<Assistant> = {}) =>
   ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', disclose_ai: false, business_profile: { instructions: 'We fix pipes in Portland.' }, ...over }) as Assistant
 
-test('the call rules: no number or known name asked, booking per setup, urgent flagged', () => {
+test('the call rules: no number or known name asked, booking per setup, no fixed emergency rule', () => {
   const prompt = buildInstructions(assistant())
   expect(prompt).toContain(`How to handle calls (where what the business wants you to know says otherwise, follow the business):\n${callRules({ booking: false, transfer: false })}`)
   expect(prompt).toContain('What the business wants you to know:\nWe fix pipes in Portland.')
   expect(callRules()).toMatch(/Take a message for every request you cannot handle/)
   expect(callRules()).not.toMatch(/you cannot book|best number to reach/)
-  expect(callRules()).toMatch(/flag the call as urgent/)
+  expect(callRules()).not.toMatch(/Emergenc|burst pipe|gas smell/)
 })
 
 test('the call rules hold only the cases of this call, and leave name, number, prices and promises to their own parts', () => {
@@ -21,7 +21,7 @@ test('the call rules hold only the cases of this call, and leave name, number, p
   expect(callRules({ booking: false })).toContain('Appointments: ask which day and time suit the caller')
   expect(callRules()).toContain('Appointments: if you can book, follow the booking steps. If not,')
   expect(callRules({ transfer: false })).not.toMatch(/put (the caller|them) through/)
-  expect(callRules({ transfer: true })).toContain('If a transfer contact fits, put the caller through')
+  expect(callRules({ transfer: true })).toContain('put them through if a transfer contact covers it')
   expect(callRules()).not.toMatch(/^Name:|Callback number:|Prices:|promise|Never confirm a time/m)
   // The general rules are shown with a note that the owner's text wins, only when there is owner text.
   expect(buildInstructions(assistant({ business_profile: {} }))).toContain(`How to handle calls:\n${callRules({ booking: false, transfer: false })}`)

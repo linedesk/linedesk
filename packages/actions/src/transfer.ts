@@ -58,7 +58,8 @@ export const transferContact = z.object({
   condition: z.string().trim().min(1).max(TRANSFER_CONDITION_MAX),
   hours_only: z.boolean(),
   ring_seconds: z.number().int().min(RING_SECONDS_MIN).max(RING_SECONDS_MAX),
-  if_no_answer: z.enum(transferFallbacks),
+  // "message_urgent" (removed) from an older web app or a saved version is a plain message now.
+  if_no_answer: z.enum([...transferFallbacks, 'message_urgent']).transform(v => (v === 'message_urgent' ? 'message' : v)),
   enabled: z.boolean(),
 }) satisfies z.ZodType<TransferContact>
 
@@ -104,13 +105,13 @@ export const CONCURRENT_TRANSFERS = 1
  */
 export const callTransfer = defineAction({
   name: 'call.transfer',
-  description: `Record a warm transfer of a live call to a transfer contact. \`dialing\` first (refused above ${TRANSFERS_PER_HOUR} transfers an hour or while another transfer of the workspace is ringing or connected), then how it went (connected, not_answered, declined, failed). \`name\`: the contact's name. Marks the call urgent unless \`urgent\` is false.`,
+  description: `Record a warm transfer of a live call to a transfer contact. \`dialing\` first (refused above ${TRANSFERS_PER_HOUR} transfers an hour or while another transfer of the workspace is ringing or connected), then how it went (connected, not_answered, declined, failed). \`name\`: the contact's name. Leaves the call's urgency as it is.`,
   input: z.object({
     callId: z.string().min(1),
     to: onCallNumber,
     result: z.enum(transferResults),
     name: z.string().trim().min(1).max(TRANSFER_NAME_MAX).optional(),
-    /** false: a transfer that is not about an emergency (billing, asks for a person) leaves the urgency as is. */
+    /** No longer used (a transfer never changes the urgency); an older agent still sends it. */
     urgent: z.boolean().optional(),
   }),
   permission: 'agent',

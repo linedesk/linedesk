@@ -29,7 +29,6 @@ export function callRules({ booking, transfer }: CallSetup = {}): string {
     'Find out why the person is calling.',
     'Take a message for every request you cannot handle yourself: a callback, a visit, a quote. Then tell the caller the team will get back to them.',
     appointments,
-    `Emergencies or danger to people or property (a burst pipe, flooding, a gas smell, no heat in freezing weather): flag the call as urgent right away. ${canTransfer ? 'If a transfer contact fits, put the caller through; otherwise take a message.' : 'Then take a message.'}`,
     `If the caller asks for a specific person: ${canTransfer ? 'put them through if a transfer contact covers it, otherwise ' : ''}take a message for that person and say they will call back.`,
     'If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.',
   ].join('\n')

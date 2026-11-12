@@ -49,10 +49,10 @@ function hoursContext(hours: BusinessHours | null | undefined, canBook: boolean)
   // find_slots offers no time on closed days, so a booking while closed is one for when the business is back.
   if (hours.closure) {
     const booking = canBook ? ' You can still book appointments for after the break: find_slots offers no time during it.' : ''
-    return `${hours.summary} Take a message as usual and tell the caller the team will call back when the business is back, saying when. An emergency is still flagged as urgent, but nobody can be put through during the break.${booking}`
+    return `${hours.summary} Take a message as usual and tell the caller the team will call back when the business is back, saying when. Nobody can be put through during the break.${booking}`
   }
   const booking = canBook ? ' You can still book appointments as usual.' : ''
-  return `${hours.summary} The office is closed right now: take a message as usual and tell the caller the team will call back when the office opens, saying when.${booking} An emergency is still flagged as urgent.`
+  return `${hours.summary} The office is closed right now: take a message as usual and tell the caller the team will call back when the office opens, saying when.${booking}`
 }
 
 const MESSAGES_ONLY = 'You can do two things for the caller: save a message for the team with take_message, and flag the call as urgent with flag_urgent. You cannot book appointments, transfer calls, send anyone out or look up records such as jobs, invoices or accounts.'
@@ -354,7 +354,7 @@ export function buildInstructions(
     'Only state facts about the business that these instructions give you; if you do not know something, say so.',
     knowledge ? `What the business wants you to know:\n${knowledge}` : null,
     PRICE_RULE,
-    // The owner's own words win over the general rules (their emergencies, their way of handling a call).
+    // The owner's own words win over the general rules (what is urgent for them, their way of handling a call).
     `How to handle calls${knowledge ? ' (where what the business wants you to know says otherwise, follow the business)' : ''}:\n${callRules({ booking: !!booking, transfer })}`,
     behavioursInstructions(assistant),
     callerIdInstructions(caller),

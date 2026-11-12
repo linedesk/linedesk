@@ -179,7 +179,7 @@ test('after call.start the agent has to name the workspace of the call', async (
   expect((await getCall(body.data.callId))?.status).toBe('live')
 })
 
-test('call.transfer records the number and the result and makes the call urgent; members cannot write it', async () => {
+test('call.transfer records the number and the result and leaves the urgency as it is; members cannot write it', async () => {
   // Its own workspace: the calls of the tests above are still live and count toward the calls at once.
   const ws = await createWorkspace('Transfer Plumbing')
   const { body } = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
@@ -191,10 +191,10 @@ test('call.transfer records the number and the result and makes the call urgent;
 
   const res = await act(agent(ws.id), 'call.transfer', { callId, to: '+15035550199', result: 'not_answered' })
   expect(res.status).toBe(200)
-  expect(await getCall(callId)).toMatchObject({ transfer_to: '+15035550199', transfer_result: 'not_answered', urgency: 'urgent', status: 'live' })
-  // A transfer contact that is not about an emergency keeps the urgency as it is, and the call shows the contact's name.
+  expect(await getCall(callId)).toMatchObject({ transfer_to: '+15035550199', transfer_result: 'not_answered', urgency: 'normal', status: 'live' })
+  // `urgent` from an older agent changes nothing either, and the call shows the contact's name.
   const billing = (await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data.callId
-  await act(agent(ws.id), 'call.transfer', { callId: billing, to: '+15035550187', name: 'Office', urgent: false, result: 'dialing' })
+  await act(agent(ws.id), 'call.transfer', { callId: billing, to: '+15035550187', name: 'Office', urgent: true, result: 'dialing' })
   expect(await getCall(billing)).toMatchObject({ transfer_name: 'Office', transfer_result: 'dialing', urgency: 'normal' })
 })
 
@@ -205,7 +205,7 @@ test('call.transfer limits per workspace: one leg at a time, six started an hour
 
   const first = await startCall()
   expect((await transfer(first, 'dialing')).status).toBe(200)
-  expect(await getCall(first)).toMatchObject({ transfer_result: 'dialing', urgency: 'urgent' })
+  expect(await getCall(first)).toMatchObject({ transfer_result: 'dialing', urgency: 'normal' })
   expect((await getCall(first))?.transfer_at).not.toBeNull()
   const second = await startCall()
   expect(await transfer(second, 'dialing')).toMatchObject({ status: 409, body: { error: 'another transfer of this workspace is in progress' } })
@@ -243,7 +243,7 @@ test('call.transfer: transfers of test calls do not count toward the limits', as
 
 const contact = (over: Record<string, unknown> = {}) => ({
   id: 'oncall', name: 'Mike', number: '+15035550199', condition: 'Urgent: a burst pipe', hours_only: true,
-  ring_seconds: 25, if_no_answer: 'message_urgent', enabled: true, ...over,
+  ring_seconds: 25, if_no_answer: 'message', enabled: true, ...over,
 })
 
 test('assistant.update stores the transfer contacts in order; an invalid or Linedesk number is refused', async () => {
@@ -279,6 +279,18 @@ test('a new assistant starts with one inactive contact for callers who ask for a
   const [copy] = await db.select().from(assistants).where(eq(assistants.id, created.body.data.assistantId))
   expect(copy?.transfers).toEqual(DEFAULT_TRANSFERS)
   expect(DEFAULT_TRANSFERS).toMatchObject([{ condition: 'The caller asks to speak to a person', number: null, enabled: true }])
+})
+
+test('migration 0070: a contact whose fallback was an urgent message takes a plain message, the rest unchanged', async () => {
+  const migrate = readFileSync(new URL('../../../packages/db/migrations/0070_transfers_no_urgent_fallback.sql', import.meta.url), 'utf8')
+  const id = `as_mig_urgent_${crypto.randomUUID().slice(0, 8)}`
+  const contact = (over: Record<string, unknown>) => ({ id: 'oncall', name: 'On-call', number: '+15035550199', condition: 'Urgent', hours_only: false, ring_seconds: 25, if_no_answer: 'message', enabled: true, ...over })
+  const before = [contact({ if_no_answer: 'next' }), contact({ id: 'backup', name: 'Backup', if_no_answer: 'message_urgent' }), contact({ id: 'office', name: 'Office' })]
+  await db.insert(assistants).values({ id, workspace_id: ws.id, transfers: before as never })
+  await db.execute(sql.raw(migrate.replace('WHERE "transfers"', `WHERE "id" = '${id}' AND "transfers"`)))
+  const [row] = await db.select().from(assistants).where(eq(assistants.id, id))
+  expect(row?.transfers).toEqual([before[0], { ...before[1], if_no_answer: 'message' }, before[2]])
+  await db.delete(assistants).where(eq(assistants.id, id))
 })
 
 test('migration 0046: the old on-call number becomes the first contact, before the default one', async () => {

@@ -27,7 +27,7 @@ export function fenceData(text: string, tags: readonly string[]): string {
 // --- Website import ------------------------------------------------------------------------
 
 /** What the assistant should do on calls, as the "Write with help" wizard offers them. */
-export const assistantGoals = ['messages', 'booking', 'emergencies', 'prices', 'spam'] as const
+export const assistantGoals = ['messages', 'booking', 'prices', 'spam'] as const
 export type AssistantGoal = (typeof assistantGoals)[number]
 export const USE_CASES_MAX = 8
 export const USE_CASE_MAX = 240
@@ -54,7 +54,12 @@ export const knowledgeImport = defineAction({
       assistantId: z.string().min(1),
       /** What the business does, its trade and the area it serves, in the owner's words. */
       business: z.string().trim().max(BUSINESS_TEXT_MAX).optional(),
-      goals: z.array(z.enum(assistantGoals)).max(assistantGoals.length).default([]),
+      // A goal that was removed ("emergencies") from an older web app is left out.
+      goals: z
+        .array(z.string())
+        .max(10)
+        .default([])
+        .transform(list => list.filter((goal): goal is AssistantGoal => (assistantGoals as readonly string[]).includes(goal))),
       goalsNote: z.string().trim().max(1_000).optional(),
       url: z.string().trim().max(2000).optional(),
     })

@@ -25,7 +25,6 @@ import { brandName } from '../brand.ts'
 const GOALS: { id: AssistantGoal; label: string }[] = [
   { id: 'messages', label: 'Take messages and callback requests' },
   { id: 'booking', label: 'Book jobs and appointments' },
-  { id: 'emergencies', label: 'Handle emergencies' },
   { id: 'prices', label: 'Answer prices and common questions' },
   { id: 'spam', label: 'Screen out sales calls and spam' },
 ]
@@ -45,7 +44,7 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
   const [step, setStep] = useState<Step>('website')
   const [business, setBusiness] = useState('')
   const [url, setUrl] = useState(draft.website)
-  const [goals, setGoals] = useState<Set<AssistantGoal>>(() => new Set(['messages', 'emergencies']))
+  const [goals, setGoals] = useState<Set<AssistantGoal>>(() => new Set(['messages']))
   const [goalsNote, setGoalsNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [proposal, setProposal] = useState<KnowledgeImportData | null>(null)

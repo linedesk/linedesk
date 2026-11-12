@@ -85,7 +85,7 @@ it('a renamed assistant whose greeting still says the old name is noticed', () =
 })
 
 describe('transfer contacts', () => {
-  const mike = { id: 'oncall', name: 'Mike', number: '+15035550199', condition: 'Urgent: a burst pipe', hours_only: false, ring_seconds: 25, if_no_answer: 'message_urgent' as const, enabled: true }
+  const mike = { id: 'oncall', name: 'Mike', number: '+15035550199', condition: 'Urgent: a burst pipe', hours_only: false, ring_seconds: 25, if_no_answer: 'message' as const, enabled: true }
   const withList = (transfers: ReturnType<typeof draftOf>['transfers']) => ({ ...draftOf(assistant()), transfers })
   it('shows saved numbers formatted and saves what was typed as E.164, empty as none', () => {
     const saved = draftOf(assistant({ transfers: [mike, { ...mike, id: 'person', name: 'Owner', number: null }] }))

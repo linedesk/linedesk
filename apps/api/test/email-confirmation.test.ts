@@ -18,7 +18,7 @@ afterEach(() => vi.restoreAllMocks())
 /** A transfer contact with a number and the number forwarding every call, as someone could have set them up before confirmation was required. */
 const PLANTED_CONTACT = {
   id: 'oncall', name: 'On-call', number: '+15035550142', condition: 'Urgent', hours_only: false,
-  ring_seconds: 25, if_no_answer: 'message_urgent' as const, enabled: true,
+  ring_seconds: 25, if_no_answer: 'message' as const, enabled: true,
 }
 const plantCallRouting = async (ws: { assistant: { id: string }; number: string }) => {
   await db.update(assistants).set({ transfers: [PLANTED_CONTACT] }).where(eq(assistants.id, ws.assistant.id))

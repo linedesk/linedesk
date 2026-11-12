@@ -31,21 +31,16 @@ export function transferContactsFor(assistant: Assistant | null, hours: Business
 /** A call never tries more contacts than this, so the caller does not wait on hold for minutes. */
 export const MAX_TRANSFER_TRIES = 3
 
-/** What the assistant does when nobody it tried accepts. */
-export type Fallback = 'message_urgent' | 'message'
-
 /** A condition as written, without case, extra spaces or a closing full stop: two contacts with the same one fit the same calls. */
 const conditionKey = (condition: string) => condition.trim().toLowerCase().replace(/\s+/g, ' ').replace(/[.!?]+$/, '')
 
 /**
- * Whom to try, in order, for the contacts the assistant said fit this call (by name), and what to do
- * when none of them accepts. A named contact stands for its condition: every contact with the same
- * condition fits too, so a backup is tried even when the assistant named only the first one. The owner's
- * list order wins over the order the assistant named them. A contact whose fallback is "next" hands over
- * to the next one that fits; when there is none, the assistant takes a message marked urgent (someone
- * wanted the call to reach a person).
+ * Whom to try, in order, for the contacts the assistant said fit this call (by name). A named contact stands for
+ * its condition: every contact with the same condition fits too, so a backup is tried even when the assistant named
+ * only the first one. The owner's list order wins over the order the assistant named them. A contact whose fallback
+ * is "next" hands over to the next one that fits; when nobody accepts, the assistant takes a message.
  */
-export function transferPlan(contacts: Dialable[], picked: readonly string[]): { tries: Dialable[]; fallback: Fallback } | null {
+export function transferPlan(contacts: Dialable[], picked: readonly string[]): { tries: Dialable[] } | null {
   const names = new Set(picked.map(n => n.trim().toLowerCase()))
   const conditions = new Set(contacts.filter(c => names.has(c.name.trim().toLowerCase())).map(c => conditionKey(c.condition)))
   const fitting = contacts.filter(c => conditions.has(conditionKey(c.condition)))
@@ -55,8 +50,7 @@ export function transferPlan(contacts: Dialable[], picked: readonly string[]): {
     tries.push(contact)
     if (contact.if_no_answer !== 'next' || tries.length >= MAX_TRANSFER_TRIES) break
   }
-  const last = tries[tries.length - 1]!
-  return { tries, fallback: last.if_no_answer === 'message' ? 'message' : 'message_urgent' }
+  return { tries }
 }
 
 /** +15035550142 → "503 555 0142", the way a voice reads a number digit group by digit group. */
@@ -68,14 +62,14 @@ export function spokenNumber(e164: string): string {
 /** +15035550142 → "+1 503 555 0142", the way the app shows numbers. */
 export const displayNumber = (e164: string) => (/^\+1\d{10}$/.test(e164) ? `+1 ${spokenNumber(e164)}` : e164)
 
-export type Briefing = { callerName?: string | null; callerNumber?: string | null; about: string; urgent?: boolean }
+export type Briefing = { callerName?: string | null; callerNumber?: string | null; about: string }
 
 /** What the person hears when they pick up. */
-export function briefingText({ callerName, callerNumber, about, urgent = true }: Briefing): string {
+export function briefingText({ callerName, callerNumber, about }: Briefing): string {
   const name = callerName?.trim()
   const who = name || (callerNumber && /^\+\d+$/.test(callerNumber) ? spokenNumber(callerNumber) : 'a caller')
   const topic = about.trim().replace(/[.!?]+$/, '')
-  return `${urgent ? 'Urgent call' : 'Call'} from ${who}${topic ? ` about ${topic}` : ''}. Press 1 or say yes to take it, or press 2 or say no.`
+  return `Call from ${who}${topic ? ` about ${topic}` : ''}. Press 1 or say yes to take it, or press 2 or say no.`
 }
 
 export type Answer = 'yes' | 'no'
@@ -137,10 +131,8 @@ export function notConnectedMessage({ callerName, about, tried }: { callerName?:
 }
 
 /** What the assistant is told when nobody took the call; it then talks to the caller again. */
-export function notConnectedReply(fallback: Fallback): string {
+export function notConnectedReply(): string {
   const saved = 'A message that they wanted to be put through is saved already; use take_message only for details the caller adds.'
   const noPromises = 'Nothing else has happened: nobody is on the way and no visit or time is set. Never say or suggest otherwise.'
-  return fallback === 'message_urgent'
-    ? `Nobody took the call. Tell the caller you could not reach anyone right now, that their message is passed on to the team marked as urgent, and that the team will call them back as soon as possible. ${noPromises} ${saved}`
-    : `Nobody took the call. Tell the caller you could not reach anyone right now, that their message is passed on to the team, and that the team will get back to them. ${noPromises} ${saved}`
+  return `Nobody took the call. Tell the caller you could not reach anyone right now, that their message is passed on to the team, and that the team will get back to them. ${noPromises} ${saved}`
 }

@@ -55,8 +55,8 @@ test('every speaking caller is told to end the call, never reveal the test, and 
   }
 })
 
-test('a finished burst-pipe call passes, with transcript, summary and latency in the report', () => {
-  const checks = evaluateCall(finished, scenarios['burst-pipe'])
+test('a finished urgent-promise call passes, with transcript, summary and latency in the report', () => {
+  const checks = evaluateCall(finished, scenarios['urgent-promise'])
   expect(checks.every(c => c.ok)).toBe(true)
   const report = formatReport(finished, checks)
   expect(report).toContain('  [6.0 s] caller: A pipe burst under my sink.')
@@ -72,12 +72,12 @@ test('latency: greeting time and the gap from each caller turn to the next assis
 })
 
 test('each expectation fails when it is not met', () => {
-  expect(evaluateCall({ ...finished, call: null }, scenarios['burst-pipe'])).toEqual([{ ok: false, label: 'call in the inbox', detail: 'no call from the test caller arrived' }])
-  expect(check({ ...finished, call: { ...finished.call!, status: 'live' } }, 'burst-pipe', 'call finished')?.ok).toBe(false)
-  expect(check({ ...finished, turns: { caller: 0, agent: 1, system: 0 } }, 'burst-pipe', 'transcript')?.ok).toBe(false)
-  expect(check({ ...finished, call: { ...finished.call!, urgency: 'normal' } }, 'burst-pipe', 'urgency')?.ok).toBe(false)
+  expect(evaluateCall({ ...finished, call: null }, scenarios['urgent-promise'])).toEqual([{ ok: false, label: 'call in the inbox', detail: 'no call from the test caller arrived' }])
+  expect(check({ ...finished, call: { ...finished.call!, status: 'live' } }, 'urgent-promise', 'call finished')?.ok).toBe(false)
+  expect(check({ ...finished, turns: { caller: 0, agent: 1, system: 0 } }, 'urgent-promise', 'transcript')?.ok).toBe(false)
+  expect(check({ ...finished, call: { ...finished.call!, urgency: 'normal' } }, 'urgent-promise', 'urgency')?.ok).toBe(false)
   expect(check({ ...finished, call: { ...finished.call!, action_items: 0 } }, 'callback-message', 'message taken')?.ok).toBe(false)
-  expect(evaluateCall(finished, scenarios['burst-pipe'], { expectRecording: true }).find(c => c.label === 'recording')).toMatchObject({ ok: false, detail: 'missing' })
+  expect(evaluateCall(finished, scenarios['urgent-promise'], { expectRecording: true }).find(c => c.label === 'recording')).toMatchObject({ ok: false, detail: 'missing' })
 })
 
 test('what the assistant says: AI disclosure when asked, no prices, no booked times', () => {
