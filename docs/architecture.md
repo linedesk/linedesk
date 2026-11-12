@@ -60,7 +60,7 @@ Out of scope for v1: messaging channels, outbound campaigns, multi-location rout
 | Recordings | LiveKit egress into a `RecordingStore`: a shared directory (default, self-hosted) or any S3-compatible bucket (AWS S3, Cloudflare R2, Hetzner, Backblaze B2, MinIO), picked under Admin > Providers > Recording storage (§12) | Played through an authenticated API route; signed URLs with S3. Each call keeps the store its recording is in (`calls.recording_store`) |
 | Web app | **React SPA (Vite)** with local store, outbox, service worker | Built from the merged prototype (`prototypes/inbox-html`, Relay design) |
 | Monorepo | **pnpm + Turborepo** | Layout in §11 |
-| Billing (hosted only) | Stripe metered billing on answered minutes | Lives in `ee/` |
+| Billing (hosted only) | Stripe metered billing on answered minutes | |
 
 ## 5. Action registry
 
@@ -275,7 +275,6 @@ packages/
   telephony/  TelephonyProvider + Telnyx/Twilio/Plivo/BYO-SIP adapters
   calendar/   Google / Microsoft adapters, availability engine
   ui/         shared components from the prototype
-ee/           hosted-only features (billing, SSO)
 prototypes/   clickable prototypes (no backend)
 docs/
 ```
