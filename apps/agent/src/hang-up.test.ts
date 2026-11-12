@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { DEFAULT_SILENCE_CLOSING } from '@linedesk/actions'
 import { voice } from '@livekit/agents'
-import { greetingPlayed, hangUpAfterLine, hangUpAfterSpeech, hangUpAtCallLimit, remindOnSilence, silencePolicyOf, silenceSchedule } from './hang-up.ts'
+import { greetingPlayed, hangUpAfterLine, hangUpAfterSpeech, hangUpAtCallLimit, remindOnSilence, silencePolicyOf, silenceSchedule, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
@@ -280,4 +280,31 @@ test('the greeting has played once the first speech ended, or at the latest afte
   await vi.advanceTimersByTimeAsync(1)
   expect(capped).toHaveBeenCalledOnce()
   expect(never.listeners.size).toBe(0)
+})
+
+test('end_call written into the goodbye counts as the hang-up and is left out of the transcript', () => {
+  const goodbye = "Alright, I'll hang up now. Thanks for calling, goodbye! \n\n{end_call}"
+  expect(writesEndCall(goodbye)).toBe(true)
+  expect(writesEndCall('I can end the call for you, or take a message.')).toBe(false)
+  expect(withoutEndCall(goodbye)).toBe("Alright, I'll hang up now. Thanks for calling, goodbye!")
+  expect(withoutEndCall('end_call')).toBe('')
+})
+
+test('the hang-up line counts as the hang-up; a question or a negation does not', () => {
+  for (const said of [
+    "Alright, I'll hang up now. Thanks for calling, goodbye!",
+    'Alright, I’ll hang up now. Thanks for calling, goodbye!',
+    'Okay, I will hang up now. Have a great day!',
+    'No problem, I’ll hang up now. Goodbye!',
+    'Perfecto, voy a colgar ahora. ¡Adiós!',
+    'Alles klar, ich lege jetzt auf. Auf Wiederhören!',
+    'Très bien, je vais raccrocher. Au revoir !',
+  ]) expect(announcesHangUp(said), said).toBe(true)
+  for (const said of [
+    'Please don\'t hang up, I will check that for you.',
+    'Shall I hang up now?',
+    'Please don’t hang up yet, I’ll check.',
+    'I won\'t hang up until we have your address.',
+    'Is there anything else I can help with?',
+  ]) expect(announcesHangUp(said), said).toBe(false)
 })

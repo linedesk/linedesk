@@ -19,6 +19,31 @@ const RECENT_SPEECH_MS = 4000
 /** Said when end_call comes without a goodbye of the model's: a call never ends in silence. */
 export const GOODBYE_LINE = 'Thanks for calling. Goodbye!'
 
+/** end_call written into the reply ("goodbye! {end_call}"), as a realtime model sometimes does instead of calling it. */
+const END_CALL_IN_WORDS = /\{?\bend_call\b\}?/gi
+
+/** Whether the assistant wrote end_call into its words instead of calling it: the call then ends all the same. */
+export const writesEndCall = (text: string) => text.search(END_CALL_IN_WORDS) >= 0
+
+/** A sentence in which the assistant says it hangs up now ("Alright, I'll hang up now.", also with a curly apostrophe), in the languages calls mostly use. */
+const HANG_UP_ANNOUNCEMENT =
+  /\b(?:I['’]?ll|I will|I['’]m going to|I am going to|let me) (?:now )?hang up\b|\bhanging up now\b|\b(?:voy a colgar|cuelgo ahora)\b|\bje (?:vais )?raccroche|\b(?:ich )?lege (?:jetzt |nun )?auf\b/i
+/** Words that turn the sentence around ("I won't hang up", "don't hang up"). */
+const NEGATION = /\b(?:not|never|won['’]t|don['’]t|nicht|pas)\b|n['’]t\b/i
+
+/**
+ * Whether the assistant said it hangs up now. The model sometimes says the hang-up line and leaves out end_call:
+ * the call then ends after that line all the same.
+ */
+export function announcesHangUp(text: string): boolean {
+  return text
+    .split(/(?<=[.?!])\s+/)
+    .some(sentence => !sentence.trim().endsWith('?') && HANG_UP_ANNOUNCEMENT.test(sentence) && !NEGATION.test(sentence))
+}
+
+/** The assistant's words without an end_call written into them, for the transcript. */
+export const withoutEndCall = (text: string) => text.replace(END_CALL_IN_WORDS, '').trim()
+
 type Speaking = {
   agentState: string
   /** Calls `listener` once the assistant is neither speaking nor thinking any more. */
