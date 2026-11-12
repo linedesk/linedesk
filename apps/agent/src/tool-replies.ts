@@ -13,6 +13,11 @@ type ToolsExecuted = { functionCalls: { name: string }[]; cancelToolReply(): voi
 
 export const MESSAGE_SAVED_REPLY = spokenLines('en').messageSaved
 export const URGENT_FLAGGED_REPLY = spokenLines('en').urgentFlagged
+/**
+ * What take_message tells the model. Without the language in it, a realtime model (which has no ready line to say)
+ * repeated the English after the tool to a caller speaking Spanish.
+ */
+export const MESSAGE_SAVED_RESULT = 'The message is saved. In the language you are speaking with the caller, tell them the team will get back to them.'
 
 /** The ready replies in the language spoken now (default English). */
 type Replies = () => Pick<SpokenLines, 'messageSaved' | 'urgentFlagged'>

@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest'
-import { MESSAGE_SAVED_REPLY, URGENT_FLAGGED_REPLY, quietToolReplies } from './tool-replies.ts'
+import { MESSAGE_SAVED_REPLY, MESSAGE_SAVED_RESULT, URGENT_FLAGGED_REPLY, quietToolReplies } from './tool-replies.ts'
 
 const executed = (...names: string[]) => ({ functionCalls: names.map(name => ({ name })), cancelToolReply: vi.fn() })
 const quiet = new Set(['take_message', 'flag_urgent'])
@@ -59,4 +59,9 @@ test('a realtime model (no ready lines): only the reply after a turn it already 
   replies.itemAdded('assistant')
   replies.toolsExecuted({ functionCalls: [{ name: 'take_message' }], cancelToolReply: cancel })
   expect(cancel).toHaveBeenCalledTimes(1)
+})
+
+// spanish-caller call test (realtime): after take_message the reply came in English.
+test('take_message tells the model to answer in the language of the call', () => {
+  expect(MESSAGE_SAVED_RESULT).toMatch(/in the language you are speaking with the caller/i)
 })

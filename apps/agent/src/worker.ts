@@ -25,7 +25,7 @@ import { audioStream, createGreetingCache, greetingKey, synthesize } from './gre
 import { cascadedReplyTimer, logTurnMetrics } from './turn-metrics.ts'
 import { describeRealtimeReply, realtimeTurnTimer } from './realtime-timing.ts'
 import { followCallerLanguage } from './caller-language.ts'
-import { skipQuietToolReplies } from './tool-replies.ts'
+import { MESSAGE_SAVED_RESULT, skipQuietToolReplies } from './tool-replies.ts'
 import { greetingPlayed, hangUpAfterLine, hangUpAfterSpeech, hangUpAtCallLimit, remindOnSilence, silencePolicyOf, speakingOf, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
 import { playLine, unansweredLine } from './busy-line.ts'
 import { promisesUrgent, urgentFlagger } from './urgent-promise.ts'
@@ -133,7 +133,7 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
         await api.run(callTakeMessage, { callId, message }, call)
         log.messages.push(message)
         log.record('system', 'Took a message', callTakeMessage.name)
-        return 'The message is saved. Tell the caller the team will get back to them.'
+        return MESSAGE_SAVED_RESULT
       },
     }),
     end_call: llm.tool({
