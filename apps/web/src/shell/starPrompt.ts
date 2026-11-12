@@ -1,12 +1,11 @@
 // The GitHub star prompt without React (server rules: apps/api/src/star-prompt.ts). It shows once a
-// session, after the member marked a call done (a moment Linedesk was useful) and then stayed idle for
-// a moment, and any answer is final.
+// session, two minutes after the session started, until the member answers; any answer is final.
 // One click stars the repository for members who signed in with GitHub: GitHub asks them to allow
 // starring (STAR_SCOPE), the server stars on the way back and gives the permission up again.
 import type { StarPrompt } from '@linedesk/actions'
 
-/** How long nothing happens (no key, click or scroll) before the card shows. */
-export const STAR_IDLE_MS = 30_000
+/** How long into a session the card shows. */
+export const STAR_DELAY_MS = 120_000
 
 /** From this many stars on the card names the count ("Join 1.2k others"); fewer would not convince anyone. */
 export const STAR_COUNT_SHOWN_FROM = 100
@@ -17,21 +16,8 @@ export const starPitch = (product: string, stars: number | null, format: (n: num
     ? `${product} is open source. Join ${format(stars)} others who starred it on GitHub.`
     : `${product} is open source. A star on GitHub helps others find it.`
 
-// A call marked done on this page: until then the card waits (useCallActions calls noteCallDone).
-let callDone = false
-const callDoneListeners = new Set<() => void>()
-export function noteCallDone() {
-  if (callDone) return
-  callDone = true
-  for (const listener of callDoneListeners) listener()
-}
-export const callDoneOnThisPage = () => callDone
-export function onCallDone(listener: () => void) {
-  callDoneListeners.add(listener)
-  return () => void callDoneListeners.delete(listener)
-}
-
 const SHOWN_KEY = 'linedesk.starPrompt.shown'
+const STARTED_KEY = 'linedesk.starPrompt.sessionStart'
 const RETURN_KEY = 'linedesk.starPrompt.granting'
 
 /** What Star does for this member: the GitHub round trip that stars, or the repository page. */
@@ -54,6 +40,17 @@ function write(storage: Storage, key: string, value: string | null) {
   } catch {
     /* private window: the card may show once more */
   }
+}
+
+/**
+ * Milliseconds until the card is due in this session: STAR_DELAY_MS after its first page load, so a reload
+ * does not start the two minutes again. A new tab is a new session.
+ */
+export function msUntilDue(now = Date.now(), storage: Storage = sessionStorage): number {
+  const stored = Number(read(storage, STARTED_KEY))
+  const started = Number.isFinite(stored) && stored > 0 && stored <= now ? stored : now
+  if (started === now) write(storage, STARTED_KEY, String(now))
+  return Math.max(0, started + STAR_DELAY_MS - now)
 }
 
 /** Shown in this session already (unanswered): not again until the next one. */

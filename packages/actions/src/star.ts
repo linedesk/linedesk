@@ -1,4 +1,5 @@
-// The GitHub star prompt: after 15 minutes of use, a member is asked once to star Linedesk's repository.
+// The GitHub star prompt: two minutes into each session, a member is asked to star Linedesk's repository
+// until they answer.
 // Members who signed in with GitHub star it in one click: GitHub asks them once to allow starring,
 // and Linedesk stars on the way back, then gives the permission up again. Everyone else gets the
 // repository page. Any answer is final (apps/api/src/star-prompt.ts).

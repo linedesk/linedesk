@@ -1,12 +1,11 @@
 import { formatStarCount } from '@linedesk/actions'
 import { expect, test } from 'vitest'
 import {
-  callDoneOnThisPage,
   markGranting,
   markShown,
-  noteCallDone,
-  onCallDone,
+  msUntilDue,
   repoUrl,
+  STAR_DELAY_MS,
   shownThisSession,
   starMove,
   starPitch,
@@ -68,13 +67,9 @@ test('the count reads short, and the card names it only once it convinces', () =
   )
 })
 
-test('waits for a call marked done, told once', () => {
-  let told = 0
-  const stop = onCallDone(() => told++)
-  expect(callDoneOnThisPage()).toBe(false)
-  noteCallDone()
-  noteCallDone()
-  expect(callDoneOnThisPage()).toBe(true)
-  expect(told).toBe(1)
-  stop()
+test('due two minutes into the session, also after a reload', () => {
+  const storage = memoryStorage()
+  expect(msUntilDue(1_000_000, storage)).toBe(STAR_DELAY_MS)
+  expect(msUntilDue(1_000_000 + 90_000, storage)).toBe(30_000)
+  expect(msUntilDue(1_000_000 + 200_000, storage)).toBe(0)
 })

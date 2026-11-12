@@ -1,20 +1,18 @@
 // The GitHub star prompt: a small card at the bottom right, like the tour. Star stars the repository
 // in one click for members who signed in with GitHub (GitHub asks them to allow it, then they are back
-// here), else opens it on GitHub; No thanks closes it for good. A star made here ends in a short burst
+// here), else opens it on GitHub; No thanks closes it for good, the close button only for this session. A star made here ends in a short burst
 // of confetti in the app's own colors.
 import { formatStarCount, type StarPrompt as Prompt, STAR_SCOPE } from '@linedesk/actions'
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useState } from 'react'
 import { auth } from '../auth.ts'
 import { useBrand } from '../brand.ts'
 import { callAction } from '../settings/settings-api.ts'
 import { Button } from '../ui/kit.tsx'
 import {
-  callDoneOnThisPage,
   markGranting,
   markShown,
-  onCallDone,
+  msUntilDue,
   repoUrl,
-  STAR_IDLE_MS,
   shownThisSession,
   starMove,
   starPitch,
@@ -25,24 +23,15 @@ import {
 type State = 'waiting' | 'ask' | 'starring' | 'thanks' | 'failed' | 'closed'
 const THANKS_MS = 4000
 
-/** True once the page has been quiet (no key, pointer or scroll) for `ms`. */
-function useIdle(ms: number, enabled: boolean) {
-  const [idle, setIdle] = useState(false)
+/** True once the session is two minutes old (msUntilDue); waits only while `enabled`. */
+function useDue(enabled: boolean) {
+  const [due, setDue] = useState(false)
   useEffect(() => {
     if (!enabled) return
-    let timer = setTimeout(() => setIdle(true), ms)
-    const reset = () => {
-      clearTimeout(timer)
-      timer = setTimeout(() => setIdle(true), ms)
-    }
-    const events = ['keydown', 'pointerdown', 'pointermove', 'wheel'] as const
-    for (const e of events) window.addEventListener(e, reset, { passive: true })
-    return () => {
-      clearTimeout(timer)
-      for (const e of events) window.removeEventListener(e, reset)
-    }
-  }, [ms, enabled])
-  return idle
+    const timer = setTimeout(() => setDue(true), msUntilDue())
+    return () => clearTimeout(timer)
+  }, [enabled])
+  return due
 }
 
 /** One burst from the card's corner; the library loads only here and is skipped for reduced motion. */
@@ -73,15 +62,14 @@ export function StarPrompt({ prompt, quiet }: { prompt: Prompt | null; quiet: bo
     returned === 'refused' ? 'failed' : returned === 'starred' ? 'thanks' : 'waiting',
   )
   const { starCount } = useBrand()
-  const callDone = useSyncExternalStore(onCallDone, callDoneOnThisPage)
-  const idle = useIdle(STAR_IDLE_MS, Boolean(prompt) && callDone && state === 'waiting' && !shownThisSession())
+  const due = useDue(Boolean(prompt) && state === 'waiting' && !shownThisSession())
 
   useEffect(() => {
-    if (state === 'waiting' && idle && !quiet) {
+    if (state === 'waiting' && due && !quiet) {
       markShown()
       setState('ask')
     }
-  }, [state, idle, quiet])
+  }, [state, due, quiet])
 
   useEffect(() => {
     if (returned === 'starred') celebrate()
@@ -131,6 +119,15 @@ export function StarPrompt({ prompt, quiet }: { prompt: Prompt | null; quiet: bo
   const move = starMove(prompt)
   return (
     <section className="tour star-card" role="dialog" aria-label="Star Linedesk on GitHub" aria-live="polite">
+      <Button
+        size="sm"
+        variant="ghost"
+        icon="close"
+        className="star-close"
+        aria-label="Close"
+        title="Close for now"
+        onClick={() => setState('closed')}
+      />
       <h2>Enjoying Linedesk?</h2>
       <p>
         {failed

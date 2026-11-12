@@ -249,7 +249,7 @@ export function BrandingSettings() {
           <div>
             <b>Ask members for a GitHub star</b>
             <p className="help">
-              Asks each member once, after some real use, to star {DEFAULT_PRODUCT_NAME} on GitHub, and shows Star on GitHub in the sidebar and at the end of onboarding.
+              Asks each member to star {DEFAULT_PRODUCT_NAME} on GitHub, two minutes into each session until they answer, and shows Star on GitHub in the sidebar and at the end of onboarding.
             </p>
           </div>
           <Switch

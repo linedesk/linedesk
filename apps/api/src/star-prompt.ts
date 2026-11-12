@@ -1,8 +1,8 @@
 // The GitHub star prompt (packages/actions/src/star.ts): when it is due, and starring in one click.
-// It is on for every install (an instance admin can turn it off under Admin, Branding) and due once a
-// member has used Linedesk for a while: their account is STAR_MIN_ACCOUNT_MINUTES old and their
-// workspace is past onboarding. Never while an instance admin is signed in as them, never again once
-// they answered.
+// It is on for every install (an instance admin can turn it off under Admin, Branding) and due for
+// every member whose workspace is past onboarding, until they answer; the web app shows it two minutes
+// into each session (apps/web/src/shell/starPrompt.ts). Never while an instance admin is signed in as
+// them, never again once they answered.
 //
 // One click: the web app asks GitHub for STAR_SCOPE (public_repo) through Better Auth's account link,
 // only when the member clicks Star. public_repo can write to all of the member's public repositories,
@@ -10,7 +10,7 @@
 // stars the repository at once, revokes the app's grant at GitHub (so the scope does not come back with
 // the next GitHub sign-in) and clears the token and the scope from the account row.
 import { STAR_REPO, STAR_SCOPE, type StarPrompt } from '@linedesk/actions'
-import { account, star_prompts, type Tx, user, workspace_settings } from '@linedesk/db'
+import { account, star_prompts, type Tx, workspace_settings } from '@linedesk/db'
 import { decryptOAuthToken } from 'better-auth/oauth2'
 import { and, eq } from 'drizzle-orm'
 import { authConfig } from './auth-methods.ts'
@@ -19,9 +19,6 @@ import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { Forbidden, type Handler } from './handler-context.ts'
 import { createRateLimiter } from './rate-limit.ts'
-
-/** Minutes since the member's account was made before the prompt can show. */
-export const STAR_MIN_ACCOUNT_MINUTES = 15
 
 /** Whether GitHub granted starring: `public_repo` or the wider `repo` (scopes are comma or space separated). */
 export const grantsStarring = (scope: string | null | undefined) =>
@@ -52,11 +49,9 @@ async function onboardingDone(workspaceId: string): Promise<boolean> {
 }
 
 /** For `/v1/me`: the prompt while it is due for this member, else null. */
-export async function starPromptFor(actor: Actor, now = new Date()): Promise<StarPrompt | null> {
+export async function starPromptFor(actor: Actor): Promise<StarPrompt | null> {
   if (!starPromptAllowed() || !actor.workspaceId || !answersForThemselves(actor)) return null
   if (await answered(actor.actorId)) return null
-  const [member] = await db.select({ createdAt: user.createdAt }).from(user).where(eq(user.id, actor.actorId))
-  if (!member || now.getTime() - member.createdAt.getTime() < STAR_MIN_ACCOUNT_MINUTES * 60_000) return null
   if (!(await onboardingDone(actor.workspaceId))) return null
   return { repo: STAR_REPO, github: await hasGitHubSignIn(actor.actorId) }
 }

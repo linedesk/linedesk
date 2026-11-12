@@ -2,20 +2,13 @@
 // workspace is past onboarding, never for someone signed in as the member; any answer is final. One click: a GitHub token with
 // public_repo is used once to star, then the grant is revoked and the token and scope are cleared.
 import { STAR_REPO } from '@linedesk/actions'
-import { account, star_prompts, user, workspace_settings } from '@linedesk/db'
+import { account, star_prompts, workspace_settings } from '@linedesk/db'
 import { decryptOAuthToken, setTokenUtil } from 'better-auth/oauth2'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { auth } from '../src/auth.ts'
 import { db } from '../src/db.ts'
-import {
-  grantsStarring,
-  revokeGitHubGrant,
-  STAR_MIN_ACCOUNT_MINUTES,
-  starOnGitHub,
-  starOnGrant,
-  starPromptFor,
-} from '../src/star-prompt.ts'
+import { grantsStarring, revokeGitHubGrant, starOnGitHub, starOnGrant, starPromptFor } from '../src/star-prompt.ts'
 import { act, addMember, createWorkspace, request, type User } from './helpers.ts'
 
 const REPO = 'linedesk/linedesk'
@@ -27,13 +20,6 @@ const authContext = async () => (await auth.$context) as unknown as Parameters<t
 
 afterEach(() => vi.unstubAllGlobals())
 
-async function age(who: User, minutes: number) {
-  await db
-    .update(user)
-    .set({ createdAt: new Date(Date.now() - minutes * 60_000) })
-    .where(eq(user.id, who.userId))
-}
-
 /** A new workspace starts in onboarding: this one has finished it. */
 async function onboarded(name: string) {
   const ws = await createWorkspace(name)
@@ -41,12 +27,8 @@ async function onboarded(name: string) {
   return ws
 }
 
-/** A workspace in use: past onboarding, its owner's account old enough. */
-async function inUse(name: string) {
-  const ws = await onboarded(name)
-  await age(ws.owner, STAR_MIN_ACCOUNT_MINUTES + 1)
-  return ws
-}
+/** A workspace in use: past onboarding. */
+const inUse = onboarded
 
 /** A GitHub account row as Better Auth stores it: the token encrypted. */
 async function linkGitHub(who: User, scope: string, token = 'gho_test') {
@@ -84,12 +66,8 @@ describe('when the prompt is due', () => {
     expect(STAR_REPO).toBe(REPO)
   })
 
-  test('not before the account is a few minutes old; no calls needed', async () => {
+  test('due from the start once onboarding is done; no calls or account age needed', async () => {
     const ws = await onboarded('Star Early Plumbing')
-    expect(await me(ws.owner)).toBeNull()
-    await age(ws.owner, STAR_MIN_ACCOUNT_MINUTES - 1)
-    expect(await me(ws.owner)).toBeNull()
-    await age(ws.owner, STAR_MIN_ACCOUNT_MINUTES + 1)
     expect(await me(ws.owner)).toEqual({ repo: REPO, github: false })
   })
 
@@ -132,7 +110,6 @@ describe('answering', () => {
   test('No thanks is final, for this member only', async () => {
     const ws = await inUse('Star Dismiss Plumbing')
     const member = await addMember(ws.id, 'member')
-    await age(member, STAR_MIN_ACCOUNT_MINUTES + 1)
     expect((await act(ws.owner, 'starPrompt.answer', { answer: 'dismissed' })).status).toBe(200)
     expect((await act(ws.owner, 'starPrompt.answer', { answer: 'opened' })).status).toBe(200)
     expect(await answerOf(ws.owner)).toBe('dismissed')

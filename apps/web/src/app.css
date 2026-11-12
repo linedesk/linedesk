@@ -1579,6 +1579,15 @@ button.k-link {
   bottom: max(16px, env(safe-area-inset-bottom, 0px));
   visibility: visible;
 }
+/* Closes the card for this session; No thanks is the answer that ends it for good. */
+.star-card .star-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+.star-card h2 {
+  padding-right: 28px;
+}
 .tour h2 {
   margin: 0;
   font-size: 14px;

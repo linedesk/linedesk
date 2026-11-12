@@ -3,7 +3,6 @@
 import type { Call } from '@linedesk/db/types'
 import { useRef, useState } from 'react'
 import { type InboxTab, tabOf } from '../inbox-model.ts'
-import { noteCallDone } from '../shell/starPrompt.ts'
 import type { Toaster } from '../shell/useToast.ts'
 import { useRun, useSnapshot } from '../store.tsx'
 import {
@@ -176,11 +175,8 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     entering,
     undo,
     runUndoable,
-    markDone: (call: Call) => {
-      if (call.inbox_state === 'done') return toaster.show('Already done.')
-      act(call, doneChange(call))
-      noteCallDone() // the moment the GitHub star prompt may follow (shell/starPrompt.ts)
-    },
+    markDone: (call: Call) =>
+      call.inbox_state === 'done' ? toaster.show('Already done.') : act(call, doneChange(call)),
     markNotDone: (call: Call) =>
       call.inbox_state === 'done' ? act(call, notDoneChange(call)) : toaster.show('This call is not done.'),
     toggleUnread: (call: Call) => act(call, unreadChange(call)),
@@ -198,14 +194,12 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
       act(call, blockChange(call, contact))
     },
     many: {
-      markDone: (list: Call[]) => {
+      markDone: (list: Call[]) =>
         actMany(
           list,
           c => (c.inbox_state === 'done' ? null : doneChange(c)),
           n => `${calls(n)} marked done.`,
-        )
-        if (list.some(c => c.inbox_state !== 'done')) noteCallDone()
-      },
+        ),
       markNotDone: (list: Call[]) =>
         actMany(
           list,
