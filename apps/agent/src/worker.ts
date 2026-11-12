@@ -225,10 +225,13 @@ async function greet(session: voice.AgentSession, config: AgentConfig, call: Cal
   return 'synthesized'
 }
 
-/** Speaks a fixed line: the voice provider says it as written; a realtime model, which has no voice provider, is asked to say it. */
+/**
+ * Speaks a fixed line: the voice provider says it as written; a realtime model, which has no voice provider, is asked to
+ * say it. A realtime model's own turn detection can always interrupt it, so it takes no `allowInterruptions`.
+ */
 type Speak = (text: string, options?: { allowInterruptions?: boolean }) => voice.SpeechHandle
 const speakerFor = (session: voice.AgentSession, realtime: boolean): Speak =>
-  realtime ? (text, options = {}) => session.generateReply({ instructions: realtimeLine(text), ...options }) : (text, options) => session.say(text, options)
+  realtime ? text => session.generateReply({ instructions: realtimeLine(text) }) : (text, options) => session.say(text, options)
 
 /**
  * Greets the caller and runs the conversation until the session closes. The session starts without
@@ -256,8 +259,12 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   // follows the caller's language itself, and is asked to say a fixed line in it.
   const spokenNow = pipeline ? followCallerLanguage(session, pipeline.tts, languages, call.callId) : () => languages.main
   const lines = () => spokenLines(spokenNow())
+  // Silence only counts once the assistant has spoken: a greeting that is slow to start (a busy server, a realtime model
+  // connecting) must not run down the caller's silence and hang up before anyone said anything.
+  let greeted = false
   const onSpeaking = ({ newState }: { newState: string }) => {
     if (newState !== 'speaking') return
+    greeted = true
     session.off(voice.AgentSessionEventTypes.AgentStateChanged, onSpeaking)
     setup.mark('greeting audio')
     setup.log(call.callId, ctx.room)
@@ -285,7 +292,8 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
       hangUpAfterLine(sayLine(silence.closing), deleteRoom)
     },
     transferred,
-    onHold: () => log.onHold,
+    // Before the greeting there is nothing to answer yet: wait like on hold.
+    onHold: () => log.onHold || !greeted,
   })
   // A test call from the web app ends sooner, so a forgotten browser tab does not run up provider minutes.
   const isTest = call.businessNumber === null
