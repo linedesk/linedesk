@@ -1,0 +1,12 @@
+# Secret scanning (gitleaks), run by the `secrets` job in .github/workflows/ci.yml. See docs/ci.md.
+# Starts from gitleaks' default rules; only the exceptions below are ours.
+
+[extend]
+useDefault = true
+
+# Made-up keys in tests contain the run 0123456789 on purpose (e.g. 'bucket-secret-0123456789').
+# A real key never does, so anything else is still caught, in tests too.
+[[allowlists]]
+description = "Fake keys marked with 0123456789"
+regexTarget = "secret"
+regexes = ['''0123456789''']
