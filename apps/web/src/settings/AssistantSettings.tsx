@@ -181,7 +181,7 @@ function Greeting({
     <Section id="as-greeting">
       <Field
         id="as-greet"
-        label={outsideShown ? 'First sentence greeting, during business hours' : 'First sentence greeting'}
+        label={outsideShown ? 'Greeting (first sentence), during business hours' : 'Greeting (first sentence)'}
         aside={draft.greeting.trim() ? spokenLength(draft.greeting) : undefined}
         error={draft.greeting.trim() ? null : 'The greeting cannot be empty.'}
       >

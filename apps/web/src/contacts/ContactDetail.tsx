@@ -155,7 +155,7 @@ export function ContactDetail({ row, onOpenCall, onClose, onDelete, onMerge, run
   const label = contactLabel(contact)
   const phone = formatPhone(contact.phone)
   return (
-    <aside className="cv-side cust-side ct-detail" aria-label="Contact">
+    <aside className="cv-side cust-side ct-detail" aria-label="Contact" data-esc-closes>
       <div className="ct-detail-in">
         <header className="ct-head">
           <Button

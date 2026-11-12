@@ -301,6 +301,20 @@ describe('page keys', () => {
     expect(c.openSearch).not.toHaveBeenCalled()
     expect(c.step).not.toHaveBeenCalled()
   })
+  it('one Esc in a field of a panel that closes with Esc blurs the field and closes the panel', () => {
+    const page = vi.fn(() => true)
+    setPageKeys(page)
+    const blur = vi.fn()
+    const field = (inPanel: boolean) =>
+      ({ tagName: 'INPUT', id: '', type: 'text', blur, closest: () => (inPanel ? {} : null) }) as unknown as EventTarget
+    press('Escape', context({ onInbox: false }), { target: field(true) })
+    expect(blur).toHaveBeenCalledTimes(1)
+    expect(page).toHaveBeenCalledWith('Escape')
+    page.mockClear()
+    press('Escape', context({ onInbox: false }), { target: field(false) })
+    expect(blur).toHaveBeenCalledTimes(2)
+    expect(page).not.toHaveBeenCalled()
+  })
   it('keeps / as call search on pages that do not take it, and leaves the inbox alone', () => {
     setPageKeys(() => false)
     const page = context({ onInbox: false })

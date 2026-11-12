@@ -133,10 +133,10 @@ function Costs({ overview }: { overview: AdminOverview }) {
                 Minutes, 7 days
               </th>
               <th scope="col" className="adm-num">
-                About, 7 days
+                Cost over 7 days
               </th>
               <th scope="col" className="adm-num">
-                About, this month
+                Cost this month
               </th>
             </tr>
           </thead>
@@ -191,9 +191,9 @@ export function Overview({ onOpen }: Props) {
               note={`${count(o.minutes.month)} this month`}
             />
             <Stat
-              label="About, 7 days"
+              label="Cost over 7 days"
               value={money(o.costs.reduce((sum, c) => sum + c.cost7d, 0))}
-              note="Provider cost"
+              note="About, at provider list prices"
             />
           </>
         ) : (

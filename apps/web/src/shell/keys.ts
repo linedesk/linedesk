@@ -87,7 +87,12 @@ function onEscape(el: HTMLElement, c: KeyContext) {
     el.blur()
     return c.closeSearch()
   }
-  if (isTyping(el)) return el.blur()
+  if (isTyping(el)) {
+    el.blur()
+    // A field in a side panel that closes with Esc (contacts): one Esc leaves the field and closes the panel.
+    if (!c.onInbox && el.closest('[data-esc-closes]')) pageKeys?.('Escape')
+    return
+  }
   if (!c.onInbox) return void pageKeys?.('Escape')
   if (c.isCallOpen) return c.back()
   if (c.selectionCount) return c.clearSelection()

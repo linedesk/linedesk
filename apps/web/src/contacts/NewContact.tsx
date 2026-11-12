@@ -41,7 +41,7 @@ export function NewContact({ existing, onAdded, onClose }: Props) {
   }
 
   return (
-    <aside className="cv-side cust-side ct-detail" aria-label="New contact">
+    <aside className="cv-side cust-side ct-detail" aria-label="New contact" data-esc-closes>
       <form className="ct-detail-in" onSubmit={submit} noValidate>
         <header className="ct-head">
           <div className="ct-who">
