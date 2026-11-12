@@ -44,7 +44,6 @@ const assistant = (over: Partial<Assistant> = {}) =>
     name: 'Maya',
     greeting: 'Hi.',
     business_profile: {},
-    call_rules: null,
     transfers: [contact(), office, person],
     ...over,
   }) as Assistant

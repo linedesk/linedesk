@@ -1,103 +1,12 @@
-// The top of Settings > Assistant: the assistant's name, renamed in place, with a switcher to the
-// workspace's other assistants (New, Duplicate, Delete), and the numbers it answers.
+// The top of Settings > Assistant: the assistant's name, which opens the menu of the workspace's assistants
+// (switch, New, Duplicate, Delete), and the numbers it answers. The name is changed under General.
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { formatNumber } from '../onboarding/flow.ts'
 import { useRun } from '../store.tsx'
 import { Dialog } from '../ui/form.tsx'
-import { Button, cx, Icon } from '../ui/kit.tsx'
+import { Button, Icon } from '../ui/kit.tsx'
 import './assistant.css'
-
-const NAME_MAX = 60
-
-/** The name as a title: click or Enter edits it, Enter or leaving saves, Esc cancels. */
-function InlineName({
-  assistant,
-  canEdit,
-  onRenamed,
-}: {
-  assistant: Assistant
-  canEdit: boolean
-  onRenamed: (from: string) => void
-}) {
-  const run = useRun()
-  const [editing, setEditing] = useState(false)
-  const [value, setValue] = useState(assistant.name)
-  const [problem, setProblem] = useState<string | null>(null)
-  const input = useRef<HTMLInputElement>(null)
-  const cancelled = useRef(false)
-  useEffect(() => {
-    if (!editing) setValue(assistant.name)
-  }, [assistant.name, editing])
-  useEffect(() => {
-    if (editing) input.current?.select()
-  }, [editing])
-
-  function save() {
-    if (cancelled.current) {
-      cancelled.current = false
-      return
-    }
-    const name = value.trim()
-    if (!name) return setProblem('Enter a name. Callers hear it.')
-    if (name.length > NAME_MAX) return setProblem(`At most ${NAME_MAX} characters.`)
-    setEditing(false)
-    setProblem(null)
-    if (name === assistant.name) return
-    void run('assistant.update', { assistantId: assistant.id, name })
-    onRenamed(assistant.name)
-  }
-  function onKey(e: KeyboardEvent<HTMLInputElement>) {
-    // The name has the keyboard while it is edited: no page shortcut reacts.
-    e.stopPropagation()
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      save()
-    } else if (e.key === 'Escape') {
-      cancelled.current = true
-      setValue(assistant.name)
-      setProblem(null)
-      setEditing(false)
-    }
-  }
-
-  if (editing)
-    return (
-      <span className="as-name-edit">
-        <input
-          ref={input}
-          className={cx('as-name-input', problem && 'is-invalid')}
-          value={value}
-          maxLength={NAME_MAX + 10}
-          aria-label="Assistant name"
-          aria-invalid={!!problem}
-          onChange={e => {
-            setValue(e.target.value)
-            setProblem(null)
-          }}
-          onBlur={save}
-          onKeyDown={onKey}
-        />
-        {problem && (
-          <span className="k-field-msg" role="alert">
-            {problem}
-          </span>
-        )}
-      </span>
-    )
-  return (
-    <button
-      type="button"
-      className="as-name"
-      disabled={!canEdit}
-      title={canEdit ? 'Rename (⏎)' : undefined}
-      onClick={() => setEditing(true)}
-    >
-      <span>{assistant.name}</span>
-      {canEdit && <Icon name="pencil" size={14} className="as-name-pen" />}
-    </button>
-  )
-}
 
 type MenuProps = {
   assistant: Assistant
@@ -109,7 +18,7 @@ type MenuProps = {
   onDelete: () => void
 }
 
-/** The chevron next to the name: every assistant of the workspace, then New, Duplicate and Delete. */
+/** The name with a chevron: opens every assistant of the workspace, then New, Duplicate and Delete. */
 function SwitchMenu({ assistant, assistants, canEdit, onPick, onNew, onDuplicate, onDelete }: MenuProps) {
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
@@ -148,17 +57,17 @@ function SwitchMenu({ assistant, assistants, canEdit, onPick, onNew, onDuplicate
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: arrow keys and Esc move through and close the menu
     <div className="as-switch-wrap" ref={root} onKeyDown={onKey}>
-      <Button
-        size="sm"
-        variant="ghost"
-        icon="down"
-        className="as-switch"
+      <button
+        type="button"
+        className="as-name as-switch"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="Switch assistant"
-        title="Switch assistant"
+        title="Switch, add or copy an assistant"
         onClick={() => setOpen(o => !o)}
-      />
+      >
+        <span>{assistant.name}</span>
+        <Icon name="down" size={16} className="as-name-chevron" />
+      </button>
       {open && (
         <div className="as-menu" role="menu" aria-label="Assistants">
           {assistants.map(a => (
@@ -300,12 +209,10 @@ type Props = {
   numbers: PhoneNumber[]
   canEdit: boolean
   onPick: (id: string) => void
-  /** The name was changed; `from` is the old one (the greeting may still say it). */
-  onRenamed: (from: string) => void
   toast: (text: string) => void
 }
 
-export function AssistantHeader({ assistant, assistants, numbers, canEdit, onPick, onRenamed, toast }: Props) {
+export function AssistantHeader({ assistant, assistants, numbers, canEdit, onPick, toast }: Props) {
   const run = useRun()
   const [deleting, setDeleting] = useState(false)
   // A new or copied assistant arrives by sync: open it as soon as it is there.
@@ -325,7 +232,6 @@ export function AssistantHeader({ assistant, assistants, numbers, canEdit, onPic
   return (
     <div className="as-head">
       <div className="as-title">
-        <InlineName key={assistant.id} assistant={assistant} canEdit={canEdit} onRenamed={onRenamed} />
         <SwitchMenu
           assistant={assistant}
           assistants={assistants}

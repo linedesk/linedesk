@@ -1,5 +1,5 @@
 // The assistant's system prompt, built from its configuration.
-import { aiDisclosureInstructions, type BookingContext, isActiveContact, communicationStyleInstructions, behaviourLines, behaviourOn, type CallDocuments, type CallerHistory, callRulesOf, fenceData, knowledgeLists, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf } from '@linedesk/actions'
+import { aiDisclosureInstructions, type BookingContext, isActiveContact, communicationStyleInstructions, behaviourLines, behaviourOn, type CallDocuments, type CallerHistory, CALL_RULES, fenceData, knowledgeLists, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf } from '@linedesk/actions'
 import type { Assistant, Contact, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 
@@ -52,8 +52,8 @@ export function documentsInstructions(documents: CallDocuments | null | undefine
 
 /**
  * The system prompt. Fixed parts: how to speak on a phone line, honesty about being an AI, what the
- * assistant can do and how to use its tools. Editable by the owner: what the business wants it to
- * know (instructions) and how to handle calls (call_rules, or the default rules).
+ * assistant can do, how to handle calls (CALL_RULES) and how to use its tools. Editable by the owner: what
+ * the business wants it to know (instructions).
  */
 /**
  * Outside business hours an assistant greets with its outside greeting, where it has one. What it knows
@@ -325,7 +325,7 @@ export function buildInstructions(
     knowledgeListsInstructions(assistant),
     documentsInstructions(documents),
     behaviourOn(assistant?.behaviours, 'listed_prices_only') ? PRICE_RULE : null,
-    `How to handle calls:\n${callRulesOf(assistant?.call_rules)}`,
+    `How to handle calls:\n${CALL_RULES}`,
     behavioursInstructions(assistant),
     callerIdInstructions(caller),
     transfer ? transferInstructions(transfers) : heldTransferInstructions(heldTransferContacts(assistant, hours)),

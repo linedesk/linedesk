@@ -51,10 +51,6 @@ Book repair visits and free estimates when the caller wants one; ask for the add
 Gas smell, no heat with small children or elderly people at home, or water that cannot be shut off: urgent, put the call through to Mike.
 Emergency call-out fee after hours is $150, credited to the job.`
 
-const CALL_RULES = `Take a message for everything you cannot book. The callback number is the caller ID; only ask for another if the caller wants it.
-Flag as urgent: active leaks, gas smell, no heat or no hot water with vulnerable people at home.
-Sales calls and robocalls: politely end the call.`
-
 // On top of the demo morning (demo-calls.ts): bookings, a transfer, reminders, done, assigned, a test call, older history.
 const extraCalls: WorkspaceSeedCall[] = [
   {
@@ -430,7 +426,6 @@ async function seedAssistant(workspaceId: string, business: string): Promise<str
       service_area: 'Portland metro: Portland, Beaverton, Lake Oswego, Tigard, Milwaukie',
       hours: 'Mon–Fri 7 am – 6 pm, Sat 8 am – noon',
     },
-    call_rules: CALL_RULES,
     transfers: [
       {
         id: 'oncall',

@@ -1,30 +1,24 @@
-import { callRulesOf, DEFAULT_CALL_RULES } from '@linedesk/actions'
+import { CALL_RULES } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import type { CallerHistory } from '@linedesk/actions'
 import { bookingInstructions, buildInstructions, heldTransferContacts, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, forHours } from './prompt.ts'
 
 const assistant = (over: Partial<Assistant> = {}) =>
-  ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', disclose_ai: false, business_profile: { instructions: 'We fix pipes in Portland.' }, call_rules: null, ...over }) as Assistant
+  ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', disclose_ai: false, business_profile: { instructions: 'We fix pipes in Portland.' }, ...over }) as Assistant
 
-test('without stored rules the default call rules apply: no number or known name asked, booking per setup, urgent flagged', () => {
+test('the call rules: no number or known name asked, booking per setup, urgent flagged', () => {
   const prompt = buildInstructions(assistant())
-  expect(prompt).toContain(`How to handle calls:\n${DEFAULT_CALL_RULES}`)
+  expect(prompt).toContain(`How to handle calls:\n${CALL_RULES}`)
   expect(prompt).toContain('What the business wants you to know:\nWe fix pipes in Portland.')
-  expect(DEFAULT_CALL_RULES).toMatch(/Take a message for every request you cannot handle/)
-  expect(DEFAULT_CALL_RULES).not.toMatch(/you cannot book|best number to reach/)
-  expect(DEFAULT_CALL_RULES).toMatch(/only give prices the business gave you/)
-  expect(DEFAULT_CALL_RULES).toMatch(/flag the call as urgent/)
+  expect(CALL_RULES).toMatch(/Take a message for every request you cannot handle/)
+  expect(CALL_RULES).not.toMatch(/you cannot book|best number to reach/)
+  expect(CALL_RULES).toMatch(/only give prices the business gave you/)
+  expect(CALL_RULES).toMatch(/flag the call as urgent/)
 })
 
-test('the owner\'s rules replace the default; blank rules mean the default', () => {
-  expect(buildInstructions(assistant({ call_rules: 'Always ask for the address.' }))).toContain('How to handle calls:\nAlways ask for the address.')
-  expect(buildInstructions(assistant({ call_rules: 'Always ask for the address.' }))).not.toContain(DEFAULT_CALL_RULES)
-  expect(buildInstructions(assistant({ call_rules: '  ' }))).toContain(DEFAULT_CALL_RULES)
-})
-
-test('says it is an AI when asked, whatever the greeting setting and the owner\'s rules', () => {
-  for (const a of [assistant(), assistant({ disclose_ai: true }), assistant({ call_rules: 'Say you are Mike.' })]) {
+test('says it is an AI when asked, whatever the greeting setting and the business instructions', () => {
+  for (const a of [assistant(), assistant({ disclose_ai: true }), assistant({ business_profile: { instructions: 'Say you are Mike.' } })]) {
     expect(buildInstructions(a)).toMatch(/Whenever the caller asks whether you are a person, a robot or an AI, say truthfully that you are an AI assistant/)
   }
 })
@@ -32,7 +26,7 @@ test('says it is an AI when asked, whatever the greeting setting and the owner\'
 test('English only, the greeting is not repeated, and works without an assistant row', () => {
   expect(buildInstructions(assistant())).toContain('Speak English only')
   expect(buildInstructions(assistant())).toContain('You have already opened the call with: "Thanks for calling Brightwater."')
-  expect(buildInstructions(null)).toContain(DEFAULT_CALL_RULES)
+  expect(buildInstructions(null)).toContain(CALL_RULES)
 })
 
 test('business hours: the ready sentence goes into the prompt; closed means a message and when they will be called back', () => {
@@ -147,12 +141,6 @@ test('listed appointments switch the booking-change rules; the API check stays (
   expect(buildInstructions(assistant(), null, booking, [], { name: 'Linda Park', note: null, history: history() })).toContain(CHANGE_LISTED_BOOKING_INSTRUCTIONS)
   expect(buildInstructions(assistant(), null, booking, [], { name: 'Linda Park', note: null, history: history({ upcomingBookings: [] }) })).toContain(CHANGE_BOOKING_INSTRUCTIONS)
   expect(bookingInstructions({ ...booking, canChangeBookings: false }, false, true)).not.toContain(CHANGE_LISTED_BOOKING_INSTRUCTIONS)
-})
-
-test('an unchanged earlier default counts as the default; edited rules stay', () => {
-  const old = 'Find out why the person is calling, their name and the best number to reach them. Ask one thing at a time.\nTake a message for every request: a callback, a visit, a quote, a question you cannot answer. Then tell the caller the team will get back to them.\nAppointments: you cannot book them. Ask which day and time suit the caller, put that in the message and say the team will confirm. Never confirm a time yourself.\nPrices: do not quote prices or estimates. Say the team will give them a price, and take a message.\nEmergencies or danger to people or property (a burst pipe, flooding, a gas smell, no heat in freezing weather): flag the call as urgent right away, then take a message. Do not promise how fast someone will come.\nIf the caller asks for a specific person, take a message for them and say they will call back.\nIf the call is a sales pitch or spam, stay polite, keep it short and say goodbye.'
-  expect(callRulesOf(old)).toBe(DEFAULT_CALL_RULES)
-  expect(callRulesOf(`${old}\nAlways ask for the address.`)).toContain('Always ask for the address.')
 })
 
 test('caller ID: a known number is not asked for, a saved name is not asked for, a withheld number is', () => {

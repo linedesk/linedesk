@@ -1,9 +1,9 @@
-// Assistant settings by topic, one section at a time (#assistant/<id>/<section>): general (greeting), business
-// info, hours and holidays, rules (AI disclosure, tone, behaviour checklist), transfers (transfer
-// contacts), booking, voice, and Advanced (languages, raw call rules, silence).
+// Assistant settings by topic, one section at a time (#assistant/<id>/<section>): general (name, greeting,
+// languages), business info, hours and holidays, rules (AI disclosure, tone, behaviour checklist), transfers
+// (transfer contacts), booking, voice, and Advanced (silence on the line).
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays and booking save on their own.
-import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, CALL_RULES_MAX, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, DEFAULT_CALL_RULES, SILENCE_CLOSING_MAX, type AssistantLanguages, type Language, languageCodes, LANGUAGES } from '@linedesk/actions'
+import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, SILENCE_CLOSING_MAX, type AssistantLanguages, type Language, languageCodes, LANGUAGES } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
@@ -15,12 +15,10 @@ import { LoadProblem, Skeleton, useLoadState } from '../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, sectionHash, useSection } from '../ui/SettingsLayout.tsx'
 import {
   behavioursToSave,
-  callRulesToSave,
   outsideToSave,
   type Draft,
   draftOf,
   draftProblem,
-  isDefaultCallRules,
   isDirty,
   keepDraft,
   languagesProblem,
@@ -36,6 +34,7 @@ import {
   silenceSummary,
   silenceToSave,
   spokenLength,
+  nameProblem,
   staleGreetingName,
   transferProblem,
   transfersToSave,
@@ -56,25 +55,25 @@ import { Holidays, VacationMode } from './Holidays.tsx'
 
 type SectionId = 'general' | 'business' | 'hours' | 'rules' | 'transfers' | 'booking' | 'voice' | 'advanced'
 const sections: readonly PageSection<SectionId>[] = [
-  { id: 'general', label: 'General', description: 'Name and greeting' },
+  { id: 'general', label: 'General', description: 'Name, greeting and languages' },
   { id: 'business', label: 'Business info', description: 'What you do, services, prices, FAQs and documents' },
   { id: 'hours', label: 'Hours & holidays', description: 'Weekly hours, holidays, vacation mode' },
   { id: 'rules', label: 'Rules', description: 'AI disclosure, tone and how calls are handled' },
   { id: 'transfers', label: 'Transfers', description: 'Who calls are put through to' },
   { id: 'booking', label: 'Booking & Calendar', description: 'Calendars and appointment types' },
   { id: 'voice', label: 'Voice', description: 'How the assistant sounds' },
-  { id: 'advanced', label: 'Advanced', description: 'Languages, call rules, silence' },
+  { id: 'advanced', label: 'Advanced', description: 'Silence on the line' },
 ]
 /** Sections that save on their own, outside the assistant's draft. */
 type OwnSection = 'hours' | 'booking'
 /** Which draft fields each section holds. */
 const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   business: ['instructions', 'services', 'faqs', 'website'],
-  general: ['name', 'greeting', 'greeting_outside'],
+  general: ['name', 'greeting', 'greeting_outside', 'languages'],
   rules: ['ai_disclosure', 'communication_style', 'behaviours'],
   transfers: ['transfers'],
   voice: ['voice'],
-  advanced: ['call_rules', 'silence_first_gap_s', 'silence_reminders', 'silence_closing', 'languages'],
+  advanced: ['silence_first_gap_s', 'silence_reminders', 'silence_closing'],
 }
 /** Section ids from before the regrouping, so old links and bookmarks still land in the right place. */
 const OLD_SECTIONS: Record<string, SectionId> = {
@@ -131,14 +130,26 @@ function RemoveGreeting({ what, onRemove }: { what: string; onRemove: () => void
   )
 }
 
+/** The assistant's name, saved with the rest of the draft; the menu at the top only switches assistants. */
+function AssistantNameSection({ draft, set }: SectionProps) {
+  const problem = nameProblem(draft.name)
+  return (
+    <Section id="as-name-section">
+      <Field id="as-name" label="Assistant name" error={problem}>
+        <TextInput id="as-name" value={draft.name} onChange={v => set('name', v)} invalid={!!problem} placeholder="Maya" />
+      </Field>
+    </Section>
+  )
+}
+
 function Greeting({
   draft,
   set,
-  renamedFrom,
+  savedName,
   hoursOn,
   canEdit,
-}: SectionProps & { renamedFrom: string | null; hoursOn: boolean; canEdit: boolean }) {
-  const stale = renamedFrom ? staleGreetingName(draft.greeting, renamedFrom, draft.name) : null
+}: SectionProps & { savedName: string; hoursOn: boolean; canEdit: boolean }) {
+  const stale = staleGreetingName(draft.greeting, savedName, draft.name)
   const name = assistantName(draft)
   const outsideGreeting = useOptionalGreeting(
     draft.greeting_outside,
@@ -150,10 +161,10 @@ function Greeting({
   const outsideShown = hoursOn && outsideGreeting.shown
   const canAddOutside = hoursOn && !outsideGreeting.shown
   return (
-    <Section id="as-greeting" title="Greeting" description={`The first thing callers hear when ${name} picks up.`}>
+    <Section id="as-greeting">
       <Field
         id="as-greet"
-        label={outsideShown ? 'During business hours' : 'Every caller hears'}
+        label={outsideShown ? 'First sentence greeting, during business hours' : 'First sentence greeting'}
         aside={draft.greeting.trim() ? spokenLength(draft.greeting) : undefined}
         error={draft.greeting.trim() ? null : 'The greeting cannot be empty.'}
       >
@@ -216,7 +227,7 @@ function Behaviours({ draft, set }: SectionProps) {
       id="as-behaviour"
       title="How calls are handled"
       description="Switch on what fits your business."
-      help={`Each switch adds a sentence to ${assistantName(draft)}'s instructions. They come before the call rules under Advanced where the two differ.`}
+      help={`Each switch adds a sentence to ${assistantName(draft)}'s instructions.`}
     >
       <div className="as-checklist">
         <AiDisclosureRow draft={draft} set={set} />
@@ -270,36 +281,6 @@ function AiDisclosureRow({ draft, set }: SectionProps) {
   )
 }
 
-function CallRules({ draft, set }: SectionProps) {
-  const isDefault = isDefaultCallRules(draft)
-  return (
-    <Section
-      id="as-rules"
-      title="Call rules"
-      description="The instructions behind the checklist, as text."
-      help={`How ${assistantName(draft)} handles a call: what to ask, what to do with emergencies, prices and sales calls. The checklist under Rules comes on top. Whatever the rules say, ${assistantName(draft)} always says it is an AI when asked and offers to take a message when it can't help.`}
-      actions={
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={isDefault}
-          onClick={() => set('call_rules', DEFAULT_CALL_RULES)}
-          title="Replace the rules with the default"
-        >
-          Reset to default
-        </Button>
-      }
-    >
-      <Field id="as-rules-text" label="Rules" aside={isDefault ? 'Default' : undefined}>
-        <TextArea id="as-rules-text" tall value={draft.call_rules} onChange={v => set('call_rules', v)} />
-        <span className="help">
-          {count(draft.call_rules.trim().length)} / {count(CALL_RULES_MAX)}
-        </span>
-      </Field>
-    </Section>
-  )
-}
-
 const languageOptions = languageCodes.map(code => ({ value: code, label: LANGUAGES[code] }))
 const alsoModes = (main: string): { value: AssistantLanguages['mode']; label: string; description: string }[] => [
   { value: 'english', label: 'None', description: `Other languages: answered in ${main}, with an offer to take a message` },
@@ -337,7 +318,12 @@ function Languages({ draft, set, replace }: SectionProps & { replace: (draft: Dr
           ))}
         </div>
       )}
-      {problem && <span className="help as-stale">{problem}</span>}
+      {/* An error, not a hint: Save is refused until it is fixed. */}
+      {problem && (
+        <span className="k-field-msg" role="alert">
+          {problem}
+        </span>
+      )}
     </Section>
   )
 }
@@ -378,7 +364,6 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
   const page = `assistant/${assistant.id}`
   const current = useSection(page, sections)
   const testCall = useTestCall(canEdit, assistant)
-  const [renamedFrom, setRenamedFrom] = useState<string | null>(null)
   /** A save was refused over a transfer contact: its errors show from then on. */
   const [transferSaveTried, setTransferSaveTried] = useState(false)
   const savedJson = JSON.stringify(draftOf(assistant))
@@ -414,7 +399,8 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
 
   function save(e: FormEvent) {
     e.preventDefault()
-    // The greeting shows its error under the field: go there instead of a toast that outlives the fix.
+    // Name and greeting show their error under the field: go there instead of a toast that outlives the fix.
+    if (nameProblem(draft.name)) return goTo('general', 'as-name')
     if (!draft.greeting.trim()) return goTo('general', 'as-greet')
     const transfer = transferProblem(draft)
     if (transfer) {
@@ -422,21 +408,20 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
       return goTo('transfers', transferFieldId(transfer.index, transfer.field))
     }
     if (silenceProblem(draft)) return goTo('advanced', 'as-silence-gap')
-    if (languagesProblem(draft)) return goTo('advanced', 'as-languages-mode')
+    if (languagesProblem(draft)) return goTo('general', 'as-languages-mode')
     const problem = draftProblem(draft)
     if (problem) return toast(problem)
     if (dirty) {
       const clean = normalized(draft)
-      // The name is renamed in place (AssistantHeader), not with Save.
       void run('assistant.update', {
         assistantId: assistant.id,
+        name: clean.name,
         greeting: clean.greeting,
         ai_disclosure: clean.ai_disclosure,
         communication_style: clean.communication_style,
         // For a web app of the release before, which still shows the switch.
         disclose_ai: disclosesAtStart(clean.ai_disclosure),
         business_profile: profileOf(clean),
-        call_rules: callRulesToSave(clean),
         ...outsideToSave(clean),
         // Only when changed: putting calls through to a number waits for a confirmed email, other edits do not.
         ...(JSON.stringify(clean.transfers) !== JSON.stringify(normalized(saved).transfers) ? { transfers: transfersToSave(clean) } : {}),
@@ -473,7 +458,11 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
           />
         )}
         {current === 'general' && (
-          <Greeting draft={draft} set={set} renamedFrom={renamedFrom} hoursOn={hoursOn} canEdit={canEdit} />
+          <>
+            <AssistantNameSection draft={draft} set={set} />
+            <Greeting draft={draft} set={set} savedName={assistant.name} hoursOn={hoursOn} canEdit={canEdit} />
+            <Languages draft={draft} set={set} replace={setDraft} />
+          </>
         )}
         {current === 'rules' && <Behaviours draft={draft} set={set} />}
         {current === 'transfers' && (
@@ -496,13 +485,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
             toast={toast}
           />
         )}
-        {current === 'advanced' && (
-          <>
-            <Languages draft={draft} set={set} replace={setDraft} />
-            <CallRules draft={draft} set={set} />
-            <Advanced draft={draft} set={set} />
-          </>
-        )}
+        {current === 'advanced' && <Advanced draft={draft} set={set} />}
       </fieldset>
       {current === 'booking' && <CalendarSettings assistant={assistant} canEdit={canEdit} toast={toast} />}
       {canEdit && <SaveBar dirty={changed} onCancel={cancel} note={note} />}
@@ -520,7 +503,6 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
           numbers={numbers}
           canEdit={canEdit}
           onPick={onPick}
-          onRenamed={setRenamedFrom}
           toast={toast}
         />
       }

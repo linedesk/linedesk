@@ -1,4 +1,4 @@
-import { AI_DISCLOSURE_MODES, BEHAVIOUR_IDS, type BehaviourId, COMMUNICATION_STYLES, CALL_RULES_MAX, REMOVED_BEHAVIOUR_IDS } from './assistant-prompt.ts'
+import { AI_DISCLOSURE_MODES, BEHAVIOUR_IDS, type BehaviourId, COMMUNICATION_STYLES, REMOVED_BEHAVIOUR_IDS } from './assistant-prompt.ts'
 import type { Closure } from '@linedesk/db/types'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
@@ -164,7 +164,7 @@ export const silenceClosingOf = (stored: string | null | undefined) => stored?.t
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
-    'Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business and how it handles calls (call_rules; null for the default). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a US number in E.164, null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `languages`: `english` (English only, the default), `allowed` (English plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in English. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, listed_prices_only, confirm_number); `ai_disclosure`: whether and when it mentions being an AI (never, when_asked, at_start, at_start_consent: says it and asks whether that is okay); it never claims to be human. `communication_style`: the tone (standard, professional, casual, formal, empathetic).',
+    'Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business. `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a US number in E.164, null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `languages`: `english` (English only, the default), `allowed` (English plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in English. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, listed_prices_only, confirm_number); `ai_disclosure`: whether and when it mentions being an AI (never, when_asked, at_start, at_start_consent: says it and asks whether that is okay); it never claims to be human. `communication_style`: the tone (standard, professional, casual, formal, empathetic).',
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().min(1).optional(),
@@ -175,8 +175,6 @@ export const assistantUpdate = defineAction({
     ai_disclosure: z.enum(AI_DISCLOSURE_MODES).optional(),
     /** The tone it uses: standard (default), professional, casual, formal, empathetic. */
     communication_style: z.enum(COMMUNICATION_STYLES).optional(),
-    /** null goes back to the default rules. */
-    call_rules: z.string().max(CALL_RULES_MAX).nullable().optional(),
     /** Used outside business hours, when the workspace uses them; null: the same as during hours. */
     greeting_outside: z.string().nullable().optional(),
     record_calls: z.boolean().optional(),
@@ -217,7 +215,7 @@ export const assistantUpdate = defineAction({
 export const assistantCreate = defineAction({
   name: 'assistant.create',
   description:
-    'Add an assistant to the workspace, with a fresh name and greeting and the default call rules. With `copyOf`, a copy of that assistant of the workspace (its greeting, instructions, rules and voice; its transfer contacts start from the default). Numbers keep their assistant: assign one with phoneNumber.update.',
+    'Add an assistant to the workspace, with a fresh name and greeting. With `copyOf`, a copy of that assistant of the workspace (its greeting, instructions and voice; its transfer contacts start from the default). Numbers keep their assistant: assign one with phoneNumber.update.',
   input: z.object({
     name: z.string().trim().min(1).max(60).optional(),
     copyOf: z.string().min(1).optional(),

@@ -1,8 +1,8 @@
 // The editable copy of the assistant's settings: how it is read from the row, merged with
 // changes that arrive through sync, checked and turned back into what assistant.update takes.
 import {
-  CALL_RULES_MAX, type Faq, FAQS_MAX, INSTRUCTIONS_MAX, RING_SECONDS_DEFAULT, TRANSFER_CONDITION_MAX,
-  TRANSFER_CONTACTS_MAX, type Service, SERVICES_MAX, servicesOf, TRANSFER_NAME_MAX, callRulesOf, usesDefaultCallRules, onCallNumberProblem,
+  type Faq, FAQS_MAX, INSTRUCTIONS_MAX, RING_SECONDS_DEFAULT, TRANSFER_CONDITION_MAX,
+  TRANSFER_CONTACTS_MAX, type Service, SERVICES_MAX, servicesOf, TRANSFER_NAME_MAX, onCallNumberProblem,
   DEFAULT_SILENCE_CLOSING, SILENCE_CLOSING_MAX, SILENCE_FIRST_GAP_MAX_S, SILENCE_FIRST_GAP_MIN_S, SILENCE_REMINDERS_MAX,
   SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT, BEHAVIOURS, type BehaviourId, behaviourOn, type AiDisclosure, DEFAULT_AI_DISCLOSURE, type CommunicationStyle, DEFAULT_COMMUNICATION_STYLE, type AssistantLanguages, ENGLISH_ONLY, type Language, languageCodes, LANGUAGES, mainLanguageOf, swapDefault,
 } from '@linedesk/actions'
@@ -18,7 +18,6 @@ export type Draft = {
   /** The tone it uses. */
   communication_style: CommunicationStyle
   instructions: string
-  call_rules: string
   greeting_outside: string
   /** Warm transfer: who callers are put through to, and when, in order. */
   transfers: TransferDraft[]
@@ -60,7 +59,6 @@ export function draftOf(a: Assistant): Draft {
   // Same rule as the voice agent: empty instructions mean the older fields still apply, so show those.
   return {
     name: a.name, greeting: a.greeting, ai_disclosure: a.ai_disclosure ?? (a.disclose_ai ? 'at_start' : DEFAULT_AI_DISCLOSURE), communication_style: a.communication_style ?? DEFAULT_COMMUNICATION_STYLE, instructions: p.instructions?.trim() ? p.instructions : foldProfile(p),
-    call_rules: callRulesOf(a.call_rules), // none stored: the default rules, shown so they can be edited
     greeting_outside: a.greeting_outside ?? '',
     transfers: (a.transfers ?? []).map(c => transferDraftOf({ ...c, number: c.number ? formatNumber(c.number) : '' })),
     voice: { provider: a.voice.provider, voice_id: a.voice.voice_id },
@@ -70,7 +68,7 @@ export function draftOf(a: Assistant): Draft {
     // A row synced before these columns existed has none: the defaults.
     silence_first_gap_s: String(a.silence_first_gap_s ?? SILENCE_FIRST_GAP_DEFAULT_S),
     silence_reminders: String(a.silence_reminders ?? SILENCE_REMINDERS_DEFAULT),
-    // None stored: the default line, shown so it can be edited (like the call rules).
+    // None stored: the default line, shown so it can be edited.
     silence_closing: a.silence_closing ?? DEFAULT_SILENCE_CLOSING,
     behaviours: behavioursOf(a.behaviours),
     languages: languagesOf(a.languages),
@@ -109,7 +107,7 @@ export const languagesToSave = (d: Draft) => ({
 
 /**
  * The draft with another main language: texts that are still the old language's default (greetings, the
- * returning-caller line, the closing line) become the new one's; texts the owner wrote stay.
+ * closing line) become the new one's; texts the owner wrote stay.
  */
 export function withMainLanguage(d: Draft, main: Language): Draft {
   const from = mainOf(d)
@@ -138,7 +136,6 @@ export const normalized = (d: Draft): Draft => ({
   name: d.name.trim(),
   greeting: d.greeting.trim(),
   instructions: d.instructions.trim(),
-  call_rules: d.call_rules.trim(),
   greeting_outside: d.greeting_outside.trim(),
   transfers: d.transfers.map(c => transferDraftOf({ ...c, name: c.name.trim(), condition: c.condition.trim(), number: normalizedNumber(c.number) })),
   services: d.services
@@ -149,6 +146,8 @@ export const normalized = (d: Draft): Draft => ({
   silence_first_gap_s: d.silence_first_gap_s.trim(),
   silence_reminders: d.silence_reminders.trim(),
   silence_closing: d.silence_closing.trim(),
+  // As saved: no picked languages unless "These languages", so switching back to None is clean after Save.
+  languages: languagesToSave(d).languages,
 })
 
 /** The contact with its fields in one fixed order: Postgres keeps jsonb keys in its own order, and drafts compare as JSON. */
@@ -291,14 +290,21 @@ export function spokenLength(greeting: string): string {
 
 
 
+export const ASSISTANT_NAME_MAX = 60
+
+/** Why the assistant's name cannot be saved, in words for the user; null when it can. */
+export function nameProblem(name: string): string | null {
+  if (!name.trim()) return 'Enter a name. Callers hear it.'
+  return name.trim().length > ASSISTANT_NAME_MAX ? `At most ${ASSISTANT_NAME_MAX} characters.` : null
+}
+
 /** Why the draft cannot be saved yet, in words for the user; null when it can. */
 export function draftProblem(draft: Draft): string | null {
-  if (!draft.name.trim()) return 'The assistant needs a name.'
+  const name = nameProblem(draft.name)
+  if (name) return name
   if (!draft.greeting.trim()) return 'The greeting cannot be empty: it is the first thing callers hear.'
   const length = draft.instructions.trim().length
   if (length > INSTRUCTIONS_MAX) return `The instructions are too long: ${length.toLocaleString('en-US')} of ${INSTRUCTIONS_MAX.toLocaleString('en-US')} characters.`
-  const rules = draft.call_rules.trim().length
-  if (rules > CALL_RULES_MAX) return `How to handle calls is too long: ${rules.toLocaleString('en-US')} of ${CALL_RULES_MAX.toLocaleString('en-US')} characters.`
   return knowledgeProblem(normalized(draft)) ?? transferProblem(draft)?.message ?? silenceProblem(draft) ?? languagesProblem(draft)
 }
 
@@ -318,14 +324,6 @@ export const profileOf = (d: Draft): BusinessProfile => ({
   faqs: d.faqs,
   ...(d.website ? { website: d.website } : {}),
 })
-
-/** The rules to save: null when they are the default (or empty), so a better default reaches this assistant later. */
-export const callRulesToSave = (d: Draft): string | null => {
-  const rules = d.call_rules.trim()
-  return usesDefaultCallRules(rules) ? null : rules
-}
-
-export const isDefaultCallRules = (d: Draft) => callRulesToSave(d) === null
 
 /** The outside-hours variants to save: null when empty (the same as during hours). */
 export const outsideToSave = (d: Draft) => ({

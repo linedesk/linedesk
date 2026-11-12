@@ -1,7 +1,7 @@
 import type { Assistant } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CALL_RULES, DEFAULT_SILENCE_CLOSING, disclosesAi, withDisclosure, withoutDisclosure } from '@linedesk/actions'
-import { callRulesToSave, draftOf, isDefaultCallRules, draftProblem, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, staleGreetingName, transferProblem, transfersToSave, newTransferContact, moveTransfer, transferInactive, silenceProblem, silenceSummary, silenceToSave } from './assistantDraft.ts'
+import { DEFAULT_SILENCE_CLOSING, disclosesAi, withDisclosure, withoutDisclosure } from '@linedesk/actions'
+import { draftOf, draftProblem, languagesToSave, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, staleGreetingName, transferProblem, transfersToSave, newTransferContact, moveTransfer, transferInactive, silenceProblem, silenceSummary, silenceToSave } from './assistantDraft.ts'
 
 const oldProfile = { description: 'Plumbing', services: ['Leak repair', ' ', 'Drains'], service_area: 'Portland', address: '1 Main St', hours: 'Mon–Fri', faqs: [{ q: 'Estimates?', a: 'Free.' }, { q: '', a: '' }] }
 const assistant = (over: Partial<Assistant> = {}) => ({ id: 'as1', name: 'Maya', greeting: 'Hello', disclose_ai: true, business_profile: oldProfile, voice: { provider: 'elevenlabs', voice_id: '' }, ...over }) as Assistant
@@ -59,9 +59,16 @@ describe('draft', () => {
     const afterSave = draftOf(assistant({ business_profile: profileOf(normalized(edited)) }))
     expect(isDirty(normalized(edited), afterSave)).toBe(false)
   })
+  it('is clean after saving "Also speak: None" with languages still ticked from before', () => {
+    const picked = draftOf(assistant({ languages: { main: 'en', mode: 'allowed', allowed: ['es'] } }))
+    const none = { ...picked, languages: { ...picked.languages, mode: 'english' as const } }
+    const afterSave = draftOf(assistant(languagesToSave(none)))
+    expect(isDirty(normalized(none), afterSave)).toBe(false)
+  })
   it('requires a name and a greeting', () => {
     expect(draftProblem(saved)).toBeNull()
-    expect(draftProblem({ ...saved, name: ' ' })).toBe('The assistant needs a name.')
+    expect(draftProblem({ ...saved, name: ' ' })).toBe('Enter a name. Callers hear it.')
+    expect(draftProblem({ ...saved, name: 'x'.repeat(61) })).toBe('At most 60 characters.')
     expect(draftProblem({ ...saved, greeting: '   ' })).toContain('greeting')
     expect(draftProblem({ ...saved, instructions: '' })).toBeNull()
   })
@@ -85,22 +92,6 @@ describe('AI disclosure in the greeting', () => {
     expect(withDisclosure('', 'Maya')).toBe('This is Maya, the AI assistant.')
     expect(withDisclosure(greeting, 'Maya')).toBe(greeting)
     expect(withoutDisclosure('Hi, this is Maya, a virtual assistant.')).toBe('Hi, this is Maya.')
-  })
-})
-
-describe('call rules', () => {
-  it('shows the default rules when none are stored and saves null for them, so a better default arrives later', () => {
-    const draft = draftOf(assistant({ call_rules: null }))
-    expect(draft.call_rules).toBe(DEFAULT_CALL_RULES)
-    expect(isDefaultCallRules(draft)).toBe(true)
-    expect(callRulesToSave({ ...draft, call_rules: `${DEFAULT_CALL_RULES}\n` })).toBeNull()
-    expect(callRulesToSave({ ...draft, call_rules: '  ' })).toBeNull()
-  })
-  it('saves the owner\'s own rules, trimmed, and refuses them over the limit', () => {
-    const draft = draftOf(assistant({ call_rules: 'Ask for the address.' }))
-    expect(draft.call_rules).toBe('Ask for the address.')
-    expect(callRulesToSave({ ...draft, call_rules: ' Ask twice. ' })).toBe('Ask twice.')
-    expect(draftProblem({ ...draft, call_rules: 'x'.repeat(10_001) })).toBe('How to handle calls is too long: 10,001 of 10,000 characters.')
   })
 })
 

@@ -3,7 +3,7 @@
 // Save is live; an older version comes back by restoring it, which is saved as a new version.
 import type { Assistant, AssistantCalendar } from '@linedesk/db/types'
 import { z } from 'zod'
-import { AI_DISCLOSURE_LABELS, BEHAVIOURS, behaviourOn, callRulesOf, COMMUNICATION_STYLE_LABELS } from './assistant-prompt.ts'
+import { AI_DISCLOSURE_LABELS, BEHAVIOURS, behaviourOn, COMMUNICATION_STYLE_LABELS } from './assistant-prompt.ts'
 import { defineAction } from './define.ts'
 import { servicesOf } from './knowledge.ts'
 import { LANGUAGES, type Language, languageNames, mainLanguageOf, otherLanguagesOf } from './languages.ts'
@@ -12,7 +12,7 @@ import { silenceClosingOf } from './settings.ts'
 /** The assistant's columns a version keeps: everything that changes a call. */
 export const VERSIONED_FIELDS = [
   'name', 'greeting', 'greeting_outside', 'ai_disclosure', 'communication_style', 'behaviours',
-  'business_profile', 'call_rules', 'transfers', 'voice', 'languages',
+  'business_profile', 'transfers', 'voice', 'languages',
   'silence_first_gap_s', 'silence_reminders', 'silence_closing', 'record_calls',
 ] as const satisfies readonly (keyof Assistant)[]
 export type VersionedField = (typeof VERSIONED_FIELDS)[number]
@@ -29,7 +29,7 @@ export function snapshotOf(a: Assistant, calendars: readonly AssistantCalendar[]
   return { ...fields, calendars: kept }
 }
 
-/** A saved version's settings without keys of fields that were removed since (e.g. `emergency_note`, `keypad_menu`, `greeting_known_caller`). */
+/** A saved version's settings without keys of fields that were removed since (e.g. `emergency_note`, `keypad_menu`, `greeting_known_caller`, `call_rules`). */
 export function storedSnapshot(settings: unknown): AssistantSnapshot {
   const stored = settings as Record<string, unknown>
   const fields = Object.fromEntries(VERSIONED_FIELDS.filter(k => k in stored).map(k => [k, stored[k]]))
@@ -71,7 +71,6 @@ export const VERSION_PARTS: readonly VersionPart[] = [
     text: s => servicesOf(s.business_profile).map(v => [v.name, v.price || 'quote only', v.description].filter(Boolean).join(' · ')).join('\n') || 'None',
   },
   { id: 'faqs', label: 'FAQs', text: s => (s.business_profile.faqs ?? []).map(f => `Q: ${f.q}\nA: ${f.a}`).join('\n') || 'None' },
-  { id: 'call_rules', label: 'Call rules', text: s => callRulesOf(s.call_rules) },
   {
     id: 'transfers',
     label: 'Transfer contacts',

@@ -1,7 +1,6 @@
 // Several assistants per workspace: adding, copying and deleting them, which one answers a number
 // or a test call, and that an assistant or number of another workspace is never used.
 import { createHmac } from 'node:crypto'
-import { DEFAULT_CALL_RULES } from '@linedesk/actions'
 import { assistants, calls, phone_numbers } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
@@ -34,22 +33,20 @@ const dispatchMetadata = (token: string) =>
   JSON.parse(JSON.parse(Buffer.from(token.split('.')[1]!, 'base64url').toString()).roomConfig.agents[0].metadata)
 
 describe('assistant.create and assistant.delete', () => {
-  test('a new assistant gets a free name, a greeting with it and the default rules', async () => {
+  test('a new assistant gets a free name and a greeting with it', async () => {
     const { status, body } = await act(ws.owner, 'assistant.create', {})
     expect(status).toBe(200)
     const created = await getAssistant(body.data.assistantId)
-    expect(created).toMatchObject({ workspace_id: ws.id, name: 'Ava', call_rules: null })
+    expect(created).toMatchObject({ workspace_id: ws.id, name: 'Ava' })
     expect(created!.name).not.toBe(ws.assistant.name)
     expect(created!.greeting).toBe(
       'Thanks for calling Brightwater Plumbing & Heating. This is Ava. How can I help?',
     )
-    expect(DEFAULT_CALL_RULES.length).toBeGreaterThan(0)
   })
 
-  test('a copy keeps greeting, instructions and rules, under a new name', async () => {
+  test('a copy keeps greeting and instructions, under a new name', async () => {
     await act(ws.owner, 'assistant.update', {
       assistantId: ws.assistant.id,
-      call_rules: 'Always ask for the address.',
       business_profile: { instructions: 'We fix leaks.' },
     })
     const { body } = await act(ws.owner, 'assistant.create', { copyOf: ws.assistant.id })
@@ -57,7 +54,6 @@ describe('assistant.create and assistant.delete', () => {
     expect(copy).toMatchObject({
       workspace_id: ws.id,
       name: `${ws.assistant.name} copy`,
-      call_rules: 'Always ask for the address.',
       business_profile: { instructions: 'We fix leaks.' },
     })
     expect(copy!.id).not.toBe(ws.assistant.id)

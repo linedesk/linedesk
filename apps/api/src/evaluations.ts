@@ -2,7 +2,7 @@
 // configured language model how the assistant handled the call. One short request with the
 // assistant's instructions, the transcript and the summary; the answer is a score (1 to 5) and at
 // most three issues, stored in `call_evaluations`. Only owners and admins read them.
-import { callRulesOf, type CallEvaluation, FAQ_QUESTION_MAX, knowledgeLists, NEEDS_REVIEW_MAX_SCORE } from '@linedesk/actions'
+import { CALL_RULES, type CallEvaluation, FAQ_QUESTION_MAX, knowledgeLists, NEEDS_REVIEW_MAX_SCORE } from '@linedesk/actions'
 import { assistants, call_evaluations, calls, type Tx, transcript_segments } from '@linedesk/db'
 import { and, asc, desc, eq, isNull, lte } from 'drizzle-orm'
 import { z } from 'zod'
@@ -172,7 +172,7 @@ export async function evaluateCall(
     summary: call.summary,
     instructions: assistant?.business_profile?.instructions ?? '',
     knowledge: assistant ? knowledgeLists(assistant.business_profile) : '',
-    callRules: callRulesOf(assistant?.call_rules),
+    callRules: CALL_RULES,
     transcript,
   })
   const { score, issues, unanswered } = parseEvaluation(await model.complete(SYSTEM, prompt))

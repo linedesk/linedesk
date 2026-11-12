@@ -5,7 +5,8 @@ import { Card, FormField, Input, Textarea } from '../ui/form.tsx'
 
 type SectionProps = {
   id: string
-  title: string
+  /** None: a card with only its fields, where the field labels say enough. */
+  title?: string
   /** One short line. */
   description?: string
   /** Secondary detail, behind a (?) next to the title. */
