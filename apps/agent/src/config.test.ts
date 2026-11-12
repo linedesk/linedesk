@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest'
-import { AgentConfigError, configFromEnv, createConfigLoader, parseProviderSettings, resolveAgentConfig, type ProviderSettings } from './config.ts'
+import { AgentConfigError, configFromEnv, createConfigLoader, isRealtime, parseProviderSettings, resolveAgentConfig, resolveCallConfig, stageEnvVars, stagesOf, type ProviderSettings } from './config.ts'
 
 const keys = { DEEPGRAM_API_KEY: 'dg', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' }
 const stored: ProviderSettings = {
@@ -83,7 +83,7 @@ test('the loader caches the settings for the TTL, then asks again', async () => 
   await load()
   expect(fetchSettings).toHaveBeenCalledTimes(1)
   clock = 30_000
-  expect((await load()).llm.apiKey).toBe('oa-app')
+  expect(stagesOf(await load())!.llm.apiKey).toBe('oa-app')
   expect(fetchSettings).toHaveBeenCalledTimes(2)
 })
 
@@ -96,7 +96,7 @@ test('without the API the loader uses the environment and logs the problem once'
     return stored
   })
   const load = createConfigLoader({ fetchSettings, env: keys, ttlMs: 1000, now: () => clock, log })
-  expect((await load()).llm).toMatchObject({ provider: 'openrouter', apiKey: 'or' })
+  expect(stagesOf(await load())!.llm).toMatchObject({ provider: 'openrouter', apiKey: 'or' })
   clock = 1000
   await load()
   expect(log).toHaveBeenCalledTimes(1)
@@ -104,7 +104,7 @@ test('without the API the loader uses the environment and logs the problem once'
 
   down = false
   clock = 2000
-  expect((await load()).llm.apiKey).toBe('oa-app')
+  expect(stagesOf(await load())!.llm.apiKey).toBe('oa-app')
   expect(log).toHaveBeenLastCalledWith('provider settings from the API are available again')
   for (const [line] of log.mock.calls) for (const value of ['dg', 'or', 'el-app', 'oa-app']) expect(String(line)).not.toContain(`: ${value}`)
 })
@@ -116,7 +116,7 @@ test('a stage that becomes set up in Linedesk is used from the next fetch on, wi
   await expect(load()).rejects.toBeInstanceOf(AgentConfigError)
   settings = stored
   clock = 1000
-  expect((await load()).tts.voiceId).toBe('voice_app')
+  expect(stagesOf(await load())!.tts.voiceId).toBe('voice_app')
 })
 
 test('LLM_BASE_URL only applies to an LLM configured in env: a stored key goes to its provider only', () => {
@@ -132,7 +132,7 @@ test('calls that arrive together share one request', async () => {
   const load = createConfigLoader({ fetchSettings, env: keys, now: () => 0, log: () => {} })
   const both = Promise.all([load(), load(), load()])
   release(stored)
-  expect((await both).map(c => c.llm.apiKey)).toEqual(['oa-app', 'oa-app', 'oa-app'])
+  expect((await both).map(c => stagesOf(c)!.llm.apiKey)).toEqual(['oa-app', 'oa-app', 'oa-app'])
   expect(fetchSettings).toHaveBeenCalledTimes(1)
 })
 
@@ -179,4 +179,44 @@ test('every other voice provider with a key comes along, so an assistant can use
   }, {})
   expect(config.tts.others).toEqual([{ provider: 'cartesia', apiKey: 'ca-app', model: 'sonic-2' }])
   expect(parseProviderSettings({ stt: null, llm: null, tts: null }).tts_providers).toBeUndefined() // an older API
+})
+
+test('without a realtime model connected, a call goes through the three stages, also with OPENAI_API_KEY', () => {
+  expect(isRealtime(resolveCallConfig(stored, {}))).toBe(false)
+  expect(isRealtime(resolveCallConfig({ ...stored, realtime: null }, { ...keys, OPENAI_API_KEY: 'oa' }))).toBe(false)
+})
+
+test('a realtime model connected in Linedesk answers calls, with its defaults, and keeps the stages that are set up', () => {
+  const config = resolveCallConfig({ ...stored, realtime: { provider: 'openai_realtime', api_key: 'rt-app' } }, {})
+  if (!isRealtime(config)) throw new Error('expected a realtime config')
+  expect(config.realtime).toEqual({ provider: 'openai_realtime', apiKey: 'rt-app', model: 'gpt-realtime-mini', voice: 'marin', summaryModel: 'gpt-4.1-mini' })
+  expect(config.stages?.llm.apiKey).toBe('oa-app')
+})
+
+test('a realtime model does not need the three stages', () => {
+  const config = resolveCallConfig({ stt: null, llm: null, tts: null, realtime: { provider: 'openai_realtime', api_key: 'rt', model: 'gpt-realtime', voice: 'cedar', summary_model: 'gpt-5.4-mini' } }, {})
+  if (!isRealtime(config)) throw new Error('expected a realtime config')
+  expect(config.realtime).toMatchObject({ model: 'gpt-realtime', voice: 'cedar', summaryModel: 'gpt-5.4-mini' })
+  expect(stagesOf(config)).toBeNull()
+})
+
+test('OPENAI_REALTIME_API_KEY switches the realtime model on from the environment', () => {
+  const config = resolveCallConfig(null, { OPENAI_REALTIME_API_KEY: 'oa', REALTIME_VOICE: 'cedar' })
+  if (!isRealtime(config)) throw new Error('expected a realtime config')
+  expect(config.realtime).toMatchObject({ apiKey: 'oa', voice: 'cedar', model: 'gpt-realtime-mini' })
+})
+
+test('a realtime model without a key names the realtime model as not set up, never a value', () => {
+  const run = () => resolveCallConfig({ stt: null, llm: null, tts: null, realtime: { provider: 'openai_realtime', api_key: null } }, {})
+  expect(run).toThrow(AgentConfigError)
+  try {
+    run()
+  } catch (e) {
+    expect((e as AgentConfigError).stages).toEqual(['realtime model'])
+  }
+})
+
+test('the realtime variables are passed to the agent container', () => {
+  for (const name of ['OPENAI_REALTIME_API_KEY', 'REALTIME_MODEL', 'REALTIME_VOICE', 'REALTIME_SUMMARY_MODEL']) expect(stageEnvVars).toContain(name)
+  expect(new Set(stageEnvVars).size).toBe(stageEnvVars.length)
 })

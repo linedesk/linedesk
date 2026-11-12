@@ -203,6 +203,11 @@ services:
       TTS_VOICE_ID: ${TTS_VOICE_ID:-}
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
       CARTESIA_API_KEY: ${CARTESIA_API_KEY:-}
+      # A realtime model instead of the three above, in use once it has a key: set in Linedesk under Providers, or here.
+      OPENAI_REALTIME_API_KEY: ${OPENAI_REALTIME_API_KEY:-}
+      REALTIME_MODEL: ${REALTIME_MODEL:-}
+      REALTIME_VOICE: ${REALTIME_VOICE:-}
+      REALTIME_SUMMARY_MODEL: ${REALTIME_SUMMARY_MODEL:-}
       # Where calls are recorded comes from the API (Providers > Recording storage, or the API's RECORDING_STORE and S3_*).
       RECORDING_STORE: ${RECORDING_STORE:-}
       # The call test (apps/agent/src/call-test.ts) and its on-call stand-in; empty on most installs.

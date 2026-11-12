@@ -3,14 +3,14 @@
 // call is logged as missed in the inbox and the caller is hung up on. The config is read again
 // at every call, so the first call after the keys exist is answered without a restart.
 import type { CallResult, CallSession } from './call-session.ts'
-import { AgentConfigError, type AgentConfig, type Stage } from './config.ts'
+import { AgentConfigError, type CallConfig, isRealtime, type Stage } from './config.ts'
 import { withRetry, type RetryOptions } from './retry.ts'
 
 /** `reason` is for the operator's log; `stages` names what is missing in words the business may see. */
-export type Readiness = { ready: true; config: AgentConfig } | { ready: false; reason: string; stages: Stage[] }
+export type Readiness = { ready: true; config: CallConfig } | { ready: false; reason: string; stages: Stage[] }
 
 /** The effective config, or why the agent cannot take calls. Never throws. */
-export async function checkReadiness(load: () => Promise<AgentConfig>): Promise<Readiness> {
+export async function checkReadiness(load: () => Promise<CallConfig>): Promise<Readiness> {
   try {
     return { ready: true, config: await load() }
   } catch (e) {
@@ -23,7 +23,9 @@ export async function checkReadiness(load: () => Promise<AgentConfig>): Promise<
 export function describeReadiness(readiness: Readiness): string {
   if (!readiness.ready)
     return `not answering calls yet: ${readiness.reason} Calls are logged as missed until then; the config is checked again at every call.`
-  const { stt, llm, tts } = readiness.config
+  const { config } = readiness
+  if (isRealtime(config)) return `answering calls. Realtime model: ${config.realtime.provider} ${config.realtime.model}, voice ${config.realtime.voice}`
+  const { stt, llm, tts } = config
   return `answering calls. Speech to text: ${stt.provider} ${stt.model}; LLM: ${llm.provider} ${llm.model}; text to speech: ${tts.provider}`
 }
 

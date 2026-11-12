@@ -29,7 +29,7 @@ import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { type Handler, type Preparer, Reject } from './handler-context.ts'
 import { queueVoiceDeletion } from './jobs.ts'
-import { activeProvider, resolveProvider } from './provider-settings.ts'
+import { activeProvider, realtimeInUse, resolveProvider } from './provider-settings.ts'
 import { type CatalogEntry, catalogData, catalogVoice, voiceCatalog } from './voice-catalog.ts'
 import {
   createVoiceProvider,
@@ -231,6 +231,7 @@ export const voiceHandlers: Record<string, Handler> = {
     const fallback = await installDefaultVoice(tx)
     const data: VoiceOptionsData = {
       provider,
+      realtime: await realtimeInUse(tx),
       voices: provider ? (curatedVoices[provider] ?? []) : [],
       clones: clones.map(c => ({ id: c.voice_id, name: c.name })),
       canClone: !!provider && cloningProviders.includes(provider) && (await cloningOn(tx)),

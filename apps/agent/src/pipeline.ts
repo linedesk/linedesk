@@ -2,6 +2,7 @@
 // speech to text Deepgram; LLM any OpenAI-compatible API (OpenRouter by default, OpenAI direct);
 // text to speech ElevenLabs or Cartesia. Turns are detected by Deepgram Flux, not by a local
 // voice-activity model: that saves the CPU a small server does not have, and the endpointing delay.
+// Or, when an admin picked one, a realtime model alone: it hears the caller and answers in its own voice.
 // The worker only sees LiveKit's interfaces and `CompleteJson`.
 import { type Language, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S, TALKING_SPEED_PCT_DEFAULT, type TalkingSpeed, talkingSpeedPctOf } from '@linedesk/actions'
 import type { voice } from '@livekit/agents'
@@ -10,7 +11,7 @@ import * as deepgram from '@livekit/agents-plugin-deepgram'
 import * as elevenlabs from '@livekit/agents-plugin-elevenlabs'
 import * as openai from '@livekit/agents-plugin-openai'
 import type { AssistantVoice } from '@linedesk/db/types'
-import type { AgentConfig, TtsConfig } from './config.ts'
+import { type AgentConfig, type CallConfig, isRealtime, llmDefaults, type RealtimeConfig, type TtsConfig } from './config.ts'
 import type { CompleteJson } from './summary.ts'
 
 const SUMMARY_TIMEOUT_MS = 15_000
@@ -127,6 +128,26 @@ export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVo
   }
 }
 
+
+/**
+ * Session options for a call answered by a realtime model: no speech to text and no voice provider. The model
+ * detects the end of a turn itself (semantic VAD) and transcribes the caller for the call log and summary.
+ * `speedPct`: the talking speed in percent, sent as a factor (OpenAI Realtime takes 0.25–1.5); at 100 nothing is sent.
+ */
+export function createRealtimePipeline({ apiKey, model, voice: voiceName }: RealtimeConfig, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, speedPct = TALKING_SPEED_PCT_DEFAULT): voice.AgentSessionOptions {
+  return {
+    llm: new openai.realtime.RealtimeModel({ apiKey, model, voice: voiceName, ...(speedPct !== TALKING_SPEED_PCT_DEFAULT ? { speed: speedPct / 100 } : {}) }),
+    userAwayTimeout: silenceFirstGapS,
+  }
+}
+
+/**
+ * What a realtime model is told to make it say a fixed line (greeting, still there?, goodbye): as written, or in the
+ * caller's language when the call goes on in another one.
+ */
+export const realtimeLine = (text: string) =>
+  `Say exactly the following to the caller, nothing before or after it. If you are speaking another language with the caller, say it in that language instead: "${text}"`
+
 /** Where one chat request goes. */
 export type ChatModel = { apiKey: string; baseUrl: string; model: string; fallbacks?: string[] }
 
@@ -150,9 +171,15 @@ export function chatJson({ apiKey, baseUrl, model, fallbacks = [] }: ChatModel, 
   }
 }
 
-/** The LLM call used for the post-call summary: the summary model of the conversation's provider. */
-export const summaryLlm = ({ llm }: AgentConfig): CompleteJson =>
-  chatJson({ apiKey: llm.apiKey, baseUrl: llm.baseUrl, model: llm.summaryModel, fallbacks: llm.summaryFallbacks })
+/**
+ * The LLM call used for the post-call summary: the summary model of the conversation's provider; with a realtime
+ * model, its summary model on OpenAI's chat API with the same key.
+ */
+export function summaryLlm(config: CallConfig): CompleteJson {
+  if (isRealtime(config)) return chatJson({ apiKey: config.realtime.apiKey, baseUrl: llmDefaults.openai.baseUrl, model: config.realtime.summaryModel })
+  const { llm } = config
+  return chatJson({ apiKey: llm.apiKey, baseUrl: llm.baseUrl, model: llm.summaryModel, fallbacks: llm.summaryFallbacks })
+}
 
 /**
  * Sends the call's system prompt with a one-token answer while the greeting plays, so the caller's first

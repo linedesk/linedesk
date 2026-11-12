@@ -402,13 +402,7 @@ function RedirectUris({ uris }: { uris: string[] }) {
         {uris.map(uri => (
           <li key={uri}>
             <code>{uri}</code>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => void copy(uri)}
-              title="Copy"
-              aria-label={`Copy ${uri}`}
-            >
+            <Button variant="ghost" size="sm" onClick={() => void copy(uri)} title="Copy" aria-label={`Copy ${uri}`}>
               <Icon name={copied === uri ? 'check' : 'copy'} size={14} />
             </Button>
           </li>

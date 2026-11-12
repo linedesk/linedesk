@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest'
-import type { AgentConfig } from './config.ts'
-import { chatJson, greetingVoice, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
+import type { AgentConfig, RealtimeCallConfig } from './config.ts'
+import { chatJson, createRealtimePipeline, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
 
 const openrouter = { apiKey: 'sk-or-test', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' }
 
@@ -61,6 +61,32 @@ test('the summary uses the summary model, with OpenRouter fallbacks as `models`'
   expect(JSON.parse(String(fakeFetch.mock.calls[0]![1]!.body))).toMatchObject({ model: 'sum/strong', models: ['sum/strong', 'sum/backup'] })
   await chatJson({ ...openrouter, fallbacks: [] }, fakeFetch)('s', 'u')
   expect(JSON.parse(String(fakeFetch.mock.calls[1]![1]!.body))).not.toHaveProperty('models')
+})
+
+const realtime = { provider: 'openai_realtime', apiKey: 'sk-rt', model: 'gpt-realtime-mini', voice: 'marin', summaryModel: 'gpt-4.1-mini' } as const
+
+test('with a realtime model the summary goes to OpenAI chat with its key and summary model', async () => {
+  const fakeFetch = vi.fn<typeof fetch>(async () => Response.json({ choices: [{ message: { content: '{}' } }] }))
+  const config: RealtimeCallConfig = { realtime, recording: { store: 'off' }, stages: null }
+  vi.stubGlobal('fetch', fakeFetch)
+  await summaryLlm(config)('s', 'u')
+  vi.unstubAllGlobals()
+  const [url, init] = fakeFetch.mock.calls[0]!
+  expect(url).toBe('https://api.openai.com/v1/chat/completions')
+  expect((init!.headers as Record<string, string>).authorization).toBe('Bearer sk-rt')
+  expect(JSON.parse(String(init!.body))).toMatchObject({ model: 'gpt-4.1-mini' })
+})
+
+test('a realtime call has only the model: no speech to text, no voice provider', () => {
+  const options = createRealtimePipeline(realtime, 7, 110)
+  expect(options.stt).toBeUndefined()
+  expect(options.tts).toBeUndefined()
+  expect(options.userAwayTimeout).toBe(7)
+  expect(options.llm).toMatchObject({ _options: { model: 'gpt-realtime-mini', voice: 'marin', speed: 1.1 } })
+})
+
+test('a fixed line is given to the realtime model word for word', () => {
+  expect(realtimeLine('Goodbye!')).toContain('"Goodbye!"')
 })
 
 test('an assistant with a voice of another provider that has a key gets that provider', () => {

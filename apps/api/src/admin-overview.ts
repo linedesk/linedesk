@@ -6,7 +6,7 @@ import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
 import { emailSender } from './email.ts'
 import { livekitStatus, type ServiceStatus } from './livekit-status.ts'
-import { activeProvider } from './provider-settings.ts'
+import { activeProvider, realtimeInUse } from './provider-settings.ts'
 
 /**
  * List price per call minute in USD, from docs/stack.md ("US cost per call-minute"). Rough on
@@ -20,6 +20,8 @@ export const pricePerMinute: Record<ProviderName, number> = {
   openai: 0.003,
   elevenlabs: 0.018,
   cartesia: 0.018,
+  // gpt-realtime-mini, audio in and out with a call's growing context: rough, and in place of the three stages.
+  openai_realtime: 0.05,
   // Recording storage is billed per stored byte, not per call minute: not part of this estimate.
   file: 0,
   s3: 0,
@@ -94,8 +96,14 @@ type ActiveRate = { category: ProviderCategory; provider: ProviderName | null; r
 /** The active provider of each billed category and its price per minute (0 when none is set up). */
 async function activeRates(tx: Tx): Promise<ActiveRate[]> {
   const rates: ActiveRate[] = []
-  // Per call minute: the phone and the voice stages only.
-  for (const category of categoryNames.filter(c => !['recording', 'email', 'sign_in'].includes(c))) {
+  // Per call minute: the phone, and the realtime model when it answers calls, else the voice stages.
+  const skipped = [
+    'recording',
+    'email',
+    'sign_in',
+    ...((await realtimeInUse(tx)) ? ['stt', 'llm', 'tts'] : ['realtime']),
+  ]
+  for (const category of categoryNames.filter(c => !skipped.includes(c))) {
     const active = await activeProvider(tx, category).catch(() => null)
     rates.push({ category, provider: active?.provider ?? null, rate: active ? pricePerMinute[active.provider] : 0 })
   }
@@ -111,7 +119,8 @@ export type CostEstimate = (seconds: { all: number; phone: number }) => number
  */
 export async function costEstimate(tx: Tx): Promise<CostEstimate> {
   const rates = await activeRates(tx)
-  return ({ all, phone }) => dollars(rates.reduce((sum, r) => sum + ((r.category === 'telephony' ? phone : all) / 60) * r.rate, 0))
+  return ({ all, phone }) =>
+    dollars(rates.reduce((sum, r) => sum + ((r.category === 'telephony' ? phone : all) / 60) * r.rate, 0))
 }
 
 export async function adminOverview(tx: Tx): Promise<AdminOverview> {

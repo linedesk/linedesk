@@ -39,6 +39,11 @@ export const providerMeta: Record<ProviderName, Meta> = {
     keysUrl: 'https://elevenlabs.io/app/settings/api-keys',
   },
   cartesia: { mark: { icon: 'waveform' }, blurb: 'Fast, expressive voices.', keysUrl: 'https://play.cartesia.ai/keys' },
+  openai_realtime: {
+    mark: { brand: 'openai' },
+    blurb: 'Hears and speaks in one model.',
+    keysUrl: 'https://platform.openai.com/api-keys',
+  },
   file: { mark: { icon: 'disk' }, blurb: 'Recordings stay on this server.' },
   s3: { mark: { brand: 'amazons3' }, blurb: 'AWS S3, R2, Hetzner, Backblaze, MinIO.' },
   smtp: { mark: { icon: 'mail' }, blurb: 'Sign-in codes, invitations and call emails.' },
@@ -52,7 +57,11 @@ export const providerMeta: Record<ProviderName, Meta> = {
     blurb: 'Sign in with Microsoft and Outlook calendars.',
     keysUrl: 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade',
   },
-  github: { mark: { brand: 'github' }, blurb: 'Sign in with GitHub.', keysUrl: 'https://github.com/settings/developers' },
+  github: {
+    mark: { brand: 'github' },
+    blurb: 'Sign in with GitHub.',
+    keysUrl: 'https://github.com/settings/developers',
+  },
   oidc: { mark: { icon: 'shield' }, blurb: 'Okta, Entra ID, Keycloak, Authentik and others.' },
 }
 

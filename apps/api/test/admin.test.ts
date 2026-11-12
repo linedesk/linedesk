@@ -274,7 +274,14 @@ describe('provider keys', () => {
     expect(await fieldOf('openai', 'api_key')).toMatchObject({ source: null, last4: null, updated_at: null })
     const config = () => request(agent(), 'GET', AGENT_ROUTE)
     // Nothing set up: the agent can start and gets nothing to work with yet.
-    expect((await config()).body).toEqual({ stt: null, llm: null, tts: null, tts_providers: [], recording: null })
+    expect((await config()).body).toEqual({
+      stt: null,
+      llm: null,
+      tts: null,
+      realtime: null,
+      tts_providers: [],
+      recording: null,
+    })
 
     process.env.OPENAI_API_KEY = 'env-openai-key-0123456789'
     process.env.LLM_MODEL = 'model-from-env'
@@ -285,6 +292,7 @@ describe('provider keys', () => {
       stt: null,
       llm: { provider: 'openai', api_key: 'env-openai-key-0123456789', model: 'model-from-env', summary_model: null },
       tts: null,
+      realtime: null,
       tts_providers: [],
       recording: null,
     })
@@ -311,6 +319,7 @@ describe('provider keys', () => {
       stt: { provider: null, chosen: false },
       llm: { provider: null, chosen: false },
       tts: { provider: null, chosen: false },
+      realtime: { provider: null, chosen: false },
       email: { provider: null, chosen: false },
       sign_in: { provider: null, chosen: false },
       recording: { provider: null, chosen: false },
@@ -353,6 +362,33 @@ describe('provider keys', () => {
       voice_id: null,
     })
     expect((await act(operator, 'provider.setActive', { category: 'tts', provider: 'deepgram' })).status).toBe(422)
+  })
+
+  test('a connected realtime model answers calls; disconnecting it goes back to the stages', async () => {
+    const config = async () => (await request(agent(), 'GET', AGENT_ROUTE)).body
+    const realtimeFlag = async () => (await act(home.owner, 'voice.options', {})).body.data.realtime
+    // OPENAI_API_KEY is the language model's: it does not switch calls to realtime.
+    process.env.OPENAI_API_KEY = 'env-openai-key-0123456789'
+    await act(operator, 'provider.setKeys', { provider: 'openai', values: { api_key: SECRET } })
+    expect((await config()).realtime).toBeNull()
+    expect(await realtimeFlag()).toBe(false)
+
+    await act(operator, 'provider.setKeys', { provider: 'openai_realtime', values: { api_key: SECRET, voice: 'cedar' } })
+    expect((await providers()).active.realtime).toEqual({ provider: 'openai_realtime', chosen: false })
+    expect((await config()).realtime).toEqual({
+      provider: 'openai_realtime',
+      api_key: SECRET,
+      model: null,
+      voice: 'cedar',
+      summary_model: null,
+    })
+    expect((await config()).llm).toMatchObject({ provider: 'openai' })
+    expect(await realtimeFlag()).toBe(true)
+
+    expect((await act(operator, 'provider.clearKeys', { provider: 'openai_realtime' })).status).toBe(200)
+    expect((await config()).realtime).toBeNull()
+    expect(await realtimeFlag()).toBe(false)
+    expect((await act(operator, 'provider.setActive', { category: 'realtime', provider: 'openai' })).status).toBe(422)
   })
 
   test('email and sign-in apps are stored like other keys and loaded as variables at start', async () => {
@@ -536,6 +572,7 @@ describe('provider keys', () => {
       'openai',
       'elevenlabs',
       'cartesia',
+      'openai_realtime',
       'file',
       's3',
       'smtp',

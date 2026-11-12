@@ -1,6 +1,8 @@
 // Which speech and language providers the agent uses, and with which models and keys.
 // Source: the provider settings an admin stored in Linedesk (GET /v1/agent/provider-config),
 // stage by stage; for a stage that is not set up there, the agent's own environment.
+// A call is answered either by the three stages (AgentConfig) or, once one is connected, by a
+// realtime model (RealtimeCallConfig): `CallConfig` is either.
 // `createConfigLoader()` builds the cached loader the worker uses (`loadAgentConfig` in worker.ts).
 import { z } from 'zod'
 import { recordingSettings, resolveRecording, type RecordingConfig } from './recording.ts'
@@ -32,10 +34,26 @@ export interface AgentConfig {
 
 export type TtsConfig = { provider: 'elevenlabs' | 'cartesia'; apiKey: string; model?: string }
 
+/** A speech-to-speech model: hears the caller and answers in its own voice. The summary goes to OpenAI's chat API with the same key. */
+export type RealtimeConfig = { provider: 'openai_realtime'; apiKey: string; model: string; voice: string; summaryModel: string }
+
+/**
+ * Calls answered by a realtime model. `stages` are the three stages when they are set up too: the call test's
+ * own caller and the simulated on-call person still talk through them. Transfers need them on the business side,
+ * so a realtime call does not transfer.
+ */
+export type RealtimeCallConfig = { realtime: RealtimeConfig; recording: RecordingConfig; stages: AgentConfig | null }
+export type CallConfig = AgentConfig | RealtimeCallConfig
+export const isRealtime = (config: CallConfig): config is RealtimeCallConfig => 'realtime' in config
+/** The three stages of either kind of config, or null when a realtime model answers and they are not set up. */
+export const stagesOf = (config: CallConfig): AgentConfig | null => (isRealtime(config) ? config.stages : config)
+
+export const realtimeDefaults = { model: 'gpt-realtime-mini', voice: 'marin', summaryModel: 'gpt-4.1-mini' } as const
+
 type Env = Record<string, string | undefined>
 
 /** A pipeline stage, in the words the business sees (inbox, settings). */
-export type Stage = 'speech recognition' | 'language model' | 'voice'
+export type Stage = 'speech recognition' | 'language model' | 'voice' | 'realtime model'
 
 /** The agent cannot take calls. `message` is for the operator's log; `stages` is safe to show the business. */
 export class AgentConfigError extends Error {
@@ -54,10 +72,12 @@ const entry = z.object({
   model: z.string().nullish(),
   summary_model: z.string().nullish(),
   voice_id: z.string().nullish(),
+  voice: z.string().nullish(),
 }).nullable()
 // `recording` is missing from an API older than the agent: the environment applies then.
 // `tts_providers` is missing from an API older than the agent: only the active voice provider then.
-const providerSettings = z.object({ stt: entry, llm: entry, tts: entry, recording: recordingSettings, tts_providers: z.array(entry.unwrap()).optional() })
+// `realtime` is missing from an API older than the agent: the environment applies then.
+const providerSettings = z.object({ stt: entry, llm: entry, tts: entry, realtime: entry.optional(), recording: recordingSettings, tts_providers: z.array(entry.unwrap()).optional() })
 export type ProviderSettings = z.infer<typeof providerSettings>
 type Entry = z.infer<typeof entry>
 
@@ -76,13 +96,18 @@ const stages = {
 type StageKey = keyof typeof stages
 
 const modelEnv = { stt: 'STT_MODEL', llm: 'LLM_MODEL', tts: 'TTS_MODEL' } as const
-/** Every variable the speech, model and voice stages read; docker-compose.yml passes each to the agent container. */
+/** The realtime model from the environment: its key switches it on (not OPENAI_API_KEY, which the language model may use). */
+const realtimeEnv = { apiKey: 'OPENAI_REALTIME_API_KEY', model: 'REALTIME_MODEL', voice: 'REALTIME_VOICE', summaryModel: 'REALTIME_SUMMARY_MODEL' } as const
+/** Every variable the speech, model, voice and realtime stages read; docker-compose.yml passes each to the agent container. */
 export const stageEnvVars = [
-  ...Object.values(stages).flatMap(spec => [spec.providerEnv, ...Object.values(spec.providers)]),
-  ...Object.values(modelEnv),
-  'SUMMARY_MODEL',
-  'TTS_VOICE_ID',
-  'LLM_BASE_URL',
+  ...new Set([
+    ...Object.values(stages).flatMap(spec => [spec.providerEnv, ...Object.values(spec.providers)]),
+    ...Object.values(modelEnv),
+    'SUMMARY_MODEL',
+    'TTS_VOICE_ID',
+    'LLM_BASE_URL',
+    ...Object.values(realtimeEnv),
+  ]),
 ]
 /**
  * Models are lists, first one first: "primary, fallback, ...". Live turns need the fastest first token
@@ -166,6 +191,43 @@ export function resolveAgentConfig(settings: ProviderSettings | null, env: Env =
   }
 }
 
+/** The realtime model connected in Linedesk, else one with OPENAI_REALTIME_API_KEY; null: the three stages answer calls. */
+function pickedRealtime(settings: ProviderSettings | null, env: Env): NonNullable<Entry> | null {
+  if (settings?.realtime) return settings.realtime
+  const apiKey = env[realtimeEnv.apiKey]
+  if (!apiKey) return null
+  return { provider: 'openai_realtime', api_key: apiKey, model: env[realtimeEnv.model], voice: env[realtimeEnv.voice], summary_model: env[realtimeEnv.summaryModel] }
+}
+
+/**
+ * The config for a business call: the realtime model when one is connected (the stages are kept when they are set
+ * up too), else the three stages (resolveAgentConfig). Throws AgentConfigError.
+ */
+export function resolveCallConfig(settings: ProviderSettings | null, env: Env = process.env): CallConfig {
+  const picked = pickedRealtime(settings, env)
+  if (!picked) return resolveAgentConfig(settings, env)
+  if (picked.provider !== 'openai_realtime')
+    throw new AgentConfigError(`Not set up: realtime model: unknown provider "${picked.provider}" (use openai_realtime).`, ['realtime model'])
+  if (!picked.api_key) {
+    const where = settings?.realtime ? 'set it in Linedesk under Providers' : `set it in Linedesk under Providers, or ${realtimeEnv.apiKey} in .env`
+    throw new AgentConfigError(`Not set up: realtime model: no API key for OpenAI Realtime (${where}).`, ['realtime model'])
+  }
+  let stages: AgentConfig | null = null
+  try {
+    stages = resolveAgentConfig(settings, env)
+  } catch (e) {
+    if (!(e instanceof AgentConfigError)) throw e
+  }
+  return {
+    realtime: {
+      provider: 'openai_realtime', apiKey: picked.api_key,
+      model: picked.model || realtimeDefaults.model, voice: picked.voice || realtimeDefaults.voice, summaryModel: picked.summary_model || realtimeDefaults.summaryModel,
+    },
+    recording: resolveRecording(settings?.recording, env),
+    stages,
+  }
+}
+
 /** The environment alone, for scripts and tests that run without the API. */
 export const configFromEnv = async (env: Env = process.env) => resolveAgentConfig(null, env)
 
@@ -186,7 +248,7 @@ export const SETTINGS_TTL_MS = 30_000
  * A `loadAgentConfig` that asks the API, caches the answer for `ttlMs`, and falls back to the
  * environment when the API cannot be reached. Logs a failure once, not on every call, and never a value.
  */
-export function createConfigLoader({ fetchSettings, env = process.env, ttlMs = SETTINGS_TTL_MS, now = Date.now, log = console.warn }: ConfigLoaderOptions) {
+export function createConfigLoader({ fetchSettings, env = process.env, ttlMs = SETTINGS_TTL_MS, now = Date.now, log = console.warn }: ConfigLoaderOptions): () => Promise<CallConfig> {
   let cached: { at: number; settings: Promise<ProviderSettings | null> } | undefined
   let lastProblem: string | null = null
   const fetchOnce = () =>
@@ -208,5 +270,5 @@ export function createConfigLoader({ fetchSettings, env = process.env, ttlMs = S
     if (!cached || now() - cached.at >= ttlMs) cached = { at: now(), settings: fetchOnce() }
     return cached.settings
   }
-  return async (): Promise<AgentConfig> => resolveAgentConfig(await settings(), env)
+  return async (): Promise<CallConfig> => resolveCallConfig(await settings(), env)
 }

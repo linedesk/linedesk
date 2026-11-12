@@ -42,6 +42,7 @@ const checks: Record<Exclude<ProviderName, RecordingStoreName | OAuthApp | 'smtp
   }),
   openrouter: bearer('https://openrouter.ai/api/v1/key'),
   openai: bearer('https://api.openai.com/v1/models'),
+  openai_realtime: bearer('https://api.openai.com/v1/models'),
   elevenlabs: keyHeader('https://api.elevenlabs.io/v1/user', 'xi-api-key'),
   cartesia: keyHeader('https://api.cartesia.ai/voices?limit=1', 'x-api-key', { 'cartesia-version': '2025-04-16' }),
 }
@@ -61,7 +62,9 @@ async function testSmtp(values: Values): Promise<ProviderTestData> {
       return ''
     }
   })()
-  const scrubbed = [values.url!, password].filter(Boolean).reduce((t, secret) => t.replaceAll(secret, '[redacted]'), result.message)
+  const scrubbed = [values.url!, password]
+    .filter(Boolean)
+    .reduce((t, secret) => t.replaceAll(secret, '[redacted]'), result.message)
   const login = /\b(535|534|530|EAUTH)\b/.test(scrubbed)
   return {
     ok: false,
@@ -85,7 +88,8 @@ async function tokenEndpoint(provider: OAuthApp, values: Values, doFetch: typeof
   const document = (await res.json().catch(() => null)) as { token_endpoint?: unknown } | null
   if (!document) throw new Error('the discovery URL did not answer with JSON')
   const endpoint = document.token_endpoint
-  if (typeof endpoint !== 'string' || !/^https:\/\//.test(endpoint)) throw new Error('the discovery document has no https token_endpoint')
+  if (typeof endpoint !== 'string' || !/^https:\/\//.test(endpoint))
+    throw new Error('the discovery document has no https token_endpoint')
   return endpoint
 }
 
@@ -116,11 +120,19 @@ async function testOAuthApp(provider: OAuthApp, values: Values, doFetch: typeof 
       return { ok: false, message: `${label} rejected the client ID or secret` }
     if (error === 'invalid_grant' || error === 'bad_verification_code' || error === 'redirect_uri_mismatch')
       return { ok: true, message: 'Connected' }
-    return { ok: false, message: `${label} answered HTTP ${res.status}${typeof error === 'string' ? ` (${error.slice(0, 40)})` : ''}` }
+    return {
+      ok: false,
+      message: `${label} answered HTTP ${res.status}${typeof error === 'string' ? ` (${error.slice(0, 40)})` : ''}`,
+    }
   } catch (e) {
     if (e instanceof Error && e.name === 'TimeoutError')
       return { ok: false, message: `${label} did not answer within ${TIMEOUT_MS / 1000} seconds` }
-    return { ok: false, message: `Could not reach ${label}: ${errorText(e)}`.replaceAll(values.client_secret!, '[redacted]').slice(0, MAX_MESSAGE) }
+    return {
+      ok: false,
+      message: `Could not reach ${label}: ${errorText(e)}`
+        .replaceAll(values.client_secret!, '[redacted]')
+        .slice(0, MAX_MESSAGE),
+    }
   }
 }
 

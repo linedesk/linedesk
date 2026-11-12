@@ -17,10 +17,10 @@ import { GREETING_WAIT_MS, lookUpCaller, within } from './caller-lookup.ts'
 import { lookupTools } from './lookup-tools.ts'
 import { callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
-import { createConfigLoader, parseProviderSettings, type AgentConfig } from './config.ts'
+import { type AgentConfig, type CallConfig, createConfigLoader, isRealtime, parseProviderSettings, stagesOf } from './config.ts'
 import { AGENT_NAME, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
-import { createPipeline, createTts, greetingVoice, summaryLlm, talkingSpeedOf, warmUpLlm } from './pipeline.ts'
+import { createPipeline, createRealtimePipeline, createTts, greetingVoice, realtimeLine, summaryLlm, talkingSpeedOf, warmUpLlm } from './pipeline.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
 import { logTurnMetrics } from './turn-metrics.ts'
 import { followCallerLanguage } from './caller-language.ts'
@@ -39,9 +39,9 @@ import { parseTestCallerMetadata, type TestCallerMetadata } from './test-caller/
 import { type OnCallResponderMetadata, parseOnCallResponderMetadata, runOnCallResponder } from './oncall-responder.ts'
 import { type AgentSetup, SETUP_ATTRIBUTE } from './test-caller/latency.ts'
 
-let configLoader: (() => Promise<AgentConfig>) | undefined
+let configLoader: (() => Promise<CallConfig>) | undefined
 /** The effective provider config: Linedesk's provider settings first, the environment as fallback, cached briefly per process. */
-function loadAgentConfig(): Promise<AgentConfig> {
+function loadAgentConfig(): Promise<CallConfig> {
   configLoader ??= createConfigLoader({ fetchSettings: async () => parseProviderSettings(await apiClientFromEnv().providerSettings()) })
   return configLoader()
 }
@@ -225,25 +225,36 @@ async function greet(session: voice.AgentSession, config: AgentConfig, call: Cal
   return 'synthesized'
 }
 
+/** Speaks a fixed line: the voice provider says it as written; a realtime model, which has no voice provider, is asked to say it. */
+type Speak = (text: string, options?: { allowInterruptions?: boolean }) => voice.SpeechHandle
+const speakerFor = (session: voice.AgentSession, realtime: boolean): Speak =>
+  realtime ? (text, options = {}) => session.generateReply({ instructions: realtimeLine(text), ...options }) : (text, options) => session.say(text, options)
+
 /**
  * Greets the caller and runs the conversation until the session closes. The session starts without
  * waiting for the caller: it links to them once they join (on a phone call they are there already),
  * and the greeting plays as soon as they hear the agent's audio. Transfer is added once it is known.
  */
-async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant>, api: ApiClient, config: AgentConfig, call: CallSession, log: CallLog, onClose: () => void, setup: SetupTimer, stopRecordingForTransfer: () => Promise<void>, callerDetails: Promise<CallerDetails | null>) {
+async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant>, api: ApiClient, config: CallConfig, call: CallSession, log: CallLog, onClose: () => void, setup: SetupTimer, stopRecordingForTransfer: () => Promise<void>, callerDetails: Promise<CallerDetails | null>) {
+  // The three stages answer the call, or a realtime model alone (then: no cached greeting, no transfer, no quick tool replies).
+  const stages = isRealtime(config) ? null : config
+  const realtime = isRealtime(config) ? config.realtime : null
   const personalGreeting = templateNames(openingOf(call)).length > 0
-  const key = greetingKey({
-    ...greetingVoice(config, call), text: openingOf(call),
+  const key = stages && greetingKey({
+    ...greetingVoice(stages, call), text: openingOf(call),
   })
-  const cachedGreeting = personalGreeting ? Promise.resolve(null) : greetingCache.get(key) // read while the session starts
+  const cachedGreeting = personalGreeting || !key ? Promise.resolve(null) : greetingCache.get(key) // read while the session starts
   let callerIdentity: string | undefined
   void callerJoined.then(caller => (callerIdentity = caller.identity), () => {})
   const silence = silencePolicyOf(call.assistant)
   const languages = { main: mainLanguageOf(call.assistant?.languages), others: otherLanguagesOf(call.assistant?.languages) }
-  const pipeline = createPipeline(config, call.assistant?.voice, silence.firstGapS, languages, talkingSpeedOf(call.assistant))
-  const session = new voice.AgentSession(pipeline)
-  // Fixed lines during the call are in the language spoken now: the main one until the caller switches.
-  const spokenNow = followCallerLanguage(session, pipeline.tts, languages, call.callId)
+  const speed = talkingSpeedOf(call.assistant)
+  const pipeline = stages && createPipeline(stages, call.assistant?.voice, silence.firstGapS, languages, speed)
+  const session = new voice.AgentSession(realtime ? createRealtimePipeline(realtime, silence.firstGapS, speed) : pipeline!)
+  const speak = speakerFor(session, realtime !== null)
+  // Fixed lines during the call are in the language spoken now: the main one until the caller switches. A realtime model
+  // follows the caller's language itself, and is asked to say a fixed line in it.
+  const spokenNow = pipeline ? followCallerLanguage(session, pipeline.tts, languages, call.callId) : () => languages.main
   const lines = () => spokenLines(spokenNow())
   const onSpeaking = ({ newState }: { newState: string }) => {
     if (newState !== 'speaking') return
@@ -256,19 +267,19 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const flagUrgent = callFlagger(api, call, log)
   keepUrgentPromises(session, flagUrgent, call.callId)
   logTurnMetrics(session, call.callId)
-  skipQuietToolReplies(session, QUIET_TOOLS, lines)
+  if (pipeline) skipQuietToolReplies(session, QUIET_TOOLS, lines)
   session.on(voice.AgentSessionEventTypes.Close, onClose)
   const deleteRoom = () => void ctx.deleteRoom().catch(() => {})
   // The assistant always says something before the call ends: its goodbye (else the goodbye line in the language spoken), the closing line
   // after silence, or the goodbye at its time limit.
-  const sayLine = (text: string) => session.say(text, { allowInterruptions: false }).waitForPlayout()
+  const sayLine = (text: string) => speak(text, { allowInterruptions: false }).waitForPlayout()
   const speaking = speakingOf(session)
   const endCall = () => hangUpAfterSpeech(speaking, deleteRoom, () => sayLine(lines().goodbye))
   // After a warm transfer or a take-over the caller talks with a person and the assistant is out of it: neither silence on its
   // side nor its time limit ends that call (the trunk's CALL_MAX_MINUTES does).
   const transferred = () => log.transferred
   remindOnSilence(session, silence, {
-    remind: () => void session.say(silence.reminder ?? lines().stillThere),
+    remind: () => void speak(silence.reminder ?? lines().stillThere),
     close: () => {
       log.record('system', 'Hung up after silence on the line')
       hangUpAfterLine(sayLine(silence.closing), deleteRoom)
@@ -299,7 +310,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     addToMessage: detail => addToMessage(api, call, log, detail),
   }
   const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, flagUrgent, null, collect) })
-  void warmUpLlm(config.llm, instructions)
+  if (stages) void warmUpLlm(stages.llm, instructions)
   await session.start({
     agent,
     room: ctx.room,
@@ -315,12 +326,18 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     known.details = details
     await agent.updateInstructions(instructionsNow())
   }).catch(e => console.warn(`call ${call.callId}: caller details not given to the assistant: ${e instanceof Error ? e.message : String(e)}`))
-  setup.note(await greet(session, config, call, cachedGreeting, key, personalGreeting ? callerDetails : null))
+  if (!stages || !key) {
+    // A realtime model has no voice provider: it says the greeting itself, with the caller's details when it has them.
+    const details = personalGreeting ? await within(callerDetails, GREETING_WAIT_MS, null) : null
+    speak(personalGreeting ? fillTemplate(openingOf(call), details) : openingOf(call))
+    return setup.note('spoken by the realtime model')
+  }
+  setup.note(await greet(session, stages, call, cachedGreeting, key, personalGreeting ? callerDetails : null))
   const useTransfers = async (transfers: TransferRules) => {
     known.transfers = transfers
     await agent.updateInstructions(instructionsNow())
   }
-  void addTransfer(agent, callerJoined, useTransfers, { ctx, api, call, config, log, endCall, flagUrgent, collect, stopRecording: stopRecordingForTransfer })
+  void addTransfer(agent, callerJoined, useTransfers, { ctx, api, call, config: stages, log, endCall, flagUrgent, collect, stopRecording: stopRecordingForTransfer })
 }
 
 type TransferRules = Parameters<typeof buildInstructions>[3]
@@ -455,12 +472,13 @@ async function entry(ctx: JobContext) {
 /** How long an unanswered call waits for the caller to be in the room before it hangs up without the line. */
 const BUSY_CALLER_WAIT_MS = 5000
 
-/** Plays `line` to the caller once they are in the room; nothing when the voice is not set up. */
+/** Plays `line` to the caller once they are in the room; nothing when the voice is not set up (also with a realtime model alone). */
 async function tellCaller(ctx: JobContext, call: CallSession, line: string, ready: Promise<Readiness>, callerJoined: Promise<RemoteParticipant>) {
   const readiness = await ready
-  if (!readiness.ready) return
+  const stages = readiness.ready ? stagesOf(readiness.config) : null
+  if (!stages) return
   const joined = await Promise.race([callerJoined.then(() => true, () => false), sleep(BUSY_CALLER_WAIT_MS).then(() => false)])
-  if (joined) await playLine(ctx.room, readiness.config, call, line)
+  if (joined) await playLine(ctx.room, stages, call, line)
 }
 
 /** call.start for an origin known before joining; null when it is not known or the request failed. */
@@ -476,20 +494,22 @@ async function registerEarly(ctx: JobContext, api: ApiClient): Promise<CallSessi
 
 async function runAsTestCaller(ctx: JobContext, scenario: TestCallerMetadata) {
   const readiness = await checkReadiness(loadAgentConfig)
-  if (!readiness.ready) {
-    console.error(`test caller cannot call: ${readiness.reason}`)
+  const stages = readiness.ready ? stagesOf(readiness.config) : null
+  if (!stages) {
+    console.error(`test caller cannot call: ${readiness.ready ? 'it talks through speech to text, language model and voice, which are not set up' : readiness.reason}`)
     return ctx.deleteRoom()
   }
-  await runTestCaller(ctx, scenario, readiness.config)
+  await runTestCaller(ctx, scenario, stages)
 }
 
 async function runAsOnCallResponder(ctx: JobContext, responder: OnCallResponderMetadata) {
   const readiness = await checkReadiness(loadAgentConfig)
-  if (!readiness.ready) {
-    console.error(`on-call responder cannot answer: ${readiness.reason}`)
+  const stages = readiness.ready ? stagesOf(readiness.config) : null
+  if (!stages) {
+    console.error(`on-call responder cannot answer: ${readiness.ready ? 'it talks through speech to text, language model and voice, which are not set up' : readiness.reason}`)
     return ctx.deleteRoom()
   }
-  await runOnCallResponder(ctx, responder, readiness.config)
+  await runOnCallResponder(ctx, responder, stages)
 }
 
 export default defineAgent({

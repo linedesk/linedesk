@@ -47,7 +47,7 @@ import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { Field, Section, SelectRow, SwitchRow, TextArea, TextInput } from './fields.tsx'
 import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
 import { Knowledge } from './Knowledge.tsx'
-import { loadCatalog, VoiceSettings } from './VoiceSettings.tsx'
+import { loadCatalog, useVoiceOptions, VoiceSettings } from './VoiceSettings.tsx'
 import { voiceForMainLanguage } from './voiceModel.ts'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
@@ -67,6 +67,21 @@ const sections: readonly PageSection<SectionId>[] = [
   { id: 'webhooks', label: 'Webhook', description: 'Your system at the start of a call, during it and after it' },
   { id: 'advanced', label: 'Advanced', description: 'Talking speed, time zone, silence, hanging up' },
 ]
+/** The sections shown: without Transfers while a realtime model answers the calls (it does not put calls through). */
+const sectionsFor = (realtime: boolean) => (realtime ? sections.filter(s => s.id !== 'transfers') : sections)
+
+/** In place of the voice picker while a realtime model answers the calls: it speaks in its own voice. */
+function RealtimeVoice() {
+  return (
+    <Section id="as-voice" title="Voice">
+      <span className="help">
+        Calls are answered by a realtime model, which speaks in its own voice. An instance admin sets it under Admin,
+        Providers.
+      </span>
+    </Section>
+  )
+}
+
 /** Sections that save on their own, outside the assistant's draft. */
 type OwnSection = 'hours' | 'booking' | 'webhooks'
 /** Which draft fields each section holds. */
@@ -450,7 +465,9 @@ type FormProps = Props & {
 function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormProps) {
   const run = useRun()
   const page = `assistant/${assistant.id}`
-  const current = useSection(page, sections)
+  const realtime = useVoiceOptions().data?.realtime === true
+  const shown = useMemo(() => sectionsFor(realtime), [realtime])
+  const current = useSection(page, shown)
   const testCall = useTestCall(canEdit, assistant)
   /** A save was refused over a transfer contact: its errors show from then on. */
   const [transferSaveTried, setTransferSaveTried] = useState(false)
@@ -490,7 +507,8 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     // Name and greeting show their error under the field: go there instead of a toast that outlives the fix.
     if (nameProblem(draft.name)) return goTo('general', 'as-name')
     if (!draft.greeting.trim()) return goTo('general', 'as-greet')
-    const transfer = transferProblem(draft)
+    // Transfers are hidden while a realtime model answers: nothing there to fix.
+    const transfer = realtime ? null : transferProblem(draft)
     if (transfer) {
       setTransferSaveTried(true)
       return goTo('transfers', transferFieldId(transfer.index, transfer.field))
@@ -529,6 +547,8 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
    */
   async function changeMainLanguage(code: Language) {
     setDraft(d => withMainLanguage(d, code))
+    // A realtime model speaks every language in its own voice: nothing to pick.
+    if (realtime) return
     const catalog = await loadCatalog().catch(() => null)
     if (!catalog) return
     const active = catalog.providers.find(p => p.active)?.provider ?? null
@@ -568,15 +588,19 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
             <AssistantNameSection draft={draft} set={set} />
             <Greeting draft={draft} set={set} savedName={assistant.name} hoursOn={hoursOn} canEdit={canEdit} />
             <Languages draft={draft} set={set} onMainLanguage={code => void changeMainLanguage(code)} />
-            <VoiceSettings
-              assistantId={assistant.id}
-              voice={draft.voice}
-              onPick={v => set('voice', v)}
-              canEdit={canEdit}
-              toast={toast}
-              language={mainOf(draft)}
-              assistantName={assistantName(draft)}
-            />
+            {realtime ? (
+              <RealtimeVoice />
+            ) : (
+              <VoiceSettings
+                assistantId={assistant.id}
+                voice={draft.voice}
+                onPick={v => set('voice', v)}
+                canEdit={canEdit}
+                toast={toast}
+                language={mainOf(draft)}
+                assistantName={assistantName(draft)}
+              />
+            )}
           </>
         )}
         {current === 'rules' && <Behaviours draft={draft} set={set} />}
@@ -621,7 +645,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
       description={canEdit ? undefined : 'Only owners and admins can change these.'}
       actions={<TestCallButton session={testCall} />}
       banner={<TestCallPanel session={testCall} />}
-      sections={sections}
+      sections={shown}
       current={current}
       unsaved={unsaved}
     >

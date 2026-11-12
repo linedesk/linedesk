@@ -136,11 +136,14 @@ export function Providers({ providers, active, canStore, notify, reload }: Props
       {categoryNames.map(category => {
         const inCategory = providers.filter(p => p.category === category)
         const { provider: inUse } = active[category]
+        // A realtime model answers calls: the three stages are not used for them.
+        const replaced = !!active.realtime?.provider && (category === 'stt' || category === 'llm' || category === 'tts')
         return (
           <section key={category} className="adm-provcat" aria-labelledby={`adm-cat-${category}`}>
             <h2 id={`adm-cat-${category}`}>
               {providerCategories[category]}
               {category === 'recording' && !inUse && <span className="adm-provcat-note">Off</span>}
+              {replaced && <span className="adm-provcat-note">Not used: the realtime model answers calls</span>}
             </h2>
             <ul className="adm-tiles">
               {inCategory.map(p => (
@@ -161,7 +164,9 @@ export function Providers({ providers, active, canStore, notify, reload }: Props
           key={opened.provider}
           provider={opened}
           inUse={
-            isMultiCategory(opened.category) ? isConfigured(opened) : active[opened.category].provider === opened.provider
+            isMultiCategory(opened.category)
+              ? isConfigured(opened)
+              : active[opened.category].provider === opened.provider
           }
           chosen={active[opened.category].chosen}
           connected={connectionOf(opened, tests[opened.provider]) === 'connected'}

@@ -137,8 +137,8 @@ export async function telephonyProvider(tx: Tx, env: Env = serverEnv()): Promise
 }
 
 const voiceCategories = ['stt', 'llm', 'tts'] as const satisfies readonly ProviderCategory[]
-/** What the agent gets: the voice stages, and where to record calls. */
-const agentCategories = [...voiceCategories, 'recording'] as const satisfies readonly ProviderCategory[]
+/** What the agent gets: the voice stages, the realtime model when one answers calls, and where to record calls. */
+const agentCategories = [...voiceCategories, 'realtime', 'recording'] as const satisfies readonly ProviderCategory[]
 type VoiceEntry = { provider: ProviderName } & Record<string, string | null>
 export type VoiceProviderConfig = Record<(typeof agentCategories)[number], VoiceEntry | null> & {
   /** Every voice provider with a key: an assistant may use a voice of another one than `tts`. */
@@ -155,14 +155,21 @@ const entryOf = (provider: ProviderName, config: ProviderConfig, withSecrets = t
   ),
 })
 
+/** Whether a realtime model answers the calls instead of the voice stages: one is connected. Never throws. */
+export async function realtimeInUse(tx: Tx, env: Env = serverEnv()): Promise<boolean> {
+  return (await activeProvider(tx, 'realtime', env).catch(() => null)) !== null
+}
+
 /**
- * Whether the server has what the voice agent needs to answer a call: LiveKit in env and a speech,
- * language model and voice provider. Says nothing about whether the worker runs. Never throws.
+ * Whether the server has what the voice agent needs to answer a call: LiveKit in env, and the realtime model
+ * when one is picked, else a speech, language model and voice provider. Says nothing about whether the worker
+ * runs. Never throws.
  */
 export async function voiceReady(tx: Tx, env: Env = serverEnv()): Promise<boolean> {
   if (!env.LIVEKIT_URL || !env.LIVEKIT_API_KEY || !env.LIVEKIT_API_SECRET) return false
   try {
-    for (const category of voiceCategories) if (!(await activeProvider(tx, category, env))) return false
+    const needed = (await realtimeInUse(tx, env)) ? (['realtime'] as const) : voiceCategories
+    for (const category of needed) if (!(await activeProvider(tx, category, env))) return false
     return true
   } catch (e) {
     console.error('voice readiness check failed', e)

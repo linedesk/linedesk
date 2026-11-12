@@ -4,12 +4,13 @@ import { z } from 'zod'
 import { isRecordingPrefix } from './calls.ts'
 import { defineAction } from './define.ts'
 
-export type ProviderCategory = 'telephony' | 'stt' | 'llm' | 'tts' | 'email' | 'sign_in' | 'recording'
+export type ProviderCategory = 'telephony' | 'stt' | 'llm' | 'tts' | 'realtime' | 'email' | 'sign_in' | 'recording'
 export const providerCategories: Record<ProviderCategory, string> = {
   telephony: 'Telephony',
   stt: 'Speech to text',
   llm: 'Language model',
   tts: 'Voice',
+  realtime: 'Realtime model',
   email: 'Email',
   sign_in: 'Sign-in and calendar',
   recording: 'Recording storage',
@@ -124,6 +125,27 @@ export const providers = {
     fields: { api_key: apiKey('ELEVENLABS_API_KEY'), ...voiceFields },
   },
   cartesia: { label: 'Cartesia', category: 'tts', fields: { api_key: apiKey('CARTESIA_API_KEY'), ...voiceFields } },
+  // A speech-to-speech model: hears the caller and answers in its own voice. Once connected it answers the calls in
+  // place of the three stages above; disconnecting it goes back to them. The summary after the call goes to
+  // OpenAI's chat API with the same key. Its own key variable: an OPENAI_API_KEY for the language model must not
+  // switch calls to realtime.
+  openai_realtime: {
+    label: 'OpenAI Realtime',
+    category: 'realtime',
+    fields: {
+      api_key: apiKey('OPENAI_REALTIME_API_KEY'),
+      model: { ...model('REALTIME_MODEL'), hint: 'gpt-realtime-mini' },
+      voice: { label: 'Voice', env: 'REALTIME_VOICE', secret: false, optional: true, hint: 'marin' },
+      summary_model: {
+        label: 'Summary model',
+        env: 'REALTIME_SUMMARY_MODEL',
+        secret: false,
+        optional: true,
+        hint: 'gpt-4.1-mini',
+      },
+    },
+    help: 'Once connected, it answers calls with one speech-to-speech model in its own voice, instead of speech to text, language model and voice; disconnect it to go back. Warm transfer, the assistant’s voice and the cached greeting are not available then.',
+  },
   // Recording storage: where LiveKit egress writes call audio and the API reads it. Not a paid API, but
   // the same model: one active store, keys stored encrypted, env as fallback. No first-set-up fallback:
   // without a pick or RECORDING_STORE, calls are not recorded (apps/api/src/provider-settings.ts).
@@ -206,7 +228,13 @@ export const providers = {
         secret: true,
         hint: 'smtps://user:password@smtp.example.com:465',
       },
-      from: { label: 'From', env: 'EMAIL_FROM', secret: false, optional: true, hint: 'Linedesk <no-reply@example.com>' },
+      from: {
+        label: 'From',
+        env: 'EMAIL_FROM',
+        secret: false,
+        optional: true,
+        hint: 'Linedesk <no-reply@example.com>',
+      },
     },
     help: 'Sends sign-in codes, invitations and call emails. Any mail service with SMTP: Postmark, Resend, Amazon SES, Mailgun or your own server.',
     presets: [
@@ -268,7 +296,13 @@ export const providers = {
       },
       client_id: { label: 'Client ID', env: 'OIDC_CLIENT_ID', secret: false },
       client_secret: { label: 'Client secret', env: 'OIDC_CLIENT_SECRET', secret: true },
-      display_name: { label: 'Button label', env: 'OIDC_DISPLAY_NAME', secret: false, optional: true, hint: 'Single sign-on' },
+      display_name: {
+        label: 'Button label',
+        env: 'OIDC_DISPLAY_NAME',
+        secret: false,
+        optional: true,
+        hint: 'Single sign-on',
+      },
       trust_email_domains: {
         label: 'Trusted email domains',
         env: 'OIDC_TRUST_EMAIL_DOMAINS',
@@ -414,7 +448,8 @@ export type InstanceAdminGrantData = { userId: string; instance_admin: true } & 
  */
 export const userResetPasskeys = defineAction({
   name: 'user.resetPasskeys',
-  description: "Remove every passkey of a user and email them. For an instance admin, returns a one-time code for their new first passkey.",
+  description:
+    'Remove every passkey of a user and email them. For an instance admin, returns a one-time code for their new first passkey.',
   input: userId,
   permission: 'instance:admin',
   secretResult: true,

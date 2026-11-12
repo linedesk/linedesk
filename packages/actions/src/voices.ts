@@ -50,6 +50,11 @@ export type ClonedVoice = { id: string; name: string }
  */
 export type VoiceOptionsData = {
   provider: string | null
+  /**
+   * Calls are answered by a realtime model (Admin, Providers): it speaks in its own voice, so the assistant's
+   * voice, talking speed and transfers do not apply. Missing from an API of an older version: false.
+   */
+  realtime?: boolean
   voices: readonly CuratedVoice[]
   clones: readonly ClonedVoice[]
   canClone: boolean
