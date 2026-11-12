@@ -207,12 +207,12 @@ export function Overview({ onOpen }: Props) {
         <Card title="People">
           <div className="adm-people">
             <button type="button" className="adm-link" onClick={() => onOpen('workspaces')}>
-              <b>{count(o.workspaces.total)}</b> workspaces
+              <b>{count(o.workspaces.total)}</b> {o.workspaces.total === 1 ? 'workspace' : 'workspaces'}
               {o.workspaces.disabled > 0 && <span className="help"> · {o.workspaces.disabled} disabled</span>}
               {o.workspaces.new7d > 0 && <span className="help"> · {o.workspaces.new7d} new this week</span>}
             </button>
             <button type="button" className="adm-link" onClick={() => onOpen('users')}>
-              <b>{count(o.users.total)}</b> users
+              <b>{count(o.users.total)}</b> {o.users.total === 1 ? 'user' : 'users'}
               {o.users.disabled > 0 && <span className="help"> · {o.users.disabled} disabled</span>}
               {o.users.new7d > 0 && <span className="help"> · {o.users.new7d} new this week</span>}
             </button>

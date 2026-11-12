@@ -119,6 +119,14 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   // The session stopped opening Admin while it was open (1 hour without a passkey): sign in again here.
   const [signInAgain, setSignInAgain] = useState<AdminSecondFactor | null>(null)
   useEffect(() => watchAdminSignIn(setSignInAgain), [])
+  const nav = useRef<HTMLElement>(null)
+  // On a phone the sections are a row that scrolls sideways: keep the open one in view.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs again whenever another section opens
+  useEffect(() => {
+    const item = nav.current?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (item && nav.current && nav.current.scrollWidth > nav.current.clientWidth)
+      nav.current.scrollLeft = item.offsetLeft - nav.current.offsetLeft - 12
+  }, [place.section])
 
   // Runs before the app's own key handler, which belongs to the inbox.
   useEffect(() => {
@@ -218,7 +226,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   return (
     <div className="adm-mode">
       <PasskeyStepUpHost />
-      <nav className="adm-side" aria-label="Admin">
+      <nav ref={nav} className="adm-side" aria-label="Admin">
         <button type="button" className="adm-back" onClick={onExit} title={`Back to ${productName} (esc)`}>
           <Icon name="left" size={15} />
           <span>Back to {productName}</span>
