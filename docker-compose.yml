@@ -143,7 +143,12 @@ services:
     # The address clients are told to send media to. 127.0.0.1 for local development;
     # the server's public IP when carriers and browsers connect from outside.
     command: ["--node-ip", "${LIVEKIT_NODE_IP:-127.0.0.1}"]
-    networks: [default, voice]
+    # Media goes over the default network only (rtc.interfaces): on the voice network too, LiveKit opens its UDP port on
+    # both addresses and announces both as the node IP; when Docker happens to create the voice interface first, no
+    # client completes the connection and calls stay silent. Default is connected first, so it is eth0.
+    networks:
+      default: { priority: 10 }
+      voice: {}
     environment:
       LIVEKIT_CONFIG: |
         port: 7880
@@ -151,6 +156,8 @@ services:
           tcp_port: 7881
           udp_port: 7882
           use_external_ip: false
+          interfaces:
+            includes: [eth0]
         redis:
           address: redis:6379
         keys:
