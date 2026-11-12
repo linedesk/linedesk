@@ -15,7 +15,20 @@
 		# Docker gateway 172.16.0.0/12), so the X-Forwarded-For it sends is kept and rate limits see each
 		# client. Empty (the default): no upstream is trusted and a client cannot pick its own address.
 		trusted_proxies static {$LINEDESK_TRUSTED_PROXY_RANGES}
+		# Which header of a trusted proxy names the client. Behind Cloudflare (docker-compose.cloudflare.yml):
+		# CF-Connecting-IP, which Cloudflare sets itself. From anyone not trusted, no header is read at all.
+		client_ip_headers {$LINEDESK_CLIENT_IP_HEADERS:X-Forwarded-For}
+		# Read a forwarded chain right to left, skipping trusted hops: a value the client put in front is never taken.
+		trusted_proxies_strict
 	}
+}
+
+# The certificate: Caddy gets one itself (automatic), or, behind Cloudflare's proxy, it serves the Cloudflare
+# Origin CA certificate mounted at /etc/caddy/certs (LINEDESK_TLS=origin, docker-compose.cloudflare.yml).
+(tls-automatic) {
+}
+(tls-origin) {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
 }
 
 # The API, with retries while a container starts or stops. The argument says where the request came in
@@ -24,6 +37,9 @@
 (api) {
 	reverse_proxy {
 		header_up X-Linedesk-Entry {args[0]}
+		# The client as Caddy determined it (the trusted proxies above), as the only hop: the API's rate limits
+		# and logs then see the visitor, also behind Cloudflare, whose own address would otherwise be the last hop.
+		header_up X-Forwarded-For {client_ip}
 		dynamic a {
 			name {$API_HOST:api}
 			port 3100
@@ -44,6 +60,7 @@
 }
 
 {$SITE_ADDRESS::80} {
+	import tls-{$LINEDESK_TLS:automatic}
 	encode zstd gzip
 
 	# Security headers on every response (the app, the API and LiveKit signalling):
