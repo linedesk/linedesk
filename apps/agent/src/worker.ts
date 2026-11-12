@@ -26,7 +26,7 @@ import { logTurnMetrics } from './turn-metrics.ts'
 import { realtimeTurnTimer } from './realtime-timing.ts'
 import { followCallerLanguage } from './caller-language.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
-import { hangUpAfterLine, hangUpAfterSpeech, hangUpAtCallLimit, remindOnSilence, silencePolicyOf, speakingOf } from './hang-up.ts'
+import { greetingPlayed, hangUpAfterLine, hangUpAfterSpeech, hangUpAtCallLimit, remindOnSilence, silencePolicyOf, speakingOf } from './hang-up.ts'
 import { playLine, unansweredLine } from './busy-line.ts'
 import { promisesUrgent, urgentFlagger } from './urgent-promise.ts'
 import { buildInstructions, canChangeBookings, collectLanguageRule } from './prompt.ts'
@@ -263,15 +263,13 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   // follows the caller's language itself, and is asked to say a fixed line in it.
   const spokenNow = pipeline ? followCallerLanguage(session, pipeline.tts, languages, call.callId) : () => languages.main
   const lines = () => spokenLines(spokenNow())
-  // Silence only counts once the assistant has spoken: a greeting that is slow to start (a busy server, a realtime model
-  // connecting) must not run down the caller's silence and hang up before anyone said anything.
-  let greeted = false
+  // Silence only counts once the greeting has played (remindOnSilence).
+  const greeted = greetingPlayed(session)
   // Realtime: where each reply's time goes, one log line per reply (realtime-timing.ts).
   const timer = realtime ? realtimeTurnTimer(line => console.log(`latency ${call.callId}: ${line}`)) : null
   if (timer) session.on(voice.AgentSessionEventTypes.AgentStateChanged, ({ newState }) => newState === 'speaking' && timer.speaking())
   const onSpeaking = ({ newState }: { newState: string }) => {
     if (newState !== 'speaking') return
-    greeted = true
     session.off(voice.AgentSessionEventTypes.AgentStateChanged, onSpeaking)
     setup.mark('greeting audio')
     setup.log(call.callId, ctx.room)
@@ -300,8 +298,8 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
       hangUpAfterLine(sayLine(silence.closing), deleteRoom)
     },
     transferred,
-    // Before the greeting there is nothing to answer yet: wait like on hold.
-    onHold: () => log.onHold || !greeted,
+    onHold: () => log.onHold,
+    greeted,
   })
   // A test call from the web app ends sooner, so a forgotten browser tab does not run up provider minutes.
   const isTest = call.businessNumber === null

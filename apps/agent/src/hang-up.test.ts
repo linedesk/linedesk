@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { DEFAULT_SILENCE_CLOSING } from '@linedesk/actions'
 import { voice } from '@livekit/agents'
-import { hangUpAfterLine, hangUpAfterSpeech, hangUpAtCallLimit, remindOnSilence, silencePolicyOf, silenceSchedule } from './hang-up.ts'
+import { greetingPlayed, hangUpAfterLine, hangUpAfterSpeech, hangUpAtCallLimit, remindOnSilence, silencePolicyOf, silenceSchedule } from './hang-up.ts'
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
@@ -206,4 +206,78 @@ test('on hold while a transfer rings: no reminder and no closing line; after the
   vi.advanceTimersByTime(5_000 + 5_000)
   expect(remind).toHaveBeenCalledTimes(2)
   expect(close).toHaveBeenCalledOnce()
+})
+
+test('a greeting slow to start: no reminder and no closing line before it has played; the silence counts from its end', async () => {
+  const { session, emit } = userStates()
+  const remind = vi.fn()
+  const close = vi.fn()
+  let played!: () => void
+  const greeted = new Promise<void>(resolve => (played = resolve))
+  remindOnSilence(session, policy, { remind, close, transferred: () => false, greeted })
+  // A busy server: the caller is "away" at 5 s, the greeting only plays after 38 s.
+  emit('away')
+  await vi.advanceTimersByTimeAsync(38_000)
+  expect(remind).not.toHaveBeenCalled()
+  expect(close).not.toHaveBeenCalled()
+  played()
+  // The session reports no new "away" (the caller still is): the whole schedule runs from the greeting's end.
+  await vi.advanceTimersByTimeAsync(5_000 - 1)
+  expect(remind).not.toHaveBeenCalled()
+  await vi.advanceTimersByTimeAsync(1)
+  expect(remind).toHaveBeenCalledOnce()
+  await vi.advanceTimersByTimeAsync(10_000 - 1)
+  expect(close).not.toHaveBeenCalled()
+  await vi.advanceTimersByTimeAsync(1)
+  expect(remind).toHaveBeenCalledTimes(2)
+  expect(close).toHaveBeenCalledOnce()
+})
+
+test('a caller who speaks before the greeting has played is not away when it ends: the session\'s next "away" starts the count', async () => {
+  const { session, emit } = userStates()
+  const remind = vi.fn()
+  const close = vi.fn()
+  let played!: () => void
+  remindOnSilence(session, policy, { remind, close, transferred: () => false, greeted: new Promise<void>(resolve => (played = resolve)) })
+  emit('away')
+  emit('speaking') // "Hello?"
+  emit('listening')
+  played()
+  await vi.advanceTimersByTimeAsync(60_000)
+  expect(remind).not.toHaveBeenCalled()
+  emit('away') // the session's away timeout, counted from the end of the greeting
+  expect(remind).toHaveBeenCalledOnce()
+})
+
+function agentStates() {
+  const listeners = new Set<(ev: { oldState: string }) => void>()
+  const session = {
+    on: (_: string, listener: (ev: { oldState: string }) => void) => listeners.add(listener),
+    off: (_: string, listener: (ev: { oldState: string }) => void) => listeners.delete(listener),
+  }
+  return { session: session as never, emit: (oldState: string) => [...listeners].forEach(l => l({ oldState })), listeners }
+}
+
+test('the greeting has played once the first speech ended, or at the latest after the cap', async () => {
+  const { session, emit, listeners } = agentStates()
+  const played = vi.fn()
+  void greetingPlayed(session, 60_000).then(played)
+  emit('initializing') // listening
+  emit('listening') // thinking
+  emit('thinking') // speaking: the greeting plays
+  await vi.advanceTimersByTimeAsync(0)
+  expect(played).not.toHaveBeenCalled()
+  emit('speaking') // listening: it has played
+  await vi.advanceTimersByTimeAsync(0)
+  expect(played).toHaveBeenCalledOnce()
+  expect(listeners.size).toBe(0)
+
+  const never = agentStates()
+  const capped = vi.fn()
+  void greetingPlayed(never.session, 60_000).then(capped)
+  await vi.advanceTimersByTimeAsync(60_000 - 1)
+  expect(capped).not.toHaveBeenCalled()
+  await vi.advanceTimersByTimeAsync(1)
+  expect(capped).toHaveBeenCalledOnce()
+  expect(never.listeners.size).toBe(0)
 })

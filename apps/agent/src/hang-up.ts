@@ -125,6 +125,11 @@ type SilenceOptions = {
   transferred: () => boolean
   /** On hold while a transfer rings: the caller is meant to be quiet; the reminders wait until the hold is over. */
   onHold?: () => boolean
+  /**
+   * Resolves once the greeting has played (greetingPlayed). Silence counts only from then: a greeting that is slow to
+   * start (a busy server, a realtime model connecting) must not run down the caller's silence before they heard a word.
+   */
+  greeted?: Promise<unknown>
 }
 
 /**
@@ -132,9 +137,12 @@ type SilenceOptions = {
  * timeout, set from the same policy): the assistant asks whether they are still there, again every `firstGapS`, up
  * to `reminders` times, and at `hangUpS` of silence says the closing line and hangs up (silenceSchedule). A word from
  * the caller starts it over. Never once the call was put through to a person, and not while the caller is on hold.
+ * Nothing counts before the greeting has played: the schedule then starts from its end.
  */
-export function remindOnSilence(session: UserStates, policy: Pick<SilencePolicy, 'firstGapS' | 'reminders' | 'hangUpS'>, { remind, close, transferred, onHold = () => false }: SilenceOptions) {
+export function remindOnSilence(session: UserStates, policy: Pick<SilencePolicy, 'firstGapS' | 'reminders' | 'hangUpS'>, { remind, close, transferred, onHold = () => false, greeted }: SilenceOptions) {
   const at = silenceSchedule(policy)
+  let counting = !greeted
+  let away = false
   let ended = false
   let next = 0
   let pending: ReturnType<typeof setTimeout> | undefined
@@ -163,16 +171,50 @@ export function remindOnSilence(session: UserStates, policy: Pick<SilencePolicy,
     after(at[next]! - at[next - 1]!)
   }
   session.on(voice.AgentSessionEventTypes.UserStateChanged, ({ newState }) => {
-    if (newState !== 'away') {
+    away = newState === 'away'
+    if (!away) {
       stop() // the caller spoke: still there, and the reminders start over
       next = 0
       return
     }
-    if (pending) return
+    if (pending || !counting) return
     // "Away" comes after the first gap: the first step is due now, or (no reminders) at the hang-up time.
     const wait = at[0]! - policy.firstGapS
     if (wait > 0) after(wait)
     else step()
+  })
+  void greeted?.then(() => {
+    counting = true
+    // Silent since before the greeting ended: the session reports no new "away", so the whole schedule counts from now.
+    if (away && !pending && !ended) after(at[0]!)
+  })
+}
+
+type AgentStates = {
+  on(event: voice.AgentSessionEventTypes.AgentStateChanged, listener: (ev: { oldState: string }) => void): unknown
+  off(event: voice.AgentSessionEventTypes.AgentStateChanged, listener: (ev: { oldState: string }) => void): unknown
+}
+
+/** Longest wait for the greeting to play before silence counts anyway: a greeting that never plays must not keep the call open. */
+export const GREETING_PLAYOUT_MAX_MS = 60_000
+
+/**
+ * Resolves once the assistant's first speech (the greeting) has ended, played through or interrupted by the caller, at
+ * the latest after `maxMs`.
+ */
+export function greetingPlayed(session: AgentStates, maxMs = GREETING_PLAYOUT_MAX_MS): Promise<void> {
+  return new Promise(resolve => {
+    const timer = setTimeout(done, maxMs)
+    timer.unref?.()
+    function done() {
+      clearTimeout(timer)
+      session.off(voice.AgentSessionEventTypes.AgentStateChanged, onState)
+      resolve()
+    }
+    function onState({ oldState }: { oldState: string }) {
+      if (oldState === 'speaking') done()
+    }
+    session.on(voice.AgentSessionEventTypes.AgentStateChanged, onState)
   })
 }
 
