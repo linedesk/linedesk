@@ -34,12 +34,18 @@ const STAGES = ['turn', 'model', 'voice', 'server', 'total'] as const
 // biome-ignore lint/suspicious/noExplicitAny: rows of hand-written aggregate queries
 type Row = Record<string, any>
 
+/**
+ * A reply whose parts add up to more than its total was measured wrong (realtime replies stored before #448 mapped the
+ * caller's last word too late): left out of every figure.
+ */
+const consistent = sql`coalesce(turn_ms, 0) + coalesce(model_ms, 0) + coalesce(voice_ms, 0) + coalesce(server_ms, 0) <= coalesce(total_ms, 0) + 5`
+
 export async function replyLatency(tx: Tx, days = LATENCY_DAYS_DEFAULT): Promise<ReplyLatency> {
   const since = sql`now() - make_interval(days => ${days})`
   const stages = (
     await tx.execute(sql`
       select pipeline, count(*)::int as replies, ${pct('turn_ms')}, ${pct('model_ms')}, ${pct('voice_ms')}, ${pct('server_ms')}, ${pct('total_ms')}
-      from reply_timings where at > ${since} and pipeline in ('cascaded', 'realtime') group by pipeline`)
+      from reply_timings where at > ${since} and pipeline in ('cascaded', 'realtime') and ${consistent} group by pipeline`)
   ).rows as Row[]
   const providers = (
     await tx.execute(sql`
@@ -51,7 +57,7 @@ export async function replyLatency(tx: Tx, days = LATENCY_DAYS_DEFAULT): Promise
     await tx.execute(sql`
       with agent as (
         select call_id, pipeline, avg(total_ms) as total from reply_timings
-        where at > ${since} and pipeline in ('cascaded', 'realtime') group by call_id, pipeline
+        where at > ${since} and pipeline in ('cascaded', 'realtime') and ${consistent} group by call_id, pipeline
       ), heard as (
         select call_id, avg(heard_ms) as heard from reply_timings where at > ${since} and pipeline = 'phone' group by call_id
       )

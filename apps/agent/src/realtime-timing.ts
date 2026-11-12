@@ -63,7 +63,11 @@ export function realtimeTurnTimer(onReply: (reply: RealtimeReply) => void, { now
       if (!turn?.firstAudio || turn.created === undefined) return
       const playing = now()
       const { speechEnd, stopped, created, firstAudio, lag } = turn
-      const ms = (from: number, to: number) => Math.max(0, Math.round(to - from))
+      turn = null
+      // The steps follow each other: the parts then add up to the total. A step out of order (the caller's last word
+      // mapped after OpenAI's turn, audio playing before it arrived) means the measurement is off: no reply time then.
+      if (!(speechEnd <= stopped && stopped <= created && created <= firstAudio && firstAudio <= playing)) return
+      const ms = (from: number, to: number) => Math.round(to - from)
       onReply({
         at: new Date(speechEnd).toISOString(),
         turnMs: ms(speechEnd, stopped),
@@ -75,7 +79,6 @@ export function realtimeTurnTimer(onReply: (reply: RealtimeReply) => void, { now
         totalMs: ms(speechEnd, playing),
         lagMs: Math.round(lag),
       })
-      turn = null
     },
   }
 }

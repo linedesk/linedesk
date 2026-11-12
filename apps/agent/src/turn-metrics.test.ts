@@ -18,3 +18,15 @@ test('three stages: a reply from the caller\'s last word to its audio, split int
   timer.speaking()
   expect(replies).toHaveLength(1)
 })
+
+test('three stages: parts that add up to more than the total (a reply matched wrong) give no time', () => {
+  let clock = 0
+  const replies: ReplyTimes[] = []
+  const timer = cascadedReplyTimer(r => replies.push(r), () => clock)
+  timer.metrics({ type: 'eou_metrics', speechId: 's1', lastSpeakingTimeMs: 1000, endOfUtteranceDelayMs: 400 })
+  timer.metrics({ type: 'llm_metrics', speechId: 's1', ttftMs: 900 })
+  clock = 1500 // playing only 500 ms after the last word, though turn and model alone took 1300 ms
+  timer.speaking()
+  timer.metrics({ type: 'tts_metrics', speechId: 's1', ttfbMs: 200 })
+  expect(replies).toEqual([])
+})

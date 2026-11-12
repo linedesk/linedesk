@@ -1062,6 +1062,8 @@ describe('overview', () => {
     await record(cascadedCall.id, { pipeline: 'cascaded', providers: { turn: 'deepgram', model: 'openrouter', voice: 'elevenlabs' }, replies: [{ at, turnMs: 400, modelMs: 600, voiceMs: 200, serverMs: 100, totalMs: 1300 }] })
     // The call test heard the realtime call's replies over the phone: 1.03 s on average, against 1.03 s on the agent's clock plus the network.
     await record(realtimeCall.id, { pipeline: 'phone', replies: [{ at, heardMs: 1830 }, { at, heardMs: 2230 }] })
+    // A reply measured wrong (parts larger than its total, as realtime replies stored before #448) is left out.
+    await record(realtimeCall.id, { pipeline: 'realtime', replies: [{ at, turnMs: 0, modelMs: 671, serverMs: 1, totalMs: 268 }] })
     // A member cannot write these; only the agent.
     expect((await act(member, 'call.recordTimings', { callId: realtimeCall.id, pipeline: 'realtime', replies: [{ at, totalMs: 1 }] })).status).toBe(403)
 

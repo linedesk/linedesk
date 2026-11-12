@@ -52,3 +52,46 @@ test('silence detection: audio_end_ms includes the silence waited for; audio sen
   timer.speaking()
   expect(replies).toEqual([[1300, 1600]])
 })
+
+test('the parts never add up to more than the total; a reply measured out of order gives no time', () => {
+  for (let run = 0; run < 200; run++) {
+    let clock = 0
+    const replies: { turnMs: number; modelMs: number; serverMs: number; totalMs: number }[] = []
+    const timer = realtimeTurnTimer(r => replies.push(r), { now: () => clock, silenceMs: 500 })
+    // Audio in uneven chunks (bursts and gaps), then events at random times, sometimes out of order.
+    for (let i = 0; i < 60; i++) {
+      clock += Math.floor(Math.random() * 60)
+      timer.sent({ type: 'input_audio_buffer.append', audio: audio100ms })
+    }
+    const at = (offset: number) => Math.max(0, clock + offset)
+    const steps = Array.from({ length: 4 }, () => Math.floor(Math.random() * 1500) - 300)
+    clock = at(steps[0]!)
+    timer.received({ type: 'input_audio_buffer.speech_stopped', audio_end_ms: 2000 + Math.floor(Math.random() * 4000) })
+    clock = at(steps[1]!)
+    timer.received({ type: 'response.created' })
+    clock = at(steps[2]!)
+    timer.received({ type: 'response.output_audio.delta' })
+    clock = at(steps[3]!)
+    timer.speaking()
+    for (const r of replies) {
+      expect(r.turnMs + r.modelMs + r.serverMs).toBe(r.totalMs)
+      for (const part of [r.turnMs, r.modelMs, r.serverMs]) expect(part).toBeGreaterThanOrEqual(0)
+    }
+  }
+})
+
+test('the caller\'s last word mapped after OpenAI took the turn (sending behind): no reply time', () => {
+  let clock = 0
+  const replies: unknown[] = []
+  const timer = realtimeTurnTimer(r => replies.push(r), { now: () => clock })
+  timer.sent({ type: 'input_audio_buffer.append', audio: audio100ms })
+  clock = 1000
+  timer.sent({ type: 'input_audio_buffer.append', audio: audio100ms }) // audio 100–200 left at 1000
+  clock = 500
+  timer.received({ type: 'input_audio_buffer.speech_stopped', audio_end_ms: 150 })
+  timer.received({ type: 'response.created' })
+  clock = 1200
+  timer.received({ type: 'response.output_audio.delta' })
+  timer.speaking()
+  expect(replies).toEqual([])
+})

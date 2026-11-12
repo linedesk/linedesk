@@ -45,7 +45,9 @@ export function cascadedReplyTimer(onReply: (reply: ReplyTimes) => void, now: ()
     const r = replies.get(id)
     if (!r || r.speechEnd === undefined || r.turnMs === undefined || r.modelMs === undefined || r.voiceMs === undefined || r.playing === undefined) return
     replies.delete(id)
-    const totalMs = Math.max(0, Math.round(r.playing - r.speechEnd))
+    const totalMs = Math.round(r.playing - r.speechEnd)
+    // The parts never add up to more than the total: if they do, the reply was matched wrong (no reply time then).
+    if (Math.round(r.turnMs) + Math.round(r.modelMs) + Math.round(r.voiceMs) > totalMs) return
     onReply({
       at: new Date(r.speechEnd).toISOString(),
       turnMs: Math.round(r.turnMs),
