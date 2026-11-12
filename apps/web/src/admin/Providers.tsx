@@ -1,7 +1,8 @@
 // Admin, Providers: the connections of the install. A light heading per category, its providers as
-// compact tiles (logo, name, one status). A tile opens the provider's dialog (ProviderDialog), where
-// it is connected, tested and chosen. Every provider that is set up is tested when the page opens,
-// so the status says what works right now.
+// one compact list (logo, name and one status on the left; Connect, or Edit and Disconnect on the right).
+// Connect and Edit open the provider's dialog (ProviderDialog), where it is connected, tested and chosen.
+// Sign-in and calendar share their OAuth apps: Google and Microsoft are listed under both, with one
+// connection. Every provider that is set up is tested when the page opens, so the status says what works now.
 import {
   categoryNames,
   isMultiCategory,
@@ -12,7 +13,7 @@ import {
 } from '@linedesk/actions'
 import { useEffect, useRef, useState } from 'react'
 import { HelpTip } from '../ui/form.tsx'
-import { cx } from '../ui/kit.tsx'
+import { Button, cx } from '../ui/kit.tsx'
 import { type ActiveProviders, type ProviderStatus, runAdmin, testProvider } from './api.ts'
 import { connectionOf, isConfigured, providerState, type TestState } from './model.ts'
 import { errorText, type Notify } from './notify.ts'
@@ -69,31 +70,69 @@ export function tileStatus(provider: ProviderStatus, test: TestState, inUse: boo
   return inUse ? { word: 'Active', dot: 'ink' } : { word: 'Connected', dot: 'muted' }
 }
 
-type TileProps = { provider: ProviderStatus; test: TestState; inUse: boolean; onOpen: () => void }
+type RowProps = {
+  provider: ProviderStatus
+  test: TestState
+  inUse: boolean
+  canStore: boolean
+  onOpen: () => void
+  onDisconnect: () => void
+}
 
-function ProviderTile({ provider, test, inUse, onOpen }: TileProps) {
+/** One provider: logo, name and status; Connect when it has no keys, else Edit (and Disconnect for keys stored here). */
+function ProviderRow({ provider, test, inUse, canStore, onOpen, onDisconnect }: RowProps) {
   const status = tileStatus(provider, test, inUse)
-  const fromServer = isConfigured(provider) && providerState(provider) === 'env'
+  const configured = isConfigured(provider)
+  const fromServer = configured && providerState(provider) === 'env'
   return (
-    <li>
-      <button
-        type="button"
-        className={cx('adm-tile', status.dot === 'ink' && 'adm-tile-active')}
-        onClick={onOpen}
-        title={`${status.dot === null && status.word === 'Not connected' ? 'Connect' : 'Manage'} ${provider.label}`}
-      >
-        <Logo mark={providerMeta[provider.provider].mark} />
-        <span className="adm-tile-text">
-          <b>{provider.label}</b>
-          <span className={cx('adm-tile-status', status.dot && `adm-dot-${status.dot}`)} title={status.title}>
-            {status.word}
-            {fromServer && <ServerSet />}
-          </span>
+    <li className="adm-prov">
+      <Logo mark={providerMeta[provider.provider].mark} size={28} />
+      <span className="adm-prov-name">
+        <b>{provider.label}</b>
+        <span className={cx('adm-tile-status', status.dot && `adm-dot-${status.dot}`)} title={status.title}>
+          {status.word}
+          {fromServer && <ServerSet />}
         </span>
-      </button>
+      </span>
+      <span className="adm-prov-actions">
+        {configured ? (
+          <>
+            {providerState(provider) === 'app' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={!canStore}
+                onClick={onDisconnect}
+                title={`Disconnect ${provider.label}`}
+              >
+                Disconnect
+              </Button>
+            )}
+            <Button size="sm" onClick={onOpen} title={`Edit ${provider.label}`}>
+              Edit
+            </Button>
+          </>
+        ) : (
+          <Button size="sm" onClick={onOpen} title={`Connect ${provider.label}`}>
+            Connect
+          </Button>
+        )}
+      </span>
     </li>
   )
 }
+
+/** Sign-in and calendar share their OAuth apps: the calendar section lists the ones that also connect calendars. */
+const CALENDAR_APPS: readonly ProviderName[] = ['google', 'microsoft']
+type PageSection = { id: string; title: string; category: ProviderCategory; only?: readonly ProviderName[] }
+const pageSections: PageSection[] = categoryNames.flatMap((category): PageSection[] =>
+  category === 'sign_in'
+    ? [
+        { id: 'sign_in', title: 'Sign-in', category },
+        { id: 'calendar', title: 'Calendar', category, only: CALENDAR_APPS },
+      ]
+    : [{ id: category, title: providerCategories[category], category }],
+)
 
 export function Providers({ providers, active, canStore, notify, reload }: Props) {
   const { tests, record } = useConnectionTests(providers)
@@ -101,7 +140,13 @@ export function Providers({ providers, active, canStore, notify, reload }: Props
   const [oauthReturn] = useState<OpenRouterReturn | null>(() => peekOpenRouterReturn())
   useEffect(clearOpenRouterReturn, [])
   const [open, setOpen] = useState<ProviderName | null>(oauthReturn ? 'openrouter' : null)
+  /** The dialog opens on its "Delete the stored keys?" step (Disconnect in the list). */
+  const [disconnecting, setDisconnecting] = useState(false)
   const opened = providers.find(p => p.provider === open)
+  const openDialog = (provider: ProviderName, confirmDisconnect = false) => {
+    setDisconnecting(confirmDisconnect)
+    setOpen(provider)
+  }
 
   async function use(category: ProviderCategory, provider: ProviderName | null) {
     const before = active[category].chosen ? active[category].provider : null
@@ -133,26 +178,29 @@ export function Providers({ providers, active, canStore, notify, reload }: Props
           <HelpTip text="Whoever runs the server sets SECRETS_KEY (make one with openssl rand -base64 32) and restarts the API. Keys are then saved encrypted." />
         </p>
       )}
-      {categoryNames.map(category => {
-        const inCategory = providers.filter(p => p.category === category)
+      {pageSections.map(({ id, title, category, only }) => {
+        const inSection = providers.filter(p => p.category === category && (!only || only.includes(p.provider)))
         const { provider: inUse } = active[category]
         // A realtime model answers calls: the three stages are not used for them.
         const replaced = !!active.realtime?.provider && (category === 'stt' || category === 'llm' || category === 'tts')
         return (
-          <section key={category} className="adm-provcat" aria-labelledby={`adm-cat-${category}`}>
-            <h2 id={`adm-cat-${category}`}>
-              {providerCategories[category]}
+          <section key={id} className="adm-provcat" aria-labelledby={`adm-cat-${id}`}>
+            <h2 id={`adm-cat-${id}`}>
+              {title}
               {category === 'recording' && !inUse && <span className="adm-provcat-note">Off</span>}
               {replaced && <span className="adm-provcat-note">Not used: the realtime model answers calls</span>}
+              {only && <span className="adm-provcat-note">The same apps as for sign-in: connected once for both</span>}
             </h2>
-            <ul className="adm-tiles">
-              {inCategory.map(p => (
-                <ProviderTile
+            <ul className="adm-provlist">
+              {inSection.map(p => (
+                <ProviderRow
                   key={p.provider}
                   provider={p}
                   test={tests[p.provider]}
                   inUse={isMultiCategory(category) ? isConfigured(p) : inUse === p.provider}
-                  onOpen={() => setOpen(p.provider)}
+                  canStore={canStore}
+                  onOpen={() => openDialog(p.provider)}
+                  onDisconnect={() => openDialog(p.provider, true)}
                 />
               ))}
             </ul>
@@ -163,6 +211,7 @@ export function Providers({ providers, active, canStore, notify, reload }: Props
         <ProviderDialog
           key={opened.provider}
           provider={opened}
+          confirmDisconnect={disconnecting}
           inUse={
             isMultiCategory(opened.category)
               ? isConfigured(opened)

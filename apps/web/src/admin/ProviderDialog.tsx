@@ -44,6 +44,8 @@ type Props = {
   chosen: boolean
   /** "Use" makes sense: there is a choice, or recording is off without one. */
   canUse: boolean
+  /** Open on the "Delete the stored keys?" step (Disconnect in the provider list). */
+  confirmDisconnect?: boolean
   /** The page's last test of these keys worked. */
   connected: boolean
   canStore: boolean
@@ -66,12 +68,12 @@ const presetsOf = (provider: ProviderStatus) =>
   ((providerSpecs[provider.provider] as { presets?: readonly ProviderPreset[] }).presets ?? []) as ProviderPreset[]
 
 export function ProviderDialog(props: Props) {
-  const { provider, inUse, chosen, canUse, connected, canStore, oauthReturn } = props
+  const { provider, inUse, chosen, canUse, connected, canStore, oauthReturn, confirmDisconnect } = props
   const { onTested, onUse, onStopUsing, reload, notify, onClose } = props
   const meta = providerMeta[provider.provider]
   const [values, setValues] = useState(() => initialValues(provider))
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [phase, setPhase] = useState<Phase>('idle')
+  const [phase, setPhase] = useState<Phase>(confirmDisconnect ? 'confirm-disconnect' : 'idle')
   const [result, setResult] = useState<ProviderTestData | null>(null)
   const [preset, setPreset] = useState<ProviderPreset | null>(null)
   /** Keys were stored in this dialog: sign-in and email apply after the API restarts. */
