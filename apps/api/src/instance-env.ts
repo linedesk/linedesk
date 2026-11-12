@@ -106,7 +106,7 @@ async function loadPushKeys(db: Db, env: Env) {
 
 /**
  * Whether this process may restart itself to apply a change: only where something starts it again
- * (docker/api-entrypoint.sh sets LINEDESK_SELF_RESTART=1; Docker's restart policy or live mode's
+ * (docker/api-entrypoint.sh sets LINEDESK_SELF_RESTART=1; Docker's restart policy or dev mode's
  * runner does the rest). In `pnpm dev` the API says to restart it instead.
  */
 const canRestart = (env: Env = process.env) => env.LINEDESK_SELF_RESTART === '1'

@@ -1,5 +1,5 @@
 # The whole application. Self-hosting: `docker compose up -d --build` (see README).
-# Development adds docker-compose.dev.yml (local ports for the apps running on the host) through
+# Development adds docker-compose.ports.yml (local ports for the apps running on the host) through
 # `pnpm db:up`, `pnpm voice:up` and `pnpm recording:up`.
 #
 # Isolation: its own project name and network, data only in named volumes, every service with a
@@ -101,7 +101,7 @@ services:
       LINEDESK_TRUSTED_PROXY_RANGES: ${LINEDESK_TRUSTED_PROXY_RANGES:-}
       # The LiveKit address browsers are given, allowed in the CSP's connect-src (docker/Caddyfile).
       LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:-}
-      # Extra script-src/style-src sources; live mode (Vite dev server) needs 'unsafe-inline'. Empty in production.
+      # Extra script-src/style-src sources; dev mode (Vite dev server) needs 'unsafe-inline'. Empty in production.
       LINEDESK_CSP_DEV: ${LINEDESK_CSP_DEV:-}
     volumes: ["caddy_data:/data"]
     mem_limit: ${LINEDESK_PROXY_MEM:-48m}

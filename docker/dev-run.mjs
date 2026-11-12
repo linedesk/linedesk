@@ -1,6 +1,6 @@
-// Live mode (docker-compose.live.yml): runs one service (api, web or agent) from the source checkout
+// Dev mode (docker-compose.dev.yml): runs one service (api, web or agent) from the source checkout
 // mounted at /app and keeps it current, so a code change shows without a new image.
-//   node docker/live-run.mjs [<dir to watch>...] -- <command...>
+//   node docker/dev-run.mjs [<dir to watch>...] -- <command...>
 //
 // - Dependencies: node_modules is a volume shared by the three services. Before each start, when
 //   pnpm-lock.yaml differs from the one it was installed from, `pnpm install --frozen-lockfile` runs
@@ -21,7 +21,7 @@ const DEBOUNCE_MS = 300
 
 const args = process.argv.slice(2)
 const separator = args.indexOf('--')
-if (separator < 0) throw new Error('usage: live-run.mjs [<dir>...] -- <command...>')
+if (separator < 0) throw new Error('usage: dev-run.mjs [<dir>...] -- <command...>')
 const watchDirs = args.slice(0, separator)
 const command = args.slice(separator + 1)
 
@@ -118,9 +118,9 @@ watch(ROOT, (_event, file) => file === 'pnpm-lock.yaml' && onChange(file))
 // A new version of this file: stop the command and exit; Docker's restart policy starts the container
 // again, with the new version.
 watch(`${ROOT}/docker`, (_event, file) => {
-  if (file !== 'live-run.mjs' || stopping) return
+  if (file !== 'dev-run.mjs' || stopping) return
   stopping = true
-  restart('docker/live-run.mjs changed, the container')
+  restart('docker/dev-run.mjs changed, the container')
 })
 
 for (const signal of ['SIGTERM', 'SIGINT']) {

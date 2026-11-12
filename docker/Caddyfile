@@ -7,8 +7,8 @@
 # while a new API or web container starts next to the old one. The upstreams are looked up by name
 # every second (all containers of the service answer), and a request that cannot connect, to a
 # container that is still starting or already stopping, is retried on another one for up to 30 s.
-# A container that failed a request is skipped for LINEDESK_PROXY_FAIL_DURATION (10 s). In live mode
-# (docker-compose.live.yml) a service restarts in place, on the same address, so 1 s there.
+# A container that failed a request is skipped for LINEDESK_PROXY_FAIL_DURATION (10 s). In dev mode
+# (docker-compose.dev.yml) a service restarts in place, on the same address, so 1 s there.
 {
 	servers {
 		# Behind your own reverse proxy: its address or range (LINEDESK_TRUSTED_PROXY_RANGES, e.g. the
@@ -51,7 +51,7 @@
 	#   origin ('self' covers its ws/wss), LiveKit on the host browsers are given (LIVEKIT_PUBLIC_URL, also
 	#   a separate ws:// or wss:// host; empty adds nothing) and OpenRouter's key exchange (admin, "Connect
 	#   with OpenRouter"); media-src: call recordings and voice previews; font-src data: for fonts Vite inlines.
-	#   LINEDESK_CSP_DEV adds sources to script-src and style-src; docker-compose.live.yml sets 'unsafe-inline' for
+	#   LINEDESK_CSP_DEV adds sources to script-src and style-src; docker-compose.dev.yml sets 'unsafe-inline' for
 	#   the Vite dev server's inline preamble and injected styles. Empty in production.
 	# - No framing (clickjacking), no MIME sniffing, the origin only as referrer to other sites,
 	#   the microphone for this origin only (test calls), no camera or location.

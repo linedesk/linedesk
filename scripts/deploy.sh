@@ -19,26 +19,37 @@
 #    finishes the ones it has (up to stop_grace_period, 15 minutes); this script waits for that.
 # First start (nothing running yet): a plain `docker compose up -d`.
 #
-# Live mode (LINEDESK_MODE=live in .env, docker-compose.live.yml, docs/live-mode.md): api, web and agent
-# run from this checkout, so there is nothing to build. scripts/deploy-live.sh moves the checkout to the
+# Dev mode (LINEDESK_MODE=dev in .env, docker-compose.dev.yml, docs/dev-mode.md): api, web and agent
+# run from this checkout, so there is nothing to build. scripts/deploy-dev.sh moves the checkout to the
 # new main (it refuses when the checkout has local changes) and comes back here with --no-build.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Dev mode was called live mode until 2026-11: an .env from then is moved over once (LINEDESK_MODE=live,
+# LINEDESK_LIVE_* limits, docker-compose.live.yml in COMPOSE_FILE), so a server deploys on without a hand edit.
+if [ -f .env ] && grep -q '^LINEDESK_MODE=live$' .env; then
+  sed -i.before-dev-mode -e 's/^LINEDESK_MODE=live$/LINEDESK_MODE=dev/' -e 's/^LINEDESK_LIVE_/LINEDESK_DEV_/' \
+    -e 's/docker-compose\.live\.yml/docker-compose.dev.yml/g' .env
+  echo "Moved .env from live mode to dev mode (the old file is .env.before-dev-mode)."
+  [ "${LINEDESK_MODE-}" = live ] && export LINEDESK_MODE=dev
+fi
+# The deploy-dev.sh of a checkout from before the rename sets LINEDESK_LIVE_UPDATED.
+[ -n "${LINEDESK_LIVE_UPDATED:-}" ] && export LINEDESK_DEV_UPDATED=1
+
 mode=${LINEDESK_MODE-$(sed -n 's/^LINEDESK_MODE=//p' .env 2>/dev/null | tail -1)}
 case "$mode" in
-  live)
-    if ! grep -qx linedesk-live <<<"$(docker compose config --images)"; then
-      echo "LINEDESK_MODE=live, but COMPOSE_FILE does not include docker-compose.live.yml (see docker-compose.live.yml)" >&2
+  dev)
+    if ! grep -qx linedesk-dev <<<"$(docker compose config --images)"; then
+      echo "LINEDESK_MODE=dev, but COMPOSE_FILE does not include docker-compose.dev.yml (see docker-compose.dev.yml)" >&2
       exit 1
     fi
-    [ -n "${LINEDESK_LIVE_UPDATED:-}" ] || exec scripts/deploy-live.sh
+    [ -n "${LINEDESK_DEV_UPDATED:-}" ] || exec scripts/deploy-dev.sh
     # Built once: one small image for api, web and agent (the code is not in it) and the proxy.
-    docker image inspect linedesk-live linedesk-proxy >/dev/null 2>&1 || docker compose build api proxy
+    docker image inspect linedesk-dev linedesk-proxy >/dev/null 2>&1 || docker compose build api proxy
     ;;
   "") ;;
   *)
-    echo "LINEDESK_MODE is '$mode'; it is either live or empty (image mode)" >&2
+    echo "LINEDESK_MODE is '$mode'; it is either dev or empty (image mode)" >&2
     exit 1
     ;;
 esac
@@ -143,7 +154,7 @@ update_proxy() {
     docker compose up -d --no-build --no-deps proxy
     container=$(containers_of proxy | head -1)
   fi
-  # Compared with the file in the container, not the image: live mode builds no new proxy image.
+  # Compared with the file in the container, not the image: dev mode builds no new proxy image.
   if docker exec "$container" cat /etc/caddy/Caddyfile | cmp -s - docker/Caddyfile; then
     log "proxy: unchanged"
     return

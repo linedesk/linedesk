@@ -56,7 +56,7 @@ export function normaliseOrigin(origin: string): string {
 /** The origins whose pages may use the session cookie: Better Auth's and /v1's cross-site checks (csrf.ts). */
 /**
  * Extra origins for local development only (LINEDESK_DEV_ORIGINS, comma-separated), e.g. the stack's
- * localhost address next to its public tunnel (live mode runs with NODE_ENV=production, so this is not
+ * localhost address next to its public tunnel (dev mode runs with NODE_ENV=production, so this is not
  * tied to it). Every origin listed can use the session cookie: leave it empty on real installs.
  */
 function devOrigins(): string[] {

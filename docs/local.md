@@ -1,6 +1,6 @@
 # A local stack like production
 
-The self-host stack (`docker compose`, optionally in live mode, docs/live-mode.md) on your own machine,
+The self-host stack (`docker compose`, optionally in dev mode, docs/dev-mode.md) on your own machine,
 reachable on a public HTTPS address so that everything that needs one works as on a server: sign-in with
 Google, Microsoft or GitHub, calendar connections, passkeys, web push and the test call from a phone.
 

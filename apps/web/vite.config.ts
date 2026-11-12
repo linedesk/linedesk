@@ -13,13 +13,13 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       strictPort: true,
       proxy: { '/api': api, '/v1': api, '/mcp': api },
-      ...behindProxy(env.LINEDESK_LIVE_PUBLIC_URL),
+      ...behindProxy(env.LINEDESK_DEV_PUBLIC_URL),
     },
   }
 })
 
 /**
- * Live mode (docker-compose.live.yml): the dev server runs behind the stack's Caddy at the public URL.
+ * Dev mode (docker-compose.dev.yml): the dev server runs behind the stack's Caddy at the public URL.
  * The browser opens the hot-reload WebSocket on that URL's host, scheme and port (not the dev server's
  * own), and the dev server accepts requests for that host name. It serves only what the web app is
  * built from (no server code, no .env), since the URL is public.
