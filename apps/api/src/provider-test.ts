@@ -2,6 +2,7 @@
 // reason; it never contains a key.
 import { providerSpec, type ProviderName, type ProviderTestData, type RecordingStoreName } from '@linedesk/actions'
 import { smtpCheck } from './email.ts'
+import { isMailService, type MailService, smtpOf } from './email-services.ts'
 import type { ProviderConfig } from './provider-settings.ts'
 import {
   createFileRecordingStore,
@@ -30,7 +31,10 @@ const oauthApps: readonly ProviderName[] = ['google', 'microsoft', 'github', 'oi
 const isOAuthApp = (provider: ProviderName): provider is OAuthApp => oauthApps.includes(provider)
 
 /** How to test each provider of the registry (packages/actions/src/admin.ts). */
-const checks: Record<Exclude<ProviderName, RecordingStoreName | OAuthApp | 'smtp'>, (values: Values) => Request> = {
+const checks: Record<
+  Exclude<ProviderName, RecordingStoreName | OAuthApp | 'smtp' | MailService>,
+  (values: Values) => Request
+> = {
   twilio: values => ({
     url: `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(values.account_sid!)}.json`,
     init: { headers: { authorization: basic(values.account_sid!, values.auth_token!) } },
@@ -52,24 +56,28 @@ const checks: Record<Exclude<ProviderName, RecordingStoreName | OAuthApp | 'smtp
  * timeout, a refused login), never the server's own text beyond a status code: the SMTP URL may
  * point anywhere, and its password must not come back.
  */
-async function testSmtp(values: Values): Promise<ProviderTestData> {
-  const result = await smtpCheck(values.url!, values.from)
+async function testSmtp(
+  url: string,
+  from: string | undefined,
+  loginHint = 'the user and password in the SMTP URL',
+): Promise<ProviderTestData> {
+  const result = await smtpCheck(url, from)
   if (result.ok) return { ok: true, message: 'Connected' }
   const password = (() => {
     try {
-      return decodeURIComponent(new URL(values.url!).password)
+      return decodeURIComponent(new URL(url).password)
     } catch {
       return ''
     }
   })()
-  const scrubbed = [values.url!, password]
+  const scrubbed = [url, password]
     .filter(Boolean)
     .reduce((t, secret) => t.replaceAll(secret, '[redacted]'), result.message)
   const login = /\b(535|534|530|EAUTH)\b/.test(scrubbed)
   return {
     ok: false,
     message: login
-      ? 'The mail server refused the login: check the user and password in the SMTP URL'
+      ? `The mail server refused the login: check ${loginHint}`
       : scrubbed.startsWith('Could not send email: ')
         ? scrubbed.slice(0, MAX_MESSAGE) // our own text: which host did not answer
         : 'The mail server did not accept the connection: check host, port and TLS (smtps:// for port 465, smtp:// for 587)',
@@ -200,7 +208,11 @@ export async function testProvider(
   const missing = Object.keys(fields).filter(field => !fields[field]!.optional && !values[field])
   if (missing.length) return { ok: false, message: `Not set: ${missing.map(field => fields[field]!.label).join(', ')}` }
   if (isRecordingStore(provider)) return testRecordingStore(provider, values, doFetch, env)
-  if (provider === 'smtp') return testSmtp(values)
+  if (provider === 'smtp') return testSmtp(values.url!, values.from)
+  if (isMailService(provider)) {
+    const smtp = smtpOf(provider, values)
+    return smtp ? testSmtp(smtp.url, smtp.from, 'the key or password') : { ok: false, message: 'Not set up' }
+  }
   if (isOAuthApp(provider)) return testOAuthApp(provider, values, doFetch)
 
   // Whatever comes back, a key must not travel on: drop every value that appears in the text.

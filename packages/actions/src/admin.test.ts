@@ -71,7 +71,7 @@ test('every provider has a category, and the first of each category is the defau
     ['llm', ['openrouter', 'openai']],
     ['tts', ['elevenlabs', 'cartesia']],
     ['realtime', ['openai_realtime']],
-    ['email', ['smtp']],
+    ['email', ['smtp', 'resend', 'postmark', 'sendgrid', 'brevo', 'mailgun', 'gmail']],
     ['sign_in', ['google', 'microsoft', 'github', 'oidc']],
     ['recording', ['file', 's3']],
   ])

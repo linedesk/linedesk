@@ -47,6 +47,32 @@ export const providerMeta: Record<ProviderName, Meta> = {
   file: { mark: { icon: 'disk' }, blurb: 'Recordings stay on this server.' },
   s3: { mark: { brand: 'amazons3' }, blurb: 'AWS S3, R2, Hetzner, Backblaze, MinIO.' },
   smtp: { mark: { icon: 'mail' }, blurb: 'Sign-in codes, invitations and call emails.' },
+  resend: { mark: { brand: 'resend' }, blurb: 'Email with an API key.', keysUrl: 'https://resend.com/api-keys' },
+  postmark: {
+    mark: { icon: 'mail' },
+    blurb: 'Email with a server token.',
+    keysUrl: 'https://account.postmarkapp.com/servers',
+  },
+  sendgrid: {
+    mark: { icon: 'mail' },
+    blurb: 'Email with an API key.',
+    keysUrl: 'https://app.sendgrid.com/settings/api_keys',
+  },
+  brevo: {
+    mark: { brand: 'brevo' },
+    blurb: 'Email with an SMTP key.',
+    keysUrl: 'https://app.brevo.com/settings/keys/smtp',
+  },
+  mailgun: {
+    mark: { brand: 'mailgun' },
+    blurb: 'Email with SMTP credentials.',
+    keysUrl: 'https://app.mailgun.com/mg/sending/domains',
+  },
+  gmail: {
+    mark: { brand: 'gmail' },
+    blurb: 'Email from a Gmail address.',
+    keysUrl: 'https://myaccount.google.com/apppasswords',
+  },
   google: {
     mark: { brand: 'google' },
     blurb: 'Sign in with Google and Google Calendar.',
@@ -87,8 +113,6 @@ export const presetMeta: Record<string, { mark: Mark; keysUrl?: string }> = {
   Hetzner: { mark: { brand: 'hetzner' }, keysUrl: 'https://console.hetzner.cloud/projects' },
   'Backblaze B2': { mark: { brand: 'backblaze' }, keysUrl: 'https://secure.backblaze.com/app_keys.htm' },
   MinIO: { mark: { brand: 'minio' } },
-  Postmark: { mark: { icon: 'mail' }, keysUrl: 'https://account.postmarkapp.com/servers' },
-  Resend: { mark: { icon: 'mail' }, keysUrl: 'https://resend.com/api-keys' },
   'Amazon SES': { mark: { brand: 'amazons3' }, keysUrl: 'https://console.aws.amazon.com/ses/home#/smtp' },
 }
 

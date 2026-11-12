@@ -8,6 +8,7 @@ import { providerSpec, providersIn, restartCategories } from '@linedesk/actions'
 import { instance_settings, provider_settings, type Tx } from '@linedesk/db'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import webpush from 'web-push'
+import { mailServiceFromEnv } from './email-services.ts'
 import { decryptSecret, encryptSecret, hasSecretsKey } from './secrets.ts'
 
 type Env = Record<string, string | undefined>
@@ -35,12 +36,13 @@ const storedRows = (db: Db) =>
     .from(provider_settings)
     .where(and(isNull(provider_settings.workspace_id), inArray(provider_settings.provider, restartProviders)))
 
-/** Changes whenever a stored sign-in or email setting changes. */
-const signatureOf = (rows: { provider: string; field: string; updated_at: string | Date }[]) =>
-  rows
-    .map(row => `${row.provider}.${row.field}@${new Date(row.updated_at).toISOString()}`)
-    .sort()
-    .join(',')
+/** Changes whenever a stored sign-in or email setting, or the picked email provider, changes. */
+const signatureOf = (rows: { provider: string; field: string; updated_at: string | Date }[], emailPick: string | null) =>
+  [
+    ...rows.map(row => `${row.provider}.${row.field}@${new Date(row.updated_at).toISOString()}`).sort(),
+    `email:${emailPick ?? ''}`,
+  ].join(',')
+const EMAIL_PICK = 'active_provider.email'
 
 let loadedSignature: string | null = null
 
@@ -56,7 +58,14 @@ export async function loadInstanceEnv(db: Db, env: Env = process.env): Promise<v
       console.error(`${row.provider} ${row.field}: the stored value cannot be decrypted (SECRETS_KEY changed?); set it again in Admin, Providers`)
     }
   }
-  loadedSignature = signatureOf(rows)
+  // A mail service (Resend, Gmail, ...) sends as SMTP: its fields become SMTP_URL and EMAIL_FROM (email-services.ts).
+  const emailPick = await readSetting(db, EMAIL_PICK)
+  const mail = mailServiceFromEnv(emailPick ?? env.EMAIL_PROVIDER ?? null, env)
+  if (mail) {
+    setVariable(env, 'SMTP_URL', mail.url)
+    if (mail.from) setVariable(env, 'EMAIL_FROM', mail.from)
+  }
+  loadedSignature = signatureOf(rows, emailPick)
   await loadPushKeys(db, env).catch(error => console.error('push notifications are off: could not load their keys', error))
 }
 
@@ -128,7 +137,7 @@ export function restartToApply(reason: string) {
 /** Restarts when the stored sign-in or email settings differ from what this process loaded. */
 async function checkForChange(db: Db) {
   try {
-    const signature = signatureOf(await storedRows(db))
+    const signature = signatureOf(await storedRows(db), await readSetting(db, EMAIL_PICK))
     if (loadedSignature === null || signature === loadedSignature) return
     restartToApply('Sign-in or email settings changed')
     if (!canRestart()) loadedSignature = signature // said once; `pnpm dev` is restarted by hand

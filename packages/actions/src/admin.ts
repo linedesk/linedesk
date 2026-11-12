@@ -31,6 +31,7 @@ export const categoryEnv: Partial<Record<ProviderCategory, string>> = {
   stt: 'STT_PROVIDER',
   llm: 'LLM_PROVIDER',
   tts: 'TTS_PROVIDER',
+  email: 'EMAIL_PROVIDER',
   recording: 'RECORDING_STORE',
 }
 export const categoryNames = Object.keys(providerCategories) as [ProviderCategory, ...ProviderCategory[]]
@@ -54,6 +55,14 @@ type ProviderSpec = {
 
 const apiKey = (env: string): ProviderField => ({ label: 'API key', env, secret: true })
 const model = (env: string): ProviderField => ({ label: 'Model', env, secret: false, optional: true })
+/** Every mail service's sender. Empty: the service's default (Gmail: its address), else "Linedesk <no-reply@localhost>". */
+const emailFrom: ProviderField = {
+  label: 'From',
+  env: 'EMAIL_FROM',
+  secret: false,
+  optional: true,
+  hint: 'Linedesk <no-reply@example.com>',
+}
 const voiceFields = {
   model: model('TTS_MODEL'),
   voice_id: { label: 'Default voice', env: 'TTS_VOICE_ID', secret: false, optional: true },
@@ -228,32 +237,70 @@ export const providers = {
         secret: true,
         hint: 'smtps://user:password@smtp.example.com:465',
       },
-      from: {
-        label: 'From',
-        env: 'EMAIL_FROM',
-        secret: false,
-        optional: true,
-        hint: 'Linedesk <no-reply@example.com>',
-      },
+      from: emailFrom,
     },
-    help: 'Sends sign-in codes, invitations and call emails. Any mail service with SMTP: Postmark, Resend, Amazon SES, Mailgun or your own server.',
+    help: 'Sends sign-in codes, invitations and call emails through any mail server: Amazon SES, your own server or another service with SMTP.',
     presets: [
-      {
-        label: 'Postmark',
-        values: { url: 'smtp://<server-token>:<server-token>@smtp.postmarkapp.com:587' },
-        help: 'Replace both <server-token> with your Postmark server API token.',
-      },
-      {
-        label: 'Resend',
-        values: { url: 'smtps://resend:<api-key>@smtp.resend.com:465' },
-        help: 'Replace <api-key> with a Resend API key.',
-      },
       {
         label: 'Amazon SES',
         values: { url: 'smtps://<smtp-user>:<smtp-password>@email-smtp.<region>.amazonaws.com:465' },
         help: 'Use SES SMTP credentials (not your AWS access key) and your region, e.g. us-east-1.',
       },
     ],
+  },
+  // Mail services with a key or an app password instead of an SMTP URL. The API turns their fields into the SMTP
+  // connection it sends with (apps/api/src/email-services.ts). One of them sends: the one picked, else the first set up.
+  resend: {
+    label: 'Resend',
+    category: 'email',
+    fields: { api_key: apiKey('RESEND_API_KEY'), from: emailFrom },
+    help: 'An API key with sending access. The From address must be on a domain verified in Resend.',
+  },
+  postmark: {
+    label: 'Postmark',
+    category: 'email',
+    fields: {
+      server_token: { label: 'Server API token', env: 'POSTMARK_SERVER_TOKEN', secret: true },
+      from: emailFrom,
+    },
+    help: 'The server API token of a Postmark server. The From address must be a verified sender signature or domain.',
+  },
+  sendgrid: {
+    label: 'SendGrid',
+    category: 'email',
+    fields: { api_key: apiKey('SENDGRID_API_KEY'), from: emailFrom },
+    help: 'An API key with Mail Send access. The From address must be a verified sender in SendGrid.',
+  },
+  brevo: {
+    label: 'Brevo',
+    category: 'email',
+    fields: {
+      login: { label: 'SMTP login', env: 'BREVO_SMTP_LOGIN', secret: false, hint: '1234ab001@smtp-brevo.com' },
+      smtp_key: { label: 'SMTP key', env: 'BREVO_SMTP_KEY', secret: true },
+      from: emailFrom,
+    },
+    help: 'The SMTP login and an SMTP key from Brevo, SMTP & API (not an API key).',
+  },
+  mailgun: {
+    label: 'Mailgun',
+    category: 'email',
+    fields: {
+      smtp_user: { label: 'SMTP user', env: 'MAILGUN_SMTP_USER', secret: false, hint: 'postmaster@mg.example.com' },
+      smtp_password: { label: 'SMTP password', env: 'MAILGUN_SMTP_PASSWORD', secret: true },
+      region: { label: 'Region', env: 'MAILGUN_REGION', secret: false, optional: true, hint: 'us (or eu)' },
+      from: emailFrom,
+    },
+    help: 'The SMTP credentials of a sending domain (Mailgun, Sending, Domain settings, SMTP credentials).',
+  },
+  gmail: {
+    label: 'Gmail',
+    category: 'email',
+    fields: {
+      address: { label: 'Gmail address', env: 'GMAIL_ADDRESS', secret: false, hint: 'desk@gmail.com' },
+      app_password: { label: 'App password', env: 'GMAIL_APP_PASSWORD', secret: true },
+      from: { ...emailFrom, hint: 'Empty: the Gmail address' },
+    },
+    help: 'A Gmail or Google Workspace address with 2-Step Verification and an app password (Google account, Security, App passwords). Gmail sends a few hundred emails a day at most: for a small team.',
   },
   // Sign-in and calendar: OAuth apps. Google and Microsoft serve both sign-in and the calendar connection.
   google: {

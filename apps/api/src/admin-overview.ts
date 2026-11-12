@@ -27,6 +27,12 @@ export const pricePerMinute: Record<ProviderName, number> = {
   s3: 0,
   // Email and sign-in are not billed per call minute either.
   smtp: 0,
+  resend: 0,
+  postmark: 0,
+  sendgrid: 0,
+  brevo: 0,
+  mailgun: 0,
+  gmail: 0,
   google: 0,
   microsoft: 0,
   github: 0,

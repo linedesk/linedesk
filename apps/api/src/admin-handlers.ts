@@ -121,6 +121,8 @@ export const adminHandlers: Record<string, Handler> = {
 
   'provider.setActive': async ({ tx, actor, now }, input) => {
     await setActiveProvider(tx, input.category, input.provider, actor.actorId, now)
+    // Which mail service sends is read at start, like its keys (instance-env.ts).
+    if (restartCategories.includes(input.category)) checkInstanceEnvSoon(db)
     return { rows: {}, data: { active: (await providerStatus(tx)).active } }
   },
 

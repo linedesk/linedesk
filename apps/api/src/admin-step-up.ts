@@ -27,8 +27,15 @@ async function targetUserId(fields: { userId?: unknown; memberId?: unknown }): P
   return row?.userId ?? null
 }
 
-/** provider.setKeys / clearKeys of email or sign-in: whoever controls these can sign in as anyone. */
+/**
+ * provider.setKeys / clearKeys of email or sign-in, or which email provider sends (setActive): whoever controls these
+ * can sign in as anyone.
+ */
 export function changesSignInOrEmail(name: string, input: unknown): boolean {
+  if (name === 'provider.setActive') {
+    const category = (input as { category?: unknown } | null)?.category
+    return typeof category === 'string' && (restartCategories as readonly string[]).includes(category)
+  }
   if (name !== 'provider.setKeys' && name !== 'provider.clearKeys') return false
   const provider = (input as { provider?: unknown } | null)?.provider
   if (typeof provider !== 'string' || !(providerNames as string[]).includes(provider)) return false
