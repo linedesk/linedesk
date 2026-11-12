@@ -435,6 +435,34 @@
       "when": 1794485589114,
       "tag": "0061_remove_greet_saved_contacts",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1794486817030,
+      "tag": "0062_assistant_talking_speed",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1794486882328,
+      "tag": "0063_assistant_silence_reminder",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1794487279616,
+      "tag": "0064_assistant_silence_hang_up",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1794487540652,
+      "tag": "0065_assistant_max_call_minutes",
+      "breakpoints": true
     }
   ]
 }

@@ -18,7 +18,7 @@ import { earlyOrigin, livekitParticipants } from './early-origin.ts'
 import { createConfigLoader, parseProviderSettings, type AgentConfig } from './config.ts'
 import { AGENT_NAME, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
-import { createPipeline, createTts, greetingVoice, summaryLlm, warmUpLlm } from './pipeline.ts'
+import { createPipeline, createTts, greetingVoice, summaryLlm, talkingSpeedOf, warmUpLlm } from './pipeline.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
 import { logTurnMetrics } from './turn-metrics.ts'
 import { followCallerLanguage } from './caller-language.ts'
@@ -219,7 +219,7 @@ async function greet(session: voice.AgentSession, config: AgentConfig, call: Cal
     return 'cached'
   }
   session.say(text)
-  void synthesize(createTts(config.tts, call.assistant?.voice, mainLanguageOf(call.assistant?.languages)), text)
+  void synthesize(createTts(config.tts, call.assistant?.voice, mainLanguageOf(call.assistant?.languages), talkingSpeedOf(call.assistant)), text)
     .then(synthesized => greetingCache.put(key, synthesized))
     .catch(e => console.warn(`could not store the greeting audio: ${e instanceof Error ? e.message : String(e)}`))
   return 'synthesized'
@@ -239,7 +239,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   void callerJoined.then(caller => (callerIdentity = caller.identity), () => {})
   const silence = silencePolicyOf(call.assistant)
   const languages = { main: mainLanguageOf(call.assistant?.languages), others: otherLanguagesOf(call.assistant?.languages) }
-  const pipeline = createPipeline(config, call.assistant?.voice, silence.firstGapS, languages)
+  const pipeline = createPipeline(config, call.assistant?.voice, silence.firstGapS, languages, talkingSpeedOf(call.assistant))
   const session = new voice.AgentSession(pipeline)
   // Fixed lines during the call are in the language spoken now: the main one until the caller switches.
   const spokenNow = followCallerLanguage(session, pipeline.tts, languages, call.callId)
@@ -267,7 +267,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   // side nor its time limit ends that call (the trunk's CALL_MAX_MINUTES does).
   const transferred = () => log.transferred
   remindOnSilence(session, silence, {
-    remind: () => void session.say(lines().stillThere),
+    remind: () => void session.say(silence.reminder ?? lines().stillThere),
     close: () => {
       log.record('system', 'Hung up after silence on the line')
       hangUpAfterLine(sayLine(silence.closing), deleteRoom)
@@ -277,7 +277,8 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   })
   // A test call from the web app ends sooner, so a forgotten browser tab does not run up provider minutes.
   const isTest = call.businessNumber === null
-  const limitMinutes = isTest ? TEST_CALL_LIMIT_MS / 60_000 : ASSISTANT_CALL_MAX_MINUTES
+  // A phone call: the assistant's own limit, never above ASSISTANT_CALL_MAX_MINUTES (an older API sends none).
+  const limitMinutes = isTest ? TEST_CALL_LIMIT_MS / 60_000 : Math.min(call.assistant?.max_call_minutes ?? ASSISTANT_CALL_MAX_MINUTES, ASSISTANT_CALL_MAX_MINUTES)
   const cancelLimit = hangUpAtCallLimit(limitMinutes * 60_000, {
     transferred,
     goodbye: () => {
@@ -286,7 +287,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     },
   })
   session.on(voice.AgentSessionEventTypes.Close, cancelLimit)
-  const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, [], call.caller, call.documents)
+  const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, [], call.caller, call.documents, call.timeZone)
   const collect: CollectContext = {
     log,
     today: () => call.booking?.todayDate ?? new Date().toISOString().slice(0, 10),
@@ -318,7 +319,7 @@ async function addTransfer(
     const caller = await callerJoined
     const transfer = await transferFor(ctx, api, call, config, caller.identity, stopRecording)
     if (!transfer) return false
-    await agent.updateInstructions(buildInstructions(call.assistant, call.businessHours, call.booking, transfer.contacts.map(c => c.contact), call.caller, call.documents))
+    await agent.updateInstructions(buildInstructions(call.assistant, call.businessHours, call.booking, transfer.contacts.map(c => c.contact), call.caller, call.documents, call.timeZone))
     await agent.updateTools(assistantTools(api, call, log, endCall, flagUrgent, transfer, collect))
     return true
   } catch (e) {

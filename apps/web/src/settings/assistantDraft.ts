@@ -3,8 +3,8 @@
 import {
   type Faq, FAQS_MAX, INSTRUCTIONS_MAX, RING_SECONDS_DEFAULT, TRANSFER_CONDITION_MAX,
   TRANSFER_CONTACTS_MAX, type Service, SERVICES_MAX, servicesOf, TRANSFER_NAME_MAX, onCallNumberProblem,
-  DEFAULT_SILENCE_CLOSING, SILENCE_CLOSING_MAX, SILENCE_FIRST_GAP_MAX_S, SILENCE_FIRST_GAP_MIN_S, SILENCE_REMINDERS_MAX,
-  SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT, BEHAVIOURS, type BehaviourId, behaviourOn, type AiDisclosure, DEFAULT_AI_DISCLOSURE, type CommunicationStyle, DEFAULT_COMMUNICATION_STYLE, type AssistantLanguages, ENGLISH_ONLY, type Language, languageCodes, LANGUAGES, mainLanguageOf, swapDefault,
+  DEFAULT_SILENCE_CLOSING, DEFAULT_SILENCE_REMINDER, localizedDefault, type TalkingSpeed, SILENCE_CLOSING_MAX, SILENCE_FIRST_GAP_MAX_S, SILENCE_FIRST_GAP_MIN_S, SILENCE_REMINDERS_MAX,
+  SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT, SILENCE_HANG_UP_DEFAULT_S, SILENCE_HANG_UP_MAX_S, ASSISTANT_CALL_MAX_MINUTES, BEHAVIOURS, type BehaviourId, behaviourOn, type AiDisclosure, DEFAULT_AI_DISCLOSURE, type CommunicationStyle, DEFAULT_COMMUNICATION_STYLE, type AssistantLanguages, ENGLISH_ONLY, type Language, languageCodes, LANGUAGES, mainLanguageOf, swapDefault,
 } from '@linedesk/actions'
 import type { Assistant, BusinessProfile, TransferContact } from '@linedesk/db/types'
 import { formatNumber, renameInGreeting, toE164 } from '../onboarding/flow.ts'
@@ -30,7 +30,14 @@ export type Draft = {
   /** Silence on the line, as typed: seconds before the first "Are you still there?", how many, the closing line. */
   silence_first_gap_s: string
   silence_reminders: string
+  silence_hang_up_s: string
+  /** The longest the assistant stays on a call, in minutes, as typed. */
+  max_call_minutes: string
   silence_closing: string
+  /** Asked when the line is quiet; the default (in the main language) is saved as null. */
+  silence_reminder: string
+  /** How fast the assistant talks. */
+  talking_speed: TalkingSpeed
   /** The behaviour checklist, every switch with its value (the default where the owner set none). */
   behaviours: Record<BehaviourId, boolean>
   /** Languages besides English; the picked ones are kept while English only is chosen, but saved empty. */
@@ -68,8 +75,12 @@ export function draftOf(a: Assistant): Draft {
     // A row synced before these columns existed has none: the defaults.
     silence_first_gap_s: String(a.silence_first_gap_s ?? SILENCE_FIRST_GAP_DEFAULT_S),
     silence_reminders: String(a.silence_reminders ?? SILENCE_REMINDERS_DEFAULT),
+    silence_hang_up_s: String(a.silence_hang_up_s ?? SILENCE_HANG_UP_DEFAULT_S),
+    max_call_minutes: String(a.max_call_minutes ?? ASSISTANT_CALL_MAX_MINUTES),
     // None stored: the default line, shown so it can be edited.
     silence_closing: a.silence_closing ?? DEFAULT_SILENCE_CLOSING,
+    silence_reminder: a.silence_reminder ?? localizedDefault(DEFAULT_SILENCE_REMINDER, mainLanguageOf(a.languages)),
+    talking_speed: a.talking_speed ?? 'normal',
     behaviours: behavioursOf(a.behaviours),
     languages: languagesOf(a.languages),
   }
@@ -118,6 +129,7 @@ export function withMainLanguage(d: Draft, main: Language): Draft {
     greeting: swap(d.greeting),
     greeting_outside: swap(d.greeting_outside),
     silence_closing: swap(d.silence_closing),
+    silence_reminder: swap(d.silence_reminder),
   }
 }
 
@@ -145,7 +157,10 @@ export const normalized = (d: Draft): Draft => ({
   website: d.website.trim(),
   silence_first_gap_s: d.silence_first_gap_s.trim(),
   silence_reminders: d.silence_reminders.trim(),
+  silence_hang_up_s: d.silence_hang_up_s.trim(),
+  max_call_minutes: d.max_call_minutes.trim(),
   silence_closing: d.silence_closing.trim(),
+  silence_reminder: d.silence_reminder.trim(),
   // As saved: no picked languages unless "These languages", so switching back to None is clean after Save.
   languages: languagesToSave(d).languages,
 })
@@ -165,33 +180,48 @@ const transferDraftOf = (c: TransferDraft): TransferDraft => ({
 const wholeIn = (typed: string, min: number, max: number) => /^\d+$/.test(typed.trim()) && Number(typed) >= min && Number(typed) <= max
 
 /** Why the silence settings cannot be saved, or null. */
-export function silenceProblem(d: Pick<Draft, 'silence_first_gap_s' | 'silence_reminders' | 'silence_closing'>): string | null {
+export function silenceProblem(d: Pick<Draft, 'silence_first_gap_s' | 'silence_reminders' | 'silence_hang_up_s' | 'max_call_minutes' | 'silence_closing' | 'silence_reminder'>): string | null {
   if (!wholeIn(d.silence_first_gap_s, SILENCE_FIRST_GAP_MIN_S, SILENCE_FIRST_GAP_MAX_S)) return `The first wait is ${SILENCE_FIRST_GAP_MIN_S} to ${SILENCE_FIRST_GAP_MAX_S} seconds.`
   if (!wholeIn(d.silence_reminders, 0, SILENCE_REMINDERS_MAX)) return `Ask 0 to ${SILENCE_REMINDERS_MAX} times.`
+  const lastAsk = Number(d.silence_first_gap_s) * Number(d.silence_reminders)
+  if (!wholeIn(d.silence_hang_up_s, SILENCE_FIRST_GAP_MIN_S, SILENCE_HANG_UP_MAX_S)) return `Hang up after ${SILENCE_FIRST_GAP_MIN_S} to ${SILENCE_HANG_UP_MAX_S} seconds.`
+  if (Number(d.silence_hang_up_s) <= lastAsk) return `Hang up after the last question: more than ${lastAsk} seconds.`
+  if (!wholeIn(d.max_call_minutes, 1, ASSISTANT_CALL_MAX_MINUTES)) return `The longest call is 1 to ${ASSISTANT_CALL_MAX_MINUTES} minutes.`
+  if (d.silence_reminder.trim().length > SILENCE_CLOSING_MAX) return `The reminder is at most ${SILENCE_CLOSING_MAX} characters.`
   if (d.silence_closing.trim().length > SILENCE_CLOSING_MAX) return `The closing line is at most ${SILENCE_CLOSING_MAX} characters.`
   return null
 }
 
-/** The silence settings to save: the closing line is null when it is the default (or empty). */
+/**
+ * The silence settings to save: the closing line is null when it is the default (or empty); the reminder too, also
+ * when it is the main language's default, so a call says it in the language spoken at that moment.
+ */
 export const silenceToSave = (d: Draft) => {
   const closing = d.silence_closing.trim()
+  const reminder = d.silence_reminder.trim()
+  const defaultReminder = reminder === DEFAULT_SILENCE_REMINDER || reminder === localizedDefault(DEFAULT_SILENCE_REMINDER, mainOf(d))
   return {
     silence_first_gap_s: Number(d.silence_first_gap_s),
     silence_reminders: Number(d.silence_reminders),
+    silence_hang_up_s: Number(d.silence_hang_up_s),
+    max_call_minutes: Number(d.max_call_minutes),
+    silence_reminder: reminder && !defaultReminder ? reminder : null,
     silence_closing: closing && closing !== DEFAULT_SILENCE_CLOSING ? closing : null,
   }
 }
 
-/** What the caller hears when the line stays silent, in words for the help line. */
-export function silenceSummary(d: Pick<Draft, 'silence_first_gap_s' | 'silence_reminders'>): string {
+/** When the assistant asks whether the caller is still there, in words for the help line. */
+export function silenceSummary(d: Pick<Draft, 'silence_first_gap_s' | 'silence_reminders' | 'silence_reminder'>): string {
   const gap = Number(d.silence_first_gap_s)
-  const times = Number(d.silence_reminders)
-  // Seconds of silence at each step: the first gap, then each wait twice the one before.
-  const at: number[] = []
-  for (let i = 0; i <= times; i++) at.push((at[i - 1] ?? 0) + gap * 2 ** i)
-  const end = at.pop()!
-  if (!times) return `After ${gap} seconds of silence the assistant says the closing line and hangs up. Never while a call is transferred.`
-  return `Asks "Are you still there?" after ${at.join(', ')} seconds of silence, says the closing line and hangs up at ${end} seconds. Never while a call is transferred.`
+  const asks = Array.from({ length: Number(d.silence_reminders) }, (_, i) => gap * (i + 1))
+  if (!asks.length) return 'Never asks: it only hangs up after the silence below.'
+  const when = asks.length > 1 ? `${asks.slice(0, -1).join(', ')} and ${asks.at(-1)}` : `${asks[0]}`
+  return `Asks "${d.silence_reminder.trim() || DEFAULT_SILENCE_REMINDER}" after ${when} seconds of silence. Never while a call is transferred.`
+}
+
+/** When the assistant ends a call itself, in words for the help line. */
+export function hangUpSummary(d: Pick<Draft, 'silence_hang_up_s' | 'max_call_minutes'>): string {
+  return `Says this and hangs up at ${Number(d.silence_hang_up_s)} seconds of silence. At ${Number(d.max_call_minutes)} minutes it says goodbye and hangs up. A call put through to a person goes on.`
 }
 
 /** "(503) 555-0199" and "+1 503 555 0199" are the same number: both show as the latter. */

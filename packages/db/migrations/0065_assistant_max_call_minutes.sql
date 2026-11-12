@@ -1,0 +1,1 @@
+ALTER TABLE "assistants" ADD COLUMN "max_call_minutes" integer DEFAULT 25 NOT NULL;

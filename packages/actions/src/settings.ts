@@ -1,6 +1,7 @@
 import { AI_DISCLOSURE_MODES, BEHAVIOUR_IDS, type BehaviourId, COMMUNICATION_STYLES, REMOVED_BEHAVIOUR_IDS } from './assistant-prompt.ts'
 import type { Closure } from '@linedesk/db/types'
 import { z } from 'zod'
+import { ASSISTANT_CALL_MAX_MINUTES } from './calls.ts'
 import { defineAction } from './define.ts'
 import { JOB_VALUE_MAX_CENTS } from './insights.ts'
 import { FAQS_MAX, faqSchema, SERVICES_MAX, serviceSchema } from './knowledge.ts'
@@ -148,23 +149,35 @@ export const contactRestore = defineAction({
 export const INSTRUCTIONS_MAX = 20_000
 
 /**
- * Silence on the line: after a first quiet gap the assistant asks "Are you still there?", again after a gap twice as
- * long, and so on for the number of reminders; then it says the closing line and hangs up. Never during a transfer.
+ * Silence on the line: after a quiet gap the assistant asks "Are you still there?", again after the same gap, for the
+ * number of reminders; at the hang-up time it says the closing line and hangs up. Never during a transfer.
+ * The defaults ask at 5 and 10 seconds of silence and hang up at 15.
  */
-export const SILENCE_FIRST_GAP_DEFAULT_S = 8
+export const SILENCE_FIRST_GAP_DEFAULT_S = 5
 export const SILENCE_FIRST_GAP_MIN_S = 4
 export const SILENCE_FIRST_GAP_MAX_S = 30
 export const SILENCE_REMINDERS_DEFAULT = 2
 export const SILENCE_REMINDERS_MAX = 4
+export const SILENCE_HANG_UP_DEFAULT_S = 15
+export const SILENCE_HANG_UP_MAX_S = 120
 export const SILENCE_CLOSING_MAX = 200
 export const DEFAULT_SILENCE_CLOSING = "I can't hear anyone on the line, so I'll hang up now. Please call us back anytime."
+/** How fast the assistant talks (Settings › Assistant › Advanced); `normal` is the voice's own pace. */
+export const TALKING_SPEEDS = ['slow', 'normal', 'fast'] as const
+export type TalkingSpeed = (typeof TALKING_SPEEDS)[number]
+export const TALKING_SPEED_LABELS: Record<TalkingSpeed, string> = { slow: 'Slow', normal: 'Normal', fast: 'Fast' }
+
 /** The closing line an assistant says: its own, or the default. */
 export const silenceClosingOf = (stored: string | null | undefined) => stored?.trim() || DEFAULT_SILENCE_CLOSING
+/** Asked when the line is quiet, unless the owner wrote another line (`silence_reminder`). */
+export const DEFAULT_SILENCE_REMINDER = 'Are you still there?'
+/** The reminder an assistant asks: its own, or the default. */
+export const silenceReminderOf = (stored: string | null | undefined) => stored?.trim() || DEFAULT_SILENCE_REMINDER
 
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
-    'Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business. `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a US number in E.164, null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `languages`: `english` (English only, the default), `allowed` (English plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in English. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, listed_prices_only, confirm_number); `ai_disclosure`: whether and when it mentions being an AI (never, when_asked, at_start, at_start_consent: says it and asks whether that is okay); it never claims to be human. `communication_style`: the tone (standard, professional, casual, formal, empathetic).',
+    'Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business, how fast it talks (`talking_speed`: slow, normal or fast), what it asks when the line is quiet (`silence_reminder`, null: the default) and says before hanging up (`silence_closing`), the longest it stays on a call (`max_call_minutes`). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a US number in E.164, null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `languages`: `english` (English only, the default), `allowed` (English plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in English. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, listed_prices_only, confirm_number); `ai_disclosure`: whether and when it mentions being an AI (never, when_asked, at_start, at_start_consent: says it and asks whether that is okay); it never claims to be human. `communication_style`: the tone (standard, professional, casual, formal, empathetic).',
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().min(1).optional(),
@@ -180,10 +193,20 @@ export const assistantUpdate = defineAction({
     record_calls: z.boolean().optional(),
     /** The whole ordered list of transfer contacts. */
     transfers: transferContacts.optional(),
-    /** Silence on the line (SILENCE_*): seconds before the first "Are you still there?", how many, the closing line (null: default). */
+    /**
+     * Silence on the line (SILENCE_*): seconds of silence before "Are you still there?" and between two of them, how
+     * many, the seconds of silence at which it says the closing line (null: default) and hangs up.
+     */
     silence_first_gap_s: z.number().int().min(SILENCE_FIRST_GAP_MIN_S).max(SILENCE_FIRST_GAP_MAX_S).optional(),
     silence_reminders: z.number().int().min(0).max(SILENCE_REMINDERS_MAX).optional(),
+    silence_hang_up_s: z.number().int().min(SILENCE_FIRST_GAP_MIN_S).max(SILENCE_HANG_UP_MAX_S).optional(),
+    /** The longest the assistant stays on a call, in minutes (at most ASSISTANT_CALL_MAX_MINUTES); then it says goodbye and hangs up. */
+    max_call_minutes: z.number().int().min(1).max(ASSISTANT_CALL_MAX_MINUTES).optional(),
     silence_closing: z.string().trim().max(SILENCE_CLOSING_MAX).nullable().optional(),
+    /** Asked when the line is quiet; null: "Are you still there?" in the language spoken. */
+    silence_reminder: z.string().trim().max(SILENCE_CLOSING_MAX).nullable().optional(),
+    /** How fast it talks: slow, normal (the voice's own pace) or fast. */
+    talking_speed: z.enum(TALKING_SPEEDS).optional(),
     /** The behaviour checklist: the switches the owner changed (BEHAVIOURS); a missing one uses its default. */
     behaviours: z
       .partialRecord(z.enum([...BEHAVIOUR_IDS, ...REMOVED_BEHAVIOUR_IDS]), z.boolean())

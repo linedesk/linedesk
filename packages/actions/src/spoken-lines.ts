@@ -273,11 +273,11 @@ function parseDefaultGreeting(
   return null
 }
 
-const DEFAULT_TEXTS = ['fallbackGreeting', 'silenceClosing', 'recordingNotice'] as const
+const DEFAULT_TEXTS = ['fallbackGreeting', 'silenceClosing', 'stillThere', 'recordingNotice'] as const
 
 /**
  * An owner-written text after the main language changed from `from` to `to`: `to`'s default when the text is still
- * `from`'s default (the greeting the app wrote, the closing line, the recording notice),
+ * `from`'s default (the greeting the app wrote, the closing line, the silence reminder, the recording notice),
  * else the text as written.
  */
 export function swapDefault(text: string, from: Language, to: Language): string {

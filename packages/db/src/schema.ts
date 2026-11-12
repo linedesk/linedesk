@@ -100,12 +100,19 @@ export const assistants = pgTable(
     transfer_hours_only: boolean('transfer_hours_only').notNull().default(false),
     /**
      * Silence on the line (SILENCE_* in @linedesk/actions): after `silence_first_gap_s` seconds without a word the
-     * assistant asks whether the caller is still there, up to `silence_reminders` times with the gap doubling each
-     * time, then says `silence_closing` (null: the default line) and hangs up.
+     * assistant asks whether the caller is still there, again every `silence_first_gap_s` seconds, `silence_reminders`
+     * times; at `silence_hang_up_s` seconds of silence it says `silence_closing` (null: the default line) and hangs up.
      */
-    silence_first_gap_s: integer('silence_first_gap_s').notNull().default(8),
+    silence_first_gap_s: integer('silence_first_gap_s').notNull().default(5),
     silence_reminders: integer('silence_reminders').notNull().default(2),
+    silence_hang_up_s: integer('silence_hang_up_s').notNull().default(15),
+    /** The longest the assistant stays on a call, in minutes (at most ASSISTANT_CALL_MAX_MINUTES); then it says goodbye and hangs up. */
+    max_call_minutes: integer('max_call_minutes').notNull().default(25),
     silence_closing: text('silence_closing'),
+    /** Asked when the line is quiet; null: "Are you still there?" in the language spoken (DEFAULT_SILENCE_REMINDER). */
+    silence_reminder: text('silence_reminder'),
+    /** How fast the assistant talks (TALKING_SPEEDS in @linedesk/actions); `normal`: the voice's own pace. */
+    talking_speed: text('talking_speed', { enum: ['slow', 'normal', 'fast'] }).notNull().default('normal'),
     /** The behaviour checklist (BEHAVIOURS in @linedesk/actions): only the switches the owner changed; the rest use their default. */
     behaviours: jsonb('behaviours').$type<Record<string, boolean>>().notNull().default({}),
     /** Languages the assistant speaks with callers: English only (the default), English + an allow-list, or any it supports. */

@@ -7,7 +7,7 @@ import type { CallSession } from './call-session.ts'
 import type { AgentConfig } from './config.ts'
 import { createGreetingCache, type GreetingAudio, greetingKey, synthesize } from './greeting-cache.ts'
 import { publishVoice, speak } from './on-call-dialer.ts'
-import { createTts, greetingVoice } from './pipeline.ts'
+import { createTts, greetingVoice, talkingSpeedOf } from './pipeline.ts'
 
 // The lines in English; the call says them in the assistant's main language (spokenLines).
 export const BUSY_LINE = spokenLines('en').busy
@@ -27,7 +27,7 @@ export async function lineAudio(config: AgentConfig, call: Pick<CallSession, 'as
   const key = greetingKey({ ...greetingVoice(config, call), text })
   const cached = await lines.get(key)
   if (cached) return cached
-  const audio = await synthesize(createTts(config.tts, voice, mainLanguageOf(call.assistant?.languages)), text)
+  const audio = await synthesize(createTts(config.tts, voice, mainLanguageOf(call.assistant?.languages), talkingSpeedOf(call.assistant)), text)
   void lines.put(key, audio).catch(() => {})
   return audio
 }

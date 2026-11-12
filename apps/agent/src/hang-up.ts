@@ -2,6 +2,7 @@
 // (end_call), after the closing line when the line stays silent, and after the goodbye at its time limit.
 import {
   SILENCE_FIRST_GAP_DEFAULT_S,
+  SILENCE_HANG_UP_DEFAULT_S,
   SILENCE_REMINDERS_DEFAULT,
   silenceClosingOf,
 } from '@linedesk/actions'
@@ -79,27 +80,44 @@ export function speakingOf(session: voice.AgentSession, now = Date.now): Speakin
 
 export const STILL_THERE_LINE = 'Are you still there?'
 
-/** An assistant's silence settings (assistants.silence_*), with the defaults for anything missing. */
-export type SilencePolicy = { firstGapS: number; reminders: number; closing: string }
+/**
+ * An assistant's silence settings (assistants.silence_*), with the defaults for anything missing. `reminder`: the
+ * owner's own line, null for the default ("Are you still there?" in the language spoken at that moment).
+ */
+export type SilencePolicy = { firstGapS: number; reminders: number; hangUpS: number; reminder: string | null; closing: string }
 export function silencePolicyOf(
-  assistant: { silence_first_gap_s?: number | null; silence_reminders?: number | null; silence_closing?: string | null } | null,
+  assistant: {
+    silence_first_gap_s?: number | null
+    silence_reminders?: number | null
+    silence_hang_up_s?: number | null
+    silence_reminder?: string | null
+    silence_closing?: string | null
+  } | null,
 ): SilencePolicy {
   return {
     firstGapS: assistant?.silence_first_gap_s ?? SILENCE_FIRST_GAP_DEFAULT_S,
     reminders: assistant?.silence_reminders ?? SILENCE_REMINDERS_DEFAULT,
+    hangUpS: assistant?.silence_hang_up_s ?? SILENCE_HANG_UP_DEFAULT_S,
+    reminder: assistant?.silence_reminder?.trim() || null,
     closing: silenceClosingOf(assistant?.silence_closing),
   }
 }
 
-/** Seconds of silence before each step: reminders at the first gap, then twice as long each time, then the closing. */
-export function silenceSchedule({ firstGapS, reminders }: Pick<SilencePolicy, 'firstGapS' | 'reminders'>): number[] {
-  return Array.from({ length: reminders + 1 }, (_, i) => firstGapS * 2 ** i)
+/**
+ * Seconds of silence at each step: a reminder every `firstGapS`, `reminders` times, then the closing line at `hangUpS`
+ * (5, 10, 15 by default). A hang-up time that is not after the last reminder (an older API sends none) becomes one
+ * gap after it.
+ */
+export function silenceSchedule({ firstGapS, reminders, hangUpS }: Pick<SilencePolicy, 'firstGapS' | 'reminders' | 'hangUpS'>): number[] {
+  const asks = Array.from({ length: reminders }, (_, i) => firstGapS * (i + 1))
+  const last = asks.at(-1) ?? firstGapS
+  return [...asks, hangUpS > last ? hangUpS : last + firstGapS]
 }
 
 type UserStates = { on(event: voice.AgentSessionEventTypes.UserStateChanged, listener: (ev: { newState: string }) => void): unknown }
 
 type SilenceOptions = {
-  /** Asks the caller whether they are still there (STILL_THERE_LINE). */
+  /** Asks the caller whether they are still there (the assistant's reminder line, else STILL_THERE_LINE). */
   remind: () => void
   /** Says the closing line and hangs up once it has played. */
   close: () => void
@@ -111,45 +129,50 @@ type SilenceOptions = {
 
 /**
  * Silence on the line. The session marks the caller "away" after `firstGapS` of silence on both sides (its away
- * timeout, set from the same policy): the assistant asks whether they are still there, waits twice as long, asks
- * again, up to `reminders` times, then says the closing line and hangs up. A word from the caller starts it over.
- * Never once the call was put through to a person, and not while the caller is on hold for a transfer.
+ * timeout, set from the same policy): the assistant asks whether they are still there, again every `firstGapS`, up
+ * to `reminders` times, and at `hangUpS` of silence says the closing line and hangs up (silenceSchedule). A word from
+ * the caller starts it over. Never once the call was put through to a person, and not while the caller is on hold.
  */
-export function remindOnSilence(session: UserStates, policy: Pick<SilencePolicy, 'firstGapS' | 'reminders'>, { remind, close, transferred, onHold = () => false }: SilenceOptions) {
-  const [, ...waits] = silenceSchedule(policy)
+export function remindOnSilence(session: UserStates, policy: Pick<SilencePolicy, 'firstGapS' | 'reminders' | 'hangUpS'>, { remind, close, transferred, onHold = () => false }: SilenceOptions) {
+  const at = silenceSchedule(policy)
   let ended = false
-  let asked = 0
+  let next = 0
   let pending: ReturnType<typeof setTimeout> | undefined
   const stop = () => {
     clearTimeout(pending)
     pending = undefined
+  }
+  const after = (seconds: number) => {
+    pending = setTimeout(step, seconds * 1000)
+    pending.unref?.()
   }
   const step = () => {
     pending = undefined
     if (ended || transferred()) return
     if (onHold()) {
       // Silence while on hold is expected: start over once the hold is over.
-      asked = 0
-      pending = setTimeout(step, policy.firstGapS * 1000)
-      pending.unref?.()
-      return
+      next = 0
+      return after(policy.firstGapS)
     }
-    if (asked >= policy.reminders) {
+    if (next >= at.length - 1) {
       ended = true
       return close()
     }
     remind()
-    pending = setTimeout(step, waits[asked]! * 1000)
-    pending.unref?.()
-    asked++
+    next++
+    after(at[next]! - at[next - 1]!)
   }
   session.on(voice.AgentSessionEventTypes.UserStateChanged, ({ newState }) => {
     if (newState !== 'away') {
       stop() // the caller spoke: still there, and the reminders start over
-      asked = 0
+      next = 0
       return
     }
-    if (!pending) step()
+    if (pending) return
+    // "Away" comes after the first gap: the first step is due now, or (no reminders) at the hang-up time.
+    const wait = at[0]! - policy.firstGapS
+    if (wait > 0) after(wait)
+    else step()
   })
 }
 

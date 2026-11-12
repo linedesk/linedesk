@@ -197,9 +197,9 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
         { label: 'Go to Reminders', icon: 'clock', shortcut: ['G', 'H'], run: () => c.goInbox('reminders') },
         ...(c.assign ? assigneeViewCommands(c.assign, c) : []),
         ...(c.canReview ? [{ label: 'Go to Needs review', icon: 'flag' as const, shortcut: ['G', 'R'], run: () => c.goInbox('review') }] : []),
+        { label: 'Go to Assistant', icon: 'waveform', shortcut: ['G', 'A'], run: () => c.goPage('assistant') },
         { label: 'Go to Contacts', icon: 'contact', shortcut: ['G', 'C'], run: () => c.goPage('contacts') },
         { label: 'Go to Insights', keywords: 'analytics stats reports numbers', icon: 'chart', shortcut: ['G', 'N'], run: () => c.goPage('insights') },
-        { label: 'Go to Assistant', icon: 'waveform', shortcut: ['G', 'A'], run: () => c.goPage('assistant') },
         { label: 'Go to Team', icon: 'users', shortcut: ['G', 'T'], run: () => c.goPage('team') },
         {
           label: 'Go to Settings',

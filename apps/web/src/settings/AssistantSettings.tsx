@@ -3,7 +3,7 @@
 // (transfer contacts), booking, voice, and Advanced (silence on the line).
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays and booking save on their own.
-import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, SILENCE_CLOSING_MAX, type AssistantLanguages, type Language, languageCodes, LANGUAGES } from '@linedesk/actions'
+import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, DEFAULT_SILENCE_REMINDER, TALKING_SPEEDS, TALKING_SPEED_LABELS, type AssistantLanguages, type Language, languageCodes, LANGUAGES } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
@@ -31,6 +31,7 @@ import {
   normalized,
   profileOf,
   silenceProblem,
+  hangUpSummary,
   silenceSummary,
   silenceToSave,
   spokenLength,
@@ -44,36 +45,35 @@ import { CalendarSettings } from './Calendar.tsx'
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
 import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { Field, Section, SelectRow, SwitchRow, TextArea, TextInput } from './fields.tsx'
-import { useWorkspaceSettings } from './settings-api.ts'
+import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
 import { Knowledge } from './Knowledge.tsx'
-import { VoiceSettings } from './VoiceSettings.tsx'
+import { loadCatalog, VoiceSettings } from './VoiceSettings.tsx'
+import { voiceForMainLanguage } from './voiceModel.ts'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
 import { TransferContacts, transferFieldId } from './TransferContacts.tsx'
-import { BusinessHours } from './BusinessHours.tsx'
+import { BusinessHours, TimeZoneSelect } from './BusinessHours.tsx'
 import { Holidays, VacationMode } from './Holidays.tsx'
 
-type SectionId = 'general' | 'business' | 'hours' | 'rules' | 'transfers' | 'booking' | 'voice' | 'advanced'
+type SectionId = 'general' | 'business' | 'hours' | 'rules' | 'transfers' | 'booking' | 'advanced'
 const sections: readonly PageSection<SectionId>[] = [
-  { id: 'general', label: 'General', description: 'Name, greeting and languages' },
+  { id: 'general', label: 'General', description: 'Name, greeting, languages and voice' },
   { id: 'business', label: 'Business info', description: 'What you do, services, prices, FAQs and documents' },
   { id: 'hours', label: 'Hours & holidays', description: 'Weekly hours, holidays, vacation mode' },
   { id: 'rules', label: 'Rules', description: 'AI disclosure, tone and how calls are handled' },
   { id: 'transfers', label: 'Transfers', description: 'Who calls are put through to' },
   { id: 'booking', label: 'Booking & Calendar', description: 'Calendars and appointment types' },
-  { id: 'voice', label: 'Voice', description: 'How the assistant sounds' },
-  { id: 'advanced', label: 'Advanced', description: 'Silence on the line' },
+  { id: 'advanced', label: 'Advanced', description: 'Talking speed, time zone, silence, hanging up' },
 ]
 /** Sections that save on their own, outside the assistant's draft. */
 type OwnSection = 'hours' | 'booking'
 /** Which draft fields each section holds. */
 const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   business: ['instructions', 'services', 'faqs', 'website'],
-  general: ['name', 'greeting', 'greeting_outside', 'languages'],
+  general: ['name', 'greeting', 'greeting_outside', 'languages', 'voice'],
   rules: ['ai_disclosure', 'communication_style', 'behaviours'],
   transfers: ['transfers'],
-  voice: ['voice'],
-  advanced: ['silence_first_gap_s', 'silence_reminders', 'silence_closing'],
+  advanced: ['talking_speed', 'silence_first_gap_s', 'silence_reminders', 'silence_hang_up_s', 'max_call_minutes', 'silence_reminder', 'silence_closing'],
 }
 /** Section ids from before the regrouping, so old links and bookmarks still land in the right place. */
 const OLD_SECTIONS: Record<string, SectionId> = {
@@ -83,13 +83,13 @@ const OLD_SECTIONS: Record<string, SectionId> = {
   calls: 'transfers',
   calendar: 'booking',
   emergencies: 'transfers',
+  voice: 'general',
 }
 
 /** The assistant's name as the help texts say it, also while the name field is being edited. */
 const assistantName = (draft: Draft) => draft.name.trim() || 'The assistant'
 
 type SectionProps = { draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void }
-const count = (n: number) => n.toLocaleString('en-US')
 
 /**
  * An optional greeting field: shown while it has text or was just added here; added with a starting text and
@@ -288,7 +288,7 @@ const alsoModes = (main: string): { value: AssistantLanguages['mode']; label: st
   { value: 'any', label: 'Any supported language', description: 'Every language listed below' },
 ]
 
-function Languages({ draft, set, replace }: SectionProps & { replace: (draft: Draft) => void }) {
+function Languages({ draft, set, onMainLanguage }: SectionProps & { onMainLanguage: (code: Language) => void }) {
   const { mode } = draft.languages
   const main = mainOf(draft)
   const others = pickedOthers(draft)
@@ -303,7 +303,7 @@ function Languages({ draft, set, replace }: SectionProps & { replace: (draft: Dr
     >
       <div className="as-languages-row">
         <Field id="as-languages-main" label="Main language">
-          <Select id="as-languages-main" label="Main language" value={main} options={languageOptions} onChange={code => replace(withMainLanguage(draft, code))} />
+          <Select id="as-languages-main" label="Main language" value={main} options={languageOptions} onChange={onMainLanguage} />
         </Field>
         <Field id="as-languages-mode" label="Also speak">
           <Select id="as-languages-mode" label="Also speak" value={mode} options={alsoModes(LANGUAGES[main])} onChange={m => set('languages', { ...draft.languages, mode: m })} />
@@ -328,25 +328,90 @@ function Languages({ draft, set, replace }: SectionProps & { replace: (draft: Dr
   )
 }
 
-function Advanced({ draft, set }: SectionProps) {
-  const problem = silenceProblem(draft)
+const SPEED_STEPS = TALKING_SPEEDS.length - 1
+
+/** How fast the assistant talks: a slider with three stops, Slow, Normal and Fast. */
+function TalkingSpeedSection({ draft, set }: SectionProps) {
+  const at = TALKING_SPEEDS.indexOf(draft.talking_speed)
   return (
-    <Section
-      id="as-advanced"
-      title="Silence on the line"
-      help={`When nobody speaks, ${assistantName(draft)} asks whether the caller is still there, waits twice as long each time, and before it hangs up always says the closing line.`}
-    >
-      <Field id="as-silence-gap" label="First wait, in seconds" error={problem?.startsWith('The first wait') ? problem : null}>
-        <TextInput id="as-silence-gap" value={draft.silence_first_gap_s} onChange={v => set('silence_first_gap_s', v)} />
-      </Field>
-      <Field id="as-silence-times" label='Times to ask "Are you still there?"' error={problem?.startsWith('Ask') ? problem : null}>
-        <TextInput id="as-silence-times" value={draft.silence_reminders} onChange={v => set('silence_reminders', v)} />
-      </Field>
-      <Field id="as-silence-closing" label="Closing line" error={problem?.startsWith('The closing') ? problem : null}>
-        <TextArea id="as-silence-closing" value={draft.silence_closing} onChange={v => set('silence_closing', v)} />
-        <span className="help">{problem ? `${count(draft.silence_closing.trim().length)} / ${count(SILENCE_CLOSING_MAX)}` : silenceSummary(draft)}</span>
+    <Section id="as-speed" title="Talking speed" help="Applies from the next call. Normal is the voice's own pace.">
+      <div className="as-speed">
+        <input
+          id="as-speed-range"
+          type="range"
+          min={0}
+          max={SPEED_STEPS}
+          step={1}
+          value={at}
+          aria-label="Talking speed"
+          aria-valuetext={TALKING_SPEED_LABELS[draft.talking_speed]}
+          onChange={e => set('talking_speed', TALKING_SPEEDS[Number(e.target.value)] ?? 'normal')}
+        />
+        <div className="as-speed-stops" aria-hidden="true">
+          {TALKING_SPEEDS.map(speed => (
+            <button key={speed} type="button" tabIndex={-1} className={speed === draft.talking_speed ? 'is-on' : undefined} onClick={() => set('talking_speed', speed)}>
+              {TALKING_SPEED_LABELS[speed]}
+            </button>
+          ))}
+        </div>
+      </div>
+    </Section>
+  )
+}
+
+/** The workspace's time zone: the date and time the assistant is told, and what business hours mean. Saves at once. */
+function TimeZoneSection({ canEdit }: { canEdit: boolean }) {
+  const run = useRun()
+  const settings = useWorkspaceSettings()
+  const zone = settings.data?.timeZone
+  const change = (timeZone: string) => {
+    patchWorkspaceSettings({ timeZone })
+    void run('workspace.updateSettings', { timeZone })
+  }
+  return (
+    <Section id="as-time-zone" title="Time zone" help="The assistant is told today's date and the time in this zone. Business hours and bookings use it too. Saved at once, for every assistant of the workspace.">
+      <Field id="as-time-zone-select" label="Where the business is">
+        {zone ? <TimeZoneSelect id="as-time-zone-select" value={zone} onChange={change} disabled={!canEdit} /> : <span className="help">Loading…</span>}
       </Field>
     </Section>
+  )
+}
+
+function Advanced({ draft, set }: SectionProps) {
+  const problem = silenceProblem(draft)
+  const errorFor = (start: string) => (problem?.startsWith(start) ? problem : null)
+  const name = assistantName(draft)
+  return (
+    <>
+      <Section id="as-advanced" title="Silence on the line" help={`When nobody speaks, ${name} asks whether the caller is still there, again after the same wait.`}>
+        <div className="as-silence-row">
+          <Field id="as-silence-gap" label="Ask after, seconds" error={errorFor('The first wait')}>
+            <TextInput id="as-silence-gap" value={draft.silence_first_gap_s} onChange={v => set('silence_first_gap_s', v)} />
+          </Field>
+          <Field id="as-silence-times" label="Times to ask" error={errorFor('Ask')}>
+            <TextInput id="as-silence-times" value={draft.silence_reminders} onChange={v => set('silence_reminders', v)} />
+          </Field>
+        </div>
+        <Field id="as-silence-reminder" label="What it asks" error={errorFor('The reminder')}>
+          <TextInput id="as-silence-reminder" value={draft.silence_reminder} onChange={v => set('silence_reminder', v)} placeholder={DEFAULT_SILENCE_REMINDER} />
+        </Field>
+        <span className="help">{silenceSummary(draft)}</span>
+      </Section>
+      <Section id="as-hang-up" title="Hanging up" help={`${name} ends a call itself when the line stays silent, or when the call gets too long (what the assistant costs). Never once a call was put through to a person.`}>
+        <div className="as-silence-row">
+          <Field id="as-silence-hang-up" label="After silence, seconds" error={errorFor('Hang up')}>
+            <TextInput id="as-silence-hang-up" value={draft.silence_hang_up_s} onChange={v => set('silence_hang_up_s', v)} />
+          </Field>
+          <Field id="as-max-call" label="Longest call, minutes" error={errorFor('The longest call')}>
+            <TextInput id="as-max-call" value={draft.max_call_minutes} onChange={v => set('max_call_minutes', v)} />
+          </Field>
+        </div>
+        <Field id="as-silence-closing" label="What it says before hanging up" error={errorFor('The closing')}>
+          <TextArea id="as-silence-closing" value={draft.silence_closing} onChange={v => set('silence_closing', v)} />
+        </Field>
+        <span className="help">{hangUpSummary(draft)}</span>
+      </Section>
+    </>
   )
 }
 
@@ -429,11 +494,29 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         behaviours: behavioursToSave(clean),
         ...languagesToSave(clean),
         voice: clean.voice,
+        talking_speed: clean.talking_speed,
       })
       setDraft(clean) // the form shows what was saved, so it is not "dirty" any more
     }
     toast('Assistant settings saved.')
   }
+  /**
+   * A new main language: its default texts, and a voice made for it when the providers have one (back to the
+   * default voice for English). The voice comes from the catalog, so it follows a moment later, with a toast.
+   */
+  async function changeMainLanguage(code: Language) {
+    setDraft(d => withMainLanguage(d, code))
+    const catalog = await loadCatalog().catch(() => null)
+    if (!catalog) return
+    const active = catalog.providers.find(p => p.active)?.provider ?? null
+    const next = voiceForMainLanguage(catalog.voices, code, draft.voice, active)
+    if (!next || (next === 'default' && !active)) return
+    const voice = next === 'default' ? { provider: active!, voice_id: '' } : { provider: next.provider, voice_id: next.id }
+    // Only while that language is still the one picked: a quick second change wins.
+    setDraft(d => (mainOf(d) === code ? { ...d, voice } : d))
+    toast(next === 'default' ? 'Voice changed to the default voice, for English. Save to keep it.' : `Voice changed to ${next.name}, a ${LANGUAGES[code]} voice. Save to keep it.`)
+  }
+
   function cancel() {
     setDraft(saved)
   }
@@ -461,7 +544,16 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
           <>
             <AssistantNameSection draft={draft} set={set} />
             <Greeting draft={draft} set={set} savedName={assistant.name} hoursOn={hoursOn} canEdit={canEdit} />
-            <Languages draft={draft} set={set} replace={setDraft} />
+            <Languages draft={draft} set={set} onMainLanguage={code => void changeMainLanguage(code)} />
+            <VoiceSettings
+              assistantId={assistant.id}
+              voice={draft.voice}
+              onPick={v => set('voice', v)}
+              canEdit={canEdit}
+              toast={toast}
+              language={mainOf(draft)}
+              assistantName={assistantName(draft)}
+            />
           </>
         )}
         {current === 'rules' && <Behaviours draft={draft} set={set} />}
@@ -476,16 +568,13 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
             />
           </>
         )}
-        {current === 'voice' && (
-          <VoiceSettings
-            assistantId={assistant.id}
-            voice={draft.voice}
-            onPick={v => set('voice', v)}
-            canEdit={canEdit}
-            toast={toast}
-          />
+        {current === 'advanced' && (
+          <>
+            <TalkingSpeedSection draft={draft} set={set} />
+            <TimeZoneSection canEdit={canEdit} />
+            <Advanced draft={draft} set={set} />
+          </>
         )}
-        {current === 'advanced' && <Advanced draft={draft} set={set} />}
       </fieldset>
       {current === 'booking' && <CalendarSettings assistant={assistant} canEdit={canEdit} toast={toast} />}
       {canEdit && <SaveBar dirty={changed} onCancel={cancel} note={note} />}

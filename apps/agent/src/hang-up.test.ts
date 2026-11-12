@@ -71,27 +71,33 @@ function userStates() {
   return { session: session as never, emit: (newState: string) => listeners.forEach(l => l({ newState })) }
 }
 
-test('silence settings: defaults on (8 s, 2 reminders, the default closing), each from the assistant when set', () => {
-  expect(silencePolicyOf(null)).toEqual({ firstGapS: 8, reminders: 2, closing: DEFAULT_SILENCE_CLOSING })
-  expect(silencePolicyOf({ silence_first_gap_s: 5, silence_reminders: 0, silence_closing: '  Bye now.  ' })).toEqual({ firstGapS: 5, reminders: 0, closing: 'Bye now.' })
+test('silence settings: defaults on (every 5 s, 2 reminders, hang-up at 15 s, the default closing), each from the assistant when set', () => {
+  expect(silencePolicyOf(null)).toEqual({ firstGapS: 5, reminders: 2, hangUpS: 15, reminder: null, closing: DEFAULT_SILENCE_CLOSING })
+  expect(silencePolicyOf({ silence_first_gap_s: 8, silence_reminders: 0, silence_hang_up_s: 30, silence_reminder: ' Hallo? ', silence_closing: '  Bye now.  ' })).toEqual({ firstGapS: 8, reminders: 0, hangUpS: 30, reminder: 'Hallo?', closing: 'Bye now.' })
+  expect(silencePolicyOf({ silence_reminder: '  ' }).reminder).toBeNull()
   expect(silencePolicyOf({ silence_closing: ' ' }).closing).toBe(DEFAULT_SILENCE_CLOSING)
-  // 8 s quiet, ask; 16 s more, ask; 32 s more, the closing line.
-  expect(silenceSchedule({ firstGapS: 8, reminders: 2 })).toEqual([8, 16, 32])
+  // Asks at 5 and 10 s of silence, the closing line at 15 s.
+  expect(silenceSchedule({ firstGapS: 5, reminders: 2, hangUpS: 15 })).toEqual([5, 10, 15])
+  expect(silenceSchedule({ firstGapS: 5, reminders: 0, hangUpS: 15 })).toEqual([15])
+  // A hang-up time not after the last reminder (an older API sends none): one gap after it.
+  expect(silenceSchedule({ firstGapS: 8, reminders: 2, hangUpS: 15 })).toEqual([8, 16, 24])
 })
 
-test('silence: reminders with the gap doubling, then the closing line, once', () => {
+const policy = { firstGapS: 5, reminders: 2, hangUpS: 15 }
+
+test('silence: a reminder every gap, then the closing line at the hang-up time, once', () => {
   const { session, emit } = userStates()
   const remind = vi.fn()
   const close = vi.fn()
-  // The session reports "away" after the first gap (its away timeout).
-  remindOnSilence(session, { firstGapS: 8, reminders: 2 }, { remind, close, transferred: () => false })
+  // The session reports "away" after the first gap (its away timeout): 5 s.
+  remindOnSilence(session, policy, { remind, close, transferred: () => false })
   emit('away')
   expect(remind).toHaveBeenCalledTimes(1)
-  vi.advanceTimersByTime(16_000 - 1)
+  vi.advanceTimersByTime(5_000 - 1)
   expect(remind).toHaveBeenCalledTimes(1)
   vi.advanceTimersByTime(1)
   expect(remind).toHaveBeenCalledTimes(2)
-  vi.advanceTimersByTime(32_000 - 1)
+  vi.advanceTimersByTime(5_000 - 1)
   expect(close).not.toHaveBeenCalled()
   vi.advanceTimersByTime(1)
   expect(close).toHaveBeenCalledOnce()
@@ -105,26 +111,29 @@ test('a caller who answers stays on, and the reminders start over at the next si
   const { session, emit } = userStates()
   const remind = vi.fn()
   const close = vi.fn()
-  remindOnSilence(session, { firstGapS: 8, reminders: 2 }, { remind, close, transferred: () => false })
+  remindOnSilence(session, policy, { remind, close, transferred: () => false })
   emit('away')
-  vi.advanceTimersByTime(16_000) // second reminder
+  vi.advanceTimersByTime(5_000) // second reminder
   emit('speaking')
   vi.advanceTimersByTime(120_000)
   expect(close).not.toHaveBeenCalled()
   emit('listening')
   emit('away')
   expect(remind).toHaveBeenCalledTimes(3)
-  vi.advanceTimersByTime(16_000 + 32_000)
+  vi.advanceTimersByTime(5_000 + 5_000)
   expect(remind).toHaveBeenCalledTimes(4)
   expect(close).toHaveBeenCalledOnce()
 })
 
-test('no reminders: the closing line right after the first gap', () => {
+test('no reminders: the closing line at the hang-up time', () => {
   const { session, emit } = userStates()
   const remind = vi.fn()
   const close = vi.fn()
-  remindOnSilence(session, { firstGapS: 8, reminders: 0 }, { remind, close, transferred: () => false })
-  emit('away')
+  remindOnSilence(session, { ...policy, reminders: 0 }, { remind, close, transferred: () => false })
+  emit('away') // at 5 s
+  vi.advanceTimersByTime(10_000 - 1)
+  expect(close).not.toHaveBeenCalled()
+  vi.advanceTimersByTime(1)
   expect(remind).not.toHaveBeenCalled()
   expect(close).toHaveBeenCalledOnce()
 })
@@ -134,7 +143,7 @@ test('never during or after a transfer: no reminder, no closing line, the call s
   const remind = vi.fn()
   const close = vi.fn()
   let transferred = false
-  remindOnSilence(session, { firstGapS: 8, reminders: 2 }, { remind, close, transferred: () => transferred })
+  remindOnSilence(session, policy, { remind, close, transferred: () => transferred })
   emit('away')
   transferred = true // put through while the reminders run
   vi.advanceTimersByTime(60 * 60_000)
@@ -186,15 +195,15 @@ test('on hold while a transfer rings: no reminder and no closing line; after the
   const remind = vi.fn()
   const close = vi.fn()
   let onHold = true
-  remindOnSilence(session, { firstGapS: 8, reminders: 2 }, { remind, close, transferred: () => false, onHold: () => onHold })
+  remindOnSilence(session, policy, { remind, close, transferred: () => false, onHold: () => onHold })
   emit('away') // quiet while it rings
   vi.advanceTimersByTime(90_000)
   expect(remind).not.toHaveBeenCalled()
   expect(close).not.toHaveBeenCalled()
   onHold = false // nobody took it; the caller stays silent
-  vi.advanceTimersByTime(8_000)
+  vi.advanceTimersByTime(5_000)
   expect(remind).toHaveBeenCalledOnce()
-  vi.advanceTimersByTime(16_000 + 32_000)
+  vi.advanceTimersByTime(5_000 + 5_000)
   expect(remind).toHaveBeenCalledTimes(2)
   expect(close).toHaveBeenCalledOnce()
 })

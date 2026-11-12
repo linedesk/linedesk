@@ -44,6 +44,8 @@ export interface CallSession {
   caller: CallerContext | null
   /** The assistant's reference documents: inline text or a look-up; null when it has none (or the API is older). */
   documents: CallDocuments | null
+  /** The business's time zone, for the date and time the assistant is told; null from an older API (then booking's, if any). */
+  timeZone: string | null
   /** The business's Linedesk number the caller dialled (a transfer shows it as caller ID); null for a test call. */
   businessNumber: string | null
   /** No-phone call test: a simulated on-call person answers transfers instead of a phone. */
@@ -66,6 +68,8 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
   documents?: CallDocuments | null
   /** A phone caller matched to a contact: their last calls and upcoming bookings; null or missing (older API): none. */
   callerHistory?: CallerHistory | null
+  /** The workspace's time zone; missing from an older API. */
+  timeZone?: string | null
 }
 
 /** The caller for the prompt: the matched contact's name and note, and their history when call.start sent it. */
@@ -177,6 +181,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   const startedAt = Date.now()
   return {
     callId, ...scope, assistant, contact, blocked, busy, overCap, businessHours, booking, caller, documents: started.documents ?? null,
+    timeZone: started.timeZone ?? booking?.timeZone ?? null,
     keepRecording: started.keepRecording !== false,
     businessNumber: origin.kind === 'phone' ? origin.to : null,
     simulatedOnCall: onCall?.answer ?? null,

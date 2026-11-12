@@ -1,7 +1,7 @@
 import type { Assistant } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SILENCE_CLOSING, disclosesAi, withDisclosure, withoutDisclosure } from '@linedesk/actions'
-import { draftOf, draftProblem, languagesToSave, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, staleGreetingName, transferProblem, transfersToSave, newTransferContact, moveTransfer, transferInactive, silenceProblem, silenceSummary, silenceToSave } from './assistantDraft.ts'
+import { draftOf, draftProblem, languagesToSave, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, staleGreetingName, transferProblem, transfersToSave, newTransferContact, moveTransfer, transferInactive, hangUpSummary, silenceProblem, silenceSummary, silenceToSave } from './assistantDraft.ts'
 
 const oldProfile = { description: 'Plumbing', services: ['Leak repair', ' ', 'Drains'], service_area: 'Portland', address: '1 Main St', hours: 'Mon–Fri', faqs: [{ q: 'Estimates?', a: 'Free.' }, { q: '', a: '' }] }
 const assistant = (over: Partial<Assistant> = {}) => ({ id: 'as1', name: 'Maya', greeting: 'Hello', disclose_ai: true, business_profile: oldProfile, voice: { provider: 'elevenlabs', voice_id: '' }, ...over }) as Assistant
@@ -146,21 +146,31 @@ describe('transfer contacts', () => {
 })
 
 describe('silence on the line', () => {
-  it('defaults on: 8 s, asked twice, the default closing line (saved as null)', () => {
+  it('defaults on: asks at 5 and 10 s, hangs up at 15 s, the default lines (saved as null)', () => {
     const d = draftOf(assistant())
-    expect(d).toMatchObject({ silence_first_gap_s: '8', silence_reminders: '2', silence_closing: DEFAULT_SILENCE_CLOSING })
+    expect(d).toMatchObject({ silence_first_gap_s: '5', silence_reminders: '2', silence_hang_up_s: '15', max_call_minutes: '25', silence_closing: DEFAULT_SILENCE_CLOSING })
     expect(silenceProblem(d)).toBeNull()
-    expect(silenceToSave(d)).toEqual({ silence_first_gap_s: 8, silence_reminders: 2, silence_closing: null })
-    expect(silenceSummary(d)).toBe('Asks "Are you still there?" after 8, 24 seconds of silence, says the closing line and hangs up at 56 seconds. Never while a call is transferred.')
+    expect(silenceToSave(d)).toEqual({ silence_first_gap_s: 5, silence_reminders: 2, silence_hang_up_s: 15, max_call_minutes: 25, silence_reminder: null, silence_closing: null })
+    expect(silenceSummary(d)).toBe('Asks "Are you still there?" after 5 and 10 seconds of silence. Never while a call is transferred.')
+    expect(hangUpSummary(d)).toBe('Says this and hangs up at 15 seconds of silence. At 25 minutes it says goodbye and hangs up. A call put through to a person goes on.')
   })
   it('own values are kept and checked', () => {
-    const d = draftOf(assistant({ silence_first_gap_s: 5, silence_reminders: 0, silence_closing: 'Bye for now.' } as Partial<Assistant>))
-    expect(silenceToSave(d)).toEqual({ silence_first_gap_s: 5, silence_reminders: 0, silence_closing: 'Bye for now.' })
-    expect(silenceSummary(d)).toMatch(/^After 5 seconds of silence the assistant says the closing line/)
-    for (const bad of [{ silence_first_gap_s: '2' }, { silence_first_gap_s: 'ten' }, { silence_reminders: '9' }, { silence_closing: 'x'.repeat(201) }]) {
-      expect(silenceProblem({ ...d, ...bad }), JSON.stringify(bad).slice(0, 40)).not.toBeNull()
-      expect(draftProblem({ ...d, ...bad })).not.toBeNull()
+    const d = draftOf(assistant({ silence_first_gap_s: 8, silence_reminders: 0, silence_hang_up_s: 20, max_call_minutes: 10, silence_closing: 'Bye for now.' } as Partial<Assistant>))
+    expect(silenceToSave(d)).toEqual({ silence_first_gap_s: 8, silence_reminders: 0, silence_hang_up_s: 20, max_call_minutes: 10, silence_reminder: null, silence_closing: 'Bye for now.' })
+    expect(silenceToSave({ ...d, silence_reminder: ' Hello? ' }).silence_reminder).toBe('Hello?')
+    expect(silenceSummary(d)).toBe('Never asks: it only hangs up after the silence below.')
+    expect(silenceSummary({ ...d, silence_reminders: '1', silence_reminder: 'Hello?' })).toMatch(/^Asks "Hello\?" after 8 seconds/)
+    const bad = [{ silence_first_gap_s: '2' }, { silence_first_gap_s: 'ten' }, { silence_reminders: '9' }, { silence_hang_up_s: '500' }, { max_call_minutes: '0' }, { max_call_minutes: '26' }, { silence_reminders: '3', silence_hang_up_s: '24' }, { silence_closing: 'x'.repeat(201) }, { silence_reminder: 'x'.repeat(201) }]
+    for (const change of bad) {
+      expect(silenceProblem({ ...d, ...change }), JSON.stringify(change).slice(0, 40)).not.toBeNull()
+      expect(draftProblem({ ...d, ...change })).not.toBeNull()
     }
+    expect(silenceProblem({ ...d, silence_reminders: '3', silence_hang_up_s: '24' })).toBe('Hang up after the last question: more than 24 seconds.')
+  })
+  it('the default reminder in the main language is saved as null, so a call says it in the language spoken', () => {
+    const german = draftOf(assistant({ languages: { main: 'de', mode: 'english', allowed: [] } } as Partial<Assistant>))
+    expect(german.silence_reminder).not.toBe('Are you still there?')
+    expect(silenceToSave(german).silence_reminder).toBeNull()
   })
 })
 

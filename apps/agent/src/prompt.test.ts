@@ -2,7 +2,7 @@ import { CALL_RULES } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import type { CallerHistory } from '@linedesk/actions'
-import { bookingInstructions, buildInstructions, heldTransferContacts, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, forHours } from './prompt.ts'
+import { bookingInstructions, buildInstructions, heldTransferContacts, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, clockInstructions, forHours } from './prompt.ts'
 
 const assistant = (over: Partial<Assistant> = {}) =>
   ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', disclose_ai: false, business_profile: { instructions: 'We fix pipes in Portland.' }, ...over }) as Assistant
@@ -166,4 +166,13 @@ test('a contact that takes calls only during business hours: while closed the as
   expect(prompt).toMatch(/The only reason is that the business is closed, never that you are an AI/)
   // Open, with a contact to put through: the usual transfer instructions, not this.
   expect(buildInstructions(a, { openNow: true, summary: 'Open now.' }, null, [owner])).not.toMatch(/outside business hours/)
+})
+
+test('the date and time where the business is go into the prompt; none without a time zone', () => {
+  const at = Date.parse('2026-11-12T21:31:00Z')
+  expect(clockInstructions('America/Los_Angeles', at)).toContain('It is now Thursday, November 12, 2026 at 1:31 PM where the business is (time zone America/Los_Angeles)')
+  expect(clockInstructions('Europe/Berlin', at)).toContain('Thursday, November 12, 2026 at 10:31 PM')
+  expect(clockInstructions(null, at)).toBeNull()
+  expect(clockInstructions('Not/AZone', at)).toBeNull()
+  expect(buildInstructions(assistant(), null, null, [], null, null, 'America/Los_Angeles', at)).toContain('It is now Thursday, November 12, 2026')
 })

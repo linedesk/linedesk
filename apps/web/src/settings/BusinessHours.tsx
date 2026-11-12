@@ -20,7 +20,8 @@ import {
 } from './businessHoursModel.ts'
 import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
-import { timeZoneLabel, timeZoneOptions } from './timeZones.ts'
+import { TimeZonePicker } from './TimeZonePicker.tsx'
+import { timeZoneLabel } from './timeZones.ts'
 
 const DAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const startOptions: SelectOption<string>[] = timeOptions.filter(o => o.value !== '24:00')
@@ -125,29 +126,9 @@ export function HoursGrid({ days, set, canEdit }: GridProps) {
   )
 }
 
-/** The workspace's time zone as a picker; typing a city's first letters jumps to it. */
-export function TimeZoneSelect({
-  value,
-  onChange,
-  disabled,
-  id,
-}: {
-  value: string
-  onChange: (zone: string) => void
-  disabled?: boolean
-  id?: string
-}) {
-  return (
-    <Select
-      id={id}
-      size="sm"
-      value={value}
-      options={timeZoneOptions(value)}
-      onChange={onChange}
-      label="Time zone"
-      disabled={disabled}
-    />
-  )
+/** The workspace's time zone as a searchable picker, with each zone's GMT offset and time now (TimeZonePicker). */
+export function TimeZoneSelect({ value, onChange, disabled, id }: { value: string; onChange: (zone: string) => void; disabled?: boolean; id?: string }) {
+  return <TimeZonePicker id={id} value={value} onChange={onChange} disabled={disabled} />
 }
 
 /**

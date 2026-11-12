@@ -7,13 +7,13 @@ import { AI_DISCLOSURE_LABELS, BEHAVIOURS, behaviourOn, COMMUNICATION_STYLE_LABE
 import { defineAction } from './define.ts'
 import { servicesOf } from './knowledge.ts'
 import { LANGUAGES, type Language, languageNames, mainLanguageOf, otherLanguagesOf } from './languages.ts'
-import { silenceClosingOf } from './settings.ts'
+import { silenceClosingOf, silenceReminderOf, TALKING_SPEED_LABELS } from './settings.ts'
 
 /** The assistant's columns a version keeps: everything that changes a call. */
 export const VERSIONED_FIELDS = [
   'name', 'greeting', 'greeting_outside', 'ai_disclosure', 'communication_style', 'behaviours',
   'business_profile', 'transfers', 'voice', 'languages',
-  'silence_first_gap_s', 'silence_reminders', 'silence_closing', 'record_calls',
+  'silence_first_gap_s', 'silence_reminders', 'silence_hang_up_s', 'max_call_minutes', 'silence_reminder', 'silence_closing', 'record_calls', 'talking_speed',
 ] as const satisfies readonly (keyof Assistant)[]
 export type VersionedField = (typeof VERSIONED_FIELDS)[number]
 
@@ -93,8 +93,14 @@ export const VERSION_PARTS: readonly VersionPart[] = [
   {
     id: 'silence',
     label: 'Silence on the line',
-    text: s => lines(`First check after ${s.silence_first_gap_s} s, ${s.silence_reminders} times`, `Closing line: ${silenceClosingOf(s.silence_closing)}`),
+    text: s => lines(`Asks every ${s.silence_first_gap_s} s, ${s.silence_reminders} times`, `Asks: ${silenceReminderOf(s.silence_reminder)}`),
   },
+  {
+    id: 'hang_up',
+    label: 'Hanging up',
+    text: s => lines(`After ${s.silence_hang_up_s ?? 'the default'} s of silence`, `Longest call: ${s.max_call_minutes ?? 'the default'} min`, `Says: ${silenceClosingOf(s.silence_closing)}`),
+  },
+  { id: 'talking_speed', label: 'Talking speed', text: s => TALKING_SPEED_LABELS[s.talking_speed] ?? 'Normal' },
   { id: 'record_calls', label: 'Recording', text: s => (s.record_calls ? 'Calls are recorded' : 'Calls are not recorded') },
   {
     id: 'calendars',

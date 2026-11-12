@@ -1,6 +1,6 @@
 // The voice picker's rules, without React: which voice is in effect, what Save sends, the preview
 // link, and the checks before a recording is sent to be cloned.
-import { CLONE_AUDIO_MAX_BYTES, cloneAudioTypes } from '@linedesk/actions'
+import { CLONE_AUDIO_MAX_BYTES, cloneAudioTypes, providerDefaultVoices } from '@linedesk/actions'
 
 export type VoiceChoice = { provider: string; voice_id: string }
 
@@ -120,4 +120,44 @@ export async function fileToBase64(file: Blob): Promise<string> {
   let binary = ''
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
   return btoa(binary)
+}
+
+/** A provider's language code without its region: "es-MX" → "es". */
+const baseLanguage = (code: string | null | undefined) => norm(code).split(/[-_]/)[0] ?? ''
+
+/** Words in a voice's name or description that say it is made for calls with customers. */
+const PHONE_VOICE = /\b(agent|assistant|customer|support|service|call|phone|ivr|hotline|conversation(al)?)\b/i
+
+/**
+ * The voice to switch to when the assistant's main language changes, from the providers' voices (the catalog):
+ * - another language than English: a voice made for it, ranked by the provider in use, the gender of the current
+ *   voice (the default voice's when none is chosen), a voice made for calls, then name; null (keep the current
+ *   voice) when there is none or the current one fits;
+ * - English: 'default' (the default voice) when the current voice is made for another language, else null.
+ */
+export function voiceForMainLanguage(
+  voices: readonly PickerVoice[],
+  language: string,
+  current: VoiceChoice,
+  activeProvider: string | null,
+): PickerVoice | 'default' | null {
+  const find = (provider: string | null, id: string | undefined) => voices.find(v => v.provider === provider && v.id === id)
+  const chosen = current.voice_id ? find(current.provider, current.voice_id) : undefined
+  if (language === 'en') return chosen?.language && baseLanguage(chosen.language) !== 'en' ? 'default' : null
+  if (chosen && baseLanguage(chosen.language) === language) return null
+  const sounding = chosen ?? find(activeProvider, activeProvider ? providerDefaultVoices[activeProvider] : undefined)
+  return voicesForLanguage(voices, language, activeProvider, sounding?.gender)[0] ?? null
+}
+
+/**
+ * The voices made for a language, best first: the provider in use, the given gender, a voice made for calls, then
+ * by name. What Suggested lists when the main language is not English.
+ */
+export function voicesForLanguage(voices: readonly PickerVoice[], language: string, activeProvider: string | null, gender?: string | null): PickerVoice[] {
+  const wanted = norm(gender)
+  const rank = (v: PickerVoice) =>
+    Number(v.provider !== activeProvider) * 4 +
+    Number(!!wanted && norm(v.gender) !== wanted) * 2 +
+    Number(!PHONE_VOICE.test(`${v.name} ${v.description ?? ''}`))
+  return voices.filter(v => baseLanguage(v.language) === language).sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
 }

@@ -295,6 +295,20 @@ export function collectLanguageRule(assistant: Pick<Assistant, 'languages'> | nu
 }
 
 /**
+ * The date and time where the business is, when the call starts ("Thursday, November 12, 2026, 1:31 PM"), so the
+ * assistant can say what day it is and work out "tomorrow". null without a time zone (an older API).
+ */
+export function clockInstructions(timeZone: string | null | undefined, now: number): string | null {
+  if (!timeZone) return null
+  try {
+    const at = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(now)
+    return `It is now ${at} where the business is (time zone ${timeZone}). Use this for today's date, the day of the week and the time; never guess them.`
+  } catch {
+    return null
+  }
+}
+
+/**
  * `transfers`: the contacts the assistant can put the caller through to on this call (transferContactsFor); none: no transfer.
  * `caller`: the contact this call matched (null: withheld number); its note goes in as the team's notes, its
  * history (call.start's callerHistory) as what the records say.
@@ -307,6 +321,8 @@ export function buildInstructions(
   transfers: readonly TransferRule[] = [],
   caller?: CallerContext | null,
   documents?: CallDocuments | null,
+  timeZone?: string | null,
+  now: number = Date.now(),
 ): string {
   const transfer = transfers.length > 0
   const name = assistant?.name ?? 'the assistant'
@@ -315,6 +331,7 @@ export function buildInstructions(
     `You are ${name}, the AI assistant answering the phone for a business. You are on a live phone call: keep every reply to one or two short spoken sentences, start with a short first sentence, ask one question at a time, and never use lists, markdown or emojis.`,
     languageInstructions(assistant),
     assistant?.greeting ? `You have already opened the call with: "${assistant.greeting}" Do not repeat it.` : null,
+    clockInstructions(timeZone, now),
     'You are an AI assistant. Whenever the caller asks whether you are a person, a robot or an AI, say truthfully that you are an AI assistant. Never claim to be human.',
     aiDisclosureInstructions(assistant?.ai_disclosure),
     communicationStyleInstructions(assistant?.communication_style),

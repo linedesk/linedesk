@@ -13,6 +13,9 @@ test('a changed greeting text, voice or model gets another key', () => {
   expect(greetingKey({ ...voice, voiceId: 'v2' })).not.toBe(key)
   expect(greetingKey({ ...voice, model: undefined })).not.toBe(key)
   expect(greetingKey({ ...voice, provider: 'cartesia' })).not.toBe(key)
+  // A talking speed other than normal is another sound; normal keeps the key stored greetings have.
+  expect(greetingKey({ ...voice, speed: 'normal' })).toBe(key)
+  expect(greetingKey({ ...voice, speed: 'fast' })).not.toBe(key)
 })
 
 test('stores and reads back the audio; nothing stored is null', async () => {

@@ -9,6 +9,7 @@ import {
   previewProblem,
   previewUrl,
   voiceFacts,
+  voiceForMainLanguage,
   voiceInEffect,
 } from './voiceModel.ts'
 
@@ -104,4 +105,31 @@ test('a sample that does not come back says why, and how to fix it where there i
   expect(previewProblem(404)).toMatch(/does not know this voice/)
   expect(previewProblem(403, 'missing permission call:read')).toBe('missing permission call:read')
   expect(previewProblem(502, 'voice preview failed (500): boom')).toBe('The voice provider did not answer. Try again.')
+})
+
+describe('voice for the main language', () => {
+  const voices = [
+    { provider: 'elevenlabs', id: 'jessica', name: 'Jessica', description: null, language: 'en', gender: 'female' },
+    { provider: 'cartesia', id: 'lucia', name: 'Lucía', description: null, language: 'es', gender: 'female' },
+    { provider: 'elevenlabs', id: 'mateo', name: 'Mateo', description: null, language: 'es-MX', gender: 'male' },
+    { provider: 'elevenlabs', id: 'valeria', name: 'Valeria', description: null, language: 'es', gender: 'female' },
+    { provider: 'elevenlabs', id: 'ana', name: 'Ana', description: 'Narration', language: 'es', gender: 'female' },
+    { provider: 'elevenlabs', id: 'carla', name: 'Carla - Customer Care Agent', description: null, language: 'es', gender: 'female' },
+  ]
+  const jessica = { provider: 'elevenlabs', voice_id: 'jessica' }
+  it('another language: a voice made for it; the provider in use, the same gender and a voice for calls first', () => {
+    expect(voiceForMainLanguage(voices, 'es', jessica, 'elevenlabs')).toMatchObject({ id: 'carla' })
+    expect(voiceForMainLanguage(voices, 'es', { provider: 'elevenlabs', voice_id: 'mateo-en' }, 'elevenlabs')).toMatchObject({ id: 'carla' })
+    expect(voiceForMainLanguage([...voices, { provider: 'elevenlabs', id: 'eric', name: 'Eric', description: null, language: 'en', gender: 'male' }], 'es', { provider: 'elevenlabs', voice_id: 'eric' }, 'elevenlabs')).toMatchObject({ id: 'mateo' })
+    expect(voiceForMainLanguage(voices, 'es', jessica, 'cartesia')).toMatchObject({ id: 'lucia' })
+  })
+  it('keeps the voice when none is made for the language, or the current one already is', () => {
+    expect(voiceForMainLanguage(voices, 'ja', jessica, 'elevenlabs')).toBeNull()
+    expect(voiceForMainLanguage(voices, 'es', { provider: 'elevenlabs', voice_id: 'mateo' }, 'elevenlabs')).toBeNull()
+  })
+  it('English: back to the default voice only from a voice of another language', () => {
+    expect(voiceForMainLanguage(voices, 'en', { provider: 'elevenlabs', voice_id: 'mateo' }, 'elevenlabs')).toBe('default')
+    expect(voiceForMainLanguage(voices, 'en', jessica, 'elevenlabs')).toBeNull()
+    expect(voiceForMainLanguage(voices, 'en', { provider: 'elevenlabs', voice_id: 'unknown' }, 'elevenlabs')).toBeNull()
+  })
 })

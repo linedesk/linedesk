@@ -31,12 +31,14 @@ import {
   voiceFacts,
   voiceInEffect,
   voiceKey,
+  voicesForLanguage,
 } from './voiceModel.ts'
 
 const VOICE_OPTIONS = 'voice.options'
 const VOICE_CATALOG = 'voice.catalog'
 const loadOptions = () => readAction<VoiceOptionsData>(VOICE_OPTIONS)
-const loadCatalog = () => readAction<VoiceCatalogData>(VOICE_CATALOG)
+/** Every voice of the providers with a key (voice.catalog); the server caches it a few minutes. */
+export const loadCatalog = () => readAction<VoiceCatalogData>(VOICE_CATALOG)
 /** The voices of the provider in effect; the same for every assistant of the install. */
 export const useVoiceOptions = () => useQuery(VOICE_OPTIONS, loadOptions, { persist: true })
 /** How many voices More voices shows at first, and adds per "Show more". */
@@ -193,9 +195,10 @@ function PlayButton({ voice, preview, label, playKey, unavailable }: PlayProps) 
 }
 
 type RowProps = {
-  /** null: the install's default voice; `defaultSample` is the voice it stands for. */
+  /** null: the install's default voice; `defaultSample` is the voice it stands for, `defaultName` what the row is called. */
   voice: PickerVoice | null
   defaultSample?: { provider: string; id: string; name: string | null } | null
+  defaultName?: string
   checked: boolean
   onPick: () => void
   disabled: boolean
@@ -203,7 +206,16 @@ type RowProps = {
   facts?: string
 }
 
-function VoiceRow({ voice, defaultSample, checked, onPick, disabled, preview, facts }: RowProps) {
+function VoiceRow({
+  voice,
+  defaultSample,
+  defaultName = 'Default voice',
+  checked,
+  onPick,
+  disabled,
+  preview,
+  facts,
+}: RowProps) {
   const description = voice
     ? voice.description
     : `The install's default${defaultSample?.name ? `: ${defaultSample.name}` : ''}`
@@ -213,7 +225,7 @@ function VoiceRow({ voice, defaultSample, checked, onPick, disabled, preview, fa
         <input type="radio" name="voice" className="vp-radio" checked={checked} disabled={disabled} onChange={onPick} />
         <span className="vp-dot" aria-hidden="true" />
         <span className="vp-text">
-          <span className="vp-name">{voice ? voice.name : 'Default voice'}</span>
+          <span className="vp-name">{voice ? voice.name : defaultName}</span>
           {description && (
             <span className="vp-desc" title={description.length > 60 ? description : undefined}>
               {description}
@@ -226,8 +238,8 @@ function VoiceRow({ voice, defaultSample, checked, onPick, disabled, preview, fa
         <PlayButton voice={voice} preview={preview} />
       ) : (
         <PlayButton
-          voice={defaultSample ? { ...defaultSample, name: 'Default voice', description: null } : null}
-          label="Default voice"
+          voice={defaultSample ? { ...defaultSample, name: defaultName, description: null } : null}
+          label={defaultName}
           playKey="default"
           preview={preview}
           unavailable="No default voice to play: the voice provider in use has none set (Admin › Providers)"
@@ -361,7 +373,14 @@ type Props = {
   onPick: (voice: { provider: string; voice_id: string }) => void
   canEdit: boolean
   toast: (text: string) => void
+  /** The assistant's main language: Suggested lists voices made for it when the providers have some. */
+  language: string
+  /** The assistant's name: the default voice is listed as "Maya (default voice)". */
+  assistantName: string
 }
+
+/** How many voices Suggested lists for a main language other than English. */
+const SUGGESTED_FOR_LANGUAGE = 6
 
 function CloneVoice({
   assistantId,
@@ -432,23 +451,29 @@ function CloneVoice({
   )
 }
 
-export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast }: Props) {
+export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast, language, assistantName }: Props) {
   const { data: options } = useVoiceOptions()
   const provider = options?.provider ?? null
   const preview = usePreview(provider)
   const [moreOpen, setMoreOpen] = useState(false)
-  const suggested: PickerVoice[] = provider
-    ? [
-        ...(options?.voices ?? []).map(v => ({ provider, ...v })),
-        ...(options?.clones ?? []).map(v => ({ provider, id: v.id, name: v.name, description: 'Your cloned voice' })),
-      ]
+  const clones: PickerVoice[] = provider
+    ? (options?.clones ?? []).map(v => ({ provider, id: v.id, name: v.name, description: 'Your cloned voice' }))
     : []
-  const isSuggested = suggested.some(v => v.provider === voice.provider && v.id === voice.voice_id)
-  // The catalog is read when More voices opens, or at once when the voice in use is one of it.
-  const needCatalog = moreOpen || (!!voice.voice_id && !!options && !isSuggested)
+  const curated: PickerVoice[] = provider ? (options?.voices ?? []).map(v => ({ provider, ...v })) : []
+  const isCurated = [...curated, ...clones].some(v => v.provider === voice.provider && v.id === voice.voice_id)
+  // The catalog is read when More voices opens, for a main language other than English (its voices are suggested),
+  // or at once when the voice in use is one of it.
+  const needCatalog = moreOpen || language !== 'en' || (!!voice.voice_id && !!options && !isCurated)
   const { data: catalog, error: catalogError } = useQuery(needCatalog ? VOICE_CATALOG : null, loadCatalog, {
     persist: true,
   })
+  // Another main language: the providers' voices made for it, else the curated (English) ones.
+  const forLanguage =
+    language !== 'en' && catalog
+      ? voicesForLanguage(catalog.voices, language, provider).slice(0, SUGGESTED_FOR_LANGUAGE)
+      : []
+  const suggested = [...(forLanguage.length ? forLanguage : curated), ...clones]
+  const isSuggested = suggested.some(v => v.provider === voice.provider && v.id === voice.voice_id)
   const usable = catalog
     ? catalog.providers.filter(p => p.configured).map(p => p.provider)
     : [provider, voice.provider].filter((p): p is string => !!p)
@@ -492,14 +517,18 @@ export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast }: Pr
             facts={voiceFacts(fromCatalog, catalog?.providers.find(p => p.provider === fromCatalog.provider)?.label)}
           />
         )}
-        <VoiceRow
-          voice={null}
-          defaultSample={provider && options?.defaultVoice ? { provider, ...options.defaultVoice } : null}
-          checked={current === ''}
-          onPick={() => pick(null)}
-          disabled={!canEdit}
-          preview={preview}
-        />
+        {/* The default voice speaks English: offered for English, and for a language the providers have no voices for. */}
+        {!forLanguage.length && (
+          <VoiceRow
+            voice={null}
+            defaultName={`${assistantName} (default voice)`}
+            defaultSample={provider && options?.defaultVoice ? { provider, ...options.defaultVoice } : null}
+            checked={current === ''}
+            onPick={() => pick(null)}
+            disabled={!canEdit}
+            preview={preview}
+          />
+        )}
         {suggested.map(v => (
           <VoiceRow
             key={voiceKey(v.provider, v.id)}
@@ -508,6 +537,7 @@ export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast }: Pr
             onPick={() => pick(v)}
             disabled={!canEdit}
             preview={preview}
+            facts={forLanguage.includes(v) ? voiceFacts(v) : undefined}
           />
         ))}
       </div>

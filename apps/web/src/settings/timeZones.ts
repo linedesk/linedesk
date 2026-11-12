@@ -62,3 +62,55 @@ export function timeZoneOptions(current: string): SelectOption<string>[] {
   ]
   return !current || known.some(o => o.value === current) ? known : [toOption(current), ...known]
 }
+
+const offsetFormats = new Map<string, Intl.DateTimeFormat>()
+const clockFormats = new Map<string, Intl.DateTimeFormat>()
+const formatIn = (cache: Map<string, Intl.DateTimeFormat>, zone: string, options: Intl.DateTimeFormatOptions) => {
+  let format = cache.get(zone)
+  if (!format) {
+    format = new Intl.DateTimeFormat('en-US', { timeZone: zone, ...options })
+    cache.set(zone, format)
+  }
+  return format
+}
+
+/** "GMT-8", "GMT+5:30", "GMT" for a zone at `now` (daylight saving included); '' when Intl does not know the zone. */
+export function gmtOffset(zone: string, now: number): string {
+  try {
+    return formatIn(offsetFormats, zone, { timeZoneName: 'shortOffset' }).formatToParts(now).find(p => p.type === 'timeZoneName')?.value ?? ''
+  } catch {
+    return ''
+  }
+}
+
+/** The time in a zone at `now`: "1:31 PM"; '' when Intl does not know the zone. */
+export function clockIn(zone: string, now: number): string {
+  try {
+    return formatIn(clockFormats, zone, { hour: 'numeric', minute: '2-digit' }).format(now)
+  } catch {
+    return ''
+  }
+}
+
+/** What a search for a zone matches: city, region, zone name, id, and its offset as "GMT+1" and "UTC+1". */
+function searchTextOf(option: SelectOption<string>, offset: string): string {
+  const utc = offset.replace(/^GMT/, 'UTC')
+  return `${option.label} ${option.value.replaceAll('_', ' ')} ${offset} ${utc}`.toLowerCase()
+}
+
+/** Typed offsets compare without spaces and with "-" for the minus sign: "gmt -8", "GMT−8" and "gmt-8" are one. */
+const normalizeQuery = (text: string) => text.toLowerCase().replaceAll('−', '-').replace(/\s*([+-])\s*/g, '$1').trim()
+
+/** A typed offset ("gmt+1", "utc-5:30"), compared whole: "gmt+1" is not GMT+10 or GMT+12. */
+const OFFSET_WORD = /^(?:gmt|utc)[+-]\d{1,2}(?::\d{2})?$/
+
+/** The zones whose search text has every word of `query` (an offset word: the zone's offset exactly), in list order. */
+export function searchTimeZones(options: readonly SelectOption<string>[], query: string, now: number): SelectOption<string>[] {
+  const words = normalizeQuery(query).split(/\s+/).filter(Boolean)
+  if (!words.length) return [...options]
+  return options.filter(o => {
+    const offset = gmtOffset(o.value, now)
+    const text = searchTextOf(o, offset)
+    return words.every(w => (OFFSET_WORD.test(w) ? w.replace(/^utc/, 'gmt') === offset.toLowerCase() : text.includes(w)))
+  })
+}

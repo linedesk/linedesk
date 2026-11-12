@@ -1,0 +1,1 @@
+ALTER TABLE "assistants" ADD COLUMN "talking_speed" text DEFAULT 'normal' NOT NULL;
