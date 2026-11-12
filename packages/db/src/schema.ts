@@ -83,7 +83,7 @@ export const assistants = pgTable(
     greeting_known_caller: text('greeting_known_caller').notNull().default(''),
     voice: jsonb('voice').$type<AssistantVoice>().notNull().default({ provider: 'elevenlabs', voice_id: '' }),
     business_profile: jsonb('business_profile').$type<BusinessProfile>().notNull().default({}),
-    /** No longer used: the call rules are fixed (CALL_RULES in @linedesk/actions); dropped in a later release. */
+    /** No longer used: the call rules are fixed (callRules in @linedesk/actions); dropped in a later release. */
     call_rules: text('call_rules'),
     /** Outside business hours (only when the workspace uses them); null: the same as during hours. */
     greeting_outside: text('greeting_outside'),

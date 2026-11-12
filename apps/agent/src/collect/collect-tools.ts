@@ -121,7 +121,7 @@ export function collectTools(ctx: CollectContext) {
       execute: async ({ what }, opts) => runStep(ctx, opts, dateCollector({ what, today: ctx.today() })),
     }),
     get_digits: llm.tool({
-      description: 'Get a number made of digits (account, policy, ZIP code) and confirm it.',
+      description: 'Get a number made of digits (an account number, a ZIP code) and confirm it.',
       parameters: z.object({
         what: z.string().describe('What it is, e.g. "account number".'),
         min_digits: z.number().int().min(1).max(20).describe('Fewest digits it can have.'),

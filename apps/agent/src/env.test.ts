@@ -53,7 +53,7 @@ test('the prompt holds the product rules: messages only, no transfer, no booking
   expect(buildInstructions({ ...assistant, disclose_ai: false })).toContain('say truthfully that you are an AI assistant')
   expect(prompt).toContain('You cannot book appointments, transfer calls')
   expect(prompt).toContain('take a message for that person and say they will call back')
-  expect(prompt).toContain('Appointments: if you can book, follow the booking steps. If not, ask which day and time suit the caller')
+  expect(prompt).toContain('Appointments: ask which day and time suit the caller')
   expect(prompt).toContain('flag the call as urgent right away')
   expect(prompt).toContain('say your reply in the same response as the tool call')
   expect(prompt).not.toMatch(/\brecord(ed|ing)\b/i) // no recording notice unless it is turned on

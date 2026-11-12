@@ -2,7 +2,7 @@
 // configured language model how the assistant handled the call. One short request with the
 // assistant's instructions, the transcript and the summary; the answer is a score (1 to 5) and at
 // most three issues, stored in `call_evaluations`. Only owners and admins read them.
-import { CALL_RULES, type CallEvaluation, NEEDS_REVIEW_MAX_SCORE, QUESTION_MAX } from '@linedesk/actions'
+import { type CallEvaluation, callRules, NEEDS_REVIEW_MAX_SCORE, PRICE_RULE, QUESTION_MAX } from '@linedesk/actions'
 import { assistants, call_evaluations, calls, type Tx, transcript_segments } from '@linedesk/db'
 import { and, asc, desc, eq, isNull, lte } from 'drizzle-orm'
 import { z } from 'zod'
@@ -68,7 +68,11 @@ export function chatJson(
  * The language model in effect (Admin, Providers, or its variables), with its live model: the
  * cheap, fast one, since a short judgement needs no more. null when none is set up.
  */
-export async function evaluationModel(tx: Tx, doFetch: typeof fetch = fetch, options?: ChatOptions): Promise<EvaluationModel | null> {
+export async function evaluationModel(
+  tx: Tx,
+  doFetch: typeof fetch = fetch,
+  options?: ChatOptions,
+): Promise<EvaluationModel | null> {
   const active = await activeProvider(tx, 'llm')
   const endpoint = active && LLM_ENDPOINTS[active.provider]
   const apiKey = active?.config.api_key?.value
@@ -168,11 +172,13 @@ export async function evaluateCall(
   const prompt = evaluationPrompt({
     summary: call.summary,
     instructions: assistant?.business_profile?.instructions ?? '',
-    callRules: CALL_RULES,
+    // The rules of every setup (booking and transfer either way): the call's own setup is not kept.
+    callRules: `${callRules()}\n${PRICE_RULE}`,
     transcript,
   })
   const { score, issues, unanswered } = parseEvaluation(await model.complete(SYSTEM, prompt))
-  if (assistant) await addOpenQuestions(tx, { workspaceId: call.workspace_id, assistantId: assistant.id, callId }, unanswered)
+  if (assistant)
+    await addOpenQuestions(tx, { workspaceId: call.workspace_id, assistantId: assistant.id, callId }, unanswered)
   const values = {
     call_id: callId,
     workspace_id: call.workspace_id,

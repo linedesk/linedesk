@@ -116,7 +116,7 @@ test('the prompt lists types and calendars with their notes only when the assist
   expect(withBooking).toContain(
     '- Appointment (30 minutes), id at_2. Use when: no other type fits. No details to ask for beyond the reason.',
   )
-  expect(withBooking).toContain('Pick the appointment type whose "Use when" condition fits the caller\'s request')
+  expect(withBooking).toContain('Pick the appointment type that fits the caller\'s request by its name and, where it has one, its "Use when" condition')
   // The caller's bookings are never in the prompt: the caller describes one, the API checks it.
   expect(withBooking).toContain(CHANGE_BOOKING_INSTRUCTIONS)
   expect(withBooking).not.toMatch(/booking id|upcoming appointments/)

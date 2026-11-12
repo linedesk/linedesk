@@ -3,7 +3,7 @@
 // (transfer contacts), booking, voice, and Advanced (silence on the line).
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays and booking save on their own.
-import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, DEFAULT_SILENCE_REMINDER, TALKING_SPEED_PCT_DEFAULT, TALKING_SPEED_PCT_MAX, TALKING_SPEED_PCT_MIN, talkingSpeedLabel, type AssistantLanguages, type Language, languageCodes, LANGUAGES } from '@linedesk/actions'
+import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, DEFAULT_SILENCE_REMINDER, TALKING_SPEED_PCT_DEFAULT, TALKING_SPEED_PCT_MAX, TALKING_SPEED_PCT_MIN, talkingSpeedLabel, templateNames, type AssistantLanguages, type Language, languageCodes, LANGUAGES } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
@@ -177,6 +177,7 @@ function Greeting({
           invalid={!draft.greeting.trim()}
           placeholder={`Thanks for calling. This is ${name}. How can I help?`}
         />
+        <CallerDetailsHint greeting={draft.greeting} />
         {stale && (
           <span className="help as-stale">
             Still says "{stale}".
@@ -209,6 +210,7 @@ function Greeting({
             placeholder={draft.greeting}
           />
           {!draft.greeting_outside.trim() && <span className="help">Empty: the same greeting as during business hours.</span>}
+          <CallerDetailsHint greeting={draft.greeting_outside} />
         </Field>
       )}
       {canAddOutside && (
@@ -220,6 +222,15 @@ function Greeting({
       )}
     </Section>
   )
+}
+
+/**
+ * A greeting with caller details from the webhook ({{name}}) says them before the caller has told who they are, and
+ * caller ID can be faked: the owner should only put in what anyone calling from that number may hear.
+ */
+function CallerDetailsHint({ greeting }: { greeting: string }) {
+  if (!templateNames(greeting).length) return null
+  return <span className="help">Said before the caller says who they are, to anyone calling from that number: use only details they may hear.</span>
 }
 
 /** The behaviour checklist: plain-language switches that add a line to the assistant's instructions. */

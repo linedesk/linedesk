@@ -3,15 +3,37 @@
 import type { Language } from './languages.ts'
 import { spokenLines } from './spoken-lines.ts'
 
-export const CALL_RULES = `Find out why the person is calling. Ask one thing at a time.
-Name: ask for it only if you do not know who is calling. A saved contact does not need to give it again.
-Callback number: you already have the caller's number. Ask for another one only if the caller wants to be called back on a different number, or if their number is withheld.
-Take a message for every request you cannot handle yourself: a callback, a visit, a quote, a question you cannot answer. Then tell the caller the team will get back to them.
-Appointments: if you can book, follow the booking steps. If not, ask which day and time suit the caller, put that in the message and say the team will confirm. Never confirm a time you did not book.
-Prices: only give prices the business gave you. Otherwise do not guess: take a message so the team can call back with a price.
-Emergencies or danger to people or property (a burst pipe, flooding, a gas smell, no heat in freezing weather): flag the call as urgent right away. If a transfer rule fits, put the caller through; otherwise take a message. Do not promise how fast someone will come.
-If the caller asks for a specific person: put them through if a transfer rule covers it, otherwise take a message for that person and say they will call back.
-If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.`
+/** Prices: only the ones the business gave, never an estimate; always part of the prompt. */
+export const PRICE_RULE =
+  'Prices: only say a price the business gave you above, exactly as it is written. For anything it gave no price for, never give, guess or estimate a price: say the team will get back to them with a price, and take a message.'
+
+/** What the call has: booking and transfer on or off; left out (the evaluation judges calls of any setup): both cases. */
+export type CallSetup = { booking?: boolean; transfer?: boolean }
+
+const BOOK = 'Appointments: follow the booking steps.'
+const ASK_TIMES = 'ask which day and time suit the caller, put that in the message and say the team will confirm.'
+
+/**
+ * How every assistant handles a call: fixed rules, not a setting, with only the cases of this call's setup. The
+ * caller's name, callback number, prices and promises have their own parts of the prompt and are not repeated here.
+ */
+export function callRules({ booking, transfer }: CallSetup = {}): string {
+  const appointments =
+    booking === undefined
+      ? `Appointments: if you can book, follow the booking steps. If not, ${ASK_TIMES}`
+      : booking
+        ? BOOK
+        : `Appointments: ${ASK_TIMES}`
+  const canTransfer = transfer !== false
+  return [
+    'Find out why the person is calling.',
+    'Take a message for every request you cannot handle yourself: a callback, a visit, a quote. Then tell the caller the team will get back to them.',
+    appointments,
+    `Emergencies or danger to people or property (a burst pipe, flooding, a gas smell, no heat in freezing weather): flag the call as urgent right away. ${canTransfer ? 'If a transfer contact fits, put the caller through; otherwise take a message.' : 'Then take a message.'}`,
+    `If the caller asks for a specific person: ${canTransfer ? 'put them through if a transfer contact covers it, otherwise ' : ''}take a message for that person and say they will call back.`,
+    'If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.',
+  ].join('\n')
+}
 
 /**
  * The behaviour checklist (Settings, Assistant, Calls): plain-language switches that add a line to the
@@ -24,7 +46,8 @@ export const BEHAVIOURS = [
     label: "Ask for the caller's name if unknown",
     on: true,
     say: "Ask for the caller's name when you do not know it yet.",
-    sayOff: "Do not ask for the caller's name unless you need it to book an appointment; a message without a name is fine.",
+    sayOff:
+      "Do not ask for the caller's name unless you need it to book an appointment; a message without a name is fine.",
   },
   {
     id: 'offer_callback',
@@ -94,7 +117,9 @@ export function withoutDisclosure(greeting: string, name = '', language: Languag
   if (language === 'en') return greeting.replace(DISCLOSURE, '')
   const lines = spokenLines(language)
   const sentence = lines.aiSentence(name.trim())
-  const without = greeting.includes(sentence) ? greeting.replace(sentence, '') : greeting.replace(aiAppositive(language), '')
+  const without = greeting.includes(sentence)
+    ? greeting.replace(sentence, '')
+    : greeting.replace(aiAppositive(language), '')
   return without.replace(/\s{2,}/g, ' ').trim()
 }
 
@@ -115,7 +140,12 @@ export const AI_CONSENT_QUESTION = 'Is that okay with you?'
  * The greeting as said on the call: with the AI note when the mode says so at the start, and in the consent
  * mode ending with the consent question instead of its own closing question ("How can I help?").
  */
-export function greetingWithDisclosure(greeting: string, name: string, mode: AiDisclosure, language: Language = 'en'): string {
+export function greetingWithDisclosure(
+  greeting: string,
+  name: string,
+  mode: AiDisclosure,
+  language: Language = 'en',
+): string {
   if (!greeting.trim() || !disclosesAtStart(mode)) return greeting
   const noted = withDisclosure(greeting.trim(), name, language)
   if (mode === 'at_start') return noted
@@ -140,10 +170,10 @@ function withLocalDisclosure(greeting: string, name: string, language: Language)
 /** The prompt's part about mentioning being an AI, on top of the fixed honesty rule; null when there is nothing to add. */
 export function aiDisclosureInstructions(mode: AiDisclosure | null | undefined): string | null {
   switch (mode ?? DEFAULT_AI_DISCLOSURE) {
+    // Answering truthfully when asked is the prompt's fixed honesty rule; the modes only add what differs from it.
     case 'never':
-      return 'Do not bring up on your own that you are an AI. Only if the caller asks directly, answer truthfully.'
+      return 'Do not bring up on your own that you are an AI.'
     case 'when_asked':
-      return 'You do not need to say you are an AI unless the caller asks; when they ask, say it plainly.'
     case 'at_start':
       return null
     case 'at_start_consent':
@@ -165,9 +195,11 @@ export const COMMUNICATION_STYLE_LABELS: Record<CommunicationStyle, string> = {
 const STYLE_LINES: Record<CommunicationStyle, string | null> = {
   standard: null,
   professional: 'Tone: professional and friendly. Polite and clear, warm without being chatty.',
-  casual: 'Tone: casual and relaxed. Talk like a friendly local business, in everyday words, still clear and to the point.',
+  casual:
+    'Tone: casual and relaxed. Talk like a friendly local business, in everyday words, still clear and to the point.',
   formal: 'Tone: formal and factual. Courteous and precise, no small talk and no jokes.',
-  empathetic: 'Tone: empathetic and warm. Acknowledge how the caller feels, especially when something went wrong, and reassure them before you move on.',
+  empathetic:
+    'Tone: empathetic and warm. Acknowledge how the caller feels, especially when something went wrong, and reassure them before you move on.',
 }
 
 /** The tone line for the instructions; null for the standard tone (or an API of an older version). */

@@ -1,20 +1,48 @@
-import { CALL_RULES } from '@linedesk/actions'
+import { callRules } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import type { CallerHistory } from '@linedesk/actions'
-import { bookingInstructions, buildInstructions, heldTransferContacts, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, clockInstructions, forHours } from './prompt.ts'
+import { bookingInstructions, buildInstructions, callerDetailsInstructions, heldTransferContacts, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, clockInstructions, forHours } from './prompt.ts'
 
 const assistant = (over: Partial<Assistant> = {}) =>
   ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', disclose_ai: false, business_profile: { instructions: 'We fix pipes in Portland.' }, ...over }) as Assistant
 
 test('the call rules: no number or known name asked, booking per setup, urgent flagged', () => {
   const prompt = buildInstructions(assistant())
-  expect(prompt).toContain(`How to handle calls:\n${CALL_RULES}`)
+  expect(prompt).toContain(`How to handle calls (where what the business wants you to know says otherwise, follow the business):\n${callRules({ booking: false, transfer: false })}`)
   expect(prompt).toContain('What the business wants you to know:\nWe fix pipes in Portland.')
-  expect(CALL_RULES).toMatch(/Take a message for every request you cannot handle/)
-  expect(CALL_RULES).not.toMatch(/you cannot book|best number to reach/)
-  expect(CALL_RULES).toMatch(/only give prices the business gave you/)
-  expect(CALL_RULES).toMatch(/flag the call as urgent/)
+  expect(callRules()).toMatch(/Take a message for every request you cannot handle/)
+  expect(callRules()).not.toMatch(/you cannot book|best number to reach/)
+  expect(callRules()).toMatch(/flag the call as urgent/)
+})
+
+test('the call rules hold only the cases of this call, and leave name, number, prices and promises to their own parts', () => {
+  expect(callRules({ booking: true })).toContain('Appointments: follow the booking steps.')
+  expect(callRules({ booking: false })).toContain('Appointments: ask which day and time suit the caller')
+  expect(callRules()).toContain('Appointments: if you can book, follow the booking steps. If not,')
+  expect(callRules({ transfer: false })).not.toMatch(/put (the caller|them) through/)
+  expect(callRules({ transfer: true })).toContain('If a transfer contact fits, put the caller through')
+  expect(callRules()).not.toMatch(/^Name:|Callback number:|Prices:|promise|Never confirm a time/m)
+  // The general rules are shown with a note that the owner's text wins, only when there is owner text.
+  expect(buildInstructions(assistant({ business_profile: {} }))).toContain(`How to handle calls:\n${callRules({ booking: false, transfer: false })}`)
+})
+
+test('each rule is said once: AI honesty, prices, one question at a time, no promises', () => {
+  const prompt = buildInstructions(assistant())
+  const times = (text: RegExp) => prompt.match(new RegExp(text, 'g'))?.length ?? 0
+  expect(times(/answer truthfully|say it plainly|say truthfully/)).toBe(1)
+  expect(times(/Prices:/)).toBe(1)
+  expect(times(/one (question|thing) at a time/)).toBe(1)
+  expect(times(/Never promise|Do not promise/)).toBe(1)
+  expect(buildInstructions(assistant({ ai_disclosure: 'never' }))).toContain('Do not bring up on your own that you are an AI.')
+})
+
+test('the tools that speak for themselves are kept out of the rule to talk while a tool runs', () => {
+  const prompt = buildInstructions(assistant())
+  expect(prompt).toContain('When you use a tool other than the collection tools (which speak for themselves), say your reply')
+  expect(buildInstructions(assistant(), null, null, [{ name: 'Mike', condition: 'Urgent' }])).toContain('other than the collection tools and transfer_call (which speak for themselves)')
+  expect(prompt).toContain('Call them without saying anything yourself')
+  expect(prompt).not.toMatch(/Before you save a message or book, get the details/)
 })
 
 test('says it is an AI when asked, whatever the greeting setting and the business instructions', () => {
@@ -26,7 +54,7 @@ test('says it is an AI when asked, whatever the greeting setting and the busines
 test('English only, the greeting is not repeated, and works without an assistant row', () => {
   expect(buildInstructions(assistant())).toContain('Speak English only')
   expect(buildInstructions(assistant())).toContain('You have already opened the call with: "Thanks for calling Brightwater."')
-  expect(buildInstructions(null)).toContain(CALL_RULES)
+  expect(buildInstructions(null)).toContain(`How to handle calls:\n${callRules({ booking: false, transfer: false })}`)
 })
 
 test('business hours: the ready sentence goes into the prompt; closed means a message and when they will be called back', () => {
@@ -128,11 +156,11 @@ test('caller text cannot close the history block', () => {
 
 test('listed appointments switch the booking-change rules; the API check stays (day and name)', () => {
   const booking = { timeZone: 'America/Los_Angeles', today: 'Wednesday', todayDate: '2026-11-11', appointmentTypes: [], calendars: [], upcoming: [], canChangeBookings: true }
-  expect(bookingInstructions(booking, false, true)).toContain(CHANGE_LISTED_BOOKING_INSTRUCTIONS)
-  expect(bookingInstructions(booking, false, false)).toContain(CHANGE_BOOKING_INSTRUCTIONS)
+  expect(bookingInstructions(booking, { listed: true })).toContain(CHANGE_LISTED_BOOKING_INSTRUCTIONS)
+  expect(bookingInstructions(booking)).toContain(CHANGE_BOOKING_INSTRUCTIONS)
   expect(buildInstructions(assistant(), null, booking, [], { name: 'Linda Park', note: null, history: history() })).toContain(CHANGE_LISTED_BOOKING_INSTRUCTIONS)
   expect(buildInstructions(assistant(), null, booking, [], { name: 'Linda Park', note: null, history: history({ upcomingBookings: [] }) })).toContain(CHANGE_BOOKING_INSTRUCTIONS)
-  expect(bookingInstructions({ ...booking, canChangeBookings: false }, false, true)).not.toContain(CHANGE_LISTED_BOOKING_INSTRUCTIONS)
+  expect(bookingInstructions({ ...booking, canChangeBookings: false }, { listed: true })).not.toContain(CHANGE_LISTED_BOOKING_INSTRUCTIONS)
 })
 
 test('caller ID: a known number is not asked for, a saved name is not asked for, a withheld number is', () => {
@@ -162,9 +190,45 @@ test('a contact that takes calls only during business hours: while closed the as
 
 test('the date and time where the business is go into the prompt; none without a time zone', () => {
   const at = Date.parse('2026-11-12T21:31:00Z')
-  expect(clockInstructions('America/Los_Angeles', at)).toContain('It is now Thursday, November 12, 2026 at 1:31 PM where the business is (time zone America/Los_Angeles)')
+  expect(clockInstructions('America/Los_Angeles', at)).toContain('It is now Thursday, November 12, 2026 at 1:31 PM (2026-11-12) where the business is (time zone America/Los_Angeles)')
   expect(clockInstructions('Europe/Berlin', at)).toContain('Thursday, November 12, 2026 at 10:31 PM')
   expect(clockInstructions(null, at)).toBeNull()
   expect(clockInstructions('Not/AZone', at)).toBeNull()
   expect(buildInstructions(assistant(), null, null, [], null, 'America/Los_Angeles', at)).toContain('It is now Thursday, November 12, 2026')
+})
+
+const booking = {
+  timeZone: 'America/Los_Angeles', today: 'Thursday, November 12, 2026', todayDate: '2026-11-12', upcoming: [], canChangeBookings: true,
+  appointmentTypes: [
+    { id: 'at_1', name: 'Repair visit', duration_min: 60, required_fields: ['name', 'address', 'phone'] as ('name' | 'address' | 'phone' | 'email')[], instruction: '' },
+    { id: 'at_2', name: 'Free estimate', duration_min: 45, required_fields: ['name', 'email'] as ('name' | 'address' | 'phone' | 'email')[], instruction: '' },
+  ],
+  calendars: [{ id: 'acal_1', name: 'Office', instruction: '', is_default: true }],
+}
+
+test('closed: booking goes on while the office is closed, and after a break; nothing about booking without it', () => {
+  const closed = { openNow: false, summary: 'Closed now; opens tomorrow at 7 AM.' }
+  expect(buildInstructions(assistant(), closed, booking)).toContain('take a message as usual and tell the caller the team will call back when the office opens, saying when. You can still book appointments as usual.')
+  expect(buildInstructions(assistant(), closed)).not.toMatch(/book appointments as usual/)
+  const vacation = { ...closed, closure: { greeting: '' } }
+  expect(buildInstructions(assistant(), vacation, booking)).toContain('You can still book appointments for after the break: find_slots offers no time during it.')
+  expect(buildInstructions(assistant(), vacation, booking)).not.toMatch(/Do not book appointments/)
+})
+
+test('booking: no second date line next to the clock, no phone number asked when caller ID gave it, types picked by name too', () => {
+  const at = Date.parse('2026-11-12T21:31:00Z')
+  const known = buildInstructions(assistant(), null, booking, [], { name: null, note: null }, 'America/Los_Angeles', at)
+  expect(known).not.toContain('Today is')
+  expect(known).toContain('- Repair visit (60 minutes), id at_1. Before booking ask for: name, address.')
+  expect(known).toContain('Pick the appointment type that fits the caller\'s request by its name and, where it has one, its "Use when" condition')
+  const withheld = buildInstructions(assistant(), null, booking, [], null)
+  expect(withheld).toContain('Today is Thursday, November 12, 2026 (2026-11-12, time zone America/Los_Angeles).')
+  expect(withheld).toContain('- Repair visit (60 minutes), id at_1. Before booking ask for: name, address, phone number.')
+  // A type that asks for an email: get_email is for that too, not only for a confirmation the caller asks for.
+  expect(known).toContain('get_email for an email address (when the appointment type asks for one, or the caller wants a confirmation by email)')
+})
+
+test('caller details from the webhook: private facts wait for the full name, like the notes', () => {
+  expect(callerDetailsInstructions({ name: 'Sam Lee', plan: 'Premium' })).toMatch(/until the caller has told you their full name and it matches the name in them/)
+  expect(callerDetailsInstructions({})).toBeNull()
 })
