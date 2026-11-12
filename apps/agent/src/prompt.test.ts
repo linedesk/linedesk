@@ -2,7 +2,7 @@ import { AI_DISCLOSURE_MODES, CALLER_NAME_MAX, callRules } from '@linedesk/actio
 import type { Assistant } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import type { CallerHistory } from '@linedesk/actions'
-import { bookingInstructions, buildInstructions, callerDetailsInstructions, heldTransferContacts, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, clockInstructions, forHours, quotedData } from './prompt.ts'
+import { bookingInstructions, buildInstructions, callerDetailsInstructions, heldTransferContacts, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, clockInstructions, forHours, languageInstructions, quotedData } from './prompt.ts'
 
 const assistant = (over: Partial<Assistant> = {}) =>
   ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', disclose_ai: false, business_profile: { instructions: 'We fix pipes in Portland.' }, ...over }) as Assistant
@@ -274,4 +274,12 @@ test('booking: no second date line next to the clock, no phone number asked when
 test('caller details from the webhook: private facts wait for the full name, like the notes', () => {
   expect(callerDetailsInstructions({ name: 'Sam Lee', plan: 'Premium' })).toMatch(/until the caller has told you their full name and it matches the name in them/)
   expect(callerDetailsInstructions({})).toBeNull()
+})
+
+// Seen on a realtime call test (spanish-caller): after take_message the assistant went on in English ("The team will
+// get back to you. Is there anything else…", "Alright, I'll hang up now…") with a caller who spoke only Spanish.
+test('an assistant that speaks more than one language says English tool texts and example lines in the caller\'s language', () => {
+  const spanish = languageInstructions({ languages: { main: 'en', mode: 'allowed', allowed: ['es'] } } as unknown as Assistant)
+  expect(spanish).toContain('say them in the language you are speaking with the caller')
+  expect(languageInstructions({ languages: { main: 'en', mode: 'english', allowed: [] } } as unknown as Assistant)).not.toContain('say them in the language')
 })

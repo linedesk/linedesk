@@ -286,6 +286,9 @@ export type CallerContext = Pick<Contact, 'name' | 'note'> & { phone?: string | 
 
 const TEAM_LANGUAGE_RULE =
   'Whatever language you speak, write the messages, notes and booking details you save with tools in English, so the team can read them; keep names as the caller gives them.'
+/** Tool results and the example lines in these instructions are English: without this a model goes back to English after a tool. */
+const SPOKEN_LANGUAGE_RULE =
+  'What tools tell you to say and the example lines in these instructions are in English: say them in the language you are speaking with the caller, up to your goodbye.'
 
 /** Which languages the assistant speaks (assistants.languages): its main language, and the ones it may switch to. */
 export function languageInstructions(assistant: Pick<Assistant, 'languages'> | null): string {
@@ -300,6 +303,7 @@ export function languageInstructions(assistant: Pick<Assistant, 'languages'> | n
     `Start in ${mainName}. You also speak ${languageNames(others)}: when the caller speaks one of these, reply in that language from then on, and switch back if they switch.`,
     `If the caller speaks any other language, reply in ${mainName}: say politely that you can help in ${languageNames([main, ...others], 'or')}, and offer to take a message.`,
     TEAM_LANGUAGE_RULE,
+    SPOKEN_LANGUAGE_RULE,
   ].join(' ')
 }
 
