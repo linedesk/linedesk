@@ -176,7 +176,7 @@ export function aiDisclosureInstructions(mode: AiDisclosure | null | undefined):
     case 'never':
       return `Do not bring up on your own that you are an AI. ${AI_WHEN_ASKED}`
     case 'when_asked':
-      return `You do not need to say you are an AI unless the caller asks. ${AI_WHEN_ASKED}`
+      return AI_WHEN_ASKED
     case 'at_start':
       return `Your greeting told the caller you are an AI assistant. ${AI_WHEN_ASKED}`
     case 'at_start_consent':

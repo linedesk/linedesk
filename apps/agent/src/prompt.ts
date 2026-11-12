@@ -146,20 +146,17 @@ export type BookingPromptOptions = {
   transfer?: boolean
   /** call.start listed the caller's upcoming bookings. */
   listed?: boolean
-  /** The prompt's clock line gives today's date already. */
-  dated?: boolean
   /** Caller ID gave the caller's number. */
   callerNumber?: boolean
 }
 
-export function bookingInstructions(booking: BookingContext, { transfer = false, listed = false, dated = false, callerNumber = false }: BookingPromptOptions = {}): string {
+export function bookingInstructions(booking: BookingContext, { transfer = false, listed = false, callerNumber = false }: BookingPromptOptions = {}): string {
   const types = booking.appointmentTypes.map(t => typeLine(t, callerNumber)).join('\n')
   const calendars = booking.calendars.map(calendarLine).join('\n')
   return [
     transfer
       ? 'You can do four things for the caller: book an appointment, save a message for the team with take_message, flag the call as urgent with flag_urgent, and put the caller through to a person with transfer_call. You cannot look up records such as jobs, invoices or accounts.'
       : 'You can do three things for the caller: book an appointment, save a message for the team with take_message, and flag the call as urgent with flag_urgent. You cannot transfer calls or look up records such as jobs, invoices or accounts.',
-    dated ? null : `Today is ${booking.today} (${booking.todayDate}, time zone ${booking.timeZone}).`,
     `Appointment types, with when to use each:\n${types}`,
     `Calendars, with when to use each:\n${calendars}`,
     booking.appointmentTypes.length > 1
@@ -325,7 +322,7 @@ export function clockInstructions(timeZone: string | null | undefined, now: numb
   if (!timeZone) return null
   try {
     const at = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(now)
-    // The tools take dates as YYYY-MM-DD; the booking part leaves out its own "Today is" when this is given.
+    // The tools take dates as YYYY-MM-DD.
     const date = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
     return `It is now ${at} (${date}) where the business is (time zone ${timeZone}). Use this for today's date, the day of the week and the time; never guess them. The days after today: ${upcomingDays(timeZone, now)}. Take a weekday the caller names ("Wednesday", "next Wednesday") from this list.`
   } catch {
@@ -358,9 +355,10 @@ export function buildInstructions(
   const greeting = assistant?.greeting ? fillTemplate(assistant.greeting, callerDetails ?? null) : null
   const name = assistant?.name ?? 'the assistant'
   const knowledge = assistant ? businessKnowledge(assistant) : ''
-  const clock = clockInstructions(timeZone, now)
+  // The booking context carries the business's time zone too, so a call that can book always has the clock line.
+  const clock = clockInstructions(timeZone ?? booking?.timeZone, now)
   return [
-    `You are ${name}, the AI assistant answering the phone for a business. You are on a live phone call: keep every reply to one or two short spoken sentences, start with a short first sentence, ask one question at a time, and never use lists, markdown or emojis.`,
+    `You are ${name}, the AI assistant answering the phone. You are on a live phone call: keep every reply to one or two short spoken sentences, start with a short first sentence, ask one question at a time, and never use lists, markdown or emojis.`,
     languageInstructions(assistant),
     greeting
       ? opening === 'said'
@@ -374,7 +372,7 @@ export function buildInstructions(
     aiDisclosureInstructions(assistant?.ai_disclosure),
     communicationStyleInstructions(assistant?.communication_style),
     booking
-      ? bookingInstructions(booking, { transfer, listed: !!caller?.history?.upcomingBookings.length, dated: !!clock, callerNumber: !!caller })
+      ? bookingInstructions(booking, { transfer, listed: !!caller?.history?.upcomingBookings.length, callerNumber: !!caller })
       : transfer ? MESSAGES_AND_TRANSFER : MESSAGES_ONLY,
     hoursContext(hours, !!booking),
     'Only state facts about the business that these instructions give you; if you do not know something, say so.',

@@ -109,7 +109,8 @@ test('a refused booking is not confirmed: the model hears why and what to do ins
 
 test('the prompt lists types and calendars with their notes only when the assistant can book', () => {
   const withBooking = buildInstructions(null, null, booking)
-  expect(withBooking).toContain('Today is Wednesday, November 11, 2026 (2026-11-11, time zone America/Los_Angeles).')
+  expect(withBooking).toContain('where the business is (time zone America/Los_Angeles)')
+  expect(withBooking).not.toContain('Today is')
   expect(withBooking).toContain(
     '- Repair visit (60 minutes), id at_1. Use when: the caller has something broken. Before booking ask for: name, address.',
   )

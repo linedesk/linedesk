@@ -41,7 +41,8 @@ test('the AI line follows the disclosure setting, and every mode says it is an A
   for (const mode of AI_DISCLOSURE_MODES) {
     expect(buildInstructions(assistant({ ai_disclosure: mode }))).toContain('Whenever the caller asks whether you are a person, a robot or an AI, say truthfully that you are an AI assistant. Never claim to be human.')
   }
-  expect(buildInstructions(assistant({ ai_disclosure: 'when_asked' }))).toContain('You do not need to say you are an AI unless the caller asks.')
+  // when_asked is the honesty line alone: no second sentence saying the same.
+  expect(buildInstructions(assistant({ ai_disclosure: 'when_asked' }))).not.toContain('You do not need to say you are an AI')
   expect(buildInstructions(assistant({ ai_disclosure: 'at_start' }))).toContain('Your greeting told the caller you are an AI assistant.')
   expect(buildInstructions(assistant({ ai_disclosure: 'at_start_consent' }))).toContain('If they do not want to talk to an AI, do not try to persuade them')
 })
@@ -243,8 +244,10 @@ test('booking: no second date line next to the clock, no phone number asked when
   expect(known).not.toContain('Today is')
   expect(known).toContain('- Repair visit (60 minutes), id at_1. Before booking ask for: name, address.')
   expect(known).toContain('Pick the appointment type that fits the caller\'s request by its name and, where it has one, its "Use when" condition')
-  const withheld = buildInstructions(assistant(), null, booking, [], null)
-  expect(withheld).toContain('Today is Thursday, November 12, 2026 (2026-11-12, time zone America/Los_Angeles).')
+  // No time zone passed: the clock line takes the booking's, and there is still no second date line.
+  const withheld = buildInstructions(assistant(), null, booking, [], null, null, at)
+  expect(withheld).toContain('It is now Thursday, November 12, 2026 at 1:31 PM (2026-11-12) where the business is (time zone America/Los_Angeles).')
+  expect(withheld).not.toContain('Today is')
   expect(withheld).toContain('- Repair visit (60 minutes), id at_1. Before booking ask for: name, address, phone number.')
   // A type that asks for an email: get_email is for that too, not only for a confirmation the caller asks for.
   expect(known).toContain('get_email for an email address (when the appointment type asks for one, or the caller wants a confirmation by email)')

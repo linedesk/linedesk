@@ -145,7 +145,7 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
       },
     }),
     flag_urgent: llm.tool({
-      description: 'Flag this call as urgent. Use it for emergencies that need a person right away. Whenever you tell the caller you are flagging or marking the call as urgent, call this in that same response; never say it without calling it.',
+      description: 'Flag this call as urgent. Use it when the call is urgent by what the business wants you to know, or when the caller says it is urgent. Whenever you tell the caller you are flagging or marking the call as urgent, call this in that same response; never say it without calling it.',
       execute: async () => {
         await flagUrgent()
         return 'The call is flagged as urgent for the team. Take a message now; do not promise a response time.'

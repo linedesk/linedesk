@@ -350,7 +350,7 @@ export const callTakeMessage = defineAction({
 })
 export const callFlagUrgent = defineAction({
   name: 'call.flagUrgent',
-  description: 'Flag a call as urgent, for emergencies that need a person right away.',
+  description: 'Flag a call as urgent, so the team sees it first.',
   input: callId,
   permission: 'agent',
   patch: { table: 'calls', id: i => i.callId, set: () => ({ urgency: 'urgent' }) } satisfies PatchSpec<CallId, 'calls'>,

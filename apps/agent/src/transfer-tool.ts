@@ -194,7 +194,7 @@ export function transferTool({ ctx, api, call, log, config, callerIdentity, cont
         .min(1)
         .describe('Every contact whose condition fits this call, by name.'),
       caller_name: z.string().nullish().describe("The caller's name, if they gave it."),
-      about: z.string().describe('What the call is about, in a few words, e.g. "a burst pipe flooding the kitchen".'),
+      about: z.string().describe('What the call is about, in a few words, e.g. "a question about an open invoice".'),
     }),
     execute: async ({ contacts: picked, caller_name, about }, { ctx: run }) => {
       if (tried) return 'You already tried to transfer this call. Take a message instead.'
