@@ -37,7 +37,7 @@ function workspaceOf(actor: Actor) {
 
 /** The email names the member who sent the invitation (`inviterId`), also when someone else resends it. */
 export async function sendInvitation(tx: Tx, invite: { id: string; email: string; organizationId: string; inviterId: string }) {
-  if (emailSender.kind === 'none') throw new Reject('email is not set up, so invitations cannot be sent (set SMTP_URL)')
+  if (emailSender.kind === 'none') throw new Reject('email is not set up, so invitations cannot be sent (connect it in Admin, Providers, Email)')
   if (!allowEmailFor(invite.organizationId)) throw new Reject('too many invitations in the last hour; try again later')
   // The same answer whether or not the address has an account anywhere.
   if (!allowEmailTo(invite.email.toLowerCase())) throw new Reject('too many invitations to this address in the last hour; try again later')

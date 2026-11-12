@@ -100,3 +100,54 @@ test('a provider that does not answer in time', async () => {
     message: 'Deepgram did not answer within 8 seconds',
   })
 })
+
+const app = { client_id: 'client-id-123', client_secret: 'client-secret-made-up-123456' }
+
+test.each([
+  ['google', 'https://oauth2.googleapis.com/token', {}],
+  ['github', 'https://github.com/login/oauth/access_token', {}],
+  ['microsoft', 'https://login.microsoftonline.com/common/oauth2/v2.0/token', {}],
+  ['microsoft', 'https://login.microsoftonline.com/contoso.onmicrosoft.com/oauth2/v2.0/token', { tenant_id: 'contoso.onmicrosoft.com' }],
+] as const)('%s: a made-up code the provider rejects means the app is right', async (provider, url, extra) => {
+  const fetchMock = answer(400, { error: provider === 'github' ? 'bad_verification_code' : 'invalid_grant' })
+  expect(await testProvider(provider, config({ ...app, ...extra }), fetchMock)).toEqual({ ok: true, message: 'Connected' })
+  const request = requestOf(fetchMock)
+  expect(request.url).toBe(url)
+  expect(request.init.method).toBe('POST')
+  expect(String(request.init.body)).toContain('client_id=client-id-123')
+})
+
+test.each([
+  ['google', { error: 'invalid_client' }, 401],
+  ['github', { error: 'incorrect_client_credentials' }, 200],
+] as const)('%s: a wrong client is reported, without the secret', async (provider, body, status) => {
+  const result = await testProvider(provider, config(app), answer(status, body))
+  expect(result.ok).toBe(false)
+  expect(result.message).toMatch(/rejected the client ID or secret/)
+  expect(result.message).not.toContain(app.client_secret)
+})
+
+test('oidc: the token endpoint comes from the discovery document', async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(new Response(JSON.stringify({ token_endpoint: 'https://id.example.com/token' })))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 }))
+  const values = { ...app, discovery_url: 'https://id.example.com/.well-known/openid-configuration' }
+  expect(await testProvider('oidc', config(values), fetchMock)).toEqual({ ok: true, message: 'Connected' })
+  expect(fetchMock.mock.calls[1]![0]).toBe('https://id.example.com/token')
+})
+
+test('oidc: a discovery document without an https token endpoint fails clearly', async () => {
+  const values = { ...app, discovery_url: 'https://id.example.com/.well-known/openid-configuration' }
+  const result = await testProvider('oidc', config(values), answer(200, { token_endpoint: 'http://id.example.com/token' }))
+  expect(result).toEqual({ ok: false, message: expect.stringMatching(/no https token_endpoint/) })
+})
+
+test('oidc: a discovery URL that answers no JSON gets a fixed message, not the body', async () => {
+  const values = { ...app, discovery_url: 'https://intranet.example.com/' }
+  const html = vi.fn(async () => new Response('<html>internal admin panel secret-banner</html>', { status: 200 }))
+  const result = await testProvider('oidc', config(values), html)
+  expect(result.ok).toBe(false)
+  expect(result.message).not.toContain('secret-banner')
+  expect(result.message).toMatch(/did not answer with JSON/)
+})

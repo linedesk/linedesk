@@ -12,6 +12,7 @@ import {
 import { instance_settings, provider_settings, type Tx, user } from '@linedesk/db'
 import { telephonyProviderFromEnv, type TelephonyProvider } from '@linedesk/telephony'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { serverEnv } from './instance-env.ts'
 import { decryptSecret, encryptSecret, hasSecretsKey } from './secrets.ts'
 
 type Env = Record<string, string | undefined>
@@ -31,7 +32,7 @@ const instanceRows = (tx: Tx, provider?: ProviderName) =>
     .where(and(isNull(provider_settings.workspace_id), provider ? eq(provider_settings.provider, provider) : undefined))
 
 /** The config in effect for a provider. Throws SecretsKeyError when a stored value cannot be decrypted. */
-export async function resolveProvider(tx: Tx, provider: ProviderName, env: Env = process.env): Promise<ProviderConfig> {
+export async function resolveProvider(tx: Tx, provider: ProviderName, env: Env = serverEnv()): Promise<ProviderConfig> {
   const stored = new Map((await instanceRows(tx, provider)).map(row => [row.field, row]))
   return Object.fromEntries(
     Object.entries(providerSpec(provider).fields).map(([field, spec]) => {
@@ -75,7 +76,8 @@ export async function setActiveProvider(
 
 /** The provider a category falls back to without a pick: the one its variable names (STT_PROVIDER, ...). */
 function providerFromEnv(category: ProviderCategory, env: Env): ProviderName | null {
-  const name = env[categoryEnv[category]]
+  const variable = categoryEnv[category]
+  const name = variable && env[variable]
   return isProvider(name) && providerSpec(name).category === category ? name : null
 }
 
@@ -91,7 +93,7 @@ const autoPicks = (category: ProviderCategory) => category !== 'recording'
  * else the one its variable names, else the first in the registry with every needed field. null
  * when there is none, or when the picked or named one is not set up yet (no silent switch).
  */
-export async function activeProvider(tx: Tx, category: ProviderCategory, env: Env = process.env) {
+export async function activeProvider(tx: Tx, category: ProviderCategory, env: Env = serverEnv()) {
   const named = (await chosenProvider(tx, category)) ?? providerFromEnv(category, env)
   for (const provider of named ? [named] : autoPicks(category) ? providersIn(category) : []) {
     const config = await resolveProvider(tx, provider, env)
@@ -103,7 +105,7 @@ export async function activeProvider(tx: Tx, category: ProviderCategory, env: En
 }
 
 /** Every provider of a category that has all its needed fields, with its config, in registry order. */
-export async function setUpProviders(tx: Tx, category: ProviderCategory, env: Env = process.env) {
+export async function setUpProviders(tx: Tx, category: ProviderCategory, env: Env = serverEnv()) {
   const ready: { provider: ProviderName; config: ProviderConfig }[] = []
   for (const provider of providersIn(category)) {
     const config = await resolveProvider(tx, provider, env)
@@ -118,7 +120,7 @@ export async function setUpProviders(tx: Tx, category: ProviderCategory, env: En
  * (`dev` means no carrier), else the first one in the registry that is set up (Telnyx before
  * Twilio), else dev. Keys come from the app first, then env; `packages/telephony` gets them as variables.
  */
-export async function telephonyProvider(tx: Tx, env: Env = process.env): Promise<TelephonyProvider> {
+export async function telephonyProvider(tx: Tx, env: Env = serverEnv()): Promise<TelephonyProvider> {
   const named = (await chosenProvider(tx, 'telephony')) ?? (env.TELEPHONY_PROVIDER || null)
   // `dev` or a name the registry does not know: the telephony package decides (dev, or a clear error).
   if (named && !isProvider(named)) return telephonyProviderFromEnv({ TELEPHONY_PROVIDER: named })
@@ -157,7 +159,7 @@ const entryOf = (provider: ProviderName, config: ProviderConfig, withSecrets = t
  * Whether the server has what the voice agent needs to answer a call: LiveKit in env and a speech,
  * language model and voice provider. Says nothing about whether the worker runs. Never throws.
  */
-export async function voiceReady(tx: Tx, env: Env = process.env): Promise<boolean> {
+export async function voiceReady(tx: Tx, env: Env = serverEnv()): Promise<boolean> {
   if (!env.LIVEKIT_URL || !env.LIVEKIT_API_KEY || !env.LIVEKIT_API_SECRET) return false
   try {
     for (const category of voiceCategories) if (!(await activeProvider(tx, category, env))) return false
@@ -217,7 +219,7 @@ function decryptForDisplay(stored: string, slotName: string): string | null {
 }
 
 /** What the admin area shows: which source is in effect, never a secret. */
-export async function providerStatus(tx: Tx, env: Env = process.env) {
+export async function providerStatus(tx: Tx, env: Env = serverEnv()) {
   const rows = await instanceRows(tx)
   const editorIds = [...new Set(rows.map(row => row.updated_by).filter(id => id !== null))]
   const editors = editorIds.length

@@ -4,16 +4,28 @@ import { z } from 'zod'
 import { isRecordingPrefix } from './calls.ts'
 import { defineAction } from './define.ts'
 
-export type ProviderCategory = 'telephony' | 'stt' | 'llm' | 'tts' | 'recording'
+export type ProviderCategory = 'telephony' | 'stt' | 'llm' | 'tts' | 'email' | 'sign_in' | 'recording'
 export const providerCategories: Record<ProviderCategory, string> = {
   telephony: 'Telephony',
   stt: 'Speech to text',
   llm: 'Language model',
   tts: 'Voice',
+  email: 'Email',
+  sign_in: 'Sign-in and calendar',
   recording: 'Recording storage',
 }
+
+/** Categories where every provider that is set up is in use at once (no pick): sign-in with Google and GitHub, say. */
+export const multiCategories: readonly ProviderCategory[] = ['sign_in']
+export const isMultiCategory = (category: ProviderCategory) => multiCategories.includes(category)
+
+/**
+ * Categories the API reads once at start (Better Auth's sign-in providers, the mail transport): a
+ * change there restarts the API, which takes a few seconds (instance-env.ts). The others apply at once.
+ */
+export const restartCategories: readonly ProviderCategory[] = ['email', 'sign_in']
 /** The variable that picks a category's provider when none is picked in the admin area. */
-export const categoryEnv: Record<ProviderCategory, string> = {
+export const categoryEnv: Partial<Record<ProviderCategory, string>> = {
   telephony: 'TELEPHONY_PROVIDER',
   stt: 'STT_PROVIDER',
   llm: 'LLM_PROVIDER',
@@ -183,6 +195,90 @@ export const providers = {
       },
     ],
   },
+  // Email: how sign-in codes, invitations and call emails go out. Without it, email codes are off.
+  smtp: {
+    label: 'SMTP',
+    category: 'email',
+    fields: {
+      url: {
+        label: 'SMTP URL',
+        env: 'SMTP_URL',
+        secret: true,
+        hint: 'smtps://user:password@smtp.example.com:465',
+      },
+      from: { label: 'From', env: 'EMAIL_FROM', secret: false, optional: true, hint: 'Linedesk <no-reply@example.com>' },
+    },
+    help: 'Sends sign-in codes, invitations and call emails. Any mail service with SMTP: Postmark, Resend, Amazon SES, Mailgun or your own server.',
+    presets: [
+      {
+        label: 'Postmark',
+        values: { url: 'smtp://<server-token>:<server-token>@smtp.postmarkapp.com:587' },
+        help: 'Replace both <server-token> with your Postmark server API token.',
+      },
+      {
+        label: 'Resend',
+        values: { url: 'smtps://resend:<api-key>@smtp.resend.com:465' },
+        help: 'Replace <api-key> with a Resend API key.',
+      },
+      {
+        label: 'Amazon SES',
+        values: { url: 'smtps://<smtp-user>:<smtp-password>@email-smtp.<region>.amazonaws.com:465' },
+        help: 'Use SES SMTP credentials (not your AWS access key) and your region, e.g. us-east-1.',
+      },
+    ],
+  },
+  // Sign-in and calendar: OAuth apps. Google and Microsoft serve both sign-in and the calendar connection.
+  google: {
+    label: 'Google',
+    category: 'sign_in',
+    fields: {
+      client_id: { label: 'Client ID', env: 'GOOGLE_CLIENT_ID', secret: false },
+      client_secret: { label: 'Client secret', env: 'GOOGLE_CLIENT_SECRET', secret: true },
+    },
+    help: 'In Google Cloud, create an OAuth client (Web application) with the redirect URIs below. For calendars the consent screen lists calendar.events, calendar.freebusy and calendar.calendarlist.readonly.',
+  },
+  microsoft: {
+    label: 'Microsoft',
+    category: 'sign_in',
+    fields: {
+      client_id: { label: 'Application (client) ID', env: 'MICROSOFT_CLIENT_ID', secret: false },
+      client_secret: { label: 'Client secret', env: 'MICROSOFT_CLIENT_SECRET', secret: true },
+      tenant_id: { label: 'Tenant', env: 'MICROSOFT_TENANT_ID', secret: false, optional: true, hint: 'common' },
+    },
+    help: 'In Microsoft Entra, register an app (Web) with the redirect URIs below and the delegated permissions Calendars.ReadWrite, offline_access and User.Read. Work accounts sign in only with the optional ID-token claims xms_edov and email (Token configuration). Tenant: an ID limits sign-in to one organization.',
+  },
+  github: {
+    label: 'GitHub',
+    category: 'sign_in',
+    fields: {
+      client_id: { label: 'Client ID', env: 'GITHUB_CLIENT_ID', secret: false },
+      client_secret: { label: 'Client secret', env: 'GITHUB_CLIENT_SECRET', secret: true },
+    },
+    help: 'Create an OAuth app under GitHub, Developer settings, with the callback URL below. Only the primary email, and only when GitHub verified it, signs anyone in.',
+  },
+  oidc: {
+    label: 'Single sign-on (OIDC)',
+    category: 'sign_in',
+    fields: {
+      discovery_url: {
+        label: 'Discovery URL',
+        env: 'OIDC_DISCOVERY_URL',
+        secret: false,
+        hint: 'https://idp.example.com/.well-known/openid-configuration',
+      },
+      client_id: { label: 'Client ID', env: 'OIDC_CLIENT_ID', secret: false },
+      client_secret: { label: 'Client secret', env: 'OIDC_CLIENT_SECRET', secret: true },
+      display_name: { label: 'Button label', env: 'OIDC_DISPLAY_NAME', secret: false, optional: true, hint: 'Single sign-on' },
+      trust_email_domains: {
+        label: 'Trusted email domains',
+        env: 'OIDC_TRUST_EMAIL_DOMAINS',
+        secret: false,
+        optional: true,
+        hint: 'example.com (comma-separated; only domains your identity provider owns)',
+      },
+    },
+    help: 'Okta, Microsoft Entra, Keycloak, Authentik or any OpenID Connect provider. It must send email_verified only for verified addresses; for one that sends none, list the email domains it owns.',
+  },
 } as const satisfies Record<string, ProviderSpec>
 
 export type ProviderName = keyof typeof providers
@@ -218,6 +314,10 @@ export const providerSetKeys = defineAction({
           code: 'custom',
           message: 'endpoint must be an http(s) URL, e.g. https://s3.us-east-1.amazonaws.com',
         })
+      if (provider === 'smtp' && values.url !== undefined && !/^smtps?:\/\/\S+$/i.test(values.url))
+        ctx.addIssue({ code: 'custom', message: 'the SMTP URL starts with smtp:// or smtps://' })
+      if (provider === 'oidc' && values.discovery_url !== undefined && !/^https:\/\/\S+$/i.test(values.discovery_url))
+        ctx.addIssue({ code: 'custom', message: 'the discovery URL must be an https URL' })
       if (provider === 's3' && values.prefix !== undefined && !isRecordingPrefix(values.prefix))
         ctx.addIssue({ code: 'custom', message: 'prefix may only hold letters, digits, - _ . and /' })
     }),
@@ -240,7 +340,8 @@ export const providerSetActive = defineAction({
     .object({ category: z.enum(categoryNames), provider: provider.nullable() })
     .refine(i => i.provider === null || providers[i.provider].category === i.category, {
       message: 'that provider belongs to another category',
-    }),
+    })
+    .refine(i => !isMultiCategory(i.category), { message: 'every provider set up in this category is in use' }),
   permission: 'instance:admin',
 })
 

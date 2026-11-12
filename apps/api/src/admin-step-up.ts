@@ -2,10 +2,11 @@
 // someone with only an admin's mailbox, password or provider account gets that far. What would let
 // them keep the role or take over passkeys needs a passkey sign-in in the last 12 hours: granting
 // admin, resetting passkeys, inviting an admin (these hand out enrolment codes), signing in as a
-// user, and any action on an instance admin (by user or by workspace membership), the caller
-// included. Admins without a passkey add their first with the enrolment code (passkey-enrolment.ts).
+// user, any action on an instance admin (by user or by workspace membership), the caller
+// included, and changing email or sign-in settings (an SMTP server or sign-in provider of an
+// attacker's own would hand them sign-in codes or any account). Admins without a passkey add their first with the enrolment code (passkey-enrolment.ts).
 // The server operator (CLI) needs none.
-import type { ActionDef } from '@linedesk/actions'
+import { type ActionDef, providerNames, providerSpec, restartCategories } from '@linedesk/actions'
 import { member, passkey, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { adminSecondFactorRequired } from './admin-second-factor.ts'
@@ -26,9 +27,17 @@ async function targetUserId(fields: { userId?: unknown; memberId?: unknown }): P
   return row?.userId ?? null
 }
 
+/** provider.setKeys / clearKeys of email or sign-in: whoever controls these can sign in as anyone. */
+export function changesSignInOrEmail(name: string, input: unknown): boolean {
+  if (name !== 'provider.setKeys' && name !== 'provider.clearKeys') return false
+  const provider = (input as { provider?: unknown } | null)?.provider
+  if (typeof provider !== 'string' || !(providerNames as string[]).includes(provider)) return false
+  return restartCategories.includes(providerSpec(provider as (typeof providerNames)[number]).category)
+}
+
 /** Whether this admin action needs a passkey sign-in: see the file comment. */
 export async function needsPasskeyStepUp(name: string, input: unknown): Promise<boolean> {
-  if (ALWAYS.has(name)) return true
+  if (ALWAYS.has(name) || changesSignInOrEmail(name, input)) return true
   const fields = (input ?? {}) as { admin?: unknown; userId?: unknown; memberId?: unknown }
   if (name === 'user.invite') return fields.admin === true
   const userId = await targetUserId(fields)

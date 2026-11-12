@@ -3,7 +3,7 @@
 // job (jobs.ts) when a call is flagged urgent, a message is taken and a call ends; all three share one
 // notification per call, so a later one replaces the earlier on the device.
 // The payload is minimal: who called, and only for members who opted in, one line on what about.
-// Never a transcript. VAPID keys come from the environment (operator-generated, see .env.example).
+// Never a transcript. VAPID keys are made and stored on the first start (instance-env.ts); VAPID_* on the server win.
 import { Agent } from 'node:https'
 import { isPushServiceUrl, type PushSettings, pushDeviceId } from '@linedesk/actions'
 import { calls, contacts, member, member_notification_settings, push_subscriptions, type Tx, user } from '@linedesk/db'

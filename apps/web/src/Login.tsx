@@ -2,7 +2,7 @@
 // then the sign-in providers, and a password under "Show other options". New people are signed up on
 // first sign-in, unless sign-up is closed.
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react'
-import { type AuthMethods, auth, type LegalLinks, passkeySupported, type SsoMethod, fetchAuthMethods, requestSignInCode, signInWithCode, signInWithPasskey, startSso, takeRedirectError, lostSignInState, providerElsewhereMessage, providerSignInElsewhere } from './auth.ts'
+import { type AuthMethods, auth, completeSetup, type LegalLinks, passkeySupported, type SsoMethod, fetchAuthMethods, requestSignInCode, signInWithCode, signInWithPasskey, startSso, takeRedirectError, lostSignInState, providerElsewhereMessage, providerSignInElsewhere } from './auth.ts'
 import { authErrorMessage, authFormError, CODE_LENGTH, codeErrorMessage, normalizeCode, RESEND_AFTER_S } from './sign-in-code.ts'
 import { readLastUsedMethod, rememberSignInMethod } from './sign-in-methods.ts'
 import { useQuery } from './cachedQuery.ts'
@@ -102,6 +102,8 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
   }
 
   if (!methods) return <AuthPage>{error ? <AuthError message={error} /> : <p className="auth-wait">Connecting…</p>}</AuthPage>
+
+  if (methods.setupNeeded && !reauth) return <SetupStep onDone={onDone} />
 
   if (step === 'code') {
     return <CodeStep email={form.email} onDone={onDone} onDifferentEmail={() => go('start')} />
@@ -316,6 +318,50 @@ export function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
           ? <p className="auth-note">You can ask for a new code in {waitS} s.</p>
           : <button type="button" className="auth-switch" onClick={() => void resend()}>Resend code</button>}
         <button type="button" className="auth-switch" onClick={onDifferentEmail}>Use a different email</button>
+      </form>
+    </AuthPage>
+  )
+}
+
+/** A fresh install: the setup code from the server log makes the first admin (apps/api/src/setup.ts). */
+function SetupStep({ onDone }: { onDone: () => Promise<void> }) {
+  const [form, setForm] = useState({ code: '', name: '', email: '', password: '' })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm(f => ({ ...f, [key]: e.target.value }))
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    if (!form.code.trim() || !form.name.trim() || !form.email.trim()) return setError('Fill in every field.')
+    if (form.password.length < 12) return setError('Use a password with at least 12 characters.')
+    setBusy(true)
+    setError(null)
+    try {
+      const result = await completeSetup(form)
+      if (result.signedIn === false) return window.location.reload()
+      await onDone()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <AuthPage>
+      <form className="auth-card" onSubmit={submit} noValidate>
+        <h1>Set up Linedesk</h1>
+        <p>Create the first admin account. The setup code is in the server log: <code>docker compose logs api</code>.</p>
+        <div className="auth-form">
+          <input aria-label="Setup code" placeholder="Setup code" value={form.code} onChange={set('code')} autoComplete="one-time-code"
+            autoCapitalize="characters" spellCheck={false} autoFocus />
+          <input aria-label="Your name" placeholder="Your name" value={form.name} onChange={set('name')} autoComplete="name" />
+          <input type="email" aria-label="Email" placeholder="Email address" value={form.email} onChange={set('email')} autoComplete="email" />
+          <input type="password" aria-label="Password" placeholder="Password (at least 12 characters)" value={form.password}
+            onChange={set('password')} autoComplete="new-password" />
+          <button type="submit" className="k-btn k-btn-primary" disabled={busy}>{busy ? 'Setting up…' : 'Create admin account'}</button>
+          {error && <AuthError message={error} />}
+        </div>
+        <p className="auth-note">Next you connect phone, voice and email under Admin, Providers.</p>
       </form>
     </AuthPage>
   )

@@ -70,8 +70,12 @@ test('every provider has a category, and the first of each category is the defau
     ['stt', ['deepgram']],
     ['llm', ['openrouter', 'openai']],
     ['tts', ['elevenlabs', 'cartesia']],
+    ['email', ['smtp']],
+    ['sign_in', ['google', 'microsoft', 'github', 'oidc']],
     ['recording', ['file', 's3']],
   ])
+  // Sign-in apps are all in use at once: nothing to pick.
+  expect(providerSetActive.input.safeParse({ category: 'sign_in', provider: 'google' }).success).toBe(false)
   expect(providerSetActive.input.safeParse({ category: 'llm', provider: 'openrouter' }).success).toBe(true)
   expect(providerSetActive.input.safeParse({ category: 'llm', provider: null }).success).toBe(true)
   expect(providerSetActive.input.safeParse({ category: 'llm', provider: 'twilio' }).success).toBe(false)

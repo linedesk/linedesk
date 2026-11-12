@@ -1,4 +1,4 @@
-// Outgoing email behind one interface. SMTP when SMTP_URL is set; with EMAIL_TO_LOG=true the
+// Outgoing email behind one interface. SMTP when it is connected (Admin, Providers, Email, or SMTP_URL); with EMAIL_TO_LOG=true the
 // message is printed to the server log instead (development); otherwise nothing can be sent.
 import nodemailer from 'nodemailer'
 import { emailDelivery } from './auth-methods.ts'
@@ -29,7 +29,7 @@ function withDeadline<T>(work: Promise<T>, ms: number, host: string): Promise<T>
       () =>
         reject(
           new Error(
-            `Could not send email: ${host} did not finish within ${ms / 1000} s. Check the host and port in SMTP_URL.`,
+            `Could not send email: ${host} did not finish within ${ms / 1000} s. Check the host and port of the SMTP URL.`,
           ),
         ),
       ms,
@@ -52,7 +52,7 @@ function sendError(e: unknown, host: string): Error {
   const code = (e as { code?: string }).code
   if (code === 'ETIMEDOUT' || code === 'ECONNECTION' || code === 'ESOCKET') {
     return new Error(
-      `Could not send email: no answer from ${host} (${code}). Check the host and port in SMTP_URL and that the server may connect to it.`,
+      `Could not send email: no answer from ${host} (${code}). Check the host and port of the SMTP URL and that the server may connect to it.`,
     )
   }
   return e instanceof Error ? e : new Error(String(e))
@@ -94,18 +94,22 @@ const logSender: EmailSender = {
     ),
   check: async () => ({
     ok: true,
-    message: 'Printed to the API log (EMAIL_TO_LOG), not sent. Set SMTP_URL on a real server.',
+    message: 'Printed to the API log (EMAIL_TO_LOG), not sent. Connect email in Admin, Providers on a real server.',
   }),
 }
+
+/** "Test connection" for SMTP in the admin area: connects and logs in, sends nothing. */
+export const smtpCheck = (url: string, from?: string) =>
+  smtpSender(url, from || 'Linedesk <no-reply@localhost>', SMTP_TIMEOUTS).check()
 
 const noSender: EmailSender = {
   kind: 'none',
   send: async () => {
-    throw new Error('Email is not set up: set SMTP_URL')
+    throw new Error('Email is not set up: connect it in Admin, Providers, Email')
   },
   check: async () => ({
     ok: false,
-    message: 'Not set up: set SMTP_URL. Sign-in codes, invitations and call emails cannot go out.',
+    message: 'Not set up: connect email in Admin, Providers. Sign-in codes, invitations and call emails cannot go out.',
   }),
 }
 

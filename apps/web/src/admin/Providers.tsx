@@ -4,6 +4,7 @@
 // so the status says what works right now.
 import {
   categoryNames,
+  isMultiCategory,
   type ProviderCategory,
   providerCategories,
   type ProviderName,
@@ -147,7 +148,7 @@ export function Providers({ providers, active, canStore, notify, reload }: Props
                   key={p.provider}
                   provider={p}
                   test={tests[p.provider]}
-                  inUse={inUse === p.provider}
+                  inUse={isMultiCategory(category) ? isConfigured(p) : inUse === p.provider}
                   onOpen={() => setOpen(p.provider)}
                 />
               ))}
@@ -159,10 +160,15 @@ export function Providers({ providers, active, canStore, notify, reload }: Props
         <ProviderDialog
           key={opened.provider}
           provider={opened}
-          inUse={active[opened.category].provider === opened.provider}
+          inUse={
+            isMultiCategory(opened.category) ? isConfigured(opened) : active[opened.category].provider === opened.provider
+          }
           chosen={active[opened.category].chosen}
           connected={connectionOf(opened, tests[opened.provider]) === 'connected'}
-          canUse={providers.filter(p => p.category === opened.category).length > 1 || opened.category === 'recording'}
+          canUse={
+            !isMultiCategory(opened.category) &&
+            (providers.filter(p => p.category === opened.category).length > 1 || opened.category === 'recording')
+          }
           canStore={canStore}
           oauthReturn={opened.provider === 'openrouter' ? oauthReturn : null}
           onTested={result => record(opened.provider, result)}

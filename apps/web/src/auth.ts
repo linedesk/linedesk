@@ -73,6 +73,21 @@ export async function fetchAuthMethods({ retryMs = [500, 1000, 2000, 4000, 8000]
   }
 }
 
+/** The first admin of a fresh install, with the setup code from the server log (apps/api/src/setup.ts). Signs them in. */
+export async function completeSetup(input: { code: string; name: string; email: string; password: string }) {
+  const res = await fetch('/v1/setup', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string; message?: string } | null
+    throw new Error(body?.error ?? body?.message ?? 'Setup did not work. Try again.')
+  }
+  return (await res.json().catch(() => ({}))) as { signedIn?: boolean }
+}
+
 export async function createWorkspace(name: string) {
   const res = await fetch('/v1/workspaces', {
     method: 'POST',

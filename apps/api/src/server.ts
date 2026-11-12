@@ -1,11 +1,18 @@
 import { serve } from '@hono/node-server'
 import { agentTokenProblem } from '@linedesk/actions'
-import { secondFactorOffWarning } from './admin-second-factor.ts'
-import { app } from './app.ts'
 import { db } from './db.ts'
-import { startJobs, stopJobs } from './jobs.ts'
-import { startOrphanRecordingSweep } from './orphan-recordings.ts'
-import { startStaleCallSweep } from './stale-calls.ts'
+import { loadInstanceEnv, watchInstanceEnv } from './instance-env.ts'
+
+// Sign-in providers and SMTP stored in the admin area, before the modules that read them load (instance-env.ts).
+await loadInstanceEnv(db).catch(error => console.error('could not load the sign-in and email settings:', error))
+watchInstanceEnv(db)
+// A fresh install: the setup code for the first admin goes to the log (setup.ts).
+await (await import('./setup.ts')).issueSetupCode(db).catch(error => console.error('could not make a setup code:', error))
+const { secondFactorOffWarning } = await import('./admin-second-factor.ts')
+const { app } = await import('./app.ts')
+const { startJobs, stopJobs } = await import('./jobs.ts')
+const { startOrphanRecordingSweep } = await import('./orphan-recordings.ts')
+const { startStaleCallSweep } = await import('./stale-calls.ts')
 
 // A short or placeholder agent token could be guessed: refuse to start (docker/api-entrypoint.sh turns the placeholders off first).
 const agentToken = process.env.AGENT_API_TOKEN

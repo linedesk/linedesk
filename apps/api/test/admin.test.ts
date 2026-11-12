@@ -12,7 +12,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi 
 import { adminSignInEmail, alertOnAdminSignIn, plainSnippet } from '../src/admin-alerts.ts'
 import { adminHandlers } from '../src/admin-handlers.ts'
 import { adminSecondFactorGap, adminSecondFactorRequired, markPasskeySession, secondFactorOffWarning } from '../src/admin-second-factor.ts'
-import { mayReceiveEnrolmentCode } from '../src/admin-step-up.ts'
+import { mayReceiveEnrolmentCode, needsPasskeyStepUp } from '../src/admin-step-up.ts'
 import type { Actor } from '../src/context.ts'
 import { runAction } from '../src/run-action.ts'
 import { signInMethod } from '../src/audit.ts'
@@ -23,6 +23,7 @@ import { APIError } from 'better-auth/api'
 import { CLIENT_IP_HEADER } from '../src/client-ip.ts'
 import { countSignInFailures, limitSignIns } from '../src/sign-in-limits.ts'
 import { mayRunWhileImpersonating } from '../src/impersonation-guard.ts'
+import { loadInstanceEnv } from '../src/instance-env.ts'
 import { createAdminWithPassword, grantFirstUser, instanceAdminHooks, refuseUnverifiedAdminAddress } from '../src/instance-admin.ts'
 import { issuePasskeyEnrolment } from '../src/passkey-enrolment.ts'
 import { mayCreateUser } from '../src/signup-gate.ts'
@@ -310,6 +311,8 @@ describe('provider keys', () => {
       stt: { provider: null, chosen: false },
       llm: { provider: null, chosen: false },
       tts: { provider: null, chosen: false },
+      email: { provider: null, chosen: false },
+      sign_in: { provider: null, chosen: false },
       recording: { provider: null, chosen: false },
     })
 
@@ -350,6 +353,44 @@ describe('provider keys', () => {
       voice_id: null,
     })
     expect((await act(operator, 'provider.setActive', { category: 'tts', provider: 'deepgram' })).status).toBe(422)
+  })
+
+  test('email and sign-in apps are stored like other keys and loaded as variables at start', async () => {
+    const smtp = 'smtps://user:smtp-password-made-up@smtp.example.com:465'
+    expect((await act(operator, 'provider.setKeys', { provider: 'smtp', values: { url: smtp, from: 'Desk <desk@example.com>' } })).status).toBe(200)
+    expect((await act(operator, 'provider.setKeys', { provider: 'google', values: { client_id: 'gid', client_secret: SECRET } })).status).toBe(200)
+    expect((await act(operator, 'provider.setKeys', { provider: 'smtp', values: { url: 'https://smtp.example.com' } })).status).toBe(422)
+    expect((await act(operator, 'provider.setKeys', { provider: 'oidc', values: { discovery_url: 'http://id.example.com' } })).status).toBe(422)
+    // Every sign-in app that is set up is in use; there is nothing to pick.
+    expect((await act(operator, 'provider.setActive', { category: 'sign_in', provider: 'google' })).status).toBe(422)
+    const env: Record<string, string | undefined> = { SMTP_URL: 'smtp://from-the-server', GITHUB_CLIENT_ID: 'kept' }
+    await loadInstanceEnv(db, env)
+    expect(env).toMatchObject({
+      SMTP_URL: smtp,
+      EMAIL_FROM: 'Desk <desk@example.com>',
+      GOOGLE_CLIENT_ID: 'gid',
+      GOOGLE_CLIENT_SECRET: SECRET,
+      GITHUB_CLIENT_ID: 'kept',
+    })
+    expect(logged()).not.toContain(SECRET)
+    expect(logged()).not.toContain('smtp-password-made-up')
+  })
+
+  test('push keys are made once, stored encrypted and the same for every start', async () => {
+    const first: Record<string, string | undefined> = {}
+    await loadInstanceEnv(db, first)
+    expect(first.VAPID_PUBLIC_KEY).toMatch(/^[A-Za-z0-9_-]{80,}$/)
+    expect(first.VAPID_PRIVATE_KEY).toMatch(/^[A-Za-z0-9_-]{40,}$/)
+    const stored = await db.select().from(instance_settings).where(eq(instance_settings.key, 'push.vapid_private_key'))
+    expect(stored[0]?.value).not.toContain(first.VAPID_PRIVATE_KEY)
+    const second: Record<string, string | undefined> = {}
+    await loadInstanceEnv(db, second)
+    expect(second.VAPID_PUBLIC_KEY).toBe(first.VAPID_PUBLIC_KEY)
+    expect(second.VAPID_PRIVATE_KEY).toBe(first.VAPID_PRIVATE_KEY)
+    // Keys set on the server win.
+    const own: Record<string, string | undefined> = { VAPID_PUBLIC_KEY: 'own-public', VAPID_PRIVATE_KEY: 'own-private' }
+    await loadInstanceEnv(db, own)
+    expect(own).toMatchObject({ VAPID_PUBLIC_KEY: 'own-public', VAPID_PRIVATE_KEY: 'own-private' })
   })
 
   test('the clear values go to the agent token only', async () => {
@@ -497,6 +538,11 @@ describe('provider keys', () => {
       'cartesia',
       'file',
       's3',
+      'smtp',
+      'google',
+      'microsoft',
+      'github',
+      'oidc',
     ])
     process.env.LIVEKIT_URL = 'ws://livekit.env.test:7880'
     process.env.LIVEKIT_API_KEY = 'APImadeup'
@@ -2532,5 +2578,31 @@ describe('monthly spending cap', () => {
     await db.update(organization).set({ spendingCapCents: null }).where(eq(organization.id, ws.id))
     expect(await sendSpendingAlert(db, sender, { workspaceId: ws.id, month, level: 100 })).toEqual({ sent: 0, failed: 0 })
     expect(sent).toEqual([])
+  })
+})
+
+test('changing email or sign-in settings needs the passkey; other providers do not', async () => {
+  for (const provider of ['smtp', 'google', 'microsoft', 'github', 'oidc'])
+    for (const name of ['provider.setKeys', 'provider.clearKeys']) expect(await needsPasskeyStepUp(name, { provider }), `${name} ${provider}`).toBe(true)
+  for (const provider of ['telnyx', 'deepgram', 's3']) expect(await needsPasskeyStepUp('provider.setKeys', { provider })).toBe(false)
+})
+
+describe('setup code', () => {
+  test('only while nobody has an account', async () => {
+    const methods = await request(anonymous, 'GET', '/v1/auth-methods')
+    expect(methods.body.setupNeeded).toBe(false)
+    const res = await request(anonymous, 'POST', '/v1/setup', {
+      code: 'ABCD-EFGH',
+      name: 'Someone',
+      email: 'someone@brightwater.example',
+      password: 'a-long-enough-password',
+    })
+    expect(res.status).toBe(409)
+    expect(await db.select().from(user).where(eq(user.email, 'someone@brightwater.example'))).toHaveLength(0)
+  })
+
+  test('refuses a short password before anything else', async () => {
+    const res = await request(anonymous, 'POST', '/v1/setup', { code: 'x', name: 'A', email: 'a@brightwater.example', password: 'short' })
+    expect(res.status).toBe(400)
   })
 })

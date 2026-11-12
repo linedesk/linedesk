@@ -23,6 +23,12 @@ export const pricePerMinute: Record<ProviderName, number> = {
   // Recording storage is billed per stored byte, not per call minute: not part of this estimate.
   file: 0,
   s3: 0,
+  // Email and sign-in are not billed per call minute either.
+  smtp: 0,
+  google: 0,
+  microsoft: 0,
+  github: 0,
+  oidc: 0,
 }
 
 export type ProviderCost = {
@@ -88,7 +94,8 @@ type ActiveRate = { category: ProviderCategory; provider: ProviderName | null; r
 /** The active provider of each billed category and its price per minute (0 when none is set up). */
 async function activeRates(tx: Tx): Promise<ActiveRate[]> {
   const rates: ActiveRate[] = []
-  for (const category of categoryNames.filter(c => c !== 'recording')) {
+  // Per call minute: the phone and the voice stages only.
+  for (const category of categoryNames.filter(c => !['recording', 'email', 'sign_in'].includes(c))) {
     const active = await activeProvider(tx, category).catch(() => null)
     rates.push({ category, provider: active?.provider ?? null, rate: active ? pricePerMinute[active.provider] : 0 })
   }

@@ -39,6 +39,7 @@ import {
   type Actor,
 } from './context.ts'
 import { db } from './db.ts'
+import { completeSetup, SetupError, setupInput, setupNeeded } from './setup.ts'
 import { COOKIE_ACTIONS } from './impersonation.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { registerImpersonationRoutes } from './impersonation-routes.ts'
@@ -70,8 +71,27 @@ app.on(['GET', 'POST'], '/api/auth/*', c => auth.handler(withClientIp(c)))
 // Before every /v1 route: a write signed in by the cookie only from the web app, as JSON (csrf.ts).
 app.use('/v1/*', refuseCrossSite(TRUSTED_ORIGINS))
 
-// Public: the sign-in screen asks which methods this install offers.
-app.get('/v1/auth-methods', c => c.json(authMethods))
+// Public: the sign-in screen asks which methods this install offers, and whether it still needs its first admin.
+app.get('/v1/auth-methods', async c => c.json({ ...authMethods, setupNeeded: await setupNeeded(db) }))
+
+// Public, only while nobody has an account: the setup code from the server log makes the first admin (setup.ts).
+app.post('/v1/setup', async c => {
+  const parsed = setupInput.safeParse(await c.req.json().catch(() => null))
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'invalid input' }, 400)
+  try {
+    await completeSetup(db, parsed.data, clientIpOf(c))
+  } catch (e) {
+    if (e instanceof SetupError) return c.json({ error: e.message }, e.status)
+    throw e
+  }
+  // Signed in at once, with the password just chosen.
+  if (!authMethods.password) return c.json({ ok: true, signedIn: false })
+  return auth.api.signInEmail({
+    body: { email: parsed.data.email, password: parsed.data.password },
+    headers: c.req.raw.headers,
+    asResponse: true,
+  })
+})
 
 // Public: the invitation link shows whom it is for and which workspace, before sign-in.
 app.get('/v1/invitations/:id', async c => c.json(await previewInvitation(c.req.param('id'))))

@@ -36,4 +36,7 @@ if [ -n "$AGENT_API_TOKEN" ] && [ "${#AGENT_API_TOKEN}" -lt 32 ]; then
 fi
 
 node packages/db/src/migrate.ts
+# Something starts the API again when it exits (Docker's restart policy, live mode's runner): a change to
+# the sign-in or email settings in the admin area restarts it to apply them (apps/api/src/instance-env.ts).
+export LINEDESK_SELF_RESTART=1
 exec node apps/api/src/server.ts

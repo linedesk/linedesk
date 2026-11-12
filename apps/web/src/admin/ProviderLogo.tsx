@@ -41,6 +41,31 @@ export const providerMeta: Record<ProviderName, Meta> = {
   cartesia: { mark: { icon: 'waveform' }, blurb: 'Fast, expressive voices.', keysUrl: 'https://play.cartesia.ai/keys' },
   file: { mark: { icon: 'disk' }, blurb: 'Recordings stay on this server.' },
   s3: { mark: { brand: 'amazons3' }, blurb: 'AWS S3, R2, Hetzner, Backblaze, MinIO.' },
+  smtp: { mark: { icon: 'mail' }, blurb: 'Sign-in codes, invitations and call emails.' },
+  google: {
+    mark: { brand: 'google' },
+    blurb: 'Sign in with Google and Google Calendar.',
+    keysUrl: 'https://console.cloud.google.com/apis/credentials',
+  },
+  microsoft: {
+    mark: { brand: 'microsoft' },
+    blurb: 'Sign in with Microsoft and Outlook calendars.',
+    keysUrl: 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade',
+  },
+  github: { mark: { brand: 'github' }, blurb: 'Sign in with GitHub.', keysUrl: 'https://github.com/settings/developers' },
+  oidc: { mark: { icon: 'shield' }, blurb: 'Okta, Entra ID, Keycloak, Authentik and others.' },
+}
+
+/**
+ * Where a provider sends people back after they sign in: the addresses to add to its OAuth app
+ * (Better Auth's callbacks, and the calendar connection's: calendar-connections.ts).
+ */
+export function redirectUris(provider: ProviderName, origin: string): string[] {
+  if (provider === 'google' || provider === 'microsoft')
+    return [`${origin}/api/auth/callback/${provider}`, `${origin}/v1/calendar/callback/${provider}`]
+  if (provider === 'github') return [`${origin}/api/auth/callback/github`]
+  if (provider === 'oidc') return [`${origin}/api/auth/oauth2/callback/oidc`]
+  return []
 }
 
 /** The S3 presets (registry, presets of `s3`) by label: their mark and where their access keys are made. */
@@ -53,6 +78,9 @@ export const presetMeta: Record<string, { mark: Mark; keysUrl?: string }> = {
   Hetzner: { mark: { brand: 'hetzner' }, keysUrl: 'https://console.hetzner.cloud/projects' },
   'Backblaze B2': { mark: { brand: 'backblaze' }, keysUrl: 'https://secure.backblaze.com/app_keys.htm' },
   MinIO: { mark: { brand: 'minio' } },
+  Postmark: { mark: { icon: 'mail' }, keysUrl: 'https://account.postmarkapp.com/servers' },
+  Resend: { mark: { icon: 'mail' }, keysUrl: 'https://resend.com/api-keys' },
+  'Amazon SES': { mark: { brand: 'amazons3' }, keysUrl: 'https://console.aws.amazon.com/ses/home#/smtp' },
 }
 
 export function Logo({ mark, size = 36 }: { mark: Mark; size?: 28 | 36 | 40 }) {

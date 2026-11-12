@@ -6,6 +6,7 @@ import {
   type ProviderTestData,
   providerCategories,
   providers as providerSpecs,
+  restartCategories,
 } from '@linedesk/actions'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { Switch } from '../ui/controls.tsx'
@@ -23,7 +24,7 @@ import {
 } from './model.ts'
 import { errorText } from './notify.ts'
 import { exchangeCode, type OpenRouterReturn, startOpenRouterConnect } from './openrouterAuth.ts'
-import { Logo, presetMeta, providerMeta } from './ProviderLogo.tsx'
+import { Logo, presetMeta, providerMeta, redirectUris } from './ProviderLogo.tsx'
 
 export const SERVER_SETTING_TIP = 'Set on the server. A value saved here takes priority.'
 
@@ -59,6 +60,8 @@ type Props = {
 
 type Phase = 'idle' | 'saving' | 'testing' | 'confirm-disconnect' | 'disconnecting'
 
+const helpOf = (provider: ProviderStatus) => (providerSpecs[provider.provider] as { help?: string }).help ?? null
+
 const presetsOf = (provider: ProviderStatus) =>
   ((providerSpecs[provider.provider] as { presets?: readonly ProviderPreset[] }).presets ?? []) as ProviderPreset[]
 
@@ -71,6 +74,8 @@ export function ProviderDialog(props: Props) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [result, setResult] = useState<ProviderTestData | null>(null)
   const [preset, setPreset] = useState<ProviderPreset | null>(null)
+  /** Keys were stored in this dialog: sign-in and email apply after the API restarts. */
+  const [savedNow, setSavedNow] = useState(false)
   const configured = isConfigured(provider)
   // OpenRouter connects through its own sign-in; typing a key is the fallback.
   const oauth = provider.provider === 'openrouter'
@@ -98,6 +103,7 @@ export function ProviderDialog(props: Props) {
       if (dirty) {
         setPhase('saving')
         await runAdmin('provider.setKeys', { provider: provider.provider, values: changes })
+        setSavedNow(true)
         // Stored: secrets show as "•••• 1234" again instead of staying typed.
         setValues(v => ({ ...v, ...Object.fromEntries(provider.fields.filter(f => f.secret).map(f => [f.field, ''])) }))
       }
@@ -160,6 +166,8 @@ export function ProviderDialog(props: Props) {
   /** "Get a key" goes next to the first field the provider's key page hands out. */
   const keyField = provider.fields.find(f => f.secret || f.field === 'access_key_id' || f.field === 'account_sid')
   const working = result?.ok && !dirty
+  const appliesOnRestart = restartCategories.includes(provider.category)
+  const redirects = redirectUris(provider.provider, window.location.origin)
   const primaryLabel =
     phase === 'saving'
       ? 'Saving…'
@@ -245,6 +253,7 @@ export function ProviderDialog(props: Props) {
       {!canStore && provider.fields.length > 0 && (
         <p className="k-note">No encryption key on the server, so keys can't be saved.</p>
       )}
+      {helpOf(provider) && provider.category !== 'recording' && <p className="k-field-desc">{helpOf(provider)}</p>}
       {presets.length > 0 && (
         <FormField label="Service" description={preset?.help}>
           <div className="adm-presets" role="radiogroup" aria-label="Service">
@@ -296,13 +305,21 @@ export function ProviderDialog(props: Props) {
             disabled={!canStore || busy}
             autoFocus={i === 0 && !configured}
             keysUrl={field === keyField ? keysUrl : undefined}
+            keysLabel={provider.category === 'sign_in' ? 'Create an app' : undefined}
             onChange={value => set(field.field, value)}
           />
         ))}
+      {manual && redirects.length > 0 && <RedirectUris uris={redirects} />}
       {result && (
         <div className={result.ok ? 'k-note' : 'k-note k-note-danger'} role="status">
           <Icon name={result.ok ? 'check' : 'ban'} size={14} />
-          <span className="adm-result">{result.ok ? 'Connected.' : result.message}</span>
+          <span className="adm-result">
+            {result.ok
+              ? appliesOnRestart && savedNow
+                ? 'Connected. Linedesk restarts in the background to apply it (a few seconds).'
+                : 'Connected.'
+              : result.message}
+          </span>
         </div>
       )}
     </Dialog>
@@ -319,14 +336,16 @@ type InputProps = {
   autoFocus: boolean
   /** Where the provider hands out this key: a "Get a key" link next to the label. */
   keysUrl?: string
+  keysLabel?: string
   onChange: (value: string) => void
 }
 
-function ProviderInput({ id, provider, field, value, error, disabled, autoFocus, keysUrl, onChange }: InputProps) {
+function ProviderInput(props: InputProps) {
+  const { id, provider, field, value, error, disabled, autoFocus, keysUrl, keysLabel = 'Get a key', onChange } = props
   const fromServer = field.source === 'env' && <ServerSet />
   const getKey = keysUrl && (
     <a className="k-link adm-getkey" href={keysUrl} target="_blank" rel="noreferrer" title="Opens in a new tab">
-      Get a key
+      {keysLabel}
     </a>
   )
   const aside = fromServer || getKey || (isOptional(provider, field) ? 'Optional' : undefined)
@@ -365,6 +384,36 @@ function ProviderInput({ id, provider, field, value, error, disabled, autoFocus,
           onChange={e => onChange(e.target.value)}
         />
       )}
+    </FormField>
+  )
+}
+
+/** The addresses to add to the provider's OAuth app, each with a copy button. */
+function RedirectUris({ uris }: { uris: string[] }) {
+  const [copied, setCopied] = useState<string | null>(null)
+  const copy = (uri: string) =>
+    navigator.clipboard.writeText(uri).then(
+      () => setCopied(uri),
+      () => setCopied(null),
+    )
+  return (
+    <FormField label="Redirect URIs" description="Add these to the app's allowed redirect URIs.">
+      <ul className="adm-redirects">
+        {uris.map(uri => (
+          <li key={uri}>
+            <code>{uri}</code>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void copy(uri)}
+              title="Copy"
+              aria-label={`Copy ${uri}`}
+            >
+              <Icon name={copied === uri ? 'check' : 'copy'} size={14} />
+            </Button>
+          </li>
+        ))}
+      </ul>
     </FormField>
   )
 }

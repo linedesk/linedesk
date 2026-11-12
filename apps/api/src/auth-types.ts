@@ -16,6 +16,8 @@ export type AuthMethods = {
    * Absent from an older API.
    */
   signInOrigin?: string | null
+  /** Nobody has an account yet: the sign-in page asks for the setup code from the server log (setup.ts). */
+  setupNeeded?: boolean
 }
 /** Terms, privacy policy and support contact of this install (TERMS_URL, PRIVACY_URL, SUPPORT_EMAIL); null: not set, not shown. */
 export type LegalLinks = { terms: string | null; privacy: string | null; supportEmail: string | null }

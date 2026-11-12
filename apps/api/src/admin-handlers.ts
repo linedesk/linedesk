@@ -1,5 +1,5 @@
 // Server handlers of the admin area actions (packages/actions/src/admin.ts).
-import type { ProviderName } from '@linedesk/actions'
+import { type ProviderName, providerSpec, restartCategories } from '@linedesk/actions'
 import { organization, passkey, session, spending_cap_alerts, type Tx, user } from '@linedesk/db'
 import { emailDelivery } from './auth-methods.ts'
 import { emailSender } from './email.ts'
@@ -10,6 +10,7 @@ import { Forbidden, type Handler, Reject } from './handler-context.ts'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { mayReceiveEnrolmentCode } from './admin-step-up.ts'
 import type { Actor } from './context.ts'
+import { checkInstanceEnvSoon } from './instance-env.ts'
 import { anotherAdminRemains, isEnvAdmin, isInstanceAdmin } from './instance-admin.ts'
 import { issuePasskeyEnrolment, removeAllPasskeys } from './passkey-enrolment.ts'
 import {
@@ -91,14 +92,30 @@ async function alertAdminGranted(actor: Actor, email: string) {
   )
 }
 
+/**
+ * Sign-in and email settings are read at start (instance-env.ts): a change restarts the API. Every
+ * instance admin is told, like about other changes that could hand over accounts (admin-alerts.ts).
+ */
+async function applyAfterCommit(provider: ProviderName, actor: Actor, cleared = false) {
+  const { category, label } = providerSpec(provider)
+  if (!restartCategories.includes(category)) return
+  checkInstanceEnvSoon(db)
+  await alertInstanceAdmins(
+    `${label} settings ${cleared ? 'removed' : 'changed'}`,
+    `${await actorName(actor)} ${cleared ? 'removed' : 'changed'} the ${label} settings (Admin, Providers). They decide how people sign in or get sign-in codes.\n\nIf you did not expect this, sign in with your passkey and check Admin, Providers and Audit log.`,
+  )
+}
+
 export const adminHandlers: Record<string, Handler> = {
   'provider.setKeys': async ({ tx, actor, now }, input) => {
     await withSecretsKey(() => setProviderKeys(tx, input.provider, input.values, actor.actorId, now))
+    await applyAfterCommit(input.provider, actor)
     return { rows: {}, data: { provider: await statusOf(tx, input.provider) } }
   },
 
-  'provider.clearKeys': async ({ tx }, input) => {
+  'provider.clearKeys': async ({ tx, actor }, input) => {
     await clearProviderKeys(tx, input.provider)
+    await applyAfterCommit(input.provider, actor, true)
     return { rows: {}, data: { provider: await statusOf(tx, input.provider) } }
   },
 
@@ -117,7 +134,7 @@ export const adminHandlers: Record<string, Handler> = {
     const delivery = emailDelivery(process.env)
     if (delivery === 'none') {
       throw new Reject(
-        'Email is not set up, so the new user cannot get sign-in codes: set SMTP_URL (or EMAIL_TO_LOG=true in development).',
+        'Email is not set up, so the new user cannot get sign-in codes: connect it under Providers, Email (or EMAIL_TO_LOG=true in development).',
       )
     }
     const email = input.email.trim().toLowerCase()
