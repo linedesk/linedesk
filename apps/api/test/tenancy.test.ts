@@ -111,6 +111,7 @@ describe('agent-facing actions', () => {
     ['call.transfer', { callId, to: '+15035550199', result: 'not_answered' }],
     ['call.lookUpCaller', { callId }],
     ['call.askWebhook', { callId, lookup: 'order_status', values: { order_number: '1' } }],
+    ['call.recordTimings', { callId, pipeline: 'realtime', replies: [{ at: '2026-01-01T00:00:00Z', totalMs: 900 }] }],
   ]
 
   // carrier.transferTrunk and carrier.provisionTransferTrunk are scoped by the workspace's numbers, not a call: apps/api/test/carrier-routing.test.ts.
