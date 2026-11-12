@@ -63,8 +63,12 @@ export const ENGLISH_CALL: CallLanguages = { main: 'en', others: [] }
  * languages allowed: the multilingual model of the same family, biased toward the call's languages, so each
  * transcript reports the language spoken. An English-only model would turn other languages into nonsense.
  */
-export function createStt({ apiKey, model }: AgentConfig['stt'], { main, others }: CallLanguages = ENGLISH_CALL) {
+export function createStt({ provider, apiKey, model }: AgentConfig['stt'], { main, others }: CallLanguages = ENGLISH_CALL) {
   const multi = main !== 'en' || others.length > 0
+  // ElevenLabs Scribe and OpenAI transcription stream and detect the end of a turn on their side. With other languages
+  // allowed they detect the language of each turn (reported with the transcript); else they are told the one.
+  if (provider === 'elevenlabs_stt') return new elevenlabs.STT({ apiKey, model, useRealtime: true, ...(multi ? {} : { languageCode: main }) })
+  if (provider === 'openai_stt') return new openai.STT({ apiKey, model, useRealtime: true, detectLanguage: multi, language: main })
   const languageHint = multi ? [main, ...others] : undefined
   // Deepgram's Flux models speak a different protocol than Nova.
   if (model.startsWith('flux')) {
@@ -112,16 +116,21 @@ function createLlm({ apiKey, baseUrl, model, fallbacks }: AgentConfig['llm']) {
   })(options)
 }
 
+/**
+ * Whether the speech recognition says where a turn ends: Flux, ElevenLabs Scribe and OpenAI transcription do. With
+ * another Deepgram model the session falls back to its own detection.
+ */
+export const sttDetectsTurns = ({ provider, model }: AgentConfig['stt']) => provider !== 'deepgram' || model.startsWith('flux')
+
 /** Session options for one call. */
 export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVoice | null, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, languages: CallLanguages = ENGLISH_CALL, speedPct = TALKING_SPEED_PCT_DEFAULT): voice.AgentSessionOptions & { tts: ReturnType<typeof createTts> } {
-  // Flux turn detection needs Flux; with another Deepgram model the session falls back to its own detection.
-  const fluxTurns = config.stt.model.startsWith('flux')
+  const sttTurns = sttDetectsTurns(config.stt)
   return {
     vad: null,
     stt: createStt(config.stt, languages),
     llm: createLlm(config.llm),
     tts: createTts(config.tts, assistantVoice, languages.main, speedPct),
-    turnHandling: { turnDetection: fluxTurns ? 'stt' : undefined, endpointing: ENDPOINTING, preemptiveGeneration: { enabled: true } },
+    turnHandling: { turnDetection: sttTurns ? 'stt' : undefined, endpointing: ENDPOINTING, preemptiveGeneration: { enabled: true } },
     // The caller counts as away after this much silence on both sides; the worker then asks whether they are still
     // there, and in the end says goodbye and hangs up (remindOnSilence in hang-up.ts).
     userAwayTimeout: silenceFirstGapS,

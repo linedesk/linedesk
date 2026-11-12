@@ -67,8 +67,8 @@ test('provider.setKeys accepts only fields of that provider and never repeats a 
 test('every provider has a category, and the first of each category is the default', () => {
   expect(categoryNames.map(category => [category, providersIn(category)])).toEqual([
     ['telephony', ['telnyx', 'twilio']],
-    ['stt', ['deepgram']],
-    ['llm', ['openrouter', 'openai']],
+    ['stt', ['deepgram', 'elevenlabs_stt', 'openai_stt']],
+    ['llm', ['openrouter', 'openai', 'anthropic', 'gemini', 'groq', 'mistral']],
     ['tts', ['elevenlabs', 'cartesia']],
     ['realtime', ['openai_realtime']],
     ['email', ['smtp', 'resend', 'postmark', 'sendgrid', 'brevo', 'mailgun', 'gmail']],

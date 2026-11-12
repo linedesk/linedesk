@@ -55,6 +55,55 @@ type ProviderSpec = {
 
 const apiKey = (env: string): ProviderField => ({ label: 'API key', env, secret: true })
 const model = (env: string): ProviderField => ({ label: 'Model', env, secret: false, optional: true })
+/**
+ * Where each language-model provider answers (OpenAI-compatible chat completions) and its default models: `models`
+ * for live turns (first one first, then fallbacks), `summaryModels` for the summary and other background work.
+ * Live turns need the fastest first token (gemini-2.5-flash-lite about 0.6 s from the server, gpt-5.4-mini about
+ * 1.05 s); the summary is not latency-critical and gets a stronger model. Used by the agent and the API alike.
+ */
+export const llmEndpoints = {
+  openrouter: {
+    baseUrl: 'https://openrouter.ai/api/v1',
+    models: ['google/gemini-2.5-flash-lite', 'openai/gpt-4.1-mini'],
+    summaryModels: ['google/gemini-2.5-flash', 'openai/gpt-5.4-mini'],
+  },
+  openai: { baseUrl: 'https://api.openai.com/v1', models: ['gpt-4.1-mini'], summaryModels: ['gpt-4.1-mini'] },
+  anthropic: {
+    baseUrl: 'https://api.anthropic.com/v1',
+    models: ['claude-haiku-5-5'],
+    summaryModels: ['claude-sonnet-5-5'],
+  },
+  gemini: {
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    models: ['gemini-2.5-flash-lite'],
+    summaryModels: ['gemini-2.5-flash'],
+  },
+  groq: {
+    baseUrl: 'https://api.groq.com/openai/v1',
+    models: ['llama-3.3-70b-versatile'],
+    summaryModels: ['llama-3.3-70b-versatile'],
+  },
+  mistral: {
+    baseUrl: 'https://api.mistral.ai/v1',
+    models: ['mistral-small-latest'],
+    summaryModels: ['mistral-medium-latest'],
+  },
+} as const satisfies Record<string, { baseUrl: string; models: readonly string[]; summaryModels: readonly string[] }>
+export type LlmProvider = keyof typeof llmEndpoints
+
+/** A language-model provider's fields: its key, the live model and the summary model (hints: its defaults). */
+const llmFields = (keyEnv: string, provider: Exclude<LlmProvider, 'openrouter'>): Record<string, ProviderField> => ({
+  api_key: apiKey(keyEnv),
+  model: { ...model('LLM_MODEL'), hint: llmEndpoints[provider].models.join(', ') },
+  summary_model: {
+    label: 'Summary model',
+    env: 'SUMMARY_MODEL',
+    secret: false,
+    optional: true,
+    hint: llmEndpoints[provider].summaryModels.join(', '),
+  },
+})
+
 /** Every mail service's sender. Empty: the service's default (Gmail: its address), else "Linedesk <no-reply@localhost>". */
 const emailFrom: ProviderField = {
   label: 'From',
@@ -95,6 +144,18 @@ export const providers = {
     category: 'stt',
     fields: { api_key: apiKey('DEEPGRAM_API_KEY'), model: model('STT_MODEL') },
   },
+  // Streaming speech recognition with the provider's own end-of-turn detection. Own key variables: a key for the voice
+  // or the language model in the environment must not switch speech recognition over.
+  elevenlabs_stt: {
+    label: 'ElevenLabs Scribe',
+    category: 'stt',
+    fields: { api_key: apiKey('ELEVENLABS_STT_API_KEY'), model: { ...model('STT_MODEL'), hint: 'scribe_v2_realtime' } },
+  },
+  openai_stt: {
+    label: 'OpenAI transcription',
+    category: 'stt',
+    fields: { api_key: apiKey('OPENAI_STT_API_KEY'), model: { ...model('STT_MODEL'), hint: 'gpt-4o-mini-transcribe' } },
+  },
   openrouter: {
     label: 'OpenRouter',
     category: 'llm',
@@ -113,21 +174,11 @@ export const providers = {
       },
     },
   },
-  openai: {
-    label: 'OpenAI',
-    category: 'llm',
-    fields: {
-      api_key: apiKey('OPENAI_API_KEY'),
-      model: { ...model('LLM_MODEL'), hint: 'gpt-4.1-mini' },
-      summary_model: {
-        label: 'Summary model',
-        env: 'SUMMARY_MODEL',
-        secret: false,
-        optional: true,
-        hint: 'gpt-4.1-mini',
-      },
-    },
-  },
+  openai: { label: 'OpenAI', category: 'llm', fields: llmFields('OPENAI_API_KEY', 'openai') },
+  anthropic: { label: 'Anthropic', category: 'llm', fields: llmFields('ANTHROPIC_API_KEY', 'anthropic') },
+  gemini: { label: 'Google Gemini', category: 'llm', fields: llmFields('GEMINI_API_KEY', 'gemini') },
+  groq: { label: 'Groq', category: 'llm', fields: llmFields('GROQ_API_KEY', 'groq') },
+  mistral: { label: 'Mistral', category: 'llm', fields: llmFields('MISTRAL_API_KEY', 'mistral') },
   elevenlabs: {
     label: 'ElevenLabs',
     category: 'tts',

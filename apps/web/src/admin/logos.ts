@@ -1,8 +1,14 @@
 // Brand marks for Admin, Providers: SVG paths (24×24) copied from Simple Icons v16.37.0
 // (https://simpleicons.org, CC0 1.0; slugs as the keys below). Drawn monochrome in our ink colour.
-// Simple Icons has no mark for Telnyx, Cartesia, Postmark or SendGrid: they get a neutral icon (phone, waveform, mail), Local disk a disk.
+// Simple Icons has no mark for Telnyx, Cartesia, Groq, Postmark or SendGrid: they get a neutral icon (phone, waveform, spark, mail), Local disk a disk.
 // Microsoft's four squares are drawn here (Simple Icons dropped the mark).
 export const brandMarks = {
+  anthropic:
+    'M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z',
+  googlegemini:
+    'M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81',
+  mistralai:
+    'M17.143 3.429v3.428h-3.429v3.429h-3.428V6.857H6.857V3.43H3.43v13.714H0v3.428h10.286v-3.428H6.857v-3.429h3.429v3.429h3.429v-3.429h3.428v3.429h-3.428v3.428H24v-3.428h-3.43V3.429z',
   resend:
     'M14.679 0c4.648 0 7.413 2.765 7.413 6.434s-2.765 6.434-7.413 6.434H12.33L24 24h-8.245l-8.88-8.44c-.636-.588-.93-1.273-.93-1.86 0-.831.587-1.565 1.713-1.883l4.574-1.224c1.737-.465 2.936-1.81 2.936-3.572 0-2.153-1.761-3.4-3.939-3.4H0V0z',
   mailgun:

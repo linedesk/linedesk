@@ -58,7 +58,9 @@ test('names every stage that is missing, and where to set it, without any value'
 })
 
 test('an unknown provider is an error for its stage, not a silent default', () => {
-  expect(() => resolveAgentConfig(null, { ...keys, LLM_PROVIDER: 'mistral' })).toThrow('language model: unknown provider "mistral" (use openrouter or openai)')
+  expect(() => resolveAgentConfig(null, { ...keys, LLM_PROVIDER: 'cohere' })).toThrow(
+    'language model: unknown provider "cohere" (use one of openrouter, openai, anthropic, gemini, groq, mistral)',
+  )
   const error = (() => { try { resolveAgentConfig({ ...stored, tts: { provider: 'polly', api_key: 'x' } }, keys) } catch (e) { return e as AgentConfigError } })()!
   expect(error.stages).toEqual(['voice'])
 })
@@ -219,4 +221,23 @@ test('a realtime model without a key names the realtime model as not set up, nev
 test('the realtime variables are passed to the agent container', () => {
   for (const name of ['OPENAI_REALTIME_API_KEY', 'REALTIME_MODEL', 'REALTIME_VOICE', 'REALTIME_SUMMARY_MODEL']) expect(stageEnvVars).toContain(name)
   expect(new Set(stageEnvVars).size).toBe(stageEnvVars.length)
+})
+
+test('every language-model provider answers on its own OpenAI-compatible API with its default models', () => {
+  const env = { ...keys, LLM_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'an' }
+  expect(resolveAgentConfig(null, env).llm).toEqual({
+    provider: 'anthropic', apiKey: 'an', baseUrl: 'https://api.anthropic.com/v1',
+    model: 'claude-haiku-5-5', fallbacks: [], summaryModel: 'claude-sonnet-5-5', summaryFallbacks: [],
+  })
+  const gemini = resolveAgentConfig({ ...stored, llm: { provider: 'gemini', api_key: 'ge', model: 'gemini-2.5-flash, gemini-2.5-pro' } }, {}).llm
+  expect(gemini).toMatchObject({ baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.5-flash', fallbacks: [] })
+  expect(resolveAgentConfig(null, { ...keys, LLM_PROVIDER: 'groq', GROQ_API_KEY: 'gq' }).llm.baseUrl).toBe('https://api.groq.com/openai/v1')
+  expect(resolveAgentConfig(null, { ...keys, LLM_PROVIDER: 'mistral', MISTRAL_API_KEY: 'mi' }).llm.model).toBe('mistral-small-latest')
+})
+
+test('ElevenLabs Scribe and OpenAI transcription as speech recognition, with their streaming models by default', () => {
+  expect(resolveAgentConfig(null, { ...keys, STT_PROVIDER: 'elevenlabs_stt', ELEVENLABS_STT_API_KEY: 'es' }).stt).toEqual({ provider: 'elevenlabs_stt', apiKey: 'es', model: 'scribe_v2_realtime' })
+  expect(resolveAgentConfig(null, { ...keys, STT_PROVIDER: 'openai_stt', OPENAI_STT_API_KEY: 'os' }).stt).toEqual({ provider: 'openai_stt', apiKey: 'os', model: 'gpt-4o-mini-transcribe' })
+  // The language model's or the voice's key does not count for speech recognition.
+  expect(() => resolveAgentConfig(null, { ...keys, STT_PROVIDER: 'openai_stt', OPENAI_API_KEY: 'oa' })).toThrow(/no API key for openai_stt/)
 })

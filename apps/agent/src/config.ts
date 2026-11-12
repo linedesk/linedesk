@@ -4,18 +4,19 @@
 // A call is answered either by the three stages (AgentConfig) or, once one is connected, by a
 // realtime model (RealtimeCallConfig): `CallConfig` is either.
 // `createConfigLoader()` builds the cached loader the worker uses (`loadAgentConfig` in worker.ts).
+import { type LlmProvider, llmEndpoints } from '@linedesk/actions'
 import { z } from 'zod'
 import { recordingSettings, resolveRecording, type RecordingConfig } from './recording.ts'
 
 export interface AgentConfig {
-  stt: { provider: 'deepgram'; apiKey: string; model: string }
+  stt: { provider: SttProvider; apiKey: string; model: string }
   /**
    * Any OpenAI-compatible chat completions API: `model` for the conversation, `summaryModel` for the call
    * summary. `fallbacks` are tried by OpenRouter when the model fails (a rate limit, a provider outage);
    * other providers get none.
    */
   llm: {
-    provider: 'openrouter' | 'openai'
+    provider: LlmProvider
     apiKey: string
     baseUrl: string
     model: string
@@ -33,6 +34,7 @@ export interface AgentConfig {
 }
 
 export type TtsConfig = { provider: 'elevenlabs' | 'cartesia'; apiKey: string; model?: string }
+export type SttProvider = keyof (typeof stages)['stt']['providers']
 
 /** A speech-to-speech model: hears the caller and answers in its own voice. The summary goes to OpenAI's chat API with the same key. */
 export type RealtimeConfig = { provider: 'openai_realtime'; apiKey: string; model: string; voice: string; summaryModel: string }
@@ -89,8 +91,17 @@ export function parseProviderSettings(body: unknown): ProviderSettings {
 }
 
 const stages = {
-  stt: { stage: 'speech recognition', providerEnv: 'STT_PROVIDER', fallback: 'deepgram', providers: { deepgram: 'DEEPGRAM_API_KEY' } },
-  llm: { stage: 'language model', providerEnv: 'LLM_PROVIDER', fallback: 'openrouter', providers: { openrouter: 'OPENROUTER_API_KEY', openai: 'OPENAI_API_KEY' } },
+  stt: {
+    stage: 'speech recognition', providerEnv: 'STT_PROVIDER', fallback: 'deepgram',
+    providers: { deepgram: 'DEEPGRAM_API_KEY', elevenlabs_stt: 'ELEVENLABS_STT_API_KEY', openai_stt: 'OPENAI_STT_API_KEY' },
+  },
+  llm: {
+    stage: 'language model', providerEnv: 'LLM_PROVIDER', fallback: 'openrouter',
+    providers: {
+      openrouter: 'OPENROUTER_API_KEY', openai: 'OPENAI_API_KEY', anthropic: 'ANTHROPIC_API_KEY', gemini: 'GEMINI_API_KEY',
+      groq: 'GROQ_API_KEY', mistral: 'MISTRAL_API_KEY',
+    },
+  },
   tts: { stage: 'voice', providerEnv: 'TTS_PROVIDER', fallback: 'elevenlabs', providers: { elevenlabs: 'ELEVENLABS_API_KEY', cartesia: 'CARTESIA_API_KEY' } },
 } as const satisfies Record<'stt' | 'llm' | 'tts', { stage: Stage; providerEnv: string; fallback: string; providers: Record<string, string> }>
 type StageKey = keyof typeof stages
@@ -109,19 +120,15 @@ export const stageEnvVars = [
     ...Object.values(realtimeEnv),
   ]),
 ]
-/**
- * Models are lists, first one first: "primary, fallback, ...". Live turns need the fastest first token
- * (gemini-2.5-flash-lite about 0.6 s from the server, gpt-5.4-mini about 1.05 s); the summary is not
- * latency-critical and gets a stronger model.
- */
-export const llmDefaults = {
-  openrouter: {
-    baseUrl: 'https://openrouter.ai/api/v1',
-    models: ['google/gemini-2.5-flash-lite', 'openai/gpt-4.1-mini'],
-    summaryModels: ['google/gemini-2.5-flash', 'openai/gpt-5.4-mini'],
-  },
-  openai: { baseUrl: 'https://api.openai.com/v1', models: ['gpt-4.1-mini'], summaryModels: ['gpt-4.1-mini'] },
-} as const
+/** Each language-model provider's API and default models (lists, first one first: "primary, fallback, ..."). */
+export const llmDefaults = llmEndpoints
+
+/** The speech model when none is set: Deepgram's English Flux, ElevenLabs' and OpenAI's streaming models. */
+const sttDefaultModels: Record<SttProvider, string> = {
+  deepgram: 'flux-general-en',
+  elevenlabs_stt: 'scribe_v2_realtime',
+  openai_stt: 'gpt-4o-mini-transcribe',
+}
 
 /** "a, b , c" → ['a', 'b', 'c']; an empty or missing value is the default list. */
 export function modelList(value: string | null | undefined, fallback: readonly string[]): string[] {
@@ -144,7 +151,7 @@ function fromEnv(key: StageKey, env: Env): NonNullable<Entry> {
 function problem(key: StageKey, picked: NonNullable<Entry>, fromApp: boolean): string | null {
   const spec = stages[key]
   const keyVar = (spec.providers as Record<string, string>)[picked.provider]
-  if (!keyVar) return `${spec.stage}: unknown provider "${picked.provider}" (use ${Object.keys(spec.providers).join(' or ')})`
+  if (!keyVar) return `${spec.stage}: unknown provider "${picked.provider}" (use one of ${Object.keys(spec.providers).join(', ')})`
   if (picked.api_key) return null
   return `${spec.stage}: no API key for ${picked.provider} (${fromApp ? 'set it in Linedesk under Providers' : `set it in Linedesk under Providers, or ${keyVar} in .env`})`
 }
@@ -173,7 +180,7 @@ export function resolveAgentConfig(settings: ProviderSettings | null, env: Env =
   // Only OpenRouter takes a fallback list (`models`); another API would reject it.
   const withFallbacks = llmProvider === 'openrouter'
   return {
-    stt: { provider: 'deepgram', apiKey: stt.api_key!, model: stt.model || 'flux-general-en' },
+    stt: { provider: stt.provider as SttProvider, apiKey: stt.api_key!, model: stt.model || sttDefaultModels[stt.provider as SttProvider] },
     llm: {
       provider: llmProvider, apiKey: llm.api_key!,
       // LLM_BASE_URL belongs to an env-configured LLM: a key stored in Linedesk only goes to its provider's own API.

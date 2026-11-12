@@ -47,6 +47,12 @@ const checks: Record<
   openrouter: bearer('https://openrouter.ai/api/v1/key'),
   openai: bearer('https://api.openai.com/v1/models'),
   openai_realtime: bearer('https://api.openai.com/v1/models'),
+  anthropic: keyHeader('https://api.anthropic.com/v1/models', 'x-api-key', { 'anthropic-version': '2023-06-01' }),
+  gemini: bearer('https://generativelanguage.googleapis.com/v1beta/openai/models'),
+  groq: bearer('https://api.groq.com/openai/v1/models'),
+  mistral: bearer('https://api.mistral.ai/v1/models'),
+  elevenlabs_stt: keyHeader('https://api.elevenlabs.io/v1/user', 'xi-api-key'),
+  openai_stt: bearer('https://api.openai.com/v1/models'),
   elevenlabs: keyHeader('https://api.elevenlabs.io/v1/user', 'xi-api-key'),
   cartesia: keyHeader('https://api.cartesia.ai/voices?limit=1', 'x-api-key', { 'cartesia-version': '2025-04-16' }),
 }

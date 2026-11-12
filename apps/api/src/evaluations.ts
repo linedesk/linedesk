@@ -2,7 +2,15 @@
 // configured language model how the assistant handled the call. One short request with the
 // assistant's instructions, the transcript and the summary; the answer is a score (1 to 5) and at
 // most three issues, stored in `call_evaluations`. Only owners and admins read them.
-import { type CallEvaluation, callRules, NEEDS_REVIEW_MAX_SCORE, PRICE_RULE, QUESTION_MAX } from '@linedesk/actions'
+import {
+  type CallEvaluation,
+  callRules,
+  type LlmProvider,
+  llmEndpoints,
+  NEEDS_REVIEW_MAX_SCORE,
+  PRICE_RULE,
+  QUESTION_MAX,
+} from '@linedesk/actions'
 import { assistants, call_evaluations, calls, type Tx, transcript_segments } from '@linedesk/db'
 import { and, asc, desc, eq, isNull, lte } from 'drizzle-orm'
 import { z } from 'zod'
@@ -15,11 +23,11 @@ import { createFailureLimiter } from './rate-limit.ts'
 export type CompleteJson = (system: string, user: string) => Promise<string>
 export type EvaluationModel = { complete: CompleteJson; model: string }
 
-/** Where each language-model provider answers (OpenAI-compatible chat completions), and its cheapest default model. */
-const LLM_ENDPOINTS: Record<string, { baseUrl: string; model: string }> = {
-  openrouter: { baseUrl: 'https://openrouter.ai/api/v1', model: 'google/gemini-2.5-flash-lite' },
-  openai: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini' },
-}
+/** Where each language-model provider answers (OpenAI-compatible chat completions), and its fastest default model. */
+const endpointOf = (provider: string): { baseUrl: string; model: string } | null =>
+  provider in llmEndpoints
+    ? { baseUrl: llmEndpoints[provider as LlmProvider].baseUrl, model: llmEndpoints[provider as LlmProvider].models[0] }
+    : null
 const TIMEOUT_MS = 20_000
 /** Language-model requests per workspace and hour for evaluations (automatic, asked for and retries alike). */
 export const EVALUATIONS_PER_HOUR = 30
@@ -74,7 +82,7 @@ export async function evaluationModel(
   options?: ChatOptions,
 ): Promise<EvaluationModel | null> {
   const active = await activeProvider(tx, 'llm')
-  const endpoint = active && LLM_ENDPOINTS[active.provider]
+  const endpoint = active && endpointOf(active.provider)
   const apiKey = active?.config.api_key?.value
   if (!active || !endpoint || !apiKey) return null
   // The model field is a list, "model, fallback, ..."; the first is the one used.

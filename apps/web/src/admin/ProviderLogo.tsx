@@ -33,6 +33,28 @@ export const providerMeta: Record<ProviderName, Meta> = {
     blurb: 'GPT models from OpenAI.',
     keysUrl: 'https://platform.openai.com/api-keys',
   },
+  anthropic: {
+    mark: { brand: 'anthropic' },
+    blurb: 'Claude models.',
+    keysUrl: 'https://console.anthropic.com/settings/keys',
+  },
+  gemini: {
+    mark: { brand: 'googlegemini' },
+    blurb: 'Gemini models from Google.',
+    keysUrl: 'https://aistudio.google.com/apikey',
+  },
+  groq: { mark: { icon: 'spark' }, blurb: 'Open models, very fast.', keysUrl: 'https://console.groq.com/keys' },
+  mistral: { mark: { brand: 'mistralai' }, blurb: 'Mistral models.', keysUrl: 'https://console.mistral.ai/api-keys' },
+  elevenlabs_stt: {
+    mark: { brand: 'elevenlabs' },
+    blurb: 'Streaming speech recognition with Scribe.',
+    keysUrl: 'https://elevenlabs.io/app/settings/api-keys',
+  },
+  openai_stt: {
+    mark: { brand: 'openai' },
+    blurb: 'Streaming transcription from OpenAI.',
+    keysUrl: 'https://platform.openai.com/api-keys',
+  },
   elevenlabs: {
     mark: { brand: 'elevenlabs' },
     blurb: 'Natural voices.',

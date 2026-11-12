@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest'
 import type { AgentConfig, RealtimeCallConfig } from './config.ts'
-import { chatJson, createRealtimePipeline, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
+import { chatJson, createRealtimePipeline, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
 
 const openrouter = { apiKey: 'sk-or-test', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' }
 
@@ -99,4 +99,11 @@ test('an assistant with a voice of another provider that has a key gets that pro
   expect(greetingVoice({ tts } as never, { assistant: { voice: { provider: 'cartesia', voice_id: 'sonic_voice' }, talking_speed_pct: 93 } })).toMatchObject({ speed: 93 })
   // An assistant row of an older API has only the old speed.
   expect(greetingVoice({ tts } as never, { assistant: { voice: { provider: 'cartesia', voice_id: 'sonic_voice' }, talking_speed: 'fast' } })).toMatchObject({ speed: 110 })
+})
+
+test('ElevenLabs Scribe and OpenAI transcription detect the end of a turn, like Flux', () => {
+  expect(sttDetectsTurns({ provider: 'elevenlabs_stt', apiKey: 'el', model: 'scribe_v2_realtime' })).toBe(true)
+  expect(sttDetectsTurns({ provider: 'openai_stt', apiKey: 'oa', model: 'gpt-4o-mini-transcribe' })).toBe(true)
+  expect(sttDetectsTurns({ provider: 'deepgram', apiKey: 'dg', model: 'flux-general-en' })).toBe(true)
+  expect(sttDetectsTurns({ provider: 'deepgram', apiKey: 'dg', model: 'nova-3' })).toBe(false)
 })
