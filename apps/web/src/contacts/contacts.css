@@ -32,16 +32,14 @@
   overflow: auto;
 }
 /* An open contact or New contact takes room on the right only: rows keep their left edge, under
-   the header's search, and get narrower instead of jumping to the window's edge. */
+   the header's search, and get narrower. The list is the full window width (--w-list), so that edge
+   is the list's own: no margin, else the rows jump right by half the panel's width. */
 @media (min-width: 720px) {
-  .cust-main {
-    container-type: inline-size;
-  }
   .cust-main.has-rec .ib-list .row.cust-row.ct-row,
   .cust-main.has-rec .ib-list .ib-day {
     width: auto;
     max-width: none;
-    margin-left: max(0px, calc((100cqw - var(--w-list)) / 2));
+    margin-left: 0;
     margin-right: 0;
   }
 }
