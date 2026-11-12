@@ -46,7 +46,9 @@ export function calendarRedirectUri(provider: CalendarProviderId, base = process
 }
 
 /** The ciphertext of each token is bound to its connection and kind: a value moved to another row does not decrypt. */
-const slot = (connectionId: string, kind: 'access' | 'refresh') => `calendar.${connectionId}.${kind}`
+/** The slot (secrets.ts) of a calendar connection's token. */
+export const calendarSlot = (connectionId: string, kind: 'access' | 'refresh') => `calendar.${connectionId}.${kind}`
+const slot = calendarSlot
 
 function workspaceOf(actor: Actor) {
   if (!actor.workspaceId) throw new Reject('no workspace')

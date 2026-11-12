@@ -11,7 +11,12 @@ export class SecretsKeyError extends Error {}
 function secretsKey(): Buffer {
   const raw = process.env.SECRETS_KEY
   if (!raw) throw new SecretsKeyError(`SECRETS_KEY is not set, so keys cannot be stored. ${HOW_TO}`)
-  const key = Buffer.from(raw, 'base64')
+  return parseSecretsKey(raw)
+}
+
+/** A SECRETS_KEY value (32 bytes, base64) as the key itself. */
+export function parseSecretsKey(raw: string): Buffer {
+  const key = Buffer.from(raw.trim(), 'base64')
   if (key.length !== 32) throw new SecretsKeyError(`SECRETS_KEY must be 32 bytes, base64 encoded. ${HOW_TO}`)
   return key
 }
@@ -31,9 +36,9 @@ export function signWithSecretsKey(purpose: string, text: string): string {
   return createHmac('sha256', key).update(text).digest('hex')
 }
 
-export function encryptSecret(plain: string, slot: string): string {
+export function encryptSecret(plain: string, slot: string, key: Buffer = secretsKey()): string {
   const iv = randomBytes(12)
-  const cipher = createCipheriv('aes-256-gcm', secretsKey(), iv, { authTagLength: 16 })
+  const cipher = createCipheriv('aes-256-gcm', key, iv, { authTagLength: 16 })
   cipher.setAAD(Buffer.from(slot))
   const ciphertext = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()])
   return ['v1', iv, cipher.getAuthTag(), ciphertext]
@@ -41,8 +46,7 @@ export function encryptSecret(plain: string, slot: string): string {
     .join(':')
 }
 
-export function decryptSecret(stored: string, slot: string): string {
-  const key = secretsKey()
+export function decryptSecret(stored: string, slot: string, key: Buffer = secretsKey()): string {
   const [version, iv, tag, ciphertext] = stored.split(':')
   try {
     if (version !== 'v1' || !iv || !tag || ciphertext === undefined) throw new Error('unknown format')
@@ -55,4 +59,9 @@ export function decryptSecret(stored: string, slot: string): string {
       `The stored value of ${slot} cannot be decrypted: SECRETS_KEY is not the key it was saved with. Restore that key, or set the provider's keys again.`,
     )
   }
+}
+
+/** A stored value under another key (rotate-secrets-key.ts): decrypted with `from`, encrypted again with `to`, same slot. */
+export function reencryptSecret(stored: string, slot: string, from: Buffer, to: Buffer): string {
+  return encryptSecret(decryptSecret(stored, slot, from), slot, to)
 }

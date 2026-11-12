@@ -70,7 +70,7 @@ export async function loadInstanceEnv(db: Db, env: Env = process.env): Promise<v
 }
 
 const VAPID_PUBLIC = 'push.vapid_public_key'
-const VAPID_PRIVATE = 'push.vapid_private_key'
+export const VAPID_PRIVATE = 'push.vapid_private_key'
 
 const readSetting = async (db: Db, key: string) =>
   (await db.select().from(instance_settings).where(eq(instance_settings.key, key)))[0]?.value ?? null

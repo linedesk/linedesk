@@ -30,7 +30,9 @@ const allowCarrierTest = createRateLimiter({ max: CARRIER_TESTS_PER_10_MIN, wind
 const LIST_LIMIT = 20
 const MAX_MESSAGE = 200
 
-const slot = (workspaceId: string, carrier: OwnCarrier, field: string) => `workspace:${workspaceId}:${carrier}.${field}`
+/** The slot (secrets.ts) of a workspace's own carrier credential. */
+export const carrierSlot = (workspaceId: string, carrier: string, field: string) => `workspace:${workspaceId}:${carrier}.${field}`
+const slot = (workspaceId: string, carrier: OwnCarrier, field: string) => carrierSlot(workspaceId, carrier, field)
 const newId = () => `ps_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 const lastFour = (value: string) => (value.length >= 12 ? value.slice(-4) : null)
 const ownCarriers = Object.keys(carrierFields) as OwnCarrier[]

@@ -19,7 +19,9 @@ type Env = Record<string, string | undefined>
 export type Source = 'app' | 'env'
 export type ProviderConfig = Record<string, { value: string; source: Source } | undefined>
 
-const slot = (provider: string, field: string) => `${provider}.${field}`
+/** The slot (secrets.ts) of an install-wide provider value. */
+export const providerSlot = (provider: string, field: string) => `${provider}.${field}`
+const slot = providerSlot
 const newId = () => `ps_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 /** Shown next to a stored secret. Short values show nothing: four characters would be most of them. */
 const lastFour = (value: string) => (value.length >= 12 ? value.slice(-4) : null)

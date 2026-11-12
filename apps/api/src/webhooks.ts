@@ -55,7 +55,7 @@ const TIMEOUT_MS = 10_000
 export const SIGNATURE_HEADER = 'linedesk-signature'
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
-const secretSlot = (endpointId: string) => `webhook.${endpointId}`
+export const secretSlot = (endpointId: string) => `webhook.${endpointId}`
 const short = (text: string) => (text.length > 300 ? `${text.slice(0, 297)}...` : text)
 
 // --- Where deliveries may go -----------------------------------------------------------------

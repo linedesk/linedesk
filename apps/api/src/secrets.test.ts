@@ -1,6 +1,13 @@
 import { randomBytes } from 'node:crypto'
 import { afterEach, beforeEach, expect, test } from 'vitest'
-import { decryptSecret, encryptSecret, hasSecretsKey, SecretsKeyError } from './secrets.ts'
+import {
+  decryptSecret,
+  encryptSecret,
+  hasSecretsKey,
+  parseSecretsKey,
+  reencryptSecret,
+  SecretsKeyError,
+} from './secrets.ts'
 
 const newKey = () => randomBytes(32).toString('base64')
 const before = process.env.SECRETS_KEY
@@ -45,4 +52,23 @@ test('without a usable SECRETS_KEY nothing is encrypted', () => {
   process.env.SECRETS_KEY = Buffer.from('too short').toString('base64')
   expect(hasSecretsKey()).toBe(false)
   expect(() => encryptSecret('value', 'telnyx.api_key')).toThrow(/must be 32 bytes/)
+})
+
+test('rotation: a value moved to a new key reads only with the new key, in the same slot', () => {
+  const from = parseSecretsKey(process.env.SECRETS_KEY!)
+  const to = parseSecretsKey(newKey())
+  const stored = encryptSecret('KEY-made-up-0123456789', 'calendar.calc_1.refresh')
+  const moved = reencryptSecret(stored, 'calendar.calc_1.refresh', from, to)
+  expect(moved).not.toBe(stored)
+  expect(decryptSecret(moved, 'calendar.calc_1.refresh', to)).toBe('KEY-made-up-0123456789')
+  expect(() => decryptSecret(moved, 'calendar.calc_1.refresh', from)).toThrow(SecretsKeyError)
+  expect(() => decryptSecret(moved, 'calendar.calc_2.refresh', to)).toThrow(SecretsKeyError)
+})
+
+test('rotation stops at a value the current key cannot read, before writing anything', () => {
+  const other = parseSecretsKey(newKey())
+  const stored = encryptSecret('KEY-made-up-0123456789', 'telnyx.api_key', other)
+  expect(() =>
+    reencryptSecret(stored, 'telnyx.api_key', parseSecretsKey(process.env.SECRETS_KEY!), parseSecretsKey(newKey())),
+  ).toThrow(SecretsKeyError)
 })
