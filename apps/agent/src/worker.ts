@@ -23,6 +23,7 @@ import { checkReadiness, declineCall, describeReadiness, type Readiness } from '
 import { createPipeline, createRealtimePipeline, createTts, greetingVoice, realtimeLine, summaryLlm, talkingSpeedOf, warmUpLlm } from './pipeline.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
 import { logTurnMetrics } from './turn-metrics.ts'
+import { realtimeTurnTimer } from './realtime-timing.ts'
 import { followCallerLanguage } from './caller-language.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
 import { hangUpAfterLine, hangUpAfterSpeech, hangUpAtCallLimit, remindOnSilence, silencePolicyOf, speakingOf } from './hang-up.ts'
@@ -253,7 +254,10 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const languages = { main: mainLanguageOf(call.assistant?.languages), others: otherLanguagesOf(call.assistant?.languages) }
   const speed = talkingSpeedOf(call.assistant)
   const pipeline = stages && createPipeline(stages, call.assistant?.voice, silence.firstGapS, languages, speed)
-  const session = new voice.AgentSession(realtime ? createRealtimePipeline(realtime, silence.firstGapS, speed, languages) : pipeline!)
+  const session = new voice.AgentSession(realtime ? createRealtimePipeline(realtime, silence.firstGapS, speed, languages, events => {
+    events.on('openai_client_event_queued', event => timer?.sent(event))
+    events.on('openai_server_event_received', event => timer?.received(event))
+  }) : pipeline!)
   const speak = speakerFor(session, realtime !== null)
   // Fixed lines during the call are in the language spoken now: the main one until the caller switches. A realtime model
   // follows the caller's language itself, and is asked to say a fixed line in it.
@@ -262,6 +266,9 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   // Silence only counts once the assistant has spoken: a greeting that is slow to start (a busy server, a realtime model
   // connecting) must not run down the caller's silence and hang up before anyone said anything.
   let greeted = false
+  // Realtime: where each reply's time goes, one log line per reply (realtime-timing.ts).
+  const timer = realtime ? realtimeTurnTimer(line => console.log(`latency ${call.callId}: ${line}`)) : null
+  if (timer) session.on(voice.AgentSessionEventTypes.AgentStateChanged, ({ newState }) => newState === 'speaking' && timer.speaking())
   const onSpeaking = ({ newState }: { newState: string }) => {
     if (newState !== 'speaking') return
     greeted = true
