@@ -171,6 +171,7 @@ const all = [
   membership.invitationRevoke,
   membership.invitationResend,
   onboarding.onboardingSetStep,
+  onboarding.onboardingRecordEvent,
   evaluations.callGetEvaluation,
   evaluations.callListEvaluations,
   evaluations.callEvaluate,

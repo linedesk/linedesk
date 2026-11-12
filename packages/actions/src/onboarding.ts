@@ -14,3 +14,13 @@ export const onboardingSetStep = defineAction({
   input: z.object({ step: z.enum([...onboardingSteps, 'skipped']) }),
   permission: 'settings:write',
 })
+
+/** The setup milestones only the web app sees; the API records the others itself (setup_events). */
+export const clientSetupEvents = ['forwarding_instructions_shown'] as const
+
+export const onboardingRecordEvent = defineAction({
+  name: 'onboarding.recordEvent',
+  description: 'Record a setup milestone only the web app sees (the forwarding code was shown). Only the first time counts.',
+  input: z.object({ event: z.enum(clientSetupEvents) }),
+  permission: 'settings:write',
+})

@@ -167,6 +167,11 @@ export const calls = pgTable(
     source: text('source', { enum: ['phone', 'test', 'sample'] })
       .notNull()
       .default('phone'),
+    /**
+     * A phone call from the business's own phones (a number its assistants put calls through to, or one of its
+     * Linedesk numbers): the owner trying it out, not a caller. Set by call.start; such calls don't count as real.
+     */
+    from_own_number: boolean('from_own_number').notNull().default(false),
     started_at: ts('started_at').notNull().defaultNow(),
     ended_at: ts('ended_at'),
     duration_sec: integer('duration_sec'),
@@ -922,3 +927,26 @@ export const star_prompts = pgTable('star_prompts', {
   answer: text('answer', { enum: ['starred', 'opened', 'dismissed'] }).notNull(),
   answered_at: ts('answered_at').notNull().defaultNow(),
 })
+
+/**
+ * The setup milestones a business reaches on its way to its first real call, in order of the usual setup.
+ * `forwarding_instructions_shown` is the only one the web app reports (onboarding.recordEvent); the API
+ * records the others where they happen (apps/api/src/setup-events.ts).
+ */
+export const setupEventKinds = [
+  'signup', 'business_found', 'assistant_heard', 'mobile_added', 'forwarding_instructions_shown',
+  'forwarding_verified', 'onboarding_done', 'onboarding_skipped', 'first_real_call', 'activated',
+] as const
+export type SetupEventKind = (typeof setupEventKinds)[number]
+
+// When a workspace first reached each setup milestone (onboarding funnel, time to first real call). Only the
+// first time counts: one row per workspace and milestone, never updated. Not synced to browsers.
+export const setup_events = pgTable(
+  'setup_events',
+  {
+    workspace_id: workspaceId(),
+    event: text('event', { enum: setupEventKinds }).notNull(),
+    at: ts('at').notNull().defaultNow(),
+  },
+  t => [primaryKey({ columns: [t.workspace_id, t.event] })],
+)

@@ -173,11 +173,21 @@ function Choose({ status, setupError, clearError, onBack, onNext }: Props) {
   )
 }
 
+/** Whether this page load already told the server the forwarding code was shown. */
+let forwardingShownSent = false
+
 function Connected({ number, onBack, onNext }: { number: PhoneNumber; onBack: () => void; onNext: () => void }) {
   const [carrierId, setCarrierId] = useState(carriers[0]!.id)
   const carrier = carriers.find(c => c.id === carrierId) ?? carriers[0]!
   const code = carrier.on(forwardingDigits(number.e164))
   const forwards = number.mode === 'forward_conditional'
+  const run = useRun()
+  // For the setup funnel: how many reach the forwarding code. The server keeps only the first time, so once per page load is enough.
+  useEffect(() => {
+    if (!forwards || forwardingShownSent) return
+    forwardingShownSent = true
+    void run('onboarding.recordEvent', { event: 'forwarding_instructions_shown' })
+  }, [forwards, run])
   useStepKeys({ onEnter: onNext, onEscape: onBack })
   return (
     <>

@@ -505,6 +505,20 @@
       "when": 1794508364489,
       "tag": "0071_reply_timings",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1794522094970,
+      "tag": "0072_setup_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1794522590769,
+      "tag": "0073_calls_from_own_number",
+      "breakpoints": true
     }
   ]
 }

@@ -132,7 +132,7 @@ async function queryBuckets(
           select 1 from bookings b where b.call_id = c.id and b.workspace_id = c.workspace_id and b.status <> 'cancelled'
         )) as booked_any
       from calls c
-      where c.workspace_id = ${workspaceId} and c.deleted_at is null and c.source = 'phone' and c.direction = 'in'
+      where c.workspace_id = ${workspaceId} and c.deleted_at is null and c.source = 'phone' and c.direction = 'in' and not c.from_own_number
         and c.status = 'completed' and c.started_at >= ${startOf(2 * days - 1)}
     ),
     k as (

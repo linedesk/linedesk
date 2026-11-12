@@ -34,6 +34,7 @@ import { insightsHandlers } from './insights.ts'
 import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
 import { checkAssistantVoice, releaseUnusedClones, voiceHandlers, voicePreparers } from './voices.ts'
 import { sampleHandlers } from './sample-calls.ts'
+import { isOwnNumber, recordCallFinished, recordCallStarted, recordOnboardingStep, recordSetupEvent } from './setup-events.ts'
 import { queueAssignNotification, queueCallEvaluation, queueRecordingDeletion, queueCallNotification, queueCallPush } from './jobs.ts'
 import { queueSpendingAlerts, spendingCap } from './spending-cap.ts'
 import { evaluatedAutomatically, evaluationHandlers } from './evaluations.ts'
@@ -219,12 +220,16 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   const busy = source === 'phone' && !spam && !overCap && (await atLiveCallLimit(tx, workspace_id, now))
   // Older agents only know `blocked`: hang up without answering. It covers all three.
   const blocked = spam || busy || overCap
+  // The owner calling from their own phone to try it out: kept on the call, so it never counts as a real caller.
+  const fromOwnNumber = source === 'phone' && isE164(from) && (await isOwnNumber(tx, workspace_id, from))
   const [call] = await tx.insert(calls).values({
     id, workspace_id, contact_id: contact?.row.id ?? null, from_number: from, to_number: to, source, started_at: now, room: room ?? id,
+    from_own_number: fromOwnNumber,
     assistant_id: assistant?.id ?? null,
     assistant_version: await versionForCall(tx, workspace_id, assistant?.id),
     ...(spam ? blockedCall(now) : overCap ? overCapCall(now) : busy ? busyCall(now) : {}),
   }).returning()
+  await recordCallStarted(tx, call!, spam)
   // A busy call is filed as missed right away: the team hears of it like of any other finished call.
   if (busy || overCap) await queueCallPush(tx, id, 'finished')
   // The cap may have been lowered below this month's spend since the last call: the 100 % email goes out now then.
@@ -362,6 +367,7 @@ const handlers: Record<string, Handler> = {
       if (contact.number) await checkOnCallNotLinedesk(ctx.tx, contact.number, contact.name)
     const result = await runPatch(ctx, actions.get('assistant.update')!, input)
     if (input.voice) await releaseUnusedClones(ctx.tx, ctx.actor.workspaceId)
+    if (setsTransferNumber(input)) await recordSetupEvent(ctx.tx, ctx.actor.workspaceId, 'mobile_added', ctx.now)
     return result
   },
 
@@ -603,6 +609,7 @@ const handlers: Record<string, Handler> = {
       await queueCallEnd(tx, updated!)
       // This call's minutes may take the workspace to 80 % or 100 % of its spending cap.
       await queueSpendingAlerts(tx, call.workspace_id, now)
+      await recordCallFinished(tx, updated!, now)
     }
     return { rows }
   },
@@ -662,10 +669,17 @@ const handlers: Record<string, Handler> = {
     return { rows: { calls: rows } }
   },
 
-  'onboarding.setStep': async ({ tx, actor }, input) => {
+  'onboarding.setStep': async ({ tx, actor, now }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     await tx.insert(workspace_settings).values({ workspace_id: actor.workspaceId, timezone: DEFAULT_TIME_ZONE, onboarding_step: input.step })
       .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { onboarding_step: input.step } })
+    await recordOnboardingStep(tx, actor.workspaceId, input.step, now)
+    return { rows: {} }
+  },
+
+  'onboarding.recordEvent': async ({ tx, actor, now }, input) => {
+    if (!actor.workspaceId) throw new Reject('no workspace')
+    await recordSetupEvent(tx, actor.workspaceId, input.event, now)
     return { rows: {} }
   },
 

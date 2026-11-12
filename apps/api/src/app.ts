@@ -48,6 +48,7 @@ import { isInstanceAdmin } from './instance-admin.ts'
 import { previewInvitation } from './invitations.ts'
 import { signUpOpen } from './auth-methods.ts'
 import { newAssistant, newWorkspaceSettings, onboardingFor, phoneSetupFor } from './onboarding.ts'
+import { recordSignup } from './setup-events.ts'
 import { firstUse } from './sample-calls.ts'
 import { starPromptFor } from './star-prompt.ts'
 import { voiceReady } from './provider-settings.ts'
@@ -170,6 +171,7 @@ app.post('/v1/workspaces', async c => {
     await db.delete(organization).where(eq(organization.id, org.id))
     throw err
   }
+  await recordSignup(db, org.id)
   // Not essential: without an active workspace the member's first one is used (context.ts).
   await auth.api
     .setActiveOrganization({ body: { organizationId: org.id }, headers })

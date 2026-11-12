@@ -13,6 +13,7 @@ import type { Actor } from './context.ts'
 import { db, pool } from './db.ts'
 import { ensureWorkspaceRows } from './onboarding.ts'
 import { runAction } from './run-action.ts'
+import { recordSignup } from './setup-events.ts'
 
 const USAGE = 'Usage: workspace:create --name <business name> --owner <email of an existing user> [--number +1…] [--time-zone <IANA zone>]'
 
@@ -57,6 +58,7 @@ async function main() {
   const owner = await findOwner(values.owner)
   const workspace = await ensureWorkspace(name, owner.id)
   await ensureWorkspaceRows(workspace.id, name, values['time-zone'], 'done')
+  if (workspace.created) await recordSignup(db, workspace.id)
   console.log(`${workspace.created ? 'Created' : 'Found'} workspace "${name}" (${workspace.id}), owner ${owner.email}; assistant and settings in place, onboarding done.`)
   if (values.number) console.log(await ensureNumber(values.number, workspace.id, owner.id))
   if (values.number) console.log(`Next, in the agent container: node src/setup-sip.ts ${values.number}`)
