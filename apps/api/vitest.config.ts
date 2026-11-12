@@ -35,6 +35,11 @@ export default defineConfig(async () => {
   })
   return {
     test: {
+      // On a developer machine Postgres shares a small Docker VM (2 CPUs by default in Colima): more files at once
+      // only queue up there and time out, and the run takes as long. CI's Postgres has room for the default.
+      maxWorkers: process.env.CI ? undefined : 2,
+      // The tests that start many calls at once can still pass 5 s there while other packages' tests run beside them.
+      testTimeout: process.env.CI ? undefined : 15_000,
       globalSetup: './test/global-setup.ts',
       projects: base
         ? [

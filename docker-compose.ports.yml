@@ -6,6 +6,8 @@ services:
   postgres:
     ports: ["127.0.0.1:5433:5432"]
     networks: [backend, default]
+    # The API tests run many files against it at once; at the server default (128m) Postgres is OOM-killed mid-run.
+    mem_limit: ${LINEDESK_POSTGRES_MEM:-768m}
 
   electric:
     ports: ["127.0.0.1:3001:3000"]
