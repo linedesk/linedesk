@@ -288,6 +288,11 @@ test('end_call written into the goodbye counts as the hang-up and is left out of
   expect(writesEndCall('I can end the call for you, or take a message.')).toBe(false)
   expect(withoutEndCall(goodbye)).toBe("Alright, I'll hang up now. Thanks for calling, goodbye!")
   expect(withoutEndCall('end_call')).toBe('')
+  // Seen on a realtime call: the transcript kept "<>" after the goodbye.
+  for (const written of ['<end_call>', '[end_call]', '{{end_call}}', '<end_call()>', 'end_call()']) {
+    expect(writesEndCall(`Thanks for calling, goodbye!\n\n${written}`)).toBe(true)
+    expect(withoutEndCall(`Thanks for calling, goodbye!\n\n${written}`)).toBe('Thanks for calling, goodbye!')
+  }
 })
 
 test('the hang-up line counts as the hang-up; a question or a negation does not', () => {

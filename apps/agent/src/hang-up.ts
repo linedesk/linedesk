@@ -19,8 +19,11 @@ const RECENT_SPEECH_MS = 4000
 /** Said when end_call comes without a goodbye of the model's: a call never ends in silence. */
 export const GOODBYE_LINE = 'Thanks for calling. Goodbye!'
 
-/** end_call written into the reply ("goodbye! {end_call}"), as a realtime model sometimes does instead of calling it. */
-const END_CALL_IN_WORDS = /\{?\bend_call\b\}?/gi
+/**
+ * end_call written into the reply ("goodbye! {end_call}", "<end_call>", "[end_call()]"), as a realtime model sometimes does
+ * instead of calling it, with the brackets around it.
+ */
+const END_CALL_IN_WORDS = /[{<[(]*\bend_call\b(?:\(\))?[}>\])]*/gi
 
 /** Whether the assistant wrote end_call into its words instead of calling it: the call then ends all the same. */
 export const writesEndCall = (text: string) => text.search(END_CALL_IN_WORDS) >= 0
