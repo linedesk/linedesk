@@ -10,11 +10,11 @@ Thanks for your interest. The source code is not public yet, so there is nothing
 
 Setup instructions, the development guide and pull request rules will be added here together with the code.
 
-## Contributor License Agreement
+## Sign-off (DCO)
 
-Once the code is public, you need to agree to the [Contributor License Agreement](CLA.md) before we can merge your first pull request. You only do this once.
+Once the code is public, every commit in a pull request needs a sign-off. Add it with `git commit -s`; it puts a `Signed-off-by: Your Name <you@example.com>` line under the commit message.
 
-In short: you keep the copyright to your work and give the project a broad license to use it, including under other license terms. In return, everything we accept stays available under the open-source license it was accepted under. The CLA itself is one page, please read it.
+With the sign-off you confirm the [Developer Certificate of Origin](https://developercertificate.org): you wrote the change or have the right to submit it. Your contribution is licensed under the project's [MIT license](LICENSE), and you keep the copyright to your work. There is nothing else to sign.
 
 ## Conduct
 

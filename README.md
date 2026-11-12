@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-1C1917?style=flat-square" alt="License: AGPL-3.0"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-1C1917?style=flat-square" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/status-pre--release-22C55E?style=flat-square" alt="Status: pre-release">
 </p>
 
@@ -26,7 +26,7 @@
   <a href="mailto:hello@linedesk.ai"><b>Contact</b></a>
 </p>
 
-> **Status: in development, the code is not public yet.** Linedesk already takes real phone calls in our development version. We will publish the source here under the AGPL-3.0 with the first public release. Watch or star the repository to get notified.
+> **Status: in development, the code is not public yet.** Linedesk already takes real phone calls in our development version. We will publish the source here under the MIT license with the first public release. Watch or star the repository to get notified.
 
 ![The Linedesk inbox](docs/images/inbox.png)
 
@@ -101,7 +101,7 @@ Before you take real calls, read [your responsibilities when you run Linedesk](d
 
 ## Open source and hosting
 
-Linedesk is licensed under the [AGPL-3.0](LICENSE) and can be self-hosted with your own provider keys and no license key.
+Linedesk is licensed under the [MIT license](LICENSE) and can be self-hosted with your own provider keys and no license key.
 
 For businesses that do not want to run servers, we are building a hosted version; that is how we intend to fund the project. You can [join the waitlist](https://linedesk.ai). If we ever add paid-only features, they will live in a separate `ee/` folder under their own license.
 
@@ -113,4 +113,4 @@ For anything else, write to [hello@linedesk.ai](mailto:hello@linedesk.ai).
 
 ## License
 
-Copyright © 2026 Sauerbier & Gutberlet GmbH and contributors. Licensed under the [AGPL-3.0](LICENSE). "Linedesk" and the Linedesk logo are trademarks of Sauerbier & Gutberlet GmbH; see [TRADEMARK.md](TRADEMARK.md). [Legal notice](https://linedesk.ai/legal).
+Copyright © 2026 Sauerbier & Gutberlet GmbH and contributors. Licensed under the [MIT license](LICENSE). "Linedesk" and the Linedesk logo are trademarks of Sauerbier & Gutberlet GmbH; see [TRADEMARK.md](TRADEMARK.md). [Legal notice](https://linedesk.ai/legal).
