@@ -1,6 +1,6 @@
 import type { TeamData, TeamMember } from '@linedesk/actions'
 import { describe, expect, it } from 'vitest'
-import { canEditRole, canRemove, invitationStatus, isEmail, isOnTeam, joinedLabel } from './team-model.ts'
+import { canEditRole, canRemove, invitationStatus, isEmail, isOnTeam, joinedLabel, roleInSentence } from './team-model.ts'
 
 const member = (userId: string, role: TeamMember['role'], email = `${userId}@x.co`): TeamMember =>
   ({ memberId: `m_${userId}`, userId, name: userId, email, role, joinedAt: '2026-11-01T10:00:00Z' })
@@ -47,5 +47,13 @@ describe('team model', () => {
     expect(invitationStatus(invite, Date.parse('2026-11-10T10:00:00Z'))).toBe('Expires in 7 days')
     expect(invitationStatus(invite, Date.parse('2026-11-17T09:00:00Z'))).toBe('Expires today')
     expect(invitationStatus({ ...invite, expired: true })).toBe('Resend to renew the link')
+  })
+})
+
+describe('roleInSentence', () => {
+  it('puts the right article before the role', () => {
+    expect(roleInSentence('member')).toBe('a member')
+    expect(roleInSentence('admin')).toBe('an admin')
+    expect(roleInSentence('owner')).toBe('an owner')
   })
 })

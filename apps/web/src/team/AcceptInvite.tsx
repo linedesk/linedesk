@@ -9,6 +9,7 @@ import { signOutAndForget } from '../localData.ts'
 import { CodeStep } from '../Login.tsx'
 import { authErrorMessage, authFormError } from '../sign-in-code.ts'
 import { previewInvitation } from './team-api.ts'
+import { roleInSentence } from './team-model.ts'
 import { AuthError } from '../ui/AuthError.tsx'
 import { ProviderButton } from '../ui/brand-logos.tsx'
 import { AuthPage } from '../ui/kit.tsx'
@@ -76,7 +77,7 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
       </Card>
     )
   }
-  const lead = <p>{invite.invitedBy || 'A teammate'} invited {invite.email} to join as {invite.role}.</p>
+  const lead = <p>{invite.invitedBy || 'A teammate'} invited {invite.email} to join as {roleInSentence(invite.role)}.</p>
   const title = `Join ${invite.workspaceName}`
 
   if (!account && codeSent) return <CodeStep email={invite.email} onDone={async () => { await loadAccount() }} onDifferentEmail={() => setCodeSent(false)} />

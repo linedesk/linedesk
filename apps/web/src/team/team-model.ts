@@ -8,6 +8,9 @@ export const isEmail = (text: string) => EMAIL.test(text.trim())
 
 export const roleLabel = (role: string) => role.charAt(0).toUpperCase() + role.slice(1)
 
+/** The role in a sentence: "a member", "an admin", "an owner". */
+export const roleInSentence = (role: string) => `${/^[aeiou]/i.test(role) ? 'an' : 'a'} ${role}`
+
 export const isOwner = (data: TeamData) => data.members.some(m => m.userId === data.me && m.role === 'owner')
 const ownerCount = (data: TeamData) => data.members.filter(m => m.role === 'owner').length
 
