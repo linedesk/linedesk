@@ -1,0 +1,5 @@
+# CI, deploy and the secret-scanning rules: a change here can switch off a check or reach the test server,
+# so it gets a review from one of us. GitHub requests the review automatically; making it required needs a
+# branch ruleset, which is only available once the repo is public (or on a paid plan).
+/.github/        @janik-sauerbier @timgutberlet
+/.gitleaks.toml  @janik-sauerbier @timgutberlet
