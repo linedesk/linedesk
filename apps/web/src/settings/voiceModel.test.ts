@@ -11,6 +11,7 @@ import {
   voiceFacts,
   voiceForMainLanguage,
   voiceInEffect,
+  voicesForLanguage,
 } from './voiceModel.ts'
 
 describe('voice picker', () => {
@@ -114,13 +115,32 @@ describe('voice for the main language', () => {
     { provider: 'elevenlabs', id: 'mateo', name: 'Mateo', description: null, language: 'es-MX', gender: 'male' },
     { provider: 'elevenlabs', id: 'valeria', name: 'Valeria', description: null, language: 'es', gender: 'female' },
     { provider: 'elevenlabs', id: 'ana', name: 'Ana', description: 'Narration', language: 'es', gender: 'female' },
-    { provider: 'elevenlabs', id: 'carla', name: 'Carla - Customer Care Agent', description: null, language: 'es', gender: 'female' },
+    {
+      provider: 'elevenlabs',
+      id: 'carla',
+      name: 'Carla - Customer Care Agent',
+      description: null,
+      language: 'es',
+      gender: 'female',
+    },
   ]
   const jessica = { provider: 'elevenlabs', voice_id: 'jessica' }
   it('another language: a voice made for it; the provider in use, the same gender and a voice for calls first', () => {
     expect(voiceForMainLanguage(voices, 'es', jessica, 'elevenlabs')).toMatchObject({ id: 'carla' })
-    expect(voiceForMainLanguage(voices, 'es', { provider: 'elevenlabs', voice_id: 'mateo-en' }, 'elevenlabs')).toMatchObject({ id: 'carla' })
-    expect(voiceForMainLanguage([...voices, { provider: 'elevenlabs', id: 'eric', name: 'Eric', description: null, language: 'en', gender: 'male' }], 'es', { provider: 'elevenlabs', voice_id: 'eric' }, 'elevenlabs')).toMatchObject({ id: 'mateo' })
+    expect(
+      voiceForMainLanguage(voices, 'es', { provider: 'elevenlabs', voice_id: 'mateo-en' }, 'elevenlabs'),
+    ).toMatchObject({ id: 'carla' })
+    expect(
+      voiceForMainLanguage(
+        [
+          ...voices,
+          { provider: 'elevenlabs', id: 'eric', name: 'Eric', description: null, language: 'en', gender: 'male' },
+        ],
+        'es',
+        { provider: 'elevenlabs', voice_id: 'eric' },
+        'elevenlabs',
+      ),
+    ).toMatchObject({ id: 'mateo' })
     expect(voiceForMainLanguage(voices, 'es', jessica, 'cartesia')).toMatchObject({ id: 'lucia' })
   })
   it('keeps the voice when none is made for the language, or the current one already is', () => {
@@ -128,8 +148,71 @@ describe('voice for the main language', () => {
     expect(voiceForMainLanguage(voices, 'es', { provider: 'elevenlabs', voice_id: 'mateo' }, 'elevenlabs')).toBeNull()
   })
   it('English: back to the default voice only from a voice of another language', () => {
-    expect(voiceForMainLanguage(voices, 'en', { provider: 'elevenlabs', voice_id: 'mateo' }, 'elevenlabs')).toBe('default')
+    expect(voiceForMainLanguage(voices, 'en', { provider: 'elevenlabs', voice_id: 'mateo' }, 'elevenlabs')).toBe(
+      'default',
+    )
     expect(voiceForMainLanguage(voices, 'en', jessica, 'elevenlabs')).toBeNull()
     expect(voiceForMainLanguage(voices, 'en', { provider: 'elevenlabs', voice_id: 'unknown' }, 'elevenlabs')).toBeNull()
+  })
+})
+
+describe('Voice Library voices for each language (ElevenLabs on a paid plan)', () => {
+  // The catalog as the API sends it: the account's English voices plus native library voices per language.
+  const library = (id: string, name: string, language: string, gender: string, description: string | null = null) => ({
+    provider: 'elevenlabs',
+    id,
+    name,
+    description,
+    language,
+    gender,
+  })
+  const voices = [
+    {
+      provider: 'elevenlabs',
+      id: 'cgSgspJ2msm6clMCkdW9',
+      name: 'Jessica',
+      description: null,
+      language: 'en',
+      gender: 'female',
+    },
+    { provider: 'elevenlabs', id: 'eric', name: 'Eric', description: null, language: 'en', gender: 'male' },
+    library('cristina', 'Cristina Campos - Friendly and Soft', 'es', 'female', 'A warm Argentinian voice.'),
+    library('regina', 'Regina - Contact Center', 'es', 'female'),
+    library('diego', 'Diego - Calm and Clear', 'es', 'male'),
+    library('lucie', 'Lucie - Support Agent', 'fr', 'female'),
+    library('marcel', 'Marcel - Warm and Conversational', 'fr', 'male'),
+    library('kaori', 'Kaori - Relatable and Friendly Voice', 'ja', 'female'),
+    { provider: 'cartesia', id: 'sofia', name: 'Sofía', description: null, language: 'es', gender: 'female' },
+  ]
+  const noVoice = { provider: 'elevenlabs', voice_id: '' }
+
+  it('every supported language gets a native voice when the main language changes', () => {
+    expect(voiceForMainLanguage(voices, 'es', noVoice, 'elevenlabs')).toMatchObject({ id: 'regina' })
+    expect(voiceForMainLanguage(voices, 'fr', noVoice, 'elevenlabs')).toMatchObject({ id: 'lucie' })
+    expect(voiceForMainLanguage(voices, 'ja', noVoice, 'elevenlabs')).toMatchObject({ id: 'kaori' })
+  })
+
+  it('a male voice stays male in the new language, where the language has one', () => {
+    const eric = { provider: 'elevenlabs', voice_id: 'eric' }
+    expect(voiceForMainLanguage(voices, 'es', eric, 'elevenlabs')).toMatchObject({ id: 'diego' })
+    expect(voiceForMainLanguage(voices, 'fr', eric, 'elevenlabs')).toMatchObject({ id: 'marcel' })
+    expect(voiceForMainLanguage(voices, 'ja', eric, 'elevenlabs')).toMatchObject({ id: 'kaori' })
+  })
+
+  it('Suggested: the provider in use first, a voice made for calls before the rest, never another language', () => {
+    expect(voicesForLanguage(voices, 'es', 'elevenlabs').map(v => v.id)).toEqual([
+      'regina',
+      'cristina',
+      'diego',
+      'sofia',
+    ])
+    expect(voicesForLanguage(voices, 'es', 'elevenlabs', 'male').map(v => v.id)).toEqual([
+      'diego',
+      'regina',
+      'cristina',
+      'sofia',
+    ])
+    expect(voicesForLanguage(voices, 'es', 'cartesia')[0]).toMatchObject({ id: 'sofia' })
+    expect(voicesForLanguage(voices, 'de', 'elevenlabs')).toEqual([])
   })
 })

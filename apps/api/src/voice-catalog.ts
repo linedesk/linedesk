@@ -2,7 +2,8 @@
 // key, read with the install's key on the server (the key never reaches the browser) and kept a few
 // minutes per provider. A workspace sees the provider's voices and its own clones, never another
 // workspace's clones or a clone the account made outside Linedesk (no consent record for it).
-// Voice Library and designed voices the account added are listed.
+// Voice Library and designed voices the account added are listed, and with ElevenLabs on a paid plan a few native
+// library voices for every language an assistant speaks (voice-provider.ts, LIBRARY_PER_LANGUAGE).
 import { createHash } from 'node:crypto'
 import {
   type CatalogProvider,

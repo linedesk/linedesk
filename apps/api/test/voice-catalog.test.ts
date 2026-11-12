@@ -16,6 +16,7 @@ import { act, createWorkspace } from './helpers.ts'
 
 const MP3 = Buffer.concat([Buffer.from('ID3'), Buffer.alloc(64)])
 const SAMPLE_URL = 'https://storage.googleapis.com/eleven-public-prod/library/sample.mp3'
+const SPANISH_SAMPLE_URL = 'https://storage.googleapis.com/eleven-public-prod/voices/spanish/sample.mp3'
 const suffix = crypto.randomUUID().replaceAll('-', '').slice(0, 10)
 const ids = {
   premade: `premade${suffix}`,
@@ -24,6 +25,7 @@ const ids = {
   ownClone: `ownclone${suffix}`,
   otherClone: `otherclone${suffix}`,
   foreignClone: `foreign${suffix}`,
+  spanish: `spanish${suffix}`,
 }
 
 /** ElevenLabs' GET /v2/voices, in two pages, and the hosted sample. */
@@ -38,7 +40,25 @@ function fakeElevenLabs() {
   const fake = vi.fn(async (input: string | URL | Request) => {
     const url = String(input)
     calls.push(url)
-    if (url === SAMPLE_URL) return new Response(new Uint8Array(MP3), { headers: { 'content-type': 'audio/mpeg' } })
+    if (url === SAMPLE_URL || url === SPANISH_SAMPLE_URL)
+      return new Response(new Uint8Array(MP3), { headers: { 'content-type': 'audio/mpeg' } })
+    if (url.includes('/v1/user/subscription')) return Response.json({ tier: 'creator' })
+    // The Voice Library, read for each language besides English: one Spanish voice.
+    if (url.includes('/v1/shared-voices'))
+      return Response.json({
+        voices: url.includes('language=es')
+          ? [
+              {
+                voice_id: ids.spanish,
+                name: 'Lucía - Support',
+                gender: 'female',
+                language: 'es',
+                preview_url: SPANISH_SAMPLE_URL,
+                rate: 1,
+              },
+            ]
+          : [],
+      })
     if (url.includes('next_page_token=p2'))
       return Response.json({
         voices: [voice(ids.ownClone, 'cloned'), voice(ids.otherClone, 'cloned'), voice(ids.foreignClone, 'cloned')],
@@ -170,8 +190,12 @@ test("the catalog lists the providers' voices and the workspace's own clones, ne
     { provider: 'elevenlabs', label: 'ElevenLabs', active: true, configured: true, error: null },
     { provider: 'cartesia', label: 'Cartesia', active: false, configured: false, error: null },
   ])
-  // A Voice Library copy is listed; the account's own professional clone and a copy no longer shared are not.
-  expect(data.voices.map(v => v.id).sort()).toEqual([ids.library, ids.ownClone, ids.premade, ids.shared].sort())
+  // A Voice Library copy is listed; the account's own professional clone and a copy no longer shared are not. So is a
+  // Spanish voice from the Voice Library (paid plan).
+  expect(data.voices.map(v => v.id).sort()).toEqual(
+    [ids.library, ids.ownClone, ids.premade, ids.shared, ids.spanish].sort(),
+  )
+  expect(data.voices.find(v => v.id === ids.spanish)).toMatchObject({ language: 'es', gender: 'female' })
   expect(data.voices.find(v => v.id === ids.premade)).toEqual({
     provider: 'elevenlabs',
     id: ids.premade,
@@ -181,7 +205,7 @@ test("the catalog lists the providers' voices and the workspace's own clones, ne
     gender: 'female',
     accent: 'american',
   })
-  expect(JSON.stringify(body)).not.toContain(SAMPLE_URL) // samples go through the API
+  expect(JSON.stringify(body)).not.toContain('storage.googleapis.com') // samples go through the API
   expect(elevenlabs.calls.every(url => !url.includes('key-'))).toBe(true)
 })
 
@@ -191,6 +215,7 @@ test('an assistant can be given a listed voice, not another workspace’s clone'
   await clone(other.id, other.owner.userId, `${ids.otherClone}_live`)
   const pick = (voice_id: string) =>
     act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, voice: { provider: 'elevenlabs', voice_id } })
+  expect((await pick(ids.spanish)).status).toBe(200) // a Voice Library voice the account has not added
   expect((await pick(ids.library)).status).toBe(200)
   const [saved] = await db.select().from(assistants).where(eq(assistants.id, ws.assistant.id))
   expect(saved?.voice).toEqual({ provider: 'elevenlabs', voice_id: ids.library })
@@ -208,6 +233,10 @@ test('a listed voice plays the sample the provider hosts: fetched on the server,
   const res = await servePreview(member, ids.library, options)
   expect(res.status).toBe(200)
   expect(Buffer.from(await res.arrayBuffer()).equals(MP3)).toBe(true)
+  // A Voice Library voice plays ElevenLabs' sample: nothing is synthesized (that would add it to the account).
+  expect((await servePreview(member, ids.spanish, options)).status).toBe(200)
+  expect(elevenlabs.calls).toContain(SPANISH_SAMPLE_URL)
+  expect(elevenlabs.calls.some(url => url.includes('/text-to-speech/'))).toBe(false)
   expect((await servePreview(member, 'NotListedAnywhere123', options)).status).toBe(404)
   expect((await servePreview(member, ids.premade, { ...options, providerName: 'cartesia' })).status).toBe(409) // no Cartesia key
 })

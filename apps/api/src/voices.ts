@@ -31,7 +31,12 @@ import { type Handler, type Preparer, Reject } from './handler-context.ts'
 import { queueVoiceDeletion } from './jobs.ts'
 import { activeProvider, resolveProvider } from './provider-settings.ts'
 import { type CatalogEntry, catalogData, catalogVoice, voiceCatalog } from './voice-catalog.ts'
-import { createVoiceProvider, type VoiceProvider, VoiceProviderError } from './voice-provider.ts'
+import {
+  createVoiceProvider,
+  ELEVENLABS_SAMPLE_HOST,
+  type VoiceProvider,
+  VoiceProviderError,
+} from './voice-provider.ts'
 
 /**
  * What every preview says. Changing it makes new samples (the text is part of the cache key); the
@@ -381,7 +386,7 @@ type PreviewOptions = {
 const SAMPLE_MAX_BYTES = 2 * 1024 * 1024
 
 /** Where each provider hosts its voice samples; a sample URL on any other host is not fetched. */
-export const SAMPLE_HOSTS: Record<string, readonly string[]> = { elevenlabs: ['storage.googleapis.com'], cartesia: [] }
+export const SAMPLE_HOSTS: Record<string, readonly string[]> = { elevenlabs: [ELEVENLABS_SAMPLE_HOST], cartesia: [] }
 
 /** The body, refused as soon as it is larger than `max` bytes (by content-length, and while it streams). */
 async function boundedBody(res: Response, max: number): Promise<Buffer> {

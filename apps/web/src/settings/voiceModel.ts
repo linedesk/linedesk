@@ -126,7 +126,7 @@ export async function fileToBase64(file: Blob): Promise<string> {
 const baseLanguage = (code: string | null | undefined) => norm(code).split(/[-_]/)[0] ?? ''
 
 /** Words in a voice's name or description that say it is made for calls with customers. */
-const PHONE_VOICE = /\b(agent|assistant|customer|support|service|call|phone|ivr|hotline|conversation(al)?)\b/i
+const PHONE_VOICE = /\b(agent|assistant|customer|support|service|care|contact|call|phone|ivr|hotline|conversation(al)?)\b/i
 
 /**
  * The voice to switch to when the assistant's main language changes, from the providers' voices (the catalog):
