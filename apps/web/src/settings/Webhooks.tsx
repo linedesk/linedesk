@@ -26,9 +26,10 @@ import { Field, Section, SwitchRow } from './fields.tsx'
 import { callAction, readAction, useWriteAction } from './settings-api.ts'
 import { lookupTestText, WebhookLookups } from './WebhookLookups.tsx'
 import './webhooks.css'
+import { brandName } from '../brand.ts'
 
 const HOOK_HELP: Record<WebhookHook, string> = {
-  call_start: `Linedesk sends the caller's number and waits up to ${CALL_START_TIMEOUT_MS / 1000} second. Answer with JSON like {"name": "Sam"}: the assistant knows it, and the greeting can say {{name}}.`,
+  call_start: `${brandName()} sends the caller's number and waits up to ${CALL_START_TIMEOUT_MS / 1000} second. Answer with JSON like {"name": "Sam"}: the assistant knows it, and the greeting can say {{name}}.`,
   during_call: `The assistant asks one of its lookups (below) with what the caller said, and waits up to ${DURING_CALL_TIMEOUT_MS / 1000} seconds. Answer with JSON like {"answer": "Order 1234 shipped Monday."}.`,
   call_end: `About ${CALL_END_DELAY_SEC} seconds after the call: number, summary, transcript, next steps, bookings, links to the call and the recording.`,
 }

@@ -19,6 +19,7 @@ import {
   wordDiff,
 } from './knowledgeModel.ts'
 import { callAction } from './settings-api.ts'
+import { brandName } from '../brand.ts'
 
 /** The goals in the order the wizard offers them, in plain words. */
 const GOALS: { id: AssistantGoal; label: string }[] = [
@@ -153,7 +154,7 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
           <Field
             id="ww-url"
             label="Website"
-            help="Linedesk reads a few of its pages for what you do, your services and prices, and what callers ask."
+            help={`${brandName()} reads a few of its pages for what you do, your services and prices, and what callers ask.`}
           >
             <Input
               id="ww-url"

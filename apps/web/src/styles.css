@@ -1580,3 +1580,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
 .cv-assign { margin-left: auto; display: inline-flex; }
 .cv-assign + .cv-acts { margin-left: 0; }
 .cv-assign-btn .k-avatar { margin-right: 2px; }
+
+/* An install's own logo (Admin, Branding) in place of the mark: the image itself, no dark square. */
+.ws-mark.is-logo, .auth-mark.is-logo { background: none; overflow: hidden; }
+.is-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }

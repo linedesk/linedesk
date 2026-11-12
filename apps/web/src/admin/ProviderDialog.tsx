@@ -25,6 +25,7 @@ import {
 import { errorText } from './notify.ts'
 import { exchangeCode, type OpenRouterReturn, startOpenRouterConnect } from './openrouterAuth.ts'
 import { Logo, presetMeta, providerMeta, redirectUris } from './ProviderLogo.tsx'
+import { brandName } from '../brand.ts'
 
 export const SERVER_SETTING_TIP = 'Set on the server. A value saved here takes priority.'
 
@@ -286,7 +287,7 @@ export function ProviderDialog(props: Props) {
             variant="primary"
             disabled={busy || !canStore}
             onClick={() => void startOpenRouterConnect()}
-            title="Sign in to OpenRouter and create a key for Linedesk"
+            title={`Sign in to OpenRouter and create a key for ${brandName()}`}
           >
             {busy ? 'Connecting…' : 'Connect with OpenRouter'}
           </Button>
@@ -318,7 +319,7 @@ export function ProviderDialog(props: Props) {
           <span className="adm-result">
             {result.ok
               ? appliesOnRestart && savedNow
-                ? 'Connected. Linedesk restarts in the background to apply it (a few seconds).'
+                ? `Connected. ${brandName()} restarts in the background to apply it (a few seconds).`
                 : 'Connected.'
               : result.message}
           </span>

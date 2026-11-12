@@ -1,7 +1,8 @@
 // The onboarding page around each step: top bar, progress, footer, and the keys (Enter continues, Esc goes back).
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Button, LogoMark } from '../ui/kit.tsx'
+import { BrandMark, Button } from '../ui/kit.tsx'
 import { onboardingSteps, progress, stepLabels, type OnboardingStep } from './flow.ts'
+import { brandName } from '../brand.ts'
 
 type Keys = { onEnter?: () => void; onEscape?: () => void }
 
@@ -42,12 +43,10 @@ export function Frame({
 }) {
   const index = onboardingSteps.indexOf(step)
   return (
-    <div className="ob" role="main" aria-label="Set up Linedesk">
+    <div className="ob" role="main" aria-label={`Set up ${brandName()}`}>
       <div className="ob-top">
-        <span className="ws-mark">
-          <LogoMark />
-        </span>
-        <b>Linedesk</b>
+        <BrandMark />
+        <b>{brandName()}</b>
         <span className="ob-count">
           Step {index + 1} of {onboardingSteps.length} · {stepLabels[step]}
         </span>

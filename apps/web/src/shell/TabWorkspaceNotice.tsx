@@ -8,8 +8,9 @@ import type { Me } from '../auth.ts'
 import { signOutAndForget } from '../localData.ts'
 import { useStore } from '../store.tsx'
 import { onSwitchElsewhere } from '../tabWorkspace.ts'
-import { Button, LogoMark } from '../ui/kit.tsx'
+import { BrandMark, Button } from '../ui/kit.tsx'
 import { switchToWorkspace } from './invitations.ts'
+import { brandName } from '../brand.ts'
 
 type Named = { id: string; name: string }
 
@@ -45,7 +46,7 @@ export function tabNotice(refusal: WorkspaceRefusal, tab: Named, workspaces: Nam
   }
   if (refusal.code === 'client_outdated') {
     return {
-      title: 'Linedesk was updated',
+      title: `${brandName()} was updated`,
       text: 'Reload to continue with the new version. Changes made here are kept and sent after the reload.',
       actions: [{ label: 'Reload', kind: 'reload' }],
     }
@@ -118,9 +119,7 @@ function TabWorkspaceNotice({ notice }: { notice: TabNotice }) {
   }
   return (
     <div className="boot" role="alertdialog" aria-labelledby="tab-ws-title" aria-describedby="tab-ws-text">
-      <span className="ws-mark boot-mark" aria-hidden="true">
-        <LogoMark />
-      </span>
+      <BrandMark className="ws-mark boot-mark" />
       <b id="tab-ws-title">{notice.title}</b>
       <span id="tab-ws-text">{notice.text}</span>
       {error && <span role="alert">{error}</span>}

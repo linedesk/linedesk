@@ -9,6 +9,7 @@ import { useQuery } from './cachedQuery.ts'
 import { LastUsed, ProviderButton } from './ui/brand-logos.tsx'
 import { AuthError } from './ui/AuthError.tsx'
 import { AuthPage } from './ui/kit.tsx'
+import { brandName } from './brand.ts'
 
 type Step = 'start' | 'code' | 'password'
 type Intent = 'signIn' | 'signUp'
@@ -109,7 +110,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
     return <CodeStep email={form.email} onDone={onDone} onDifferentEmail={() => go('start')} />
   }
 
-  const title = reauth ? reauth.title : intent === 'signUp' ? 'Create your Linedesk account' : 'Sign in to Linedesk'
+  const title = reauth ? reauth.title : intent === 'signUp' ? `Create your ${brandName()} account` : `Sign in to ${brandName()}`
   const errorLine = error && <AuthError message={error} />
   // Without email codes the password is the main form, not one of the other options.
   const passwordFirst = methods.password && !methods.emailCode
@@ -349,7 +350,7 @@ function SetupStep({ onDone }: { onDone: () => Promise<void> }) {
   return (
     <AuthPage>
       <form className="auth-card" onSubmit={submit} noValidate>
-        <h1>Set up Linedesk</h1>
+        <h1>Set up {brandName()}</h1>
         <p>Create the first admin account. The setup code is in the server log: <code>docker compose logs api</code>.</p>
         <div className="auth-form">
           <input aria-label="Setup code" placeholder="Setup code" value={form.code} onChange={set('code')} autoComplete="one-time-code"

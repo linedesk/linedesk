@@ -14,6 +14,7 @@ import { queueBookingConfirmation, queueCallPush } from './jobs.ts'
 import { providerFor } from './calendar-connections.ts'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, Forbidden, lockCall, Reject } from './handler-context.ts'
+import { brandName } from './branding.ts'
 
 const DAY_MS = 86_400_000
 /** Used until a workspace has stored its own time zone. */
@@ -384,7 +385,7 @@ function eventDescription({ reason, phone, address, callId }: { reason: string; 
     phone ? `Phone: ${phone}` : null,
     address ? `Address: ${address}` : null,
     callId ? `Call: ${new URL(`/#call/${callId}`, WEB_ORIGIN)}` : null,
-    'Booked by the Linedesk assistant.',
+    `Booked by the ${brandName()} assistant.`,
   ].filter(Boolean).join('\n')
 }
 

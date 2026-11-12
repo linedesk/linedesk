@@ -1,5 +1,6 @@
 // The Carrier form without React: what it sends to carrier.set and what it says is missing.
 import type { CarrierStatusData, WorkspaceCarrier } from '@linedesk/actions'
+import { brandName } from '../brand.ts'
 
 export type TwilioAuth = 'api_key' | 'auth_token'
 export type CarrierDraft = {
@@ -9,7 +10,9 @@ export type CarrierDraft = {
 }
 
 export const carrierLabel: Record<WorkspaceCarrier, string> = {
-  default: 'Linedesk default',
+  get default() {
+    return `${brandName()} default`
+  },
   twilio: 'Your own Twilio',
   telnyx: 'Your own Telnyx',
 }

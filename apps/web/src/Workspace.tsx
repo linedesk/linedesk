@@ -49,6 +49,7 @@ import { preloadTeam } from './team/team-api.ts'
 import { useAssistantName, useRejection, useRun, useWorkspaceState } from './store.tsx'
 import type { SelectVia } from './ui/CommandMenu.tsx'
 import { ErrorBoundary } from './ui/ErrorBoundary.tsx'
+import { useBrand } from './brand.ts'
 import { cx } from './ui/kit.tsx'
 import { useMediaQuery } from './ui/useMediaQuery.ts'
 
@@ -326,9 +327,10 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
         : search !== null
           ? 'Search'
           : viewTitles[tab]
+  const brand = useBrand()
   useEffect(() => {
-    document.title = `${where} · Linedesk`
-  }, [where])
+    document.title = `${where} · ${brand.name}`
+  }, [where, brand.name])
 
   const { rejection, clearRejection } = useRejection()
   useEffect(() => {

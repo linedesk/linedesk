@@ -8,6 +8,7 @@ import type { Impersonation } from './impersonation.ts'
 import { authErrorMessage } from './sign-in-code.ts'
 import { readLastUsedMethod } from './sign-in-methods.ts'
 import { announceSwitch } from './tabWorkspace.ts'
+import { brandName } from './brand.ts'
 
 export type { AuthMethods, LegalLinks, SsoMethod }
 
@@ -189,4 +190,4 @@ export function providerSignInElsewhere(methods: Pick<AuthMethods, 'signInOrigin
 
 /** What the sign-in page says when a provider sign-in has to start at `host`. */
 export const providerElsewhereMessage = (host: string) =>
-  `Sign-in with Google, Microsoft or GitHub has to start from ${host}. Open Linedesk there and sign in again.`
+  `Sign-in with Google, Microsoft or GitHub has to start from ${host}. Open ${brandName()} there and sign in again.`

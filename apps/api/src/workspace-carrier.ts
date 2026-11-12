@@ -20,6 +20,7 @@ import { resolveProvider, telephonyProvider } from './provider-settings.ts'
 import { refreshTransferTrunk, removeTransferTrunks } from './transfer-trunk.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { decryptSecret, encryptSecret, hasSecretsKey, SecretsKeyError } from './secrets.ts'
+import { brandName } from './branding.ts'
 
 export const CARRIER_TIMEOUT_MS = 8000
 /** "Test connection" asks the carrier each time: a few in a row are normal, more per workspace are refused. */
@@ -128,7 +129,7 @@ export async function tryLockWorkspaceCarrier(tx: Tx, workspaceId: string) {
 }
 
 export const INSTALL_NUMBER_ADMIN_ONLY =
-  "Numbers already in this Linedesk's carrier account can only be connected by whoever runs your Linedesk. Get a new number, or use your own carrier account."
+  "Numbers already in this server's carrier account can only be connected by whoever runs this server. Get a new number, or use your own carrier account."
 
 export type CarrierAccount = 'install' | 'workspace'
 
@@ -203,7 +204,7 @@ const sipReady = () => !!process.env.LIVEKIT_SIP_ENDPOINT
 async function refuseInstallAccount(tx: Tx, carrier: OwnCarrier, values: Record<string, string | undefined>) {
   const install = await resolveProvider(tx, carrier).catch(() => {
     throw new Reject(
-      'Your carrier account cannot be checked against this Linedesk right now. Ask whoever runs your Linedesk.',
+      `Your carrier account cannot be checked against this ${brandName()} right now. Ask whoever runs your ${brandName()}.`,
     )
   })
   const same =
@@ -212,7 +213,7 @@ async function refuseInstallAccount(tx: Tx, carrier: OwnCarrier, values: Record<
       : !!values.api_key && install.api_key?.value === values.api_key
   if (same)
     throw new Reject(
-      `That is the ${carrierLabel[carrier]} account this Linedesk runs on. Use your own account, or Linedesk default.`,
+      `That is the ${carrierLabel[carrier]} account this ${brandName()} runs on. Use your own account, or ${brandName()} default.`,
     )
 }
 
@@ -255,7 +256,7 @@ export async function setWorkspaceCarrier(
   now: string,
 ) {
   if (carrier !== 'default' && !hasSecretsKey()) {
-    throw new Reject('This server cannot store carrier credentials yet. Ask whoever runs your Linedesk.')
+    throw new Reject(`This server cannot store carrier credentials yet. Ask whoever runs your ${brandName()}.`)
   }
   for (const own of ownCarriers) {
     await tx

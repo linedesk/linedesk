@@ -12,6 +12,7 @@ import { Dialog } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
 import { uniqueKeys } from '../ui/uniqueKeys.ts'
 import { readAction, useWriteAction } from './settings-api.ts'
+import { brandName } from '../brand.ts'
 
 type Props = {
   assistant: Assistant
@@ -74,7 +75,7 @@ function PartDiff({ label, before, now }: { label: string; before: string; now: 
   )
 }
 
-const byLine = (v: AssistantVersionItem) => [v.by ?? 'Linedesk', dateTimeLabel(parseTs(v.created_at))].join(' · ')
+const byLine = (v: AssistantVersionItem) => [v.by ?? brandName(), dateTimeLabel(parseTs(v.created_at))].join(' · ')
 
 function HistoryDialog({ assistant, dirty, onClose }: Props & { onClose: () => void }) {
   const write = useWriteAction()

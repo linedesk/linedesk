@@ -1,4 +1,6 @@
 // The sign-in code: what may be typed or pasted, and what the server's answers mean.
+import { brandName } from './brand.ts'
+
 export const CODE_LENGTH = 6
 /** Seconds before "Resend code" is offered. */
 export const RESEND_AFTER_S = 30
@@ -14,8 +16,9 @@ export const normalizeCode = (value: string) => value.replace(/\D/g, '').slice(0
 const PASSKEY_CANCELLED = ['AUTH', 'CANCELLED'].join('_')
 
 const authErrors: Record<string, string> = {
-  INVALID_ORIGIN:
-    "This address isn't set up for sign-in. Open Linedesk from the link in your invitation, or ask your administrator which address to use.",
+  get INVALID_ORIGIN() {
+    return `This address isn't set up for sign-in. Open ${brandName()} from the link in your invitation, or ask your administrator which address to use.`
+  },
   MISSING_OR_NULL_ORIGIN: "We couldn't check where this sign-in came from. Reload the page and try again.",
   SIGNUP_CLOSED: 'There is no account for this address. Ask your administrator for an invitation.',
   SESSION_EXPIRED: 'Your session has ended. Sign in again to continue.',
@@ -39,7 +42,9 @@ const authErrors: Record<string, string> = {
   EMAIL_NOT_VERIFIED: 'Confirm your email first: sign in with an email code once.',
   TOO_MANY_REQUESTS: 'Too many tries. Wait a minute, then try again.',
   [PASSKEY_CANCELLED]: 'Passkey sign-in was cancelled.',
-  PASSKEY_NOT_FOUND: "That passkey isn't set up for Linedesk. Sign in another way, then add it in Account settings.",
+  get PASSKEY_NOT_FOUND() {
+    return `That passkey isn't set up for ${brandName()}. Sign in another way, then add it in Account settings.`
+  },
   AUTHENTICATION_FAILED: 'That passkey did not work. Try again.',
   ERROR_CEREMONY_ABORTED: 'Adding the passkey was cancelled.',
   ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED: 'This passkey is already added.',
@@ -47,7 +52,7 @@ const authErrors: Record<string, string> = {
   PASSKEY_ENROLMENT_REQUIRED: 'That enrolment code is not right or has expired. Ask an instance admin for a new one.',
 }
 
-const CONNECTION_FAILED = "We couldn't reach Linedesk. Check your internet connection, then try again."
+const connectionFailed = () => `We couldn't reach ${brandName()}. Check your internet connection, then try again.`
 const SERVER_FAILED = 'Something went wrong on our side. Try again in a few minutes. If it keeps happening, contact your administrator.'
 const UNEXPECTED = "That didn't work. Try again. If it keeps happening, contact your administrator."
 
@@ -72,7 +77,7 @@ export function authErrorMessage(error: unknown): string {
   const known = Object.hasOwn(authErrors, code) ? code : knownMessages[message]
   if (known) return authErrors[known]!
   if (status === 429) return authErrors.TOO_MANY_REQUESTS!
-  if (status === 0 || error instanceof TypeError || networkMessages.includes(message)) return CONNECTION_FAILED
+  if (status === 0 || error instanceof TypeError || networkMessages.includes(message)) return connectionFailed()
   if (status !== undefined && status >= 500) return SERVER_FAILED
   if (status === 401) return authErrors.SESSION_EXPIRED!
   return UNEXPECTED

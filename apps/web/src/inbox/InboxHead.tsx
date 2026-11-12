@@ -145,7 +145,7 @@ function LiveCallButton({ call, onOpen }: { call: Call; onOpen?: (call: Call) =>
 
 const notAnsweringWhy = {
   number: 'No phone number is connected yet, so calls do not reach the assistant.',
-  voice: 'The voice service of this Linedesk is not set up yet, so calls are not answered.',
+  voice: 'The voice service of this server is not set up yet, so calls are not answered.',
 }
 
 /** What the assistant is doing right now: green only when calls are really answered. */
@@ -181,7 +181,7 @@ function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveC
     )
   const fix = canFixVoice ? '#admin/providers' : null
   return (
-    <span className="ib-maya is-off" title={fix ? why : `${why} Ask whoever runs your Linedesk to finish it.`}>
+    <span className="ib-maya is-off" title={fix ? why : `${why} Ask whoever runs this server to finish it.`}>
       <span className="ib-dot" />
       <span className="ib-maya-t">{assistant} is not answering yet</span>
       {fix && (

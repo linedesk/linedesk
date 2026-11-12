@@ -9,6 +9,7 @@ import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { adminAlertEmail } from './emails/templates.ts'
 import { instanceAdminEmails, isInstanceAdmin } from './instance-admin.ts'
+import { brandName } from './branding.ts'
 
 /** Emails every enabled instance admin. Resolves once the list is read; the sends run on their own. */
 export async function alertInstanceAdmins(subject: string, text: string) {
@@ -24,7 +25,7 @@ const methodNames: Record<string, string> = {
   google: 'Google',
   microsoft: 'Microsoft',
   github: 'GitHub',
-  other: 'a sign-in method Linedesk does not recognise',
+  other: 'a sign-in method this server does not recognise',
 }
 
 type SignIn = { userId: string; impersonatedBy?: string | null; ipAddress?: string | null; userAgent?: string | null }
@@ -63,7 +64,7 @@ export function plainSnippet(text: string | null | undefined, max = 120): string
 export function adminSignInEmail(who: string, method: string, newDevice: boolean, s: SignIn) {
   const how = methodNames[method] ?? plainSnippet(method, 40)
   return {
-    subject: `Admin sign-in to Linedesk: ${who}`,
+    subject: `Admin sign-in to ${brandName()}: ${who}`,
     text: [
       `${who}, an instance admin, signed in with ${how}${newDevice ? ' from a device or address not seen before' : ''}.`,
       '',

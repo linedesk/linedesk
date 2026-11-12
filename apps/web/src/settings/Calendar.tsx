@@ -93,7 +93,7 @@ function useConnect(assistantId: string, toast: (text: string) => void) {
   return { providers, busy, connect }
 }
 
-const noProviderText = 'No calendar provider on this server yet. Ask whoever runs your Linedesk.'
+const noProviderText = 'No calendar provider on this server yet. Ask whoever runs it.'
 
 /** One button per calendar provider this install offers. Used in onboarding. */
 export function ConnectButtons({ assistantId, toast }: { assistantId: string; toast: (text: string) => void }) {

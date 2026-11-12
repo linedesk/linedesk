@@ -3,7 +3,8 @@ import { useRef, type ReactNode } from 'react'
 import { auth } from '../auth.ts'
 import { assigneeTabs, type InboxTab } from '../inbox-model.ts'
 import type { IconName } from '../ui/icons.ts'
-import { Button, Icon, Kbd, LogoMark } from '../ui/kit.tsx'
+import { BrandMark, Button, Icon, Kbd } from '../ui/kit.tsx'
+import { useBrand } from '../brand.ts'
 import { pages, type PageRoute, type Route } from './pages.tsx'
 import { useFocusTrap } from '../ui/useFocusTrap.ts'
 import { ProfileMenu } from './ProfileMenu.tsx'
@@ -52,12 +53,13 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
   const ref = useRef<HTMLElement>(null)
   useFocusTrap(ref, open && !docked, { initial: '.nav-item[aria-current="page"]' }) // opens on the current page, gives focus back when it closes
   const userName = auth.useSession().data?.user.name ?? ''
+  const brand = useBrand()
   const go = (run: () => void) => () => { if (!docked) onClose(); run() }
   const onCalls = route === 'calls'
   return (
     <nav className="nav" aria-label="Main" ref={ref} inert={!open}>
       <div className="ws">
-        <span className="ws-mark"><LogoMark /></span><b>Linedesk</b>
+        <BrandMark /><b>{brand.name}</b>
         {!docked && <Button size="sm" variant="ghost" icon="left" aria-label="Close menu" title="Close (esc)" onClick={onClose} />}
       </div>
       <NavItem label="Inbox" icon="phone" keys={['G', 'I']} current={onCalls && tab !== 'reminders' && tab !== 'done' && tab !== 'review' && !assigneeTabs.includes(tab)} onClick={go(() => on.onInbox('you'))}

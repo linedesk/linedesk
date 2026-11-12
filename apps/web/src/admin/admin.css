@@ -877,3 +877,16 @@
   background: var(--surface-hover);
   color: var(--ink);
 }
+
+/* Branding: a preview of the menu and a primary button, the logo with its buttons, the color picker. */
+.adm-brand-preview { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 14px; margin-bottom: 16px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--sidebar); }
+.adm-brand-preview .ws { display: flex; align-items: center; gap: 10px; padding: 0; margin: 0; }
+.adm-brand-preview .ws-mark { margin: 0; }
+.adm-brand-sample { pointer-events: none; }
+.adm-brand-logo { display: flex; align-items: center; gap: 8px; }
+.adm-brand-logo-mark { width: 40px; height: 40px; margin: 0; }
+.adm-brand-logo-mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.adm-brand-logo-mark:has(img) { background: none; }
+.adm-brand-color { display: flex; align-items: center; gap: 8px; }
+.adm-brand-color input[type="color"] { width: 36px; height: 32px; padding: 0; border: 1px solid var(--line-control); border-radius: var(--radius-sm); background: none; cursor: pointer; }
+.adm-brand-color .k-input { width: 120px; }

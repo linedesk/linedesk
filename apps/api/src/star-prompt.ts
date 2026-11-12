@@ -13,6 +13,7 @@ import { account, calls, star_prompts, type Tx, user, workspace_settings } from 
 import { decryptOAuthToken } from 'better-auth/oauth2'
 import { and, count, eq, isNull } from 'drizzle-orm'
 import { authConfig } from './auth-methods.ts'
+import { starPromptAllowed } from './branding.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { Forbidden, type Handler } from './handler-context.ts'
@@ -76,7 +77,7 @@ async function workspaceInUse(workspaceId: string): Promise<boolean> {
 /** For `/v1/me`: the prompt while it is due for this member, else null. */
 export async function starPromptFor(actor: Actor, now = new Date(), env = process.env): Promise<StarPrompt | null> {
   const repo = starRepo(env)
-  if (!repo || !actor.workspaceId || !answersForThemselves(actor)) return null
+  if (!repo || !starPromptAllowed() || !actor.workspaceId || !answersForThemselves(actor)) return null
   if (await answered(actor.actorId)) return null
   const [member] = await db.select({ createdAt: user.createdAt }).from(user).where(eq(user.id, actor.actorId))
   if (!member || now.getTime() - member.createdAt.getTime() < STAR_MIN_ACCOUNT_DAYS * 86_400_000) return null

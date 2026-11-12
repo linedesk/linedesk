@@ -1,8 +1,11 @@
 // The one layout every email uses: a template describes its content as blocks, and this file turns
 // them into an HTML part and a plain-text part that say the same thing. Templates never write HTML,
 // so every string they pass is escaped here. Table-based with inline styles for Outlook and Gmail,
-// a <style> block only for dark mode and narrow screens. No images, fonts or tracking: the mark is
-// drawn with table cells.
+// a <style> block only for dark mode and narrow screens. No fonts or tracking: the Linedesk mark is
+// drawn with table cells; the only image is a logo an instance admin set (branding.ts).
+
+import { DEFAULT_PRODUCT_NAME } from '@linedesk/actions'
+import { brandName, currentBranding } from '../branding.ts'
 
 export type Block =
   | { kind: 'text'; text: string; tone?: 'muted' }
@@ -17,7 +20,7 @@ export type EmailContent = {
   subject: string
   /** The line inbox lists show after the subject. */
   preheader: string
-  /** Emails to callers carry the business's name instead of the Linedesk mark. */
+  /** Emails to callers carry the business's name instead of the install's logo and name (branding.ts). */
   business?: string
   /** A small line above the heading ("Maya answered · Tue 9:00 AM · 3 min"). */
   eyebrow?: string
@@ -122,10 +125,17 @@ const sectionTitle = (title: string) =>
 /** The lit line key: a rounded outline, a green light and a label line, all table cells. */
 const MARK = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="display:inline-table;vertical-align:middle;"><tr><td class="ld-key" style="border:2px solid ${INK};border-radius:9px;padding:4px 6px;line-height:0;font-size:0;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td class="ld-key-light" width="8" height="8" bgcolor="${LIVE}" style="width:8px;height:8px;border-radius:4px;background:${LIVE};font-size:0;line-height:0;">&nbsp;</td><td width="4" style="width:4px;font-size:0;line-height:0;">&nbsp;</td><td valign="middle" style="font-size:0;line-height:0;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td class="ld-key-line" width="12" height="2" bgcolor="${INK}" style="width:12px;height:2px;border-radius:1px;background:${INK};font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr></table></td></tr></table>`
 
-function headerHtml(business: string | undefined): string {
+function headerHtml({ business, origin }: EmailContent): string {
   if (business) {
     return `<span class="ld-ink" style="font-size:16px;font-weight:600;color:${INK};">${escapeHtml(business)}</span>`
   }
+  const brand = currentBranding()
+  if (brand.logoUrl) {
+    const logo = `<img src="${escapeHtml(new URL(brand.logoUrl, origin).href)}" width="28" height="28" alt="" style="display:block;width:28px;height:28px;border:0;border-radius:6px;">`
+    return `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td valign="middle">${logo}</td><td valign="middle" class="ld-ink" style="padding-left:10px;font-size:16px;font-weight:600;color:${INK};">${escapeHtml(brand.name)}</td></tr></table>`
+  }
+  if (brand.name !== DEFAULT_PRODUCT_NAME)
+    return `<span class="ld-ink" style="font-size:16px;font-weight:600;color:${INK};">${escapeHtml(brand.name)}</span>`
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td valign="middle">${MARK}</td><td valign="middle" class="ld-ink" style="padding-left:10px;font-family:${MONO};font-size:16px;font-weight:600;letter-spacing:-0.04em;color:${INK};">linedesk</td></tr></table>`
 }
 
@@ -163,11 +173,13 @@ function eyebrowHtml(content: EmailContent): string {
   return `<p class="ld-muted" style="margin:0 0 10px;font-size:13px;line-height:1.5;color:${MUTED};">${badge}${eyebrow}</p>`
 }
 
+const sentByLine = ({ business }: EmailContent) => (business ? `Sent for ${business} by ${brandName()}` : brandName())
+
 function footerHtml(content: EmailContent): string {
   const settings = content.settings
     ? ` <a href="${escapeHtml(checkedUrl(content.settings.url))}" target="_blank" style="color:${MUTED};text-decoration:underline;">${escapeHtml(content.settings.label)}</a>`
     : ''
-  const sentBy = content.business ? `Sent for ${content.business} by Linedesk` : 'Linedesk'
+  const sentBy = sentByLine(content)
   return `<p style="margin:0 0 6px;">${escapeHtml(content.reason)}${settings}</p><p style="margin:0;">${escapeHtml(sentBy)} &middot; ${escapeHtml(siteHost(content.origin))}</p>`
 }
 
@@ -189,7 +201,7 @@ ${preheader}
 <table role="presentation" class="ld-bg" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="${PAPER}" style="background:${PAPER};">
 <tr><td class="ld-outer" align="center" style="padding:32px 16px;font-family:${FONT};">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:560px;">
-<tr><td style="padding:0 4px 16px;font-family:${FONT};">${headerHtml(content.business)}</td></tr>
+<tr><td style="padding:0 4px 16px;font-family:${FONT};">${headerHtml(content)}</td></tr>
 <tr><td class="ld-card ld-pad" bgcolor="#FFFFFF" style="background:#FFFFFF;border:1px solid ${LINE};border-radius:14px;padding:32px;font-family:${FONT};">
 ${eyebrowHtml(content)}<h1 class="ld-ink ld-heading" style="margin:0 0 20px;font-size:24px;line-height:1.25;font-weight:650;letter-spacing:-0.01em;color:${INK};">${escapeHtml(content.heading)}</h1>
 ${content.blocks.map(blockHtml).join('\n')}
@@ -225,7 +237,7 @@ function blockText(block: Block): string {
 function renderText(content: EmailContent): string {
   const top = [content.urgent?.toUpperCase(), content.eyebrow].filter(Boolean).join(' · ')
   const settings = content.settings ? ` ${content.settings.label}: ${checkedUrl(content.settings.url)}` : ''
-  const sentBy = content.business ? `Sent for ${content.business} by Linedesk` : 'Linedesk'
+  const sentBy = sentByLine(content)
   const parts = [
     ...(top ? [top] : []),
     content.heading,

@@ -2,7 +2,7 @@
 // local store, and its writes skip the outbox on purpose: an outbox entry is kept in IndexedDB,
 // and a provider key must never be stored in the browser.
 import { StepUpRequired, stepUpOf, withPasskeyStepUp } from './PasskeyStepUp.tsx'
-import type { MembershipRole, ProviderCategory, ProviderName, ProviderTestData } from '@linedesk/actions'
+import type { BrandingInput, MembershipRole, ProviderCategory, ProviderName, ProviderTestData } from '@linedesk/actions'
 import type { AdminSecondFactor } from '../auth.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 
@@ -184,6 +184,7 @@ type AdminInputs = {
   'invitation.resend': { invitationId: string }
   'voiceCloning.get': Record<string, never>
   'voiceCloning.set': { on: boolean }
+  'branding.set': BrandingInput
 }
 
 /**

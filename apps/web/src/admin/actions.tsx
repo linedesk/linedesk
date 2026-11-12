@@ -8,6 +8,7 @@ import type { IconName } from '../ui/icons.ts'
 import { Button, Icon } from '../ui/kit.tsx'
 import { type AdminUser, type AdminWorkspace, runAdmin } from './api.ts'
 import { errorText, type Notify } from './notify.ts'
+import { brandName } from '../brand.ts'
 
 type Confirmation = {
   text: string
@@ -102,7 +103,7 @@ export function userActions(u: AdminUser, currentUserId: string, reload: () => P
       id: 'impersonate',
       label: `Sign in as ${name}…`,
       icon: 'user',
-      tip: 'See Linedesk exactly as they do, for up to an hour. Recorded as done by you.',
+      tip: `See ${brandName()} exactly as they do, for up to an hour. Recorded as done by you.`,
       confirm: { text: confirmText(name), action: `Sign in as ${name}`, variant: 'primary' },
       // Reloads into the app as this user; throws with the reason when refused.
       run: () => startImpersonation(u.id),

@@ -13,6 +13,7 @@ import { useRun } from '../store.tsx'
 import { useCanAssign } from '../team/members.ts'
 import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
 import { Section, SwitchRow } from './fields.tsx'
+import { brandName } from '../brand.ts'
 
 type Channel = keyof NotificationChannels
 
@@ -30,7 +31,7 @@ const blockedText = 'Blocked by the browser. Allow notifications for this site, 
 function pushBlocker(publicKey: string | null): string | null {
   const support = pushSupport()
   if (support === 'ios-needs-install')
-    return 'On iPhone and iPad, add Linedesk to your Home Screen first (Share, Add to Home Screen), then open it from there.'
+    return `On iPhone and iPad, add ${brandName()} to your Home Screen first (Share, Add to Home Screen), then open it from there.`
   if (support === 'unsupported') return 'This browser cannot receive push notifications.'
   if (!publicKey) return 'Not set up on this server yet (VAPID keys, see the operator notes).'
   return null
@@ -171,7 +172,7 @@ export function Notifications({ toast }: { toast: (text: string) => void }) {
           />
           <SwitchRow
             title="Push notifications on this device"
-            description={blocker ?? pushNote ?? 'New calls, urgent ones first, even when Linedesk is closed.'}
+            description={blocker ?? pushNote ?? `New calls, urgent ones first, even when ${brandName()} is closed.`}
             on={device.on && !blocker}
             onChange={on => void setPush(on)}
             disabled={blocker !== null}

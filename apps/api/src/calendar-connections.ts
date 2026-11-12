@@ -14,6 +14,7 @@ import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { type Handler, type HandlerCtx, Forbidden, Reject } from './handler-context.ts'
 import { decryptSecret, encryptSecret, hasSecretsKey, SecretsKeyError } from './secrets.ts'
+import { brandName } from './branding.ts'
 
 /** How the API reaches calendar providers; tests pass fakes through the handler context. */
 export type CalendarServices = {
@@ -174,7 +175,7 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
     // Whatever goes wrong from here, the grant just made is withdrawn again.
     onRollback?.(async () => ((await oauth.revoke(grant).catch(() => false)) ? 'the new access was revoked' : 'the new access could not be revoked'))
     if (!tokens.refreshToken) throw new Reject(`${LABEL[input.provider]} did not grant lasting access. Start again and allow access.`)
-    if (missingScope(input.provider, tokens.scope)) throw new Reject('Linedesk needs to see and edit your calendar events. Start again and allow every calendar permission.')
+    if (missingScope(input.provider, tokens.scope)) throw new Reject(`${brandName()} needs to see and edit your calendar events. Start again and allow every calendar permission.`)
     const account_email = (await oauth.accountEmail(tokens.accessToken).catch(e => rejectCalendarError(e))).toLowerCase()
 
     const [existing] = await tx.select().from(calendar_connections).where(and(
@@ -262,11 +263,11 @@ async function loadAssistantCalendar(tx: Tx, workspaceId: string, id: string) {
 /** Withdraws the grant at the provider with the stored refresh token. Never throws: the result says what happened. */
 async function revokeGrant(ctx: Pick<HandlerCtx, 'calendars'>, connection: CalendarConnection, refreshEncrypted: string | undefined): Promise<DisconnectData> {
   const oauth = servicesOf(ctx).oauth(connection.provider)
-  if (!oauth || !refreshEncrypted) return { revoked: false, note: `Remove Linedesk's access in your ${LABEL[connection.provider]} account settings.` }
+  if (!oauth || !refreshEncrypted) return { revoked: false, note: `Remove ${brandName()}'s access in your ${LABEL[connection.provider]} account settings.` }
   try {
     const revoked = await oauth.revoke(decryptSecret(refreshEncrypted, slot(connection.id, 'refresh')))
-    return revoked ? { revoked, note: null } : { revoked, note: `${LABEL[connection.provider]} keeps the access until you remove Linedesk in your Microsoft account (account.microsoft.com, Privacy, Apps and services).` }
+    return revoked ? { revoked, note: null } : { revoked, note: `${LABEL[connection.provider]} keeps the access until you remove ${brandName()} in your Microsoft account (account.microsoft.com, Privacy, Apps and services).` }
   } catch (e) {
-    return { revoked: false, note: `${LABEL[connection.provider]} could not be reached to revoke access (${errorMessage(e)}): remove Linedesk in your account settings.` }
+    return { revoked: false, note: `${LABEL[connection.provider]} could not be reached to revoke access (${errorMessage(e)}): remove ${brandName()} in your account settings.` }
   }
 }

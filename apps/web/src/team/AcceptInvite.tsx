@@ -12,6 +12,7 @@ import { previewInvitation } from './team-api.ts'
 import { AuthError } from '../ui/AuthError.tsx'
 import { ProviderButton } from '../ui/brand-logos.tsx'
 import { AuthPage } from '../ui/kit.tsx'
+import { brandName } from '../brand.ts'
 
 const INVITE_PARAM = 'invite'
 
@@ -71,7 +72,7 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
     return (
       <Card title={invite.status === 'expired' ? 'This invitation has expired' : 'This invitation is no longer valid'}>
         <p>Ask the person who invited you to send a new one.</p>
-        <button type="button" className="k-btn k-btn-secondary" onClick={onDone}>Continue to Linedesk</button>
+        <button type="button" className="k-btn k-btn-secondary" onClick={onDone}>Continue to {brandName()}</button>
       </Card>
     )
   }

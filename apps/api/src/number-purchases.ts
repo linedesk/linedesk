@@ -34,11 +34,11 @@ const HOUR_MS = 3_600_000
 const DAY_MS = 24 * HOUR_MS
 const since = (now: string, ms: number) => new Date(Date.parse(now) - ms).toISOString()
 
-export const US_ONLY = 'Numbers on this Linedesk are bought by US area code: give an area code instead of a number.'
-export const NOT_WITH_API_KEY = 'Numbers on this Linedesk are bought in the app, not with an API key.'
+export const US_ONLY = 'Numbers on this server are bought by US area code: give an area code instead of a number.'
+export const NOT_WITH_API_KEY = 'Numbers on this server are bought in the app, not with an API key.'
 export const NUMBER_SETUP_BUSY = 'Another number is being set up, try again in a moment.'
-export const INSTALL_CAP_REACHED = 'This Linedesk has given out as many numbers as it allows for now: try again later, or ask whoever runs it.'
-const ASK_ADMIN = 'ask whoever runs your Linedesk, or use your own carrier account'
+export const INSTALL_CAP_REACHED = 'This server has given out as many numbers as it allows for now: try again later, or ask whoever runs it.'
+const ASK_ADMIN = 'ask whoever runs this server, or use your own carrier account'
 
 async function countPurchases(tx: Tx, where: ReturnType<typeof and>) {
   const [row] = await tx.select({ count: sql<number>`count(*)::int` }).from(number_purchases).where(where)
@@ -65,13 +65,13 @@ export async function installPurchaseRefusal(tx: Tx, actor: Actor, workspaceId: 
     .where(and(eq(phone_numbers.workspace_id, workspaceId), eq(phone_numbers.carrier_account, 'install'), eq(phone_numbers.purchased, true)))
   const recent = await countPurchases(tx, and(counted, eq(number_purchases.workspace_id, workspaceId), gt(number_purchases.created_at, since(now, 30 * DAY_MS))))
   if ((held?.count ?? 0) >= INSTALL_NUMBERS_PER_WORKSPACE || recent >= INSTALL_NUMBERS_PER_WORKSPACE) {
-    return `A workspace can get ${INSTALL_NUMBERS_PER_WORKSPACE} numbers through this Linedesk: ${ASK_ADMIN}.`
+    return `A workspace can get ${INSTALL_NUMBERS_PER_WORKSPACE} numbers through this server: ${ASK_ADMIN}.`
   }
   if (await countPurchases(tx, and(counted, eq(number_purchases.actor_id, actor.actorId), gt(number_purchases.created_at, since(now, DAY_MS)))) >= INSTALL_PURCHASES_PER_USER_PER_DAY) {
     return `You bought ${INSTALL_PURCHASES_PER_USER_PER_DAY} numbers today: try again tomorrow, or ${ASK_ADMIN}.`
   }
   if (await countPurchases(tx, and(counted, gt(number_purchases.created_at, since(now, HOUR_MS)))) >= INSTALL_PURCHASES_PER_HOUR) {
-    return 'Too many numbers were bought on this Linedesk in the last hour: try again later.'
+    return 'Too many numbers were bought on this server in the last hour: try again later.'
   }
   const caps = installPurchaseCaps(env)
   const today = await countPurchases(tx, and(counted, gt(number_purchases.created_at, since(now, DAY_MS))))

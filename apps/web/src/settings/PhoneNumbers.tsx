@@ -28,6 +28,7 @@ import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { CarrierLine, useCarrierStatus } from './Carrier.tsx'
 import { Field, Section, TextInput } from './fields.tsx'
+import { brandName } from '../brand.ts'
 
 const carrierName = (provider: string | null) =>
   provider === 'twilio' ? 'Twilio' : provider === 'telnyx' ? 'Telnyx' : null
@@ -153,7 +154,7 @@ function Unavailable({ detail, isInstanceAdmin, ownCarrier }: UnavailableProps) 
           Connect one in Admin
         </a>
       ) : (
-        'Ask whoever runs your Linedesk.'
+        'Ask whoever runs this server.'
       )}
     </p>
   )
@@ -180,7 +181,7 @@ function ManageNumber({ number, assistants, canEdit, release = false, onClose }:
       title={formatNumber(number.e164)}
       description={
         carrier
-          ? `${carrier}${number.carrier_account === 'workspace' ? ' · your own account' : ''}${number.purchased ? ' · bought through Linedesk' : ''}`
+          ? `${carrier}${number.carrier_account === 'workspace' ? ' · your own account' : ''}${number.purchased ? ` · bought through ${brandName()}` : ''}`
           : undefined
       }
       onClose={onClose}
@@ -323,7 +324,7 @@ function ReleaseNumber({ number, onCancel }: { number: PhoneNumber; onCancel: ()
 /** A `phoneNumber.release` refusal in plain words. */
 function releaseErrorText(error: string): string {
   if (/is the carrier in use/i.test(error))
-    return 'This number belongs to another carrier than the one this Linedesk uses now. Ask whoever runs your Linedesk.'
+    return 'This number belongs to another carrier than the one this server uses now. Ask whoever runs it.'
   if (/to confirm/i.test(error)) return 'The number you typed does not match.'
   return `The carrier did not release the number. Nothing changed. (${error})`
 }

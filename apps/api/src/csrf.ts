@@ -6,6 +6,7 @@
 // affected; a request without a cookie has no session to abuse and gets its usual 401.
 // Better Auth checks the Origin of /api/auth itself (trustedOrigins in auth.ts).
 import type { MiddlewareHandler } from 'hono'
+import { brandName } from './branding.ts'
 
 const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS']
 
@@ -17,7 +18,7 @@ export function crossSiteRefusal(req: Request, trustedOrigins: readonly string[]
   if (/^Bearer\s/i.test(req.header('authorization') ?? '')) return null
   if (!req.header('cookie')) return null
   const origin = req.header('origin')
-  if (!origin || !trustedOrigins.includes(origin)) return 'This request must come from the Linedesk app.'
+  if (!origin || !trustedOrigins.includes(origin)) return `This request must come from the ${brandName()} app.`
   const mediaType = req.header('content-type')?.split(';')[0]?.trim().toLowerCase()
   if (mediaType !== 'application/json') return 'This request must be sent as application/json.'
   return null

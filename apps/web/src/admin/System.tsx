@@ -8,6 +8,7 @@ import { Switch } from '../ui/controls.tsx'
 import { Card } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
 import { type LivekitStatus, loadLivekitStatus, runAdmin, type ServiceStatus } from './api.ts'
+import { brandName } from '../brand.ts'
 
 const LIVEKIT = 'admin.livekit'
 
@@ -84,7 +85,7 @@ function VoiceCloning() {
   return (
     <Card
       title="Voice cloning"
-      help="Lets workspaces create a voice from a recording of a real person, who must have agreed to it; Linedesk keeps who confirmed that and when. Turning this off stops new clones, but existing ones keep working."
+      help={`Lets workspaces create a voice from a recording of a real person, who must have agreed to it; ${brandName()} keeps who confirmed that and when. Turning this off stops new clones, but existing ones keep working.`}
     >
       <div className="swrow">
         <div>

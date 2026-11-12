@@ -22,12 +22,13 @@ import {
 import { Field, TextInput } from './fields.tsx'
 import { callAction } from './settings-api.ts'
 import { useQuery, setQueryData } from '../cachedQuery.ts'
+import { brandName } from '../brand.ts'
 
 const CARRIER = 'workspace.carrier'
 const loadCarrier = () => callAction<CarrierStatusData>('carrier.get')
 
 const choices: { carrier: WorkspaceCarrier; description: string }[] = [
-  { carrier: 'default', description: 'Numbers through the carrier this Linedesk is set up with.' },
+  { carrier: 'default', description: 'Numbers through the carrier this server is set up with.' },
   { carrier: 'twilio', description: 'Numbers from your Twilio account, billed by Twilio.' },
   { carrier: 'telnyx', description: 'Numbers from your Telnyx account, billed by Telnyx.' },
 ]
@@ -166,13 +167,13 @@ function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose
         </div>
         {confirming && (
           <p className="k-field-msg" role="alert">
-            Back to the default carrier: the {ownName} keys are deleted from Linedesk, and numbers come from the carrier
-            this Linedesk is set up with.
+            Back to the default carrier: the {ownName} keys are deleted from {brandName()}, and numbers come from the carrier
+            this server is set up with.
           </p>
         )}
         {!status.canStore && own && (
           <p className="help" role="status">
-            This server cannot store carrier credentials yet. Ask whoever runs your Linedesk.
+            This server cannot store carrier credentials yet. Ask whoever runs this server.
           </p>
         )}
         {draft.carrier === 'twilio' && (

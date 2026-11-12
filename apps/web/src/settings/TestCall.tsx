@@ -150,7 +150,7 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     blockedReason: !canStart
       ? 'Only owners and admins can start a test call'
       : voiceDown
-        ? `${name} can't take calls yet: the voice service isn't set up. Ask whoever runs your Linedesk.`
+        ? `${name} can't take calls yet: the voice service isn't set up. Ask whoever runs this server.`
         : null,
     start: () => void start(),
     stop: async () => {

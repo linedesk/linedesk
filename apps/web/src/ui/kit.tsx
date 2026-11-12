@@ -1,5 +1,6 @@
 // The small pieces of the reference UI kit: Icon, Kbd, Button, Badge. Class names match styles.css.
 import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
+import { useBrand } from '../brand.ts'
 import { filledIcons, icons, type IconName } from './icons.ts'
 
 export const cx = (...parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join(' ')
@@ -70,12 +71,33 @@ export function LogoMark({ size = 21 }: { size?: number }) {
   )
 }
 
-/** The page around sign-in, sign-up and invitations: the Linedesk mark above a centred column, no card. */
+/**
+ * The install's logo (Admin, Branding) when an instance admin set one, else the Linedesk mark on its dark square.
+ * `label` names it for screen readers; without one it is decoration next to the product name.
+ */
+export function BrandMark({ className = 'ws-mark', size, label }: { className?: string; size?: number; label?: string }) {
+  const { logoUrl } = useBrand()
+  const a11y = label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true }
+  if (logoUrl)
+    return (
+      <span className={cx(className, 'is-logo')} {...a11y}>
+        <img src={logoUrl} alt="" />
+      </span>
+    )
+  return (
+    <span className={className} {...a11y}>
+      <LogoMark size={size} />
+    </span>
+  )
+}
+
+/** The page around sign-in, sign-up and invitations: the install's mark above a centred column, no card. */
 export function AuthPage({ children }: { children: ReactNode }) {
+  const { name } = useBrand()
   return (
     <main className="auth">
       <div className="auth-column">
-        <span className="auth-mark" role="img" aria-label="Linedesk"><LogoMark size={28} /></span>
+        <BrandMark className="auth-mark" size={28} label={name} />
         {children}
       </div>
     </main>

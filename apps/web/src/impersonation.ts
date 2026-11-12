@@ -4,6 +4,7 @@
 import { StepUpRequired, stepUpOf, withPasskeyStepUp } from './admin/PasskeyStepUp.tsx'
 import { forgetLocalData } from './localData.ts'
 import { flushAllStores } from './storeCache.ts'
+import { brandName } from './brand.ts'
 
 type Person = { id: string; name: string; email: string }
 /** From `/v1/me`: who is signed in as this user, and until when. */
@@ -27,7 +28,7 @@ export const bannerText = (imp: Impersonation) => ({
 })
 
 export const confirmText = (name: string) =>
-  `You will see Linedesk exactly as ${name} does. Everything you do is recorded as done by you on their behalf. Ends after 1 hour.`
+  `You will see ${brandName()} exactly as ${name} does. Everything you do is recorded as done by you on their behalf. Ends after 1 hour.`
 
 export class UnsentChanges extends Error {}
 

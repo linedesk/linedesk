@@ -50,7 +50,7 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
       help={
         recordingOn
           ? "Recordings older than this are deleted automatically. Only the audio goes; the call, its transcript and summary stay. With Don't keep, calls are not recorded at all: the transcript is written live and the summary comes from it."
-          : 'Calls are not recorded. Whoever runs your Linedesk server can turn recording on.'
+          : 'Calls are not recorded. Whoever runs this server can turn recording on.'
       }
     >
       {error && <LoadProblem what="Recording settings" message={error} onRetry={() => void settings.reload()} />}

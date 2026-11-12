@@ -1,6 +1,7 @@
 import * as admin from './admin.ts'
 import * as apiKeys from './api-keys.ts'
 import * as assistantVersions from './assistant-versions.ts'
+import * as branding from './branding.ts'
 import * as calendar from './calendar.ts'
 import * as callExport from './call-export.ts'
 import * as carrier from './carrier.ts'
@@ -29,6 +30,7 @@ export * from './admin.ts'
 export * from './api-keys.ts'
 export * from './assistant-prompt.ts'
 export * from './assistant-versions.ts'
+export * from './branding.ts'
 export * from './calendar.ts'
 export * from './call-export.ts'
 export * from './carrier.ts'
@@ -98,6 +100,7 @@ const all = [
   voices.voiceClone,
   voices.voiceCloningGet,
   voices.voiceCloningSet,
+  branding.brandingSet,
   settings.phoneNumberSetup,
   settings.phoneNumberUpdate,
   settings.phoneNumberRelease,

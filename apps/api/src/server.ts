@@ -6,6 +6,10 @@ import { loadInstanceEnv, watchInstanceEnv } from './instance-env.ts'
 // Sign-in providers and SMTP stored in the admin area, before the modules that read them load (instance-env.ts).
 await loadInstanceEnv(db).catch(error => console.error('could not load the sign-in and email settings:', error))
 watchInstanceEnv(db)
+// The product name and logo an admin set (branding.ts), before the first email or page.
+const { refreshBranding, watchBranding } = await import('./branding.ts')
+await refreshBranding(db).catch(error => console.error('could not load the branding:', error))
+watchBranding(db)
 // A fresh install: the setup code for the first admin goes to the log (setup.ts).
 await (await import('./setup.ts')).issueSetupCode(db).catch(error => console.error('could not make a setup code:', error))
 const { secondFactorOffWarning } = await import('./admin-second-factor.ts')

@@ -18,10 +18,12 @@ import { Overview } from './Overview.tsx'
 import { Providers } from './Providers.tsx'
 import { type AdminSection, adminSections, useAdminPlace } from './route.ts'
 import { System } from './System.tsx'
+import { BrandingSettings } from './Branding.tsx'
 import { Usage } from './Usage.tsx'
 import { UserDetail, UsersList } from './UsersPage.tsx'
 import { WorkspaceDetail, WorkspacesList } from './WorkspacesPage.tsx'
 import './admin.css'
+import { useBrand } from '../brand.ts'
 
 const icons: Record<AdminSection, IconName> = {
   overview: 'waveform',
@@ -29,6 +31,7 @@ const icons: Record<AdminSection, IconName> = {
   users: 'users',
   usage: 'clock',
   providers: 'plug',
+  branding: 'pencil',
   system: 'gear',
   audit: 'shield',
 }
@@ -104,6 +107,7 @@ type Props = { currentUserId: string; onExit: () => void }
 
 export function AdminMode({ currentUserId, onExit }: Props) {
   const { place, go } = useAdminPlace()
+  const { name: productName } = useBrand()
   // Shown at once when admin is opened again in this page; loaded again in the background.
   const adminData = useQuery(ADMIN_DATA, loadAdminData)
   const data = adminData.data ?? null
@@ -199,6 +203,8 @@ export function AdminMode({ currentUserId, onExit }: Props) {
             {...shared}
           />
         )
+      case 'branding':
+        return <BrandingSettings />
       case 'system':
         return <System />
       case 'audit':
@@ -213,9 +219,9 @@ export function AdminMode({ currentUserId, onExit }: Props) {
     <div className="adm-mode">
       <PasskeyStepUpHost />
       <nav className="adm-side" aria-label="Admin">
-        <button type="button" className="adm-back" onClick={onExit} title="Back to Linedesk (esc)">
+        <button type="button" className="adm-back" onClick={onExit} title={`Back to ${productName} (esc)`}>
           <Icon name="left" size={15} />
-          <span>Back to Linedesk</span>
+          <span>Back to {productName}</span>
         </button>
         <p className="adm-side-label">Admin</p>
         {adminSections.map((s, i) => (

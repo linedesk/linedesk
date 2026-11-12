@@ -13,6 +13,7 @@ import { db } from './db.ts'
 import { impersonationEndsAt } from './impersonation-guard.ts'
 import { type AdminSecondFactor, adminSecondFactorGap, passkeyConfirmed } from './admin-second-factor.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
+import { brandName } from './branding.ts'
 
 export interface Actor {
   actorId: string
@@ -219,7 +220,7 @@ export function clientOutdated(actor: Actor, req: BrowserRequest): WorkspaceRefu
   if (!workspaceData) return null
   const protocol = Number(req.header(CLIENT_PROTOCOL_HEADER) ?? 0)
   if (protocol >= CLIENT_PROTOCOL && req.header(WORKSPACE_HEADER)) return null
-  return { ok: false, error: 'Linedesk was updated. Reload the page to continue.', code: 'client_outdated' }
+  return { ok: false, error: `${brandName()} was updated. Reload the page to continue.`, code: 'client_outdated' }
 }
 
 /** Signed in, but not (or no longer) a member of the workspace the request names. */

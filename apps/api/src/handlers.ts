@@ -8,6 +8,7 @@ import type { ActionItem, Assistant, Closure, PhoneNumber, TransferContact } fro
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { and, asc, desc, eq, gt, gte, or, sql, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
+import { brandingHandlers, brandName } from './branding.ts'
 import { issueCallToken } from './agent-token.ts'
 import { startS3Recording } from './recording-egress.ts'
 import { purgeCommandsAbout } from './command-log.ts'
@@ -337,8 +338,8 @@ async function checkOnCallNotLinedesk(tx: HandlerCtx['tx'], e164: string, name: 
   if (!linedesk) return
   throw new Reject(
     linedesk.e164 === e164
-      ? `${name}'s number is a Linedesk number; enter the person's own phone`
-      : `${name}'s number forwards its calls to Linedesk; enter the person's own phone`,
+      ? `${name}'s number is a ${brandName()} number; enter the person's own phone`
+      : `${name}'s number forwards its calls to ${brandName()}; enter the person's own phone`,
   )
 }
 
@@ -411,6 +412,7 @@ const handlers: Record<string, Handler> = {
   ...insightsHandlers,
   ...transferHandlers,
   ...voiceHandlers,
+  ...brandingHandlers,
   ...sampleHandlers,
   ...notificationHandlers,
   ...starHandlers,

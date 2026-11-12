@@ -22,6 +22,7 @@ import { registerAdminRoutes } from './admin-routes.ts'
 import { clientIpOf, withClientIp } from './client-ip.ts'
 import { MCP_MAX_BODY_BYTES, serveMcp } from './mcp.ts'
 import { authMethods } from './auth-methods.ts'
+import { currentBranding, manifestFor, readLogo } from './branding.ts'
 import { auth, TRUSTED_ORIGINS, WEB_ORIGIN, WORKSPACE_LIMIT } from './auth.ts'
 import { refuseCrossSite } from './csrf.ts'
 import { calendarCallback } from './calendar-callback.ts'
@@ -73,6 +74,25 @@ app.use('/v1/*', refuseCrossSite(TRUSTED_ORIGINS))
 
 // Public: the sign-in screen asks which methods this install offers, and whether it still needs its first admin.
 app.get('/v1/auth-methods', async c => c.json({ ...authMethods, setupNeeded: await setupNeeded(db) }))
+
+// Public: the product name, logo and color an instance admin set (branding.ts), for every page including sign-in.
+app.get('/v1/branding', c => {
+  c.header('cache-control', 'no-cache')
+  return c.json(currentBranding())
+})
+app.get('/v1/branding/manifest.webmanifest', c => {
+  c.header('cache-control', 'no-cache')
+  c.header('content-type', 'application/manifest+json')
+  return c.body(JSON.stringify(manifestFor()))
+})
+// The logo's address changes with every new logo (?v=), so it is cached for good.
+app.get('/v1/branding/logo.png', async c => {
+  const logo = await readLogo(db)
+  if (!logo) return c.json({ ok: false, error: 'no logo' }, 404)
+  c.header('content-type', 'image/png')
+  c.header('cache-control', 'public, max-age=31536000, immutable')
+  return c.body(new Uint8Array(logo))
+})
 
 // Public, only while nobody has an account: the setup code from the server log makes the first admin (setup.ts).
 app.post('/v1/setup', async c => {

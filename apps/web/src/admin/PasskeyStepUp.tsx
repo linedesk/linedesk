@@ -7,6 +7,7 @@ import { authErrorMessage } from '../sign-in-code.ts'
 import { AuthError } from '../ui/AuthError.tsx'
 import { Dialog } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
+import { brandName } from '../brand.ts'
 
 export const PASSKEY_STEP_UP_REQUIRED = 'PASSKEY_STEP_UP_REQUIRED'
 /** `confirm`: sign in with your passkey; `enrol`: add a first passkey (enrolment code). */
@@ -120,7 +121,7 @@ function ConfirmPasskey({ what, onClose }: { what: string; onClose: (confirmed: 
         </>
       }
     >
-      {!passkeySupported() && <AuthError message="Passkeys need https. Open Linedesk at its https address." />}
+      {!passkeySupported() && <AuthError message={`Passkeys need https. Open ${brandName()} at its https address.`} />}
       {error && <AuthError message={error} />}
     </Dialog>
   )

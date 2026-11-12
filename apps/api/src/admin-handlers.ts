@@ -24,6 +24,7 @@ import { testProvider } from './provider-test.ts'
 import { dropUserPush } from './push.ts'
 import { SecretsKeyError } from './secrets.ts'
 import { monthOf, queueSpendingAlerts, spendingCap } from './spending-cap.ts'
+import { brandName } from './branding.ts'
 
 const hasPasskey = async (tx: Tx, userId: string) =>
   (await tx.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, userId)).limit(1)).length > 0
@@ -87,7 +88,7 @@ async function actorName(actor: Actor): Promise<string> {
 
 async function alertAdminGranted(actor: Actor, email: string) {
   await alertInstanceAdmins(
-    `New instance admin on Linedesk: ${email}`,
+    `New instance admin on ${brandName()}: ${email}`,
     `${await actorName(actor)} made ${email} an instance admin.\n\nIf you did not expect this, sign in with your passkey and check Admin, Users and Audit log.`,
   )
 }
@@ -229,7 +230,7 @@ export const adminHandlers: Record<string, Handler> = {
     const removed = await removeAllPasskeys(tx, { id: account.id, email: account.email, isAdmin })
     const enrolment = isAdmin ? await issuePasskeyEnrolment(tx, account.id) : {}
     await alertInstanceAdmins(
-      `Passkeys reset on Linedesk: ${account.email}`,
+      `Passkeys reset on ${brandName()}: ${account.email}`,
       `${await actorName(actor)} removed every passkey of ${account.email} (${removed} removed) and ended their sessions.${isAdmin ? ' They are an instance admin and got a new enrolment code for their first passkey.' : ''}\n\nIf you did not expect this, sign in with your passkey and check Admin, Audit log.`,
     )
     return { rows: {}, data: { userId: account.id, removed, ...enrolment } }

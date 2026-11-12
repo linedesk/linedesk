@@ -11,12 +11,13 @@ import { DISABLED_WORKSPACE, StoreProvider } from './store.tsx'
 import { Workspace } from './Workspace.tsx'
 import { AcceptInvite, clearInviteId, readInviteId } from './team/AcceptInvite.tsx'
 import { BootScreen } from './ui/BootScreen.tsx'
+import { brandName } from './brand.ts'
 
 /** Shown when the server is unreachable and this device has nothing to open offline. It retries on its own. */
 function Unreachable() {
   return (
     <div className="boot" role="status">
-      <b>Can't reach Linedesk</b>
+      <b>Can't reach {brandName()}</b>
       <span>Trying again… This page continues on its own once the connection is back.</span>
     </div>
   )
@@ -68,7 +69,7 @@ export function App() {
     }
     return <AcceptInvite invitationId={inviteId} onDone={leaveInvite} />
   }
-  if (session.state === 'loading') return <BootScreen line="Opening Linedesk…" />
+  if (session.state === 'loading') return <BootScreen line={`Opening ${brandName()}…`} />
   if (session.state === 'unreachable') return <Unreachable />
   if (session.state === 'signedOut') return <Login onDone={refresh} />
   if (session.state === 'needsWorkspace') {

@@ -19,6 +19,7 @@ import {
 } from './assistantDraft.ts'
 import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { Field, Section } from './fields.tsx'
+import { brandName } from '../brand.ts'
 
 const fallbackOptions: SelectOption<TransferFallback>[] = [
   { value: 'message_urgent', label: 'Take a message, mark it urgent' },
@@ -181,7 +182,7 @@ function ContactRow(props: RowProps) {
                 invalid={!!error('name')}
               />
             </Field>
-            <Field id={id('number')} label="Phone number" error={error('number')} tip="A US mobile or landline: the person's own phone, not a Linedesk number.">
+            <Field id={id('number')} label="Phone number" error={error('number')} tip={`A US mobile or landline: the person's own phone, not a ${brandName()} number.`}>
               <Input
                 id={id('number')}
                 value={c.number}

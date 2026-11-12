@@ -2,6 +2,7 @@
 // The code that decides when to send lives with its feature; these only say what the email shows.
 // Names that reach an email go through emailSafeName (team.ts) or defuseLinks first: they come from
 // workspaces, members or callers and must not turn into links.
+import { brandName } from '../branding.ts'
 import { defuseLinks, type Block, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
 
 export const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
@@ -34,16 +35,16 @@ export const SIGN_IN_CODE_MINUTES = 10
 export function signInCodeEmail(code: string, origin = WEB_ORIGIN): RenderedEmail {
   const site = siteHost(origin)
   return renderEmail({
-    subject: `${code} is your Linedesk sign-in code`,
+    subject: `${code} is your ${brandName()} sign-in code`,
     preheader: `Enter it on the sign-in page of ${site}. It expires in ${SIGN_IN_CODE_MINUTES} minutes.`,
     heading: 'Your sign-in code',
     blocks: [
-      { kind: 'text', text: `Enter this code on the Linedesk sign-in page at ${site}.` },
+      { kind: 'text', text: `Enter this code on the ${brandName()} sign-in page at ${site}.` },
       { kind: 'code', code },
       {
         kind: 'text',
         tone: 'muted',
-        text: `It works once and expires in ${SIGN_IN_CODE_MINUTES} minutes. Don't share this code: nobody from Linedesk or your team will ever ask you for it.`,
+        text: `It works once and expires in ${SIGN_IN_CODE_MINUTES} minutes. Don't share this code: nobody from ${brandName()} or your team will ever ask you for it.`,
       },
     ],
     reason: `You got this email because someone asked to sign in to ${site} with this address. If it wasn't you, you can ignore it.`,
@@ -57,19 +58,19 @@ export function signInCodeEmail(code: string, origin = WEB_ORIGIN): RenderedEmai
  */
 export function confirmationCodeEmail(code: string, site: string, origin = WEB_ORIGIN): RenderedEmail {
   return renderEmail({
-    subject: `${code} is your Linedesk confirmation code`,
-    preheader: `It confirms this address for your Linedesk account at ${site}.`,
+    subject: `${code} is your ${brandName()} confirmation code`,
+    preheader: `It confirms this address for your ${brandName()} account at ${site}.`,
     heading: 'Your confirmation code',
     blocks: [
       {
         kind: 'text',
-        text: `This code confirms this address for your Linedesk account at ${site}. Enter it on ${site}, where Linedesk asked for it.`,
+        text: `This code confirms this address for your ${brandName()} account at ${site}. Enter it on ${site}, where ${brandName()} asked for it.`,
       },
       { kind: 'code', code },
       {
         kind: 'text',
         tone: 'muted',
-        text: `It works once and expires in ${SIGN_IN_CODE_MINUTES} minutes. Don't share this code with anyone; Linedesk staff will never ask for it.`,
+        text: `It works once and expires in ${SIGN_IN_CODE_MINUTES} minutes. Don't share this code with anyone; ${brandName()} staff will never ask for it.`,
       },
     ],
     reason:
@@ -81,8 +82,8 @@ export function confirmationCodeEmail(code: string, site: string, origin = WEB_O
 /** Better Auth's link that confirms an address, for someone who signed up with a password. */
 export function verifyEmailEmail(url: string, origin = WEB_ORIGIN): RenderedEmail {
   return renderEmail({
-    subject: 'Confirm your email for Linedesk',
-    preheader: 'One click confirms this address for your Linedesk account.',
+    subject: `Confirm your email for ${brandName()}`,
+    preheader: `One click confirms this address for your ${brandName()} account.`,
     heading: 'Confirm your email address',
     blocks: [
       { kind: 'text', text: `Confirm this address to accept your invitation on ${siteHost(origin)}.` },
@@ -90,7 +91,7 @@ export function verifyEmailEmail(url: string, origin = WEB_ORIGIN): RenderedEmai
       { kind: 'text', tone: 'muted', text: `Or paste this link into your browser:\n${url}` },
     ],
     reason:
-      "You got this email because this address was used to sign up for Linedesk. If it wasn't you, you can ignore it.",
+      `You got this email because this address was used to sign up for ${brandName()}. If it wasn't you, you can ignore it.`,
     origin,
   })
 }
@@ -103,9 +104,9 @@ export function invitationEmail(
   origin = WEB_ORIGIN,
 ): RenderedEmail {
   return renderEmail({
-    subject: `Join ${workspace} on Linedesk`,
+    subject: `Join ${workspace} on ${brandName()}`,
     preheader: `${inviter} invited you. The invitation is open for ${days} days.`,
-    heading: `Join ${workspace} on Linedesk`,
+    heading: `Join ${workspace} on ${brandName()}`,
     blocks: [
       {
         kind: 'text',
@@ -127,11 +128,11 @@ export function invitationEmail(
 export function welcomeEmail({ name, email }: { name: string; email: string }, origin = WEB_ORIGIN): RenderedEmail {
   const site = siteHost(origin)
   return renderEmail({
-    subject: 'Your Linedesk account is ready',
+    subject: `Your ${brandName()} account is ready`,
     preheader: `Sign in at ${site} with this address.`,
     heading: `Welcome, ${name}`,
     blocks: [
-      { kind: 'text', text: `An administrator created a Linedesk account for you at ${site}.` },
+      { kind: 'text', text: `An administrator created a ${brandName()} account for you at ${site}.` },
       { kind: 'facts', rows: [['Sign in with', email]] },
       { kind: 'button', label: 'Sign in', url: origin },
       { kind: 'text', tone: 'muted', text: 'Enter this email address on the sign-in page and we send you a code.' },
@@ -146,18 +147,18 @@ export function welcomeEmail({ name, email }: { name: string; email: string }, o
 export function passkeyChangedEmail(change: 'added' | 'removed', origin = WEB_ORIGIN): RenderedEmail {
   const what = change === 'added' ? 'A passkey was added to' : 'A passkey was removed from'
   return renderEmail({
-    subject: `${what} your Linedesk account`,
+    subject: `${what} your ${brandName()} account`,
     preheader: 'If this was you, there is nothing to do.',
     eyebrow: 'Security notice',
     heading: change === 'added' ? 'A passkey was added' : 'A passkey was removed',
     blocks: [
       {
         kind: 'text',
-        text: `${what} your Linedesk account at ${siteHost(origin)}. If this was you, there is nothing to do.`,
+        text: `${what} your ${brandName()} account at ${siteHost(origin)}. If this was you, there is nothing to do.`,
       },
       {
         kind: 'text',
-        text: 'If it was not you, ask an instance admin of your Linedesk to remove all passkeys of your account (Admin, Users, your name, Reset passkeys), then sign in and add your own again.',
+        text: `If it was not you, ask an instance admin of your ${brandName()} to remove all passkeys of your account (Admin, Users, your name, Reset passkeys), then sign in and add your own again.`,
       },
       { kind: 'button', label: 'Review sign-in & security', url: securityUrl(origin) },
     ],
@@ -170,13 +171,13 @@ export function passkeyChangedEmail(change: 'added' | 'removed', origin = WEB_OR
 export function passkeysResetEmail(removed: number, origin = WEB_ORIGIN): RenderedEmail {
   const what =
     removed > 0
-      ? 'An administrator removed every passkey of your Linedesk account and signed you out everywhere.'
-      : 'An administrator issued a passkey enrolment code for your Linedesk account and signed you out everywhere.'
+      ? `An administrator removed every passkey of your ${brandName()} account and signed you out everywhere.`
+      : `An administrator issued a passkey enrolment code for your ${brandName()} account and signed you out everywhere.`
   return renderEmail({
     subject:
       removed > 0
-        ? 'The passkeys of your Linedesk account were removed'
-        : 'A passkey enrolment code was issued for your Linedesk account',
+        ? `The passkeys of your ${brandName()} account were removed`
+        : `A passkey enrolment code was issued for your ${brandName()} account`,
     preheader: 'Sign in again, then add a new passkey.',
     eyebrow: 'Security notice',
     heading: removed > 0 ? 'Your passkeys were removed' : 'Passkey enrolment code issued',
@@ -270,7 +271,7 @@ export function callEmail(call: CallEmail, origin = WEB_ORIGIN): RenderedEmail {
   }
   blocks.push(
     { kind: 'button', label: 'Open the call', url: `${origin}/#call/${encodeURIComponent(call.callId)}` },
-    { kind: 'text', tone: 'muted', text: 'The recording and the transcript are in Linedesk.' },
+    { kind: 'text', tone: 'muted', text: `The recording and the transcript are in ${brandName()}.` },
   )
   return renderEmail({
     subject: `${call.urgent ? 'Urgent: ' : ''}${topic} · ${callerName ?? number}`,

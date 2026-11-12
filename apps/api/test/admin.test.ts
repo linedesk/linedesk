@@ -11,6 +11,8 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { adminSignInEmail, alertOnAdminSignIn, plainSnippet } from '../src/admin-alerts.ts'
 import { adminHandlers } from '../src/admin-handlers.ts'
+import { decodeLogo, resetBranding } from '../src/branding.ts'
+import { signInCodeEmail } from '../src/emails/templates.ts'
 import { adminSecondFactorGap, adminSecondFactorRequired, markPasskeySession, secondFactorOffWarning } from '../src/admin-second-factor.ts'
 import { mayReceiveEnrolmentCode, needsPasskeyStepUp } from '../src/admin-step-up.ts'
 import type { Actor } from '../src/context.ts'
@@ -120,8 +122,9 @@ describe('access', () => {
     expect((await request(anonymous, 'GET', path)).status).toBe(401)
   })
 
-  test('the registry has the twenty admin actions', () => {
+  test('the registry has the twenty-one admin actions', () => {
     expect(adminActions.map(def => def.name).sort()).toEqual([
+      'branding.set',
       'instanceAdmin.grant',
       'instanceAdmin.revoke',
       'invitation.resend',
@@ -2303,7 +2306,7 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       await alertOnAdminSignIn({ userId: admin.userId }, undefined)
       const alerts = send.mock.calls.map(([m]) => m).filter(m => /^Admin sign-in/.test(m.subject) && m.to === operatorEmail)
       expect(alerts).toHaveLength(2)
-      expect(alerts[0]!.text).toMatch(/a sign-in method Linedesk does not recognise/)
+      expect(alerts[0]!.text).toMatch(/a sign-in method this server does not recognise/)
     })
 
     test('F4: the alert carries no links and no long browser strings', () => {
@@ -2627,6 +2630,64 @@ test('changing email or sign-in settings needs the passkey; other providers do n
   for (const provider of ['smtp', 'google', 'microsoft', 'github', 'oidc'])
     for (const name of ['provider.setKeys', 'provider.clearKeys']) expect(await needsPasskeyStepUp(name, { provider }), `${name} ${provider}`).toBe(true)
   for (const provider of ['telnyx', 'deepgram', 's3']) expect(await needsPasskeyStepUp('provider.setKeys', { provider })).toBe(false)
+})
+
+describe('branding', () => {
+  // 1×1 transparent PNG.
+  const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+  const logo = `data:image/png;base64,${PNG}`
+  const input = { name: 'Front Desk Pro', color: '#0B5FFF', logo, starPrompt: false }
+  afterEach(() => resetBranding(db))
+
+  test('anyone reads the defaults before sign-in', async () => {
+    expect((await request(anonymous, 'GET', '/v1/branding')).body).toEqual({
+      name: 'Linedesk',
+      color: null,
+      logoUrl: null,
+      starPrompt: true,
+    })
+    expect((await request(anonymous, 'GET', '/v1/branding/manifest.webmanifest')).body).toMatchObject({ name: 'Linedesk' })
+    expect((await request(anonymous, 'GET', '/v1/branding/logo.png')).status).toBe(404)
+  })
+
+  test('an instance admin sets name, color, logo and the star prompt; pages, the manifest and emails use them', async () => {
+    const res = await act(operator, 'branding.set', input)
+    expect(res.body).toMatchObject({ ok: true, data: { name: 'Front Desk Pro', color: '#0b5fff', starPrompt: false } })
+    const logoUrl: string = res.body.data.logoUrl
+    expect(logoUrl).toMatch(/^\/v1\/branding\/logo\.png\?v=/)
+    expect((await request(anonymous, 'GET', '/v1/branding')).body).toEqual(res.body.data)
+    const served = await appRequest(logoUrl)
+    expect(served.status).toBe(200)
+    expect(served.headers.get('content-type')).toBe('image/png')
+    expect(Buffer.from(await served.arrayBuffer()).toString('base64')).toBe(PNG)
+    const manifest = (await request(anonymous, 'GET', '/v1/branding/manifest.webmanifest')).body
+    expect(manifest).toMatchObject({ name: 'Front Desk Pro', icons: [{ src: logoUrl }, { src: logoUrl, purpose: 'maskable' }] })
+    const email = signInCodeEmail('123456', 'https://desk.example')
+    expect(email.subject).toBe('123456 is your Front Desk Pro sign-in code')
+    expect(email.html).toContain(`https://desk.example${logoUrl}`)
+
+    // Left out keeps the logo; null removes it.
+    expect((await act(operator, 'branding.set', { ...input, logo: undefined, name: 'Desk' })).body.data).toMatchObject({ name: 'Desk', logoUrl })
+    expect((await act(operator, 'branding.set', { ...input, logo: null })).body.data.logoUrl).toBeNull()
+    expect((await request(anonymous, 'GET', '/v1/branding/logo.png')).status).toBe(404)
+  })
+
+  test('the command log notes that a logo was sent, not the image', async () => {
+    await act(operator, 'branding.set', input)
+    const [row] = await db.select().from(commands).where(eq(commands.action, 'branding.set'))
+    expect(row?.input).toMatchObject({ name: 'Front Desk Pro', logo: REDACTED })
+  })
+
+  test('only a real PNG of at most 512 pixels is stored', async () => {
+    const wide = Buffer.from(PNG, 'base64')
+    wide.writeUInt32BE(1024, 16)
+    expect(() => decodeLogo(`data:image/png;base64,${wide.toString('base64')}`)).toThrow('at most 512×512')
+    const svg = `data:image/png;base64,${Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>').toString('base64')}`
+    expect((await act(operator, 'branding.set', { ...input, logo: svg })).body).toMatchObject({ ok: false, error: 'The logo must be a PNG image.' })
+    expect((await act(operator, 'branding.set', { ...input, logo: 'data:image/svg+xml;base64,AAAA' })).status).toBe(422)
+    expect((await act(operator, 'branding.set', { ...input, name: ' ' })).status).toBe(422)
+    expect((await request(anonymous, 'GET', '/v1/branding')).body.name).toBe('Linedesk')
+  })
 })
 
 describe('setup code', () => {

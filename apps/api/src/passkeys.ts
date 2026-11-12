@@ -11,6 +11,7 @@ import { emailSender } from './email.ts'
 import { passkeyChangedEmail } from './emails/templates.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { clearPasskeyEnrolment, ENROLMENT_HEADER, enrolmentCodeValid, enrolmentPending } from './passkey-enrolment.ts'
+import { brandName } from './branding.ts'
 
 type Env = Record<string, string | undefined>
 type AuthCtx = Parameters<typeof getSessionFromCtx>[0]
@@ -22,7 +23,7 @@ type AuthCtx = Parameters<typeof getSessionFromCtx>[0]
  */
 export function passkeyRelyingParty(env: Env) {
   const url = new URL(env.PUBLIC_URL || env.WEB_ORIGIN || 'http://localhost:5173')
-  return { rpID: url.hostname, rpName: 'Linedesk', origin: url.origin }
+  return { rpID: url.hostname, rpName: `${brandName()}`, origin: url.origin }
 }
 
 /** Better Auth's plugin, with registration only for a signed-in member (the plugin's default, stated). */

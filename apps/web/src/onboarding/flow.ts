@@ -7,6 +7,7 @@ import {
 } from '@linedesk/actions'
 import type { Call, PhoneNumber } from '@linedesk/db/types'
 import { type DayHours, dayRows } from '../settings/businessHoursModel.ts'
+import { brandName } from '../brand.ts'
 
 type PhoneNumberMode = PhoneNumber['mode']
 
@@ -90,14 +91,14 @@ export function phoneSetupInput(choice: PhoneChoice): { input: PhoneSetupInput }
 /** A `phoneNumber.setup` rejection in words an owner can act on. The server's own reason stays in the command log. */
 export function phoneSetupErrorText(error: string): string {
   if (/^phone setup is not configured/i.test(error))
-    return "Phone numbers aren't set up on this server yet. Ask whoever runs your Linedesk to add a phone carrier."
-  if (/is already set up/i.test(error)) return 'That number is already connected to Linedesk.'
+    return "Phone numbers aren't set up on this server yet. Ask whoever runs it to add a phone carrier."
+  if (/is already set up/i.test(error)) return `That number is already connected to ${brandName()}.`
   if (/is not in the .* account/i.test(error))
     return "We couldn't find that number in the carrier account. Check the number, or get a new one."
   if (/no number available in area code/i.test(error))
     return 'No number is free in that area code right now. Try a nearby one.'
   // The limits on buying through the install's carrier account (apps/api/src/number-purchases.ts) are written for people: shown as they are.
-  if (/this Linedesk|numbers today/i.test(error)) return error
+  if (/(on|through) this server|this server has given|numbers today/i.test(error)) return error
   return "The number couldn't be connected. Try again in a moment."
 }
 
@@ -105,8 +106,12 @@ export function phoneSetupErrorText(error: string): string {
 export const numberModeLabel: Record<PhoneNumberMode, string> = {
   forward_conditional: 'Missed calls forward here',
   forward_all: 'All calls forward here',
-  new: 'Your Linedesk number',
-  ported: 'Your number, moved to Linedesk',
+  get new() {
+    return `Your ${brandName()} number`
+  },
+  get ported() {
+    return `Your number, moved to ${brandName()}`
+  },
 }
 
 /** What a new number costs, as far as we know it. Prices are the carriers' list prices for a US local number. */
