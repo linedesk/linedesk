@@ -16,7 +16,7 @@ Out of scope for v1: messaging channels, outbound campaigns, multi-location rout
 2. **Instant and offline.** The UI applies every action locally at once and syncs in the background; it keeps working offline.
 3. **Adapters with a recommended default.** Telephony, speech, LLM, calendar and sync providers are swappable behind interfaces; setup always suggests one.
 4. **Easy to self-host, able to scale.** `docker compose up` gives a working install; the same images scale horizontally.
-5. **Open-source ready.** No secrets or customer data in the repo; paid-only code lives in `ee/`.
+5. **Open-source ready.** No secrets or customer data in the repo.
 
 ## 3. System overview
 
