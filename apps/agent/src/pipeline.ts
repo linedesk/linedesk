@@ -12,6 +12,7 @@ import * as elevenlabs from '@livekit/agents-plugin-elevenlabs'
 import * as openai from '@livekit/agents-plugin-openai'
 import type { AssistantVoice } from '@linedesk/db/types'
 import { type AgentConfig, type CallConfig, isRealtime, llmDefaults, type RealtimeConfig, type TtsConfig } from './config.ts'
+import { quotedData } from './prompt.ts'
 import type { CompleteJson } from './summary.ts'
 
 const SUMMARY_TIMEOUT_MS = 15_000
@@ -198,7 +199,7 @@ export function createRealtimePipeline({ apiKey, model, voice: voiceName }: Real
  * this reply is that line and nothing else.
  */
 export const realtimeLine = (text: string) =>
-  `Your next reply is exactly this line, word for word, with nothing before or after it: "${text}" Only if the caller has been speaking another language, say it in that language instead.`
+  `Your next reply is exactly this line, word for word, with nothing before or after it: ${quotedData(text)} Only if the caller has been speaking another language, say it in that language instead.`
 
 /** Where one chat request goes. */
 export type ChatModel = { apiKey: string; baseUrl: string; model: string; fallbacks?: string[] }

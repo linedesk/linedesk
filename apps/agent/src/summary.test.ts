@@ -1,3 +1,4 @@
+import { CALLER_NAME_MAX, callFinish } from '@linedesk/actions'
 import { expect, test, vi } from 'vitest'
 import { mergeToolResults, summarizeCall, unsummarizedResult, type CompleteJson, type TranscriptLine } from './summary.ts'
 
@@ -66,6 +67,14 @@ test('a title that is too long is cut, not rejected', async () => {
   const result = await summarizeCall(transcript, async () => JSON.stringify({ ...llmAnswer, title: 'x'.repeat(200) }))
   expect(result.title).toBe('x'.repeat(80))
   expect(result.summary).toBe(llmAnswer.summary)
+})
+
+test('a caller name longer than call.finish takes is cut, so the summary is still saved; a blank one is none', async () => {
+  const long = await summarizeCall(transcript, async () => JSON.stringify({ ...llmAnswer, caller_name: ` ${'n'.repeat(200)}` }))
+  expect(long.callerName).toBe('n'.repeat(CALLER_NAME_MAX))
+  expect(callFinish.input.safeParse({ callId: 'c_1', callerName: long.callerName }).success).toBe(true)
+  expect(callFinish.input.safeParse({ callId: 'c_1', callerName: 'n'.repeat(CALLER_NAME_MAX + 1) }).success).toBe(false)
+  expect((await summarizeCall(transcript, async () => JSON.stringify({ ...llmAnswer, caller_name: '  ' }))).callerName).toBeUndefined()
 })
 
 test('a taken message makes the call a message, unless the summary says callback or spam', () => {

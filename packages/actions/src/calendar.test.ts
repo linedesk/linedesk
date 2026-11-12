@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { actions, applyLocally, calendarFindSlots, type LocalTables, rolePermissions, type Role } from './index.ts'
+import { actions, appointmentBook, appointmentCancel, appointmentReschedule, applyLocally, CALLER_NAME_MAX, calendarFindSlots, callFinish, type LocalTables, rolePermissions, type Role } from './index.ts'
 
 describe('calendar.findSlots', () => {
   it('is in the registry as a read-only action without an optimistic patch', () => {
@@ -67,5 +67,27 @@ describe('calendar accounts and the assistant calendars', () => {
 
   it('connectStart takes Google or Microsoft only', () => {
     expect(actions.get('calendar.connectStart')!.input.safeParse({ provider: 'yahoo' }).success).toBe(false)
+  })
+})
+
+describe('caller names', () => {
+  const book = { appointmentTypeId: 'at_1', calendarId: 'ac_1', start: '2026-03-09T17:00:00Z', reason: 'Leak' }
+  const tooLong = 'n'.repeat(CALLER_NAME_MAX + 1)
+
+  it(`are capped at ${CALLER_NAME_MAX} characters in every action that takes one`, () => {
+    expect(appointmentBook.input.safeParse({ ...book, callerName: 'n'.repeat(CALLER_NAME_MAX) }).success).toBe(true)
+    expect(appointmentBook.input.safeParse({ ...book, callerName: tooLong }).success).toBe(false)
+    for (const [action, input] of [
+      [appointmentCancel, { callId: 'c_1', bookingDate: '2026-03-09' }],
+      [appointmentReschedule, { callId: 'c_1', bookingDate: '2026-03-09', start: book.start }],
+    ] as const) {
+      expect(action.input.safeParse({ ...input, bookedName: 'Sam Patel' }).success).toBe(true)
+      expect(action.input.safeParse({ ...input, bookedName: tooLong }).success).toBe(false)
+    }
+    expect(callFinish.input.safeParse({ callId: 'c_1', callerName: tooLong }).success).toBe(false)
+  })
+
+  it('the summary may still find no name', () => {
+    expect(callFinish.input.parse({ callId: 'c_1', callerName: '  ' })).toEqual({ callId: 'c_1', callerName: '' })
   })
 })

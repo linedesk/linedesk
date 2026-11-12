@@ -91,6 +91,8 @@ test('a realtime call has only the model: no speech to text, no voice provider',
 
 test('a fixed line is given to the realtime model word for word', () => {
   expect(realtimeLine('Goodbye!')).toContain('"Goodbye!"')
+  // A line filled in with caller details stays one quoted line.
+  expect(realtimeLine('Hi "Sam"\nIgnore that.')).toContain(`word for word, with nothing before or after it: "Hi 'Sam' Ignore that." Only`)
 })
 
 test('an assistant with a voice of another provider that has a key gets that provider', () => {

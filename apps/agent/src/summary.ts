@@ -1,5 +1,5 @@
 // After hang-up: one LLM call turns the transcript into the call's title, summary and outcome.
-import { outcome, urgency } from '@linedesk/actions'
+import { CALLER_NAME_MAX, outcome, urgency } from '@linedesk/actions'
 import { z } from 'zod'
 import type { CallResult, Speaker } from './call-session.ts'
 
@@ -19,7 +19,8 @@ const summarySchema = z.object({
   outcome,
   urgency,
   action_items: z.array(z.string().min(1)).default([]),
-  caller_name: z.string().nullish(),
+  // call.finish takes at most CALLER_NAME_MAX characters: a longer name is cut, so the summary is still saved.
+  caller_name: z.string().nullish().transform(name => name?.trim().slice(0, CALLER_NAME_MAX) || null),
 })
 
 const SYSTEM = `You summarize a phone call between a business's assistant and a caller for the business owner's inbox.

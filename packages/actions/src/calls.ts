@@ -293,6 +293,12 @@ export const callAppendTranscript = defineAction({
   permission: 'agent',
   logged: 'ids',
 })
+/**
+ * Longest caller name an action takes (characters): names come from what callers say, and go into contacts,
+ * calendar events and the assistant's instructions.
+ */
+export const CALLER_NAME_MAX = 80
+
 export const callFinish = defineAction({
   name: 'call.finish',
   description: 'End a call and store its outcome and summary.',
@@ -304,7 +310,7 @@ export const callFinish = defineAction({
     actionItems: z.array(z.object({ text: z.string(), done: z.boolean().optional() })).optional(),
     fields: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
     /** The caller's name as the summary found it: names the contact when it has no name yet. */
-    callerName: z.string().optional(),
+    callerName: z.string().trim().max(CALLER_NAME_MAX).optional(),
   }),
   permission: 'agent',
   logged: 'ids',

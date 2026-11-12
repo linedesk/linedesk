@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { CALLER_NAME_MAX } from './calls.ts'
 import { defineAction } from './define.ts'
 
 const instant = z.iso.datetime({ offset: true })
@@ -48,7 +49,7 @@ export type FindSlotsData = {
 /** Longest condition on when the assistant uses a calendar or an appointment type (characters). */
 export const CONDITION_MAX = 300
 
-/** Longest caller name, reason and address on a booking (characters). */
+/** Longest reason and address on a booking (characters); the name: CALLER_NAME_MAX. */
 const BOOKING_TEXT_MAX = 500
 
 export const appointmentBook = defineAction({
@@ -62,7 +63,7 @@ export const appointmentBook = defineAction({
     /** A slot start from calendar.findSlots. */
     start: instant,
     /** Required when the appointment type asks for the name. */
-    callerName: z.string().trim().min(1).max(BOOKING_TEXT_MAX).optional(),
+    callerName: z.string().trim().min(1).max(CALLER_NAME_MAX).optional(),
     reason: z.string().trim().min(1).max(BOOKING_TEXT_MAX),
     address: z.string().trim().max(BOOKING_TEXT_MAX).optional(),
     /** The caller's number; defaults to the number of the call. */
@@ -92,7 +93,7 @@ const whichBooking = {
   bookingId: z.string().min(1).optional(),
   callId: z.string().min(1).optional(),
   bookingDate: localDate.optional(),
-  bookedName: z.string().trim().min(1).max(BOOKING_TEXT_MAX).optional(),
+  bookedName: z.string().trim().min(1).max(CALLER_NAME_MAX).optional(),
 }
 
 export const appointmentCancel = defineAction({
