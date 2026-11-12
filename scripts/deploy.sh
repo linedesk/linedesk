@@ -4,8 +4,12 @@
 # (.env, COMPOSE_PROJECT_NAME, COMPOSE_FILE, COMPOSE_PROFILES):
 #   scripts/deploy.sh             build the images, then update
 #   scripts/deploy.sh --no-build  update to the images already built
+# Prebuilt images: when the checkout holds deploy-images.env (the test server's deploys put it into the
+# archive, .github/workflows/deploy-staging.yml), the images of this commit are pulled from that
+# registry instead of built here, so a deploy does not load the machine. Without it (self-hosting,
+# local), the images are built here as before.
 #
-# 1. Build while the old version serves.
+# 1. Build (or pull) while the old version serves.
 # 2. api, then web: when the image or the service's settings changed, start a new container next to the
 #    old one, wait until it is healthy (the proxy already sends requests to both and retries a request
 #    on the other one when a container is not reachable), then stop the old one. The new API applies
@@ -24,6 +28,19 @@
 # new main (it refuses when the checkout has local changes) and comes back here with --no-build.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+# deploy-images.env (written by the staging workflow, never in git): `registry=` (e.g. ghcr.io/<owner>),
+# `services=` (images to pull), `user=` and `token=` (the workflow's token, valid while it runs). Read
+# and removed first, so the token is not kept on disk, also not in the copy of the previous release.
+PREBUILT_FILE=deploy-images.env
+prebuilt_registry='' prebuilt_services='' prebuilt_user='' prebuilt_token=''
+if [ -f "$PREBUILT_FILE" ]; then
+  prebuilt_registry=$(sed -n 's/^registry=//p' "$PREBUILT_FILE")
+  prebuilt_services=$(sed -n 's/^services=//p' "$PREBUILT_FILE")
+  prebuilt_user=$(sed -n 's/^user=//p' "$PREBUILT_FILE")
+  prebuilt_token=$(sed -n 's/^token=//p' "$PREBUILT_FILE")
+  rm -f "$PREBUILT_FILE"
+fi
 
 # Dev mode was called live mode until 2026-11: an .env from then is moved over once (LINEDESK_MODE=live,
 # LINEDESK_LIVE_* limits, docker-compose.live.yml in COMPOSE_FILE), so a server deploys on without a hand edit.
@@ -64,6 +81,34 @@ MIN_FREE_MB=${LINEDESK_DEPLOY_MIN_FREE_MB:-2048} # a build needs room for new im
 # Free space on the disk that holds Docker's data, in MB.
 docker_free_mb() {
   df -Pm "$(docker info -f '{{.DockerRootDir}}' 2>/dev/null || echo /)" | awk 'NR == 2 { print $4 }'
+}
+
+# Pulls the prebuilt images of this commit (tag: the commit in REVISION, which the server's deploy
+# command writes from what it was sent) and gives them the local names compose uses (linedesk-api, ...),
+# so the rest of the update is the same as after a local build. The login lives in a throwaway Docker
+# config, so no registry credential stays on this machine.
+pull_prebuilt() {
+  local tag service image docker_config
+  tag=$(cat REVISION 2>/dev/null || true)
+  if ! [[ "$tag" =~ ^[0-9a-f]{7,40}$ ]] || [ -z "$prebuilt_registry" ] || [ -z "$prebuilt_services" ] ||
+    [ -z "$prebuilt_user" ] || [ -z "$prebuilt_token" ]; then
+    log "$PREBUILT_FILE is incomplete or REVISION is missing: not deploying; the running version keeps serving." >&2
+    exit 1
+  fi
+  docker_config=$(mktemp -d)
+  # shellcheck disable=SC2064 # the directory is known now
+  trap "rm -rf '$docker_config'" EXIT
+  log "pulling the images of $tag from $prebuilt_registry (the running version keeps serving)"
+  DOCKER_CONFIG=$docker_config docker login --username "$prebuilt_user" --password-stdin "${prebuilt_registry%%/*}" \
+    <<<"$prebuilt_token" >/dev/null
+  for service in $prebuilt_services; do
+    image="$prebuilt_registry/linedesk-$service:$tag"
+    DOCKER_CONFIG=$docker_config docker pull -q "$image" >/dev/null
+    docker tag "$image" "linedesk-$service"
+    docker rmi "$image" >/dev/null # only the registry name; the image stays as linedesk-$service
+  done
+  rm -rf "$docker_config"
+  trap - EXIT
 }
 
 # Old build cache and untagged images pile up with several deploys an hour; images in use and volumes stay.
@@ -172,12 +217,16 @@ update_proxy() {
   done
 }
 
-if [ "${1:-}" != --no-build ]; then
+if [ -n "$prebuilt_registry" ] || [ "${1:-}" != --no-build ]; then
   free=$(docker_free_mb)
   if [ "$free" -lt "$MIN_FREE_MB" ]; then
-    log "only ${free} MB free on Docker's disk (need ${MIN_FREE_MB}): not building. Free space (docker builder prune, docker image prune) and deploy again; the running version keeps serving."
+    log "only ${free} MB free on Docker's disk (need ${MIN_FREE_MB}): not updating. Free space (docker builder prune, docker image prune) and deploy again; the running version keeps serving."
     exit 1
   fi
+fi
+if [ -n "$prebuilt_registry" ]; then
+  pull_prebuilt
+elif [ "${1:-}" != --no-build ]; then
   log "building images (the running version keeps serving)"
   # Without build attestations a rebuild from cache keeps the image id, so an unchanged service is
   # recognised as unchanged (Docker Desktop adds them by default and they differ on every build).
