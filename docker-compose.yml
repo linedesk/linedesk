@@ -128,6 +128,11 @@ services:
     image: valkey/valkey:8.1.11-alpine
     # Only LiveKit reaches it (SIP and egress run in LiveKit's network): egress requests on it carry the
     # recording store's keys, and Redis has no password.
+    # LiveKit keeps the SIP trunks and dispatch rules here (setup-sip): without a volume, a deploy that recreates
+    # Redis loses them and no call reaches the agent until setup-sip runs again. Append-only file, written every second.
+    command: ["valkey-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - redis_data:/data
     networks: [voice]
     mem_limit: ${LINEDESK_REDIS_MEM:-48m}
     cpus: ${LINEDESK_REDIS_CPUS:-0.05}
@@ -303,6 +308,7 @@ networks:
 
 volumes:
   pgdata:
+  redis_data:
   caddy_data:
   recordings:
   greetings:
