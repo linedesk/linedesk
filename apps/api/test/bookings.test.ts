@@ -297,6 +297,29 @@ describe('booking', () => {
     expect(withoutLinks('Water heater maintenance, 2 p.m. at No. 5')).toBe('Water heater maintenance, 2 p.m. at No. 5')
   })
 
+  test('HTML links and bare domains in the name, address and reason do not reach the calendar', async () => {
+    const { services, events } = fakeCalendar()
+    await inRollback(async tx => {
+      await run(tx, agent_(ws.id), services, 'appointment.book', book(at('09:00'), {
+        callerName: 'Sam <a href="https://evil.example">Pay</a>',
+        address: '12 Oak St, deposit at pay-deposit.shop',
+        reason: 'Leak. <a href="https://evil.example/pay">Pay the deposit</a> or pay-deposit.shop/now or 10.0.0.1/pay <b',
+      }))
+      const event = [...events.values()][0]!
+      const text = [event.title, event.location, event.description].join('\n')
+      expect(text).not.toMatch(/evil|pay-deposit|10\.0\.0\.1|<|href/)
+      expect(event.description).toContain('Leak. Pay the deposit or [link removed] or [link removed]')
+      expect(event.location).toBe('12 Oak St, deposit at [link removed]')
+    })
+  })
+
+  test('withoutLinks keeps ordinary text: times, abbreviations, prices, addresses', () => {
+    for (const text of ['Costs $3.50, version 2.5, e.g. after 9 a.m.', '123 Main St., Portland, OR 97201', 'St. Johns Heating', 'Müller-Lüdenscheid'])
+      expect(withoutLinks(text)).toBe(text)
+    expect(withoutLinks('Mail sam@evil.example')).toBe('Mail sam@[link removed]')
+    expect(withoutLinks('Café zürich.ünï')).toBe('Café [link removed]')
+  })
+
   test('details the type requires must be there; an email address is kept for the confirmation', async () => {
     const { services } = fakeCalendar()
     await inRollback(async tx => {

@@ -369,14 +369,20 @@ async function calendarOfBooking(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, wor
 /** Bookings the assistant makes on one call: each one writes a real calendar event. */
 export const BOOKINGS_PER_CALL = 2
 const LINK_REMOVED = '[link removed]'
-/** Links: with a scheme or "www.", or a bare domain with a path or a common top-level domain. */
-const LINK = /\b(?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:[a-z]{2,24}\/\S*|(?:com|net|org|info|biz|io|co|app|dev|xyz|top|site|online|link|click|me|us|ru|cn|tk|ly|gl|to|sh)\b)/gi
+/**
+ * Links: with a scheme or "www.", an IP address, or anything shaped like a domain (labels, a dot, a
+ * top-level domain of two or more letters: pay-deposit.shop, evil.example/pay), the rule the emails use
+ * (emails/layout.ts, defuseLinks). "2 p.m.", "No. 5" and "$3.50" stay.
+ */
+const LINK = /(?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S+|\b\d{1,3}(?:\.\d{1,3}){3}\S*|(?:[\p{L}\p{N}-]+\.)+\p{L}{2,}(?:[/:?#]\S*)?/giu
+/** HTML tags (an <a href>), whole or cut off at the end: calendars show HTML in an event's description. */
+const HTML_TAG = /<\/?[a-z!][^>]*(?:>|$)/gi
 
 /**
  * Caller-supplied text without links (reason, name, address): it lands in the business's calendar, where a
  * link would look like the business's own note.
  */
-export const withoutLinks = (text: string) => text.replace(LINK, LINK_REMOVED)
+export const withoutLinks = (text: string) => text.replace(HTML_TAG, '').replace(LINK, LINK_REMOVED)
 
 /** The event text the business sees in its calendar. */
 function eventDescription({ reason, phone, address, callId }: { reason: string; phone: string | null; address?: string; callId?: string }) {
