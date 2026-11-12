@@ -1,6 +1,30 @@
 // One call as the agent sees it: start, append transcript segments, finish.
-import { type BookingContext, type CallerHistory, callAppendTranscript, callFinish, callRecordTimings, callStart, callStartTest, DEFAULT_AI_DISCLOSURE, greetingWithDisclosure, type Language, languageCodes, localizedDefault, mainLanguageOf, silenceClosingOf } from '@linedesk/actions'
-import { type Assistant, type Contact, DEFAULT_TRANSFERS, type ToolEvent, type TransferContact, type WebhookLookup } from '@linedesk/db/types'
+import {
+  type BookingContext,
+  type CallerHistory,
+  callAppendTranscript,
+  callFinish,
+  callRecordTimings,
+  callStart,
+  callStartTest,
+  DEFAULT_AI_DISCLOSURE,
+  greetingWithDisclosure,
+  type Language,
+  languageCodes,
+  localizedDefault,
+  mainLanguageOf,
+  silenceClosingOf,
+  VOICE_PIPELINES,
+  type VoicePipeline,
+} from '@linedesk/actions'
+import {
+  type Assistant,
+  type Contact,
+  DEFAULT_TRANSFERS,
+  type ToolEvent,
+  type TransferContact,
+  type WebhookLookup,
+} from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
 import { type SimulatedAnswer, simulatedAnswers } from './on-call-dialer.ts'
@@ -89,7 +113,10 @@ export function callerOf(contact: Contact | null, history: CallerHistory | null 
 export function withAiNote(assistant: Assistant | null): Assistant | null {
   if (!assistant?.greeting) return assistant
   const mode = assistant.ai_disclosure ?? DEFAULT_AI_DISCLOSURE
-  return { ...assistant, greeting: greetingWithDisclosure(assistant.greeting, assistant.name, mode, mainLanguageOf(assistant.languages)) }
+  return {
+    ...assistant,
+    greeting: greetingWithDisclosure(assistant.greeting, assistant.name, mode, mainLanguageOf(assistant.languages)),
+  }
 }
 
 /**
@@ -135,7 +162,11 @@ export type SimulatedOnCall = { answer: SimulatedAnswer; number: string; for?: '
 export const SIMULATED_BACKUP_NUMBER = '+15035550188'
 
 /** The call test's transfer contacts: the simulated on-call person, and with `backup` a second one tried next. */
-export function simulatedContacts({ number, for: forCalls, backup }: Pick<SimulatedOnCall, 'number' | 'for' | 'backup'>): TransferContact[] {
+export function simulatedContacts({
+  number,
+  for: forCalls,
+  backup,
+}: Pick<SimulatedOnCall, 'number' | 'for' | 'backup'>): TransferContact[] {
   const first = simulatedContact(number, forCalls)
   if (!backup) return [first]
   return [
@@ -148,7 +179,16 @@ export function simulatedContacts({ number, for: forCalls, backup }: Pick<Simula
 export const simulatedContact = (number: string, forCalls: SimulatedOnCall['for'] = 'urgent'): TransferContact =>
   forCalls === 'person'
     ? { ...DEFAULT_TRANSFERS[0]!, name: 'Mike', number, hours_only: false }
-    : { id: 'oncall', name: 'Mike', number, condition: 'Urgent: a burst pipe, flooding, a gas smell or no heat in freezing weather', hours_only: false, ring_seconds: 25, if_no_answer: 'message', enabled: true }
+    : {
+        id: 'oncall',
+        name: 'Mike',
+        number,
+        condition: 'Urgent: a burst pipe, flooding, a gas smell or no heat in freezing weather',
+        hours_only: false,
+        ring_seconds: 25,
+        if_no_answer: 'message',
+        enabled: true,
+      }
 
 /** What a test room's job metadata may carry: the workspace, and settings the call test uses instead of the assistant's. */
 type TestMetadata = {
@@ -161,12 +201,19 @@ type TestMetadata = {
   simulateTransfer?: boolean
   /** Languages besides English the assistant speaks on this test call. */
   languages?: Language[]
+  /** How this test call is answered instead of the assistant's own choice (call-test --pipeline). */
+  pipeline?: VoicePipeline
 }
 
 export async function startCall(api: ApiClient, origin: CallOrigin): Promise<CallSession> {
-  const { data } = origin.kind === 'phone'
-    ? await api.run(callStart, { from: origin.from, to: origin.to, room: origin.room })
-    : await api.run(callStartTest, { room: origin.room, ...(origin.assistantId ? { assistantId: origin.assistantId } : {}) }, { workspaceId: origin.workspaceId })
+  const { data } =
+    origin.kind === 'phone'
+      ? await api.run(callStart, { from: origin.from, to: origin.to, room: origin.room })
+      : await api.run(
+          callStartTest,
+          { room: origin.room, ...(origin.assistantId ? { assistantId: origin.assistantId } : {}) },
+          { workspaceId: origin.workspaceId },
+        )
   const started = data as StartData
   const { callId, workspaceId, contact, blocked = false, busy = false, overCap = false } = started
   const scope = { workspaceId, ...(started.callToken ? { token: started.callToken } : {}) }
@@ -175,22 +222,37 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   const outsideGreeting = origin.kind === 'test' ? origin.outsideGreeting : undefined
   const onCall = origin.kind === 'test' ? origin.onCall : undefined
   const languages = origin.kind === 'test' ? origin.languages : undefined
-  const configured = started.assistant && (outsideGreeting || onCall || languages)
-    ? {
-        ...started.assistant,
-        ...(outsideGreeting ? { greeting_outside: outsideGreeting } : {}),
-        ...(onCall ? { transfers: simulatedContacts(onCall) } : {}),
-        ...(languages ? { languages: { mode: 'allowed' as const, allowed: languages } } : {}),
-      }
-    : started.assistant
+  const pipeline = origin.kind === 'test' ? origin.pipeline : undefined
+  const configured =
+    started.assistant && (outsideGreeting || onCall || languages || pipeline)
+      ? {
+          ...started.assistant,
+          ...(outsideGreeting ? { greeting_outside: outsideGreeting } : {}),
+          ...(onCall ? { transfers: simulatedContacts(onCall) } : {}),
+          ...(languages ? { languages: { mode: 'allowed' as const, allowed: languages } } : {}),
+          ...(pipeline ? { voice_pipeline: pipeline } : {}),
+        }
+      : started.assistant
   // The greeting and instructions that apply now: outside business hours, the outside variants.
   // …with the AI note (and in the consent mode the question) the owner chose for the start of the call.
-  const assistant = withRecordingNotice(withAiNote(forHours(inMainLanguage(configured), businessHours)), started.recordingNotice)
+  const assistant = withRecordingNotice(
+    withAiNote(forHours(inMainLanguage(configured), businessHours)),
+    started.recordingNotice,
+  )
   const caller = callerOf(contact, started.callerHistory)
   const booking = started.booking ?? null
   const startedAt = Date.now()
   return {
-    callId, ...scope, assistant, contact, blocked, busy, overCap, businessHours, booking, caller,
+    callId,
+    ...scope,
+    assistant,
+    contact,
+    blocked,
+    busy,
+    overCap,
+    businessHours,
+    booking,
+    caller,
     timeZone: started.timeZone ?? booking?.timeZone ?? null,
     keepRecording: started.keepRecording !== false,
     lookups: started.lookups ?? [],
@@ -216,7 +278,9 @@ export const TEST_CALL_ON_CALL_LINE =
 function simulatedOnCallOf(origin: CallOrigin): Pick<CallSession, 'simulatedOnCall' | 'simulatedOnCallLine'> {
   if (origin.kind !== 'test') return { simulatedOnCall: null }
   if (origin.onCall) return { simulatedOnCall: origin.onCall.answer }
-  return origin.simulateTransfer ? { simulatedOnCall: 'accept', simulatedOnCallLine: TEST_CALL_ON_CALL_LINE } : { simulatedOnCall: null }
+  return origin.simulateTransfer
+    ? { simulatedOnCall: 'accept', simulatedOnCallLine: TEST_CALL_ON_CALL_LINE }
+    : { simulatedOnCall: null }
 }
 
 /**
@@ -238,14 +302,30 @@ export function callOrigin(jobMetadata: string, attributes: Record<string, strin
 export function parseTestMetadata(metadata: string): TestMetadata | null {
   if (!metadata) return null
   try {
-    const parsed = JSON.parse(metadata) as { source?: unknown; workspaceId?: unknown; assistantId?: unknown; businessHours?: unknown; outsideGreeting?: unknown; onCall?: unknown; simulateTransfer?: unknown; languages?: unknown }
+    const parsed = JSON.parse(metadata) as {
+      source?: unknown
+      workspaceId?: unknown
+      assistantId?: unknown
+      businessHours?: unknown
+      outsideGreeting?: unknown
+      onCall?: unknown
+      simulateTransfer?: unknown
+      languages?: unknown
+      pipeline?: unknown
+    }
     if (parsed.source !== 'test' || typeof parsed.workspaceId !== 'string' || !parsed.workspaceId) return null
     const hours = parsed.businessHours as Partial<BusinessHours> | undefined
-    const businessHours = hours && typeof hours.openNow === 'boolean' && typeof hours.summary === 'string' ? { openNow: hours.openNow, summary: hours.summary } : undefined
+    const businessHours =
+      hours && typeof hours.openNow === 'boolean' && typeof hours.summary === 'string'
+        ? { openNow: hours.openNow, summary: hours.summary }
+        : undefined
     const assistantId = typeof parsed.assistantId === 'string' && parsed.assistantId ? parsed.assistantId : undefined
-    const outsideGreeting = typeof parsed.outsideGreeting === 'string' && parsed.outsideGreeting ? parsed.outsideGreeting : undefined
+    const outsideGreeting =
+      typeof parsed.outsideGreeting === 'string' && parsed.outsideGreeting ? parsed.outsideGreeting : undefined
     const onCall = parseSimulatedOnCall(parsed.onCall)
-    const languages = Array.isArray(parsed.languages) ? languageCodes.filter(code => code !== 'en').filter(code => (parsed.languages as unknown[]).includes(code)) : []
+    const languages = Array.isArray(parsed.languages)
+      ? languageCodes.filter(code => code !== 'en').filter(code => (parsed.languages as unknown[]).includes(code))
+      : []
     return {
       workspaceId: parsed.workspaceId,
       ...(assistantId ? { assistantId } : {}),
@@ -254,6 +334,9 @@ export function parseTestMetadata(metadata: string): TestMetadata | null {
       ...(onCall ? { onCall } : {}),
       ...(parsed.simulateTransfer === true ? { simulateTransfer: true } : {}),
       ...(languages.length ? { languages } : {}),
+      ...((VOICE_PIPELINES as readonly unknown[]).includes(parsed.pipeline)
+        ? { pipeline: parsed.pipeline as VoicePipeline }
+        : {}),
     }
   } catch {
     return null
@@ -264,5 +347,10 @@ function parseSimulatedOnCall(value: unknown): SimulatedOnCall | undefined {
   const v = value as Partial<SimulatedOnCall> | undefined
   if (!v || typeof v.number !== 'string' || !/^\+\d{8,15}$/.test(v.number)) return undefined
   if (!simulatedAnswers.includes(v.answer as SimulatedAnswer)) return undefined
-  return { answer: v.answer as SimulatedAnswer, number: v.number, ...(v.for === 'person' ? { for: 'person' as const } : {}), ...(v.backup === true ? { backup: true } : {}) }
+  return {
+    answer: v.answer as SimulatedAnswer,
+    number: v.number,
+    ...(v.for === 'person' ? { for: 'person' as const } : {}),
+    ...(v.backup === true ? { backup: true } : {}),
+  }
 }

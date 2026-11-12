@@ -6,24 +6,57 @@ import { z } from 'zod'
 import { AI_DISCLOSURE_LABELS, BEHAVIOURS, behaviourOn, COMMUNICATION_STYLE_LABELS } from './assistant-prompt.ts'
 import { defineAction } from './define.ts'
 import { LANGUAGES, type Language, languageNames, mainLanguageOf, otherLanguagesOf } from './languages.ts'
-import { silenceClosingOf, silenceReminderOf, talkingSpeedLabel, talkingSpeedPctOf } from './settings.ts'
+import {
+  silenceClosingOf,
+  silenceReminderOf,
+  talkingSpeedLabel,
+  talkingSpeedPctOf,
+  VOICE_PIPELINE_LABELS,
+} from './settings.ts'
 
 /** The assistant's columns a version keeps: everything that changes a call. */
 export const VERSIONED_FIELDS = [
-  'name', 'greeting', 'greeting_outside', 'ai_disclosure', 'communication_style', 'behaviours',
-  'business_profile', 'transfers', 'voice', 'languages',
-  'silence_first_gap_s', 'silence_reminders', 'silence_hang_up_s', 'max_call_minutes', 'silence_reminder', 'silence_closing', 'record_calls', 'talking_speed', 'talking_speed_pct',
+  'name',
+  'greeting',
+  'greeting_outside',
+  'ai_disclosure',
+  'communication_style',
+  'behaviours',
+  'business_profile',
+  'transfers',
+  'voice',
+  'languages',
+  'silence_first_gap_s',
+  'silence_reminders',
+  'silence_hang_up_s',
+  'max_call_minutes',
+  'silence_reminder',
+  'silence_closing',
+  'record_calls',
+  'talking_speed',
+  'talking_speed_pct',
+  'voice_pipeline',
 ] as const satisfies readonly (keyof Assistant)[]
 export type VersionedField = (typeof VERSIONED_FIELDS)[number]
 
 /** A calendar the assistant books into, as a version keeps it; matched to a linked one by account and calendar id. */
-export type VersionCalendar = Pick<AssistantCalendar, 'connection_id' | 'external_id' | 'name' | 'instruction' | 'enabled' | 'is_default'>
+export type VersionCalendar = Pick<
+  AssistantCalendar,
+  'connection_id' | 'external_id' | 'name' | 'instruction' | 'enabled' | 'is_default'
+>
 export type AssistantSnapshot = Pick<Assistant, VersionedField> & { calendars: VersionCalendar[] }
 
 export function snapshotOf(a: Assistant, calendars: readonly AssistantCalendar[]): AssistantSnapshot {
   const fields = Object.fromEntries(VERSIONED_FIELDS.map(k => [k, a[k] ?? null])) as Pick<Assistant, VersionedField>
   const kept = calendars
-    .map(c => ({ connection_id: c.connection_id, external_id: c.external_id, name: c.name, instruction: c.instruction, enabled: c.enabled, is_default: c.is_default }))
+    .map(c => ({
+      connection_id: c.connection_id,
+      external_id: c.external_id,
+      name: c.name,
+      instruction: c.instruction,
+      enabled: c.enabled,
+      is_default: c.is_default,
+    }))
     .sort((x, y) => `${x.connection_id}/${x.external_id}`.localeCompare(`${y.connection_id}/${y.external_id}`))
   return { ...fields, calendars: kept }
 }
@@ -33,7 +66,8 @@ export function storedSnapshot(settings: unknown): AssistantSnapshot {
   const stored = settings as Record<string, unknown>
   const fields = Object.fromEntries(VERSIONED_FIELDS.filter(k => k in stored).map(k => [k, stored[k]]))
   // A version from before percentages has only the old speed: its percentage, so restoring it brings the speed back.
-  if ('talking_speed' in stored && !('talking_speed_pct' in stored)) fields.talking_speed_pct = talkingSpeedPctOf(stored as Parameters<typeof talkingSpeedPctOf>[0])
+  if ('talking_speed' in stored && !('talking_speed_pct' in stored))
+    fields.talking_speed_pct = talkingSpeedPctOf(stored as Parameters<typeof talkingSpeedPctOf>[0])
   return { ...fields, calendars: stored.calendars ?? [] } as AssistantSnapshot
 }
 
@@ -41,7 +75,9 @@ export function storedSnapshot(settings: unknown): AssistantSnapshot {
 export function stableJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`
   if (value && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>).filter(([, v]) => v !== undefined).sort(([a], [b]) => a.localeCompare(b))
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => a.localeCompare(b))
     return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableJson(v)}`).join(',')}}`
   }
   return JSON.stringify(value ?? null)
@@ -56,25 +92,71 @@ export type VersionPart = { id: string; label: string; text: (s: AssistantSnapsh
 export const VERSION_PARTS: readonly VersionPart[] = [
   { id: 'name', label: 'Name', text: s => s.name },
   { id: 'greeting', label: 'Greeting', text: s => s.greeting },
-  { id: 'greeting_outside', label: 'Greeting outside business hours', text: s => s.greeting_outside || 'Same as during hours' },
-  { id: 'ai_disclosure', label: 'Says it is an AI', text: s => AI_DISCLOSURE_LABELS[s.ai_disclosure] ?? s.ai_disclosure },
-  { id: 'communication_style', label: 'Style', text: s => COMMUNICATION_STYLE_LABELS[s.communication_style] ?? s.communication_style },
-  { id: 'behaviours', label: 'Checklist', text: s => BEHAVIOURS.map(b => `${onOff(behaviourOn(s.behaviours, b.id))}: ${b.label}`).join('\n') },
+  {
+    id: 'greeting_outside',
+    label: 'Greeting outside business hours',
+    text: s => s.greeting_outside || 'Same as during hours',
+  },
+  {
+    id: 'ai_disclosure',
+    label: 'Says it is an AI',
+    text: s => AI_DISCLOSURE_LABELS[s.ai_disclosure] ?? s.ai_disclosure,
+  },
+  {
+    id: 'communication_style',
+    label: 'Style',
+    text: s => COMMUNICATION_STYLE_LABELS[s.communication_style] ?? s.communication_style,
+  },
+  {
+    id: 'behaviours',
+    label: 'Checklist',
+    text: s => BEHAVIOURS.map(b => `${onOff(behaviourOn(s.behaviours, b.id))}: ${b.label}`).join('\n'),
+  },
   {
     id: 'about',
     label: 'About the business',
     text: ({ business_profile: p }) =>
-      lines(p.instructions, !p.instructions?.trim() && lines(p.description, p.service_area && `Service area: ${p.service_area}`, p.address && `Address: ${p.address}`, p.hours && `Hours: ${p.hours}`)) || 'Empty',
+      lines(
+        p.instructions,
+        !p.instructions?.trim() &&
+          lines(
+            p.description,
+            p.service_area && `Service area: ${p.service_area}`,
+            p.address && `Address: ${p.address}`,
+            p.hours && `Hours: ${p.hours}`,
+          ),
+      ) || 'Empty',
   },
   {
     id: 'transfers',
     label: 'Transfer contacts',
     text: s =>
       (s.transfers ?? [])
-        .map(c => [c.name, c.number ?? 'no number', c.condition, c.hours_only && 'only while open', `rings ${c.ring_seconds} s`, `if no answer: ${NO_ANSWER[c.if_no_answer] ?? c.if_no_answer}`, !c.enabled && 'off'].filter(Boolean).join(' · '))
+        .map(c =>
+          [
+            c.name,
+            c.number ?? 'no number',
+            c.condition,
+            c.hours_only && 'only while open',
+            `rings ${c.ring_seconds} s`,
+            `if no answer: ${NO_ANSWER[c.if_no_answer] ?? c.if_no_answer}`,
+            !c.enabled && 'off',
+          ]
+            .filter(Boolean)
+            .join(' · '),
+        )
         .join('\n') || 'None',
   },
-  { id: 'voice', label: 'Voice', text: s => `${s.voice.provider}${s.voice.voice_id ? ` · ${s.voice.voice_id}` : ' · default voice'}` },
+  {
+    id: 'voice_pipeline',
+    label: 'Answered by',
+    text: s => (s.voice_pipeline ? VOICE_PIPELINE_LABELS[s.voice_pipeline] : 'Install default'),
+  },
+  {
+    id: 'voice',
+    label: 'Voice',
+    text: s => `${s.voice.provider}${s.voice.voice_id ? ` · ${s.voice.voice_id}` : ' · default voice'}`,
+  },
   {
     id: 'languages',
     label: 'Languages',
@@ -88,20 +170,35 @@ export const VERSION_PARTS: readonly VersionPart[] = [
   {
     id: 'silence',
     label: 'Silence on the line',
-    text: s => lines(`Asks every ${s.silence_first_gap_s} s, ${s.silence_reminders} times`, `Asks: ${silenceReminderOf(s.silence_reminder)}`),
+    text: s =>
+      lines(
+        `Asks every ${s.silence_first_gap_s} s, ${s.silence_reminders} times`,
+        `Asks: ${silenceReminderOf(s.silence_reminder)}`,
+      ),
   },
   {
     id: 'hang_up',
     label: 'Hanging up',
-    text: s => lines(`After ${s.silence_hang_up_s ?? 'the default'} s of silence`, `Longest call: ${s.max_call_minutes ?? 'the default'} min`, `Says: ${silenceClosingOf(s.silence_closing)}`),
+    text: s =>
+      lines(
+        `After ${s.silence_hang_up_s ?? 'the default'} s of silence`,
+        `Longest call: ${s.max_call_minutes ?? 'the default'} min`,
+        `Says: ${silenceClosingOf(s.silence_closing)}`,
+      ),
   },
   { id: 'talking_speed', label: 'Talking speed', text: s => talkingSpeedLabel(talkingSpeedPctOf(s)) },
-  { id: 'record_calls', label: 'Recording', text: s => (s.record_calls ? 'Calls are recorded' : 'Calls are not recorded') },
+  {
+    id: 'record_calls',
+    label: 'Recording',
+    text: s => (s.record_calls ? 'Calls are recorded' : 'Calls are not recorded'),
+  },
   {
     id: 'calendars',
     label: 'Booking calendars',
     text: s =>
-      (s.calendars ?? []).map(c => [c.name, c.is_default && 'default', c.instruction, !c.enabled && 'off'].filter(Boolean).join(' · ')).join('\n') || 'None',
+      (s.calendars ?? [])
+        .map(c => [c.name, c.is_default && 'default', c.instruction, !c.enabled && 'off'].filter(Boolean).join(' · '))
+        .join('\n') || 'None',
   },
 ]
 
@@ -112,7 +209,11 @@ export const changedParts = (before: AssistantSnapshot, after: AssistantSnapshot
   VERSION_PARTS.filter(p => p.text(before) !== p.text(after))
 
 /** What a new version changed, in a few words: "Greeting, FAQs and Transfer contacts". */
-export function versionSummary(before: AssistantSnapshot | null, after: AssistantSnapshot, restoredFrom?: number | null): string {
+export function versionSummary(
+  before: AssistantSnapshot | null,
+  after: AssistantSnapshot,
+  restoredFrom?: number | null,
+): string {
   if (restoredFrom) return `Restored version ${restoredFrom}`
   if (!before) return 'Settings as they were'
   const labels = changedParts(before, after).map(p => p.label)
@@ -130,7 +231,8 @@ export function lineDiff(oldText: string, newText: string): DiffLine[] {
   const b = newText.split('\n')
   const lcs = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0))
   for (let i = a.length - 1; i >= 0; i--)
-    for (let j = b.length - 1; j >= 0; j--) lcs[i]![j] = a[i] === b[j] ? lcs[i + 1]![j + 1]! + 1 : Math.max(lcs[i + 1]![j]!, lcs[i]![j + 1]!)
+    for (let j = b.length - 1; j >= 0; j--)
+      lcs[i]![j] = a[i] === b[j] ? lcs[i + 1]![j + 1]! + 1 : Math.max(lcs[i + 1]![j]!, lcs[i]![j + 1]!)
   const out: DiffLine[] = []
   let i = 0
   let j = 0
@@ -139,7 +241,8 @@ export function lineDiff(oldText: string, newText: string): DiffLine[] {
       out.push({ kind: 'same', text: a[i]! })
       i++
       j++
-    } else if (i < a.length && (j >= b.length || lcs[i + 1]![j]! >= lcs[i]![j + 1]!)) out.push({ kind: 'old', text: a[i++]! })
+    } else if (i < a.length && (j >= b.length || lcs[i + 1]![j]! >= lcs[i]![j + 1]!))
+      out.push({ kind: 'old', text: a[i++]! })
     else out.push({ kind: 'new', text: b[j++]! })
   }
   return out
@@ -150,13 +253,20 @@ const versionNumber = z.number().int().min(1)
 
 export const assistantVersions = defineAction({
   name: 'assistant.versions',
-  description: "List the assistant's saved versions, newest first: number, when, who, what changed. `current` is the version calls use now.",
+  description:
+    "List the assistant's saved versions, newest first: number, when, who, what changed. `current` is the version calls use now.",
   input: z.object({ assistantId }),
   permission: 'settings:write',
   readOnly: true,
 })
 /** One row of the History list. `by`: the user's name (or email); null when Linedesk wrote it. */
-export type AssistantVersionItem = { number: number; summary: string; created_at: string; by: string | null; restored_from: number | null }
+export type AssistantVersionItem = {
+  number: number
+  summary: string
+  created_at: string
+  by: string | null
+  restored_from: number | null
+}
 /** `data` of `assistant.versions`. */
 export type AssistantVersionsData = { versions: AssistantVersionItem[]; current: number | null }
 

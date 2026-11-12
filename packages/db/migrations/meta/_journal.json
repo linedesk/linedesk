@@ -519,6 +519,13 @@
       "when": 1794522590769,
       "tag": "0073_calls_from_own_number",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1794526967248,
+      "tag": "0074_assistant_voice_pipeline",
+      "breakpoints": true
     }
   ]
 }

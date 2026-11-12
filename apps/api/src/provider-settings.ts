@@ -6,6 +6,7 @@ import {
   providerNames,
   providerSpec,
   providersIn,
+  type PipelinesSetUp,
   type ProviderCategory,
   type ProviderName,
 } from '@linedesk/actions'
@@ -157,26 +158,29 @@ const entryOf = (provider: ProviderName, config: ProviderConfig, withSecrets = t
   ),
 })
 
-/** Whether a realtime model answers the calls instead of the voice stages: one is connected. Never throws. */
+/** Whether a realtime model is connected: the install default for assistants that chose no pipeline. Never throws. */
 export async function realtimeInUse(tx: Tx, env: Env = serverEnv()): Promise<boolean> {
   return (await activeProvider(tx, 'realtime', env).catch(() => null)) !== null
 }
 
+/** Which pipelines can answer calls: a realtime model, and speech, language model and voice. Never throws. */
+export async function pipelinesSetUp(tx: Tx, env: Env = serverEnv()): Promise<PipelinesSetUp> {
+  const set = async (category: ProviderCategory) => (await activeProvider(tx, category, env).catch(() => null)) !== null
+  // One after the other: the queries share the transaction.
+  let three_stage = true
+  for (const category of voiceCategories) three_stage &&= await set(category)
+  return { realtime: await set('realtime'), three_stage }
+}
+
 /**
- * Whether the server has what the voice agent needs to answer a call: LiveKit in env, and the realtime model
- * when one is picked, else a speech, language model and voice provider. Says nothing about whether the worker
- * runs. Never throws.
+ * Whether the server has what the voice agent needs to answer a call: LiveKit in env, and a realtime model or a
+ * speech, language model and voice provider (an assistant whose choice is not set up uses the other). Says nothing
+ * about whether the worker runs. Never throws.
  */
 export async function voiceReady(tx: Tx, env: Env = serverEnv()): Promise<boolean> {
   if (!env.LIVEKIT_URL || !env.LIVEKIT_API_KEY || !env.LIVEKIT_API_SECRET) return false
-  try {
-    const needed = (await realtimeInUse(tx, env)) ? (['realtime'] as const) : voiceCategories
-    for (const category of needed) if (!(await activeProvider(tx, category, env))) return false
-    return true
-  } catch (e) {
-    console.error('voice readiness check failed', e)
-    return false
-  }
+  const setUp = await pipelinesSetUp(tx, env)
+  return setUp.realtime || setUp.three_stage
 }
 
 /**

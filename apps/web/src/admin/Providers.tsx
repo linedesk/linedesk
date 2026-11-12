@@ -6,10 +6,13 @@
 import {
   categoryNames,
   isMultiCategory,
+  type PipelinesSetUp,
   type ProviderCategory,
   providerCategories,
   type ProviderName,
   type ProviderTestData,
+  VOICE_PIPELINE_LABELS,
+  type VoicePipeline,
 } from '@linedesk/actions'
 import { useEffect, useRef, useState } from 'react'
 import { HelpTip } from '../ui/form.tsx'
@@ -139,6 +142,34 @@ const pageSections: PageSection[] = categoryNames.flatMap((category): PageSectio
     : [{ id: category, title: providerCategories[category], category }],
 )
 
+/**
+ * Which ways of answering calls are set up: the realtime model, and the three stages (speech to text, language model,
+ * voice). Each assistant picks one under Settings › Assistant; one that is not set up falls back to the other.
+ */
+function PipelinesNote({ active }: { active: ActiveProviders }) {
+  const setUp: PipelinesSetUp = {
+    realtime: !!active.realtime?.provider,
+    three_stage: STAGE_CATEGORIES.every(c => !!active[c]?.provider),
+  }
+  const missing = STAGE_CATEGORIES.filter(c => !active[c]?.provider).map(c => providerCategories[c].toLowerCase())
+  const state = (pipeline: VoicePipeline) => (setUp[pipeline] ? 'set up' : 'not set up')
+  return (
+    <p className="adm-notice" role="note">
+      Answering calls: {VOICE_PIPELINE_LABELS.realtime} {state('realtime')};{' '}
+      {VOICE_PIPELINE_LABELS.three_stage.toLowerCase()}{' '}
+      {setUp.three_stage ? 'set up' : missing.length < 3 ? `missing ${missing.join(' and ')}` : 'not set up'}.{' '}
+      {setUp.realtime && setUp.three_stage
+        ? 'Each assistant picks one under Settings, Assistant (realtime by default).'
+        : setUp.realtime || setUp.three_stage
+          ? `Every assistant uses the ${(setUp.realtime ? VOICE_PIPELINE_LABELS.realtime : VOICE_PIPELINE_LABELS.three_stage).toLowerCase()}.`
+          : 'Calls are not answered until one is set up.'}{' '}
+      <HelpTip text="Realtime model: one model listens and speaks (fast, in its own voice, no transfers). Three stages: speech to text, a language model and a voice of your choice, with warm transfers. With both set up, each assistant chooses." />
+    </p>
+  )
+}
+
+const STAGE_CATEGORIES = ['stt', 'llm', 'tts'] as const satisfies readonly ProviderCategory[]
+
 export function Providers({ providers, active, canStore, notify, reload }: Props) {
   const { tests, record } = useConnectionTests(providers)
   // Back from "Connect with OpenRouter": its dialog opens and finishes the connection.
@@ -183,17 +214,15 @@ export function Providers({ providers, active, canStore, notify, reload }: Props
           <HelpTip text="Whoever runs the server sets SECRETS_KEY (make one with openssl rand -base64 32) and restarts the API. Keys are then saved encrypted." />
         </p>
       )}
+      <PipelinesNote active={active} />
       {pageSections.map(({ id, title, category, only }) => {
         const inSection = providers.filter(p => p.category === category && (!only || only.includes(p.provider)))
         const { provider: inUse } = active[category]
-        // A realtime model answers calls: the three stages are not used for them.
-        const replaced = !!active.realtime?.provider && (category === 'stt' || category === 'llm' || category === 'tts')
         return (
           <section key={id} className="adm-provcat" aria-labelledby={`adm-cat-${id}`}>
             <h2 id={`adm-cat-${id}`}>
               {title}
               {category === 'recording' && !inUse && <span className="adm-provcat-note">Off</span>}
-              {replaced && <span className="adm-provcat-note">Not used: the realtime model answers calls</span>}
               {only && <span className="adm-provcat-note">The same apps as for sign-in: connected once for both</span>}
             </h2>
             <ul className="adm-provlist">

@@ -3,13 +3,39 @@
 // (transfer contacts), booking, voice, and Advanced (silence on the line).
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays and booking save on their own.
-import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, DEFAULT_SILENCE_REMINDER, TALKING_SPEED_PCT_DEFAULT, TALKING_SPEED_PCT_MAX, TALKING_SPEED_PCT_MIN, talkingSpeedLabel, templateNames, type AssistantLanguages, type Language, languageCodes, LANGUAGES } from '@linedesk/actions'
+import {
+  type PipelinesSetUp,
+  pipelineFor,
+  VOICE_PIPELINE_LABELS,
+  type VoiceOptionsData,
+  type VoicePipeline,
+  AI_DISCLOSURE_LABELS,
+  AI_DISCLOSURE_MODES,
+  type AiDisclosure,
+  BEHAVIOURS,
+  COMMUNICATION_STYLE_LABELS,
+  COMMUNICATION_STYLES,
+  disclosesAtStart,
+  greetingWithDisclosure,
+  withDisclosure,
+  withoutDisclosure,
+  DEFAULT_SILENCE_REMINDER,
+  TALKING_SPEED_PCT_DEFAULT,
+  TALKING_SPEED_PCT_MAX,
+  TALKING_SPEED_PCT_MIN,
+  talkingSpeedLabel,
+  templateNames,
+  type AssistantLanguages,
+  type Language,
+  languageCodes,
+  LANGUAGES,
+} from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
 import { onSaveKey, SaveBar } from '../ui/form.tsx'
-import { Checkbox, Select } from '../ui/controls.tsx'
+import { Checkbox, Select, type SelectOption } from '../ui/controls.tsx'
 import { Button } from '../ui/kit.tsx'
 import { LoadProblem, Skeleton, useLoadState } from '../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, sectionHash, useSection } from '../ui/SettingsLayout.tsx'
@@ -71,13 +97,69 @@ const sections: readonly PageSection<SectionId>[] = [
 const sectionsFor = (realtime: boolean) => (realtime ? sections.filter(s => s.id !== 'transfers') : sections)
 
 /** In place of the voice picker while a realtime model answers the calls: it speaks in its own voice. */
-function RealtimeVoice() {
+function RealtimeVoice({ canSwitch }: { canSwitch: boolean }) {
   return (
     <Section id="as-voice" title="Voice">
       <span className="help">
-        Calls are answered by a realtime model, which speaks in its own voice. An instance admin sets it under Admin,
-        Providers.
+        The realtime model speaks in its own voice, set by an instance admin under Admin, Providers.
+        {canSwitch && ' To pick a voice here, answer calls with three stages above.'}
       </span>
+    </Section>
+  )
+}
+
+const pipelineOptions: SelectOption<VoicePipeline>[] = [
+  {
+    value: 'realtime',
+    label: VOICE_PIPELINE_LABELS.realtime,
+    description: 'One model listens and speaks: the fastest replies, in its own voice, no transfers',
+  },
+  {
+    value: 'three_stage',
+    label: VOICE_PIPELINE_LABELS.three_stage,
+    description: 'Speech to text, a language model and the voice you pick, with warm transfers',
+  },
+]
+
+/** Which pipelines the install has set up; an API of an older version only says whether a realtime model is connected. */
+function pipelinesOf(options: VoiceOptionsData | undefined): PipelinesSetUp | null {
+  if (!options) return null
+  return options.pipelines ?? { realtime: options.realtime === true, three_stage: options.realtime !== true }
+}
+
+/**
+ * How the assistant's calls are answered: a choice when both pipelines are set up, else which one answers and why.
+ * Nothing while it is not known yet.
+ */
+function PipelineSection({ draft, set, setUp }: SectionProps & { setUp: PipelinesSetUp | null }) {
+  if (!setUp) return null
+  const used = pipelineFor(draft.voice_pipeline, setUp)
+  if (setUp.realtime && setUp.three_stage) {
+    return (
+      <Section id="as-pipeline" title="Answering calls">
+        <SelectRow
+          id="as-pipeline-select"
+          title="Answered by"
+          description={
+            used === 'realtime'
+              ? "Fastest replies, in the realtime model's own voice; calls are not put through"
+              : 'Speech to text, a language model and the voice below; calls can be put through'
+          }
+          value={used}
+          options={pipelineOptions}
+          onChange={pipeline => set('voice_pipeline', pipeline)}
+        />
+      </Section>
+    )
+  }
+  const other: VoicePipeline = used === 'realtime' ? 'three_stage' : 'realtime'
+  const text =
+    !setUp.realtime && !setUp.three_stage
+      ? 'Calls are not answered yet: an instance admin sets up a realtime model, or speech to text, a language model and a voice, under Admin, Providers.'
+      : `Calls are answered by the ${VOICE_PIPELINE_LABELS[used].toLowerCase()}: no ${VOICE_PIPELINE_LABELS[other].toLowerCase()} is set up${draft.voice_pipeline === other ? ', so the choice of it is not used now' : ''}. An instance admin sets it up under Admin, Providers.`
+  return (
+    <Section id="as-pipeline" title="Answering calls">
+      <span className="help">{text}</span>
     </Section>
   )
 }
@@ -87,10 +169,18 @@ type OwnSection = 'hours' | 'booking' | 'webhooks'
 /** Which draft fields each section holds. */
 const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   business: ['instructions', 'website'],
-  general: ['name', 'greeting', 'greeting_outside', 'languages', 'voice'],
+  general: ['name', 'greeting', 'greeting_outside', 'languages', 'voice_pipeline', 'voice'],
   rules: ['ai_disclosure', 'communication_style', 'behaviours'],
   transfers: ['transfers'],
-  advanced: ['talking_speed_pct', 'silence_first_gap_s', 'silence_reminders', 'silence_hang_up_s', 'max_call_minutes', 'silence_reminder', 'silence_closing'],
+  advanced: [
+    'talking_speed_pct',
+    'silence_first_gap_s',
+    'silence_reminders',
+    'silence_hang_up_s',
+    'max_call_minutes',
+    'silence_reminder',
+    'silence_closing',
+  ],
 }
 /** Section ids from before the regrouping, so old links and bookmarks still land in the right place. */
 const OLD_SECTIONS: Record<string, SectionId> = {
@@ -153,7 +243,13 @@ function AssistantNameSection({ draft, set }: SectionProps) {
   return (
     <Section id="as-name-section">
       <Field id="as-name" label="Assistant name" error={problem}>
-        <TextInput id="as-name" value={draft.name} onChange={v => set('name', v)} invalid={!!problem} placeholder="Maya" />
+        <TextInput
+          id="as-name"
+          value={draft.name}
+          onChange={v => set('name', v)}
+          invalid={!!problem}
+          placeholder="Maya"
+        />
       </Field>
     </Section>
   )
@@ -224,7 +320,9 @@ function Greeting({
             onChange={v => set('greeting_outside', v)}
             placeholder={draft.greeting}
           />
-          {!draft.greeting_outside.trim() && <span className="help">Empty: the same greeting as during business hours.</span>}
+          {!draft.greeting_outside.trim() && (
+            <span className="help">Empty: the same greeting as during business hours.</span>
+          )}
           <CallerDetailsHint greeting={draft.greeting_outside} />
         </Field>
       )}
@@ -245,7 +343,11 @@ function Greeting({
  */
 function CallerDetailsHint({ greeting }: { greeting: string }) {
   if (!templateNames(greeting).length) return null
-  return <span className="help">Said before the caller says who they are, to anyone calling from that number: use only details they may hear.</span>
+  return (
+    <span className="help">
+      Said before the caller says who they are, to anyone calling from that number: use only details they may hear.
+    </span>
+  )
 }
 
 /** The behaviour checklist: plain-language switches that add a line to the assistant's instructions. */
@@ -291,11 +393,17 @@ const styleOptions = COMMUNICATION_STYLES.map(style => ({ value: style, label: C
 function AiDisclosureRow({ draft, set }: SectionProps) {
   function pick(mode: AiDisclosure) {
     set('ai_disclosure', mode)
-    set('greeting', disclosesAtStart(mode) ? withDisclosure(draft.greeting, draft.name, mainOf(draft)) : withoutDisclosure(draft.greeting, draft.name, mainOf(draft)))
+    set(
+      'greeting',
+      disclosesAtStart(mode)
+        ? withDisclosure(draft.greeting, draft.name, mainOf(draft))
+        : withoutDisclosure(draft.greeting, draft.name, mainOf(draft)),
+    )
   }
-  const heard = disclosesAtStart(draft.ai_disclosure) && draft.greeting.trim()
-    ? greetingWithDisclosure(draft.greeting, draft.name, draft.ai_disclosure, mainOf(draft))
-    : null
+  const heard =
+    disclosesAtStart(draft.ai_disclosure) && draft.greeting.trim()
+      ? greetingWithDisclosure(draft.greeting, draft.name, draft.ai_disclosure, mainOf(draft))
+      : null
   return (
     <SelectRow
       id="as-ai-disclosure"
@@ -311,7 +419,11 @@ function AiDisclosureRow({ draft, set }: SectionProps) {
 
 const languageOptions = languageCodes.map(code => ({ value: code, label: LANGUAGES[code] }))
 const alsoModes = (main: string): { value: AssistantLanguages['mode']; label: string; description: string }[] => [
-  { value: 'english', label: 'None', description: `Other languages: answered in ${main}, with an offer to take a message` },
+  {
+    value: 'english',
+    label: 'None',
+    description: `Other languages: answered in ${main}, with an offer to take a message`,
+  },
   { value: 'allowed', label: 'These languages', description: 'Switches only to the ones you pick' },
   { value: 'any', label: 'Any supported language', description: 'Every language listed below' },
 ]
@@ -322,7 +434,10 @@ function Languages({ draft, set, onMainLanguage }: SectionProps & { onMainLangua
   const others = pickedOthers(draft)
   const problem = languagesProblem(draft)
   const toggle = (code: Language, on: boolean) =>
-    set('languages', { ...draft.languages, allowed: languageCodes.filter(c => c !== main && (c === code ? on : others.includes(c))) })
+    set('languages', {
+      ...draft.languages,
+      allowed: languageCodes.filter(c => c !== main && (c === code ? on : others.includes(c))),
+    })
   return (
     <Section
       id="as-languages"
@@ -331,19 +446,38 @@ function Languages({ draft, set, onMainLanguage }: SectionProps & { onMainLangua
     >
       <div className="as-languages-row">
         <Field id="as-languages-main" label="Main language">
-          <Select id="as-languages-main" label="Main language" value={main} options={languageOptions} onChange={onMainLanguage} />
+          <Select
+            id="as-languages-main"
+            label="Main language"
+            value={main}
+            options={languageOptions}
+            onChange={onMainLanguage}
+          />
         </Field>
         <Field id="as-languages-mode" label="Also speak">
-          <Select id="as-languages-mode" label="Also speak" value={mode} options={alsoModes(LANGUAGES[main])} onChange={m => set('languages', { ...draft.languages, mode: m })} />
+          <Select
+            id="as-languages-mode"
+            label="Also speak"
+            value={mode}
+            options={alsoModes(LANGUAGES[main])}
+            onChange={m => set('languages', { ...draft.languages, mode: m })}
+          />
         </Field>
       </div>
       {mode !== 'english' && (
         <div className="as-languages" role="group" aria-label={`Languages besides ${LANGUAGES[main]}`}>
-          {languageCodes.filter(code => code !== main).map(code => (
-            <Checkbox key={code} checked={mode === 'any' || others.includes(code)} disabled={mode === 'any'} onChange={on => toggle(code, on)}>
-              {LANGUAGES[code]}
-            </Checkbox>
-          ))}
+          {languageCodes
+            .filter(code => code !== main)
+            .map(code => (
+              <Checkbox
+                key={code}
+                checked={mode === 'any' || others.includes(code)}
+                disabled={mode === 'any'}
+                onChange={on => toggle(code, on)}
+              >
+                {LANGUAGES[code]}
+              </Checkbox>
+            ))}
         </div>
       )}
       {/* An error, not a hint: Save is refused until it is fixed. */}
@@ -365,7 +499,11 @@ function TalkingSpeedSection({ draft, set }: SectionProps) {
       id="as-speed"
       title="Talking speed"
       help="Applies from the next call. Normal is the voice's own pace; arrow keys move the slider by 1%."
-      actions={<span className={pct === TALKING_SPEED_PCT_DEFAULT ? 'as-speed-value' : 'as-speed-value is-changed'}>{label}</span>}
+      actions={
+        <span className={pct === TALKING_SPEED_PCT_DEFAULT ? 'as-speed-value' : 'as-speed-value is-changed'}>
+          {label}
+        </span>
+      }
     >
       <div className="as-speed">
         <input
@@ -407,9 +545,17 @@ function TimeZoneSection({ canEdit }: { canEdit: boolean }) {
     void run('workspace.updateSettings', { timeZone })
   }
   return (
-    <Section id="as-time-zone" title="Time zone" help="The assistant is told today's date and the time in this zone. Business hours and bookings use it too. Saved at once, for every assistant of the workspace.">
+    <Section
+      id="as-time-zone"
+      title="Time zone"
+      help="The assistant is told today's date and the time in this zone. Business hours and bookings use it too. Saved at once, for every assistant of the workspace."
+    >
       <Field id="as-time-zone-select" label="Where the business is">
-        {zone ? <TimeZoneSelect id="as-time-zone-select" value={zone} onChange={change} disabled={!canEdit} /> : <span className="help">Loading…</span>}
+        {zone ? (
+          <TimeZoneSelect id="as-time-zone-select" value={zone} onChange={change} disabled={!canEdit} />
+        ) : (
+          <span className="help">Loading…</span>
+        )}
       </Field>
     </Section>
   )
@@ -421,24 +567,49 @@ function Advanced({ draft, set }: SectionProps) {
   const name = assistantName(draft)
   return (
     <>
-      <Section id="as-advanced" title="Silence on the line" help={`When nobody speaks, ${name} asks whether the caller is still there, again after the same wait.`}>
+      <Section
+        id="as-advanced"
+        title="Silence on the line"
+        help={`When nobody speaks, ${name} asks whether the caller is still there, again after the same wait.`}
+      >
         <div className="as-silence-row">
           <Field id="as-silence-gap" label="Ask after, seconds" error={errorFor('The first wait')}>
-            <TextInput id="as-silence-gap" value={draft.silence_first_gap_s} onChange={v => set('silence_first_gap_s', v)} />
+            <TextInput
+              id="as-silence-gap"
+              value={draft.silence_first_gap_s}
+              onChange={v => set('silence_first_gap_s', v)}
+            />
           </Field>
           <Field id="as-silence-times" label="Times to ask" error={errorFor('Ask')}>
-            <TextInput id="as-silence-times" value={draft.silence_reminders} onChange={v => set('silence_reminders', v)} />
+            <TextInput
+              id="as-silence-times"
+              value={draft.silence_reminders}
+              onChange={v => set('silence_reminders', v)}
+            />
           </Field>
         </div>
         <Field id="as-silence-reminder" label="What it asks" error={errorFor('The reminder')}>
-          <TextInput id="as-silence-reminder" value={draft.silence_reminder} onChange={v => set('silence_reminder', v)} placeholder={DEFAULT_SILENCE_REMINDER} />
+          <TextInput
+            id="as-silence-reminder"
+            value={draft.silence_reminder}
+            onChange={v => set('silence_reminder', v)}
+            placeholder={DEFAULT_SILENCE_REMINDER}
+          />
         </Field>
         <span className="help">{silenceSummary(draft)}</span>
       </Section>
-      <Section id="as-hang-up" title="Hanging up" help={`${name} ends a call itself when the line stays silent, or when the call gets too long (what the assistant costs). Never once a call was put through to a person.`}>
+      <Section
+        id="as-hang-up"
+        title="Hanging up"
+        help={`${name} ends a call itself when the line stays silent, or when the call gets too long (what the assistant costs). Never once a call was put through to a person.`}
+      >
         <div className="as-silence-row">
           <Field id="as-silence-hang-up" label="After silence, seconds" error={errorFor('Hang up')}>
-            <TextInput id="as-silence-hang-up" value={draft.silence_hang_up_s} onChange={v => set('silence_hang_up_s', v)} />
+            <TextInput
+              id="as-silence-hang-up"
+              value={draft.silence_hang_up_s}
+              onChange={v => set('silence_hang_up_s', v)}
+            />
           </Field>
           <Field id="as-max-call" label="Longest call, minutes" error={errorFor('The longest call')}>
             <TextInput id="as-max-call" value={draft.max_call_minutes} onChange={v => set('max_call_minutes', v)} />
@@ -465,9 +636,7 @@ type FormProps = Props & {
 function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormProps) {
   const run = useRun()
   const page = `assistant/${assistant.id}`
-  const realtime = useVoiceOptions().data?.realtime === true
-  const shown = useMemo(() => sectionsFor(realtime), [realtime])
-  const current = useSection(page, shown)
+  const setUp = pipelinesOf(useVoiceOptions().data)
   const testCall = useTestCall(canEdit, assistant)
   /** A save was refused over a transfer contact: its errors show from then on. */
   const [transferSaveTried, setTransferSaveTried] = useState(false)
@@ -484,6 +653,10 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     if (previous !== saved) setDraft(d => mergeDraft(d, previous, saved))
   }, [saved])
   const set: SectionProps['set'] = (key, value) => setDraft(d => ({ ...d, [key]: value }))
+  // The page follows the pipeline picked here at once, before it is saved: the voice picker and Transfers only for three stages.
+  const realtime = setUp !== null && pipelineFor(draft.voice_pipeline, setUp) === 'realtime'
+  const shown = useMemo(() => sectionsFor(realtime), [realtime])
+  const current = useSection(page, shown)
   const hoursOn = useBusinessHoursOn()
   const changed = dirty
   const unsaved = useMemo(() => {
@@ -530,12 +703,15 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         business_profile: profileOf(clean),
         ...outsideToSave(clean),
         // Only when changed: putting calls through to a number waits for a confirmed email, other edits do not.
-        ...(JSON.stringify(clean.transfers) !== JSON.stringify(normalized(saved).transfers) ? { transfers: transfersToSave(clean) } : {}),
+        ...(JSON.stringify(clean.transfers) !== JSON.stringify(normalized(saved).transfers)
+          ? { transfers: transfersToSave(clean) }
+          : {}),
         ...silenceToSave(clean),
         behaviours: behavioursToSave(clean),
         ...languagesToSave(clean),
         voice: clean.voice,
         talking_speed_pct: clean.talking_speed_pct,
+        voice_pipeline: clean.voice_pipeline,
       })
       setDraft(clean) // the form shows what was saved, so it is not "dirty" any more
     }
@@ -554,10 +730,15 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     const active = catalog.providers.find(p => p.active)?.provider ?? null
     const next = voiceForMainLanguage(catalog.voices, code, draft.voice, active)
     if (!next || (next === 'default' && !active)) return
-    const voice = next === 'default' ? { provider: active!, voice_id: '' } : { provider: next.provider, voice_id: next.id }
+    const voice =
+      next === 'default' ? { provider: active!, voice_id: '' } : { provider: next.provider, voice_id: next.id }
     // Only while that language is still the one picked: a quick second change wins.
     setDraft(d => (mainOf(d) === code ? { ...d, voice } : d))
-    toast(next === 'default' ? 'Voice changed to the default voice, for English. Save to keep it.' : `Voice changed to ${next.name}, a ${LANGUAGES[code]} voice. Save to keep it.`)
+    toast(
+      next === 'default'
+        ? 'Voice changed to the default voice, for English. Save to keep it.'
+        : `Voice changed to ${next.name}, a ${LANGUAGES[code]} voice. Save to keep it.`,
+    )
   }
 
   function cancel() {
@@ -574,22 +755,16 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     <>
       <fieldset className="st-fields" disabled={!canEdit}>
         {current === 'business' && (
-          <Knowledge
-            assistant={assistant}
-            draft={draft}
-            set={set}
-            replace={setDraft}
-            canEdit={canEdit}
-            toast={toast}
-          />
+          <Knowledge assistant={assistant} draft={draft} set={set} replace={setDraft} canEdit={canEdit} toast={toast} />
         )}
         {current === 'general' && (
           <>
             <AssistantNameSection draft={draft} set={set} />
             <Greeting draft={draft} set={set} savedName={assistant.name} hoursOn={hoursOn} canEdit={canEdit} />
             <Languages draft={draft} set={set} onMainLanguage={code => void changeMainLanguage(code)} />
+            <PipelineSection draft={draft} set={set} setUp={setUp} />
             {realtime ? (
-              <RealtimeVoice />
+              <RealtimeVoice canSwitch={setUp?.three_stage === true} />
             ) : (
               <VoiceSettings
                 assistantId={assistant.id}
@@ -695,7 +870,8 @@ function canonicalAssistantHash(assistants: Assistant[]) {
   const section = isAssistant ? parts[1] : parts[0]
   if (!id || !section) return
   // Notifications are your own settings now (Settings › Notifications), not the assistant's.
-  if (section === 'notifications') return history.replaceState(null, '', `#settings/notifications${query ? `?${query}` : ''}`)
+  if (section === 'notifications')
+    return history.replaceState(null, '', `#settings/notifications${query ? `?${query}` : ''}`)
   const next = OLD_SECTIONS[section] ?? section
   if (isAssistant && next === section) return
   history.replaceState(null, '', `#assistant/${id}/${next}${query ? `?${query}` : ''}`)

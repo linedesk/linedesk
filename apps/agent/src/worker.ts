@@ -17,7 +17,7 @@ import { GREETING_WAIT_MS, lookUpCaller, within } from './caller-lookup.ts'
 import { lookupTools } from './lookup-tools.ts'
 import { callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
-import { type AgentConfig, type CallConfig, createConfigLoader, isRealtime, parseProviderSettings, stagesOf } from './config.ts'
+import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, stagesOf } from './config.ts'
 import { AGENT_NAME, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
 import { createPipeline, createRealtimePipeline, createTts, greetingVoice, realtimeLine, summaryLlm, talkingSpeedOf, warmUpLlm, REALTIME_TURNS } from './pipeline.ts'
@@ -478,7 +478,8 @@ async function entry(ctx: JobContext) {
     return ctx.shutdown('assistant not set up')
   }
   setup.mark('providers')
-  const { config } = readiness
+  // The assistant's pipeline (Settings › Assistant); the other one when that is not set up.
+  const config = configForAssistant(readiness.config, call.assistant?.voice_pipeline, line => console.warn(`call ${call.callId}: ${line}`))
   const log = new CallLog(call)
 
   // From here on the call exists and must be finished: on hang-up (session close), on any error

@@ -123,6 +123,12 @@ export const assistants = pgTable(
     behaviours: jsonb('behaviours').$type<Record<string, boolean>>().notNull().default({}),
     /** Languages the assistant speaks with callers: English only (the default), English + an allow-list, or any it supports. */
     languages: jsonb('languages').$type<AssistantLanguages>().notNull().default({ mode: 'english', allowed: [] }),
+    /**
+     * How its calls are answered (VOICE_PIPELINES in @linedesk/actions): a realtime model, or speech to text, language
+     * model and voice. null: the install's default (the realtime model when one is set up). pipelineFor picks the other
+     * one when the chosen one is not set up.
+     */
+    voice_pipeline: text('voice_pipeline', { enum: ['realtime', 'three_stage'] }),
     created_at: createdAt(),
     version: version(),
   },

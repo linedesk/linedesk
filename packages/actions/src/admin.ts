@@ -185,8 +185,8 @@ export const providers = {
     fields: { api_key: apiKey('ELEVENLABS_API_KEY'), ...voiceFields },
   },
   cartesia: { label: 'Cartesia', category: 'tts', fields: { api_key: apiKey('CARTESIA_API_KEY'), ...voiceFields } },
-  // A speech-to-speech model: hears the caller and answers in its own voice. Once connected it answers the calls in
-  // place of the three stages above; disconnecting it goes back to them. The summary after the call goes to
+  // A speech-to-speech model: hears the caller and answers in its own voice. Once connected it is the default for
+  // assistants (each can pick the three stages above instead: `voice_pipeline`). The summary after the call goes to
   // OpenAI's chat API with the same key. Its own key variable: an OPENAI_API_KEY for the language model must not
   // switch calls to realtime.
   openai_realtime: {

@@ -1,10 +1,40 @@
 // The editable copy of the assistant's settings: how it is read from the row, merged with
 // changes that arrive through sync, checked and turned back into what assistant.update takes.
 import {
-  INSTRUCTIONS_MAX, RING_SECONDS_DEFAULT, TRANSFER_CONDITION_MAX,
-  TRANSFER_CONTACTS_MAX, TRANSFER_NAME_MAX, onCallNumberProblem,
-  DEFAULT_SILENCE_CLOSING, DEFAULT_SILENCE_REMINDER, localizedDefault, talkingSpeedPctOf, SILENCE_CLOSING_MAX, SILENCE_FIRST_GAP_MAX_S, SILENCE_FIRST_GAP_MIN_S, SILENCE_REMINDERS_MAX,
-  SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT, SILENCE_HANG_UP_DEFAULT_S, SILENCE_HANG_UP_MAX_S, ASSISTANT_CALL_MAX_MINUTES, BEHAVIOURS, type BehaviourId, behaviourOn, type AiDisclosure, DEFAULT_AI_DISCLOSURE, type CommunicationStyle, DEFAULT_COMMUNICATION_STYLE, type AssistantLanguages, ENGLISH_ONLY, type Language, languageCodes, LANGUAGES, mainLanguageOf, swapDefault,
+  INSTRUCTIONS_MAX,
+  RING_SECONDS_DEFAULT,
+  TRANSFER_CONDITION_MAX,
+  TRANSFER_CONTACTS_MAX,
+  TRANSFER_NAME_MAX,
+  onCallNumberProblem,
+  DEFAULT_SILENCE_CLOSING,
+  DEFAULT_SILENCE_REMINDER,
+  localizedDefault,
+  talkingSpeedPctOf,
+  SILENCE_CLOSING_MAX,
+  SILENCE_FIRST_GAP_MAX_S,
+  SILENCE_FIRST_GAP_MIN_S,
+  SILENCE_REMINDERS_MAX,
+  SILENCE_FIRST_GAP_DEFAULT_S,
+  SILENCE_REMINDERS_DEFAULT,
+  SILENCE_HANG_UP_DEFAULT_S,
+  SILENCE_HANG_UP_MAX_S,
+  ASSISTANT_CALL_MAX_MINUTES,
+  BEHAVIOURS,
+  type BehaviourId,
+  behaviourOn,
+  type AiDisclosure,
+  DEFAULT_AI_DISCLOSURE,
+  type CommunicationStyle,
+  DEFAULT_COMMUNICATION_STYLE,
+  type AssistantLanguages,
+  ENGLISH_ONLY,
+  type Language,
+  languageCodes,
+  LANGUAGES,
+  mainLanguageOf,
+  swapDefault,
+  type VoicePipeline,
 } from '@linedesk/actions'
 import type { Assistant, BusinessProfile, TransferContact } from '@linedesk/db/types'
 import { formatNumber, renameInGreeting, toE164 } from '../onboarding/flow.ts'
@@ -40,6 +70,8 @@ export type Draft = {
   behaviours: Record<BehaviourId, boolean>
   /** Languages besides English; the picked ones are kept while English only is chosen, but saved empty. */
   languages: AssistantLanguages
+  /** How calls are answered; null: the install default (the realtime model when one is set up). */
+  voice_pipeline: VoicePipeline | null
 }
 
 /** A transfer contact as edited: the number as typed (saved as E.164, empty: none yet). */
@@ -53,7 +85,13 @@ const line = (label: string, value?: string) => (value?.trim() ? `${label}: ${va
  * Shown once for an assistant that has no instructions yet, so nothing it knew is lost.
  */
 export function foldProfile(p: BusinessProfile): string {
-  return [line('About', p.description), line('Services', p.services?.filter(s => s.trim()).join(', ')), line('Service area', p.service_area), line('Address', p.address), line('Hours', p.hours)]
+  return [
+    line('About', p.description),
+    line('Services', p.services?.filter(s => s.trim()).join(', ')),
+    line('Service area', p.service_area),
+    line('Address', p.address),
+    line('Hours', p.hours),
+  ]
     .filter(Boolean)
     .join('\n')
 }
@@ -62,7 +100,11 @@ export function draftOf(a: Assistant): Draft {
   const p = a.business_profile
   // Same rule as the voice agent: empty instructions mean the older fields still apply, so show those.
   return {
-    name: a.name, greeting: a.greeting, ai_disclosure: a.ai_disclosure ?? (a.disclose_ai ? 'at_start' : DEFAULT_AI_DISCLOSURE), communication_style: a.communication_style ?? DEFAULT_COMMUNICATION_STYLE, instructions: p.instructions?.trim() ? p.instructions : foldProfile(p),
+    name: a.name,
+    greeting: a.greeting,
+    ai_disclosure: a.ai_disclosure ?? (a.disclose_ai ? 'at_start' : DEFAULT_AI_DISCLOSURE),
+    communication_style: a.communication_style ?? DEFAULT_COMMUNICATION_STYLE,
+    instructions: p.instructions?.trim() ? p.instructions : foldProfile(p),
     greeting_outside: a.greeting_outside ?? '',
     transfers: (a.transfers ?? []).map(c => transferDraftOf({ ...c, number: c.number ? formatNumber(c.number) : '' })),
     voice: { provider: a.voice.provider, voice_id: a.voice.voice_id },
@@ -78,6 +120,8 @@ export function draftOf(a: Assistant): Draft {
     talking_speed_pct: talkingSpeedPctOf(a),
     behaviours: behavioursOf(a.behaviours),
     languages: languagesOf(a.languages),
+    // A row synced before the column existed has none: the install default.
+    voice_pipeline: a.voice_pipeline ?? null,
   }
 }
 
@@ -92,12 +136,17 @@ export const behavioursToSave = (d: Pick<Draft, 'behaviours'>): Partial<Record<B
 /** The stored setting with only known codes; a row synced before the column existed: English only. */
 function languagesOf(stored: Assistant['languages'] | undefined): AssistantLanguages {
   if (!stored) return ENGLISH_ONLY
-  return { main: mainLanguageOf(stored), mode: stored.mode, allowed: languageCodes.filter(code => stored.allowed.includes(code)) }
+  return {
+    main: mainLanguageOf(stored),
+    mode: stored.mode,
+    allowed: languageCodes.filter(code => stored.allowed.includes(code)),
+  }
 }
 
 export const mainOf = (d: Pick<Draft, 'languages'>): Language => d.languages.main ?? 'en'
 /** The languages picked besides the main one. */
-export const pickedOthers = (d: Pick<Draft, 'languages'>): Language[] => d.languages.allowed.filter(code => code !== mainOf(d))
+export const pickedOthers = (d: Pick<Draft, 'languages'>): Language[] =>
+  d.languages.allowed.filter(code => code !== mainOf(d))
 
 /** Why the languages cannot be saved, or null. */
 export function languagesProblem(d: Pick<Draft, 'languages'>): string | null {
@@ -108,7 +157,11 @@ export function languagesProblem(d: Pick<Draft, 'languages'>): string | null {
 
 /** What assistant.update takes: no list unless the allow-list is used, never the main language in it. */
 export const languagesToSave = (d: Draft) => ({
-  languages: { main: mainOf(d), mode: d.languages.mode, allowed: d.languages.mode === 'allowed' ? pickedOthers(d) : [] },
+  languages: {
+    main: mainOf(d),
+    mode: d.languages.mode,
+    allowed: d.languages.mode === 'allowed' ? pickedOthers(d) : [],
+  },
 })
 
 /**
@@ -144,7 +197,9 @@ export const normalized = (d: Draft): Draft => ({
   greeting: d.greeting.trim(),
   instructions: d.instructions.trim(),
   greeting_outside: d.greeting_outside.trim(),
-  transfers: d.transfers.map(c => transferDraftOf({ ...c, name: c.name.trim(), condition: c.condition.trim(), number: normalizedNumber(c.number) })),
+  transfers: d.transfers.map(c =>
+    transferDraftOf({ ...c, name: c.name.trim(), condition: c.condition.trim(), number: normalizedNumber(c.number) }),
+  ),
   website: d.website.trim(),
   silence_first_gap_s: d.silence_first_gap_s.trim(),
   silence_reminders: d.silence_reminders.trim(),
@@ -168,18 +223,34 @@ const transferDraftOf = (c: TransferDraft): TransferDraft => ({
   enabled: c.enabled,
 })
 
-const wholeIn = (typed: string, min: number, max: number) => /^\d+$/.test(typed.trim()) && Number(typed) >= min && Number(typed) <= max
+const wholeIn = (typed: string, min: number, max: number) =>
+  /^\d+$/.test(typed.trim()) && Number(typed) >= min && Number(typed) <= max
 
 /** Why the silence settings cannot be saved, or null. */
-export function silenceProblem(d: Pick<Draft, 'silence_first_gap_s' | 'silence_reminders' | 'silence_hang_up_s' | 'max_call_minutes' | 'silence_closing' | 'silence_reminder'>): string | null {
-  if (!wholeIn(d.silence_first_gap_s, SILENCE_FIRST_GAP_MIN_S, SILENCE_FIRST_GAP_MAX_S)) return `The first wait is ${SILENCE_FIRST_GAP_MIN_S} to ${SILENCE_FIRST_GAP_MAX_S} seconds.`
+export function silenceProblem(
+  d: Pick<
+    Draft,
+    | 'silence_first_gap_s'
+    | 'silence_reminders'
+    | 'silence_hang_up_s'
+    | 'max_call_minutes'
+    | 'silence_closing'
+    | 'silence_reminder'
+  >,
+): string | null {
+  if (!wholeIn(d.silence_first_gap_s, SILENCE_FIRST_GAP_MIN_S, SILENCE_FIRST_GAP_MAX_S))
+    return `The first wait is ${SILENCE_FIRST_GAP_MIN_S} to ${SILENCE_FIRST_GAP_MAX_S} seconds.`
   if (!wholeIn(d.silence_reminders, 0, SILENCE_REMINDERS_MAX)) return `Ask 0 to ${SILENCE_REMINDERS_MAX} times.`
   const lastAsk = Number(d.silence_first_gap_s) * Number(d.silence_reminders)
-  if (!wholeIn(d.silence_hang_up_s, SILENCE_FIRST_GAP_MIN_S, SILENCE_HANG_UP_MAX_S)) return `Hang up after ${SILENCE_FIRST_GAP_MIN_S} to ${SILENCE_HANG_UP_MAX_S} seconds.`
+  if (!wholeIn(d.silence_hang_up_s, SILENCE_FIRST_GAP_MIN_S, SILENCE_HANG_UP_MAX_S))
+    return `Hang up after ${SILENCE_FIRST_GAP_MIN_S} to ${SILENCE_HANG_UP_MAX_S} seconds.`
   if (Number(d.silence_hang_up_s) <= lastAsk) return `Hang up after the last question: more than ${lastAsk} seconds.`
-  if (!wholeIn(d.max_call_minutes, 1, ASSISTANT_CALL_MAX_MINUTES)) return `The longest call is 1 to ${ASSISTANT_CALL_MAX_MINUTES} minutes.`
-  if (d.silence_reminder.trim().length > SILENCE_CLOSING_MAX) return `The reminder is at most ${SILENCE_CLOSING_MAX} characters.`
-  if (d.silence_closing.trim().length > SILENCE_CLOSING_MAX) return `The closing line is at most ${SILENCE_CLOSING_MAX} characters.`
+  if (!wholeIn(d.max_call_minutes, 1, ASSISTANT_CALL_MAX_MINUTES))
+    return `The longest call is 1 to ${ASSISTANT_CALL_MAX_MINUTES} minutes.`
+  if (d.silence_reminder.trim().length > SILENCE_CLOSING_MAX)
+    return `The reminder is at most ${SILENCE_CLOSING_MAX} characters.`
+  if (d.silence_closing.trim().length > SILENCE_CLOSING_MAX)
+    return `The closing line is at most ${SILENCE_CLOSING_MAX} characters.`
   return null
 }
 
@@ -190,7 +261,8 @@ export function silenceProblem(d: Pick<Draft, 'silence_first_gap_s' | 'silence_r
 export const silenceToSave = (d: Draft) => {
   const closing = d.silence_closing.trim()
   const reminder = d.silence_reminder.trim()
-  const defaultReminder = reminder === DEFAULT_SILENCE_REMINDER || reminder === localizedDefault(DEFAULT_SILENCE_REMINDER, mainOf(d))
+  const defaultReminder =
+    reminder === DEFAULT_SILENCE_REMINDER || reminder === localizedDefault(DEFAULT_SILENCE_REMINDER, mainOf(d))
   return {
     silence_first_gap_s: Number(d.silence_first_gap_s),
     silence_reminders: Number(d.silence_reminders),
@@ -202,7 +274,9 @@ export const silenceToSave = (d: Draft) => {
 }
 
 /** When the assistant asks whether the caller is still there, in words for the help line. */
-export function silenceSummary(d: Pick<Draft, 'silence_first_gap_s' | 'silence_reminders' | 'silence_reminder'>): string {
+export function silenceSummary(
+  d: Pick<Draft, 'silence_first_gap_s' | 'silence_reminders' | 'silence_reminder'>,
+): string {
   const gap = Number(d.silence_first_gap_s)
   const asks = Array.from({ length: Number(d.silence_reminders) }, (_, i) => gap * (i + 1))
   if (!asks.length) return 'Never asks: it only hangs up after the silence below.'
@@ -237,7 +311,8 @@ export function transferProblem(d: Pick<Draft, 'transfers'>): TransferProblem | 
   for (const [index, c] of d.transfers.entries()) {
     const name = c.name.trim()
     if (!name) return { index, field: 'name', message: 'Give the contact a name.' }
-    if (name.length > TRANSFER_NAME_MAX) return { index, field: 'name', message: `At most ${TRANSFER_NAME_MAX} characters.` }
+    if (name.length > TRANSFER_NAME_MAX)
+      return { index, field: 'name', message: `At most ${TRANSFER_NAME_MAX} characters.` }
     if (names.has(name.toLowerCase())) return { index, field: 'name', message: `Another contact is called "${name}".` }
     names.add(name.toLowerCase())
     const number = numberProblem(c.number)
@@ -257,7 +332,12 @@ export const transfersToSave = (d: Pick<Draft, 'transfers'>): TransferContact[] 
 export type TransferPreset = 'blank' | 'person'
 const PRESETS: Record<TransferPreset, Pick<TransferDraft, 'name' | 'condition' | 'hours_only' | 'if_no_answer'>> = {
   blank: { name: '', condition: '', hours_only: false, if_no_answer: 'message' },
-  person: { name: 'Owner', condition: 'The caller asks to speak to a person', hours_only: true, if_no_answer: 'message' },
+  person: {
+    name: 'Owner',
+    condition: 'The caller asks to speak to a person',
+    hours_only: true,
+    if_no_answer: 'message',
+  },
 }
 
 /** A new contact from a preset, with an id and a name no other contact of the list has. */
@@ -309,8 +389,6 @@ export function spokenLength(greeting: string): string {
   return `about ${seconds} ${seconds === 1 ? 'second' : 'seconds'} spoken`
 }
 
-
-
 export const ASSISTANT_NAME_MAX = 60
 
 /** Why the assistant's name cannot be saved, in words for the user; null when it can. */
@@ -325,7 +403,8 @@ export function draftProblem(draft: Draft): string | null {
   if (name) return name
   if (!draft.greeting.trim()) return 'The greeting cannot be empty: it is the first thing callers hear.'
   const length = draft.instructions.trim().length
-  if (length > INSTRUCTIONS_MAX) return `The instructions are too long: ${length.toLocaleString('en-US')} of ${INSTRUCTIONS_MAX.toLocaleString('en-US')} characters.`
+  if (length > INSTRUCTIONS_MAX)
+    return `The instructions are too long: ${length.toLocaleString('en-US')} of ${INSTRUCTIONS_MAX.toLocaleString('en-US')} characters.`
   return transferProblem(draft)?.message ?? silenceProblem(draft) ?? languagesProblem(draft)
 }
 

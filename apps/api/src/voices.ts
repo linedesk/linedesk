@@ -29,7 +29,7 @@ import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { type Handler, type Preparer, Reject } from './handler-context.ts'
 import { queueVoiceDeletion } from './jobs.ts'
-import { activeProvider, realtimeInUse, resolveProvider } from './provider-settings.ts'
+import { activeProvider, pipelinesSetUp, resolveProvider } from './provider-settings.ts'
 import { type CatalogEntry, catalogData, catalogVoice, voiceCatalog } from './voice-catalog.ts'
 import {
   createVoiceProvider,
@@ -229,9 +229,11 @@ export const voiceHandlers: Record<string, Handler> = {
     const provider = active?.provider ?? null
     const clones = provider ? await clonesOf(tx, actor.workspaceId, provider) : []
     const fallback = await installDefaultVoice(tx)
+    const pipelines = await pipelinesSetUp(tx)
     const data: VoiceOptionsData = {
       provider,
-      realtime: await realtimeInUse(tx),
+      realtime: pipelines.realtime,
+      pipelines,
       voices: provider ? (curatedVoices[provider] ?? []) : [],
       clones: clones.map(c => ({ id: c.voice_id, name: c.name })),
       canClone: !!provider && cloningProviders.includes(provider) && (await cloningOn(tx)),

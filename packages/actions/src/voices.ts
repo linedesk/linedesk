@@ -3,6 +3,7 @@
 // turned cloning on. Previews are served by GET /v1/voices/preview/<voiceId> and generated once per voice.
 import { z } from 'zod'
 import { defineAction } from './define.ts'
+import type { PipelinesSetUp } from './settings.ts'
 
 export type CuratedVoice = { id: string; name: string; description: string }
 
@@ -51,10 +52,12 @@ export type ClonedVoice = { id: string; name: string }
 export type VoiceOptionsData = {
   provider: string | null
   /**
-   * Calls are answered by a realtime model (Admin, Providers): it speaks in its own voice, so the assistant's
-   * voice, talking speed and transfers do not apply. Missing from an API of an older version: false.
+   * A realtime model is connected (Admin, Providers): the install default for an assistant that chose no pipeline.
+   * Missing from an API of an older version: false.
    */
   realtime?: boolean
+  /** Which pipelines can answer calls; an assistant picks one (`voice_pipeline`). Missing from an older API. */
+  pipelines?: PipelinesSetUp
   voices: readonly CuratedVoice[]
   clones: readonly ClonedVoice[]
   canClone: boolean

@@ -1,5 +1,5 @@
-import { expect, test, vi } from 'vitest'
-import { AgentConfigError, configFromEnv, createConfigLoader, isRealtime, parseProviderSettings, resolveAgentConfig, resolveCallConfig, stageEnvVars, stagesOf, type ProviderSettings } from './config.ts'
+import { describe, expect, test, vi } from 'vitest'
+import { AgentConfigError, configForAssistant, configFromEnv, createConfigLoader, isRealtime, parseProviderSettings, resolveAgentConfig, resolveCallConfig, stageEnvVars, stagesOf, type ProviderSettings } from './config.ts'
 
 const keys = { DEEPGRAM_API_KEY: 'dg', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' }
 const stored: ProviderSettings = {
@@ -216,6 +216,43 @@ test('a realtime model without a key names the realtime model as not set up, nev
   } catch (e) {
     expect((e as AgentConfigError).stages).toEqual(['realtime model'])
   }
+})
+
+test('a realtime model without a key leaves the three stages when they are set up', () => {
+  const config = resolveCallConfig({ ...stored, realtime: { provider: 'openai_realtime', api_key: null } }, {})
+  expect(isRealtime(config)).toBe(false)
+  expect(stagesOf(config)?.llm.apiKey).toBe('oa-app')
+})
+
+describe('configForAssistant: the pipeline an assistant chose', () => {
+  const both = resolveCallConfig({ ...stored, realtime: { provider: 'openai_realtime', api_key: 'rt-app' } }, {})
+  const realtimeOnly = resolveCallConfig({ stt: null, llm: null, tts: null, realtime: { provider: 'openai_realtime', api_key: 'rt' } }, {})
+  const stagesOnly = resolveCallConfig(stored, {})
+
+  test('with both set up: the assistant picks, no choice is the realtime model', () => {
+    const log = vi.fn()
+    expect(isRealtime(configForAssistant(both, 'realtime', log))).toBe(true)
+    const stages = configForAssistant(both, 'three_stage', log)
+    expect(isRealtime(stages)).toBe(false)
+    expect(stagesOf(stages)?.tts.apiKey).toBe('el-app')
+    expect(isRealtime(configForAssistant(both, null, log))).toBe(true)
+    expect(log).not.toHaveBeenCalled()
+  })
+
+  test('the chosen one not set up: the other answers, with a line in the log', () => {
+    const log = vi.fn()
+    expect(isRealtime(configForAssistant(realtimeOnly, 'three_stage', log))).toBe(true)
+    expect(log).toHaveBeenLastCalledWith('assistant set to "Three stages", which is not set up: "Realtime model" takes the call')
+    expect(isRealtime(configForAssistant(stagesOnly, 'realtime', log))).toBe(false)
+    expect(log).toHaveBeenLastCalledWith('assistant set to "Realtime model", which is not set up: "Three stages" takes the call')
+  })
+
+  test('no choice: whatever is set up, without a log line', () => {
+    const log = vi.fn()
+    expect(isRealtime(configForAssistant(stagesOnly, null, log))).toBe(false)
+    expect(isRealtime(configForAssistant(realtimeOnly, undefined, log))).toBe(true)
+    expect(log).not.toHaveBeenCalled()
+  })
 })
 
 test('the realtime variables are passed to the agent container', () => {

@@ -14,6 +14,7 @@ import {
   workspaceUpdateSettings,
   confirmsNumber,
   phoneNumberRelease,
+  pipelineFor,
   talkingSpeedLabel,
   talkingSpeedPctOf,
 } from './settings.ts'
@@ -56,6 +57,44 @@ describe('assistant.update', () => {
   it('restores the speed of a version saved before percentages', () => {
     expect(storedSnapshot({ talking_speed: 'fast' })).toMatchObject({ talking_speed: 'fast', talking_speed_pct: 110 })
     expect(storedSnapshot({ talking_speed: 'slow', talking_speed_pct: 85 })).toMatchObject({ talking_speed_pct: 85 })
+  })
+
+  it('sets how calls are answered, and back to the install default with null', () => {
+    const assistants = new Map([['as1', { id: 'as1', voice_pipeline: null }]])
+    const update = (fields: object) =>
+      applyLocally({ assistants } as unknown as LocalTables, assistantUpdate, assistantUpdate.input.parse({ assistantId: 'as1', ...fields }), '2026-11-13T00:00:00Z')
+    update({ voice_pipeline: 'three_stage' })
+    expect(assistants.get('as1')).toMatchObject({ voice_pipeline: 'three_stage' })
+    update({ name: 'Maya' }) // another field leaves it alone
+    expect(assistants.get('as1')).toMatchObject({ voice_pipeline: 'three_stage' })
+    update({ voice_pipeline: null })
+    expect(assistants.get('as1')).toMatchObject({ voice_pipeline: null })
+    expect(() => assistantUpdate.input.parse({ assistantId: 'as1', voice_pipeline: 'cascaded' })).toThrow()
+  })
+
+  it('takes settings:write: owners and admins choose the pipeline, members do not', () => {
+    expect(assistantUpdate.permission).toBe('settings:write')
+    expect(rolePermissions.owner).toContain('settings:write')
+    expect(rolePermissions.member).not.toContain('settings:write')
+  })
+})
+
+describe('pipelineFor', () => {
+  const both = { realtime: true, three_stage: true }
+  it("uses the assistant's choice when it is set up", () => {
+    expect(pipelineFor('three_stage', both)).toBe('three_stage')
+    expect(pipelineFor('realtime', both)).toBe('realtime')
+  })
+  it('without a choice: the realtime model when set up, else the three stages', () => {
+    expect(pipelineFor(null, both)).toBe('realtime')
+    expect(pipelineFor(undefined, { realtime: false, three_stage: true })).toBe('three_stage')
+  })
+  it('falls back to the other one when the chosen one is not set up', () => {
+    expect(pipelineFor('realtime', { realtime: false, three_stage: true })).toBe('three_stage')
+    expect(pipelineFor('three_stage', { realtime: true, three_stage: false })).toBe('realtime')
+  })
+  it('keeps the choice when neither is set up', () => {
+    expect(pipelineFor('three_stage', { realtime: false, three_stage: false })).toBe('three_stage')
   })
 })
 

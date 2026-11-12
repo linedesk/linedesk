@@ -60,6 +60,16 @@ test('a test room names the assistant picked in the web app, and call.startTest 
   expect(sent).toEqual([{ room: 'room', assistantId: 'as_2' }, { room: 'other' }])
 })
 
+test('the call test may pick the pipeline for its call instead of the assistant\'s; anything else is ignored', async () => {
+  const origin = callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', pipeline: 'three_stage' }), {}, 'r')
+  expect(origin).toEqual({ kind: 'test', workspaceId: 'ws_1', room: 'r', pipeline: 'three_stage' })
+  expect(callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', pipeline: 'cascaded' }), {}, 'r')).toEqual({ kind: 'test', workspaceId: 'ws_1', room: 'r' })
+  const row = { id: 'as_1', greeting: 'Hello.', business_profile: {}, voice_pipeline: 'realtime' }
+  const api = { run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {} } }) } as never
+  expect((await startCall(api, origin)).assistant?.voice_pipeline).toBe('three_stage')
+  expect((await startCall(api, { kind: 'test', workspaceId: 'ws_1', room: 'r' })).assistant?.voice_pipeline).toBe('realtime')
+})
+
 test('outside business hours the call uses the outside greeting; the call test may set one', async () => {
   const closed = { openNow: false, summary: 'Closed now.' }
   const row = { id: 'as_1', greeting: 'Hello, this is Maya.', greeting_outside: 'We are closed.', business_profile: {} }
