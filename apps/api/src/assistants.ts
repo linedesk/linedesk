@@ -11,8 +11,11 @@ import { type Handler, Reject } from './handler-context.ts'
 
 const newId = () => `as_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 
-/** Names a new assistant gets, the first one the workspace does not use yet. */
-const NAMES = ['Maya', 'Ava', 'Leo', 'Nora', 'Sam', 'Ivy', 'Max', 'Zoe', 'Eli', 'Ruby']
+/**
+ * Names a new assistant gets, the first one the workspace does not use yet. All female: a new
+ * assistant speaks with the default voice, which is a female one, so the name has to match it.
+ */
+const NAMES = ['Maya', 'Ava', 'Nora', 'Ivy', 'Zoe', 'Ruby', 'Lily', 'Emma', 'Clara', 'Grace']
 
 export const greetingFor = (businessName: string, name: string) =>
   `Thanks for calling ${businessName}. This is ${name}. How can I help?`
