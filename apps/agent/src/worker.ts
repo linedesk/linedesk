@@ -3,7 +3,7 @@
 import { createServer } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { agentTokenProblem, ASSISTANT_CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage, fillTemplate, mainLanguageOf, otherLanguagesOf, spokenLines, templateNames } from '@linedesk/actions'
+import { agentTokenProblem, ASSISTANT_CALL_MAX_MINUTES, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage, fillTemplate, mainLanguageOf, otherLanguagesOf, spokenLines, templateNames } from '@linedesk/actions'
 import type { CallerDetails } from '@linedesk/db/types'
 import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant } from '@livekit/rtc-node'
@@ -589,7 +589,11 @@ async function main() {
   // LiveKit stops giving a worker jobs above this CPU load (0.7 by default in production). On a small
   // single-box install that refuses calls, and the second job of a call test, while one call runs.
   const loadThreshold = Number(process.env.AGENT_LOAD_THRESHOLD) || 0.95
-  cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: AGENT_NAME, numIdleProcesses, loadThreshold, initializeProcessTimeout }))
+  // On SIGTERM (an update) the worker takes no new calls and finishes the ones it has. A call put through to a
+  // person lasts up to CALL_MAX_MINUTES, longer than the library's 60 minutes; the container's
+  // stop_grace_period (LINEDESK_AGENT_DRAIN) is a little longer again, so this limit is the one that applies.
+  const drainTimeout = (CALL_MAX_MINUTES + 5) * 60_000
+  cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: AGENT_NAME, numIdleProcesses, loadThreshold, initializeProcessTimeout, drainTimeout }))
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) void main()

@@ -175,8 +175,8 @@ services:
   # The voice agent: answers calls in LiveKit rooms and writes to the API.
   # Without its speech and LLM keys it starts, logs one line and waits.
   # Updates (scripts/deploy.sh): the new worker registers with LiveKit (healthy) before the old one is
-  # stopped. On SIGTERM the old one takes no new calls and finishes the ones it has, for up to
-  # stop_grace_period; only then does Docker kill it.
+  # stopped. On SIGTERM the old one takes no new calls and finishes the ones it has (a call put through to
+  # a person lasts up to 2 hours), in the background, for up to stop_grace_period; only then does Docker kill it.
   agent:
     <<: *service
     build: { context: ., target: agent }
@@ -240,7 +240,7 @@ services:
       retries: 3
       start_period: 120s
       start_interval: 1s
-    stop_grace_period: ${LINEDESK_AGENT_DRAIN:-15m}
+    stop_grace_period: ${LINEDESK_AGENT_DRAIN:-130m}
     depends_on:
       api: { condition: service_healthy }
       proxy: { condition: service_started }

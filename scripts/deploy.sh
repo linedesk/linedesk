@@ -20,7 +20,11 @@
 #    (ports, environment) recreates it, which interrupts the site for a few seconds; the script says so.
 # 4. Every other service: `docker compose up -d`, which recreates only what changed (usually nothing).
 # 5. agent: the new worker registers with LiveKit, then the old one gets SIGTERM, takes no new calls and
-#    finishes the ones it has (up to stop_grace_period, 15 minutes); this script waits for that.
+#    finishes the ones it has in the background (up to stop_grace_period, 130 minutes: a call put through to
+#    a person lasts up to 2 hours); this script does not wait for it.
+# 6. The services every call runs through (livekit, livekit-sip, livekit-egress, redis, postgres): only when
+#    they changed, at a moment without live calls (up to LINEDESK_DEPLOY_QUIET_WAIT seconds, else left for the
+#    next deploy; LINEDESK_DEPLOY_DROP_CALLS=1 recreates them at once and cuts off the calls in progress).
 # First start (nothing running yet): a plain `docker compose up -d`.
 #
 # Dev mode (LINEDESK_MODE=dev in .env, docker-compose.dev.yml, docs/dev-mode.md): api, web and agent
@@ -178,16 +182,97 @@ roll() {
     docker rm -f "$new" >/dev/null
     exit 1
   fi
-  log "$service: new container healthy; stopping the old one (waits for its stop_grace_period at most)"
-  for container in $old; do
-    docker stop "$container" >/dev/null
-    docker rm "$container" >/dev/null
-  done
+  if [ "$service" = agent ]; then
+    # A call may run for up to 2 hours (one put through to a person), so the update does not wait for the
+    # old agent: it drains in the background and Docker removes it once its calls are over.
+    log "agent: new worker registered; the old one finishes its calls in the background (up to stop_grace_period)"
+    for container in $old; do drain_in_background "$container"; done
+  else
+    log "$service: new container healthy; stopping the old one (waits for its stop_grace_period at most)"
+    for container in $old; do
+      docker stop "$container" >/dev/null
+      docker rm "$container" >/dev/null
+    done
+  fi
   log "$service: updated"
 }
 
+# SIGTERM now (it takes no new calls), removal once it exits or its stop_grace_period is over. Detached
+# from this script, so a deploy over SSH can end while the old agent still has calls.
+drain_in_background() {
+  local detach=()
+  command -v setsid >/dev/null && detach=(setsid) # Linux; macOS has none, nohup alone does there
+  docker kill --signal TERM "$1" >/dev/null
+  # shellcheck disable=SC2016 # $1 is expanded by the inner sh
+  "${detach[@]}" nohup sh -c 'docker stop "$1" >/dev/null 2>&1; docker rm "$1" >/dev/null 2>&1' drain "$1" </dev/null >/dev/null 2>&1 &
+}
+
+# Services that every call runs through: recreating one cuts off the calls in progress. They change only
+# with a new version or new settings (rarely), and then wait for a moment without calls.
+CALL_SERVICES=(livekit livekit-sip livekit-egress redis postgres)
+QUIET_WAIT=${LINEDESK_DEPLOY_QUIET_WAIT:-1800} # seconds to wait for no live calls before giving up
+
+# The call services this stack runs (livekit-egress only with the recording profile), one per line.
+call_services() {
+  docker compose config --services | grep -xF "${CALL_SERVICES[@]/#/-e}" || true
+}
+
+# Calls in progress (empty when the database cannot be asked, which counts as busy).
+live_calls() {
+  # shellcheck disable=SC2016 # the variables are the postgres container's own
+  echo "select count(*) from calls where status = 'live'" |
+    docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tA' 2>/dev/null | tr -d '[:space:]'
+}
+
+# Recreates the call services that changed, at a moment without live calls. LINEDESK_DEPLOY_DROP_CALLS=1
+# does it at once (e.g. an urgent security update). Gives up after QUIET_WAIT; the next deploy tries again.
+# The call services that are running but would be recreated (new image or settings), one per line.
+changed_call_services() {
+  local service
+  for service in $(call_services); do
+    [ -n "$(containers_of "$service")" ] || continue
+    grep -q Recreate <<<"$(docker compose up --dry-run -d --no-build --no-deps "$service" 2>&1)" && echo "$service"
+  done
+  return 0
+}
+
+update_call_services() {
+  local service changed=() missing=() again=() calls deadline=$((SECONDS + QUIET_WAIT))
+  for service in $(call_services); do
+    [ -n "$(containers_of "$service")" ] || missing+=("$service")
+  done
+  [ ${#missing[@]} -eq 0 ] || docker compose up -d --no-build --no-deps "${missing[@]}"
+  read -r -a changed <<<"$(changed_call_services | tr '\n' ' ')"
+  if [ ${#changed[@]} -eq 0 ]; then
+    log "call services: unchanged"
+    return
+  fi
+  docker compose pull --quiet "${changed[@]}" 2>/dev/null || true # new images ready before the quiet moment
+  if [ "${LINEDESK_DEPLOY_DROP_CALLS:-}" != 1 ]; then
+    while :; do
+      calls=$(live_calls)
+      [ "$calls" = 0 ] && break
+      if [ $SECONDS -ge $deadline ]; then
+        log "call services: ${changed[*]} changed, but calls kept running for ${QUIET_WAIT}s; left on the old version. The next deploy tries again (LINEDESK_DEPLOY_DROP_CALLS=1 updates them now)."
+        CALL_SERVICES_PENDING=1
+        return
+      fi
+      log "call services: ${changed[*]} changed; waiting for a moment without calls (${calls:-?} live)"
+      sleep 15
+    done
+  fi
+  log "call services: recreating ${changed[*]}"
+  docker compose up -d --no-build --no-deps "${changed[@]}"
+  # livekit-sip and livekit-egress run in livekit's network: a new livekit container needs them recreated too.
+  read -r -a again <<<"$(changed_call_services | tr '\n' ' ')"
+  if [ ${#again[@]} -gt 0 ]; then
+    log "call services: recreating ${again[*]} (they depend on what was just recreated)"
+    docker compose up -d --no-build --no-deps "${again[@]}"
+  fi
+}
+
 others() {
-  docker compose config --services | grep -vxF -e "${ROLLED[0]}" -e "${ROLLED[1]}" -e "${ROLLED[2]}" -e "${ROLLED[3]}"
+  docker compose config --services | grep -vxF "${ROLLED[@]/#/-e}" "${CALL_SERVICES[@]/#/-e}" || true
 }
 
 # The proxy cannot run twice (it owns the published port), so a new Caddyfile is reloaded in place.
@@ -247,5 +332,12 @@ log "other services: recreating only what changed"
 # shellcheck disable=SC2046 # one service name per word
 docker compose up -d --no-build --no-deps --remove-orphans $(others)
 roll agent
+update_call_services
 clean_up
+# Everything else is updated, but a new LiveKit, SIP, Redis or Postgres is not running yet: fail the deploy,
+# so this cannot go unnoticed (a security release may need LINEDESK_DEPLOY_DROP_CALLS=1).
+if [ -n "${CALL_SERVICES_PENDING:-}" ]; then
+  log "done, except the call services above: exit 75"
+  exit 75
+fi
 log "done"
