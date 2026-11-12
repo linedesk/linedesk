@@ -15,8 +15,6 @@ export type SpokenLines = {
   aiNote: RegExp
   /** Asked in place of the greeting's closing question when the caller must agree to talk with an AI. */
   consentQuestion: string
-  /** Said to a returning caller before the greeting; `{first_name}` is filled in. */
-  knownCaller: string
   goodbye: string
   stillThere: string
   callLimit: string
@@ -36,7 +34,6 @@ const en: SpokenLines = {
   aiSentence: n => `This is ${n}, the AI assistant.`,
   aiNote: /,?\s*(?:the|an|your|a)\s+(?:virtual|AI)\s+assistant\b/i,
   consentQuestion: 'Is that okay with you?',
-  knownCaller: 'Hi {first_name}, good to hear from you again.',
   goodbye: 'Thanks for calling. Goodbye!',
   stillThere: 'Are you still there?',
   callLimit:
@@ -60,7 +57,6 @@ const es: SpokenLines = {
   aiSentence: n => `Soy ${n}, asistente de IA.`,
   aiNote: /\bIA\b/,
   consentQuestion: '¿Le parece bien?',
-  knownCaller: 'Hola {first_name}, qué gusto volver a saber de usted.',
   goodbye: 'Gracias por llamar. ¡Adiós!',
   stillThere: '¿Sigue ahí?',
   callLimit:
@@ -84,7 +80,6 @@ const fr: SpokenLines = {
   aiSentence: n => `Je suis ${n}, assistant IA.`,
   aiNote: /\bIA\b/,
   consentQuestion: 'Cela vous convient-il ?',
-  knownCaller: 'Bonjour {first_name}, ravi de vous entendre à nouveau.',
   goodbye: "Merci d'avoir appelé. Au revoir !",
   stillThere: 'Vous êtes toujours là ?',
   callLimit:
@@ -108,7 +103,6 @@ const de: SpokenLines = {
   aiSentence: n => `Hier ist ${n}, die KI-Assistenz.`,
   aiNote: /\bKI\b/,
   consentQuestion: 'Ist das für Sie in Ordnung?',
-  knownCaller: 'Hallo {first_name}, schön, wieder von Ihnen zu hören.',
   goodbye: 'Danke für Ihren Anruf. Auf Wiederhören!',
   stillThere: 'Sind Sie noch da?',
   callLimit:
@@ -133,7 +127,6 @@ const it: SpokenLines = {
   aiSentence: n => `Sono ${n}, l'assistente IA.`,
   aiNote: /\bIA\b/,
   consentQuestion: 'Le va bene?',
-  knownCaller: 'Salve {first_name}, che piacere risentirla.',
   goodbye: 'Grazie per aver chiamato. Arrivederci!',
   stillThere: 'È ancora in linea?',
   callLimit:
@@ -156,7 +149,6 @@ const pt: SpokenLines = {
   aiSentence: n => `Aqui é ${n}, assistente de IA.`,
   aiNote: /\bIA\b/,
   consentQuestion: 'Tudo bem para você?',
-  knownCaller: 'Olá {first_name}, que bom falar com você de novo.',
   goodbye: 'Obrigado por ligar. Até logo!',
   stillThere: 'Você ainda está aí?',
   callLimit:
@@ -180,7 +172,6 @@ const nl: SpokenLines = {
   aiSentence: n => `U spreekt met ${n}, de AI-assistent.`,
   aiNote: /\bAI\b/,
   consentQuestion: 'Is dat goed voor u?',
-  knownCaller: 'Hallo {first_name}, fijn om weer van u te horen.',
   goodbye: 'Bedankt voor het bellen. Tot ziens!',
   stillThere: 'Bent u er nog?',
   callLimit:
@@ -203,7 +194,6 @@ const ru: SpokenLines = {
   aiSentence: n => `Это ${n}, ИИ-ассистент.`,
   aiNote: /ИИ/,
   consentQuestion: 'Вас это устраивает?',
-  knownCaller: 'Здравствуйте, {first_name}, рады снова вас слышать.',
   goodbye: 'Спасибо за звонок. До свидания!',
   stillThere: 'Вы ещё на линии?',
   callLimit: 'Извините, время этого звонка истекло. Всё записано для команды, и с вами свяжутся. До свидания!',
@@ -224,7 +214,6 @@ const hi: SpokenLines = {
   aiSentence: n => `मैं ${n} हूँ, AI असिस्टेंट।`,
   aiNote: /AI|एआई/,
   consentQuestion: 'क्या यह आपके लिए ठीक है?',
-  knownCaller: 'नमस्ते {first_name}, आपसे फिर से बात करके अच्छा लगा।',
   goodbye: 'कॉल करने के लिए धन्यवाद। नमस्ते!',
   stillThere: 'क्या आप अभी भी लाइन पर हैं?',
   callLimit:
@@ -247,7 +236,6 @@ const ja: SpokenLines = {
   aiSentence: n => `AIアシスタントの${n}です。`,
   aiNote: /AI/,
   consentQuestion: 'よろしいでしょうか？',
-  knownCaller: '{first_name}様、またお電話いただきありがとうございます。',
   goodbye: 'お電話ありがとうございました。失礼いたします。',
   stillThere: 'もしもし、聞こえていますか？',
   callLimit:
@@ -285,11 +273,11 @@ function parseDefaultGreeting(
   return null
 }
 
-const DEFAULT_TEXTS = ['fallbackGreeting', 'silenceClosing', 'knownCaller', 'recordingNotice'] as const
+const DEFAULT_TEXTS = ['fallbackGreeting', 'silenceClosing', 'recordingNotice'] as const
 
 /**
  * An owner-written text after the main language changed from `from` to `to`: `to`'s default when the text is still
- * `from`'s default (the greeting the app wrote, the closing line, the returning-caller line, the recording notice),
+ * `from`'s default (the greeting the app wrote, the closing line, the recording notice),
  * else the text as written.
  */
 export function swapDefault(text: string, from: Language, to: Language): string {

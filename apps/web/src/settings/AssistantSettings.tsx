@@ -3,7 +3,7 @@
 // contacts), booking, voice, and Advanced (languages, raw call rules, silence).
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays and booking save on their own.
-import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, CALL_RULES_MAX, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, DEFAULT_CALL_RULES, DEFAULT_KNOWN_CALLER_GREETING, knownCallerGreetingProblem, SILENCE_CLOSING_MAX, type AssistantLanguages, type Language, languageCodes, LANGUAGES, GREETING_VARIABLES, greetingVariablePattern, usesGreetingVariable } from '@linedesk/actions'
+import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, CALL_RULES_MAX, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, DEFAULT_CALL_RULES, SILENCE_CLOSING_MAX, type AssistantLanguages, type Language, languageCodes, LANGUAGES } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
@@ -47,7 +47,6 @@ import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { Field, Section, SelectRow, SwitchRow, TextArea, TextInput } from './fields.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { Knowledge } from './Knowledge.tsx'
-import { VariableInput } from './VariableInput.tsx'
 import { VoiceSettings } from './VoiceSettings.tsx'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
@@ -57,7 +56,7 @@ import { Holidays, VacationMode } from './Holidays.tsx'
 
 type SectionId = 'general' | 'business' | 'hours' | 'rules' | 'transfers' | 'booking' | 'voice' | 'advanced'
 const sections: readonly PageSection<SectionId>[] = [
-  { id: 'general', label: 'General', description: 'Greeting and returning callers' },
+  { id: 'general', label: 'General', description: 'Name and greeting' },
   { id: 'business', label: 'Business info', description: 'What you do, services, prices, FAQs and documents' },
   { id: 'hours', label: 'Hours & holidays', description: 'Weekly hours, holidays, vacation mode' },
   { id: 'rules', label: 'Rules', description: 'AI disclosure, tone and how calls are handled' },
@@ -71,7 +70,7 @@ type OwnSection = 'hours' | 'booking'
 /** Which draft fields each section holds. */
 const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   business: ['instructions', 'services', 'faqs', 'website'],
-  general: ['name', 'greeting', 'greeting_known_caller', 'greeting_outside'],
+  general: ['name', 'greeting', 'greeting_outside'],
   rules: ['ai_disclosure', 'communication_style', 'behaviours'],
   transfers: ['transfers'],
   voice: ['voice'],
@@ -92,12 +91,6 @@ const assistantName = (draft: Draft) => draft.name.trim() || 'The assistant'
 
 type SectionProps = { draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void }
 const count = (n: number) => n.toLocaleString('en-US')
-
-/** An example contact for the returning-caller preview. */
-const EXAMPLE_CALLER = { first_name: 'Sarah', last_name: 'Miller' } as const
-/** The returning-caller text with the example contact filled in, as a caller would hear it. */
-const withExampleCaller = (text: string) =>
-  GREETING_VARIABLES.reduce((t, v) => t.replace(greetingVariablePattern(v.key), EXAMPLE_CALLER[v.key]), text)
 
 /**
  * An optional greeting field: shown while it has text or was just added here; added with a starting text and
@@ -146,15 +139,7 @@ function Greeting({
   canEdit,
 }: SectionProps & { renamedFrom: string | null; hoursOn: boolean; canEdit: boolean }) {
   const stale = renamedFrom ? staleGreetingName(draft.greeting, renamedFrom, draft.name) : null
-  const knownProblem = knownCallerGreetingProblem(draft.greeting_known_caller)
   const name = assistantName(draft)
-  const known = draft.greeting_known_caller.trim()
-  const knownGreeting = useOptionalGreeting(
-    draft.greeting_known_caller,
-    () => set('greeting_known_caller', ''),
-    () => set('greeting_known_caller', DEFAULT_KNOWN_CALLER_GREETING),
-    'as-greet-known',
-  )
   const outsideGreeting = useOptionalGreeting(
     draft.greeting_outside,
     () => set('greeting_outside', ''),
@@ -166,34 +151,9 @@ function Greeting({
   const canAddOutside = hoursOn && !outsideGreeting.shown
   return (
     <Section id="as-greeting" title="Greeting" description={`The first thing callers hear when ${name} picks up.`}>
-      {knownGreeting.shown && (
-        <Field
-          id="as-greet-known"
-          label="Saved contacts hear first"
-          error={knownProblem}
-          aside={<RemoveGreeting what="the greeting for saved contacts" onRemove={knownGreeting.remove} />}
-        >
-          <VariableInput
-            id="as-greet-known"
-            label="Said first when a saved contact calls"
-            value={draft.greeting_known_caller}
-            onChange={v => set('greeting_known_caller', v)}
-            variables={GREETING_VARIABLES}
-            placeholder={DEFAULT_KNOWN_CALLER_GREETING}
-            invalid={!!knownProblem}
-            describedBy="as-greet-known-help"
-          />
-          <span className="help" id="as-greet-known-help">
-            {known && !knownProblem
-              ? `A saved contact hears: "${withExampleCaller(known)} ${draft.greeting.trim()}"`
-              : 'Said before the greeting when someone in your contacts calls.'}
-            {known && usesGreetingVariable(known, 'last_name') && ' Anyone calling from that number hears the full name.'}
-          </span>
-        </Field>
-      )}
       <Field
         id="as-greet"
-        label={outsideShown ? 'During business hours' : knownGreeting.shown ? 'Then every caller hears' : 'Every caller hears'}
+        label={outsideShown ? 'During business hours' : 'Every caller hears'}
         aside={draft.greeting.trim() ? spokenLength(draft.greeting) : undefined}
         error={draft.greeting.trim() ? null : 'The greeting cannot be empty.'}
       >
@@ -238,18 +198,11 @@ function Greeting({
           {!draft.greeting_outside.trim() && <span className="help">Empty: the same greeting as during business hours.</span>}
         </Field>
       )}
-      {(!knownGreeting.shown || canAddOutside) && (
+      {canAddOutside && (
         <div className="as-greet-add">
-          {!knownGreeting.shown && (
-            <Button size="sm" variant="ghost" icon="plus" onClick={knownGreeting.add}>
-              Greet saved contacts by name
-            </Button>
-          )}
-          {canAddOutside && (
-            <Button size="sm" variant="ghost" icon="plus" onClick={outsideGreeting.add}>
-              Different greeting when closed
-            </Button>
-          )}
+          <Button size="sm" variant="ghost" icon="plus" onClick={outsideGreeting.add}>
+            Different greeting when closed
+          </Button>
         </div>
       )}
     </Section>
@@ -463,7 +416,6 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     e.preventDefault()
     // The greeting shows its error under the field: go there instead of a toast that outlives the fix.
     if (!draft.greeting.trim()) return goTo('general', 'as-greet')
-    if (knownCallerGreetingProblem(draft.greeting_known_caller)) return goTo('general', 'as-greet-known')
     const transfer = transferProblem(draft)
     if (transfer) {
       setTransferSaveTried(true)
@@ -483,7 +435,6 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         communication_style: clean.communication_style,
         // For a web app of the release before, which still shows the switch.
         disclose_ai: disclosesAtStart(clean.ai_disclosure),
-        greeting_known_caller: clean.greeting_known_caller,
         business_profile: profileOf(clean),
         call_rules: callRulesToSave(clean),
         ...outsideToSave(clean),

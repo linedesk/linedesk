@@ -76,13 +76,10 @@ export const assistants = pgTable(
     /** The tone it uses (COMMUNICATION_STYLES in @linedesk/actions); `standard` adds nothing to the instructions. */
     communication_style: text('communication_style', { enum: ['standard', 'professional', 'casual', 'formal', 'empathetic'] }).notNull().default('standard'),
     record_calls: boolean('record_calls').notNull().default(true),
-    /** Replaced by `greeting_known_caller` (empty: off); kept until the release before it is gone. */
-    greet_by_name: boolean('greet_by_name').notNull().default(true),
-    /**
-     * Said before the greeting when a caller who called before calls again from a saved number; `{first_name}`
-     * is the first name on their contact. Empty: no greeting of its own for them.
-     */
-    greeting_known_caller: text('greeting_known_caller').notNull().default('Hi {first_name}, good to hear from you again.'),
+    /** No longer used: greeting saved contacts by name was removed (0061 turned it off); dropped in a later release. */
+    greet_by_name: boolean('greet_by_name').notNull().default(false),
+    /** No longer used, like `greet_by_name` (0061 emptied it); dropped in a later release. */
+    greeting_known_caller: text('greeting_known_caller').notNull().default(''),
     voice: jsonb('voice').$type<AssistantVoice>().notNull().default({ provider: 'elevenlabs', voice_id: '' }),
     business_profile: jsonb('business_profile').$type<BusinessProfile>().notNull().default({}),
     /** How to handle calls, as the owner wrote it; null: the default rules (DEFAULT_CALL_RULES in @linedesk/actions). */

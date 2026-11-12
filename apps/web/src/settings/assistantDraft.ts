@@ -1,7 +1,6 @@
 // The editable copy of the assistant's settings: how it is read from the row, merged with
 // changes that arrive through sync, checked and turned back into what assistant.update takes.
 import {
-  knownCallerGreetingProblem,
   CALL_RULES_MAX, type Faq, FAQS_MAX, INSTRUCTIONS_MAX, RING_SECONDS_DEFAULT, TRANSFER_CONDITION_MAX,
   TRANSFER_CONTACTS_MAX, type Service, SERVICES_MAX, servicesOf, TRANSFER_NAME_MAX, callRulesOf, usesDefaultCallRules, onCallNumberProblem,
   DEFAULT_SILENCE_CLOSING, SILENCE_CLOSING_MAX, SILENCE_FIRST_GAP_MAX_S, SILENCE_FIRST_GAP_MIN_S, SILENCE_REMINDERS_MAX,
@@ -18,9 +17,6 @@ export type Draft = {
   ai_disclosure: AiDisclosure
   /** The tone it uses. */
   communication_style: CommunicationStyle
-  /** Greet a caller whose number matches a contact with a name by first name. */
-  /** Said before the greeting to a caller who called before; `{first_name}` filled in; empty: nothing. */
-  greeting_known_caller: string
   instructions: string
   call_rules: string
   greeting_outside: string
@@ -63,7 +59,7 @@ export function draftOf(a: Assistant): Draft {
   const p = a.business_profile
   // Same rule as the voice agent: empty instructions mean the older fields still apply, so show those.
   return {
-    name: a.name, greeting: a.greeting, ai_disclosure: a.ai_disclosure ?? (a.disclose_ai ? 'at_start' : DEFAULT_AI_DISCLOSURE), communication_style: a.communication_style ?? DEFAULT_COMMUNICATION_STYLE, greeting_known_caller: a.greeting_known_caller ?? '', instructions: p.instructions?.trim() ? p.instructions : foldProfile(p),
+    name: a.name, greeting: a.greeting, ai_disclosure: a.ai_disclosure ?? (a.disclose_ai ? 'at_start' : DEFAULT_AI_DISCLOSURE), communication_style: a.communication_style ?? DEFAULT_COMMUNICATION_STYLE, instructions: p.instructions?.trim() ? p.instructions : foldProfile(p),
     call_rules: callRulesOf(a.call_rules), // none stored: the default rules, shown so they can be edited
     greeting_outside: a.greeting_outside ?? '',
     transfers: (a.transfers ?? []).map(c => transferDraftOf({ ...c, number: c.number ? formatNumber(c.number) : '' })),
@@ -123,7 +119,6 @@ export function withMainLanguage(d: Draft, main: Language): Draft {
     languages: { ...d.languages, main },
     greeting: swap(d.greeting),
     greeting_outside: swap(d.greeting_outside),
-    greeting_known_caller: swap(d.greeting_known_caller),
     silence_closing: swap(d.silence_closing),
   }
 }
@@ -145,7 +140,6 @@ export const normalized = (d: Draft): Draft => ({
   instructions: d.instructions.trim(),
   call_rules: d.call_rules.trim(),
   greeting_outside: d.greeting_outside.trim(),
-  greeting_known_caller: d.greeting_known_caller.trim(),
   transfers: d.transfers.map(c => transferDraftOf({ ...c, name: c.name.trim(), condition: c.condition.trim(), number: normalizedNumber(c.number) })),
   services: d.services
     .map(s => ({ name: s.name.trim(), description: s.description.trim(), price: s.price.trim() }))
@@ -301,8 +295,6 @@ export function spokenLength(greeting: string): string {
 export function draftProblem(draft: Draft): string | null {
   if (!draft.name.trim()) return 'The assistant needs a name.'
   if (!draft.greeting.trim()) return 'The greeting cannot be empty: it is the first thing callers hear.'
-  const known = knownCallerGreetingProblem(draft.greeting_known_caller)
-  if (known) return known
   const length = draft.instructions.trim().length
   if (length > INSTRUCTIONS_MAX) return `The instructions are too long: ${length.toLocaleString('en-US')} of ${INSTRUCTIONS_MAX.toLocaleString('en-US')} characters.`
   const rules = draft.call_rules.trim().length

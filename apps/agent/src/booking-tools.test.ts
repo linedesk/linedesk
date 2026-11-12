@@ -261,14 +261,3 @@ test('no cancel or move before the caller confirmed their name on this call: the
   expect(api.sent[1]![1]).toMatchObject({ bookingDate: '2026-11-16', bookedName: 'Donna Ruiz' })
 })
 
-test('a call whose greeting said the full name changes no booking, even with a confirmed name', async () => {
-  const call = { ...session(), caller: { name: 'Donna Ruiz', note: null, greetedByName: true, greetedFullName: true } } as CallSession
-  const log = new CallLog(call)
-  log.confirmedName = 'Donna Ruiz'
-  const api = offering(() => ({ eventDeleted: true, label: 'Monday, November 16 at 1:00 PM' }))
-  const tools = bookingTools(api, call, log)
-  await tools.findSlots(search)
-  expect(await tools.cancel({ booking_date: '2026-11-16' })).toMatch(/^Appointments cannot be cancelled or moved on this call/)
-  expect(await tools.reschedule({ booking_date: '2026-11-16' }, 's1', search)).toMatch(/^Appointments cannot be cancelled or moved on this call/)
-  expect(api.sent.map(([name]) => name)).toEqual(['calendar.findSlots'])
-})

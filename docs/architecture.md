@@ -113,7 +113,7 @@ Reads are defined once as named queries and exposed to the UI (live via sync), R
 
 1. **Ring.** The caller dials the business. If nobody answers within N rings (or the line is busy), the carrier forwards to the workspace's Linedesk number.
 2. **Ingress.** The provider sends the call over SIP to LiveKit SIP. A dispatch rule maps the DID to a workspace and creates room `call_<id>`. The API creates `Call { status: live }`; it appears at the top of Needs you with a live indicator.
-3. **Caller lookup.** First tool: `contact.lookup(phone)` → contact, past calls, upcoming bookings, so returning customers are greeted by name.
+3. **Caller lookup.** First tool: `contact.lookup(phone)` → contact, past calls, upcoming bookings, so the assistant knows a returning customer (it does not greet them by name).
 4. **Greeting.** Configurable greeting; AI disclosure on by default (configurable, §10).
 5. **Conversation.** The agent follows the assistant config (business knowledge, services, service area, FAQs, booking types, urgent and transfer rules). Its tools are registry actions:
 

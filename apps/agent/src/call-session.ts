@@ -1,10 +1,10 @@
 // One call as the agent sees it: start, append transcript segments, finish.
-import { type BookingContext, type CallDocuments, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, DEFAULT_AI_DISCLOSURE, DEFAULT_KNOWN_CALLER_GREETING, greetingWithDisclosure, type Language, languageCodes, localizedDefault, mainLanguageOf, silenceClosingOf } from '@linedesk/actions'
+import { type BookingContext, type CallDocuments, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, DEFAULT_AI_DISCLOSURE, greetingWithDisclosure, type Language, languageCodes, localizedDefault, mainLanguageOf, silenceClosingOf } from '@linedesk/actions'
 import { type Assistant, type Contact, DEFAULT_TRANSFERS, type ToolEvent, type TransferContact } from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
 import { type SimulatedAnswer, simulatedAnswers } from './on-call-dialer.ts'
-import { type CallerContext, forHours, personalGreeting } from './prompt.ts'
+import { type CallerContext, forHours } from './prompt.ts'
 
 export type Speaker = z.input<typeof callAppendTranscript.input>['speaker']
 export type CallResult = Omit<z.input<typeof callFinish.input>, 'callId'>
@@ -68,23 +68,9 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
   callerHistory?: CallerHistory | null
 }
 
-/**
- * The caller for the prompt, and the assistant's greeting for a caller who called before (greeting_known_caller,
- * empty: none) when call.start sent the caller's history (a phone caller with a contact). An assistant row of
- * an older API has no such text: its greet_by_name decides, with the default text.
- */
-export function greetCaller(assistant: Assistant | null, contact: Contact | null, history: CallerHistory | null | undefined): { assistant: Assistant | null; caller: CallerContext | null } {
-  if (!contact) return { assistant, caller: null }
-  const caller: CallerContext = { name: contact.name, note: contact.note, history: history ?? null, greetedByName: false }
-  const template = assistant?.greeting_known_caller ?? (assistant?.greet_by_name === false ? '' : DEFAULT_KNOWN_CALLER_GREETING)
-  const personal = assistant ? personalGreeting(assistant.greeting, template, caller) : null
-  if (!assistant || !personal) return { assistant, caller }
-  // The full name was said: its check proves nothing, so no appointments are listed for the assistant to share.
-  const shared = personal.usesLastName && caller.history ? { ...caller.history, upcomingBookings: [] } : caller.history
-  return {
-    assistant: { ...assistant, greeting: personal.text },
-    caller: { ...caller, history: shared, greetedByName: personal.usesName, greetedFullName: personal.usesLastName },
-  }
+/** The caller for the prompt: the matched contact's name and note, and their history when call.start sent it. */
+export function callerOf(contact: Contact | null, history: CallerHistory | null | undefined): CallerContext | null {
+  return contact ? { name: contact.name, note: contact.note, history: history ?? null } : null
 }
 
 /** The greeting with the AI note when the assistant says it at the start; an API of an older version sends no mode. */
@@ -96,7 +82,7 @@ export function withAiNote(assistant: Assistant | null): Assistant | null {
 
 /**
  * The owner's texts as the call says them in the assistant's main language: a text that is still the English
- * default (greeting, returning-caller line, closing line) becomes that language's default; written ones stay.
+ * default (greeting, closing line) becomes that language's default; written ones stay.
  */
 export function inMainLanguage(assistant: Assistant | null): Assistant | null {
   const main = mainLanguageOf(assistant?.languages)
@@ -106,7 +92,6 @@ export function inMainLanguage(assistant: Assistant | null): Assistant | null {
     ...assistant,
     greeting: local(assistant.greeting),
     greeting_outside: assistant.greeting_outside ? local(assistant.greeting_outside) : assistant.greeting_outside,
-    greeting_known_caller: assistant.greeting_known_caller && local(assistant.greeting_known_caller),
     silence_closing: local(silenceClosingOf(assistant.silence_closing)),
   }
 }
@@ -186,9 +171,8 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     : started.assistant
   // The greeting and instructions that apply now: outside business hours, the outside variants.
   // …with the AI note (and in the consent mode the question) the owner chose for the start of the call.
-  const greeted = greetCaller(withAiNote(forHours(inMainLanguage(configured), businessHours)), contact, started.callerHistory)
-  const assistant = withRecordingNotice(greeted.assistant, started.recordingNotice)
-  const caller = greeted.caller
+  const assistant = withRecordingNotice(withAiNote(forHours(inMainLanguage(configured), businessHours)), started.recordingNotice)
+  const caller = callerOf(contact, started.callerHistory)
   const booking = started.booking ?? null
   const startedAt = Date.now()
   return {

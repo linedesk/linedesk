@@ -213,11 +213,6 @@ const openingOf = (call: CallSession) => call.assistant?.greeting || spokenLines
  */
 async function greet(session: voice.AgentSession, config: AgentConfig, call: CallSession, cached: Promise<Awaited<ReturnType<typeof greetingCache.get>>>, key: string) {
   const text = openingOf(call)
-  // A greeting with the caller's name is said live and never stored: it is theirs alone.
-  if (call.caller?.greetedByName) {
-    session.say(text)
-    return 'personal'
-  }
   const audio = await cached
   if (audio) {
     session.say(text, { audio: audioStream(audio) })
@@ -239,7 +234,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const key = greetingKey({
     ...greetingVoice(config, call), text: openingOf(call),
   })
-  const cachedGreeting = call.caller?.greetedByName ? Promise.resolve(null) : greetingCache.get(key) // read while the session starts
+  const cachedGreeting = greetingCache.get(key) // read while the session starts
   let callerIdentity: string | undefined
   void callerJoined.then(caller => (callerIdentity = caller.identity), () => {})
   const silence = silencePolicyOf(call.assistant)

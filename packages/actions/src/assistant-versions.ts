@@ -11,7 +11,7 @@ import { silenceClosingOf } from './settings.ts'
 
 /** The assistant's columns a version keeps: everything that changes a call. */
 export const VERSIONED_FIELDS = [
-  'name', 'greeting', 'greeting_known_caller', 'greeting_outside', 'ai_disclosure', 'communication_style', 'behaviours',
+  'name', 'greeting', 'greeting_outside', 'ai_disclosure', 'communication_style', 'behaviours',
   'business_profile', 'call_rules', 'transfers', 'voice', 'languages',
   'silence_first_gap_s', 'silence_reminders', 'silence_closing', 'record_calls',
 ] as const satisfies readonly (keyof Assistant)[]
@@ -29,7 +29,7 @@ export function snapshotOf(a: Assistant, calendars: readonly AssistantCalendar[]
   return { ...fields, calendars: kept }
 }
 
-/** A saved version's settings without keys of fields that were removed since (e.g. `emergency_note`, `keypad_menu`). */
+/** A saved version's settings without keys of fields that were removed since (e.g. `emergency_note`, `keypad_menu`, `greeting_known_caller`). */
 export function storedSnapshot(settings: unknown): AssistantSnapshot {
   const stored = settings as Record<string, unknown>
   const fields = Object.fromEntries(VERSIONED_FIELDS.filter(k => k in stored).map(k => [k, stored[k]]))
@@ -55,7 +55,6 @@ export type VersionPart = { id: string; label: string; text: (s: AssistantSnapsh
 export const VERSION_PARTS: readonly VersionPart[] = [
   { id: 'name', label: 'Name', text: s => s.name },
   { id: 'greeting', label: 'Greeting', text: s => s.greeting },
-  { id: 'greeting_known_caller', label: 'Greeting for returning callers', text: s => s.greeting_known_caller || 'None' },
   { id: 'greeting_outside', label: 'Greeting outside business hours', text: s => s.greeting_outside || 'Same as during hours' },
   { id: 'ai_disclosure', label: 'Says it is an AI', text: s => AI_DISCLOSURE_LABELS[s.ai_disclosure] ?? s.ai_disclosure },
   { id: 'communication_style', label: 'Style', text: s => COMMUNICATION_STYLE_LABELS[s.communication_style] ?? s.communication_style },
