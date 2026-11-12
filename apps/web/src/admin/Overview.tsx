@@ -14,6 +14,7 @@ import {
   loadOverview,
   type ServiceStatus,
 } from './api.ts'
+import { ReplyDelay } from './ReplyDelay.tsx'
 
 const money = (usd: number) => (usd < 0.01 && usd > 0 ? '< $0.01' : `$${usd.toFixed(2)}`)
 const count = (n: number) => n.toLocaleString('en-US')
@@ -200,6 +201,7 @@ export function Overview({ onOpen }: Props) {
         )}
       </div>
       <Health />
+      <ReplyDelay />
       {o ? <Costs overview={o} /> : <Skeleton className="adm-card adm-skel-card" />}
       {o && (
         <Card title="People">

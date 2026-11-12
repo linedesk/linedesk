@@ -1,7 +1,8 @@
-// Where the time of a realtime reply goes, one log line per reply, from OpenAI's own events and the agent's clock:
-// the caller stops speaking (OpenAI's `audio_end_ms`, mapped to when that audio was sent) → OpenAI says the turn is over
-// (turn detection and the upload) → it starts the reply → its first audio arrives (model and download) → the agent
-// plays it. What a caller hears on top is the phone leg (carrier ↔ LiveKit SIP ↔ agent).
+// Where the time of a realtime reply goes, from OpenAI's own events and the agent's clock: the caller stops speaking
+// (OpenAI's `audio_end_ms`, mapped to when that audio was sent) → OpenAI says the turn is over (turn detection and the
+// upload) → it starts the reply → its first audio arrives (model and download) → the agent plays it. What a caller
+// hears on top is the phone leg (carrier ↔ LiveKit SIP ↔ agent).
+import type { ReplyTimes } from './turn-metrics.ts'
 
 /** The input audio the realtime model is sent: 24 kHz, 16-bit mono, so 48 bytes per millisecond. */
 const BYTES_PER_MS = 48
@@ -11,11 +12,18 @@ type Event = { type?: string; audio?: string; audio_end_ms?: number }
 /** Bytes of base64 text, without decoding it. */
 const base64Bytes = (text: string) => Math.floor((text.length * 3) / 4) - (text.endsWith('==') ? 2 : text.endsWith('=') ? 1 : 0)
 
+/** One realtime reply: the parts of ReplyTimes, with OpenAI's model time split into starting the reply and its first audio. */
+export type RealtimeReply = ReplyTimes & { startMs: number; firstAudioMs: number; lagMs: number }
+
+/** The log line for one realtime reply. */
+export const describeRealtimeReply = (r: RealtimeReply) =>
+  `caller stopped → turn detected ${r.turnMs} ms, → reply started ${r.startMs} ms, → first audio ${r.firstAudioMs} ms, → playing ${r.serverMs} ms (total ${r.totalMs} ms; sending ${r.lagMs} ms behind)`
+
 /**
  * Follows one realtime session. `sent` and `received` take OpenAI's client and server events, `speaking` the moment
- * the agent starts playing a reply; each reply after the caller spoke gives one line to `log`.
+ * the agent starts playing a reply; each reply after the caller spoke goes to `onReply`.
  */
-export function realtimeTurnTimer(log: (line: string) => void, now: () => number = Date.now) {
+export function realtimeTurnTimer(onReply: (reply: RealtimeReply) => void, now: () => number = Date.now) {
   /** When the first input audio was sent; positions in the input audio are milliseconds after it, sent in real time. */
   let firstSentAt: number | null = null
   let sentMs = 0
@@ -42,10 +50,18 @@ export function realtimeTurnTimer(log: (line: string) => void, now: () => number
       if (!turn?.firstAudio || turn.created === undefined) return
       const playing = now()
       const { speechEnd, stopped, created, firstAudio, lag } = turn
-      const ms = (from: number, to: number) => `${Math.round(to - from)} ms`
-      log(
-        `caller stopped → turn detected ${ms(speechEnd, stopped)}, → reply started ${ms(stopped, created)}, → first audio ${ms(created, firstAudio)}, → playing ${ms(firstAudio, playing)} (total ${ms(speechEnd, playing)}; sending ${Math.round(lag)} ms behind)`,
-      )
+      const ms = (from: number, to: number) => Math.max(0, Math.round(to - from))
+      onReply({
+        at: new Date(speechEnd).toISOString(),
+        turnMs: ms(speechEnd, stopped),
+        startMs: ms(stopped, created),
+        firstAudioMs: ms(created, firstAudio),
+        // OpenAI's whole time from taking the turn to its first audio.
+        modelMs: ms(stopped, firstAudio),
+        serverMs: ms(firstAudio, playing),
+        totalMs: ms(speechEnd, playing),
+        lagMs: Math.round(lag),
+      })
       turn = null
     },
   }

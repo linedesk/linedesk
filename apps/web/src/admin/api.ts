@@ -258,6 +258,21 @@ export const loadWorkspaceMembers = (workspaceId: string) =>
 
 export const loadOverview = () => get<AdminOverview>('/v1/admin/overview')
 
+/** GET /v1/admin/latency (apps/api/src/reply-latency.ts): reply delay per pipeline, split by where the time goes. */
+export type Percentiles = { p50: number | null; p90: number | null }
+export type PipelineLatency = {
+  pipeline: 'cascaded' | 'realtime'
+  replies: number
+  providers: { turn?: string; model?: string; voice?: string }
+  turn: Percentiles
+  model: Percentiles
+  voice: Percentiles
+  server: Percentiles
+  total: Percentiles
+  phone: Percentiles & { calls: number }
+}
+export const loadLatency = () => get<{ days: number; pipelines: PipelineLatency[] }>('/v1/admin/latency')
+
 export type AuditKind = 'sign_in' | 'account' | 'admin' | 'team' | 'impersonation' | 'keys' | 'integrations'
 /** One entry of GET /v1/admin/audit (apps/api/src/audit.ts). */
 export type AuditEntry = {

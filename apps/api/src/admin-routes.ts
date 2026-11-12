@@ -13,6 +13,7 @@ import { isEnvAdmin } from './instance-admin.ts'
 import { livekitStatus } from './livekit-status.ts'
 import { providerStatus, voiceProviderConfig } from './provider-settings.ts'
 import { SecretsKeyError } from './secrets.ts'
+import { LATENCY_DAYS_DEFAULT, LATENCY_DAYS_MAX, replyLatency } from './reply-latency.ts'
 
 type Env = { Variables: { actor: Actor } }
 // biome-ignore lint/suspicious/noExplicitAny: rows of hand-written aggregate queries
@@ -105,13 +106,15 @@ export function registerAdminRoutes(app: Hono<Env>) {
 
   app.get('/v1/admin/workspaces', async c => {
     const estimate = await costEstimate(db)
-    const workspaces = (await listWorkspaces(db)).map(({ seconds_this_month, phone_seconds_this_month, spending_cap_cents, ...w }) => ({
-      ...w,
-      minutes_this_month: minutes(seconds_this_month),
-      // The spending cap's measure (spending-cap.ts): the estimated cost of this UTC month's calls.
-      cost_this_month: estimate({ all: seconds_this_month, phone: phone_seconds_this_month }),
-      spending_cap_usd: spending_cap_cents === null ? null : spending_cap_cents / 100,
-    }))
+    const workspaces = (await listWorkspaces(db)).map(
+      ({ seconds_this_month, phone_seconds_this_month, spending_cap_cents, ...w }) => ({
+        ...w,
+        minutes_this_month: minutes(seconds_this_month),
+        // The spending cap's measure (spending-cap.ts): the estimated cost of this UTC month's calls.
+        cost_this_month: estimate({ all: seconds_this_month, phone: phone_seconds_this_month }),
+        spending_cap_usd: spending_cap_cents === null ? null : spending_cap_cents / 100,
+      }),
+    )
     return c.json({ workspaces })
   })
 
@@ -136,11 +139,16 @@ export function registerAdminRoutes(app: Hono<Env>) {
   app.get('/v1/admin/audit', async c => {
     const q = (name: string) => c.req.query(name)?.trim() || undefined
     const kind = q('kind')
-    if (kind && !(AUDIT_KINDS as readonly string[]).includes(kind)) return c.json({ ok: false, error: `unknown kind ${kind}` }, 400)
+    if (kind && !(AUDIT_KINDS as readonly string[]).includes(kind))
+      return c.json({ ok: false, error: `unknown kind ${kind}` }, 400)
     const from = q('from')
     const to = q('to')
-    for (const [name, value] of [['from', from], ['to', to]] as const)
-      if (value !== undefined && !isCalendarDay(value)) return c.json({ ok: false, error: `${name} must be a date like 2026-11-30` }, 400)
+    for (const [name, value] of [
+      ['from', from],
+      ['to', to],
+    ] as const)
+      if (value !== undefined && !isCalendarDay(value))
+        return c.json({ ok: false, error: `${name} must be a date like 2026-11-30` }, 400)
     const cursor = q('before')
     if (cursor !== undefined && !isAuditCursor(cursor)) return c.json({ ok: false, error: 'bad cursor' }, 400)
     return c.json(
@@ -158,6 +166,11 @@ export function registerAdminRoutes(app: Hono<Env>) {
 
   // Numbers for the overview: calls, minutes, estimated provider cost, workspaces and users.
   app.get('/v1/admin/overview', async c => c.json(await adminOverview(db)))
+  // Reply delay per pipeline, split by where the time goes, over the last `days` (default 7, at most 90).
+  app.get('/v1/admin/latency', async c => {
+    const days = Math.min(LATENCY_DAYS_MAX, Math.max(1, Number(c.req.query('days')) || LATENCY_DAYS_DEFAULT))
+    return c.json(await replyLatency(db, days))
+  })
   // Health of the parts of the install; can take a few seconds (LiveKit, SMTP).
   app.get('/v1/admin/health', async c => c.json(await adminHealth()))
 

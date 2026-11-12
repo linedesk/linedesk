@@ -1,5 +1,5 @@
 // One call as the agent sees it: start, append transcript segments, finish.
-import { type BookingContext, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, DEFAULT_AI_DISCLOSURE, greetingWithDisclosure, type Language, languageCodes, localizedDefault, mainLanguageOf, silenceClosingOf } from '@linedesk/actions'
+import { type BookingContext, type CallerHistory, callAppendTranscript, callFinish, callRecordTimings, callStart, callStartTest, DEFAULT_AI_DISCLOSURE, greetingWithDisclosure, type Language, languageCodes, localizedDefault, mainLanguageOf, silenceClosingOf } from '@linedesk/actions'
 import { type Assistant, type Contact, DEFAULT_TRANSFERS, type ToolEvent, type TransferContact, type WebhookLookup } from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
@@ -54,7 +54,12 @@ export interface CallSession {
   simulatedOnCallLine?: string
   append(speaker: Speaker, text: string, toolEvent?: ToolEvent): Promise<void>
   finish(result: CallResult): Promise<void>
+  /** Stores how long the replies took (call.recordTimings), for the admin overview. */
+  recordTimings(timings: CallTimings): Promise<void>
 }
+
+/** The replies' times of one call and who did each part (call.recordTimings without the call id). */
+export type CallTimings = Omit<z.input<typeof callRecordTimings.input>, 'callId'>
 
 type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'contact'> & {
   callToken?: string
@@ -196,6 +201,9 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     },
     async finish(result) {
       await api.run(callFinish, { callId, ...result }, scope)
+    },
+    async recordTimings(timings) {
+      await api.run(callRecordTimings, { callId, ...timings }, scope)
     },
   }
 }

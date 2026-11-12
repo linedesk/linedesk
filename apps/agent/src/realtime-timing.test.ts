@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { realtimeTurnTimer } from './realtime-timing.ts'
+import { describeRealtimeReply, realtimeTurnTimer } from './realtime-timing.ts'
 
 /** 100 ms of 24 kHz 16-bit audio, base64: 4800 bytes. */
 const audio100ms = Buffer.alloc(4800).toString('base64')
@@ -7,7 +7,7 @@ const audio100ms = Buffer.alloc(4800).toString('base64')
 test('one line per reply: caller stopped → turn detected → reply started → first audio → playing', () => {
   let clock = 0
   const lines: string[] = []
-  const timer = realtimeTurnTimer(line => lines.push(line), () => clock)
+  const timer = realtimeTurnTimer(reply => lines.push(describeRealtimeReply(reply)), () => clock)
   // 3 s of audio, sent in real time from t=0.
   for (let t = 0; t < 3000; t += 100) {
     clock = t

@@ -72,6 +72,7 @@ const all = [
   calls.callStart,
   calls.callAppendTranscript,
   calls.callFinish,
+  calls.callRecordTimings,
   calls.callTakeMessage,
   calls.callFlagUrgent,
   calls.callStartTest,

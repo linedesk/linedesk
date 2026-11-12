@@ -9,7 +9,7 @@
 // CALL_TEST_FROM to CALL_TEST_TO (run setup-test-caller once; costs a few cents).
 // Needs: the agent worker running, CALL_TEST_TO (the business number; it names the workspace),
 // LiveKit env, AGENT_API_TOKEN and LINEDESK_API_URL.
-import { appointmentCancel, callFindForTest, type CallTestFinding } from '@linedesk/actions'
+import { appointmentCancel, callFindForTest, callRecordTimings, type CallTestFinding } from '@linedesk/actions'
 import { AgentDispatchClient, RoomServiceClient } from 'livekit-server-sdk'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { AGENT_NAME, livekitHttpUrl, requireEnv, requireLivekitEnv, runScript } from './env.ts'
@@ -123,8 +123,23 @@ async function main() {
   // Room mode: the business agent's job starts when the call is picked up, so its own timing is pickup to greeting.
   const checks = [...evaluateCall(finding, scenarios[name], { expectRecording }), ...(mode === 'room' ? [greetingCheck(latency.setup())] : [])]
   console.log(formatReport(finding, checks, latency.get(), latency.setup()))
+  if (mode === 'phone') await recordHeard(run.api, finding, latency.get()?.replyMs ?? [])
   if (args.includes('--cancel-booking')) await cancelTestBookings(run.api, finding)
   if (!checks.every(c => c.ok)) process.exitCode = 1
+}
+
+/**
+ * What the caller heard over the phone, per reply, onto the call (admin overview, Reply delay): set against the agent's
+ * own times of the same call, it gives the phone network's share. A failure is only reported.
+ */
+async function recordHeard(api: ApiClient, { call, workspaceId }: CallTestFinding, heardMs: number[]) {
+  if (!call || !heardMs.length) return
+  const at = new Date().toISOString()
+  try {
+    await api.run(callRecordTimings, { callId: call.id, pipeline: 'phone', replies: heardMs.map(ms => ({ at, heardMs: Math.round(ms) })) }, { workspaceId })
+  } catch (e) {
+    console.error(`Could not store what the caller heard: ${e instanceof Error ? e.message : String(e)}`)
+  }
 }
 
 /** Deletes what the test booked: the bookings of the test call and their calendar events. */

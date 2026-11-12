@@ -67,3 +67,19 @@ test('once runs the finish a single time and never rejects', async () => {
   await expect(Promise.all([finishOnce(), finishOnce(), finishOnce()])).resolves.toBeDefined()
   expect(finish).toHaveBeenCalledTimes(1)
 })
+
+test('the reply times go out at hang-up with the pipeline and providers; a failure there does not stop the finish', async () => {
+  const call = fakeCall()
+  const recordTimings = vi.fn(async () => {
+    throw new Error('API down')
+  })
+  Object.assign(call, { recordTimings })
+  const log = new CallLog(call)
+  log.timing = { pipeline: 'realtime', providers: { turn: 'openai_realtime', model: 'openai_realtime' } }
+  log.replies.push({ at: '2026-11-12T18:00:00.000Z', turnMs: 500, modelMs: 300, serverMs: 20, totalMs: 820 })
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  await finishCall(call, log, async () => '{"title":"t","summary":"s","outcome":"answered"}', noWait)
+  expect(recordTimings).toHaveBeenCalledWith({ pipeline: 'realtime', providers: { turn: 'openai_realtime', model: 'openai_realtime' }, replies: log.replies })
+  expect(call.finish).toHaveBeenCalled()
+  warn.mockRestore()
+})

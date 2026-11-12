@@ -1,8 +1,16 @@
-// One log line per measured stage of a reply, so the time a caller waits can be split into
-// end-of-turn detection, the LLM's first token and the voice's first audio.
+// Where the time of a reply goes on the three stages: one log line per measured stage (end-of-turn detection, the
+// LLM's first token, the voice's first audio), and per reply the parts with the agent's own share (ReplyTimes), from
+// the caller's last word (Flux's lastSpeakingTime) to the moment the reply starts playing.
 import { voice } from '@livekit/agents'
 
-type Metrics = { type: string } & Record<string, unknown>
+type Metrics = { type: string; speechId?: string; cancelled?: boolean } & Record<string, unknown>
+
+/**
+ * One reply's time in milliseconds, split by where it went: end-of-turn detection, the model (until its first token;
+ * a realtime model until its first audio), the voice (until its first audio; none on a realtime call) and the agent
+ * itself (the rest until the audio plays). `at`: when the caller stopped speaking.
+ */
+export type ReplyTimes = { at: string; turnMs: number; modelMs: number; voiceMs?: number; serverMs: number; totalMs: number }
 
 /** The log line for one metrics event, or null for the kinds that do not affect reply latency. */
 export function describeMetrics(m: Metrics): string | null {
@@ -19,4 +27,54 @@ export function logTurnMetrics(session: voice.AgentSession, label: string) {
     const line = describeMetrics(metrics as unknown as Metrics)
     if (line) console.log(`latency ${label}: ${line}`)
   })
+}
+
+type Pending = { speechEnd?: number; turnMs?: number; modelMs?: number; voiceMs?: number; playing?: number }
+
+/**
+ * Puts each reply's parts together on the three stages. `metrics` takes the session's metrics events (grouped by the
+ * reply's speech id), `speaking` the moment the agent starts playing; a reply goes to `onReply` once its end of turn,
+ * first token, first audio and playing are all known. A reply cut short (cancelled) gives none.
+ */
+export function cascadedReplyTimer(onReply: (reply: ReplyTimes) => void, now: () => number = Date.now) {
+  const replies = new Map<string, Pending>()
+  /** The reply whose end of turn came last: the next audio that plays is its. */
+  let awaitingAudio: string | null = null
+  const entry = (id: string) => replies.get(id) ?? replies.set(id, {}).get(id)!
+  const complete = (id: string) => {
+    const r = replies.get(id)
+    if (!r || r.speechEnd === undefined || r.turnMs === undefined || r.modelMs === undefined || r.voiceMs === undefined || r.playing === undefined) return
+    replies.delete(id)
+    const totalMs = Math.max(0, Math.round(r.playing - r.speechEnd))
+    onReply({
+      at: new Date(r.speechEnd).toISOString(),
+      turnMs: Math.round(r.turnMs),
+      modelMs: Math.round(r.modelMs),
+      voiceMs: Math.round(r.voiceMs),
+      serverMs: Math.max(0, totalMs - Math.round(r.turnMs) - Math.round(r.modelMs) - Math.round(r.voiceMs)),
+      totalMs,
+    })
+  }
+  return {
+    metrics(m: Metrics) {
+      const id = m.speechId
+      if (!id || m.cancelled) return
+      if (m.type === 'eou_metrics') {
+        const r = entry(id)
+        r.speechEnd = Number(m.lastSpeakingTimeMs)
+        r.turnMs = Number(m.endOfUtteranceDelayMs)
+        awaitingAudio = id
+      } else if (m.type === 'llm_metrics') entry(id).modelMs ??= Number(m.ttftMs)
+      else if (m.type === 'tts_metrics') entry(id).voiceMs ??= Number(m.ttfbMs)
+      else return
+      complete(id)
+    },
+    speaking() {
+      if (!awaitingAudio) return
+      const id = awaitingAudio
+      awaitingAudio = null
+      entry(id).playing = now()
+      complete(id)
+    },
+  }
 }

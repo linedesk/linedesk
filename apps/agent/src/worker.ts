@@ -22,8 +22,8 @@ import { AGENT_NAME, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
 import { createPipeline, createRealtimePipeline, createTts, greetingVoice, realtimeLine, summaryLlm, talkingSpeedOf, warmUpLlm } from './pipeline.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
-import { logTurnMetrics } from './turn-metrics.ts'
-import { realtimeTurnTimer } from './realtime-timing.ts'
+import { cascadedReplyTimer, logTurnMetrics } from './turn-metrics.ts'
+import { describeRealtimeReply, realtimeTurnTimer } from './realtime-timing.ts'
 import { followCallerLanguage } from './caller-language.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
 import { greetingPlayed, hangUpAfterLine, hangUpAfterSpeech, hangUpAtCallLimit, remindOnSilence, silencePolicyOf, speakingOf } from './hang-up.ts'
@@ -265,9 +265,24 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const lines = () => spokenLines(spokenNow())
   // Silence only counts once the greeting has played (remindOnSilence).
   const greeted = greetingPlayed(session)
-  // Realtime: where each reply's time goes, one log line per reply (realtime-timing.ts).
-  const timer = realtime ? realtimeTurnTimer(line => console.log(`latency ${call.callId}: ${line}`)) : null
-  if (timer) session.on(voice.AgentSessionEventTypes.AgentStateChanged, ({ newState }) => newState === 'speaking' && timer.speaking())
+  // Where each reply's time goes (admin overview, Reply delay): realtime from OpenAI's events, the three stages from
+  // their metrics. Kept on the call log and sent at hang-up; realtime replies are also logged.
+  const timer = realtime
+    ? realtimeTurnTimer(reply => {
+        log.replies.push(reply)
+        console.log(`latency ${call.callId}: ${describeRealtimeReply(reply)}`)
+      })
+    : null
+  const stagesTimer = realtime ? null : cascadedReplyTimer(reply => log.replies.push(reply))
+  log.timing = realtime
+    ? { pipeline: 'realtime', providers: { turn: realtime.provider, model: realtime.provider } }
+    : { pipeline: 'cascaded', providers: { turn: stages!.stt.provider, model: stages!.llm.provider, voice: stages!.tts.provider } }
+  if (stagesTimer) session.on(voice.AgentSessionEventTypes.MetricsCollected, ({ metrics }) => stagesTimer.metrics(metrics as never))
+  session.on(voice.AgentSessionEventTypes.AgentStateChanged, ({ newState }) => {
+    if (newState !== 'speaking') return
+    timer?.speaking()
+    stagesTimer?.speaking()
+  })
   const onSpeaking = ({ newState }: { newState: string }) => {
     if (newState !== 'speaking') return
     session.off(voice.AgentSessionEventTypes.AgentStateChanged, onSpeaking)

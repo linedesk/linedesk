@@ -1,7 +1,7 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, type AssistantRestoreData, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, } from '@linedesk/actions'
+import { actions, type AssistantRestoreData, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type ReplyTiming, } from '@linedesk/actions'
 import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, localDate } from '@linedesk/calendar'
-import {assistant_calendars, assistants, availability_exceptions, availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, syncedTables,
+import {assistant_calendars, assistants, availability_exceptions, availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, reply_timings, syncedTables,
   transcript_segments, workspace_members, workspace_settings, type Tx,
 } from '@linedesk/db'
 import type { ActionItem, Assistant, Closure, PhoneNumber, TransferContact } from '@linedesk/db/types'
@@ -565,6 +565,17 @@ const handlers: Record<string, Handler> = {
       speaker: input.speaker, text: input.text, at_ms: input.atMs, tool_event: input.toolEvent ?? null,
     }).returning()
     return { rows: { transcript_segments: [segment!] } }
+  },
+
+  // Not synced (admin overview only): no rows go back to the store.
+  'call.recordTimings': async ({ tx, actor }, input) => {
+    const call = await loadCall(tx, actor, input.callId)
+    await tx.insert(reply_timings).values(input.replies.map((r: ReplyTiming) => ({
+      id: newId('rt'), workspace_id: call.workspace_id, call_id: call.id, at: r.at, pipeline: input.pipeline, providers: input.providers,
+      turn_ms: r.turnMs ?? null, model_ms: r.modelMs ?? null, voice_ms: r.voiceMs ?? null, server_ms: r.serverMs ?? null,
+      total_ms: r.totalMs ?? null, heard_ms: r.heardMs ?? null,
+    })))
+    return { rows: {} }
   },
 
   'call.finish': async ({ tx, actor, now }, input) => {

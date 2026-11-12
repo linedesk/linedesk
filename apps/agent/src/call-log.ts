@@ -1,5 +1,6 @@
 // What happened in one call, and how it ends: every call that was started gets finished.
-import type { CallSession, Speaker } from './call-session.ts'
+import type { CallSession, CallTimings, Speaker } from './call-session.ts'
+import type { ReplyTimes } from './turn-metrics.ts'
 import { withRetry, type RetryOptions } from './retry.ts'
 import { mergeToolResults, summarizeCall, unsummarizedResult, type CompleteJson, type TranscriptLine } from './summary.ts'
 
@@ -18,6 +19,9 @@ export class CallLog {
   onHold = false
   /** The caller's name as they confirmed it in the name step (get_name): bookings go under it. */
   confirmedName: string | undefined
+  /** How long each reply took (ReplyTimes), sent at hang-up for the admin overview; `timing` says which pipeline and providers. */
+  readonly replies: ReplyTimes[] = []
+  timing: Omit<CallTimings, 'replies'> | null = null
   private pending: Promise<unknown>[] = []
 
   private call: CallSession
@@ -43,6 +47,9 @@ export class CallLog {
  */
 export async function finishCall(call: CallSession, log: CallLog, complete: CompleteJson, retry?: RetryOptions) {
   await log.flush()
+  // The reply times are for the admin overview: a failure there never holds up finishing the call.
+  if (log.timing && log.replies.length)
+    void call.recordTimings({ ...log.timing, replies: log.replies }).catch(e => console.warn(`could not store the reply times of call ${call.callId}: ${message(e)}`))
   const summary = await summarizeWithRetry(call, log, complete, retry).catch(e => {
     console.error(`could not summarize call ${call.callId}, finishing it without a summary: ${message(e)}`)
     return unsummarizedResult(log.lines, log.messages)

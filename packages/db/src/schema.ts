@@ -639,6 +639,38 @@ export const call_evaluations = pgTable(
   t => [index('call_evaluations_ws_score').on(t.workspace_id, t.score)],
 )
 
+// Reply latency (Admin, Overview): one row per assistant reply, the time from the caller's last word to the reply's
+// first audio, split by where it went. Written by the agent at hang-up (call.recordTimings); `heard_ms` rows come from
+// the call test, which hears the reply over the phone. Not synced: only the admin overview reads it.
+export const reply_timings = pgTable(
+  'reply_timings',
+  {
+    id: text('id').primaryKey(),
+    workspace_id: text('workspace_id').notNull(),
+    call_id: text('call_id')
+      .notNull()
+      .references(() => calls.id, { onDelete: 'cascade' }),
+    at: ts('at').notNull(),
+    /** `cascaded` (speech to text, language model, voice) or `realtime`; `phone`: a call test's `heard_ms` row. */
+    pipeline: text('pipeline').notNull(),
+    /** Who did each part: { turn, model, voice } provider ids (a realtime model is turn and model). */
+    providers: jsonb('providers').$type<Record<string, string>>().notNull().default({}),
+    /** End-of-turn detection: from the caller's last word until the turn is taken. */
+    turn_ms: integer('turn_ms'),
+    /** The model: until its first token (realtime: until its first audio). */
+    model_ms: integer('model_ms'),
+    /** The voice: until its first audio (none on a realtime call). */
+    voice_ms: integer('voice_ms'),
+    /** Linedesk's own agent: the rest until the audio plays. */
+    server_ms: integer('server_ms'),
+    /** From the caller's last word until the reply plays, on the agent's clock. */
+    total_ms: integer('total_ms'),
+    /** What the caller heard over the phone (call test only): total plus the phone network. */
+    heard_ms: integer('heard_ms'),
+  },
+  t => [index('reply_timings_at').on(t.at)],
+)
+
 // Knowledge (docs/architecture.md, Knowledge): questions callers asked that the assistant could not answer.
 // knowledge_documents and knowledge_chunks are no longer used (documents were removed) and are dropped in a later
 // release; the documents table stays synced until then, so a web app of the release before keeps working.

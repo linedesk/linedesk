@@ -310,6 +310,36 @@ export const callFinish = defineAction({
   logged: 'ids',
 })
 
+/** One assistant reply's time, split by where it went (reply_timings); milliseconds, each part where it was measured. */
+const replyTiming = z.object({
+  at: z.iso.datetime({ offset: true }),
+  turnMs: z.number().int().nonnegative().max(600_000).optional(),
+  modelMs: z.number().int().nonnegative().max(600_000).optional(),
+  voiceMs: z.number().int().nonnegative().max(600_000).optional(),
+  serverMs: z.number().int().nonnegative().max(600_000).optional(),
+  totalMs: z.number().int().nonnegative().max(600_000).optional(),
+  heardMs: z.number().int().nonnegative().max(600_000).optional(),
+})
+export type ReplyTiming = z.infer<typeof replyTiming>
+/** `phone`: rows of the call test with only what the caller heard over the phone (`heardMs`), whatever answered. */
+export const REPLY_PIPELINES = ['cascaded', 'realtime', 'phone'] as const
+
+export const callRecordTimings = defineAction({
+  name: 'call.recordTimings',
+  description:
+    "Store how long the assistant's replies took on a call, split by where the time went (turn detection, model, voice, the agent itself, and what the caller heard in a call test).",
+  input: callId.extend({
+    pipeline: z.enum(REPLY_PIPELINES),
+    /** Who did each part: turn, model, voice → provider id. */
+    providers: z
+      .object({ turn: z.string().max(80).optional(), model: z.string().max(80).optional(), voice: z.string().max(80).optional() })
+      .default({}),
+    replies: z.array(replyTiming).min(1).max(500),
+  }),
+  permission: 'agent',
+  logged: 'ids',
+})
+
 // Tools the assistant can use during a call.
 export const callTakeMessage = defineAction({
   name: 'call.takeMessage',

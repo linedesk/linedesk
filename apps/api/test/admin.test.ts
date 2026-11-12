@@ -1037,6 +1037,55 @@ describe('overview', () => {
     await db.delete(calls).where(eq(calls.id, call!.id))
   })
 
+  test('reply delay: the agent stores each reply\'s parts, the overview gives p50 and p90 per pipeline and the phone share', async () => {
+    const newCall = async () =>
+      (
+        await db
+          .insert(calls)
+          .values({ id: `call_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`, workspace_id: home.id, from_number: '+15035550100', to_number: home.number, status: 'completed' })
+          .returning()
+      )[0]!
+    const realtimeCall = await newCall()
+    const cascadedCall = await newCall()
+    const at = new Date().toISOString()
+    const record = (callId: string, body: Record<string, unknown>) => act(agent(home.id), 'call.recordTimings', { callId, ...body })
+    expect(
+      (await record(realtimeCall.id, {
+        pipeline: 'realtime',
+        providers: { turn: 'openai_realtime', model: 'openai_realtime' },
+        replies: [
+          { at, turnMs: 500, modelMs: 300, serverMs: 20, totalMs: 820 },
+          { at, turnMs: 700, modelMs: 500, serverMs: 40, totalMs: 1240 },
+        ],
+      })).status,
+    ).toBe(200)
+    await record(cascadedCall.id, { pipeline: 'cascaded', providers: { turn: 'deepgram', model: 'openrouter', voice: 'elevenlabs' }, replies: [{ at, turnMs: 400, modelMs: 600, voiceMs: 200, serverMs: 100, totalMs: 1300 }] })
+    // The call test heard the realtime call's replies over the phone: 1.03 s on average, against 1.03 s on the agent's clock plus the network.
+    await record(realtimeCall.id, { pipeline: 'phone', replies: [{ at, heardMs: 1830 }, { at, heardMs: 2230 }] })
+    // A member cannot write these; only the agent.
+    expect((await act(member, 'call.recordTimings', { callId: realtimeCall.id, pipeline: 'realtime', replies: [{ at, totalMs: 1 }] })).status).toBe(403)
+
+    const latency = (await request(operator, 'GET', '/v1/admin/latency?days=1')).body
+    const realtime = latency.pipelines.find((p: { pipeline: string }) => p.pipeline === 'realtime')
+    expect(realtime).toMatchObject({
+      replies: 2,
+      providers: { turn: 'openai_realtime', model: 'openai_realtime' },
+      turn: { p50: 600, p90: 680 },
+      model: { p50: 400 },
+      voice: { p50: null },
+      total: { p50: 1030 },
+      phone: { calls: 1, p50: 1000 },
+    })
+    expect(latency.pipelines.find((p: { pipeline: string }) => p.pipeline === 'cascaded')).toMatchObject({
+      replies: 1,
+      voice: { p50: 200 },
+      phone: { calls: 0, p50: null },
+    })
+    expect(latency.pipelines.map((p: { pipeline: string }) => p.pipeline)).not.toContain('phone')
+    expect((await request(member, 'GET', '/v1/admin/latency')).status).toBe(403)
+    await db.delete(calls).where(inArray(calls.id, [realtimeCall.id, cascadedCall.id]))
+  })
+
   test('sample calls are not usage: not in calls, minutes or the workspace list', async () => {
     const before = (await request(operator, 'GET', '/v1/admin/overview')).body
     const listed = async () =>
