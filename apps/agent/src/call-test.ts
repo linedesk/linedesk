@@ -1,5 +1,5 @@
 // Call test: our test-caller agent calls the business and the result is checked in the inbox.
-//   pnpm --filter @linedesk/agent call-test <scenario> [--phone] [--expect-recording] [--cancel-booking] [--persona "<who the caller is>"]
+//   pnpm --filter @linedesk/agent call-test <scenario> [--phone [--external]] [--expect-recording] [--cancel-booking] [--persona "<who the caller is>"]
 // --persona: the caller plays this instead of the scenario's persona; the scenario's checks stay.
 //   in the agent container: node src/call-test.ts <scenario> [--phone]
 // Booking scenarios (booking, which-calendar) expect a real booking when the assistant has an appointment
@@ -15,7 +15,7 @@ import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { AGENT_NAME, livekitHttpUrl, requireEnv, requireLivekitEnv, runScript } from './env.ts'
 import { CALLEE_IDENTITY } from './test-caller/caller.ts'
 import { type AgentSetup, LATENCY_ATTRIBUTE, type LatencySample, SETUP_ATTRIBUTE } from './test-caller/latency.ts'
-import { evaluateCall, formatReport, greetingCheck } from './test-caller/report.ts'
+import { evaluateCall, formatCallerLatency, formatReport, greetingCheck } from './test-caller/report.ts'
 import { waitForFinishedCall } from './test-caller/wait.ts'
 import { isScenario, parseCallTestArgs, phoneRefused, scenarioNames, scenarios, type CallTestMode, type Scenario, type ScenarioName, type TestCallerMetadata } from './test-caller/scenarios.ts'
 import { findOutboundTrunk, sipClient } from './sip-trunks.ts'
@@ -49,6 +49,17 @@ function latencyReader(room: string) {
         if (own) setup = JSON.parse(own) as AgentSetup
       }
     },
+  }
+}
+
+/** Polls until the test caller's room is empty (the call ended) or `deadline`, reading the latency on the way. */
+async function waitForCallEnd(room: string, deadline: number, poll: () => Promise<void>) {
+  const livekit = requireLivekitEnv()
+  const rooms = new RoomServiceClient(livekitHttpUrl(livekit.LIVEKIT_URL), livekit.LIVEKIT_API_KEY, livekit.LIVEKIT_API_SECRET)
+  while (Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 3000))
+    await poll()
+    if (!(await rooms.listParticipants(room).catch(() => [])).length) return
   }
 }
 
@@ -102,7 +113,7 @@ async function startByPhone({ name, room, to, persona }: Run, from: string) {
 async function main() {
   const args = process.argv.slice(2)
   const { name, persona } = parseCallTestArgs(args)
-  if (!isScenario(name)) throw new Error(`usage: call-test <scenario> [--phone] [--expect-recording] [--cancel-booking] [--persona "…"]; scenarios: ${scenarioNames.join(', ')}`)
+  if (!isScenario(name)) throw new Error(`usage: call-test <scenario> [--phone [--external]] [--expect-recording] [--cancel-booking] [--persona "…"]; scenarios: ${scenarioNames.join(', ')}`)
   const mode: CallTestMode = args.includes('--phone') ? 'phone' : 'room'
   // A transfer scenario over the phone would page a real on-call phone: only with the simulated person,
   // or in the live transfer test (CALL_TEST_ONCALL), where the agent dials nothing but the test on-call number.
@@ -115,9 +126,17 @@ async function main() {
   else await startInRoom(run)
   console.log('The conversation runs for up to three minutes; waiting for the call to finish…')
 
+  const latency = latencyReader(run.room)
+  // A number of another install (--external, phone only): this install has no record of the call, so there is nothing to
+  // check; what the caller heard is all there is. The call's own data is on the install that answered.
+  if (from && args.includes('--external')) {
+    await waitForCallEnd(run.room, Date.now() + MAX_CALL_SEC * 1000, latency.poll)
+    console.log(formatCallerLatency(latency.get()))
+    console.log('External number: no checks here; the call, its transcript and reply times are on the install that answered.')
+    return
+  }
   const lookup = from ? { from } : { room: run.room }
   const find = async () => (await run.api.run(callFindForTest, { to, since: run.since, ...lookup })).data as CallTestFinding
-  const latency = latencyReader(run.room)
   const expectRecording = args.includes('--expect-recording')
   const finding = await waitForFinishedCall(find, Date.now() + MAX_CALL_SEC * 1000 + RESULT_WAIT_MS, latency.poll, { expectRecording })
   // Room mode: the business agent's job starts when the call is picked up, so its own timing is pickup to greeting.
