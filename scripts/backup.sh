@@ -13,6 +13,7 @@
 #   BACKUP_KEEP_DAYS      how long backups are kept (default: 30)
 # Needs on the host: docker compose (the running stack) and age. rclone runs as a container.
 set -euo pipefail
+umask 077 # the dump is unencrypted until age has run: only this user may read it, at every moment
 cd "$(dirname "$0")/.."
 
 # shellcheck source=scripts/backup-settings.sh
@@ -31,9 +32,14 @@ require BACKUP_S3_ENDPOINT BACKUP_S3_BUCKET BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SE
 prefix=$(setting BACKUP_S3_PREFIX)
 prefix=${prefix:-linedesk/}
 target="b:$(setting BACKUP_S3_BUCKET)/${prefix%/}"
+# A job killed outright (SIGKILL, out of memory, power loss) runs no trap: the next run removes what it left.
+find /var/tmp -maxdepth 1 -type d -name 'linedesk-backup.*' -mmin +1440 -exec rm -rf {} + 2>/dev/null || true
 work=$(mktemp -d /var/tmp/linedesk-backup.XXXXXX)
 chmod 700 "$work"
+# The unencrypted dump goes with the directory however the job ends: done, failed, stopped (TERM) or interrupted.
 trap 'rm -rf "$work"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [ "${1:-}" = --list ]; then
   rclone lsl "$target"

@@ -7,6 +7,7 @@
 # The private key is needed only here; keep it off the server and remove it again after a check.
 # A real restore (replacing the stack's database) is in README, "Backups".
 set -euo pipefail
+umask 077 # the decrypted dump: only this user may read it
 cd "$(dirname "$0")/.."
 
 identity=${BACKUP_AGE_IDENTITY:-}
@@ -23,6 +24,8 @@ work=$(mktemp -d /var/tmp/linedesk-restore.XXXXXX)
 chmod 700 "$work"
 container=linedesk-restore-check-$$
 trap 'docker rm -f "$container" >/dev/null 2>&1; rm -rf "$work"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 log() { echo "[restore $(date -u +%FT%TZ)] $*"; }
 
 name=${1:-$(rclone lsf --include 'linedesk-*.dump.age' "$target" | sort | tail -n 1)}
