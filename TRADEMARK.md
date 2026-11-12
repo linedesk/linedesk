@@ -1,6 +1,6 @@
 # Trademark
 
-The Linedesk code is free software under the AGPL-3.0. The name "Linedesk" and the Linedesk logo are trademarks of Sauerbier & Gutberlet GmbH and are not covered by that license.
+The Linedesk code is open source under the MIT license. The name "Linedesk" and the Linedesk logo are trademarks of Sauerbier & Gutberlet GmbH and are not covered by that license.
 
 You may:
 
