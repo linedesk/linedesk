@@ -139,23 +139,33 @@ export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVo
 
 
 /**
+ * When the realtime model takes its turn: semantic end-of-turn detection, answering as soon as the caller is likely
+ * done. The default ("medium") waited several seconds on phone calls (reply p50 5.9 s in the first phone test).
+ */
+const REALTIME_TURNS = { type: 'semantic_vad', eagerness: 'high', create_response: true, interrupt_response: true } as const
+
+/**
  * Session options for a call answered by a realtime model: no speech to text and no voice provider. The model
  * detects the end of a turn itself (semantic VAD) and transcribes the caller for the call log and summary.
  * `speedPct`: the talking speed in percent, sent as a factor (OpenAI Realtime takes 0.25–1.5); at 100 nothing is sent.
  */
 export function createRealtimePipeline({ apiKey, model, voice: voiceName }: RealtimeConfig, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, speedPct = TALKING_SPEED_PCT_DEFAULT): voice.AgentSessionOptions {
   return {
-    llm: new openai.realtime.RealtimeModel({ apiKey, model, voice: voiceName, ...(speedPct !== TALKING_SPEED_PCT_DEFAULT ? { speed: speedPct / 100 } : {}) }),
+    llm: new openai.realtime.RealtimeModel({
+      apiKey, model, voice: voiceName, turnDetection: REALTIME_TURNS,
+      ...(speedPct !== TALKING_SPEED_PCT_DEFAULT ? { speed: speedPct / 100 } : {}),
+    }),
     userAwayTimeout: silenceFirstGapS,
   }
 }
 
 /**
  * What a realtime model is told to make it say a fixed line (greeting, still there?, goodbye): as written, or in the
- * caller's language when the call goes on in another one.
+ * caller's language when the call goes on in another one. It comes after the whole prompt, so it says plainly that
+ * this reply is that line and nothing else.
  */
 export const realtimeLine = (text: string) =>
-  `Say exactly the following to the caller, nothing before or after it. If you are speaking another language with the caller, say it in that language instead: "${text}"`
+  `Your next reply is exactly this line, word for word, with nothing before or after it: "${text}" Only if the caller has been speaking another language, say it in that language instead.`
 
 /** Where one chat request goes. */
 export type ChatModel = { apiKey: string; baseUrl: string; model: string; fallbacks?: string[] }

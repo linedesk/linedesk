@@ -303,6 +303,20 @@ export function collectLanguageRule(assistant: Pick<Assistant, 'languages'> | nu
   return `Speak the language the caller has been speaking in this call if it is ${languageNames([main, ...others], 'or')}, else ${LANGUAGES[main]}. ${keep}`
 }
 
+/** How many days after today the prompt lists with their weekday, so "next Wednesday" is read off, not worked out. */
+const UPCOMING_DAYS = 14
+
+/** "Friday, November 13; Saturday, November 14; …": the days after `now` where the business is. */
+function upcomingDays(timeZone: string, now: number): string {
+  // Today's calendar date where the business is, then whole days on a UTC calendar (no daylight-saving steps).
+  const [y, m, d] = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' })
+    .format(now)
+    .split('-')
+    .map(Number)
+  const day = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' })
+  return Array.from({ length: UPCOMING_DAYS }, (_, i) => day.format(Date.UTC(y!, m! - 1, d! + i + 1, 12))).join('; ')
+}
+
 /**
  * The date and time where the business is, when the call starts ("Thursday, November 12, 2026, 1:31 PM"), so the
  * assistant can say what day it is and work out "tomorrow". null without a time zone (an older API).
@@ -313,7 +327,7 @@ export function clockInstructions(timeZone: string | null | undefined, now: numb
     const at = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(now)
     // The tools take dates as YYYY-MM-DD; the booking part leaves out its own "Today is" when this is given.
     const date = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
-    return `It is now ${at} (${date}) where the business is (time zone ${timeZone}). Use this for today's date, the day of the week and the time; never guess them.`
+    return `It is now ${at} (${date}) where the business is (time zone ${timeZone}). Use this for today's date, the day of the week and the time; never guess them. The days after today: ${upcomingDays(timeZone, now)}. Take a weekday the caller names ("Wednesday", "next Wednesday") from this list.`
   } catch {
     return null
   }
@@ -324,6 +338,8 @@ export function clockInstructions(timeZone: string | null | undefined, now: numb
  * `caller`: the contact this call matched (null: withheld number); its note goes in as the team's notes, its
  * history (call.start's callerHistory) as what the records say.
  * `documents`: the assistant's reference documents (inline text, or the look_up tool).
+ * `opening`: who says the greeting. `said`: the voice says it before the model's first turn (the three stages);
+ * `say`: the model says it itself (a realtime model), so it is told to, not that it already did.
  */
 export function buildInstructions(
   assistant: Assistant | null,
@@ -334,15 +350,21 @@ export function buildInstructions(
   timeZone?: string | null,
   now: number = Date.now(),
   callerDetails?: CallerDetails | null,
+  opening: 'said' | 'say' = 'said',
 ): string {
   const transfer = transfers.length > 0
+  const greeting = assistant?.greeting ? fillTemplate(assistant.greeting, callerDetails ?? null) : null
   const name = assistant?.name ?? 'the assistant'
   const knowledge = assistant ? businessKnowledge(assistant) : ''
   const clock = clockInstructions(timeZone, now)
   return [
     `You are ${name}, the AI assistant answering the phone for a business. You are on a live phone call: keep every reply to one or two short spoken sentences, start with a short first sentence, ask one question at a time, and never use lists, markdown or emojis.`,
     languageInstructions(assistant),
-    assistant?.greeting ? `You have already opened the call with: "${fillTemplate(assistant.greeting, callerDetails ?? null)}" Do not repeat it.` : null,
+    greeting
+      ? opening === 'said'
+        ? `You have already opened the call with: "${greeting}" Do not repeat it.`
+        : `Open the call with exactly: "${greeting}" Say it once, as your first words, and never repeat it.`
+      : null,
     clock,
     // When to mention being an AI is the owner's setting; answering truthfully when asked is part of every mode.
     aiDisclosureInstructions(assistant?.ai_disclosure),

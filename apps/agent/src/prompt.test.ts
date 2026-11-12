@@ -63,6 +63,10 @@ test('says it is an AI when asked, whatever the greeting setting and the busines
 test('English only, the greeting is not repeated, and works without an assistant row', () => {
   expect(buildInstructions(assistant())).toContain('Speak English only')
   expect(buildInstructions(assistant())).toContain('You have already opened the call with: "Thanks for calling Brightwater."')
+  // A realtime model says the greeting itself: it is told to open with it, not that it already did.
+  const realtime = buildInstructions(assistant(), null, null, [], null, null, Date.now(), null, 'say')
+  expect(realtime).toContain('Open the call with exactly: "Thanks for calling Brightwater." Say it once, as your first words')
+  expect(realtime).not.toContain('already opened')
   expect(buildInstructions(null)).toContain(`How to handle calls:\n${callRules({ booking: false, transfer: false })}`)
 })
 
@@ -206,6 +210,10 @@ test('the date and time where the business is go into the prompt; none without a
   const at = Date.parse('2026-11-12T21:31:00Z')
   expect(clockInstructions('America/Los_Angeles', at)).toContain('It is now Thursday, November 12, 2026 at 1:31 PM (2026-11-12) where the business is (time zone America/Los_Angeles)')
   expect(clockInstructions('Europe/Berlin', at)).toContain('Thursday, November 12, 2026 at 10:31 PM')
+  // The next days with their weekday, from the business's own date (late evening in Berlin is still the 12th there).
+  expect(clockInstructions('Europe/Berlin', at)).toContain('The days after today: Friday, November 13; Saturday, November 14;')
+  expect(clockInstructions('America/Los_Angeles', at)).toContain('Wednesday, November 18; Thursday, November 19;')
+  expect(clockInstructions('America/Los_Angeles', at)).toContain('Thursday, November 26.')
   expect(clockInstructions(null, at)).toBeNull()
   expect(clockInstructions('Not/AZone', at)).toBeNull()
   expect(buildInstructions(assistant(), null, null, [], null, 'America/Los_Angeles', at)).toContain('It is now Thursday, November 12, 2026')
