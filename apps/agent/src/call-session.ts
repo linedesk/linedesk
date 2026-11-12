@@ -1,6 +1,6 @@
 // One call as the agent sees it: start, append transcript segments, finish.
 import { type BookingContext, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, DEFAULT_AI_DISCLOSURE, greetingWithDisclosure, type Language, languageCodes, localizedDefault, mainLanguageOf, silenceClosingOf } from '@linedesk/actions'
-import { type Assistant, type Contact, DEFAULT_TRANSFERS, type ToolEvent, type TransferContact } from '@linedesk/db/types'
+import { type Assistant, type Contact, DEFAULT_TRANSFERS, type ToolEvent, type TransferContact, type WebhookLookup } from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
 import { type SimulatedAnswer, simulatedAnswers } from './on-call-dialer.ts'
@@ -35,6 +35,8 @@ export interface CallSession {
   businessHours: BusinessHours | null
   /** What the assistant can book; null: no appointment type or no calendar, so it only takes messages. */
   booking: BookingContext | null
+  /** What the assistant can ask the business's system during the call (its webhook's lookups); none: no such tools. */
+  lookups: WebhookLookup[]
   /** false: the workspace keeps no recordings (Settings, Recordings: Don't keep), so the call is not recorded. Missing: record. */
   keepRecording?: boolean
   /**
@@ -67,6 +69,8 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
   callerHistory?: CallerHistory | null
   /** The workspace's time zone; missing from an older API. */
   timeZone?: string | null
+  /** The webhook's during-call lookups; missing from an older API. */
+  lookups?: WebhookLookup[]
 }
 
 /** The caller for the prompt: the matched contact's name and note, and their history when call.start sent it. */
@@ -180,6 +184,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     callId, ...scope, assistant, contact, blocked, busy, overCap, businessHours, booking, caller,
     timeZone: started.timeZone ?? booking?.timeZone ?? null,
     keepRecording: started.keepRecording !== false,
+    lookups: started.lookups ?? [],
     businessNumber: origin.kind === 'phone' ? origin.to : null,
     simulatedOnCall: onCall?.answer ?? null,
     async append(speaker, text, toolEvent) {

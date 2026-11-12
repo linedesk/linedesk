@@ -2,7 +2,16 @@
 // marked `public`, its input schema straight from the action's Zod schema.
 import { z } from 'zod'
 import type { ActionDef } from './define.ts'
-import { CALL_END_DELAY_SEC, CALL_START_TIMEOUT_MS, callEndPayloadSchema, callStartReplySchema, callStartRequestSchema } from './webhooks.ts'
+import {
+  CALL_END_DELAY_SEC,
+  CALL_START_TIMEOUT_MS,
+  callEndPayloadSchema,
+  callStartReplySchema,
+  callStartRequestSchema,
+  DURING_CALL_TIMEOUT_MS,
+  duringCallReplySchema,
+  duringCallRequestSchema,
+} from './webhooks.ts'
 
 type JsonSchema = Record<string, unknown>
 
@@ -50,7 +59,7 @@ const jsonSchema = (schema: z.ZodType): JsonSchema => {
   return rest
 }
 
-/** An assistant's two webhooks, as OpenAPI 3.1 webhooks (docs/webhooks.md has signing and delivery). */
+/** An assistant's webhook's three hooks, as OpenAPI 3.1 webhooks (docs/webhooks.md has signing and delivery). */
 function webhooks() {
   const body = (schema: z.ZodType) => ({ required: true, content: { 'application/json': { schema: jsonSchema(schema) } } })
   return {
@@ -62,6 +71,18 @@ function webhooks() {
           200: {
             description: `Caller details within ${CALL_START_TIMEOUT_MS} ms; later, or anything else, and the call goes on without them.`,
             content: { 'application/json': { schema: jsonSchema(callStartReplySchema) } },
+          },
+        },
+      },
+    },
+    during_call: {
+      post: {
+        summary: 'During a call: the assistant asks one of its lookups, e.g. an order status.',
+        requestBody: body(duringCallRequestSchema),
+        responses: {
+          200: {
+            description: `The answer within ${DURING_CALL_TIMEOUT_MS} ms; later, or anything else, and the assistant tells the caller it cannot check right now.`,
+            content: { 'application/json': { schema: jsonSchema(duringCallReplySchema) } },
           },
         },
       },

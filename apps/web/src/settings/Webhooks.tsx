@@ -1,11 +1,12 @@
 // Assistant settings, Webhooks: the assistant's webhook, one address with the hooks it gets switched on.
-// When a call starts, Linedesk asks it about the caller; after the call, it sends the whole call
-// (docs/webhooks.md). The webhook comes from the local store (synced, no secret), so it is there at once.
+// When a call starts, Linedesk asks it about the caller; during the call, the assistant asks its lookups
+// (WebhookLookups.tsx); after the call, it sends the whole call (docs/webhooks.md). The webhook comes from the local store (synced, no secret), so it is there at once.
 // Adding it shows its signing secret once; the hook switches and on/off go through the outbox; add,
 // test-send and delete need the server's answer.
 import {
   CALL_END_DELAY_SEC,
   CALL_START_TIMEOUT_MS,
+  DURING_CALL_TIMEOUT_MS,
   hookLabel,
   newWebhookSecret,
   type WebhookDeliveriesData,
@@ -14,7 +15,7 @@ import {
   webhookHooks,
 } from '@linedesk/actions'
 import type { CallerDetails, WebhookEndpoint, WebhookHook } from '@linedesk/db/types'
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, Fragment, useEffect, useState } from 'react'
 import { useRows, useRun } from '../store.tsx'
 import { SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { Checkbox, Switch } from '../ui/controls.tsx'
@@ -23,13 +24,20 @@ import { Badge, Button } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { Field, Section, SwitchRow } from './fields.tsx'
 import { callAction, readAction, useWriteAction } from './settings-api.ts'
+import { lookupTestText, WebhookLookups } from './WebhookLookups.tsx'
 import './webhooks.css'
 
 const HOOK_HELP: Record<WebhookHook, string> = {
   call_start: `Linedesk sends the caller's number and waits up to ${CALL_START_TIMEOUT_MS / 1000} second. Answer with JSON like {"name": "Sam"}: the assistant knows it, and the greeting can say {{name}}.`,
+  during_call: `The assistant asks one of its lookups (below) with what the caller said, and waits up to ${DURING_CALL_TIMEOUT_MS / 1000} seconds. Answer with JSON like {"answer": "Order 1234 shipped Monday."}.`,
   call_end: `About ${CALL_END_DELAY_SEC} seconds after the call: number, summary, transcript, next steps, bookings, links to the call and the recording.`,
 }
-const SENT_LABEL: Record<string, string> = { call_start: 'Call start', call_end: 'After the call', 'webhook.test': 'Test' }
+const SENT_LABEL: Record<string, string> = {
+  call_start: 'Call start',
+  during_call: 'During the call',
+  call_end: 'After the call',
+  'webhook.test': 'Test',
+}
 const HELP =
   'One address for this assistant. Each request says which hook it is (the "hook" field and the Linedesk-Hook header) and is signed with the secret. If an after-call request fails, Linedesk keeps trying for about an hour; after 5 failures in a row the webhook is switched off.'
 
@@ -66,7 +74,7 @@ export function Webhooks({ assistantId, canEdit, toast }: Props) {
           <List label="Webhook">
             <EndpointRow endpoint={endpoint} onEdit={() => setEditing(true)} toast={toast} />
           </List>
-          <HookSwitches endpoint={endpoint} />
+          <HookSwitches endpoint={endpoint} toast={toast} />
         </>
       ) : (
         <ListEmpty>No webhook yet.</ListEmpty>
@@ -76,8 +84,8 @@ export function Webhooks({ assistantId, canEdit, toast }: Props) {
   )
 }
 
-/** One switch per hook: which requests the webhook gets. */
-function HookSwitches({ endpoint }: { endpoint: WebhookEndpoint }) {
+/** One switch per hook: which requests the webhook gets. Under During the call, while it is on, its lookups. */
+function HookSwitches({ endpoint, toast }: { endpoint: WebhookEndpoint; toast: Props['toast'] }) {
   const run = useRun()
   const set = (hook: WebhookHook, on: boolean) =>
     void run('webhook.update', {
@@ -87,13 +95,15 @@ function HookSwitches({ endpoint }: { endpoint: WebhookEndpoint }) {
   return (
     <div className="wh-hooks">
       {webhookHooks.map(hook => (
-        <SwitchRow
-          key={hook}
-          title={hookLabel[hook]}
-          description={HOOK_HELP[hook]}
-          on={endpoint.hooks.includes(hook)}
-          onChange={on => set(hook, on)}
-        />
+        <Fragment key={hook}>
+          <SwitchRow
+            title={hookLabel[hook]}
+            description={HOOK_HELP[hook]}
+            on={endpoint.hooks.includes(hook)}
+            onChange={on => set(hook, on)}
+          />
+          {hook === 'during_call' && endpoint.hooks.includes(hook) && <WebhookLookups endpoint={endpoint} toast={toast} />}
+        </Fragment>
       ))}
     </div>
   )
@@ -146,7 +156,8 @@ function EndpointRow({
       else if (hook === 'call_start') {
         const details = detailsText(result.details)
         toast(details ? `Answered ${result.responseStatus} with ${details}.` : `Answered ${result.responseStatus}, but with no caller details.`)
-      } else toast(`Test delivered (${result.responseStatus}).`)
+      } else if (hook === 'during_call') toast(lookupTestText(result))
+      else toast(`Test delivered (${result.responseStatus}).`)
       setLogVersion(v => v + 1)
     } catch (e) {
       toast((e as Error).message)
@@ -288,7 +299,8 @@ function EndpointDialog({
   const run = useRun()
   const write = useWriteAction()
   const [url, setUrl] = useState(endpoint?.url ?? '')
-  const [hooks, setHooks] = useState<WebhookHook[]>([...webhookHooks])
+  // During the call needs lookups first: it is switched on once there are some.
+  const [hooks, setHooks] = useState<WebhookHook[]>(['call_start', 'call_end'])
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [secret, setSecret] = useState<string | null>(null)

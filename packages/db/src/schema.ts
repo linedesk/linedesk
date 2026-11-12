@@ -23,7 +23,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import {
   DEFAULT_TRANSFERS, type ActionItem, type AssistantLanguages, type AssistantVoice, type BookingField, type BusinessProfile, type CallField, type CallerDetails,
-  type Closure, type ToolEvent, type TransferContact, type WebhookEvent, type WebhookHook,
+  type Closure, type ToolEvent, type TransferContact, type WebhookEvent, type WebhookHook, type WebhookLookup,
 } from './types.ts'
 
 export const rowVersion = pgSequence('row_version')
@@ -815,7 +815,7 @@ export const voice_clones = pgTable(
 )
 
 // An assistant's webhook (apps/api/src/webhooks.ts): one address per assistant, sent the hooks it has on
-// (at the start of a call, after it). Synced: holds no secret; the signing secret is in webhook_secrets.
+// (at the start of a call, during it, after it). Synced: holds no secret; the signing secret is in webhook_secrets.
 // `failure_count`: requests in a row that failed (after every retry).
 export const webhook_endpoints = pgTable(
   'webhook_endpoints',
@@ -826,6 +826,8 @@ export const webhook_endpoints = pgTable(
     assistant_id: text('assistant_id').references(() => assistants.id, { onDelete: 'cascade' }),
     /** The hooks it gets (WebhookHook); none: it gets nothing, like switched off. */
     hooks: jsonb('hooks').$type<WebhookHook[]>().notNull().default([]),
+    /** What the assistant can ask it during a call (the `during_call` hook); none: nothing. */
+    lookups: jsonb('lookups').$type<WebhookLookup[]>().notNull().default([]),
     url: text('url').notNull(),
     /** @deprecated events are gone (each hook sends one thing); kept for the release before, dropped later. */
     events: jsonb('events').$type<WebhookEvent[]>().notNull().default([]),

@@ -5,9 +5,9 @@
 import { createHmac } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { CALL_START_TIMEOUT_MS, newWebhookSecret, recordingKey, rolePermissions } from '@linedesk/actions'
+import { CALL_START_TIMEOUT_MS, DURING_CALL_MAX_PER_CALL, DURING_CALL_TIMEOUT_MS, newWebhookSecret, recordingKey, rolePermissions } from '@linedesk/actions'
 import { assistants, bookings, calls, commands, type Tx, webhook_deliveries, webhook_endpoints, webhook_secrets } from '@linedesk/db'
-import type { WebhookHook } from '@linedesk/db/types'
+import type { WebhookHook, WebhookLookup } from '@linedesk/db/types'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import type { Actor } from '../src/context.ts'
@@ -291,6 +291,106 @@ describe('when a call starts', () => {
   })
 })
 
+const orderStatus: WebhookLookup = {
+  name: 'order_status',
+  when: 'The caller asks where their order is',
+  fields: [
+    { name: 'order_number', type: 'text', description: 'The order number', required: true },
+    { name: 'items', type: 'number', description: 'How many items', required: false },
+  ],
+}
+
+/** A webhook with the during-call hook and the order-status lookup. */
+async function addLookups(hooks: WebhookHook[] = ['during_call']) {
+  const added = await addHook(hooks)
+  const res = await act(ws.owner, 'webhook.update', { endpointId: added.endpointId, lookups: [orderStatus] })
+  expect(res.status, JSON.stringify(res.body)).toBe(200)
+  return added
+}
+const ask = (callId: string, values: Record<string, unknown> = { order_number: '1234' }, lookup = 'order_status') =>
+  act(agent(ws.id), 'call.askWebhook', { callId, lookup, values })
+
+describe('during the call', () => {
+  test("the assistant's lookup is POSTed signed with the fields the caller gave; the answer comes back and is logged", async () => {
+    const { endpointId, secret } = await addLookups()
+    replyBody = JSON.stringify({ answer: 'Order 1234 shipped on Monday.\nArrives Thursday.', other: 'ignored' })
+    const callId = await newCall()
+    const asked = await ask(callId, { order_number: '1234', items: '2', color: 'red' })
+    expect(asked).toMatchObject({ status: 200, body: { data: { answer: 'Order 1234 shipped on Monday. Arrives Thursday.', problem: null } } })
+    const [request] = received
+    expect(request!.headers['linedesk-hook']).toBe('during_call')
+    expect(verify(secret, request!)).toBe(true)
+    expect(JSON.parse(request!.body)).toMatchObject({
+      hook: 'during_call', lookup: 'order_status', values: { order_number: '1234', items: 2 }, call_id: callId,
+      assistant_id: ws.assistant.id, from_number: ws.contact.phone, test: false, caller: { contact_id: ws.contact.id },
+    })
+    expect(JSON.parse(request!.body).values).not.toHaveProperty('color')
+    expect(await deliveriesOf(endpointId)).toMatchObject([
+      { event: 'during_call', status: 'delivered', payload: { call_id: callId, lookup: 'order_status', reply: 'Order 1234 shipped on Monday. Arrives Thursday.' } },
+    ])
+  })
+
+  test('call.start tells the agent the lookups only while the webhook is on and gets the hook', async () => {
+    const lookupsOf = async () => ((await act(agent(), 'call.start', { from: ws.contact.phone, to: ws.number })).body.data as { lookups: WebhookLookup[] }).lookups
+    expect(await lookupsOf()).toEqual([])
+    const { endpointId } = await addLookups(['call_end', 'during_call'])
+    expect(await lookupsOf()).toEqual([orderStatus])
+    await act(ws.owner, 'webhook.update', { endpointId, hooks: ['call_end'] })
+    expect(await lookupsOf()).toEqual([])
+    await act(ws.owner, 'webhook.update', { endpointId, hooks: ['call_end', 'during_call'], enabled: false })
+    expect(await lookupsOf()).toEqual([])
+  })
+
+  test('a missing required field, an unknown lookup or the hook off send nothing; only the agent may ask', async () => {
+    const callId = await newCall()
+    expect((await ask(callId)).body.data).toEqual({ answer: null, problem: 'unavailable' })
+    const { endpointId } = await addLookups(['call_end'])
+    expect((await ask(callId)).body.data).toEqual({ answer: null, problem: 'unavailable' })
+    await act(ws.owner, 'webhook.update', { endpointId, hooks: ['during_call'] })
+    expect((await ask(callId, { items: 2 })).body.data).toEqual({ answer: null, problem: 'missing', missing: ['order_number'] })
+    expect((await ask(callId, { order_number: '1' }, 'refund_status')).body.data).toEqual({ answer: null, problem: 'unavailable' })
+    expect(received).toEqual([])
+    expect((await act(ws.owner, 'call.askWebhook', { callId, lookup: 'order_status', values: { order_number: '1' } })).status).toBe(403)
+    expect((await act(agent(other.id), 'call.askWebhook', { callId, lookup: 'order_status', values: { order_number: '1' } })).status).not.toBe(200)
+    expect(received).toEqual([])
+  })
+
+  test(`test calls ask too; at most ${DURING_CALL_MAX_PER_CALL} requests per call`, async () => {
+    await addLookups()
+    replyBody = JSON.stringify({ answer: 'Shipped.' })
+    const callId = await newCall()
+    await db.update(calls).set({ source: 'test' }).where(eq(calls.id, callId))
+    for (let i = 0; i < DURING_CALL_MAX_PER_CALL; i++) expect((await ask(callId)).body.data).toEqual({ answer: 'Shipped.', problem: null })
+    expect(JSON.parse(received[0]!.body)).toMatchObject({ test: true })
+    expect((await ask(callId)).body.data).toEqual({ answer: null, problem: 'limit' })
+    expect(received).toHaveLength(DURING_CALL_MAX_PER_CALL)
+    expect((await ask(await newCall())).body.data).toEqual({ answer: 'Shipped.', problem: null }) // another call has its own
+  })
+
+  test(`an answer later than ${DURING_CALL_TIMEOUT_MS} ms, an error or no "answer" fail; failures switch the webhook off`, async () => {
+    const { endpointId } = await addLookups()
+    replyDelayMs = DURING_CALL_TIMEOUT_MS + 300
+    replyBody = JSON.stringify({ answer: 'Too late' })
+    expect((await ask(await newCall())).body.data).toEqual({ answer: null, problem: 'failed' })
+    expect((await deliveriesOf(endpointId))[0]).toMatchObject({ status: 'failed', error: 'no answer within 3 s' })
+    replyDelayMs = 0
+    replyBody = JSON.stringify({ status: 'shipped' })
+    expect((await ask(await newCall())).body.data).toEqual({ answer: null, problem: 'failed' })
+    expect((await endpointRow(endpointId)).failure_count).toBe(0) // a 2xx is an answer, if not a useful one
+    answer = 500
+    for (let i = 0; i < WEBHOOK_DISABLE_AFTER; i++) await ask(await newCall())
+    expect(await endpointRow(endpointId)).toMatchObject({ status: 'disabled', failure_count: WEBHOOK_DISABLE_AFTER })
+  }, 15_000)
+
+  test('lookups are for owners and admins, checked on the server', async () => {
+    const { endpointId } = await addHook(['during_call'])
+    expect((await act(member, 'webhook.update', { endpointId, lookups: [orderStatus] })).status).toBe(403)
+    expect((await act(ws.owner, 'webhook.update', { endpointId, lookups: [orderStatus, orderStatus] })).status).toBe(422)
+    expect((await act(ws.owner, 'webhook.update', { endpointId, lookups: [{ ...orderStatus, name: 'Order status' }] })).status).toBe(422)
+    expect((await endpointRow(endpointId)).lookups).toEqual([])
+  })
+})
+
 describe('after the call', () => {
   test('a finished call queues one request; the first attempt sends the whole call, signed', async () => {
     const { endpointId, secret } = await addHook(['call_end'])
@@ -417,6 +517,13 @@ describe('delivery', () => {
     replyBody = JSON.stringify({ name: 'Sam' })
     expect((await act(ws.owner, 'webhook.test', { endpointId: end.endpointId, hook: 'call_start' })).body.data).toMatchObject({ ok: true, details: { name: 'Sam' } })
     expect(JSON.parse(received.at(-1)!.body)).toMatchObject({ hook: 'call_start', call_id: 'call_test' })
+
+    expect((await act(ws.owner, 'webhook.test', { endpointId: end.endpointId, hook: 'during_call' })).body.error).toMatch(/Add a lookup first/)
+    await act(ws.owner, 'webhook.update', { endpointId: end.endpointId, lookups: [orderStatus] })
+    replyBody = JSON.stringify({ answer: 'Order 1234 shipped.' })
+    expect((await act(ws.owner, 'webhook.test', { endpointId: end.endpointId, hook: 'during_call' })).body.data).toMatchObject({ ok: true, answer: 'Order 1234 shipped.' })
+    expect(JSON.parse(received.at(-1)!.body)).toMatchObject({ hook: 'during_call', lookup: 'order_status', values: { order_number: 'example', items: 1234 }, test: true })
+    expect((await act(ws.owner, 'webhook.test', { endpointId: end.endpointId, hook: 'during_call', lookup: 'refund' })).status).toBe(409)
   })
 
   test(`test sends are not commands, and at most ${WEBHOOK_TESTS_PER_MINUTE} a minute per workspace`, async () => {

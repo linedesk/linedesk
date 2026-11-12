@@ -45,7 +45,7 @@ import { contactImportHandlers } from './contact-import.ts'
 import { contactMergeHandlers } from './contact-merge.ts'
 import { keepsRecordings } from './recording-retention.ts'
 import { callExportHandlers } from './call-export.ts'
-import { clearCallPayloads, lookUpCaller, queueCallEnd, webhookHandlers } from './webhooks.ts'
+import { askWebhook, clearCallPayloads, duringCallLookups, lookUpCaller, queueCallEnd, webhookHandlers } from './webhooks.ts'
 
 export { Forbidden, Reject, type HandlerCtx, type Undo }
 
@@ -241,9 +241,11 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   const history = source === 'phone' && contact && !blocked
     ? await callerHistory(tx, workspace_id, contact.row, { callId: id, now, canChangeBookings: booking?.canChangeBookings === true })
     : null
+  // What the assistant can ask the business's system during the call (its webhook's during-call lookups).
+  const lookups = blocked ? [] : await duringCallLookups(tx, assistant?.id)
   return {
     rows: { calls: [call!], ...(contact ? { contacts: [contact.row] } : {}) },
-    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: assistant ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, keepRecording, callerHistory: history, timeZone },
+    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: assistant ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, keepRecording, callerHistory: history, timeZone, lookups },
   }
 }
 
@@ -596,6 +598,12 @@ const handlers: Record<string, Handler> = {
   'call.lookUpCaller': async ({ tx, actor }, input: { callId: string }) => {
     const call = await loadCall(tx, actor, input.callId)
     return { rows: {}, data: await lookUpCaller(tx, call) }
+  },
+
+  // Read-only in the registry, like call.lookUpCaller: the request to the business's system holds no transaction open.
+  'call.askWebhook': async ({ tx, actor }, input: { callId: string; lookup: string; values: Record<string, unknown> }) => {
+    const call = await loadCall(tx, actor, input.callId)
+    return { rows: {}, data: await askWebhook(tx, call, input) }
   },
 
   'call.startRecording': async ({ tx, actor }, input) => {

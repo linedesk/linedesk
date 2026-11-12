@@ -1,6 +1,7 @@
 // An assistant's webhook (docs/webhooks.md): one address, with the hooks it gets switched on.
 // `call_start`: as a call comes in, the agent asks (call.lookUpCaller) and the API POSTs the caller to the URL and waits CALL_START_TIMEOUT_MS for caller
-// details. `call_end`: when the call is finished a delivery row and a pg-boss job are written in that
+// details. `during_call`: the assistant asks one of the webhook's lookups (call.askWebhook) and the API POSTs
+// what the caller said and waits DURING_CALL_TIMEOUT_MS for the answer. `call_end`: when the call is finished a delivery row and a pg-boss job are written in that
 // transaction; CALL_END_DELAY_SEC later the job builds the whole call into the payload (so the recording
 // is in it), POSTs it signed with the endpoint's secret and retries with backoff. An endpoint whose
 // requests keep failing is switched off.
@@ -10,17 +11,24 @@ import { isIP } from 'node:net'
 import {
   CALL_END_DELAY_SEC,
   CALL_START_TIMEOUT_MS,
+  type CallAskWebhookData,
   type CallEndPayload,
   type CallLookUpData,
   type CallStartRequest,
   callerDetailsFrom,
+  DURING_CALL_MAX_PER_CALL,
+  DURING_CALL_TIMEOUT_MS,
+  type DuringCallRequest,
+  exampleLookupValues,
   hooksOf,
+  lookupAnswerFrom,
+  lookupValuesFrom,
   type WebhookDeliveriesData,
   type WebhookDeliverySummary,
   type WebhookTestData,
 } from '@linedesk/actions'
 import { assistants, bookings, calls, contacts, transcript_segments, type Tx, webhook_deliveries, webhook_endpoints, webhook_secrets } from '@linedesk/db'
-import type { Assistant, Call, WebhookEndpoint, WebhookHook } from '@linedesk/db/types'
+import type { Assistant, Call, WebhookEndpoint, WebhookHook, WebhookLookup } from '@linedesk/db/types'
 import { and, asc, desc, eq, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm'
 import { Agent, fetch as undiciFetch } from 'undici'
 import { WEB_ORIGIN } from './auth.ts'
@@ -192,7 +200,7 @@ export async function sendWebhook(url: string, secret: string, deliveryId: strin
   }
 }
 
-// --- The two hooks ------------------------------------------------------------------------------
+// --- The hooks ----------------------------------------------------------------------------------
 
 /** The assistant's webhook with its secret, when it is on and gets `hook`; else null. */
 async function activeHook(tx: Tx, assistantId: string | null, hook: WebhookHook) {
@@ -226,30 +234,77 @@ export function callStartRequest(call: Call, assistant: Pick<Assistant, 'id' | '
   }
 }
 
+type ActiveHook = NonNullable<Awaited<ReturnType<typeof activeHook>>>
+
+/**
+ * A request the call waits for (call start, during the call): POSTed once with a short time limit and logged
+ * with the usable part of its answer (`read`). A failure counts against the endpoint like a failed delivery,
+ * so one that never answers is switched off instead of slowing every call.
+ */
+async function askLive<T>(tx: Tx, found: ActiveHook, request: { hook: WebhookHook; workspace_id: string }, timeoutMs: number, read: (reply: unknown) => T | null, env: Env): Promise<T | null> {
+  const id = newId('whd')
+  const secret = decryptSecret(found.secret, secretSlot(found.endpoint.id))
+  const result = await sendWebhook(found.endpoint.url, secret, id, request.hook, JSON.stringify(request), { env, timeoutMs, readReply: true })
+  const kept = result.ok ? read(result.reply) : null
+  const now = new Date().toISOString()
+  await tx.insert(webhook_deliveries).values({
+    id, workspace_id: request.workspace_id, endpoint_id: found.endpoint.id, event: request.hook, payload: { ...request, reply: kept },
+    attempts: 1, status: result.ok ? 'delivered' : 'failed', response_status: result.responseStatus, error: result.error, last_attempt_at: now,
+  })
+  if (result.ok) await tx.update(webhook_endpoints).set({ failure_count: 0, last_delivery_at: now }).where(eq(webhook_endpoints.id, found.endpoint.id))
+  else await countFailure(tx, found.endpoint.id, result.error)
+  return kept
+}
+
+const assistantOf = async (tx: Tx, assistantId: string) =>
+  (await tx.select({ id: assistants.id, name: assistants.name }).from(assistants).where(eq(assistants.id, assistantId)))[0]!
+
 /**
  * call.lookUpCaller: asks the assistant's call-start webhook about the caller and keeps what it answered on
- * the call (`caller_details`). Test calls ask nothing. A failure counts against the endpoint like a failed
- * delivery, so one that never answers is switched off instead of slowing every greeting.
+ * the call (`caller_details`). Test calls ask nothing.
  */
 export async function lookUpCaller(tx: Tx, call: Call, env: Env = process.env): Promise<CallLookUpData> {
   if (call.source !== 'phone') return { details: null }
   const found = await activeHook(tx, call.assistant_id, 'call_start')
   if (!found) return { details: null }
-  const [assistant] = await tx.select({ id: assistants.id, name: assistants.name }).from(assistants).where(eq(assistants.id, call.assistant_id!))
-  const request = callStartRequest(call, assistant!, callerOf(await callerContact(tx, call)))
-  const id = newId('whd')
-  const secret = decryptSecret(found.secret, secretSlot(found.endpoint.id))
-  const result = await sendWebhook(found.endpoint.url, secret, id, 'call_start', JSON.stringify(request), { env, timeoutMs: CALL_START_TIMEOUT_MS, readReply: true })
-  const details = result.ok ? callerDetailsFrom(result.reply) : null
-  const now = new Date().toISOString()
-  await tx.insert(webhook_deliveries).values({
-    id, workspace_id: call.workspace_id, endpoint_id: found.endpoint.id, event: 'call_start', payload: { ...request, reply: details },
-    attempts: 1, status: result.ok ? 'delivered' : 'failed', response_status: result.responseStatus, error: result.error, last_attempt_at: now,
-  })
-  if (result.ok) await tx.update(webhook_endpoints).set({ failure_count: 0, last_delivery_at: now }).where(eq(webhook_endpoints.id, found.endpoint.id))
-  else await countFailure(tx, found.endpoint.id, result.error)
+  const request = callStartRequest(call, await assistantOf(tx, call.assistant_id!), callerOf(await callerContact(tx, call)))
+  const details = await askLive(tx, found, request, CALL_START_TIMEOUT_MS, callerDetailsFrom, env)
   if (details) await tx.update(calls).set({ caller_details: details }).where(eq(calls.id, call.id))
   return { details }
+}
+
+/** The lookups the assistant can ask during a call: none unless its webhook is on and gets `during_call`. Told to the agent by call.start. */
+export async function duringCallLookups(tx: Tx, assistantId: string | null | undefined): Promise<WebhookLookup[]> {
+  const found = await activeHook(tx, assistantId ?? null, 'during_call')
+  return found?.endpoint.lookups ?? []
+}
+
+/** What the during-call webhook is sent for one lookup. */
+export function duringCallRequest(call: Call, assistant: Pick<Assistant, 'id' | 'name'>, caller: ReturnType<typeof callerOf>, lookup: string, values: DuringCallRequest['values']): DuringCallRequest {
+  return {
+    hook: 'during_call', lookup, values, call_id: call.id, workspace_id: call.workspace_id, assistant_id: assistant.id, assistant_name: assistant.name,
+    from_number: call.from_number, to_number: call.to_number, started_at: iso(call.started_at), test: call.source === 'test', caller,
+  }
+}
+
+/**
+ * call.askWebhook: asks the assistant's during-call webhook one of its lookups, with the lookup's own fields
+ * the assistant filled in, and hands back the answer. Test calls ask too, so the assistant can be tried out.
+ * At most DURING_CALL_MAX_PER_CALL requests per call.
+ */
+export async function askWebhook(tx: Tx, call: Call, input: { lookup: string; values: Record<string, unknown> }, env: Env = process.env): Promise<CallAskWebhookData> {
+  const found = await activeHook(tx, call.assistant_id, 'during_call')
+  const lookup = found?.endpoint.lookups.find(l => l.name === input.lookup)
+  if (!found || !lookup) return { answer: null, problem: 'unavailable' }
+  const filled = lookupValuesFrom(lookup, input.values)
+  if ('missing' in filled) return { answer: null, problem: 'missing', missing: filled.missing }
+  const [{ asked } = { asked: 0 }] = await tx.select({ asked: sql<number>`count(*)::int` }).from(webhook_deliveries).where(and(
+    eq(webhook_deliveries.endpoint_id, found.endpoint.id), eq(webhook_deliveries.event, 'during_call'), sql`${webhook_deliveries.payload} ->> 'call_id' = ${call.id}`,
+  ))
+  if (asked >= DURING_CALL_MAX_PER_CALL) return { answer: null, problem: 'limit' }
+  const request = duringCallRequest(call, await assistantOf(tx, call.assistant_id!), callerOf(await callerContact(tx, call)), lookup.name, filled.values)
+  const answer = await askLive(tx, found, request, DURING_CALL_TIMEOUT_MS, lookupAnswerFrom, env)
+  return answer ? { answer, problem: null } : { answer: null, problem: 'failed' }
 }
 
 /**
@@ -400,14 +455,15 @@ async function endpointIn(tx: Tx, workspaceId: string, endpointId: string) {
   return endpoint
 }
 
-/** An example of what a hook sends, for Send test: a made-up call to the assistant. */
-function testRequest(endpoint: WebhookEndpoint, hook: WebhookHook, assistant: { id: string; name: string }, now: string): CallStartRequest | CallEndPayload {
+/** An example of what a hook sends, for Send test: a made-up call to the assistant (during it, asking `lookup`). */
+function testRequest(endpoint: WebhookEndpoint, hook: WebhookHook, assistant: { id: string; name: string }, now: string, lookup: WebhookLookup | null): CallStartRequest | DuringCallRequest | CallEndPayload {
   const call = {
     call_id: 'call_test', workspace_id: endpoint.workspace_id, assistant_id: assistant.id, assistant_name: assistant.name,
     from_number: '+15035550123', to_number: '+15035550100', started_at: now,
     caller: { contact_id: 'ct_test', name: 'Sam Taylor', company: null, email: 'sam@example.com' },
   }
   if (hook === 'call_start') return { hook: 'call_start', ...call }
+  if (hook === 'during_call' && lookup) return { hook: 'during_call', lookup: lookup.name, values: exampleLookupValues(lookup), ...call, test: true }
   const lines = [
     { speaker: 'agent' as const, text: `Thanks for calling, this is ${assistant.name}. How can I help?`, at_ms: 0 },
     { speaker: 'caller' as const, text: 'Hi, this is Sam. My water heater is leaking, can someone come by tomorrow?', at_ms: 4200 },
@@ -447,7 +503,7 @@ export const webhookHandlers: Record<string, Handler> = {
     return { rows: { webhook_endpoints: [endpoint!] }, data: { endpointId: endpoint!.id } }
   },
 
-  'webhook.update': async ({ tx, actor }, input: { endpointId: string; url?: string; hooks?: WebhookHook[]; enabled?: boolean }) => {
+  'webhook.update': async ({ tx, actor }, input: { endpointId: string; url?: string; hooks?: WebhookHook[]; lookups?: WebhookLookup[]; enabled?: boolean }) => {
     const endpoint = await endpointIn(tx, workspaceOf(actor), input.endpointId)
     if (input.url !== undefined) await checkUrl(input.url)
     const switched = input.enabled === undefined ? {} : input.enabled
@@ -456,6 +512,7 @@ export const webhookHandlers: Record<string, Handler> = {
     const rows = await tx.update(webhook_endpoints).set({
       ...(input.url === undefined ? {} : { url: input.url }),
       ...(input.hooks === undefined ? {} : { hooks: hooksOf(input.hooks) }),
+      ...(input.lookups === undefined ? {} : { lookups: input.lookups }),
       ...switched,
     }).where(eq(webhook_endpoints.id, endpoint.id)).returning()
     return { rows: { webhook_endpoints: rows } }
@@ -468,23 +525,30 @@ export const webhookHandlers: Record<string, Handler> = {
   },
 
   // Read-only in the registry, so it runs outside a transaction: the request to the endpoint never holds one open.
-  'webhook.test': async ({ tx, actor, now }, input: { endpointId: string; hook: WebhookHook }) => {
+  'webhook.test': async ({ tx, actor, now }, input: { endpointId: string; hook: WebhookHook; lookup?: string }) => {
     const workspaceId = workspaceOf(actor)
     const endpoint = await endpointIn(tx, workspaceId, input.endpointId)
+    const lookup = input.hook === 'during_call' ? (endpoint.lookups.find(l => l.name === input.lookup) ?? (input.lookup ? null : endpoint.lookups[0] ?? null)) : null
+    if (input.hook === 'during_call' && !lookup) throw new Reject(input.lookup ? `this webhook has no lookup ${input.lookup}` : 'Add a lookup first: the test asks one of them.')
     if (!allowTestSend(workspaceId)) throw new Reject(`At most ${WEBHOOK_TESTS_PER_MINUTE} test requests a minute. Try again shortly.`)
     const [stored] = await tx.select().from(webhook_secrets).where(eq(webhook_secrets.endpoint_id, endpoint.id))
     if (!stored) throw new Reject('this webhook has no secret; add it again')
-    const [assistant] = await tx.select({ id: assistants.id, name: assistants.name }).from(assistants).where(eq(assistants.id, endpoint.assistant_id!))
     const id = newId('whd')
-    const isStart = input.hook === 'call_start'
-    const payload = testRequest(endpoint, input.hook, assistant!, now)
-    const result = await sendWebhook(endpoint.url, decryptSecret(stored.secret_encrypted, secretSlot(endpoint.id)), id, 'webhook.test', JSON.stringify(payload), isStart ? { timeoutMs: CALL_START_TIMEOUT_MS, readReply: true } : {})
-    const details = isStart && result.ok ? callerDetailsFrom(result.reply) : null
+    const payload = testRequest(endpoint, input.hook, await assistantOf(tx, endpoint.assistant_id!), now, lookup)
+    // The hooks the call waits for are tested with their own time limit and their answer read, as on a call.
+    const timeoutMs = input.hook === 'call_start' ? CALL_START_TIMEOUT_MS : input.hook === 'during_call' ? DURING_CALL_TIMEOUT_MS : undefined
+    const result = await sendWebhook(endpoint.url, decryptSecret(stored.secret_encrypted, secretSlot(endpoint.id)), id, 'webhook.test', JSON.stringify(payload), timeoutMs ? { timeoutMs, readReply: true } : {})
+    const reply = result.ok ? result.reply : undefined
+    const details = input.hook === 'call_start' ? callerDetailsFrom(reply) : undefined
+    const answer = input.hook === 'during_call' ? lookupAnswerFrom(reply) : undefined
     await tx.insert(webhook_deliveries).values({
-      id, workspace_id: endpoint.workspace_id, endpoint_id: endpoint.id, event: 'webhook.test', payload: isStart ? { ...payload, reply: details } : payload, attempts: 1,
+      id, workspace_id: endpoint.workspace_id, endpoint_id: endpoint.id, event: 'webhook.test', payload: timeoutMs ? { ...payload, reply: details ?? answer ?? null } : payload, attempts: 1,
       status: result.ok ? 'delivered' : 'failed', response_status: result.responseStatus, error: result.error, last_attempt_at: new Date().toISOString(),
     })
-    const data: WebhookTestData = { deliveryId: id, ok: result.ok, responseStatus: result.responseStatus, error: result.error, ...(isStart ? { details } : {}) }
+    const data: WebhookTestData = {
+      deliveryId: id, ok: result.ok, responseStatus: result.responseStatus, error: result.error,
+      ...(details === undefined ? {} : { details }), ...(answer === undefined ? {} : { answer }),
+    }
     return { rows: {}, data }
   },
 

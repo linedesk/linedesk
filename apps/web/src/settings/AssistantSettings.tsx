@@ -64,7 +64,7 @@ const sections: readonly PageSection<SectionId>[] = [
   { id: 'rules', label: 'Rules', description: 'AI disclosure, tone and how calls are handled' },
   { id: 'transfers', label: 'Transfers', description: 'Who calls are put through to' },
   { id: 'booking', label: 'Booking & Calendar', description: 'Calendars and appointment types' },
-  { id: 'webhooks', label: 'Webhook', description: 'Your system at the start of a call and after it' },
+  { id: 'webhooks', label: 'Webhook', description: 'Your system at the start of a call, during it and after it' },
   { id: 'advanced', label: 'Advanced', description: 'Talking speed, time zone, silence, hanging up' },
 ]
 /** Sections that save on their own, outside the assistant's draft. */

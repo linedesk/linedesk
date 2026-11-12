@@ -14,6 +14,7 @@ import { type CollectContext, collectTools, nudgeIfQuiet } from './collect/colle
 import { partialPhoneNumberIn } from './collect/collectors.ts'
 import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log.ts'
 import { GREETING_WAIT_MS, lookUpCaller, within } from './caller-lookup.ts'
+import { lookupTools } from './lookup-tools.ts'
 import { callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
 import { createConfigLoader, parseProviderSettings, type AgentConfig } from './config.ts'
@@ -120,6 +121,7 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
     ...bookingToolset(api, call, log),
     ...collectTools(collect),
     ...(transfer ? { transfer_call: transferTool({ ...transfer, api, call, log }) } : {}),
+    ...lookupTools(api, call, log),
     take_message: llm.tool({
       description: 'Save a message for the team. Use it whenever the caller wants a callback, a visit, a quote or anything you cannot do yourself.',
       parameters: z.object({ message: z.string().describe('One complete sentence: who wants what. Add a callback number only if the caller gave one that is not their caller ID.') }),

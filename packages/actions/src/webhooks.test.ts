@@ -4,8 +4,13 @@ import { applyLocally, type LocalTables } from './index.ts'
 import {
   CALLER_DETAILS_MAX_KEYS,
   CALLER_DETAILS_MAX_VALUE,
+  callAskWebhook,
   callerDetailsFrom,
   callLookUpCaller,
+  LOOKUP_ANSWER_MAX,
+  LOOKUPS_MAX,
+  lookupAnswerFrom,
+  lookupValuesFrom,
   fillTemplate,
   newWebhookSecret,
   templateNames,
@@ -21,8 +26,10 @@ describe('webhook actions', () => {
   it('are for owners and admins only; the caller look-up is for the voice agent', () => {
     for (const def of [webhookCreate, webhookUpdate, webhookDelete, webhookTest, webhookDeliveries]) expect(def.permission).toBe('settings:write')
     expect(rolePermissions.member).not.toContain('settings:write')
-    expect(callLookUpCaller.permission).toBe('agent')
-    expect(callLookUpCaller.readOnly).toBe(true)
+    for (const def of [callLookUpCaller, callAskWebhook]) {
+      expect(def.permission).toBe('agent')
+      expect(def.readOnly).toBe(true)
+    }
   })
 
   it('are set per assistant with the hooks they get; the command log never keeps the secret', () => {
@@ -46,6 +53,51 @@ describe('webhook actions', () => {
     expect(local.webhook_endpoints.get('whe1')).toMatchObject({ url: 'https://example.com/other', status: 'active' })
     applyLocally(local, webhookUpdate, { endpointId: 'whe1', hooks: ['call_end', 'call_end'] }, '2026-11-11T12:02:00.000Z')
     expect(local.webhook_endpoints.get('whe1')).toMatchObject({ hooks: ['call_end'] })
+  })
+})
+
+const orderStatus = {
+  name: 'order_status',
+  when: 'The caller asks where their order is',
+  fields: [
+    { name: 'order_number', type: 'text' as const, description: 'The order number', required: true },
+    { name: 'items', type: 'number' as const, description: 'How many items', required: false },
+    { name: 'express', type: 'boolean' as const, description: 'Express shipping', required: false },
+  ],
+}
+
+describe('during-call lookups', () => {
+  it('are set with webhook.update, locally at once; names are unique and limited', () => {
+    const local = { webhook_endpoints: new Map([['whe1', { id: 'whe1', lookups: [] }]]) } as unknown as LocalTables
+    applyLocally(local, webhookUpdate, { endpointId: 'whe1', lookups: [orderStatus] }, '2026-11-12T12:00:00.000Z')
+    expect(local.webhook_endpoints.get('whe1')).toMatchObject({ lookups: [orderStatus] })
+    const parse = (lookups: unknown) => webhookUpdate.input.safeParse({ endpointId: 'whe1', lookups }).success
+    expect(parse([orderStatus])).toBe(true)
+    expect(parse([orderStatus, orderStatus])).toBe(false)
+    expect(parse([{ ...orderStatus, name: 'Order Status' }])).toBe(false)
+    expect(parse([{ ...orderStatus, when: ' ' }])).toBe(false)
+    expect(parse([{ ...orderStatus, fields: [orderStatus.fields[0], orderStatus.fields[0]] }])).toBe(false)
+    expect(parse([{ ...orderStatus, fields: [{ ...orderStatus.fields[0], type: 'date' }] }])).toBe(false)
+    expect(parse(Array.from({ length: LOOKUPS_MAX + 1 }, (_, i) => ({ ...orderStatus, name: `lookup_${i}` })))).toBe(false)
+    const secret = newWebhookSecret()
+    expect(webhookCreate.input.safeParse({ endpointId: 'w', assistantId: 'a', url: 'https://example.com', hooks: ['during_call'], secret }).success).toBe(true)
+  })
+
+  it("send only the lookup's own fields, each as its type; a missing required field sends nothing", () => {
+    expect(lookupValuesFrom(orderStatus, { order_number: ' 12\n34 ', items: '2', express: 'yes', other: 'x' })).toEqual({
+      values: { order_number: '12 34', items: 2, express: true },
+    })
+    expect(lookupValuesFrom(orderStatus, { order_number: 'A1', items: 'two', express: 'maybe' })).toEqual({ values: { order_number: 'A1' } })
+    expect(lookupValuesFrom(orderStatus, { order_number: null, items: 3 })).toEqual({ missing: ['order_number'] })
+    expect(lookupValuesFrom(orderStatus, { order_number: '' })).toEqual({ missing: ['order_number'] })
+  })
+
+  it('take the answer as one line of text, cut; anything else is no answer', () => {
+    expect(lookupAnswerFrom({ answer: 'Shipped Monday.\nArrives Thursday.' })).toBe('Shipped Monday. Arrives Thursday.')
+    expect(lookupAnswerFrom({ answer: 'x'.repeat(LOOKUP_ANSWER_MAX + 50) })).toHaveLength(LOOKUP_ANSWER_MAX)
+    expect(lookupAnswerFrom({ answer: 42 })).toBe('42')
+    for (const reply of [null, 'text', [], {}, { answer: '  ' }, { answer: { status: 'shipped' } }, { status: 'shipped' }])
+      expect(lookupAnswerFrom(reply)).toBeNull()
   })
 })
 

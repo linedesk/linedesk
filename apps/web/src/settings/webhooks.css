@@ -48,3 +48,35 @@
 .cf-export .k-field {
   margin: 0;
 }
+
+/* The during-call lookups, under the hook switches; a lookup's fields in its dialog, one row each. */
+.wh-lookups {
+  margin: 4px 0 12px;
+  padding-left: 12px;
+  border-left: 2px solid var(--line);
+}
+.wh-lookups-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.wh-fields {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.wh-field {
+  display: grid;
+  grid-template-columns: 9rem auto 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+@media (max-width: 640px) {
+  .wh-field {
+    grid-template-columns: 1fr auto;
+  }
+}

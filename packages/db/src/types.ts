@@ -15,10 +15,21 @@ export const webhookEvents = ['call.completed', 'call.summary_ready', 'booking.c
 export type WebhookEvent = (typeof webhookEvents)[number]
 /**
  * What an assistant's webhook gets (apps/api/src/webhooks.ts): `call_start` is asked about the caller when a
- * call comes in, `call_end` gets the whole call once it is over. A hook during the call comes later.
+ * call comes in, `during_call` is asked by the assistant when it needs something from the business's system
+ * (its lookups), `call_end` gets the whole call once it is over.
  */
-export const webhookHooks = ['call_start', 'call_end'] as const
+export const webhookHooks = ['call_start', 'during_call', 'call_end'] as const
 export type WebhookHook = (typeof webhookHooks)[number]
+/** The kinds of value a during-call lookup's field takes. */
+export const lookupFieldTypes = ['text', 'number', 'boolean'] as const
+export type LookupFieldType = (typeof lookupFieldTypes)[number]
+/** Something the assistant fills in for a lookup, e.g. the order number. */
+export type LookupField = { name: string; type: LookupFieldType; description: string; required: boolean }
+/**
+ * Something the assistant can ask the business's system during a call (`during_call`), e.g. `order_status`:
+ * `when` says when to ask, `fields` what to send. LOOKUP_* limits in @linedesk/actions.
+ */
+export type WebhookLookup = { name: string; when: string; fields: LookupField[] }
 /** What the call-start webhook answered: flat names and short values (CALLER_DETAILS_* in @linedesk/actions). */
 export type CallerDetails = Record<string, string | number | boolean>
 export type AssistantVoice = { provider: string; voice_id: string }

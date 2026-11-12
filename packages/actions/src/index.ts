@@ -177,6 +177,7 @@ const all = [
   webhooks.webhookTest,
   webhooks.webhookDeliveries,
   webhooks.callLookUpCaller,
+  webhooks.callAskWebhook,
   knowledge.knowledgeImport,
   knowledge.knowledgeQuestionAnswer,
   knowledge.knowledgeQuestionDismiss,
