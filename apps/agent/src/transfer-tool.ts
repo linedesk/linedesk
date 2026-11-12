@@ -72,8 +72,8 @@ export async function onCallDialerFor(
   config: AgentConfig,
   api: ApiClient,
 ): Promise<OnCallDialer | null> {
-  if (call.simulatedOnCall) return simulatedDialer(call.simulatedOnCall, livekitOf(), config)
-  if (!call.businessNumber) return null // a browser test call never dials a real phone
+  if (call.simulatedOnCall) return simulatedDialer(call.simulatedOnCall, livekitOf(), config, call.simulatedOnCallLine)
+  if (!call.businessNumber) return null // a test call never dials a real phone
   if (number === call.businessNumber) {
     // It would ring straight back into this assistant (assistant.update refuses it; older settings may have it).
     console.warn(`transfer is on for call ${call.callId}, but the on-call number is the business's own Linedesk number`)
@@ -117,9 +117,6 @@ async function connectingLine(config: AgentConfig, call: CallSession, text: stri
   }
 }
 
-/** A transfer contact the assistant can put callers through to on this call, and how to reach them. */
-export type Reachable = { contact: Dialable; dialer: OnCallDialer }
-
 type TransferToolDeps = {
   /** Stops the call's recording: the conversation with the person put through is not recorded. */
   stopRecording?: () => Promise<void>
@@ -128,9 +125,12 @@ type TransferToolDeps = {
   call: CallSession
   log: CallLog
   config: AgentConfig
-  callerIdentity: string
-  /** In the owner's order. */
-  contacts: Reachable[]
+  /** The caller in the room; on a phone call they are there from the start. */
+  callerIdentity: Promise<string>
+  /** The contacts that take calls now (transferContactsFor), in the owner's order. */
+  contacts: Dialable[]
+  /** How to dial a contact, looked up when the call starts; null: it cannot be dialled on this call. */
+  dialerOf: (contact: Dialable) => Promise<OnCallDialer | null>
 }
 
 /** Aborts when the caller leaves the room. */
@@ -176,14 +176,19 @@ async function startTransfer(api: ApiClient, call: CallSession, target: Report):
 /** The tool's description: every contact with when to put the caller through to them. */
 export function transferToolDescription(contacts: readonly Pick<Dialable, 'name' | 'condition'>[]): string {
   const list = contacts.map(c => `"${c.name}": ${c.condition}`).join('; ')
-  return `Put the caller through to a person. The contacts, with when each one takes calls: ${list}. Use it only when a contact's condition fits the call, once you know the caller's name and what they need; contacts with the same condition are tried in the owner's order by themselves. It tells the caller itself that you are connecting them: say nothing else in the same response.`
+  return `Put the caller through to a person. The contacts, with when each one takes calls: ${list}. Use it only when a contact's condition fits the call, once you know the caller's name and what they need; contacts with the same condition are tried in the owner's order by themselves. It tells the caller itself that you are trying to reach them: say nothing else in the same response.`
 }
 
-export function transferTool({ ctx, api, call, log, config, callerIdentity, contacts, stopRecording }: TransferToolDeps) {
+/**
+ * transfer_call, given from the start of the call: nothing is dialled until the assistant uses it, once a contact's
+ * condition fits. A contact that cannot be dialled counts as not answered: the next one is tried only when its
+ * "if nobody accepts" says so (transferPlan), else its fallback applies.
+ */
+export function transferTool({ ctx, api, call, log, config, callerIdentity, contacts, dialerOf, stopRecording }: TransferToolDeps) {
   let tried = false
-  const names = contacts.map(c => c.contact.name) as [string, ...string[]]
+  const names = contacts.map(c => c.name) as [string, ...string[]]
   return llm.tool({
-    description: transferToolDescription(contacts.map(c => c.contact)),
+    description: transferToolDescription(contacts),
     parameters: z.object({
       contacts: z
         .array(z.enum(names))
@@ -194,10 +199,7 @@ export function transferTool({ ctx, api, call, log, config, callerIdentity, cont
     }),
     execute: async ({ contacts: picked, caller_name, about }, { ctx: run }) => {
       if (tried) return 'You already tried to transfer this call. Take a message instead.'
-      const plan = transferPlan(
-        contacts.map(c => c.contact),
-        picked,
-      )
+      const plan = transferPlan(contacts, picked)
       if (!plan) return 'None of those is one of the contacts. Only transfer when a contact fits; else take a message.'
       tried = true
       // The caller is on hold until this returns: no silence reminders and no collection steps meanwhile.
@@ -208,7 +210,8 @@ export function transferTool({ ctx, api, call, log, config, callerIdentity, cont
       const session = run.session
       // The caller is on hold: what they say now is not a turn for the assistant.
       session.input.setAudioEnabled(false)
-      const left = callerLeft(ctx, callerIdentity)
+      const caller = await callerIdentity
+      const left = callerLeft(ctx, caller)
       // The name the caller confirmed on this call beats the one on file (a shared or test number has someone else's).
       const callerName = caller_name ?? log.confirmedName ?? call.contact?.name ?? null
       const briefing = briefingText({
@@ -220,9 +223,17 @@ export function transferTool({ ctx, api, call, log, config, callerIdentity, cont
       let previous: Dialable | null = null
       const triedNames: string[] = []
       for (const [i, contact] of plan.tries.entries()) {
-        const dialer = contacts.find(c => c.contact.id === contact.id)!.dialer
         const target = { to: contact.number, name: contact.name, urgent }
         triedNames.push(contact.name) // also when refused: the caller wanted a person and got none
+        const dialer = await dialerOf(contact)
+        if (!dialer) {
+          // No way to dial it on this call (no outbound trunk, a test call): like no answer, the plan decides what is next.
+          console.warn(`transfer of call ${call.callId}: ${contact.name} cannot be dialled on this call`)
+          log.record('system', transferLabel('failed', contact.number, contact.name), callTransfer.name)
+          void report(api, call, target, 'failed').catch(() => {})
+          previous = contact
+          continue
+        }
         const refused = await startTransfer(api, call, target)
         if (refused) {
           console.warn(`transfer of call ${call.callId} not started: ${refused}`)
@@ -241,7 +252,7 @@ export function transferTool({ ctx, api, call, log, config, callerIdentity, cont
           {
             livekit: livekitOf(),
             callerRoom: ctx.room,
-            callerIdentity,
+            callerIdentity: caller,
             dialer,
             config,
             voice: call.assistant?.voice,

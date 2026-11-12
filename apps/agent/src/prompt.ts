@@ -69,7 +69,7 @@ export function transferInstructions(rules: readonly TransferRule[]): string {
   const list = rules.map((r, i) => `${i + 1}. ${r.name}: ${r.condition.trim().replace(/[.!?]+$/, '')}.`).join('\n')
   return [
     `Some calls go to a person. This comes before the rules above, also while the office is closed. The contacts, in order, with when each one takes calls:\n${list}`,
-    "When a contact's condition fits the call, do not take a message first: as soon as you know the caller's name and what they need, use transfer_call with every contact whose condition fits. Call it without saying anything yourself: it tells the caller whom you are connecting them with. Never transfer a call that fits no contact's condition; then handle it as the rules above say.",
+    "When a contact's condition fits the call, do not take a message first: as soon as you know the caller's name and what they need, use transfer_call with every contact whose condition fits. Call it without saying anything yourself: it tells the caller whom you are trying to reach. Never transfer a call that fits no contact's condition; then handle it as the rules above say.",
     'Only if transfer_call says nobody took the call, tell the caller you could not reach anyone right now and say what transfer_call told you: that their message is passed on and when the team gets back to them.',
   ].join('\n')
 }

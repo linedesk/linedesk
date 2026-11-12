@@ -118,7 +118,7 @@ async function untilTheyStopTalking(stream: AsyncIterator<AudioFrame>, quietMs =
  * the transfer waits for, listens to the briefing and answers by voice ("yes") or with key 2. After
  * taking the call it says a few words to the caller and hangs up, which ends the call.
  */
-export function simulatedDialer(answer: SimulatedAnswer, livekit: Livekit, config: AgentConfig): OnCallDialer {
+export function simulatedDialer(answer: SimulatedAnswer, livekit: Livekit, config: AgentConfig, greeting = GREETING_LINE): OnCallDialer {
   return {
     async dial({ room: roomName, identity, signal, ringSeconds = RING_SECONDS }) {
       if (answer === 'no-answer') {
@@ -126,7 +126,7 @@ export function simulatedDialer(answer: SimulatedAnswer, livekit: Livekit, confi
         throw new NotAnsweredError('the simulated on-call phone rang out')
       }
       // Said with the test caller's voice, made before joining: the track's rate is the voice's.
-      const lines = await onCallLines(config, answer)
+      const lines = await onCallLines(config, answer, greeting)
       const token = new AccessToken(livekit.apiKey, livekit.apiSecret, { identity, name: 'On call (simulated)' })
       token.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true })
       const room = new Room()
@@ -149,8 +149,8 @@ export const GREETING_LINE =
   "Hi, this is Mike, the on-call plumber. I'm on my way and will be there in about thirty minutes. Bye for now."
 
 /** The on-call person's lines in the test caller's voice: "yes" and the greeting when accepting, else none. */
-export function onCallLines(config: AgentConfig, answer: SimulatedAnswer): Promise<GreetingAudio[]> {
-  return Promise.all((answer === 'accept' ? [ACCEPT_LINE, GREETING_LINE] : []).map(text => voiceOf(config, text)))
+export function onCallLines(config: AgentConfig, answer: SimulatedAnswer, greeting = GREETING_LINE): Promise<GreetingAudio[]> {
+  return Promise.all((answer === 'accept' ? [ACCEPT_LINE, greeting] : []).map(text => voiceOf(config, text)))
 }
 
 /** Publishes the on-call person's microphone in the room, at the rate of their voice. */

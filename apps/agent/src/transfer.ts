@@ -119,8 +119,8 @@ export function transferLabel(result: TransferResult, to: string, name?: string)
   return 'Transfer not answered'
 }
 
-/** What the caller hears right before the ringback: whom they are put through to. */
-export const connectingLine = (name: string) => `I'm connecting you with ${name} now. Please stay on the line.`
+/** What the caller hears right before the ringback: whom the assistant is trying to reach. */
+export const connectingLine = (name: string) => `I'm trying to reach ${name} now. Please stay on the line.`
 
 /** What the caller hears before the next contact's ringback, when the one before did not take the call. */
 export const tryingNextLine = (previous: string, next: string) =>

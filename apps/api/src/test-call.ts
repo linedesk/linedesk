@@ -74,7 +74,8 @@ async function recordToken(tx: Tx, actor: Actor, room: string, assistantId?: str
 }
 
 /** What the agent reads from the job metadata of a test room (apps/agent/src/worker.ts). */
-export type TestCallMetadata = { source: 'test'; workspaceId: string; assistantId?: string }
+/** `simulateTransfer`: a transfer on a test call reaches a simulated person who accepts, never a real phone. */
+export type TestCallMetadata = { source: 'test'; workspaceId: string; assistantId?: string; simulateTransfer: true }
 
 /**
  * `assistantId` must already be checked to be one of the actor's workspace's (the handler does). Counts and records
@@ -93,7 +94,7 @@ export async function startTestCall(tx: Tx, actor: Actor, assistantId?: string, 
     await recordToken(t, actor, room, assistantId)
   })
 
-  const metadata: TestCallMetadata = { source: 'test', workspaceId: actor.workspaceId, ...(assistantId ? { assistantId } : {}) }
+  const metadata: TestCallMetadata = { source: 'test', workspaceId: actor.workspaceId, ...(assistantId ? { assistantId } : {}), simulateTransfer: true }
   const nowSec = Math.floor(nowMs / 1000)
   const token = livekitToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
     video: { roomJoin: true, room, canPublish: true, canPublishSources: ['microphone'], canSubscribe: true, canPublishData: false },

@@ -15,6 +15,7 @@ import {
   answerOf,
   answerOfDigit,
   briefingText,
+  connectingLine,
   type Dialable,
   MAX_TRANSFER_TRIES,
   notConnectedMessage,
@@ -24,7 +25,8 @@ import {
   transferLabel,
   transferPlan,
 } from './transfer.ts'
-import { transferToolDescription } from './transfer-tool.ts'
+import { transferTool, transferToolDescription } from './transfer-tool.ts'
+import { CallLog } from './call-log.ts'
 
 const contact = (over: Partial<TransferContact> = {}): TransferContact => ({
   id: 'oncall',
@@ -328,4 +330,64 @@ test('the SIP dial gives up as soon as the caller hangs up, not when the phone s
       signal: already.signal,
     }),
   ).rejects.toThrow('cancelled before dialling')
+})
+
+test('a test call from the web app asks for a simulated transfer; only `true` counts', () => {
+  const meta = (value: unknown) => JSON.stringify({ source: 'test', workspaceId: 'w', simulateTransfer: value })
+  expect(parseTestMetadata(meta(true))?.simulateTransfer).toBe(true)
+  expect(parseTestMetadata(meta('yes'))?.simulateTransfer).toBeUndefined()
+  expect(parseTestMetadata(JSON.stringify({ source: 'test', workspaceId: 'w' }))?.simulateTransfer).toBeUndefined()
+})
+
+test('the caller hears that the assistant is trying to reach the contact', () => {
+  expect(connectingLine('Mike')).toBe("I'm trying to reach Mike now. Please stay on the line.")
+  expect(transferToolDescription([contact()])).toContain('It tells the caller itself that you are trying to reach them')
+})
+
+/** transfer_call run outside a live session: the caller is on hold, nothing is said, every API request is kept. */
+function runTransfer(contacts: Dialable[], dialable: (c: Dialable) => boolean) {
+  const requests: { name: string; input: Record<string, unknown> }[] = []
+  const call = { callId: 'c1', workspaceId: 'w', contact: { phone: '+15035550142', name: null }, assistant: null, append: async () => {} } as never
+  const log = new CallLog(call)
+  const dialed: string[] = []
+  const tool = transferTool({
+    ctx: { room: { on() {}, off() {} } } as never,
+    api: {
+      run: async (def: { name: string }, input: Record<string, unknown>) => {
+        requests.push({ name: def.name, input })
+        return { data: {} }
+      },
+    } as never,
+    call,
+    log,
+    config: {} as never,
+    callerIdentity: Promise.resolve('caller'),
+    contacts,
+    dialerOf: async c => {
+      dialed.push(c.name)
+      return dialable(c) ? ({ dial: async () => {} } as never) : null
+    },
+  })
+  const session = { input: { setAudioEnabled() {} }, output: { setAudioEnabled() {} } }
+  const run = { waitForPlayout: async () => {}, disallowInterruptions() {}, session }
+  const execute = (picked: string[]) =>
+    (tool as unknown as { execute: (args: unknown, opts: unknown) => Promise<string | undefined> }).execute({ contacts: picked, caller_name: 'Dana', about: 'a burst pipe' }, { ctx: run })
+  return { execute, requests, dialed, log }
+}
+
+test('a contact that cannot be dialled counts as not answered: the next one only when its setting says so', async () => {
+  const first = { ...contact({ if_no_answer: 'next' }), number: '+15035550199' }
+  const backup = { ...contact({ id: 'backup', name: 'Sarah', number: '+15035550188' }), number: '+15035550188' }
+  const { execute, requests, dialed, log } = runTransfer([first, backup], () => false)
+  expect(await execute(['Mike'])).toBe(notConnectedReply('message_urgent'))
+  expect(dialed).toEqual(['Mike', 'Sarah'])
+  // Nothing was started at the API (no `dialing`): both are recorded as failed, and the team gets the message.
+  expect(requests.filter(r => r.name === 'call.transfer').map(r => r.input.result)).toEqual(['failed', 'failed'])
+  expect(requests.some(r => r.name === 'call.takeMessage')).toBe(true)
+  expect(log.urgent).toBe(true)
+
+  // "If nobody accepts: take a message": the backup with the same condition is not tried.
+  const only = runTransfer([{ ...first, if_no_answer: 'message' }, backup], () => false)
+  expect(await only.execute(['Mike'])).toBe(notConnectedReply('message'))
+  expect(only.dialed).toEqual(['Mike'])
 })

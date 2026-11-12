@@ -34,7 +34,7 @@ import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from './counterpart.ts'
 import { runTestCaller } from './test-caller/caller.ts'
 import { type Dialable, transferContactsFor } from './transfer.ts'
 import { watchTakeOver } from './take-over.ts'
-import { onCallDialerFor, type Reachable, transferTool } from './transfer-tool.ts'
+import { onCallDialerFor, transferTool } from './transfer-tool.ts'
 import { parseTestCallerMetadata, type TestCallerMetadata } from './test-caller/scenarios.ts'
 import { type OnCallResponderMetadata, parseOnCallResponderMetadata, runOnCallResponder } from './oncall-responder.ts'
 import { type AgentSetup, SETUP_ATTRIBUTE } from './test-caller/latency.ts'
@@ -112,7 +112,7 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
   }
 }
 
-/** transfer_call, only when the assistant has transfer contacts on this call and someone can be dialled. */
+/** transfer_call, when the assistant has transfer contacts that take calls now; given from the start of the call. */
 type Transfer = Omit<Parameters<typeof transferTool>[0], 'api' | 'call' | 'log'> | null
 
 function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: () => void, flagUrgent: () => Promise<void>, transfer: Transfer, collect: CollectContext) {
@@ -233,7 +233,7 @@ const speakerFor = (session: voice.AgentSession, realtime: boolean): Speak =>
 /**
  * Greets the caller and runs the conversation until the session closes. The session starts without
  * waiting for the caller: it links to them once they join (on a phone call they are there already),
- * and the greeting plays as soon as they hear the agent's audio. Transfer is added once it is known.
+ * and the greeting plays as soon as they hear the agent's audio.
  */
 async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant>, api: ApiClient, config: CallConfig, call: CallSession, log: CallLog, onClose: () => void, setup: SetupTimer, stopRecordingForTransfer: () => Promise<void>, callerDetails: Promise<CallerDetails | null>) {
   // The three stages answer the call, or a realtime model alone (then: no cached greeting, no transfer, no quick tool replies).
@@ -299,9 +299,10 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     },
   })
   session.on(voice.AgentSessionEventTypes.Close, cancelLimit)
-  // The instructions change when transfer becomes available and when the call-start webhook answers.
-  const known: { transfers: TransferRules; details: CallerDetails | null } = { transfers: [], details: null }
-  const instructionsNow = () => buildInstructions(call.assistant, call.businessHours, call.booking, known.transfers, call.caller, call.timeZone, undefined, known.details)
+  const transfer = stages && transferFrom(ctx, api, call, stages, callerJoined, stopRecordingForTransfer)
+  // The instructions change when the call-start webhook answers.
+  const known: { details: CallerDetails | null } = { details: null }
+  const instructionsNow = () => buildInstructions(call.assistant, call.businessHours, call.booking, transfer?.contacts ?? [], call.caller, call.timeZone, undefined, known.details)
   const instructions = instructionsNow()
   const collect: CollectContext = {
     log,
@@ -309,7 +310,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     languageRule: collectLanguageRule(call.assistant) ?? undefined,
     addToMessage: detail => addToMessage(api, call, log, detail),
   }
-  const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, flagUrgent, null, collect) })
+  const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, flagUrgent, transfer, collect) })
   if (stages) void warmUpLlm(stages.llm, instructions)
   await session.start({
     agent,
@@ -333,43 +334,28 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     return setup.note('spoken by the realtime model')
   }
   setup.note(await greet(session, stages, call, cachedGreeting, key, personalGreeting ? callerDetails : null))
-  const useTransfers = async (transfers: TransferRules) => {
-    known.transfers = transfers
-    await agent.updateInstructions(instructionsNow())
-  }
-  void addTransfer(agent, callerJoined, useTransfers, { ctx, api, call, config: stages, log, endCall, flagUrgent, collect, stopRecording: stopRecordingForTransfer })
 }
 
-type TransferRules = Parameters<typeof buildInstructions>[3]
-
-/** Gives the assistant transfer_call, and the instructions for it, once it is known that it can transfer now; true when it did. */
-async function addTransfer(
-  agent: voice.Agent, callerJoined: Promise<RemoteParticipant>, useTransfers: (transfers: TransferRules) => Promise<void>,
-  { ctx, api, call, config, log, endCall, flagUrgent, collect, stopRecording }: { ctx: JobContext; api: ApiClient; call: CallSession; config: AgentConfig; log: CallLog; endCall: () => void; flagUrgent: () => Promise<void>; collect: CollectContext; stopRecording: () => Promise<void> },
-): Promise<boolean> {
-  try {
-    const caller = await callerJoined
-    const transfer = await transferFor(ctx, api, call, config, caller.identity, stopRecording)
-    if (!transfer) return false
-    await useTransfers(transfer.contacts.map(c => c.contact))
-    await agent.updateTools(assistantTools(api, call, log, endCall, flagUrgent, transfer, collect))
-    return true
-  } catch (e) {
-    console.warn(`call ${call.callId} goes on without transfer: ${e instanceof Error ? e.message : String(e)}`)
-    return false
-  }
-}
-
-/** What transfer_call needs on this call, or null when the assistant does not transfer now (no contact, closed, nobody to dial). */
-async function transferFor(ctx: JobContext, api: ApiClient, call: CallSession, config: AgentConfig, callerIdentity: string, stopRecording: () => Promise<void>): Promise<Transfer> {
-  const reachable = await Promise.all(
-    transferContactsFor(call.assistant, call.businessHours).map(async (contact: Dialable): Promise<Reachable | null> => {
-      const dialer = await onCallDialerFor(call, contact.number, config, api)
-      return dialer ? { contact, dialer } : null
-    }),
+/**
+ * transfer_call for this call, from its start: the contacts that take calls now (transferContactsFor). How to dial each
+ * is looked up right away, so a transfer does not wait for it, but nothing is dialled until the assistant uses the tool.
+ * null: no contact takes calls now (none set up, closed, vacation mode).
+ */
+function transferFrom(ctx: JobContext, api: ApiClient, call: CallSession, config: AgentConfig, callerJoined: Promise<RemoteParticipant>, stopRecording: () => Promise<void>): Transfer {
+  const contacts = transferContactsFor(call.assistant, call.businessHours)
+  if (!contacts.length) return null
+  const dialers = new Map(
+    contacts.map(contact => [
+      contact.id,
+      onCallDialerFor(call, contact.number, config, api).catch(e => {
+        console.warn(`call ${call.callId}: cannot dial ${contact.name}: ${e instanceof Error ? e.message : String(e)}`)
+        return null
+      }),
+    ]),
   )
-  const contacts = reachable.filter((r): r is Reachable => r !== null)
-  return contacts.length ? { ctx, config, callerIdentity, contacts, stopRecording } : null
+  const callerIdentity = callerJoined.then(caller => caller.identity)
+  void callerIdentity.catch(() => {}) // the call ends without a caller; nobody waits for it then
+  return { ctx, config, callerIdentity, contacts, dialerOf: (contact: Dialable) => dialers.get(contact.id) ?? Promise.resolve(null), stopRecording }
 }
 
 /** Times from the job's start to each setup step, logged once per call with the wall-clock start. */

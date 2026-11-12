@@ -48,8 +48,10 @@ export interface CallSession {
   timeZone: string | null
   /** The business's Linedesk number the caller dialled (a transfer shows it as caller ID); null for a test call. */
   businessNumber: string | null
-  /** No-phone call test: a simulated on-call person answers transfers instead of a phone. */
+  /** No-phone call test or a test call from the web app: a simulated on-call person answers transfers instead of a phone. */
   simulatedOnCall: SimulatedAnswer | null
+  /** What the simulated person says once put through; missing: the call test's line (GREETING_LINE). */
+  simulatedOnCallLine?: string
   append(speaker: Speaker, text: string, toolEvent?: ToolEvent): Promise<void>
   finish(result: CallResult): Promise<void>
 }
@@ -150,6 +152,8 @@ type TestMetadata = {
   businessHours?: BusinessHours
   outsideGreeting?: string
   onCall?: SimulatedOnCall
+  /** A test call from the web app: transfers reach a simulated person who accepts (TEST_CALL_ON_CALL_LINE). */
+  simulateTransfer?: boolean
   /** Languages besides English the assistant speaks on this test call. */
   languages?: Language[]
 }
@@ -186,7 +190,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     keepRecording: started.keepRecording !== false,
     lookups: started.lookups ?? [],
     businessNumber: origin.kind === 'phone' ? origin.to : null,
-    simulatedOnCall: onCall?.answer ?? null,
+    ...simulatedOnCallOf(origin),
     async append(speaker, text, toolEvent) {
       await api.run(callAppendTranscript, { callId, speaker, text, atMs: Date.now() - startedAt, toolEvent }, scope)
     },
@@ -194,6 +198,17 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
       await api.run(callFinish, { callId, ...result }, scope)
     },
   }
+}
+
+/** What the simulated person says on a test call from the web app, once put through. */
+export const TEST_CALL_ON_CALL_LINE =
+  'This is the simulated on-call person for your test call. On a real call, the person you set up would be talking to you now. Goodbye.'
+
+/** Who answers a transfer on a test call: the call test's simulated person, or on a web app test call one who accepts. */
+function simulatedOnCallOf(origin: CallOrigin): Pick<CallSession, 'simulatedOnCall' | 'simulatedOnCallLine'> {
+  if (origin.kind !== 'test') return { simulatedOnCall: null }
+  if (origin.onCall) return { simulatedOnCall: origin.onCall.answer }
+  return origin.simulateTransfer ? { simulatedOnCall: 'accept', simulatedOnCallLine: TEST_CALL_ON_CALL_LINE } : { simulatedOnCall: null }
 }
 
 /**
@@ -215,7 +230,7 @@ export function callOrigin(jobMetadata: string, attributes: Record<string, strin
 export function parseTestMetadata(metadata: string): TestMetadata | null {
   if (!metadata) return null
   try {
-    const parsed = JSON.parse(metadata) as { source?: unknown; workspaceId?: unknown; assistantId?: unknown; businessHours?: unknown; outsideGreeting?: unknown; onCall?: unknown; languages?: unknown }
+    const parsed = JSON.parse(metadata) as { source?: unknown; workspaceId?: unknown; assistantId?: unknown; businessHours?: unknown; outsideGreeting?: unknown; onCall?: unknown; simulateTransfer?: unknown; languages?: unknown }
     if (parsed.source !== 'test' || typeof parsed.workspaceId !== 'string' || !parsed.workspaceId) return null
     const hours = parsed.businessHours as Partial<BusinessHours> | undefined
     const businessHours = hours && typeof hours.openNow === 'boolean' && typeof hours.summary === 'string' ? { openNow: hours.openNow, summary: hours.summary } : undefined
@@ -229,6 +244,7 @@ export function parseTestMetadata(metadata: string): TestMetadata | null {
       ...(businessHours ? { businessHours } : {}),
       ...(outsideGreeting ? { outsideGreeting } : {}),
       ...(onCall ? { onCall } : {}),
+      ...(parsed.simulateTransfer === true ? { simulateTransfer: true } : {}),
       ...(languages.length ? { languages } : {}),
     }
   } catch {

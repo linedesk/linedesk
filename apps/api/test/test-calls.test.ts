@@ -48,7 +48,7 @@ test('an owner gets a token for one new room, dispatching the agent into their o
   // Only this room, only the microphone, no data messages, no admin rights.
   expect(claims.video).toEqual({ roomJoin: true, room, canPublish: true, canPublishSources: ['microphone'], canSubscribe: true, canPublishData: false })
   expect(claims.roomConfig.maxParticipants).toBe(8) // the caller, the agent, a recording and teammates listening in (call.listen)
-  expect(claims.roomConfig.agents).toEqual([{ agentName: 'linedesk', metadata: JSON.stringify({ source: 'test', workspaceId: ws.id }) }])
+  expect(claims.roomConfig.agents).toEqual([{ agentName: 'linedesk', metadata: JSON.stringify({ source: 'test', workspaceId: ws.id, simulateTransfer: true }) }])
   // The command log keeps that a token was issued, for the limits, never the token.
   const logged = await db.select().from(commands).where(and(eq(commands.action, TEST_CALL_TOKEN), eq(commands.actor_id, ws.owner.userId)))
   expect(logged.map(c => c.result)).toContainEqual({ ok: true, rows: {}, data: { room } })
@@ -69,7 +69,7 @@ test('a member, the agent and a signed-out request get no token', async () => {
 
 test("another workspace's owner gets a token for their own workspace only", async () => {
   const { body } = await act(other.owner, 'assistant.startTestCall', {})
-  expect(JSON.parse(verifiedClaims(body.data.token).roomConfig.agents[0].metadata)).toEqual({ source: 'test', workspaceId: other.id })
+  expect(JSON.parse(verifiedClaims(body.data.token).roomConfig.agents[0].metadata)).toEqual({ source: 'test', workspaceId: other.id, simulateTransfer: true })
 })
 
 test('without LiveKit on the server it is a rejection that says so', async () => {
