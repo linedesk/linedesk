@@ -1,14 +1,6 @@
-// The website import's review: what the proposal would change in the draft. Nothing is overwritten
-// without a choice: a different About text shows as a word diff, services and FAQs that are new or
-// differ are listed to pick from, and only what is picked goes into the draft (saved with Save).
-import {
-  DOCUMENTS_INLINE_MAX,
-  type Faq,
-  FAQS_MAX,
-  type KnowledgeImportData,
-  type Service,
-  SERVICES_MAX,
-} from '@linedesk/actions'
+// Write with help's review: what the proposal would change in the draft. Nothing is overwritten without a
+// choice: a different About text shows as a word diff, and only what is picked goes into the draft (saved with Save).
+import type { KnowledgeImportData } from '@linedesk/actions'
 import type { Draft } from './assistantDraft.ts'
 
 export type DiffPart = { kind: 'same' | 'added' | 'removed'; text: string }
@@ -49,93 +41,30 @@ export function wordDiff(before: string, after: string): DiffPart[] {
   return parts
 }
 
-const key = (text: string) =>
-  text
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim()
+export type ImportReview = { about: 'empty' | 'same' | 'different' }
 
-export type Proposed<T> = { item: T; status: 'new' | 'changed'; was?: T }
-
-export type ImportReview = {
-  about: 'empty' | 'same' | 'different'
-  services: Proposed<Service>[]
-  faqs: Proposed<Faq>[]
-  /** Proposed items the draft already has as they are. */
-  unchanged: number
-}
-
-/** What the proposal adds or changes compared with the draft. */
-export function reviewImport(
-  draft: Pick<Draft, 'instructions' | 'services' | 'faqs'>,
-  proposal: KnowledgeImportData,
-): ImportReview {
+/** Whether the proposed About text is new, the same as the draft's, or different from it. */
+export function reviewImport(draft: Pick<Draft, 'instructions'>, proposal: KnowledgeImportData): ImportReview {
   const about =
     !proposal.about.trim() || proposal.about.trim() === draft.instructions.trim()
       ? 'same'
       : draft.instructions.trim()
         ? 'different'
         : 'empty'
-  let unchanged = 0
-  const services = proposal.services.flatMap((item): Proposed<Service>[] => {
-    const was = draft.services.find(s => key(s.name) === key(item.name))
-    if (!was) return [{ item, status: 'new' }]
-    if (
-      was.price.trim() === item.price.trim() &&
-      (was.description.trim() === item.description.trim() || !item.description.trim())
-    ) {
-      unchanged++
-      return []
-    }
-    return [{ item, status: 'changed', was }]
-  })
-  const faqs = proposal.faqs.flatMap((item): Proposed<Faq>[] => {
-    const was = draft.faqs.find(f => key(f.q) === key(item.q))
-    if (!was) return [{ item, status: 'new' }]
-    if (key(was.a) === key(item.a)) {
-      unchanged++
-      return []
-    }
-    return [{ item, status: 'changed', was }]
-  })
-  return { about, services, faqs, unchanged }
+  return { about }
 }
 
-/**
- * What the owner picked: whether the About text is taken over, and which use cases, services and FAQs (by
- * index; use cases by index in the proposal).
- */
-export type ImportPicks = { about: boolean; useCases: Set<number>; services: Set<number>; faqs: Set<number> }
+/** What the owner picked: whether the About text is taken over, and which use cases (by index in the proposal). */
+export type ImportPicks = { about: boolean; useCases: Set<number> }
 
-/** By default: an empty About is filled, new items are added, changes to what the owner has stay unpicked. */
+/** By default: an empty About is filled, every use case is added. */
 export const defaultPicks = (review: ImportReview, proposal: KnowledgeImportData): ImportPicks => ({
   about: review.about === 'empty',
   useCases: new Set(proposal.useCases.map((_, i) => i)),
-  services: new Set(review.services.flatMap((p, i) => (p.status === 'new' ? [i] : []))),
-  faqs: new Set(review.faqs.flatMap((p, i) => (p.status === 'new' ? [i] : []))),
 })
 
-/** The draft with the picked parts of the proposal: changed items replace theirs in place, new ones are added within the limits. */
-export function applyImport(
-  draft: Draft,
-  proposal: KnowledgeImportData,
-  review: ImportReview,
-  picks: ImportPicks,
-): Draft {
-  const services = draft.services.map(s => ({ ...s }))
-  review.services.forEach((p, i) => {
-    if (!picks.services.has(i)) return
-    const at = p.was ? services.findIndex(s => key(s.name) === key(p.was!.name)) : -1
-    if (at >= 0) services[at] = { ...p.item }
-    else if (services.length < SERVICES_MAX) services.push({ ...p.item })
-  })
-  const faqs = draft.faqs.map(f => ({ ...f }))
-  review.faqs.forEach((p, i) => {
-    if (!picks.faqs.has(i)) return
-    const at = p.was ? faqs.findIndex(f => key(f.q) === key(p.was!.q)) : -1
-    if (at >= 0) faqs[at] = { ...p.item }
-    else if (faqs.length < FAQS_MAX) faqs.push({ ...p.item })
-  })
+/** The draft with the picked parts of the proposal. */
+export function applyImport(draft: Draft, proposal: KnowledgeImportData, picks: ImportPicks): Draft {
   const about = picks.about ? proposal.about.trim() : draft.instructions.trim()
   const useCases = proposal.useCases.filter((_, i) => picks.useCases.has(i))
   const instructions = useCases.length
@@ -143,22 +72,8 @@ export function applyImport(
     : picks.about
       ? about
       : draft.instructions
-  return {
-    ...draft,
-    instructions,
-    services,
-    faqs,
-    website: proposal.website ?? draft.website,
-  }
+  return { ...draft, instructions, website: proposal.website ?? draft.website }
 }
 
-/** Whether the assistant has any knowledge yet: drives the empty state that points to Write with help. */
-export const hasKnowledge = (d: Pick<Draft, 'instructions' | 'services' | 'faqs'>, documents: number) =>
-  !!d.instructions.trim() || d.services.length > 0 || d.faqs.length > 0 || documents > 0
-
-/** How the assistant uses the documents: all in every call while they are short, else looked up. */
-export const documentsUse = (totalChars: number) =>
-  totalChars <= DOCUMENTS_INLINE_MAX ? 'read on every call' : 'looked up when a caller asks'
-
-export const fileSize = (bytes: number) =>
-  bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`
+/** Whether the assistant knows anything yet: drives the empty state that points to Write with help. */
+export const hasKnowledge = (d: Pick<Draft, 'instructions'>) => !!d.instructions.trim()

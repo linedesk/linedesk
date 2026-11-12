@@ -1,4 +1,3 @@
-import { FAQS_MAX } from '@linedesk/actions'
 import { describe, expect, test } from 'vitest'
 import { PRIVATE_URL, websiteUrl } from './public-fetch.ts'
 import { htmlToText, importPrompt, parseProposal, pickPages, robotsAllows, robotsRules } from './site-import.ts'
@@ -84,31 +83,18 @@ describe('the proposal', () => {
     expect(importPrompt([], {})).toBe('')
   })
 
-  test('the answer is checked, cut to the limits, without empty or duplicate entries', () => {
-    const faqs = Array.from({ length: FAQS_MAX + 5 }, (_, i) => ({ q: `Q${i}?`, a: 'A.' }))
+  test('the answer is checked and cut to the limits; duplicate or empty use cases are dropped; lists are ignored', () => {
     const parsed = parseProposal(
       JSON.stringify({
-        about: '  We fix pipes.  ',
-        services: [
-          { name: 'Drains', description: 'Sinks', price: '$149' },
-          { name: 'drains', price: '$1' },
-          { name: '', price: '$5' },
-          { name: 'Heaters', price: 12 },
-          { name: 'Leaks', description: '', price: 'Free estimate on site' },
-        ],
-        faqs: [...faqs, { q: 'Q0?', a: 'Dup.' }, { q: 'No answer?', a: '' }],
+        about: '  We fix pipes. Drain cleaning from $149.  ',
+        services: [{ name: 'Drains', price: '$149' }],
+        faqs: [{ q: 'Q?', a: 'A.' }],
         use_cases: ['When a caller smells gas, flag it urgent.', 'When a caller smells gas, flag it urgent.', ''],
       }),
     )
-    expect(parsed.about).toBe('We fix pipes.')
-    expect(parsed.services).toEqual([
-      { name: 'Drains', description: 'Sinks', price: '$149' },
-      { name: 'Heaters', description: '', price: '' },
-      { name: 'Leaks', description: '', price: '' },
-    ])
-    expect(parsed.faqs).toHaveLength(FAQS_MAX)
-    expect(parsed.useCases).toEqual(['When a caller smells gas, flag it urgent.'])
+    expect(parsed).toEqual({ about: 'We fix pipes. Drain cleaning from $149.', useCases: ['When a caller smells gas, flag it urgent.'] })
     expect(() => parseProposal('not json')).toThrow()
-    expect(parseProposal('```json\n{"about": "x"}\n```')).toEqual({ about: 'x', useCases: [], services: [], faqs: [] })
+    expect(parseProposal('```json\n{"about": "x"}\n```')).toEqual({ about: 'x', useCases: [] })
   })
+
 })

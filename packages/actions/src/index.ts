@@ -177,9 +177,6 @@ const all = [
   webhooks.webhookTest,
   webhooks.webhookDeliveries,
   knowledge.knowledgeImport,
-  knowledge.knowledgeAddDocument,
-  knowledge.knowledgeRemoveDocument,
-  knowledge.knowledgeSearch,
   knowledge.knowledgeQuestionAnswer,
   knowledge.knowledgeQuestionDismiss,
 ] as ActionDef[]

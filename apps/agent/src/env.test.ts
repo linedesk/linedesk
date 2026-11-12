@@ -39,8 +39,9 @@ test('without instructions the prompt falls back to the structured business prof
   for (const instructions of [undefined, '', '   ']) {
     const prompt = buildInstructions({ ...assistant, business_profile: { ...assistant.business_profile, instructions } } as Assistant)
     expect(prompt).toContain('About: Family-run plumbing company in Portland.')
-    expect(prompt).toContain('- Leak repair: quote only, no price on the phone\n- Water heaters: quote only, no price on the phone')
-    expect(prompt).toContain('Q: Do you serve Lake Oswego?\nA: Yes.')
+    expect(prompt).toMatch(/Services: Leak repair, Water heaters/)
+    // FAQs are no longer offered: stored ones stay out of the prompt.
+    expect(prompt).not.toContain('Q: Do you serve Lake Oswego?')
     expect(prompt).not.toContain('Address:')
   }
 })

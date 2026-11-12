@@ -1,27 +1,16 @@
-// Settings › Assistant › Knowledge: what the assistant knows about the business: questions callers asked
-// that it could not answer, About the business (with Write with help, WriteWithHelp.tsx), services and
-// prices, FAQs and documents. About, services and FAQs are part of
-// the assistant's draft (saved with Save); documents and answered questions are saved at once.
-import {
-  DOCUMENT_MAX_BYTES,
-  DOCUMENTS_MAX,
-  type documentTypes,
-  FAQS_MAX,
-  INSTRUCTIONS_MAX,
-  PRICE_MAX,
-  SERVICES_MAX,
-} from '@linedesk/actions'
-import type { Assistant, KnowledgeDocument, KnowledgeQuestion } from '@linedesk/db/types'
-import { useRef, useState } from 'react'
+// Settings › Assistant › Business info: what the assistant knows about the business: questions callers asked
+// that it could not answer, and About the business (with Write with help, WriteWithHelp.tsx). About is part of
+// the assistant's draft (saved with Save); an answered question is added to it and saved at once.
+import { answeredQuestionLine, INSTRUCTIONS_MAX } from '@linedesk/actions'
+import type { Assistant, KnowledgeQuestion } from '@linedesk/db/types'
+import { useState } from 'react'
 import { useRows } from '../store.tsx'
 import { Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
-import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import type { Draft } from './assistantDraft.ts'
 import { Field, Section, TextArea } from './fields.tsx'
-import { documentsUse, fileSize, hasKnowledge } from './knowledgeModel.ts'
+import { hasKnowledge } from './knowledgeModel.ts'
 import { useWriteAction } from './settings-api.ts'
-import { fileToBase64 } from './voiceModel.ts'
 import { WriteWithHelp } from './WriteWithHelp.tsx'
 import './knowledge.css'
 
@@ -38,22 +27,16 @@ const count = (n: number) => n.toLocaleString('en-US')
 
 export function Knowledge(props: Props) {
   const { assistant, draft } = props
-  const documents = useRows('knowledge_documents')
-    .filter(d => d.assistant_id === assistant.id)
-    .sort((a, b) => a.created_at.localeCompare(b.created_at))
   const questions = useRows('knowledge_questions')
     .filter(q => q.assistant_id === assistant.id && q.status === 'open')
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
-  const empty = !hasKnowledge(draft, documents.length)
+  const empty = !hasKnowledge(draft)
   const name = draft.name.trim() || 'The assistant'
 
   return (
     <>
       {questions.length > 0 && <QuestionsCard {...props} questions={questions} name={name} />}
       <AboutCard {...props} name={name} empty={empty} />
-      <ServicesCard {...props} name={name} />
-      <FaqsCard {...props} />
-      <DocumentsCard {...props} documents={documents} name={name} />
     </>
   )
 }
@@ -71,7 +54,7 @@ function QuestionsCard({
     <Section
       id="kn-questions"
       title={`Questions ${name} couldn't answer`}
-      description="Answer once; it becomes an FAQ for every caller."
+      description="Answer once; it is added to About the business for every caller."
     >
       <ul className="kn-list">
         {questions.map(q => (
@@ -79,9 +62,10 @@ function QuestionsCard({
             key={q.id}
             question={q}
             toast={toast}
-            onAnswered={faq => {
-              // Unsaved FAQ edits keep the new one too; untouched FAQs follow the saved assistant.
-              set('faqs', [...draft.faqs, faq])
+            onAnswered={(q, a) => {
+              // The server added it to the saved text; the draft gets it too, so unsaved edits keep it.
+              const line = answeredQuestionLine(q, a)
+              if (!draft.instructions.includes(line)) set('instructions', [draft.instructions.trim(), line].filter(Boolean).join('\n'))
             }}
           />
         ))}
@@ -97,7 +81,7 @@ function QuestionRow({
 }: {
   question: KnowledgeQuestion
   toast: (t: string) => void
-  onAnswered: (faq: { q: string; a: string }) => void
+  onAnswered: (question: string, answer: string) => void
 }) {
   const write = useWriteAction()
   const [answer, setAnswer] = useState('')
@@ -112,8 +96,8 @@ function QuestionRow({
           : { questionId: question.id },
       )
       if (action === 'knowledgeQuestion.answer') {
-        onAnswered({ q: question.question, a: answer.trim() })
-        toast('Added to the FAQs.')
+        onAnswered(question.question, answer.trim())
+        toast('Added to About the business.')
       }
     } catch (e) {
       toast((e as Error).message)
@@ -144,9 +128,9 @@ function QuestionRow({
           variant="primary"
           disabled={busy || !answer.trim()}
           onClick={() => void run('knowledgeQuestion.answer')}
-          title="Save the answer as an FAQ"
+          title="Add the question and answer to About the business"
         >
-          Add to FAQs
+          Add answer
         </Button>
         <Button
           size="sm"
@@ -162,7 +146,7 @@ function QuestionRow({
   )
 }
 
-// --- About, services, FAQs -----------------------------------------------------------------
+// --- About the business --------------------------------------------------------------------
 
 function AboutCard(props: Props & { name: string; empty: boolean }) {
   const { draft, set, name, empty, canEdit } = props
@@ -205,298 +189,6 @@ function AboutCard(props: Props & { name: string; empty: boolean }) {
         </span>
       </Field>
       {helping && <WriteWithHelp {...props} onClose={() => setHelping(false)} />}
-    </Section>
-  )
-}
-
-/** Which row of a list is open for editing; a new row opens itself, a row missing what it needs stays open. */
-function useOpenRow() {
-  const [open, setOpen] = useState<number | null>(null)
-  return { open, setOpen, toggle: (i: number) => setOpen(o => (o === i ? null : i)) }
-}
-
-/** Edit and Remove at the end of a compact row. */
-function RowActions({ what, open, canEdit, onEdit, onRemove }: { what: string; open: boolean; canEdit: boolean; onEdit: () => void; onRemove: () => void }) {
-  if (!canEdit) return null
-  return (
-    <>
-      <Button size="sm" variant="ghost" icon="pencil" aria-label={`Edit ${what}`} title={open ? 'Close' : 'Edit'} onClick={onEdit} aria-expanded={open} />
-      <Button size="sm" variant="ghost" icon="trash" aria-label={`Remove ${what}`} title="Remove" onClick={onRemove} />
-    </>
-  )
-}
-
-function ServicesCard({ draft, set, canEdit, name }: Props & { name: string }) {
-  const services = draft.services
-  const rows = useOpenRow()
-  const update = (i: number, change: Partial<Draft['services'][number]>) =>
-    set(
-      'services',
-      services.map((s, j) => (j === i ? { ...s, ...change } : s)),
-    )
-  const add = () => {
-    set('services', [...services, { name: '', description: '', price: '' }])
-    rows.setOpen(services.length)
-    setTimeout(() => document.getElementById(`kn-svc-${services.length}`)?.focus(), 0)
-  }
-  const remove = (i: number) => {
-    set('services', services.filter((_, j) => j !== i))
-    rows.setOpen(null)
-  }
-  return (
-    <Section
-      id="kn-services"
-      title="Services and prices"
-      description={`${name} quotes only these prices. Leave a price empty for quote only.`}
-      actions={
-        <Button
-          size="sm"
-          icon="plus"
-          disabled={!canEdit || services.length >= SERVICES_MAX}
-          onClick={add}
-          title="Add a service"
-        >
-          Add
-        </Button>
-      }
-    >
-      {services.length === 0 ? (
-        <ListEmpty>No services yet. Without prices here, {name} never names a price and offers a call back.</ListEmpty>
-      ) : (
-        <List label="Services and prices">
-          {services.map((s, i) => {
-            const open = rows.open === i || !s.name.trim()
-            return (
-              <ListRow
-                // biome-ignore lint/suspicious/noArrayIndexKey: rows are edited in place; an index is their identity
-                key={i}
-                title={s.name.trim() || <span className="kn-untitled">New service</span>}
-                sub={s.description.trim() || undefined}
-                aside={<span className={s.price.trim() ? 'kn-price-tag' : 'help'}>{s.price.trim() || 'Quote only'}</span>}
-                actions={<RowActions what={s.name || 'service'} open={open} canEdit={canEdit} onEdit={() => rows.toggle(i)} onRemove={() => remove(i)} />}
-                below={
-                  open && (
-                    <div className="kn-edit kn-svc-fields">
-                      <Input
-                        id={`kn-svc-${i}`}
-                        value={s.name}
-                        placeholder="Service"
-                        aria-label="Service"
-                        invalid={!s.name.trim() && rows.open !== i}
-                        onChange={e => update(i, { name: e.target.value })}
-                      />
-                      <Input
-                        value={s.price}
-                        placeholder="e.g. $43 or quote only"
-                        aria-label="Price"
-                        maxLength={PRICE_MAX}
-                        className="kn-price"
-                        onChange={e => update(i, { price: e.target.value })}
-                      />
-                      <Input
-                        value={s.description}
-                        placeholder="Short description (optional)"
-                        aria-label="Description"
-                        className="kn-desc"
-                        onChange={e => update(i, { description: e.target.value })}
-                      />
-                    </div>
-                  )
-                }
-              />
-            )
-          })}
-        </List>
-      )}
-      {services.length > 0 && (
-        <span className="help">
-          {services.length} / {SERVICES_MAX}
-        </span>
-      )}
-    </Section>
-  )
-}
-
-function FaqsCard({ draft, set, canEdit }: Props) {
-  const faqs = draft.faqs
-  const rows = useOpenRow()
-  const update = (i: number, change: Partial<Draft['faqs'][number]>) =>
-    set(
-      'faqs',
-      faqs.map((f, j) => (j === i ? { ...f, ...change } : f)),
-    )
-  const add = () => {
-    set('faqs', [...faqs, { q: '', a: '' }])
-    rows.setOpen(faqs.length)
-    setTimeout(() => document.getElementById(`kn-faq-${faqs.length}`)?.focus(), 0)
-  }
-  const remove = (i: number) => {
-    set('faqs', faqs.filter((_, j) => j !== i))
-    rows.setOpen(null)
-  }
-  return (
-    <Section
-      id="kn-faqs"
-      title="FAQs"
-      description="Questions callers ask, with the answer to give."
-      actions={
-        <Button
-          size="sm"
-          icon="plus"
-          disabled={!canEdit || faqs.length >= FAQS_MAX}
-          onClick={add}
-          title="Add a question"
-        >
-          Add
-        </Button>
-      }
-    >
-      {faqs.length === 0 ? (
-        <ListEmpty>No FAQs yet.</ListEmpty>
-      ) : (
-        <List label="FAQs">
-          {faqs.map((f, i) => {
-            const open = rows.open === i || !f.q.trim() || !f.a.trim()
-            return (
-              <ListRow
-                // biome-ignore lint/suspicious/noArrayIndexKey: rows are edited in place; an index is their identity
-                key={i}
-                title={f.q.trim() || <span className="kn-untitled">New question</span>}
-                sub={f.a.trim() ? <span className="kn-answer">{f.a.trim()}</span> : undefined}
-                actions={<RowActions what="this FAQ" open={open} canEdit={canEdit} onEdit={() => rows.toggle(i)} onRemove={() => remove(i)} />}
-                below={
-                  open && (
-                    <div className="kn-edit kn-faq-fields">
-                      <Input
-                        id={`kn-faq-${i}`}
-                        value={f.q}
-                        placeholder="Question"
-                        aria-label="Question"
-                        onChange={e => update(i, { q: e.target.value })}
-                      />
-                      <TextArea value={f.a} placeholder="Answer" label="Answer" onChange={v => update(i, { a: v })} />
-                    </div>
-                  )
-                }
-              />
-            )
-          })}
-        </List>
-      )}
-      {faqs.length > 0 && (
-        <span className="help">
-          {faqs.length} / {FAQS_MAX}
-        </span>
-      )}
-    </Section>
-  )
-}
-
-// --- Documents -----------------------------------------------------------------------------
-
-const TYPES: Record<string, (typeof documentTypes)[number]> = {
-  pdf: 'application/pdf',
-  txt: 'text/plain',
-  md: 'text/markdown',
-}
-
-function DocumentsCard({
-  assistant,
-  canEdit,
-  toast,
-  documents,
-  name,
-}: Props & { documents: KnowledgeDocument[]; name: string }) {
-  const write = useWriteAction()
-  const input = useRef<HTMLInputElement>(null)
-  const [busy, setBusy] = useState(false)
-  const total = documents.reduce((sum, d) => sum + d.chars, 0)
-  async function upload(file: File) {
-    const type = TYPES[file.name.split('.').pop()?.toLowerCase() ?? '']
-    if (!type) return toast('Add a PDF, text or Markdown file.')
-    if (file.size > DOCUMENT_MAX_BYTES)
-      return toast(`That file is ${fileSize(file.size)}; at most ${fileSize(DOCUMENT_MAX_BYTES)}.`)
-    setBusy(true)
-    try {
-      const data = await write<{ truncated: boolean }>('knowledge.addDocument', {
-        assistantId: assistant.id,
-        name: file.name,
-        mimeType: type,
-        data: await fileToBase64(file),
-      })
-      toast(data.truncated ? 'Added. It is long, so only the first part is used.' : 'Document added.')
-    } catch (e) {
-      toast((e as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-  async function remove(doc: KnowledgeDocument) {
-    try {
-      await write('knowledge.removeDocument', { documentId: doc.id })
-      toast(`${doc.name} removed.`)
-    } catch (e) {
-      toast((e as Error).message)
-    }
-  }
-  return (
-    <Section
-      id="kn-documents"
-      title="Documents"
-      description={
-        documents.length
-          ? `${name} uses them as reference: ${documentsUse(total)}.`
-          : 'Price sheets, warranty terms, service area maps. PDF or text.'
-      }
-      help={`Up to ${DOCUMENTS_MAX} files of ${fileSize(DOCUMENT_MAX_BYTES)} each. Linedesk keeps their text; scanned PDFs without text can't be read. ${name} treats them as reference material and never follows instructions in them.`}
-      actions={
-        <>
-          <input
-            ref={input}
-            type="file"
-            accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
-            hidden
-            onChange={e => {
-              const file = e.target.files?.[0]
-              e.target.value = ''
-              if (file) void upload(file)
-            }}
-          />
-          <Button
-            size="sm"
-            icon="attach"
-            disabled={!canEdit || busy || documents.length >= DOCUMENTS_MAX}
-            onClick={() => input.current?.click()}
-            title="Upload a PDF or text file"
-          >
-            {busy ? 'Reading…' : 'Upload'}
-          </Button>
-        </>
-      }
-    >
-      {documents.length > 0 && (
-        <ul className="kn-list">
-          {documents.map(d => (
-            <li key={d.id} className="kn-row">
-              <div className="kn-main">
-                <b>{d.name}</b>
-                <span className="kn-sub">
-                  {fileSize(d.size_bytes)} · {count(d.chars)} characters of text
-                </span>
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon="trash"
-                disabled={!canEdit}
-                aria-label={`Remove ${d.name}`}
-                title="Remove"
-                onClick={() => void remove(d)}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
     </Section>
   )
 }

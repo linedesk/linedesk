@@ -631,9 +631,9 @@ export const call_evaluations = pgTable(
   t => [index('call_evaluations_ws_score').on(t.workspace_id, t.score)],
 )
 
-// Knowledge (docs/architecture.md, Knowledge): documents an assistant may look things up in, their
-// text in chunks for the search, and questions callers asked that the assistant could not answer.
-// Documents and questions are synced (no text in them beyond a question); chunks are not.
+// Knowledge (docs/architecture.md, Knowledge): questions callers asked that the assistant could not answer.
+// knowledge_documents and knowledge_chunks are no longer used (documents were removed) and are dropped in a later
+// release; the documents table stays synced until then, so a web app of the release before keeps working.
 export const knowledge_documents = pgTable(
   'knowledge_documents',
   {

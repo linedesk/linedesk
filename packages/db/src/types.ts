@@ -67,8 +67,9 @@ export type BusinessProfile = {
   service_area?: string
   address?: string
   hours?: string
+  /** No longer used (FAQs were removed); kept in stored profiles until the next save. */
   faqs?: { q: string; a: string }[]
-  /** Services and prices (Settings › Assistant › Knowledge). An empty price means "quote only": the assistant gives no price. */
+  /** No longer used (services and prices were removed); kept in stored profiles until the next save. */
   service_list?: { name: string; description: string; price: string }[]
   /** The website the knowledge was last imported from. */
   website?: string

@@ -1,5 +1,5 @@
 // One call as the agent sees it: start, append transcript segments, finish.
-import { type BookingContext, type CallDocuments, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, DEFAULT_AI_DISCLOSURE, greetingWithDisclosure, type Language, languageCodes, localizedDefault, mainLanguageOf, silenceClosingOf } from '@linedesk/actions'
+import { type BookingContext, type CallerHistory, callAppendTranscript, callFinish, callStart, callStartTest, DEFAULT_AI_DISCLOSURE, greetingWithDisclosure, type Language, languageCodes, localizedDefault, mainLanguageOf, silenceClosingOf } from '@linedesk/actions'
 import { type Assistant, type Contact, DEFAULT_TRANSFERS, type ToolEvent, type TransferContact } from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
@@ -42,8 +42,6 @@ export interface CallSession {
    * name (then it is not the cached greeting); null: no contact (withheld number).
    */
   caller: CallerContext | null
-  /** The assistant's reference documents: inline text or a look-up; null when it has none (or the API is older). */
-  documents: CallDocuments | null
   /** The business's time zone, for the date and time the assistant is told; null from an older API (then booking's, if any). */
   timeZone: string | null
   /** The business's Linedesk number the caller dialled (a transfer shows it as caller ID); null for a test call. */
@@ -65,7 +63,6 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
   recordingNotice?: string | null
   /** Missing (older API): recordings are kept. */
   keepRecording?: boolean
-  documents?: CallDocuments | null
   /** A phone caller matched to a contact: their last calls and upcoming bookings; null or missing (older API): none. */
   callerHistory?: CallerHistory | null
   /** The workspace's time zone; missing from an older API. */
@@ -180,7 +177,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   const booking = started.booking ?? null
   const startedAt = Date.now()
   return {
-    callId, ...scope, assistant, contact, blocked, busy, overCap, businessHours, booking, caller, documents: started.documents ?? null,
+    callId, ...scope, assistant, contact, blocked, busy, overCap, businessHours, booking, caller,
     timeZone: started.timeZone ?? booking?.timeZone ?? null,
     keepRecording: started.keepRecording !== false,
     businessNumber: origin.kind === 'phone' ? origin.to : null,

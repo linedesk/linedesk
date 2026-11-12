@@ -36,7 +36,7 @@ import { sampleHandlers } from './sample-calls.ts'
 import { queueAssignNotification, queueCallEvaluation, queueRecordingDeletion, queueCallNotification, queueCallPush } from './jobs.ts'
 import { queueSpendingAlerts, spendingCap } from './spending-cap.ts'
 import { evaluatedAutomatically, evaluationHandlers } from './evaluations.ts'
-import { documentsForCall, knowledgeHandlers, knowledgePreparers } from './knowledge.ts'
+import { knowledgeHandlers } from './knowledge.ts'
 import { knowledgeQuestionHandlers } from './knowledge-questions.ts'
 import { notificationHandlers } from './notification-settings.ts'
 import { starHandlers } from './star-prompt.ts'
@@ -237,14 +237,13 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   const recordingNotice = blocked ? null : await recordingNoticeFor(tx, workspace_id)
   // "Don't keep" recordings: the agent does not record at all (the transcript comes from live speech recognition).
   const keepRecording = await keepsRecordings(tx, workspace_id)
-  const documents = blocked ? null : await documentsForCall(tx, assistant?.id)
   // A returning caller's last calls and upcoming bookings: only a phone caller matched to a contact.
   const history = source === 'phone' && contact && !blocked
     ? await callerHistory(tx, workspace_id, contact.row, { callId: id, now, canChangeBookings: booking?.canChangeBookings === true })
     : null
   return {
     rows: { calls: [call!], ...(contact ? { contacts: [contact.row] } : {}) },
-    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: assistant ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, keepRecording, callerHistory: history, documents, timeZone },
+    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: assistant ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, keepRecording, callerHistory: history, timeZone },
   }
 }
 
@@ -342,7 +341,7 @@ async function checkOnCallNotLinedesk(tx: HandlerCtx['tx'], e164: string, name: 
 }
 
 /** Actions with work before their transaction (handler-context.ts, Preparer). */
-export const preparers: Record<string, Preparer> = { ...voicePreparers, ...knowledgePreparers }
+export const preparers: Record<string, Preparer> = { ...voicePreparers }
 
 /**
  * The next steps the API itself put on a call while it ran (BOOKING_MISSES_NOTE when booking changes were locked):

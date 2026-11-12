@@ -1,8 +1,8 @@
 // The editable copy of the assistant's settings: how it is read from the row, merged with
 // changes that arrive through sync, checked and turned back into what assistant.update takes.
 import {
-  type Faq, FAQS_MAX, INSTRUCTIONS_MAX, RING_SECONDS_DEFAULT, TRANSFER_CONDITION_MAX,
-  TRANSFER_CONTACTS_MAX, type Service, SERVICES_MAX, servicesOf, TRANSFER_NAME_MAX, onCallNumberProblem,
+  INSTRUCTIONS_MAX, RING_SECONDS_DEFAULT, TRANSFER_CONDITION_MAX,
+  TRANSFER_CONTACTS_MAX, TRANSFER_NAME_MAX, onCallNumberProblem,
   DEFAULT_SILENCE_CLOSING, DEFAULT_SILENCE_REMINDER, localizedDefault, type TalkingSpeed, SILENCE_CLOSING_MAX, SILENCE_FIRST_GAP_MAX_S, SILENCE_FIRST_GAP_MIN_S, SILENCE_REMINDERS_MAX,
   SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT, SILENCE_HANG_UP_DEFAULT_S, SILENCE_HANG_UP_MAX_S, ASSISTANT_CALL_MAX_MINUTES, BEHAVIOURS, type BehaviourId, behaviourOn, type AiDisclosure, DEFAULT_AI_DISCLOSURE, type CommunicationStyle, DEFAULT_COMMUNICATION_STYLE, type AssistantLanguages, ENGLISH_ONLY, type Language, languageCodes, LANGUAGES, mainLanguageOf, swapDefault,
 } from '@linedesk/actions'
@@ -23,9 +23,7 @@ export type Draft = {
   transfers: TransferDraft[]
   /** The voice: provider and voice id (empty: the provider's default). */
   voice: { provider: string; voice_id: string }
-  /** Knowledge: services with prices (empty price: quote only), FAQs, and the website last imported from. */
-  services: Service[]
-  faqs: Faq[]
+  /** The website the About text was last drafted from. */
   website: string
   /** Silence on the line, as typed: seconds before the first "Are you still there?", how many, the closing line. */
   silence_first_gap_s: string
@@ -52,11 +50,10 @@ const line = (label: string, value?: string) => (value?.trim() ? `${label}: ${va
 
 /**
  * The older structured fields as one text, in the shape the assistant used to read them.
- * Shown once for an assistant that has no instructions yet, so nothing it knew is lost. Services and
- * FAQs have their own lists.
+ * Shown once for an assistant that has no instructions yet, so nothing it knew is lost.
  */
 export function foldProfile(p: BusinessProfile): string {
-  return [line('About', p.description), line('Service area', p.service_area), line('Address', p.address), line('Hours', p.hours)]
+  return [line('About', p.description), line('Services', p.services?.filter(s => s.trim()).join(', ')), line('Service area', p.service_area), line('Address', p.address), line('Hours', p.hours)]
     .filter(Boolean)
     .join('\n')
 }
@@ -69,8 +66,6 @@ export function draftOf(a: Assistant): Draft {
     greeting_outside: a.greeting_outside ?? '',
     transfers: (a.transfers ?? []).map(c => transferDraftOf({ ...c, number: c.number ? formatNumber(c.number) : '' })),
     voice: { provider: a.voice.provider, voice_id: a.voice.voice_id },
-    services: servicesOf(p).map(s => ({ ...s })),
-    faqs: (p.faqs ?? []).map(f => ({ ...f })),
     website: p.website ?? '',
     // A row synced before these columns existed has none: the defaults.
     silence_first_gap_s: String(a.silence_first_gap_s ?? SILENCE_FIRST_GAP_DEFAULT_S),
@@ -150,10 +145,6 @@ export const normalized = (d: Draft): Draft => ({
   instructions: d.instructions.trim(),
   greeting_outside: d.greeting_outside.trim(),
   transfers: d.transfers.map(c => transferDraftOf({ ...c, name: c.name.trim(), condition: c.condition.trim(), number: normalizedNumber(c.number) })),
-  services: d.services
-    .map(s => ({ name: s.name.trim(), description: s.description.trim(), price: s.price.trim() }))
-    .filter(s => s.name || s.description || s.price),
-  faqs: d.faqs.map(f => ({ q: f.q.trim(), a: f.a.trim() })).filter(f => f.q || f.a),
   website: d.website.trim(),
   silence_first_gap_s: d.silence_first_gap_s.trim(),
   silence_reminders: d.silence_reminders.trim(),
@@ -335,23 +326,12 @@ export function draftProblem(draft: Draft): string | null {
   if (!draft.greeting.trim()) return 'The greeting cannot be empty: it is the first thing callers hear.'
   const length = draft.instructions.trim().length
   if (length > INSTRUCTIONS_MAX) return `The instructions are too long: ${length.toLocaleString('en-US')} of ${INSTRUCTIONS_MAX.toLocaleString('en-US')} characters.`
-  return knowledgeProblem(normalized(draft)) ?? transferProblem(draft)?.message ?? silenceProblem(draft) ?? languagesProblem(draft)
-}
-
-/** Why the services or FAQs cannot be saved; null when they can. Expects a normalized draft. */
-export function knowledgeProblem(d: Pick<Draft, 'services' | 'faqs'>): string | null {
-  if (d.services.length > SERVICES_MAX) return `At most ${SERVICES_MAX} services.`
-  if (d.services.some(s => !s.name)) return 'Every service needs a name.'
-  if (d.faqs.length > FAQS_MAX) return `At most ${FAQS_MAX} FAQs.`
-  if (d.faqs.some(f => !f.q || !f.a)) return 'Every FAQ needs a question and an answer.'
-  return null
+  return transferProblem(draft)?.message ?? silenceProblem(draft) ?? languagesProblem(draft)
 }
 
 /** The profile to save: the instructions replace the older fields they were folded from. Expects a normalized draft. */
 export const profileOf = (d: Draft): BusinessProfile => ({
   instructions: d.instructions.trim(),
-  service_list: d.services,
-  faqs: d.faqs,
   ...(d.website ? { website: d.website } : {}),
 })
 

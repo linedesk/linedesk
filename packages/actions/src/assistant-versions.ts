@@ -5,7 +5,6 @@ import type { Assistant, AssistantCalendar } from '@linedesk/db/types'
 import { z } from 'zod'
 import { AI_DISCLOSURE_LABELS, BEHAVIOURS, behaviourOn, COMMUNICATION_STYLE_LABELS } from './assistant-prompt.ts'
 import { defineAction } from './define.ts'
-import { servicesOf } from './knowledge.ts'
 import { LANGUAGES, type Language, languageNames, mainLanguageOf, otherLanguagesOf } from './languages.ts'
 import { silenceClosingOf, silenceReminderOf, TALKING_SPEED_LABELS } from './settings.ts'
 
@@ -65,12 +64,6 @@ export const VERSION_PARTS: readonly VersionPart[] = [
     text: ({ business_profile: p }) =>
       lines(p.instructions, !p.instructions?.trim() && lines(p.description, p.service_area && `Service area: ${p.service_area}`, p.address && `Address: ${p.address}`, p.hours && `Hours: ${p.hours}`)) || 'Empty',
   },
-  {
-    id: 'services',
-    label: 'Services',
-    text: s => servicesOf(s.business_profile).map(v => [v.name, v.price || 'quote only', v.description].filter(Boolean).join(' · ')).join('\n') || 'None',
-  },
-  { id: 'faqs', label: 'FAQs', text: s => (s.business_profile.faqs ?? []).map(f => `Q: ${f.q}\nA: ${f.a}`).join('\n') || 'None' },
   {
     id: 'transfers',
     label: 'Transfer contacts',

@@ -2,7 +2,7 @@
 // configured language model how the assistant handled the call. One short request with the
 // assistant's instructions, the transcript and the summary; the answer is a score (1 to 5) and at
 // most three issues, stored in `call_evaluations`. Only owners and admins read them.
-import { CALL_RULES, type CallEvaluation, FAQ_QUESTION_MAX, knowledgeLists, NEEDS_REVIEW_MAX_SCORE } from '@linedesk/actions'
+import { CALL_RULES, type CallEvaluation, NEEDS_REVIEW_MAX_SCORE, QUESTION_MAX } from '@linedesk/actions'
 import { assistants, call_evaluations, calls, type Tx, transcript_segments } from '@linedesk/db'
 import { and, asc, desc, eq, isNull, lte } from 'drizzle-orm'
 import { z } from 'zod'
@@ -89,8 +89,6 @@ const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0
 type CallForEvaluation = {
   summary: string | null
   instructions: string
-  /** Services, prices and FAQs as the assistant had them (knowledgeLists). */
-  knowledge?: string
   callRules: string
   transcript: { speaker: string; text: string }[]
 }
@@ -106,7 +104,6 @@ export function evaluationPrompt(c: CallForEvaluation): string {
   )
   return [
     `Business instructions:\n${clip(c.instructions || '(none)', 2000)}`,
-    c.knowledge ? `Services, prices and FAQs the assistant had:\n${clip(c.knowledge, 3000)}` : null,
     `Call rules:\n${clip(c.callRules, 1500)}`,
     `<transcript>\n${asData(clip(lines.join('\n'), 8000))}\n</transcript>`,
     `<summary>\n${asData(c.summary ?? '(none)')}\n</summary>`,
@@ -127,7 +124,7 @@ export function parseEvaluation(text: string): { score: number; issues: string[]
   return {
     score: parsed.score,
     issues: parsed.issues.slice(0, 3).map(i => clip(i, 300)),
-    unanswered: parsed.unanswered.slice(0, 3).map(q => clip(q, FAQ_QUESTION_MAX)),
+    unanswered: parsed.unanswered.slice(0, 3).map(q => clip(q, QUESTION_MAX)),
   }
 }
 
@@ -171,7 +168,6 @@ export async function evaluateCall(
   const prompt = evaluationPrompt({
     summary: call.summary,
     instructions: assistant?.business_profile?.instructions ?? '',
-    knowledge: assistant ? knowledgeLists(assistant.business_profile) : '',
     callRules: CALL_RULES,
     transcript,
   })

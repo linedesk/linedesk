@@ -34,11 +34,11 @@ export const BEHAVIOURS = [
   },
   {
     id: 'listed_prices_only',
-    label: 'Never quote prices that are not in your list',
+    label: 'Never quote prices the business did not give',
     on: true,
     say: null,
     sayOff:
-      'Prices: for anything that is not in the services and prices list you may give a rough idea based on the listed prices, saying it is only an estimate and the team will confirm it.',
+      'Prices: for anything the business gave no price for you may give a rough idea based on the prices it gave, saying it is only an estimate and the team will confirm it.',
   },
   {
     id: 'confirm_number',

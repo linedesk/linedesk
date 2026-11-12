@@ -1569,7 +1569,6 @@ describe('impersonation', () => {
       'impersonation.stop',
       'insights.get',
       'invitation.listMine',
-      'knowledge.search',
       'member.list',
       'notifications.get',
       'provider.test',

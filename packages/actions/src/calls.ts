@@ -353,9 +353,7 @@ const KEY_PATTERN = new RegExp(`^[A-Za-z0-9_-]+/[A-Za-z0-9_-]+\\.(${recordingFor
 /** True for keys of the shape `recordingKey` builds: two plain segments, no dots or slashes inside them. */
 export const isRecordingKey = (key: string) => KEY_PATTERN.test(key)
 
-/** Where an assistant's uploaded document is kept in the recording store: `<workspace>/knowledge/<document>.<pdf|txt|md>`. */
-export const documentKey = (workspaceId: string, documentId: string, extension: 'pdf' | 'txt' | 'md') =>
-  `${workspaceId}/knowledge/${documentId}.${extension}`
+/** Where an uploaded document (no longer offered) was kept in the recording store: `<workspace>/knowledge/<document>.<pdf|txt|md>`. */
 const DOCUMENT_KEY_PATTERN = /^[A-Za-z0-9_-]+\/knowledge\/[A-Za-z0-9_-]+\.(pdf|txt|md)$/
 export const isDocumentKey = (key: string) => DOCUMENT_KEY_PATTERN.test(key)
 /** A key the store may use: a call recording or an uploaded document. */

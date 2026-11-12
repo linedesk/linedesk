@@ -1,6 +1,6 @@
 // "Write with help" (Knowledge › About the business): a short wizard that starts with the website (read by
 // knowledge.import, the safe import on the server) so the next step can already say what the business does,
-// then asks what the assistant should do, and proposes an About text, use cases, services and FAQs. The owner picks what to keep;
+// then asks what the assistant should do, and proposes an About text and use cases. The owner picks what to keep;
 // it goes into the draft, never saved without Save.
 import { type AssistantGoal, BUSINESS_TEXT_MAX, type KnowledgeImportData } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
@@ -48,7 +48,7 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
   const [goalsNote, setGoalsNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [proposal, setProposal] = useState<KnowledgeImportData | null>(null)
-  /** What the website gave in step 1: its About text fills step 2, its services, FAQs and pages join the proposal. */
+  /** What the website gave in step 1: its About text fills step 2, its pages join the proposal. */
   const [site, setSite] = useState<KnowledgeImportData | null>(null)
 
   /** Step 1: read the website, so step 2 already says what the business does. */
@@ -153,7 +153,7 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
           <Field
             id="ww-url"
             label="Website"
-            help="Linedesk reads a few of its pages for what you do, services, prices and FAQs."
+            help="Linedesk reads a few of its pages for what you do, your services and prices, and what callers ask."
           >
             <Input
               id="ww-url"
@@ -243,11 +243,9 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
   )
 }
 
-/** The proposal with what the website gave in step 1: its services, FAQs and pages, where the proposal has none. */
+/** The proposal with the pages the website gave in step 1. */
 const withSite = (data: KnowledgeImportData, site: KnowledgeImportData): KnowledgeImportData => ({
   ...data,
-  services: data.services.length ? data.services : site.services,
-  faqs: data.faqs.length ? data.faqs : site.faqs,
   pages: site.pages,
   website: site.website,
 })
@@ -270,15 +268,15 @@ function Result({
 }) {
   const [review] = useState<ImportReview>(() => reviewImport(draft, proposal))
   const [picks, setPicks] = useState<ImportPicks>(() => defaultPicks(review, proposal))
-  const toggle = (list: 'useCases' | 'services' | 'faqs', i: number) =>
+  const toggle = (list: 'useCases', i: number) =>
     setPicks(p => {
       const next = new Set(p[list])
       if (next.has(i)) next.delete(i)
       else next.add(i)
       return { ...p, [list]: next }
     })
-  const nothing = review.about === 'same' && !proposal.useCases.length && !review.services.length && !review.faqs.length
-  const picked = picks.about || picks.useCases.size + picks.services.size + picks.faqs.size > 0
+  const nothing = review.about === 'same' && !proposal.useCases.length
+  const picked = picks.about || picks.useCases.size > 0
   return (
     <div className="ww-result">
       <div className="ww-step ww-scroll">
@@ -328,40 +326,6 @@ function Result({
             ))}
           </div>
         )}
-        {review.services.length > 0 && (
-          <div className="kn-review-block">
-            <b className="kn-review-h">Services and prices</b>
-            {review.services.map((p, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: a fixed list for this review
-              <label key={i} className="kn-pick">
-                <input type="checkbox" checked={picks.services.has(i)} onChange={() => toggle('services', i)} />
-                <span>
-                  {p.item.name} · {p.item.price || 'Quote only'}
-                  {p.was && <span className="kn-was"> was {p.was.price || 'quote only'}</span>}
-                  {p.item.description && <span className="kn-sub">{p.item.description}</span>}
-                </span>
-                <span className="kn-tag">{p.status === 'new' ? 'New' : 'Changed'}</span>
-              </label>
-            ))}
-          </div>
-        )}
-        {review.faqs.length > 0 && (
-          <div className="kn-review-block">
-            <b className="kn-review-h">FAQs</b>
-            {review.faqs.map((p, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: a fixed list for this review
-              <label key={i} className="kn-pick">
-                <input type="checkbox" checked={picks.faqs.has(i)} onChange={() => toggle('faqs', i)} />
-                <span>
-                  {p.item.q}
-                  <span className="kn-sub">{p.item.a}</span>
-                  {p.was && <span className="kn-sub kn-was">Yours: {p.was.a}</span>}
-                </span>
-                <span className="kn-tag">{p.status === 'new' ? 'New' : 'Changed'}</span>
-              </label>
-            ))}
-          </div>
-        )}
       </div>
       <div className="kn-foot">
         <Button variant="ghost" onClick={onBack}>
@@ -370,7 +334,7 @@ function Result({
         <Button
           variant="primary"
           disabled={!picked}
-          onClick={() => onApply(applyImport(draft, proposal, review, picks))}
+          onClick={() => onApply(applyImport(draft, proposal, picks))}
           title="Put the picked parts into the draft; nothing is saved until you save"
         >
           Add to draft

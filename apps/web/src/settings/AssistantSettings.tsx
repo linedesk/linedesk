@@ -58,7 +58,7 @@ import { Holidays, VacationMode } from './Holidays.tsx'
 type SectionId = 'general' | 'business' | 'hours' | 'rules' | 'transfers' | 'booking' | 'advanced'
 const sections: readonly PageSection<SectionId>[] = [
   { id: 'general', label: 'General', description: 'Name, greeting, languages and voice' },
-  { id: 'business', label: 'Business info', description: 'What you do, services, prices, FAQs and documents' },
+  { id: 'business', label: 'Business info', description: 'What you do, your prices and what callers ask' },
   { id: 'hours', label: 'Hours & holidays', description: 'Weekly hours, holidays, vacation mode' },
   { id: 'rules', label: 'Rules', description: 'AI disclosure, tone and how calls are handled' },
   { id: 'transfers', label: 'Transfers', description: 'Who calls are put through to' },
@@ -69,7 +69,7 @@ const sections: readonly PageSection<SectionId>[] = [
 type OwnSection = 'hours' | 'booking'
 /** Which draft fields each section holds. */
 const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
-  business: ['instructions', 'services', 'faqs', 'website'],
+  business: ['instructions', 'website'],
   general: ['name', 'greeting', 'greeting_outside', 'languages', 'voice'],
   rules: ['ai_disclosure', 'communication_style', 'behaviours'],
   transfers: ['transfers'],

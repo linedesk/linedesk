@@ -4,7 +4,6 @@ import { z } from 'zod'
 import { ASSISTANT_CALL_MAX_MINUTES } from './calls.ts'
 import { defineAction } from './define.ts'
 import { JOB_VALUE_MAX_CENTS } from './insights.ts'
-import { FAQS_MAX, faqSchema, SERVICES_MAX, serviceSchema } from './knowledge.ts'
 import { assistantLanguages } from './languages.ts'
 import { transferContacts } from './transfer.ts'
 import { voiceId } from './voices.ts'
@@ -224,8 +223,6 @@ export const assistantUpdate = defineAction({
         service_area: z.string().optional(),
         address: z.string().optional(),
         hours: z.string().optional(),
-        faqs: z.array(faqSchema).max(FAQS_MAX, `at most ${FAQS_MAX} FAQs`).optional(),
-        service_list: z.array(serviceSchema).max(SERVICES_MAX, `at most ${SERVICES_MAX} services`).optional(),
         website: z.string().trim().max(2000).optional(),
       })
       .optional(),
