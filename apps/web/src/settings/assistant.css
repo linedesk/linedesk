@@ -91,6 +91,13 @@
 .as-greet-remove {
   margin: -6px -6px -6px 0;
 }
+/* The greetings are a sentence or two: the box is as tall as its text, like the FAQ fields. */
+#as-greet,
+#as-greet-out {
+  min-height: 38px;
+  field-sizing: content;
+  resize: none;
+}
 .as-greet-add {
   display: flex;
   flex-wrap: wrap;
