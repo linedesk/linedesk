@@ -99,6 +99,45 @@ const EXAMPLE_CALLER = { first_name: 'Sarah', last_name: 'Miller' } as const
 const withExampleCaller = (text: string) =>
   GREETING_VARIABLES.reduce((t, v) => t.replace(greetingVariablePattern(v.key), EXAMPLE_CALLER[v.key]), text)
 
+/**
+ * An optional greeting field: shown while it has text or was just added here; added with a starting text and
+ * focused, removed by emptying it (empty means "not used" when saved). Hidden until added, so the section
+ * starts with the one greeting every caller hears.
+ */
+function useOptionalGreeting(value: string, clear: () => void, start: () => void, fieldId: string) {
+  const [added, setAdded] = useState(false)
+  const shown = added || value.trim() !== ''
+  // Emptied from outside the field (Cancel): it goes away; emptied by typing in it, it stays.
+  useEffect(() => {
+    if (!value.trim() && document.activeElement?.id !== fieldId) setAdded(false)
+  }, [value, fieldId])
+  const add = () => {
+    start()
+    setAdded(true)
+    setTimeout(() => document.getElementById(fieldId)?.focus(), 0)
+  }
+  const remove = () => {
+    clear()
+    setAdded(false)
+  }
+  return { shown, add, remove }
+}
+
+/** The quiet × next to an optional greeting's label. */
+function RemoveGreeting({ what, onRemove }: { what: string; onRemove: () => void }) {
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      icon="close"
+      className="as-greet-remove"
+      aria-label={`Remove ${what}`}
+      title={`Remove ${what}`}
+      onClick={onRemove}
+    />
+  )
+}
+
 function Greeting({
   draft,
   set,
@@ -110,11 +149,51 @@ function Greeting({
   const knownProblem = knownCallerGreetingProblem(draft.greeting_known_caller)
   const name = assistantName(draft)
   const known = draft.greeting_known_caller.trim()
+  const knownGreeting = useOptionalGreeting(
+    draft.greeting_known_caller,
+    () => set('greeting_known_caller', ''),
+    () => set('greeting_known_caller', DEFAULT_KNOWN_CALLER_GREETING),
+    'as-greet-known',
+  )
+  const outsideGreeting = useOptionalGreeting(
+    draft.greeting_outside,
+    () => set('greeting_outside', ''),
+    () => set('greeting_outside', draft.greeting),
+    'as-greet-out',
+  )
+  // Without business hours there is no "closed": the outside greeting is neither shown nor offered.
+  const outsideShown = hoursOn && outsideGreeting.shown
+  const canAddOutside = hoursOn && !outsideGreeting.shown
   return (
     <Section id="as-greeting" title="Greeting" description={`The first thing callers hear when ${name} picks up.`}>
+      {knownGreeting.shown && (
+        <Field
+          id="as-greet-known"
+          label="Saved contacts hear first"
+          error={knownProblem}
+          aside={<RemoveGreeting what="the greeting for saved contacts" onRemove={knownGreeting.remove} />}
+        >
+          <VariableInput
+            id="as-greet-known"
+            label="Said first when a saved contact calls"
+            value={draft.greeting_known_caller}
+            onChange={v => set('greeting_known_caller', v)}
+            variables={GREETING_VARIABLES}
+            placeholder={DEFAULT_KNOWN_CALLER_GREETING}
+            invalid={!!knownProblem}
+            describedBy="as-greet-known-help"
+          />
+          <span className="help" id="as-greet-known-help">
+            {known && !knownProblem
+              ? `A saved contact hears: "${withExampleCaller(known)} ${draft.greeting.trim()}"`
+              : 'Said before the greeting when someone in your contacts calls.'}
+            {known && usesGreetingVariable(known, 'last_name') && ' Anyone calling from that number hears the full name.'}
+          </span>
+        </Field>
+      )}
       <Field
         id="as-greet"
-        label="Every caller hears"
+        label={outsideShown ? 'During business hours' : knownGreeting.shown ? 'Then every caller hears' : 'Every caller hears'}
         aside={draft.greeting.trim() ? spokenLength(draft.greeting) : undefined}
         error={draft.greeting.trim() ? null : 'The greeting cannot be empty.'}
       >
@@ -138,30 +217,17 @@ function Greeting({
           </span>
         )}
       </Field>
-      <Field id="as-greet-known" label="Saved contacts hear first" aside="Optional" error={knownProblem}>
-        <VariableInput
-          id="as-greet-known"
-          label="Said first when a saved contact calls"
-          value={draft.greeting_known_caller}
-          onChange={v => set('greeting_known_caller', v)}
-          variables={GREETING_VARIABLES}
-          placeholder={DEFAULT_KNOWN_CALLER_GREETING}
-          invalid={!!knownProblem}
-          describedBy="as-greet-known-help"
-        />
-        <span className="help" id="as-greet-known-help">
-          {known && !knownProblem
-            ? `A saved contact hears: "${withExampleCaller(known)} ${draft.greeting.trim()}"`
-            : 'When someone in your contacts calls again, this is said before the greeting. Empty: they hear the usual greeting.'}
-          {known && usesGreetingVariable(known, 'last_name') && ' Anyone calling from that number hears the full name.'}
-        </span>
-      </Field>
-      {hoursOn && (
+      {outsideShown && (
         <Field
           id="as-greet-out"
-          label="When you're closed, callers hear instead"
-          aside="Optional"
+          label="Outside business hours"
           labelAfter={<EditBusinessHours canEdit={canEdit} />}
+          aside={
+            <>
+              {draft.greeting_outside.trim() && spokenLength(draft.greeting_outside)}
+              <RemoveGreeting what="the greeting for outside business hours" onRemove={outsideGreeting.remove} />
+            </>
+          }
         >
           <TextArea
             id="as-greet-out"
@@ -169,10 +235,22 @@ function Greeting({
             onChange={v => set('greeting_outside', v)}
             placeholder={draft.greeting}
           />
-          <span className="help">
-            {draft.greeting_outside.trim() ? spokenLength(draft.greeting_outside) : 'Empty: the same greeting as during business hours.'}
-          </span>
+          {!draft.greeting_outside.trim() && <span className="help">Empty: the same greeting as during business hours.</span>}
         </Field>
+      )}
+      {(!knownGreeting.shown || canAddOutside) && (
+        <div className="as-greet-add">
+          {!knownGreeting.shown && (
+            <Button size="sm" variant="ghost" icon="plus" onClick={knownGreeting.add}>
+              Greet saved contacts by name
+            </Button>
+          )}
+          {canAddOutside && (
+            <Button size="sm" variant="ghost" icon="plus" onClick={outsideGreeting.add}>
+              Different greeting when closed
+            </Button>
+          )}
+        </div>
       )}
     </Section>
   )

@@ -104,6 +104,21 @@
 .as-menu-danger:hover {
   color: var(--danger);
 }
+/* Greeting: optional variants are added below the greeting and removed with a quiet × next to their label. */
+.k-field-aside:has(.as-greet-remove) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.as-greet-remove {
+  margin: -6px -6px -6px 0;
+}
+.as-greet-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: -8px;
+}
 .as-numbers {
   display: flex;
   flex-wrap: wrap;
