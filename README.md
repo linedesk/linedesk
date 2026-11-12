@@ -103,7 +103,7 @@ Before you take real calls, read [your responsibilities when you run Linedesk](d
 
 Linedesk is licensed under the [MIT license](LICENSE) and can be self-hosted with your own provider keys and no license key.
 
-For businesses that do not want to run servers, we are building a hosted version; that is how we intend to fund the project. You can [join the waitlist](https://linedesk.ai). If we ever add paid-only features, they will live in a separate `ee/` folder under their own license.
+For businesses that do not want to run servers, we are building a hosted version; that is how we intend to fund the project. You can [join the waitlist](https://linedesk.ai).
 
 ## Get involved
 
