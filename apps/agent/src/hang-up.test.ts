@@ -30,11 +30,31 @@ test('end_call right after the goodbye played hangs up without another word; a s
   expect(sayGoodbye).not.toHaveBeenCalled()
 
   const stuck = vi.fn()
-  hangUpAfterSpeech(agent('speaking'), stuck, undefined, 6000)
+  hangUpAfterSpeech(agent('speaking'), stuck, undefined, { maxMs: 6000 })
   vi.advanceTimersByTime(5999)
   expect(stuck).not.toHaveBeenCalled()
   vi.advanceTimersByTime(1)
   expect(stuck).toHaveBeenCalledOnce()
+})
+
+// Seen on a realtime call test: the hang-up line was added once it had played, the call waited 1.5 s more, the caller
+// said goodbye in that time and the assistant answered with another goodbye before the line was cut.
+test('after the hang-up line has played the call ends at once; while it still plays, after it', () => {
+  const hangUp = vi.fn()
+  const sayGoodbye = vi.fn(async () => {})
+  hangUpAfterSpeech(agent('listening', { spoke: true }), hangUp, sayGoodbye, { goodbyeSaid: true })
+  vi.advanceTimersByTime(400)
+  expect(hangUp).toHaveBeenCalledOnce()
+  expect(sayGoodbye).not.toHaveBeenCalled()
+
+  let done: () => void = () => {}
+  const playing = vi.fn()
+  hangUpAfterSpeech(agent('speaking', { spoke: true, onDone: l => (done = l) }), playing, sayGoodbye, { goodbyeSaid: true })
+  vi.advanceTimersByTime(1000)
+  expect(playing).not.toHaveBeenCalled()
+  done()
+  vi.advanceTimersByTime(400)
+  expect(playing).toHaveBeenCalledOnce()
 })
 
 test('end_call with nothing said before: the assistant says goodbye first, never ends in silence', async () => {

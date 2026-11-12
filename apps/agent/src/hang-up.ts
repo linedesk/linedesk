@@ -58,9 +58,15 @@ type Speaking = {
 /**
  * Hangs up after the assistant's goodbye: once it has played (after a short pause), at the latest after the cap. A
  * reply still being generated counts as the goodbye on its way. When nothing was said just before, `sayGoodbye` says
- * GOODBYE_LINE first.
+ * GOODBYE_LINE first. `goodbyeSaid`: the goodbye is a line the assistant has already said (its hang-up line), so once
+ * nothing plays any more the call ends at once, before the caller's own goodbye can start another reply.
  */
-export function hangUpAfterSpeech(agent: Speaking, hangUp: () => void, sayGoodbye?: () => Promise<unknown>, maxMs = GOODBYE_PLAYOUT_MAX_MS) {
+export function hangUpAfterSpeech(
+  agent: Speaking,
+  hangUp: () => void,
+  sayGoodbye?: () => Promise<unknown>,
+  { maxMs = GOODBYE_PLAYOUT_MAX_MS, goodbyeSaid = false }: { maxMs?: number; goodbyeSaid?: boolean } = {},
+) {
   let done = false
   const once = () => {
     if (done) return
@@ -80,6 +86,7 @@ export function hangUpAfterSpeech(agent: Speaking, hangUp: () => void, sayGoodby
     agent.onDone(finish)
   }
   if (busy()) return afterReply()
+  if (goodbyeSaid) return afterPause()
   // The model's goodbye may still be on its way to the speaker: give it a moment to start.
   setTimeout(() => (busy() ? afterReply() : finish()), GOODBYE_START_WAIT_MS).unref?.()
 }

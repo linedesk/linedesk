@@ -189,10 +189,10 @@ function keepUrgentPromises(session: voice.AgentSession, flagUrgent: () => Promi
  * When the assistant said it hangs up now, or wrote end_call into its goodbye, but left out the tool, the call ends
  * after those words as if it had called it.
  */
-function keepHangUpPromises(session: voice.AgentSession, log: CallLog, endCall: () => void) {
+function keepHangUpPromises(session: voice.AgentSession, log: CallLog, endCall: (goodbyeSaid: boolean) => void) {
   session.on(voice.AgentSessionEventTypes.ConversationItemAdded, ({ item }) => {
     if (item.type !== 'message' || item.role !== 'assistant' || !item.textContent || log.transferred) return
-    if (writesEndCall(item.textContent) || announcesHangUp(item.textContent)) endCall()
+    if (writesEndCall(item.textContent) || announcesHangUp(item.textContent)) endCall(true)
   })
 }
 
@@ -314,12 +314,12 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   // after silence, or the goodbye at its time limit.
   const sayLine = (text: string) => speak(text, { allowInterruptions: false }).waitForPlayout()
   const speaking = speakingOf(session)
-  // Once per call: the tool and the hang-up line (keepHangUpPromises) can both ask for it.
+  // Once per call: the tool and the hang-up line (keepHangUpPromises, `goodbyeSaid`: that line has been said) can both ask for it.
   let ending = false
-  const endCall = () => {
+  const endCall = (goodbyeSaid = false) => {
     if (ending) return
     ending = true
-    hangUpAfterSpeech(speaking, deleteRoom, () => sayLine(lines().goodbye))
+    hangUpAfterSpeech(speaking, deleteRoom, () => sayLine(lines().goodbye), { goodbyeSaid })
   }
   keepHangUpPromises(session, log, endCall)
   // After a warm transfer or a take-over the caller talks with a person and the assistant is out of it: neither silence on its
