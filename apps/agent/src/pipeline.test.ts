@@ -83,6 +83,10 @@ test('a realtime call has only the model: no speech to text, no voice provider',
   expect(options.tts).toBeUndefined()
   expect(options.userAwayTimeout).toBe(7)
   expect(options.llm).toMatchObject({ _options: { model: 'gpt-realtime-mini', voice: 'marin', speed: 1.1 } })
+  // Phone audio is near-field; one language: the caller's transcript is told which.
+  expect(options.llm).toMatchObject({ _options: { inputAudioNoiseReduction: { type: 'near_field' }, inputAudioTranscription: { language: 'en' } } })
+  const spanishOrEnglish = createRealtimePipeline(realtime, 7, 100, { main: 'es', others: ['en'] })
+  expect((spanishOrEnglish.llm as unknown as { _options: { inputAudioTranscription: { language?: string } } })._options.inputAudioTranscription.language).toBeUndefined()
 })
 
 test('a fixed line is given to the realtime model word for word', () => {

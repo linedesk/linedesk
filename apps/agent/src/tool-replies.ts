@@ -20,9 +20,10 @@ const english: Replies = () => spokenLines('en')
 
 /**
  * Tracks whether the assistant has spoken since the caller's last line and returns the handler for
- * `FunctionToolsExecuted`. `say` speaks a fixed sentence.
+ * `FunctionToolsExecuted`. `say` speaks a fixed sentence; null (a realtime model, which has no voice to say one
+ * quickly): only the reply after a turn the assistant already spoke in is skipped, the model answers the others.
  */
-export function quietToolReplies(quietTools: ReadonlySet<string>, say: (text: string) => void, replies: Replies = english) {
+export function quietToolReplies(quietTools: ReadonlySet<string>, say: ((text: string) => void) | null, replies: Replies = english) {
   let spokeSinceCaller = false
   return {
     itemAdded(role: string) {
@@ -33,6 +34,7 @@ export function quietToolReplies(quietTools: ReadonlySet<string>, say: (text: st
       const names = event.functionCalls.map(call => call.name)
       if (!names.length || !names.every(name => quietTools.has(name))) return
       if (spokeSinceCaller) return event.cancelToolReply()
+      if (!say) return
       const reply = names.includes('take_message') ? replies().messageSaved : names.includes('flag_urgent') ? replies().urgentFlagged : null
       if (!reply) return
       event.cancelToolReply()
@@ -41,8 +43,8 @@ export function quietToolReplies(quietTools: ReadonlySet<string>, say: (text: st
   }
 }
 
-export function skipQuietToolReplies(session: voice.AgentSession, quietTools: ReadonlySet<string>, lines: Replies = english) {
-  const replies = quietToolReplies(quietTools, text => void session.say(text), lines)
+export function skipQuietToolReplies(session: voice.AgentSession, quietTools: ReadonlySet<string>, lines: Replies = english, { readyReplies = true } = {}) {
+  const replies = quietToolReplies(quietTools, readyReplies ? text => void session.say(text) : null, lines)
   session.on(voice.AgentSessionEventTypes.ConversationItemAdded, ({ item }) => {
     if (item.type === 'message' && item.textContent) replies.itemAdded(item.role)
   })

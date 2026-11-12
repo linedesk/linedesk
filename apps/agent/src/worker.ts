@@ -253,7 +253,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const languages = { main: mainLanguageOf(call.assistant?.languages), others: otherLanguagesOf(call.assistant?.languages) }
   const speed = talkingSpeedOf(call.assistant)
   const pipeline = stages && createPipeline(stages, call.assistant?.voice, silence.firstGapS, languages, speed)
-  const session = new voice.AgentSession(realtime ? createRealtimePipeline(realtime, silence.firstGapS, speed) : pipeline!)
+  const session = new voice.AgentSession(realtime ? createRealtimePipeline(realtime, silence.firstGapS, speed, languages) : pipeline!)
   const speak = speakerFor(session, realtime !== null)
   // Fixed lines during the call are in the language spoken now: the main one until the caller switches. A realtime model
   // follows the caller's language itself, and is asked to say a fixed line in it.
@@ -274,7 +274,8 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const flagUrgent = callFlagger(api, call, log)
   keepUrgentPromises(session, flagUrgent, call.callId)
   logTurnMetrics(session, call.callId)
-  if (pipeline) skipQuietToolReplies(session, QUIET_TOOLS, lines)
+  // A realtime model has no voice for the ready lines: it only skips the reply after a turn it already spoke in.
+  skipQuietToolReplies(session, QUIET_TOOLS, lines, { readyReplies: pipeline !== null })
   session.on(voice.AgentSessionEventTypes.Close, onClose)
   const deleteRoom = () => void ctx.deleteRoom().catch(() => {})
   // The assistant always says something before the call ends: its goodbye (else the goodbye line in the language spoken), the closing line

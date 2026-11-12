@@ -142,6 +142,9 @@ export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVo
  * When the realtime model takes its turn: semantic end-of-turn detection, answering as soon as the caller is likely
  * done. The default ("medium") waited several seconds on phone calls (reply p50 5.9 s in the first phone test).
  */
+/** What transcribes the caller on a realtime call (the model itself hears the audio). */
+const REALTIME_TRANSCRIPTION = 'gpt-4o-mini-transcribe'
+
 const REALTIME_TURNS = { type: 'semantic_vad', eagerness: 'high', create_response: true, interrupt_response: true } as const
 
 /**
@@ -149,10 +152,14 @@ const REALTIME_TURNS = { type: 'semantic_vad', eagerness: 'high', create_respons
  * detects the end of a turn itself (semantic VAD) and transcribes the caller for the call log and summary.
  * `speedPct`: the talking speed in percent, sent as a factor (OpenAI Realtime takes 0.25–1.5); at 100 nothing is sent.
  */
-export function createRealtimePipeline({ apiKey, model, voice: voiceName }: RealtimeConfig, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, speedPct = TALKING_SPEED_PCT_DEFAULT): voice.AgentSessionOptions {
+export function createRealtimePipeline({ apiKey, model, voice: voiceName }: RealtimeConfig, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, speedPct = TALKING_SPEED_PCT_DEFAULT, { main, others }: CallLanguages = ENGLISH_CALL): voice.AgentSessionOptions {
   return {
     llm: new openai.realtime.RealtimeModel({
       apiKey, model, voice: voiceName, turnDetection: REALTIME_TURNS,
+      // A phone handset is close to the mouth: near-field noise reduction cleans what the model hears.
+      inputAudioNoiseReduction: { type: 'near_field' },
+      // The caller's transcript (call log, summary): told the language when the call has only one.
+      inputAudioTranscription: { model: REALTIME_TRANSCRIPTION, ...(others.length ? {} : { language: main }) },
       ...(speedPct !== TALKING_SPEED_PCT_DEFAULT ? { speed: speedPct / 100 } : {}),
     }),
     userAwayTimeout: silenceFirstGapS,

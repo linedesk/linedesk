@@ -49,3 +49,14 @@ test('the model still answers after end_call alone without words, or when anothe
   expect(mixed.cancelToolReply).not.toHaveBeenCalled()
   expect(say).not.toHaveBeenCalled()
 })
+
+test('a realtime model (no ready lines): only the reply after a turn it already spoke in is skipped', () => {
+  const replies = quietToolReplies(new Set(['take_message']), null)
+  const cancel = vi.fn()
+  replies.itemAdded('user')
+  replies.toolsExecuted({ functionCalls: [{ name: 'take_message' }], cancelToolReply: cancel })
+  expect(cancel).not.toHaveBeenCalled()
+  replies.itemAdded('assistant')
+  replies.toolsExecuted({ functionCalls: [{ name: 'take_message' }], cancelToolReply: cancel })
+  expect(cancel).toHaveBeenCalledTimes(1)
+})
