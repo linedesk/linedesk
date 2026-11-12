@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest'
 import type { AgentConfig, RealtimeCallConfig } from './config.ts'
-import { chatJson, createRealtimePipeline, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
+import { chatJson, createRealtimePipeline, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
 
 const openrouter = { apiKey: 'sk-or-test', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' }
 
@@ -112,4 +112,11 @@ test('ElevenLabs Scribe and OpenAI transcription detect the end of a turn, like 
   expect(sttDetectsTurns({ provider: 'openai_stt', apiKey: 'oa', model: 'gpt-4o-mini-transcribe' })).toBe(true)
   expect(sttDetectsTurns({ provider: 'deepgram', apiKey: 'dg', model: 'flux-general-en' })).toBe(true)
   expect(sttDetectsTurns({ provider: 'deepgram', apiKey: 'dg', model: 'nova-3' })).toBe(false)
+})
+
+// Seen on the test server: with little OpenRouter credit left, every reply without a cap failed with 402 ("You requested
+// up to 65536 tokens, but can only afford 16174"), the caller heard nothing after the greeting.
+test('every conversation request is capped, with OpenRouter fallbacks as `models`', () => {
+  expect(replyRequestFields('live/fast', [])).toEqual({ max_tokens: REPLY_MAX_TOKENS })
+  expect(replyRequestFields('live/fast', ['live/backup'])).toEqual({ max_tokens: REPLY_MAX_TOKENS, models: ['live/fast', 'live/backup'] })
 })

@@ -21,6 +21,11 @@ const SUMMARY_TIMEOUT_MS = 15_000
  * the credits and refuses the request (402) once the balance is lower, although a summary needs a few hundred.
  */
 export const SUMMARY_MAX_TOKENS = 2000
+/**
+ * The most one reply on a call may answer with (a few sentences and a tool call). Same reason as SUMMARY_MAX_TOKENS:
+ * without it every reply on a call fails with 402 once the OpenRouter balance is below the model's whole output.
+ */
+export const REPLY_MAX_TOKENS = 1024
 const WARM_UP_TIMEOUT_MS = 5000
 
 /** ElevenLabs' lowest-latency model, unless another is configured. */
@@ -105,11 +110,13 @@ export const talkingSpeedOf = (assistant: TalkingSpeedFields | null | undefined)
 /** OpenRouter's `models`: the model first, then the ones it tries when that one fails. */
 const modelsField = (model: string, fallbacks: string[]) => (fallbacks.length ? { models: [model, ...fallbacks] } : {})
 
-/** The conversation LLM; with fallbacks, every request carries the list. */
+/** What every conversation request carries on top of the plugin's own fields: the reply cap, and OpenRouter fallbacks. */
+export const replyRequestFields = (model: string, fallbacks: string[]) => ({ max_tokens: REPLY_MAX_TOKENS, ...modelsField(model, fallbacks) })
+
+/** The conversation LLM: every request carries replyRequestFields. */
 function createLlm({ apiKey, baseUrl, model, fallbacks }: AgentConfig['llm']) {
   const options = { apiKey, baseURL: baseUrl, model }
-  if (!fallbacks.length) return new openai.LLM(options)
-  const extra = modelsField(model, fallbacks)
+  const extra = replyRequestFields(model, fallbacks)
   return new (class extends openai.LLM {
     override chat(args: Parameters<openai.LLM['chat']>[0]) {
       return super.chat({ ...args, extraKwargs: { ...args.extraKwargs, ...extra } })
