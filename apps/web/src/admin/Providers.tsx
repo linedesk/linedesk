@@ -79,7 +79,10 @@ type RowProps = {
   onDisconnect: () => void
 }
 
-/** One provider: logo, name and status; Connect when it has no keys, else Edit (and Disconnect for keys stored here). */
+/**
+ * One provider: logo, name and status; Connect when it has no keys, else Edit and Disconnect. Keys from the server's
+ * environment cannot be removed here: Disconnect is off for them and says where they are set.
+ */
 function ProviderRow({ provider, test, inUse, canStore, onOpen, onDisconnect }: RowProps) {
   const status = tileStatus(provider, test, inUse)
   const configured = isConfigured(provider)
@@ -97,19 +100,21 @@ function ProviderRow({ provider, test, inUse, canStore, onOpen, onDisconnect }: 
       <span className="adm-prov-actions">
         {configured ? (
           <>
-            {providerState(provider) === 'app' && (
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={!canStore}
-                onClick={onDisconnect}
-                title={`Disconnect ${provider.label}`}
-              >
-                Disconnect
-              </Button>
-            )}
             <Button size="sm" onClick={onOpen} title={`Edit ${provider.label}`}>
               Edit
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={!canStore || fromServer}
+              onClick={onDisconnect}
+              title={
+                fromServer
+                  ? `${provider.label} is set on the server: remove its variables from the server's .env to disconnect it`
+                  : `Disconnect ${provider.label}`
+              }
+            >
+              Disconnect
             </Button>
           </>
         ) : (
