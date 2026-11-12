@@ -4,7 +4,7 @@
 // a <style> block only for dark mode and narrow screens. No fonts or tracking: the Linedesk mark is
 // drawn with table cells; the only image is a logo an instance admin set (branding.ts).
 
-import { DEFAULT_PRODUCT_NAME } from '@linedesk/actions'
+import { DEFAULT_PRODUCT_NAME, readableOn } from '@linedesk/actions'
 import { brandName, currentBranding } from '../branding.ts'
 
 export type Block =
@@ -94,7 +94,10 @@ function blockHtml(block: Block): string {
       return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:4px 0 20px;"><tr><td class="ld-soft ld-ink" align="center" style="background:${SOFT};border-radius:10px;padding:20px 12px;font-family:${MONO};font-size:34px;line-height:1;font-weight:600;letter-spacing:8px;color:${INK};">${escapeHtml(block.code)}</td></tr></table>`
     case 'button': {
       const url = escapeHtml(checkedUrl(block.url))
-      return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;"><tr><td class="ld-btn" align="center" bgcolor="${INK}" style="border-radius:8px;background:${INK};"><a class="ld-btn-text" href="${url}" target="_blank" style="display:inline-block;padding:12px 22px;font-family:${FONT};font-size:15px;font-weight:600;line-height:1.2;color:${PAPER};text-decoration:none;border-radius:8px;">${escapeHtml(block.label)}</a></td></tr></table>`
+      // The install's primary color (branding.ts) in light and dark mode; without one, ink that turns light in dark mode.
+      const { color } = currentBranding()
+      const [fill, text, cls] = color ? [color, readableOn(color), ''] : [INK, PAPER, 'ld-btn']
+      return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;"><tr><td class="${cls}" align="center" bgcolor="${fill}" style="border-radius:8px;background:${fill};"><a class="${cls && 'ld-btn-text'}" href="${url}" target="_blank" style="display:inline-block;padding:12px 22px;font-family:${FONT};font-size:15px;font-weight:600;line-height:1.2;color:${text};text-decoration:none;border-radius:8px;">${escapeHtml(block.label)}</a></td></tr></table>`
     }
     case 'facts': {
       const rows = block.rows

@@ -2,6 +2,7 @@
 // message is printed to the server log instead (development); otherwise nothing can be sent.
 import nodemailer from 'nodemailer'
 import { emailDelivery } from './auth-methods.ts'
+import { brandName } from './branding.ts'
 
 export interface Email {
   to: string
@@ -58,7 +59,17 @@ function sendError(e: unknown, host: string): Error {
   return e instanceof Error ? e : new Error(String(e))
 }
 
-function smtpSender(url: string, from: string, timeouts: SmtpTimeouts): EmailSender {
+/**
+ * The From line: EMAIL_FROM as set when it names a sender ("Desk <desk@example.com>"); a bare address, or none,
+ * gets the install's product name (branding.ts), read at send time so a rename shows in the next email.
+ */
+export function senderLine(configured: string | undefined): string {
+  const value = configured?.trim()
+  if (value?.includes('<')) return value
+  return `${brandName().replace(/["<>]/g, '')} <${value || 'no-reply@localhost'}>`
+}
+
+function smtpSender(url: string, configuredFrom: string | undefined, timeouts: SmtpTimeouts): EmailSender {
   const transport = nodemailer.createTransport({
     url,
     connectionTimeout: timeouts.connectMs,
@@ -70,7 +81,7 @@ function smtpSender(url: string, from: string, timeouts: SmtpTimeouts): EmailSen
     kind: 'smtp',
     send: async email => {
       try {
-        await withDeadline(transport.sendMail({ from, ...email }), timeouts.sendMs, host)
+        await withDeadline(transport.sendMail({ from: senderLine(configuredFrom), ...email }), timeouts.sendMs, host)
       } catch (e) {
         throw sendError(e, host)
       }
@@ -99,8 +110,7 @@ const logSender: EmailSender = {
 }
 
 /** "Test connection" for SMTP in the admin area: connects and logs in, sends nothing. */
-export const smtpCheck = (url: string, from?: string) =>
-  smtpSender(url, from || 'Linedesk <no-reply@localhost>', SMTP_TIMEOUTS).check()
+export const smtpCheck = (url: string, from?: string) => smtpSender(url, from, SMTP_TIMEOUTS).check()
 
 const noSender: EmailSender = {
   kind: 'none',
@@ -118,7 +128,7 @@ export function createEmailSender(
   timeouts: SmtpTimeouts = SMTP_TIMEOUTS,
 ): EmailSender {
   const delivery = emailDelivery(env)
-  if (delivery === 'smtp') return smtpSender(env.SMTP_URL!, env.EMAIL_FROM || 'Linedesk <no-reply@localhost>', timeouts)
+  if (delivery === 'smtp') return smtpSender(env.SMTP_URL!, env.EMAIL_FROM, timeouts)
   return delivery === 'log' ? logSender : noSender
 }
 

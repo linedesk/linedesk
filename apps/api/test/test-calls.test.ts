@@ -135,7 +135,7 @@ test(`test calls a day: ${TEST_CALLS_PER_USER_PER_DAY} per user over all workspa
   process.env.TEST_CALLS_PER_DAY = String(n)
   const alert = vi.spyOn(console, 'error').mockImplementation(() => {})
   try {
-    expect(await act(ws.owner, 'assistant.startTestCall', {})).toMatchObject({ status: 409, body: { error: 'This Linedesk has had as many test calls today as it allows. Try again tomorrow.' } })
+    expect(await act(ws.owner, 'assistant.startTestCall', {})).toMatchObject({ status: 409, body: { error: 'This server has had as many test calls today as it allows. Try again tomorrow.' } })
     expect(alert).toHaveBeenCalledWith(expect.stringMatching(/^ALERT test calls/))
   } finally {
     alert.mockRestore()

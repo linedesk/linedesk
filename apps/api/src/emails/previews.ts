@@ -12,6 +12,7 @@ import {
   verifyEmailEmail,
   welcomeEmail,
 } from './templates.ts'
+import { brandName } from '../branding.ts'
 
 export type Preview = { name: string; email: RenderedEmail }
 
@@ -56,7 +57,7 @@ export function previewEmails(origin: string): Preview[] {
     {
       name: 'admin-alert',
       email: adminAlertEmail(
-        'Admin sign-in to Linedesk: ann@brightwater.example',
+        `Admin sign-in to ${brandName()}: ann@brightwater.example`,
         'ann@brightwater.example, an instance admin, signed in with a password from a device or address not seen before.\n\nAddress: 203.0.113.9\nBrowser: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)\n\nIf this was not them, sign in with your passkey, then in Admin, Users: disable the account and reset its passkeys.',
         origin,
       ),

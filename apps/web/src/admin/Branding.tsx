@@ -8,9 +8,10 @@ import {
   DEFAULT_PRODUCT_NAME,
   LOGO_MAX_BYTES,
   LOGO_SIZE,
+  readableOn,
 } from '@linedesk/actions'
 import { type FormEvent, useRef, useState } from 'react'
-import { readableOn, setBrand, useBrand } from '../brand.ts'
+import { setBrand, useBrand } from '../brand.ts'
 import { Switch } from '../ui/controls.tsx'
 import { Card, FormField, FormMessage, Input, onSaveKey, SaveBar } from '../ui/form.tsx'
 import { Button, LogoMark } from '../ui/kit.tsx'

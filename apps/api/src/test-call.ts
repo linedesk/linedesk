@@ -51,7 +51,7 @@ async function testCallRefusal(tx: Tx, actor: Actor, nowMs: number, env: Env): P
   if ((await tokensSince(tx, nowMs - DAY_MS, actor.actorId)) >= TEST_CALLS_PER_USER_PER_DAY) return `You made ${TEST_CALLS_PER_USER_PER_DAY} test calls today. Try again tomorrow.`
   if ((await tokensSince(tx, nowMs - DAY_MS)) >= testCallsPerDay(env)) {
     console.error(`ALERT test calls: the install-wide limit of ${testCallsPerDay(env)} test calls a day is reached`)
-    return 'This Linedesk has had as many test calls today as it allows. Try again tomorrow.'
+    return 'This server has had as many test calls today as it allows. Try again tomorrow.'
   }
   if ((await tokensSince(tx, nowMs - TEST_CALL_BURST.windowMs, actor.actorId)) >= TEST_CALL_BURST.max) return 'Too many test calls in a short time. Try again in a few minutes.'
   return null

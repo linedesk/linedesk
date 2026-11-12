@@ -291,7 +291,7 @@ function ReleaseNumber({ number, onCancel }: { number: PhoneNumber; onCancel: ()
       <span className="help">
         {bought
           ? `${name} stops answering it and the number goes back to ${carrier}. Its monthly cost stops, and you cannot get the number back.`
-          : `${name} stops answering it. The number stays in your ${carrier === 'the carrier' ? 'carrier' : carrier} account.${number.carrier_account === 'workspace' ? " It is taken off Linedesk's routing there and stops answering until you route it again." : ''}${number.mode === 'forward_conditional' || number.mode === 'forward_all' ? ' Turn off call forwarding on your business phone too.' : ''}`}
+          : `${name} stops answering it. The number stays in your ${carrier === 'the carrier' ? 'carrier' : carrier} account.${number.carrier_account === 'workspace' ? ` It is taken off ${brandName()}'s routing there and stops answering until you route it again.` : ''}${number.mode === 'forward_conditional' || number.mode === 'forward_all' ? ' Turn off call forwarding on your business phone too.' : ''}`}
       </span>
       <Field id={`rel-in-${number.id}`} label="Type the number to confirm">
         <TextInput

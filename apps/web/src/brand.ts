@@ -2,7 +2,7 @@
 // and whether the GitHub star prompt shows. Read before sign-in from GET /v1/branding and kept in
 // localStorage, so the next page load shows the right name and logo at once. Applied to the page
 // itself here (icons, primary color; Workspace.tsx sets the tab title); components read it with useBrand() or brandName().
-import { type Branding, DEFAULT_BRANDING } from '@linedesk/actions'
+import { type Branding, DEFAULT_BRANDING, readableOn } from '@linedesk/actions'
 import { useSyncExternalStore } from 'react'
 
 const STORAGE_KEY = 'linedesk.branding'
@@ -84,14 +84,4 @@ function applyToPage(b: Branding) {
     root.removeProperty('--action')
     root.removeProperty('--on-action')
   }
-}
-
-/** Near-white text on a dark color, near-black on a light one (WCAG relative luminance). */
-export function readableOn(hex: string): string {
-  const channel = (i: number) => {
-    const c = Number.parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-  }
-  const luminance = 0.2126 * channel(0) + 0.7152 * channel(1) + 0.0722 * channel(2)
-  return luminance > 0.179 ? '#1c1917' : '#fafaf8'
 }

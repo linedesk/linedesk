@@ -1,6 +1,6 @@
 import { createServer } from 'node:net'
 import { describe, expect, it, vi } from 'vitest'
-import { createEmailSender } from './email.ts'
+import { createEmailSender, senderLine } from './email.ts'
 
 describe('createEmailSender', () => {
   it('uses SMTP when SMTP_URL is set', () => {
@@ -88,5 +88,13 @@ describe('createEmailSender', () => {
     } finally {
       server.close()
     }
+  })
+})
+
+describe('senderLine', () => {
+  it('keeps a From with a name, and gives a bare or missing address the product name', () => {
+    expect(senderLine('Desk <desk@example.com>')).toBe('Desk <desk@example.com>')
+    expect(senderLine(' desk@example.com ')).toBe('Linedesk <desk@example.com>')
+    expect(senderLine(undefined)).toBe('Linedesk <no-reply@localhost>')
   })
 })

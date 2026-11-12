@@ -37,6 +37,16 @@ export type Branding = { name: string; color: string | null; logoUrl: string | n
 
 export const DEFAULT_BRANDING: Branding = { name: DEFAULT_PRODUCT_NAME, color: null, logoUrl: null, starPrompt: true }
 
+/** Near-white text on a dark color, near-black on a light one (WCAG relative luminance), for a #rrggbb color. */
+export function readableOn(hex: string): string {
+  const channel = (i: number) => {
+    const c = Number.parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  }
+  const luminance = 0.2126 * channel(0) + 0.7152 * channel(1) + 0.0722 * channel(2)
+  return luminance > 0.179 ? '#1c1917' : '#fafaf8'
+}
+
 export const brandingSet = defineAction({
   name: 'branding.set',
   description:

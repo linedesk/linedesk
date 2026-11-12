@@ -21,6 +21,6 @@ test('server refusals never name LiveKit or settings', () => {
 })
 
 test('the daily limits are shown as the server words them', () => {
-  for (const limit of ['You made 20 test calls today. Try again tomorrow.', 'This Linedesk has had as many test calls today as it allows. Try again tomorrow.', 'This workspace reached its monthly spending cap, so test calls are off until next month.'])
+  for (const limit of ['You made 20 test calls today. Try again tomorrow.', 'This server has had as many test calls today as it allows. Try again tomorrow.', 'This workspace reached its monthly spending cap, so test calls are off until next month.'])
     expect(testCallErrorText(limit)).toBe(limit)
 })

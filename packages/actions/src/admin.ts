@@ -110,7 +110,7 @@ const emailFrom: ProviderField = {
   env: 'EMAIL_FROM',
   secret: false,
   optional: true,
-  hint: 'Linedesk <no-reply@example.com>',
+  hint: 'no-reply@example.com, or Name <no-reply@example.com>',
 }
 const voiceFields = {
   model: model('TTS_MODEL'),
