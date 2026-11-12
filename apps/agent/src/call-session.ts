@@ -77,7 +77,7 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
 
 /** The caller for the prompt: the matched contact's name and note, and their history when call.start sent it. */
 export function callerOf(contact: Contact | null, history: CallerHistory | null | undefined): CallerContext | null {
-  return contact ? { name: contact.name, note: contact.note, history: history ?? null } : null
+  return contact ? { name: contact.name, note: contact.note, phone: contact.phone, history: history ?? null } : null
 }
 
 /** The greeting with the AI note when the assistant says it at the start; an API of an older version sends no mode. */

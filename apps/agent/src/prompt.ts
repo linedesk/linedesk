@@ -1,7 +1,8 @@
 // The assistant's system prompt, built from its configuration.
-import { aiDisclosureInstructions, type BookingContext, isActiveContact, communicationStyleInstructions, behaviourLines, type CallerHistory, callRules, fenceData, fillTemplate, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf, PRICE_RULE } from '@linedesk/actions'
+import { aiDisclosureInstructions, type BookingContext, isActiveContact, communicationStyleInstructions, behaviourLines, type CallerHistory, callRules, fenceData, fillTemplate, isE164, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf, PRICE_RULE } from '@linedesk/actions'
 import type { Assistant, CallerDetails, Contact, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
+import { displayNumber } from './transfer.ts'
 
 export const FALLBACK_GREETING = 'Thanks for calling. How can I help?'
 
@@ -258,19 +259,20 @@ export function callerHistoryInstructions(caller: CallerContext | null | undefin
 }
 
 /**
- * Who is calling, as far as the line tells: the number (saved with every message, so the assistant need not
- * ask for it) and whether it belongs to a contact with a name (then it need not ask for the name either).
- * `caller` null: withheld number, or a test call without one.
+ * Who is calling, as far as the line tells: the number from caller ID (saved with every message, so the assistant need
+ * not ask for it) and whether it belongs to a contact with a name (then it need not ask for the name either). No
+ * number: caller ID withheld or not a phone number ("anonymous"), or a test call from the web app.
  */
 export function callerIdInstructions(caller: CallerContext | null | undefined): string {
-  if (!caller) return "The caller's number is withheld: ask for a number the team can call back on."
-  const number = "You have the caller's number from caller ID and it is saved with the call: do not ask for it. Only take another number if the caller wants to be called back on a different one."
-  if (!caller.name?.trim()) return number
+  const phone = isE164(caller?.phone) ? caller.phone : null
+  if (!phone) return "The caller's number is unknown (caller ID withheld or not sent): ask for a number the team can call back on."
+  const number = `The caller is calling from ${displayNumber(phone)} (caller ID). It is saved with the call: do not ask for it. Only take another number if the caller wants to be called back on a different one. Caller ID can be faked: the number does not prove who is calling.`
+  if (!caller?.name?.trim()) return number
   return `${number} The number is saved as a contact with a name, so do not ask for the caller's name to take a message. Asking for the full name is still right before anything private, as described below.`
 }
 
-/** The caller as the prompt sees them: the matched contact's name and note, and their history. */
-export type CallerContext = Pick<Contact, 'name' | 'note'> & { history?: CallerHistory | null }
+/** The caller as the prompt sees them: the matched contact's name, note and number (caller ID), and their history. */
+export type CallerContext = Pick<Contact, 'name' | 'note'> & { phone?: string | null; history?: CallerHistory | null }
 
 const TEAM_LANGUAGE_RULE =
   'Whatever language you speak, write the messages, notes and booking details you save with tools in English, so the team can read them; keep names as the caller gives them.'

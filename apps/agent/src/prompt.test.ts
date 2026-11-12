@@ -172,11 +172,16 @@ test('listed appointments switch the booking-change rules; the API check stays (
   expect(bookingInstructions({ ...booking, canChangeBookings: false }, { listed: true })).not.toContain(CHANGE_LISTED_BOOKING_INSTRUCTIONS)
 })
 
-test('caller ID: a known number is not asked for, a saved name is not asked for, a withheld number is', () => {
-  expect(callerIdInstructions(null)).toMatch(/withheld: ask for a number/)
-  expect(callerIdInstructions({ name: null, note: null })).toMatch(/do not ask for it/)
-  expect(callerIdInstructions({ name: null, note: null })).not.toMatch(/saved as a contact/)
-  expect(callerIdInstructions({ name: 'Linda Park', note: null })).toMatch(/do not ask for the caller's name/)
+test('caller ID: a known number is in the prompt and not asked for, a saved name is not asked for, an unknown number is', () => {
+  const known = { name: null, note: null, phone: '+15035550142' }
+  expect(callerIdInstructions(known)).toContain('The caller is calling from +1 503 555 0142 (caller ID).')
+  expect(callerIdInstructions(known)).toMatch(/do not ask for it/)
+  expect(callerIdInstructions(known)).not.toMatch(/saved as a contact/)
+  expect(callerIdInstructions({ ...known, name: 'Linda Park' })).toMatch(/do not ask for the caller's name/)
+  // Withheld or not a number ("anonymous"), and a test call from the web app ("test"): ask for one, say no number.
+  for (const unknown of [null, { name: null, note: null }, { ...known, phone: 'anonymous' }, { name: 'Test call', note: null, phone: 'test' }]) {
+    expect(callerIdInstructions(unknown)).toBe("The caller's number is unknown (caller ID withheld or not sent): ask for a number the team can call back on.")
+  }
 })
 
 test('a contact that takes calls only during business hours: while closed the assistant says so, never "I cannot transfer"', () => {

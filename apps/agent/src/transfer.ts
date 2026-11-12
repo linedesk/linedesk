@@ -66,7 +66,7 @@ export function spokenNumber(e164: string): string {
 }
 
 /** +15035550142 → "+1 503 555 0142", the way the app shows numbers. */
-const displayNumber = (e164: string) => (/^\+1\d{10}$/.test(e164) ? `+1 ${spokenNumber(e164)}` : e164)
+export const displayNumber = (e164: string) => (/^\+1\d{10}$/.test(e164) ? `+1 ${spokenNumber(e164)}` : e164)
 
 export type Briefing = { callerName?: string | null; callerNumber?: string | null; about: string; urgent?: boolean }
 
