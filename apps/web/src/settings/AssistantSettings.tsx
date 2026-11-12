@@ -3,7 +3,7 @@
 // (transfer contacts), booking, voice, and Advanced (silence on the line).
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays and booking save on their own.
-import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, DEFAULT_SILENCE_REMINDER, TALKING_SPEEDS, TALKING_SPEED_LABELS, type AssistantLanguages, type Language, languageCodes, LANGUAGES } from '@linedesk/actions'
+import { AI_DISCLOSURE_LABELS, AI_DISCLOSURE_MODES, type AiDisclosure, BEHAVIOURS, COMMUNICATION_STYLE_LABELS, COMMUNICATION_STYLES, disclosesAtStart, greetingWithDisclosure, withDisclosure, withoutDisclosure, DEFAULT_SILENCE_REMINDER, TALKING_SPEED_PCT_DEFAULT, TALKING_SPEED_PCT_MAX, TALKING_SPEED_PCT_MIN, talkingSpeedLabel, type AssistantLanguages, type Language, languageCodes, LANGUAGES } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
@@ -75,7 +75,7 @@ const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   general: ['name', 'greeting', 'greeting_outside', 'languages', 'voice'],
   rules: ['ai_disclosure', 'communication_style', 'behaviours'],
   transfers: ['transfers'],
-  advanced: ['talking_speed', 'silence_first_gap_s', 'silence_reminders', 'silence_hang_up_s', 'max_call_minutes', 'silence_reminder', 'silence_closing'],
+  advanced: ['talking_speed_pct', 'silence_first_gap_s', 'silence_reminders', 'silence_hang_up_s', 'max_call_minutes', 'silence_reminder', 'silence_closing'],
 }
 /** Section ids from before the regrouping, so old links and bookmarks still land in the right place. */
 const OLD_SECTIONS: Record<string, SectionId> = {
@@ -330,31 +330,41 @@ function Languages({ draft, set, onMainLanguage }: SectionProps & { onMainLangua
   )
 }
 
-const SPEED_STEPS = TALKING_SPEEDS.length - 1
-
-/** How fast the assistant talks: a slider with three stops, Slow, Normal and Fast. */
+/** How fast the assistant talks: a slider from 20% slower to 20% faster than the voice's own pace, Normal in the middle. */
 function TalkingSpeedSection({ draft, set }: SectionProps) {
-  const at = TALKING_SPEEDS.indexOf(draft.talking_speed)
+  const pct = draft.talking_speed_pct
+  const label = talkingSpeedLabel(pct)
   return (
-    <Section id="as-speed" title="Talking speed" help="Applies from the next call. Normal is the voice's own pace.">
+    <Section
+      id="as-speed"
+      title="Talking speed"
+      help="Applies from the next call. Normal is the voice's own pace; arrow keys move the slider by 1%."
+      actions={<span className={pct === TALKING_SPEED_PCT_DEFAULT ? 'as-speed-value' : 'as-speed-value is-changed'}>{label}</span>}
+    >
       <div className="as-speed">
         <input
           id="as-speed-range"
           type="range"
-          min={0}
-          max={SPEED_STEPS}
+          min={TALKING_SPEED_PCT_MIN}
+          max={TALKING_SPEED_PCT_MAX}
           step={1}
-          value={at}
+          value={pct}
           aria-label="Talking speed"
-          aria-valuetext={TALKING_SPEED_LABELS[draft.talking_speed]}
-          onChange={e => set('talking_speed', TALKING_SPEEDS[Number(e.target.value)] ?? 'normal')}
+          aria-valuetext={label}
+          onChange={e => set('talking_speed_pct', Number(e.target.value))}
         />
-        <div className="as-speed-stops" aria-hidden="true">
-          {TALKING_SPEEDS.map(speed => (
-            <button key={speed} type="button" tabIndex={-1} className={speed === draft.talking_speed ? 'is-on' : undefined} onClick={() => set('talking_speed', speed)}>
-              {TALKING_SPEED_LABELS[speed]}
-            </button>
-          ))}
+        <div className="as-speed-stops">
+          <span aria-hidden="true">Slower</span>
+          <button
+            type="button"
+            className={pct === TALKING_SPEED_PCT_DEFAULT ? 'is-on' : undefined}
+            disabled={pct === TALKING_SPEED_PCT_DEFAULT}
+            title="Back to the voice's own pace"
+            onClick={() => set('talking_speed_pct', TALKING_SPEED_PCT_DEFAULT)}
+          >
+            Normal
+          </button>
+          <span aria-hidden="true">Faster</span>
         </div>
       </div>
     </Section>
@@ -496,7 +506,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
         behaviours: behavioursToSave(clean),
         ...languagesToSave(clean),
         voice: clean.voice,
-        talking_speed: clean.talking_speed,
+        talking_speed_pct: clean.talking_speed_pct,
       })
       setDraft(clean) // the form shows what was saved, so it is not "dirty" any more
     }

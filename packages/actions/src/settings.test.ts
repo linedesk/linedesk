@@ -1,6 +1,7 @@
 import type { Contact } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
 import { rolePermissions } from './define.ts'
+import { storedSnapshot } from './assistant-versions.ts'
 import { applyLocally, type LocalTables } from './index.ts'
 import {
   assistantUpdate,
@@ -13,6 +14,8 @@ import {
   workspaceUpdateSettings,
   confirmsNumber,
   phoneNumberRelease,
+  talkingSpeedLabel,
+  talkingSpeedPctOf,
 } from './settings.ts'
 
 describe('assistant.update', () => {
@@ -28,6 +31,31 @@ describe('assistant.update', () => {
     const assistants = new Map([['as1', { id: 'as1', name: 'Max' }]])
     applyLocally({ assistants } as unknown as LocalTables, assistantUpdate, input, '2026-11-11T00:00:00Z') // the server applies the parsed input
     expect(assistants.get('as1')).toEqual({ id: 'as1', name: 'Maya' })
+  })
+
+  it('takes any talking speed from 80 to 120 percent and keeps the old three speeds in step', () => {
+    const assistants = new Map([['as1', { id: 'as1' }]])
+    const update = (fields: object) =>
+      applyLocally({ assistants } as unknown as LocalTables, assistantUpdate, assistantUpdate.input.parse({ assistantId: 'as1', ...fields }), '2026-11-12T00:00:00Z')
+    update({ talking_speed_pct: 93 })
+    expect(assistants.get('as1')).toMatchObject({ talking_speed_pct: 93, talking_speed: 'slow' })
+    update({ talking_speed_pct: 103 })
+    expect(assistants.get('as1')).toMatchObject({ talking_speed_pct: 103, talking_speed: 'normal' })
+    // A web app of the release before sends only the old speed.
+    update({ talking_speed: 'fast' })
+    expect(assistants.get('as1')).toMatchObject({ talking_speed_pct: 110, talking_speed: 'fast' })
+    for (const pct of [79, 121, 100.5]) expect(() => assistantUpdate.input.parse({ assistantId: 'as1', talking_speed_pct: pct })).toThrow()
+  })
+
+  it('says the talking speed in a few words', () => {
+    expect([90, 100, 115].map(talkingSpeedLabel)).toEqual(['10% slower', 'Normal', '15% faster'])
+    expect(talkingSpeedPctOf({ talking_speed: 'slow' })).toBe(90)
+    expect(talkingSpeedPctOf(null)).toBe(100)
+  })
+
+  it('restores the speed of a version saved before percentages', () => {
+    expect(storedSnapshot({ talking_speed: 'fast' })).toMatchObject({ talking_speed: 'fast', talking_speed_pct: 110 })
+    expect(storedSnapshot({ talking_speed: 'slow', talking_speed_pct: 85 })).toMatchObject({ talking_speed_pct: 85 })
   })
 })
 

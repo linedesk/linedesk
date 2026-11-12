@@ -884,7 +884,7 @@
   }
 }
 
-/* Settings > Assistant > Advanced: talking speed, a slider with three stops labelled below it. */
+/* Settings > Assistant > Advanced: talking speed, a slider in 1% steps with Normal in the middle and its value in the header. */
 .as-speed {
   display: grid;
   gap: 4px;
@@ -899,6 +899,7 @@
   display: flex;
   justify-content: space-between;
 }
+.as-speed-stops span,
 .as-speed-stops button {
   padding: 0;
   border: 0;
@@ -906,9 +907,24 @@
   font: inherit;
   font-size: 12.5px;
   color: var(--ink-muted);
+}
+.as-speed-stops button {
   cursor: pointer;
 }
+.as-speed-stops button:hover:not(:disabled) {
+  color: var(--ink);
+}
 .as-speed-stops button.is-on {
+  color: var(--ink);
+  font-weight: 500;
+  cursor: default;
+}
+.as-speed-value {
+  font-size: 13px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.as-speed-value.is-changed {
   color: var(--ink);
   font-weight: 500;
 }

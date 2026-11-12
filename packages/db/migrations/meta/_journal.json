@@ -477,6 +477,13 @@
       "when": 1794489950696,
       "tag": "0067_assistant_webhooks",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1794490268497,
+      "tag": "0068_assistant_talking_speed_pct",
+      "breakpoints": true
     }
   ]
 }

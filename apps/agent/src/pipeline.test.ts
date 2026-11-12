@@ -68,7 +68,9 @@ test('an assistant with a voice of another provider that has a key gets that pro
   expect(ttsFor(tts, { provider: 'cartesia', voice_id: 'sonic_voice' })).toEqual({ provider: 'cartesia', apiKey: 'ck', model: 'sonic-2', voiceId: 'sonic_voice' })
   expect(ttsFor({ ...tts, others: [] }, { provider: 'cartesia', voice_id: 'sonic_voice' })).toMatchObject({ provider: 'elevenlabs', voiceId: 'default_voice' })
   expect(ttsFor(tts, { provider: 'cartesia', voice_id: '' })).toMatchObject({ provider: 'elevenlabs', voiceId: 'default_voice' })
-  expect(greetingVoice({ tts } as never, { assistant: { voice: { provider: 'cartesia', voice_id: 'sonic_voice' } } })).toEqual({ provider: 'cartesia', model: 'sonic-2', voiceId: 'sonic_voice', speed: 'normal' })
+  expect(greetingVoice({ tts } as never, { assistant: { voice: { provider: 'cartesia', voice_id: 'sonic_voice' } } })).toEqual({ provider: 'cartesia', model: 'sonic-2', voiceId: 'sonic_voice', speed: 100 })
   // The talking speed is part of the cached greeting's voice.
-  expect(greetingVoice({ tts } as never, { assistant: { voice: { provider: 'cartesia', voice_id: 'sonic_voice' }, talking_speed: 'fast' } })).toMatchObject({ speed: 'fast' })
+  expect(greetingVoice({ tts } as never, { assistant: { voice: { provider: 'cartesia', voice_id: 'sonic_voice' }, talking_speed_pct: 93 } })).toMatchObject({ speed: 93 })
+  // An assistant row of an older API has only the old speed.
+  expect(greetingVoice({ tts } as never, { assistant: { voice: { provider: 'cartesia', voice_id: 'sonic_voice' }, talking_speed: 'fast' } })).toMatchObject({ speed: 110 })
 })

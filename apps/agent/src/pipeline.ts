@@ -3,7 +3,7 @@
 // text to speech ElevenLabs or Cartesia. Turns are detected by Deepgram Flux, not by a local
 // voice-activity model: that saves the CPU a small server does not have, and the endpointing delay.
 // The worker only sees LiveKit's interfaces and `CompleteJson`.
-import { type Language, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S, type TalkingSpeed } from '@linedesk/actions'
+import { type Language, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S, TALKING_SPEED_PCT_DEFAULT, type TalkingSpeed, talkingSpeedPctOf } from '@linedesk/actions'
 import type { voice } from '@livekit/agents'
 import * as cartesia from '@livekit/agents-plugin-cartesia'
 import * as deepgram from '@livekit/agents-plugin-deepgram'
@@ -45,7 +45,7 @@ export const voiceFor = (tts: AgentConfig['tts'], assistantVoice?: AssistantVoic
   ttsFor(tts, assistantVoice).voiceId
 
 /** What a cached line in the assistant's voice is keyed by (with its text): provider, model, voice and speed. */
-export function greetingVoice(config: AgentConfig, call: { assistant?: { voice?: AssistantVoice | null; talking_speed?: TalkingSpeed | null } | null }) {
+export function greetingVoice(config: AgentConfig, call: { assistant?: ({ voice?: AssistantVoice | null } & TalkingSpeedFields) | null }) {
   const tts = ttsFor(config.tts, call.assistant?.voice)
   return { provider: tts.provider, model: ttsModelOf(tts), voiceId: tts.voiceId, speed: talkingSpeedOf(call.assistant) }
 }
@@ -78,22 +78,23 @@ export const ttsModelOf = (tts: TtsConfig) => tts.model ?? (tts.provider === 'el
 
 /** `language`: what the voice speaks at first (Cartesia reads every text as English unless told); English is the providers' default. */
 /**
- * ElevenLabs' speed for slow and fast (its range is 0.7–1.2). Its voice settings come as a whole, so a speed also sets
- * stability and similarity, to ElevenLabs' defaults; at normal speed nothing is sent and the voice's own settings apply.
+ * `speedPct`: the talking speed in percent of the voice's own pace, sent as a factor (both providers take 0.8–1.2).
+ * ElevenLabs' voice settings come as a whole, so a speed also sets stability and similarity, to ElevenLabs' defaults;
+ * at the voice's own pace nothing is sent and the voice's own settings apply.
  */
-const ELEVENLABS_SPEED: Record<Exclude<TalkingSpeed, 'normal'>, number> = { slow: 0.9, fast: 1.1 }
-
-export function createTts(config: AgentConfig['tts'], assistantVoice?: AssistantVoice | null, language: Language = 'en', speed: TalkingSpeed = 'normal') {
+export function createTts(config: AgentConfig['tts'], assistantVoice?: AssistantVoice | null, language: Language = 'en', speedPct = TALKING_SPEED_PCT_DEFAULT) {
   const { voiceId, ...tts } = ttsFor(config, assistantVoice)
   const spoken = language === 'en' ? {} : { language }
+  const speed = speedPct !== TALKING_SPEED_PCT_DEFAULT ? speedPct / 100 : undefined
   if (tts.provider === 'cartesia')
-    return new cartesia.TTS({ apiKey: tts.apiKey, ...(tts.model ? { model: tts.model } : {}), ...(voiceId ? { voice: voiceId } : {}), ...spoken, ...(speed !== 'normal' ? { speed } : {}) })
-  const paced = speed !== 'normal' ? { voiceSettings: { stability: 0.5, similarity_boost: 0.75, speed: ELEVENLABS_SPEED[speed] } } : {}
+    return new cartesia.TTS({ apiKey: tts.apiKey, ...(tts.model ? { model: tts.model } : {}), ...(voiceId ? { voice: voiceId } : {}), ...spoken, ...(speed ? { speed } : {}) })
+  const paced = speed ? { voiceSettings: { stability: 0.5, similarity_boost: 0.75, speed } } : {}
   return new elevenlabs.TTS({ apiKey: tts.apiKey, model: tts.model ?? ELEVENLABS_DEFAULT_MODEL, ...(voiceId ? { voiceId } : {}), ...spoken, ...paced })
 }
 
-/** The assistant's talking speed; an assistant row of an older API has none: normal. */
-export const talkingSpeedOf = (assistant: { talking_speed?: TalkingSpeed | null } | null | undefined): TalkingSpeed => assistant?.talking_speed ?? 'normal'
+type TalkingSpeedFields = { talking_speed_pct?: number | null; talking_speed?: TalkingSpeed | null }
+/** The assistant's talking speed in percent; a row of an older API has only slow, normal or fast, or nothing: 100. */
+export const talkingSpeedOf = (assistant: TalkingSpeedFields | null | undefined): number => talkingSpeedPctOf(assistant)
 
 /** OpenRouter's `models`: the model first, then the ones it tries when that one fails. */
 const modelsField = (model: string, fallbacks: string[]) => (fallbacks.length ? { models: [model, ...fallbacks] } : {})
@@ -111,14 +112,14 @@ function createLlm({ apiKey, baseUrl, model, fallbacks }: AgentConfig['llm']) {
 }
 
 /** Session options for one call. */
-export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVoice | null, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, languages: CallLanguages = ENGLISH_CALL, speed: TalkingSpeed = 'normal'): voice.AgentSessionOptions & { tts: ReturnType<typeof createTts> } {
+export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVoice | null, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, languages: CallLanguages = ENGLISH_CALL, speedPct = TALKING_SPEED_PCT_DEFAULT): voice.AgentSessionOptions & { tts: ReturnType<typeof createTts> } {
   // Flux turn detection needs Flux; with another Deepgram model the session falls back to its own detection.
   const fluxTurns = config.stt.model.startsWith('flux')
   return {
     vad: null,
     stt: createStt(config.stt, languages),
     llm: createLlm(config.llm),
-    tts: createTts(config.tts, assistantVoice, languages.main, speed),
+    tts: createTts(config.tts, assistantVoice, languages.main, speedPct),
     turnHandling: { turnDetection: fluxTurns ? 'stt' : undefined, endpointing: ENDPOINTING, preemptiveGeneration: { enabled: true } },
     // The caller counts as away after this much silence on both sides; the worker then asks whether they are still
     // there, and in the end says goodbye and hangs up (remindOnSilence in hang-up.ts).

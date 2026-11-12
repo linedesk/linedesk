@@ -112,8 +112,13 @@ export const assistants = pgTable(
     silence_closing: text('silence_closing'),
     /** Asked when the line is quiet; null: "Are you still there?" in the language spoken (DEFAULT_SILENCE_REMINDER). */
     silence_reminder: text('silence_reminder'),
-    /** How fast the assistant talks (TALKING_SPEEDS in @linedesk/actions); `normal`: the voice's own pace. */
+    /** Replaced by `talking_speed_pct`; the nearest of slow, normal, fast, kept for the release before. */
     talking_speed: text('talking_speed', { enum: ['slow', 'normal', 'fast'] }).notNull().default('normal'),
+    /**
+     * How fast the assistant talks, in percent of the voice's own pace (TALKING_SPEED_PCT_* in @linedesk/actions).
+     * Replaces `talking_speed`, which is still kept in step (the nearest of the three) for the release before.
+     */
+    talking_speed_pct: integer('talking_speed_pct').notNull().default(100),
     /** The behaviour checklist (BEHAVIOURS in @linedesk/actions): only the switches the owner changed; the rest use their default. */
     behaviours: jsonb('behaviours').$type<Record<string, boolean>>().notNull().default({}),
     /** Languages the assistant speaks with callers: English only (the default), English + an allow-list, or any it supports. */

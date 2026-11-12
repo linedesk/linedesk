@@ -12,12 +12,12 @@ import { AudioFrame } from '@livekit/rtc-node'
 export type GreetingAudio = { sampleRate: number; channels: number; samples: Int16Array }
 
 /** What makes the greeting sound the way it does. */
-export type GreetingVoice = { provider: string; model?: string; voiceId?: string; speed?: string; text: string }
+export type GreetingVoice = { provider: string; model?: string; voiceId?: string; /** Percent of the voice's own pace; 100 or none: its own pace. */ speed?: number; text: string }
 
 /** At normal speed the key stays what it was before speeds existed, so stored greetings are still found. */
 export const greetingKey = (voice: GreetingVoice) =>
   createHash('sha256')
-    .update(JSON.stringify([voice.provider, voice.model ?? '', voice.voiceId ?? '', voice.text, ...(voice.speed && voice.speed !== 'normal' ? [voice.speed] : [])]))
+    .update(JSON.stringify([voice.provider, voice.model ?? '', voice.voiceId ?? '', voice.text, ...(voice.speed && voice.speed !== 100 ? [voice.speed] : [])]))
     .digest('hex')
     .slice(0, 32)
 

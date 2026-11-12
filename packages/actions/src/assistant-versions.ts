@@ -6,13 +6,13 @@ import { z } from 'zod'
 import { AI_DISCLOSURE_LABELS, BEHAVIOURS, behaviourOn, COMMUNICATION_STYLE_LABELS } from './assistant-prompt.ts'
 import { defineAction } from './define.ts'
 import { LANGUAGES, type Language, languageNames, mainLanguageOf, otherLanguagesOf } from './languages.ts'
-import { silenceClosingOf, silenceReminderOf, TALKING_SPEED_LABELS } from './settings.ts'
+import { silenceClosingOf, silenceReminderOf, talkingSpeedLabel, talkingSpeedPctOf } from './settings.ts'
 
 /** The assistant's columns a version keeps: everything that changes a call. */
 export const VERSIONED_FIELDS = [
   'name', 'greeting', 'greeting_outside', 'ai_disclosure', 'communication_style', 'behaviours',
   'business_profile', 'transfers', 'voice', 'languages',
-  'silence_first_gap_s', 'silence_reminders', 'silence_hang_up_s', 'max_call_minutes', 'silence_reminder', 'silence_closing', 'record_calls', 'talking_speed',
+  'silence_first_gap_s', 'silence_reminders', 'silence_hang_up_s', 'max_call_minutes', 'silence_reminder', 'silence_closing', 'record_calls', 'talking_speed', 'talking_speed_pct',
 ] as const satisfies readonly (keyof Assistant)[]
 export type VersionedField = (typeof VERSIONED_FIELDS)[number]
 
@@ -32,6 +32,8 @@ export function snapshotOf(a: Assistant, calendars: readonly AssistantCalendar[]
 export function storedSnapshot(settings: unknown): AssistantSnapshot {
   const stored = settings as Record<string, unknown>
   const fields = Object.fromEntries(VERSIONED_FIELDS.filter(k => k in stored).map(k => [k, stored[k]]))
+  // A version from before percentages has only the old speed: its percentage, so restoring it brings the speed back.
+  if ('talking_speed' in stored && !('talking_speed_pct' in stored)) fields.talking_speed_pct = talkingSpeedPctOf(stored as Parameters<typeof talkingSpeedPctOf>[0])
   return { ...fields, calendars: stored.calendars ?? [] } as AssistantSnapshot
 }
 
@@ -93,7 +95,7 @@ export const VERSION_PARTS: readonly VersionPart[] = [
     label: 'Hanging up',
     text: s => lines(`After ${s.silence_hang_up_s ?? 'the default'} s of silence`, `Longest call: ${s.max_call_minutes ?? 'the default'} min`, `Says: ${silenceClosingOf(s.silence_closing)}`),
   },
-  { id: 'talking_speed', label: 'Talking speed', text: s => TALKING_SPEED_LABELS[s.talking_speed] ?? 'Normal' },
+  { id: 'talking_speed', label: 'Talking speed', text: s => talkingSpeedLabel(talkingSpeedPctOf(s)) },
   { id: 'record_calls', label: 'Recording', text: s => (s.record_calls ? 'Calls are recorded' : 'Calls are not recorded') },
   {
     id: 'calendars',

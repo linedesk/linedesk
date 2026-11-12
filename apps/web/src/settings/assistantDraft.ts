@@ -3,7 +3,7 @@
 import {
   INSTRUCTIONS_MAX, RING_SECONDS_DEFAULT, TRANSFER_CONDITION_MAX,
   TRANSFER_CONTACTS_MAX, TRANSFER_NAME_MAX, onCallNumberProblem,
-  DEFAULT_SILENCE_CLOSING, DEFAULT_SILENCE_REMINDER, localizedDefault, type TalkingSpeed, SILENCE_CLOSING_MAX, SILENCE_FIRST_GAP_MAX_S, SILENCE_FIRST_GAP_MIN_S, SILENCE_REMINDERS_MAX,
+  DEFAULT_SILENCE_CLOSING, DEFAULT_SILENCE_REMINDER, localizedDefault, talkingSpeedPctOf, SILENCE_CLOSING_MAX, SILENCE_FIRST_GAP_MAX_S, SILENCE_FIRST_GAP_MIN_S, SILENCE_REMINDERS_MAX,
   SILENCE_FIRST_GAP_DEFAULT_S, SILENCE_REMINDERS_DEFAULT, SILENCE_HANG_UP_DEFAULT_S, SILENCE_HANG_UP_MAX_S, ASSISTANT_CALL_MAX_MINUTES, BEHAVIOURS, type BehaviourId, behaviourOn, type AiDisclosure, DEFAULT_AI_DISCLOSURE, type CommunicationStyle, DEFAULT_COMMUNICATION_STYLE, type AssistantLanguages, ENGLISH_ONLY, type Language, languageCodes, LANGUAGES, mainLanguageOf, swapDefault,
 } from '@linedesk/actions'
 import type { Assistant, BusinessProfile, TransferContact } from '@linedesk/db/types'
@@ -34,8 +34,8 @@ export type Draft = {
   silence_closing: string
   /** Asked when the line is quiet; the default (in the main language) is saved as null. */
   silence_reminder: string
-  /** How fast the assistant talks. */
-  talking_speed: TalkingSpeed
+  /** How fast the assistant talks, in percent of the voice's own pace. */
+  talking_speed_pct: number
   /** The behaviour checklist, every switch with its value (the default where the owner set none). */
   behaviours: Record<BehaviourId, boolean>
   /** Languages besides English; the picked ones are kept while English only is chosen, but saved empty. */
@@ -75,7 +75,7 @@ export function draftOf(a: Assistant): Draft {
     // None stored: the default line, shown so it can be edited.
     silence_closing: a.silence_closing ?? DEFAULT_SILENCE_CLOSING,
     silence_reminder: a.silence_reminder ?? localizedDefault(DEFAULT_SILENCE_REMINDER, mainLanguageOf(a.languages)),
-    talking_speed: a.talking_speed ?? 'normal',
+    talking_speed_pct: talkingSpeedPctOf(a),
     behaviours: behavioursOf(a.behaviours),
     languages: languagesOf(a.languages),
   }
