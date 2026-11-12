@@ -1,11 +1,16 @@
 # The full test suite. Not part of the everyday flow (ci.yml only typechecks and lints):
-# run it by hand (Actions → Tests → Run workflow) or by pushing a release tag (v*), before going to production.
+# run it by hand (Actions → Tests → Run workflow); a release tag (v*) runs it before production
+# (deploy-production.yml calls it, and a failing test stops the release).
 name: Tests
 
 on:
   workflow_dispatch:
-  push:
-    tags: ['v*']
+  workflow_call:
+    inputs:
+      ref:
+        description: The commit to test
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -34,6 +39,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          ref: ${{ inputs.ref || github.sha }}
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:

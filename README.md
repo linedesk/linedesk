@@ -207,6 +207,49 @@ docker compose up -d --force-recreate electric api
 docker compose --profile recording run --rm --no-deps -T --user 1001:0 --entrypoint tar livekit-egress xzf - -C /recordings < recordings.tgz
 ```
 
+### Backups
+
+`scripts/backup.sh` makes an offsite backup of the database: a `pg_dump`, checked with `pg_restore --list`,
+encrypted with [age](https://age-encryption.org) and uploaded to an S3-compatible bucket (R2, S3, B2, …).
+Backups older than `BACKUP_KEEP_DAYS` (30) are deleted there. Only the public key is on the server, so
+neither the server nor anyone holding the bucket's keys can read a backup. Recordings stored in a bucket
+(`RECORDING_STORE=s3`) are offsite already; recordings on local disk are not part of this backup.
+
+```sh
+age-keygen -o backup-key.txt     # on your computer; keep backup-key.txt safe (password manager), off the server
+```
+
+Then in `.env`: `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`,
+`BACKUP_S3_SECRET_ACCESS_KEY` (a key for that bucket only), `BACKUP_S3_PREFIX` (default `linedesk/`) and
+`BACKUP_AGE_RECIPIENT` (the `age1…` public key that `age-keygen` printed). Run `scripts/backup.sh` once,
+then every night with a systemd timer:
+
+```ini
+# /etc/systemd/system/linedesk-backup.service
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/opt/linedesk/app
+ExecStart=/opt/linedesk/app/scripts/backup.sh
+
+# /etc/systemd/system/linedesk-backup.timer
+[Timer]
+OnCalendar=*-*-* 09:00:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target
+```
+
+`systemctl enable --now linedesk-backup.timer`. `scripts/backup.sh --list` lists the backups. To prove a
+backup restores, without touching the running stack: copy the private key to the server for this one
+check, then `BACKUP_AGE_IDENTITY=backup-key.txt scripts/restore-backup.sh` downloads the newest backup,
+restores it into a throwaway Postgres and prints its row counts next to the live ones. Delete the key from
+the server again (`shred -u backup-key.txt`).
+
+A real restore: download and decrypt a backup on your computer
+(`age -d -i backup-key.txt -o linedesk.dump linedesk-<time>.dump.age`), copy it to the server and follow
+"Restore" above.
+
 ## Docs
 
 - [docs/architecture.md](docs/architecture.md): how Linedesk works (single source of truth)
