@@ -82,7 +82,7 @@ export function behaviourLines(stored: Readonly<Record<string, boolean>> | null 
 
 /**
  * Whether and when the assistant mentions it is an AI (`assistants.ai_disclosure`). Whatever the mode, it
- * never claims to be human and answers truthfully when asked (a fixed rule of the prompt).
+ * never claims to be human and answers truthfully when asked (part of every mode's line in the prompt).
  */
 export const AI_DISCLOSURE_MODES = ['never', 'when_asked', 'at_start', 'at_start_consent'] as const
 export type AiDisclosure = (typeof AI_DISCLOSURE_MODES)[number]
@@ -167,17 +167,21 @@ function withLocalDisclosure(greeting: string, name: string, language: Language)
   return `${greeting.slice(0, firstEnd + 1)} ${sentence} ${greeting.slice(firstEnd + 1).trim()}`
 }
 
-/** The prompt's part about mentioning being an AI, on top of the fixed honesty rule; null when there is nothing to add. */
-export function aiDisclosureInstructions(mode: AiDisclosure | null | undefined): string | null {
+/** Said in every mode: asked, the assistant always says it is an AI and never claims to be human. */
+const AI_WHEN_ASKED =
+  'Whenever the caller asks whether you are a person, a robot or an AI, say truthfully that you are an AI assistant. Never claim to be human.'
+
+/** The prompt's part about being an AI: when to mention it (the setting), and the honesty rule every mode keeps. */
+export function aiDisclosureInstructions(mode: AiDisclosure | null | undefined): string {
   switch (mode ?? DEFAULT_AI_DISCLOSURE) {
-    // Answering truthfully when asked is the prompt's fixed honesty rule; the modes only add what differs from it.
     case 'never':
-      return 'Do not bring up on your own that you are an AI.'
+      return `Do not bring up on your own that you are an AI. ${AI_WHEN_ASKED}`
     case 'when_asked':
+      return `You do not need to say you are an AI unless the caller asks. ${AI_WHEN_ASKED}`
     case 'at_start':
-      return null
+      return `Your greeting told the caller you are an AI assistant. ${AI_WHEN_ASKED}`
     case 'at_start_consent':
-      return `Your greeting told the caller you are an AI assistant and asked "${AI_CONSENT_QUESTION}". If they agree, ask how you can help and go on as usual. If they do not want to talk to an AI, do not try to persuade them: if a transfer contact fits (for example one for callers who ask for a person), put them through; otherwise offer to take a message so a person from the team calls them back, and take it with their name and what it is about.`
+      return `Your greeting told the caller you are an AI assistant and asked "${AI_CONSENT_QUESTION}". If they agree, ask how you can help and go on as usual. If they do not want to talk to an AI, do not try to persuade them: if a transfer contact fits (for example one for callers who ask for a person), put them through; otherwise offer to take a message so a person from the team calls them back, and take it with their name and what it is about. ${AI_WHEN_ASKED}`
   }
 }
 

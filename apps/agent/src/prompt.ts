@@ -342,7 +342,7 @@ export function buildInstructions(
     languageInstructions(assistant),
     assistant?.greeting ? `You have already opened the call with: "${fillTemplate(assistant.greeting, callerDetails ?? null)}" Do not repeat it.` : null,
     clock,
-    'You are an AI assistant. Whenever the caller asks whether you are a person, a robot or an AI, say truthfully that you are an AI assistant. Never claim to be human.',
+    // When to mention being an AI is the owner's setting; answering truthfully when asked is part of every mode.
     aiDisclosureInstructions(assistant?.ai_disclosure),
     communicationStyleInstructions(assistant?.communication_style),
     booking

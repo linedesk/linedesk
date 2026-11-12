@@ -1,4 +1,4 @@
-import { callRules } from '@linedesk/actions'
+import { AI_DISCLOSURE_MODES, callRules } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import type { CallerHistory } from '@linedesk/actions'
@@ -35,6 +35,15 @@ test('each rule is said once: AI honesty, prices, one question at a time, no pro
   expect(times(/one (question|thing) at a time/)).toBe(1)
   expect(times(/Never promise|Do not promise/)).toBe(1)
   expect(buildInstructions(assistant({ ai_disclosure: 'never' }))).toContain('Do not bring up on your own that you are an AI.')
+})
+
+test('the AI line follows the disclosure setting, and every mode says it is an AI when asked', () => {
+  for (const mode of AI_DISCLOSURE_MODES) {
+    expect(buildInstructions(assistant({ ai_disclosure: mode }))).toContain('Whenever the caller asks whether you are a person, a robot or an AI, say truthfully that you are an AI assistant. Never claim to be human.')
+  }
+  expect(buildInstructions(assistant({ ai_disclosure: 'when_asked' }))).toContain('You do not need to say you are an AI unless the caller asks.')
+  expect(buildInstructions(assistant({ ai_disclosure: 'at_start' }))).toContain('Your greeting told the caller you are an AI assistant.')
+  expect(buildInstructions(assistant({ ai_disclosure: 'at_start_consent' }))).toContain('If they do not want to talk to an AI, do not try to persuade them')
 })
 
 test('the tools that speak for themselves are kept out of the rule to talk while a tool runs', () => {
