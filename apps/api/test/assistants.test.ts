@@ -132,7 +132,7 @@ describe('test calls with a picked assistant', () => {
     const tester = body.data.assistantId as string
     const ok = await act(ws.owner, 'assistant.startTestCall', { assistantId: tester })
     expect(ok.status).toBe(200)
-    expect(dispatchMetadata(ok.body.data.token)).toEqual({ source: 'test', workspaceId: ws.id, assistantId: tester })
+    expect(dispatchMetadata(ok.body.data.token)).toEqual({ source: 'test', workspaceId: ws.id, assistantId: tester, simulateTransfer: true })
     const foreign = await act(ws.owner, 'assistant.startTestCall', { assistantId: other.assistant.id })
     expect(foreign.status).toBe(409)
   })
@@ -158,7 +158,7 @@ describe('test calls with a picked assistant', () => {
     expect(createHmac('sha256', LIVEKIT.LIVEKIT_API_SECRET).update(`${head}.${claims}`).digest('base64url')).toBe(
       signature,
     )
-    expect(dispatchMetadata(body.data.token)).toEqual({ source: 'test', workspaceId: ws.id })
+    expect(dispatchMetadata(body.data.token)).toEqual({ source: 'test', workspaceId: ws.id, simulateTransfer: true })
   })
 })
 
