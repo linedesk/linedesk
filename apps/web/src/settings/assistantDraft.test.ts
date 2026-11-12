@@ -122,7 +122,7 @@ describe('transfer contacts', () => {
   })
   it('says why a contact is not used', () => {
     expect(transferInactive({ enabled: false, number: '+1 503 555 0199' })).toBe('Off')
-    expect(transferInactive({ enabled: true, number: ' ' })).toBe('Add a number to turn it on')
+    expect(transferInactive({ enabled: true, number: ' ' })).toBe('Add a number to use it')
     expect(transferInactive({ enabled: true, number: '+1 503 555 0199' })).toBeNull()
   })
 })

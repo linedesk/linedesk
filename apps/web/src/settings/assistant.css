@@ -989,6 +989,8 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 12px 16px;
+  /* An error under one field must not push its neighbour's label down. */
+  align-items: start;
 }
 .as-silence-row > * {
   min-width: 0;

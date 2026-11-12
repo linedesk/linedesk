@@ -286,7 +286,7 @@ export function moveTransfer<T>(list: readonly T[], index: number, by: -1 | 1): 
 /** Why a contact is not used on calls right now, in a few words; null when it is. */
 export function transferInactive(c: Pick<TransferDraft, 'enabled' | 'number'>): string | null {
   if (!c.enabled) return 'Off'
-  if (!c.number.trim()) return 'Add a number to turn it on'
+  if (!c.number.trim()) return 'Add a number to use it'
   return null
 }
 
