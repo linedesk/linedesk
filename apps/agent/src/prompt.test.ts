@@ -96,6 +96,8 @@ test('stored services and FAQs (no longer offered) stay out of the prompt; price
   expect(prompt).not.toMatch(/business_knowledge|look_up|<documents>/)
   expect(prompt).toMatch(/only say a price the business gave you above/)
   expect(buildInstructions(assistant())).toMatch(/never give, guess or estimate a price/)
+  // No switch any more: an older stored 'off' still gets the rule.
+  expect(buildInstructions(assistant({ behaviours: { listed_prices_only: false } }))).toMatch(/never give, guess or estimate a price/)
 })
 
 const history = (over: Partial<CallerHistory> = {}): CallerHistory => ({

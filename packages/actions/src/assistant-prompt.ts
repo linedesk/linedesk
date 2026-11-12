@@ -33,14 +33,6 @@ export const BEHAVIOURS = [
     say: 'When you cannot answer a question or help with a request, offer that someone from the team calls the caller back, and take a message.',
   },
   {
-    id: 'listed_prices_only',
-    label: 'Never quote prices the business did not give',
-    on: true,
-    say: null,
-    sayOff:
-      'Prices: for anything the business gave no price for you may give a rough idea based on the prices it gave, saying it is only an estimate and the team will confirm it.',
-  },
-  {
     id: 'confirm_number',
     label: 'Confirm the callback number',
     on: false,
@@ -51,7 +43,7 @@ export const BEHAVIOURS = [
 export type BehaviourId = (typeof BEHAVIOURS)[number]['id']
 export const BEHAVIOUR_IDS = BEHAVIOURS.map(b => b.id) as [BehaviourId, ...BehaviourId[]]
 /** Switches that were removed; still accepted from an older web app and dropped, and ignored when stored. */
-export const REMOVED_BEHAVIOUR_IDS = ['emergency_fee', 'ask_referral'] as const
+export const REMOVED_BEHAVIOUR_IDS = ['emergency_fee', 'ask_referral', 'listed_prices_only'] as const
 
 /** Whether a behaviour is on for an assistant: its own choice, else the default. */
 export const behaviourOn = (stored: Readonly<Record<string, boolean>> | null | undefined, id: BehaviourId): boolean =>

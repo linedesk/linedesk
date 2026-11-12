@@ -1,5 +1,5 @@
 // The assistant's system prompt, built from its configuration.
-import { aiDisclosureInstructions, type BookingContext, isActiveContact, communicationStyleInstructions, behaviourLines, behaviourOn, type CallerHistory, CALL_RULES, fenceData, fillTemplate, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf } from '@linedesk/actions'
+import { aiDisclosureInstructions, type BookingContext, isActiveContact, communicationStyleInstructions, behaviourLines, type CallerHistory, CALL_RULES, fenceData, fillTemplate, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf } from '@linedesk/actions'
 import type { Assistant, CallerDetails, Contact, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 
@@ -20,7 +20,7 @@ function businessKnowledge(assistant: Assistant): string {
   return instructions || businessFacts(assistant)
 }
 
-/** Prices: only the ones the business gave, never an estimate; part of the prompt unless the owner switched it off in the behaviour checklist. */
+/** Prices: only the ones the business gave, never an estimate; always part of the prompt. */
 export const PRICE_RULE =
   'Prices: only say a price the business gave you above, exactly as it is written. For anything it gave no price for, never give, guess or estimate a price: say the team will get back to them with a price, and take a message.'
 
@@ -331,7 +331,7 @@ export function buildInstructions(
     hoursContext(hours),
     'Only state facts about the business that are given below; if you do not know something, say so and offer to take a message.',
     knowledge ? `What the business wants you to know:\n${knowledge}` : null,
-    behaviourOn(assistant?.behaviours, 'listed_prices_only') ? PRICE_RULE : null,
+    PRICE_RULE,
     `How to handle calls:\n${CALL_RULES}`,
     behavioursInstructions(assistant),
     callerIdInstructions(caller),
