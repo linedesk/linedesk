@@ -42,6 +42,11 @@ jobs:
       - run: docker build --target api -t linedesk-api .
       - run: docker build --target web -t linedesk-web .
       - run: docker build --target proxy -t linedesk-proxy .
+      # Platforms that build the Dockerfile without a target must get the API (README, Deploy methods).
+      - name: Default target is the API
+        run: |
+          docker build -t linedesk-default .
+          docker image inspect -f '{{json .Config.Entrypoint}}' linedesk-default | grep -q api-entrypoint.sh
 
   # No secrets in the repo: gitleaks scans the whole history (about 2 s), rules and exceptions in .gitleaks.toml.
   # The binary is pinned by version and checksum instead of gitleaks-action, which needs a paid licence for organisations.

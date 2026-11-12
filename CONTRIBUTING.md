@@ -11,7 +11,7 @@ Thanks for helping. Linedesk is an AI front desk for businesses: an assistant an
 
 ## Set up
 
-Requirements: Node 22, pnpm 10, Docker.
+Requirements: Node 22.18 or newer (it runs the TypeScript files directly), pnpm 10, Docker.
 
 ```sh
 pnpm install

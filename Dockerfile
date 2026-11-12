@@ -4,6 +4,8 @@
 #   docker build --target web -t linedesk-web .
 #   docker build --target proxy -t linedesk-proxy .
 #   docker build --target agent -t linedesk-agent .
+# The API is the last stage, so a platform that builds this file without a target (Railway, Render,
+# Dokku, ...) gets the API, never the empty dev-mode runtime. Keep it last.
 
 FROM node:22-alpine AS base
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
@@ -30,20 +32,6 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 COPY . .
 # Tests and their config are not part of the image.
 RUN rm -rf apps/api/test apps/api/vitest.config.ts && find apps/api packages -name "*.test.ts" -delete
-
-# Node runs the TypeScript sources directly (type stripping), so there is no compile step.
-FROM node:22-alpine AS api
-ENV NODE_ENV=production PORT=3100
-WORKDIR /app
-COPY --from=api-build --chown=node:node /app/node_modules ./node_modules
-COPY --from=api-build --chown=node:node /app/apps/api ./apps/api
-COPY --from=api-build --chown=node:node /app/packages ./packages
-COPY --chown=node:node docker/api-entrypoint.sh ./
-USER node
-EXPOSE 3100
-HEALTHCHECK --interval=5s --timeout=3s --retries=20 \
-  CMD wget -qO- http://127.0.0.1:${PORT}/healthz || exit 1
-ENTRYPOINT ["/bin/sh", "/app/api-entrypoint.sh"]
 
 # --- web: build the SPA, serve it with Caddy ---
 FROM base AS web-build
@@ -104,3 +92,18 @@ ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
     && corepack enable && corepack prepare pnpm@10.11.0 --activate
 WORKDIR /app
+
+# --- api runtime: the default target (see the top) ---
+# Node runs the TypeScript sources directly (type stripping), so there is no compile step.
+FROM node:22-alpine AS api
+ENV NODE_ENV=production PORT=3100
+WORKDIR /app
+COPY --from=api-build --chown=node:node /app/node_modules ./node_modules
+COPY --from=api-build --chown=node:node /app/apps/api ./apps/api
+COPY --from=api-build --chown=node:node /app/packages ./packages
+COPY --chown=node:node docker/api-entrypoint.sh ./
+USER node
+EXPOSE 3100
+HEALTHCHECK --interval=5s --timeout=3s --retries=20 \
+  CMD wget -qO- http://127.0.0.1:${PORT}/healthz || exit 1
+ENTRYPOINT ["/bin/sh", "/app/api-entrypoint.sh"]

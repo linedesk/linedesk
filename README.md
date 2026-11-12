@@ -19,7 +19,7 @@ Demo data is fictional (Brightwater Plumbing & Heating, Portland; assistant "May
 
 ## Development quickstart
 
-Requirements: Node 22, pnpm 10, Docker.
+Requirements: Node 22.18 or newer (it runs the TypeScript files directly), pnpm 10, Docker.
 
 ```sh
 pnpm install
@@ -74,6 +74,19 @@ front.example.com {
 ```
 
 `PUBLIC_URL` must be exactly the address people open: sign-in only works on it.
+
+### Deploy methods
+
+Docker Compose, as above, is the supported way: one file for the whole stack, `scripts/deploy.sh` for updates. On a platform that builds one service at a time from a Dockerfile instead (Railway, Render, Fly.io, Dokku, Coolify or Dokploy without compose), build each service from the repository root with its target:
+
+| Service | Target | Notes |
+| --- | --- | --- |
+| API | `api` (also the default when the platform cannot pick a target) | Checks its secrets and applies migrations on start (`docker/api-entrypoint.sh`). Needs the settings below plus `DATABASE_URL`, `ELECTRIC_URL`, `WEB_ORIGIN` and `BETTER_AUTH_URL` (both `PUBLIC_URL`), which compose otherwise sets. |
+| Proxy | `proxy` | Required, and the only public service. The web app calls `/api`, `/v1` and `/mcp` on its own address, so it only works behind this Caddy; it also sets the security headers and keeps the agent's endpoints off the public site. Tell it where the others are: `API_HOST`, `WEB_HOST`, `LIVEKIT_UPSTREAM` (defaults: the compose service names). |
+| Web | `web` | The built web app's files, reached only through the proxy. |
+| Agent | `agent` | Reaches the API through the proxy's internal port: `LINEDESK_API_URL=http://<proxy>:3100`. Never publish that port: the API refuses the agent's token on any other way in. |
+
+Postgres (with `wal_level=logical`, which Electric needs), Electric, LiveKit with its SIP bridge, and Valkey come from their images in `docker-compose.yml` or as managed services. Call audio and SIP need public UDP ports (see Ports), which most hosted platforms do not offer; there, use LiveKit Cloud for voice. Nixpacks, Railpack and Heroku buildpacks are not supported: every platform that uses them also builds a Dockerfile.
 
 ### Settings
 

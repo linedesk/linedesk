@@ -2,7 +2,7 @@
   "name": "linedesk",
   "private": true,
   "packageManager": "pnpm@10.11.0",
-  "engines": { "node": ">=22" },
+  "engines": { "node": ">=22.18" },
   "scripts": {
     "dev": "turbo run dev",
     "typecheck": "turbo run typecheck",
