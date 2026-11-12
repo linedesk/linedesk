@@ -21,6 +21,8 @@ import {
   SESSIONS,
   changeName,
   changePassword,
+  ConfirmWithPasskey,
+  confirmWithPasskey,
   loadAccount,
   loadPasskeyEnrolment,
   loadPasskeys,
@@ -52,25 +54,43 @@ function useRequest() {
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<string | null>(null)
   const [needsSignIn, setNeedsSignIn] = useState(false)
-  async function run(request: () => Promise<void>, doneText?: string) {
+  // The request the server refused until a passkey sign-in: confirmed in place, then run again.
+  const [awaitingPasskey, setAwaitingPasskey] = useState<{ request: () => Promise<void>; doneText?: string } | null>(
+    null,
+  )
+  // `retry` is what a passkey confirmation runs again: the request itself, or the one it confirms for.
+  async function run(request: () => Promise<void>, doneText?: string, retry = request) {
     setBusy(true)
     setError(null)
     setDone(null)
+    setAwaitingPasskey(null)
     try {
       await request()
       setDone(doneText ?? null)
     } catch (err) {
       setNeedsSignIn(err instanceof SignInAgain)
+      if (err instanceof ConfirmWithPasskey) setAwaitingPasskey({ request: retry, doneText })
       setError(message(err))
     } finally {
       setBusy(false)
     }
   }
+  const confirmPasskey = awaitingPasskey
+    ? () =>
+        run(
+          async () => {
+            await confirmWithPasskey()
+            await awaitingPasskey.request()
+          },
+          awaitingPasskey.doneText,
+          awaitingPasskey.request,
+        )
+    : null
   const fail = (text: string | null) => {
     setDone(null)
     setError(text)
   }
-  return { busy, error, done, needsSignIn, setError: fail, run }
+  return { busy, error, done, needsSignIn, confirmPasskey, setError: fail, run }
 }
 type Request = ReturnType<typeof useRequest>
 
@@ -83,14 +103,29 @@ function SignInAgainButton() {
 }
 
 /** The outcome of a form's last request, next to the form that caused it. */
-function FormStatus({ request }: { request: Pick<Request, 'error' | 'done' | 'needsSignIn'> }) {
+function FormStatus({
+  request,
+}: {
+  request: Pick<Request, 'busy' | 'error' | 'done' | 'needsSignIn' | 'confirmPasskey'>
+}) {
   if (request.error) {
+    const { confirmPasskey } = request
     return (
       <div className="ac-inline">
         <div className="ac-error" role="alert">
           {request.error}
         </div>
-        {request.needsSignIn && <SignInAgainButton />}
+        {confirmPasskey ? (
+          <Button
+            title="Sign in with one of your passkeys, then try again"
+            disabled={request.busy}
+            onClick={() => void confirmPasskey()}
+          >
+            Confirm with passkey
+          </Button>
+        ) : (
+          request.needsSignIn && <SignInAgainButton />
+        )}
       </div>
     )
   }
@@ -143,25 +178,28 @@ function Profile({ account, reload }: SectionProps) {
   const unconfirmed = account.user.emailVerified === false && account.methods.emailCode
   return (
     <>
-    {unconfirmed && (
-      <ConfirmEmail email={account.user.email} onDone={reload}
-        why={`Confirm that ${account.user.email} is yours. Until then you cannot create API keys or webhooks, invite people, or set up a carrier or phone number.`} />
-    )}
-    <form className="ac-form" onSubmit={save} onKeyDown={e => onSaveKey(e, dirty && !!trimmed)}>
-      <Section id="ac-profile" title="Profile">
-        <Field id="ac-name" label="Name" error={trimmed ? null : 'Enter your name.'}>
-          <TextInput id="ac-name" value={name} onChange={setName} placeholder="Your name" invalid={!trimmed} />
-        </Field>
-        <Field
-          label="Email"
-          tip="You sign in with this address, and sign-in codes are sent to it. You can't change it here yet."
-        >
-          <span className="ac-value">{account.user.email}</span>
-        </Field>
-        <FormStatus request={request} />
-      </Section>
-      <SaveBar dirty={dirty} saving={request.busy} disabled={!trimmed} onCancel={() => setName(account.user.name)} />
-    </form>
+      {unconfirmed && (
+        <ConfirmEmail
+          email={account.user.email}
+          onDone={reload}
+          why={`Confirm that ${account.user.email} is yours. Until then you cannot create API keys or webhooks, invite people, or set up a carrier or phone number.`}
+        />
+      )}
+      <form className="ac-form" onSubmit={save} onKeyDown={e => onSaveKey(e, dirty && !!trimmed)}>
+        <Section id="ac-profile" title="Profile">
+          <Field id="ac-name" label="Name" error={trimmed ? null : 'Enter your name.'}>
+            <TextInput id="ac-name" value={name} onChange={setName} placeholder="Your name" invalid={!trimmed} />
+          </Field>
+          <Field
+            label="Email"
+            tip="You sign in with this address, and sign-in codes are sent to it. You can't change it here yet."
+          >
+            <span className="ac-value">{account.user.email}</span>
+          </Field>
+          <FormStatus request={request} />
+        </Section>
+        <SaveBar dirty={dirty} saving={request.busy} disabled={!trimmed} onCancel={() => setName(account.user.name)} />
+      </form>
     </>
   )
 }

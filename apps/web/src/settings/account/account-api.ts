@@ -1,6 +1,6 @@
 // The Account page's calls. Everything goes to Better Auth: its client, or the one server-only
 // method (set a first password) through POST /v1/account/password.
-import { auth, type AuthMethods, fetchAuthMethods, fetchMe } from '../../auth.ts'
+import { auth, type AuthMethods, fetchAuthMethods, fetchMe, signInWithPasskey } from '../../auth.ts'
 import { authErrorMessage } from '../../sign-in-code.ts'
 import { describeDevice, type LinkedAccount, type SessionRow } from './account-model.ts'
 
@@ -9,17 +9,31 @@ type Result<T> = { data: T | null; error: { message?: string; code?: string; sta
 /** The server wants a recent sign-in before it does this; the page offers "Sign in again". */
 export class SignInAgain extends Error {}
 
-/** The account has a passkey: changing its passkeys needs a session started by signing in with one. */
-const PASSKEY_SIGN_IN = 'Sign in again with one of your passkeys to do this.'
+/**
+ * The account has a passkey: changing its passkeys needs a session started by signing in with one
+ * in the last 12 hours (apps/api/src/passkeys.ts). The page confirms in place (confirmWithPasskey).
+ */
+export class ConfirmWithPasskey extends SignInAgain {}
+const PASSKEY_SIGN_IN = 'Confirm with one of your passkeys to do this.'
+
+/** Signs in with one of the account's passkeys: a new session that may change its passkeys. Failing, it can be tried again. */
+export async function confirmWithPasskey() {
+  const result = await signInWithPasskey()
+  if (result?.error) throw new ConfirmWithPasskey(authErrorMessage(result.error))
+}
 
 function unwrap<T>(result: Result<T>, fallback: string): T {
   if (result.error?.code === 'SESSION_NOT_FRESH') throw new SignInAgain('Sign in again to do this.')
-  if (result.error?.code === 'PASSKEY_CONFIRMATION_REQUIRED') throw new SignInAgain(PASSKEY_SIGN_IN)
+  if (result.error?.code === 'PASSKEY_CONFIRMATION_REQUIRED') throw new ConfirmWithPasskey(PASSKEY_SIGN_IN)
   if (result.error || result.data === null) throw new Error(result.error?.message || fallback)
   return result.data
 }
 
-export type Account = { user: { name: string; email: string; emailVerified: boolean }; accounts: LinkedAccount[]; methods: AuthMethods }
+export type Account = {
+  user: { name: string; email: string; emailVerified: boolean }
+  accounts: LinkedAccount[]
+  methods: AuthMethods
+}
 
 /** Cache keys (cachedQuery.ts). The account is kept across page loads; sessions and passkeys only in memory. */
 export const ACCOUNT = 'account'
@@ -28,7 +42,11 @@ export const PASSKEYS = 'account.passkeys'
 export const PASSKEY_ENROLMENT = 'account.passkeyEnrolment'
 
 export async function loadAccount(): Promise<Account> {
-  const [session, accounts, methods] = await Promise.all([auth.getSession(), auth.listAccounts(), fetchAuthMethods({ attempts: 3 })])
+  const [session, accounts, methods] = await Promise.all([
+    auth.getSession(),
+    auth.listAccounts(),
+    fetchAuthMethods({ attempts: 3 }),
+  ])
   const current = unwrap(session, 'You are signed out.')
   return {
     user: { name: current.user.name, email: current.user.email, emailVerified: current.user.emailVerified },
@@ -47,7 +65,12 @@ export async function loadSessions(): Promise<SessionRow[]> {
   const list = unwrap(sessions, 'Could not load your sessions.')
   const currentToken = current.data?.session.token
   tokens = new Map(list.map(s => [s.id, s.token]))
-  return list.map(s => ({ id: s.id, device: describeDevice(s.userAgent), lastActive: new Date(s.updatedAt), current: s.token === currentToken }))
+  return list.map(s => ({
+    id: s.id,
+    device: describeDevice(s.userAgent),
+    lastActive: new Date(s.updatedAt),
+    current: s.token === currentToken,
+  }))
 }
 
 export async function changeName(name: string) {
@@ -56,7 +79,10 @@ export async function changeName(name: string) {
 
 /** Changes the password and signs every other session out. */
 export async function changePassword(currentPassword: string, newPassword: string) {
-  unwrap(await auth.changePassword({ currentPassword, newPassword, revokeOtherSessions: true }), 'Could not change your password.')
+  unwrap(
+    await auth.changePassword({ currentPassword, newPassword, revokeOtherSessions: true }),
+    'Could not change your password.',
+  )
 }
 
 /** For a member without a password. The server asks for a sign-in in the last few minutes. */
@@ -88,11 +114,17 @@ export type PasskeyRow = { id: string; name: string; added: Date | null }
 /** The member's passkeys, newest first. A passkey without a name is called after its device type. */
 export async function loadPasskeys(): Promise<PasskeyRow[]> {
   const list = unwrap(
-    (await auth.$fetch('/passkey/list-user-passkeys', { method: 'GET' })) as Result<{ id: string; name?: string | null; createdAt?: string | null; deviceType: string }[]>,
+    (await auth.$fetch('/passkey/list-user-passkeys', { method: 'GET' })) as Result<
+      { id: string; name?: string | null; createdAt?: string | null; deviceType: string }[]
+    >,
     'Could not load your passkeys.',
   )
   return list
-    .map(p => ({ id: p.id, name: p.name || (p.deviceType === 'multiDevice' ? 'Synced passkey' : 'Passkey on a device'), added: p.createdAt ? new Date(p.createdAt) : null }))
+    .map(p => ({
+      id: p.id,
+      name: p.name || (p.deviceType === 'multiDevice' ? 'Synced passkey' : 'Passkey on a device'),
+      added: p.createdAt ? new Date(p.createdAt) : null,
+    }))
     .sort((a, b) => (b.added?.getTime() ?? 0) - (a.added?.getTime() ?? 0))
 }
 
@@ -105,8 +137,10 @@ export async function addPasskey(name: string, enrolmentCode?: string) {
   const headers = enrolmentCode ? { 'x-passkey-enrolment': enrolmentCode.trim() } : undefined
   const result = await auth.passkey.addPasskey({ name, ...(headers && { fetchOptions: { headers } }) })
   if (result && 'error' in result && result.error) {
-    if ('code' in result.error && result.error.code === 'SESSION_NOT_FRESH') throw new SignInAgain('Sign in again to add a passkey.')
-    if ('code' in result.error && result.error.code === 'PASSKEY_CONFIRMATION_REQUIRED') throw new SignInAgain(PASSKEY_SIGN_IN)
+    if ('code' in result.error && result.error.code === 'SESSION_NOT_FRESH')
+      throw new SignInAgain('Sign in again to add a passkey.')
+    if ('code' in result.error && result.error.code === 'PASSKEY_CONFIRMATION_REQUIRED')
+      throw new ConfirmWithPasskey(PASSKEY_SIGN_IN)
     throw new Error(authErrorMessage(result.error))
   }
 }
@@ -118,5 +152,8 @@ export async function loadPasskeyEnrolment(): Promise<boolean> {
 
 /** Removes a passkey; like adding one, it needs a recent sign-in (the API checks). */
 export async function removePasskey(id: string) {
-  unwrap((await auth.$fetch('/passkey/delete-passkey', { method: 'POST', body: { id } })) as Result<unknown>, 'Could not remove the passkey.')
+  unwrap(
+    (await auth.$fetch('/passkey/delete-passkey', { method: 'POST', body: { id } })) as Result<unknown>,
+    'Could not remove the passkey.',
+  )
 }
