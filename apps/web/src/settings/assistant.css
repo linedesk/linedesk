@@ -1,7 +1,10 @@
 /* Settings > Assistant: the name as a title (renamed in place), the switcher, the numbers it answers. */
+/* Name, switcher and the numbers it answers in one row; the numbers wrap below on a narrow screen. */
 .as-head {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
   min-width: 0;
 }
 .as-title {
