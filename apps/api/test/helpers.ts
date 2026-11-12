@@ -104,9 +104,9 @@ export async function createWorkspace(name: string, emailVerified = true) {
   const [assistantCalendar] = await db.insert(assistant_calendars)
     .values({ id: uid('acal'), workspace_id: id, assistant_id: assistant!.id, connection_id: connection!.id, external_id: 'primary', name: 'Office', is_default: true })
     .returning()
-  // A webhook endpoint that receives nothing (no events), so patches on it can be tested.
+  // A webhook of the assistant that is switched off (so it is never asked), so patches on it can be tested.
   const [webhookEndpoint] = await db.insert(webhook_endpoints)
-    .values({ id: uid('whe'), workspace_id: id, url: 'https://example.com/hook', events: [], created_by: owner.userId })
+    .values({ id: uid('whe'), workspace_id: id, assistant_id: assistant!.id, hooks: ['call_start'], status: 'disabled', url: 'https://example.com/hook', created_by: owner.userId })
     .returning()
   return { id, owner, assistant: assistant!, number, contact: contact!, call: call!, connection: connection!, assistantCalendar: assistantCalendar!, webhookEndpoint: webhookEndpoint! }
 }

@@ -54,8 +54,9 @@ import { TestCallPanel } from './TestCallPanel.tsx'
 import { TransferContacts, transferFieldId } from './TransferContacts.tsx'
 import { BusinessHours, TimeZoneSelect } from './BusinessHours.tsx'
 import { Holidays, VacationMode } from './Holidays.tsx'
+import { Webhooks } from './Webhooks.tsx'
 
-type SectionId = 'general' | 'business' | 'hours' | 'rules' | 'transfers' | 'booking' | 'advanced'
+type SectionId = 'general' | 'business' | 'hours' | 'rules' | 'transfers' | 'booking' | 'webhooks' | 'advanced'
 const sections: readonly PageSection<SectionId>[] = [
   { id: 'general', label: 'General', description: 'Name, greeting, languages and voice' },
   { id: 'business', label: 'Business info', description: 'What you do, your prices and what callers ask' },
@@ -63,10 +64,11 @@ const sections: readonly PageSection<SectionId>[] = [
   { id: 'rules', label: 'Rules', description: 'AI disclosure, tone and how calls are handled' },
   { id: 'transfers', label: 'Transfers', description: 'Who calls are put through to' },
   { id: 'booking', label: 'Booking & Calendar', description: 'Calendars and appointment types' },
+  { id: 'webhooks', label: 'Webhook', description: 'Your system at the start of a call and after it' },
   { id: 'advanced', label: 'Advanced', description: 'Talking speed, time zone, silence, hanging up' },
 ]
 /** Sections that save on their own, outside the assistant's draft. */
-type OwnSection = 'hours' | 'booking'
+type OwnSection = 'hours' | 'booking' | 'webhooks'
 /** Which draft fields each section holds. */
 const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   business: ['instructions', 'website'],
@@ -608,6 +610,8 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
           <Holidays canEdit={canEdit} toast={toast} />
           <VacationMode canEdit={canEdit} toast={toast} />
         </>
+      ) : current === 'webhooks' ? (
+        <Webhooks assistantId={assistant.id} canEdit={canEdit} toast={toast} />
       ) : (
         <form onSubmit={save} onKeyDown={e => onSaveKey(e, canEdit && changed)}>
           {body}

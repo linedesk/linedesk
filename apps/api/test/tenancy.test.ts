@@ -71,7 +71,7 @@ const snapshot = async (ws: Workspace) => [
 ]
 
 /** Patch actions with a server handler of their own say so in their words. */
-const notFound: Record<string, string> = { 'webhook.update': 'webhook endpoint not found', 'call.flagUrgent': 'call not found' }
+const notFound: Record<string, string> = { 'webhook.update': 'webhook not found', 'call.flagUrgent': 'call not found' }
 
 describe('patch actions', () => {
   test.each(patchActions.map(def => [def.name, def] as const))(
@@ -109,6 +109,7 @@ describe('agent-facing actions', () => {
     ['call.startRecording', { callId }],
     ['call.setRecording', { callId }],
     ['call.transfer', { callId, to: '+15035550199', result: 'not_answered' }],
+    ['call.lookUpCaller', { callId }],
   ]
 
   // carrier.transferTrunk and carrier.provisionTransferTrunk are scoped by the workspace's numbers, not a call: apps/api/test/carrier-routing.test.ts.

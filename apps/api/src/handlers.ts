@@ -45,7 +45,7 @@ import { contactImportHandlers } from './contact-import.ts'
 import { contactMergeHandlers } from './contact-merge.ts'
 import { keepsRecordings } from './recording-retention.ts'
 import { callExportHandlers } from './call-export.ts'
-import { clearCallPayloads, queueCallFinishedEvents, queueWebhookEvent, webhookData, webhookHandlers } from './webhooks.ts'
+import { clearCallPayloads, lookUpCaller, queueCallEnd, webhookHandlers } from './webhooks.ts'
 
 export { Forbidden, Reject, type HandlerCtx, type Undo }
 
@@ -64,7 +64,7 @@ async function runPatch({ tx, actor, now }: HandlerCtx, def: ActionDef, input: u
   return { rows: { [patch.table]: rows } }
 }
 
-/** Messages the assistant takes on one call: each one is a push and a webhook, so a caller cannot flood the team. */
+/** Messages the assistant takes on one call: each one is a push, so a caller cannot flood the team. */
 export const MESSAGES_PER_CALL = 3
 
 /** Only `call.start` may run without a workspace: it is the action that resolves it. */
@@ -585,11 +585,17 @@ const handlers: Record<string, Handler> = {
       await queueCallPush(tx, call.id, 'finished')
       // Test calls are evaluated only when the call view asks (call.evaluate).
       if (evaluatedAutomatically(updated!)) await queueCallEvaluation(tx, call.id)
-      await queueCallFinishedEvents(tx, updated!, now)
+      await queueCallEnd(tx, updated!)
       // This call's minutes may take the workspace to 80 % or 100 % of its spending cap.
       await queueSpendingAlerts(tx, call.workspace_id, now)
     }
     return { rows }
+  },
+
+  // Read-only in the registry: runs outside a transaction, so the request to the business's system holds none open.
+  'call.lookUpCaller': async ({ tx, actor }, input: { callId: string }) => {
+    const call = await loadCall(tx, actor, input.callId)
+    return { rows: {}, data: await lookUpCaller(tx, call) }
   },
 
   'call.startRecording': async ({ tx, actor }, input) => {
@@ -614,7 +620,7 @@ const handlers: Record<string, Handler> = {
     return { rows: { calls: rows } }
   },
 
-  'call.takeMessage': async ({ tx, actor, now }, input) => {
+  'call.takeMessage': async ({ tx, actor }, input) => {
     await lockCall(tx, input.callId)
     const call = await loadCall(tx, actor, input.callId)
     // Only messages count: other next steps (a note for the team after failed booking changes) take no slot.
@@ -623,10 +629,7 @@ const handlers: Record<string, Handler> = {
       throw new Reject(`${MESSAGES_PER_CALL} messages are saved on this call already: tell the caller the team has them, and add nothing more`)
     }
     const action_items = [...call.action_items, { text: input.message, kind: 'message' as const }]
-    if (call.source !== 'test') {
-      await queueWebhookEvent(tx, call.workspace_id, 'message.taken', webhookData.messageTaken(call, input.message), now)
-      await queueCallPush(tx, call.id, 'message')
-    }
+    if (call.source !== 'test') await queueCallPush(tx, call.id, 'message')
     return { rows: { calls: await tx.update(calls).set({ action_items }).where(eq(calls.id, call.id)).returning() } }
   },
 

@@ -1,19 +1,34 @@
-// Outbound webhooks (docs/webhooks.md). An event becomes one delivery row per subscribed, active
-// endpoint and one pg-boss job each, in the transaction that caused it: no event for a write that
-// did not commit. The job POSTs the event signed with the endpoint's secret and retries with backoff;
-// an endpoint whose deliveries keep failing after every retry is switched off.
+// An assistant's webhook (docs/webhooks.md): one address, with the hooks it gets switched on.
+// `call_start`: as a call comes in, the agent asks (call.lookUpCaller) and the API POSTs the caller to the URL and waits CALL_START_TIMEOUT_MS for caller
+// details. `call_end`: when the call is finished a delivery row and a pg-boss job are written in that
+// transaction; CALL_END_DELAY_SEC later the job builds the whole call into the payload (so the recording
+// is in it), POSTs it signed with the endpoint's secret and retries with backoff. An endpoint whose
+// requests keep failing is switched off.
 import { createHmac } from 'node:crypto'
 import { type LookupAddress, lookup as dnsLookup } from 'node:dns'
 import { isIP } from 'node:net'
-import type { WebhookDeliveriesData, WebhookDeliverySummary, WebhookTestData } from '@linedesk/actions'
-import { type Tx, webhook_deliveries, webhook_endpoints, webhook_secrets } from '@linedesk/db'
-import type { Booking, Call, WebhookEvent } from '@linedesk/db/types'
-import { and, desc, eq, isNotNull, lt, ne, or, sql } from 'drizzle-orm'
+import {
+  CALL_END_DELAY_SEC,
+  CALL_START_TIMEOUT_MS,
+  type CallEndPayload,
+  type CallLookUpData,
+  type CallStartRequest,
+  callerDetailsFrom,
+  hooksOf,
+  type WebhookDeliveriesData,
+  type WebhookDeliverySummary,
+  type WebhookTestData,
+} from '@linedesk/actions'
+import { assistants, bookings, calls, contacts, transcript_segments, type Tx, webhook_deliveries, webhook_endpoints, webhook_secrets } from '@linedesk/db'
+import type { Assistant, Call, WebhookEndpoint, WebhookHook } from '@linedesk/db/types'
+import { and, asc, desc, eq, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm'
 import { Agent, fetch as undiciFetch } from 'undici'
+import { WEB_ORIGIN } from './auth.ts'
 import { type Handler, Reject } from './handler-context.ts'
 import { isPrivateAddress } from './ip-address.ts'
 import { queueWebhookDelivery } from './jobs.ts'
 import { createRateLimiter } from './rate-limit.ts'
+import { recordingLink } from './recording-route.ts'
 import { decryptSecret, encryptSecret, hasSecretsKey } from './secrets.ts'
 
 export { isPrivateAddress }
@@ -99,19 +114,48 @@ export function signature(secret: string, body: string, timestamp: number): stri
   return `t=${timestamp},v1=${mac}`
 }
 
-type Attempt = { ok: boolean; responseStatus: number | null; error: string | null }
+type Attempt = { ok: boolean; responseStatus: number | null; error: string | null; reply?: unknown }
 
 const causeCode = (e: unknown): string | undefined => {
   const cause = e instanceof Error ? (e.cause as { code?: string } | undefined) : undefined
   return cause?.code
 }
 
+/** The largest answer read from a call-start webhook; anything longer is not caller details. */
+const MAX_REPLY_BYTES = 32_768
+
+/** The answer's JSON, or undefined when it is not JSON or too long. */
+async function readReply(res: Response | Awaited<ReturnType<typeof undiciFetch>>): Promise<unknown> {
+  const reader = res.body?.getReader()
+  if (!reader) return undefined
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > MAX_REPLY_BYTES) {
+      await reader.cancel().catch(() => {})
+      return undefined
+    }
+    chunks.push(value)
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  } catch {
+    return undefined
+  }
+}
+
+type SendOptions = { env?: Env; timeoutMs?: number; readReply?: boolean }
+
 /**
- * POSTs one event. Failures before an answer are reported only as "could not connect" (or the
- * private-address refusal), so the log and the test send cannot be used to probe ports; the detail
- * goes to the server log.
+ * POSTs one request. Failures before an answer are reported only as "could not connect" (or "no answer in
+ * time", or the private-address refusal), so the log and the test send cannot be used to probe ports; the
+ * detail goes to the server log. With `readReply` the answer's JSON comes back as `reply`.
  */
-export async function sendWebhook(url: string, secret: string, deliveryId: string, event: string, body: string, env: Env = process.env): Promise<Attempt> {
+export async function sendWebhook(url: string, secret: string, deliveryId: string, hook: string, body: string, options: SendOptions = {}): Promise<Attempt> {
+  const { env = process.env, timeoutMs = TIMEOUT_MS } = options
   const problem = (() => {
     try {
       return addressProblem(url, env)
@@ -125,67 +169,136 @@ export async function sendWebhook(url: string, secret: string, deliveryId: strin
       method: 'POST',
       redirect: 'manual',
       dispatcher: allowPrivate(env) ? anyAgent : publicAgent,
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
       headers: {
         'content-type': 'application/json',
-        'user-agent': 'Linedesk-Webhooks/1',
-        'linedesk-event': event,
+        'user-agent': 'Linedesk-Webhooks/2',
+        'linedesk-hook': hook,
         'linedesk-delivery': deliveryId,
         [SIGNATURE_HEADER]: signature(secret, body, Math.floor(Date.now() / 1000)),
       },
       body,
     })
-    await res.body?.cancel().catch(() => {})
     const ok = res.status >= 200 && res.status < 300
-    return { ok, responseStatus: res.status, error: ok ? null : `answered ${res.status}` }
+    const reply = ok && options.readReply ? await readReply(res) : undefined
+    if (reply === undefined) await res.body?.cancel().catch(() => {})
+    return { ok, responseStatus: res.status, error: ok ? null : `answered ${res.status}`, ...(options.readReply ? { reply } : {}) }
   } catch (e) {
     if (causeCode(e) === 'EPRIVATEADDRESS') return { ok: false, responseStatus: null, error: PRIVATE }
-    console.warn(`webhook delivery ${deliveryId} could not connect: ${e instanceof Error ? `${e.message} ${causeCode(e) ?? ''}` : e}`)
+    if (e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError'))
+      return { ok: false, responseStatus: null, error: `no answer within ${timeoutMs >= 1000 ? `${timeoutMs / 1000} s` : `${timeoutMs} ms`}` }
+    console.warn(`webhook request ${deliveryId} could not connect: ${e instanceof Error ? `${e.message} ${causeCode(e) ?? ''}` : e}`)
     return { ok: false, responseStatus: null, error: 'could not connect' }
   }
 }
 
-// --- Events ----------------------------------------------------------------------------------
+// --- The two hooks ------------------------------------------------------------------------------
 
-/** The call as events carry it (the schema is `webhookCallSchema`, packages/actions/src/webhooks.ts). */
-const callData = (call: Call) => ({
-  id: call.id, from_number: call.from_number, to_number: call.to_number, direction: call.direction, started_at: call.started_at,
-  ended_at: call.ended_at, duration_sec: call.duration_sec, outcome: call.outcome, urgency: call.urgency, title: call.title,
-  summary: call.summary, action_items: call.action_items, fields: call.fields, contact_id: call.contact_id, assistant_id: call.assistant_id,
-})
-const bookingData = (b: Booking) => ({
-  id: b.id, start_at: b.start_at, end_at: b.end_at, status: b.status, title: b.title, calendar_name: b.calendar_name,
-  appointment_type_id: b.appointment_type_id, call_id: b.call_id, contact_id: b.contact_id,
-})
+/** The assistant's webhook with its secret, when it is on and gets `hook`; else null. */
+async function activeHook(tx: Tx, assistantId: string | null, hook: WebhookHook) {
+  if (!assistantId) return null
+  const [found] = await tx.select({ endpoint: webhook_endpoints, secret: webhook_secrets.secret_encrypted })
+    .from(webhook_endpoints)
+    .innerJoin(webhook_secrets, eq(webhook_secrets.endpoint_id, webhook_endpoints.id))
+    .where(and(eq(webhook_endpoints.assistant_id, assistantId), sql`${webhook_endpoints.hooks} ? ${hook}`, eq(webhook_endpoints.status, 'active')))
+  return found ?? null
+}
 
-/** What each event carries in `data`. */
-export const webhookData = {
-  callCompleted: (call: Call) => ({ call: callData(call) }),
-  bookingCreated: (booking: Booking) => ({ booking: bookingData(booking) }),
-  messageTaken: (call: Call, message: string) => ({ call_id: call.id, message, from_number: call.from_number, contact_id: call.contact_id }),
+const callerOf = (contact: { id: string; name: string | null; company: string | null; email: string | null } | undefined) =>
+  contact ? { contact_id: contact.id, name: contact.name, company: contact.company, email: contact.email } : null
+
+async function callerContact(tx: Tx, call: Pick<Call, 'workspace_id' | 'contact_id'>) {
+  if (!call.contact_id) return undefined
+  const [contact] = await tx.select({ id: contacts.id, name: contacts.name, company: contacts.company, email: contacts.email })
+    .from(contacts).where(and(eq(contacts.id, call.contact_id), eq(contacts.workspace_id, call.workspace_id)))
+  return contact
+}
+
+/** A time as ISO 8601 (Postgres hands them over as "2026-11-12 12:43:35.917+00"). */
+const iso = (at: string) => new Date(at).toISOString()
+const isoOrNull = (at: string | null) => (at ? iso(at) : null)
+
+/** What the call-start webhook is sent. */
+export function callStartRequest(call: Call, assistant: Pick<Assistant, 'id' | 'name'>, caller: ReturnType<typeof callerOf>): CallStartRequest {
+  return {
+    hook: 'call_start', call_id: call.id, workspace_id: call.workspace_id, assistant_id: assistant.id, assistant_name: assistant.name,
+    from_number: call.from_number, to_number: call.to_number, started_at: iso(call.started_at), caller,
+  }
 }
 
 /**
- * Queues `event` for every active endpoint of the workspace that subscribed to it, in the caller's
- * transaction. Test calls send nothing. Without a queue (tests) the delivery rows are still written.
+ * call.lookUpCaller: asks the assistant's call-start webhook about the caller and keeps what it answered on
+ * the call (`caller_details`). Test calls ask nothing. A failure counts against the endpoint like a failed
+ * delivery, so one that never answers is switched off instead of slowing every greeting.
  */
-export async function queueWebhookEvent(tx: Tx, workspaceId: string, event: WebhookEvent, data: Record<string, unknown>, now: string) {
-  const endpoints = await tx.select({ id: webhook_endpoints.id }).from(webhook_endpoints).where(and(
-    eq(webhook_endpoints.workspace_id, workspaceId), eq(webhook_endpoints.status, 'active'), sql`${webhook_endpoints.events} ? ${event}`,
-  ))
-  if (!endpoints.length) return
-  const payload = { id: newId('evt'), type: event, created_at: now, workspace_id: workspaceId, data }
-  const rows = endpoints.map(e => ({ id: newId('whd'), workspace_id: workspaceId, endpoint_id: e.id, event, payload }))
-  await tx.insert(webhook_deliveries).values(rows)
-  for (const row of rows) await queueWebhookDelivery(tx, row.id)
+export async function lookUpCaller(tx: Tx, call: Call, env: Env = process.env): Promise<CallLookUpData> {
+  if (call.source !== 'phone') return { details: null }
+  const found = await activeHook(tx, call.assistant_id, 'call_start')
+  if (!found) return { details: null }
+  const [assistant] = await tx.select({ id: assistants.id, name: assistants.name }).from(assistants).where(eq(assistants.id, call.assistant_id!))
+  const request = callStartRequest(call, assistant!, callerOf(await callerContact(tx, call)))
+  const id = newId('whd')
+  const secret = decryptSecret(found.secret, secretSlot(found.endpoint.id))
+  const result = await sendWebhook(found.endpoint.url, secret, id, 'call_start', JSON.stringify(request), { env, timeoutMs: CALL_START_TIMEOUT_MS, readReply: true })
+  const details = result.ok ? callerDetailsFrom(result.reply) : null
+  const now = new Date().toISOString()
+  await tx.insert(webhook_deliveries).values({
+    id, workspace_id: call.workspace_id, endpoint_id: found.endpoint.id, event: 'call_start', payload: { ...request, reply: details },
+    attempts: 1, status: result.ok ? 'delivered' : 'failed', response_status: result.responseStatus, error: result.error, last_attempt_at: now,
+  })
+  if (result.ok) await tx.update(webhook_endpoints).set({ failure_count: 0, last_delivery_at: now }).where(eq(webhook_endpoints.id, found.endpoint.id))
+  else await countFailure(tx, found.endpoint.id, result.error)
+  if (details) await tx.update(calls).set({ caller_details: details }).where(eq(calls.id, call.id))
+  return { details }
 }
 
-/** The events of a finished call: completed, and summary_ready when it has a summary. */
-export async function queueCallFinishedEvents(tx: Tx, call: Call, now: string) {
-  if (call.source === 'test') return
-  const data = webhookData.callCompleted(call)
-  await queueWebhookEvent(tx, call.workspace_id, 'call.completed', data, now)
-  if (call.summary) await queueWebhookEvent(tx, call.workspace_id, 'call.summary_ready', data, now)
+/**
+ * Queues the after-call webhook of a finished call, in the transaction that finished it. The payload is
+ * built when it is sent (CALL_END_DELAY_SEC later, so the recording is saved); until then the row holds
+ * only the call's id. Test calls send nothing.
+ */
+export async function queueCallEnd(tx: Tx, call: Call) {
+  if (call.source !== 'phone') return
+  const found = await activeHook(tx, call.assistant_id, 'call_end')
+  if (!found) return
+  const id = newId('whd')
+  await tx.insert(webhook_deliveries).values({
+    id, workspace_id: call.workspace_id, endpoint_id: found.endpoint.id, event: 'call_end', payload: { hook: 'call_end', call_id: call.id },
+  })
+  await queueWebhookDelivery(tx, id, CALL_END_DELAY_SEC)
+}
+
+/** Where the API is reached from outside: the recording link points there. */
+const apiBase = (env: Env) => env.PUBLIC_URL || WEB_ORIGIN
+const SPEAKER: Record<string, string> = { agent: 'Assistant', caller: 'Caller', human: 'Team', system: 'Note' }
+
+/** The whole call, as the after-call webhook gets it; null when the call is gone (deleted). */
+export async function callEndPayload(tx: Tx, workspaceId: string, callId: string, env: Env = process.env, now = new Date()): Promise<CallEndPayload | null> {
+  const [call] = await tx.select().from(calls).where(and(eq(calls.id, callId), eq(calls.workspace_id, workspaceId), isNull(calls.deleted_at)))
+  if (!call) return null
+  const [assistant] = call.assistant_id ? await tx.select({ name: assistants.name }).from(assistants).where(eq(assistants.id, call.assistant_id)) : []
+  const lines = await tx.select({ speaker: transcript_segments.speaker, text: transcript_segments.text, at_ms: transcript_segments.at_ms })
+    .from(transcript_segments).where(eq(transcript_segments.call_id, call.id)).orderBy(asc(transcript_segments.at_ms), asc(transcript_segments.id))
+  const booked = await tx.select({
+    id: bookings.id, start_at: bookings.start_at, end_at: bookings.end_at, status: bookings.status, title: bookings.title,
+    calendar_name: bookings.calendar_name, appointment_type_id: bookings.appointment_type_id,
+  }).from(bookings).where(and(eq(bookings.call_id, call.id), eq(bookings.workspace_id, workspaceId))).orderBy(asc(bookings.start_at))
+  const recording = call.recording_key ? recordingLink(call.id, apiBase(env), now) : null
+  const assistantName = assistant?.name ?? null
+  return {
+    hook: 'call_end', call_id: call.id, workspace_id: call.workspace_id, assistant_id: call.assistant_id, assistant_name: assistantName,
+    direction: call.direction, from_number: call.from_number, to_number: call.to_number,
+    started_at: iso(call.started_at), ended_at: isoOrNull(call.ended_at), duration_sec: call.duration_sec,
+    outcome: call.outcome, urgency: call.urgency, title: call.title, summary: call.summary,
+    next_steps: call.action_items, fields: call.fields,
+    caller: callerOf(await callerContact(tx, call)), caller_details: call.caller_details,
+    transcript: lines,
+    transcript_text: lines.map(l => `${l.speaker === 'agent' && assistantName ? assistantName : SPEAKER[l.speaker] ?? l.speaker}: ${l.text}`).join('\n'),
+    bookings: booked.map(b => ({ ...b, start_at: iso(b.start_at), end_at: iso(b.end_at) })),
+    transfer: call.transfer_to ? { to: call.transfer_to, name: call.transfer_name, result: call.transfer_result } : null,
+    call_url: new URL(`/#call/${call.id}`, WEB_ORIGIN).toString(),
+    recording_url: recording?.url ?? null, recording_expires_at: recording?.expires_at ?? null,
+  }
 }
 
 // --- Delivery (the job) ----------------------------------------------------------------------
@@ -199,13 +312,12 @@ export async function clearOldPayloads(tx: Tx, now = new Date()) {
   return cleared.length
 }
 
-/** Clears the payloads that carry a call (its own events, its message, its booking), when the call is deleted. */
+/** Clears the payloads of a call's requests (call start and after the call) when the call is deleted. */
 export async function clearCallPayloads(tx: Tx, workspaceId: string, callId: string) {
-  const data = sql`${webhook_deliveries.payload} -> 'data'`
   await tx.update(webhook_deliveries).set({ payload: null }).where(and(
     eq(webhook_deliveries.workspace_id, workspaceId),
     isNotNull(webhook_deliveries.payload),
-    or(sql`${data} -> 'call' ->> 'id' = ${callId}`, sql`${data} ->> 'call_id' = ${callId}`, sql`${data} -> 'booking' ->> 'call_id' = ${callId}`),
+    sql`${webhook_deliveries.payload} ->> 'call_id' = ${callId}`,
   ))
 }
 
@@ -229,12 +341,18 @@ export async function attemptDelivery(tx: Tx, deliveryId: string, env: Env = pro
     await tx.update(webhook_deliveries).set({ status: 'failed', error: 'endpoint is switched off' }).where(eq(webhook_deliveries.id, delivery.id))
     return 'skipped'
   }
-  if (!delivery.payload) {
-    await tx.update(webhook_deliveries).set({ status: 'failed', error: 'the call was deleted' }).where(eq(webhook_deliveries.id, delivery.id))
+  // The after-call payload is built at the first attempt; retries send the same one.
+  const callId = delivery.payload?.call_id
+  const payload = delivery.event === 'call_end' && delivery.attempts === 0 && typeof callId === 'string'
+    ? await callEndPayload(tx, delivery.workspace_id, callId, env)
+    : delivery.payload
+  if (!payload) {
+    await tx.update(webhook_deliveries).set({ status: 'failed', error: 'the call was deleted', payload: null }).where(eq(webhook_deliveries.id, delivery.id))
     return 'skipped'
   }
+  if (payload !== delivery.payload) await tx.update(webhook_deliveries).set({ payload }).where(eq(webhook_deliveries.id, delivery.id))
   const secret = decryptSecret(found.secret, secretSlot(endpoint.id))
-  const result = await sendWebhook(endpoint.url, secret, delivery.id, delivery.event, JSON.stringify(delivery.payload), env)
+  const result = await sendWebhook(endpoint.url, secret, delivery.id, delivery.event, JSON.stringify(payload), { env })
   const attempts = delivery.attempts + 1
   const final = result.ok || attempts >= WEBHOOK_ATTEMPTS
   await tx.update(webhook_deliveries).set({
@@ -274,33 +392,62 @@ async function checkUrl(url: string) {
   if (problem) throw new Reject(problem)
 }
 
+/** An endpoint of the actor's workspace; endpoints from before webhooks were per assistant are not found. */
 async function endpointIn(tx: Tx, workspaceId: string, endpointId: string) {
   const [endpoint] = await tx.select().from(webhook_endpoints)
-    .where(and(eq(webhook_endpoints.id, endpointId), eq(webhook_endpoints.workspace_id, workspaceId)))
-  if (!endpoint) throw new Reject('webhook endpoint not found')
+    .where(and(eq(webhook_endpoints.id, endpointId), eq(webhook_endpoints.workspace_id, workspaceId), isNotNull(webhook_endpoints.assistant_id)))
+  if (!endpoint) throw new Reject('webhook not found')
   return endpoint
 }
 
+/** An example of what a hook sends, for Send test: a made-up call to the assistant. */
+function testRequest(endpoint: WebhookEndpoint, hook: WebhookHook, assistant: { id: string; name: string }, now: string): CallStartRequest | CallEndPayload {
+  const call = {
+    call_id: 'call_test', workspace_id: endpoint.workspace_id, assistant_id: assistant.id, assistant_name: assistant.name,
+    from_number: '+15035550123', to_number: '+15035550100', started_at: now,
+    caller: { contact_id: 'ct_test', name: 'Sam Taylor', company: null, email: 'sam@example.com' },
+  }
+  if (hook === 'call_start') return { hook: 'call_start', ...call }
+  const lines = [
+    { speaker: 'agent' as const, text: `Thanks for calling, this is ${assistant.name}. How can I help?`, at_ms: 0 },
+    { speaker: 'caller' as const, text: 'Hi, this is Sam. My water heater is leaking, can someone come by tomorrow?', at_ms: 4200 },
+  ]
+  return {
+    hook: 'call_end', ...call, direction: 'in', ended_at: now, duration_sec: 95, outcome: 'message', urgency: 'normal',
+    title: 'Water heater leaking', summary: 'Sam Taylor reports a leaking water heater and asks for a visit tomorrow.',
+    next_steps: [{ text: 'Call Sam back to schedule a visit tomorrow', kind: 'message' }],
+    fields: [{ label: 'Issue', value: 'Leaking water heater' }], caller_details: { name: 'Sam', plan: 'Premium' },
+    transcript: lines, transcript_text: lines.map(l => `${l.speaker === 'agent' ? assistant.name : 'Caller'}: ${l.text}`).join('\n'),
+    bookings: [], transfer: null, call_url: new URL('/#call/call_test', WEB_ORIGIN).toString(), recording_url: null, recording_expires_at: null,
+  }
+}
+
 export const webhookHandlers: Record<string, Handler> = {
-  'webhook.create': async ({ tx, actor }, input: { endpointId: string; url: string; events: WebhookEvent[]; secret: string }) => {
+  'webhook.create': async ({ tx, actor }, input: { endpointId: string; assistantId: string; url: string; hooks: WebhookHook[]; secret: string }) => {
     const workspace_id = workspaceOf(actor)
     if (!hasSecretsKey()) throw new Reject('Webhooks need SECRETS_KEY on the server to store their secret.')
+    const [assistant] = await tx.select({ id: assistants.id }).from(assistants)
+      .where(and(eq(assistants.id, input.assistantId), eq(assistants.workspace_id, workspace_id)))
+    if (!assistant) throw new Reject('assistant not found')
     await checkUrl(input.url)
     const [taken] = await tx.select({ id: webhook_endpoints.id }).from(webhook_endpoints).where(eq(webhook_endpoints.id, input.endpointId))
     if (taken) throw new Reject('that endpoint id is taken')
-    // Two creates at once would both count 9 and both insert: one workspace's creates take turns.
+    // Two creates at once would both find no webhook (or both count 9) and both insert: one workspace's creates take turns.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`webhook_endpoints:${workspace_id}`}))`)
+    const [existing] = await tx.select({ id: webhook_endpoints.id }).from(webhook_endpoints)
+      .where(eq(webhook_endpoints.assistant_id, assistant.id))
+    if (existing) throw new Reject('This assistant has a webhook already. Change or delete it instead.')
     const [{ endpoints } = { endpoints: 0 }] = await tx.select({ endpoints: sql<number>`count(*)::int` }).from(webhook_endpoints).where(eq(webhook_endpoints.workspace_id, workspace_id))
     if (endpoints >= WEBHOOK_ENDPOINTS_PER_WORKSPACE)
-      throw new Reject(`At most ${WEBHOOK_ENDPOINTS_PER_WORKSPACE} webhook endpoints per workspace. Delete one you no longer use.`)
+      throw new Reject(`At most ${WEBHOOK_ENDPOINTS_PER_WORKSPACE} webhooks per workspace. Delete one you no longer use.`)
     const [endpoint] = await tx.insert(webhook_endpoints).values({
-      id: input.endpointId, workspace_id, url: input.url, events: [...new Set(input.events)], created_by: actor.actorId,
+      id: input.endpointId, workspace_id, assistant_id: assistant.id, hooks: hooksOf(input.hooks), url: input.url, events: [], created_by: actor.actorId,
     }).returning()
     await tx.insert(webhook_secrets).values({ endpoint_id: endpoint!.id, workspace_id, secret_encrypted: encryptSecret(input.secret, secretSlot(endpoint!.id)) })
     return { rows: { webhook_endpoints: [endpoint!] }, data: { endpointId: endpoint!.id } }
   },
 
-  'webhook.update': async ({ tx, actor }, input: { endpointId: string; url?: string; events?: WebhookEvent[]; enabled?: boolean }) => {
+  'webhook.update': async ({ tx, actor }, input: { endpointId: string; url?: string; hooks?: WebhookHook[]; enabled?: boolean }) => {
     const endpoint = await endpointIn(tx, workspaceOf(actor), input.endpointId)
     if (input.url !== undefined) await checkUrl(input.url)
     const switched = input.enabled === undefined ? {} : input.enabled
@@ -308,7 +455,7 @@ export const webhookHandlers: Record<string, Handler> = {
       : { status: 'disabled' as const, disabled_reason: null }
     const rows = await tx.update(webhook_endpoints).set({
       ...(input.url === undefined ? {} : { url: input.url }),
-      ...(input.events === undefined ? {} : { events: [...new Set(input.events)] }),
+      ...(input.hooks === undefined ? {} : { hooks: hooksOf(input.hooks) }),
       ...switched,
     }).where(eq(webhook_endpoints.id, endpoint.id)).returning()
     return { rows: { webhook_endpoints: rows } }
@@ -321,20 +468,23 @@ export const webhookHandlers: Record<string, Handler> = {
   },
 
   // Read-only in the registry, so it runs outside a transaction: the request to the endpoint never holds one open.
-  'webhook.test': async ({ tx, actor, now }, input: { endpointId: string }) => {
+  'webhook.test': async ({ tx, actor, now }, input: { endpointId: string; hook: WebhookHook }) => {
     const workspaceId = workspaceOf(actor)
     const endpoint = await endpointIn(tx, workspaceId, input.endpointId)
-    if (!allowTestSend(workspaceId)) throw new Reject(`At most ${WEBHOOK_TESTS_PER_MINUTE} test events a minute. Try again shortly.`)
+    if (!allowTestSend(workspaceId)) throw new Reject(`At most ${WEBHOOK_TESTS_PER_MINUTE} test requests a minute. Try again shortly.`)
     const [stored] = await tx.select().from(webhook_secrets).where(eq(webhook_secrets.endpoint_id, endpoint.id))
-    if (!stored) throw new Reject('this endpoint has no secret; add it again')
+    if (!stored) throw new Reject('this webhook has no secret; add it again')
+    const [assistant] = await tx.select({ id: assistants.id, name: assistants.name }).from(assistants).where(eq(assistants.id, endpoint.assistant_id!))
     const id = newId('whd')
-    const payload = { id: newId('evt'), type: 'webhook.test', created_at: now, workspace_id: endpoint.workspace_id, data: { endpoint_id: endpoint.id } }
-    const result = await sendWebhook(endpoint.url, decryptSecret(stored.secret_encrypted, secretSlot(endpoint.id)), id, 'webhook.test', JSON.stringify(payload))
+    const isStart = input.hook === 'call_start'
+    const payload = testRequest(endpoint, input.hook, assistant!, now)
+    const result = await sendWebhook(endpoint.url, decryptSecret(stored.secret_encrypted, secretSlot(endpoint.id)), id, 'webhook.test', JSON.stringify(payload), isStart ? { timeoutMs: CALL_START_TIMEOUT_MS, readReply: true } : {})
+    const details = isStart && result.ok ? callerDetailsFrom(result.reply) : null
     await tx.insert(webhook_deliveries).values({
-      id, workspace_id: endpoint.workspace_id, endpoint_id: endpoint.id, event: 'webhook.test', payload, attempts: 1,
+      id, workspace_id: endpoint.workspace_id, endpoint_id: endpoint.id, event: 'webhook.test', payload: isStart ? { ...payload, reply: details } : payload, attempts: 1,
       status: result.ok ? 'delivered' : 'failed', response_status: result.responseStatus, error: result.error, last_attempt_at: new Date().toISOString(),
     })
-    const data: WebhookTestData = { deliveryId: id, ok: result.ok, responseStatus: result.responseStatus, error: result.error }
+    const data: WebhookTestData = { deliveryId: id, ok: result.ok, responseStatus: result.responseStatus, error: result.error, ...(isStart ? { details } : {}) }
     return { rows: {}, data }
   },
 

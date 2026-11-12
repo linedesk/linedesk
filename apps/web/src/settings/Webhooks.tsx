@@ -1,14 +1,19 @@
-// Settings, Webhooks: where the workspace's events are sent. Endpoints come from the local store
-// (synced, no secret), so the list is there at once. Adding one shows its signing secret once;
-// switching on and off goes through the outbox; add, test-send and delete need the server's answer.
+// Assistant settings, Webhooks: the assistant's webhook, one address with the hooks it gets switched on.
+// When a call starts, Linedesk asks it about the caller; after the call, it sends the whole call
+// (docs/webhooks.md). The webhook comes from the local store (synced, no secret), so it is there at once.
+// Adding it shows its signing secret once; the hook switches and on/off go through the outbox; add,
+// test-send and delete need the server's answer.
 import {
+  CALL_END_DELAY_SEC,
+  CALL_START_TIMEOUT_MS,
+  hookLabel,
   newWebhookSecret,
   type WebhookDeliveriesData,
   type WebhookDeliverySummary,
   type WebhookTestData,
-  webhookEvents,
+  webhookHooks,
 } from '@linedesk/actions'
-import type { WebhookEndpoint, WebhookEvent } from '@linedesk/db/types'
+import type { CallerDetails, WebhookEndpoint, WebhookHook } from '@linedesk/db/types'
 import { type FormEvent, useEffect, useState } from 'react'
 import { useRows, useRun } from '../store.tsx'
 import { SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
@@ -16,55 +21,81 @@ import { Checkbox, Switch } from '../ui/controls.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
-import { Field, Section } from './fields.tsx'
+import { Field, Section, SwitchRow } from './fields.tsx'
 import { callAction, readAction, useWriteAction } from './settings-api.ts'
 import './webhooks.css'
 
-const EVENT_LABEL: Record<WebhookEvent, string> = {
-  'call.completed': 'Call completed',
-  'call.summary_ready': 'Summary ready',
-  'booking.created': 'Appointment booked',
-  'message.taken': 'Message taken',
+const HOOK_HELP: Record<WebhookHook, string> = {
+  call_start: `Linedesk sends the caller's number and waits up to ${CALL_START_TIMEOUT_MS / 1000} second. Answer with JSON like {"name": "Sam"}: the assistant knows it, and the greeting can say {{name}}.`,
+  call_end: `About ${CALL_END_DELAY_SEC} seconds after the call: number, summary, transcript, next steps, bookings, links to the call and the recording.`,
 }
+const SENT_LABEL: Record<string, string> = { call_start: 'Call start', call_end: 'After the call', 'webhook.test': 'Test' }
+const HELP =
+  'One address for this assistant. Each request says which hook it is (the "hook" field and the Linedesk-Hook header) and is signed with the secret. If an after-call request fails, Linedesk keeps trying for about an hour; after 5 failures in a row the webhook is switched off.'
 
-type Props = { canEdit: boolean; toast: (text: string) => void }
+type Props = { assistantId: string; canEdit: boolean; toast: (text: string) => void }
 
-export function Webhooks({ canEdit, toast }: Props) {
-  const endpoints = useRows('webhook_endpoints').sort((a, b) => a.created_at.localeCompare(b.created_at))
+export function Webhooks({ assistantId, canEdit, toast }: Props) {
+  const endpoint = useRows('webhook_endpoints').find(e => e.assistant_id === assistantId) ?? null
   const load = useLoadState('webhook_endpoints')
-  const [editing, setEditing] = useState<WebhookEndpoint | 'new' | null>(null)
+  const [editing, setEditing] = useState(false)
   if (!canEdit)
     return (
-      <Section id="st-webhooks" title="Webhooks">
+      <Section id="as-webhooks" title="Webhook">
         <p className="help">Only owners and admins can manage webhooks.</p>
       </Section>
     )
   return (
     <Section
-      id="st-webhooks"
-      title="Webhooks"
-      help="Linedesk tells another app when a call ends, a message is taken or an appointment is booked, by sending it to the web address you add here. If the address doesn't answer, Linedesk keeps trying for about an hour; after 5 events in a row fail, it stops sending until you turn the endpoint back on."
+      id="as-webhooks"
+      title="Webhook"
+      help={HELP}
       actions={
-        <Button size="sm" icon="plus" onClick={() => setEditing('new')}>
-          Add endpoint
-        </Button>
+        !endpoint &&
+        load === 'ready' && (
+          <Button size="sm" icon="plus" onClick={() => setEditing(true)}>
+            Add webhook
+          </Button>
+        )
       }
     >
-      {load !== 'ready' && endpoints.length === 0 ? (
-        <SkeletonRows label="Loading webhooks" rows={2} />
-      ) : endpoints.length === 0 ? (
-        <ListEmpty>No endpoints yet.</ListEmpty>
+      {load !== 'ready' && !endpoint ? (
+        <SkeletonRows label="Loading the webhook" rows={1} />
+      ) : endpoint ? (
+        <>
+          <List label="Webhook">
+            <EndpointRow endpoint={endpoint} onEdit={() => setEditing(true)} toast={toast} />
+          </List>
+          <HookSwitches endpoint={endpoint} />
+        </>
       ) : (
-        <List label="Webhook endpoints">
-          {endpoints.map(e => (
-            <EndpointRow key={e.id} endpoint={e} onEdit={() => setEditing(e)} toast={toast} />
-          ))}
-        </List>
+        <ListEmpty>No webhook yet.</ListEmpty>
       )}
-      {editing && (
-        <EndpointDialog endpoint={editing === 'new' ? null : editing} onClose={() => setEditing(null)} toast={toast} />
-      )}
+      {editing && <EndpointDialog assistantId={assistantId} endpoint={endpoint} onClose={() => setEditing(false)} toast={toast} />}
     </Section>
+  )
+}
+
+/** One switch per hook: which requests the webhook gets. */
+function HookSwitches({ endpoint }: { endpoint: WebhookEndpoint }) {
+  const run = useRun()
+  const set = (hook: WebhookHook, on: boolean) =>
+    void run('webhook.update', {
+      endpointId: endpoint.id,
+      hooks: webhookHooks.filter(h => (h === hook ? on : endpoint.hooks.includes(h))),
+    })
+  return (
+    <div className="wh-hooks">
+      {webhookHooks.map(hook => (
+        <SwitchRow
+          key={hook}
+          title={hookLabel[hook]}
+          description={HOOK_HELP[hook]}
+          on={endpoint.hooks.includes(hook)}
+          onChange={on => set(hook, on)}
+        />
+      ))}
+    </div>
   )
 }
 
@@ -84,6 +115,14 @@ function StatusBadge({ endpoint }: { endpoint: WebhookEndpoint }) {
   )
 }
 
+/** "name: Sam, plan: Premium", for the toast after a test send. */
+const detailsText = (details: CallerDetails | null | undefined) =>
+  details
+    ? Object.entries(details)
+        .map(([name, value]) => `${name}: ${String(value)}`)
+        .join(', ')
+    : null
+
 function EndpointRow({
   endpoint,
   onEdit,
@@ -99,11 +138,15 @@ function EndpointRow({
   const [showLog, setShowLog] = useState(false)
   const [logVersion, setLogVersion] = useState(0)
 
-  async function sendTest() {
+  async function sendTest(hook: WebhookHook) {
     setBusy(true)
     try {
-      const result = await callAction<WebhookTestData>('webhook.test', { endpointId: endpoint.id })
-      toast(result.ok ? `Test event delivered (${result.responseStatus}).` : `Test event failed: ${result.error}`)
+      const result = await callAction<WebhookTestData>('webhook.test', { endpointId: endpoint.id, hook })
+      if (!result.ok) toast(`Test failed: ${result.error}`)
+      else if (hook === 'call_start') {
+        const details = detailsText(result.details)
+        toast(details ? `Answered ${result.responseStatus} with ${details}.` : `Answered ${result.responseStatus}, but with no caller details.`)
+      } else toast(`Test delivered (${result.responseStatus}).`)
       setLogVersion(v => v + 1)
     } catch (e) {
       toast((e as Error).message)
@@ -113,14 +156,11 @@ function EndpointRow({
   }
 
   async function remove() {
-    if (
-      !window.confirm(`Delete the endpoint ${endpoint.url}? It gets no more events, and its delivery log is deleted.`)
-    )
-      return
+    if (!window.confirm(`Delete the webhook ${endpoint.url}? Nothing more is sent to it, and its log is deleted.`)) return
     setBusy(true)
     try {
       await write('webhook.delete', { endpointId: endpoint.id })
-      toast('Endpoint deleted.')
+      toast('Webhook deleted.')
     } catch (e) {
       toast((e as Error).message)
       setBusy(false)
@@ -130,18 +170,12 @@ function EndpointRow({
   return (
     <ListRow
       title={<span title={endpoint.url}>{endpoint.url}</span>}
-      sub={
-        endpoint.disabled_reason ? (
-          <span className="wh-reason">{endpoint.disabled_reason}</span>
-        ) : (
-          endpoint.events.map(e => EVENT_LABEL[e] ?? e).join(', ')
-        )
-      }
+      sub={endpoint.disabled_reason && <span className="wh-reason">{endpoint.disabled_reason}</span>}
       aside={<StatusBadge endpoint={endpoint} />}
       actions={
         <>
           <Switch
-            label={`Send events to ${endpoint.url}`}
+            label={`Send to ${endpoint.url}`}
             on={endpoint.status === 'active'}
             onChange={on => void run('webhook.update', { endpointId: endpoint.id, enabled: on })}
           />
@@ -149,14 +183,14 @@ function EndpointRow({
             title={`Actions for ${endpoint.url}`}
             disabled={busy}
             items={[
-              {
-                id: 'test',
-                label: 'Send test',
-                title: 'Send a signed test event now',
-                onSelect: () => void sendTest(),
-              },
-              { id: 'log', label: showLog ? 'Hide deliveries' : 'Deliveries', onSelect: () => setShowLog(s => !s) },
-              { id: 'edit', label: 'Edit', onSelect: onEdit },
+              ...webhookHooks.map(hook => ({
+                id: `test-${hook}`,
+                label: `Test: ${hookLabel[hook].toLowerCase()}`,
+                title: 'Send a signed example request now',
+                onSelect: () => void sendTest(hook),
+              })),
+              { id: 'log', label: showLog ? 'Hide log' : 'Log', onSelect: () => setShowLog(s => !s) },
+              { id: 'edit', label: 'Edit address', onSelect: onEdit },
               { id: 'delete', label: 'Delete', danger: true, onSelect: () => void remove() },
             ]}
           />
@@ -199,7 +233,7 @@ function DeliveryLog({ endpointId, version }: { endpointId: string; version: num
     <table className="wh-log">
       <thead>
         <tr>
-          <th>Event</th>
+          <th>Request</th>
           <th>Result</th>
           <th>Tries</th>
           <th>When</th>
@@ -208,7 +242,7 @@ function DeliveryLog({ endpointId, version }: { endpointId: string; version: num
       <tbody>
         {rows.map(d => (
           <tr key={d.id}>
-            <td>{EVENT_LABEL[d.event as WebhookEvent] ?? (d.event === 'webhook.test' ? 'Test' : d.event)}</td>
+            <td>{SENT_LABEL[d.event] ?? d.event}</td>
             <td>
               <DeliveryResult delivery={d} />
             </td>
@@ -239,12 +273,14 @@ function DeliveryResult({ delivery }: { delivery: WebhookDeliverySummary }) {
   )
 }
 
-/** Add an endpoint (then its secret, once) or change one's URL and events. */
+/** Add the webhook (its address and hooks, then its secret, once) or change its address. */
 function EndpointDialog({
+  assistantId,
   endpoint,
   onClose,
   toast,
 }: {
+  assistantId: string
   endpoint: WebhookEndpoint | null
   onClose: () => void
   toast: Props['toast']
@@ -252,19 +288,15 @@ function EndpointDialog({
   const run = useRun()
   const write = useWriteAction()
   const [url, setUrl] = useState(endpoint?.url ?? '')
-  const [events, setEvents] = useState<WebhookEvent[]>(endpoint?.events ?? [...webhookEvents])
+  const [hooks, setHooks] = useState<WebhookHook[]>([...webhookHooks])
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [secret, setSecret] = useState<string | null>(null)
 
-  const toggle = (event: WebhookEvent, on: boolean) =>
-    setEvents(list => (on ? [...list, event] : list.filter(e => e !== event)))
-
   async function submit(e: FormEvent) {
     e.preventDefault()
-    if (!events.length) return setError('Pick at least one event.')
     if (endpoint) {
-      void run('webhook.update', { endpointId: endpoint.id, url: url.trim(), events })
+      void run('webhook.update', { endpointId: endpoint.id, url: url.trim() })
       return onClose()
     }
     setSaving(true)
@@ -273,8 +305,9 @@ function EndpointDialog({
     try {
       await write('webhook.create', {
         endpointId: `whe_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
+        assistantId,
         url: url.trim(),
-        events,
+        hooks,
         secret: newSecret,
       })
       setSecret(newSecret)
@@ -317,7 +350,7 @@ function EndpointDialog({
 
   return (
     <Dialog
-      title={endpoint ? 'Edit endpoint' : 'Add endpoint'}
+      title={endpoint ? 'Edit webhook address' : 'Add webhook'}
       onClose={onClose}
       onSubmit={submit}
       footer={
@@ -340,15 +373,21 @@ function EndpointDialog({
           onChange={e => setUrl(e.target.value)}
         />
       </Field>
-      <Field label="Events">
-        <div className="wh-events">
-          {webhookEvents.map(event => (
-            <Checkbox key={event} checked={events.includes(event)} onChange={on => toggle(event, on)}>
-              {EVENT_LABEL[event]}
-            </Checkbox>
-          ))}
-        </div>
-      </Field>
+      {!endpoint && (
+        <Field label="Send">
+          <div className="wh-hook-picks">
+            {webhookHooks.map(hook => (
+              <Checkbox
+                key={hook}
+                checked={hooks.includes(hook)}
+                onChange={on => setHooks(list => webhookHooks.filter(h => (h === hook ? on : list.includes(h))))}
+              >
+                {hookLabel[hook]}
+              </Checkbox>
+            ))}
+          </div>
+        </Field>
+      )}
     </Dialog>
   )
 }

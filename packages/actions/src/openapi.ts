@@ -2,7 +2,7 @@
 // marked `public`, its input schema straight from the action's Zod schema.
 import { z } from 'zod'
 import type { ActionDef } from './define.ts'
-import { webhookCallSchema, webhookEventSchema } from './webhooks.ts'
+import { CALL_END_DELAY_SEC, CALL_START_TIMEOUT_MS, callEndPayloadSchema, callStartReplySchema, callStartRequestSchema } from './webhooks.ts'
 
 type JsonSchema = Record<string, unknown>
 
@@ -50,18 +50,29 @@ const jsonSchema = (schema: z.ZodType): JsonSchema => {
   return rest
 }
 
-/** The events with a call in `data`, as OpenAPI 3.1 webhooks (docs/webhooks.md has the rest). */
+/** An assistant's two webhooks, as OpenAPI 3.1 webhooks (docs/webhooks.md has signing and delivery). */
 function webhooks() {
-  const callEvent = (type: string, summary: string) => ({
-    post: {
-      summary,
-      requestBody: { required: true, content: { 'application/json': { schema: jsonSchema(webhookEventSchema(type, z.object({ call: webhookCallSchema }))) } } },
-      responses: { 200: { description: 'Any 2xx answer within 10 seconds counts as delivered.' } },
-    },
-  })
+  const body = (schema: z.ZodType) => ({ required: true, content: { 'application/json': { schema: jsonSchema(schema) } } })
   return {
-    'call.completed': callEvent('call.completed', 'A call ended.'),
-    'call.summary_ready': callEvent('call.summary_ready', 'A call ended with a summary; the same data as call.completed.'),
+    call_start: {
+      post: {
+        summary: 'A call comes in: tell the assistant about the caller.',
+        requestBody: body(callStartRequestSchema),
+        responses: {
+          200: {
+            description: `Caller details within ${CALL_START_TIMEOUT_MS} ms; later, or anything else, and the call goes on without them.`,
+            content: { 'application/json': { schema: jsonSchema(callStartReplySchema) } },
+          },
+        },
+      },
+    },
+    call_end: {
+      post: {
+        summary: `A call ended: the whole call, about ${CALL_END_DELAY_SEC} s after it.`,
+        requestBody: body(callEndPayloadSchema),
+        responses: { 200: { description: 'Any 2xx answer within 10 seconds counts as delivered; anything else is tried again for about an hour.' } },
+      },
+    },
   }
 }
 

@@ -470,6 +470,13 @@
       "when": 1794489460497,
       "tag": "0066_fold_services_faqs_into_about",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1794489950696,
+      "tag": "0067_assistant_webhooks",
+      "breakpoints": true
     }
   ]
 }

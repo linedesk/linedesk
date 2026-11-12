@@ -186,9 +186,9 @@ export async function queueCallEvaluation(tx: Tx, callId: string) {
   await boss?.send(CALL_EVALUATE, { callId }, { db: fromDrizzle(tx, sql), singletonKey: callId, singletonSeconds: 60 })
 }
 
-/** Queues one webhook delivery in the transaction of the event. Without a queue (tests) it stays pending. */
-export async function queueWebhookDelivery(tx: Tx, deliveryId: string) {
-  await boss?.send(WEBHOOK_DELIVER, { deliveryId }, { db: fromDrizzle(tx, sql) })
+/** Queues one webhook delivery in the transaction that caused it, `afterSec` later. Without a queue (tests) it stays pending. */
+export async function queueWebhookDelivery(tx: Tx, deliveryId: string, afterSec = 0) {
+  await boss?.send(WEBHOOK_DELIVER, { deliveryId }, { db: fromDrizzle(tx, sql), ...(afterSec ? { startAfter: afterSec } : {}) })
 }
 
 /** Queues the deletion of a cloned voice at its provider, in the transaction that stopped using it. */

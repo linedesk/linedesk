@@ -10,9 +10,17 @@ export type CallField = { label: string; value: string }
 export type ToolEvent = { tool: string; label: string }
 /** Booking details an appointment type can require on top of the caller's name and the reason. */
 export type BookingField = 'phone' | 'email' | 'address'
-/** What a workspace's webhooks can receive (apps/api/src/webhooks.ts). */
+/** @deprecated the events of workspace-wide webhooks, before they were per assistant (webhook_endpoints.events). */
 export const webhookEvents = ['call.completed', 'call.summary_ready', 'booking.created', 'message.taken'] as const
 export type WebhookEvent = (typeof webhookEvents)[number]
+/**
+ * What an assistant's webhook gets (apps/api/src/webhooks.ts): `call_start` is asked about the caller when a
+ * call comes in, `call_end` gets the whole call once it is over. A hook during the call comes later.
+ */
+export const webhookHooks = ['call_start', 'call_end'] as const
+export type WebhookHook = (typeof webhookHooks)[number]
+/** What the call-start webhook answered: flat names and short values (CALLER_DETAILS_* in @linedesk/actions). */
+export type CallerDetails = Record<string, string | number | boolean>
 export type AssistantVoice = { provider: string; voice_id: string }
 /** What happens when the transfer contact does not take the call. */
 export const transferFallbacks = ['message_urgent', 'message', 'next'] as const

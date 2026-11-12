@@ -1,7 +1,7 @@
 // Encryption at rest for provider keys: AES-256-GCM with the key in SECRETS_KEY (32 bytes, base64).
 // Stored form: `v1:<iv>:<auth tag>:<ciphertext>`, each part base64. The slot ("telnyx.api_key") is
 // authenticated with the value, so a ciphertext moved to another row does not decrypt.
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto'
 
 const HOW_TO = 'Generate one with `openssl rand -base64 32`, set it in the environment of the API and restart.'
 
@@ -23,6 +23,12 @@ export function hasSecretsKey(): boolean {
   } catch {
     return false
   }
+}
+
+/** HMAC-SHA256 (hex) of `text`, keyed with SECRETS_KEY for one `purpose`: for links the API signs and checks itself. */
+export function signWithSecretsKey(purpose: string, text: string): string {
+  const key = createHmac('sha256', secretsKey()).update(`linedesk:${purpose}`).digest()
+  return createHmac('sha256', key).update(text).digest('hex')
 }
 
 export function encryptSecret(plain: string, slot: string): string {

@@ -19,10 +19,11 @@ import {
   time,
   timestamp,
   unique,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import {
-  DEFAULT_TRANSFERS, type ActionItem, type AssistantLanguages, type AssistantVoice, type BookingField, type BusinessProfile, type CallField, type Closure,
-  type ToolEvent, type TransferContact, type WebhookEvent,
+  DEFAULT_TRANSFERS, type ActionItem, type AssistantLanguages, type AssistantVoice, type BookingField, type BusinessProfile, type CallField, type CallerDetails,
+  type Closure, type ToolEvent, type TransferContact, type WebhookEvent, type WebhookHook,
 } from './types.ts'
 
 export const rowVersion = pgSequence('row_version')
@@ -209,6 +210,8 @@ export const calls = pgTable(
      * changes by phone for that caller (bookings.ts, BOOKING_MISSES_PER_DAY).
      */
     booking_misses: integer('booking_misses').notNull().default(0),
+    /** What the assistant's call-start webhook answered about the caller (webhooks.ts, CallerDetails); null: no answer. */
+    caller_details: jsonb('caller_details').$type<CallerDetails>(),
     deleted_at: ts('deleted_at'),
     version: version(),
   },
@@ -806,15 +809,21 @@ export const voice_clones = pgTable(
   t => [index('voice_clones_ws').on(t.workspace_id), unique('voice_clones_voice').on(t.provider, t.voice_id)],
 )
 
-// Where a workspace's events are sent (apps/api/src/webhooks.ts). Synced: holds no secret; the signing
-// secret is in webhook_secrets. `failure_count`: deliveries in a row that failed after every retry.
+// An assistant's webhook (apps/api/src/webhooks.ts): one address per assistant, sent the hooks it has on
+// (at the start of a call, after it). Synced: holds no secret; the signing secret is in webhook_secrets.
+// `failure_count`: requests in a row that failed (after every retry).
 export const webhook_endpoints = pgTable(
   'webhook_endpoints',
   {
     id: id(),
     workspace_id: workspaceId(),
+    /** Null only on endpoints from before webhooks were per assistant (0062): those receive nothing. */
+    assistant_id: text('assistant_id').references(() => assistants.id, { onDelete: 'cascade' }),
+    /** The hooks it gets (WebhookHook); none: it gets nothing, like switched off. */
+    hooks: jsonb('hooks').$type<WebhookHook[]>().notNull().default([]),
     url: text('url').notNull(),
-    events: jsonb('events').$type<WebhookEvent[]>().notNull(),
+    /** @deprecated events are gone (each hook sends one thing); kept for the release before, dropped later. */
+    events: jsonb('events').$type<WebhookEvent[]>().notNull().default([]),
     /** `disabled`: by a member, or by the API after too many failed deliveries (`disabled_reason`). */
     status: text('status', { enum: ['active', 'disabled'] }).notNull().default('active'),
     disabled_reason: text('disabled_reason'),
@@ -824,7 +833,7 @@ export const webhook_endpoints = pgTable(
     created_at: createdAt(),
     version: version(),
   },
-  t => [index('webhook_endpoints_ws').on(t.workspace_id)],
+  t => [index('webhook_endpoints_ws').on(t.workspace_id), uniqueIndex('webhook_endpoints_assistant').on(t.assistant_id)],
 )
 
 // The signing secret of a webhook endpoint, AES-256-GCM with SECRETS_KEY. Never synced.

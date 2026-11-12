@@ -35,10 +35,13 @@ describe('OpenAPI document', () => {
     expect(doc.servers).toEqual([{ url: 'https://app.example.com' }])
   })
 
-  test('call events are documented as webhooks, with the call', () => {
-    const schema = doc.webhooks['call.completed'].post.requestBody.content['application/json'].schema as {
-      properties: { data: { properties: { call: { properties: Record<string, unknown> } } } }
-    }
-    expect(Object.keys(schema.properties.data.properties.call.properties)).toEqual(expect.arrayContaining(['urgency', 'summary', 'action_items']))
+  test("an assistant's two hooks are documented as webhooks: the caller asked about, and the whole call", () => {
+    type Props = { properties: Record<string, unknown> }
+    const body = (hook: 'call_start' | 'call_end') => doc.webhooks[hook].post.requestBody.content['application/json'].schema as Props
+    expect(Object.keys(doc.webhooks).sort()).toEqual(['call_end', 'call_start'])
+    expect(Object.keys(body('call_start').properties)).toEqual(expect.arrayContaining(['call_id', 'from_number', 'caller']))
+    expect(Object.keys(body('call_end').properties)).toEqual(
+      expect.arrayContaining(['call_id', 'summary', 'transcript', 'transcript_text', 'from_number', 'call_url', 'recording_url', 'caller_details']),
+    )
   })
 })

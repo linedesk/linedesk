@@ -1590,14 +1590,14 @@ describe('impersonation', () => {
         ['team.invite', { email: 'admin-backdoor@linedesk.test', role: 'owner' }],
         ['team.removeMember', { memberId: 'any' }],
         ['team.resendInvite', { invitationId: 'any' }],
-        ['webhook.create', { url: 'https://collector.example.com/hook', events: ['call.completed'] }],
+        ['webhook.create', { assistantId: other.assistant.id, hooks: ['call_end'], url: 'https://collector.example.com/hook' }],
         ['webhook.update', { endpointId: other.webhookEndpoint.id, url: 'https://collector.example.com/hook' }],
         ['apiKey.create', { name: 'Backdoor', role: 'admin' }],
         ['carrier.set', {}],
         ['phoneNumber.release', { phoneNumberId: 'any' }],
         ['assistant.update', { id: other.assistant.id, patch: { name: 'Taken over' } }],
         ['contact.delete', { contactId: other.contact.id }],
-        ['webhook.test', { endpointId: other.webhookEndpoint.id }],
+        ['webhook.test', { endpointId: other.webhookEndpoint.id, hook: 'call_end' }],
         // Support, not taking customer data out: no bulk export of the calls.
         ['call.export', { from: '2026-01-01', to: '2026-01-31' }],
       ]

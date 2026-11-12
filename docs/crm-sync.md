@@ -8,7 +8,7 @@ How Linedesk should connect to a business's CRM. HubSpot first; nothing here is 
 2. **The assistant knows the caller**: "existing customer, last job in March, Gate code 1234" when a known number calls.
 3. Not wanted at first: editing CRM records from Linedesk, or CRM records changing Linedesk contacts behind the member's back.
 
-For businesses that use another CRM (or a field-service tool like Jobber or Housecall Pro), webhooks (`docs/webhooks.md`) plus Zapier or Make already cover point 1 today without anything CRM-specific.
+For businesses that use another CRM (or a field-service tool like Jobber or Housecall Pro), the assistant's webhooks (`docs/webhooks.md`) plus Zapier, Make or n8n already cover both points today without anything CRM-specific: the after-call webhook sends the whole call (point 1), the call-start webhook asks the business's system about the caller (point 2).
 
 ## Push or pull
 
@@ -25,13 +25,13 @@ Two-way contact sync (both sides edit the same fields) is left out: it needs con
 
 **Phase 1: push call activity, fill-only contacts.**
 
-- On `call.completed` (the same event the webhooks use, `apps/api/src/webhooks.ts`), a pg-boss job `crm.push` per connected CRM: find the CRM contact by phone (HubSpot: search on `phone` and `mobilephone`), else by email, else create it with name, phone, email, company. Then create a Call engagement associated with the contact: title, summary, next steps, duration, direction, a link to the call in Linedesk (no recording upload, no transcript by default).
+- When a call is finished (where the after-call webhook is queued, `apps/api/src/webhooks.ts`), a pg-boss job `crm.push` per connected CRM: find the CRM contact by phone (HubSpot: search on `phone` and `mobilephone`), else by email, else create it with name, phone, email, company. Then create a Call engagement associated with the contact: title, summary, next steps, duration, direction, a link to the call in Linedesk (no recording upload, no transcript by default).
 - Contact fields in the CRM are only filled when empty, never overwritten (the rule `contact.import` uses). The CRM's record id is stored per Linedesk contact (`crm_links`), so the next call goes to the same record even if numbers change.
 - Test calls and spam push nothing. Retries with backoff; after repeated failures the connection shows "needs attention" (like a calendar that needs reconnecting).
 
 **Phase 2: read-only pull for caller context.**
 
-- At `call.start` the CRM is not asked synchronously (the greeting budget is under 1.5 s). Instead the facts are cached per contact: refreshed in the background after each call and when the connection is made (a nightly refresh for contacts called in the last 90 days), and the assistant gets the cached facts with `call.start`'s booking context. A cache miss means no context, never a delay.
+- At `call.start` the CRM is not asked synchronously (the greeting budget is under 1.5 s; the call-start webhook may delay a greeting that uses caller details by up to 1.3 s, which the owner chooses by writing `{{name}}` into it, docs/webhooks.md). Instead the facts are cached per contact: refreshed in the background after each call and when the connection is made (a nightly refresh for contacts called in the last 90 days), and the assistant gets the cached facts with `call.start`'s booking context. A cache miss means no context, never a delay.
 - Only a short, owner-chosen set of fields (e.g. lifecycle stage, last deal, a notes field), not the whole record.
 
 ## Shape (when built)

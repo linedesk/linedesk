@@ -52,11 +52,12 @@ export function parseHash(hash: string, last: InboxPlace = HOME): Location {
   return { route: 'calls', callId: null, tab: view as InboxTab, member: null, ...filters, known: true }
 }
 
-/** Sections that moved: Business hours is in the assistant's settings, Notifications back in Settings; Call details became Export calls. */
+/** Sections that moved: Business hours and Webhooks are in the assistant's settings, Notifications back in Settings; Call details became Export calls. */
 const MOVED: Record<string, string> = {
   'settings/hours': 'assistant/hours',
   'assistant/notifications': 'settings/notifications',
   'settings/fields': 'settings/export',
+  'settings/webhooks': 'assistant/webhooks',
 }
 
 /** Where an old link now points (`#settings/hours` → `#assistant/hours`), or null when it did not move. */

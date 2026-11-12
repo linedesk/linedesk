@@ -11,7 +11,6 @@ import type { Closure } from '@linedesk/db/types'
 import { and, asc, eq, gt, gte, inArray, lt, lte, ne, sql } from 'drizzle-orm'
 import { WEB_ORIGIN } from './auth.ts'
 import { queueBookingConfirmation, queueCallPush } from './jobs.ts'
-import { queueWebhookEvent, webhookData } from './webhooks.ts'
 import { providerFor } from './calendar-connections.ts'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, Forbidden, lockCall, Reject } from './handler-context.ts'
@@ -366,7 +365,7 @@ async function calendarOfBooking(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, wor
   return { calendar, provider }
 }
 
-/** Bookings the assistant makes on one call: each one writes a real calendar event and a webhook. */
+/** Bookings the assistant makes on one call: each one writes a real calendar event. */
 export const BOOKINGS_PER_CALL = 2
 const LINK_REMOVED = '[link removed]'
 /** Links: with a scheme or "www.", or a bare domain with a path or a common top-level domain. */
@@ -506,7 +505,6 @@ export const bookingHandlers: Record<string, Handler> = {
     }).returning()
     // The confirmation email goes out after the booking committed (a job), so a slow mail server never holds up the call.
     if (confirmation === 'queued') await queueBookingConfirmation(tx, rows[0]!.id)
-    if (call?.source !== 'test') await queueWebhookEvent(tx, workspaceId, 'booking.created', webhookData.bookingCreated(rows[0]!), now)
     // The name the caller gave goes on their contact too, unless it has one.
     const named = input.callerName && call?.contact_id && !contact?.name
       ? await tx.update(contacts).set({ name: input.callerName }).where(eq(contacts.id, call.contact_id)).returning()

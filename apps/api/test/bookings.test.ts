@@ -183,15 +183,12 @@ describe('free slots', () => {
 })
 
 describe('booking', () => {
-  test('queues booking.created for the endpoints that subscribed to it', async () => {
+  test('sends no webhook of its own: the after-call webhook carries the call\'s bookings', async () => {
     const { services } = fakeCalendar()
     await inRollback(async tx => {
-      const subscribed = (id: string, events: ('booking.created' | 'call.completed')[]) => ({ id, workspace_id: ws.id, url: 'https://example.com/hook', events, created_by: ws.owner.userId })
-      await tx.insert(webhook_endpoints).values([subscribed('whe_bk_yes', ['booking.created']), subscribed('whe_bk_no', ['call.completed'])])
-      const { data } = await run(tx, owner, services, 'appointment.book', book(at('09:00')))
-      const queued = await tx.select().from(webhook_deliveries).where(eq(webhook_deliveries.workspace_id, ws.id))
-      expect(queued.map(d => [d.endpoint_id, d.event])).toEqual([['whe_bk_yes', 'booking.created']])
-      expect(queued[0]!.payload).toMatchObject({ type: 'booking.created', data: { booking: { id: data!.bookingId, call_id: ws.call.id, calendar_name: 'Office' } } })
+      await tx.update(webhook_endpoints).set({ hooks: ['call_end'], status: 'active' }).where(eq(webhook_endpoints.id, ws.webhookEndpoint.id))
+      await run(tx, owner, services, 'appointment.book', book(at('09:00')))
+      expect(await tx.select().from(webhook_deliveries).where(eq(webhook_deliveries.workspace_id, ws.id))).toEqual([])
     })
   })
 

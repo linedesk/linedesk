@@ -1,16 +1,18 @@
-// GET /v1/calls/:id/recording: the audio of a call, for members of the call's workspace only.
+// GET /v1/calls/:id/recording: the audio of a call, for members of the call's workspace (and its API
+// keys), or for anyone with a signed link (recordingLink: the after-call webhook's, valid RECORDING_LINK_DAYS).
 // A file store is streamed from here, with Range support so players can seek; an S3 store gets
 // a redirect to a short-lived signed link. The store is the one the call's recording went to
 // (calls.recording_store), resolved on each request: settings changed in the admin area apply at once.
+import { timingSafeEqual } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { Readable } from 'node:stream'
-import { isRecordingKey, recordingFormats, recordingKey } from '@linedesk/actions'
+import { isRecordingKey, RECORDING_LINK_DAYS, recordingFormats, recordingKey } from '@linedesk/actions'
 import { calls } from '@linedesk/db'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull, type SQL } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { RecordingConfigError, recordingStoreNamed } from './recording-store.ts'
-import { SecretsKeyError } from './secrets.ts'
+import { SecretsKeyError, signWithSecretsKey } from './secrets.ts'
 
 const SIGNED_URL_TTL_SEC = 300
 const contentType = (key: string) =>
@@ -57,6 +59,44 @@ function ownKey(call: { id: string; workspace_id: string; recording_key: string 
 
 export async function serveRecording(actor: Actor, callId: string, rangeHeader: string | undefined): Promise<Response> {
   if (!actor.workspaceId || !actor.permissions.includes('call:read')) return error(403, 'missing permission call:read')
+  return serveCallRecording(and(eq(calls.id, callId), eq(calls.workspace_id, actor.workspaceId)), rangeHeader)
+}
+
+// --- Signed links ------------------------------------------------------------------------------
+
+const LINK_PURPOSE = 'recording-link'
+const linkText = (callId: string, expires: number) => `${callId}.${expires}`
+
+/** A link that opens the call's audio without signing in until `expires_at`; `base` is where the API is reached. */
+export function recordingLink(callId: string, base: string, now = new Date()): { url: string; expires_at: string } {
+  const expires = Math.floor(now.getTime() / 1000) + RECORDING_LINK_DAYS * 86_400
+  const url = new URL(`/v1/calls/${encodeURIComponent(callId)}/recording`, base)
+  url.searchParams.set('expires', String(expires))
+  url.searchParams.set('signature', signWithSecretsKey(LINK_PURPOSE, linkText(callId, expires)))
+  return { url: url.toString(), expires_at: new Date(expires * 1000).toISOString() }
+}
+
+/** Whether a request carries a signed-link query; then it needs no sign-in, the signature decides. */
+export const isSignedRecordingRequest = (path: string, query: { signature?: string }) =>
+  /^\/v1\/calls\/[^/]+\/recording$/.test(path) && query.signature !== undefined
+
+/** Serves the audio for a signed link: refused once it has expired or when the signature is not the API's own. */
+export async function serveSignedRecording(callId: string, expires: string | undefined, signature: string | undefined, rangeHeader: string | undefined, now = Date.now()) {
+  const until = Number(expires)
+  if (!Number.isInteger(until) || !signature || !/^[0-9a-f]{64}$/.test(signature)) return error(403, 'this recording link is not valid')
+  if (until * 1000 < now) return error(403, 'this recording link has expired; fetch the recording with an API key')
+  let expected: string
+  try {
+    expected = signWithSecretsKey(LINK_PURPOSE, linkText(callId, until))
+  } catch (e) {
+    if (e instanceof SecretsKeyError) return error(403, 'this recording link is not valid')
+    throw e
+  }
+  if (!timingSafeEqual(Buffer.from(expected), Buffer.from(signature))) return error(403, 'this recording link is not valid')
+  return serveCallRecording(eq(calls.id, callId), rangeHeader)
+}
+
+async function serveCallRecording(which: SQL | undefined, rangeHeader: string | undefined): Promise<Response> {
   const [call] = await db
     .select({
       id: calls.id,
@@ -65,7 +105,7 @@ export async function serveRecording(actor: Actor, callId: string, rangeHeader: 
       recording_store: calls.recording_store,
     })
     .from(calls)
-    .where(and(eq(calls.id, callId), eq(calls.workspace_id, actor.workspaceId)))
+    .where(and(which, isNull(calls.deleted_at)))
   const key = call && ownKey(call)
   if (!key) return error(404, 'no recording for this call')
   try {

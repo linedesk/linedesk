@@ -3,7 +3,8 @@
 import { createServer } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { agentTokenProblem, ASSISTANT_CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage, mainLanguageOf, otherLanguagesOf, spokenLines } from '@linedesk/actions'
+import { agentTokenProblem, ASSISTANT_CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage, fillTemplate, mainLanguageOf, otherLanguagesOf, spokenLines, templateNames } from '@linedesk/actions'
+import type { CallerDetails } from '@linedesk/db/types'
 import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant } from '@livekit/rtc-node'
 import { z } from 'zod'
@@ -12,6 +13,7 @@ import { bookingTools } from './booking-tools.ts'
 import { type CollectContext, collectTools, nudgeIfQuiet } from './collect/collect-tools.ts'
 import { partialPhoneNumberIn } from './collect/collectors.ts'
 import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log.ts'
+import { GREETING_WAIT_MS, lookUpCaller, within } from './caller-lookup.ts'
 import { callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
 import { createConfigLoader, parseProviderSettings, type AgentConfig } from './config.ts'
@@ -201,7 +203,13 @@ const openingOf = (call: CallSession) => call.assistant?.greeting || spokenLines
  * Starts the greeting: the stored audio when there is some for this text and voice, else the voice
  * provider live, while the audio is made and stored for the next call.
  */
-async function greet(session: voice.AgentSession, config: AgentConfig, call: CallSession, cached: Promise<Awaited<ReturnType<typeof greetingCache.get>>>, key: string) {
+async function greet(session: voice.AgentSession, config: AgentConfig, call: CallSession, cached: Promise<Awaited<ReturnType<typeof greetingCache.get>>>, key: string, details: Promise<CallerDetails | null> | null) {
+  // A greeting with caller details ({{name}}) waits briefly for them and is spoken live: it differs per caller.
+  if (details) {
+    const text = fillTemplate(openingOf(call), await within(details, GREETING_WAIT_MS, null))
+    session.say(text)
+    return 'personal'
+  }
   const text = openingOf(call)
   const audio = await cached
   if (audio) {
@@ -220,11 +228,12 @@ async function greet(session: voice.AgentSession, config: AgentConfig, call: Cal
  * waiting for the caller: it links to them once they join (on a phone call they are there already),
  * and the greeting plays as soon as they hear the agent's audio. Transfer is added once it is known.
  */
-async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant>, api: ApiClient, config: AgentConfig, call: CallSession, log: CallLog, onClose: () => void, setup: SetupTimer, stopRecordingForTransfer: () => Promise<void>) {
+async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant>, api: ApiClient, config: AgentConfig, call: CallSession, log: CallLog, onClose: () => void, setup: SetupTimer, stopRecordingForTransfer: () => Promise<void>, callerDetails: Promise<CallerDetails | null>) {
+  const personalGreeting = templateNames(openingOf(call)).length > 0
   const key = greetingKey({
     ...greetingVoice(config, call), text: openingOf(call),
   })
-  const cachedGreeting = greetingCache.get(key) // read while the session starts
+  const cachedGreeting = personalGreeting ? Promise.resolve(null) : greetingCache.get(key) // read while the session starts
   let callerIdentity: string | undefined
   void callerJoined.then(caller => (callerIdentity = caller.identity), () => {})
   const silence = silencePolicyOf(call.assistant)
@@ -277,7 +286,10 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     },
   })
   session.on(voice.AgentSessionEventTypes.Close, cancelLimit)
-  const instructions = buildInstructions(call.assistant, call.businessHours, call.booking, [], call.caller, call.timeZone)
+  // The instructions change when transfer becomes available and when the call-start webhook answers.
+  const known: { transfers: TransferRules; details: CallerDetails | null } = { transfers: [], details: null }
+  const instructionsNow = () => buildInstructions(call.assistant, call.businessHours, call.booking, known.transfers, call.caller, call.timeZone, undefined, known.details)
+  const instructions = instructionsNow()
   const collect: CollectContext = {
     log,
     today: () => call.booking?.todayDate ?? new Date().toISOString().slice(0, 10),
@@ -296,20 +308,31 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   // A member can take the call over from the web app at any point now (call.takeOver).
   const stopWatching = watchTakeOver({ room: ctx.room, session, log, stopRecording: stopRecordingForTransfer, sayLine, endCall: deleteRoom })
   session.on(voice.AgentSessionEventTypes.Close, stopWatching)
-  setup.note(await greet(session, config, call, cachedGreeting, key))
-  void addTransfer(agent, callerJoined, { ctx, api, call, config, log, endCall, flagUrgent, collect, stopRecording: stopRecordingForTransfer })
+  void callerDetails.then(async details => {
+    if (!details) return
+    known.details = details
+    await agent.updateInstructions(instructionsNow())
+  }).catch(e => console.warn(`call ${call.callId}: caller details not given to the assistant: ${e instanceof Error ? e.message : String(e)}`))
+  setup.note(await greet(session, config, call, cachedGreeting, key, personalGreeting ? callerDetails : null))
+  const useTransfers = async (transfers: TransferRules) => {
+    known.transfers = transfers
+    await agent.updateInstructions(instructionsNow())
+  }
+  void addTransfer(agent, callerJoined, useTransfers, { ctx, api, call, config, log, endCall, flagUrgent, collect, stopRecording: stopRecordingForTransfer })
 }
+
+type TransferRules = Parameters<typeof buildInstructions>[3]
 
 /** Gives the assistant transfer_call, and the instructions for it, once it is known that it can transfer now; true when it did. */
 async function addTransfer(
-  agent: voice.Agent, callerJoined: Promise<RemoteParticipant>,
+  agent: voice.Agent, callerJoined: Promise<RemoteParticipant>, useTransfers: (transfers: TransferRules) => Promise<void>,
   { ctx, api, call, config, log, endCall, flagUrgent, collect, stopRecording }: { ctx: JobContext; api: ApiClient; call: CallSession; config: AgentConfig; log: CallLog; endCall: () => void; flagUrgent: () => Promise<void>; collect: CollectContext; stopRecording: () => Promise<void> },
 ): Promise<boolean> {
   try {
     const caller = await callerJoined
     const transfer = await transferFor(ctx, api, call, config, caller.identity, stopRecording)
     if (!transfer) return false
-    await agent.updateInstructions(buildInstructions(call.assistant, call.businessHours, call.booking, transfer.contacts.map(c => c.contact), call.caller, call.timeZone))
+    await useTransfers(transfer.contacts.map(c => c.contact))
     await agent.updateTools(assistantTools(api, call, log, endCall, flagUrgent, transfer, collect))
     return true
   } catch (e) {
@@ -392,6 +415,8 @@ async function entry(ctx: JobContext) {
     await ctx.deleteRoom()
     return ctx.shutdown(call.overCap ? 'workspace over its monthly spending cap' : call.busy ? 'too many calls at once in the workspace' : 'blocked caller')
   }
+  // The call-start webhook is asked now, so its answer is on the way while the voice is set up. Not on a test call.
+  const callerDetails = call.businessNumber === null ? Promise.resolve(null) : lookUpCaller(api, call)
   const readiness = await ready
   if (!readiness.ready) {
     await declineCall(call, readiness, () => ctx.deleteRoom())
@@ -418,7 +443,7 @@ async function entry(ctx: JobContext) {
   const finishOnce = once(finish, `could not finish call ${call.callId}`)
   ctx.addShutdownCallback(finishOnce)
   try {
-    await converse(ctx, callerJoined, api, config, call, log, finishOnce, setup, stopRecordingForTransfer)
+    await converse(ctx, callerJoined, api, config, call, log, finishOnce, setup, stopRecordingForTransfer, callerDetails)
   } catch (e) {
     await finishOnce()
     throw e

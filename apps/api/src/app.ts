@@ -50,7 +50,7 @@ import { newAssistant, newWorkspaceSettings, onboardingFor, phoneSetupFor } from
 import { firstUse } from './sample-calls.ts'
 import { starPromptFor } from './star-prompt.ts'
 import { voiceReady } from './provider-settings.ts'
-import { serveRecording } from './recording-route.ts'
+import { isSignedRecordingRequest, serveRecording, serveSignedRecording } from './recording-route.ts'
 import { servePreview } from './voices.ts'
 import { runAction } from './run-action.ts'
 
@@ -178,6 +178,8 @@ app.get('/v1/calendar/callback/:provider', async c =>
 )
 
 app.use('/v1/*', async (c, next) => {
+  // A signed recording link (the after-call webhook's) needs no sign-in: its signature is checked by the route.
+  if (c.req.method === 'GET' && isSignedRecordingRequest(c.req.path, { signature: c.req.query('signature') })) return next()
   const ip = clientIpOf(c)
   const requested = c.req.header(WORKSPACE_HEADER) ?? null
   const caller = await resolveCaller(c.req.raw.headers, ip)
@@ -327,7 +329,12 @@ app.get('/v1/voices/preview/:voiceId', c =>
   servePreview(c.get('actor'), c.req.param('voiceId'), { providerName: c.req.query('provider') || undefined }),
 )
 
-app.get('/v1/calls/:id/recording', c => serveRecording(c.get('actor'), c.req.param('id'), c.req.header('range')))
+app.get('/v1/calls/:id/recording', c => {
+  const signature = c.req.query('signature')
+  return signature === undefined
+    ? serveRecording(c.get('actor'), c.req.param('id'), c.req.header('range'))
+    : serveSignedRecording(c.req.param('id'), c.req.query('expires'), signature, c.req.header('range'))
+})
 
 // Read sync: proxy to Electric. The server picks the table and adds the workspace filter;
 // the client only controls the stream position. The browser puts its workspace in the URL too
