@@ -1,5 +1,5 @@
 // The assistant's system prompt, built from its configuration.
-import { aiDisclosureInstructions, type BookingContext, isActiveContact, communicationStyleInstructions, behaviourLines, type CallerHistory, callRules, fenceData, fillTemplate, isE164, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf, PRICE_RULE } from '@linedesk/actions'
+import { aiDisclosureInstructions, type BookingContext, isActiveContact, communicationStyleInstructions, behaviourLines, type CallerHistory, callRules, fenceData, fillTemplate, isE164, templateNames, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf, PRICE_RULE } from '@linedesk/actions'
 import type { Assistant, CallerDetails, Contact, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 import { displayNumber } from './transfer.ts'
@@ -339,7 +339,9 @@ export function clockInstructions(timeZone: string | null | undefined, now: numb
  * history (call.start's callerHistory) as what the records say.
  * `documents`: the assistant's reference documents (inline text, or the look_up tool).
  * `opening`: who says the greeting. `said`: the voice says it before the model's first turn (the three stages);
- * `say`: the model says it itself (a realtime model), so it is told to, not that it already did.
+ * `say`: the model says it itself (a realtime model), so it is told to, not that it already did. A greeting with caller
+ * details ({{name}}) is then not written into the instructions: the model gets it, filled in, with the request to say it
+ * (realtimeLine), so instructions built before the details arrived cannot make it greet without them.
  */
 export function buildInstructions(
   assistant: Assistant | null,
@@ -363,7 +365,9 @@ export function buildInstructions(
     greeting
       ? opening === 'said'
         ? `You have already opened the call with: "${greeting}" Do not repeat it.`
-        : `Open the call with exactly: "${greeting}" Say it once, as your first words, and never repeat it.`
+        : assistant?.greeting && templateNames(assistant.greeting).length
+          ? 'Open the call with exactly the greeting line you are given for it. Say it once, as your first words, and never repeat it.'
+          : `Open the call with exactly: "${greeting}" Say it once, as your first words, and never repeat it.`
       : null,
     clock,
     // When to mention being an AI is the owner's setting; answering truthfully when asked is part of every mode.

@@ -337,17 +337,16 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   // A member can take the call over from the web app at any point now (call.takeOver).
   const stopWatching = watchTakeOver({ room: ctx.room, session, log, stopRecording: stopRecordingForTransfer, sayLine, endCall: deleteRoom })
   session.on(voice.AgentSessionEventTypes.Close, stopWatching)
-  // Resolves once the details (if any) are in the instructions.
-  const detailsGiven = callerDetails.then(async details => {
+  void callerDetails.then(async details => {
     if (!details) return
     known.details = details
     await agent.updateInstructions(instructionsNow())
   }).catch(e => console.warn(`call ${call.callId}: caller details not given to the assistant: ${e instanceof Error ? e.message : String(e)}`))
   if (!stages || !key) {
-    // A realtime model has no voice provider: it says the greeting itself, as its instructions have it. A greeting with the
-    // caller's details waits until they are in the instructions (at most GREETING_WAIT_MS), or the model greets without them.
-    if (personalGreeting) await within(detailsGiven, GREETING_WAIT_MS, undefined)
-    speak(personalGreeting ? fillTemplate(openingOf(call), known.details) : openingOf(call))
+    // A realtime model has no voice provider: it says the greeting itself. A greeting with the caller's details waits for
+    // them (at most GREETING_WAIT_MS) and goes to the model filled in; its instructions never hold that greeting (prompt.ts).
+    const details = personalGreeting ? await within(callerDetails, GREETING_WAIT_MS, null) : null
+    speak(personalGreeting ? fillTemplate(openingOf(call), details) : openingOf(call))
     return setup.note('spoken by the realtime model')
   }
   setup.note(await greet(session, stages, call, cachedGreeting, key, personalGreeting ? callerDetails : null))

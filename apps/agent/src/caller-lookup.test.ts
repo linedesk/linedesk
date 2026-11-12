@@ -36,3 +36,11 @@ test('the assistant gets the details as data, and knows the greeting it said', (
   expect(without).not.toContain('<caller_details>')
   expect(without).toContain('You have already opened the call with: "Hi there, thanks for calling Brightwater."')
 })
+
+test('a realtime model is not told a greeting with caller details in its instructions: it gets the filled-in line when it greets', () => {
+  const realtime = buildInstructions(assistant, null, null, [], null, null, undefined, null, 'say')
+  expect(realtime).toContain('Open the call with exactly the greeting line you are given for it.')
+  expect(realtime).not.toContain('Hi there')
+  const plain = buildInstructions({ ...assistant, greeting: 'Thanks for calling Brightwater.' } as Assistant, null, null, [], null, null, undefined, null, 'say')
+  expect(plain).toContain('Open the call with exactly: "Thanks for calling Brightwater."')
+})
