@@ -4,7 +4,8 @@
 //
 // - Dependencies: node_modules is a volume shared by the three services. Before each start, when
 //   pnpm-lock.yaml differs from the one it was installed from, `pnpm install --frozen-lockfile` runs
-//   (one service at a time, under a lock; the others then find it done).
+//   (one service at a time, under a lock; the others then find it done). With LINEDESK_DEV_INSTALL=wait
+//   (the agent, whose checkout is read-only) it never installs, it waits for another service to.
 // - A change in a watched directory (or to pnpm-lock.yaml) restarts the command: SIGTERM, SIGKILL after
 //   STOP_GRACE_MS. The agent's running calls end there; the API's migrations run again when it starts.
 // - The command exiting by itself (a crash) starts it again after 2 s, like the restart policy would.
@@ -18,6 +19,7 @@ const ROOT = '/app'
 const STAMP = `${ROOT}/node_modules/.linedesk-lock-sha`
 const STOP_GRACE_MS = 5000
 const DEBOUNCE_MS = 300
+const WAIT_FOR_INSTALL = process.env.LINEDESK_DEV_INSTALL === 'wait'
 
 const args = process.argv.slice(2)
 const separator = args.indexOf('--')
@@ -38,6 +40,7 @@ function installDependencies() {
   const lock = createHash('sha256')
     .update(readFileSync(`${ROOT}/pnpm-lock.yaml`))
     .digest('hex')
+  if (WAIT_FOR_INSTALL) return waitForInstall(lock)
   // Dev dependencies too (Vite, the type checker), whatever NODE_ENV says. The store is in the same
   // volume, so a later install only fetches what changed. Takes ~0.5 GB of memory on two cores.
   const script = `[ "$(cat ${STAMP} 2>/dev/null)" = ${lock} ] && exit 0
@@ -49,6 +52,25 @@ CI=true pnpm install --frozen-lockfile --prod=false --store-dir ${ROOT}/node_mod
     stdio: 'inherit',
   })
   if (result.status !== 0) throw new Error(`pnpm install failed (${result.status ?? result.signal})`)
+}
+
+// A service with a read-only checkout (the agent) cannot install: pnpm writes the workspace packages'
+// node_modules links into the checkout. It waits until another service has installed this lockfile.
+function waitForInstall(lock) {
+  let logged = false
+  while (readStamp() !== lock) {
+    if (!logged) log('waiting for another service to install the dependencies')
+    logged = true
+    spawnSync('sleep', ['2'])
+  }
+}
+
+function readStamp() {
+  try {
+    return readFileSync(STAMP, 'utf8').trim()
+  } catch {
+    return null
+  }
 }
 
 function start() {

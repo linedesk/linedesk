@@ -53,7 +53,8 @@ services:
     environment:
       LINEDESK_DEV_PUBLIC_URL: ${PUBLIC_URL:-http://localhost}
     volumes:
-      - .:/app
+      - .:/app # read-write: it installs the dependencies too, and Vite keeps its cache in apps/web/node_modules
+      - /dev/null:/app/.env:ro # the checkout's .env stays out of sight, as in image mode
       - dev_node_modules:/app/node_modules
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1/').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
@@ -71,8 +72,12 @@ services:
     command: [apps/agent/src, packages, --, node, src/worker.ts, start]
     environment:
       NODE_ENV: production
+      LINEDESK_DEV_INSTALL: wait # the checkout is read-only: the api or web container installs (docker/dev-run.mjs)
     volumes:
-      - .:/app
+      # Read-only and without .env: the process that handles caller audio and LLM tool calls cannot change
+      # the code the other services run, nor read the keys it is not given (docker-compose.yml).
+      - .:/app:ro
+      - /dev/null:/app/.env:ro
       - dev_node_modules:/app/node_modules
       - greetings:/var/cache/linedesk/greetings
     mem_limit: ${LINEDESK_DEV_AGENT_MEM:-896m}

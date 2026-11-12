@@ -65,8 +65,9 @@ start_ngrok() {
     set_env LINEDESK_TUNNEL_AUTH "$credentials"
   fi
   # Open: OAuth callbacks (the provider's redirect, protected by its state), LiveKit signalling (needs a
-  # LiveKit token; browsers send no basic auth on a WebSocket) and Bearer requests (API keys, checked by the
-  # API). The rest asks for basic auth once; the answer sets a gate cookie (derived from the credentials,
+  # LiveKit token; browsers send no basic auth on a WebSocket) and Bearer requests to /v1/ and /mcp (API keys
+  # and MCP clients, checked by the API; on any other path, /api/auth/* included, a Bearer header opens
+  # nothing). The rest asks for basic auth once; the answer sets a gate cookie (derived from the credentials,
   # 30 days) that lets the browser's later requests through: fetch, the service worker and an installed
   # app do not all repeat basic auth. The API reads only Bearer credentials, so a Basic header the
   # browser keeps sending leaves the session cookie in charge.
@@ -74,7 +75,7 @@ start_ngrok() {
   cat >"$state/policy.yml" <<YML
 on_http_request:
   - expressions:
-      - "!(req.url.path.startsWith('/rtc') || req.url.path.startsWith('/api/auth/callback/') || req.url.path.startsWith('/api/auth/oauth2/callback/') || req.url.path.startsWith('/v1/calendar/callback/') || ('authorization' in req.headers && req.headers['authorization'][0].startsWith('Bearer ')) || ('linedesk_gate' in req.cookies && req.cookies['linedesk_gate'][0].value == '$gate'))"
+      - "!(req.url.path.startsWith('/rtc') || req.url.path.startsWith('/api/auth/callback/') || req.url.path.startsWith('/api/auth/oauth2/callback/') || req.url.path.startsWith('/v1/calendar/callback/') || ((req.url.path.startsWith('/v1/') || req.url.path == '/mcp') && 'authorization' in req.headers && req.headers['authorization'][0].startsWith('Bearer ')) || ('linedesk_gate' in req.cookies && req.cookies['linedesk_gate'][0].value == '$gate'))"
     actions:
       - type: basic-auth
         config:

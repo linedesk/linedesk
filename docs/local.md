@@ -57,7 +57,8 @@ start). An ngrok traffic policy leaves open only what cannot send basic auth and
 
 - `/api/auth/callback/*`, `/api/auth/oauth2/callback/*`, `/v1/calendar/callback/*`: the provider's redirect, checked against its state;
 - `/rtc`: LiveKit signalling (browsers send no basic auth on a WebSocket), needs a LiveKit token;
-- requests with `Authorization: Bearer`: API keys and MCP clients, checked by the API.
+- requests to `/v1/*` and `/mcp` with `Authorization: Bearer`: API keys and MCP clients, checked by the API. On any other
+  path (`/api/auth/*` included) a Bearer header does not get past basic auth.
 
 After the first basic-auth answer, ngrok sets a gate cookie (`linedesk_gate`, 30 days, `Secure; HttpOnly`) that lets
 the browser's later requests through: the app's `fetch` calls, its service worker and an installed app do not
