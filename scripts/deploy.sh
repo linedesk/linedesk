@@ -224,6 +224,40 @@ live_calls() {
     docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tA' 2>/dev/null | tr -d '[:space:]'
 }
 
+# LiveKit's SIP setup (setup-sip, setup-test-caller): "<inbound trunks> <outbound trunks> <dispatch rules>", read through
+# the agent container (it has the SDK and LiveKit's keys); empty when it cannot be read.
+sip_setup() {
+  local agent
+  agent=$(containers_of agent | head -1)
+  [ -n "$agent" ] || return 0
+  docker exec -i "$agent" node -e '
+    const { SipClient } = require("livekit-server-sdk")
+    const sip = new SipClient(process.env.LIVEKIT_URL.replace(/^ws/, "http"), process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET)
+    Promise.all([sip.listSipInboundTrunk(), sip.listSipOutboundTrunk(), sip.listSipDispatchRule()])
+      .then(([inbound, outbound, rules]) => console.log(inbound.length, outbound.length, rules.length))
+      .catch(() => {})' 2>/dev/null | tr -d '\r'
+}
+
+# After LiveKit or Redis was recreated: the SIP setup must still be there (Redis keeps it on its volume). A trunk or rule
+# gone means no call reaches the agent: say what to run, and fail the deploy at the end so it does not go unnoticed.
+check_sip_setup() {
+  local before=$1 after="" tries=0 was now
+  [ -n "$before" ] || return 0
+  while [ -z "$after" ] && [ $tries -lt 12 ]; do # LiveKit takes a few seconds to answer after a restart
+    sleep 5
+    after=$(sip_setup)
+    tries=$((tries + 1))
+  done
+  read -r -a was <<<"$before"
+  read -r -a now <<<"${after:-0 0 0}"
+  if [ "${now[0]}" -lt "${was[0]}" ] || [ "${now[1]}" -lt "${was[1]}" ] || [ "${now[2]}" -lt "${was[2]}" ]; then
+    log "WARNING: LiveKit lost SIP setup (inbound/outbound trunks, dispatch rules: was $before, now ${after:-unreadable}). No call reaches the agent until it is set up again: setup-sip [--outbound] <every number>, and setup-test-caller where call tests run."
+    SIP_SETUP_LOST=1
+  else
+    log "call services: SIP setup kept ($after)"
+  fi
+}
+
 # Recreates the call services that changed, at a moment without live calls. LINEDESK_DEPLOY_DROP_CALLS=1
 # does it at once (e.g. an urgent security update). Gives up after QUIET_WAIT; the next deploy tries again.
 # The call services that are running but would be recreated (new image or settings), one per line.
@@ -261,6 +295,8 @@ update_call_services() {
       sleep 15
     done
   fi
+  local sip_before
+  sip_before=$(sip_setup)
   log "call services: recreating ${changed[*]}"
   docker compose up -d --no-build --no-deps "${changed[@]}"
   # livekit-sip and livekit-egress run in livekit's network: a new livekit container needs them recreated too.
@@ -269,6 +305,7 @@ update_call_services() {
     log "call services: recreating ${again[*]} (they depend on what was just recreated)"
     docker compose up -d --no-build --no-deps "${again[@]}"
   fi
+  check_sip_setup "$sip_before"
 }
 
 others() {
@@ -339,5 +376,9 @@ clean_up
 if [ -n "${CALL_SERVICES_PENDING:-}" ]; then
   log "done, except the call services above: exit 75"
   exit 75
+fi
+if [ -n "${SIP_SETUP_LOST:-}" ]; then
+  log "done, but LiveKit lost SIP setup (see the warning above): exit 76"
+  exit 76
 fi
 log "done"
