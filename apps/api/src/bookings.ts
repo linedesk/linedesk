@@ -373,8 +373,8 @@ const LINK_REMOVED = '[link removed]'
 const LINK = /\b(?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:[a-z]{2,24}\/\S*|(?:com|net|org|info|biz|io|co|app|dev|xyz|top|site|online|link|click|me|us|ru|cn|tk|ly|gl|to|sh)\b)/gi
 
 /**
- * The reason without links: it is what the caller said, and it lands in the business's calendar, where a link
- * would look like the business's own note.
+ * Caller-supplied text without links (reason, name, address): it lands in the business's calendar, where a
+ * link would look like the business's own note.
  */
 export const withoutLinks = (text: string) => text.replace(LINK, LINK_REMOVED)
 
@@ -383,7 +383,7 @@ function eventDescription({ reason, phone, address, callId }: { reason: string; 
   return [
     withoutLinks(reason),
     phone ? `Phone: ${phone}` : null,
-    address ? `Address: ${address}` : null,
+    address ? `Address: ${withoutLinks(address)}` : null,
     callId ? `Call: ${new URL(`/#call/${callId}`, WEB_ORIGIN)}` : null,
     `Booked by the ${brandName()} assistant.`,
   ].filter(Boolean).join('\n')
@@ -488,9 +488,9 @@ export const bookingHandlers: Record<string, Handler> = {
     const email = input.callerEmail ?? contact?.email ?? null
     const missing = missingDetails(type, { name: input.callerName, phone, email, address: input.address })
     if (missing.length) throw new Reject(`A ${type.name} needs the caller's ${missing.join(' and ')}: ask for it, then book.`)
-    const title = input.callerName ? `${type.name} · ${input.callerName}` : type.name
+    const title = input.callerName ? `${type.name} · ${withoutLinks(input.callerName)}` : type.name
     const event = await atProvider(() => provider.createEvent(calendar.external_id, {
-      title, start, end, location: input.address, description: eventDescription({ reason: input.reason, phone, address: input.address, callId: call?.id }),
+      title, start, end, location: input.address && withoutLinks(input.address), description: eventDescription({ reason: input.reason, phone, address: input.address, callId: call?.id }),
     }))
     onRollback?.(async () => {
       await provider.deleteEvent(calendar.external_id, event.id)

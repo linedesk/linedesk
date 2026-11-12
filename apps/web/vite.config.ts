@@ -12,7 +12,11 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       strictPort: true,
-      proxy: { '/api': api, '/v1': api, '/mcp': api },
+      // Marked public, as Caddy does: a request through the dev server (or a tunnel to it) never counts as the
+      // agent's internal one, so the agent token is refused on it (apps/api/src/context.ts).
+      proxy: Object.fromEntries(
+        ['/api', '/v1', '/mcp'].map(path => [path, { target: api, headers: { 'x-linedesk-entry': 'public' } }]),
+      ),
       ...behindProxy(env.LINEDESK_DEV_PUBLIC_URL),
     },
   }

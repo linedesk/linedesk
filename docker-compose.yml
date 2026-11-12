@@ -75,6 +75,9 @@ services:
     # Same uid as LiveKit egress (1001, see recordings-init): the API serves the files egress writes and
     # deletes them once they are past the workspace's retention (apps/api/src/recording-retention.ts).
     user: "1001:1000"
+    # No privilege gain inside the container (it runs as a plain user and needs no capabilities).
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
     volumes: ["recordings:/recordings"]
     networks: [default, backend] # the only service on both: Caddy and the agent reach it, it reaches the database
     depends_on:
@@ -123,6 +126,9 @@ services:
   redis:
     <<: *service
     image: valkey/valkey:8.1.11-alpine
+    # Only LiveKit reaches it (SIP and egress run in LiveKit's network): egress requests on it carry the
+    # recording store's keys, and Redis has no password.
+    networks: [voice]
     mem_limit: ${LINEDESK_REDIS_MEM:-48m}
     cpus: ${LINEDESK_REDIS_CPUS:-0.05}
 
@@ -132,6 +138,7 @@ services:
     # The address clients are told to send media to. 127.0.0.1 for local development;
     # the server's public IP when carriers and browsers connect from outside.
     command: ["--node-ip", "${LIVEKIT_NODE_IP:-127.0.0.1}"]
+    networks: [default, voice]
     environment:
       LIVEKIT_CONFIG: |
         port: 7880
@@ -181,6 +188,9 @@ services:
     <<: *service
     build: { context: ., target: agent }
     image: linedesk-agent
+    # No privilege gain inside the container (it runs as a plain user and needs no capabilities).
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
     # Only what the agent needs, never the whole .env: no SECRETS_KEY, BETTER_AUTH_SECRET, DATABASE_URL,
     # POSTGRES_PASSWORD, SMTP, OAuth or carrier keys reach the process that handles caller audio and LLM
     # tool calls. A variable the agent should read must be listed here (apps/agent/src/compose-env.test.ts).
@@ -223,6 +233,8 @@ services:
       TEST_CALLER_VOICE_ID: ${TEST_CALLER_VOICE_ID:-}
       AGENT_LOAD_THRESHOLD: ${AGENT_LOAD_THRESHOLD:-}
       AGENT_INIT_TIMEOUT_MS: ${AGENT_INIT_TIMEOUT_MS:-}
+      # Which carriers' signaling addresses the SIP trunk accepts (setup-sip.ts, inbound-allowlist.ts).
+      LIVEKIT_SIP_ALLOWED_ADDRESSES: ${LIVEKIT_SIP_ALLOWED_ADDRESSES:-}
       # Through the proxy, which retries while the API is updated (docker/Caddyfile), not to api:3100.
       LINEDESK_API_URL: http://proxy:3100
       LIVEKIT_URL: ws://livekit:7880
@@ -285,6 +297,8 @@ services:
 
 networks:
   backend:
+    internal: true
+  voice:
     internal: true
 
 volumes:
