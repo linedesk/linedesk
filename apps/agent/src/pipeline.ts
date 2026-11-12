@@ -164,7 +164,7 @@ const REALTIME_TRANSCRIPTION = 'gpt-4o-mini-transcribe'
  * (realtime-timing.ts), while the model's first audio took 0.3 s. 500 ms of silence is about what Flux waits in the
  * three-stage pipeline; a caller who pauses longer mid-sentence may be answered early.
  */
-const REALTIME_TURNS = {
+export const REALTIME_TURNS = {
   type: 'server_vad',
   threshold: 0.5,
   prefix_padding_ms: 300,

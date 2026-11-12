@@ -20,7 +20,7 @@ import { earlyOrigin, livekitParticipants } from './early-origin.ts'
 import { type AgentConfig, type CallConfig, createConfigLoader, isRealtime, parseProviderSettings, stagesOf } from './config.ts'
 import { AGENT_NAME, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
-import { createPipeline, createRealtimePipeline, createTts, greetingVoice, realtimeLine, summaryLlm, talkingSpeedOf, warmUpLlm } from './pipeline.ts'
+import { createPipeline, createRealtimePipeline, createTts, greetingVoice, realtimeLine, summaryLlm, talkingSpeedOf, warmUpLlm, REALTIME_TURNS } from './pipeline.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
 import { cascadedReplyTimer, logTurnMetrics } from './turn-metrics.ts'
 import { describeRealtimeReply, realtimeTurnTimer } from './realtime-timing.ts'
@@ -283,7 +283,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     ? realtimeTurnTimer(reply => {
         log.replies.push(reply)
         console.log(`latency ${call.callId}: ${describeRealtimeReply(reply)}`)
-      })
+      }, { silenceMs: REALTIME_TURNS.silence_duration_ms })
     : null
   const stagesTimer = realtime ? null : cascadedReplyTimer(reply => log.replies.push(reply))
   log.timing = realtime
