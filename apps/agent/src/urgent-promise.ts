@@ -3,9 +3,9 @@
 // so the agent also flags the call itself as soon as such a sentence has been spoken. Tool and guard go
 // through one flagger, so the call is flagged (and the event line written) once.
 
-/** A sentence in which the assistant says it flags, marks or reports the call as urgent. */
+/** A sentence in which the assistant says it flags, marks or reports the call as urgent ("I'll make sure the team knows it's urgent"). */
 const URGENT_PROMISE =
-  /\b(?:flag(?:s|ged|ging)?|mark(?:s|ed|ing)?|note[sd]?|noting)\b[^.?!]{0,40}\b(?:urgent|emergency|priority)\b|\blet (?:the team|them|someone|the (?:plumber|technician|owner)) know\b[^.?!]{0,30}\b(?:urgent|emergency)\b/i
+  /\b(?:flag(?:s|ged|ging)?|mark(?:s|ed|ing)?|note[sd]?|noting)\b[^.?!]{0,40}\b(?:urgent|emergency|priority)\b|\b(?:let|make sure|ensure|tell|inform)\b[^.?!]{0,20}\b(?:team|them|someone|plumber|technician|owner|staff)\b[^.?!]{0,30}\b(?:urgent|emergency)\b|\bpass(?:es|ed|ing)? (?:this|it|that|your message)\b[^.?!]{0,20}\bas (?:urgent|an emergency)\b/i
 /** Words that turn the sentence around ("I won't mark this as urgent", "is this urgent?" is not a promise anyway). */
 const NEGATION = /\b(?:not|never|won't|can't|cannot|don't|isn't|wasn't)\b|n't\b/i
 
