@@ -6,6 +6,7 @@ out
 .env
 .env.*
 !.env.example
+backup.env
 .DS_Store
 *.pem
 *.tsbuildinfo

@@ -6,7 +6,7 @@
 #   scripts/backup.sh --list   list the backups in the bucket
 # Restore check (download, decrypt, restore into a throwaway Postgres): scripts/restore-backup.sh.
 #
-# Settings in .env:
+# Settings in backup.env (chmod 600; not .env, which the API container reads; scripts/backup-settings.sh):
 #   BACKUP_S3_ENDPOINT, BACKUP_S3_BUCKET, BACKUP_S3_ACCESS_KEY_ID, BACKUP_S3_SECRET_ACCESS_KEY
 #   BACKUP_S3_PREFIX      folder in the bucket (default: linedesk/)
 #   BACKUP_AGE_RECIPIENT  the age public key (age1...), from `age-keygen`; keep the private key off the server
@@ -15,34 +15,17 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-RCLONE_IMAGE=rclone/rclone:1.68.2
-
-# The value of NAME in .env (without quotes), or the environment's when it is set there.
-setting() {
-  local value=${!1:-}
-  [ -n "$value" ] || value=$(sed -n "s/^$1=//p" .env 2>/dev/null | tail -n 1 | sed "s/^[\"']//; s/[\"']\$//")
-  printf '%s' "$value"
-}
+# shellcheck source=scripts/backup-settings.sh
+. scripts/backup-settings.sh
 
 require() {
   local name
   for name in "$@"; do
-    [ -n "$(setting "$name")" ] || { echo "backup: $name is not set (.env)" >&2; exit 1; }
+    [ -n "$(setting "$name")" ] || { echo "backup: $name is not set ($backup_env_file)" >&2; exit 1; }
   done
 }
 
 log() { echo "[backup $(date -u +%FT%TZ)] $*"; }
-
-# rclone with the bucket as remote `b:`, the keys passed as environment (never as arguments).
-rclone() {
-  docker run --rm -i --network host \
-    -e RCLONE_CONFIG_B_TYPE=s3 -e RCLONE_CONFIG_B_PROVIDER=Other -e RCLONE_CONFIG_B_REGION=auto \
-    -e RCLONE_CONFIG_B_ENDPOINT="$(setting BACKUP_S3_ENDPOINT)" \
-    -e RCLONE_CONFIG_B_ACCESS_KEY_ID="$(setting BACKUP_S3_ACCESS_KEY_ID)" \
-    -e RCLONE_CONFIG_B_SECRET_ACCESS_KEY="$(setting BACKUP_S3_SECRET_ACCESS_KEY)" \
-    -e RCLONE_CONFIG_B_NO_CHECK_BUCKET=true -e RCLONE_LOG_LEVEL=ERROR \
-    -v "$work:/work" "$RCLONE_IMAGE" "$@"
-}
 
 require BACKUP_S3_ENDPOINT BACKUP_S3_BUCKET BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY
 prefix=$(setting BACKUP_S3_PREFIX)

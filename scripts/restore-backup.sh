@@ -14,7 +14,8 @@ identity=${BACKUP_AGE_IDENTITY:-}
 command -v age >/dev/null || { echo "restore: age is not installed (apt install age)" >&2; exit 1; }
 
 # The listing and download go through backup.sh's settings and rclone.
-setting() { sed -n "s/^$1=//p" .env 2>/dev/null | tail -n 1 | sed "s/^[\"']//; s/[\"']\$//"; }
+# shellcheck source=scripts/backup-settings.sh
+. scripts/backup-settings.sh
 prefix=$(setting BACKUP_S3_PREFIX)
 prefix=${prefix:-linedesk/}
 target="b:$(setting BACKUP_S3_BUCKET)/${prefix%/}"
@@ -22,15 +23,6 @@ work=$(mktemp -d /var/tmp/linedesk-restore.XXXXXX)
 chmod 700 "$work"
 container=linedesk-restore-check-$$
 trap 'docker rm -f "$container" >/dev/null 2>&1; rm -rf "$work"' EXIT
-rclone() {
-  docker run --rm -i --network host \
-    -e RCLONE_CONFIG_B_TYPE=s3 -e RCLONE_CONFIG_B_PROVIDER=Other -e RCLONE_CONFIG_B_REGION=auto \
-    -e RCLONE_CONFIG_B_ENDPOINT="$(setting BACKUP_S3_ENDPOINT)" \
-    -e RCLONE_CONFIG_B_ACCESS_KEY_ID="$(setting BACKUP_S3_ACCESS_KEY_ID)" \
-    -e RCLONE_CONFIG_B_SECRET_ACCESS_KEY="$(setting BACKUP_S3_SECRET_ACCESS_KEY)" \
-    -e RCLONE_CONFIG_B_NO_CHECK_BUCKET=true -e RCLONE_LOG_LEVEL=ERROR \
-    -v "$work:/work" rclone/rclone:1.68.2 "$@"
-}
 log() { echo "[restore $(date -u +%FT%TZ)] $*"; }
 
 name=${1:-$(rclone lsf --include 'linedesk-*.dump.age' "$target" | sort | tail -n 1)}

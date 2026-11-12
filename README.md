@@ -219,10 +219,12 @@ neither the server nor anyone holding the bucket's keys can read a backup. Recor
 age-keygen -o backup-key.txt     # on your computer; keep backup-key.txt safe (password manager), off the server
 ```
 
-Then in `.env`: `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`,
-`BACKUP_S3_SECRET_ACCESS_KEY` (a key for that bucket only), `BACKUP_S3_PREFIX` (default `linedesk/`) and
-`BACKUP_AGE_RECIPIENT` (the `age1…` public key that `age-keygen` printed). Run `scripts/backup.sh` once,
-then every night with a systemd timer:
+Then in `backup.env` next to `.env` (not in `.env`: the API container reads all of `.env`, and the bucket key
+can delete every backup), readable by its owner only (`chmod 600 backup.env`): `BACKUP_S3_ENDPOINT`,
+`BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY` (a key for that bucket only),
+`BACKUP_S3_PREFIX` (default `linedesk/`), `BACKUP_AGE_RECIPIENT` (the `age1…` public key that `age-keygen`
+printed) and `BACKUP_KEEP_DAYS` (default 30). A deploy (`scripts/receive-deploy.sh`) keeps the file like
+`.env`. Run `scripts/backup.sh` once, then every night with a systemd timer:
 
 ```ini
 # /etc/systemd/system/linedesk-backup.service
