@@ -20,37 +20,14 @@ reserved domain instead.
 The compose defaults are sized for a small server (Postgres 0.1 CPU and 128 MB, the API 0.1 CPU, all call
 audio on one pinned core). On a laptop that is also running builds and tests, that starves Postgres:
 requests and background jobs wait for a connection ("timeout exceeded when trying to connect") and
-saving hangs. For a local stack, give it room in `.env` (Docker Desktop with 8+ CPUs and 8 GB here):
+saving hangs. For a local stack, add `docker-compose.local.yml` (generous limits, sized for Docker Desktop with
+8+ CPUs and 8 GB) last in `COMPOSE_FILE` in `.env`:
 
 ```
-LINEDESK_POSTGRES_CPUS=2
-LINEDESK_POSTGRES_MEM=1g
-LINEDESK_ELECTRIC_CPUS=1
-LINEDESK_ELECTRIC_MEM=1g
-LINEDESK_API_CPUS=2
-LINEDESK_API_MEM=768m
-LINEDESK_WEB_CPUS=1
-LINEDESK_WEB_MEM=256m
-LINEDESK_REDIS_CPUS=0.5
-LINEDESK_REDIS_MEM=256m
-LINEDESK_PROXY_CPUS=1
-LINEDESK_PROXY_MEM=256m
-LINEDESK_LIVEKIT_MEM=512m
-LINEDESK_SIP_MEM=256m
-LINEDESK_EGRESS_MEM=1g
-LINEDESK_AGENT_MEM=1536m
-LINEDESK_VOICE_CPUSET=1-4
-# live mode (docs/live-mode.md)
-LINEDESK_LIVE_API_CPUS=2
-LINEDESK_LIVE_API_MEM=768m
-LINEDESK_LIVE_WEB_CPUS=2
-LINEDESK_LIVE_WEB_MEM=1g
-LINEDESK_LIVE_AGENT_MEM=1536m
-LINEDESK_LIVE_DEPS_CPUS=4
-LINEDESK_LIVE_DEPS_MEM=1500m
+COMPOSE_FILE=docker-compose.yml${LINEDESK_MODE:+:docker-compose.$LINEDESK_MODE.yml}:docker-compose.local.yml
 ```
 
-`LINEDESK_VOICE_CPUSET` must name cores the Docker VM has (`docker info` shows the count). Then
+The voice services share cores 1-4 there; a Docker VM with fewer cores (`docker info` shows the count) needs its own `cpuset`. Then
 `docker compose up -d` recreates the services with the new limits; the data stays in the volumes.
 
 ## One address, the public one

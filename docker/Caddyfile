@@ -51,7 +51,7 @@
 	#   origin ('self' covers its ws/wss), LiveKit on the host browsers are given (LIVEKIT_PUBLIC_URL, also
 	#   a separate ws:// or wss:// host; empty adds nothing) and OpenRouter's key exchange (admin, "Connect
 	#   with OpenRouter"); media-src: call recordings and voice previews; font-src data: for fonts Vite inlines.
-	#   LINEDESK_CSP_DEV adds sources to script-src and style-src; live mode sets LINEDESK_CSP_DEV="'unsafe-inline'" in .env (with both quotes) for
+	#   LINEDESK_CSP_DEV adds sources to script-src and style-src; docker-compose.live.yml sets 'unsafe-inline' for
 	#   the Vite dev server's inline preamble and injected styles. Empty in production.
 	# - No framing (clickjacking), no MIME sniffing, the origin only as referrer to other sites,
 	#   the microphone for this origin only (test calls), no camera or location.

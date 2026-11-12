@@ -81,6 +81,8 @@ services:
   proxy:
     environment:
       LINEDESK_PROXY_FAIL_DURATION: 1s
+      # The Vite dev server's inline preamble and injected styles; set it to override.
+      LINEDESK_CSP_DEV: ${LINEDESK_CSP_DEV:-'unsafe-inline'}
 
 volumes:
   live_node_modules:
