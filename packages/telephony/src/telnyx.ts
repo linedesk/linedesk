@@ -1,6 +1,6 @@
 // Telnyx adapter, REST API v2 with plain fetch. https://developers.telnyx.com/api
 import { createPublicKey, verify } from 'node:crypto'
-import { TelephonyError, type AvailableNumber, type CallStatus, type CallStatusEvent, type OwnedNumber, type TelephonyProvider } from './provider.ts'
+import { installCarrierName, TelephonyError, type AvailableNumber, type CallStatus, type CallStatusEvent, type OwnedNumber, type TelephonyProvider } from './provider.ts'
 
 const API = 'https://api.telnyx.com/v2'
 const CONNECTION_NAME = 'linedesk-livekit'
@@ -78,6 +78,7 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
   const { apiKey, publicKey, fetch: doFetch = fetch, now = Date.now } = options
   const wait = options.wait ?? ((ms: number) => new Promise(resolve => setTimeout(resolve, ms)))
   const request = telnyxRequest(apiKey, doFetch, options.timeoutMs)
+  const connectionName = installCarrierName(CONNECTION_NAME)
 
   async function findNumberId(e164: string): Promise<string | undefined> {
     const { data } = await request('GET', `/phone_numbers?filter[phone_number]=${encodeURIComponent(e164)}`)
@@ -88,8 +89,8 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
 
   /** Linedesk's FQDN connection to LiveKit SIP, if the account has one. */
   async function findConnection(): Promise<string | undefined> {
-    const { data } = await request('GET', `/fqdn_connections?filter[connection_name][contains]=${CONNECTION_NAME}`)
-    return (data as Json[] | undefined)?.find(c => c.connection_name === CONNECTION_NAME)?.id
+    const { data } = await request('GET', `/fqdn_connections?filter[connection_name][contains]=${connectionName}`)
+    return (data as Json[] | undefined)?.find(c => c.connection_name === connectionName)?.id
   }
 
   /** The FQDN connection that forwards to LiveKit SIP, looked up by name and created if missing. */
@@ -99,7 +100,7 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
     const created = await request('POST', '/fqdn_connections', {
       active: true,
       anchorsite_override: 'Latency',
-      connection_name: CONNECTION_NAME,
+      connection_name: connectionName,
       transport_protocol: 'TCP',
       inbound: { ani_number_format: '+E.164', dnis_number_format: '+e164' },
     })

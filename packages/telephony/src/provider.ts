@@ -45,6 +45,17 @@ export interface WebhookRequest {
   url?: string
 }
 
+/**
+ * The name of an install-wide object at the carrier (Telnyx connection, Twilio trunk). Two installs that share one
+ * carrier account (staging and production) set LINEDESK_CARRIER_SUFFIX on one of them, so neither repoints or
+ * re-keys the other's objects: "linedesk-livekit" becomes "linedesk-livekit-prod". Unset: the name as before.
+ */
+export function installCarrierName(base: string, suffix = process.env.LINEDESK_CARRIER_SUFFIX ?? ''): string {
+  if (!suffix) return base
+  if (!/^[a-z0-9]{1,12}$/.test(suffix)) throw new Error(`LINEDESK_CARRIER_SUFFIX must be 1 to 12 lowercase letters or digits, not "${suffix}"`)
+  return `${base}-${suffix}`
+}
+
 export class TelephonyError extends Error {
   readonly provider: ProviderName
   readonly status?: number

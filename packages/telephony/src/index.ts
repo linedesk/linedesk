@@ -1,5 +1,5 @@
 import { devProvider } from './dev.ts'
-import type { TelephonyProvider } from './provider.ts'
+import { installCarrierName, type TelephonyProvider } from './provider.ts'
 import { createTelnyxProvider } from './telnyx.ts'
 import { createTelnyxOutbound, type OutboundSip, TRANSFER_OUTBOUND_NAME } from './telnyx-outbound.ts'
 import { createTwilioProvider } from './twilio.ts'
@@ -42,5 +42,5 @@ export async function transferOutboundSipFromEnv(env: Env, doFetch?: typeof fetc
   const name = env.TELEPHONY_PROVIDER || 'dev'
   if (name !== 'telnyx') throw new Error(`warm transfer dials out through Telnyx only for now (TELEPHONY_PROVIDER is ${name})`)
   if (!env.TELNYX_API_KEY) throw new Error('TELNYX_API_KEY is not set')
-  return createTelnyxOutbound({ apiKey: env.TELNYX_API_KEY, name: TRANSFER_OUTBOUND_NAME, fetch: doFetch }).ensureOutboundSip()
+  return createTelnyxOutbound({ apiKey: env.TELNYX_API_KEY, name: installCarrierName(TRANSFER_OUTBOUND_NAME), fetch: doFetch }).ensureOutboundSip()
 }

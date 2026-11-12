@@ -2,7 +2,7 @@
 import { generateKeyPairSync, sign } from 'node:crypto'
 import { describe, expect, test } from 'vitest'
 import { describeProviderContract } from './contract.ts'
-import { createTelnyxProvider, devProvider, telephonyProviderFromEnv, TelephonyError } from './index.ts'
+import { createTelnyxProvider, devProvider, installCarrierName, telephonyProviderFromEnv, TelephonyError } from './index.ts'
 
 type Call = { method: string; path: string; body?: any; auth: string }
 type Route = (call: Call) => { status?: number; json: unknown } | undefined
@@ -160,6 +160,19 @@ describe('telnyx adapter', () => {
     const second = mockTelnyx(telnyxAccount(account))
     await second.provider.routeToSip(routed, SIP)
     expect(steps(second.calls)).toEqual(['GET /fqdn_connections', 'GET /fqdns', 'PATCH /phone_numbers/num_1'])
+  })
+
+  test('LINEDESK_CARRIER_SUFFIX names the connection per install, so a second install in the account never repoints the first', async () => {
+    process.env.LINEDESK_CARRIER_SUFFIX = 'prod'
+    try {
+      const { provider, calls } = mockTelnyx(telnyxAccount({ owned: true }))
+      await provider.routeToSip(routed, SIP)
+      expect(calls[1]!.body).toMatchObject({ connection_name: 'linedesk-livekit-prod' })
+    } finally {
+      delete process.env.LINEDESK_CARRIER_SUFFIX
+    }
+    expect(installCarrierName('linedesk-outbound', '')).toBe('linedesk-outbound')
+    expect(() => installCarrierName('linedesk-livekit', 'Prod!')).toThrow('LINEDESK_CARRIER_SUFFIX')
   })
 
   test('recognises its FQDN when Telnyx sends the connection id as a number too large for JSON', async () => {

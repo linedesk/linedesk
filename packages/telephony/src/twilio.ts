@@ -1,7 +1,7 @@
 // Twilio adapter: phone numbers through the REST API, inbound calls through Elastic SIP Trunking.
 // Plain fetch. https://www.twilio.com/docs/sip-trunking/api
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import { TelephonyError, type AvailableNumber, type CallStatus, type CallStatusEvent, type OwnedNumber, type TelephonyProvider } from './provider.ts'
+import { installCarrierName, TelephonyError, type AvailableNumber, type CallStatus, type CallStatusEvent, type OwnedNumber, type TelephonyProvider } from './provider.ts'
 
 const TRUNKING = 'https://trunking.twilio.com/v1'
 const TRUNK_NAME = 'linedesk-livekit'
@@ -73,12 +73,12 @@ export function createTwilioProvider(options: TwilioOptions): TelephonyProvider 
   /** Linedesk's Elastic SIP trunk to LiveKit SIP, if the account has one. */
   async function findTrunk(): Promise<string | undefined> {
     const { trunks } = await request('list trunks', 'GET', `${TRUNKING}/Trunks?PageSize=1000`)
-    return (trunks as Json[] | undefined)?.find(t => t.friendly_name === TRUNK_NAME)?.sid
+    return (trunks as Json[] | undefined)?.find(t => t.friendly_name === installCarrierName(TRUNK_NAME))?.sid
   }
 
   /** The Elastic SIP trunk that forwards to LiveKit SIP, looked up by name and created if missing. */
   async function ensureTrunk(): Promise<string> {
-    return (await findTrunk()) ?? (await request('create trunk', 'POST', `${TRUNKING}/Trunks`, { FriendlyName: TRUNK_NAME })).sid
+    return (await findTrunk()) ?? (await request('create trunk', 'POST', `${TRUNKING}/Trunks`, { FriendlyName: installCarrierName(TRUNK_NAME) })).sid
   }
 
   /** Makes the trunk forward to exactly this endpoint: adds it if missing, removes any other. */
