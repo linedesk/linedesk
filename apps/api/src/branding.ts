@@ -8,6 +8,7 @@
 import { type Branding, type BrandingInput, DEFAULT_PRODUCT_NAME, LOGO_MAX_BYTES, LOGO_SIZE } from '@linedesk/actions'
 import { type Db, instance_settings, type Tx } from '@linedesk/db'
 import { eq, inArray } from 'drizzle-orm'
+import { refreshStarCount, starCount } from './github-stars.ts'
 import { type Handler, Reject } from './handler-context.ts'
 
 const SETTINGS_KEY = 'branding'
@@ -21,7 +22,7 @@ let current: Stored = DEFAULT_STORED
 
 /** The product name people see: "Linedesk" unless an instance admin renamed it. */
 export const brandName = () => current.name
-/** Whether members may be asked for a GitHub star (star-prompt.ts also needs STAR_PROMPT_REPO). */
+/** Whether members may be asked for a GitHub star (star-prompt.ts). On unless an instance admin turned it off. */
 export const starPromptAllowed = () => current.starPrompt
 
 export const logoPath = (version: string) => `/v1/branding/logo.png?v=${encodeURIComponent(version)}`
@@ -31,6 +32,7 @@ const toBranding = (s: Stored): Branding => ({
   color: s.color,
   logoUrl: s.logoVersion ? logoPath(s.logoVersion) : null,
   starPrompt: s.starPrompt,
+  starCount: s.starPrompt ? starCount() : null,
 })
 
 /** The branding in effect, as GET /v1/branding returns it. */
@@ -63,9 +65,12 @@ export async function refreshBranding(db: Db): Promise<Branding> {
   return currentBranding()
 }
 
-/** At start and every half minute; errors keep the last settings. */
+/** At start and every half minute; errors keep the last settings. The star count is read again when due. */
 export function watchBranding(db: Db) {
-  const load = () => refreshBranding(db).catch(error => console.error('could not load the branding:', error))
+  const load = () =>
+    refreshBranding(db)
+      .then(() => (current.starPrompt ? refreshStarCount() : undefined))
+      .catch(error => console.error('could not load the branding:', error))
   void load()
   setInterval(load, REFRESH_MS).unref()
 }

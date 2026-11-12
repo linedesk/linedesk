@@ -72,3 +72,20 @@
     display: none;
   }
 }
+/* The last step's quiet word about GitHub (Onboarding.tsx, StarLine). */
+.ob-star {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.ob-star a {
+  color: var(--ink);
+}
+.ob-star-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  vertical-align: -1px;
+  font-variant-numeric: tabular-nums;
+}

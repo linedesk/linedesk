@@ -1,20 +1,21 @@
 // Onboarding, from the first sign-in to the first answered call. Progress lives on the workspace
 // (`onboarding.setStep`), so a reload resumes at the same step.
-import { offersSampleCalls, offersTour } from '@linedesk/actions'
+import { formatStarCount, offersSampleCalls, offersTour, STAR_REPO_URL } from '@linedesk/actions'
 import { useEffect, useState } from 'react'
 import type { Me, OnboardingState } from '../auth.ts'
+import { useBrand } from '../brand.ts'
 import { ConfirmEmail } from '../ConfirmEmail.tsx'
-import { usePresence } from '../shell/presence.ts'
-import { queueTour } from '../shell/tour.ts'
 import { preloadWorkspaceSettings, useWriteAction } from '../settings/settings-api.ts'
+import { usePresence } from '../shell/presence.ts'
 import { rejectionText } from '../shell/rejections.ts'
+import { queueTour } from '../shell/tour.ts'
 import { callHash } from '../shell/useRoute.ts'
 import { useAssistantName, useRejection, useRows, useRun } from '../store.tsx'
-import { Button } from '../ui/kit.tsx'
+import { Button, Icon } from '../ui/kit.tsx'
 import { BusinessStep } from './BusinessStep.tsx'
 import { CalendarStep } from './CalendarStep.tsx'
 import { Foot, Frame, useStepKeys } from './Frame.tsx'
-import { formatNumber, nextStep, phoneSetupErrorText, previousStep, type OnboardingStep } from './flow.ts'
+import { formatNumber, nextStep, type OnboardingStep, phoneSetupErrorText, previousStep } from './flow.ts'
 import { HoursStep } from './HoursStep.tsx'
 import { PhoneStep } from './PhoneStep.tsx'
 import { TestCallStep } from './TestCallStep.tsx'
@@ -81,8 +82,10 @@ export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingSta
       onSkip={step === 'done' ? undefined : skip}
     >
       {me.emailUnconfirmed && !confirmed && (
-        <ConfirmEmail onDone={() => setConfirmed(true)}
-          why="We email you a code to confirm your address. Setting up a phone number, a carrier, API keys, webhooks and invitations waits for it." />
+        <ConfirmEmail
+          onDone={() => setConfirmed(true)}
+          why="We email you a code to confirm your address. Setting up a phone number, a carrier, API keys, webhooks and invitations waits for it."
+        />
       )}
       {step === 'business' && <BusinessStep businessName={me.workspace!.name} onNext={forward} />}
       {step === 'phone' && (
@@ -115,6 +118,26 @@ export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingSta
 }
 
 /** "You're live" only when calls are really answered; otherwise what is left, with the way to it. */
+/** The end of onboarding: a quiet word that Linedesk is open source, unless an admin turned the star prompt off. */
+function StarLine() {
+  const { starPrompt, starCount } = useBrand()
+  if (!starPrompt) return null
+  return (
+    <p className="ob-star">
+      Linedesk is open source.{' '}
+      <a href={STAR_REPO_URL} target="_blank" rel="noreferrer">
+        Star it on GitHub
+      </a>
+      {starCount !== null && (
+        <span className="ob-star-count">
+          <Icon name="star" size={12} />
+          {formatStarCount(starCount)}
+        </span>
+      )}
+    </p>
+  )
+}
+
 function Done({ onBack, onDone, offerSamples }: { onBack: () => void; onDone: () => void; offerSamples: boolean }) {
   const name = useAssistantName()
   const number = useRows('phone_numbers')[0]
@@ -178,6 +201,7 @@ function Done({ onBack, onDone, offerSamples }: { onBack: () => void; onDone: ()
             {sampleError}
           </p>
         )}
+        <StarLine />
       </div>
       <Foot onBack={onBack} onContinue={onDone} canContinue label="Open my calls" />
     </>

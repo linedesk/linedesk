@@ -1,23 +1,22 @@
-// The GitHub star prompt: off unless STAR_PROMPT_REPO names a repository; due only after real use,
-// never for someone signed in as the member; any answer is final. One click: a GitHub token with
+// The GitHub star prompt: on for every install, due once the account is a few minutes old and the
+// workspace is past onboarding, never for someone signed in as the member; any answer is final. One click: a GitHub token with
 // public_repo is used once to star, then the grant is revoked and the token and scope are cleared.
-import { account, calls, star_prompts, user, workspace_settings } from '@linedesk/db'
+import { STAR_REPO } from '@linedesk/actions'
+import { account, star_prompts, user, workspace_settings } from '@linedesk/db'
 import { decryptOAuthToken, setTokenUtil } from 'better-auth/oauth2'
 import { eq } from 'drizzle-orm'
-import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { auth } from '../src/auth.ts'
 import { db } from '../src/db.ts'
 import {
   grantsStarring,
   revokeGitHubGrant,
-  STAR_MIN_ACCOUNT_DAYS,
-  STAR_MIN_CALLS,
+  STAR_MIN_ACCOUNT_MINUTES,
   starOnGitHub,
   starOnGrant,
   starPromptFor,
-  starRepo,
 } from '../src/star-prompt.ts'
-import { act, addMember, createWorkspace, randomNumber, request, type User, type Workspace } from './helpers.ts'
+import { act, addMember, createWorkspace, request, type User } from './helpers.ts'
 
 const REPO = 'linedesk/linedesk'
 const uid = (p: string) => `${p}_${crypto.randomUUID().replaceAll('-', '').slice(0, 16)}`
@@ -26,34 +25,13 @@ const me = async (who: User) => (await request(who, 'GET', '/v1/me')).body.starP
 /** Better Auth's context, typed as its token helpers expect it. */
 const authContext = async () => (await auth.$context) as unknown as Parameters<typeof setTokenUtil>[1]
 
-const before = process.env.STAR_PROMPT_REPO
-beforeAll(() => {
-  process.env.STAR_PROMPT_REPO = REPO
-})
-afterAll(() => {
-  if (before === undefined) delete process.env.STAR_PROMPT_REPO
-  else process.env.STAR_PROMPT_REPO = before
-})
 afterEach(() => vi.unstubAllGlobals())
 
-async function age(who: User, days: number) {
+async function age(who: User, minutes: number) {
   await db
     .update(user)
-    .set({ createdAt: new Date(Date.now() - days * 86_400_000) })
+    .set({ createdAt: new Date(Date.now() - minutes * 60_000) })
     .where(eq(user.id, who.userId))
-}
-
-async function handledCalls(ws: Workspace, n: number, values: Partial<typeof calls.$inferInsert> = {}) {
-  await db.insert(calls).values(
-    Array.from({ length: n }, () => ({
-      id: uid('call'),
-      workspace_id: ws.id,
-      from_number: randomNumber(),
-      to_number: ws.number,
-      status: 'completed' as const,
-      ...values,
-    })),
-  )
 }
 
 /** A new workspace starts in onboarding: this one has finished it. */
@@ -63,11 +41,10 @@ async function onboarded(name: string) {
   return ws
 }
 
-/** A workspace in use: its owner is old enough and it handled enough calls. */
+/** A workspace in use: past onboarding, its owner's account old enough. */
 async function inUse(name: string) {
   const ws = await onboarded(name)
-  await age(ws.owner, STAR_MIN_ACCOUNT_DAYS + 1)
-  await handledCalls(ws, STAR_MIN_CALLS)
+  await age(ws.owner, STAR_MIN_ACCOUNT_MINUTES + 1)
   return ws
 }
 
@@ -103,26 +80,16 @@ function fakeGitHub(star = 204) {
 }
 
 describe('when the prompt is due', () => {
-  test('off unless STAR_PROMPT_REPO names a repository; a malformed value is refused', () => {
-    expect(starRepo({})).toBeNull()
-    expect(starRepo({ STAR_PROMPT_REPO: 'off' })).toBeNull()
-    expect(starRepo({ STAR_PROMPT_REPO: '' })).toBeNull()
-    expect(starRepo({ STAR_PROMPT_REPO: 'acme/receptionist' })).toBe('acme/receptionist')
-    expect(() => starRepo({ STAR_PROMPT_REPO: 'https://github.com/acme/x' })).toThrow()
-    expect(() => starRepo({ STAR_PROMPT_REPO: 'acme/../x/y' })).toThrow()
+  test("on for every install, asking for Linedesk's own repository", () => {
+    expect(STAR_REPO).toBe(REPO)
   })
 
-  test('not before the account is a few days old and the workspace handled real calls', async () => {
+  test('not before the account is a few minutes old; no calls needed', async () => {
     const ws = await onboarded('Star Early Plumbing')
     expect(await me(ws.owner)).toBeNull()
-    await age(ws.owner, STAR_MIN_ACCOUNT_DAYS + 1)
-    // Test and sample calls, unfinished and deleted calls do not count.
-    await handledCalls(ws, STAR_MIN_CALLS, { source: 'test' })
-    await handledCalls(ws, STAR_MIN_CALLS, { source: 'sample' })
-    await handledCalls(ws, STAR_MIN_CALLS, { status: 'live' })
-    await handledCalls(ws, STAR_MIN_CALLS, { deleted_at: new Date().toISOString() })
+    await age(ws.owner, STAR_MIN_ACCOUNT_MINUTES - 1)
     expect(await me(ws.owner)).toBeNull()
-    await handledCalls(ws, STAR_MIN_CALLS)
+    await age(ws.owner, STAR_MIN_ACCOUNT_MINUTES + 1)
     expect(await me(ws.owner)).toEqual({ repo: REPO, github: false })
   })
 
@@ -165,7 +132,7 @@ describe('answering', () => {
   test('No thanks is final, for this member only', async () => {
     const ws = await inUse('Star Dismiss Plumbing')
     const member = await addMember(ws.id, 'member')
-    await age(member, STAR_MIN_ACCOUNT_DAYS + 1)
+    await age(member, STAR_MIN_ACCOUNT_MINUTES + 1)
     expect((await act(ws.owner, 'starPrompt.answer', { answer: 'dismissed' })).status).toBe(200)
     expect((await act(ws.owner, 'starPrompt.answer', { answer: 'opened' })).status).toBe(200)
     expect(await answerOf(ws.owner)).toBe('dismissed')

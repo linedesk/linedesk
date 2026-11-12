@@ -2651,6 +2651,7 @@ describe('branding', () => {
       color: null,
       logoUrl: null,
       starPrompt: true,
+      starCount: null,
     })
     expect((await request(anonymous, 'GET', '/v1/branding/manifest.webmanifest')).body).toMatchObject({ name: 'Linedesk' })
     expect((await request(anonymous, 'GET', '/v1/branding/logo.png')).status).toBe(404)

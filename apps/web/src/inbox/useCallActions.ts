@@ -2,22 +2,23 @@
 // out when it leaves the current view, moves on to the next call and can be undone.
 import type { Call } from '@linedesk/db/types'
 import { useRef, useState } from 'react'
-import { tabOf, type InboxTab } from '../inbox-model.ts'
+import { type InboxTab, tabOf } from '../inbox-model.ts'
+import { noteCallDone } from '../shell/starPrompt.ts'
 import type { Toaster } from '../shell/useToast.ts'
 import { useRun, useSnapshot } from '../store.tsx'
 import {
+  assignChange,
+  blockChange,
   type Change,
   clearReminderChange,
-  assignChange,
   deleteChange,
   doneChange,
   isNoOp,
   notDoneChange,
   preview,
   remindChange,
-  blockChange,
-  spamChange,
   type Step,
+  spamChange,
   unreadChange,
 } from './changes.ts'
 import type { ReminderOption } from './remind.ts'
@@ -175,8 +176,11 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     entering,
     undo,
     runUndoable,
-    markDone: (call: Call) =>
-      call.inbox_state === 'done' ? toaster.show('Already done.') : act(call, doneChange(call)),
+    markDone: (call: Call) => {
+      if (call.inbox_state === 'done') return toaster.show('Already done.')
+      act(call, doneChange(call))
+      noteCallDone() // the moment the GitHub star prompt may follow (shell/starPrompt.ts)
+    },
     markNotDone: (call: Call) =>
       call.inbox_state === 'done' ? act(call, notDoneChange(call)) : toaster.show('This call is not done.'),
     toggleUnread: (call: Call) => act(call, unreadChange(call)),
@@ -185,7 +189,8 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
       tabOf(call) === 'reminders' ? act(call, clearReminderChange(call)) : toaster.show('No reminder on this call.'),
     remove: (call: Call) => act(call, deleteChange(call)),
     /** Assign to a member (null: nobody); `who` names them in the toast. */
-    assign: (call: Call, userId: string | null, who: string) => act(call, assignChange(call, userId, userId === me ? 'you' : who)),
+    assign: (call: Call, userId: string | null, who: string) =>
+      act(call, assignChange(call, userId, userId === me ? 'you' : who)),
     toggleSpam: (call: Call) => act(call, spamChange(call)),
     toggleBlock: (call: Call) => {
       const contact = call.contact_id ? contacts.get(call.contact_id) : undefined
@@ -193,12 +198,14 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
       act(call, blockChange(call, contact))
     },
     many: {
-      markDone: (list: Call[]) =>
+      markDone: (list: Call[]) => {
         actMany(
           list,
           c => (c.inbox_state === 'done' ? null : doneChange(c)),
           n => `${calls(n)} marked done.`,
-        ),
+        )
+        if (list.some(c => c.inbox_state !== 'done')) noteCallDone()
+      },
       markNotDone: (list: Call[]) =>
         actMany(
           list,

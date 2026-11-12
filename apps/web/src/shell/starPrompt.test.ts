@@ -1,5 +1,17 @@
+import { formatStarCount } from '@linedesk/actions'
 import { expect, test } from 'vitest'
-import { markGranting, markShown, repoUrl, shownThisSession, starMove, takeGrantReturn } from './starPrompt.ts'
+import {
+  callDoneOnThisPage,
+  markGranting,
+  markShown,
+  noteCallDone,
+  onCallDone,
+  repoUrl,
+  shownThisSession,
+  starMove,
+  starPitch,
+  takeGrantReturn,
+} from './starPrompt.ts'
 
 function memoryStorage(): Storage {
   const items = new Map<string, string>()
@@ -38,4 +50,31 @@ test('back from GitHub: starred when the prompt is gone, refused while it is sti
   expect(takeGrantReturn(null, storage)).toBeNull()
   markGranting(storage)
   expect(takeGrantReturn({ repo, github: true }, storage)).toBe('refused')
+})
+
+test('the count reads short, and the card names it only once it convinces', () => {
+  expect(formatStarCount(987)).toBe('987')
+  expect(formatStarCount(1000)).toBe('1k')
+  expect(formatStarCount(1234)).toBe('1.2k')
+  expect(formatStarCount(56_789)).toBe('57k')
+  expect(starPitch('Linedesk', 1234, formatStarCount)).toBe(
+    'Linedesk is open source. Join 1.2k others who starred it on GitHub.',
+  )
+  expect(starPitch('Linedesk', 12, formatStarCount)).toBe(
+    'Linedesk is open source. A star on GitHub helps others find it.',
+  )
+  expect(starPitch('Linedesk', null, formatStarCount)).toBe(
+    'Linedesk is open source. A star on GitHub helps others find it.',
+  )
+})
+
+test('waits for a call marked done, told once', () => {
+  let told = 0
+  const stop = onCallDone(() => told++)
+  expect(callDoneOnThisPage()).toBe(false)
+  noteCallDone()
+  noteCallDone()
+  expect(callDoneOnThisPage()).toBe(true)
+  expect(told).toBe(1)
+  stop()
 })

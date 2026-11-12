@@ -1,4 +1,4 @@
-import type { MyInvitation } from '@linedesk/actions'
+import { formatStarCount, type MyInvitation, STAR_REPO, STAR_REPO_URL } from '@linedesk/actions'
 import { useRef, type ReactNode } from 'react'
 import { auth } from '../auth.ts'
 import { assigneeTabs, type InboxTab } from '../inbox-model.ts'
@@ -84,10 +84,24 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
       <NavItem label={pages.insights.title} icon="chart" keys={['G', 'N']} current={route === 'insights'} onClick={go(() => on.onPage('insights'))} />
       <NavItem label={pages.settings.title} icon="gear" keys={['G', 'S']} current={route === 'settings'} onClick={go(() => on.onPage('settings'))} />
       <div className="nav-foot">
+        <StarLink />
         <NavItem label="Keyboard shortcuts" icon="keyboard" keys={['?']} onClick={go(on.onHelp)} />
         <ProfileMenu navOpen={open} name={userName} workspaceName={workspaceName} workspaceId={workspaceId} toast={toast} invitations={invitations} onInvitationsChanged={onInvitationsChanged} onNewWorkspace={onNewWorkspace && go(onNewWorkspace)} onAdmin={isInstanceAdmin ? go(() => on.onPage('admin')) : undefined} onAccount={go(() => on.onPage('account'))} onTeam={go(() => on.onPage('team'))} onSignOut={go(on.onSignOut)} />
       </div>
     </nav>
+  )
+}
+
+/** Star on GitHub with the count the server last read (none while unknown); gone when an admin turned the star prompt off. */
+function StarLink() {
+  const { starPrompt, starCount } = useBrand()
+  if (!starPrompt) return null
+  const title = starCount === null ? `Open ${STAR_REPO} on GitHub` : `${starCount.toLocaleString()} ${starCount === 1 ? 'star' : 'stars'} on GitHub`
+  return (
+    <a className="nav-item" href={STAR_REPO_URL} target="_blank" rel="noreferrer" title={title}>
+      <Icon name="star" size={15} /><span className="lbl">Star on GitHub</span>
+      {starCount !== null && <span className="nav-stars">{formatStarCount(starCount)}</span>}
+    </a>
   )
 }
 

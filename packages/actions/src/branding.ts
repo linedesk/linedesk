@@ -27,15 +27,31 @@ export const brandingInput = z.object({
     .max(LOGO_PREFIX.length + Math.ceil(LOGO_MAX_BYTES / 3) * 4, 'The logo is too large.')
     .nullable()
     .optional(),
-  /** The "Star on GitHub" prompt for members (also needs STAR_PROMPT_REPO on the server). */
+  /** The "Star on GitHub" prompt for members (on by default; apps/api/src/star-prompt.ts). */
   starPrompt: z.boolean(),
 })
 export type BrandingInput = z.infer<typeof brandingInput>
 
-/** What GET /v1/branding returns and `branding.set` answers with. `logoUrl` changes with every new logo. */
-export type Branding = { name: string; color: string | null; logoUrl: string | null; starPrompt: boolean }
+/**
+ * What GET /v1/branding returns and `branding.set` answers with. `logoUrl` changes with every new logo.
+ * `starCount`: the repository's GitHub stars as the server last read them (apps/api/src/github-stars.ts);
+ * null while unknown or with the star prompt off.
+ */
+export type Branding = {
+  name: string
+  color: string | null
+  logoUrl: string | null
+  starPrompt: boolean
+  starCount: number | null
+}
 
-export const DEFAULT_BRANDING: Branding = { name: DEFAULT_PRODUCT_NAME, color: null, logoUrl: null, starPrompt: true }
+export const DEFAULT_BRANDING: Branding = {
+  name: DEFAULT_PRODUCT_NAME,
+  color: null,
+  logoUrl: null,
+  starPrompt: true,
+  starCount: null,
+}
 
 /** Near-white text on a dark color, near-black on a light one (WCAG relative luminance), for a #rrggbb color. */
 export function readableOn(hex: string): string {
