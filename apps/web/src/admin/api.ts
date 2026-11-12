@@ -2,7 +2,15 @@
 // local store, and its writes skip the outbox on purpose: an outbox entry is kept in IndexedDB,
 // and a provider key must never be stored in the browser.
 import { StepUpRequired, stepUpOf, withPasskeyStepUp } from './PasskeyStepUp.tsx'
-import type { BrandingInput, MembershipRole, ProviderCategory, ProviderName, ProviderTestData } from '@linedesk/actions'
+import {
+  type BrandingInput,
+  type MembershipRole,
+  type ProviderCategory,
+  type ProviderName,
+  type ProviderTestData,
+  providerCategories,
+  providers as providerRegistry,
+} from '@linedesk/actions'
 import type { AdminSecondFactor } from '../auth.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 
@@ -38,8 +46,22 @@ export type AdminUser = {
   passkeys?: { name: string | null; device_type: string; created_at: string | null }[]
 }
 
-export type WorkspaceMember = { member_id: string; user_id: string; name: string; email: string; role: string; joined_at: string }
-export type WorkspaceInvitation = { id: string; email: string; role: string; invited_by: string; expires_at: string; expired: boolean }
+export type WorkspaceMember = {
+  member_id: string
+  user_id: string
+  name: string
+  email: string
+  role: string
+  joined_at: string
+}
+export type WorkspaceInvitation = {
+  id: string
+  email: string
+  role: string
+  invited_by: string
+  expires_at: string
+  expired: boolean
+}
 export type WorkspaceMembers = { members: WorkspaceMember[]; invitations: WorkspaceInvitation[] }
 
 export type UsageRow = {
@@ -145,6 +167,13 @@ const get = async <T>(path: string) => body<T>(await fetch(path, { ...HIGH, cred
 export const ADMIN_DATA = 'admin.data'
 export const ADMIN_HEALTH = 'admin.health'
 
+/**
+ * Whether this build of the app knows a provider the API lists. While an update runs (or in a tab opened before it),
+ * the API can be newer than the page: a provider or category the page has no registry entry for is left out instead
+ * of breaking the page.
+ */
+const isKnownProvider = (p: ProviderStatus) => p.provider in providerRegistry && p.category in providerCategories
+
 export async function loadAdminData(): Promise<AdminData> {
   const [w, u, usage, p] = await Promise.all([
     get<{ workspaces: AdminWorkspace[] }>('/v1/admin/workspaces'),
@@ -157,7 +186,7 @@ export async function loadAdminData(): Promise<AdminData> {
     users: u.users,
     usage: usage.usage,
     usageMonths: usage.months,
-    providers: p.providers,
+    providers: p.providers.filter(isKnownProvider),
     activeProviders: p.active,
     canStoreKeys: p.can_store,
   }
@@ -212,7 +241,7 @@ const stepUpLabels: Partial<Record<keyof AdminInputs, string>> = {
   'user.invite': 'invite an instance admin',
   'user.disable': 'disable an admin',
   'user.enable': 'enable an admin',
-  'membership.add': "add an admin to a workspace",
+  'membership.add': 'add an admin to a workspace',
   'membership.setRole': "change an admin's role",
   'membership.remove': 'remove an admin from a workspace',
 }
@@ -247,9 +276,18 @@ export type AuditEntry = {
   ipAddress: string | null
 }
 /** `to` is exclusive (the day after the last day shown); `before` is the previous page's `next`. */
-export type AuditFilter = { kind?: AuditKind; who?: string; workspace?: string; from?: string; to?: string; before?: string }
+export type AuditFilter = {
+  kind?: AuditKind
+  who?: string
+  workspace?: string
+  from?: string
+  to?: string
+  before?: string
+}
 
 export const loadAudit = (filter: AuditFilter) =>
-  get<{ entries: AuditEntry[]; next: string | null }>(`/v1/admin/audit?${new URLSearchParams(filter as Record<string, string>)}`)
+  get<{ entries: AuditEntry[]; next: string | null }>(
+    `/v1/admin/audit?${new URLSearchParams(filter as Record<string, string>)}`,
+  )
 /** Waits for LiveKit and the mail server: can take a few seconds. */
 export const loadHealth = () => get<AdminHealth>('/v1/admin/health')
