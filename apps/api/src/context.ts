@@ -1,6 +1,6 @@
 // Who is calling: a signed-in member (session cookie) or the voice agent (bearer token).
 import { timingSafeEqual } from 'node:crypto'
-import { CLIENT_PROTOCOL, CLIENT_PROTOCOL_HEADER, rolePermissions, type Permission, type Role } from '@linedesk/actions'
+import { CLIENT_PROTOCOL, CLIENT_PROTOCOL_HEADER, rolePermissions, teamRoles, type Permission, type Role } from '@linedesk/actions'
 import { member, organization, user } from '@linedesk/db'
 import { and, asc, eq } from 'drizzle-orm'
 import { isCallToken, verifyCallToken } from './agent-token.ts'
@@ -166,7 +166,8 @@ export async function resolveCaller(
       ? { actor: { actorId: account.id, role: 'member', workspaceId: null, permissions: extraPermissions, ...extra } }
       : { missing: 'no_workspace' }
   const workspaceId = m.organizationId
-  const role = (m.role in rolePermissions ? m.role : 'member') as Role
+  // Only a team role maps to its permissions: a membership row with any other role ("agent", a typo) is a plain member.
+  const role: Role = (teamRoles as readonly string[]).includes(m.role) ? (m.role as Role) : 'member'
   const [workspace] = await db.select({ disabledAt: organization.disabledAt }).from(organization).where(eq(organization.id, workspaceId))
   if (workspace?.disabledAt) {
     const permissions = [...readOnly(rolePermissions[role]), ...extraPermissions]

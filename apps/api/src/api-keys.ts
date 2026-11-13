@@ -1,7 +1,7 @@
 // Workspace API keys: created and revoked through the registry, stored as a SHA-256 hash (the key
 // has 256 random bits, so a fast hash is enough), resolved to an actor for Bearer requests.
 import { createHash, randomBytes } from 'node:crypto'
-import { API_KEY_PREFIX, type ApiKeyCreated, type ApiKeyListData, rolePermissions } from '@linedesk/actions'
+import { API_KEY_PREFIX, type ApiKeyCreated, type ApiKeyListData, rolePermissions, teamRoles } from '@linedesk/actions'
 import { api_keys, member, organization, user } from '@linedesk/db'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { mustConfirmEmail } from './auth-methods.ts'
@@ -84,7 +84,9 @@ export async function actorForApiKey(key: string, ip: string | null): Promise<Ac
     .leftJoin(member, and(eq(member.organizationId, api_keys.workspace_id), eq(member.userId, api_keys.created_by)))
     .leftJoin(user, eq(user.id, api_keys.created_by))
     .where(and(eq(api_keys.key_hash, hash), isNull(api_keys.revoked_at)))
-  if (!found || found.workspaceDisabled || !creatorStillAllows(found.row.role, found.creatorRole, found.creatorDisabled)) {
+  // A key carries a team role; any other stored role ("agent") never maps to its permissions.
+  const teamRole = !!found && (teamRoles as readonly string[]).includes(found.row.role)
+  if (!found || !teamRole || found.workspaceDisabled || !creatorStillAllows(found.row.role, found.creatorRole, found.creatorDisabled)) {
     invalidKeys.fail(ipBucket(ip))
     return null
   }
