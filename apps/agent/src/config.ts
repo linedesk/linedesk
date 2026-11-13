@@ -328,6 +328,10 @@ export function resolveCallConfig(settings: ProviderSettings | null, env: Env = 
   }
 }
 
+/** The config with another realtime model (a call test comparing models); unchanged without one or without realtime. */
+export const withRealtimeModel = (config: CallConfig, model: string | undefined): CallConfig =>
+  model && isRealtime(config) ? { ...config, realtime: { ...config.realtime, model } } : config
+
 /** Which pipelines a call config can answer with. */
 export const pipelinesOf = (config: CallConfig): PipelinesSetUp => ({
   realtime: isRealtime(config),

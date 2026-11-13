@@ -76,6 +76,8 @@ export interface CallSession {
   simulatedOnCall: SimulatedAnswer | null
   /** What the simulated person says once put through; missing: the call test's line (GREETING_LINE). */
   simulatedOnCallLine?: string
+  /** A call test's realtime model instead of the install's (call-test --realtime-model); missing on every other call. */
+  realtimeModel?: string
   append(speaker: Speaker, text: string, toolEvent?: ToolEvent): Promise<void>
   finish(result: CallResult): Promise<void>
   /** Stores how long the replies took (call.recordTimings), for the admin overview. */
@@ -209,7 +211,13 @@ type TestMetadata = {
   languages?: Language[]
   /** How this test call is answered instead of the assistant's own choice (call-test --pipeline). */
   pipeline?: VoicePipeline
+  /** The realtime model this test call uses instead of the install's (call-test --realtime-model). */
+  realtimeModel?: string
 }
+
+/** An OpenAI realtime model id a test call may ask for: gpt-realtime, gpt-realtime-mini, a dated one. */
+export const isRealtimeModelId = (value: unknown): value is string =>
+  typeof value === 'string' && /^gpt-realtime[a-z0-9.-]{0,40}$/.test(value)
 
 export async function startCall(api: ApiClient, origin: CallOrigin): Promise<CallSession> {
   const { data } =
@@ -263,6 +271,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     keepRecording: started.keepRecording !== false,
     lookups: started.lookups ?? [],
     businessNumber: origin.kind === 'phone' ? origin.to : null,
+    ...(origin.kind === 'test' && origin.realtimeModel ? { realtimeModel: origin.realtimeModel } : {}),
     ...simulatedOnCallOf(origin),
     async append(speaker, text, toolEvent) {
       await api.run(callAppendTranscript, { callId, speaker, text, atMs: Date.now() - startedAt, toolEvent }, scope)
@@ -318,6 +327,7 @@ export function parseTestMetadata(metadata: string): TestMetadata | null {
       simulateTransfer?: unknown
       languages?: unknown
       pipeline?: unknown
+      realtimeModel?: unknown
     }
     if (parsed.source !== 'test' || typeof parsed.workspaceId !== 'string' || !parsed.workspaceId) return null
     const hours = parsed.businessHours as Partial<BusinessHours> | undefined
@@ -343,6 +353,7 @@ export function parseTestMetadata(metadata: string): TestMetadata | null {
       ...((VOICE_PIPELINES as readonly unknown[]).includes(parsed.pipeline)
         ? { pipeline: parsed.pipeline as VoicePipeline }
         : {}),
+      ...(isRealtimeModelId(parsed.realtimeModel) ? { realtimeModel: parsed.realtimeModel } : {}),
     }
   } catch {
     return null

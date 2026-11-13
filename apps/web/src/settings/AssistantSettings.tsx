@@ -119,11 +119,11 @@ const pipelineOptions: SelectOption<VoicePipeline>[] = [
   },
 ]
 
-/** Which pipelines the install has set up; an API of an older version only says whether a realtime model is connected. */
-function pipelinesOf(options: VoiceOptionsData | undefined): PipelinesSetUp | null {
-  if (!options) return null
-  return options.pipelines ?? { realtime: options.realtime === true, three_stage: options.realtime !== true }
-}
+/**
+ * Which pipelines the install has set up; null while not known, and from an API of an older version (during an
+ * update), which only says whether a realtime model is connected: then nothing is said about the three stages.
+ */
+const pipelinesOf = (options: VoiceOptionsData | undefined): PipelinesSetUp | null => options?.pipelines ?? null
 
 /**
  * How the assistant's calls are answered: a choice when both pipelines are set up, else which one answers and why.
@@ -154,7 +154,7 @@ function PipelineSection({ draft, set, setUp }: SectionProps & { setUp: Pipeline
   const text =
     !setUp.realtime && !setUp.three_stage
       ? 'Calls are not answered yet: an instance admin sets up a realtime model, or speech to text, a language model and a voice, under Admin, Providers.'
-      : `Calls are answered by the ${VOICE_PIPELINE_LABELS[used].toLowerCase()}: no ${VOICE_PIPELINE_LABELS[other].toLowerCase()} is set up${draft.voice_pipeline === other ? ', so the choice of it is not used now' : ''}. An instance admin sets it up under Admin, Providers.`
+      : `Calls are answered by the ${VOICE_PIPELINE_LABELS[used].toLowerCase()}, because the ${VOICE_PIPELINE_LABELS[other].toLowerCase()} ${other === 'realtime' ? 'is' : 'are'} not set up${draft.voice_pipeline === other ? ' (chosen for this assistant: used once set up)' : ''}. An instance admin sets ${other === 'realtime' ? 'it' : 'them'} up under Admin, Providers.`
   return (
     <Section id="as-pipeline" title="Answering calls">
       <span className="help">{text}</span>
@@ -634,7 +634,8 @@ type FormProps = Props & {
 function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormProps) {
   const run = useRun()
   const page = `assistant/${assistant.id}`
-  const setUp = pipelinesOf(useVoiceOptions().data)
+  const voiceOptions = useVoiceOptions().data
+  const setUp = pipelinesOf(voiceOptions)
   const testCall = useTestCall(canEdit, assistant)
   /** A save was refused over a transfer contact: its errors show from then on. */
   const [transferSaveTried, setTransferSaveTried] = useState(false)
@@ -652,7 +653,8 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
   }, [saved])
   const set: SectionProps['set'] = (key, value) => setDraft(d => ({ ...d, [key]: value }))
   // The page follows the pipeline picked here at once, before it is saved: the voice picker only for three stages.
-  const realtime = setUp !== null && pipelineFor(draft.voice_pipeline, setUp) === 'realtime'
+  // An API of an older version (during an update) only says whether a realtime model is connected.
+  const realtime = setUp ? pipelineFor(draft.voice_pipeline, setUp) === 'realtime' : voiceOptions?.realtime === true
   const current = useSection(page, sections)
   const hoursOn = useBusinessHoursOn()
   const changed = dirty

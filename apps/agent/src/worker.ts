@@ -18,7 +18,7 @@ import { GREETING_WAIT_MS, lookUpCaller, within } from './caller-lookup.ts'
 import { lookupTools } from './lookup-tools.ts'
 import { callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
-import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, stagesOf } from './config.ts'
+import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, stagesOf, withRealtimeModel } from './config.ts'
 import { AGENT_NAME, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
 import { type CallLanguages, createPipeline, createRealtimePipeline, createTts, greetingVoice, type LineVoice, lineVoiceOf, realtimeLine, realtimeRepliesEvent, type RealtimeEvents, summaryLlm, transferSpeechOf, talkingSpeedOf, warmUpLlm, REALTIME_TURNS } from './pipeline.ts'
@@ -526,7 +526,12 @@ async function entry(ctx: JobContext) {
   }
   setup.mark('providers')
   // The assistant's pipeline (Settings › Assistant); the other one when that is not set up.
-  const config = configForAssistant(readiness.config, call.assistant?.voice_pipeline, line => console.warn(`call ${call.callId}: ${line}`))
+  // A call test may compare realtime models without changing the install's (call-test --realtime-model).
+  const config = withRealtimeModel(
+    configForAssistant(readiness.config, call.assistant?.voice_pipeline, line => console.warn(`call ${call.callId}: ${line}`)),
+    call.realtimeModel,
+  )
+  if (isRealtime(config)) console.log(`call ${call.callId}: realtime model ${config.realtime.model}`)
   const log = new CallLog(call)
 
   // From here on the call exists and must be finished: on hang-up (session close), on any error

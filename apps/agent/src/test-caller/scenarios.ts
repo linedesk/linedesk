@@ -274,13 +274,14 @@ export function parseCallTestArgs(args: readonly string[]): {
   name: string
   persona: string | undefined
   pipeline: string | undefined
+  realtimeModel: string | undefined
 } {
-  // The word after --persona and --pipeline is their value, never the scenario.
+  // The word after --persona, --pipeline and --realtime-model is their value, never the scenario.
   const valueAt = (flag: string) => (args.includes(flag) ? args.indexOf(flag) + 1 : -1)
-  const values = [valueAt('--persona'), valueAt('--pipeline')]
+  const values = [valueAt('--persona'), valueAt('--pipeline'), valueAt('--realtime-model')]
   const name = args.find((a, i) => !a.startsWith('--') && !values.includes(i)) ?? ''
-  const [persona, pipeline] = values.map(i => (i >= 0 ? args[i] : undefined))
-  return { name, persona, pipeline }
+  const [persona, pipeline, realtimeModel] = values.map(i => (i >= 0 ? args[i] : undefined))
+  return { name, persona, pipeline, realtimeModel }
 }
 
 /**

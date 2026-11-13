@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest'
-import { AgentConfigError, configForAssistant, configFromEnv, createConfigLoader, isRealtime, parseProviderSettings, resolveAgentConfig, resolveCallConfig, stageEnvVars, stagesOf, type ProviderSettings } from './config.ts'
+import { AgentConfigError, configForAssistant, configFromEnv, createConfigLoader, isRealtime, parseProviderSettings, resolveAgentConfig, resolveCallConfig, stageEnvVars, stagesOf, type ProviderSettings, withRealtimeModel } from './config.ts'
 
 const keys = { DEEPGRAM_API_KEY: 'dg', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' }
 const stored: ProviderSettings = {
@@ -277,4 +277,14 @@ test('ElevenLabs Scribe and OpenAI transcription as speech recognition, with the
   expect(resolveAgentConfig(null, { ...keys, STT_PROVIDER: 'openai_stt', OPENAI_STT_API_KEY: 'os' }).stt).toEqual({ provider: 'openai_stt', apiKey: 'os', model: 'gpt-4o-mini-transcribe' })
   // The language model's or the voice's key does not count for speech recognition.
   expect(() => resolveAgentConfig(null, { ...keys, STT_PROVIDER: 'openai_stt', OPENAI_API_KEY: 'oa' })).toThrow(/no API key for openai_stt/)
+})
+
+test('a call test may use another realtime model; the three stages and other calls are left alone', () => {
+  const both = resolveCallConfig({ ...stored, realtime: { provider: 'openai_realtime', api_key: 'rt-app' } }, {})
+  const picked = withRealtimeModel(both, 'gpt-realtime')
+  if (!isRealtime(picked)) throw new Error('expected a realtime config')
+  expect(picked.realtime.model).toBe('gpt-realtime')
+  expect(withRealtimeModel(both, undefined)).toBe(both)
+  const stagesOnly = resolveCallConfig(stored, {})
+  expect(withRealtimeModel(stagesOnly, 'gpt-realtime')).toBe(stagesOnly)
 })

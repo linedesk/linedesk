@@ -3,6 +3,8 @@
 // --persona: the caller plays this instead of the scenario's persona; the scenario's checks stay.
 // --pipeline (no phone only): the business answers this call with it instead of its assistant's choice; over the
 // phone the assistant's own setting applies (Settings › Assistant, "Answered by").
+// --realtime-model <id> (no phone only): a realtime call uses this OpenAI model (gpt-realtime, gpt-realtime-mini, …)
+// instead of the install's, to compare models without changing Admin › Providers.
 //   in the agent container: node src/call-test.ts <scenario> [--phone]
 // Booking scenarios (booking, which-calendar) expect a real booking when the assistant has an appointment
 // type and a calendar: the event stays in the calendar to look at; --cancel-booking deletes it afterwards.
@@ -22,6 +24,7 @@ import {
 } from '@linedesk/actions'
 import { AgentDispatchClient, RoomServiceClient } from 'livekit-server-sdk'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
+import { isRealtimeModelId } from './call-session.ts'
 import { AGENT_NAME, livekitHttpUrl, requireEnv, requireLivekitEnv, runScript } from './env.ts'
 import { CALLEE_IDENTITY } from './test-caller/caller.ts'
 import { type AgentSetup, LATENCY_ATTRIBUTE, type LatencySample, SETUP_ATTRIBUTE } from './test-caller/latency.ts'
@@ -54,6 +57,7 @@ type Run = {
   api: ApiClient
   persona?: string | undefined
   pipeline?: VoicePipeline | undefined
+  realtimeModel?: string | undefined
 }
 
 /**
@@ -130,7 +134,7 @@ async function waitForParticipant(room: string, timeoutMs = 20_000) {
 }
 
 /** Both agents in one room: the test caller, and the business's as a test call of its workspace. */
-async function startInRoom({ name, room, to, since, api, persona, pipeline }: Run) {
+async function startInRoom({ name, room, to, since, api, persona, pipeline, realtimeModel }: Run) {
   const { workspaceId } = (await api.run(callFindForTest, { to, since, room })).data as CallTestFinding
   const dispatch = dispatcher()
   const caller: TestCallerMetadata = {
@@ -144,6 +148,7 @@ async function startInRoom({ name, room, to, since, api, persona, pipeline }: Ru
     source: 'test',
     workspaceId,
     ...(pipeline ? { pipeline } : {}),
+    ...(realtimeModel ? { realtimeModel } : {}),
     ...(businessHours ? { businessHours } : {}),
     ...(outsideGreeting ? { outsideGreeting } : {}),
     ...(onCall ? { onCall } : {}),
@@ -155,7 +160,7 @@ async function startInRoom({ name, room, to, since, api, persona, pipeline }: Ru
   await waitForParticipant(room)
   await dispatch.createDispatch(room, AGENT_NAME, { metadata: JSON.stringify(metadata) })
   console.log(
-    `Test call in room ${room} with workspace ${workspaceId} (scenario ${name}, no phone${pipeline ? `, ${VOICE_PIPELINE_LABELS[pipeline].toLowerCase()}` : ''})…`,
+    `Test call in room ${room} with workspace ${workspaceId} (scenario ${name}, no phone${pipeline ? `, ${VOICE_PIPELINE_LABELS[pipeline].toLowerCase()}` : ''}${realtimeModel ? `, ${realtimeModel}` : ''})…`,
   )
 }
 
@@ -184,7 +189,7 @@ async function startByPhone({ name, room, to, persona }: Run, from: string) {
 
 async function main() {
   const args = process.argv.slice(2)
-  const { name, persona, pipeline } = parseCallTestArgs(args)
+  const { name, persona, pipeline, realtimeModel } = parseCallTestArgs(args)
   if (!isScenario(name))
     throw new Error(
       `usage: call-test <scenario> [--phone [--external]] [--pipeline realtime|three_stage] [--expect-recording] [--cancel-booking] [--persona "…"]; scenarios: ${scenarioNames.join(', ')}`,
@@ -192,6 +197,10 @@ async function main() {
   const mode: CallTestMode = args.includes('--phone') ? 'phone' : 'room'
   if (args.includes('--pipeline') && !isPipeline(pipeline))
     throw new Error(`--pipeline takes ${VOICE_PIPELINES.join(' or ')}`)
+  if (args.includes('--realtime-model') && !isRealtimeModelId(realtimeModel))
+    throw new Error('--realtime-model takes an OpenAI realtime model id, e.g. gpt-realtime or gpt-realtime-mini')
+  if (realtimeModel && mode === 'phone')
+    throw new Error('--realtime-model works without a phone only; over the phone the install\'s model applies (Admin › Providers)')
   if (pipeline && mode === 'phone')
     throw new Error(
       '--pipeline works without a phone only; over the phone the assistant\'s own setting applies (Settings › Assistant, "Answered by")',
@@ -216,6 +225,7 @@ async function main() {
     api: apiClientFromEnv(),
     persona,
     pipeline: isPipeline(pipeline) ? pipeline : undefined,
+    realtimeModel,
   }
 
   if (from) await startByPhone(run, from)
