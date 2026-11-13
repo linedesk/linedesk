@@ -148,16 +148,16 @@ export class AdminSignInRequired extends Error {
   }
 }
 
-let onSignInRequired: ((state: AdminSecondFactor) => void) | null = null
+const signInListeners = new Set<(state: AdminSecondFactor) => void>()
 
 /**
- * The admin area listens here: once any admin request says the session no longer opens Admin, the
- * whole area turns into "Sign in again for Admin" instead of a "Try again" that cannot work.
+ * The admin area and the setup pages listen here: once any admin request says the session no longer opens Admin,
+ * the page turns into "Sign in again for Admin" instead of an error or a "Try again" that cannot work.
  */
 export function watchAdminSignIn(listener: (state: AdminSecondFactor) => void): () => void {
-  onSignInRequired = listener
+  signInListeners.add(listener)
   return () => {
-    if (onSignInRequired === listener) onSignInRequired = null
+    signInListeners.delete(listener)
   }
 }
 
@@ -167,7 +167,7 @@ async function body<T>(res: Response): Promise<T> {
     | null
   if (json?.code === 'SECOND_FACTOR_REQUIRED') {
     const state: AdminSecondFactor = json.secondFactor === 'email' ? 'email' : 'confirm'
-    onSignInRequired?.(state)
+    for (const listener of signInListeners) listener(state)
     throw new AdminSignInRequired(json.error ?? 'Sign in again to use the admin area.', state)
   }
   const stepUp = stepUpOf(json)

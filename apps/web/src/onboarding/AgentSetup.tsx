@@ -14,7 +14,9 @@ import {
   startPlan,
 } from '@linedesk/actions'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { loadAgentSetup, runAdmin } from '../admin/api.ts'
+import { loadAgentSetup, runAdmin, watchAdminSignIn } from '../admin/api.ts'
+import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
+import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { BrandMark, Button, cx, Icon, Spinner } from '../ui/kit.tsx'
 import { CopyButton } from './Frame.tsx'
@@ -90,6 +92,9 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
   const [client, setClient] = useState<AgentClient>(savedClient)
   const [busy, setBusy] = useState<'create' | 'end' | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // The admin sign-in ran out (1 hour, 12 with a passkey): the page turns into the sign-in, never an error line.
+  const [signInAgain, setSignInAgain] = useState<AdminSecondFactor | null>(null)
+  useEffect(() => watchAdminSignIn(setSignInAgain), [])
 
   const load = useCallback(async () => {
     try {
@@ -156,6 +161,8 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
 
   const connected = Boolean(state?.key?.lastUsedAt)
   const cloudBlocked = state !== null && !state.reachableFromCloud && cloudClients.includes(client)
+  // After signing in, the page loads again at the same address (SecondFactorPrompt).
+  if (signInAgain) return <SecondFactorPrompt state={signInAgain} onExit={onDone} />
   return (
     <div className="ob as" role="main" aria-label={`Set up ${brandName()} with an AI agent`}>
       <div className="ob-top">

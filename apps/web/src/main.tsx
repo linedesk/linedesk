@@ -14,8 +14,11 @@ import { captureOpenRouterReturn } from './admin/openrouterAuth.ts'
 import { loadBrand } from './brand.ts'
 import { NewVersionBar } from './shell/NewVersionBar.tsx'
 import { registerServiceWorker } from './serviceWorker.ts'
+import { watchUnauthorized } from './signedOutWatch.ts'
 import { installTooltips } from './ui/tooltips.ts'
 
+// Signed out on any screen: the app goes to the sign-in page (signedOutWatch.ts, App.tsx).
+watchUnauthorized()
 installTooltips()
 void loadBrand()
 registerServiceWorker()

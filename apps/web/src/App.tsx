@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { forgetBeyond } from './localData.ts'
 import { NoWorkspace } from './NoWorkspace.tsx'
 import { Login } from './Login.tsx'
 import { backoffMs } from './retry.ts'
 import { loadSession, renamedWorkspace, type Session } from './session.ts'
+import { onUnauthorized } from './signedOutWatch.ts'
 import { AGENT_SETUP_HASH, AgentSetup, choseManualSetup, rememberManual } from './onboarding/AgentSetup.tsx'
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
@@ -113,6 +114,30 @@ export function App() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+  // Signed out anywhere (the API answered 401): ask who is signed in, and show the sign-in page if nobody is. The
+  // address stays, so signing in returns to the same page. One check at a time; a 401 on the sign-in page itself
+  // (or while loading) needs none.
+  const signedOutHere = useRef(false)
+  const sessionState = useRef(session.state)
+  sessionState.current = session.state
+  useEffect(() => {
+    let checking = false
+    return onUnauthorized(() => {
+      const state = sessionState.current
+      if (checking || (state !== 'ready' && state !== 'needsWorkspace')) return
+      checking = true
+      loadSession()
+        .then(next => {
+          if (next.state !== 'signedOut') return
+          signedOutHere.current = true
+          setSession(next)
+        })
+        .catch(() => {})
+        .finally(() => {
+          checking = false
+        })
+    })
+  }, [])
   // Local data the session does not cover (signed out, removed from a workspace) is deleted.
   useEffect(() => {
     void forgetBeyond(session)
@@ -152,7 +177,15 @@ export function App() {
   }
   if (session.state === 'loading') return <BootScreen line={`Opening ${brandName()}…`} />
   if (session.state === 'unreachable') return <Unreachable />
-  if (session.state === 'signedOut') return <Login onDone={refresh} />
+  if (session.state === 'signedOut') {
+    // Signed out while the app was open: its sync had stopped for good, so the page loads fresh after signing in
+    // (at the same address). The form stays busy until then.
+    const reload = async () => {
+      window.location.reload()
+      await new Promise(() => {})
+    }
+    return <Login onDone={signedOutHere.current ? reload : refresh} />
+  }
   if (target) return <BootScreen line={`Opening ${target.kind === 'switch' ? target.workspace.name : brandName()}…`} />
   if (session.state === 'needsWorkspace') {
     return (
