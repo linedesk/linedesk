@@ -46,8 +46,10 @@ test('the AI line follows the disclosure setting, and every mode says it is an A
   }
   // when_asked is the honesty line alone: no second sentence saying the same.
   expect(buildInstructions(assistant({ ai_disclosure: 'when_asked' }))).not.toContain('You do not need to say you are an AI')
-  expect(buildInstructions(assistant({ ai_disclosure: 'at_start' }))).toContain('Your greeting told the caller you are an AI assistant.')
-  expect(buildInstructions(assistant({ ai_disclosure: 'at_start_consent' }))).toContain('If they do not want to talk to an AI, do not try to persuade them')
+  expect(buildInstructions(assistant({ ai_disclosure: 'at_start' }))).not.toContain('Your greeting told the caller you are an AI assistant.')
+  // The greeting said it (the model has the greeting as its first message), so the prompt does not repeat it.
+  expect(buildInstructions(assistant({ ai_disclosure: 'at_start_consent' }))).not.toContain('Your greeting told the caller')
+  expect(buildInstructions(assistant({ ai_disclosure: 'at_start_consent' }))).toContain("If the caller does not want to talk to an AI, don't persuade them: put them through if a transfer contact fits, else take a message")
 })
 
 test('the tools that speak for themselves are kept out of the rule to talk while a tool runs', () => {

@@ -186,9 +186,11 @@ export function aiDisclosureInstructions(mode: AiDisclosure | null | undefined):
     case 'when_asked':
       return AI_WHEN_ASKED
     case 'at_start':
-      return `Your greeting told the caller you are an AI assistant. ${AI_WHEN_ASKED}`
+      // The greeting said it; the model has the greeting as its first message (LIN-130).
+      return AI_WHEN_ASKED
     case 'at_start_consent':
-      return `Your greeting told the caller you are an AI assistant and asked "${AI_CONSENT_QUESTION}". If they agree, ask how you can help and go on as usual. If they do not want to talk to an AI, do not try to persuade them: if a transfer contact fits (for example one for callers who ask for a person), put them through; otherwise offer to take a message so a person from the team calls them back, and take it with their name and what it is about. ${AI_WHEN_ASKED}`
+      // The greeting asked AI_CONSENT_QUESTION; the model has it as its first message (LIN-130).
+      return `If the caller does not want to talk to an AI, don't persuade them: put them through if a transfer contact fits, else take a message with their name and reason so a person calls back. ${AI_WHEN_ASKED}`
   }
 }
 
