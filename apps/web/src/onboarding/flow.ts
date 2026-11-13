@@ -3,9 +3,10 @@ import {
   type BusinessHoursSpan,
   onboardingSteps,
   type OnboardingStep,
+  type PickupMode,
   type WorkspaceSettingsData,
 } from '@linedesk/actions'
-import type { Call, PhoneNumber } from '@linedesk/db/types'
+import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { type DayHours, dayRows } from '../settings/businessHoursModel.ts'
 import { brandName } from '../brand.ts'
 
@@ -15,10 +16,9 @@ export { onboardingSteps, type OnboardingStep }
 
 export const stepLabels: Record<OnboardingStep, string> = {
   business: 'Business',
+  assistant: 'Your assistant',
+  pickup: 'When to pick up',
   phone: 'Phone',
-  hours: 'Hours',
-  calendar: 'Calendar',
-  test_call: 'Test call',
   done: 'Done',
 }
 
@@ -26,6 +26,73 @@ export const nextStep = (step: OnboardingStep): OnboardingStep =>
   onboardingSteps[Math.min(onboardingSteps.indexOf(step) + 1, onboardingSteps.length - 1)]!
 export const previousStep = (step: OnboardingStep): OnboardingStep | null =>
   onboardingSteps[onboardingSteps.indexOf(step) - 1] ?? null
+
+/** The pick-up choices in the order shown; the first is recommended and preselected. */
+export const pickupOrder: readonly PickupMode[] = ['no_answer', 'after_hours', 'always']
+
+/**
+ * What the pick-up step shows first: what was chosen before; else what a connected number already does (forwarding
+ * every call is "every call"), so continuing doesn't silently change it; else "when I can't answer".
+ */
+export const firstPickup = (
+  saved: Pick<WorkspaceSettingsData, 'pickupMode'> | null,
+  numberMode?: PhoneNumberMode | null,
+): PickupMode => saved?.pickupMode ?? (numberMode === 'forward_all' ? 'always' : 'no_answer')
+
+/**
+ * What the pick-up step remembers while onboarding runs: whether the business hours were on before "only when
+ * we're closed" turned them on, and how a connected number forwarded before the choice changed it (to say which
+ * code turns the old forwarding off).
+ */
+export type PickupMemory = {
+  hoursOnBefore: boolean | null
+  oldForwarding: 'forward_conditional' | 'forward_all' | null
+}
+export const NO_PICKUP_MEMORY: PickupMemory = { hoursOnBefore: null, oldForwarding: null }
+
+/**
+ * The `workspace.updateSettings` input for a pick-up choice. "Only when we're closed" turns the business hours on
+ * (remembering whether they were); leaving it for another choice turns them back to what they were, off when
+ * onboarding turned them on. The other choices leave the hours alone.
+ */
+export function pickupSettings(
+  saved: Pick<WorkspaceSettingsData, 'pickupMode' | 'businessHoursOn'>,
+  mode: PickupMode,
+  memory: PickupMemory,
+): { input: { pickupMode: PickupMode; businessHoursOn?: boolean }; hoursOnBefore: boolean | null } {
+  const wasClosedOnly = saved.pickupMode === 'after_hours'
+  if (mode === 'after_hours')
+    return {
+      input: { pickupMode: mode, businessHoursOn: true },
+      hoursOnBefore: wasClosedOnly ? memory.hoursOnBefore : saved.businessHoursOn,
+    }
+  if (wasClosedOnly)
+    return { input: { pickupMode: mode, businessHoursOn: memory.hoursOnBefore ?? false }, hoursOnBefore: null }
+  return { input: { pickupMode: mode }, hoursOnBefore: memory.hoursOnBefore }
+}
+
+/**
+ * How the number forwarded before a change to `wanted`, for the "turn the old forwarding off" line: null when the
+ * change goes back to what was remembered as dialled first.
+ */
+export function oldForwardingAfter(
+  current: 'forward_conditional' | 'forward_all',
+  wanted: 'forward_conditional' | 'forward_all',
+  remembered: PickupMemory['oldForwarding'],
+): PickupMemory['oldForwarding'] {
+  if (current === wanted) return remembered
+  return remembered === wanted ? null : (remembered ?? current)
+}
+
+/**
+ * How the business's own number reaches the assistant for a pick-up choice. Only every call needs forwarding
+ * of all calls; after hours is conditional forwarding too (nobody answers when closed) plus the business hours.
+ */
+export const pickupNumberMode = (mode: PickupMode): 'forward_conditional' | 'forward_all' =>
+  mode === 'always' ? 'forward_all' : 'forward_conditional'
+
+/** Only after hours asks for the business hours. */
+export const pickupNeedsHours = (mode: PickupMode) => mode === 'after_hours'
 
 /** The usual small-business week the hours step starts from: Monday to Friday, 9 to 5. */
 export const STARTER_HOURS: BusinessHoursSpan[] = [1, 2, 3, 4, 5].map(weekday => ({
@@ -69,24 +136,63 @@ export function formatNumber(e164: string): string {
 
 export type PhoneChoice = { kind: 'existing'; number: string } | { kind: 'new'; areaCode: string; confirmed: boolean }
 
-/** A bought number is the business's new number; an attached one is where its own number forwards to. */
-export type PhoneSetupInput = { e164: string; purchase: false } | { areaCode: string; purchase: true; mode: 'new' }
+type Forwarding = 'forward_conditional' | 'forward_all'
+
+/**
+ * An attached number is where the business's own number forwards to. A bought one is too when `forwarding` is given
+ * (the business keeps its number and forwards to it); without, it is the business's new number to give out.
+ */
+export type PhoneSetupInput =
+  | { e164: string; purchase: false; mode?: Forwarding }
+  | { areaCode: string; purchase: true; mode: 'new' | Forwarding }
 
 /**
  * The `phoneNumber.setup` input for what the user picked, or why it cannot be sent yet.
  * Buying costs money, so a new number is only requested after the user confirmed the price.
  */
-export function phoneSetupInput(choice: PhoneChoice): { input: PhoneSetupInput } | { problem: string } {
+export function phoneSetupInput(
+  choice: PhoneChoice,
+  forwarding?: Forwarding,
+): { input: PhoneSetupInput } | { problem: string } {
   if (choice.kind === 'existing') {
     const e164 = toE164(choice.number)
     return e164
-      ? { input: { e164, purchase: false } }
+      ? { input: { e164, purchase: false, ...(forwarding ? { mode: forwarding } : {}) } }
       : { problem: 'Enter the number with its area code, like +1 503 555 0100.' }
   }
   if (!/^\d{3}$/.test(choice.areaCode)) return { problem: 'Enter a 3-digit area code, like 503.' }
   if (!choice.confirmed) return { problem: 'Confirm the monthly cost first.' }
-  return { input: { areaCode: choice.areaCode, purchase: true, mode: 'new' } }
+  return { input: { areaCode: choice.areaCode, purchase: true, mode: forwarding ?? 'new' } }
 }
+
+/**
+ * The phone step's choices, first one preselected. Every pick-up choice means calls to the business's own number
+ * reach the assistant, so the step leads with keeping that number and forwarding it: to a number we get for the
+ * assistant (`forward`), or to one already in the install's carrier account (`existing`, instance admins only). A new
+ * number to give out (`new`) comes last: only calls to it reach the assistant.
+ */
+export type PhoneOption = 'forward' | 'existing' | 'new'
+export const phoneOptions = (canAttach: boolean): PhoneOption[] =>
+  canAttach ? ['forward', 'existing', 'new'] : ['forward', 'new']
+
+/** The `phoneNumber.setup` choice and forwarding for a phone step option. */
+export function phoneOptionSetup(
+  option: PhoneOption,
+  fields: { number: string; areaCode: string; confirmed: boolean },
+  forwarding: Forwarding,
+): { input: PhoneSetupInput } | { problem: string } {
+  if (option === 'existing') return phoneSetupInput({ kind: 'existing', number: fields.number }, forwarding)
+  const choice = { kind: 'new' as const, areaCode: fields.areaCode, confirmed: fields.confirmed }
+  return phoneSetupInput(choice, option === 'forward' ? forwarding : undefined)
+}
+
+/**
+ * For a number given out as the business's new number: the forwarding mode that makes the calls to the business's
+ * current number reach the assistant too (what the pick-up choice asks for), or null for a number that is already
+ * forwarded to or was moved over (ported).
+ */
+export const forwardingOffer = (mode: PhoneNumberMode, pickup: PickupMode): Forwarding | null =>
+  mode === 'new' ? pickupNumberMode(pickup) : null
 
 /** A `phoneNumber.setup` rejection in words an owner can act on. The server's own reason stays in the command log. */
 export function phoneSetupErrorText(error: string): string {
@@ -124,36 +230,64 @@ export function priceNote(provider: string | null): string {
 
 /** The question before buying: in development mode nothing is bought, so nothing is billed either. */
 export function buyQuestion(provider: string | null, areaCode: string): string {
-  if (provider === 'dev') return `Add a test number in area code ${areaCode}? Development mode: nothing is bought or billed.`
+  if (provider === 'dev')
+    return `Add a test number in area code ${areaCode}? Development mode: nothing is bought or billed.`
   return `Buy a number in area code ${areaCode}? It is billed every month until you release it.`
 }
 
-export type Carrier = { id: string; name: string; on: (digits: string) => string; off: string }
+/** `on`/`off`: conditional forwarding (no answer, busy); `allOn`/`allOff`: forwarding every call. */
+export type Carrier = {
+  id: string
+  name: string
+  on: (digits: string) => string
+  off: string
+  allOn: (digits: string) => string
+  allOff: string
+}
 
-/** Conditional call forwarding (no answer, busy) for a business that keeps its number. architecture.md §8. */
+/** Call forwarding codes for a business that keeps its number. architecture.md §8. */
 export const carriers: readonly Carrier[] = [
-  { id: 'verizon', name: 'Verizon', on: d => `*71${d}`, off: '*73' },
-  { id: 'att', name: 'AT&T', on: d => `**004*${d}#`, off: '##004#' },
-  { id: 'tmobile', name: 'T-Mobile', on: d => `**004*${d}#`, off: '##004#' },
+  { id: 'verizon', name: 'Verizon', on: d => `*71${d}`, off: '*73', allOn: d => `*72${d}`, allOff: '*73' },
+  { id: 'att', name: 'AT&T', on: d => `**004*${d}#`, off: '##004#', allOn: d => `**21*${d}#`, allOff: '##21#' },
+  { id: 'tmobile', name: 'T-Mobile', on: d => `**004*${d}#`, off: '##004#', allOn: d => `**21*${d}#`, allOff: '##21#' },
 ]
+
+/** The code to dial for a number's forwarding mode, and the one that turns it off again. */
+export function forwardingCode(carrier: Carrier, mode: PhoneNumberMode, e164: string): { on: string; off: string } {
+  const digits = forwardingDigits(e164)
+  return mode === 'forward_all'
+    ? { on: carrier.allOn(digits), off: carrier.allOff }
+    : { on: carrier.on(digits), off: carrier.off }
+}
 
 /** The 10 digits carriers expect in a forwarding code. */
 export const forwardingDigits = (e164: string) => e164.replace(/^\+1/, '').replace(/\D/g, '')
-
-/** The first call to one of the workspace's numbers that started after the test-call screen opened. */
-export function firstTestCall(calls: readonly Call[], numbers: readonly string[], since: string): Call | undefined {
-  const sinceMs = Date.parse(since)
-  return calls
-    .filter(c => !c.deleted_at && numbers.includes(c.to_number) && Date.parse(c.started_at) >= sinceMs)
-    .sort((a, b) => Date.parse(a.started_at) - Date.parse(b.started_at))[0]
-}
-
-/** The simulator command that plays a scripted call to `e164` (development only, needs the agent token). */
-export const simulateCommand = (e164: string) =>
-  `SIM_TO_NUMBER='${e164}' pnpm --filter @linedesk/agent simulate message`
 
 /** Keeps the greeting in step with a renamed assistant ("This is Maya" → "This is Ava"). */
 export function renameInGreeting(greeting: string, oldName: string, newName: string): string {
   if (!oldName || oldName === newName) return greeting
   return greeting.replace(new RegExp(`\\b${oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g'), newName)
+}
+
+/** What the assistant step edits. */
+export type AssistantDraft = { name: string; greeting: string; voice: { provider: string; voice_id: string } }
+
+/**
+ * The `assistant.update` fields that differ from the saved assistant, or null when nothing changed. Names and
+ * greetings are trimmed; an empty name or greeting is not saved (the step asks for both). A rename also renames the
+ * saved name in the greeting, once, on save ("This is Maya" → "This is Ava").
+ */
+export function assistantChanges(
+  saved: Pick<Assistant, 'name' | 'greeting' | 'voice'>,
+  draft: AssistantDraft,
+): Partial<AssistantDraft> | null {
+  const changes: Partial<AssistantDraft> = {}
+  const name = draft.name.trim()
+  const renamed = !!name && name !== saved.name
+  const greeting = renamed ? renameInGreeting(draft.greeting.trim(), saved.name, name) : draft.greeting.trim()
+  if (renamed) changes.name = name
+  if (greeting && greeting !== saved.greeting) changes.greeting = greeting
+  if (draft.voice.provider !== saved.voice.provider || draft.voice.voice_id !== saved.voice.voice_id)
+    changes.voice = draft.voice
+  return Object.keys(changes).length ? changes : null
 }

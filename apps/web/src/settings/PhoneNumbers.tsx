@@ -10,7 +10,7 @@ import { CopyButton } from '../onboarding/Frame.tsx'
 import {
   buyQuestion,
   carriers,
-  forwardingDigits,
+  forwardingCode,
   formatNumber,
   numberModeLabel,
   phoneSetupErrorText,
@@ -234,9 +234,13 @@ function ManageNumber({ number, assistants, canEdit, release = false, onClose }:
             <Field
               id="pn-codes"
               label="Forwarding codes"
-              tip="Dial the Turn on code once from your business phone. From then on, calls you don't answer or can't take because you're on the line go to your assistant. Dial Turn off to stop."
+              tip={
+                number.mode === 'forward_all'
+                  ? 'Dial the Turn on code once from your business phone. From then on, every call goes to your assistant. Dial Turn off to stop.'
+                  : "Dial the Turn on code once from your business phone. From then on, calls you don't answer or can't take because you're on the line go to your assistant. Dial Turn off to stop."
+              }
             >
-              <Forwarding e164={number.e164} />
+              <Forwarding e164={number.e164} mode={number.mode} />
             </Field>
           )}
         </>
@@ -329,11 +333,11 @@ function releaseErrorText(error: string): string {
   return `The carrier did not release the number. Nothing changed. (${error})`
 }
 
-/** Conditional call forwarding codes per carrier, to dial from the business line. */
-function Forwarding({ e164 }: { e164: string }) {
+/** Call forwarding codes per carrier for the number's mode (conditional or all calls), to dial from the business line. */
+function Forwarding({ e164, mode }: { e164: string; mode: PhoneNumber['mode'] }) {
   const [carrierId, setCarrierId] = useState(carriers[0]!.id)
   const carrier = carriers.find(c => c.id === carrierId) ?? carriers[0]!
-  const on = carrier.on(forwardingDigits(e164))
+  const { on, off } = forwardingCode(carrier, mode, e164)
   return (
     <div className="st-codes">
       <div className="st-seg" role="radiogroup" aria-label="Your carrier">
@@ -357,8 +361,8 @@ function Forwarding({ e164 }: { e164: string }) {
       </div>
       <div className="st-code">
         <span className="help">Turn off</span>
-        <code>{carrier.off}</code>
-        <CopyButton text={carrier.off} />
+        <code>{off}</code>
+        <CopyButton text={off} />
       </div>
     </div>
   )

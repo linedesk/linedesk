@@ -83,10 +83,13 @@ function Conversation({ session }: { session: TestCallSession }) {
 export function TestCallPanel({
   session,
   onOpenCall = openInInbox,
+  onStart = session.start,
 }: {
   session: TestCallSession
-  /** Where Open in inbox goes (onboarding finishes first); default: the call in the inbox. */
-  onOpenCall?: (callId: string) => void
+  /** Where Open in inbox goes; default: the call in the inbox. null: no such button (onboarding, mid-way). */
+  onOpenCall?: ((callId: string) => void) | null
+  /** Runs for Call again instead of `session.start` (onboarding saves the assistant first). */
+  onStart?: () => void
 }) {
   const { phase, problem, notSetUp, call, name, lines, pending } = session
   const open = phase !== 'idle' || !!problem
@@ -147,10 +150,12 @@ export function TestCallPanel({
             </div>
             {phase === 'ended' && call && (
               <footer className="tcp-f">
-                <Button size="sm" variant="ghost" icon="arrow-up-right" onClick={() => onOpenCall(call.id)}>
-                  Open in inbox
-                </Button>
-                <Button size="sm" variant="primary" icon="phone-in" onClick={session.start}>
+                {onOpenCall && (
+                  <Button size="sm" variant="ghost" icon="arrow-up-right" onClick={() => onOpenCall(call.id)}>
+                    Open in inbox
+                  </Button>
+                )}
+                <Button size="sm" variant="primary" icon="phone-in" onClick={onStart}>
                   Call again
                 </Button>
               </footer>

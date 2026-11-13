@@ -18,10 +18,36 @@ describe('onboarding progress', () => {
 
   test('the step is stored and /v1/me resumes there; done ends onboarding', async () => {
     const ws = await createWorkspace('Resume Plumbing')
-    expect((await act(ws.owner, 'onboarding.setStep', { step: 'test_call' })).status).toBe(200)
-    expect((await request(ws.owner, 'GET', '/v1/me')).body.onboarding.step).toBe('test_call')
+    for (const step of ['assistant', 'pickup', 'phone']) {
+      expect((await act(ws.owner, 'onboarding.setStep', { step })).status).toBe(200)
+      expect((await request(ws.owner, 'GET', '/v1/me')).body.onboarding.step).toBe(step)
+    }
     await act(ws.owner, 'onboarding.setStep', { step: 'done' })
     expect((await request(ws.owner, 'GET', '/v1/me')).body.onboarding).toBeNull()
+  })
+
+  test('a step of the earlier flow (from the release before) is still taken, and resumes at the step that took its place', async () => {
+    const ws = await createWorkspace('Legacy Plumbing')
+    const resumed: Record<string, string> = { hours: 'pickup', calendar: 'assistant', test_call: 'assistant' }
+    for (const [old, now] of Object.entries(resumed)) {
+      expect((await act(ws.owner, 'onboarding.setStep', { step: old })).status).toBe(200)
+      expect((await settingsOf(ws.id))?.onboarding_step).toBe(old)
+      expect((await request(ws.owner, 'GET', '/v1/me')).body.onboarding.step).toBe(now)
+    }
+  })
+
+  test('the pick-up choice is stored with the workspace settings; members cannot change it', async () => {
+    const ws = await createWorkspace('Pickup Plumbing')
+    expect((await act(ws.owner, 'workspace.getSettings', {})).body.data.pickupMode).toBeNull()
+    const saved = await act(ws.owner, 'workspace.updateSettings', { pickupMode: 'after_hours', businessHoursOn: true })
+    expect(saved.status).toBe(200)
+    expect(saved.body.data).toMatchObject({ pickupMode: 'after_hours', businessHoursOn: true })
+    expect((await act(ws.owner, 'workspace.getSettings', {})).body.data.pickupMode).toBe('after_hours')
+    expect(await settingsOf(ws.id)).toMatchObject({ pickup_mode: 'after_hours', business_hours_on: true })
+    expect((await act(ws.owner, 'workspace.updateSettings', { pickupMode: 'sometimes' })).status).toBe(422)
+    const member = await addMember(ws.id, 'member')
+    expect((await act(member, 'workspace.updateSettings', { pickupMode: 'always' })).status).toBe(403)
+    expect((await settingsOf(ws.id))?.pickup_mode).toBe('after_hours')
   })
 
   test('skipping ends it too; an unknown step is refused', async () => {

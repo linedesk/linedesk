@@ -1,5 +1,5 @@
 // What the web app needs to show onboarding: where the workspace is, and whether phone setup can work here.
-import { DEFAULT_AI_DISCLOSURE, type OnboardingStep } from '@linedesk/actions'
+import { DEFAULT_AI_DISCLOSURE, type OnboardingStep, resumeStep } from '@linedesk/actions'
 import { assistants, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
@@ -109,5 +109,8 @@ export async function onboardingFor(actor: Actor): Promise<OnboardingState | nul
     .where(eq(workspace_settings.workspace_id, actor.workspaceId))
   const step = settings?.step
   if (!step || step === 'done' || step === 'skipped') return null
-  return { step, phone: (await phoneSetupFor(actor))! }
+  // A step of the earlier flow resumes at the step that took its place.
+  const resumed = resumeStep(step)
+  if (resumed === 'done') return null
+  return { step: resumed, phone: (await phoneSetupFor(actor))! }
 }

@@ -368,7 +368,16 @@ export type WorkspaceSettingsData = {
   closure?: Closure | null
   /** The value of one booked job in cents (Insights); null: not set. */
   jobValueCents: number | null
+  /** When the assistant picks up, as chosen in onboarding; null: never chosen. Missing from an older API. */
+  pickupMode?: PickupMode | null
 }
+
+/**
+ * When the assistant picks up (onboarding, "When should Maya pick up?"): calls the business doesn't answer
+ * (conditional forwarding), every call (forwarding all), or only when closed (conditional forwarding plus hours).
+ */
+export const pickupModes = ['no_answer', 'always', 'after_hours'] as const
+export type PickupMode = (typeof pickupModes)[number]
 
 /** A holiday or closure day: closed all day (no times) or open only `start`–`end`. */
 export type ClosedDay = { date: string; name: string; start: string | null; end: string | null }
@@ -449,7 +458,7 @@ export const workspaceGetSettings = defineAction({
 export const workspaceUpdateSettings = defineAction({
   name: 'workspace.updateSettings',
   description:
-    'Change workspace settings: `recordingRetentionDays` (0: no recordings are kept, calls are not recorded; 30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting; off by default), `recordingNotice` (that sentence, e.g. "This call may be recorded."), `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles") and `jobValueCents` (what a booked job is worth on average, in cents, for Insights; null clears it); `closure` (vacation or closure mode: closed from `from` to `until`, with its own `greeting`, and `transfers` none or urgent only; null: off).',
+    'Change workspace settings: `recordingRetentionDays` (0: no recordings are kept, calls are not recorded; 30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting; off by default), `recordingNotice` (that sentence, e.g. "This call may be recorded."), `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles") and `jobValueCents` (what a booked job is worth on average, in cents, for Insights; null clears it); `closure` (vacation or closure mode: closed from `from` to `until`, with its own `greeting`, and `transfers` none or urgent only; null: off); `pickupMode` (when the assistant picks up, as chosen in onboarding: no_answer, always or after_hours; it decides which forwarding code is shown, the routing itself stays with the number\'s mode and the business hours).',
   input: z.object({
     recordingRetentionDays: z.union([z.literal(recordingRetentionChoices), z.null()]).optional(),
     businessHoursOn: z.boolean().optional(),
@@ -464,6 +473,7 @@ export const workspaceUpdateSettings = defineAction({
     /** Vacation or closure mode; null turns it off. */
     closure: closureSchema.nullable().optional(),
     jobValueCents: z.number().int().min(0).max(JOB_VALUE_MAX_CENTS).nullable().optional(),
+    pickupMode: z.enum(pickupModes).optional(),
   }),
   permission: 'settings:write',
 })

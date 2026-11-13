@@ -301,8 +301,20 @@ export const workspace_settings = pgTable('workspace_settings', {
   workspace_id: text('workspace_id').primaryKey(),
   /** IANA time zone; working hours and exceptions are wall-clock times in it. */
   timezone: text('timezone').notNull(),
-  /** Where the owner is in onboarding. null: a workspace from before onboarding existed, treated as finished. */
-  onboarding_step: text('onboarding_step', { enum: ['business', 'phone', 'hours', 'calendar', 'test_call', 'done', 'skipped'] }),
+  /**
+   * Where the owner is in onboarding. null: a workspace from before onboarding existed, treated as finished.
+   * `hours`, `calendar` and `test_call` are steps of the earlier flow, still read (resumeStep maps them).
+   */
+  onboarding_step: text('onboarding_step', {
+    enum: ['business', 'assistant', 'pickup', 'phone', 'hours', 'calendar', 'test_call', 'done', 'skipped'],
+  }),
+  /**
+   * When the assistant picks up, as chosen in onboarding: `no_answer` (calls the business doesn't answer, by
+   * conditional forwarding), `always` (every call, forwarding all) or `after_hours` (only when closed: conditional
+   * forwarding plus the business hours). It picks the forwarding code shown; routing itself stays with the
+   * number's mode and the hours. null: never chosen.
+   */
+  pickup_mode: text('pickup_mode', { enum: ['no_answer', 'always', 'after_hours'] }),
   /** Recordings older than this many days are deleted by the daily cleanup job. null: keep them. */
   recording_retention_days: integer('recording_retention_days').default(90),
   /** New-call notifications for members who have not set their own (member_notification_settings). */

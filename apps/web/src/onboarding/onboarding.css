@@ -17,29 +17,12 @@
   font-size: 12.5px;
   color: var(--ink-muted);
 }
-.ob-sim {
-  display: grid;
-  gap: 8px;
-  justify-items: start;
-  padding: 14px;
-}
-.ob-sim code {
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  overflow-wrap: anywhere;
-}
 .ob-label {
   font-size: 12.5px;
   font-weight: 500;
 }
 .ob2-dial > b {
   user-select: all;
-}
-.ob-hours-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
 }
 .ob .st-list {
   background: var(--surface);
@@ -50,12 +33,19 @@
 .ob .st-li:first-child {
   padding-top: 8px;
 }
-.ob-cal {
-  margin: 0;
-  padding: 0;
-}
 .ob-tight {
   margin: 0;
+}
+/* The pick-up choices: one under the other, the recommended first. */
+.ob .ob-pickup {
+  grid-template-columns: 1fr;
+}
+/* The assistant step's test call: the button with a short line beside it (wraps under it on phones). */
+.ob-talk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
 }
 /* Phones: the times of a day go under its name, so the week fits without scrolling sideways. */
 @media (max-width: 520px) {

@@ -101,7 +101,10 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
           // The browser is the caller here: its own speech is the stream about its own track.
           live.listen(next, (reader, from, room) => {
             const track = reader.info.attributes?.['lk.transcribed_track_id']
-            return from.identity === room.localParticipant.identity || (!!track && room.localParticipant.trackPublications.has(track))
+            return (
+              from.identity === room.localParticipant.identity ||
+              (!!track && room.localParticipant.trackPublications.has(track))
+            )
           })
           next.on(RoomEvent.Disconnected, () => {
             if (room.current === next) setPhase('ended')
@@ -183,9 +186,12 @@ export type TestCallSession = ReturnType<typeof useTestCall>
 export function TestCallButton({
   session,
   variant = 'secondary',
+  onStart = session.start,
 }: {
   session: TestCallSession
   variant?: 'primary' | 'secondary'
+  /** Runs instead of `session.start` (onboarding saves the assistant first, then starts). */
+  onStart?: () => void
 }) {
   const busy = session.phase === 'starting' || session.phase === 'live'
   return (
@@ -193,7 +199,7 @@ export function TestCallButton({
       <Button
         variant={variant}
         icon="phone-in"
-        onClick={session.start}
+        onClick={onStart}
         disabled={!!session.blockedReason || busy}
         title={session.blockedReason ? undefined : 'Start test call: talk to the assistant with your microphone'}
       >

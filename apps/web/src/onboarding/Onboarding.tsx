@@ -9,16 +9,22 @@ import { preloadWorkspaceSettings, useWriteAction } from '../settings/settings-a
 import { usePresence } from '../shell/presence.ts'
 import { rejectionText } from '../shell/rejections.ts'
 import { queueTour } from '../shell/tour.ts'
-import { callHash } from '../shell/useRoute.ts'
 import { useAssistantName, useRejection, useRows, useRun } from '../store.tsx'
 import { Button, Icon } from '../ui/kit.tsx'
+import { AssistantStep } from './AssistantStep.tsx'
 import { BusinessStep } from './BusinessStep.tsx'
-import { CalendarStep } from './CalendarStep.tsx'
 import { Foot, Frame, useStepKeys } from './Frame.tsx'
-import { formatNumber, nextStep, type OnboardingStep, phoneSetupErrorText, previousStep } from './flow.ts'
-import { HoursStep } from './HoursStep.tsx'
+import {
+  formatNumber,
+  NO_PICKUP_MEMORY,
+  nextStep,
+  type OnboardingStep,
+  type PickupMemory,
+  phoneSetupErrorText,
+  previousStep,
+} from './flow.ts'
 import { PhoneStep } from './PhoneStep.tsx'
-import { TestCallStep } from './TestCallStep.tsx'
+import { PickupStep } from './PickupStep.tsx'
 import './onboarding.css'
 
 export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingState; onDone: () => void }) {
@@ -36,7 +42,7 @@ export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingSta
   useEffect(() => {
     if (step === 'done' && offersTour(firstUse)) queueTour(workspaceId)
   }, [step, firstUse, workspaceId])
-  // The Hours step shows the saved hours: loaded now, so they are there when it opens.
+  // The pick-up step shows the saved choice and hours: loaded now, so they are there when it opens.
   useEffect(() => {
     void preloadWorkspaceSettings()
   }, [])
@@ -44,6 +50,8 @@ export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingSta
   const [confirmed, setConfirmed] = useState(false)
   const [setupError, setSetupError] = useState<string | null>(null)
   const [otherError, setOtherError] = useState<string | null>(null)
+  // What the pick-up step changed this session (hours it turned on, the forwarding a number had before).
+  const [pickupMemory, setPickupMemory] = useState<PickupMemory>(NO_PICKUP_MEMORY)
   const hasNumber = useRows('phone_numbers').length > 0
 
   const { rejection, clearRejection } = useRejection()
@@ -63,15 +71,9 @@ export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingSta
     const to = previousStep(step)
     if (to) go(to)
   }
-  // Without a number the test call happens in the browser, so every step leads to the next.
   const forward = () => go(nextStep(step))
   function skip() {
     void run('onboarding.setStep', { step: 'skipped' })
-    finish()
-  }
-  function openCall(callId: string) {
-    void run('onboarding.setStep', { step: 'done' })
-    window.history.replaceState(null, '', callHash(callId))
     finish()
   }
 
@@ -88,23 +90,18 @@ export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingSta
         />
       )}
       {step === 'business' && <BusinessStep businessName={me.workspace!.name} onNext={forward} />}
+      {step === 'assistant' && <AssistantStep onBack={back} onNext={forward} />}
+      {step === 'pickup' && (
+        <PickupStep onBack={back} onNext={forward} memory={pickupMemory} onMemory={setPickupMemory} />
+      )}
       {step === 'phone' && (
         <PhoneStep
           status={state.phone}
           setupError={setupError}
           clearError={() => setSetupError(null)}
+          oldForwarding={pickupMemory.oldForwarding}
           onBack={back}
           onNext={forward}
-        />
-      )}
-      {step === 'hours' && <HoursStep onBack={back} onNext={forward} />}
-      {step === 'calendar' && <CalendarStep onBack={back} onNext={forward} />}
-      {step === 'test_call' && (
-        <TestCallStep
-          showSimulator={import.meta.env.DEV || state.phone.provider === 'dev'}
-          onBack={back}
-          onNext={forward}
-          onOpenCall={openCall}
         />
       )}
       {step === 'done' && <Done onBack={back} onDone={finish} offerSamples={offersSampleCalls(firstUse)} />}
