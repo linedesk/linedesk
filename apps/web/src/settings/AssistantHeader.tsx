@@ -108,97 +108,46 @@ function SwitchMenu({ assistant, assistants, canEdit, onPick, onNew, onDuplicate
   )
 }
 
-/** Which numbers this assistant answers, and (with several numbers) a list to give it more. */
+/**
+ * Which numbers this assistant answers. Each opens its settings (Settings, Phone numbers), the one place that picks
+ * the assistant answering a number: a number has exactly one, so it is chosen there, not taken from another here.
+ */
 function NumberChips({
   assistant,
   isDefault,
   numbers,
-  assistants,
   canEdit,
 }: {
   assistant: Assistant
   isDefault: boolean
   numbers: PhoneNumber[]
-  assistants: Assistant[]
   canEdit: boolean
 }) {
-  const run = useRun()
-  const [open, setOpen] = useState(false)
-  const root = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!open) return
-    root.current?.querySelector<HTMLElement>('[role="menuitemcheckbox"]')?.focus()
-    const outside = (e: MouseEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', outside)
-    return () => document.removeEventListener('mousedown', outside)
-  }, [open])
-  const answers = (n: PhoneNumber) => n.assistant_id === assistant.id || (!n.assistant_id && isDefault)
-  const owner = (n: PhoneNumber) => assistants.find(a => a.id === n.assistant_id)?.name ?? assistants[0]?.name
-  const mine = numbers.filter(answers)
+  const mine = numbers.filter(n => n.assistant_id === assistant.id || (!n.assistant_id && isDefault))
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: Esc closes the number list
-    <div
-      className="as-numbers"
-      ref={root}
-      onKeyDown={e => {
-        if (e.key === 'Escape' && open) {
-          e.stopPropagation()
-          setOpen(false)
-        }
-      }}
-    >
-      {mine.length ? (
-        mine.map(n => (
-          <span key={n.id} className="as-chip">
-            {formatNumber(n.e164)}
-          </span>
-        ))
-      ) : (
-        <span className="help">Answers no number yet</span>
-      )}
-      {canEdit && numbers.length > 1 && (
-        <span className="as-assign">
-          <Button
-            size="sm"
-            variant="ghost"
-            icon="plus"
-            aria-expanded={open}
-            aria-haspopup="menu"
-            title="Choose the numbers this assistant answers"
-            onClick={() => setOpen(o => !o)}
+    <div className="as-numbers">
+      {mine.map(n => (
+        <a
+          key={n.id}
+          className="as-chip"
+          href={`#settings/phone/${n.id}`}
+          title="Open this number: which assistant answers it, how it's used"
+        >
+          {formatNumber(n.e164)}
+        </a>
+      ))}
+      {!mine.length &&
+        (canEdit ? (
+          <a
+            className="help"
+            href="#settings/phone"
+            title="Choose which assistant answers a number in Settings › Phone numbers"
           >
-            Numbers
-          </Button>
-          {open && (
-            <div className="as-menu" role="menu" aria-label="Numbers">
-              {numbers.map(n => (
-                <button
-                  key={n.id}
-                  type="button"
-                  role="menuitemcheckbox"
-                  aria-checked={answers(n)}
-                  className="nav-item"
-                  disabled={answers(n)}
-                  title={
-                    answers(n)
-                      ? `${assistant.name} answers it`
-                      : `Answered by ${owner(n)} now. Move it to ${assistant.name}.`
-                  }
-                  onClick={() => {
-                    setOpen(false)
-                    void run('phoneNumber.update', { phoneNumberId: n.id, assistantId: assistant.id })
-                  }}
-                >
-                  <span className="lbl">{formatNumber(n.e164)}</span>
-                  {answers(n) ? <Icon name="check" size={14} /> : <span className="help">{owner(n)}</span>}
-                </button>
-              ))}
-            </div>
-          )}
-        </span>
-      )}
+            Answers no number yet. Choose one in Phone numbers
+          </a>
+        ) : (
+          <span className="help">Answers no number yet</span>
+        ))}
     </div>
   )
 }
@@ -255,13 +204,7 @@ export function AssistantHeader({ assistant, assistants, numbers, canEdit, onPic
           </a>
         </div>
       ) : (
-        <NumberChips
-          assistant={assistant}
-          isDefault={isDefault}
-          numbers={numbers}
-          assistants={assistants}
-          canEdit={canEdit}
-        />
+        <NumberChips assistant={assistant} isDefault={isDefault} numbers={numbers} canEdit={canEdit} />
       )}
       {deleting && fallback && (
         <Dialog

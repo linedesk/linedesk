@@ -53,8 +53,7 @@
   flex: none;
   color: var(--ink-muted);
 }
-.as-switch-wrap,
-.as-assign {
+.as-switch-wrap {
   position: relative;
 }
 .as-menu {
@@ -119,6 +118,11 @@
   background: var(--surface-hover);
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
+  color: inherit;
+  text-decoration: none;
+}
+a.as-chip:hover {
+  background: var(--line-soft);
 }
 
 /* Settings, Business hours: the main switch in the card header. */
