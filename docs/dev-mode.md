@@ -38,11 +38,13 @@ then `scripts/deploy.sh`. The `COMPOSE_FILE` line stays in both modes; it adds `
 
 `scripts/deploy.sh` in dev mode hands over to `scripts/deploy-dev.sh [<commit>]`, which:
 
-1. refuses (logs why, exits 1, touches nothing) when the checkout is not on `main`, has local changes or untracked files, or cannot fast-forward;
-2. fetches `origin main` and fast-forwards to the commit (default: the newest `origin/main`);
+1. refuses (logs why, exits 1, touches nothing) when the checkout is not on its branch, has local changes or untracked files, or cannot fast-forward;
+2. fetches the branch from `origin` and fast-forwards to the commit (default: the branch's newest commit);
 3. runs `scripts/deploy.sh --no-build`: recreates only services whose compose settings changed and reloads a new Caddyfile. The code itself is picked up by the watchers.
 
-The checkout needs read access to the repository (on the test server: a read-only deploy key). The GitHub workflow (`.github/workflows/deploy-staging.yml`) stays the same; with the repository variable `STAGING_MODE=live` it deploys every green main without waiting for the 10-minute gap.
+The branch is `LINEDESK_DEV_BRANCH` in `.env` (default `main`). The test server sets `LINEDESK_DEV_BRANCH=master-dev`, the branch staging runs (docs/ci.md, "Branches"); its checkout stays on `master-dev`.
+
+The checkout needs read access to the repository (on the test server: a read-only deploy key). The GitHub workflow (`.github/workflows/deploy-staging.yml`) stays the same and deploys every green main (through `master-dev`) at once; the repository variable `STAGING_MODE=dev` turns its image build off.
 
 ## Coding on the server
 
@@ -51,17 +53,17 @@ One session edits the server's checkout at a time; everyone else keeps working i
 ```sh
 ssh -A <server>                      # -A: your own key pushes; nothing is stored on the server
 cd <checkout>                        # the directory the stack runs from
-git switch -c tim/<topic>            # from now on deploys refuse (not on main) until you switch back
+git switch -c tim/<topic>            # from now on deploys refuse (not on its branch) until you switch back
 # edit: the web app hot-reloads, the API restarts in ~2 s, the agent restarts (ends running calls)
 docker compose logs -f api           # or web, agent
 docker compose exec api pnpm typecheck
 docker compose exec agent node src/call-test.ts <scenario>
 git -c user.name="…" -c user.email="…" commit -am "…"
 git push git@github.com:<owner>/<repo>.git tim/<topic>   # with the forwarded key; origin is read-only
-git switch main                      # clean again: the next deploy fast-forwards
+git switch master-dev                # back to its branch (LINEDESK_DEV_BRANCH): the next deploy fast-forwards
 ```
 
-Then open the PR as usual. When it is merged, the next deploy brings it back through `main`. Without agent forwarding, fetch the branch from your machine instead: `git fetch ssh://<server><checkout> tim/<topic>` and push from there.
+Then open the PR as usual. When it is merged, the next deploy brings it back through `main` (and `master-dev`). Without agent forwarding, fetch the branch from your machine instead: `git fetch ssh://<server><checkout> tim/<topic>` and push from there.
 
 While the checkout is on a branch or has uncommitted changes, every deploy fails with the reason in the log (and the GitHub run is red); that is intended, nothing on the server is overwritten. Don't run `pnpm install` on the host: the dependencies belong to the containers (`docker compose exec api pnpm …`).
 

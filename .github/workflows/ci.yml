@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, master-dev, master-prod]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -13,6 +13,22 @@ permissions:
   contents: read
 
 jobs:
+  # master-prod only takes merges of master-dev (docs/ci.md, "Branches"): a pull request into it from any other branch
+  # (or from a fork) turns red. GitHub Free cannot make this check required; the production server refuses such a
+  # commit anyway (scripts/receive-release.sh), this only says so before the merge.
+  release-source:
+    if: github.event_name == 'pull_request' && github.base_ref == 'master-prod'
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: The pull request must come from master-dev
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          [ "$HEAD_REF" = master-dev ] && [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ] ||
+            { echo "master-prod only takes merges of master-dev, not $HEAD_REPO:$HEAD_REF"; exit 1; }
+
   # Fast checks only while we build: typecheck and lint (~10 s). The test suite runs in tests.yml,
   # by hand or for a release, not on every pull request (docs/ci.md).
   check:
