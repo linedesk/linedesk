@@ -240,8 +240,9 @@ function NotificationSettings({
           />
           {device.pushOn && (
             <SwitchRow
-              title="Say what the call was about"
-              description="Adds one line to each notification. It shows on your lock screen."
+              nested
+              title="Include what the call was about"
+              description="Adds one line about the call to these notifications. It can show on your lock screen."
               on={settings.push.summary}
               onChange={setPushSummary}
             />

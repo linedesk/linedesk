@@ -92,11 +92,14 @@ type SwitchRowProps = {
   disabled?: boolean
   /** Greyed out: it has no effect yet (browser notifications before the browser allows them). */
   dimmed?: boolean
+  /** An option of the row above: indented under it, without the line between them. */
+  nested?: boolean
 }
 
-export function SwitchRow({ title, description, aside, on, onChange, disabled, dimmed }: SwitchRowProps) {
+export function SwitchRow({ title, description, aside, on, onChange, disabled, dimmed, nested }: SwitchRowProps) {
+  const className = ['swrow', dimmed && 'is-dimmed', nested && 'is-nested'].filter(Boolean).join(' ')
   return (
-    <div className={dimmed ? 'swrow is-dimmed' : 'swrow'}>
+    <div className={className}>
       <div>
         <b>
           {title}
@@ -144,7 +147,15 @@ type SelectRowProps<T extends string> = {
 }
 
 /** Like SwitchRow, with a dropdown at the right; on a phone the dropdown goes under the text. */
-export function SelectRow<T extends string>({ id, title, description, note, value, options, onChange }: SelectRowProps<T>) {
+export function SelectRow<T extends string>({
+  id,
+  title,
+  description,
+  note,
+  value,
+  options,
+  onChange,
+}: SelectRowProps<T>) {
   return (
     <div className="selrow">
       <div className="selrow-text">
