@@ -17,6 +17,12 @@ test('anything else is a phone call, numbered by LiveKit SIP', () => {
   }
 })
 
+test('a call test may make the assistant speak only one language; an unknown one is ignored', () => {
+  const test = (extra: object) => callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', ...extra }), {}, 'test-abc')
+  expect(test({ mainLanguage: 'es' })).toMatchObject({ kind: 'test', mainLanguage: 'es' })
+  expect(test({ mainLanguage: 'xx' })).not.toHaveProperty('mainLanguage')
+})
+
 test('a room that is neither is refused', () => {
   expect(() => callOrigin('', {}, 'room')).toThrow('participant has no sip.trunkPhoneNumber attribute')
 })

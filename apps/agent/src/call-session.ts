@@ -217,6 +217,8 @@ type TestMetadata = {
   simulateTransfer?: boolean
   /** Languages besides English the assistant speaks on this test call. */
   languages?: Language[]
+  /** The one language the assistant speaks on this test call, instead of its own setting. */
+  mainLanguage?: Language
   /** How this test call is answered instead of the assistant's own choice (call-test --pipeline). */
   pipeline?: VoicePipeline
   /** The realtime model this test call uses instead of the install's (call-test --realtime-model). */
@@ -244,14 +246,16 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   const outsideGreeting = origin.kind === 'test' ? origin.outsideGreeting : undefined
   const onCall = origin.kind === 'test' ? origin.onCall : undefined
   const languages = origin.kind === 'test' ? origin.languages : undefined
+  const mainLanguage = origin.kind === 'test' ? origin.mainLanguage : undefined
   const pipeline = origin.kind === 'test' ? origin.pipeline : undefined
   const configured =
-    started.assistant && (outsideGreeting || onCall || languages || pipeline)
+    started.assistant && (outsideGreeting || onCall || languages || mainLanguage || pipeline)
       ? {
           ...started.assistant,
           ...(outsideGreeting ? { greeting_outside: outsideGreeting } : {}),
           ...(onCall ? { transfers: simulatedContacts(onCall) } : {}),
           ...(languages ? { languages: { mode: 'allowed' as const, allowed: languages } } : {}),
+          ...(mainLanguage ? { languages: { main: mainLanguage, mode: 'english' as const, allowed: [] } } : {}),
           ...(pipeline ? { voice_pipeline: pipeline } : {}),
         }
       : started.assistant
@@ -339,6 +343,7 @@ export function parseTestMetadata(metadata: string): TestMetadata | null {
       onCall?: unknown
       simulateTransfer?: unknown
       languages?: unknown
+      mainLanguage?: unknown
       pipeline?: unknown
       realtimeModel?: unknown
     }
@@ -363,6 +368,7 @@ export function parseTestMetadata(metadata: string): TestMetadata | null {
       ...(onCall ? { onCall } : {}),
       ...(parsed.simulateTransfer === true ? { simulateTransfer: true } : {}),
       ...(languages.length ? { languages } : {}),
+      ...((languageCodes as readonly unknown[]).includes(parsed.mainLanguage) ? { mainLanguage: parsed.mainLanguage as Language } : {}),
       ...((VOICE_PIPELINES as readonly unknown[]).includes(parsed.pipeline)
         ? { pipeline: parsed.pipeline as VoicePipeline }
         : {}),

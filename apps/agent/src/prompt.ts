@@ -301,7 +301,7 @@ export function languageInstructions(assistant: Pick<Assistant, 'languages'> | n
   const mainName = LANGUAGES[main]
   if (!others.length) {
     const only = `Speak ${mainName} only. If the caller speaks another language, say in ${mainName} that you can only help in ${mainName} and offer to take a message.`
-    return main === 'en' ? only : `${only} ${TEAM_LANGUAGE_RULE}`
+    return main === 'en' ? only : `${only} ${TEAM_LANGUAGE_RULE} ${SPOKEN_LANGUAGE_RULE}`
   }
   return [
     `Start in ${mainName}. You also speak ${languageNames(others)}: when the caller speaks one of these, reply in that language from then on, and switch back if they switch.`,

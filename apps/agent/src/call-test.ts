@@ -143,7 +143,7 @@ async function startInRoom({ name, room, to, since, api, persona, pipeline, real
     mode: 'room',
     ...(persona ? { persona } : {}),
   }
-  const { businessHours, outsideGreeting, onCall, languages } = scenarios[name] as Scenario
+  const { businessHours, outsideGreeting, onCall, languages, mainLanguage } = scenarios[name] as Scenario
   const metadata = {
     source: 'test',
     workspaceId,
@@ -153,6 +153,7 @@ async function startInRoom({ name, room, to, since, api, persona, pipeline, real
     ...(outsideGreeting ? { outsideGreeting } : {}),
     ...(onCall ? { onCall } : {}),
     ...(languages ? { languages } : {}),
+    ...(mainLanguage ? { mainLanguage } : {}),
   }
   // The caller first, as on a phone call: the caller is in the room when the business's job starts,
   // so the business's own timing from its job start is not the time the test caller takes to join.

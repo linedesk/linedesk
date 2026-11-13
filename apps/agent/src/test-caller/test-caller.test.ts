@@ -47,10 +47,11 @@ test('the call-test command line: the scenario comes first or after flags, the p
 test('every speaking caller is told to end the call, never reveal the test, and today\'s date', () => {
   expect(scenarioNames).toEqual([
     'callback-message', 'burst-pipe', 'urgent-promise', 'price-question', 'booking', 'which-calendar', 'wrong-number', 'robot-question', 'interrupter',
-    'after-hours', 'transfer-accepted', 'transfer-no-answer', 'transfer-declined', 'silence', 'silence-closing', 'silence-mid-call', 'transfer-next', 'transfer-person', 'spanish-caller',
+    'after-hours', 'transfer-accepted', 'transfer-no-answer', 'transfer-declined', 'silence', 'silence-closing', 'silence-mid-call', 'transfer-next', 'transfer-person', 'spanish-caller', 'spanish-only',
   ])
   expect(callerInstructions(scenarios.booking, 'Wednesday, November 11, 2026')).toContain('Today is Wednesday, November 11, 2026.')
   expect(callerInstructions(scenarios['spanish-caller'])).toContain('plain spoken Spanish')
+  expect(callerInstructions(scenarios['spanish-only'])).toContain('plain spoken Spanish')
   for (const name of scenarioNames.filter(n => scenarios[n].persona)) {
     expect(callerInstructions(scenarios[name])).toContain('end_call')
     expect(callerInstructions(scenarios[name])).toContain('Never say that you are an AI')

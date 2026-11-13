@@ -300,3 +300,10 @@ test('an assistant that speaks more than one language says English tool texts an
   expect(spanish).toContain('say them in the language you are speaking with the caller')
   expect(languageInstructions({ languages: { main: 'en', mode: 'english', allowed: [] } } as unknown as Assistant)).not.toContain('say them in the language')
 })
+
+test('an assistant that speaks only one language other than English also says English tool texts in that language', () => {
+  const german = languageInstructions({ languages: { main: 'de', mode: 'english', allowed: [] } } as unknown as Assistant)
+  expect(german).toMatch(/^Speak German only\./)
+  expect(german).toContain('write the messages, notes and booking details you save with tools in English')
+  expect(german).toContain('say them in the language you are speaking with the caller')
+})

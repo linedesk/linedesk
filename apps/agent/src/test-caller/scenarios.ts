@@ -68,6 +68,8 @@ export interface Scenario {
    * its own setting. The test caller then understands them too.
    */
   languages?: Language[]
+  /** No-phone test only: the one language the business's assistant speaks on this call, instead of its own setting. */
+  mainLanguage?: Language
 }
 
 const rules = (language: string) =>
@@ -221,6 +223,19 @@ export const scenarios = {
     },
     languages: ['es'],
   },
+  // The assistant speaks only Spanish: English tool results (take_message's) must come out in Spanish too.
+  'spanish-only': {
+    persona:
+      'Eres María González. Hablas solo español, nada de inglés. El inodoro de tu baño gotea y quieres que un fontanero te llame para arreglarlo esta semana. Da tu nombre cuando te lo pidan. Despídete con "adiós" y cuelga.',
+    expect: {
+      outcome: MESSAGE_OUTCOMES,
+      actionItems: 1,
+      assistantSays: /\b(gracias|nombre|ayudar|llam\w*|fontaner\w*|inodoro|equipo)\b/i,
+      assistantAvoids: /\b(the team will|get back to you|anything else|I'll hang up|thanks for calling, goodbye)\b/i,
+      summarySays: /\bSpanish\b/,
+    },
+    mainLanguage: 'es',
+  },
 } satisfies Record<string, Scenario>
 
 export type ScenarioName = keyof typeof scenarios
@@ -228,8 +243,14 @@ export const scenarioNames = Object.keys(scenarios) as ScenarioName[]
 export const isScenario = (name: string): name is ScenarioName => Object.hasOwn(scenarios, name)
 
 /** The caller's instructions; `today` (for example "Wednesday, November 11, 2026") so dates the caller says are in the right year. */
-export const callerInstructions = (scenario: Scenario, today = todayInWords()) =>
-  `${rules(scenario.languages?.length ? languageNames(scenario.languages, 'or') : 'English')} Today is ${today}.\n\n${scenario.persona}`
+/** The languages besides English the test caller hears and speaks: the business's for this call. */
+export const callerLanguagesOf = (scenario: Scenario): Language[] | undefined =>
+  scenario.mainLanguage ? [scenario.mainLanguage] : scenario.languages
+
+export const callerInstructions = (scenario: Scenario, today = todayInWords()) => {
+  const languages = callerLanguagesOf(scenario)
+  return `${rules(languages?.length ? languageNames(languages, 'or') : 'English')} Today is ${today}.\n\n${scenario.persona}`
+}
 
 const todayInWords = (now = new Date()) =>
   now.toLocaleDateString('en-US', {

@@ -6,7 +6,7 @@ import type { AgentConfig, RealtimeConfig } from '../config.ts'
 import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from '../counterpart.ts'
 import { createPipeline, createRealtimeLineTts } from '../pipeline.ts'
 import { measureLatency } from './latency.ts'
-import { callerInstructions, type Scenario, scenarios, type TestCallerMetadata } from './scenarios.ts'
+import { callerInstructions, callerLanguagesOf, type Scenario, scenarios, type TestCallerMetadata } from './scenarios.ts'
 
 /** The SIP participant the call-test command dials; the business's assistant answers on it. */
 export const CALLEE_IDENTITY = 'callee'
@@ -51,7 +51,7 @@ export async function runTestCaller(ctx: JobContext, { scenario: name, mode, per
   // A voice other than the assistant's, so the two sides are easy to tell apart in a recording.
   const voiceId = process.env.TEST_CALLER_VOICE_ID
   const voiceOf = voiceId ? { provider: config.tts.provider, voice_id: voiceId } : null
-  const pipeline = createPipeline(config, voiceOf, undefined, scenario.languages ? { main: 'en', others: scenario.languages } : undefined)
+  const pipeline = createPipeline(config, voiceOf, undefined, callerLanguagesOf(scenario) ? { main: 'en', others: callerLanguagesOf(scenario)! } : undefined)
   const openAiVoice = openAi && createRealtimeLineTts({ apiKey: openAi.apiKey, voice: process.env.TEST_CALLER_OPENAI_VOICE || TEST_CALLER_OPENAI_VOICE })
   const session = new voice.AgentSession(openAiVoice ? { ...pipeline, tts: openAiVoice } : pipeline)
   let saidGoodbye = false
