@@ -50,7 +50,9 @@ jobs:
           docker build -t linedesk-default .
           docker image inspect -f '{{json .Config.Entrypoint}}' linedesk-default | grep -q api-entrypoint.sh
 
-  # No secrets in the repo: gitleaks scans the whole history (about 2 s), rules and exceptions in .gitleaks.toml.
+  # No secrets in the repo: gitleaks scans the whole history of the commit under test (about 2 s), rules and exceptions
+  # in .gitleaks.toml. Only HEAD's history, not every branch (gitleaks' default --all): otherwise one branch with a
+  # finding turns every other pull request and main red until it is deleted.
   # The binary is pinned by version and checksum instead of gitleaks-action, which needs a paid licence for organisations.
   secrets:
     runs-on: depot-ubuntu-24.04
@@ -70,4 +72,4 @@ jobs:
           echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/$file" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/$file" -C "$RUNNER_TEMP" gitleaks
       - name: Scan history
-        run: $RUNNER_TEMP/gitleaks git --no-banner --redact --verbose .
+        run: $RUNNER_TEMP/gitleaks git --no-banner --redact --verbose --log-opts=HEAD .
