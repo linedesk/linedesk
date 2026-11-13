@@ -610,6 +610,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null }: Pr
               onAssign: canAssign ? anchor => openAssign(selection.calls[0]!, anchor) : undefined,
               onDelete: () => callHandlers.remove(selection.calls[0]!),
               onCommands: () => setOverlay('commands'),
+              onSelectAll: selection.all,
               onClear: selection.clear,
             }}
             tab={tab}

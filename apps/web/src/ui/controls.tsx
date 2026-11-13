@@ -12,12 +12,19 @@ type CheckboxProps = {
   label?: string
   disabled?: boolean
   className?: string
+  /** Some but not all of a group are checked: a dash instead of the tick. */
+  indeterminate?: boolean
 }
 
-export function Checkbox({ checked, onChange, children, label, disabled, className }: CheckboxProps) {
+export function Checkbox({ checked, onChange, children, label, disabled, className, indeterminate }: CheckboxProps) {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = !!indeterminate
+  })
   return (
     <label className={cx('k-check', disabled && 'k-check-off', className)}>
       <input
+        ref={ref}
         type="checkbox"
         className="k-check-input"
         checked={checked}

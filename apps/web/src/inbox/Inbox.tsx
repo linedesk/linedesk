@@ -1,8 +1,8 @@
 import type { Call } from '@linedesk/db/types'
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { SegmentsByCall } from '../call/segments.ts'
 import type { CallGroups, InboxTab } from '../inbox-model.ts'
-import { dayLabel, parseTs } from '../time.ts'
+import { Checkbox } from '../ui/controls.tsx'
 import { cx, Icon, Kbd } from '../ui/kit.tsx'
 import { LoadProblem, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import type { BulkActions } from './BulkBar.tsx'
@@ -58,6 +58,63 @@ function Empty({ tab, search }: { tab: InboxTab; search: string | null }) {
   )
 }
 
+/** What the status column shows in each view; search lists calls of every view, so there it is the status. */
+const statusHeading: Partial<Record<InboxTab, string>> = { you: 'Next step', reminders: 'Reminder' }
+
+/**
+ * Above the calls: a box that selects every call in the view (a dash while only some are), and a
+ * heading per column. Sticks to the top while the list scrolls.
+ */
+function ListHead({
+  tab,
+  searching,
+  total,
+  bulk,
+}: {
+  tab: InboxTab
+  searching: boolean
+  total: number
+  bulk: BulkActions
+}) {
+  const all = bulk.count > 0 && bulk.count >= total
+  const some = bulk.count > 0 && !all
+  return (
+    <div className="ib-cols" role="presentation">
+      {/* Like a row's box: the click is handled here, so the box only shows the selection. */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: the checkbox inside is the control; its click (and Space) arrive here */}
+      <span
+        className="ib-cols-check"
+        title={all ? 'Unselect all (Esc)' : 'Select all (⌘ A)'}
+        onClick={e => {
+          e.stopPropagation()
+          // A click on the label would click the input a second time; one on the input itself (Space) toggles it the way the selection goes.
+          if (!(e.target instanceof HTMLInputElement)) e.preventDefault()
+          if (all) bulk.onClear()
+          else bulk.onSelectAll()
+        }}
+      >
+        <Checkbox
+          checked={all}
+          indeterminate={some}
+          label={all ? 'Unselect all calls' : 'Select all calls'}
+          onChange={() => {}}
+        >
+          <span className="ib-cols-all">{all ? 'All selected' : 'Select all'}</span>
+        </Checkbox>
+      </span>
+      <span className="num" aria-hidden="true">
+        Time
+      </span>
+      <span aria-hidden="true">Caller</span>
+      <span aria-hidden="true">Call</span>
+      <span aria-hidden="true">{(!searching && statusHeading[tab]) || 'Status'}</span>
+      <span className="num" aria-hidden="true">
+        Duration
+      </span>
+    </div>
+  )
+}
+
 function Hints({ tab }: { tab: InboxTab }) {
   const done: [string[], string] = tab === 'done' ? [['⇧', 'E'], 'not done'] : [['E'], 'done']
   const hints: [string[], string][] = [
@@ -104,7 +161,6 @@ export function Inbox({
   useEffect(() => {
     if (cursor) listRef.current?.querySelector('.is-cursor')?.scrollIntoView({ block: 'nearest' })
   }, [cursor])
-  const day = (c: Call) => dayLabel(parseTs(c.started_at))
   const loadState = useLoadState('calls') // before the first sync an empty list is not "nothing needs you"
   const zero = !list.length && tab === 'you' && search === null && loadState === 'ready'
   // Screen readers hear the call under the cursor as J and K move it (the rows themselves never take focus).
@@ -112,7 +168,6 @@ export function Inbox({
   useEffect(() => {
     setSpoken(cursor ? (listRef.current?.querySelector('.is-cursor')?.getAttribute('aria-label') ?? '') : '')
   }, [cursor])
-  const groupByDay = tab !== 'reminders' || search !== null // reminders are ordered by when they come back, not by call day
 
   return (
     <div className="cv">
@@ -145,23 +200,20 @@ export function Inbox({
           ref={listRef}
           role="list"
         >
-          {list.map((c, i) => (
-            <Fragment key={c.id}>
-              {groupByDay && (i === 0 || day(list[i - 1]!) !== day(c)) && (
-                <div className="ib-day" role="presentation">
-                  {day(c)}
-                </div>
-              )}
-              <Row
-                {...rest}
-                call={c}
-                segments={segments.get(c.id) ?? []}
-                isCursor={cursor === c.id}
-                selected={selected.has(c.id)}
-                group={groups.get(c.id)}
-                motion={leaving === c.id ? 'leaving' : entering === c.id ? 'entering' : null}
-              />
-            </Fragment>
+          {list.length > 0 && rest.onSelect && (
+            <ListHead tab={tab} searching={search !== null} total={list.length} bulk={bulk} />
+          )}
+          {list.map(c => (
+            <Row
+              key={c.id}
+              {...rest}
+              call={c}
+              segments={segments.get(c.id) ?? []}
+              isCursor={cursor === c.id}
+              selected={selected.has(c.id)}
+              group={groups.get(c.id)}
+              motion={leaving === c.id ? 'leaving' : entering === c.id ? 'entering' : null}
+            />
           ))}
           {loadState === 'loading' ? (
             <SkeletonRows label="Loading calls" />

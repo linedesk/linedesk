@@ -17,13 +17,6 @@ export function timeLabel(date: Date, now = new Date()): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-/** A row's time under a day label ("Today", "Yesterday"): the clock time, so the day is not said twice. */
-export function timeUnderDay(date: Date, now = new Date()): string {
-  return dayLabel(date, now) === 'Yesterday'
-    ? date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    : timeLabel(date, now)
-}
-
 /** "1m 20s" for lists. */
 export function shortDuration(seconds: number): string {
   const m = Math.floor(seconds / 60),
@@ -53,6 +46,22 @@ export function dateTimeLabel(date: Date, now = new Date()): string {
   return day === 'Yesterday'
     ? `Yesterday ${time}`
     : `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${time}`
+}
+
+/**
+ * A call's time in the inbox list, always with the clock time so you can tell when someone called:
+ * "2:58 PM", "Yesterday 7:59 PM", "Mon 9:02 AM" (the last week), "Nov 12, 9:02 AM", "Nov 12, 2025" (another year).
+ */
+export function listTime(date: Date, now = new Date()): string {
+  const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const days = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000)
+  if (days <= 0) return time
+  if (days === 1) return `Yesterday ${time}`
+  if (days < 7) return `${date.toLocaleDateString('en-US', { weekday: 'short' })} ${time}`
+  if (date.getFullYear() !== now.getFullYear())
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${time}`
 }
 
 /** When a reminder comes back: "Today 6:30 PM", "Tomorrow 8:00 AM", "Fri 8:00 AM", "Dec 10, 8:00 AM". */

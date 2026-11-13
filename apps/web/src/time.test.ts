@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clock, dateTimeLabel, longDuration, parseTs, shortDuration, whenLabel } from './time.ts'
+import { clock, dateTimeLabel, listTime, longDuration, parseTs, shortDuration, whenLabel } from './time.ts'
 
 describe('time labels', () => {
   const now = new Date(2026, 10, 10, 15, 0)
@@ -7,6 +7,13 @@ describe('time labels', () => {
     expect(dateTimeLabel(new Date(2026, 10, 10, 10, 23), now)).toBe('10:23 AM')
     expect(dateTimeLabel(new Date(2026, 10, 9, 16, 5), now)).toBe('Yesterday 4:05 PM')
     expect(dateTimeLabel(new Date(2026, 10, 3, 9, 0), now)).toBe('Nov 3, 9:00 AM')
+  })
+  it('shows a call in the inbox list with its clock time', () => {
+    expect(listTime(new Date(2026, 10, 10, 10, 23), now)).toBe('10:23 AM')
+    expect(listTime(new Date(2026, 10, 9, 19, 59), now)).toBe('Yesterday 7:59 PM')
+    expect(listTime(new Date(2026, 10, 6, 9, 2), now)).toBe('Fri 9:02 AM')
+    expect(listTime(new Date(2026, 10, 3, 9, 2), now)).toBe('Nov 3, 9:02 AM')
+    expect(listTime(new Date(2025, 10, 12, 9, 2), now)).toBe('Nov 12, 2025')
   })
   it('formats durations', () => {
     expect(longDuration(152)).toBe('2 min 32 sec')

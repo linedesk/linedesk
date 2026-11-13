@@ -40,6 +40,20 @@
   border-color: var(--action);
   color: var(--on-action);
 }
+.k-check-input:indeterminate + .k-check-box {
+  background: var(--action);
+  border-color: var(--action);
+}
+.k-check-input:indeterminate + .k-check-box > svg {
+  display: none;
+}
+.k-check-input:indeterminate + .k-check-box::after {
+  content: "";
+  width: 8px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: var(--on-action);
+}
 .k-check-input:focus-visible + .k-check-box {
   outline: 2px solid var(--focus);
   outline-offset: 2px;

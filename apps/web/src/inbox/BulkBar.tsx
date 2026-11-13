@@ -12,6 +12,8 @@ export type BulkActions = {
   onAssign?: (anchor: DOMRect) => void
   onDelete: () => void
   onCommands: () => void
+  /** Every call in the current view (the list's select-all box, ⌘A). */
+  onSelectAll: () => void
   onClear: () => void
 }
 

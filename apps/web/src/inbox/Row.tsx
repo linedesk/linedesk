@@ -2,7 +2,10 @@ import type { Call, TranscriptSegment } from '@linedesk/db/types'
 import type { MouseEvent } from 'react'
 import { callerName, callTitle, statusLabel, tabOf, type InboxTab } from '../inbox-model.ts'
 import { useAssistantName, useContact } from '../store.tsx'
-import { clock, parseTs, shortDuration, timeLabel, timeUnderDay } from '../time.ts'
+import { clock, listTime, parseTs, shortDuration } from '../time.ts'
+
+const fullTime = (date: Date) =>
+  date.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 import type { IconName } from '../ui/icons.ts'
 import { Checkbox } from '../ui/controls.tsx'
 import { memberLabel, useMember } from '../team/members.ts'
@@ -205,6 +208,9 @@ export function Row({ call, tab, search, segments, isCursor, motion, selected = 
         <i />
         {on.onSelect && <SelectBox call={call} selected={selected} onSelect={on.onSelect} />}
       </span>
+      <span className="r-time" title={fullTime(parseTs(call.started_at))}>
+        {listTime(parseTs(call.started_at))}
+      </span>
       <span className="r-name">
         <span>{highlight(callerName(call, contact), search)}</span>
         {group && (
@@ -220,9 +226,6 @@ export function Row({ call, tab, search, segments, isCursor, motion, selected = 
         <Status call={call} tab={tab} markDone={done && search !== null} segments={segments} />
       </span>
       <span className="r-dur">{live || !call.duration_sec ? '—' : shortDuration(call.duration_sec)}</span>
-      <span className="r-time">
-        {(tab === 'reminders' && search === null ? timeLabel : timeUnderDay)(parseTs(call.started_at))}
-      </span>
       <span className="r-acts">
         {on.onToggleDone && (
           <RowAction

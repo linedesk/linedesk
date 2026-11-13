@@ -771,7 +771,12 @@ button.me:focus-visible {
 }
 
 /* Rows and day labels: centred in --w-list; the row's left padding is the gutter for dot and checkbox. */
+.ib-list {
+  /* Time · caller · call · status · duration, shared by the rows and the column headings. */
+  --ib-columns: 128px minmax(110px, 220px) minmax(0, 1fr) minmax(104px, 320px) 56px;
+}
 .ib-list .row,
+.ib-list .ib-cols,
 .ib-list .ib-day {
   width: 100%;
   max-width: var(--w-list);
@@ -782,7 +787,47 @@ button.me:focus-visible {
 .ib-list .row:not(.cust-row) {
   padding-left: var(--row-lead);
   padding-right: var(--gutter);
-  grid-template-columns: minmax(110px, 220px) minmax(0, 1fr) minmax(104px, 320px) 56px 72px;
+  grid-template-columns: var(--ib-columns);
+}
+/* The time says the day and the clock time on one line ("Yesterday 11:40 PM"). */
+.ib-list .row .r-time {
+  white-space: nowrap;
+}
+/* The time is on the left now: it stays when the row's actions cover the duration on hover. */
+.ib-list .row:not(.cust-row):hover .r-time,
+.ib-list .row:not(.cust-row).is-cursor .r-time {
+  visibility: visible;
+}
+/* Column headings: muted, as tall as a heading, sticky while the calls scroll. The select-all box
+   sits where the rows' checkboxes are. */
+.ib-list .ib-cols {
+  padding-left: var(--row-lead);
+  padding-right: var(--gutter);
+  grid-template-columns: var(--ib-columns);
+  white-space: nowrap;
+}
+.ib-cols > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ib-cols > .ib-cols-check {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--row-lead) - 28px);
+  width: 18px;
+  display: grid;
+  place-items: center;
+  overflow: visible;
+}
+.ib-cols-check .k-check-box {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+.ib-cols-all {
+  display: none;
 }
 .ib-list .ib-day {
   padding-left: var(--row-lead);
@@ -809,6 +854,26 @@ button.me:focus-visible {
   }
   .ib-list .row:not(.cust-row) .r-status {
     padding-right: 0;
+  }
+  /* Phones stack each row, so no column headings; while calls are selected the bar offers Select all. */
+  .ib-list .ib-cols {
+    display: none;
+  }
+  .ib-list.is-selecting .ib-cols {
+    display: flex;
+    align-items: center;
+  }
+  .ib-list.is-selecting .ib-cols > span:not(.ib-cols-check) {
+    display: none;
+  }
+  .ib-list.is-selecting .ib-cols-all {
+    display: inline;
+    font-size: 12.5px;
+    color: var(--ink);
+  }
+  .ib-cols > .ib-cols-check {
+    left: 6px;
+    width: auto;
   }
   .ib-list .row .r-dot {
     left: 6px;
