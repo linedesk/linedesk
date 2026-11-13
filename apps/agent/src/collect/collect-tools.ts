@@ -136,7 +136,8 @@ export function collectTools(ctx: CollectContext) {
         const label = what?.trim() || 'callback number'
         const refusal = phoneStepRefusal(ctx.callerId ?? null, label, reason)
         if (refusal) return refusal
-        if (reason?.trim()) ctx.log.record('system', `Asked for another ${label}: ${reason.trim()}`)
+        // Only with caller ID is a callback number "another" one, and the reason worth a line for the team.
+        if (ctx.callerId && reason?.trim()) ctx.log.record('system', `Asked for another ${label}: ${reason.trim()}`)
         return runStep(ctx, opts, phoneCollector(label))
       },
     }),
