@@ -1,6 +1,7 @@
 // Admin, Overview, on top: the instance setup checklist. One row per part a first answered call needs, with its
 // live state, a short guide for the provider we recommend, the rough cost and a Test (the providers' own
 // connection tests). Connect opens the same dialog as Admin, Providers. Folds into one line once every part works.
+import { openAgentSetup } from '../onboarding/AgentSetup.tsx'
 import {
   type SetupChecklist as Checklist,
   oneKey,
@@ -217,6 +218,17 @@ export function SetupChecklist({ data, notify, reload }: Props) {
             ))}
           </div>
         </div>
+        {!checklist.complete && (
+          <Button
+            size="sm"
+            variant="primary"
+            icon="spark"
+            onClick={openAgentSetup}
+            title="Let Claude, ChatGPT or another AI agent set up this install with you"
+          >
+            Set up with an AI agent
+          </Button>
+        )}
         <Button
           size="sm"
           variant="ghost"
@@ -468,7 +480,8 @@ function OneKey({ disabled, onDone }: { disabled: boolean; onDone: () => Promise
         <FormField id="adm-onekey" label="OpenAI API key">
           <SecretInput id="adm-onekey" value={key} onChange={setKey} placeholder="sk-…" />
         </FormField>
-        <Button busy={busy}
+        <Button
+          busy={busy}
           type="submit"
           variant="primary"
           disabled={!ready}

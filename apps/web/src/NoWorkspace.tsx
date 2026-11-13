@@ -9,6 +9,7 @@ import { AdminMode } from './admin/AdminMode.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { auth, fetchAuthMethods, isInstanceAdmin, type Me } from './auth.ts'
 import { CreateWorkspace } from './CreateWorkspace.tsx'
+import { AGENT_SETUP_HASH, AgentSetup, choseManualSetup, openAgentSetup } from './onboarding/AgentSetup.tsx'
 import { AccountSettings } from './settings/account/index.tsx'
 import { signOutAndForget } from './localData.ts'
 import { leftOnPurpose } from './session.ts'
@@ -48,6 +49,8 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
   const hash = useHash()
   const [invitations, setInvitations] = useState<PendingInvitation[] | null>(null)
   const [signUpOpen, setSignUpOpen] = useState<boolean | null>(null)
+  // A new install: its first admin sets it up with an AI agent first, unless they chose to do it by hand.
+  const [manualSetup, setManualSetup] = useState(choseManualSetup)
   useEffect(() => {
     void loadInvitations().then(setInvitations)
     fetchAuthMethods({ attempts: 3 }).then(
@@ -64,11 +67,37 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
     if (me.adminSecondFactor) return <SecondFactorPrompt state={me.adminSecondFactor} onExit={leave} />
     return <AdminMode currentUserId={me.actorId} onExit={leave} />
   }
+  if (me && admin && !me.impersonation && (hash === AGENT_SETUP_HASH || !manualSetup))
+    return (
+      <AgentSetup
+        onManual={installFirst => {
+          setManualSetup(true)
+          // The install by hand: the setup checklist; "Back to Linedesk" there goes on to naming the business.
+          if (installFirst) window.location.hash = '#admin'
+          else if (hash === AGENT_SETUP_HASH) leave()
+        }}
+        onDone={() => {
+          if (hash === AGENT_SETUP_HASH) leave()
+          onDone()
+        }}
+        onWorkspaceReady={onDone}
+      />
+    )
   if (invitations === null || signUpOpen === null) return <AuthPage>{null}</AuthPage>
 
   const extras = (
     <>
       {invitations.length > 0 && <InvitationList invitations={invitations} onOpen={onOpenInvite} />}
+      {admin && (
+        <button
+          type="button"
+          className="k-link"
+          onClick={openAgentSetup}
+          title="Let Claude, ChatGPT or another agent set up this server with you"
+        >
+          Set up with an AI agent instead
+        </button>
+      )}
       {admin && (
         <button
           type="button"

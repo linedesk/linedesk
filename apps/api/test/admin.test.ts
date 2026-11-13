@@ -132,6 +132,8 @@ describe('access', () => {
 
   test('the registry has the admin actions', () => {
     expect(adminActions.map(def => def.name).sort()).toEqual([
+      'agentSetup.createKey',
+      'agentSetup.revoke',
       'branding.set',
       'instanceAdmin.grant',
       'instanceAdmin.revoke',

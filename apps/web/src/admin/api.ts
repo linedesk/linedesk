@@ -3,6 +3,7 @@
 // and a provider key must never be stored in the browser.
 import { StepUpRequired, stepUpOf, withPasskeyStepUp } from './PasskeyStepUp.tsx'
 import {
+  type AgentSetupState,
   type BrandingInput,
   type MembershipRole,
   type ProviderCategory,
@@ -234,6 +235,8 @@ type AdminInputs = {
   'setupEmails.get': Record<string, never>
   'setupEmails.set': { on: boolean }
   'branding.set': BrandingInput
+  'agentSetup.createKey': Record<string, never>
+  'agentSetup.revoke': Record<string, never>
 }
 
 /**
@@ -282,6 +285,9 @@ export const loadWorkspaceMembers = (workspaceId: string) =>
   get<WorkspaceMembers>(`/v1/admin/workspaces/${encodeURIComponent(workspaceId)}/members`)
 
 export const loadOverview = () => get<AdminOverview>('/v1/admin/overview')
+
+/** GET /v1/admin/agent-setup (apps/api/src/agent-setup.ts): the setup key in use (never the key) and the agent's progress. */
+export const loadAgentSetup = () => get<AgentSetupState>('/v1/admin/agent-setup')
 
 /**
  * GET /v1/admin/onboarding (apps/api/src/setup-emails.ts): workspaces without a real call `days` after sign-up, and how many

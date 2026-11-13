@@ -15,6 +15,8 @@ import { livekitStatus } from './livekit-status.ts'
 import { listProviderFailures } from './provider-failures.ts'
 import { providerStatus, voiceProviderConfig } from './provider-settings.ts'
 import { SecretsKeyError } from './secrets.ts'
+import { agentSetupState, setupActor } from './agent-setup.ts'
+import { setupProgress } from './setup-mcp.ts'
 import { setupChecklist } from './setup-checklist.ts'
 import { LATENCY_DAYS_DEFAULT, LATENCY_DAYS_MAX, replyLatency } from './reply-latency.ts'
 import { AT_RISK_MAX_DAYS, atRiskWorkspaces, workspacesOldEnough } from './setup-emails.ts'
@@ -202,6 +204,14 @@ export function registerAdminRoutes(app: Hono<Env>) {
   app.get('/v1/admin/providers', async c =>
     c.json({ ...(await providerStatus(db)), failures: await listProviderFailures(db) }),
   )
+
+  // Agent setup (agent-setup.ts): the admin's working setup key (never the key) and where agents connect.
+  app.get('/v1/admin/agent-setup', async c => {
+    const actor = c.get('actor')
+    // The progress of the workspace the agent works in (the admin's first own business), not the session's one.
+    const asAgent = (await setupActor(actor.actorId, 'page')) ?? actor
+    return c.json({ ...(await agentSetupState(actor.actorId)), progress: await setupProgress(asAgent) })
+  })
 
   // The instance setup checklist (setup-checklist.ts), read-only: tests run through provider.test.
   app.get('/v1/admin/setup-checklist', async c => c.json(await setupChecklist(db)))

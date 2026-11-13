@@ -369,7 +369,7 @@ function SetupStep({ onDone }: { onDone: () => Promise<void> }) {
           <button type="submit" className="k-btn k-btn-primary" disabled={busy}>{busy ? 'Setting up…' : 'Create admin account'}</button>
           {error && <AuthError message={error} />}
         </div>
-        <p className="auth-note">Next you name your business. Phone, voice and email are connected under Admin › Providers.</p>
+        <p className="auth-note">Next, your AI agent (Claude, ChatGPT, Codex…) sets up the rest with you: AI, phone, email and your business.</p>
       </form>
     </AuthPage>
   )

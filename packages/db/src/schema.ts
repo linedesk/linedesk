@@ -851,6 +851,26 @@ export const provider_settings = pgTable(
   t => [unique('provider_settings_slot').on(t.workspace_id, t.provider, t.field).nullsNotDistinct()],
 )
 
+// Agent setup keys (LIN-125, apps/api/src/agent-setup.ts): an instance admin lets an AI agent (Claude, ChatGPT, Codex…)
+// set up the install through the setup MCP at /mcp/setup. A key acts as the admin who made it, with a short list of
+// setup tools only, for a few hours; stored as a SHA-256 hash like a workspace API key. Not synced.
+export const agent_setup_keys = pgTable(
+  'agent_setup_keys',
+  {
+    id: id(),
+    /** The key's first characters ("lds_AbCd1234"), to tell keys apart; not enough to use one. */
+    prefix: text('prefix').notNull(),
+    key_hash: text('key_hash').notNull().unique(),
+    /** The instance admin who made it; the key acts as this user. */
+    created_by: text('created_by').notNull(),
+    created_at: createdAt(),
+    expires_at: ts('expires_at').notNull(),
+    last_used_at: ts('last_used_at'),
+    revoked_at: ts('revoked_at'),
+  },
+  t => [index('agent_setup_keys_creator').on(t.created_by)],
+)
+
 // Settings of the whole install that are not secret, for example `active_provider.telephony`.
 export const instance_settings = pgTable('instance_settings', {
   key: text('key').primaryKey(),

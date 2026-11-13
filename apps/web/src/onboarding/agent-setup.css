@@ -1,0 +1,250 @@
+/* Agent-first setup (AgentSetup.tsx): the onboarding page shell (.ob) with one card for the agent and one for progress. */
+.as-main {
+  max-width: 640px;
+  gap: 20px;
+  padding-top: 6vh;
+}
+.as-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  background: var(--highlight);
+  color: var(--highlight-ink);
+  font-size: 12px;
+  font-weight: 500;
+}
+.as-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+.as-agents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.as-agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.as-agent:hover {
+  background: var(--surface-hover);
+}
+.as-agent.on {
+  border-color: var(--action);
+  background: var(--action);
+  color: var(--on-action);
+}
+.as-agent:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.as-tag {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.as-why,
+.as-note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+.as-note {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+.as-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: as-step;
+  display: grid;
+  gap: 18px;
+}
+.as-steps > li {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding-left: 32px;
+  font-size: 13.5px;
+  counter-increment: as-step;
+}
+.as-steps > li::before {
+  content: counter(as-step);
+  position: absolute;
+  left: 0;
+  top: -1px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--action);
+  color: var(--on-action);
+  font-size: 12px;
+  font-weight: 600;
+}
+.as-steps > li.as-later::before {
+  background: var(--surface-hover);
+  color: var(--ink-muted);
+}
+.as-steps > li > b {
+  font-weight: 600;
+  line-height: 20px;
+}
+.as-steps > li.as-later {
+  color: var(--ink-muted);
+}
+.as-step {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 19px;
+}
+.as-code {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 8px 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+.as-code code {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  padding-top: 3px;
+}
+.as-prompt {
+  margin: 0;
+  max-height: 180px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 17px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.as-small {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.as-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13.5px;
+}
+.as-progress-head b {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.as-waiting {
+  color: var(--ink-muted);
+}
+.as-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--live-ok);
+}
+.as-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+.as-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.as-item.done {
+  color: var(--ink);
+}
+.as-item .as-small {
+  margin-left: auto;
+}
+.as-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+.as-item.done .as-mark {
+  border-color: var(--action);
+  background: var(--action);
+  color: var(--on-action);
+}
+.as-item.failing {
+  color: var(--danger);
+}
+.as-item.failing .as-mark {
+  border-color: var(--danger);
+}
+/* The manual way: there, but small and gray. */
+.as-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-bottom: 24px;
+}
+.as-manual {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink-disabled);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.as-manual:hover {
+  color: var(--ink-muted);
+}

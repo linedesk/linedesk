@@ -22,6 +22,7 @@ import { registerAdminRoutes } from './admin-routes.ts'
 import { registerSetupUnsubscribeRoutes } from './setup-unsubscribe.ts'
 import { clientIpOf, withClientIp } from './client-ip.ts'
 import { MCP_MAX_BODY_BYTES, serveMcp } from './mcp.ts'
+import { serveSetupMcp } from './setup-mcp.ts'
 import { authMethods } from './auth-methods.ts'
 import { currentBranding, manifestFor, readLogo } from './branding.ts'
 import { auth, TRUSTED_ORIGINS, WEB_ORIGIN, WORKSPACE_LIMIT } from './auth.ts'
@@ -207,6 +208,15 @@ app.get('/v1/openapi.json', c => c.json(openApi))
 // The size limit applies while the body is read, also to a chunked one without content-length.
 app.use('/mcp', bodyLimit({ maxSize: MCP_MAX_BODY_BYTES, onError: c => c.json({ error: 'request too large' }, 413) }))
 app.all('/mcp', c => serveMcp(c.req.raw, clientIpOf(c)))
+// Setup MCP for an AI agent setting up the install: setup keys only, in the path or as Bearer (setup-mcp.ts).
+const setupMcpLimit = bodyLimit({
+  maxSize: MCP_MAX_BODY_BYTES,
+  onError: c => c.json({ error: 'request too large' }, 413),
+})
+app.use('/mcp/setup', setupMcpLimit)
+app.use('/mcp/setup/*', setupMcpLimit)
+app.all('/mcp/setup', c => serveSetupMcp(c.req.raw, null, clientIpOf(c)))
+app.all('/mcp/setup/:key', c => serveSetupMcp(c.req.raw, c.req.param('key'), clientIpOf(c)))
 
 // Before the workspace guard: a member without a workspace has an account too.
 app.post('/v1/account/password', setFirstPassword)
@@ -221,7 +231,8 @@ app.get('/v1/calendar/callback/:provider', async c =>
 
 app.use('/v1/*', async (c, next) => {
   // A signed recording link (the after-call webhook's) needs no sign-in: its signature is checked by the route.
-  if (c.req.method === 'GET' && isSignedRecordingRequest(c.req.path, { signature: c.req.query('signature') })) return next()
+  if (c.req.method === 'GET' && isSignedRecordingRequest(c.req.path, { signature: c.req.query('signature') }))
+    return next()
   const ip = clientIpOf(c)
   const requested = c.req.header(WORKSPACE_HEADER) ?? null
   const caller = await resolveCaller(c.req.raw.headers, ip)
@@ -414,7 +425,8 @@ app.get('/v1/shape/:table', async c => {
   if (apiKeyId) return c.json({ ok: false, error: SHAPE_NOT_FOR_API_KEYS, code: 'forbidden' }, 403)
   if (!tableNames.includes(table) || !workspaceId) return c.json({ ok: false, error: 'unknown table' }, 404)
   // Read sync is for members and API keys that read calls; never the voice agent, whose tools read nothing.
-  if (role === 'agent' || !permissions.includes('call:read')) return c.json({ ok: false, error: 'missing permission call:read' }, 403)
+  if (role === 'agent' || !permissions.includes('call:read'))
+    return c.json({ ok: false, error: 'missing permission call:read' }, 403)
   const refusal = await workspaceRefusal(c.get('actor'), c.req.query('workspace') ?? null)
   if (refusal) return c.json(refusal, 403)
   const target = new URL('/v1/shape', ELECTRIC_URL)

@@ -4,6 +4,7 @@ import { NoWorkspace } from './NoWorkspace.tsx'
 import { Login } from './Login.tsx'
 import { backoffMs } from './retry.ts'
 import { loadSession, renamedWorkspace, type Session } from './session.ts'
+import { AGENT_SETUP_HASH, AgentSetup, choseManualSetup } from './onboarding/AgentSetup.tsx'
 import { Onboarding } from './onboarding/Onboarding.tsx'
 import { ImpersonationFrame } from './shell/ImpersonationBar.tsx'
 import { switchToWorkspace } from './shell/invitations.ts'
@@ -23,6 +24,17 @@ function Unreachable() {
       <span>Trying again… This page continues on its own once the connection is back.</span>
     </div>
   )
+}
+
+/** Whether the address is the agent setup page (#setup-agent), followed as it changes. */
+function useAgentSetupHash(): boolean {
+  const [on, setOn] = useState(() => window.location.hash === AGENT_SETUP_HASH)
+  useEffect(() => {
+    const follow = () => setOn(window.location.hash === AGENT_SETUP_HASH)
+    window.addEventListener('hashchange', follow)
+    return () => window.removeEventListener('hashchange', follow)
+  }, [])
+  return on
 }
 
 /** Whether the address is in Admin (#admin…), followed as it changes. */
@@ -56,6 +68,9 @@ export function App() {
   // Finishing onboarding is a queued command; the app moves on without waiting for it.
   const [onboarded, setOnboarded] = useState(false)
   const adminHash = useAdminHash()
+  const agentSetupHash = useAgentSetupHash()
+  // An instance admin sets up with an AI agent first (AgentSetup.tsx), unless they chose to do it by hand.
+  const [manualSetup, setManualSetup] = useState(choseManualSetup)
   const refresh = useCallback(async () => setSession(await loadSession()), [])
   // A link from an email names its workspace (`?ws=` in the hash): read once at load, settled before the app opens.
   const [link, setLink] = useState(() => linkWorkspace(window.location.hash))
@@ -146,6 +161,27 @@ export function App() {
           onOpenInvite={setInviteId}
         />
       </ImpersonationFrame>
+    )
+  }
+  const instanceAdmin = session.me.permissions.includes('instance:admin') && !session.me.impersonation
+  const settingUp = session.me.onboarding && !onboarded
+  if (instanceAdmin && !adminHash && (agentSetupHash || (settingUp && !manualSetup))) {
+    const leave = () => {
+      if (window.location.hash === AGENT_SETUP_HASH) window.location.hash = ''
+    }
+    return (
+      <AgentSetup
+        onManual={installFirst => {
+          setManualSetup(true)
+          // The install by hand: the setup checklist; "Back to Linedesk" there goes on to the business.
+          if (installFirst) window.location.hash = '#admin'
+          else leave()
+        }}
+        onDone={() => {
+          leave()
+          void refresh()
+        }}
+      />
     )
   }
   return (

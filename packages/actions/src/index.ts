@@ -1,4 +1,5 @@
 import * as admin from './admin.ts'
+import * as agentSetup from './agent-setup.ts'
 import * as apiKeys from './api-keys.ts'
 import * as assistantVersions from './assistant-versions.ts'
 import * as branding from './branding.ts'
@@ -31,6 +32,7 @@ export * from './agent-token.ts'
 export * from './client.ts'
 export * from './input-errors.ts'
 export * from './admin.ts'
+export * from './agent-setup.ts'
 export * from './api-keys.ts'
 export * from './assistant-prompt.ts'
 export * from './assistant-versions.ts'
@@ -157,6 +159,8 @@ const all = [
   apiKeys.apiKeyCreate,
   apiKeys.apiKeyList,
   apiKeys.apiKeyRevoke,
+  agentSetup.agentSetupCreateKey,
+  agentSetup.agentSetupRevoke,
   admin.providerSetKeys,
   admin.providerClearKeys,
   admin.providerSetActive,
