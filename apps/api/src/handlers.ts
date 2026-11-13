@@ -1,5 +1,5 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, type AssistantRestoreData, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, } from '@linedesk/actions'
+import { actions, type AssistantRestoreData, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type CarrierNumbersData, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, } from '@linedesk/actions'
 import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, localDate } from '@linedesk/calendar'
 import {assistant_calendars, assistants, availability_exceptions, availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, reply_timings, syncedTables,
   transcript_segments, workspace_members, workspace_settings, type Tx,
@@ -111,6 +111,9 @@ async function configuredProvider(tx: Tx): Promise<TelephonyProvider> {
 }
 
 /** The carrier a workspace sets numbers up with (its own account, else the install's). `telephony` overrides it in tests. */
+/** One page of the carrier's numbers (Telnyx and Twilio both allow 250 per request). */
+const CARRIER_NUMBERS_PAGE = 250
+
 async function setupCarrier(tx: Tx, workspaceId: string, telephony?: TelephonyProvider): Promise<{ provider: TelephonyProvider; account: CarrierAccount }> {
   try {
     const resolved = await telephonyForWorkspace(tx, workspaceId)
@@ -738,6 +741,23 @@ const handlers: Record<string, Handler> = {
     if (!actor.workspaceId) throw new Reject('no workspace')
     await recordSetupEvent(tx, actor.workspaceId, input.event, now)
     return { rows: {} }
+  },
+
+  // The numbers to pick from for "Use a number you have": one free read of the carrier account, never a purchase.
+  'phoneNumber.listCarrierNumbers': async ({ tx, actor, telephony }) => {
+    if (!actor.workspaceId) throw new Reject('no workspace')
+    const { provider, account } = await setupCarrier(tx, actor.workspaceId, telephony)
+    // Same rule as attaching (phoneNumber.setup): the install's account is shared, only instance admins see it.
+    if (account === 'install' && provider.name !== 'dev' && !actor.permissions.includes('instance:admin')) {
+      return { rows: {}, data: { numbers: [], more: false } satisfies CarrierNumbersData }
+    }
+    const owned = await atCarrier(() => provider.listNumbers(CARRIER_NUMBERS_PAGE))
+    const all = owned.map(n => n.e164)
+    const taken = all.length
+      ? new Set((await tx.select({ e164: phone_numbers.e164 }).from(phone_numbers).where(inArray(phone_numbers.e164, all))).map(n => n.e164))
+      : new Set<string>()
+    const numbers = all.filter(e164 => !taken.has(e164)).sort()
+    return { rows: {}, data: { numbers, more: owned.length >= CARRIER_NUMBERS_PAGE } satisfies CarrierNumbersData }
   },
 
   'phoneNumber.setup': async ({ tx, actor, now, telephony, onRollback }, input) => {

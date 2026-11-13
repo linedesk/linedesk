@@ -120,6 +120,7 @@ const all = [
   voices.voiceCloningSet,
   branding.brandingSet,
   settings.phoneNumberSetup,
+  settings.phoneNumberListCarrierNumbers,
   settings.phoneNumberUpdate,
   settings.phoneNumberRelease,
   forwarding.phoneNumberLookupLine,

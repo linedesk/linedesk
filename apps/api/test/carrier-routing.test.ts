@@ -231,6 +231,23 @@ describe('numbers in a workspace carrier account', () => {
     expect(await numberRow(e164)).toBeUndefined()
   })
 
+  test("listing the account's numbers reads only the workspace's own account and leaves out numbers set up already", async () => {
+    const free = randomNumber()
+    const used = randomNumber()
+    accountA.numbers.push({ sid: 'PNa3', phone_number: free }, { sid: 'PNa4', phone_number: used })
+    expect((await act(inWs(wsA.owner, wsA), 'phoneNumber.setup', { e164: used })).status).toBe(200)
+    seen.length = 0
+    const res = await act(inWs(wsA.owner, wsA), 'phoneNumber.listCarrierNumbers', {})
+    expect(res.status).toBe(200)
+    expect(res.body.data.numbers).toContain(free)
+    expect(res.body.data.numbers).not.toContain(used)
+    expect(res.body.data.more).toBe(false)
+    // One read, nothing bought or changed, never another workspace's account.
+    expect(seen).toEqual([{ account: accountA.sid, method: 'GET', path: `/2010-04-01/Accounts/${accountA.sid}/IncomingPhoneNumbers.json` }])
+    const other = await act(inWs(wsB.owner, wsB), 'phoneNumber.listCarrierNumbers', {})
+    expect(other.body.data.numbers).not.toContain(free)
+  })
+
   test("releasing a number goes to the account it is in, with that workspace's credentials", async () => {
     const e164 = randomNumber()
     accountA.numbers.push({ sid: 'PNa3', phone_number: e164 })

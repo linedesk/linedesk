@@ -4,6 +4,7 @@ import { forwardingGuideById } from '@linedesk/actions'
 import type { PhoneNumber } from '@linedesk/db/types'
 import { useEffect, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
+import { CarrierNumberInput } from '../settings/CarrierNumberInput.tsx'
 import { Field, TextInput } from '../settings/fields.tsx'
 import { useWorkspaceSettings, useWriteAction } from '../settings/settings-api.ts'
 import { useAssistant, useAssistantName, useRows, useRun } from '../store.tsx'
@@ -205,7 +206,7 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
         {option === 'existing' ? (
           <>
             <Field id="ob-number" label={carrier ? `Number in ${carrier}` : 'Number'}>
-              <TextInput
+              <CarrierNumberInput
                 id="ob-number"
                 value={typed}
                 onChange={v => {

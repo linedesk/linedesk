@@ -588,6 +588,23 @@ export const phoneNumberSetup = defineAction({
   permission: 'settings:write',
 })
 
+/** `data` of `phoneNumber.listCarrierNumbers`. */
+export type CarrierNumbersData = {
+  /** The numbers in the carrier account that are not set up in Linedesk yet (E.164), sorted. */
+  numbers: string[]
+  /** The account has more numbers than one read lists: a number not shown can still be typed. */
+  more: boolean
+}
+
+export const phoneNumberListCarrierNumbers = defineAction({
+  name: 'phoneNumber.listCarrierNumbers',
+  description:
+    "List the numbers already in the workspace's carrier account (its own, else the install's) that are not set up in Linedesk yet, to pick one for `phoneNumber.setup`. One read at the carrier, free; buys nothing. Numbers in the install's account are only listed for instance admins.",
+  input: z.object({}),
+  permission: 'settings:write',
+  readOnly: true,
+})
+
 export const phoneNumberUpdate = defineAction({
   name: 'phoneNumber.update',
   description:

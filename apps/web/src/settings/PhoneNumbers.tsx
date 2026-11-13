@@ -35,6 +35,7 @@ import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { sectionHash, sectionParts } from '../ui/SettingsLayout.tsx'
 import { CarrierLine, useCarrierStatus } from './Carrier.tsx'
+import { CarrierNumberInput } from './CarrierNumberInput.tsx'
 import { Field, Section, TextInput } from './fields.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { brandName } from '../brand.ts'
@@ -579,7 +580,7 @@ function ConnectNumber({
       {option === 'existing' ? (
         <>
           <Field id="st-pn-number" label={carrier ? `Number in ${carrier}` : 'Number'}>
-            <TextInput
+            <CarrierNumberInput
               id="st-pn-number"
               value={typed}
               onChange={v => {
