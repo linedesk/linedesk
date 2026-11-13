@@ -25,6 +25,7 @@ import { type CallLanguages, createPipeline, createRealtimePipeline, createTts, 
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
 import { cascadedReplyTimer, logTurnMetrics } from './turn-metrics.ts'
 import { describeRealtimeReply, realtimeTurnTimer } from './realtime-timing.ts'
+import { describeRealtimeUsage, type RealtimeUsageMetrics, realtimeUsageCounter } from './realtime-usage.ts'
 import { followCallerLanguage } from './caller-language.ts'
 import { MESSAGE_SAVED_RESULT, skipQuietToolReplies } from './tool-replies.ts'
 import { greetingPlayed, hangUpAfterLine, hangUpAfterSpeech, hangUpAtCallLimit, remindOnSilence, silencePolicyOf, speakingOf, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
@@ -345,6 +346,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const flagUrgent = callFlagger(api, call, log)
   keepUrgentPromises(session, flagUrgent, call.callId)
   logTurnMetrics(session, call.callId)
+  if (realtime) logRealtimeUsage(session, call.callId, realtime.model)
   // A realtime model has no voice for the ready lines: it only skips the reply after a turn it already spoke in.
   skipQuietToolReplies(session, QUIET_TOOLS, lines, { readyReplies: pipeline !== null })
   session.on(voice.AgentSessionEventTypes.Close, onClose)
@@ -430,6 +432,14 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     return setup.note('spoken by the realtime model')
   }
   setup.note(await greet(session, stages, call, cachedGreeting, key, personalGreeting ? callerDetails : null))
+}
+
+/** The realtime model's tokens for the whole call, logged once when the session closes (cost per minute, per model). */
+function logRealtimeUsage(session: voice.AgentSession, callId: string, model: string) {
+  const usage = realtimeUsageCounter()
+  const startedAt = Date.now()
+  session.on(voice.AgentSessionEventTypes.MetricsCollected, ({ metrics }) => usage.add(metrics as RealtimeUsageMetrics))
+  session.on(voice.AgentSessionEventTypes.Close, () => console.log(describeRealtimeUsage(callId, model, (Date.now() - startedAt) / 1000, usage.get())))
 }
 
 /**
