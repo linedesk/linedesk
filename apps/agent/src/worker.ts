@@ -21,7 +21,7 @@ import { earlyOrigin, livekitParticipants } from './early-origin.ts'
 import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, stagesOf } from './config.ts'
 import { AGENT_NAME, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
-import { type CallLanguages, createPipeline, createRealtimePipeline, createTts, greetingVoice, type LineVoice, lineVoiceOf, realtimeLine, realtimeRepliesEvent, type RealtimeEvents, summaryLlm, talkingSpeedOf, warmUpLlm, REALTIME_TURNS } from './pipeline.ts'
+import { type CallLanguages, createPipeline, createRealtimePipeline, createTts, greetingVoice, type LineVoice, lineVoiceOf, realtimeLine, realtimeRepliesEvent, type RealtimeEvents, summaryLlm, transferSpeechOf, talkingSpeedOf, warmUpLlm, REALTIME_TURNS } from './pipeline.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
 import { cascadedReplyTimer, logTurnMetrics } from './turn-metrics.ts'
 import { describeRealtimeReply, realtimeTurnTimer } from './realtime-timing.ts'
@@ -282,7 +282,7 @@ function fixedLineSpeaker(session: voice.AgentSession, voiceOfLines: LineVoice, 
  * and the greeting plays as soon as they hear the agent's audio.
  */
 async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant>, api: ApiClient, config: CallConfig, call: CallSession, log: CallLog, onClose: () => void, setup: SetupTimer, stopRecordingForTransfer: () => Promise<void>, callerDetails: Promise<CallerDetails | null>) {
-  // The three stages answer the call, or a realtime model alone (then: no cached greeting, no transfer, no quick tool replies).
+  // The three stages answer the call, or a realtime model alone (then: no cached greeting, no quick tool replies).
   const stages = isRealtime(config) ? null : config
   const realtime = isRealtime(config) ? config.realtime : null
   const personalGreeting = templateNames(openingOf(call)).length > 0
@@ -391,7 +391,8 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     },
   })
   session.on(voice.AgentSessionEventTypes.Close, cancelLimit)
-  const transfer = stages && transferFrom(ctx, api, call, stages, callerJoined, stopRecordingForTransfer)
+  // Either pipeline puts calls through; a realtime call's transfer speaks and hears with OpenAI's models (transferSpeechOf).
+  const transfer = transferFrom(ctx, api, call, config, callerJoined, stopRecordingForTransfer)
   // The instructions change when the call-start webhook answers.
   const known: { details: CallerDetails | null } = { details: null }
   // A realtime model says the greeting itself; the voice provider says it before the model's first turn otherwise.
@@ -436,13 +437,14 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
  * is looked up right away, so a transfer does not wait for it, but nothing is dialled until the assistant uses the tool.
  * null: no contact takes calls now (none set up, closed, vacation mode).
  */
-function transferFrom(ctx: JobContext, api: ApiClient, call: CallSession, config: AgentConfig, callerJoined: Promise<RemoteParticipant>, stopRecording: () => Promise<void>): Transfer {
+function transferFrom(ctx: JobContext, api: ApiClient, call: CallSession, config: CallConfig, callerJoined: Promise<RemoteParticipant>, stopRecording: () => Promise<void>): Transfer {
   const contacts = transferContactsFor(call.assistant, call.businessHours)
   if (!contacts.length) return null
+  const speech = transferSpeechOf(config, call.assistant)
   const dialers = new Map(
     contacts.map(contact => [
       contact.id,
-      onCallDialerFor(call, contact.number, config, api).catch(e => {
+      onCallDialerFor(call, contact.number, speech, api).catch(e => {
         console.warn(`call ${call.callId}: cannot dial ${contact.name}: ${e instanceof Error ? e.message : String(e)}`)
         return null
       }),
@@ -450,7 +452,7 @@ function transferFrom(ctx: JobContext, api: ApiClient, call: CallSession, config
   )
   const callerIdentity = callerJoined.then(caller => caller.identity)
   void callerIdentity.catch(() => {}) // the call ends without a caller; nobody waits for it then
-  return { ctx, config, callerIdentity, contacts, dialerOf: (contact: Dialable) => dialers.get(contact.id) ?? Promise.resolve(null), stopRecording }
+  return { ctx, speech, callerIdentity, contacts, dialerOf: (contact: Dialable) => dialers.get(contact.id) ?? Promise.resolve(null), stopRecording }
 }
 
 /** Times from the job's start to each setup step, logged once per call with the wall-clock start. */

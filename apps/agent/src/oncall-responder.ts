@@ -7,6 +7,7 @@ import { type RemoteParticipant, RoomEvent } from '@livekit/rtc-node'
 import type { AgentConfig } from './config.ts'
 import { waitForCounterpart } from './counterpart.ts'
 import { actOnCall, onCallLines, publishVoice, type SimulatedAnswer, simulatedAnswers } from './on-call-dialer.ts'
+import { transferSpeechOf } from './pipeline.ts'
 
 export const ONCALL_RESPONDER_SOURCE = 'oncall-responder'
 
@@ -38,7 +39,7 @@ export async function runOnCallResponder(ctx: JobContext, { answer }: OnCallResp
   const limit = setTimeout(() => void hangUp(), RESPONDER_LIMIT_MS)
   limit.unref()
   ctx.addShutdownCallback(async () => clearTimeout(limit))
-  const lines = await onCallLines(config, answer)
+  const lines = await onCallLines(transferSpeechOf(config, null).onCallVoice, answer)
   const phone = await waitForCounterpart(ctx)
   console.log(`on-call responder (${answer}): answered a call from ${maskedNumber(phone.attributes['sip.phoneNumber'])}`)
   // The transfer side hung up (declined, no decision, or the bridge ended): end the room with it.

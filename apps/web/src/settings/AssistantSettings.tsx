@@ -93,8 +93,6 @@ const sections: readonly PageSection<SectionId>[] = [
   { id: 'webhooks', label: 'Webhook', description: 'Your system at the start of a call, during it and after it' },
   { id: 'advanced', label: 'Advanced', description: 'Talking speed, time zone, silence, hanging up' },
 ]
-/** The sections shown: without Transfers while a realtime model answers the calls (it does not put calls through). */
-const sectionsFor = (realtime: boolean) => (realtime ? sections.filter(s => s.id !== 'transfers') : sections)
 
 /** In place of the voice picker while a realtime model answers the calls: it speaks in its own voice. */
 function RealtimeVoice({ canSwitch }: { canSwitch: boolean }) {
@@ -112,12 +110,12 @@ const pipelineOptions: SelectOption<VoicePipeline>[] = [
   {
     value: 'realtime',
     label: VOICE_PIPELINE_LABELS.realtime,
-    description: 'One model listens and speaks: the fastest replies, in its own voice, no transfers',
+    description: 'One model listens and speaks: the fastest replies, in its own voice',
   },
   {
     value: 'three_stage',
     label: VOICE_PIPELINE_LABELS.three_stage,
-    description: 'Speech to text, a language model and the voice you pick, with warm transfers',
+    description: 'Speech to text, a language model and the voice you pick',
   },
 ]
 
@@ -142,8 +140,8 @@ function PipelineSection({ draft, set, setUp }: SectionProps & { setUp: Pipeline
           title="Answered by"
           description={
             used === 'realtime'
-              ? "Fastest replies, in the realtime model's own voice; calls are not put through"
-              : 'Speech to text, a language model and the voice below; calls can be put through'
+              ? "Fastest replies, in the realtime model's own voice"
+              : 'Speech to text, a language model and the voice below'
           }
           value={used}
           options={pipelineOptions}
@@ -653,10 +651,9 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     if (previous !== saved) setDraft(d => mergeDraft(d, previous, saved))
   }, [saved])
   const set: SectionProps['set'] = (key, value) => setDraft(d => ({ ...d, [key]: value }))
-  // The page follows the pipeline picked here at once, before it is saved: the voice picker and Transfers only for three stages.
+  // The page follows the pipeline picked here at once, before it is saved: the voice picker only for three stages.
   const realtime = setUp !== null && pipelineFor(draft.voice_pipeline, setUp) === 'realtime'
-  const shown = useMemo(() => sectionsFor(realtime), [realtime])
-  const current = useSection(page, shown)
+  const current = useSection(page, sections)
   const hoursOn = useBusinessHoursOn()
   const changed = dirty
   const unsaved = useMemo(() => {
@@ -680,8 +677,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
     // Name and greeting show their error under the field: go there instead of a toast that outlives the fix.
     if (nameProblem(draft.name)) return goTo('general', 'as-name')
     if (!draft.greeting.trim()) return goTo('general', 'as-greet')
-    // Transfers are hidden while a realtime model answers: nothing there to fix.
-    const transfer = realtime ? null : transferProblem(draft)
+    const transfer = transferProblem(draft)
     if (transfer) {
       setTransferSaveTried(true)
       return goTo('transfers', transferFieldId(transfer.index, transfer.field))
@@ -820,7 +816,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormPr
       description={canEdit ? undefined : 'Only owners and admins can change these.'}
       actions={<TestCallButton session={testCall} />}
       banner={<TestCallPanel session={testCall} />}
-      sections={shown}
+      sections={sections}
       current={current}
       unsaved={unsaved}
     >

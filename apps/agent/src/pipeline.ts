@@ -265,6 +265,42 @@ export function lineVoiceOf(config: CallConfig, assistant: LineAssistant): LineV
   return { key: greetingVoice(config, { assistant }), tts: () => createTts(config.tts, assistant?.voice, mainLanguageOf(assistant?.languages), speed) }
 }
 
+/** A realtime voice other than `voice`: the simulated on-call person of a call test must not sound like the assistant. */
+const otherRealtimeVoice = (voiceName: string) => (voiceName === 'cedar' ? 'marin' : 'cedar')
+
+/**
+ * What a warm transfer speaks and hears with, outside the call's own session (transfer-tool.ts, transfer-call.ts): the
+ * connecting line to the caller in the call's line voice, the consult leg's voice and speech recognition with the on-call
+ * person, and the simulated on-call person's voice in a call test. The three stages: their voice provider and speech to
+ * text, as before. A realtime model: OpenAI's speech and transcription models with its key, so a transfer works when only
+ * the realtime model is set up.
+ */
+export type TransferSpeech = {
+  line: LineVoice
+  consult: { tts: () => ttsTypes.TTS; stt: AgentConfig['stt'] }
+  onCallVoice: () => ttsTypes.TTS
+}
+
+export function transferSpeechOf(config: CallConfig, assistant: LineAssistant, testCallerVoice = process.env.TEST_CALLER_VOICE_ID): TransferSpeech {
+  const line = lineVoiceOf(config, assistant)
+  if (!isRealtime(config)) {
+    return {
+      line,
+      consult: { tts: () => createTts(config.tts, assistant?.voice), stt: config.stt },
+      onCallVoice: () => createTts(config.tts, testCallerVoice ? { provider: config.tts.provider, voice_id: testCallerVoice } : null),
+    }
+  }
+  const { realtime, stages } = config
+  return {
+    line,
+    consult: { tts: () => createRealtimeLineTts(realtime), stt: { provider: 'openai_stt', apiKey: realtime.apiKey, model: REALTIME_TRANSCRIPTION } },
+    // The test caller's voice when the three stages are set up too (as on the three stages), else another realtime voice.
+    onCallVoice: stages
+      ? transferSpeechOf(stages, assistant, testCallerVoice).onCallVoice
+      : () => createRealtimeLineTts({ apiKey: realtime.apiKey, voice: otherRealtimeVoice(realtime.voice) }),
+  }
+}
+
 /** Where one chat request goes. */
 export type ChatModel = { apiKey: string; baseUrl: string; model: string; fallbacks?: string[] }
 

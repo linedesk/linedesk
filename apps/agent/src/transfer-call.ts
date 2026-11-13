@@ -6,15 +6,13 @@
 import { type llm, voice } from '@livekit/agents'
 import { type RemoteParticipant, type RemoteTrack, Room, RoomEvent, TrackKind } from '@livekit/rtc-node'
 import type { TransferResult } from '@linedesk/actions'
-import type { AssistantVoice } from '@linedesk/db/types'
 import { AccessToken, RoomServiceClient } from 'livekit-server-sdk'
 import { type Announcement, forwardAudio, playRingback } from './audio-bridge.ts'
-import type { AgentConfig } from './config.ts'
 import { ALL_PARTICIPANT_KINDS } from './counterpart.ts'
 import { livekitHttpUrl } from './env.ts'
 import { audioStream, type GreetingAudio, synthesize } from './greeting-cache.ts'
 import { NotAnsweredError, type OnCallDialer } from './on-call-dialer.ts'
-import { createStt, createTts, sttDetectsTurns } from './pipeline.ts'
+import { createStt, sttDetectsTurns, type TransferSpeech } from './pipeline.ts'
 import { type Answer, answerOf, answerOfDigit, DECISION_MS } from './transfer.ts'
 
 export const ON_CALL_IDENTITY = 'on-call'
@@ -50,8 +48,8 @@ export interface TransferSetup {
   callerRoom: Room
   callerIdentity: string
   dialer: OnCallDialer
-  config: AgentConfig
-  voice?: AssistantVoice | null
+  /** The consult leg's voice and speech recognition (TransferSpeech). */
+  consult: TransferSpeech['consult']
   /** Said to the caller before the ringback ("I'm connecting you…"). */
   announcement?: Announcement
   /** How long the phone rings (the contact's ring time). */
@@ -196,7 +194,7 @@ export async function warmTransfer(
   // Whatever happens to this job, the on-call leg ends with it: registered before anything is dialled.
   hooks.addCleanup(() => closeConsult(consult))
   try {
-    const tts = createTts(setup.config.tts, setup.voice)
+    const tts = setup.consult.tts()
     const lines = prerenderConsultLines(tts, briefing) // while it rings
     consult = await joinConsultRoom(livekit, consultName)
     await setup.dialer.dial({ room: consultName, identity: ON_CALL_IDENTITY, signal, ringSeconds: setup.ringSeconds })
@@ -205,10 +203,10 @@ export async function warmTransfer(
     const agent = new ConsultAgent({ instructions: 'You brief the person about a call to put through.' })
     session = new voice.AgentSession({
       vad: null,
-      stt: createStt(setup.config.stt),
+      stt: createStt(setup.consult.stt),
       tts,
       turnHandling: {
-        turnDetection: sttDetectsTurns(setup.config.stt) ? 'stt' : undefined,
+        turnDetection: sttDetectsTurns(setup.consult.stt) ? 'stt' : undefined,
         preemptiveGeneration: { enabled: false },
       },
     })

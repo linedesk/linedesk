@@ -54,8 +54,8 @@ export type RealtimeConfig = {
 
 /**
  * Calls answered by a realtime model. `stages` are the three stages when they are set up too: the call test's
- * own caller and the simulated on-call person still talk through them. Transfers need them on the business side,
- * so a realtime call does not transfer.
+ * own caller and the simulated on-call person still talk through them. A realtime call's transfer speaks and hears with
+ * OpenAI's models on the realtime key (transferSpeechOf), so it does not need them.
  */
 export type RealtimeCallConfig = { realtime: RealtimeConfig; recording: RecordingConfig; stages: AgentConfig | null }
 export type CallConfig = AgentConfig | RealtimeCallConfig

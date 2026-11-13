@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest'
 import type { AgentConfig, RealtimeCallConfig } from './config.ts'
-import { chatJson, createRealtimePipeline, lineVoiceOf, REALTIME_LINE_TTS, REALTIME_TURNS, realtimeRepliesEvent, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
+import { chatJson, createRealtimePipeline, lineVoiceOf, REALTIME_LINE_TTS, REALTIME_TURNS, realtimeRepliesEvent, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
 
 const openrouter = { apiKey: 'sk-or-test', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' }
 
@@ -94,6 +94,30 @@ test("a realtime call's fixed lines are made by OpenAI's speech model in the rea
   const voice = lineVoiceOf(config, { talking_speed_pct: 110 })
   expect(voice.key).toEqual({ provider: 'openai_tts', model: REALTIME_LINE_TTS, voiceId: 'marin', speed: 110 })
   expect(voice.tts()).toMatchObject({ model: REALTIME_LINE_TTS, sampleRate: 24_000 })
+})
+
+test('a realtime call puts calls through with OpenAI speech and transcription on its key, also without the three stages', () => {
+  const config: RealtimeCallConfig = { realtime, recording: { store: 'off' }, stages: null }
+  const speech = transferSpeechOf(config, null)
+  expect(speech.line.key).toMatchObject({ provider: 'openai_tts', voiceId: 'marin' })
+  expect(speech.consult.stt).toEqual({ provider: 'openai_stt', apiKey: 'sk-rt', model: 'gpt-4o-mini-transcribe' })
+  expect(sttDetectsTurns(speech.consult.stt)).toBe(true)
+  expect(speech.consult.tts()).toMatchObject({ model: REALTIME_LINE_TTS })
+  // No three stages: the simulated on-call person of a call test speaks with OpenAI too.
+  expect(speech.onCallVoice()).toMatchObject({ model: REALTIME_LINE_TTS })
+})
+
+test('on the three stages a transfer speaks and hears with them, as before', () => {
+  const stages = {
+    stt: { provider: 'deepgram', apiKey: 'dg', model: 'flux-general-en' },
+    tts: { provider: 'elevenlabs', apiKey: 'el', voiceId: 'default_voice' },
+  } as AgentConfig
+  const speech = transferSpeechOf(stages, { voice: { provider: 'elevenlabs', voice_id: 'own' } }, 'test_caller_voice')
+  expect(speech.consult.stt).toBe(stages.stt)
+  expect(speech.line.key).toMatchObject({ provider: 'elevenlabs', voiceId: 'own' })
+  // A realtime call with the three stages set up too: its consult leg is still OpenAI's, the realtime call's own.
+  const both = transferSpeechOf({ realtime, recording: { store: 'off' }, stages }, null, 'test_caller_voice')
+  expect(both.consult.stt.provider).toBe('openai_stt')
 })
 
 test("the realtime model's replies are turned off and on with its input settings sent whole", () => {

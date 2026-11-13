@@ -163,7 +163,7 @@ function PipelinesNote({ active }: { active: ActiveProviders }) {
         : setUp.realtime || setUp.three_stage
           ? `Every assistant uses the ${(setUp.realtime ? VOICE_PIPELINE_LABELS.realtime : VOICE_PIPELINE_LABELS.three_stage).toLowerCase()}.`
           : 'Calls are not answered until one is set up.'}{' '}
-      <HelpTip text="Realtime model: one model listens and speaks (fast, in its own voice, no transfers). Three stages: speech to text, a language model and a voice of your choice, with warm transfers. With both set up, each assistant chooses." />
+      <HelpTip text="Realtime model: one model listens and speaks (fast, in its own voice). Three stages: speech to text, a language model and a voice of your choice. Both put calls through to a person. With both set up, each assistant chooses." />
     </p>
   )
 }

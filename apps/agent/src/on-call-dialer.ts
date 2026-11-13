@@ -16,9 +16,8 @@ import {
 import { CALL_MAX_MINUTES } from '@linedesk/actions'
 import { AccessToken } from 'livekit-server-sdk'
 import type { SipClient } from 'livekit-server-sdk'
-import type { AgentConfig } from './config.ts'
+import type { tts } from '@livekit/agents'
 import { type GreetingAudio, synthesize } from './greeting-cache.ts'
-import { createTts } from './pipeline.ts'
 import { rms } from './test-caller/latency.ts'
 import { RING_SECONDS } from './transfer.ts'
 
@@ -118,7 +117,12 @@ async function untilTheyStopTalking(stream: AsyncIterator<AudioFrame>, quietMs =
  * the transfer waits for, listens to the briefing and answers by voice ("yes") or with key 2. After
  * taking the call it says a few words to the caller and hangs up, which ends the call.
  */
-export function simulatedDialer(answer: SimulatedAnswer, livekit: Livekit, config: AgentConfig, greeting = GREETING_LINE): OnCallDialer {
+export function simulatedDialer(
+  answer: SimulatedAnswer,
+  livekit: Livekit,
+  voice: () => tts.TTS,
+  greeting = GREETING_LINE,
+): OnCallDialer {
   return {
     async dial({ room: roomName, identity, signal, ringSeconds = RING_SECONDS }) {
       if (answer === 'no-answer') {
@@ -126,7 +130,7 @@ export function simulatedDialer(answer: SimulatedAnswer, livekit: Livekit, confi
         throw new NotAnsweredError('the simulated on-call phone rang out')
       }
       // Said with the test caller's voice, made before joining: the track's rate is the voice's.
-      const lines = await onCallLines(config, answer, greeting)
+      const lines = await onCallLines(voice, answer, greeting)
       const token = new AccessToken(livekit.apiKey, livekit.apiSecret, { identity, name: 'On call (simulated)' })
       token.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true })
       const room = new Room()
@@ -148,9 +152,13 @@ const ACCEPT_LINE = 'Yes, put them through.'
 export const GREETING_LINE =
   "Hi, this is Mike, the on-call plumber. I'm on my way and will be there in about thirty minutes. Bye for now."
 
-/** The on-call person's lines in the test caller's voice: "yes" and the greeting when accepting, else none. */
-export function onCallLines(config: AgentConfig, answer: SimulatedAnswer, greeting = GREETING_LINE): Promise<GreetingAudio[]> {
-  return Promise.all((answer === 'accept' ? [ACCEPT_LINE, greeting] : []).map(text => voiceOf(config, text)))
+/** The on-call person's lines in `voice` (TransferSpeech.onCallVoice): "yes" and the greeting when accepting, else none. */
+export function onCallLines(
+  voice: () => tts.TTS,
+  answer: SimulatedAnswer,
+  greeting = GREETING_LINE,
+): Promise<GreetingAudio[]> {
+  return Promise.all((answer === 'accept' ? [ACCEPT_LINE, greeting] : []).map(text => synthesize(voice(), text)))
 }
 
 /** Publishes the on-call person's microphone in the room, at the rate of their voice. */
@@ -161,11 +169,6 @@ export async function publishVoice(room: Room, lines: GreetingAudio[]): Promise<
     new TrackPublishOptions({ source: TrackSource.SOURCE_MICROPHONE }),
   )
   return source
-}
-
-function voiceOf(config: AgentConfig, text: string): Promise<GreetingAudio> {
-  const voiceId = process.env.TEST_CALLER_VOICE_ID
-  return synthesize(createTts(config.tts, voiceId ? { provider: config.tts.provider, voice_id: voiceId } : null), text)
 }
 
 export async function speak(source: AudioSource, audio: GreetingAudio) {

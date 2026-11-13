@@ -8,11 +8,10 @@ import { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
 import type { CallLog } from './call-log.ts'
 import type { CallSession } from './call-session.ts'
-import type { AgentConfig } from './config.ts'
 import type { Announcement } from './audio-bridge.ts'
 import { requireLivekitEnv } from './env.ts'
 import { lineAudio } from './busy-line.ts'
-import { lineVoiceOf } from './pipeline.ts'
+import type { TransferSpeech } from './pipeline.ts'
 import { type OnCallDialer, simulatedDialer, sipDialer } from './on-call-dialer.ts'
 import { findOutboundTrunk, sipClient, TRANSFER_TRUNK_NAME } from './sip-trunks.ts'
 import { ownTransferTrunk, reprovisionTrunk, transferRoute, workspaceTrunkDialer } from './workspace-trunk.ts'
@@ -69,10 +68,10 @@ export const liveTransferTestAllows = (number: string, env: Record<string, strin
 export async function onCallDialerFor(
   call: CallSession,
   number: string,
-  config: AgentConfig,
+  speech: TransferSpeech,
   api: ApiClient,
 ): Promise<OnCallDialer | null> {
-  if (call.simulatedOnCall) return simulatedDialer(call.simulatedOnCall, livekitOf(), config, call.simulatedOnCallLine)
+  if (call.simulatedOnCall) return simulatedDialer(call.simulatedOnCall, livekitOf(), speech.onCallVoice, call.simulatedOnCallLine)
   if (!call.businessNumber) return null // a test call never dials a real phone
   if (number === call.businessNumber) {
     // It would ring straight back into this assistant (assistant.update refuses it; older settings may have it).
@@ -107,9 +106,9 @@ export async function onCallDialerFor(
   return sipDialer({ sip, trunkId, to: number, from: call.businessNumber })
 }
 
-/** A fixed line in the assistant's voice, mono; made once per voice and text and kept like the greeting. */
-async function connectingLine(config: AgentConfig, call: CallSession, text: string): Promise<Announcement> {
-  const audio = await lineAudio(lineVoiceOf(config, call.assistant), text)
+/** A fixed line in the call's line voice (the realtime voice on a realtime call), mono; made once per voice and text and kept like the greeting. */
+async function connectingLine(speech: TransferSpeech, text: string): Promise<Announcement> {
+  const audio = await lineAudio(speech.line, text)
   const { channels, samples } = audio
   return {
     sampleRate: audio.sampleRate,
@@ -124,7 +123,8 @@ type TransferToolDeps = {
   api: ApiClient
   call: CallSession
   log: CallLog
-  config: AgentConfig
+  /** What the transfer speaks and hears with: the three stages', or OpenAI's on a realtime call (transferSpeechOf). */
+  speech: TransferSpeech
   /** The caller in the room; on a phone call they are there from the start. */
   callerIdentity: Promise<string>
   /** The contacts that take calls now (transferContactsFor), in the owner's order. */
@@ -184,7 +184,7 @@ export function transferToolDescription(contacts: readonly Pick<Dialable, 'name'
  * condition fits. A contact that cannot be dialled counts as not answered: the next one is tried only when its
  * "if nobody accepts" says so (transferPlan), else the assistant takes a message.
  */
-export function transferTool({ ctx, api, call, log, config, callerIdentity, contacts, dialerOf, stopRecording }: TransferToolDeps) {
+export function transferTool({ ctx, api, call, log, speech, callerIdentity, contacts, dialerOf, stopRecording }: TransferToolDeps) {
   let tried = false
   const names = contacts.map(c => c.name) as [string, ...string[]]
   return llm.tool({
@@ -241,7 +241,7 @@ export function transferTool({ ctx, api, call, log, config, callerIdentity, cont
         }
         // A fixed line, so the caller always hears whom they are put through to before the ringback.
         const text = previous ? tryingNextLine(previous.name, contact.name) : connectingText(contact.name)
-        const announcement = await connectingLine(config, call, text).catch(e => {
+        const announcement = await connectingLine(speech, text).catch(e => {
           console.warn(`could not make the connecting line: ${e instanceof Error ? e.message : String(e)}`)
           return undefined
         })
@@ -252,8 +252,7 @@ export function transferTool({ ctx, api, call, log, config, callerIdentity, cont
             callerRoom: ctx.room,
             callerIdentity: caller,
             dialer,
-            config,
-            voice: call.assistant?.voice,
+            consult: speech.consult,
             announcement,
             ringSeconds: contact.ring_seconds,
             attempt: i + 1,

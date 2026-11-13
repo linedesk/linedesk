@@ -357,7 +357,7 @@ function runTransfer(contacts: Dialable[], dialable: (c: Dialable) => boolean) {
     } as never,
     call,
     log,
-    config: {} as never,
+    speech: {} as never,
     callerIdentity: Promise.resolve('caller'),
     contacts,
     dialerOf: async c => {
