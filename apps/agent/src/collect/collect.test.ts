@@ -2,7 +2,7 @@ import { llm } from '@livekit/agents'
 import { describe, expect, it, test, vi } from 'vitest'
 import { addedToMessage, nudgeIfQuiet, saidMeanwhile } from './collect-tools.ts'
 import { Collection, describeOutcome, MAX_ATTEMPTS, outcomeEvent } from './collection.ts'
-import { addressCollector, dateCollector, digitsCollector, emailCollector, isWholePhoneNumber, nameCollector, partialPhoneNumberIn, parseDate, phoneCollector, stateCode, toE164 } from './collectors.ts'
+import { addressCollector, dateCollector, digitsCollector, emailCollector, isWholePhoneNumber, nameCollector, partialPhoneNumberIn, parseDate, phoneCollector, stateCode, toE164, upcomingDates } from './collectors.ts'
 import { readDigits, readLetters, spokenDigits, spokenEmail, spokenLetters } from './spoken.ts'
 
 describe('spoken input', () => {
@@ -182,4 +182,15 @@ test('a phone number confirmed after the message was saved is added to it; nothi
   const none = { addToMessage: async () => false } as unknown as Parameters<typeof addedToMessage>[0]
   expect(await addedToMessage(none, phoneCollector(), confirmed)).toBe('')
   expect(added).toHaveLength(1)
+})
+
+test('the date step lists the next days with their weekday and date, so the model never counts days', () => {
+  expect(upcomingDates('2026-11-12', 7)).toBe(
+    'Today is Thursday 2026-11-12. The days after it: Friday 2026-11-13; Saturday 2026-11-14; Sunday 2026-11-15; Monday 2026-11-16; Tuesday 2026-11-17; Wednesday 2026-11-18; Thursday 2026-11-19.',
+  )
+  // Across a month and a year.
+  expect(upcomingDates('2026-12-30', 3)).toContain('Thursday 2026-12-31; Friday 2027-01-01; Saturday 2027-01-02.')
+  const day = dateCollector({ what: 'preferred day', today: '2026-11-12' })
+  expect(day.instructions).toContain('Wednesday 2026-11-18')
+  expect(day.instructions).toContain('never count days yourself')
 })

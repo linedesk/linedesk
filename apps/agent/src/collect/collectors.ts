@@ -241,11 +241,24 @@ export function parseDate(said: string, today: string): string | null {
   return date.toISOString().slice(0, 10)
 }
 
+/** A day as the date step names it: "Thursday 2026-11-12". */
+const withWeekday = (iso: string) => `${new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })} ${iso}`
+
+/**
+ * Today and the next two weeks, each with its weekday: the model reads "next Tuesday" off this list instead of counting
+ * days from today's date, where it is sometimes a day off (gpt-realtime-mini, LIN-92).
+ */
+export function upcomingDates(today: string, days = 14): string {
+  const [y, m, d] = today.split('-').map(Number)
+  const dates = Array.from({ length: days }, (_, i) => new Date(Date.UTC(y!, m! - 1, d! + i + 1, 12)).toISOString().slice(0, 10))
+  return `Today is ${withWeekday(today)}. The days after it: ${dates.map(withWeekday).join('; ')}.`
+}
+
 export function dateCollector({ what, today, notBefore, notAfter }: DateOptions): Collector<{ date: string }, string> {
   return {
     kind: 'date',
     label: what,
-    parameters: z.object({ date: z.string().describe(`The ${what} as YYYY-MM-DD (today is ${today}); work it out from what the caller said.`) }),
+    parameters: z.object({ date: z.string().describe(`The ${what} as YYYY-MM-DD (today is ${withWeekday(today)}); a weekday the caller names: its date from the list in your instructions.`) }),
     parse({ date }) {
       const iso = parseDate(date, today)
       if (!iso) return problem(`"${date}" is not a date. Ask for the month, then the day, then the year.`)
@@ -255,7 +268,7 @@ export function dateCollector({ what, today, notBefore, notAfter }: DateOptions)
     },
     display: iso => iso,
     readBack: iso => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }),
-    instructions: `You collect the ${what}. Today is ${today}. Callers say dates many ways ("next Tuesday", "the fifteenth", "1/15/90"); work out the date and pass it as YYYY-MM-DD. Read it back with the weekday, month, day and year in words.`,
+    instructions: `You collect the ${what}. ${upcomingDates(today)} Callers say dates many ways ("next Tuesday", "the fifteenth", "1/15/90"); a weekday they name is the one with that name in this list, with the date written next to it (never count days yourself). Pass the date as YYYY-MM-DD. Read it back with the weekday, month, day and year in words.`,
     ask: `Ask for the ${what}.`,
   }
 }

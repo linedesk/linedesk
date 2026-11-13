@@ -242,9 +242,11 @@ test('the date and time where the business is go into the prompt; none without a
   expect(clockInstructions('America/Los_Angeles', at)).toContain('It is now Thursday, November 12, 2026 at 1:31 PM (2026-11-12) where the business is (time zone America/Los_Angeles)')
   expect(clockInstructions('Europe/Berlin', at)).toContain('Thursday, November 12, 2026 at 10:31 PM')
   // The next days with their weekday, from the business's own date (late evening in Berlin is still the 12th there).
-  expect(clockInstructions('Europe/Berlin', at)).toContain('The days after today: Friday, November 13; Saturday, November 14;')
-  expect(clockInstructions('America/Los_Angeles', at)).toContain('Wednesday, November 18; Thursday, November 19;')
-  expect(clockInstructions('America/Los_Angeles', at)).toContain('Thursday, November 26.')
+  expect(clockInstructions('Europe/Berlin', at)).toContain('The days after today: Friday, November 13 = 2026-11-13; Saturday, November 14 = 2026-11-14;')
+  // Each weekday with its date written out, so the model never counts days itself.
+  expect(clockInstructions('America/Los_Angeles', at)).toContain('Wednesday, November 18 = 2026-11-18; Thursday, November 19 = 2026-11-19;')
+  expect(clockInstructions('America/Los_Angeles', at)).toContain('Thursday, November 26 = 2026-11-26.')
+  expect(clockInstructions('America/Los_Angeles', at)).toContain('never count days yourself')
   expect(clockInstructions(null, at)).toBeNull()
   expect(clockInstructions('Not/AZone', at)).toBeNull()
   expect(buildInstructions(assistant(), null, null, [], null, 'America/Los_Angeles', at)).toContain('It is now Thursday, November 12, 2026')

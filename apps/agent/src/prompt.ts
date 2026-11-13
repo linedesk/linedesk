@@ -332,7 +332,11 @@ function upcomingDays(timeZone: string, now: number): string {
     .split('-')
     .map(Number)
   const day = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' })
-  return Array.from({ length: UPCOMING_DAYS }, (_, i) => day.format(Date.UTC(y!, m! - 1, d! + i + 1, 12))).join('; ')
+  // Each with its YYYY-MM-DD: a model that works the date out itself is sometimes a day off (gpt-realtime-mini, LIN-92).
+  return Array.from({ length: UPCOMING_DAYS }, (_, i) => {
+    const at = Date.UTC(y!, m! - 1, d! + i + 1, 12)
+    return `${day.format(at)} = ${new Date(at).toISOString().slice(0, 10)}`
+  }).join('; ')
 }
 
 /**
@@ -345,7 +349,7 @@ export function clockInstructions(timeZone: string | null | undefined, now: numb
     const at = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(now)
     // The tools take dates as YYYY-MM-DD.
     const date = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
-    return `It is now ${at} (${date}) where the business is (time zone ${timeZone}). Use this for today's date, the day of the week and the time; never guess them. The days after today: ${upcomingDays(timeZone, now)}. Take a weekday the caller names ("Wednesday", "next Wednesday") from this list.`
+    return `It is now ${at} (${date}) where the business is (time zone ${timeZone}). Use this for today's date, the day of the week and the time; never guess them. The days after today: ${upcomingDays(timeZone, now)}. Take a weekday the caller names ("Wednesday", "next Wednesday") from this list and use the date written next to it, as it is; never count days yourself.`
   } catch {
     return null
   }
