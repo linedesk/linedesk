@@ -74,66 +74,131 @@ export const agentClientLabels: Record<AgentClient, string> = {
 /** Clients that run in the cloud: they reach the install only on a public https address (reachableFromCloud). */
 export const cloudClients: readonly AgentClient[] = ['claude', 'chatgpt']
 
+/** One thing to do to start the agent: text, and a command to copy or a link that opens the agent. */
+export type StartStep = { text: string; code?: string; link?: { label: string; href: string } }
 /**
- * How to connect a client to the setup MCP, step by step, with the key in the URL (`url` from agentSetup.createKey).
- * Steps are plain text; the setup page shows the commands as code to copy.
+ * How to start each agent with the setup, with the key in the URL (`url` from agentSetup.createKey): as few steps as
+ * the agent allows. Agents that run commands connect themselves (one command, or a link that opens them with the
+ * prompt filled in; without the MCP they call the tools over HTTP, as the prompt says). Cloud chat apps cannot add
+ * an MCP server on their own, so connecting it stays a step there. `prompt` is what to paste instead (or after the
+ * connector for the cloud apps); `promptFirst` when pasting it is the main way.
  */
-export function connectSteps(client: AgentClient, url: string): { text: string; code?: string }[] {
+export function startPlan(
+  client: AgentClient,
+  url: string,
+): { steps: StartStep[]; prompt: string; promptFirst: boolean } {
+  const prompt = agentSetupPrompt(url)
   switch (client) {
     case 'claude_code':
-      return [
-        { text: 'Add the setup server in a terminal:', code: `claude mcp add --transport http linedesk-setup ${url}` },
-        { text: 'Start Claude Code (claude) and paste the prompt below.' },
-      ]
-    case 'claude':
-      return [
-        { text: 'In Claude (web or desktop): Settings → Connectors → Add custom connector.' },
-        { text: 'Name it Linedesk setup and paste this URL, then Add:', code: url },
-        { text: 'In a new chat, turn the connector on (+ → Connectors) and paste the prompt below.' },
-      ]
-    case 'chatgpt':
-      return [
-        { text: 'In ChatGPT: Settings → Apps & Connectors → Advanced settings → turn on Developer mode.' },
-        { text: 'Create a connector: name Linedesk setup, this URL, authentication None:', code: url },
-        { text: 'In a new chat, pick Developer mode, turn on Linedesk setup and paste the prompt below.' },
-      ]
+      return {
+        steps: [
+          {
+            text: 'Run this in a terminal, on this server if you can (Claude Code can then also check the install). It connects the setup server and starts the setup:',
+            code: `claude ${shellQuote(COMMAND_PROMPT)} --mcp-config ${shellQuote(JSON.stringify({ mcpServers: { [MCP_NAME]: { type: 'http', url } } }))}`,
+          },
+          {
+            text: 'Or open the Claude desktop app with the prompt filled in, and send it:',
+            link: { label: 'Open in Claude Code', href: `claude://code/new?q=${encodeURIComponent(prompt)}` },
+          },
+        ],
+        prompt,
+        promptFirst: false,
+      }
     case 'codex':
-      return [
-        { text: 'Add the setup server in a terminal:', code: `codex mcp add linedesk-setup --url ${url}` },
-        { text: 'Start Codex (codex) and paste the prompt below.' },
-      ]
+      return {
+        steps: [
+          {
+            text: 'Run this in a terminal. It connects the setup server and starts the setup:',
+            code: `codex -c ${shellQuote(`mcp_servers.${MCP_NAME}.url="${url}"`)} ${shellQuote(COMMAND_PROMPT)}`,
+          },
+        ],
+        prompt,
+        promptFirst: false,
+      }
     case 'cursor':
-      return [
-        { text: 'Cursor Settings → MCP & Integrations → New MCP server, and add:', code: cursorConfig(url) },
-        { text: 'Open the agent chat and paste the prompt below.' },
-      ]
+      return {
+        steps: [
+          {
+            text: 'Open Cursor with the prompt filled in, and send it. The agent calls the setup tools from its terminal:',
+            link: {
+              label: 'Open in Cursor',
+              href: `cursor://anysphere.cursor-deeplink/prompt?text=${encodeURIComponent(prompt)}`,
+            },
+          },
+        ],
+        prompt,
+        promptFirst: false,
+      }
+    case 'claude': {
+      const viaConnector = agentSetupPrompt(url, { connector: true })
+      return {
+        steps: [
+          {
+            text: 'Claude cannot add the setup server by itself. In Claude: Settings → Connectors → Add custom connector.',
+          },
+          { text: 'Name it Linedesk setup and paste this URL, then Add:', code: url },
+          {
+            text: 'Open a new chat with the prompt filled in, turn the connector on (+ → Connectors) and send it:',
+            link: { label: 'Open Claude', href: `https://claude.ai/new?q=${encodeURIComponent(viaConnector)}` },
+          },
+        ],
+        prompt: viaConnector,
+        promptFirst: false,
+      }
+    }
+    case 'chatgpt':
+      return {
+        steps: [
+          {
+            text: 'ChatGPT cannot add the setup server by itself. Settings → Apps & Connectors → Advanced settings → turn on Developer mode.',
+          },
+          { text: 'Create a connector: name Linedesk setup, this URL, authentication None:', code: url },
+          { text: 'In a new chat, pick Developer mode, turn on Linedesk setup and paste the prompt below.' },
+        ],
+        prompt: agentSetupPrompt(url, { connector: true }),
+        promptFirst: true,
+      }
     case 'other':
-      return [
-        { text: 'Add an MCP server (Streamable HTTP, no sign-in) with this URL:', code: url },
-        {
-          text: 'No MCP support? An agent that can run commands can still do it: the prompt below says how to call the tools with curl.',
-        },
-      ]
+      return {
+        steps: [
+          {
+            text: 'Paste the prompt below into your agent. It contains the setup server, so the agent connects by itself: as an MCP server (Streamable HTTP, no sign-in) or over HTTP from a terminal.',
+          },
+        ],
+        prompt,
+        promptFirst: true,
+      }
   }
 }
 
-const cursorConfig = (url: string) => JSON.stringify({ mcpServers: { 'linedesk-setup': { url } } }, null, 2)
+const MCP_NAME = 'linedesk-setup'
+/** The first message of the one-command start: the setup server's own instructions carry the playbook. */
+const COMMAND_PROMPT =
+  'Help me set up Linedesk, the open-source AI receptionist, on my server through the linedesk-setup tools. Call setup_status first, follow the setup server instructions and the next step it gives, and work through it with me one step at a time.'
+/** A POSIX shell word: single quotes, a single quote inside written as '\''. */
+export const shellQuote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`
 
 /**
- * The prompt the admin pastes into their agent: what to do, how to work with them, and how to reach the tools. The
- * full playbook is the setup MCP's own instructions (SETUP_MCP_INSTRUCTIONS) and `setup_status`, so this stays
- * readable and the server can grow without new prompts.
+ * The prompt the admin pastes into their agent (or that a link fills in): what to do, how to work with them, and how
+ * to reach the tools. The full playbook is the setup MCP's own instructions (SETUP_MCP_INSTRUCTIONS) and
+ * `setup_status`, so this stays readable and the server can grow without new prompts. `connector`: the agent has the
+ * tools through a connector the admin added (Claude, ChatGPT), so the prompt carries no URL and no key.
  */
-export function agentSetupPrompt(url: string): string {
-  return `You are helping me set up Linedesk, the open-source AI receptionist, on my server. Linedesk answers my business's phone calls with an AI assistant. Please set it up end to end with me, through the Linedesk setup tools.
-
-How to reach the tools:
+export function agentSetupPrompt(url: string, { connector = false }: { connector?: boolean } = {}): string {
+  const tools = connector
+    ? `How to reach the tools:
+- Use the tools of the Linedesk setup connector (setup_status, providers_list, provider_setKeys and so on).
+- If you do not see them, tell me to turn the connector on in this chat first.`
+    : `How to reach the tools (the setup server is ${url}):
 - If you have tools named setup_status, providers_list, provider_setKeys and so on (the "linedesk-setup" MCP server), use them.
 - If not, but you can run shell commands, call the same tools over HTTP. Each call is one POST:
   curl -s ${url} -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"setup_status","arguments":{}}}'
   The answer is a line starting with "data: " followed by JSON. Use "method":"tools/list" once to see every tool and its input.
-- If you can do neither, tell me to connect you to the MCP server at that URL first.
-The URL contains a setup key that works for 24 hours. Do not repeat it, post it or save it anywhere.
+- If you can do neither, tell me to connect you to that address as an MCP server first.
+The address contains a setup key that works for 24 hours. Do not repeat it, post it or save it anywhere.`
+  return `You are helping me set up Linedesk, the open-source AI receptionist, on my server. Linedesk answers my business's phone calls with an AI assistant. Please set it up end to end with me, through the Linedesk setup tools.
+
+${tools}
 
 What to do:
 1. Call setup_status first. It says what is set up, what is missing, and the next step with exact instructions. Read the server's instructions too.

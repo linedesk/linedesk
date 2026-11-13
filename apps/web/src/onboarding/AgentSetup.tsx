@@ -8,9 +8,8 @@ import {
   type AgentSetupState,
   agentClientLabels,
   agentClients,
-  agentSetupPrompt,
   cloudClients,
-  connectSteps,
+  startPlan,
 } from '@linedesk/actions'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadAgentSetup, runAdmin } from '../admin/api.ts'
@@ -206,25 +205,17 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
           )}
 
           <ol className="as-steps">
-            <li>
-              <b>Connect your agent</b>
+            <li className={cx(created && 'as-done')}>
+              <b>Create a setup link</b>
               {created ? (
-                connectSteps(client, created.url).map(step => (
-                  <div key={step.text} className="as-step">
-                    <span>{step.text}</span>
-                    {step.code && (
-                      <div className="as-code">
-                        <code>{step.code}</code>
-                        <CopyButton text={step.code} />
-                      </div>
-                    )}
-                  </div>
-                ))
+                <span className="as-small">
+                  Ready, valid until {timeOf(created.expiresAt)}. It lets an agent act as you, so keep it to yourself.
+                </span>
               ) : (
                 <div className="as-step">
                   <span>
-                    A setup link lets your agent set up this server on your behalf for 24 hours, using setup tools
-                    only. You can end it here at any time.
+                    A setup link lets your agent set up this server on your behalf for 24 hours, using setup tools only.
+                    You can end it here at any time.
                   </span>
                   <div>
                     <Button variant="primary" busy={busy === 'create'} onClick={() => void createKey()}>
@@ -241,14 +232,9 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
               )}
             </li>
             <li className={cx(!created && 'as-later')}>
-              <b>Paste this prompt</b>
+              <b>Start {agentClientLabels[client] === 'Other' ? 'your agent' : agentClientLabels[client]}</b>
               {created ? (
-                <div className="as-step">
-                  <pre className="as-prompt">{agentSetupPrompt(created.url)}</pre>
-                  <div>
-                    <CopyButton text={agentSetupPrompt(created.url)} label="Copy prompt" variant="primary" />
-                  </div>
-                </div>
+                <StartAgent client={client} url={created.url} />
               ) : (
                 <span className="as-small">After you create the setup link.</span>
               )}
@@ -342,5 +328,51 @@ function Progress({
         </div>
       )}
     </section>
+  )
+}
+
+/** One command or link per agent where it can connect itself; the prompt to copy as the other way (or the main one). */
+function StartAgent({ client, url }: { client: AgentClient; url: string }) {
+  const { steps, prompt, promptFirst } = startPlan(client, url)
+  const promptBlock = (
+    <div className="as-step">
+      <pre className="as-prompt">{prompt}</pre>
+      <div>
+        <CopyButton text={prompt} label="Copy prompt" variant={promptFirst ? 'primary' : 'secondary'} />
+      </div>
+    </div>
+  )
+  return (
+    <>
+      {steps.map((step, i) => (
+        <div key={step.text} className="as-step">
+          <span>{step.text}</span>
+          {step.code && (
+            <div className="as-code">
+              <code>{step.code}</code>
+              <CopyButton text={step.code} variant={i === 0 ? 'primary' : undefined} />
+            </div>
+          )}
+          {step.link && (
+            <div>
+              <a
+                className={cx('k-btn', 'k-btn-sm', i === 0 ? 'k-btn-primary' : 'k-btn-secondary')}
+                href={step.link.href}
+              >
+                {step.link.label}
+              </a>
+            </div>
+          )}
+        </div>
+      ))}
+      {promptFirst ? (
+        promptBlock
+      ) : (
+        <details className="as-more">
+          <summary>Or copy the prompt and paste it yourself</summary>
+          {promptBlock}
+        </details>
+      )}
+    </>
   )
 }

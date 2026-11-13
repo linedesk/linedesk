@@ -248,3 +248,19 @@
 .as-manual:hover {
   color: var(--ink-muted);
 }
+.as-more {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+.as-more > summary {
+  cursor: pointer;
+  color: var(--ink-muted);
+  width: fit-content;
+}
+.as-more > summary:hover {
+  color: var(--ink);
+}
+.as-more[open] > summary {
+  margin-bottom: 8px;
+}
