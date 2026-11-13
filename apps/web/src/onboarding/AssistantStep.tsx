@@ -15,7 +15,8 @@ import { SkeletonRows } from '../ui/LoadStates.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
 import { assistantChanges, type AssistantDraft, renameInGreeting } from './flow.ts'
 
-type Props = { onBack: () => void; onNext: () => void }
+/** `operator`: the member runs the server (a test call nobody answers says what to fix there). */
+type Props = { onBack: () => void; onNext: () => void; operator?: boolean }
 
 export function AssistantStep(p: Props) {
   const assistant = useAssistant()
@@ -31,10 +32,10 @@ export function AssistantStep(p: Props) {
   )
 }
 
-function AssistantForm({ assistant, onBack, onNext }: Props & { assistant: Assistant }) {
+function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & { assistant: Assistant }) {
   const run = useRun()
   const write = useWriteAction()
-  const session = useTestCall(true, { id: assistant.id, name: assistant.name })
+  const session = useTestCall(true, { id: assistant.id, name: assistant.name }, operator)
   const [draft, setDraft] = useState<AssistantDraft>(() => ({
     name: assistant.name,
     greeting: assistant.greeting,

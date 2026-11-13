@@ -1,8 +1,8 @@
 // A test call in the browser, no phone involved. The API signs a LiveKit token for a new room
 // (assistant.startTestCall); the voice agent joins it and files the call in the inbox as "Test call".
 // Settings > Assistant and onboarding show a Start button and the call in a side panel (TestCallPanel).
-import type { TestCallData } from '@linedesk/actions'
-import { Room, RoomEvent, Track } from 'livekit-client'
+import { parseVoiceFailure, type TestCallData, VOICE_FAILURE_ATTRIBUTE, voiceFailureText } from '@linedesk/actions'
+import { type Participant, Room, RoomEvent, Track } from 'livekit-client'
 import { type RefObject, useEffect, useMemo, useRef, useState } from 'react'
 import { useVoiceReady } from '../shell/presence.ts'
 import { useAssistantName, useRows } from '../store.tsx'
@@ -11,7 +11,16 @@ import { Button } from '../ui/kit.tsx'
 import '../ui/settings-layout.css'
 import { microphoneAllowed } from '../call/microphone.ts'
 import { useLiveLines } from '../call/useLiveLines.ts'
-import { TEST_CALL_TIMEOUT_MS, TimedOut, testCallErrorText, within } from './testCallModel.ts'
+import {
+  agentLeftText,
+  noPickupText,
+  type PickupWatch,
+  TEST_CALL_TIMEOUT_MS,
+  TimedOut,
+  testCallErrorText,
+  watchPickup,
+  within,
+} from './testCallModel.ts'
 
 type Phase = 'idle' | 'starting' | 'live' | 'ended'
 
@@ -40,15 +49,22 @@ function useRoomCall(room: string | null) {
   return { call, lines, notSetUp }
 }
 
-/** One test call with an assistant (default: the workspace's first): its phase, what went wrong, the call as it syncs in, and the controls. */
-export function useTestCall(canStart: boolean, assistant?: { id: string; name: string }) {
+/**
+ * One test call with an assistant (default: the workspace's first): its phase, what went wrong, the call as it syncs
+ * in, and the controls. `operator`: an instance admin, who is told what to fix on the server when nobody answers.
+ */
+export function useTestCall(canStart: boolean, assistant?: { id: string; name: string }, operator = false) {
   const defaultName = useAssistantName()
   const name = assistant?.name ?? defaultName
   const [phase, setPhase] = useState<Phase>('idle')
   const [problem, setProblem] = useState<string | null>(null)
+  /** A stage of the assistant's voice pipeline failed during the call (VoiceFailure), in words for this member. */
+  const [failure, setFailure] = useState<string | null>(null)
   const [roomName, setRoomName] = useState<string | null>(null)
   const [muted, setMuted] = useState(false)
   const room = useRef<Room | null>(null)
+  /** Whether the assistant picks up and stays, for the call in `room`. */
+  const pickup = useRef<PickupWatch | null>(null)
   const audio = useRef<HTMLDivElement>(null)
   const { call, lines, notSetUp } = useRoomCall(roomName)
   const live = useLiveLines(lines)
@@ -57,20 +73,18 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
   /** Bumped by Cancel and by every new start, so a late answer of an abandoned attempt is ignored. */
   const attempt = useRef(0)
 
-  useEffect(() => () => void room.current?.disconnect(), [])
+  useEffect(
+    () => () => {
+      pickup.current?.stop()
+      void room.current?.disconnect()
+    },
+    [],
+  )
 
-  // Connected, but the assistant never picked up: say so instead of waiting forever.
+  // The call the assistant filed has arrived: it answered.
   useEffect(() => {
-    if (phase !== 'live' || call) return
-    const timer = setTimeout(() => {
-      const current = room.current
-      room.current = null
-      void current?.disconnect()
-      setProblem(`${name} didn't pick up. The voice service may not be running. Try again in a moment.`)
-      setPhase('idle')
-    }, TEST_CALL_TIMEOUT_MS)
-    return () => clearTimeout(timer)
-  }, [phase, call, name])
+    if (call) pickup.current?.heard()
+  }, [call])
 
   function fail(text: string) {
     setProblem(text)
@@ -80,6 +94,7 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
   async function start() {
     const mine = ++attempt.current
     setProblem(null)
+    setFailure(null)
     setRoomName(null)
     setMuted(false)
     live.clear()
@@ -91,12 +106,43 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     if (mine !== attempt.current) return
     if (blocked) return fail(blocked)
     const next = new Room()
+    // Connected, but the assistant never picks up or drops out: say so and hang up instead of a silent call.
+    const endWith = (text: string, then: Phase) => {
+      if (room.current !== next) return
+      room.current = null
+      void next.disconnect()
+      setProblem(text)
+      setPhase(then)
+    }
+    const watch = watchPickup({
+      noPickup: () => endWith(noPickupText(name, operator), 'idle'),
+      agentLeft: () => endWith(agentLeftText(name, operator), 'ended'),
+    })
+    pickup.current?.stop()
+    pickup.current = watch
+    const isAgent = (p: Participant) => p.isAgent
     try {
       const joined = await within(
         (async () => {
           const { url, token, room: joined } = await requestTestCall(assistant?.id)
-          next.on(RoomEvent.TrackSubscribed, track => {
-            if (track.kind === Track.Kind.Audio) audio.current?.append(track.attach())
+          next.on(RoomEvent.TrackSubscribed, (track, _publication, from) => {
+            if (track.kind !== Track.Kind.Audio) return
+            audio.current?.append(track.attach())
+            if (isAgent(from)) watch.heard()
+          })
+          next.on(RoomEvent.ParticipantConnected, p => {
+            if (isAgent(p)) watch.joined()
+          })
+          next.on(RoomEvent.ParticipantDisconnected, p => {
+            if (isAgent(p)) watch.left()
+          })
+          // The agent says on itself when its speech to text, model or voice failed: shown at once, and that is
+          // the reason, so the no-pickup wait stops.
+          next.on(RoomEvent.ParticipantAttributesChanged, (changed, p) => {
+            const failed = isAgent(p) ? parseVoiceFailure(changed[VOICE_FAILURE_ATTRIBUTE]) : null
+            if (!failed || room.current !== next) return
+            watch.stop()
+            setFailure(voiceFailureText(failed, operator))
           })
           // The browser is the caller here: its own speech is the stream about its own track.
           live.listen(next, (reader, from, room) => {
@@ -107,19 +153,27 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
             )
           })
           next.on(RoomEvent.Disconnected, () => {
+            watch.stop()
             if (room.current === next) setPhase('ended')
           })
           await next.connect(url, token)
+          // Already in the room before this browser: no ParticipantConnected for it.
+          if ([...next.remoteParticipants.values()].some(isAgent)) watch.joined()
           await next.localParticipant.setMicrophoneEnabled(true)
           return joined
         })(),
         TEST_CALL_TIMEOUT_MS,
       )
-      if (mine !== attempt.current) return void next.disconnect()
+      if (mine !== attempt.current) {
+        watch.stop()
+        return void next.disconnect()
+      }
       room.current = next
       setRoomName(joined)
       setPhase('live')
+      watch.start()
     } catch (e) {
+      watch.stop()
       void next.disconnect()
       if (mine !== attempt.current) return
       fail(
@@ -133,6 +187,7 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
   }
 
   async function hangUp() {
+    pickup.current?.stop()
     const current = room.current
     room.current = null
     await current?.disconnect()
@@ -142,6 +197,7 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     name,
     phase,
     problem,
+    failure,
     notSetUp,
     call,
     lines,
@@ -153,7 +209,7 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     blockedReason: !canStart
       ? 'Only owners and admins can start a test call'
       : voiceDown
-        ? `${name} can't take calls yet: the voice service isn't set up. Ask whoever runs this server.`
+        ? `${name} can't take calls yet: the voice service isn't set up. ${operator ? 'Set it up under Admin › Providers.' : 'Ask whoever runs this server.'}`
         : null,
     start: () => void start(),
     stop: async () => {
@@ -174,6 +230,7 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     /** Closes the bar after a call or a problem. */
     dismiss: () => {
       setProblem(null)
+      setFailure(null)
       setRoomName(null)
       live.clear()
       setPhase('idle')

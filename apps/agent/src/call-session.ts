@@ -5,6 +5,8 @@ import {
   callAppendTranscript,
   callFinish,
   callRecordTimings,
+  callReportVoiceFailure,
+  type ReportVoiceFailureData,
   callStart,
   callStartTest,
   DEFAULT_AI_DISCLOSURE,
@@ -15,6 +17,7 @@ import {
   mainLanguageOf,
   silenceClosingOf,
   VOICE_PIPELINES,
+  type VoiceFailure,
   type VoicePipeline,
 } from '@linedesk/actions'
 import {
@@ -82,6 +85,8 @@ export interface CallSession {
   finish(result: CallResult): Promise<void>
   /** Stores how long the replies took (call.recordTimings), for the admin overview. */
   recordTimings(timings: CallTimings): Promise<void>
+  /** Marks the call with a failed stage of the voice pipeline (call.reportVoiceFailure); the failure as kept, refined. */
+  reportVoiceFailure?(failure: VoiceFailure): Promise<VoiceFailure>
 }
 
 /** The replies' times of one call and who did each part (call.recordTimings without the call id). */
@@ -281,6 +286,10 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     },
     async recordTimings(timings) {
       await api.run(callRecordTimings, { callId, ...timings }, scope)
+    },
+    async reportVoiceFailure(failure) {
+      const result = await api.run(callReportVoiceFailure, { callId, failure }, scope)
+      return (result.data as ReportVoiceFailureData | undefined)?.failure ?? failure
     },
   }
 }

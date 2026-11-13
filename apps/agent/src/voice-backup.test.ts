@@ -95,8 +95,23 @@ test('another voice provider with a key is a backup too, after OpenAI', () => {
   expect(own.ttsInstances.map(i => i.label)).toEqual(['cartesia.TTS', 'elevenlabs.TTS'])
 })
 
-test('without a backup the voice is the provider alone', () => {
-  expect(createTts({ provider: 'elevenlabs', apiKey: 'el' })).not.toBeInstanceOf(VoiceWithBackup)
+test('without a backup the voice is the provider alone, still watched for no audio', () => {
+  const voice = createTts({ provider: 'elevenlabs', apiKey: 'el' }) as VoiceWithBackup
+  expect(voice).toBeInstanceOf(VoiceWithBackup)
+  expect(voice.ttsInstances.map(i => i.label)).toEqual(['elevenlabs.TTS'])
+})
+
+test('no audio and no backup (quota used up): an error the session reports, not silence, and nothing to store', async () => {
+  const log = vi.fn()
+  const voice = new VoiceWithBackup(new FakeVoice('elevenlabs', 0), [], log)
+  await expect(synthesize(voice, 'Thanks for calling.')).rejects.toThrow(/no audio/)
+  await expect(synthesize(voice, 'Are you still there?')).rejects.toThrow()
+  expect(spokeWithBackup(voice)).toBe(false)
+  expect(log).not.toHaveBeenCalled()
+})
+
+test('a voice alone that gives no audio: synthesize throws, so it is never cached as the greeting', async () => {
+  await expect(synthesize(new FakeVoice('elevenlabs', 0), 'Hello')).rejects.toThrow(/gave no audio/)
 })
 
 test('the backup takes an OpenAI key that is set up anyway: the realtime model first, in its voice', () => {

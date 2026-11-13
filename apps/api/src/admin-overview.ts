@@ -170,7 +170,7 @@ export async function adminOverview(tx: Tx): Promise<AdminOverview> {
   }
 }
 
-// The voice agent reads its provider settings every 30 s and at the start of each call
+// The voice agent reads its provider settings about every 30 s (a timer in worker.ts) and at the start of each call
 // (GET /v1/agent/provider-config): the last time it did is its heartbeat. Per API process.
 let agentSeenAt: number | null = null
 export const noteAgentSeen = (nowMs = Date.now()) => {
@@ -179,8 +179,23 @@ export const noteAgentSeen = (nowMs = Date.now()) => {
 /** Twice the agent's re-read interval plus slack. */
 const AGENT_STALE_MS = 90_000
 
-export function agentStatus(nowMs = Date.now(), seenAt = agentSeenAt): ServiceStatus {
-  if (seenAt === null) return { ok: false, message: 'Not seen since the API started. Is the agent worker running?' }
+/** When this API process started: the agent has not had the chance to check in before that. */
+const apiStartedAt = Date.now()
+
+/**
+ * Whether the voice agent has not checked in lately, so a call now would not be answered. Right after the API
+ * starts it has not had the chance yet: not away until it is overdue.
+ */
+export function agentAway(nowMs = Date.now(), seenAt = agentSeenAt, startedAt = apiStartedAt): boolean {
+  return nowMs - (seenAt ?? startedAt) > AGENT_STALE_MS
+}
+
+export function agentStatus(nowMs = Date.now(), seenAt = agentSeenAt, startedAt = apiStartedAt): ServiceStatus {
+  // Right after the API starts the agent has not had its chance yet (agentAway): not failing until it is overdue.
+  if (seenAt === null)
+    return agentAway(nowMs, seenAt, startedAt)
+      ? { ok: false, message: 'Not seen since the API started. Is the agent worker running?' }
+      : { ok: true, message: 'Waiting for its first check-in (every 30 s) since the API started.' }
   const ago = Math.round((nowMs - seenAt) / 1000)
   if (nowMs - seenAt > AGENT_STALE_MS)
     return { ok: false, message: `Last seen ${ago} s ago. Is the agent worker running?` }

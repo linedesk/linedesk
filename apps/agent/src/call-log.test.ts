@@ -54,6 +54,20 @@ test('without a message taken, a failed summary finishes the call as answered', 
   expect(call.finish).toHaveBeenCalledWith(expect.objectContaining({ title: 'Call (summary unavailable)', outcome: 'answered', summary: 'Are you open on Sunday?' }))
 })
 
+test('a silent call after the voice failed is a call back, not a hang-up', async () => {
+  const call = fakeCall()
+  const log = new CallLog(call)
+  log.record('agent', 'Thanks for calling. How can I help?')
+  log.voiceFailed = 'voice'
+  const complete = vi.fn<CompleteJson>(async () => answer)
+  await finishCall(call, log, complete, noWait)
+  expect(complete).not.toHaveBeenCalled()
+  expect(call.finish).toHaveBeenCalledWith(expect.objectContaining({
+    title: "Missed: the assistant's voice failed", outcome: 'callback',
+    actionItems: [{ text: "Call the caller back: the assistant's voice failed on this call." }],
+  }))
+})
+
 test('call.finish is retried until the API answers', async () => {
   const finish = vi.fn<() => Promise<void>>().mockRejectedValueOnce(new TypeError('fetch failed')).mockRejectedValueOnce(new TypeError('fetch failed')).mockResolvedValue()
   const call = fakeCall(finish)

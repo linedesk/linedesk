@@ -31,6 +31,17 @@ test('stores and reads back the audio; nothing stored is null', async () => {
   }
 })
 
+test('an empty file (stored before empty audio was refused) is a miss: the greeting is made again', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'greetings-'))
+  try {
+    const cache = createGreetingCache(dir)
+    await cache.put('empty', { sampleRate: 24_000, channels: 1, samples: new Int16Array(0) })
+    expect(await cache.get('empty')).toBeNull()
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('plays as 20 ms frames, the last one shorter', async () => {
   const samples = new Int16Array(24_000 / 10 + 100) // 100 ms + 100 samples at 24 kHz
   const reader = audioStream({ sampleRate: 24_000, channels: 1, samples }).getReader()

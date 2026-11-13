@@ -7,6 +7,12 @@ import type {
 /** `kind: 'message'`: a message the assistant took during the call (call.takeMessage), counted for MESSAGES_PER_CALL. */
 export type ActionItem = { text: string; done?: boolean; kind?: 'message' }
 export type CallField = { label: string; value: string }
+/**
+ * A stage of the voice pipeline that failed on the call (call.reportVoiceFailure, VoiceFailure in @linedesk/actions),
+ * with when it was reported. `stage`: stt, llm, tts or realtime; `reason`: quota, auth, not_found, no_output, timeout
+ * or unknown.
+ */
+export type CallVoiceFailure = { stage: string; provider: string; reason: string; message: string; at: string }
 export type ToolEvent = { tool: string; label: string }
 /** Booking details an appointment type can require on top of the caller's name and the reason. */
 export type BookingField = 'phone' | 'email' | 'address'

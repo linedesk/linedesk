@@ -5,9 +5,11 @@
 import type { TestCallData } from '@linedesk/actions'
 import { commands, type Tx } from '@linedesk/db'
 import { and, eq, gt, sql } from 'drizzle-orm'
+import { agentAway } from './admin-overview.ts'
 import type { Actor } from './context.ts'
 import { Reject } from './handlers.ts'
 import { livekitToken } from './livekit-status.ts'
+import { pipelinesSetUp } from './provider-settings.ts'
 import { spendingCap } from './spending-cap.ts'
 
 /** The voice agent's name (apps/agent/src/env.ts); it only joins rooms it is dispatched to by name. */
@@ -39,26 +41,59 @@ export const TEST_CALL_TOKEN = 'assistant.testCallToken'
 
 /** Test-call tokens issued since `sinceMs`: the actor's, or the whole install's. */
 async function tokensSince(tx: Tx, sinceMs: number, actorId?: string) {
-  const [row] = await tx.select({ n: sql<number>`count(*)::int` }).from(commands).where(and(
-    eq(commands.action, TEST_CALL_TOKEN), gt(commands.created_at, new Date(sinceMs).toISOString()),
-    actorId ? eq(commands.actor_id, actorId) : undefined,
-  ))
+  const [row] = await tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(commands)
+    .where(
+      and(
+        eq(commands.action, TEST_CALL_TOKEN),
+        gt(commands.created_at, new Date(sinceMs).toISOString()),
+        actorId ? eq(commands.actor_id, actorId) : undefined,
+      ),
+    )
   return row?.n ?? 0
 }
 
 /** Why the actor may not start another test call now, or null. */
 async function testCallRefusal(tx: Tx, actor: Actor, nowMs: number, env: Env): Promise<string | null> {
-  if ((await tokensSince(tx, nowMs - DAY_MS, actor.actorId)) >= TEST_CALLS_PER_USER_PER_DAY) return `You made ${TEST_CALLS_PER_USER_PER_DAY} test calls today. Try again tomorrow.`
+  if ((await tokensSince(tx, nowMs - DAY_MS, actor.actorId)) >= TEST_CALLS_PER_USER_PER_DAY)
+    return `You made ${TEST_CALLS_PER_USER_PER_DAY} test calls today. Try again tomorrow.`
   if ((await tokensSince(tx, nowMs - DAY_MS)) >= testCallsPerDay(env)) {
     console.error(`ALERT test calls: the install-wide limit of ${testCallsPerDay(env)} test calls a day is reached`)
     return 'This server has had as many test calls today as it allows. Try again tomorrow.'
   }
-  if ((await tokensSince(tx, nowMs - TEST_CALL_BURST.windowMs, actor.actorId)) >= TEST_CALL_BURST.max) return 'Too many test calls in a short time. Try again in a few minutes.'
+  if ((await tokensSince(tx, nowMs - TEST_CALL_BURST.windowMs, actor.actorId)) >= TEST_CALL_BURST.max)
+    return 'Too many test calls in a short time. Try again in a few minutes.'
   return null
 }
 
 /** Why test calls are off in the workspace: its monthly spending cap is reached. */
-export const TEST_CALLS_OVER_CAP = 'This workspace reached its monthly spending cap, so test calls are off until next month.'
+export const TEST_CALLS_OVER_CAP =
+  'This workspace reached its monthly spending cap, so test calls are off until next month.'
+
+/** Why test calls are off for everyone who does not run the server: what is missing is the operator's to fix. */
+export const TEST_CALLS_UNAVAILABLE = "Test calls aren't available on this server right now. Ask whoever runs it."
+
+/**
+ * Why nobody would answer a test call now: the voice agent has not checked in lately (GET /v1/agent/provider-config),
+ * or it has neither a realtime model nor speech to text, a language model and a voice. Said plainly to instance
+ * admins, who can fix it; everyone else gets TEST_CALLS_UNAVAILABLE. Never throws.
+ */
+export async function unanswerable(tx: Tx, actor: Actor, nowMs: number): Promise<string | null> {
+  const operator = actor.permissions.includes('instance:admin') || !!actor.adminSecondFactor
+  const setUp = await pipelinesSetUp(tx)
+  if (!setUp.realtime && !setUp.three_stage) {
+    return operator
+      ? 'The voice agent has nothing to answer with: connect speech to text, a language model and a voice (or a realtime model) under Admin › Providers.'
+      : TEST_CALLS_UNAVAILABLE
+  }
+  if (agentAway(nowMs)) {
+    return operator
+      ? "The voice agent isn't running on this server. Start the agent worker; Admin › Overview shows its health."
+      : TEST_CALLS_UNAVAILABLE
+  }
+  return null
+}
 
 /** Logs an issued token (its room, never the token) in the command log, where testCallRefusal counts it. */
 async function recordToken(tx: Tx, actor: Actor, room: string, assistantId?: string) {
@@ -81,27 +116,60 @@ export type TestCallMetadata = { source: 'test'; workspaceId: string; assistantI
  * `assistantId` must already be checked to be one of the actor's workspace's (the handler does). Counts and records
  * the token in one transaction, one test-call start at a time on the install, so two at once cannot both pass.
  */
-export async function startTestCall(tx: Tx, actor: Actor, assistantId?: string, env: Env = process.env, nowMs = Date.now()): Promise<TestCallData> {
+export async function startTestCall(
+  tx: Tx,
+  actor: Actor,
+  assistantId?: string,
+  env: Env = process.env,
+  nowMs = Date.now(),
+): Promise<TestCallData> {
   if (!actor.workspaceId) throw new Reject('no workspace')
   const { LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET } = env
-  if (!LIVEKIT_URL || !LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) throw new Reject('test calls are not set up: LiveKit is not configured on the server')
+  if (!LIVEKIT_URL || !LIVEKIT_API_KEY || !LIVEKIT_API_SECRET)
+    throw new Reject('test calls are not set up: LiveKit is not configured on the server')
   const room = `test-${crypto.randomUUID().replaceAll('-', '').slice(0, 16)}`
   await tx.transaction(async t => {
     await t.execute(sql`select pg_advisory_xact_lock(hashtext('test-call-tokens'))`)
     const refusal = await testCallRefusal(t, actor, nowMs, env)
     if (refusal) throw new Reject(refusal)
-    if ((await spendingCap(t, actor.workspaceId!, new Date(nowMs).toISOString()))?.reached) throw new Reject(TEST_CALLS_OVER_CAP)
+    if ((await spendingCap(t, actor.workspaceId!, new Date(nowMs).toISOString()))?.reached)
+      throw new Reject(TEST_CALLS_OVER_CAP)
+    const nobody = await unanswerable(t, actor, nowMs)
+    if (nobody) throw new Reject(nobody)
     await recordToken(t, actor, room, assistantId)
   })
 
-  const metadata: TestCallMetadata = { source: 'test', workspaceId: actor.workspaceId, ...(assistantId ? { assistantId } : {}), simulateTransfer: true }
+  const metadata: TestCallMetadata = {
+    source: 'test',
+    workspaceId: actor.workspaceId,
+    ...(assistantId ? { assistantId } : {}),
+    simulateTransfer: true,
+  }
   const nowSec = Math.floor(nowMs / 1000)
-  const token = livekitToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
-    video: { roomJoin: true, room, canPublish: true, canPublishSources: ['microphone'], canSubscribe: true, canPublishData: false },
-    // Created on join; the browser, the agent, a recording and a few teammates listening in or taking over
-    // (call.listen, call.takeOver), closed soon after they leave.
-    roomConfig: { emptyTimeout: 60, departureTimeout: 10, maxParticipants: 8, agents: [{ agentName: AGENT_NAME, metadata: JSON.stringify(metadata) }] },
-  }, nowSec, { identity: `web-${actor.actorId}`, ttlSec: TOKEN_TTL_SEC })
+  const token = livekitToken(
+    LIVEKIT_API_KEY,
+    LIVEKIT_API_SECRET,
+    {
+      video: {
+        roomJoin: true,
+        room,
+        canPublish: true,
+        canPublishSources: ['microphone'],
+        canSubscribe: true,
+        canPublishData: false,
+      },
+      // Created on join; the browser, the agent, a recording and a few teammates listening in or taking over
+      // (call.listen, call.takeOver), closed soon after they leave.
+      roomConfig: {
+        emptyTimeout: 60,
+        departureTimeout: 10,
+        maxParticipants: 8,
+        agents: [{ agentName: AGENT_NAME, metadata: JSON.stringify(metadata) }],
+      },
+    },
+    nowSec,
+    { identity: `web-${actor.actorId}`, ttlSec: TOKEN_TTL_SEC },
+  )
   // Where the browser reaches LiveKit; the API itself may use an internal address.
   const url = env.LIVEKIT_PUBLIC_URL || LIVEKIT_URL
   return { url, token, room, expiresAt: new Date((nowSec + TOKEN_TTL_SEC) * 1000).toISOString() }

@@ -39,7 +39,7 @@ export const pages = {
   assistant: {
     title: 'Assistant',
     sections: true,
-    render: p => <AssistantSettings canEdit={p.canEditSettings} toast={p.toast} />,
+    render: p => <AssistantSettings canEdit={p.canEditSettings} toast={p.toast} isInstanceAdmin={p.isInstanceAdmin} />,
   },
   team: { title: 'Team', render: p => <TeamPage toast={p.toast} /> },
   settings: {

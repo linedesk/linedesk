@@ -97,7 +97,8 @@ export const ttsModelOf = (tts: TtsConfig) => tts.model ?? (tts.provider === 'el
 /**
  * The voice of a call. With a backup (VoiceWithBackup: OpenAI's speech model when an OpenAI key is set up, else another
  * voice provider with a key) it switches to that when the voice provider fails: a used-up quota (ElevenLabs then
- * answers with no audio and no error), a refused key, an outage or a timeout.
+ * answers with no audio and no error), a refused key, an outage or a timeout. Without one it is still watched the same
+ * way, so a voice that gives no audio is an error the session reports (voice-failures.ts) instead of a silent call.
  */
 export function createTts(config: AgentConfig['tts'], assistantVoice?: AssistantVoice | null, language: Language = 'en', speedPct = TALKING_SPEED_PCT_DEFAULT): CallVoice {
   const own = ttsFor(config, assistantVoice)
@@ -107,7 +108,7 @@ export function createTts(config: AgentConfig['tts'], assistantVoice?: Assistant
     ...(config.openAiBackup ? [createRealtimeLineTts(config.openAiBackup, speedPct)] : []),
     ...others.map(other => providerTts({ ...other, voiceId: providerDefaultVoices[other.provider] }, language, speedPct)),
   ]
-  return backups.length ? new VoiceWithBackup(primary, backups) : primary
+  return new VoiceWithBackup(primary, backups)
 }
 
 function providerTts({ voiceId, ...tts }: TtsConfig & { voiceId?: string }, language: Language, speedPct: number) {
@@ -131,7 +132,8 @@ export const VOICE_PROVIDER_REST_MS = 2 * 60 * 60_000
 /**
  * The voice provider with backups (LiveKit's FallbackAdapter): the first request it cannot answer goes to the next one,
  * and the rest of the call stays there. `fellBack`: something was said by a backup, so it is not stored as the voice's
- * own audio (greeting and line cache).
+ * own audio (greeting and line cache). With no backups the provider is only watched: a line it gives no audio for
+ * fails with an error (LiveKit's "no audio was received") instead of playing silence.
  */
 export class VoiceWithBackup extends ttsTypes.FallbackAdapter {
   fellBack = false
@@ -139,9 +141,10 @@ export class VoiceWithBackup extends ttsTypes.FallbackAdapter {
   constructor(primary: ttsTypes.TTS & { updateOptions(opts: { language?: string }): void }, backups: ttsTypes.TTS[], log: (line: string) => void = console.warn) {
     super({ ttsInstances: [primary, ...backups], maxRetryPerTTS: 0, recoveryDelayMs: VOICE_PROVIDER_REST_MS })
     this.on('tts_availability_changed' as never, (({ tts, available }: ttsTypes.AvailabilityChangedEvent) => {
-      if (tts !== primary || available || this.fellBack) return
+      const backup = backups[0]
+      if (tts !== primary || available || this.fellBack || !backup) return
       this.fellBack = true
-      log(`voice ${primary.provider} failed: speaking with ${backups[0]!.provider} ${backups[0]!.model} for the rest of the call`)
+      log(`voice ${primary.provider} failed: speaking with ${backup.provider} ${backup.model} for the rest of the call`)
     }) as never)
   }
 

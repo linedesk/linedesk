@@ -20,6 +20,7 @@ import * as settings from './settings.ts'
 import * as star from './star.ts'
 import * as team from './team.ts'
 import * as transfer from './transfer.ts'
+import * as voiceFailure from './voice-failure.ts'
 import * as voices from './voices.ts'
 import * as webhooks from './webhooks.ts'
 
@@ -52,6 +53,7 @@ export * from './settings.ts'
 export * from './star.ts'
 export * from './team.ts'
 export * from './transfer.ts'
+export * from './voice-failure.ts'
 export * from './voices.ts'
 export * from './webhooks.ts'
 
@@ -75,6 +77,7 @@ const all = [
   calls.callAppendTranscript,
   calls.callFinish,
   calls.callRecordTimings,
+  voiceFailure.callReportVoiceFailure,
   calls.callTakeMessage,
   calls.callFlagUrgent,
   calls.callStartTest,

@@ -1,5 +1,5 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, type AssistantRestoreData, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type ReplyTiming, } from '@linedesk/actions'
+import { actions, type AssistantRestoreData, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, } from '@linedesk/actions'
 import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, localDate } from '@linedesk/calendar'
 import {assistant_calendars, assistants, availability_exceptions, availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, reply_timings, syncedTables,
   transcript_segments, workspace_members, workspace_settings, type Tx,
@@ -8,7 +8,7 @@ import type { ActionItem, Assistant, Closure, PhoneNumber, TransferContact } fro
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { and, asc, desc, eq, gt, gte, or, sql, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
-import { providerHealthHandlers } from './provider-failures.ts'
+import { providerHealthHandlers, recordProviderFailure } from './provider-failures.ts'
 import { brandingHandlers, brandName } from './branding.ts'
 import { issueCallToken } from './agent-token.ts'
 import { startS3Recording } from './recording-egress.ts'
@@ -583,6 +583,26 @@ const handlers: Record<string, Handler> = {
   },
 
   // Not synced (admin overview only): no rows go back to the store.
+  // A stage of the voice pipeline failed (VoiceFailure): kept on the call (the call's own view), once per stage, provider
+  // and reason.
+  'call.reportVoiceFailure': async ({ tx, actor, now }, input: { callId: string; failure: VoiceFailure }) => {
+    const call = await loadCall(tx, actor, input.callId)
+    // One failure model (LIN-111): the stage's provider is failing for the whole install too (Admin › Providers, one
+    // email per streak). A vague reason comes back refined by the provider's own test, and that is what the call keeps
+    // and the agent shows on the test call.
+    const recorded = await recordProviderFailure(
+      tx, input.failure.provider, { reason: input.failure.reason, message: input.failure.message }, 'agent',
+      { scope: { workspaceId: call.workspace_id, callId: call.id } },
+    )
+    const failure: VoiceFailure = { ...input.failure, reason: recorded.reason, message: recorded.message.slice(0, VOICE_FAILURE_MESSAGE_MAX) }
+    const { stage, provider, reason } = failure
+    const known = call.voice_failures.some(f => f.stage === stage && f.provider === provider && f.reason === reason)
+    if (known || call.voice_failures.length >= VOICE_FAILURES_PER_CALL) return { rows: {}, data: { failure } }
+    const rows = await tx.update(calls).set({ voice_failures: [...call.voice_failures, { ...failure, at: now }] })
+      .where(eq(calls.id, call.id)).returning()
+    return { rows: { calls: rows }, data: { failure } }
+  },
+
   'call.recordTimings': async ({ tx, actor }, input) => {
     const call = await loadCall(tx, actor, input.callId)
     await tx.insert(reply_timings).values(input.replies.map((r: ReplyTiming) => ({

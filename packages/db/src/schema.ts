@@ -22,7 +22,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import {
-  DEFAULT_TRANSFERS, type ActionItem, type AssistantLanguages, type AssistantVoice, type BookingField, type BusinessProfile, type CallField, type CallerDetails,
+  DEFAULT_TRANSFERS, type ActionItem, type AssistantLanguages, type AssistantVoice, type BookingField, type BusinessProfile, type CallField, type CallerDetails, type CallVoiceFailure,
   type Closure, type ToolEvent, type TransferContact, type WebhookEvent, type WebhookHook, type WebhookLookup,
 } from './types.ts'
 
@@ -234,6 +234,8 @@ export const calls = pgTable(
     booking_misses: integer('booking_misses').notNull().default(0),
     /** What the assistant's call-start webhook answered about the caller (webhooks.ts, CallerDetails); null: no answer. */
     caller_details: jsonb('caller_details').$type<CallerDetails>(),
+    /** Stages of the voice pipeline that failed on this call (call.reportVoiceFailure), one per stage, provider and reason. */
+    voice_failures: jsonb('voice_failures').$type<CallVoiceFailure[]>().notNull().default([]),
     deleted_at: ts('deleted_at'),
     version: version(),
   },

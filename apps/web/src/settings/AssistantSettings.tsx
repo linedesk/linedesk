@@ -622,7 +622,8 @@ function Advanced({ draft, set }: SectionProps) {
   )
 }
 
-type Props = { canEdit: boolean; toast: (text: string) => void }
+/** `isInstanceAdmin`: the member runs the server (a test call nobody answers says what to fix there). */
+type Props = { canEdit: boolean; toast: (text: string) => void; isInstanceAdmin?: boolean }
 
 type FormProps = Props & {
   assistant: Assistant
@@ -631,12 +632,12 @@ type FormProps = Props & {
   onPick: (id: string) => void
 }
 
-function Form({ assistant, assistants, numbers, onPick, canEdit, toast }: FormProps) {
+function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstanceAdmin = false }: FormProps) {
   const run = useRun()
   const page = `assistant/${assistant.id}`
   const voiceOptions = useVoiceOptions().data
   const setUp = pipelinesOf(voiceOptions)
-  const testCall = useTestCall(canEdit, assistant)
+  const testCall = useTestCall(canEdit, assistant, isInstanceAdmin)
   /** A save was refused over a transfer contact: its errors show from then on. */
   const [transferSaveTried, setTransferSaveTried] = useState(false)
   const savedJson = JSON.stringify(draftOf(assistant))

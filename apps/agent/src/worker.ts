@@ -3,10 +3,10 @@
 import { createServer } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { agentTokenProblem, ASSISTANT_CALL_MAX_MINUTES, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage, fillTemplate, mainLanguageOf, otherLanguagesOf, spokenLines, templateNames } from '@linedesk/actions'
+import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type VoiceFailure, voiceProviderLabel, voiceStageNames, ASSISTANT_CALL_MAX_MINUTES, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage, fillTemplate, mainLanguageOf, otherLanguagesOf, spokenLines, templateNames } from '@linedesk/actions'
 import type { CallerDetails } from '@linedesk/db/types'
 import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@livekit/agents'
-import type { RemoteParticipant } from '@livekit/rtc-node'
+import type { RemoteParticipant, Room } from '@livekit/rtc-node'
 import { z } from 'zod'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { bookingTools } from './booking-tools.ts'
@@ -14,14 +14,15 @@ import { type CollectContext, collectTools, nudgeIfQuiet, stepFacts } from './co
 import { partialPhoneNumberIn } from './collect/collectors.ts'
 import { callerIdOf, withCallbackNumber } from './callback-number.ts'
 import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log.ts'
+import { onceEachStage, watchVoicePipeline } from './voice-failures.ts'
 import { GREETING_WAIT_MS, lookUpCaller, within } from './caller-lookup.ts'
 import { lookupTools } from './lookup-tools.ts'
 import { callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
-import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, stagesOf, withRealtimeModel } from './config.ts'
+import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, SETTINGS_TTL_MS, stagesOf, withRealtimeModel } from './config.ts'
 import { AGENT_NAME, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
-import { type CallLanguages, createPipeline, createRealtimePipeline, createTts, greetingVoice, type LineVoice, lineVoiceOf, realtimeLine, spokeWithBackup, realtimeRepliesEvent, type RealtimeEvents, summaryLlm, transferSpeechOf, talkingSpeedOf, warmUpLlm, REALTIME_TURNS } from './pipeline.ts'
+import { type CallLanguages, createPipeline, createRealtimePipeline, createTts, greetingVoice, type LineVoice, lineVoiceOf, realtimeLine, spokeWithBackup, ttsFor, realtimeRepliesEvent, type RealtimeEvents, summaryLlm, transferSpeechOf, talkingSpeedOf, warmUpLlm, REALTIME_TURNS } from './pipeline.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
 import { cascadedReplyTimer, logTurnMetrics } from './turn-metrics.ts'
 import { describeRealtimeReply, realtimeTurnTimer } from './realtime-timing.ts'
@@ -256,6 +257,25 @@ async function greet(session: voice.AgentSession, config: AgentConfig, call: Cal
   return 'synthesized'
 }
 
+/**
+ * A stage of the voice pipeline failed (voice-failures.ts): the call is marked (call.reportVoiceFailure, with a line on
+ * its transcript), and the agent says it on itself (VOICE_FAILURE_ATTRIBUTE), where a test call's browser shows it at once.
+ */
+function reportVoiceFailure(room: Room, call: CallSession, log: CallLog, failure: VoiceFailure) {
+  const stage = voiceStageNames[failure.stage]
+  log.voiceFailed ??= stage
+  // No reason on the transcript: the first one may still be refined (below); the call's failure keeps the cause.
+  log.record('system', `${stage[0]!.toUpperCase()}${stage.slice(1)} failed: ${voiceProviderLabel(failure.provider)}`)
+  const show = (shown: VoiceFailure) =>
+    void room.localParticipant?.setAttributes({ [VOICE_FAILURE_ATTRIBUTE]: JSON.stringify(shown) }).catch(() => {})
+  show(failure)
+  // The API records it as the provider's failure too and may refine a vague reason (a used-up quota behind "no audio"):
+  // the test call then shows the cause.
+  void call.reportVoiceFailure?.(failure)
+    .then(kept => { if (kept.reason !== failure.reason || kept.message !== failure.message) show(kept) })
+    .catch(e => console.warn(`could not report the failure for call ${call.callId}: ${e instanceof Error ? e.message : String(e)}`))
+}
+
 /** The realtime model of a call, for its fixed lines: its session (once open) and how many turns the caller finished. */
 type RealtimeLines = { model: () => RealtimeEvents | null; callerTurns: () => number; languages: CallLanguages }
 
@@ -310,6 +330,15 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
       timer?.received(event)
     })
   }) : pipeline!)
+  // Any stage that fails marks the call and shows on a test call, instead of silence.
+  watchVoicePipeline(
+    session,
+    stages
+      ? { stt: stages.stt.provider, llm: stages.llm.provider, tts: ttsFor(stages.tts, call.assistant?.voice).provider }
+      : { realtime: realtime!.provider },
+    onceEachStage(failure => reportVoiceFailure(ctx.room, call, log, failure)),
+    stages ? [stages.stt.apiKey, stages.llm.apiKey, stages.tts.apiKey] : [realtime!.apiKey],
+  )
   const voiceOfLines = lineVoiceOf(config, call.assistant)
   const realtimeLines = realtime ? { model: () => realtimeSession, callerTurns: () => callerTurns, languages } : null
   const speak = fixedLineSpeaker(session, voiceOfLines, realtimeLines)
@@ -646,6 +675,9 @@ async function main() {
   const readiness = await checkReadiness(loadAgentConfig)
   console.log(describeReadiness(readiness))
   console.log(describeRecording(readiness.ready ? readiness.config.recording : resolveRecording(null)))
+  // The API counts the agent as running by its last settings read (Admin › Overview, the test call's check): read
+  // them on a timer too, not only when a call comes, so a test call is not refused after the API restarts.
+  setInterval(() => void loadAgentConfig().catch(() => {}), SETTINGS_TTL_MS + 1000).unref()
   // Processes kept warm for the next call. Three by default: a call takes one, and a phone call test two
   // (the test caller and the business), while the next one starts (a new process needs ~2 s of CPU).
   const numIdleProcesses = Number(process.env.AGENT_IDLE_PROCESSES) || 3

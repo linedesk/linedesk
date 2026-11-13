@@ -18,7 +18,8 @@ import './test-call-panel.css'
 /** Where the call stands, in a few words for the header. */
 function Status({ session }: { session: TestCallSession }) {
   const { phase, call, problem } = session
-  if (problem) return <span className="tcp-sub tcp-sub-problem">Couldn't start</span>
+  if (problem)
+    return <span className="tcp-sub tcp-sub-problem">{phase === 'ended' ? 'Call dropped' : "Couldn't start"}</span>
   if (phase === 'starting') return <span className="tcp-sub">Connecting…</span>
   if (phase === 'live' && call) return <LiveIndicator since={parseTs(call.started_at)} />
   if (phase === 'live') return <span className="tcp-sub">Ringing…</span>
@@ -91,7 +92,7 @@ export function TestCallPanel({
   /** Runs for Call again instead of `session.start` (onboarding saves the assistant first). */
   onStart?: () => void
 }) {
-  const { phase, problem, notSetUp, call, name, lines, pending } = session
+  const { phase, problem, failure, notSetUp, call, name, lines, pending } = session
   const open = phase !== 'idle' || !!problem
   const closable = phase === 'ended' || phase === 'idle'
   const { ref, onScroll } = useFollowLive(
@@ -113,7 +114,8 @@ export function TestCallPanel({
     return () => window.removeEventListener('keydown', onKey, true)
   }, [open, closable])
 
-  const message = problem ?? (notSetUp ? `${name} can't talk yet: the ${notSetUp} service isn't set up.` : null)
+  const message =
+    problem ?? failure ?? (notSetUp ? `${name} can't talk yet: the ${notSetUp} service isn't set up.` : null)
   const summarizing = phase === 'ended' && call?.status === 'live'
   return (
     <>

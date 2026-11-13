@@ -49,6 +49,20 @@ export const hangupResult: CallResult = {
 }
 
 /**
+ * The caller said nothing because a stage of the voice pipeline failed (the voice, speech to text): not a hang-up but a
+ * caller the assistant could not help, so it reaches the owner as a call back, with the stage that failed.
+ */
+export function voiceFailedResult(stage: string): CallResult {
+  return {
+    outcome: 'callback',
+    urgency: 'normal',
+    title: `Missed: the assistant's ${stage} failed`,
+    summary: `The assistant's ${stage} failed on this call, so the caller got no help and hung up.`,
+    actionItems: [{ text: `Call the caller back: the assistant's ${stage} failed on this call.` }],
+  }
+}
+
+/**
  * Used when the LLM call fails, so the call still leaves the live state with what is known. A message the
  * assistant took says what the call was about, so it becomes the title and summary.
  */

@@ -91,7 +91,13 @@ export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingSta
         />
       )}
       {step === 'business' && <BusinessStep businessName={me.workspace!.name} onNext={forward} />}
-      {step === 'assistant' && <AssistantStep onBack={back} onNext={forward} />}
+      {step === 'assistant' && (
+        <AssistantStep
+          onBack={back}
+          onNext={forward}
+          operator={me.permissions.includes('instance:admin') || Boolean(me.adminSecondFactor)}
+        />
+      )}
       {step === 'pickup' && (
         <PickupStep onBack={back} onNext={forward} memory={pickupMemory} onMemory={setPickupMemory} />
       )}

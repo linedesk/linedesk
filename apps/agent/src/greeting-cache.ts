@@ -51,7 +51,7 @@ export function audioStream({ sampleRate, channels, samples }: GreetingAudio, fr
   })
 }
 
-/** Synthesizes `text` with the given voice into one piece of audio. */
+/** Synthesizes `text` with the given voice into one piece of audio. Throws on no audio (a used-up quota gives none and no error). */
 export async function synthesize(tts: ttsTypes.TTS, text: string): Promise<GreetingAudio> {
   const parts: Int16Array[] = []
   let sampleRate = tts.sampleRate
@@ -67,6 +67,7 @@ export async function synthesize(tts: ttsTypes.TTS, text: string): Promise<Greet
     samples.set(part, at)
     at += part.length
   }
+  if (!samples.length) throw new Error(`voice ${tts.provider} gave no audio`)
   return { sampleRate, channels, samples }
 }
 
@@ -75,10 +76,11 @@ export const GREETING_CACHE_DIR = process.env.GREETING_CACHE_DIR || join(tmpdir(
 export function createGreetingCache(dir = GREETING_CACHE_DIR) {
   const file = (key: string) => join(dir, `${key}.pcm`)
   return {
-    /** The stored audio, or null when there is none (or it cannot be read). */
+    /** The stored audio, or null when there is none, it cannot be read or it is empty (stored before empty audio was refused). */
     async get(key: string): Promise<GreetingAudio | null> {
       try {
-        return decodeAudio(await readFile(file(key)))
+        const audio = decodeAudio(await readFile(file(key)))
+        return audio.samples.length ? audio : null
       } catch {
         return null
       }

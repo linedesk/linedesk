@@ -3,7 +3,8 @@
 import { createHmac } from 'node:crypto'
 import { assistants, calls, phone_numbers } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
+import { noteAgentSeen } from '../src/admin-overview.ts'
 import { db } from '../src/db.ts'
 import { act, addMember, agent, createWorkspace, getAssistant, getCall, type User, type Workspace } from './helpers.ts'
 
@@ -18,11 +19,14 @@ let ws: Workspace
 let other: Workspace
 let member: User
 beforeAll(async () => {
-  Object.assign(process.env, LIVEKIT)
+  // A realtime model in env, so the voice agent has something to answer test calls with.
+  Object.assign(process.env, LIVEKIT, { OPENAI_REALTIME_API_KEY: 'sk-test-realtime' })
   ws = await createWorkspace('Brightwater Plumbing & Heating')
   other = await createWorkspace('Other Business')
   member = await addMember(ws.id, 'member')
 })
+// The voice agent checks in every 30 s: test calls need it to look running.
+beforeEach(() => noteAgentSeen())
 afterAll(() => {
   process.env = saved
 })
@@ -39,9 +43,7 @@ describe('assistant.create and assistant.delete', () => {
     const created = await getAssistant(body.data.assistantId)
     expect(created).toMatchObject({ workspace_id: ws.id, name: 'Ava' })
     expect(created!.name).not.toBe(ws.assistant.name)
-    expect(created!.greeting).toBe(
-      'Thanks for calling Brightwater Plumbing & Heating. This is Ava. How can I help?',
-    )
+    expect(created!.greeting).toBe('Thanks for calling Brightwater Plumbing & Heating. This is Ava. How can I help?')
   })
 
   test('a copy keeps greeting and instructions, under a new name', async () => {
@@ -78,7 +80,10 @@ describe('assistant.create and assistant.delete', () => {
     expect((await act(lone.owner, 'phoneNumber.update', { phoneNumberId: pn.id, assistantId: second })).status).toBe(
       200,
     )
-    expect(await act(lone.owner, 'assistant.delete', { assistantId: second })).toMatchObject({ status: 200, body: { deleted: { assistants: [second], assistant_calendars: [] } } })
+    expect(await act(lone.owner, 'assistant.delete', { assistantId: second })).toMatchObject({
+      status: 200,
+      body: { deleted: { assistants: [second], assistant_calendars: [] } },
+    })
     expect(await getAssistant(second)).toBeUndefined()
     expect((await numberRow(lone.number)).assistant_id).toBe(lone.assistant.id)
     const last = await act(lone.owner, 'assistant.delete', { assistantId: lone.assistant.id })
@@ -132,7 +137,12 @@ describe('test calls with a picked assistant', () => {
     const tester = body.data.assistantId as string
     const ok = await act(ws.owner, 'assistant.startTestCall', { assistantId: tester })
     expect(ok.status).toBe(200)
-    expect(dispatchMetadata(ok.body.data.token)).toEqual({ source: 'test', workspaceId: ws.id, assistantId: tester, simulateTransfer: true })
+    expect(dispatchMetadata(ok.body.data.token)).toEqual({
+      source: 'test',
+      workspaceId: ws.id,
+      assistantId: tester,
+      simulateTransfer: true,
+    })
     const foreign = await act(ws.owner, 'assistant.startTestCall', { assistantId: other.assistant.id })
     expect(foreign.status).toBe(409)
   })

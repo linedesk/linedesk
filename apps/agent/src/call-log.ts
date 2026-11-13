@@ -2,7 +2,7 @@
 import type { CallSession, CallTimings, Speaker } from './call-session.ts'
 import type { ReplyTimes } from './turn-metrics.ts'
 import { withRetry, type RetryOptions } from './retry.ts'
-import { mergeToolResults, summarizeCall, unsummarizedResult, type CompleteJson, type TranscriptLine } from './summary.ts'
+import { mergeToolResults, summarizeCall, unsummarizedResult, voiceFailedResult, type CompleteJson, type TranscriptLine } from './summary.ts'
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -26,6 +26,8 @@ export class CallLog {
   /** How long each reply took (ReplyTimes), sent at hang-up for the admin overview; `timing` says which pipeline and providers. */
   readonly replies: ReplyTimes[] = []
   timing: Omit<CallTimings, 'replies'> | null = null
+  /** The first stage of the voice pipeline that failed on this call, in words ("voice"); null while it works. */
+  voiceFailed: string | null = null
   private pending: Promise<unknown>[] = []
 
   private call: CallSession
@@ -54,7 +56,9 @@ export async function finishCall(call: CallSession, log: CallLog, complete: Comp
   // The reply times are for the admin overview: a failure there never holds up finishing the call.
   if (log.timing && log.replies.length)
     void call.recordTimings({ ...log.timing, replies: log.replies }).catch(e => console.warn(`could not store the reply times of call ${call.callId}: ${message(e)}`))
-  const summary = await summarizeWithRetry(call, log, complete, retry).catch(e => {
+  // Silent because the voice pipeline failed: a caller to call back, not a hang-up (nothing to summarize either).
+  const silent = !log.lines.some(l => l.speaker === 'caller')
+  const summary = silent && log.voiceFailed ? voiceFailedResult(log.voiceFailed) : await summarizeWithRetry(call, log, complete, retry).catch(e => {
     console.error(`could not summarize call ${call.callId}, finishing it without a summary: ${message(e)}`)
     return unsummarizedResult(log.lines, log.messages)
   })
