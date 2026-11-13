@@ -32,6 +32,7 @@ Linedesk should feel like a calm, native tool, not a dashboard. These rules come
 11. **Motion under 200 ms.** Rows fade and collapse on done, ease back in on undo; respect reduced motion.
 12. **Copy is short and human.** "Nothing needs you. Maya has it." beats "No items found". Use the terms Assistant (not Receptionist) and Remind (not Snooze).
 13. **Show the result of an action immediately; never require a reload.** What the user just did (connected a calendar, created a key, cloned a voice, set up a number) is on screen in the next frame, also after a redirect away and back. While it cannot be known yet, show a placeholder for under a second, never the state from before. How: CLAUDE.md, core rule 3.
+14. **A walkthrough never sends you out of itself.** Setup and onboarding steps don't link or jump to other pages in the same tab. What belongs elsewhere is a hint naming the place ("later, in Admin › Providers"); where a step truly needs another screen, it opens in place and returns to the same step (as Admin does from onboarding).
 
 ## Messages: one look per kind
 

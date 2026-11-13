@@ -728,18 +728,11 @@ function Extras({ checklist, onBack, onNext }: { checklist: SetupChecklist; onBa
           </p>
         </div>
       </section>
-      <section className="as-card">
-        <b>Later, in Admin › Providers</b>
-        <span className="as-small">
-          Sign-in with Google or GitHub, calendar apps for bookings, and where call recordings are kept. None of them is
-          needed to answer a first call.
-        </span>
-        <div>
-          <Button size="sm" variant="secondary" onClick={() => (window.location.hash = '#admin/providers')}>
-            Open Admin › Providers
-          </Button>
-        </div>
-      </section>
+      {/* A hint, not a link: the walkthrough never leaves itself (Admin has no way back to this step). */}
+      <Note tone="info">
+        Sign-in with Google or GitHub, calendars for bookings and where call recordings are kept come later, in Admin ›
+        Providers. None of them is needed to answer a first call.
+      </Note>
       <Foot onBack={onBack} onNext={onNext} />
     </>
   )
