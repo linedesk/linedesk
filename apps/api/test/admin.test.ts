@@ -11,7 +11,7 @@ import { and, eq, getTableName, inArray, sql } from 'drizzle-orm'
 import { auth } from '../src/auth.ts'
 import { KEPT_TABLES, workspaceTables } from '../src/workspace-delete.ts'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
-import { adminSignInEmail, alertOnAdminSignIn, plainSnippet } from '../src/admin-alerts.ts'
+import { adminSignInEmail, alertOnAdminSignIn, isLocalInstance, plainSnippet } from '../src/admin-alerts.ts'
 import { markSetupSignIn } from '../src/setup.ts'
 import { adminHandlers } from '../src/admin-handlers.ts'
 import { forgetTests } from '../src/setup-checklist.ts'
@@ -2364,8 +2364,13 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
 
   describe('(d) every instance admin is emailed', () => {
     let operatorEmail = ''
+    const localOrigin = process.env.WEB_ORIGIN
     beforeAll(async () => {
       operatorEmail = await emailOf(operator)
+      process.env.WEB_ORIGIN = 'https://app.linedesk.test' // on localhost no sign-in alerts go out
+    })
+    afterAll(() => {
+      process.env.WEB_ORIGIN = localOrigin
     })
     const mails = () => vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
     const sentTo = (send: ReturnType<typeof mails>, subject: RegExp) =>
@@ -2381,7 +2386,7 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       expect(mail.text).toMatch(/signed in with a password/)
     })
 
-    test('a passkey sign-in from a known device sends nothing; from a new one it does; a member\'s sign-in never', async () => {
+    test('a sign-in from a known device sends nothing, with any method; from a new one it does; a member\'s sign-in never', async () => {
       const send = mails()
       const device = { ipAddress: '203.0.113.7', userAgent: `Browser ${crypto.randomUUID()}` }
       const passkeySignIn = { path: '/passkey/verify-authentication' }
@@ -2393,6 +2398,7 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       send.mockClear()
       await record()
       await alertOnAdminSignIn({ userId: admin.userId, ...device }, passkeySignIn)
+      await alertOnAdminSignIn({ userId: admin.userId, ...device }, { path: '/sign-in/email' })
       expect(sentTo(send, /^Admin sign-in/)).toEqual([])
       await alertOnAdminSignIn({ userId: member.userId, ...device }, { path: '/sign-in/email' })
       await alertOnAdminSignIn({ userId: admin.userId, impersonatedBy: operator.userId, ...device }, { path: '/sign-in/email' })
@@ -2407,6 +2413,19 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       expect(sentTo(send, /^Admin sign-in/)).toEqual([])
       await alertOnAdminSignIn({ userId: admin.userId, ...device }, { path: '/sign-in/email' })
       expect(sentTo(send, /^Admin sign-in/)).toContain(await emailOf(operator))
+    })
+
+    test('an instance on localhost sends no sign-in alerts', async () => {
+      const send = mails()
+      process.env.WEB_ORIGIN = 'http://localhost:8490'
+      try {
+        await alertOnAdminSignIn({ userId: admin.userId, ipAddress: '198.51.100.9', userAgent: `Browser ${crypto.randomUUID()}` }, { path: '/sign-in/email' })
+      } finally {
+        process.env.WEB_ORIGIN = 'https://app.linedesk.test'
+      }
+      expect(sentTo(send, /^Admin sign-in/)).toEqual([])
+      expect(isLocalInstance({ PUBLIC_URL: 'https://app.linedesk.ai', WEB_ORIGIN: 'http://localhost:5173' })).toBe(false)
+      expect(isLocalInstance({ WEB_ORIGIN: 'http://livemode.localhost:8490' })).toBe(true)
     })
 
     test('F1: an admin session from an endpoint the alert does not know is still reported, as another method', async () => {

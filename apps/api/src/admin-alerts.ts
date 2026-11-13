@@ -1,6 +1,6 @@
 // Every instance admin hears about what could take over the admin role (docs/architecture.md §12):
-// an admin's sign-in with something other than a passkey, or from a device or address not seen
-// before, and admin granted or passkeys reset. Sent without waiting: a failed email never stops
+// an admin's sign-in from a device or address not seen before, and admin granted or passkeys reset.
+// No sign-in alerts on an instance that runs on localhost: local development, nobody to warn. Sent without waiting: a failed email never stops
 // the sign-in or the action it is about.
 import { auth_events, user } from '@linedesk/db'
 import { and, count, eq, inArray } from 'drizzle-orm'
@@ -77,9 +77,20 @@ export function adminSignInEmail(who: string, method: string, newDevice: boolean
   }
 }
 
+/** Whether this instance is opened on localhost (PUBLIC_URL, else WEB_ORIGIN): local development. */
+export function isLocalInstance(env: Record<string, string | undefined> = process.env): boolean {
+  const origin = env.PUBLIC_URL || env.WEB_ORIGIN || 'http://localhost'
+  try {
+    const host = new URL(origin).hostname
+    return host === 'localhost' || host.endsWith('.localhost') || host === '127.0.0.1' || host === '[::1]'
+  } catch {
+    return false
+  }
+}
+
 /** Better Auth `session.create.after`, merged after the audit log's (auth.ts). */
 export async function alertOnAdminSignIn(created: SignIn, ctx: unknown) {
-  if (created.impersonatedBy) return
+  if (created.impersonatedBy || isLocalInstance()) return
   // The first admin's sign-in at setup: the account was made seconds ago by the person signing in.
   if (takeSetupSignIn(created.userId)) return
   // Every session an admin gets counts; one made by an endpoint not known here is reported as 'other'.
@@ -87,9 +98,9 @@ export async function alertOnAdminSignIn(created: SignIn, ctx: unknown) {
   try {
     const [account] = await db.select().from(user).where(eq(user.id, created.userId))
     if (!account || !isInstanceAdmin(account)) return
-    const newDevice = !(await knownDevice(created))
-    if (method === 'passkey' && !newDevice) return
-    const { subject, text } = adminSignInEmail(account.email, method, newDevice, created)
+    // Only a device or address not seen before for this account is worth a warning, whatever the method.
+    if (await knownDevice(created)) return
+    const { subject, text } = adminSignInEmail(account.email, method, true, created)
     await alertInstanceAdmins(subject, text)
   } catch (err) {
     console.error('admin sign-in alert failed', err)
