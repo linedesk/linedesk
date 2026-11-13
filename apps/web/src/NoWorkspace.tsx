@@ -9,7 +9,7 @@ import { AdminMode } from './admin/AdminMode.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { auth, fetchAuthMethods, isInstanceAdmin, type Me } from './auth.ts'
 import { CreateWorkspace } from './CreateWorkspace.tsx'
-import { AGENT_SETUP_HASH, AgentSetup, choseManualSetup, openAgentSetup } from './onboarding/AgentSetup.tsx'
+import { AGENT_SETUP_HASH, AgentSetup, choseManualSetup, openAgentSetup, rememberManual } from './onboarding/AgentSetup.tsx'
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
 import { AccountSettings } from './settings/account/index.tsx'
 import { signOutAndForget } from './localData.ts'
@@ -70,7 +70,16 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
   }
   if (me && admin && !me.impersonation && hash === INSTALL_SETUP_HASH) {
     if (me.adminSecondFactor) return <SecondFactorPrompt state={me.adminSecondFactor} onExit={leave} />
-    return <InstallSetup onExit={leave} />
+    return (
+      <InstallSetup
+        onExit={() => {
+          // Opened by its link or from Admin › Overview: leaving it goes on to naming the business, not the agent page.
+          rememberManual(true)
+          setManualSetup(true)
+          leave()
+        }}
+      />
+    )
   }
   if (me && admin && !me.impersonation && (hash === AGENT_SETUP_HASH || !manualSetup))
     return (

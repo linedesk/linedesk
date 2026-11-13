@@ -30,7 +30,8 @@ export function choseManualSetup(): boolean {
     return false
   }
 }
-function rememberManual(on: boolean) {
+/** Remembers the choice; leaving the install walkthrough counts as choosing the manual way too. */
+export function rememberManual(on: boolean) {
   try {
     if (on) localStorage.setItem(MANUAL_KEY, '1')
     else localStorage.removeItem(MANUAL_KEY)
