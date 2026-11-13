@@ -8,7 +8,17 @@ import { db } from '../src/db.ts'
 
 const ORIGIN = 'http://localhost:5173'
 const uid = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
-export const randomNumber = () => `+1503${Math.floor(1e6 + Math.random() * 9e6)}`
+const digits = (n: number) => String(Math.floor(Math.random() * 10 ** n)).padStart(n, '0')
+/**
+ * A random Portland number that is a valid US number everywhere it is checked (transfer contacts included):
+ * the exchange is NXX (N = 2-9), never a service code (N11) and never 976 (premium rate).
+ */
+export function randomNumber(): string {
+  let exchange: string
+  do exchange = `${2 + Math.floor(Math.random() * 8)}${digits(2)}`
+  while (/^[2-9]11$/.test(exchange) || exchange === '976')
+  return `+1503${exchange}${digits(4)}`
+}
 
 /** Auth requests are rate limited per client address; each fixture user comes from its own. */
 export const randomIp = () => `10.${[0, 0, 0].map(() => Math.floor(Math.random() * 256)).join('.')}`

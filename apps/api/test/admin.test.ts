@@ -1870,6 +1870,8 @@ describe('impersonation', () => {
       // The go-live checklist's facts, so the inbox looks as the user sees it. Closing or reopening it stays refused.
       'onboarding.goLiveChecklist',
       'phoneNumber.forwardingCheck',
+      // One free read of the carrier account, to pick a number; buys nothing.
+      'phoneNumber.listCarrierNumbers',
       'provider.confirmEmail',
       'provider.test',
       'provider.tryOut',

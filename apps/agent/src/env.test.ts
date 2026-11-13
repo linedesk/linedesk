@@ -1,4 +1,5 @@
 import type { Assistant } from '@linedesk/db/types'
+import { EMERGENCY_RULE } from '@linedesk/actions'
 import { expect, test } from 'vitest'
 import { DEV_LIVEKIT_SECRET, requireEnv, requireLivekitEnv } from './env.ts'
 import { buildInstructions } from './prompt.ts'
@@ -46,7 +47,7 @@ test('without instructions the prompt falls back to the structured business prof
   }
 })
 
-test('the prompt holds the product rules: messages only, no transfer, no booking, no fixed emergency rule', () => {
+test('the prompt holds the product rules: messages only, no transfer, no booking, one fixed emergency rule', () => {
   const prompt = buildInstructions(assistant)
   expect(prompt).toContain('say truthfully that you are an AI assistant')
   // Asked, it always says it is an AI; disclose_ai only changes the greeting (in the settings page).
@@ -54,8 +55,10 @@ test('the prompt holds the product rules: messages only, no transfer, no booking
   expect(prompt).toContain('You cannot book appointments, transfer calls')
   expect(prompt).toContain('take a message for that person and say they will call back')
   expect(prompt).toContain('Appointments: ask which day and time suit the caller')
-  // What is urgent comes from the business's own text, not from a fixed (plumbing) list.
-  expect(prompt).not.toMatch(/burst pipe|gas smell|Emergencies or danger/)
+  // The one fixed safety rule (#530): an emergency goes to 911, said once.
+  expect(prompt.split(EMERGENCY_RULE)).toHaveLength(2)
+  // Everything else that is urgent comes from the business's own text, not from a fixed (plumbing) list.
+  expect(prompt).not.toMatch(/burst pipe|Emergencies or danger/)
   expect(prompt).toContain('flag_urgent')
   expect(prompt).toContain('say your reply in the same response as the tool call')
   expect(prompt).not.toMatch(/\brecord(ed|ing)\b/i) // no recording notice unless it is turned on

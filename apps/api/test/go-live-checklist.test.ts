@@ -65,10 +65,11 @@ test("a real caller reaching a forwarded number proves forwarding; the owner's o
     if_no_answer: 'message',
     enabled: true,
   }
-  await act(ws.owner, 'assistant.update', {
+  const saved = await act(ws.owner, 'assistant.update', {
     assistantId: ws.assistant.id,
     transfers: [owner],
   })
+  expect(saved.status).toBe(200)
   await act(agent(), 'call.start', { from: mobile, to: ws.number })
   expect((await checklist(ws.owner)).forwardingVerified).toBe(false)
   await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
