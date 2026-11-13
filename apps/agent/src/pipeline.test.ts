@@ -1,6 +1,7 @@
-import { expect, test, vi } from 'vitest'
-import type { AgentConfig, RealtimeCallConfig } from './config.ts'
-import { chatJson, createRealtimePipeline, lineVoiceOf, REALTIME_LINE_TTS, REALTIME_TURNS, realtimeRepliesEvent, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
+import { initializeLogger } from '@livekit/agents'
+import { beforeAll, expect, test, vi } from 'vitest'
+import { type AgentConfig, configFromEnv, type RealtimeCallConfig } from './config.ts'
+import { chatJson, createPipeline, createRealtimePipeline, lineVoiceOf, MAX_TOOL_STEPS, REALTIME_LINE_TTS, REALTIME_TURNS, realtimeRepliesEvent, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
 
 const openrouter = { apiKey: 'sk-or-test', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' }
 
@@ -87,6 +88,17 @@ test('a realtime call has only the model: no speech to text, no voice provider',
   expect(options.llm).toMatchObject({ _options: { inputAudioNoiseReduction: { type: 'near_field' }, inputAudioTranscription: { language: 'en' } } })
   const spanishOrEnglish = createRealtimePipeline(realtime, 7, 100, { main: 'es', others: ['en'] })
   expect((spanishOrEnglish.llm as unknown as { _options: { inputAudioTranscription: { language?: string } } })._options.inputAudioTranscription.language).toBeUndefined()
+})
+
+// The speech recognition and voice of the three stages log through LiveKit's logger when they are made.
+beforeAll(() => initializeLogger({ pretty: false, level: 'fatal' }))
+
+test('a caller turn may take a whole booking in tool rounds, on the three stages and on a realtime model', async () => {
+  // find_slots, get_name, get_phone_number, get_address, get_email, book_appointment: six rounds in one turn.
+  expect(MAX_TOOL_STEPS + 1).toBeGreaterThanOrEqual(6)
+  const stages = await configFromEnv({ DEEPGRAM_API_KEY: 'dg', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' })
+  expect(createPipeline(stages).maxToolSteps).toBe(MAX_TOOL_STEPS)
+  expect(createRealtimePipeline(realtime).maxToolSteps).toBe(MAX_TOOL_STEPS)
 })
 
 test("a realtime call's fixed lines are made by OpenAI's speech model in the realtime voice and pace", () => {

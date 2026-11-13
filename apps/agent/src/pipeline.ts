@@ -184,6 +184,13 @@ function createLlm({ apiKey, baseUrl, model, fallbacks }: AgentConfig['llm']) {
  */
 export const sttDetectsTurns = ({ provider, model }: AgentConfig['stt']) => provider !== 'deepgram' || model.startsWith('flux')
 
+/**
+ * How many tool rounds in a row one caller turn may take before the model must answer with tools off (LiveKit's
+ * maxToolSteps, default 3: the 4th round is the last). Each collection step is a round, so a booking turn can take
+ * find_slots, get_name, get_phone_number, get_address, get_email and book_appointment one after another.
+ */
+export const MAX_TOOL_STEPS = 8
+
 /** Session options for one call. */
 export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVoice | null, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, languages: CallLanguages = ENGLISH_CALL, speedPct = TALKING_SPEED_PCT_DEFAULT): voice.AgentSessionOptions & { tts: CallVoice } {
   const sttTurns = sttDetectsTurns(config.stt)
@@ -196,6 +203,7 @@ export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVo
     // The caller counts as away after this much silence on both sides; the worker then asks whether they are still
     // there, and in the end says goodbye and hangs up (remindOnSilence in hang-up.ts).
     userAwayTimeout: silenceFirstGapS,
+    maxToolSteps: MAX_TOOL_STEPS,
   }
 }
 
@@ -280,6 +288,7 @@ export function createRealtimePipeline({ apiKey, model, voice: voiceName }: Real
       ...(speedPct !== TALKING_SPEED_PCT_DEFAULT ? { speed: speedPct / 100 } : {}),
     }),
     userAwayTimeout: silenceFirstGapS,
+    maxToolSteps: MAX_TOOL_STEPS,
   }
 }
 
