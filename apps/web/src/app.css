@@ -259,6 +259,14 @@ body,
   background: var(--surface);
   box-shadow: 0 0 0 1px var(--focus);
 }
+/* A line under a fact, in the value column ("Name from caller · Confirm"). */
+.facts dd.fact-hint {
+  grid-column: 2;
+  margin-top: -3px;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--ink-muted);
+}
 
 /* Settings: the fieldset only groups (and disables) the sections. */
 .st-fields {

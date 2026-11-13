@@ -141,6 +141,12 @@ export const contacts = pgTable(
     id: id(),
     workspace_id: workspaceId(),
     name: text('name'),
+    /**
+     * Who gave the name: `member` (typed, imported or confirmed by the team) or `caller` (said on a call). Only a
+     * member's name lets the assistant talk about the caller's history; null (no name, or written by an older
+     * release) counts as a caller's.
+     */
+    name_source: text('name_source', { enum: ['member', 'caller'] }),
     company: text('company'),
     phone: text('phone').notNull(),
     email: text('email'),

@@ -104,9 +104,15 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
   lookups?: WebhookLookup[]
 }
 
-/** The caller for the prompt: the matched contact's name and note, and their history when call.start sent it. */
+/**
+ * The caller for the prompt: the matched contact's name and note, and their history when call.start sent it. Only a
+ * name the team gave or confirmed (contacts.name_source) checks who is calling; with any other the history is left
+ * out, whatever an API of an older version sent.
+ */
 export function callerOf(contact: Contact | null, history: CallerHistory | null | undefined): CallerContext | null {
-  return contact ? { name: contact.name, note: contact.note, phone: contact.phone, history: history ?? null } : null
+  if (!contact) return null
+  const nameConfirmed = !!contact.name?.trim() && contact.name_source === 'member'
+  return { name: contact.name, note: contact.note, phone: contact.phone, nameConfirmed, history: nameConfirmed ? (history ?? null) : null }
 }
 
 /** The greeting with the AI note when the assistant says it at the start; an API of an older version sends no mode. */

@@ -1,8 +1,8 @@
 // The contact's record beside the list (full width below 1100 px): a header with who it is and the
 // actions, the details as a form whose fields save themselves (contact.update), and their calls.
 import type { Call, Contact } from '@linedesk/db/types'
-import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
-import { CallBackLink } from '../call/ContactSide.tsx'
+import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { CallBackLink, ConfirmCallerName, nameFromCaller } from '../call/ContactSide.tsx'
 import { useInlineEdit } from '../call/EditableFact.tsx'
 import { formatPhone } from '../inbox-model.ts'
 import type { Step } from '../inbox/changes.ts'
@@ -40,7 +40,7 @@ function DetailField({
   placeholder: string
   multiline?: boolean
   /** A line under the field on what the value is used for. */
-  hint?: string
+  hint?: ReactNode
 }) {
   const run = useRun()
   const id = `ct-${field}`
@@ -179,7 +179,13 @@ export function ContactDetail({ row, onOpenCall, onClose, onDelete, onMerge, run
         </header>
         <Card title="Details" className="ct-card">
           <div className="ct-grid" key={contact.id}>
-            <DetailField contact={contact} field="name" label="Name" placeholder="Add a name" />
+            <DetailField
+              contact={contact}
+              field="name"
+              label="Name"
+              placeholder="Add a name"
+              hint={nameFromCaller(contact) ? <ConfirmCallerName contact={contact} /> : undefined}
+            />
             <DetailField contact={contact} field="company" label="Company" placeholder="Add a company" />
             <FormField id="ct-phone" label="Phone">
               <Input id="ct-phone" value={phone} readOnly className="ct-readonly" />

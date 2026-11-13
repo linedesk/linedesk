@@ -456,7 +456,7 @@ const handlers: Record<string, Handler> = {
     if (!actor.workspaceId) throw new Reject('no workspace')
     const [existing] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, actor.workspaceId), eq(contacts.phone, input.phone)))
     if (existing && (!existing.deleted_at || existing.merged_into)) throw new Reject(`${input.phone} is already a contact`)
-    const fields = { name: input.name ?? null, company: input.company ?? null }
+    const fields = { name: input.name ?? null, name_source: input.name ? ('member' as const) : null, company: input.company ?? null }
     const [contact] = existing
       ? await tx.update(contacts).set({ ...fields, deleted_at: null }).where(eq(contacts.id, existing.id)).returning()
       : await tx.insert(contacts).values({ id: newId('ct'), workspace_id: actor.workspaceId, phone: input.phone, ...fields }).returning()
@@ -598,7 +598,8 @@ const handlers: Record<string, Handler> = {
     const rows: ActionResult['rows'] = { calls: [updated!] }
     if (input.callerName && call.contact_id) {
       const [contact] = await tx.select().from(contacts).where(eq(contacts.id, call.contact_id))
-      if (contact && !contact.name) rows.contacts = await tx.update(contacts).set({ name: input.callerName }).where(eq(contacts.id, contact.id)).returning()
+      // A caller's word for who they are: kept as a caller's, so it unlocks nothing on later calls (contacts.name_source).
+      if (contact && !contact.name) rows.contacts = await tx.update(contacts).set({ name: input.callerName, name_source: 'caller' }).where(eq(contacts.id, contact.id)).returning()
     }
     // Only the first finish notifies; a repeated one (agent retry after a timeout) is not news.
     if (call.status !== 'completed') {

@@ -30,7 +30,15 @@ export const contactUpdate = defineAction({
   }),
   permission: 'contact:write',
   public: true,
-  patch: { table: 'contacts', id: i => i.contactId, set: ({ contactId: _id, ...rest }) => defined(rest) },
+  // A name a member writes (or saves again as it is: confirming a caller's) is the team's (contacts.name_source).
+  patch: {
+    table: 'contacts',
+    id: i => i.contactId,
+    set: ({ contactId: _id, ...rest }) => ({
+      ...defined(rest),
+      ...(rest.name !== undefined && { name_source: rest.name?.trim() ? ('member' as const) : null }),
+    }),
+  },
 })
 
 const contactId = z.object({ contactId: z.string().min(1) })

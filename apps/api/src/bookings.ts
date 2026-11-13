@@ -512,9 +512,9 @@ export const bookingHandlers: Record<string, Handler> = {
     }).returning()
     // The confirmation email goes out after the booking committed (a job), so a slow mail server never holds up the call.
     if (confirmation === 'queued') await queueBookingConfirmation(tx, rows[0]!.id)
-    // The name the caller gave goes on their contact too, unless it has one.
+    // The name the caller gave goes on their contact too, unless it has one: as a caller's (contacts.name_source).
     const named = input.callerName && call?.contact_id && !contact?.name
-      ? await tx.update(contacts).set({ name: input.callerName }).where(eq(contacts.id, call.contact_id)).returning()
+      ? await tx.update(contacts).set({ name: input.callerName, name_source: 'caller' }).where(eq(contacts.id, call.contact_id)).returning()
       : []
     const data: BookData = { bookingId: rows[0]!.id, start, end, label: slotLabel(start, timeZone), calendarName: calendar.name }
     return { rows: { bookings: rows, ...(named.length && { contacts: named }) }, data }

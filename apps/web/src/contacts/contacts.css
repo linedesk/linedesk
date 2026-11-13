@@ -128,6 +128,10 @@
 .ct-grid .ct-wide {
   grid-column: 1 / -1;
 }
+/* A field beside one with a line under it ("Name from caller") keeps its label and input at the top. */
+.ct-grid > .k-field {
+  align-content: start;
+}
 .k-input.ct-readonly input {
   color: var(--ink-muted);
   font-variant-numeric: tabular-nums;

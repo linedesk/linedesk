@@ -2,6 +2,7 @@
 // member picked, the other one's calls and bookings move to it, and the other one is deleted with
 // `merged_into` set, so a later call from its number lands on the kept contact (handlers.ts, openCall).
 import { bookings, calls, contacts, type Tx } from '@linedesk/db'
+import type { Contact } from '@linedesk/db/types'
 import { and, eq } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 
@@ -26,6 +27,16 @@ async function liveContact(tx: Tx, workspaceId: string, contactId: string) {
 
 const given = <T extends object>(o: T) =>
   Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>
+
+/**
+ * Who gave the kept name: the contact it was picked from keeps its source (a caller's name stays a caller's),
+ * a name the member typed is the team's.
+ */
+function mergedNameSource(name: string | null, keep: Contact, merged: Contact): Contact['name_source'] {
+  if (!name?.trim()) return null
+  const from = [keep, merged].find(c => c.name === name)
+  return from ? from.name_source : 'member'
+}
 
 export const contactMergeHandlers: Record<string, Handler> = {
   'contact.merge': async ({ tx, actor, now }, { keepId, mergeId, ...fields }: MergeInput) => {
@@ -57,7 +68,7 @@ export const contactMergeHandlers: Record<string, Handler> = {
     // Blocked stays blocked: a caller blocked under either number is still unwanted.
     const [kept] = await tx
       .update(contacts)
-      .set({ ...given(fields), blocked_at: keep.blocked_at ?? merged.blocked_at })
+      .set({ ...given(fields), ...(fields.name !== undefined && { name_source: mergedNameSource(fields.name, keep, merged) }), blocked_at: keep.blocked_at ?? merged.blocked_at })
       .where(eq(contacts.id, keep.id))
       .returning()
     return {

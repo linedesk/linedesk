@@ -1,10 +1,11 @@
 // call.start tells the agent about a returning caller: their last calls and upcoming bookings, only for the
 // contact matched in the same workspace, nothing for a withheld number.
 import { appointment_types, bookings, calls, contacts } from '@linedesk/db'
-import { eq } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
+import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
 import { db } from '../src/db.ts'
-import { act, agent, createWorkspace, randomNumber } from './helpers.ts'
+import { act, agent, createWorkspace, getContact, randomNumber } from './helpers.ts'
 
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID().slice(0, 8)}`
 const daysFromNow = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString()
@@ -27,7 +28,7 @@ test('the last three calls and the upcoming bookings under the contact\'s name, 
   const ws = await createWorkspace('Brightwater Plumbing & Heating')
   const other = await createWorkspace('Other Plumbing')
   const contactId = ws.contact.id
-  await db.update(contacts).set({ name: 'Linda Park' }).where(eq(contacts.id, contactId))
+  await db.update(contacts).set({ name: 'Linda Park', name_source: 'member' }).where(eq(contacts.id, contactId))
   const typeId = id('at')
   await db.insert(appointment_types).values({ id: typeId, workspace_id: ws.id, name: 'Repair visit', duration_min: 60 })
 
@@ -63,4 +64,86 @@ test('the last three calls and the upcoming bookings under the contact\'s name, 
   // A new caller: empty; a withheld number: none at all.
   expect((await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data.callerHistory.recentCalls).toEqual([])
   expect((await act(agent(), 'call.start', { from: 'anonymous', to: ws.number })).body.data.callerHistory).toBeNull()
+})
+
+/** One finished phone call from `from`, in which the summary found the caller's name `callerName`. */
+async function finishedCall(ws: { id: string; number: string }, from: string, callerName?: string) {
+  const { body } = await act(agent(), 'call.start', { from, to: ws.number })
+  await act(agent(ws.id), 'call.finish', { callId: body.data.callId, title: 'Leaking water heater', summary: 'Water under the heater.', callerName })
+  return body.data as { callId: string; contact: { id: string } }
+}
+
+test('a name only callers gave unlocks no history: two calls from a faked number with the same made-up name hear nothing', async () => {
+  const ws = await createWorkspace('Brightwater Plumbing & Heating')
+  const number = randomNumber()
+  // The real customer's call: the summary found their name, saved on the new contact as a caller's.
+  const first = await finishedCall(ws, number, 'Linda Park')
+  expect(await getContact(first.contact.id)).toMatchObject({ name: 'Linda Park', name_source: 'caller' })
+  // Someone with that caller ID, twice, saying the same name: no records reach the assistant either time.
+  for (let i = 0; i < 2; i++) {
+    const again = await finishedCall(ws, number, 'Linda Park')
+    const { body } = await act(agent(), 'call.start', { from: number, to: ws.number })
+    expect(body.data.contact).toMatchObject({ id: again.contact.id, name: 'Linda Park', name_source: 'caller' })
+    expect(body.data.callerHistory).toEqual({ recentCalls: [], upcomingBookings: [] })
+  }
+
+  // A member confirms the name (saved again as it is): from now on it checks the caller, and the records come.
+  const confirmed = await act(ws.owner, 'contact.update', { contactId: first.contact.id, name: 'Linda Park' })
+  expect(confirmed.body.rows.contacts).toMatchObject([{ name: 'Linda Park', name_source: 'member' }])
+  const { body } = await act(agent(), 'call.start', { from: number, to: ws.number })
+  expect(body.data.callerHistory.recentCalls.map((c: { title: string }) => c.title)).toEqual(['Leaking water heater', 'Leaking water heater', 'Leaking water heater'])
+  // A later caller's name never replaces it, nor its source.
+  await act(agent(ws.id), 'call.finish', { callId: body.data.callId, callerName: 'Someone Else' })
+  expect(await getContact(first.contact.id)).toMatchObject({ name: 'Linda Park', name_source: 'member' })
+  // A member clearing the name leaves nothing to check against.
+  const cleared = await act(ws.owner, 'contact.update', { contactId: first.contact.id, name: null })
+  expect(cleared.body.rows.contacts).toMatchObject([{ name: null, name_source: null }])
+})
+
+test('a name a member typed unlocks the history: contact.create, contact.update, contact.import', async () => {
+  const ws = await createWorkspace('Brightwater Plumbing & Heating')
+  const [typed, renamed, imported] = [randomNumber(), randomNumber(), randomNumber()]
+  const created = await act(ws.owner, 'contact.create', { phone: typed, name: 'Dana Ortiz' })
+  expect(created.body.rows.contacts).toMatchObject([{ name_source: 'member' }])
+  await act(ws.owner, 'contact.import', { rows: [{ phone: imported, name: 'Sam Patel' }] })
+  // A caller-named contact a member renames: the new name is the team's.
+  const named = await finishedCall(ws, renamed, 'Jo Smith')
+  await act(ws.owner, 'contact.update', { contactId: named.contact.id, name: 'Joanne Smith' })
+  expect(await getContact(named.contact.id)).toMatchObject({ name: 'Joanne Smith', name_source: 'member' })
+  await finishedCall(ws, typed)
+  await finishedCall(ws, imported)
+  for (const from of [typed, renamed, imported]) {
+    const { body } = await act(agent(), 'call.start', { from, to: ws.number })
+    expect(body.data.contact.name_source).toBe('member')
+    expect(body.data.callerHistory.recentCalls).toHaveLength(1)
+  }
+})
+
+test('contact.merge: the kept name keeps the source of the contact it came from; a typed one is the team\'s', async () => {
+  const ws = await createWorkspace('Brightwater Plumbing & Heating')
+  const fromCaller = await finishedCall(ws, randomNumber(), 'Linda Park')
+  const fromTeam = (await act(ws.owner, 'contact.create', { phone: randomNumber(), name: 'Linda P.' })).body.data.contactId
+  const kept = await act(ws.owner, 'contact.merge', { keepId: fromTeam, mergeId: fromCaller.contact.id, name: 'Linda Park' })
+  expect(kept.body.rows.contacts[0]).toMatchObject({ id: fromTeam, name: 'Linda Park', name_source: 'caller' })
+  const other = await finishedCall(ws, randomNumber(), 'Linda')
+  const typed = await act(ws.owner, 'contact.merge', { keepId: fromTeam, mergeId: other.contact.id, name: 'Linda Park-Ortiz' })
+  expect(typed.body.rows.contacts[0]).toMatchObject({ name: 'Linda Park-Ortiz', name_source: 'member' })
+})
+
+test('migration 0075: a named contact without calls was named by the team; with calls the name counts as a caller\'s', async () => {
+  const statements = readFileSync(new URL('../../../packages/db/migrations/0075_contacts_name_source.sql', import.meta.url), 'utf8')
+    .split('--> statement-breakpoint')
+  const backfill = statements.find(s => s.includes('UPDATE "contacts"'))!
+  const ws = await createWorkspace('Brightwater Plumbing & Heating')
+  const [called, typed, unnamed] = [id('ct'), id('ct'), id('ct')]
+  await db.insert(contacts).values([
+    { id: called, workspace_id: ws.id, phone: randomNumber(), name: 'Linda Park' },
+    { id: typed, workspace_id: ws.id, phone: randomNumber(), name: 'Dana Ortiz' },
+    { id: unnamed, workspace_id: ws.id, phone: randomNumber() },
+  ])
+  await pastCall(ws.id, called, 1)
+  const ids = [called, typed, unnamed]
+  await db.execute(sql.raw(backfill.replace('WHERE "name" IS NOT NULL', `WHERE "name" IS NOT NULL AND "id" IN (${ids.map(i => `'${i}'`).join(', ')})`)))
+  const rows = await db.select({ id: contacts.id, name_source: contacts.name_source }).from(contacts).where(inArray(contacts.id, ids))
+  expect(Object.fromEntries(rows.map(r => [r.id, r.name_source]))).toEqual({ [called]: 'caller', [typed]: 'member', [unnamed]: null })
 })

@@ -88,7 +88,7 @@ async function seedCallsAndContacts(workspace_id: string) {
     if (!contact_id) {
       contact_id = id('ct', i)
       contactIds.set(c.phone, contact_id)
-      await db.insert(contacts).values({ id: contact_id, workspace_id, name: c.name, phone: c.phone })
+      await db.insert(contacts).values({ id: contact_id, workspace_id, name: c.name, name_source: c.name ? 'member' : null, phone: c.phone })
     }
     const started = new Date(Date.now() - c.minutesAgo * 60_000)
     await db.insert(calls).values({

@@ -339,7 +339,7 @@ describe('booking', () => {
       ).rejects.toThrow("A Repair visit needs the caller's name: ask for it, then book.")
       const named = await run(tx, owner, services, 'appointment.book', book(at('09:00')))
       expect(named.rows.bookings).toMatchObject([{ title: 'Repair visit · Sam Patel' }])
-      expect(named.rows.contacts).toMatchObject([{ id: ws.contact.id, name: 'Sam Patel' }])
+      expect(named.rows.contacts).toMatchObject([{ id: ws.contact.id, name: 'Sam Patel', name_source: 'caller' }])
       // A contact that has a name keeps it.
       expect(
         (await run(tx, owner, services, 'appointment.book', book(at('11:00'), { callerName: 'Sammy' }))).rows.contacts,

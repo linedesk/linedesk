@@ -20,6 +20,30 @@ function copy(text: string, toast: (text: string) => void) {
   )
 }
 
+/** Whether the contact's name is only what a caller said (contacts.name_source): it checks nobody on the phone. */
+export const nameFromCaller = (contact: Contact) => !!contact.name?.trim() && contact.name_source !== 'member'
+
+/**
+ * "Name from caller · Confirm": a member confirms the name (contact.update saves it as the team's), so the
+ * assistant may talk about earlier calls once a caller says it. Also used on the Contacts page.
+ */
+export function ConfirmCallerName({ contact }: { contact: Contact }) {
+  const run = useRun()
+  return (
+    <>
+      Name from caller ·{' '}
+      <button
+        type="button"
+        className="k-link"
+        title="Confirm this name: the assistant then tells a caller who says it about their earlier calls"
+        onClick={() => void run('contact.update', { contactId: contact.id, name: contact.name })}
+      >
+        Confirm
+      </button>
+    </>
+  )
+}
+
 /** The contact's fields, edited in place through contact.update. Also used on the Contacts page. */
 export function Facts({ contact, toast }: { contact: Contact; toast: (text: string) => void }) {
   const run = useRun()
@@ -29,6 +53,11 @@ export function Facts({ contact, toast }: { contact: Contact; toast: (text: stri
   return (
     <dl className="facts side-facts">
       <EditableFact label="Name" value={contact.name} placeholder="Add name" onSave={save('name')} />
+      {nameFromCaller(contact) && (
+        <dd className="fact-hint">
+          <ConfirmCallerName contact={contact} />
+        </dd>
+      )}
       <EditableFact label="Company" value={contact.company} placeholder="Add company" onSave={save('company')} />
       <dt>Phone</dt>
       <dd>

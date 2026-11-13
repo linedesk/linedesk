@@ -558,6 +558,7 @@ async function seedCallsFor(ctx: CallContext, list: WorkspaceSeedCall[]) {
         id: seedId(tag, 'ct', i),
         workspace_id: workspaceId,
         name: c.name,
+        name_source: c.name ? 'member' : null,
         phone: c.phone,
         blocked_at: c.blocked ? now.toISOString() : null,
       })
@@ -642,7 +643,7 @@ function bookingRow(
 async function seedExtraContacts(workspaceId: string, tag: string) {
   await db
     .insert(contacts)
-    .values(extraContacts.map((c, n) => ({ ...c, id: seedId(tag, 'ctx', n), workspace_id: workspaceId })))
+    .values(extraContacts.map((c, n) => ({ ...c, name_source: 'member' as const, id: seedId(tag, 'ctx', n), workspace_id: workspaceId })))
 }
 
 async function countSeeded(workspaceId: string, tag: string) {

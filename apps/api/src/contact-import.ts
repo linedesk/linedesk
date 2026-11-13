@@ -3,7 +3,7 @@
 // typed. Email matches only contacts that were there before the import: two rows of one file with the
 // same email and different numbers are two contacts (the preview counts them so, and no number is lost;
 // Contacts suggests merging them). A number that was merged into another contact (contact.merge) fills that one; a number of a
-// contact someone deleted is skipped (removed on purpose).
+// contact someone deleted is skipped (removed on purpose). The business's own list: its names are the team's (contacts.name_source).
 import type { ContactImportData } from '@linedesk/actions'
 import { contacts } from '@linedesk/db'
 import type { Contact } from '@linedesk/db/types'
@@ -48,7 +48,7 @@ export const contactImportHandlers: Record<string, Handler> = {
           counts.unchanged++
           continue
         }
-        const [updated] = await tx.update(contacts).set(fill).where(eq(contacts.id, match.id)).returning()
+        const [updated] = await tx.update(contacts).set({ ...fill, ...(fill.name && { name_source: 'member' as const }) }).where(eq(contacts.id, match.id)).returning()
         counts.updated++
         remember(updated!)
         continue
@@ -56,7 +56,7 @@ export const contactImportHandlers: Record<string, Handler> = {
       const fields = Object.fromEntries(FIELDS.map(f => [f, value(row[f])]))
       const [created] = await tx
         .insert(contacts)
-        .values({ id: newId(), workspace_id, phone: row.phone, ...fields })
+        .values({ id: newId(), workspace_id, phone: row.phone, ...fields, name_source: fields.name ? 'member' : null })
         .returning()
       counts.created++
       remember(created!)
