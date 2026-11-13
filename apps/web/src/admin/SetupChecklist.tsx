@@ -15,7 +15,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { FormField, SecretInput } from '../ui/form.tsx'
-import { Button, cx, Icon } from '../ui/kit.tsx'
+import { Button, cx, Icon, Spinner } from '../ui/kit.tsx'
 import { LoadProblem, problemText } from '../ui/LoadStates.tsx'
 import { ADMIN_SETUP_CHECKLIST, type AdminData, keyUsersOf, loadSetupChecklist, runAdmin, testProvider } from './api.ts'
 import { errorText, type Notify } from './notify.ts'
@@ -27,8 +27,23 @@ const stateWords: Record<SetupItemState, string> = {
   failing: 'Failing',
   missing: 'Missing',
 }
-const dotOf = (state: SetupItemState | 'checking') =>
-  state === 'ok' ? 'ok' : state === 'failing' ? 'bad' : state === 'checking' ? 'wait' : ''
+
+/** The row's state at a glance: a tick, a "!", a half-done ring, or the step's number while it is still to do. */
+function StatusMark({ state, index }: { state: SetupItemState | 'checking'; index: number }) {
+  return (
+    <span className={cx('adm-mark', state)} aria-hidden="true">
+      {state === 'checking' ? (
+        <Spinner />
+      ) : state === 'ok' ? (
+        <Icon name="check" size={12} />
+      ) : state === 'failing' ? (
+        '!'
+      ) : state === 'missing' ? (
+        index
+      ) : null}
+    </span>
+  )
+}
 
 const voiceItems = ['stt', 'llm', 'tts'] as const
 
@@ -38,7 +53,9 @@ const voiceItems = ['stt', 'llm', 'tts'] as const
  * recorded failures (GET /v1/admin/providers `failures`, the test's `reason`).
  */
 const messageOf = ({ providerLabel, coveredBy, message }: SetupChecklistItem) =>
-  providerLabel && !coveredBy && !message?.startsWith(providerLabel) ? `${providerLabel}: ${message}` : message
+  providerLabel && !coveredBy && message?.startsWith(`${providerLabel}: `)
+    ? message.slice(providerLabel.length + 2)
+    : message
 
 /** Keys on the admin overview, for the row in focus (else the first part that does not work yet). */
 const KEYS = { test: 't', connect: 'c', steps: 's', fold: 'h' } as const
@@ -194,6 +211,11 @@ export function SetupChecklist({ data, notify, reload }: Props) {
             {checklist.ready} of {checklist.items.length} parts work.
             {!checklist.complete && ' What a first answered call needs; each part with its steps and a test.'}
           </p>
+          <div className="adm-setup-progress" aria-hidden="true">
+            {checklist.items.map(item => (
+              <span key={item.id} className={item.state} />
+            ))}
+          </div>
         </div>
         <Button
           size="sm"
@@ -215,9 +237,10 @@ export function SetupChecklist({ data, notify, reload }: Props) {
       )}
       {expanded && (
         <ol className="adm-setup-list">
-          {checklist.items.map(item => (
+          {checklist.items.map((item, i) => (
             <SetupRow
               key={item.id}
+              index={i + 1}
               item={item}
               checking={testing.has(item.id)}
               problem={rowProblems.get(item.id) ?? null}
@@ -271,6 +294,8 @@ export function SetupChecklist({ data, notify, reload }: Props) {
 }
 
 type RowProps = {
+  /** Its place in the list, shown while it is still to do. */
+  index: number
   item: SetupChecklistItem
   checking: boolean
   /** Why the last test could not run (not a failing test: that is the item's state and message). */
@@ -288,6 +313,7 @@ type RowProps = {
 }
 
 function SetupRow({
+  index,
   item,
   checking,
   problem,
@@ -304,37 +330,30 @@ function SetupRow({
   const guideFor = guide.provider ? providerSpec(guide.provider).label : null
   // The steps are for the provider we recommend; every other one the install supports for this part is one click away too.
   const others = category && item.state === 'missing' ? providersIn(category).filter(p => p !== guide.provider) : []
+  const stateText = item.id === 'livekit' && item.state === 'set_up' ? 'Partly set up' : stateWords[item.state]
   return (
     <li className="adm-setup-row" onFocus={onFocus} onMouseEnter={onFocus}>
       <div className="adm-setup-line">
-        <span className={cx('adm-health-dot', dotOf(checking ? 'checking' : item.state))} aria-hidden="true" />
+        <StatusMark state={checking ? 'checking' : item.state} index={index} />
         <div className="adm-setup-what">
-          <b>{item.label}</b>
-          <span className="help">{checking ? 'Testing…' : item.message ? messageOf(item) : why}</span>
+          <div className="adm-setup-title">
+            <b>{item.label}</b>
+            {item.providerLabel && !item.coveredBy && <span className="adm-setup-prov">{item.providerLabel}</span>}
+            <span className="sr-only">: {checking ? 'Testing' : stateText}</span>
+          </div>
+          <span className={cx('help', !checking && item.state === 'failing' && 'adm-setup-bad')}>
+            {checking ? 'Testing…' : item.message ? messageOf(item) : why}
+          </span>
           {problem && !checking && (
             <span className="k-field-msg" role="alert">
               {problem}
             </span>
           )}
         </div>
-        <span className={cx('adm-setup-state', item.state)}>
-          {checking ? (
-            'Testing'
-          ) : item.state === 'ok' ? (
-            // Works: a tick, the word for screen readers and on hover.
-            <span title={stateWords.ok}>
-              <Icon name="check" size={16} />
-              <span className="sr-only">{stateWords.ok}</span>
-            </span>
-          ) : item.id === 'livekit' && item.state === 'set_up' ? (
-            'Partly'
-          ) : (
-            stateWords[item.state]
-          )}
-        </span>
         <div className="adm-setup-actions">
           {item.state !== 'missing' && (
             <Button
+              className="a-test"
               size="sm"
               variant="ghost"
               disabled={checking}
@@ -346,6 +365,7 @@ function SetupRow({
           )}
           {target && (
             <Button
+              className="a-keys"
               size="sm"
               variant={primary && item.state === 'missing' ? 'primary' : 'secondary'}
               disabled={!canConnect}
@@ -360,6 +380,7 @@ function SetupRow({
             </Button>
           )}
           <Button
+            className="a-steps"
             size="sm"
             variant="ghost"
             aria-expanded={showGuide}
@@ -367,6 +388,7 @@ function SetupRow({
             title={showGuide ? 'Hide the steps (S)' : 'Show the steps (S)'}
           >
             Steps
+            <Icon name={showGuide ? 'up' : 'down'} size={14} />
           </Button>
         </div>
       </div>
