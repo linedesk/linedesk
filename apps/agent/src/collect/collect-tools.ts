@@ -6,6 +6,7 @@ import type { CallLog } from '../call-log.ts'
 import { CollectTask, type CollectTaskOptions } from './collect-task.ts'
 import { type CollectOutcome, describeOutcome, outcomeEvent } from './collection.ts'
 import { addressCollector, dateCollector, digitsCollector, emailCollector, nameCollector, phoneCollector } from './collectors.ts'
+import { phoneStepRefusal } from '../callback-number.ts'
 
 type AnyCollector = CollectTaskOptions['collector']
 
@@ -20,6 +21,8 @@ export type CollectContext = {
    * or it could not be saved. A number confirmed after the message would otherwise be lost.
    */
   addToMessage?: (detail: string) => Promise<boolean>
+  /** The caller's number from caller ID (callerIdOf); null or missing: unknown. Then it is the callback number. */
+  callerId?: string | null
 }
 
 /**
@@ -43,6 +46,7 @@ async function runStep(ctx: CollectContext, { ctx: run }: llm.ToolOptions, colle
     const outcome = await task.run()
     ctx.log.record('system', outcomeEvent(outcome))
     if (collector.kind === 'name' && outcome.status === 'confirmed') ctx.log.confirmedName = outcome.value
+    if (collector.kind === 'phone_number' && outcome.status === 'confirmed') ctx.log.confirmedNumbers.push(outcome.value)
     nudgeIfQuiet(run.session)
     return describeOutcome(outcome) + (await addedToMessage(ctx, collector, outcome)) + saidMeanwhile(task.chatCtx.items.slice(chatCtx.items.length))
   } catch (e) {
@@ -103,9 +107,23 @@ export function collectTools(ctx: CollectContext) {
       execute: async (_args, opts) => runStep(ctx, opts, nameCollector),
     }),
     get_phone_number: llm.tool({
-      description: 'Get a phone number from the caller and confirm it.',
-      parameters: z.object({ what: z.string().nullish().describe('What the number is for, e.g. "callback number". Default: callback number.') }),
-      execute: async ({ what }, opts) => runStep(ctx, opts, phoneCollector(what?.trim() || 'callback number')),
+      description: ctx.callerId
+        ? "Get a phone number from the caller and confirm it. The caller's own number is known from caller ID and saved as the callback number by itself: use this for a callback number only when the caller said they want to be called back on a different number."
+        : 'Get a phone number from the caller and confirm it.',
+      parameters: z.object({
+        what: z.string().nullish().describe('What the number is for, e.g. "callback number". Default: callback number.'),
+        reason: z
+          .string()
+          .nullish()
+          .describe('Why the caller gives a number other than the one they are calling from, in their words, e.g. "wants a call back on their work phone". Needed for a callback number when caller ID is known.'),
+      }),
+      execute: async ({ what, reason }, opts) => {
+        const label = what?.trim() || 'callback number'
+        const refusal = phoneStepRefusal(ctx.callerId ?? null, label, reason)
+        if (refusal) return refusal
+        if (reason?.trim()) ctx.log.record('system', `Asked for another ${label}: ${reason.trim()}`)
+        return runStep(ctx, opts, phoneCollector(label))
+      },
     }),
     get_address: llm.tool({
       description: 'Get the street address of a visit (US) and confirm it.',

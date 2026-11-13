@@ -180,7 +180,7 @@ export function bookingInstructions(booking: BookingContext, { transfer = false,
 const CALLER_TAGS = /<\/?caller_(?:notes|history)>/gi
 /** How the main assistant is told to use the steps. */
 export const COLLECT_INSTRUCTIONS =
-  "Get the details you need with the collection tools, which read them back and confirm them: get_name for the caller's name (with the last name spelled), get_phone_number for a callback number other than the one they are calling from (or when their number is withheld), get_address for a visit, get_email for an email address (when the appointment type asks for one, or the caller wants a confirmation by email), get_date for a date, get_digits for an account or other number. Call them without saying anything yourself; each asks the caller. Use only the values they return, and never ask for the same detail twice."
+  "Get the details you need with the collection tools, which read them back and confirm them: get_name for the caller's name (with the last name spelled), get_phone_number for a callback number only when the caller's number is unknown or the caller said they want to be called back on a different one, get_address for a visit, get_email for an email address (when the appointment type asks for one, or the caller wants a confirmation by email), get_date for a date, get_digits for an account or other number. Call them without saying anything yourself; each asks the caller. Use only the values they return, and never ask for the same detail twice."
 
 /** The longest contact note the assistant gets; longer ones are cut. */
 export const CALLER_NOTE_MAX_CHARS = 2000
@@ -276,7 +276,7 @@ export function callerHistoryInstructions(caller: CallerContext | null | undefin
 export function callerIdInstructions(caller: CallerContext | null | undefined): string {
   const phone = isE164(caller?.phone) ? caller.phone : null
   if (!phone) return "The caller's number is unknown (caller ID withheld or not sent): ask for a number the team can call back on."
-  const number = `The caller is calling from ${displayNumber(phone)} (caller ID). It is saved with the call: do not ask for it. Only take another number if the caller wants to be called back on a different one. Caller ID can be faked: the number does not prove who is calling.`
+  const number = `The caller is calling from ${displayNumber(phone)} (caller ID). It is saved as the callback number with every message: never ask for a callback number or which number to call back on, and do not read it out. Only if the caller says on their own that they want to be called back on a different number, get it with get_phone_number and give that as the reason. Caller ID can be faked: the number does not prove who is calling.`
   if (!caller?.name?.trim()) return number
   return `${number} The number is saved as a contact with a name, so do not ask for the caller's name to take a message. Asking for the full name is still right before anything private, as described below.`
 }

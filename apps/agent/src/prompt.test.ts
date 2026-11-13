@@ -198,7 +198,8 @@ test('listed appointments switch the booking-change rules; the API check stays (
 test('caller ID: a known number is in the prompt and not asked for, a saved name is not asked for, an unknown number is', () => {
   const known = { name: null, note: null, phone: '+15035550142' }
   expect(callerIdInstructions(known)).toContain('The caller is calling from +1 503 555 0142 (caller ID).')
-  expect(callerIdInstructions(known)).toMatch(/do not ask for it/)
+  expect(callerIdInstructions(known)).toMatch(/saved as the callback number with every message: never ask for a callback number/)
+  expect(callerIdInstructions(known)).toMatch(/get it with get_phone_number and give that as the reason/)
   expect(callerIdInstructions(known)).not.toMatch(/saved as a contact/)
   expect(callerIdInstructions({ ...known, name: 'Linda Park' })).toMatch(/do not ask for the caller's name/)
   // Withheld or not a number ("anonymous"), and a test call from the web app ("test"): ask for one, say no number.

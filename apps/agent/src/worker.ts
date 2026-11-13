@@ -12,6 +12,7 @@ import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { bookingTools } from './booking-tools.ts'
 import { type CollectContext, collectTools, nudgeIfQuiet } from './collect/collect-tools.ts'
 import { partialPhoneNumberIn } from './collect/collectors.ts'
+import { callerIdOf, withCallbackNumber } from './callback-number.ts'
 import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log.ts'
 import { GREETING_WAIT_MS, lookUpCaller, within } from './caller-lookup.ts'
 import { lookupTools } from './lookup-tools.ts'
@@ -119,6 +120,7 @@ type Transfer = Omit<Parameters<typeof transferTool>[0], 'api' | 'call' | 'log'>
 
 function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: () => void, flagUrgent: () => Promise<void>, transfer: Transfer, collect: CollectContext) {
   const { callId } = call
+  const callerId = callerIdOf(call)
   return {
     ...bookingToolset(api, call, log),
     ...collectTools(collect),
@@ -126,11 +128,23 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
     ...lookupTools(api, call, log),
     take_message: llm.tool({
       description: 'Save a message for the team. Use it whenever the caller wants a callback, a visit, a quote or anything you cannot do yourself.',
-      parameters: z.object({ message: z.string().describe('One complete sentence: who wants what. Add a callback number only if the caller gave one that is not their caller ID.') }),
-      execute: async ({ message }) => {
+      parameters: z.object({
+        message: z
+          .string()
+          .describe(
+            callerId
+              ? "One complete sentence: who wants what. Leave out the caller's number: caller ID is saved as the callback number by itself. Add another number only once get_phone_number confirmed it."
+              : 'One complete sentence: who wants what, with the callback number confirmed with get_phone_number.',
+          ),
+      }),
+      execute: async ({ message: said }) => {
         // A number the caller said can come out garbled ("503 551 42"): only a whole one is saved.
-        const partial = partialPhoneNumberIn(message)
+        const partial = partialPhoneNumberIn(said)
         if (partial) return `"${partial}" is not a complete phone number. Get the callback number with get_phone_number first, then call take_message again with the confirmed number.`
+        // With caller ID that is the callback number; another one only as get_phone_number confirmed it.
+        const checked = withCallbackNumber(said, callerId, { confirmed: log.confirmedNumbers, saved: log.messages })
+        if ('refusal' in checked) return checked.refusal
+        const message = checked.text
         await api.run(callTakeMessage, { callId, message }, call)
         log.messages.push(message)
         log.record('system', 'Took a message', callTakeMessage.name)
@@ -388,6 +402,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     today: () => call.booking?.todayDate ?? new Date().toISOString().slice(0, 10),
     languageRule: collectLanguageRule(call.assistant) ?? undefined,
     addToMessage: detail => addToMessage(api, call, log, detail),
+    callerId: callerIdOf(call),
   }
   const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, flagUrgent, transfer, collect) })
   if (stages) void warmUpLlm(stages.llm, instructions)

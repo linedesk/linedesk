@@ -19,6 +19,8 @@ export class CallLog {
   onHold = false
   /** The caller's name as they confirmed it in the name step (get_name): bookings go under it. */
   confirmedName: string | undefined
+  /** Phone numbers the caller confirmed with get_phone_number (E.164): only these may go into a message besides caller ID. */
+  readonly confirmedNumbers: string[] = []
   /** How long each reply took (ReplyTimes), sent at hang-up for the admin overview; `timing` says which pipeline and providers. */
   readonly replies: ReplyTimes[] = []
   timing: Omit<CallTimings, 'replies'> | null = null
