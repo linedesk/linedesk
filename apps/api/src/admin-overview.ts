@@ -1,11 +1,19 @@
 // The admin overview: how much the install is used, what that roughly costs per provider, and
 // whether its parts (API, LiveKit, SIP, voice agent, email) work. Numbers are cheap SQL; health is
 // a separate request because LiveKit and SMTP can take seconds to answer.
-import { categoryNames, type ProviderCategory, type ProviderName, providerSpec } from '@linedesk/actions'
+import {
+  categoryNames,
+  type ProviderCategory,
+  type ProviderFailure,
+  type ProviderName,
+  providerSpec,
+} from '@linedesk/actions'
 import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
+import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { livekitStatus, type ServiceStatus } from './livekit-status.ts'
+import { listProviderFailures } from './provider-failures.ts'
 import { activeProvider, realtimeInUse } from './provider-settings.ts'
 
 /**
@@ -61,6 +69,8 @@ export type AdminOverview = {
   costs: ProviderCost[]
   workspaces: { total: number; disabled: number; new7d: number }
   users: { total: number; disabled: number; new7d: number }
+  /** Providers failing now: quota used up, key rejected (provider-failures.ts). */
+  failures: ProviderFailure[]
 }
 
 const minutes = (seconds: number) => Math.round(seconds / 6) / 10
@@ -137,7 +147,7 @@ export async function costEstimate(tx: Tx): Promise<CostEstimate> {
 }
 
 export async function adminOverview(tx: Tx): Promise<AdminOverview> {
-  const [t, p] = await Promise.all([callTotals(tx), people(tx)])
+  const [t, p, failures] = await Promise.all([callTotals(tx), people(tx), listProviderFailures(tx)])
   const costs: ProviderCost[] = []
   for (const { category, provider, rate } of await activeRates(tx)) {
     const [sec7d, secMonth] = category === 'telephony' ? [t.phone_sec_7d, t.phone_sec_month] : [t.sec_7d, t.sec_month]
@@ -156,6 +166,7 @@ export async function adminOverview(tx: Tx): Promise<AdminOverview> {
     costs,
     workspaces: { total: p.workspaces, disabled: p.workspaces_disabled, new7d: p.workspaces_new },
     users: { total: p.users, disabled: p.users_disabled, new7d: p.users_new },
+    failures,
   }
 }
 
@@ -184,8 +195,18 @@ export type AdminHealth = {
   email: ServiceStatus
 }
 
+/**
+ * Email as the check found it, unless sending failed since (provider-failures.ts): a login that works says nothing
+ * about a sender the service refuses, and a provider with a recorded failure is never shown as working.
+ */
+async function emailHealth(): Promise<ServiceStatus> {
+  const [checked, failures] = await Promise.all([emailSender.check(), listProviderFailures(db).catch(() => [])])
+  const failing = failures.find(f => f.category === 'email')
+  return checked.ok && failing ? { ok: false, message: failing.message } : checked
+}
+
 export async function adminHealth(): Promise<AdminHealth> {
-  const [livekit, email] = await Promise.all([livekitStatus(), emailSender.check()])
+  const [livekit, email] = await Promise.all([livekitStatus(), emailHealth()])
   return {
     api: { ok: true, message: 'Answering.' },
     livekit: livekit.server,

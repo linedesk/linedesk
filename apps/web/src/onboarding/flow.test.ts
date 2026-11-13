@@ -10,6 +10,7 @@ import {
   FALLBACK_OWNER_NAME,
   firstWhoHears,
   formatNumber,
+  phoneSetupErrorText,
   forwardingCode,
   mobileErrorText,
   forwardingDigits,
@@ -350,4 +351,21 @@ test("who hears: refusals about its own contact read as the step's own words; ot
   const other = "Dana's number is a Linedesk number; enter the person's own phone"
   expect(mobileErrorText(other, 'Mike')).toBe(other)
   expect(mobileErrorText('Confirm your email first', 'Mike')).toMatch(/Confirm your email address/)
+})
+
+test('a carrier failure says what it is and who fixes it (LIN-111)', () => {
+  expect(phoneSetupErrorText('telnyx: POST /number_orders: Authentication failed (HTTP 401)')).toBe(
+    'The phone carrier rejected the key it was given. Ask whoever runs this server to check the key.',
+  )
+  expect(phoneSetupErrorText('telnyx: POST /number_orders: Insufficient balance (HTTP 402)', 'admin')).toMatch(
+    /^The phone carrier has used up its quota or credit\. .*Admin › Providers\.$/,
+  )
+  expect(phoneSetupErrorText('telnyx: POST /number_orders: number is not valid (HTTP 422)')).toBe(
+    "The number couldn't be connected. Try again in a moment.",
+  )
+})
+
+test('a missing phone carrier sends admins to Admin › Providers (LIN-111)', () => {
+  expect(phoneSetupErrorText('phone setup is not configured', 'admin')).toMatch(/under Admin › Providers\.$/)
+  expect(phoneSetupErrorText('phone setup is not configured', 'member')).toMatch(/Ask whoever runs it/)
 })

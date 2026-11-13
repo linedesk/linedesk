@@ -14,6 +14,7 @@ import {
   loadOverview,
   type ServiceStatus,
 } from './api.ts'
+import { FailingProviders } from './FailingProviders.tsx'
 import { ReplyDelay } from './ReplyDelay.tsx'
 
 const money = (usd: number) => (usd < 0.01 && usd > 0 ? '< $0.01' : `$${usd.toFixed(2)}`)
@@ -180,6 +181,7 @@ export function Overview({ onOpen }: Props) {
     )
   return (
     <>
+      {o?.failures && <FailingProviders failures={o.failures} onOpen={() => onOpen('providers')} />}
       <div className="adm-stats">
         {o ? (
           <>

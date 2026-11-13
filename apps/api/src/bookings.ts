@@ -11,7 +11,7 @@ import type { Closure } from '@linedesk/db/types'
 import { and, asc, eq, gt, gte, inArray, lt, lte, ne, sql } from 'drizzle-orm'
 import { WEB_ORIGIN } from './auth.ts'
 import { queueBookingConfirmation, queueCallPush } from './jobs.ts'
-import { providerFor } from './calendar-connections.ts'
+import { noteCalendarAppFailure, providerFor } from './calendar-connections.ts'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, Forbidden, lockCall, Reject } from './handler-context.ts'
 import { brandName } from './branding.ts'
@@ -126,6 +126,7 @@ async function atProvider<T>(request: () => Promise<T>): Promise<T> {
   try {
     return await request()
   } catch (e) {
+    noteCalendarAppFailure(e)
     if (e instanceof CalendarError) throw new Reject(`the calendar could not be reached: ${e.message}`)
     throw e
   }

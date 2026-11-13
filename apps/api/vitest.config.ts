@@ -23,7 +23,7 @@ async function testDatabaseBase(): Promise<string | null> {
  * or count across workspaces (the admin overview). They get a database of their own, so tests in
  * other files, which run at the same time, never see their keys or their counts move under them.
  */
-const INSTANCE_WIDE_FILES = ['test/admin.test.ts']
+const INSTANCE_WIDE_FILES = ['test/admin.test.ts', 'test/provider-failures.test.ts']
 
 // The API tests run against a real Postgres, in databases of their own (never the dev database): one
 // for the instance-wide files, one for everything else. global-setup.ts creates and drops each.

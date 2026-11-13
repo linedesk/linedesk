@@ -4,7 +4,7 @@
 // variable. A change in the admin area restarts the API (a few seconds); every API process also
 // checks every 15 s, so one that did not handle the change follows. Everything else in the admin
 // area is read on every use and needs no restart (provider-settings.ts).
-import { providerSpec, providersIn, restartCategories } from '@linedesk/actions'
+import { type ProviderName, providerNames, providerSpec, providersIn, restartCategories } from '@linedesk/actions'
 import { instance_settings, provider_settings, type Tx } from '@linedesk/db'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import webpush from 'web-push'
@@ -45,6 +45,10 @@ const signatureOf = (rows: { provider: string; field: string; updated_at: string
 const EMAIL_PICK = 'active_provider.email'
 
 let loadedSignature: string | null = null
+let loadedEmailProvider: ProviderName = 'smtp'
+const isProviderName = (name: string): name is ProviderName => (providerNames as string[]).includes(name)
+/** The email provider this process sends with: a mail service (Resend, Gmail, ...) or plain SMTP. */
+export const emailProviderInUse = (): ProviderName => loadedEmailProvider
 
 /** Copies the stored sign-in and email settings into process.env. A value that cannot be decrypted is skipped. */
 export async function loadInstanceEnv(db: Db, env: Env = process.env): Promise<void> {
@@ -61,6 +65,8 @@ export async function loadInstanceEnv(db: Db, env: Env = process.env): Promise<v
   // A mail service (Resend, Gmail, ...) sends as SMTP: its fields become SMTP_URL and EMAIL_FROM (email-services.ts).
   const emailPick = await readSetting(db, EMAIL_PICK)
   const mail = mailServiceFromEnv(emailPick ?? env.EMAIL_PROVIDER ?? null, env)
+  const service = emailPick ?? env.EMAIL_PROVIDER ?? null
+  loadedEmailProvider = mail && service && isProviderName(service) ? service : 'smtp'
   if (mail) {
     setVariable(env, 'SMTP_URL', mail.url)
     if (mail.from) setVariable(env, 'EMAIL_FROM', mail.from)

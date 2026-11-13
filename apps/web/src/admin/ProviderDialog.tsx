@@ -315,12 +315,12 @@ export function ProviderDialog(props: Props) {
       {manual && redirects.length > 0 && <RedirectUris uris={redirects} />}
       {result && (
         <div className={result.ok ? 'k-note' : 'k-note k-note-danger'} role="status">
-          <Icon name={result.ok ? 'check' : 'ban'} size={14} />
+          <Icon name={!result.ok ? 'ban' : result.status === 'warning' ? 'alert' : 'check'} size={14} />
           <span className="adm-result">
             {result.ok
               ? appliesOnRestart && savedNow
                 ? `Connected. ${brandName()} restarts in the background to apply it (a few seconds).`
-                : 'Connected.'
+                : resultLine(result.message)
               : result.message}
           </span>
         </div>
@@ -328,6 +328,9 @@ export function ProviderDialog(props: Props) {
     </Dialog>
   )
 }
+
+/** A passing test's line: what it found ("Connected, balance 42.00 USD", a warning), ending with a full stop. */
+const resultLine = (message: string) => (/[.!?]$/.test(message) ? message : `${message}.`)
 
 type InputProps = {
   id: string

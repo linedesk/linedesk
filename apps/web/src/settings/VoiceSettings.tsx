@@ -52,8 +52,8 @@ async function loadPreview(key: string, voiceId: string, provider: string | null
     () => null,
   )
   if (!res?.ok || !res.headers.get('content-type')?.startsWith('audio/')) {
-    const body = (await res?.json().catch(() => null)) as { error?: string } | null
-    return { key, message: previewProblem(res?.status ?? 0, body?.error) }
+    const body = (await res?.json().catch(() => null)) as { error?: string; message?: string } | null
+    return { key, message: previewProblem(res?.status ?? 0, body?.error, body?.message) }
   }
   return URL.createObjectURL(await res.blob())
 }

@@ -55,12 +55,19 @@ export class CalendarError extends Error {
   readonly provider: CalendarProviderName
   readonly kind: CalendarErrorKind
   readonly status: number | undefined
+  /**
+   * The provider's error code when it says the app itself is refused, not one account: `invalid_client` and
+   * `unauthorized_client` from the token endpoint (wrong or expired client secret), `api_disabled` (Google: the
+   * Calendar API is not enabled in the app's project). The API records these as a provider failure (LIN-111).
+   */
+  readonly code: string | undefined
 
-  constructor(provider: CalendarProviderName, kind: CalendarErrorKind, message: string, status?: number) {
+  constructor(provider: CalendarProviderName, kind: CalendarErrorKind, message: string, status?: number, code?: string) {
     super(`${provider === 'google' ? 'Google' : 'Microsoft'}: ${message}`)
     this.provider = provider
     this.kind = kind
     this.status = status
+    this.code = code
   }
 }
 
@@ -87,7 +94,7 @@ export type HttpOptions = {
   /** The provider's reason from an error body. */
   reasonOf: (body: Json) => string | undefined
   /** A 403's kind, and optionally a clearer message, from the provider's body and the request method. */
-  forbidden: (body: Json, method: string) => { kind: CalendarErrorKind; message?: string }
+  forbidden: (body: Json, method: string) => { kind: CalendarErrorKind; message?: string; code?: string }
 }
 
 export type HttpRequest = { method?: string; url: string; body?: unknown; headers?: Record<string, string> }
@@ -122,9 +129,10 @@ export function createHttp({ provider, accessToken, fetch: doFetch, timeoutMs, r
     if (res.status === 204) return null
     const body = (await res.json().catch(() => ({}))) as Json
     if (!res.ok) {
-      const classified = res.status === 403 ? forbidden(body, req.method ?? 'GET') : { kind: errorKindOf(res.status) }
+      const classified: { kind: CalendarErrorKind; message?: string; code?: string } =
+        res.status === 403 ? forbidden(body, req.method ?? 'GET') : { kind: errorKindOf(res.status) }
       const reason = classified.message ?? reasonOf(body) ?? res.statusText
-      throw new CalendarError(provider, classified.kind, `${what} failed${reason ? `: ${reason}` : ''}`, res.status)
+      throw new CalendarError(provider, classified.kind, `${what} failed${reason ? `: ${reason}` : ''}`, res.status, classified.code)
     }
     return body
   }
@@ -182,7 +190,8 @@ export async function tokenRequest(provider: CalendarProviderName, what: string,
     // invalid_grant: the refresh token was revoked or expired; the account has to be connected again.
     const kind = body.error === 'invalid_grant' ? 'auth' : res.ok ? 'invalid' : errorKindOf(res.status)
     const reason = typeof body.error_description === 'string' ? body.error_description.split('\n')[0] : body.error
-    throw new CalendarError(provider, kind, `${what} failed${reason ? `: ${reason}` : ''}`, res.status)
+    const code = typeof body.error === 'string' ? body.error : undefined
+    throw new CalendarError(provider, kind, `${what} failed${reason ? `: ${reason}` : ''}`, res.status, code)
   }
   const expiresIn = Number(body.expires_in) || 3600
   return {

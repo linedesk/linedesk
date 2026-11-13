@@ -247,7 +247,7 @@ describe('provider keys', () => {
       vi.fn(async () => new Response(JSON.stringify({ errors: [{ detail: `bad key ${SECRET}` }] }), { status: 500 })),
     )
     const tested = await act(operator, 'provider.test', { provider: 'telnyx' })
-    expect(tested.body.data).toEqual({ ok: false, message: 'Telnyx answered HTTP 500' })
+    expect(tested.body.data).toMatchObject({ ok: false, status: 'error', reason: 'network', message: expect.stringMatching(/^Telnyx did not answer or failed on its side \(HTTP 500\)/) })
 
     const [command] = await db.select().from(commands).where(eq(commands.id, key))
     expect(command?.input).toEqual({ provider: 'telnyx', values: { api_key: REDACTED, public_key: REDACTED } })
@@ -488,8 +488,9 @@ describe('provider keys', () => {
       .select({ n: sql<number>`count(*)::int` })
       .from(commands)
       .where(eq(commands.actor_id, operator.userId))
-    expect((await act(operator, 'provider.test', { provider: 'cartesia' })).body.data).toEqual({
+    expect((await act(operator, 'provider.test', { provider: 'cartesia' })).body.data).toMatchObject({
       ok: false,
+      reason: 'config',
       message: 'Not set: API key',
     })
     await act(operator, 'provider.setKeys', { provider: 'cartesia', values: { api_key: SECRET } })
@@ -497,6 +498,7 @@ describe('provider keys', () => {
     vi.stubGlobal('fetch', fetchMock)
     expect((await act(operator, 'provider.test', { provider: 'cartesia' })).body.data).toEqual({
       ok: true,
+      status: 'ok',
       message: 'Connected',
     })
     expect(new Headers((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].headers).get('x-api-key')).toBe(
@@ -507,7 +509,8 @@ describe('provider keys', () => {
       vi.fn(async () => new Response(JSON.stringify({ error: `Invalid key ${SECRET}` }), { status: 401 })),
     )
     const rejected = await act(operator, 'provider.test', { provider: 'cartesia' })
-    expect(rejected.body.data).toEqual({ ok: false, message: 'Cartesia rejected the key (HTTP 401)' })
+    expect(rejected.body.data).toMatchObject({ ok: false, reason: 'auth', message: expect.stringMatching(/^Cartesia rejected the key \(HTTP 401\)/) })
+    expect(JSON.stringify(rejected.body)).not.toContain(SECRET)
     const after = await db
       .select({ n: sql<number>`count(*)::int` })
       .from(commands)
@@ -744,6 +747,7 @@ describe('recording storage', () => {
     vi.stubGlobal('fetch', s3.fetch)
     expect((await act(operator, 'provider.test', { provider: 's3' })).body.data).toEqual({
       ok: true,
+      status: 'ok',
       message: 'Connected',
     })
     expect(s3.log.map(([method]) => method)).toEqual(['PUT', 'GET', 'DELETE'])
@@ -764,7 +768,7 @@ describe('recording storage', () => {
       vi.fn(async () => Promise.reject(new TypeError('fetch failed', { cause: { message: `bad ${S3_SECRET}` } }))),
     )
     const unreachable = (await act(operator, 'provider.test', { provider: 's3' })).body.data
-    expect(unreachable).toEqual({ ok: false, message: 'Could not reach the storage: bad [redacted]' })
+    expect(unreachable).toMatchObject({ ok: false, reason: 'network', message: 'Could not reach the storage: bad [redacted]' })
 
     await act(operator, 'provider.clearKeys', { provider: 's3' })
     expect((await act(operator, 'provider.test', { provider: 's3' })).body.data.message).toBe(
@@ -773,7 +777,7 @@ describe('recording storage', () => {
 
     process.env.RECORDINGS_DIR = join(dir, 'probe')
     const file = (await act(operator, 'provider.test', { provider: 'file' })).body.data
-    expect(file).toEqual({ ok: true, message: 'Connected' })
+    expect(file).toEqual({ ok: true, status: 'ok', message: 'Connected' })
   })
 
   test('after switching to S3, older recordings still play from the local disk; new ones from the bucket', async () => {

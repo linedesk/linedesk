@@ -208,6 +208,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
             providers={data.providers}
             active={data.activeProviders}
             canStore={data.canStoreKeys}
+            failures={data.providerFailures}
             {...shared}
           />
         )

@@ -6,6 +6,8 @@ import {
   type CallEvaluation,
   callRules,
   type LlmProvider,
+  type ProviderName,
+  providerSpec,
   llmEndpoints,
   NEEDS_REVIEW_MAX_SCORE,
   PRICE_RULE,
@@ -16,6 +18,8 @@ import { and, asc, desc, eq, isNull, lte } from 'drizzle-orm'
 import { z } from 'zod'
 import { type Handler, Reject } from './handler-context.ts'
 import { addOpenQuestions } from './knowledge-questions.ts'
+import { type ProviderProblem, problemOfError, problemOfStatus } from './provider-errors.ts'
+import { noteProviderFailure, noteProviderOk } from './provider-failures.ts'
 import { activeProvider } from './provider-settings.ts'
 import { createFailureLimiter } from './rate-limit.ts'
 
@@ -64,11 +68,56 @@ export function chatJson(
       }),
       signal: AbortSignal.timeout(timeoutMs),
     })
-    const body = (await res.json().catch(() => null)) as { choices?: { message?: { content?: string } }[] } | null
-    if (!res.ok) throw new Error(`evaluation request failed (${res.status})`)
+    const text = await res.text().catch(() => '')
+    if (!res.ok) throw new ChatRequestError(res.status, text)
+    const body = parseJson(text) as { choices?: { message?: { content?: string } }[] } | null
     const content = body?.choices?.[0]?.message?.content
-    if (!content) throw new Error('evaluation response was empty')
+    if (!content) throw new ChatRequestError(res.status, '', 'evaluation response was empty')
     return content
+  }
+}
+
+const parseJson = (text: string): unknown => {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
+/** A chat request that failed or answered nothing. The body is kept only to classify the failure, never shown. */
+export class ChatRequestError extends Error {
+  readonly status: number
+  readonly body: string
+  constructor(status: number, body: string, message = `evaluation request failed (${status})`) {
+    super(message)
+    this.status = status
+    this.body = body
+  }
+}
+
+/** What a failed chat request means for the provider (provider-failures.ts). */
+export function chatProblem(provider: ProviderName, model: string, e: unknown): ProviderProblem {
+  if (!(e instanceof ChatRequestError)) return problemOfError(provider, e, `the model ${model}`)
+  if (e.status >= 200 && e.status < 300)
+    return {
+      reason: 'unknown',
+      message: `${providerSpec(provider).label}: the model ${model} returned an empty answer. Try another model under Admin › Providers.`,
+    }
+  return problemOfStatus(provider, e.status, e.body, `the model ${model}`)
+}
+
+/** Records how each request of a model ended: a success clears the provider's failure, a failure records it. */
+function tracked(provider: ProviderName, model: string, complete: CompleteJson): CompleteJson {
+  return async (system, user) => {
+    try {
+      const answer = await complete(system, user)
+      void noteProviderOk(provider)
+      return answer
+    } catch (e) {
+      void noteProviderFailure(provider, chatProblem(provider, model, e), 'llm')
+      throw e
+    }
   }
 }
 
@@ -87,7 +136,10 @@ export async function evaluationModel(
   if (!active || !endpoint || !apiKey) return null
   // The model field is a list, "model, fallback, ..."; the first is the one used.
   const model = active.config.model?.value?.split(',')[0]?.trim() || endpoint.model
-  return { complete: chatJson(apiKey, endpoint.baseUrl, model, doFetch, options), model }
+  return {
+    complete: tracked(active.provider, model, chatJson(apiKey, endpoint.baseUrl, model, doFetch, options)),
+    model,
+  }
 }
 
 const SYSTEM = `You review phone calls answered by an AI receptionist for a small business.

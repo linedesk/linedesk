@@ -20,7 +20,8 @@ import {
   setActiveProvider,
   setProviderKeys,
 } from './provider-settings.ts'
-import { testProvider } from './provider-test.ts'
+import { noteProviderFailure, noteProviderOk } from './provider-failures.ts'
+import { missingFields, testProvider } from './provider-test.ts'
 import { dropUserPush } from './push.ts'
 import { SecretsKeyError } from './secrets.ts'
 import { monthOf, queueSpendingAlerts, spendingCap } from './spending-cap.ts'
@@ -129,7 +130,14 @@ export const adminHandlers: Record<string, Handler> = {
 
   'provider.test': async ({ tx }, input) => {
     const config = await withSecretsKey(() => resolveProvider(tx, input.provider))
-    return { rows: {}, data: await testProvider(input.provider, config) }
+    const result = await testProvider(input.provider, config)
+    // A provider that is set up: its test counts like a call (a pass clears its failure, an error records one,
+    // without the email: the admin sees it). One that is not set up is not failing, only missing.
+    if (!missingFields(input.provider, config).length) {
+      if (result.ok) await noteProviderOk(input.provider)
+      else await noteProviderFailure(input.provider, { reason: result.reason ?? 'unknown', message: result.message }, 'test')
+    }
+    return { rows: {}, data: result }
   },
 
   'user.invite': async ({ actor, onRollback }, input) => {

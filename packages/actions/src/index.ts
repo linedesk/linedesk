@@ -14,6 +14,7 @@ import * as liveCall from './live-call.ts'
 import * as membership from './membership.ts'
 import * as notifications from './notifications.ts'
 import * as onboarding from './onboarding.ts'
+import * as providerHealth from './provider-health.ts'
 import * as sample from './sample.ts'
 import * as settings from './settings.ts'
 import * as star from './star.ts'
@@ -45,6 +46,7 @@ export * from './membership.ts'
 export * from './notifications.ts'
 export * from './onboarding.ts'
 export * from './openapi.ts'
+export * from './provider-health.ts'
 export * from './sample.ts'
 export * from './settings.ts'
 export * from './star.ts'
@@ -144,6 +146,8 @@ const all = [
   admin.providerClearKeys,
   admin.providerSetActive,
   admin.providerTest,
+  providerHealth.providerReportFailure,
+  providerHealth.providerReportOk,
   admin.userInvite,
   admin.userDisable,
   admin.userEnable,

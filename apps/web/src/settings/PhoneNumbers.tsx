@@ -19,6 +19,7 @@ import {
   type PhoneChoice,
 } from '../onboarding/flow.ts'
 import { confirmsNumber, phoneNumberModes } from '@linedesk/actions'
+import { providerAudience } from '../providerAudience.ts'
 import { usePresence } from '../shell/presence.ts'
 import { useAssistantName, useAssistants, useRejection, useRows, useRun } from '../store.tsx'
 import { RadioCard, Select, type SelectOption } from '../ui/controls.tsx'
@@ -328,7 +329,7 @@ function ReleaseNumber({ number, onCancel }: { number: PhoneNumber; onCancel: ()
 /** A `phoneNumber.release` refusal in plain words. */
 function releaseErrorText(error: string): string {
   if (/is the carrier in use/i.test(error))
-    return 'This number belongs to another carrier than the one this server uses now. Ask whoever runs it.'
+    return `This number belongs to another carrier than the one this server uses now. ${providerAudience() === 'admin' ? 'Switch the carrier back under Admin › Providers to release it.' : 'Ask whoever runs it.'}`
   if (/to confirm/i.test(error)) return 'The number you typed does not match.'
   return `The carrier did not release the number. Nothing changed. (${error})`
 }

@@ -9,7 +9,7 @@ import { appointment_types, assistant_calendars, calendar_connections, calendar_
 import { eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test, vi } from 'vitest'
 import { calendarCallback } from '../src/calendar-callback.ts'
-import { type CalendarServices, calendarRedirectUri, tokenSource } from '../src/calendar-connections.ts'
+import { type CalendarServices, calendarProblemText, calendarRedirectUri, tokenSource } from '../src/calendar-connections.ts'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import { Reject, runHandler, type Undo } from '../src/handlers.ts'
@@ -379,5 +379,18 @@ describe('through the API', () => {
     // The rejected finish is in the command log without the code.
     const [logged] = await db.select().from(commands).where(eq(commands.actor_id, ws.owner.userId)).limit(1)
     expect(JSON.stringify(logged!.input)).not.toContain('"c"')
+  })
+})
+
+describe('why calendars could not be listed, in the shared provider-failure words (LIN-111)', () => {
+  const account = { provider: 'google' as const, account_email: 'mike@example.test' }
+  test.each([
+    [new CalendarError('google', 'auth', 'refresh access failed', 401, 'invalid_client'), 'member', /^Google Calendar rejected the key it was given\. Ask whoever runs this server/],
+    [new CalendarError('google', 'invalid', 'list calendars failed', 403, 'api_disabled'), 'admin', /^The Google Calendar app of this server refused a setting\. .*Admin › Providers/],
+    [new CalendarError('google', 'auth', 'refresh access failed: Token has been expired or revoked.', 400, 'invalid_grant'), 'member', /no longer accepts the access to mike@example\.test\. Connect the account again\.$/],
+    [new CalendarError('google', 'unavailable', 'list calendars failed', 503), 'member', /^Google Calendar is not reachable right now\. Try again/],
+    [new CalendarError('google', 'invalid', 'list calendars failed: insufficient scope'), 'member', /^Google: list calendars failed: insufficient scope$/],
+  ] as const)('%s (%s)', (error, audience, text) => {
+    expect(calendarProblemText(error, account, audience)).toMatch(text)
   })
 })

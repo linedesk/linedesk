@@ -6,6 +6,7 @@ import type { ConnectStartData, DisconnectData, ListCalendarsData } from '@lined
 import { CONDITION_MAX } from '@linedesk/actions'
 import type { AppointmentType, Assistant, AssistantCalendar, CalendarConnection } from '@linedesk/db/types'
 import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { whoSetsUp } from '../providerAudience.ts'
 import { refreshOnReturn } from '../refreshOnReturn.ts'
 import { useRows, useRun } from '../store.tsx'
 import { SignInMark } from '../ui/brand-logos.tsx'
@@ -93,13 +94,13 @@ function useConnect(assistantId: string, toast: (text: string) => void) {
   return { providers, busy, connect }
 }
 
-const noProviderText = 'No calendar provider on this server yet. Ask whoever runs it.'
+const noProviderText = () => `No calendar provider on this server yet. ${whoSetsUp('a calendar app')}`
 
 /** One button per calendar provider this install offers. Used in onboarding. */
 export function ConnectButtons({ assistantId, toast }: { assistantId: string; toast: (text: string) => void }) {
   const { providers, busy, connect } = useConnect(assistantId, toast)
   if (!providers) return <Skeleton className="sk-field" />
-  if (!providers.length) return <p className="help">{noProviderText}</p>
+  if (!providers.length) return <p className="help">{noProviderText()}</p>
   return (
     <div className="cal-connect">
       {providers.map(p => (
@@ -214,7 +215,7 @@ function Accounts({ assistant, canEdit, toast }: Props) {
       ) : (
         <ListEmpty>
           {connector.providers?.length === 0
-            ? noProviderText
+            ? noProviderText()
             : `No account yet. Add one so ${assistant.name} can book.`}
         </ListEmpty>
       )}

@@ -28,10 +28,14 @@ const reasonOf = (body: Json) => body.error?.message as string | undefined
 
 /** Google's 403 reasons (error.errors[].reason, or error.details[].reason for newer APIs). */
 const RATE_LIMITED = new Set(['rateLimitExceeded', 'userRateLimitExceeded', 'quotaExceeded', 'dailyLimitExceeded', 'RATE_LIMIT_EXCEEDED'])
-const NO_GRANT = new Set(['insufficientPermissions', 'ACCESS_TOKEN_SCOPE_INSUFFICIENT', 'authError', 'accessNotConfigured'])
+const NO_GRANT = new Set(['insufficientPermissions', 'ACCESS_TOKEN_SCOPE_INSUFFICIENT', 'authError'])
+/** The app's Google Cloud project has the Calendar API off: no account can fix that by connecting again. */
+const API_DISABLED = new Set(['accessNotConfigured', 'SERVICE_DISABLED'])
 
-export function googleForbidden(body: Json): { kind: CalendarErrorKind; message?: string } {
+export function googleForbidden(body: Json): { kind: CalendarErrorKind; message?: string; code?: string } {
   const reasons = [...((body.error?.errors ?? []) as Json[]), ...((body.error?.details ?? []) as Json[])].map(e => String(e.reason ?? ''))
+  if (reasons.some(r => API_DISABLED.has(r)))
+    return { kind: 'invalid', code: 'api_disabled', message: 'the Google Calendar API is not enabled in the Google Cloud project of the app' }
   if (reasons.some(r => RATE_LIMITED.has(r))) return { kind: 'rate_limited' }
   if (reasons.some(r => NO_GRANT.has(r))) return { kind: 'auth' }
   if (reasons.includes('requiredAccessLevel')) return { kind: 'invalid', message: 'the calendar is read-only for this account' }

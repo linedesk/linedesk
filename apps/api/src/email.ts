@@ -69,6 +69,14 @@ export function senderLine(configured: string | undefined): string {
   return `${brandName().replace(/["<>]/g, '')} <${value || 'no-reply@localhost'}>`
 }
 
+/** How each sent or failed email ended, for the provider failure record (provider-failures.ts). */
+export type EmailResult = { ok: true } | { ok: false; error: unknown }
+let emailResultListener: ((result: EmailResult) => void) | null = null
+/** Hears every email's result; one listener (server.ts sets it). */
+export const onEmailResult = (listener: ((result: EmailResult) => void) | null) => {
+  emailResultListener = listener
+}
+
 function smtpSender(url: string, configuredFrom: string | undefined, timeouts: SmtpTimeouts): EmailSender {
   const transport = nodemailer.createTransport({
     url,
@@ -82,7 +90,9 @@ function smtpSender(url: string, configuredFrom: string | undefined, timeouts: S
     send: async email => {
       try {
         await withDeadline(transport.sendMail({ from: senderLine(configuredFrom), ...email }), timeouts.sendMs, host)
+        emailResultListener?.({ ok: true })
       } catch (e) {
+        emailResultListener?.({ ok: false, error: e })
         throw sendError(e, host)
       }
     },

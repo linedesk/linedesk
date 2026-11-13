@@ -2,7 +2,7 @@
 // and workspace), tokens encrypted with SECRETS_KEY and refreshed when they run out, the adapter
 // for a connection, disconnecting with revocation, and the calendars an assistant books into.
 import { randomBytes } from 'node:crypto'
-import type { CalendarProviderId, ConnectStartData, DisconnectData, ListCalendarsData } from '@linedesk/actions'
+import { type CalendarProviderId, type ConnectStartData, type DisconnectData, type ListCalendarsData, type ProviderAudience, providerFailureText } from '@linedesk/actions'
 import {
   type AccessTokenSource, CalendarError, type CalendarOAuth, type CalendarProvider, type OAuthTokens, calendarOAuthFromEnv, createCalendarProvider,
   pkcePair,
@@ -13,6 +13,7 @@ import { ensureAppointmentType } from './bookings.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { type Handler, type HandlerCtx, Forbidden, Reject } from './handler-context.ts'
+import { audienceOf, noteProviderFailure, noteProviderOk } from './provider-failures.ts'
 import { decryptSecret, encryptSecret, hasSecretsKey, SecretsKeyError } from './secrets.ts'
 import { brandName } from './branding.ts'
 
@@ -61,8 +62,36 @@ function oauthOrReject(ctx: Pick<HandlerCtx, 'calendars'>, provider: CalendarPro
   return oauth
 }
 
+/** Codes that mean the app (client ID and secret, its Google Cloud project) is refused, not one account. */
+const APP_FAILURES = new Set(['invalid_client', 'unauthorized_client', 'api_disabled'])
+/** The server's calendar app is refused: every account fails alike, none needs reconnecting. */
+const isAppFailure = (e: CalendarError) => Boolean(e.code && APP_FAILURES.has(e.code))
+
+/**
+ * A calendar failure that is the install's to fix (an expired client secret, the Calendar API off) is recorded as a
+ * failure of the sign-in and calendar app (provider-failures.ts); one account's lost grant is not.
+ */
+export function noteCalendarAppFailure(e: unknown) {
+  if (!(e instanceof CalendarError) || !isAppFailure(e)) return
+  const label = LABEL[e.provider]
+  void noteProviderFailure(
+    e.provider,
+    e.code === 'api_disabled'
+      ? {
+          reason: 'config',
+          message: 'The Google Calendar API is not enabled in the Google Cloud project of the app: enable it there (APIs & Services). Calendars cannot be read or booked until then.',
+        }
+      : {
+          reason: 'auth',
+          message: `${label} refused the app's client ID or secret while using a calendar (an expired secret?). Enter a new client secret under Admin › Providers › ${label}.`,
+        },
+    'calendar',
+  )
+}
+
 /** Provider failures are the member's to see: a reason, never a token, and no retry. */
 function rejectCalendarError(e: unknown): never {
+  noteCalendarAppFailure(e)
   if (e instanceof CalendarError) throw new Reject(e.message)
   if (e instanceof SecretsKeyError) throw new Reject(e.message)
   throw e
@@ -102,9 +131,11 @@ export function tokenSource(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, connecti
     try {
       const tokens = await oauthOrReject(ctx, connection.provider).refresh(refreshToken)
       await saveTokens(tx, connection, tokens, tokens.refreshToken ?? refreshToken)
+      void noteProviderOk(connection.provider)
       return tokens.accessToken
     } catch (e) {
-      if (e instanceof CalendarError && e.kind === 'auth') await markNeedsReconnect(connection.id, e.message)
+      noteCalendarAppFailure(e)
+      if (e instanceof CalendarError && e.kind === 'auth' && !isAppFailure(e)) await markNeedsReconnect(connection.id, e.message)
       throw e
     }
   }
@@ -118,12 +149,30 @@ export async function providerFor(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, wo
   return { connection, provider: servicesOf(ctx).provider(connection.provider, tokenSource(tx, ctx, connection)) }
 }
 
+/**
+ * Why the calendars could not be listed, in the shared provider-failure words (LIN-111): the server's calendar app
+ * refused (admins: Admin › Providers, members: whoever runs the server), the account's access withdrawn (connect it
+ * again), the provider busy or down (try again). Anything else keeps the provider's reason. Exported for tests.
+ */
+export function calendarProblemText(e: CalendarError, connection: Pick<CalendarConnection, 'provider' | 'account_email'>, audience: ProviderAudience): string {
+  const label = LABEL[connection.provider]
+  if (e.code === 'api_disabled') return providerFailureText('config', `The ${label} Calendar app of this server`, audience)
+  if (isAppFailure(e)) return providerFailureText('auth', `${label} Calendar`, audience)
+  if (e.kind === 'auth') return `${label} no longer accepts the access to ${connection.account_email}. Connect the account again.`
+  if (e.kind === 'rate_limited' || e.kind === 'unavailable') return providerFailureText('network', `${label} Calendar`, audience)
+  return e.message
+}
+
 /** The member's calendars on a provider; a refused grant marks the connection and says so. */
-async function listAt(provider: CalendarProvider, connection: CalendarConnection) {
+async function listAt(provider: CalendarProvider, connection: CalendarConnection, audience: ProviderAudience) {
   try {
     return await provider.listCalendars()
   } catch (e) {
-    if (e instanceof CalendarError && e.kind === 'auth') await markNeedsReconnect(connection.id, e.message)
+    if (e instanceof CalendarError && e.kind === 'auth' && !isAppFailure(e)) await markNeedsReconnect(connection.id, e.message)
+    if (e instanceof CalendarError) {
+      noteCalendarAppFailure(e)
+      throw new Reject(calendarProblemText(e, connection, audience))
+    }
     return rejectCalendarError(e)
   }
 }
@@ -192,7 +241,7 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
 
   'calendar.listCalendars': async ({ tx, actor, ...ctx }, input: { connectionId: string }) => {
     const { connection, provider } = await providerFor(tx, ctx, workspaceOf(actor), input.connectionId)
-    const data: ListCalendarsData = { calendars: await listAt(provider, connection) }
+    const data: ListCalendarsData = { calendars: await listAt(provider, connection, audienceOf(actor)) }
     return { rows: {}, data }
   },
 
@@ -218,7 +267,7 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
     if (!assistant) throw new Reject('assistant not found')
     const { connection, provider } = await providerFor(tx, ctx, workspace_id, input.connectionId)
     // The calendar must be one this account can write to; its name comes from the provider.
-    const calendar = (await listAt(provider, connection)).find(c => c.id === input.externalId)
+    const calendar = (await listAt(provider, connection, audienceOf(actor))).find(c => c.id === input.externalId)
     if (!calendar) throw new Reject(`no such calendar in ${connection.account_email}`)
     if (!calendar.canWrite) throw new Reject(`${calendar.name} is read-only for ${connection.account_email}: pick a calendar you can add events to`)
     const [taken] = await tx.select({ id: assistant_calendars.id }).from(assistant_calendars).where(and(

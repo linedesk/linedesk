@@ -8,6 +8,7 @@ import { type Participant, Room, RoomEvent, type TextStreamReader, Track } from 
 import { useSyncExternalStore } from 'react'
 import type { LiveSpeaker } from '../settings/liveTranscript.ts'
 import { TRANSCRIPTION_TOPIC } from '../settings/liveTranscript.ts'
+import { whoSetsUp } from '../providerAudience.ts'
 import { TimedOut, within } from '../settings/testCallModel.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 import { microphoneAllowed } from './microphone.ts'
@@ -60,7 +61,7 @@ function sink(): HTMLDivElement {
 /** The server's refusal in plain words; LiveKit and other internals stay out. */
 function joinErrorText(error: string): string {
   if (/not set up|not configured/i.test(error))
-    return "Listening in isn't set up on this server yet. Ask whoever runs it."
+    return `Listening in isn't set up on this server yet. ${whoSetsUp('the voice services')}`
   if (/ended|not found/i.test(error)) return 'This call has ended.'
   if (/already took|putting this call through|signed-in member|member of the workspace/i.test(error)) return error
   return "Couldn't join the call. Try again in a moment."

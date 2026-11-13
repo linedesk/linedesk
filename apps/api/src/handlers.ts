@@ -8,6 +8,7 @@ import type { ActionItem, Assistant, Closure, PhoneNumber, TransferContact } fro
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { and, asc, desc, eq, gt, gte, or, sql, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
+import { providerHealthHandlers } from './provider-failures.ts'
 import { brandingHandlers, brandName } from './branding.ts'
 import { issueCallToken } from './agent-token.ts'
 import { startS3Recording } from './recording-egress.ts'
@@ -125,12 +126,16 @@ async function releaseCarrier(tx: Tx, number: PhoneNumber): Promise<TelephonyPro
   return own
 }
 
-/** Carrier failures are final for the command: the user sees the reason, the client does not retry. */
+/**
+ * Carrier failures are final for the command: the user sees the reason, the client does not retry. The carrier's
+ * HTTP status goes along ("HTTP 401"), so the app can say what it means (providerFailureReasonOfText, LIN-111).
+ */
 async function atCarrier<T>(request: () => Promise<T>): Promise<T> {
   try {
     return await request()
   } catch (e) {
-    throw e instanceof TelephonyError ? new Reject(e.message) : e
+    if (!(e instanceof TelephonyError)) throw e
+    throw new Reject(e.status ? `${e.message} (HTTP ${e.status})` : e.message)
   }
 }
 
@@ -412,6 +417,7 @@ const handlers: Record<string, Handler> = {
   },
 
   ...adminHandlers,
+  ...providerHealthHandlers,
   ...assistantHandlers,
   ...assistantVersionHandlers,
   ...impersonationHandlers,

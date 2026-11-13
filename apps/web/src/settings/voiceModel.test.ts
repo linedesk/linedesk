@@ -106,6 +106,13 @@ test('a sample that does not come back says why, and how to fix it where there i
   expect(previewProblem(404)).toMatch(/does not know this voice/)
   expect(previewProblem(403, 'missing permission call:read')).toBe('missing permission call:read')
   expect(previewProblem(502, 'voice preview failed (500): boom')).toBe('The voice provider did not answer. Try again.')
+  expect(
+    previewProblem(
+      502,
+      'quota_exceeded',
+      'ElevenLabs has used up its quota or credit. Ask whoever runs this server to add credit.',
+    ),
+  ).toMatch(/^ElevenLabs has used up/)
 })
 
 describe('voice for the main language', () => {

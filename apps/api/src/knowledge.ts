@@ -1,11 +1,12 @@
 // Knowledge (docs/architecture.md, Knowledge): "Write with help", which drafts the assistant's About text from
 // the owner's words and the business's website. The About text is a field of the assistant (assistant.update);
 // the questions the assistant could not answer are in knowledge-questions.ts.
-import type { KnowledgeImportData } from '@linedesk/actions'
+import { type KnowledgeImportData, providerFailureReasonLabels } from '@linedesk/actions'
 import { assistantIn } from './assistants.ts'
 import { db } from './db.ts'
-import { evaluationModel } from './evaluations.ts'
+import { ChatRequestError, evaluationModel } from './evaluations.ts'
 import { type Handler, Reject } from './handler-context.ts'
+import { reasonOf } from './provider-errors.ts'
 import { createFailureLimiter } from './rate-limit.ts'
 import {
   IMPORT_SYSTEM,
@@ -40,6 +41,11 @@ async function importProposal(input: ImportInput): Promise<KnowledgeImportData> 
     proposal = parseProposal(await model.complete(IMPORT_SYSTEM, importPrompt(site.pages, input)))
   } catch (e) {
     console.warn(`knowledge import: ${e instanceof Error ? e.message : String(e)}`)
+    // A provider failure (quota, key) is recorded for the admins (evaluations.ts); the member hears it is not a timeout.
+    if (e instanceof ChatRequestError && e.status >= 300)
+      throw new ImportRefused(
+        `The language model is not working right now (${providerFailureReasonLabels[reasonOf(e.status, e.body)].toLowerCase()}). An admin can see it under Admin › Providers.`,
+      )
     throw new ImportRefused('The language model did not answer in time. Try again.')
   }
   return { ...proposal, pages: site.pages.map(p => ({ url: p.url, title: p.title })), website: site.website }

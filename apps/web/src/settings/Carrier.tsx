@@ -23,6 +23,7 @@ import { Field, TextInput } from './fields.tsx'
 import { callAction } from './settings-api.ts'
 import { useQuery, setQueryData } from '../cachedQuery.ts'
 import { brandName } from '../brand.ts'
+import { providerAudience } from '../providerAudience.ts'
 
 const CARRIER = 'workspace.carrier'
 const loadCarrier = () => callAction<CarrierStatusData>('carrier.get')
@@ -173,7 +174,8 @@ function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose
         )}
         {!status.canStore && own && (
           <p className="help" role="status">
-            This server cannot store carrier credentials yet. Ask whoever runs this server.
+            This server cannot store carrier credentials yet.{' '}
+            {providerAudience() === 'admin' ? 'Admin › Providers says what to set.' : 'Ask whoever runs it.'}
           </p>
         )}
         {draft.carrier === 'twilio' && (

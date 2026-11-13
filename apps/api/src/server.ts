@@ -1,7 +1,7 @@
 import { serve } from '@hono/node-server'
 import { agentTokenProblem } from '@linedesk/actions'
 import { db } from './db.ts'
-import { loadInstanceEnv, watchInstanceEnv } from './instance-env.ts'
+import { emailProviderInUse, loadInstanceEnv, watchInstanceEnv } from './instance-env.ts'
 
 // Sign-in providers and SMTP stored in the admin area, before the modules that read them load (instance-env.ts).
 await loadInstanceEnv(db).catch(error => console.error('could not load the sign-in and email settings:', error))
@@ -14,6 +14,9 @@ watchBranding(db)
 await (await import('./setup.ts')).issueSetupCode(db).catch(error => console.error('could not make a setup code:', error))
 const { secondFactorOffWarning } = await import('./admin-second-factor.ts')
 const { app } = await import('./app.ts')
+// Every email's result goes into the provider failure record (provider-failures.ts).
+const { watchEmailFailures } = await import('./provider-failures.ts')
+watchEmailFailures(emailProviderInUse)
 const { startJobs, stopJobs } = await import('./jobs.ts')
 const { startOrphanRecordingSweep } = await import('./orphan-recordings.ts')
 const { startStaleCallSweep } = await import('./stale-calls.ts')

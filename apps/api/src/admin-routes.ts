@@ -11,6 +11,7 @@ import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { isEnvAdmin } from './instance-admin.ts'
 import { livekitStatus } from './livekit-status.ts'
+import { listProviderFailures } from './provider-failures.ts'
 import { providerStatus, voiceProviderConfig } from './provider-settings.ts'
 import { SecretsKeyError } from './secrets.ts'
 import { LATENCY_DAYS_DEFAULT, LATENCY_DAYS_MAX, replyLatency } from './reply-latency.ts'
@@ -174,7 +175,10 @@ export function registerAdminRoutes(app: Hono<Env>) {
   // Health of the parts of the install; can take a few seconds (LiveKit, SMTP).
   app.get('/v1/admin/health', async c => c.json(await adminHealth()))
 
-  app.get('/v1/admin/providers', async c => c.json(await providerStatus(db)))
+  // The providers, which are in use, and which are failing now (provider-failures.ts).
+  app.get('/v1/admin/providers', async c =>
+    c.json({ ...(await providerStatus(db)), failures: await listProviderFailures(db) }),
+  )
 
   // LiveKit is part of the install (keys in env): read-only status of the server and its SIP service.
   app.get('/v1/admin/system', async c => c.json({ livekit: await livekitStatus() }))

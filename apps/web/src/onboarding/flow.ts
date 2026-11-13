@@ -10,11 +10,15 @@ import {
   TRANSFER_NAME_MAX,
   type OnboardingStep,
   type PickupMode,
+  type ProviderAudience,
+  providerFailureReasonOfText,
+  providerFailureText,
   type WorkspaceSettingsData,
 } from '@linedesk/actions'
 import type { Assistant, PhoneNumber, TransferContact } from '@linedesk/db/types'
 import { type DayHours, dayRows } from '../settings/businessHoursModel.ts'
 import { brandName } from '../brand.ts'
+import { providerAudience } from '../providerAudience.ts'
 
 type PhoneNumberMode = PhoneNumber['mode']
 
@@ -201,10 +205,16 @@ export function phoneOptionSetup(
 export const forwardingOffer = (mode: PhoneNumberMode, pickup: PickupMode): Forwarding | null =>
   mode === 'new' ? pickupNumberMode(pickup) : null
 
-/** A `phoneNumber.setup` rejection in words an owner can act on. The server's own reason stays in the command log. */
-export function phoneSetupErrorText(error: string): string {
+/**
+ * A `phoneNumber.setup` rejection in words an owner can act on. The server's own reason stays in the command log. A
+ * carrier failure (key rejected, credit used up) says so in the shared provider-failure words (LIN-111): admins are
+ * sent to Admin › Providers, everyone else to whoever runs the server.
+ */
+export function phoneSetupErrorText(error: string, audience: ProviderAudience = providerAudience()): string {
   if (/^phone setup is not configured/i.test(error))
-    return "Phone numbers aren't set up on this server yet. Ask whoever runs it to add a phone carrier."
+    return audience === 'admin'
+      ? "Phone numbers aren't set up on this server yet. Add a phone carrier under Admin › Providers."
+      : "Phone numbers aren't set up on this server yet. Ask whoever runs it to add a phone carrier."
   if (/is already set up/i.test(error)) return `That number is already connected to ${brandName()}.`
   if (/is not in the .* account/i.test(error))
     return "We couldn't find that number in the carrier account. Check the number, or get a new one."
@@ -212,6 +222,10 @@ export function phoneSetupErrorText(error: string): string {
     return 'No number is free in that area code right now. Try a nearby one.'
   // The limits on buying through the install's carrier account (apps/api/src/number-purchases.ts) are written for people: shown as they are.
   if (/(on|through) this server|this server has given|numbers today/i.test(error)) return error
+  const reason = providerFailureReasonOfText(error)
+  // A refused setting, an unknown number and anything else are about this request: the cases above and the default.
+  if (reason !== 'config' && reason !== 'not_found' && reason !== 'unknown')
+    return providerFailureText(reason, 'The phone carrier', audience)
   return "The number couldn't be connected. Try again in a moment."
 }
 

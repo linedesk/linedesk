@@ -6,6 +6,7 @@ import {
   type BrandingInput,
   type MembershipRole,
   type ProviderCategory,
+  type ProviderFailure,
   type ProviderName,
   type ProviderTestData,
   providerCategories,
@@ -108,6 +109,8 @@ export type AdminOverview = {
   }[]
   workspaces: { total: number; disabled: number; new7d: number }
   users: { total: number; disabled: number; new7d: number }
+  /** Providers failing now (absent from an older API). */
+  failures?: ProviderFailure[]
 }
 export type AdminHealth = Record<'api' | 'livekit' | 'sip' | 'agent' | 'email', ServiceStatus>
 export type LivekitStatus = { url: string | null; server: ServiceStatus; sip: ServiceStatus }
@@ -120,6 +123,8 @@ export type AdminData = {
   providers: ProviderStatus[]
   activeProviders: ActiveProviders
   canStoreKeys: boolean
+  /** Providers failing now: quota used up, key rejected (the API's provider_failures). */
+  providerFailures: ProviderFailure[]
 }
 
 /** Thrown when the admin area's sign-in has run out (more than 1 hour, 12 with a passkey) or the email is unconfirmed. */
@@ -179,7 +184,9 @@ export async function loadAdminData(): Promise<AdminData> {
     get<{ workspaces: AdminWorkspace[] }>('/v1/admin/workspaces'),
     get<{ users: AdminUser[] }>('/v1/admin/users'),
     get<{ months: number; usage: UsageRow[] }>('/v1/admin/usage'),
-    get<{ can_store: boolean; active: ActiveProviders; providers: ProviderStatus[] }>('/v1/admin/providers'),
+    get<{ can_store: boolean; active: ActiveProviders; providers: ProviderStatus[]; failures?: ProviderFailure[] }>(
+      '/v1/admin/providers',
+    ),
   ])
   return {
     workspaces: w.workspaces,
@@ -189,6 +196,7 @@ export async function loadAdminData(): Promise<AdminData> {
     providers: p.providers.filter(isKnownProvider),
     activeProviders: p.active,
     canStoreKeys: p.can_store,
+    providerFailures: (p.failures ?? []).filter(f => f.provider in providerRegistry),
   }
 }
 

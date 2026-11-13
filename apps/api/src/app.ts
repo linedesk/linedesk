@@ -51,6 +51,7 @@ import { newAssistant, newWorkspaceSettings, onboardingFor, phoneSetupFor } from
 import { recordSignup } from './setup-events.ts'
 import { firstUse } from './sample-calls.ts'
 import { starPromptFor } from './star-prompt.ts'
+import { voiceFailing } from './provider-failures.ts'
 import { voiceReady } from './provider-settings.ts'
 import { isSignedRecordingRequest, serveRecording, serveSignedRecording } from './recording-route.ts'
 import { servePreview } from './voices.ts'
@@ -313,10 +314,12 @@ async function impersonationOf({ actorId, impersonation }: Actor) {
   return by && as ? { by, user: as, expiresAt: impersonation.expiresAt.toISOString() } : null
 }
 
-// For the inbox header: can the assistant answer calls at all? Members see whether, never which key is missing.
+// For the inbox header: can the assistant answer calls at all? Members see whether, never which key is missing or
+// which provider is failing (`voiceFailing`: set up, but a lasting provider failure stops calls, LIN-111).
 app.get('/v1/assistant/status', async c => {
   c.header('cache-control', 'no-store')
-  return c.json({ voiceReady: await voiceReady(db) })
+  const ready = await voiceReady(db)
+  return c.json({ voiceReady: ready, voiceFailing: ready && (await voiceFailing(db)) })
 })
 
 // Which calendar providers this install can connect (their OAuth apps are set in env).

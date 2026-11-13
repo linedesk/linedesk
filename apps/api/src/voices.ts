@@ -15,6 +15,8 @@ import {
   curatedVoices,
   isCuratedVoice,
   providerDefaultVoices,
+  providerFailureText,
+  providerSpec,
   type ProviderName,
   providersIn,
   type VoiceCloneData,
@@ -29,6 +31,8 @@ import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { type Handler, type Preparer, Reject } from './handler-context.ts'
 import { queueVoiceDeletion } from './jobs.ts'
+import { problemOfStatus } from './provider-errors.ts'
+import { audienceOf, noteProviderFailure, noteProviderOk } from './provider-failures.ts'
 import { activeProvider, pipelinesSetUp, resolveProvider } from './provider-settings.ts'
 import { type CatalogEntry, catalogData, catalogVoice, voiceCatalog } from './voice-catalog.ts'
 import {
@@ -220,6 +224,27 @@ export const voicePreparers: Record<string, Preparer> = {
     })
     return { provider: provider.name, voiceId }
   },
+}
+
+/**
+ * A preview made by the provider. Its result goes into the provider failure record (provider-failures.ts): a quota
+ * used up or a rejected key there is what stops the assistant's voice too. A voice it does not know is about that voice.
+ */
+function trackedSynthesis(provider: VoiceProvider, voiceId: string): Promise<Buffer> {
+  return provider.synthesize(voiceId, PREVIEW_TEXT).then(
+    audio => {
+      void noteProviderOk(provider.name)
+      return audio.bytes
+    },
+    e => {
+      if (e instanceof VoiceProviderError) {
+        const problem = problemOfStatus(provider.name, e.status, e.message, 'a voice sample')
+        if (problem.reason !== 'not_found' && problem.reason !== 'config')
+          void noteProviderFailure(provider.name, problem, 'voice')
+      }
+      throw e
+    },
+  )
 }
 
 export const voiceHandlers: Record<string, Handler> = {
@@ -467,7 +492,7 @@ export async function servePreview(actor: Actor, rawVoiceId: string, options: Pr
         return error(429, `at most ${PREVIEWS_PER_HOUR} new voice samples an hour`)
       const made = hosted
         ? hostedSample(provider.name, hosted, options.doFetch ?? fetch)
-        : provider.synthesize(voiceId, PREVIEW_TEXT).then(audio => audio.bytes)
+        : trackedSynthesis(provider, voiceId)
       pending = made.then(async bytes => {
         await cache
           .put(key, bytes)
@@ -481,7 +506,18 @@ export async function servePreview(actor: Actor, rawVoiceId: string, options: Pr
   } catch (e) {
     if (e instanceof VoiceProviderError) {
       const unknown = e.status === 400 || e.status === 404 || e.status === 422
-      return error(unknown ? 404 : 502, unknown ? 'the voice provider does not know this voice' : e.message)
+      if (unknown) return error(404, 'the voice provider does not know this voice')
+      // Why, in the shared words (LIN-111): a used-up quota or a rejected key is not "did not answer".
+      const { reason } = problemOfStatus(provider.name, e.status, e.message, 'a voice sample')
+      return Response.json(
+        {
+          ok: false,
+          error: e.message,
+          reason,
+          message: providerFailureText(reason, providerSpec(provider.name).label, audienceOf(actor)),
+        },
+        { status: 502 },
+      )
     }
     throw e
   }

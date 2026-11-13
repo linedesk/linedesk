@@ -11,7 +11,9 @@ import { calls } from '@linedesk/db'
 import { and, eq, isNull, type SQL } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
-import { RecordingConfigError, recordingStoreNamed } from './recording-store.ts'
+import { noteProviderFailure, noteProviderOk } from './provider-failures.ts'
+import { s3Problem } from './provider-test.ts'
+import { RecordingConfigError, recordingStoreNamed, S3RequestError } from './recording-store.ts'
 import { SecretsKeyError, signWithSecretsKey } from './secrets.ts'
 
 const SIGNED_URL_TTL_SEC = 300
@@ -112,6 +114,7 @@ async function serveCallRecording(which: SQL | undefined, rangeHeader: string | 
     const store = await recordingStoreNamed(db, call.recording_store)
     const location = await store.locate(key, SIGNED_URL_TTL_SEC)
     if (!location) return error(404, 'no recording for this call')
+    if (call.recording_store === 's3') void noteProviderOk('s3')
     if ('url' in location)
       return new Response(null, {
         status: 302,
@@ -119,6 +122,8 @@ async function serveCallRecording(which: SQL | undefined, rangeHeader: string | 
       })
     return fileResponse(location.path, location.size, contentType(key), rangeHeader)
   } catch (e) {
+    // The bucket refused or is gone: recorded for the admins (provider-failures.ts).
+    if (e instanceof S3RequestError) void noteProviderFailure('s3', s3Problem(e), 'recording')
     if (e instanceof RecordingConfigError) return error(409, `recording storage is not set up: ${e.message}`)
     if (e instanceof SecretsKeyError) return error(409, `recording storage keys cannot be read: ${e.message}`)
     throw e

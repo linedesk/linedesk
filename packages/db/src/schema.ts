@@ -852,6 +852,24 @@ export const instance_settings = pgTable('instance_settings', {
   updated_by: text('updated_by'),
 })
 
+// Providers that are failing now (LIN-111): one row per provider of the registry while its calls fail (quota used
+// up, key rejected, model gone), from a provider test, the API's own calls or the voice agent's reports. A success
+// deletes the row. One record for every source: the voice agent's call failures (LIN-107) included. `alerted_at`: when the instance admins were emailed about this streak (once, not per call).
+// Install-wide, not synced; apps/api/src/provider-failures.ts.
+export const provider_failures = pgTable('provider_failures', {
+  provider: text('provider').primaryKey(),
+  reason: text('reason').notNull(),
+  message: text('message').notNull(),
+  source: text('source').notNull(),
+  since: ts('since').notNull().defaultNow(),
+  last_at: ts('last_at').notNull().defaultNow(),
+  count: integer('count').notNull().default(1),
+  /** Where the latest failure happened: a workspace and call, or null for the install itself (a test, an email). */
+  workspace_id: text('workspace_id'),
+  call_id: text('call_id'),
+  alerted_at: ts('alerted_at'),
+})
+
 // Voices a workspace cloned at its text-to-speech provider (voice.clone), with the consent given
 // for it. Not synced. A clone no assistant of the workspace uses any more is deleted at the provider
 // and marked deleted here (apps/api/src/voices.ts), also when its workspace is deleted; the row is

@@ -9,6 +9,7 @@ import {
   type PipelinesSetUp,
   type ProviderCategory,
   providerCategories,
+  type ProviderFailure,
   type ProviderName,
   type ProviderTestData,
   VOICE_PIPELINE_LABELS,
@@ -18,6 +19,7 @@ import { useEffect, useRef, useState } from 'react'
 import { HelpTip } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
 import { type ActiveProviders, type ProviderStatus, runAdmin, testProvider } from './api.ts'
+import { FailingProviders, failingSince } from './FailingProviders.tsx'
 import { connectionOf, isConfigured, providerState, type TestState } from './model.ts'
 import { errorText, type Notify } from './notify.ts'
 import { clearOpenRouterReturn, type OpenRouterReturn, peekOpenRouterReturn } from './openrouterAuth.ts'
@@ -28,6 +30,8 @@ type Props = {
   providers: ProviderStatus[]
   active: ActiveProviders
   canStore: boolean
+  /** Providers failing now (the API's failure record). */
+  failures: readonly ProviderFailure[]
   notify: Notify
   reload: () => Promise<void>
 }
@@ -61,21 +65,45 @@ function useConnectionTests(providers: ProviderStatus[]) {
   return { tests, record }
 }
 
-type TileStatus = { word: string; dot: 'ink' | 'muted' | 'danger' | null; title?: string }
+type TileStatus = { word: string; dot: 'ink' | 'muted' | 'danger' | null; title?: string; detail?: string }
 
-/** One status per tile: Active, Connected, Error, Checking… or Not connected. */
-export function tileStatus(provider: ProviderStatus, test: TestState, inUse: boolean): TileStatus {
+/**
+ * One status per tile: Active, Connected, Needs attention (works, but soon will not), Failing, Checking… or Not
+ * connected. A failure recorded at run time (a call, an email) shows as Failing until a test on this page passes,
+ * which clears it on the server too.
+ */
+export function tileStatus(
+  provider: ProviderStatus,
+  test: TestState,
+  inUse: boolean,
+  failure?: ProviderFailure,
+): TileStatus {
   const connection = connectionOf(provider, test)
   if (connection === 'none') return { word: 'Not connected', dot: null }
-  if (connection === 'checking') return { word: 'Checking…', dot: null }
-  if (connection === 'error')
-    return { word: 'Error', dot: 'danger', title: typeof test === 'object' ? test.message : undefined }
-  return inUse ? { word: 'Active', dot: 'ink' } : { word: 'Connected', dot: 'muted' }
+  if (connection === 'error' && typeof test === 'object')
+    return { word: 'Failing', dot: 'danger', title: test.message, detail: test.message }
+  if (connection === 'checking')
+    return failure
+      ? {
+          word: 'Failing',
+          dot: 'danger',
+          title: failure.message,
+          detail: `${failure.message} (${failingSince(failure)})`,
+        }
+      : { word: 'Checking…', dot: null }
+  if (typeof test === 'object' && test.status === 'warning')
+    return { word: 'Needs attention', dot: 'muted', title: test.message, detail: test.message }
+  if (inUse) return { word: 'Active', dot: 'ink' }
+  // Recording is off until a store is picked: a store that could be used is not "connected" to anything yet.
+  if (provider.category === 'recording')
+    return { word: 'Not in use', dot: null, title: 'Calls are not recorded here: Edit, then Record here' }
+  return { word: 'Connected', dot: 'muted' }
 }
 
 type RowProps = {
   provider: ProviderStatus
   test: TestState
+  failure?: ProviderFailure
   inUse: boolean
   canStore: boolean
   onOpen: () => void
@@ -86,8 +114,8 @@ type RowProps = {
  * One provider: logo, name and status; Connect when it has no keys, else Edit and Disconnect. Keys from the server's
  * environment cannot be removed here: Disconnect is off for them and says where they are set.
  */
-function ProviderRow({ provider, test, inUse, canStore, onOpen, onDisconnect }: RowProps) {
-  const status = tileStatus(provider, test, inUse)
+function ProviderRow({ provider, test, failure, inUse, canStore, onOpen, onDisconnect }: RowProps) {
+  const status = tileStatus(provider, test, inUse, failure)
   const configured = isConfigured(provider)
   const fromServer = configured && providerState(provider) === 'env'
   return (
@@ -99,6 +127,11 @@ function ProviderRow({ provider, test, inUse, canStore, onOpen, onDisconnect }: 
           {status.word}
           {fromServer && <ServerSet />}
         </span>
+        {status.detail && (
+          <span className={cx('adm-prov-detail', status.dot === 'danger' && 'adm-prov-detail-danger')}>
+            {status.detail}
+          </span>
+        )}
       </span>
       <span className="adm-prov-actions">
         {configured ? (
@@ -146,18 +179,27 @@ const pageSections: PageSection[] = categoryNames.flatMap((category): PageSectio
  * Which ways of answering calls are set up: the realtime model, and the three stages (speech to text, language model,
  * voice). Each assistant picks one under Settings › Assistant; one that is not set up falls back to the other.
  */
-function PipelinesNote({ active }: { active: ActiveProviders }) {
-  const setUp: PipelinesSetUp = {
-    realtime: !!active.realtime?.provider,
-    three_stage: STAGE_CATEGORIES.every(c => !!active[c]?.provider),
+function PipelinesNote({ active, failing }: { active: ActiveProviders; failing: ReadonlySet<ProviderName> }) {
+  // A provider whose test failed or that failed in use is not set up for this: never shown as working (LIN-111).
+  const works = (c: 'realtime' | (typeof STAGE_CATEGORIES)[number]) => {
+    const provider = active[c]?.provider
+    return !!provider && !failing.has(provider)
   }
-  const missing = STAGE_CATEGORIES.filter(c => !active[c]?.provider).map(c => providerCategories[c].toLowerCase())
-  const state = (pipeline: VoicePipeline) => (setUp[pipeline] ? 'set up' : 'not set up')
+  const setUp: PipelinesSetUp = { realtime: works('realtime'), three_stage: STAGE_CATEGORIES.every(works) }
+  const name = (c: ProviderCategory) => providerCategories[c].toLowerCase()
+  const missing = STAGE_CATEGORIES.filter(c => !active[c]?.provider).map(name)
+  const broken = STAGE_CATEGORIES.filter(c => active[c]?.provider && !works(c)).map(name)
+  const stages = [
+    ...(missing.length ? [`missing ${missing.join(' and ')}`] : []),
+    ...(broken.length ? [`${broken.join(' and ')} failing`] : []),
+  ].join(', ')
+  const state = (pipeline: VoicePipeline) =>
+    setUp[pipeline] ? 'set up' : pipeline === 'realtime' && active.realtime?.provider ? 'failing' : 'not set up'
   return (
     <p className="adm-notice" role="note">
       Answering calls: {VOICE_PIPELINE_LABELS.realtime} {state('realtime')};{' '}
       {VOICE_PIPELINE_LABELS.three_stage.toLowerCase()}{' '}
-      {setUp.three_stage ? 'set up' : missing.length < 3 ? `missing ${missing.join(' and ')}` : 'not set up'}.{' '}
+      {setUp.three_stage ? 'set up' : missing.length < 3 ? stages : 'not set up'}.{' '}
       {setUp.realtime && setUp.three_stage
         ? 'Each assistant picks one under Settings, Assistant (realtime by default).'
         : setUp.realtime || setUp.three_stage
@@ -170,8 +212,19 @@ function PipelinesNote({ active }: { active: ActiveProviders }) {
 
 const STAGE_CATEGORIES = ['stt', 'llm', 'tts'] as const satisfies readonly ProviderCategory[]
 
-export function Providers({ providers, active, canStore, notify, reload }: Props) {
+export function Providers({ providers, active, canStore, failures, notify, reload }: Props) {
   const { tests, record } = useConnectionTests(providers)
+  const failureOf = (name: ProviderName) => failures.find(f => f.provider === name)
+  // A test that passed or warned on this page cleared the failure on the server.
+  const stillFailing = failures.filter(f => {
+    const test = tests[f.provider]
+    return !(typeof test === 'object' && test.ok)
+  })
+  /** Failing now: a recorded failure not cleared on this page, or a test here that failed. */
+  const failing = new Set<ProviderName>([
+    ...stillFailing.map(f => f.provider),
+    ...providers.filter(p => connectionOf(p, tests[p.provider]) === 'error').map(p => p.provider),
+  ])
   // Back from "Connect with OpenRouter": its dialog opens and finishes the connection.
   const [oauthReturn] = useState<OpenRouterReturn | null>(() => peekOpenRouterReturn())
   useEffect(clearOpenRouterReturn, [])
@@ -214,7 +267,8 @@ export function Providers({ providers, active, canStore, notify, reload }: Props
           <HelpTip text="Whoever runs the server sets SECRETS_KEY (make one with openssl rand -base64 32) and restarts the API. Keys are then saved encrypted." />
         </p>
       )}
-      <PipelinesNote active={active} />
+      <FailingProviders failures={stillFailing} />
+      <PipelinesNote active={active} failing={failing} />
       {pageSections.map(({ id, title, category, only }) => {
         const inSection = providers.filter(p => p.category === category && (!only || only.includes(p.provider)))
         const { provider: inUse } = active[category]
@@ -231,6 +285,7 @@ export function Providers({ providers, active, canStore, notify, reload }: Props
                   key={p.provider}
                   provider={p}
                   test={tests[p.provider]}
+                  failure={failureOf(p.provider)}
                   inUse={isMultiCategory(category) ? isConfigured(p) : inUse === p.provider}
                   canStore={canStore}
                   onOpen={() => openDialog(p.provider)}

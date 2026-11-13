@@ -3,6 +3,7 @@
 import { z } from 'zod'
 import { isRecordingPrefix } from './calls.ts'
 import { defineAction } from './define.ts'
+import type { ProviderCheckStatus, ProviderFailureReason } from './provider-health.ts'
 
 export type ProviderCategory = 'telephony' | 'stt' | 'llm' | 'tts' | 'realtime' | 'email' | 'sign_in' | 'recording'
 export const providerCategories: Record<ProviderCategory, string> = {
@@ -479,12 +480,22 @@ export const providerSetActive = defineAction({
 
 export const providerTest = defineAction({
   name: 'provider.test',
-  description: 'Check the keys in effect for a provider with one authenticated request.',
+  description:
+    'Check that a provider can do its job with the keys in effect: the key, and where the provider tells, quota or credit, the account, and that the configured model, voice or bucket exists.',
   input: z.object({ provider }),
   permission: 'instance:admin',
   readOnly: true,
 })
-export type ProviderTestData = { ok: boolean; message: string }
+/**
+ * A test's result. `ok` is false only for `status: 'error'` (a warning works now). `reason` says why it failed or
+ * warns; `message` names the fix. Older callers and the web app's own errors give only `ok` and `message`.
+ */
+export type ProviderTestData = {
+  ok: boolean
+  status?: ProviderCheckStatus
+  reason?: ProviderFailureReason
+  message: string
+}
 
 const userId = z.object({ userId: z.string().min(1) })
 const workspaceId = z.object({ workspaceId: z.string().min(1) })

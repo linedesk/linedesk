@@ -50,6 +50,7 @@ import { useAssistantName, useRejection, useRun, useWorkspaceState } from './sto
 import type { SelectVia } from './ui/CommandMenu.tsx'
 import { ErrorBoundary } from './ui/ErrorBoundary.tsx'
 import { useBrand } from './brand.ts'
+import { setProviderAudience } from './providerAudience.ts'
 import { cx } from './ui/kit.tsx'
 import { useMediaQuery } from './ui/useMediaQuery.ts'
 
@@ -111,6 +112,8 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
   const isInstanceAdmin = me.permissions.includes('instance:admin')
   // An instance admin who must sign in again still finds the admin area; it asks them to sign in.
   const canOpenAdmin = isInstanceAdmin || Boolean(me.adminSecondFactor)
+  // Error texts built without `me` (refusals, toasts) send admins to Admin › Providers, others to whoever runs it.
+  setProviderAudience(canOpenAdmin ? 'admin' : 'member')
   // First-use tour (FIRST_USE): once after onboarding in this browser, and from ⌘K.
   const tourOffered = offersTour(me.firstUse ?? 'off')
   const [tourOpen, setTourOpen] = useState(() => tourOffered && tourDue(me.workspace!.id))
