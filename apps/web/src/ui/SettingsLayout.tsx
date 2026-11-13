@@ -9,9 +9,19 @@ export type PageSection<T extends string = string> = { id: T; label: string; des
 /** The page's part of the hash: `#<page>/<section>`; `page` may have a part of its own (`assistant/<id>`). */
 export const sectionHash = (page: string, section: string) => `#${page}/${section}`
 
-function sectionOf<T extends string>(page: string, sections: readonly PageSection<T>[], hash: string): T {
+/**
+ * The section the hash names on `page`, and the thing open in it (`#settings/phone/<number id>`), each '' when
+ * the hash names none.
+ */
+export function sectionParts(page: string, hash: string): { section: string; item: string } {
   const path = hash.replace(/^#/, '').split('?')[0]!
-  const section = path.startsWith(`${page}/`) ? path.slice(page.length + 1) : ''
+  if (!path.startsWith(`${page}/`)) return { section: '', item: '' }
+  const [section = '', item = ''] = path.slice(page.length + 1).split('/')
+  return { section, item }
+}
+
+function sectionOf<T extends string>(page: string, sections: readonly PageSection<T>[], hash: string): T {
+  const { section } = sectionParts(page, hash)
   return sections.find(s => s.id === section)?.id || sections[0]!.id
 }
 
@@ -26,9 +36,8 @@ const sectionClicks = new Set<(hash: string) => void>()
  * the address says what is on screen; null when the hash names a section of the page, or none.
  */
 export function knownSectionHash(page: string, sections: readonly PageSection[], hash: string): string | null {
-  const [path = '', query] = hash.replace(/^#/, '').split('?')
-  if (!path.startsWith(`${page}/`)) return null
-  const section = path.slice(page.length + 1)
+  const query = hash.split('?')[1]
+  const { section } = sectionParts(page, hash)
   if (!section || sections.some(s => s.id === section)) return null
   return `${sectionHash(page, sections[0]!.id)}${query ? `?${query}` : ''}`
 }

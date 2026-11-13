@@ -33,6 +33,7 @@ import { Dialog } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
+import { sectionHash, sectionParts } from '../ui/SettingsLayout.tsx'
 import { CarrierLine, useCarrierStatus } from './Carrier.tsx'
 import { Field, Section, TextInput } from './fields.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
@@ -66,6 +67,14 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
   /** The number whose dialog is open, and whether it opens on releasing it. */
   const [managing, setManaging] = useState<{ id: string; release: boolean } | null>(null)
   const managed = numbers.find(n => n.id === managing?.id)
+  // A link to one number (`#settings/phone/<id>`, from the assistant's page) opens its dialog once the numbers are
+  // loaded; the address then names the section only, so closing the dialog or reloading does not open it again.
+  const linkedNumber = numbers.find(n => n.id === sectionParts('settings', window.location.hash).item)?.id
+  useEffect(() => {
+    if (!linkedNumber) return
+    setManaging({ id: linkedNumber, release: false })
+    window.history.replaceState(null, '', sectionHash('settings', 'phone'))
+  }, [linkedNumber])
   const canAdd = canEdit && !!status?.available
   return (
     <Section
@@ -331,7 +340,13 @@ function ReleaseNumber({ number, onCancel }: { number: PhoneNumber; onCancel: ()
         <Button size="sm" variant="ghost" onClick={onCancel} disabled={sent}>
           Cancel
         </Button>
-        <Button busy={sent} type="submit" size="sm" variant="danger" disabled={sent || !confirmsNumber(typed, number.e164)}>
+        <Button
+          busy={sent}
+          type="submit"
+          size="sm"
+          variant="danger"
+          disabled={sent || !confirmsNumber(typed, number.e164)}
+        >
           {sent ? (bought ? 'Releasing…' : 'Disconnecting…') : bought ? 'Release number' : 'Disconnect number'}
         </Button>
       </div>
