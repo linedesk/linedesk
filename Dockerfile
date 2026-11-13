@@ -7,7 +7,7 @@
 # The API is the last stage, so a platform that builds this file without a target (Railway, Render,
 # Dokku, ...) gets the API, never the empty dev-mode runtime. Keep it last.
 
-FROM node:22-alpine AS base
+FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS base
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
 RUN corepack enable
 WORKDIR /app
@@ -41,7 +41,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 COPY . .
 RUN pnpm --filter @linedesk/web build
 
-FROM caddy:2-alpine AS web
+FROM caddy:2-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0 AS web
 COPY docker/web.Caddyfile /etc/caddy/Caddyfile
 COPY --from=web-build /app/apps/web/dist /srv
 # The caddy binary carries cap_net_bind_service, so it binds 80 without root.
@@ -52,13 +52,13 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --start-interval=1s \
 
 # --- proxy: the entry point. Only the Caddyfile, so the image (and the running container) stays the
 # same across updates unless docker/Caddyfile changes. ---
-FROM caddy:2-alpine AS proxy
+FROM caddy:2-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0 AS proxy
 COPY docker/Caddyfile /etc/caddy/Caddyfile
 RUN adduser -D -H -u 1000 caddy && chown -R caddy:caddy /data /config
 USER caddy
 
 # --- agent: the voice agent worker. Debian, not Alpine: its audio and WebRTC libraries ship glibc binaries. ---
-FROM node:22-bookworm-slim AS agent-build
+FROM node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS agent-build
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
 RUN corepack enable
 WORKDIR /app
@@ -72,7 +72,7 @@ RUN --mount=type=cache,id=pnpm-glibc,target=/pnpm/store \
        typescript@* @typescript+* @img+sharp-*linuxmusl*
 COPY . .
 
-FROM node:22-bookworm-slim AS agent
+FROM node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS agent
 ENV NODE_ENV=production
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /var/cache/linedesk/greetings && chown node:node /var/cache/linedesk/greetings
@@ -87,7 +87,7 @@ CMD ["node", "src/worker.ts", "start"]
 # --- live: the runtime for dev mode (docker-compose.dev.yml). No code inside: api, web and agent run
 # from the source checkout mounted at /app and their node_modules live in a volume (docker/dev-run.mjs),
 # so a code change needs no new image. Debian like the agent, so one node_modules fits all three. ---
-FROM node:22-bookworm-slim AS dev
+FROM node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS dev
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
     && corepack enable && corepack prepare pnpm@10.11.0 --activate
@@ -95,7 +95,7 @@ WORKDIR /app
 
 # --- api runtime: the default target (see the top) ---
 # Node runs the TypeScript sources directly (type stripping), so there is no compile step.
-FROM node:22-alpine AS api
+FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS api
 ENV NODE_ENV=production PORT=3100
 WORKDIR /app
 COPY --from=api-build --chown=node:node /app/node_modules ./node_modules

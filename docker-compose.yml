@@ -21,7 +21,7 @@ x-service: &service
 services:
   postgres:
     <<: *service
-    image: postgres:17
+    image: postgres:17@sha256:846a7ddaa67a4b354ae1d21087b683901aa6113a4ed626d3787cfbf6c85e3e07
     command: ["postgres", "-c", "wal_level=logical", "-c", "shared_buffers=64MB"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-linedesk}
@@ -38,7 +38,7 @@ services:
 
   electric:
     <<: *service
-    image: electricsql/electric:1.8.1
+    image: electricsql/electric:1.8.1@sha256:efb6fa43859d67cb8c73439e0c8bc0f7a3daa467500fb06f2a924bcb2070c139
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-linedesk}:${POSTGRES_PASSWORD:-linedesk}@postgres:5432/${POSTGRES_DB:-linedesk}?sslmode=disable
       # Only the API talks to Electric: it adds the workspace filter and sends this secret with each shape request.
@@ -125,7 +125,7 @@ services:
   # on LIVEKIT_BIND_IP (default 127.0.0.1; 0.0.0.0 on a server).
   redis:
     <<: *service
-    image: valkey/valkey:8.1.11-alpine
+    image: valkey/valkey:8.1.11-alpine@sha256:2602ace2be6569bc2bbb06f873776516ab9089821525be34f4305c67eb9db02a
     # Only LiveKit reaches it (SIP and egress run in LiveKit's network): egress requests on it carry the
     # recording store's keys, and Redis has no password.
     # LiveKit keeps the SIP trunks and dispatch rules here (setup-sip): without a volume, a deploy that recreates
@@ -139,7 +139,7 @@ services:
 
   livekit:
     <<: *service
-    image: livekit/livekit-server:v1.13.11
+    image: livekit/livekit-server:v1.13.11@sha256:25cd902de7cacbd5f1f779f6a6ac1eae20ba8f56b0935934ce6b0ab80d1e3d20
     # The address clients are told to send media to. 127.0.0.1 for local development;
     # the server's public IP when carriers and browsers connect from outside.
     command: ["--node-ip", "${LIVEKIT_NODE_IP:-127.0.0.1}"]
@@ -174,7 +174,7 @@ services:
 
   livekit-sip:
     <<: *service
-    image: livekit/sip:v1.23.0
+    image: livekit/sip:v1.23.0@sha256:26b5e320482c48d999073dfaf830666b1a312ad0f97d35ae67bd499659b9834e
     network_mode: "service:livekit" # so it reaches LiveKit media on the advertised node IP
     environment:
       SIP_CONFIG_BODY: |
@@ -276,7 +276,7 @@ services:
   # LiveKit egress records each call room into the recordings volume, where the API reads the files.
   livekit-egress:
     <<: *service
-    image: livekit/egress:v1.15.0
+    image: livekit/egress:v1.15.0@sha256:ac244a40268ce1dd1510fbff6eb529609ec68aceff1602343f79be8ca08c355b
     profiles: [recording]
     network_mode: "service:livekit" # same reason as livekit-sip
     environment:
@@ -298,7 +298,7 @@ services:
   # Egress runs as uid 1001 and a new volume belongs to root: hand the directory over once. The API runs
   # as the same uid, so it can delete recordings egress wrote.
   recordings-init:
-    image: busybox:1.37
+    image: busybox:1.37@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
     profiles: [recording]
     command: ["chown", "1001:0", "/recordings"]
     volumes: ["recordings:/recordings"]
