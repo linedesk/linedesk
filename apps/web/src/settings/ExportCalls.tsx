@@ -40,7 +40,7 @@ function ExportForm({ toast }: Pick<Props, 'toast'>) {
     setBusy(true)
     try {
       const data = await callAction<CallExportData>('call.export', { from, to })
-      download(data.filename, data.csv)
+      download(data.filename, data.csv ?? '')
       toast(
         data.truncated
           ? `Exported the newest ${data.count} calls. Pick a shorter range for the rest.`

@@ -1,5 +1,5 @@
 // Server side of call.export (packages/actions/src/call-export.ts): the calls of a date range as CSV.
-import { type CallExportData, EXPORT_MAX_CALLS } from '@linedesk/actions'
+import { type CallExportData, EXPORT_MAX_CALLS, type ExportCell } from '@linedesk/actions'
 import { addDays, zonedTimeToInstant } from '@linedesk/calendar'
 import { calls, contacts, type Tx, workspace_settings } from '@linedesk/db'
 import type { Call } from '@linedesk/db/types'
@@ -31,15 +31,24 @@ const localStamp = (iso: string, timeZone: string) => {
 /** A call as the export lists it: with its contact's name. */
 export type ExportedCall = Call & { callerName: string | null }
 
+const EXPORT_HEADER = ['Started', 'Duration (s)', 'From', 'Caller', 'Urgency', 'Outcome', 'Title', 'Summary', 'Next steps', 'Call ID']
+
+/** The export as a table: one row per call, the cells as they are (no CSV quoting). */
+export function callsTable(rows: ExportedCall[], timeZone: string): { header: string[]; rows: ExportCell[][] } {
+  return {
+    header: EXPORT_HEADER,
+    rows: rows.map(c => [
+      localStamp(c.started_at, timeZone), c.duration_sec, c.from_number, c.callerName, c.urgency, c.outcome, c.title, c.summary,
+      c.action_items.map(item => item.text).join('; '), c.id,
+    ]),
+  }
+}
+
 /** The export as CSV: one row per call. */
 export function callsCsv(rows: ExportedCall[], timeZone: string): string {
-  const header = ['Started', 'Duration (s)', 'From', 'Caller', 'Urgency', 'Outcome', 'Title', 'Summary', 'Next steps', 'Call ID']
-  const lines = rows.map(c => csvRow([
-    localStamp(c.started_at, timeZone), c.duration_sec, c.from_number, c.callerName, c.urgency, c.outcome, c.title, c.summary,
-    c.action_items.map(item => item.text).join('; '), c.id,
-  ]))
+  const table = callsTable(rows, timeZone)
   // A byte order mark, so Excel opens the UTF-8 file with the right characters.
-  return `﻿${[csvRow(header), ...lines].join('\r\n')}\r\n`
+  return `﻿${[csvRow(table.header), ...table.rows.map(csvRow)].join('\r\n')}\r\n`
 }
 
 async function timeZoneOf(tx: Tx, workspaceId: string) {
@@ -50,7 +59,7 @@ async function timeZoneOf(tx: Tx, workspaceId: string) {
 // --- Handlers ----------------------------------------------------------------------------------
 
 export const callExportHandlers: Record<string, Handler> = {
-  'call.export': async ({ tx, actor }, input: { from: string; to: string }) => {
+  'call.export': async ({ tx, actor }, input: { from: string; to: string; format?: 'csv' | 'table' }) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     const workspace_id = actor.workspaceId
     const timeZone = await timeZoneOf(tx, workspace_id)
@@ -64,7 +73,7 @@ export const callExportHandlers: Record<string, Handler> = {
     const truncated = rows.length > EXPORT_MAX_CALLS
     const exported = rows.slice(0, EXPORT_MAX_CALLS)
     const data: CallExportData = {
-      csv: callsCsv(exported, timeZone),
+      ...(input.format === 'table' ? { table: callsTable(exported, timeZone) } : { csv: callsCsv(exported, timeZone) }),
       count: exported.length, truncated, filename: `calls-${input.from}-to-${input.to}.csv`,
     }
     return { rows: {}, data }
