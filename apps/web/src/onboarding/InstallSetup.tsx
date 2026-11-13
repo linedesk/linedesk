@@ -765,7 +765,7 @@ function Done({
       </div>
       <PartList checklist={checklist} ids={partSteps.map(s => installStepItems[s]!)} />
       {open.length > 0 && (
-        <ul className="is-open">
+        <ul className="is-remaining">
           {open.map(s => (
             <li key={s}>
               <button type="button" className="k-link" onClick={() => onOpen(s)}>
