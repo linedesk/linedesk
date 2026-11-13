@@ -30,6 +30,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
+      # The production deploy receiver's checks (about 1 s, docs/ci.md).
+      - run: bash scripts/receive-release.test.sh
 
   # Self-hosting must work at every commit: the images build. (The agent image is not built here; it is large.)
   images:

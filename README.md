@@ -224,7 +224,7 @@ Then in `backup.env` next to `.env` (not in `.env`: the API container reads all 
 can delete every backup), readable by its owner only (`chmod 600 backup.env`): `BACKUP_S3_ENDPOINT`,
 `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY` (a key for that bucket only),
 `BACKUP_S3_PREFIX` (default `linedesk/`), `BACKUP_AGE_RECIPIENT` (the `age1…` public key that `age-keygen`
-printed) and `BACKUP_KEEP_DAYS` (default 30). A deploy (`scripts/receive-deploy.sh`) keeps the file like
+printed) and `BACKUP_KEEP_DAYS` (default 30). A deploy (`scripts/receive-deploy.sh`, in production `scripts/receive-release.sh`) keeps the file like
 `.env`. Run `scripts/backup.sh` once, then every night with a systemd timer:
 
 ```ini
