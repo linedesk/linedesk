@@ -8,10 +8,13 @@ services:
     networks: [backend, default]
     # The API tests run many files against it at once; at the server default (128m) Postgres is OOM-killed mid-run.
     mem_limit: ${LINEDESK_POSTGRES_MEM:-768m}
+    # The server's 0.1 CPU made admin pages take 3 to 14 s with two dev stacks and the tests running.
+    cpus: ${LINEDESK_POSTGRES_CPUS:-2}
 
   electric:
     ports: ["127.0.0.1:3001:3000"]
     networks: [backend, default]
+    cpus: ${LINEDESK_ELECTRIC_CPUS:-1}
 
   livekit:
     ports: ["127.0.0.1:7880:7880"] # API + WebSocket signalling

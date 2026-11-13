@@ -23,13 +23,17 @@ Requirements: Node 22.18 or newer (it runs the TypeScript files directly), pnpm 
 
 ```sh
 pnpm install
-cp .env.example .env
+scripts/setup.sh                                # makes .env with a random value for every secret, SECRETS_KEY included
 pnpm db:up && pnpm db:migrate && pnpm db:seed   # Postgres + Electric; the seed prints the demo sign-in
 pnpm dev                                        # API on 3100, web app on http://localhost:5173
 pnpm --filter @linedesk/agent simulate          # a simulated call lands in the inbox, no provider keys needed
 ```
 
-The demo sign-in uses a password. Email codes go nowhere until email is connected (Admin, Providers); for local development uncomment `EMAIL_TO_LOG=true` in `.env` to print them to the API log. Sign-up is closed by default (`AUTH_SIGNUP_ENABLED=true` opens it).
+Use `scripts/setup.sh`, not a plain `cp .env.example .env`: the copy leaves `SECRETS_KEY` empty, and then nothing can be connected under Admin › Providers (or set it yourself: `openssl rand -base64 32`).
+
+The demo sign-in uses a password. Without the seed, the API prints a setup code to its log (the terminal running `pnpm dev`); the sign-in page asks for it and makes you the first admin. Email codes go nowhere until email is connected (Admin › Providers); for local development uncomment `EMAIL_TO_LOG=true` in `.env` to print them to the API log. Sign-up is closed by default (`AUTH_SIGNUP_ENABLED=true` opens it).
+
+The simulator dials the install's only Linedesk number (the seed's demo number). With none or several, pass the number: `pnpm --filter @linedesk/agent simulate --to +1…` (or set `SIM_TO_NUMBER` in `.env`). Simulated calls show in the inbox like real ones but never count as a real call in setup progress or usage.
 
 Your own test data in every local stack and worktree: `pnpm db:seed -- --user <your email>` once, then `pnpm dev:snapshot`; a new local database starts from that snapshot. More in [CONTRIBUTING.md](CONTRIBUTING.md).
 

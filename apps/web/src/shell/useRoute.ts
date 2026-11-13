@@ -52,8 +52,12 @@ export function parseHash(hash: string, last: InboxPlace = HOME): Location {
   return { route: 'calls', callId: null, tab: view as InboxTab, member: null, ...filters, known: true }
 }
 
-/** Sections that moved: Business hours and Webhooks are in the assistant's settings, Notifications back in Settings; Call details became Export calls. */
+/**
+ * Sections that moved: Business hours and Webhooks are in the assistant's settings, Notifications back in Settings;
+ * Call details became Export calls; the assistant has a page of its own, not a Settings section.
+ */
 const MOVED: Record<string, string> = {
+  'settings/assistant': 'assistant',
   'settings/hours': 'assistant/hours',
   'assistant/notifications': 'settings/notifications',
   'settings/fields': 'settings/export',

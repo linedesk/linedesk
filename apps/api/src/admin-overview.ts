@@ -96,7 +96,7 @@ function callTotals(tx: Tx) {
       coalesce(sum(duration_sec) filter (where started_at >= ${month}), 0)::int as sec_month,
       coalesce(sum(duration_sec) filter (where started_at >= ${week} and source = 'phone'), 0)::int as phone_sec_7d,
       coalesce(sum(duration_sec) filter (where started_at >= ${month} and source = 'phone'), 0)::int as phone_sec_month
-    from calls where deleted_at is null and source <> 'sample' and started_at >= least(${week}, ${month})`,
+    from calls where deleted_at is null and source not in ('sample', 'simulated') and started_at >= least(${week}, ${month})`,
   )
 }
 
@@ -202,8 +202,21 @@ export function agentStatus(nowMs = Date.now(), seenAt = agentSeenAt, startedAt 
   return { ok: true, message: `Checked in ${ago} s ago.` }
 }
 
+/** Electric, the read sync behind GET /v1/shape: its own health endpoint (200 active, 202 still starting). */
+export async function readSyncStatus(electricUrl = process.env.ELECTRIC_URL ?? 'http://localhost:3001'): Promise<ServiceStatus> {
+  try {
+    const res = await fetch(new URL('/v1/health', electricUrl), { signal: AbortSignal.timeout(3000) })
+    if (res.status === 200) return { ok: true, message: 'Answering.' }
+    if (res.status === 202) return { ok: false, message: 'Starting up. Lists in the app load once it is ready.' }
+    return { ok: false, message: `Electric answered ${res.status}. Lists in the app don't load until it answers.` }
+  } catch {
+    return { ok: false, message: "Electric can't be reached. Is its container running? Lists in the app don't load until it is." }
+  }
+}
+
 export type AdminHealth = {
   api: ServiceStatus
+  readSync: ServiceStatus
   livekit: ServiceStatus
   sip: ServiceStatus
   agent: ServiceStatus
@@ -221,9 +234,10 @@ async function emailHealth(): Promise<ServiceStatus> {
 }
 
 export async function adminHealth(): Promise<AdminHealth> {
-  const [livekit, email] = await Promise.all([livekitStatus(), emailHealth()])
+  const [livekit, email, readSync] = await Promise.all([livekitStatus(), emailHealth(), readSyncStatus()])
   return {
     api: { ok: true, message: 'Answering.' },
+    readSync,
     livekit: livekit.server,
     sip: livekit.sip,
     agent: agentStatus(),

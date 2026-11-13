@@ -100,3 +100,11 @@ test("a call from another of the business's Linedesk numbers, or from a blocked 
   expect(blocked.body.data.blocked).toBe(true)
   expect(await eventsOf(ws.id)).toEqual(['signup'])
 })
+
+test('a simulated call (the call simulator) is filed but never counts as a real call', async () => {
+  const ws = await createWorkspace('Simulated Funnel Plumbing')
+  const callId = (await act(agent(), 'call.start', { from: randomNumber(), to: ws.number, source: 'simulated' })).body.data.callId as string
+  expect((await act(agent(ws.id), 'call.finish', { callId, outcome: 'message' })).status).toBe(200)
+  expect((await getCall(callId))?.source).toBe('simulated')
+  expect(await eventsOf(ws.id)).toEqual(['signup'])
+})

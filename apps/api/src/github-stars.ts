@@ -1,12 +1,28 @@
 // How many stars Linedesk's repository has on GitHub, for Star on GitHub in the app (GET /v1/branding).
 // The server asks GitHub about once an hour and keeps the number in memory, so browsers never call GitHub
 // (the Content-Security-Policy would not let them) and an install without internet simply shows no count.
-// Nothing is sent but the request for the public repository; nothing is asked while the prompt is off.
+// Nothing is sent but the request for the public repository; nothing is asked while the prompt is off, nor on a
+// self-hosted install unless GITHUB_STARS=true (a server of its own makes no outside request it was not asked to).
 import { STAR_REPO } from '@linedesk/actions'
 
 const FRESH_MS = 60 * 60_000
 /** After a failed request (offline, rate limit): try again sooner than an hour, but not on every check. */
 const RETRY_MS = 10 * 60_000
+
+/** Linedesk Cloud's address: there the count is read unless GITHUB_STARS=false. */
+const CLOUD_HOST = 'app.linedesk.ai'
+
+/** Whether this install asks GitHub for the count: GITHUB_STARS=true or false decides; unset, only Linedesk Cloud does. */
+export function starCountEnabled(env: Record<string, string | undefined> = process.env): boolean {
+  const flag = env.GITHUB_STARS?.trim().toLowerCase()
+  if (flag === 'true') return true
+  if (flag === 'false') return false
+  try {
+    return new URL(env.PUBLIC_URL ?? '').host === CLOUD_HOST
+  } catch {
+    return false
+  }
+}
 
 let count: number | null = null
 let nextTryAt = 0

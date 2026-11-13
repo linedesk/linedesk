@@ -14,6 +14,8 @@ export interface TableSink<T extends TableName = TableName> {
   refuse(refusal: WorkspaceRefusal): void
   /** What the server said about the workspace with its latest answer (disabled by an instance admin, or active). */
   workspaceState(state: WorkspaceState): void
+  /** Whether the latest read request reached the server: false on a network error or a 5xx (the adapter keeps retrying). */
+  reachable?(ok: boolean): void
 }
 
 export interface ReadSyncAdapter {

@@ -161,7 +161,7 @@ export function withRecordingNotice(assistant: Assistant | null, notice: string 
  * (the call test sets "closed" for its after-hours scenario without touching the real settings).
  */
 export type CallOrigin =
-  | { kind: 'phone'; from: string; to: string; room?: string }
+  | { kind: 'phone'; from: string; to: string; room?: string; simulated?: boolean }
   | ({ kind: 'test'; room: string } & TestMetadata)
 
 /**
@@ -227,7 +227,7 @@ export const isRealtimeModelId = (value: unknown): value is string =>
 export async function startCall(api: ApiClient, origin: CallOrigin): Promise<CallSession> {
   const { data } =
     origin.kind === 'phone'
-      ? await api.run(callStart, { from: origin.from, to: origin.to, room: origin.room })
+      ? await api.run(callStart, { from: origin.from, to: origin.to, room: origin.room, ...(origin.simulated ? { source: 'simulated' as const } : {}) })
       : await api.run(
           callStartTest,
           { room: origin.room, ...(origin.assistantId ? { assistantId: origin.assistantId } : {}) },

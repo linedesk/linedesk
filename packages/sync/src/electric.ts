@@ -108,7 +108,12 @@ export const electricAdapter = (
           url: shapeUrl(api, table, workspaceId),
           fetchClient: async (input, init) => {
             const headers = withWorkspace(init?.headers, { workspaceId, account })
-            const res = await fetch(input, { ...init, ...LOW, credentials: 'include', headers })
+            const res = await fetch(input, { ...init, ...LOW, credentials: 'include', headers }).catch((e: unknown) => {
+              if (!stopped && !controller.signal.aborted) sink.reachable?.(false)
+              throw e
+            })
+            // Electric's client retries a 5xx and a network error by itself, without telling: the store hears it here.
+            if (!stopped) sink.reachable?.(res.status < 500)
             // Every answer says whether the workspace is disabled: a live table notices within a long-poll.
             const state = workspaceStateOf(res.headers)
             if (state && !stopped) sink.workspaceState(state)

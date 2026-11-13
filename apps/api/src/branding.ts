@@ -8,7 +8,7 @@
 import { type Branding, type BrandingInput, DEFAULT_PRODUCT_NAME, LOGO_MAX_BYTES, LOGO_SIZE } from '@linedesk/actions'
 import { type Db, instance_settings, type Tx } from '@linedesk/db'
 import { eq, inArray } from 'drizzle-orm'
-import { refreshStarCount, starCount } from './github-stars.ts'
+import { refreshStarCount, starCount, starCountEnabled } from './github-stars.ts'
 import { type Handler, Reject } from './handler-context.ts'
 
 const SETTINGS_KEY = 'branding'
@@ -69,7 +69,7 @@ export async function refreshBranding(db: Db): Promise<Branding> {
 export function watchBranding(db: Db) {
   const load = () =>
     refreshBranding(db)
-      .then(() => (current.starPrompt ? refreshStarCount() : undefined))
+      .then(() => (current.starPrompt && starCountEnabled() ? refreshStarCount() : undefined))
       .catch(error => console.error('could not load the branding:', error))
   void load()
   setInterval(load, REFRESH_MS).unref()

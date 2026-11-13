@@ -32,6 +32,22 @@ afterEach(() => {
 })
 
 describe('store', () => {
+  it('says read sync is down only after its requests fail for a while, and clears it on the next answer', async () => {
+    const { adapter, calls } = fakeAdapter()
+    const store = await open(adapter, { readSyncDownMs: 20 })
+    calls().reachable?.(false)
+    calls().reachable?.(false)
+    expect(store.getSnapshot().readSyncDown).toBe(false)
+    await eventually(() => expect(store.getSnapshot().readSyncDown).toBe(true))
+    calls().reachable?.(true)
+    expect(store.getSnapshot().readSyncDown).toBe(false)
+    calls().reachable?.(false)
+    calls().reachable?.(true) // a blip shorter than the wait says nothing
+    await quietFor(40)
+    expect(store.getSnapshot().readSyncDown).toBe(false)
+    store.stop()
+  })
+
   it('applies an action at once and keeps the server row after the ack', async () => {
     const fetchMock = vi.fn(async () =>
       respond(200, { ok: true, rows: { calls: [call({ inbox_state: 'done', unread: false, version: 5 })] } }),

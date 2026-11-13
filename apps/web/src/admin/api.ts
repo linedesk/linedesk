@@ -112,7 +112,7 @@ export type AdminOverview = {
   /** Providers failing now (absent from an older API). */
   failures?: ProviderFailure[]
 }
-export type AdminHealth = Record<'api' | 'livekit' | 'sip' | 'agent' | 'email', ServiceStatus>
+export type AdminHealth = Record<'api' | 'readSync' | 'livekit' | 'sip' | 'agent' | 'email', ServiceStatus>
 export type LivekitStatus = { url: string | null; server: ServiceStatus; sip: ServiceStatus }
 
 export type AdminData = {

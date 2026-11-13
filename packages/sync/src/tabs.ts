@@ -21,6 +21,8 @@ export type TabMessage =
   | { type: 'synced'; table: TableName }
   /** The server refuses this workspace to this browser session: no tab of it sends or reads any more. */
   | { type: 'refused'; refusal: WorkspaceRefusal }
+  /** The leader's read sync has not reached the server for a while (down), or reaches it again. */
+  | { type: 'read-sync'; down: boolean }
   /** The leader heard from the server whether the workspace is disabled. */
   | { type: 'workspace-state'; state: WorkspaceState }
   /** A tab asks the leader to read these tables (all when absent) again now. */

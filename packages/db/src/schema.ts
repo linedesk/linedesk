@@ -175,8 +175,11 @@ export const calls = pgTable(
     direction: text('direction', { enum: ['in', 'out'] })
       .notNull()
       .default('in'),
-    /** `test`: a call a member made to the assistant from the web app, with no phone involved. `sample`: an example from sample.add. */
-    source: text('source', { enum: ['phone', 'test', 'sample'] })
+    /**
+     * `test`: a call a member made to the assistant from the web app, with no phone involved. `sample`: an example
+     * from sample.add. `simulated`: a scripted call from the call simulator; never counts as a real call.
+     */
+    source: text('source', { enum: ['phone', 'test', 'sample', 'simulated'] })
       .notNull()
       .default('phone'),
     /**

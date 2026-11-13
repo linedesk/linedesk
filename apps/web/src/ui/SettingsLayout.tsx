@@ -21,14 +21,31 @@ function sectionOf<T extends string>(page: string, sections: readonly PageSectio
  */
 const sectionClicks = new Set<(hash: string) => void>()
 
-/** The section the hash names; the first one when it names none (or one that does not exist). */
+/**
+ * The hash with an unknown section (`#settings/nope`) replaced by the section shown instead, the page's first, so
+ * the address says what is on screen; null when the hash names a section of the page, or none.
+ */
+export function knownSectionHash(page: string, sections: readonly PageSection[], hash: string): string | null {
+  const [path = '', query] = hash.replace(/^#/, '').split('?')
+  if (!path.startsWith(`${page}/`)) return null
+  const section = path.slice(page.length + 1)
+  if (!section || sections.some(s => s.id === section)) return null
+  return `${sectionHash(page, sections[0]!.id)}${query ? `?${query}` : ''}`
+}
+
+/** The section the hash names; the first one when it names none (or one that does not exist, then the hash says so too). */
 export function useSection<T extends string>(page: string, sections: readonly PageSection<T>[]): T {
   const [current, setCurrent] = useState(() => sectionOf(page, sections, window.location.hash))
   useEffect(() => {
-    const show = (hash: string) => setCurrent(sectionOf(page, sections, hash))
+    const show = (hash: string) => {
+      const known = knownSectionHash(page, sections, hash)
+      if (known && hash === window.location.hash) window.history.replaceState(null, '', known)
+      setCurrent(sectionOf(page, sections, hash))
+    }
     const onHash = () => show(window.location.hash)
     window.addEventListener('hashchange', onHash)
     sectionClicks.add(show)
+    show(window.location.hash)
     return () => {
       window.removeEventListener('hashchange', onHash)
       sectionClicks.delete(show)

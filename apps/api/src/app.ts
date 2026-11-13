@@ -61,6 +61,15 @@ const ELECTRIC_URL = process.env.ELECTRIC_URL ?? 'http://localhost:3001'
 /** Electric refuses shape requests without it (docker-compose.yml); only the API has it. */
 const ELECTRIC_SECRET = process.env.ELECTRIC_SECRET
 
+let readSyncLoggedAt = 0
+/** At most one line a minute while Electric can't be reached, so a dead read sync doesn't flood the log. */
+function logReadSyncDown(err: Error) {
+  if (Date.now() - readSyncLoggedAt < 60_000) return
+  readSyncLoggedAt = Date.now()
+  const cause = err.cause instanceof Error ? err.cause.message : err.message
+  console.error(`read sync is unavailable: Electric at ${ELECTRIC_URL} can't be reached (${cause})`)
+}
+
 export const app = new Hono<{ Variables: { actor: Actor } }>()
 
 app.onError((err, c) => {
@@ -405,7 +414,14 @@ app.get('/v1/shape/:table', async c => {
   target.searchParams.set('where', shapeFilter(table, c.get('actor').permissions))
   target.searchParams.set('params[1]', workspaceId)
   if (ELECTRIC_SECRET) target.searchParams.set('secret', ELECTRIC_SECRET)
-  const res = await fetch(target, { signal: c.req.raw.signal })
+  const res = await fetch(target, { signal: c.req.raw.signal }).catch((e: unknown) => e as Error)
+  // Electric down or unreachable: one log line a minute, never a stack per request; the web app retries.
+  if (res instanceof Error) {
+    // The browser went away (a long poll it closed): nobody reads the answer.
+    if (c.req.raw.signal.aborted) return new Response(null, { status: 499 })
+    logReadSyncDown(res)
+    return c.json({ ok: false, error: 'read sync is unavailable' }, 503)
+  }
   // Electric's own 4xx (an unknown handle, an offset out of range, a changed shape) tell the client to
   // load the table again and pass through. Any other 4xx, a 401 or 403 from Electric or a proxy in
   // front of it, is a server fault: the browser must never take it for its own session being gone.

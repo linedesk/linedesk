@@ -85,7 +85,7 @@ async function runUndos(undos: Undo[]): Promise<string[]> {
  * agent action in any workspace, for agents older than the call token. Remove that by 2026-12-31: then
  * the install-wide token runs only these actions and GET /v1/agent/provider-config.
  */
-const INSTALL_AGENT_ACTIONS = ['call.start', 'call.startTest', 'call.findForTest']
+const INSTALL_AGENT_ACTIONS = ['call.start', 'call.startTest', 'call.findForTest', 'call.listNumbers']
 
 /**
  * Why the voice agent may not run this action with this input, or null. Its role has only `agent`;

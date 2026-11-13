@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { callHash, listHash, parseHash } from './useRoute.ts'
+import { knownSectionHash } from '../ui/SettingsLayout.tsx'
+import { callHash, listHash, movedHash, parseHash } from './useRoute.ts'
 
 const list = { route: 'calls', callId: null, tab: 'you', search: null, member: null, known: true }
 
@@ -42,5 +43,20 @@ describe('route parsing', () => {
     expect(listHash({ tab: 'reminders', search: null })).toBe('#calls/reminders')
     expect(listHash({ tab: 'you', search: 'a b' })).toBe('#calls?q=a%20b')
     expect(parseHash(listHash({ tab: 'done', search: '50%' }))).toMatchObject({ tab: 'done', search: '50%' })
+  })
+})
+
+describe('settings sections', () => {
+  const sections = [{ id: 'notifications', label: 'Notifications' }, { id: 'phone', label: 'Phone numbers' }]
+
+  it('sends #settings/assistant to the assistant', () => {
+    expect(movedHash('#settings/assistant')).toBe('#assistant')
+  })
+
+  it('an unknown section shows the first one, and the address says so', () => {
+    expect(knownSectionHash('settings', sections, '#settings/nope?x=1')).toBe('#settings/notifications?x=1')
+    expect(knownSectionHash('settings', sections, '#settings/phone')).toBeNull()
+    expect(knownSectionHash('settings', sections, '#settings')).toBeNull()
+    expect(knownSectionHash('settings', sections, '#assistant/a1/hours')).toBeNull()
   })
 })

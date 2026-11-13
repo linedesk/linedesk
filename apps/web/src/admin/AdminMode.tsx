@@ -85,6 +85,7 @@ function useAdminToast() {
 
 const partNames: Record<keyof AdminHealth, string> = {
   api: 'API',
+  readSync: 'Read sync',
   livekit: 'LiveKit',
   sip: 'Phone (SIP)',
   agent: 'Voice agent',
@@ -100,7 +101,8 @@ function useHealthProblems(): string[] {
     return () => clearInterval(timer)
   }, [])
   if (!health) return []
-  return (Object.keys(partNames) as (keyof AdminHealth)[]).filter(k => !health[k].ok).map(k => partNames[k])
+  // An API older than this page may not report every part yet.
+  return (Object.keys(partNames) as (keyof AdminHealth)[]).filter(k => health[k] && !health[k].ok).map(k => partNames[k])
 }
 
 type Props = { currentUserId: string; onExit: () => void }

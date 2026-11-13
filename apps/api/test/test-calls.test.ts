@@ -332,3 +332,10 @@ test('call.findForTest finds the newest call between two numbers since a moment,
   expect((await act(agent(), 'call.findForTest', { from, to: '+15550000000', since })).status).toBe(409)
   expect((await act(ws.owner, 'call.findForTest', { from, to: ws.number, since })).status).toBe(403)
 })
+
+test("call.listNumbers lists the install's numbers, for the agent token only", async () => {
+  const listed = await act(agent(), 'call.listNumbers', {})
+  expect(listed.status).toBe(200)
+  expect(listed.body.data.numbers).toContain(ws.number)
+  expect((await act(ws.owner, 'call.listNumbers', {})).status).toBe(403)
+})

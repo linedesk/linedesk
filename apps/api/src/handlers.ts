@@ -197,7 +197,7 @@ function withUpcomingClosure(hours: CallHours, closure: Closure | null | undefin
   return { ...hours, summary: `${hours.summary} The business will be closed for a break from ${dateLabel(closure.from)} to ${dateLabel(closure.until)}.` }
 }
 
-type OpenCall = { from: string; to: string; room?: string; source?: 'phone' | 'test'; label: string; assistant: Assistant | null }
+type OpenCall = { from: string; to: string; room?: string; source?: 'phone' | 'test' | 'simulated'; label: string; assistant: Assistant | null }
 
 /** The agent's token for the call it just opened (agent-token.ts); the command log keeps it redacted. */
 function withCallToken<R extends { data: { callId: string; workspaceId: string } }>(result: R) {
@@ -219,8 +219,9 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   const contact = source === 'test' || isE164(from) ? await callerContact(tx, workspace_id, from, source) : null
   const id = newId('call')
   // A blocked caller is not answered: the call is filed quietly in Spam and the agent hangs up (`blocked`).
-  const spam = source === 'phone' && !!contact?.row.blocked_at
+  const spam = source !== 'test' && !!contact?.row.blocked_at
   // Over the workspace's monthly spending cap: not answered by the assistant (spending-cap.ts), filed like a busy call.
+  // A simulated call (the call simulator) costs nothing and holds no line: no cap, no live-call limit.
   const cap = source === 'phone' && !spam ? await spendingCap(tx, workspace_id, now) : null
   const overCap = !!cap?.reached
   const busy = source === 'phone' && !spam && !overCap && (await atLiveCallLimit(tx, workspace_id, now))
@@ -250,7 +251,7 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   // "Don't keep" recordings: the agent does not record at all (the transcript comes from live speech recognition).
   const keepRecording = await keepsRecordings(tx, workspace_id)
   // A returning caller's last calls and upcoming bookings: only a phone caller matched to a contact.
-  const history = source === 'phone' && contact && !blocked
+  const history = source !== 'test' && contact && !blocked
     ? await callerHistory(tx, workspace_id, contact.row, { callId: id, now, canChangeBookings: booking?.canChangeBookings === true })
     : null
   // What the assistant can ask the business's system during the call (its webhook's during-call lookups).
@@ -262,7 +263,7 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
 }
 
 /** The contact with this number: found (a merged one's survivor, a deleted one restored) or created. */
-async function callerContact(tx: Tx, workspace_id: string, phone: string, source: 'phone' | 'test') {
+async function callerContact(tx: Tx, workspace_id: string, phone: string, source: 'phone' | 'test' | 'simulated') {
   let [contact] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, workspace_id), eq(contacts.phone, phone)))
   // A number of a contact that was merged into another one belongs to that one now.
   if (contact?.merged_into) [contact] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, workspace_id), eq(contacts.id, contact.merged_into)))
@@ -485,7 +486,7 @@ const handlers: Record<string, Handler> = {
     if (!number) throw new Reject(`no workspace for number ${input.to}`)
     const assistant = await assistantForNumber(tx, number.workspace_id, number.assistant_id)
     const from = normalizeCallerId(input.from, { nationalUs: number.e164.startsWith('+1') })
-    return withCallToken(await openCall({ tx, now }, number.workspace_id, { from, to, room: input.room, label: to, assistant }))
+    return withCallToken(await openCall({ tx, now }, number.workspace_id, { from, to, room: input.room, source: input.source, label: to, assistant }))
   },
 
   // The agent only knows the workspace from the dispatch the API signed (assistant.startTestCall).
@@ -529,6 +530,11 @@ const handlers: Record<string, Handler> = {
       bookings: call ? await bookingsForTest(tx, { calendars }, number.workspace_id, call.id) : [],
     }
     return { rows: {}, data }
+  },
+
+  'call.listNumbers': async ({ tx }) => {
+    const numbers = await tx.select({ e164: phone_numbers.e164 }).from(phone_numbers).orderBy(asc(phone_numbers.e164))
+    return { rows: {}, data: { numbers: numbers.map(n => n.e164) } }
   },
 
   'assistant.startTestCall': async ({ tx, actor }, input) => {

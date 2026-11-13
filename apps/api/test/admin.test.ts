@@ -1666,6 +1666,7 @@ describe('impersonation', () => {
       'call.findForTest',
       'call.getEvaluation',
       'call.listEvaluations',
+      'call.listNumbers',
       'call.markDone',
       'call.markNotDone',
       'call.markRead',

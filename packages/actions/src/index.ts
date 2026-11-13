@@ -82,6 +82,7 @@ const all = [
   calls.callFlagUrgent,
   calls.callStartTest,
   calls.callFindForTest,
+  calls.callListNumbers,
   calls.callStartRecording,
   calls.callSetRecording,
   transfer.callTransfer,

@@ -30,6 +30,8 @@ export type Snapshot = {
   refused: WorkspaceRefusal | null
   discarded: number
   workspaceState: WorkspaceState | null
+  /** Read sync has not reached the server for `READ_SYNC_DOWN_MS` (Electric or the API down); it keeps retrying. */
+  readSyncDown: boolean
   /**
    * Tables being read again because something changed them outside the outbox (a redirect back from
    * a provider): what is local may be out of date, so the UI shows them as loading, never the old state.
@@ -63,6 +65,8 @@ export interface StoreOptions {
   refreshWaitMs?: number
   /** A click or key press in this tab reads the polled tables again once they are older than this. */
   activityRefreshMs?: number
+  /** How long read requests fail before the snapshot says `readSyncDown`. */
+  readSyncDownMs?: number
 }
 
 const emptyTables = () => Object.fromEntries(tableNames.map(t => [t, new Map()])) as unknown as LocalTables
@@ -80,6 +84,8 @@ const REFRESH_WAIT_MS = 4000
  * the polled tables again, at most this often, so the server's refusal arrives before they act on old data.
  */
 const ACTIVITY_REFRESH_MS = 15_000
+/** Read requests that fail this long mean the server can't be reached, not a passing blip. */
+const READ_SYNC_DOWN_MS = 10_000
 
 /** A new build may sync a different shape of the tables: drop the read-sync cursors so each table loads again. */
 export async function forgetCursorsOnNewVersion(local: LocalDb, version: string): Promise<boolean> {
@@ -148,6 +154,10 @@ export async function createStore(opts: StoreOptions) {
   /** Pending writes rolled back because the session or the workspace was refused. */
   let discarded = 0
   let workspaceState: WorkspaceState | null = null
+  /** When read requests started failing (null: the latest reached the server), and whether that has lasted. */
+  let readFailingSince: number | null = null
+  let readSyncDown = false
+  let readDownTimer: ReturnType<typeof setTimeout> | undefined
   const synced = new Set<TableName>()
   /** Tables shown as loading until a refresh answers, with how many refreshes wait for each. */
   const refreshing = new Map<TableName, number>()
@@ -190,6 +200,7 @@ export async function createStore(opts: StoreOptions) {
       refused,
       discarded,
       workspaceState,
+      readSyncDown,
       refreshing: new Set(refreshing.keys()),
     }
     listeners.forEach(l => l())
@@ -270,7 +281,27 @@ export async function createStore(opts: StoreOptions) {
     },
     refuse,
     workspaceState: setWorkspaceState,
+    reachable: setReachable,
   })
+
+  /** A read request reached the server or not: failing for `READ_SYNC_DOWN_MS` sets `readSyncDown`, any answer clears it. */
+  function setReachable(ok: boolean) {
+    if (stopped) return
+    if (ok) {
+      readFailingSince = null
+      clearTimeout(readDownTimer)
+      return setReadSyncDown(false)
+    }
+    if (readFailingSince !== null) return
+    readFailingSince = Date.now()
+    readDownTimer = setTimeout(() => setReadSyncDown(true), opts.readSyncDownMs ?? READ_SYNC_DOWN_MS)
+  }
+  function setReadSyncDown(down: boolean) {
+    if (stopped || readSyncDown === down) return
+    readSyncDown = down
+    if (!leftTabs) tabs.post({ type: 'read-sync', down })
+    recompute()
+  }
 
   /**
    * The server refuses this tab's workspace, or the session is gone: stop reading and sending; the
@@ -283,6 +314,7 @@ export async function createStore(opts: StoreOptions) {
     stops.forEach(s => s())
     stops = []
     clearTimeout(retry)
+    clearTimeout(readDownTimer)
     if (!keepsPendingWrites(refusal)) discardOutbox()
     tabs.post({ type: 'refused', refusal })
     leaveTabs()
@@ -505,6 +537,7 @@ export async function createStore(opts: StoreOptions) {
       }
       leaveTabs() // a follower must not take the lead of a refused workspace either
     } else if (m.type === 'workspace-state') workspaceState = m.state
+    else if (m.type === 'read-sync' && !leading) readSyncDown = m.down
     else if (m.type === 'refresh') {
       if (leading) void readNow(m.tables).then(() => tabs.post({ type: 'refreshed', id: m.id }))
       return
@@ -549,6 +582,7 @@ export async function createStore(opts: StoreOptions) {
     stopped = true
     stops.forEach(s => s())
     clearTimeout(retry)
+    clearTimeout(readDownTimer)
     for (const ask of askedLeader.values()) ask.answered()
     askedLeader.clear()
     globalThis.removeEventListener?.('online', onOnline)

@@ -69,6 +69,7 @@ function Card({
 
 const healthRows: { key: keyof AdminHealth; label: string }[] = [
   { key: 'api', label: 'API' },
+  { key: 'readSync', label: 'Read sync' },
   { key: 'livekit', label: 'LiveKit' },
   { key: 'sip', label: 'Phone (SIP)' },
   { key: 'agent', label: 'Voice agent' },

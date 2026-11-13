@@ -2,7 +2,7 @@
 // placeholders while something loads, plain words and Try again when it does not arrive.
 import type { TableName } from '@linedesk/db/types'
 import { useEffect, useState } from 'react'
-import { useSnapshot } from '../store.tsx'
+import { useReadSyncDown, useSnapshot } from '../store.tsx'
 import { Button, cx } from './kit.tsx'
 
 /** After this long without a first load, the list says so and offers to try again. */
@@ -17,7 +17,7 @@ export type LoadState = 'ready' | 'loading' | 'slow'
  * back from an OAuth redirect) is loading too: its local rows are from before that change.
  */
 export function useLoadState(table: TableName): LoadState {
-  const { synced, tables, refreshing } = useSnapshot()
+  const { synced, tables, refreshing, readSyncDown } = useSnapshot()
   const loading = refreshing.has(table) || (!synced.has(table) && tables[table].size === 0)
   const [slow, setSlow] = useState(false)
   useEffect(() => {
@@ -25,11 +25,22 @@ export function useLoadState(table: TableName): LoadState {
     const timer = setTimeout(() => setSlow(true), SLOW_MS)
     return () => clearTimeout(timer)
   }, [loading])
-  return !loading ? 'ready' : slow ? 'slow' : 'loading'
+  // Read sync can't reach the server: it says so at once (LoadProblem), no point waiting for "slow".
+  return !loading ? 'ready' : slow || readSyncDown ? 'slow' : 'loading'
+}
+
+/** Read sync has not reached the server for a while; it keeps retrying by itself, so there is nothing to press. */
+function ServerUnreachable({ className }: { className?: string }) {
+  return (
+    <div className={cx('empty', 'load-problem', className)} role="status">
+      <b>Can't reach the server. Retrying…</b>
+    </div>
+  )
 }
 
 /** Grey rows in the shape of a list, while it loads. */
 export function SkeletonRows({ label, rows = 6, className }: { label: string; rows?: number; className?: string }) {
+  if (useReadSyncDown()) return <ServerUnreachable className={className} />
   return (
     <div className={cx('sk-list', className)} role="status" aria-busy="true" aria-label={label}>
       {Array.from({ length: rows }, (_, i) => 110 + ((i * 23) % 50)).map((nameWidth, i) => (
@@ -65,6 +76,9 @@ type LoadProblemProps = {
 
 /** Something did not load: say so plainly and offer to try again. */
 export function LoadProblem({ what, message, onRetry, className }: LoadProblemProps) {
+  // A synced list (no reason, no retry of its own) while read sync is down: it comes back by itself.
+  const readSyncDown = useReadSyncDown()
+  if (readSyncDown && !message && !onRetry) return <ServerUnreachable className={className} />
   const reason =
     message && !UNREACHABLE.test(message)
       ? message

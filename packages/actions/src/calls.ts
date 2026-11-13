@@ -137,7 +137,13 @@ export const CALL_MAX_MINUTES = 120
 export const callStart = defineAction({
   name: 'call.start',
   description: 'Register an incoming call. The workspace is resolved from the dialled number.',
-  input: z.object({ from: z.string().min(3), to: z.string().min(3), room: z.string().optional() }),
+  input: z.object({
+    from: z.string().min(3),
+    to: z.string().min(3),
+    room: z.string().optional(),
+    /** `simulated`: a scripted call from the call simulator; filed like a phone call, never counted as a real one. */
+    source: z.enum(['phone', 'simulated']).optional(),
+  }),
   permission: 'agent',
   secretResult: ['callToken'],
   logged: 'ids',
@@ -190,6 +196,14 @@ export const callFindForTest = defineAction({
     from: z.string().min(3).optional(),
     room: z.string().min(1).optional(),
   }),
+  permission: 'agent',
+  readOnly: true,
+})
+/** For the call simulator: the install's Linedesk numbers (E.164), so it can dial the only one without being told. */
+export const callListNumbers = defineAction({
+  name: 'call.listNumbers',
+  description: "List the install's Linedesk numbers, for the call simulator to pick the one to dial.",
+  input: z.object({}),
   permission: 'agent',
   readOnly: true,
 })

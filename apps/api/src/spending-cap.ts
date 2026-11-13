@@ -4,7 +4,7 @@
 // call back) and the call is filed as missed with "Call back" (handlers.ts openCall); test calls are refused.
 // Owners and instance admins get an email at 80 % and at 100 %, once each per month.
 import { calls, member, organization, spending_cap_alerts, type Tx, user } from '@linedesk/db'
-import { and, eq, gte, isNull, ne, sql } from 'drizzle-orm'
+import { and, eq, gte, isNull, notInArray, sql } from 'drizzle-orm'
 import { costEstimate } from './admin-overview.ts'
 import { WEB_ORIGIN } from './auth.ts'
 import type { Email, EmailSender } from './email.ts'
@@ -30,7 +30,7 @@ export async function monthlySpend(tx: Tx, workspaceId: string, now: string): Pr
       phone: sql<number>`coalesce(sum(${calls.duration_sec}) filter (where ${calls.source} = 'phone'), 0)::int`,
     })
     .from(calls)
-    .where(and(eq(calls.workspace_id, workspaceId), ne(calls.source, 'sample'), gte(calls.started_at, monthStart(now))))
+    .where(and(eq(calls.workspace_id, workspaceId), notInArray(calls.source, ['sample', 'simulated']), gte(calls.started_at, monthStart(now))))
   return (await costEstimate(tx))({ all: row?.all ?? 0, phone: row?.phone ?? 0 })
 }
 

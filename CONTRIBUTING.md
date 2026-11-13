@@ -15,18 +15,18 @@ Requirements: Node 22.18 or newer (it runs the TypeScript files directly), pnpm 
 
 ```sh
 pnpm install
-cp .env.example .env
+scripts/setup.sh  # .env with random secrets, SECRETS_KEY included (a plain copy of .env.example leaves it empty)
 pnpm db:up        # Postgres on 5433, Electric on 3001
 pnpm db:migrate
 pnpm db:seed      # prints the demo sign-in
 pnpm dev          # API on 3100, web app on 5173
 ```
 
-The demo sign-in uses a password. Email codes go nowhere after `cp .env.example .env`: set `SMTP_URL`, or for local development uncomment `EMAIL_TO_LOG=true` in `.env` to print them to the API log. Sign-up is closed by default (`AUTH_SIGNUP_ENABLED=true` opens it).
+The demo sign-in uses a password. Email codes go nowhere until email is connected (Admin › Providers): for local development uncomment `EMAIL_TO_LOG=true` in `.env` to print them to the API log. Sign-up is closed by default (`AUTH_SIGNUP_ENABLED=true` opens it).
 
 Test data that every new local stack and worktree starts with: fill your account's workspace once (`pnpm db:seed -- --user you@example.com`), then `pnpm dev:snapshot`. A new database restores the snapshot (`~/.linedesk/dev-snapshot.dump`) by itself; `pnpm dev:restore --force` replaces an existing one. Details in [CLAUDE.md](CLAUDE.md) (commands).
 
-Simulate a call without any provider keys: `pnpm --filter @linedesk/agent simulate`. Real calls, voice and recordings: see [CLAUDE.md](CLAUDE.md) (commands) and [docs/architecture.md](docs/architecture.md).
+Simulate a call without any provider keys: `pnpm --filter @linedesk/agent simulate` (dials the install's only number; otherwise add `--to <your Linedesk number>` or set `SIM_TO_NUMBER`). Real calls, voice and recordings: see [CLAUDE.md](CLAUDE.md) (commands) and [docs/architecture.md](docs/architecture.md).
 
 ## How the code is built
 

@@ -1,6 +1,6 @@
 // The GitHub star count next to Star on GitHub: read by the server about once an hour, kept on failure.
 import { afterEach, expect, test, vi } from 'vitest'
-import { fetchStarCount, refreshStarCount, resetStarCount, starCount } from '../src/github-stars.ts'
+import { fetchStarCount, refreshStarCount, resetStarCount, starCount, starCountEnabled } from '../src/github-stars.ts'
 
 afterEach(() => resetStarCount())
 
@@ -31,4 +31,12 @@ test('once an hour; a failure keeps the last count and tries again after ten min
   expect(later).not.toHaveBeenCalled()
   await refreshStarCount(t0 + 72 * 60_000, later as unknown as typeof fetch)
   expect(starCount()).toBe(11)
+})
+
+test('only Linedesk Cloud asks GitHub unless GITHUB_STARS says otherwise', () => {
+  expect(starCountEnabled({})).toBe(false)
+  expect(starCountEnabled({ PUBLIC_URL: 'http://localhost' })).toBe(false)
+  expect(starCountEnabled({ PUBLIC_URL: 'https://app.linedesk.ai' })).toBe(true)
+  expect(starCountEnabled({ PUBLIC_URL: 'https://app.linedesk.ai', GITHUB_STARS: 'false' })).toBe(false)
+  expect(starCountEnabled({ PUBLIC_URL: 'http://localhost', GITHUB_STARS: 'true' })).toBe(true)
 })
