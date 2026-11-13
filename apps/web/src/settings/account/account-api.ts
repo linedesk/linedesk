@@ -1,6 +1,7 @@
 // The Account page's calls. Everything goes to Better Auth: its client, or the one server-only
 // method (set a first password) through POST /v1/account/password.
-import { auth, type AuthMethods, fetchAuthMethods, fetchMe, signInWithPasskey } from '../../auth.ts'
+import { auth, type AuthMethods, fetchAuthMethods, fetchMe, signedInAccount, signInWithPasskey } from '../../auth.ts'
+import { signOutAndForget } from '../../localData.ts'
 import { authErrorMessage } from '../../sign-in-code.ts'
 import { describeDevice, type LinkedAccount, type SessionRow } from './account-model.ts'
 
@@ -16,10 +17,25 @@ export class SignInAgain extends Error {}
 export class ConfirmWithPasskey extends SignInAgain {}
 const PASSKEY_SIGN_IN = 'Confirm with one of your passkeys to do this.'
 
-/** Signs in with one of the account's passkeys: a new session that may change its passkeys. Failing, it can be tried again. */
+/** The browser offered another account's passkey and it was used: that session is gone, nothing is retried. */
+export class PasskeyOfAnotherAccount extends Error {}
+const OTHER_ACCOUNT = 'That passkey belongs to another account. You were signed out; sign in again.'
+const RELOAD_AFTER_MS = 3000
+
+/**
+ * Signs in with one of the account's passkeys: a new session that may change its passkeys. Failing, it can be tried again.
+ * The browser lets the member pick any passkey of this site: one of another account would switch the session to it,
+ * so a different account afterwards signs out, reloads to the sign-in page and never lets the request run as it.
+ */
 export async function confirmWithPasskey() {
+  const before = await signedInAccount()
   const result = await signInWithPasskey()
   if (result?.error) throw new ConfirmWithPasskey(authErrorMessage(result.error))
+  if (before && (await signedInAccount()) !== before) {
+    await signOutAndForget()
+    setTimeout(() => window.location.reload(), RELOAD_AFTER_MS)
+    throw new PasskeyOfAnotherAccount(OTHER_ACCOUNT)
+  }
 }
 
 function unwrap<T>(result: Result<T>, fallback: string): T {

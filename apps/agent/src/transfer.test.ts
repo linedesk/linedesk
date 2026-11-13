@@ -4,7 +4,7 @@ import { ringbackFrame } from './audio-bridge.ts'
 import { parseTestMetadata } from './call-session.ts'
 import { buildInstructions } from './prompt.ts'
 import { mergeToolResults } from './summary.ts'
-import { phoneRefused, scenarios } from './test-caller/scenarios.ts'
+import { phoneRefused, type Scenario, scenarios } from './test-caller/scenarios.ts'
 import { isPhoneCallTest, liveTransferTestAllows, onCallDialerFor } from './transfer-tool.ts'
 import { simulatedContact, simulatedContacts } from './call-session.ts'
 import { maskedNumber, parseOnCallResponderMetadata } from './oncall-responder.ts'
@@ -389,4 +389,14 @@ test('a contact that cannot be dialled counts as not answered: the next one only
   const only = runTransfer([{ ...first, if_no_answer: 'message' }, backup], () => false)
   expect(await only.execute(['Mike'])).toBe(notConnectedReply())
   expect(only.dialed).toEqual(['Mike'])
+})
+
+test('--external refuses every transfer scenario, even with CALL_TEST_ONCALL set', () => {
+  const transferScenarios = Object.entries<Scenario>(scenarios).filter(([name, s]) => name.startsWith('transfer-') || s.onCall)
+  expect(transferScenarios.length).toBeGreaterThan(0)
+  for (const [name, scenario] of transferScenarios) {
+    expect(scenario.onCall, name).toBeDefined()
+    expect(phoneRefused(scenario, { CALL_TEST_ONCALL: '+19715550123' }, true), name).toBe(true)
+  }
+  expect(phoneRefused(scenarios['burst-pipe'], {}, true)).toBe(false)
 })

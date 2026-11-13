@@ -286,7 +286,11 @@ export function parseCallTestArgs(args: readonly string[]): {
 /**
  * Transfer scenarios run without a phone only: over the phone they would page a real on-call phone.
  * Exception: the live warm-transfer test (CALL_TEST_ONCALL set), where the agent puts a phone call test
- * through only to that number, the on-call responder.
+ * through only to that number, the on-call responder. Never with --external: the other install answers and
+ * does any transfer itself, so its real on-call phone would ring whatever CALL_TEST_ONCALL says.
  */
-export const phoneRefused = (scenario: Scenario, env: Record<string, string | undefined> = process.env) =>
-  scenario.onCall !== undefined && !env.CALL_TEST_ONCALL
+export const phoneRefused = (
+  scenario: Scenario,
+  env: Record<string, string | undefined> = process.env,
+  external = false,
+) => scenario.onCall !== undefined && (external || !env.CALL_TEST_ONCALL)

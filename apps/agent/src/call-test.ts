@@ -198,9 +198,12 @@ async function main() {
     )
   // A transfer scenario over the phone would page a real on-call phone: only with the simulated person,
   // or in the live transfer test (CALL_TEST_ONCALL), where the agent dials nothing but the test on-call number.
-  if (mode === 'phone' && phoneRefused(scenarios[name]))
+  const external = args.includes('--external')
+  if (mode === 'phone' && phoneRefused(scenarios[name], process.env, external))
     throw new Error(
-      `${name} runs without a phone only (a simulated on-call person answers); --phone is refused (live transfer test: set CALL_TEST_ONCALL, see docs/architecture.md)`,
+      external
+        ? `${name} involves a transfer to an on-call phone; with --external the other install answers and would page its real on-call phone, so it is refused. Run it on that install, or without --phone.`
+        : `${name} runs without a phone only (a simulated on-call person answers); --phone is refused (live transfer test: set CALL_TEST_ONCALL, see docs/architecture.md)`,
     )
   const { CALL_TEST_TO: to } = requireEnv(['CALL_TEST_TO'])
   const from = mode === 'phone' ? requireEnv(['CALL_TEST_FROM']).CALL_TEST_FROM : undefined
@@ -222,7 +225,7 @@ async function main() {
   const latency = latencyReader(run.room)
   // A number of another install (--external, phone only): this install has no record of the call, so there is nothing to
   // check; what the caller heard is all there is. The call's own data is on the install that answered.
-  if (from && args.includes('--external')) {
+  if (from && external) {
     await waitForCallEnd(run.room, Date.now() + MAX_CALL_SEC * 1000, latency.poll)
     console.log(formatCallerLatency(latency.get()))
     console.log(
