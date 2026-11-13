@@ -20,14 +20,15 @@ import { earlyOrigin, livekitParticipants } from './early-origin.ts'
 import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, stagesOf } from './config.ts'
 import { AGENT_NAME, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
-import { createPipeline, createRealtimePipeline, createTts, greetingVoice, realtimeLine, summaryLlm, talkingSpeedOf, warmUpLlm, REALTIME_TURNS } from './pipeline.ts'
+import { type CallLanguages, createPipeline, createRealtimePipeline, createTts, greetingVoice, type LineVoice, lineVoiceOf, realtimeLine, realtimeRepliesEvent, type RealtimeEvents, summaryLlm, talkingSpeedOf, warmUpLlm, REALTIME_TURNS } from './pipeline.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
 import { cascadedReplyTimer, logTurnMetrics } from './turn-metrics.ts'
 import { describeRealtimeReply, realtimeTurnTimer } from './realtime-timing.ts'
 import { followCallerLanguage } from './caller-language.ts'
 import { MESSAGE_SAVED_RESULT, skipQuietToolReplies } from './tool-replies.ts'
 import { greetingPlayed, hangUpAfterLine, hangUpAfterSpeech, hangUpAtCallLimit, remindOnSilence, silencePolicyOf, speakingOf, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
-import { playLine, unansweredLine } from './busy-line.ts'
+import { lineAudio, playLine, unansweredLine } from './busy-line.ts'
+import { realtimeLineSpeaker, type SayFixedLine } from './realtime-lines.ts'
 import { promisesUrgent, urgentFlagger } from './urgent-promise.ts'
 import { buildInstructions, canChangeBookings, collectLanguageRule } from './prompt.ts'
 import { describeRecording, livekitRecorder, resolveRecording, saveRecording, startRecording, stopRecording, stopRecordingOrThrow } from './recording.ts'
@@ -238,13 +239,28 @@ async function greet(session: voice.AgentSession, config: AgentConfig, call: Cal
   return 'synthesized'
 }
 
+/** The realtime model of a call, for its fixed lines: its session (once open) and how many turns the caller finished. */
+type RealtimeLines = { model: () => RealtimeEvents | null; callerTurns: () => number; languages: CallLanguages }
+
 /**
- * Speaks a fixed line: the voice provider says it as written; a realtime model, which has no voice provider, is asked to
- * say it. A realtime model's own turn detection can always interrupt it, so it takes no `allowInterruptions`.
+ * Says a fixed line. The three stages: the voice provider says it as written. A realtime model: the line is made in its
+ * voice and played (realtime-lines.ts), when the call has one language; with other languages allowed the model is asked
+ * to say it, in the caller's language, which it follows itself (the line is written in the language the call started in).
  */
-type Speak = (text: string, options?: { allowInterruptions?: boolean }) => voice.SpeechHandle
-const speakerFor = (session: voice.AgentSession, realtime: boolean): Speak =>
-  realtime ? text => session.generateReply({ instructions: realtimeLine(text) }) : (text, options) => session.say(text, options)
+function fixedLineSpeaker(session: voice.AgentSession, voiceOfLines: LineVoice, realtime: RealtimeLines | null): SayFixedLine {
+  if (!realtime) return (text, options) => session.say(text, options).waitForPlayout()
+  const askModel = (text: string) => session.generateReply({ instructions: realtimeLine(text) }).waitForPlayout()
+  if (realtime.languages.others.length) return askModel
+  return realtimeLineSpeaker({
+    audio: text => lineAudio(voiceOfLines, text),
+    play: (text, audio, allowInterruptions) => session.say(text, { audio: audioStream(audio), allowInterruptions }).waitForPlayout(),
+    askModel,
+    model: realtime.model,
+    repliesEvent: on => realtimeRepliesEvent(on, realtime.languages),
+    callerTurns: realtime.callerTurns,
+    answer: () => void session.generateReply(),
+  })
+}
 
 /**
  * Greets the caller and runs the conversation until the session closes. The session starts without
@@ -266,13 +282,22 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const languages = { main: mainLanguageOf(call.assistant?.languages), others: otherLanguagesOf(call.assistant?.languages) }
   const speed = talkingSpeedOf(call.assistant)
   const pipeline = stages && createPipeline(stages, call.assistant?.voice, silence.firstGapS, languages, speed)
+  // The realtime session (again after a reconnect), and the caller's finished turns in it, for the fixed lines.
+  let realtimeSession: RealtimeEvents | null = null
+  let callerTurns = 0
   const session = new voice.AgentSession(realtime ? createRealtimePipeline(realtime, silence.firstGapS, speed, languages, events => {
+    realtimeSession = events
     events.on('openai_client_event_queued', event => timer?.sent(event))
-    events.on('openai_server_event_received', event => timer?.received(event))
+    events.on('openai_server_event_received', event => {
+      if (event.type === 'input_audio_buffer.committed') callerTurns++
+      timer?.received(event)
+    })
   }) : pipeline!)
-  const speak = speakerFor(session, realtime !== null)
+  const voiceOfLines = lineVoiceOf(config, call.assistant)
+  const realtimeLines = realtime ? { model: () => realtimeSession, callerTurns: () => callerTurns, languages } : null
+  const speak = fixedLineSpeaker(session, voiceOfLines, realtimeLines)
   // Fixed lines during the call are in the language spoken now: the main one until the caller switches. A realtime model
-  // follows the caller's language itself, and is asked to say a fixed line in it.
+  // follows the caller's language itself: with other languages allowed it is asked to say a fixed line in it (fixedLineSpeaker).
   const spokenNow = pipeline ? followCallerLanguage(session, pipeline.tts, languages, call.callId) : () => languages.main
   const lines = () => spokenLines(spokenNow())
   // Silence only counts once the greeting has played (remindOnSilence).
@@ -312,7 +337,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const deleteRoom = () => void ctx.deleteRoom().catch(() => {})
   // The assistant always says something before the call ends: its goodbye (else the goodbye line in the language spoken), the closing line
   // after silence, or the goodbye at its time limit.
-  const sayLine = (text: string) => speak(text, { allowInterruptions: false }).waitForPlayout()
+  const sayLine = (text: string) => speak(text, { allowInterruptions: false, last: true })
   const speaking = speakingOf(session)
   // Once per call: the tool and the hang-up line (keepHangUpPromises, `goodbyeSaid`: that line has been said) can both ask for it.
   let ending = false
@@ -337,6 +362,11 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   })
   // A test call from the web app ends sooner, so a forgotten browser tab does not run up provider minutes.
   const isTest = call.businessNumber === null
+  // A realtime call's lines in its voice are made now, so the first one does not wait for it (then cached for every call).
+  if (realtimeLines && !languages.others.length) {
+    const texts = [silence.reminder ?? lines().stillThere, silence.closing, lines().goodbye, isTest ? lines().testCallLimit : lines().callLimit]
+    void Promise.allSettled(texts.map(text => lineAudio(voiceOfLines, text)))
+  }
   // A phone call: the assistant's own limit, never above ASSISTANT_CALL_MAX_MINUTES (an older API sends none).
   const limitMinutes = isTest ? TEST_CALL_LIMIT_MS / 60_000 : Math.min(call.assistant?.max_call_minutes ?? ASSISTANT_CALL_MAX_MINUTES, ASSISTANT_CALL_MAX_MINUTES)
   const cancelLimit = hangUpAtCallLimit(limitMinutes * 60_000, {
@@ -380,7 +410,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     // A realtime model has no voice provider: it says the greeting itself. A greeting with the caller's details waits for
     // them (at most GREETING_WAIT_MS) and goes to the model filled in; its instructions never hold that greeting (prompt.ts).
     const details = personalGreeting ? await within(callerDetails, GREETING_WAIT_MS, null) : null
-    speak(personalGreeting ? fillTemplate(openingOf(call), details) : openingOf(call))
+    session.generateReply({ instructions: realtimeLine(personalGreeting ? fillTemplate(openingOf(call), details) : openingOf(call)) })
     return setup.note('spoken by the realtime model')
   }
   setup.note(await greet(session, stages, call, cachedGreeting, key, personalGreeting ? callerDetails : null))
@@ -509,13 +539,13 @@ async function entry(ctx: JobContext) {
 /** How long an unanswered call waits for the caller to be in the room before it hangs up without the line. */
 const BUSY_CALLER_WAIT_MS = 5000
 
-/** Plays `line` to the caller once they are in the room; nothing when the voice is not set up (also with a realtime model alone). */
+/** Plays `line` to the caller once they are in the room, in the voice of the assistant's pipeline; nothing when no voice is set up. */
 async function tellCaller(ctx: JobContext, call: CallSession, line: string, ready: Promise<Readiness>, callerJoined: Promise<RemoteParticipant>) {
   const readiness = await ready
-  const stages = readiness.ready ? stagesOf(readiness.config) : null
-  if (!stages) return
+  if (!readiness.ready) return
+  const config = configForAssistant(readiness.config, call.assistant?.voice_pipeline, () => {})
   const joined = await Promise.race([callerJoined.then(() => true, () => false), sleep(BUSY_CALLER_WAIT_MS).then(() => false)])
-  if (joined) await playLine(ctx.room, stages, call, line)
+  if (joined) await playLine(ctx.room, lineVoiceOf(config, call.assistant), call, line)
 }
 
 /** call.start for an origin known before joining; null when it is not known or the request failed. */

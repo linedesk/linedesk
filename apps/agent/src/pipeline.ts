@@ -4,14 +4,15 @@
 // voice-activity model: that saves the CPU a small server does not have, and the endpointing delay.
 // Or, when an admin picked one, a realtime model alone: it hears the caller and answers in its own voice.
 // The worker only sees LiveKit's interfaces and `CompleteJson`.
-import { type Language, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S, TALKING_SPEED_PCT_DEFAULT, type TalkingSpeed, talkingSpeedPctOf } from '@linedesk/actions'
-import type { voice } from '@livekit/agents'
+import { type Language, mainLanguageOf, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S, TALKING_SPEED_PCT_DEFAULT, type TalkingSpeed, talkingSpeedPctOf } from '@linedesk/actions'
+import type { tts as ttsTypes, voice } from '@livekit/agents'
 import * as cartesia from '@livekit/agents-plugin-cartesia'
 import * as deepgram from '@livekit/agents-plugin-deepgram'
 import * as elevenlabs from '@livekit/agents-plugin-elevenlabs'
 import * as openai from '@livekit/agents-plugin-openai'
 import type { AssistantVoice } from '@linedesk/db/types'
 import { type AgentConfig, type CallConfig, isRealtime, llmDefaults, type RealtimeConfig, type TtsConfig } from './config.ts'
+import type { GreetingVoice } from './greeting-cache.ts'
 import { quotedData } from './prompt.ts'
 import type { CompleteJson } from './summary.ts'
 
@@ -146,8 +147,14 @@ export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVo
 }
 
 
-/** A realtime session's raw OpenAI events, as the plugin emits them (for timing, realtime-timing.ts). */
-export type RealtimeEvents = { on(event: 'openai_client_event_queued' | 'openai_server_event_received', listener: (event: { type?: string }) => void): unknown }
+/**
+ * A realtime session's raw OpenAI events, as the plugin emits them (for timing, realtime-timing.ts), and its way to send
+ * one (for the fixed lines, realtime-lines.ts).
+ */
+export type RealtimeEvents = {
+  on(event: 'openai_client_event_queued' | 'openai_server_event_received', listener: (event: { type?: string }) => void): unknown
+  sendEvent(event: object): void
+}
 
 /** The realtime model, handing each session it opens to `onSession` (one per call, again after a reconnect). */
 class ObservedRealtimeModel extends openai.realtime.RealtimeModel {
@@ -165,6 +172,31 @@ class ObservedRealtimeModel extends openai.realtime.RealtimeModel {
 
 /** What transcribes the caller on a realtime call (the model itself hears the audio). */
 const REALTIME_TRANSCRIPTION = 'gpt-4o-mini-transcribe'
+
+/** A phone handset is close to the mouth: near-field noise reduction cleans what the model hears. */
+const REALTIME_NOISE_REDUCTION = { type: 'near_field' } as const
+/** The caller's transcript (call log, summary): told the language when the call has only one. */
+const realtimeTranscription = ({ main, others }: CallLanguages) => ({ model: REALTIME_TRANSCRIPTION, ...(others.length ? {} : { language: main }) })
+
+/**
+ * The session.update that turns the realtime model's own replies off (`replies` false) or on again: the input audio
+ * settings of createRealtimePipeline, sent whole, with `create_response` set. While its replies are off the model still
+ * hears and transcribes the caller, but does not answer (realtime-lines.ts).
+ */
+export const realtimeRepliesEvent = (replies: boolean, languages: CallLanguages = ENGLISH_CALL) => ({
+  type: 'session.update',
+  session: {
+    type: 'realtime',
+    audio: {
+      input: {
+        format: { type: 'audio/pcm', rate: 24_000 },
+        noise_reduction: REALTIME_NOISE_REDUCTION,
+        transcription: realtimeTranscription(languages),
+        turn_detection: { ...REALTIME_TURNS, create_response: replies },
+      },
+    },
+  },
+})
 
 /**
  * When the realtime model takes its turn: after this much silence (OpenAI's server VAD). Its semantic detection waited
@@ -186,14 +218,12 @@ export const REALTIME_TURNS = {
  * detects the end of a turn itself (server VAD, REALTIME_TURNS) and transcribes the caller for the call log and summary.
  * `speedPct`: the talking speed in percent, sent as a factor (OpenAI Realtime takes 0.25–1.5); at 100 nothing is sent.
  */
-export function createRealtimePipeline({ apiKey, model, voice: voiceName }: RealtimeConfig, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, speedPct = TALKING_SPEED_PCT_DEFAULT, { main, others }: CallLanguages = ENGLISH_CALL, onSession?: (session: RealtimeEvents) => void): voice.AgentSessionOptions {
+export function createRealtimePipeline({ apiKey, model, voice: voiceName }: RealtimeConfig, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, speedPct = TALKING_SPEED_PCT_DEFAULT, languages: CallLanguages = ENGLISH_CALL, onSession?: (session: RealtimeEvents) => void): voice.AgentSessionOptions {
   return {
     llm: new ObservedRealtimeModel(onSession, {
       apiKey, model, voice: voiceName, turnDetection: REALTIME_TURNS,
-      // A phone handset is close to the mouth: near-field noise reduction cleans what the model hears.
-      inputAudioNoiseReduction: { type: 'near_field' },
-      // The caller's transcript (call log, summary): told the language when the call has only one.
-      inputAudioTranscription: { model: REALTIME_TRANSCRIPTION, ...(others.length ? {} : { language: main }) },
+      inputAudioNoiseReduction: REALTIME_NOISE_REDUCTION,
+      inputAudioTranscription: realtimeTranscription(languages),
       ...(speedPct !== TALKING_SPEED_PCT_DEFAULT ? { speed: speedPct / 100 } : {}),
     }),
     userAwayTimeout: silenceFirstGapS,
@@ -207,6 +237,33 @@ export function createRealtimePipeline({ apiKey, model, voice: voiceName }: Real
  */
 export const realtimeLine = (text: string) =>
   `Your next reply is exactly this line, word for word, with nothing before or after it: ${quotedData(text)} Only if the caller has been speaking another language, say it in that language instead.`
+
+/** What says the fixed lines on a realtime call: OpenAI's speech model, with the realtime model's key and voice. */
+export const REALTIME_LINE_TTS = 'gpt-4o-mini-tts'
+
+type OpenAiVoice = NonNullable<ConstructorParameters<typeof openai.TTS>[0]>['voice']
+
+/** OpenAI's speech model in the realtime model's voice and pace: a fixed line then sounds like the rest of the call. */
+export function createRealtimeLineTts({ apiKey, voice: voiceName }: Pick<RealtimeConfig, 'apiKey' | 'voice'>, speedPct = TALKING_SPEED_PCT_DEFAULT) {
+  return new openai.TTS({ apiKey, model: REALTIME_LINE_TTS, voice: voiceName as OpenAiVoice, ...(speedPct !== TALKING_SPEED_PCT_DEFAULT ? { speed: speedPct / 100 } : {}) })
+}
+
+/**
+ * The voice the fixed lines of a call are made in, outside the model's own turns: what makes them, and what a line is
+ * cached by (with its text). The three stages: the assistant's voice. A realtime model: OpenAI's speech model in the
+ * realtime voice (the model itself, asked to say a line, often said something else).
+ */
+export type LineVoice = { tts: () => ttsTypes.TTS; key: Omit<GreetingVoice, 'text'> }
+type LineAssistant = ({ voice?: AssistantVoice | null; languages?: Parameters<typeof mainLanguageOf>[0] } & TalkingSpeedFields) | null | undefined
+
+export function lineVoiceOf(config: CallConfig, assistant: LineAssistant): LineVoice {
+  const speed = talkingSpeedOf(assistant)
+  if (isRealtime(config)) {
+    const { realtime } = config
+    return { key: { provider: 'openai_tts', model: REALTIME_LINE_TTS, voiceId: realtime.voice, speed }, tts: () => createRealtimeLineTts(realtime, speed) }
+  }
+  return { key: greetingVoice(config, { assistant }), tts: () => createTts(config.tts, assistant?.voice, mainLanguageOf(assistant?.languages), speed) }
+}
 
 /** Where one chat request goes. */
 export type ChatModel = { apiKey: string; baseUrl: string; model: string; fallbacks?: string[] }

@@ -12,6 +12,7 @@ import type { AgentConfig } from './config.ts'
 import type { Announcement } from './audio-bridge.ts'
 import { requireLivekitEnv } from './env.ts'
 import { lineAudio } from './busy-line.ts'
+import { lineVoiceOf } from './pipeline.ts'
 import { type OnCallDialer, simulatedDialer, sipDialer } from './on-call-dialer.ts'
 import { findOutboundTrunk, sipClient, TRANSFER_TRUNK_NAME } from './sip-trunks.ts'
 import { ownTransferTrunk, reprovisionTrunk, transferRoute, workspaceTrunkDialer } from './workspace-trunk.ts'
@@ -108,7 +109,7 @@ export async function onCallDialerFor(
 
 /** A fixed line in the assistant's voice, mono; made once per voice and text and kept like the greeting. */
 async function connectingLine(config: AgentConfig, call: CallSession, text: string): Promise<Announcement> {
-  const audio = await lineAudio(config, call, text)
+  const audio = await lineAudio(lineVoiceOf(config, call.assistant), text)
   const { channels, samples } = audio
   return {
     sampleRate: audio.sampleRate,

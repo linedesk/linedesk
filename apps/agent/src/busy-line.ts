@@ -4,10 +4,9 @@
 import { mainLanguageOf, spokenLines } from '@linedesk/actions'
 import type { Room } from '@livekit/rtc-node'
 import type { CallSession } from './call-session.ts'
-import type { AgentConfig } from './config.ts'
 import { createGreetingCache, type GreetingAudio, greetingKey, synthesize } from './greeting-cache.ts'
 import { publishVoice, speak } from './on-call-dialer.ts'
-import { createTts, greetingVoice, talkingSpeedOf } from './pipeline.ts'
+import type { LineVoice } from './pipeline.ts'
 
 // The lines in English; the call says them in the assistant's main language (spokenLines).
 export const BUSY_LINE = spokenLines('en').busy
@@ -21,13 +20,12 @@ export const BUSY_LINE_MAX_MS = 12_000
 
 const lines = createGreetingCache()
 
-/** A fixed line in the assistant's voice: synthesized once per voice and kept on disk like the greeting. */
-export async function lineAudio(config: AgentConfig, call: Pick<CallSession, 'assistant'>, text: string): Promise<GreetingAudio> {
-  const voice = call.assistant?.voice
-  const key = greetingKey({ ...greetingVoice(config, call), text })
+/** A fixed line in the call's line voice (lineVoiceOf): synthesized once per voice and text and kept on disk like the greeting. */
+export async function lineAudio(voice: LineVoice, text: string): Promise<GreetingAudio> {
+  const key = greetingKey({ ...voice.key, text })
   const cached = await lines.get(key)
   if (cached) return cached
-  const audio = await synthesize(createTts(config.tts, voice, mainLanguageOf(call.assistant?.languages), talkingSpeedOf(call.assistant)), text)
+  const audio = await synthesize(voice.tts(), text)
   void lines.put(key, audio).catch(() => {})
   return audio
 }
@@ -41,9 +39,9 @@ export function unansweredLine(call: Pick<CallSession, 'busy' | 'overCap' | 'ass
 }
 
 /** Plays `text` into the room; resolves when it has played, failed, or BUSY_LINE_MAX_MS passed. Never throws. */
-export async function playLine(room: Room, config: AgentConfig, call: Pick<CallSession, 'assistant' | 'callId'>, text: string, maxMs = BUSY_LINE_MAX_MS) {
+export async function playLine(room: Room, voice: LineVoice, call: Pick<CallSession, 'callId'>, text: string, maxMs = BUSY_LINE_MAX_MS) {
   const played = (async () => {
-    const audio = await lineAudio(config, call, text)
+    const audio = await lineAudio(voice, text)
     await speak(await publishVoice(room, [audio]), audio)
   })()
   const cap = new Promise<void>(resolve => setTimeout(resolve, maxMs).unref?.())

@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest'
 import type { AgentConfig, RealtimeCallConfig } from './config.ts'
-import { chatJson, createRealtimePipeline, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
+import { chatJson, createRealtimePipeline, lineVoiceOf, REALTIME_LINE_TTS, REALTIME_TURNS, realtimeRepliesEvent, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
 
 const openrouter = { apiKey: 'sk-or-test', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' }
 
@@ -87,6 +87,24 @@ test('a realtime call has only the model: no speech to text, no voice provider',
   expect(options.llm).toMatchObject({ _options: { inputAudioNoiseReduction: { type: 'near_field' }, inputAudioTranscription: { language: 'en' } } })
   const spanishOrEnglish = createRealtimePipeline(realtime, 7, 100, { main: 'es', others: ['en'] })
   expect((spanishOrEnglish.llm as unknown as { _options: { inputAudioTranscription: { language?: string } } })._options.inputAudioTranscription.language).toBeUndefined()
+})
+
+test("a realtime call's fixed lines are made by OpenAI's speech model in the realtime voice and pace", () => {
+  const config: RealtimeCallConfig = { realtime, recording: { store: 'off' }, stages: null }
+  const voice = lineVoiceOf(config, { talking_speed_pct: 110 })
+  expect(voice.key).toEqual({ provider: 'openai_tts', model: REALTIME_LINE_TTS, voiceId: 'marin', speed: 110 })
+  expect(voice.tts()).toMatchObject({ model: REALTIME_LINE_TTS, sampleRate: 24_000 })
+})
+
+test("the realtime model's replies are turned off and on with its input settings sent whole", () => {
+  const off = realtimeRepliesEvent(false, { main: 'de', others: [] })
+  expect(off.session.audio.input).toEqual({
+    format: { type: 'audio/pcm', rate: 24_000 },
+    noise_reduction: { type: 'near_field' },
+    transcription: { model: 'gpt-4o-mini-transcribe', language: 'de' },
+    turn_detection: { ...REALTIME_TURNS, create_response: false },
+  })
+  expect(realtimeRepliesEvent(true).session.audio.input.turn_detection.create_response).toBe(true)
 })
 
 test('a fixed line is given to the realtime model word for word', () => {
