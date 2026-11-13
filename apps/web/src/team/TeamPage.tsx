@@ -165,7 +165,7 @@ function InvitationRow({ invite, canManage, run }: { invite: TeamInvitation; can
       lead={<Avatar name={invite.email} size={24} />}
       title={
         <>
-          {invite.email}
+          <span className="k-row-text">{invite.email}</span>
           <Badge>{invite.expired ? 'Expired' : 'Invited'}</Badge>
         </>
       }

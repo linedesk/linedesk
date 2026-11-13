@@ -1,5 +1,5 @@
 // Palette used for ⌘K and for pick lists (numbered: 1–9 pick an item).
-import { useId, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import type { IconName } from './icons.ts'
 import { Avatar, Icon, Kbd } from './kit.tsx'
 
@@ -17,6 +17,9 @@ export type CommandItem = {
 }
 export type CommandGroup<T extends CommandItem = CommandItem> = { label: string | null; items: T[] }
 export type SelectVia = 'key' | 'mouse'
+
+/** A phone or tablet without a keyboard: focusing the search would open the on-screen keyboard over the list. */
+const touchOnly = () => window.matchMedia('(hover: none) and (pointer: coarse)').matches
 
 /** 4 prefix, 3 every token starts a word, 2 word initials, 1 substring, 0 no match. */
 export function commandScore(label: string, query: string): number {
@@ -99,13 +102,19 @@ export function CommandMenu<T extends CommandItem>({
     }
   }
 
+  // Touch screens: focus rests on the panel, so the overlay's focus trap leaves the search alone.
+  const panel = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (touchOnly()) panel.current?.focus()
+  }, [])
+
   let n = -1
   return (
-    <div className="k-cmd" role="dialog" aria-modal="true" aria-label={label}>
+    <div className="k-cmd" ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-label={label}>
       <div className="k-cmd-search">
         <Icon name="search" />
         <input
-          autoFocus
+          autoFocus={!touchOnly()}
           value={query}
           placeholder={placeholder}
           aria-label="Search commands"

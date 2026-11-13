@@ -614,8 +614,21 @@ button.me:focus-visible {
   visibility: visible;
 }
 
-/* Narrow windows: the caller panel opens as a sheet from the caller's name in the call header. */
+/* Narrow windows: the caller panel opens as a sheet from the caller's name in the call header;
+   a tap beside it closes it. */
+.cv-side-scrim {
+  display: none;
+}
 @media (max-width: 1099px) {
+  .cv-side-scrim {
+    display: block;
+    position: fixed;
+    inset: 48px 0 0;
+    z-index: 39;
+    border: 0;
+    padding: 0;
+    background: var(--scrim);
+  }
   .cv-main[data-side="open"] .cv-side {
     display: flex;
     position: fixed;
@@ -1122,6 +1135,19 @@ button.k-link {
   .cv > .ib-head .ib-right {
     flex: none;
     gap: 2px;
+  }
+  /* Contacts: the search keeps the room; New contact and Import show only their icons. */
+  .ct-head .ib-search-n,
+  .ct-head .k-btn .k-kbds {
+    display: none;
+  }
+  .ct-head .k-btn > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 
@@ -1655,7 +1681,11 @@ button.k-link {
     transition: transform 180ms ease-out;
   }
   .tour-spot {
-    transition: top 180ms ease-out, left 180ms ease-out, width 180ms ease-out, height 180ms ease-out;
+    transition:
+      top 180ms ease-out,
+      left 180ms ease-out,
+      width 180ms ease-out,
+      height 180ms ease-out;
   }
 }
 @keyframes tour-in {
@@ -1807,4 +1837,27 @@ button.k-link {
 .nv-reload:focus-visible {
   outline: 2px solid #fafaf8;
   outline-offset: 2px;
+}
+
+/* The palette panel takes focus on touch screens (CommandMenu.tsx); no ring around the whole panel. */
+.k-cmd:focus {
+  outline: none;
+}
+
+/* Phones and tablets without a keyboard: the palette leaves out key hints. */
+@media (hover: none) and (pointer: coarse) {
+  .k-cmd .k-kbds,
+  .k-cmd-foot {
+    display: none;
+  }
+}
+
+/* iPhones zoom into a field whose text is under 16px when it is tapped: on touch screens fields use 16px.
+   The sign-in code keeps its larger size. */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], .auth-code),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }

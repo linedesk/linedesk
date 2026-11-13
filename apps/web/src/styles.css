@@ -1527,7 +1527,7 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
 
 /* Call header: title is the issue, caller below (from Linedesk) */
 .cv-who { align-items: flex-start; }
-.cv-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-muted); }
+.cv-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; font-size: 12px; color: var(--ink-muted); }
 .cv-meta > span + span::before, .cv-line > * + *::before { content: '·'; margin-right: 6px; color: var(--ink-disabled); }
 .cv-who h1 { font-size: 22px; line-height: 28px; letter-spacing: -0.02em; margin: 6px 0 4px; }
 .cv-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-size: 13px; color: var(--ink-muted); }

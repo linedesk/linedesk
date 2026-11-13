@@ -161,7 +161,7 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
   return (
     <div className="cv">
       <h1 className="sr-only">Contacts</h1>
-      <div className="ib-head">
+      <div className="ib-head ct-head">
         {menu}
         <SearchBar query={query} shown={rows.length} total={page.all.length} onChange={page.setQuery} />
         <Button
@@ -169,6 +169,7 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
           variant="ghost"
           icon="plus"
           shortcut={['N']}
+          aria-label="New contact"
           title="New contact (N)"
           onClick={page.startCreate}
         >
@@ -178,6 +179,7 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
           size="sm"
           variant="ghost"
           icon="attach"
+          aria-label="Import contacts"
           title="Import contacts from a CSV file"
           onClick={() => setImporting(true)}
         >
@@ -234,9 +236,7 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
           )
         )}
       </div>
-      {importing && (
-        <ImportContacts onClose={() => setImporting(false)} toast={toast} />
-      )}
+      {importing && <ImportContacts onClose={() => setImporting(false)} toast={toast} />}
       {merging && (
         <MergeContacts
           first={merging.first}

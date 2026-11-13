@@ -1,6 +1,15 @@
 import type { Call, TranscriptSegment } from '@linedesk/db/types'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { answeredByLabel, type CallStatus, callStatus, callTitle, formatPhone, hasReminder, STATUS_WORD, transferText } from '../inbox-model.ts'
+import {
+  answeredByLabel,
+  type CallStatus,
+  callStatus,
+  callTitle,
+  formatPhone,
+  hasReminder,
+  STATUS_WORD,
+  transferText,
+} from '../inbox-model.ts'
 import { useCallAssistantName, useContact } from '../store.tsx'
 import { firstName, memberLabel, useMember } from '../team/members.ts'
 import { clock, dateTimeLabel, longDuration, parseTs, whenLabel } from '../time.ts'
@@ -208,10 +217,27 @@ type HeaderProps = {
  * The caller's name opens their contact (the panel beside the call; a sheet on narrow windows). An
  * unknown caller reads "Add name" and opens the same panel at its name field.
  */
-function ContactLink({ name, number, open, onOpen }: { name: string | null; number: string; open: boolean; onOpen: () => void }) {
+function ContactLink({
+  name,
+  number,
+  open,
+  onOpen,
+}: {
+  name: string | null
+  number: string
+  open: boolean
+  onOpen: () => void
+}) {
   const label = name ? `Open contact ${name}` : `Add a name for ${number}`
   return (
-    <button type="button" className="cv-contact-link" aria-label={label} aria-expanded={open} title={`${label} (I)`} onClick={onOpen}>
+    <button
+      type="button"
+      className="cv-contact-link"
+      aria-label={label}
+      aria-expanded={open}
+      title={`${label} (I)`}
+      onClick={onOpen}
+    >
       <span>{name ?? 'Add name'}</span>
       <Icon name="arrow-up-right" size={12} />
     </button>
@@ -237,7 +263,9 @@ function Header({ call, segments, repeatCount, contactOpen, onOpenContact }: Hea
           )}
           <span>{answeredByLabel(call, segments, assistant)}</span>
           {call.assistant_version != null && (
-            <span title="The assistant's settings this call ran with: Settings › Assistant › History">Assistant version {call.assistant_version}</span>
+            <span title="The assistant's settings this call ran with: Settings › Assistant › History">
+              Assistant version {call.assistant_version}
+            </span>
           )}
         </div>
         <h1>{callTitle(call)}</h1>
@@ -403,6 +431,15 @@ export function CallView({ call, segments, search, side, repeatCount = 1, canRev
             </div>
           </div>
         </div>
+        {sideOpen && (
+          <button
+            type="button"
+            className="cv-side-scrim"
+            aria-label="Close contact"
+            tabIndex={-1}
+            onClick={() => setSideOpen(false)}
+          />
+        )}
         {side}
       </div>
     </div>
