@@ -29,7 +29,7 @@ import { describeRealtimeReply, realtimeTurnTimer } from './realtime-timing.ts'
 import { describeRealtimeUsage, type RealtimeUsageMetrics, realtimeUsageCounter } from './realtime-usage.ts'
 import { followCallerLanguage } from './caller-language.ts'
 import { MESSAGE_SAVED_RESULT, skipQuietToolReplies } from './tool-replies.ts'
-import { END_CALL_RESULT, greetingPlayed, hangUpAfterGoodbye, hangUpAfterLine, hangUpAtCallLimit, nextReplyOf, type Reply, remindOnSilence, silencePolicyOf, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
+import { END_CALL_RESULT, greetingPlayed, hangUpAfterGoodbye, hangUpAfterLine, hangUpAtCallLimit, nextReplyOf, type Reply, remindOnSilence, saidWords, skipSecondGoodbye, silencePolicyOf, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
 import { lineAudio, playLine, unansweredLine } from './busy-line.ts'
 import { realtimeLineSpeaker, type SayFixedLine } from './realtime-lines.ts'
 import { promisesUrgent, urgentFlagger } from './urgent-promise.ts'
@@ -224,8 +224,11 @@ function recordConversation(session: voice.AgentSession, log: CallLog) {
   })
 }
 
-/** Tools whose result the caller need not hear: no extra LLM round when the assistant already spoke. */
-const QUIET_TOOLS = new Set(['take_message', 'flag_urgent', 'end_call'])
+/**
+ * Tools whose result the caller need not hear: no extra LLM round when the assistant already spoke. Not end_call: its reply
+ * is the goodbye (skipSecondGoodbye).
+ */
+const QUIET_TOOLS = new Set(['take_message', 'flag_urgent'])
 
 const greetingCache = createGreetingCache()
 
@@ -389,7 +392,12 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   // Once per call: end_call (with the reply that called it) and the hang-up line (keepHangUpPromises: it has played) can
   // both ask for it.
   let ending = false
+  let hangUpLineSaid = false
+  let endCallReply: Reply | null = null
+  skipSecondGoodbye(session, () => hangUpLineSaid || (endCallReply !== null && saidWords(endCallReply)))
   const endCall = (toolReply: Reply | null = null) => {
+    if (toolReply) endCallReply = toolReply
+    else hangUpLineSaid = true
     if (ending) return
     ending = true
     void hangUpAfterGoodbye({

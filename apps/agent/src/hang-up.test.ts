@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { DEFAULT_SILENCE_CLOSING } from '@linedesk/actions'
 import { voice } from '@livekit/agents'
 import { EventEmitter } from 'node:events'
-import { greetingPlayed, hangUpAfterGoodbye, nextReplyOf, hangUpAfterLine, hangUpAtCallLimit, remindOnSilence, type Reply, silencePolicyOf, silenceSchedule, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
+import { greetingPlayed, hangUpAfterGoodbye, nextReplyOf, skipSecondGoodbye, hangUpAfterLine, hangUpAtCallLimit, remindOnSilence, type Reply, silencePolicyOf, silenceSchedule, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
@@ -118,6 +118,23 @@ test('nextReplyOf: the first reply after end_call, also when it starts before it
   const none = nextReplyOf(new EventEmitter() as unknown as voice.AgentSession, toolReply)(5000)
   await vi.advanceTimersByTimeAsync(5000)
   await expect(none).resolves.toBeNull()
+})
+
+// Seen on realtime call tests: the caller's "No thanks" reached the transcript only after end_call ran, so "the assistant
+// spoke since the caller" was still true from its question, and the goodbye after end_call was skipped.
+test('skipSecondGoodbye: the reply to end_call is skipped only when a goodbye was said already', () => {
+  const session = new EventEmitter()
+  let said = false
+  skipSecondGoodbye(session as unknown as voice.AgentSession, () => said)
+  const executed = (...names: string[]) => {
+    const event = { functionCalls: names.map(name => ({ name })), cancelToolReply: vi.fn() }
+    session.emit(voice.AgentSessionEventTypes.FunctionToolsExecuted, event)
+    return event.cancelToolReply
+  }
+  expect(executed('end_call')).not.toHaveBeenCalled()
+  said = true
+  expect(executed('end_call')).toHaveBeenCalledOnce()
+  expect(executed('take_message')).not.toHaveBeenCalled()
 })
 
 function userStates() {

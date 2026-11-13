@@ -121,6 +121,18 @@ export async function hangUpAfterGoodbye({
 }
 
 /**
+ * end_call's goodbye is the model's reply to it, unless a goodbye was said already (`goodbyeSaid`: in the reply that
+ * called end_call, or as the hang-up line): then that reply is skipped and nothing is said twice. Decided by that reply's
+ * own words, not by whether the assistant spoke since the caller's last line: with a realtime model the caller's words
+ * often reach the transcript only after end_call ran.
+ */
+export function skipSecondGoodbye(session: voice.AgentSession, goodbyeSaid: () => boolean) {
+  session.on(voice.AgentSessionEventTypes.FunctionToolsExecuted, event => {
+    if (event.functionCalls.some(call => call.name === 'end_call') && goodbyeSaid()) event.cancelToolReply()
+  })
+}
+
+/**
  * The next reply the assistant starts (other than `toolReply`), listened for from now on, so a reply that starts before
  * anyone asks for it is not missed.
  */
