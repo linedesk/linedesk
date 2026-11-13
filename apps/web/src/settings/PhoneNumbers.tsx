@@ -1,5 +1,6 @@
-// Settings, Phone numbers: a short list of the workspace's numbers; Manage opens one (who answers it,
-// how it is used, forwarding codes, disconnecting), Add number connects another (attach or buy).
+// Settings, Phone numbers: a short list of the workspace's numbers; Manage opens one (which assistant answers it,
+// how it is used, forwarding codes, disconnecting), Add number connects another with the onboarding phone step's
+// choices and words (keep my number, a new number; a number already in the carrier account behind a quiet link).
 // Connecting runs phoneNumber.setup through the outbox; the new row arrives by sync.
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 
@@ -9,14 +10,19 @@ import type { PhoneSetupStatus } from '../auth.ts'
 import { CopyButton } from '../onboarding/Frame.tsx'
 import {
   buyQuestion,
+  carrierName,
   carriers,
+  existingLinkText,
+  firstPickup,
   forwardingCode,
   formatNumber,
   numberModeLabel,
+  type PhoneOption,
+  phoneOptionSetup,
+  phoneOptionText,
   phoneSetupErrorText,
-  phoneSetupInput,
+  pickupNumberMode,
   priceNote,
-  type PhoneChoice,
 } from '../onboarding/flow.ts'
 import { confirmsNumber, phoneNumberModes } from '@linedesk/actions'
 import { providerAudience } from '../providerAudience.ts'
@@ -29,10 +35,8 @@ import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { CarrierLine, useCarrierStatus } from './Carrier.tsx'
 import { Field, Section, TextInput } from './fields.tsx'
+import { useWorkspaceSettings } from './settings-api.ts'
 import { brandName } from '../brand.ts'
-
-const carrierName = (provider: string | null) =>
-  provider === 'twilio' ? 'Twilio' : provider === 'telnyx' ? 'Telnyx' : null
 
 const modeOptions: SelectOption<PhoneNumberMode>[] = phoneNumberModes.map(mode => ({
   value: mode,
@@ -127,7 +131,16 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
       )}
       {adding && (
         <Dialog title="Add a number" size="md" onClose={() => setAdding(false)}>
-          <ConnectNumber status={status} onDone={() => setAdding(false)} onCancel={() => setAdding(false)} />
+          <ConnectNumber
+            status={status}
+            onDone={added => {
+              setAdding(false)
+              // A number the business phone forwards to: its forwarding codes are the next thing to do.
+              if (added.mode === 'forward_conditional' || added.mode === 'forward_all')
+                setManaging({ id: added.id, release: false })
+            }}
+            onCancel={() => setAdding(false)}
+          />
         </Dialog>
       )}
       {managed && (
@@ -206,12 +219,12 @@ function ManageNumber({ number, assistants, canEdit, release = false, onClose }:
       ) : (
         <>
           {assistants.length > 1 && (
-            <Field id="pn-who" label="Answered by">
+            <Field id="pn-who" label="Assistant" help="Which assistant answers this number">
               <div>
                 <Select
                   id="pn-who"
                   value={who?.id ?? ''}
-                  label="Answered by"
+                  label="Assistant"
                   disabled={!canEdit}
                   options={assistants.map(a => ({ value: a.id, label: a.name }))}
                   onChange={assistantId => void run('phoneNumber.update', { phoneNumberId: number.id, assistantId })}
@@ -369,35 +382,45 @@ function Forwarding({ e164, mode }: { e164: string; mode: PhoneNumber['mode'] })
   )
 }
 
+/** The cards everyone sees: the same as the onboarding phone step (#517): keep my number first, a new number second. */
+const connectOptions: readonly PhoneOption[] = ['forward', 'new']
+
 function ConnectNumber({
   status,
   onDone,
   onCancel,
 }: {
   status: PhoneSetupStatus | null
-  onDone: () => void
+  /** The number just connected, once its row has arrived. */
+  onDone: (added: PhoneNumber) => void
   onCancel?: () => void
 }) {
   const run = useRun()
-  const count = useRows('phone_numbers').length
+  const name = useAssistantName()
+  const numbers = useRows('phone_numbers')
+  const count = numbers.length
   const { rejection } = useRejection()
-  // Numbers already in the install's carrier account are for instance admins only: then only a new one.
+  // Numbers already in the install's carrier account are for instance admins only: only they see the link to it.
   const canAttach = status?.canAttach !== false
-  const [kind, setKind] = useState<PhoneChoice['kind']>(canAttach ? 'existing' : 'new')
+  const [option, setOption] = useState<PhoneOption>(connectOptions[0]!)
   const [typed, setTyped] = useState('')
   const [areaCode, setAreaCode] = useState('')
   const [confirming, setConfirming] = useState(false)
   const [sentAt, setSentAt] = useState<number | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
   const carrier = carrierName(status?.provider ?? null)
+  // The business's number forwards as chosen for pick-up (Settings › Hours); until loaded, the calls it misses.
+  const forwarding = pickupNumberMode(firstPickup(useWorkspaceSettings().data ?? null))
+  const buying = option !== 'existing'
+  const dev = status?.provider === 'dev'
 
   // Success is the new row arriving by sync; a refusal ends the wait with its reason.
   useEffect(() => {
-    if (sentAt !== null && count > sentAt) {
-      setSentAt(null)
-      onDone()
-    }
-  }, [count, sentAt, onDone])
+    if (sentAt === null || count <= sentAt) return
+    setSentAt(null)
+    const added = [...numbers].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+    if (added) onDone(added)
+  }, [count, sentAt, numbers, onDone])
   useEffect(() => {
     if (rejection?.action !== 'phoneNumber.setup' || sentAt === null) return
     setSentAt(null)
@@ -405,8 +428,8 @@ function ConnectNumber({
     setProblem(phoneSetupErrorText(rejection.error))
   }, [rejection, sentAt])
 
-  function send(choice: PhoneChoice) {
-    const result = phoneSetupInput(choice)
+  function send(confirmed: boolean) {
+    const result = phoneOptionSetup(option, { number: typed, areaCode, confirmed }, forwarding)
     if ('problem' in result) return setProblem(result.problem)
     setProblem(null)
     setSentAt(count)
@@ -414,18 +437,20 @@ function ConnectNumber({
   }
   function submit() {
     if (sentAt !== null) return
-    if (kind === 'existing') return send({ kind, number: typed })
-    const check = phoneSetupInput({ kind, areaCode, confirmed: true })
+    if (!buying) return send(false)
+    // Buying needs a second, deliberate click: Enter only asks for the confirmation.
+    const check = phoneOptionSetup(option, { number: typed, areaCode, confirmed: true }, forwarding)
     if ('problem' in check) return setProblem(check.problem)
     setProblem(null)
     setConfirming(true)
   }
-  const pick = (next: PhoneChoice['kind']) => {
-    setKind(next)
+  const pick = (next: PhoneOption) => {
+    setOption(next)
     setConfirming(false)
     setProblem(null)
   }
   const busy = sentAt !== null
+  const existing = phoneOptionText('existing', name, carrier)
 
   return (
     <form
@@ -435,32 +460,60 @@ function ConnectNumber({
         submit()
       }}
     >
-      <div className="k-radios" role="radiogroup" aria-label="Which number">
-        {canAttach && (
-          <RadioCard
-            name="st-pn-kind"
-            checked={kind === 'existing'}
-            onPick={() => pick('existing')}
-            title={carrier ? `Use a number I have in ${carrier}` : 'Use a number I already have'}
-          />
-        )}
-        <RadioCard name="st-pn-kind" checked={kind === 'new'} onPick={() => pick('new')} title="Get a new number" />
-      </div>
-      {kind === 'existing' ? (
-        <Field id="st-pn-number" label={carrier ? `Number in ${carrier}` : 'Number'}>
-          <TextInput
-            id="st-pn-number"
-            value={typed}
-            onChange={v => {
-              setTyped(v)
-              setProblem(null)
-            }}
-            placeholder="+1 503 555 0100"
-          />
-        </Field>
+      {option === 'existing' ? (
+        <div className="st-pn-t">
+          <b>{existing.title}</b>
+          <span className="help">{existing.description}</span>
+        </div>
       ) : (
         <>
-          <Field id="st-pn-area" label="Area code" help={priceNote(status?.provider ?? null)}>
+          <div className="k-radios" role="radiogroup" aria-label="Phone number">
+            {connectOptions.map(o => (
+              <RadioCard
+                key={o}
+                name="st-pn-kind"
+                checked={option === o}
+                onPick={() => pick(o)}
+                {...phoneOptionText(o, name, carrier)}
+              />
+            ))}
+          </div>
+          {canAttach && (
+            <div>
+              <Button size="sm" variant="ghost" onClick={() => pick('existing')}>
+                {existingLinkText(carrier)}
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+      {option === 'existing' ? (
+        <>
+          <Field id="st-pn-number" label={carrier ? `Number in ${carrier}` : 'Number'}>
+            <TextInput
+              id="st-pn-number"
+              value={typed}
+              onChange={v => {
+                setTyped(v)
+                setProblem(null)
+              }}
+              placeholder="The number, with area code"
+            />
+          </Field>
+          {dev && <p className="help">Development mode: any number works, nothing is called.</p>}
+          <div>
+            <Button size="sm" variant="ghost" onClick={() => pick(connectOptions[0]!)}>
+              Back to the choices
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <Field
+            id="st-pn-area"
+            label={option === 'forward' ? `Area code for ${name}'s number` : 'Area code'}
+            help={priceNote(status?.provider ?? null)}
+          >
             <TextInput
               id="st-pn-area"
               value={areaCode}
@@ -469,7 +522,6 @@ function ConnectNumber({
                 setConfirming(false)
                 setProblem(null)
               }}
-              placeholder="503"
             />
           </Field>
           {confirming && (
@@ -479,20 +531,14 @@ function ConnectNumber({
                 <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={busy}>
                   Cancel
                 </Button>
-                <Button busy={busy}
-                  size="sm"
-                  variant="primary"
-                  disabled={busy}
-                  onClick={() => send({ kind: 'new', areaCode, confirmed: true })}
-                >
-                  {busy ? 'Buying…' : 'Buy number'}
+                <Button busy={busy} size="sm" variant="primary" disabled={busy} onClick={() => send(true)}>
+                  {busy ? 'Buying…' : dev ? 'Add test number' : 'Buy number'}
                 </Button>
               </span>
             </div>
           )}
         </>
       )}
-      {status?.provider === 'dev' && <p className="help">Development mode: nothing is bought or called.</p>}
       {problem && (
         <p className="auth-error" role="alert">
           {problem}
@@ -506,7 +552,7 @@ function ConnectNumber({
             </Button>
           )}
           <Button busy={busy} type="submit" size="sm" variant="primary" disabled={busy}>
-            {busy ? 'Connecting…' : kind === 'existing' ? 'Connect number' : 'Get a number'}
+            {busy ? 'Connecting…' : buying ? (dev ? 'Add a test number' : 'Get a number') : 'Connect number'}
           </Button>
         </div>
       )}

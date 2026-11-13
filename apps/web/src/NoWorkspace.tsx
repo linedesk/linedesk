@@ -6,7 +6,7 @@
 import { type ReactNode, useEffect, useState } from 'react'
 import { AdminMode } from './admin/AdminMode.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
-import { auth, fetchAuthMethods, type Me } from './auth.ts'
+import { auth, fetchAuthMethods, isInstanceAdmin, type Me } from './auth.ts'
 import { CreateWorkspace } from './CreateWorkspace.tsx'
 import { AccountSettings } from './settings/account/index.tsx'
 import { signOutAndForget } from './localData.ts'
@@ -31,8 +31,6 @@ async function loadInvitations(): Promise<PendingInvitation[]> {
 /** May this person name their own business here? The server checks it too (POST /v1/workspaces). */
 export const mayCreateWorkspace = (signUpOpen: boolean, me: Me | null) =>
   signUpOpen || Boolean(me && isInstanceAdmin(me))
-
-const isInstanceAdmin = (me: Me) => me.permissions.includes('instance:admin') || Boolean(me.adminSecondFactor)
 
 type Props = {
   /** null when /v1/me did not answer for this person (no workspace and no instance admin). */

@@ -23,6 +23,7 @@ import { Field, TextInput } from './fields.tsx'
 import { callAction } from './settings-api.ts'
 import { useQuery, setQueryData } from '../cachedQuery.ts'
 import { brandName } from '../brand.ts'
+import { carrierName } from '../onboarding/flow.ts'
 import { providerAudience } from '../providerAudience.ts'
 
 const CARRIER = 'workspace.carrier'
@@ -81,7 +82,7 @@ function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose
   /** Back to the default carrier deletes the saved credentials: asked once in the dialog before saving. */
   const leavingOwn = changed && !own && status.carrier !== 'default'
   const [confirming, setConfirming] = useState(false)
-  const ownName = status.carrier === 'twilio' ? 'Twilio' : 'Telnyx'
+  const ownName = carrierName(status.carrier) ?? 'carrier'
   const stored = (field: string) =>
     draft.carrier === status.carrier ? status.fields.find(f => f.field === field) : undefined
 

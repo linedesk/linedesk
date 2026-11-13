@@ -6,7 +6,7 @@ import {assistant_calendars, assistants, availability_exceptions, availability_r
 } from '@linedesk/db'
 import type { ActionItem, Assistant, Closure, PhoneNumber, TransferContact } from '@linedesk/db/types'
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
-import { and, asc, desc, eq, gt, gte, or, sql, } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, or, sql, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
 import { providerHealthHandlers, recordProviderFailure } from './provider-failures.ts'
 import { brandingHandlers, brandName } from './branding.ts'
@@ -736,7 +736,9 @@ const handlers: Record<string, Handler> = {
       if (refusal) throw new Reject(refusal)
     }
     // Only a purchase may search: attaching always names the number.
-    const e164: string | undefined = input.e164 ?? (await atCarrier(() => provider.searchNumbers({ country: 'US', areaCode: input.areaCode, limit: 1 })))[0]?.e164
+    // A few candidates, so a number that is already set up here (dev's are always the same) is passed over.
+    const e164: string | undefined =
+      input.e164 ?? (await firstFreeNumber(tx, await atCarrier(() => provider.searchNumbers({ country: 'US', areaCode: input.areaCode, limit: 5 }))))
     if (!e164) throw new Reject(`no number available in area code ${input.areaCode}`)
     const [taken] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, e164))
     if (taken) throw new Reject(`${e164} is already set up`)
@@ -828,4 +830,12 @@ export function runHandler(ctx: HandlerCtx, def: ActionDef, input: unknown) {
   const run = () => (handlers[def.name] ? handlers[def.name]!(ctx, input) : runPatch(ctx, def, input))
   // A change of an assistant's call settings is kept as a version (assistant-versions.ts).
   return VERSIONED_ACTIONS.has(def.name) ? withVersion(ctx, input as { assistantId?: string }, run) : run()
+}
+
+/** The first of the carrier's candidates that no workspace has set up yet. */
+async function firstFreeNumber(tx: Tx, candidates: { e164: string }[]): Promise<string | undefined> {
+  if (!candidates.length) return undefined
+  const taken = await tx.select({ e164: phone_numbers.e164 }).from(phone_numbers).where(inArray(phone_numbers.e164, candidates.map(c => c.e164)))
+  const used = new Set(taken.map(t => t.e164))
+  return candidates.find(c => !used.has(c.e164))?.e164
 }

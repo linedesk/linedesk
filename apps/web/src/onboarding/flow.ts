@@ -4,6 +4,9 @@ import {
   isActiveContact,
   onCallNumberProblem,
   onboardingSteps,
+  type ProviderName,
+  providerNames,
+  providerSpec,
   RING_SECONDS_DEFAULT,
   TRANSFER_CONDITION_MAX,
   TRANSFER_CONTACTS_MAX,
@@ -195,6 +198,43 @@ export function phoneOptionSetup(
   if (option === 'existing') return phoneSetupInput({ kind: 'existing', number: fields.number }, forwarding)
   const choice = { kind: 'new' as const, areaCode: fields.areaCode, confirmed: fields.confirmed }
   return phoneSetupInput(choice, option === 'forward' ? forwarding : undefined)
+}
+
+/**
+ * The phone options in words, the same in onboarding and Settings › Phone numbers: keeping the business's number
+ * (forwarding) first, a new number to give out second; `existing` (no card: reached through the quiet link under
+ * the cards, existingLinkText) as the heading above its number field.
+ */
+export function phoneOptionText(
+  option: PhoneOption,
+  name: string,
+  carrier: string | null,
+): { title: string; description: string } {
+  if (option === 'forward')
+    return {
+      title: 'Keep my number',
+      description: `We get ${name} a number, and you dial a short code once on your business phone to forward to it.`,
+    }
+  if (option === 'existing')
+    return {
+      title: carrier ? `Use a number you have in ${carrier}` : 'Use a number you have',
+      description: `${name} answers that number; your business phone forwards to it.`,
+    }
+  return {
+    title: 'Give callers a new number',
+    description: `Only calls to the new number reach ${name}. Your current number rings as it does today.`,
+  }
+}
+
+/** The quiet link under the cards to the `existing` option (instance admins), naming the carrier when there is one. */
+export const existingLinkText = (carrier: string | null): string =>
+  carrier ? `Already have a number in ${carrier}? Use it` : 'Already have a number? Use it'
+
+/** A phone carrier's name ("Twilio", "Telnyx") from the provider registry; null for none or the development carrier. */
+export function carrierName(provider: string | null | undefined): string | null {
+  if (!provider || provider === 'dev' || !(providerNames as string[]).includes(provider)) return null
+  const spec = providerSpec(provider as ProviderName)
+  return spec.category === 'telephony' ? spec.label : null
 }
 
 /**

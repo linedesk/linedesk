@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchAuthMethods, lostSignInState, providerElsewhereMessage, providerSignInElsewhere, redirectErrorMessage } from './auth.ts'
+import { fetchAuthMethods, isInstanceAdmin, lostSignInState, providerElsewhereMessage, providerSignInElsewhere, redirectErrorMessage } from './auth.ts'
 
 const methods = { password: true, emailCode: false, sso: [] }
 const ok = () => new Response(JSON.stringify(methods), { status: 200 })
@@ -60,5 +60,13 @@ describe('providerSignInElsewhere', () => {
     expect(lostSignInState('state_mismatch')).toBe(true)
     expect(lostSignInState('access_denied')).toBe(false)
     expect(lostSignInState(undefined)).toBe(false)
+  })
+})
+
+describe('isInstanceAdmin', () => {
+  it('the permission, or an instance admin who still has to confirm (Admin opens on that prompt)', () => {
+    expect(isInstanceAdmin({ permissions: ['instance:admin'] })).toBe(true)
+    expect(isInstanceAdmin({ permissions: [], adminSecondFactor: 'confirm' })).toBe(true)
+    expect(isInstanceAdmin({ permissions: ['settings:write'], adminSecondFactor: null })).toBe(false)
   })
 })

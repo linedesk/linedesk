@@ -48,6 +48,14 @@ export type Me = {
 /** `email`: the address is not confirmed yet; `confirm`: the last sign-in is more than 12 hours ago. */
 export type AdminSecondFactor = 'email' | 'confirm'
 
+/**
+ * An instance admin: the one check for every place that offers Admin or its links (Admin › Providers). One who still
+ * has to confirm their email or sign in again (`adminSecondFactor`, sent only to instance admins) counts too: Admin
+ * opens on that prompt, so the link still leads to the fix.
+ */
+export const isInstanceAdmin = (me: Pick<Me, 'permissions' | 'adminSecondFactor'>): boolean =>
+  me.permissions.includes('instance:admin') || Boolean(me.adminSecondFactor)
+
 /** Who am I and which workspace am I in? null when signed out or without a workspace. */
 export async function fetchMe(): Promise<Me | null> {
   const res = await fetch('/v1/me', { credentials: 'include' })

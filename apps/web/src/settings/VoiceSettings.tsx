@@ -195,10 +195,13 @@ function PlayButton({ voice, preview, label, playKey, unavailable }: PlayProps) 
 }
 
 type RowProps = {
-  /** null: the install's default voice; `defaultSample` is the voice it stands for, `defaultName` what the row is called. */
+  /**
+   * null: the install's default voice, named by its own voice name ("Jessica (default)"); `defaultSample` is the
+   * voice it stands for, `defaultNote` the line under it.
+   */
   voice: PickerVoice | null
   defaultSample?: { provider: string; id: string; name: string | null } | null
-  defaultName?: string
+  defaultNote?: string
   checked: boolean
   onPick: () => void
   disabled: boolean
@@ -206,19 +209,9 @@ type RowProps = {
   facts?: string
 }
 
-function VoiceRow({
-  voice,
-  defaultSample,
-  defaultName = 'Default voice',
-  checked,
-  onPick,
-  disabled,
-  preview,
-  facts,
-}: RowProps) {
-  const description = voice
-    ? voice.description
-    : `The install's default${defaultSample?.name ? `: ${defaultSample.name}` : ''}`
+function VoiceRow({ voice, defaultSample, defaultNote, checked, onPick, disabled, preview, facts }: RowProps) {
+  const defaultName = defaultSample?.name ? `${defaultSample.name} (default)` : 'Default voice'
+  const description = voice ? voice.description : (defaultNote ?? null)
   return (
     <div className={cx('vp-row', checked && 'on')}>
       <label className="vp-pick">
@@ -375,7 +368,7 @@ type Props = {
   toast: (text: string) => void
   /** The assistant's main language: Suggested lists voices made for it when the providers have some. */
   language: string
-  /** The assistant's name: the default voice is listed as "Maya (default voice)". */
+  /** The assistant's name, for the line under the default voice ("Maya speaks with it unless you pick another"). */
   assistantName: string
 }
 
@@ -527,7 +520,7 @@ export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast, lang
         {!forLanguage.length && (
           <VoiceRow
             voice={null}
-            defaultName={`${assistantName} (default voice)`}
+            defaultNote={`${assistantName} speaks with it unless you pick another.`}
             defaultSample={provider && options?.defaultVoice ? { provider, ...options.defaultVoice } : null}
             checked={current === ''}
             onPick={() => pick(null)}

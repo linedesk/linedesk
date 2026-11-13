@@ -11,6 +11,7 @@ import { Button, cx, Icon } from '../ui/kit.tsx'
 import { CopyButton, Foot, useStepKeys } from './Frame.tsx'
 import {
   buyQuestion,
+  carrierName,
   carriers,
   firstPickup,
   formatNumber,
@@ -19,6 +20,7 @@ import {
   type PhoneOption,
   phoneOptions,
   phoneOptionSetup,
+  phoneOptionText,
   pickupNumberMode,
   priceNote,
 } from './flow.ts'
@@ -32,9 +34,6 @@ type Props = {
   onBack: () => void
   onNext: () => void
 }
-
-const providerLabel = (provider: string | null) =>
-  provider === 'twilio' ? 'Twilio' : provider === 'telnyx' ? 'Telnyx' : null
 
 export function PhoneStep(p: Props) {
   const number = useRows('phone_numbers')[0]
@@ -57,24 +56,6 @@ function Unavailable({ detail, onBack, onNext }: { detail: string | null; onBack
   )
 }
 
-/** The phone step's choices in words: keeping the business's number (forwarding) first, a new number to give out last. */
-function optionText(option: PhoneOption, name: string, carrier: string | null): { title: string; description: string } {
-  if (option === 'forward')
-    return {
-      title: 'Keep my number',
-      description: `We get ${name} a number, and you dial a short code once on your business phone to forward to it.`,
-    }
-  if (option === 'existing')
-    return {
-      title: carrier ? `Keep my number, forward to one I have in ${carrier}` : 'Keep my number, forward to one I have',
-      description: `${name} answers that number; your business phone forwards to it.`,
-    }
-  return {
-    title: 'Give callers a new number',
-    description: `Only calls to the new number reach ${name}. Your current number rings as it does today.`,
-  }
-}
-
 function Choose({ status, setupError, clearError, onBack, onNext }: Props) {
   const run = useRun()
   const name = useAssistantName()
@@ -86,7 +67,7 @@ function Choose({ status, setupError, clearError, onBack, onNext }: Props) {
   const [confirming, setConfirming] = useState(false)
   const [sending, setSending] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
-  const carrier = providerLabel(status.provider)
+  const carrier = carrierName(status.provider)
   // The business's number forwards as chosen on the pick-up step; until the settings are loaded, the calls it misses
   // (the default choice).
   const pickup = firstPickup(useWorkspaceSettings().data ?? null)
@@ -147,7 +128,7 @@ function Choose({ status, setupError, clearError, onBack, onNext }: Props) {
               name="ob-mode"
               checked={option === o}
               onPick={() => pick(o)}
-              {...optionText(o, name, carrier)}
+              {...phoneOptionText(o, name, carrier)}
             />
           ))}
         </div>

@@ -89,7 +89,7 @@ const sections: readonly PageSection<SectionId>[] = [
   { id: 'hours', label: 'Hours & holidays', description: 'Weekly hours, holidays, vacation mode' },
   { id: 'rules', label: 'Rules', description: 'AI disclosure, tone and how calls are handled' },
   { id: 'transfers', label: 'Transfers', description: 'Who calls are put through to' },
-  { id: 'booking', label: 'Booking & Calendar', description: 'Calendars and appointment types' },
+  { id: 'booking', label: 'Booking & calendar', description: 'Calendars and appointment types' },
   { id: 'webhooks', label: 'Webhook', description: 'Your system at the start of a call, during it and after it' },
   { id: 'advanced', label: 'Advanced', description: 'Talking speed, time zone, silence, hanging up' },
 ]

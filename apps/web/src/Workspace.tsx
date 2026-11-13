@@ -6,7 +6,7 @@ import { useQuery } from './cachedQuery.ts'
 import { loadReview, REVIEW_KEY } from './call/EvaluationCard.tsx'
 import { AdminMode } from './admin/AdminMode.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
-import type { Me } from './auth.ts'
+import { isInstanceAdmin, type Me } from './auth.ts'
 import { CallView } from './call/CallView.tsx'
 import { ContactSide } from './call/ContactSide.tsx'
 import { toggleContactPanel } from './call/contactPanel.ts'
@@ -109,11 +109,10 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
   const canAssign = members.length > 1
   const signOut = useSignOut({ onSignedOut, toast: toaster.show })
   const { list, tab, search, openCall, target } = view
-  const isInstanceAdmin = me.permissions.includes('instance:admin')
-  // An instance admin who must sign in again still finds the admin area; it asks them to sign in.
-  const canOpenAdmin = isInstanceAdmin || Boolean(me.adminSecondFactor)
+  // An instance admin who must sign in again counts (auth.ts): the admin area asks them to sign in first.
+  const instanceAdmin = isInstanceAdmin(me)
   // Error texts built without `me` (refusals, toasts) send admins to Admin › Providers, others to whoever runs it.
-  setProviderAudience(canOpenAdmin ? 'admin' : 'member')
+  setProviderAudience(instanceAdmin ? 'admin' : 'member')
   // First-use tour (FIRST_USE): once after onboarding in this browser, and from ⌘K.
   const tourOffered = offersTour(me.firstUse ?? 'off')
   const [tourOpen, setTourOpen] = useState(() => tourOffered && tourDue(me.workspace!.id))
@@ -275,7 +274,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
       selectAll: selection.all,
       clearSelection: selection.clear,
       goChord: key => {
-        if (key === 'd' && canOpenAdmin) goPage('admin')
+        if (key === 'd' && instanceAdmin) goPage('admin')
         else if (chordPages[key]) goPage(chordPages[key])
         else if (chordTabs[key] && (key !== 'r' || canReview) && (!assigneeTabs.includes(chordTabs[key]) || canAssign))
           view.setTab(chordTabs[key])
@@ -375,7 +374,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
     goInbox: view.setTab,
     canReview,
     goPage,
-    isInstanceAdmin: canOpenAdmin,
+    isInstanceAdmin: instanceAdmin,
     openSearch,
     signOut: () => void signOut(),
     openHelp: () => setOverlay('help'),
@@ -396,7 +395,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
   if (nav.route === 'admin' && me.adminSecondFactor) {
     return <SecondFactorPrompt state={me.adminSecondFactor} onExit={() => { window.location.hash = beforeAdmin.current }} />
   }
-  if (nav.route === 'admin' && isInstanceAdmin) {
+  if (nav.route === 'admin' && instanceAdmin) {
     return (
       <AdminMode
         currentUserId={me.actorId}
@@ -426,7 +425,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
         toast={toaster.show}
         invitations={invites.invitations}
         onInvitationsChanged={invites.reload}
-        isInstanceAdmin={canOpenAdmin}
+        isInstanceAdmin={instanceAdmin}
         onNewWorkspace={canCreateWorkspace ? () => setNewWorkspace(true) : undefined}
         onInbox={view.setTab}
         onPage={goPage}
@@ -465,7 +464,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
               {page.render({
                 toast: toaster.show,
                 canEditSettings: me.permissions.includes('settings:write'),
-                isInstanceAdmin,
+                isInstanceAdmin: instanceAdmin,
                 userId: me.actorId,
                 menu,
                 openCall: open,
@@ -530,7 +529,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
             counts={view.counts}
             liveCall={view.liveCall}
             onOpen={open}
-            canFixVoice={isInstanceAdmin}
+            canFixVoice={instanceAdmin}
             search={search}
             onSearch={openSearch}
             onSearchChange={view.changeSearch}

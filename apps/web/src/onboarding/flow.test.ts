@@ -3,7 +3,9 @@ import { expect, test } from 'vitest'
 import {
   assistantChanges,
   buyQuestion,
+  carrierName,
   carriers,
+  existingLinkText,
   firstHoursDraft,
   firstPickup,
   DEFAULT_URGENT_CONDITION,
@@ -19,6 +21,7 @@ import {
   nextStep,
   oldForwardingAfter,
   phoneOptionSetup,
+  phoneOptionText,
   phoneOptions,
   phoneSetupInput,
   pickupNeedsHours,
@@ -351,6 +354,19 @@ test("who hears: refusals about its own contact read as the step's own words; ot
   const other = "Dana's number is a Linedesk number; enter the person's own phone"
   expect(mobileErrorText(other, 'Mike')).toBe(other)
   expect(mobileErrorText('Confirm your email first', 'Mike')).toMatch(/Confirm your email address/)
+})
+
+test('the phone options read the same in onboarding and Settings › Phone numbers', () => {
+  expect(phoneOptionText('forward', 'Maya', 'Telnyx').title).toBe('Keep my number')
+  expect(phoneOptionText('new', 'Maya', null).title).toBe('Give callers a new number')
+  expect(phoneOptionText('existing', 'Maya', 'Twilio').title).toBe('Use a number you have in Twilio')
+  expect(existingLinkText(null)).toBe('Already have a number? Use it')
+})
+
+test('carrier names come from the provider registry', () => {
+  expect(carrierName('twilio')).toBe('Twilio')
+  expect(carrierName('telnyx')).toBe('Telnyx')
+  for (const none of ['dev', 'deepgram', 'nope', null, undefined]) expect(carrierName(none), String(none)).toBeNull()
 })
 
 test('a carrier failure says what it is and who fixes it (LIN-111)', () => {
