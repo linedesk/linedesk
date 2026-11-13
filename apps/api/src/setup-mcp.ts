@@ -12,7 +12,9 @@ import {
   actions,
   type ForwardingMode,
   forwardingInstructions,
+  installPlace,
   isMultiCategory,
+  LOCAL_INSTALL_NOTE,
   oneKey,
   type ProviderCategory,
   providerCategories,
@@ -148,7 +150,8 @@ const ITEM_STATE: Record<SetupChecklistItem['state'], StepState> = {
 /** One install step from the checklist item, with the guide of the provider we recommend when it is not done. */
 function installStep(item: SetupChecklistItem, how: readonly string[]): Step {
   const state = ITEM_STATE[item.state]
-  const tested = item.state === 'set_up' ? ['Keys are set but not tested: run provider_test.'] : []
+  // LiveKit has no keys to test: its state is the server check itself (setup_status runs it).
+  const tested = item.state === 'set_up' && item.provider ? ['Keys are set but not tested: run provider_test.'] : []
   return {
     id: item.id,
     label: item.label,
@@ -217,11 +220,19 @@ async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean
   const next = steps.find(s => s.state !== 'done' && s.state !== 'admin_only') ?? null
   return {
     you_act_as: await whoAmI(actor),
+    install: whereItRuns(),
     steps: steps.map(({ how, ...s }) => (s.id === next?.id ? { ...s, how } : s)),
     next_step: next ? next.id : null,
     all_done: !next,
     app_links: appLinks(),
   }
+}
+
+/** Where the install runs: on a computer or a private network, carriers cannot reach it (LOCAL_INSTALL_NOTE). */
+function whereItRuns() {
+  const address = webAddress()
+  const place = installPlace(address)
+  return place === 'public' ? { address, public: true } : { address, public: false, place, note: LOCAL_INSTALL_NOTE }
 }
 
 /** The steps without their how-to, for the setup page in the app (GET /v1/admin/agent-setup), which shows the agent's progress. */

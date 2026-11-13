@@ -9,6 +9,8 @@ import {
   agentClientLabels,
   agentClients,
   cloudClients,
+  HOSTING_GUIDE_URL,
+  installPlace,
   startPlan,
 } from '@linedesk/actions'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -173,6 +175,8 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
             money.
           </p>
         </div>
+
+        {state && <HostingNote address={state.mcpUrl} />}
 
         <section className="as-card" aria-label="Your agent">
           <div className="as-agents" role="radiogroup" aria-label="Which agent">
@@ -374,5 +378,30 @@ function StartAgent({ client, url }: { client: AgentClient; url: string }) {
         </details>
       )}
     </>
+  )
+}
+
+/**
+ * On an install that is not on a public https address (installPlace): what does not work there, and the guide to
+ * putting it on a server (docs/hosting.md). Nothing on a public install.
+ */
+export function HostingNote({ address }: { address: string }) {
+  const place = installPlace(address)
+  if (place === 'public') return null
+  return (
+    <p className="as-note" role="note">
+      {place === 'this_computer'
+        ? `This copy of ${brandName()} runs on this computer. You can set it up and try it here, but real phone calls need a server with a public address.`
+        : 'This server has no https address: browsers block the microphone for test calls, and Claude or ChatGPT on the web cannot connect.'}{' '}
+      <a
+        className="k-link"
+        href={place === 'this_computer' ? HOSTING_GUIDE_URL : `${HOSTING_GUIDE_URL}#your-own-domain`}
+        target="_blank"
+        rel="noreferrer"
+        title="How to put it on a server: providers, one-command install, ports"
+      >
+        {place === 'this_computer' ? 'Put it on a server' : 'Add an https address'}
+      </a>
+    </p>
   )
 }

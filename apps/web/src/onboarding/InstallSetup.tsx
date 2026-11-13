@@ -43,7 +43,7 @@ import { peekQuery, setQueryData } from '../cachedQuery.ts'
 import { Input } from '../ui/form.tsx'
 import { BrandMark, Button, cx, Icon, Spinner } from '../ui/kit.tsx'
 import { problemText } from '../ui/LoadStates.tsx'
-import { openAgentSetup } from './AgentSetup.tsx'
+import { HostingNote, openAgentSetup } from './AgentSetup.tsx'
 import '../admin/admin.css'
 import './agent-setup.css'
 import './install-setup.css'
@@ -329,6 +329,7 @@ function Welcome({ checklist, onStart }: { checklist: SetupChecklist; onStart: (
           for real before you move on. About 30 to 45 minutes; you can skip a part and come back to it.
         </p>
       </div>
+      <HostingNote address={window.location.origin} />
       <PartList checklist={checklist} ids={partSteps.map(s => installStepItems[s]!)} />
       <p className="as-note is-agent-note">
         An AI agent can do this in about 15 minutes and check the server for you.{' '}
@@ -464,13 +465,13 @@ function PartStep({
         <p className="as-note" role="status">
           {setup.restart.automatic ? (
             <>
-              <Spinner /> {restarting ? 'Restarting the server' : 'Waiting for the server to restart'} so it uses
-              the new email settings. This takes a few seconds.
+              <Spinner /> {restarting ? 'Restarting the server' : 'Waiting for the server to restart'} so it uses the
+              new email settings. This takes a few seconds.
             </>
           ) : (
             <>
-              Email settings are read when the API starts. Restart the API (with pnpm dev, stop it and start it
-              again); this page continues on its own once the API is running with the new settings.
+              Email settings are read when the API starts. Restart the API (with pnpm dev, stop it and start it again);
+              this page continues on its own once the API is running with the new settings.
             </>
           )}
         </p>
@@ -700,8 +701,8 @@ function Extras({ checklist, onBack, onNext }: { checklist: SetupChecklist; onBa
         <span className="as-kicker">Optional</span>
         <h1>Real phone calls</h1>
         <p className="ob-lede">
-          LiveKit carries the call audio and runs on this server. Browser test calls work without the rest; real
-          phone calls need these ports open.
+          LiveKit carries the call audio and runs on this server. Browser test calls work without the rest; real phone
+          calls need these ports open.
         </p>
       </div>
       <section className="as-card">

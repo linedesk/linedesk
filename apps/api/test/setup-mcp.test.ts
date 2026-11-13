@@ -157,8 +157,12 @@ describe('tools', () => {
       next_step: string
       steps: { id: string; state: string; how?: string[] }[]
       app_links: { providers: string }
+      install: { public: boolean; place?: string; note?: string }
     }
     expect(before.steps.map(s => s.id).slice(0, 5)).toEqual(['ai', 'telephony', 'email', 'livekit', 'workspace'])
+    // The tests run on localhost: the agent hears that phone calls need a server, and how to move there.
+    expect(before.install).toMatchObject({ public: false, place: 'this_computer' })
+    expect(before.install.note).toContain('scripts/install.sh')
     // Only the next step carries its instructions.
     expect(before.steps.filter(s => s.how).map(s => s.id)).toEqual([before.next_step])
     expect(before.app_links.providers).toMatch(/#admin\/providers$/)

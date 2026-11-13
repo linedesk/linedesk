@@ -46,19 +46,45 @@ export type AgentSetupState = {
 
 /** Whether cloud-hosted clients (claude.ai, ChatGPT) can reach this address: https and a public host name. */
 export function reachableFromCloud(publicUrl: string): boolean {
+  return installPlace(publicUrl) === 'public'
+}
+
+/**
+ * Where an install is, from its address: `public` (https on a public name: carriers and cloud agents reach it),
+ * `this_computer` (localhost or a private network: fine for trying, no phone calls) or `no_https` (a public name
+ * without https).
+ */
+export function installPlace(publicUrl: string): 'public' | 'this_computer' | 'no_https' {
   let url: URL
   try {
     url = new URL(publicUrl)
   } catch {
-    return false
+    return 'this_computer'
   }
-  if (url.protocol !== 'https:') return false
   const host = url.hostname.toLowerCase()
-  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal'))
-    return false
-  if (/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.)/.test(host) || host === '[::1]') return false
-  return true
+  if (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host.endsWith('.local') ||
+    host.endsWith('.internal') ||
+    host === '[::1]' ||
+    /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.)/.test(host)
+  )
+    return 'this_computer'
+  return url.protocol === 'https:' ? 'public' : 'no_https'
 }
+
+/** The guide to putting Linedesk on a server (docs/hosting.md) and its one-command install. */
+export const HOSTING_GUIDE_URL = 'https://github.com/linedesk/linedesk/blob/main/docs/hosting.md'
+export const INSTALL_COMMAND =
+  'curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/main/scripts/install.sh | sudo sh'
+
+/** What setup_status tells an agent when the install is not on a public https address (installPlace). */
+export const LOCAL_INSTALL_NOTE = `This install is not on a public https address, so phone carriers cannot reach it. Everything else can be set up and tried here, including test calls in the browser, but real phone calls need Linedesk on a server with a public IP. Tell the admin this once, before the provider steps, and offer to move first: keys and settings stored here do not move to a new install.
+- The server: any Linux server (Ubuntu or Debian) with a public IPv4, 2 vCPUs and 2 GB of memory (4 GB recommended), about $12 to $24 a month. If the admin has no provider yet: DigitalOcean, AWS Lightsail or Vultr. Guide: ${HOSTING_GUIDE_URL}
+- The install, one command on the server (or pasted as the server's user data while creating it): ${INSTALL_COMMAND}
+- If you can run commands and reach the server over SSH, run it for them. It prints the server's address and a one-time setup code (also in /root/linedesk-setup.txt). The admin opens the address, enters the code, and creates a new setup link there for you.
+- If the admin only wants to try Linedesk first, continue here.`
 
 /** The clients the setup page offers, recommended first. */
 export const agentClients = ['claude_code', 'claude', 'chatgpt', 'codex', 'cursor', 'other'] as const
@@ -231,5 +257,7 @@ Choices that work well (US):
 - Phone: Telnyx (about $1 a month per number plus about half a cent a minute). Twilio works too.
 - Email: Resend (free to start; needs DNS records on a domain the admin owns).
 - Pick-up: "when I can't answer" (no_answer) is the usual choice: the business phone rings first, unanswered calls forward to Linedesk.
+
+Where the install runs: setup_status.install. When install.public is false, read install.note: phone calls need a server, and it says how to move there.
 
 If you can run commands on the server itself (for example Claude Code there), you may check the install with docker compose ps and docker compose logs, and fix the voice server item. Never print the .env file or any secret.`
