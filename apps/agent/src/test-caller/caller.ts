@@ -2,9 +2,9 @@
 // phone it talks to the SIP participant the call-test command dialled; in room mode it talks to the
 // business's own agent in the same room. It hangs up when the scenario is done.
 import { llm, voice, type JobContext } from '@livekit/agents'
-import type { AgentConfig } from '../config.ts'
+import type { AgentConfig, RealtimeConfig } from '../config.ts'
 import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from '../counterpart.ts'
-import { createPipeline } from '../pipeline.ts'
+import { createPipeline, createRealtimeLineTts } from '../pipeline.ts'
 import { measureLatency } from './latency.ts'
 import { callerInstructions, type Scenario, scenarios, type TestCallerMetadata } from './scenarios.ts'
 
@@ -16,10 +16,20 @@ export const isGoodbye = (text: string) => /\b(good ?bye|bye|have a (good|nice|g
 export const TEST_CALLER_LIMIT_MS = 3 * 60_000
 /** How long a silent caller stays on the line before hanging up. */
 export const SILENT_CALLER_MS = 25_000
+/**
+ * The test caller's OpenAI voice when a realtime model's key is there: unlike the assistant's realtime voice (marin), and
+ * cheaper than spending the voice provider's characters on test calls (TEST_CALLER_OPENAI_VOICE picks another).
+ */
+export const TEST_CALLER_OPENAI_VOICE = 'ash'
+
 /** Time for the goodbye to be spoken before the line is cut. */
 const GOODBYE_MS = 4000
 
-export async function runTestCaller(ctx: JobContext, { scenario: name, mode, persona }: TestCallerMetadata, config: AgentConfig) {
+/**
+ * `openAi`: the realtime model's key, when one is set up: the caller then speaks through OpenAI's speech model instead of
+ * the voice provider (its characters are kept for real calls, and a used-up quota does not silence the test caller).
+ */
+export async function runTestCaller(ctx: JobContext, { scenario: name, mode, persona }: TestCallerMetadata, config: AgentConfig, openAi: Pick<RealtimeConfig, 'apiKey'> | null = null) {
   const hangUp = () => void ctx.deleteRoom().catch(() => {})
   const after = (ms: number, why: string) => {
     const timer = setTimeout(() => {
@@ -41,7 +51,9 @@ export async function runTestCaller(ctx: JobContext, { scenario: name, mode, per
   // A voice other than the assistant's, so the two sides are easy to tell apart in a recording.
   const voiceId = process.env.TEST_CALLER_VOICE_ID
   const voiceOf = voiceId ? { provider: config.tts.provider, voice_id: voiceId } : null
-  const session = new voice.AgentSession(createPipeline(config, voiceOf, undefined, scenario.languages ? { main: 'en', others: scenario.languages } : undefined))
+  const pipeline = createPipeline(config, voiceOf, undefined, scenario.languages ? { main: 'en', others: scenario.languages } : undefined)
+  const openAiVoice = openAi && createRealtimeLineTts({ apiKey: openAi.apiKey, voice: process.env.TEST_CALLER_OPENAI_VOICE || TEST_CALLER_OPENAI_VOICE })
+  const session = new voice.AgentSession(openAiVoice ? { ...pipeline, tts: openAiVoice } : pipeline)
   let saidGoodbye = false
   let ownLines = 0
   session.on(voice.AgentSessionEventTypes.ConversationItemAdded, ({ item }) => {
