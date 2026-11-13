@@ -16,6 +16,7 @@ import {
   type TeamData,
 } from '@linedesk/actions'
 import type { AssistantCalendar, CalendarConnection, Call, PhoneNumber } from '@linedesk/db/types'
+import { brandName } from '../brand.ts'
 
 export type GoLiveId = GoLiveStep
 
@@ -118,7 +119,7 @@ export function goLiveItems(facts: GoLiveFacts, assistant: string): GoLiveItem[]
     items.push({
       id: 'push',
       label: 'Get calls on your phone',
-      hint: 'Install the app and turn on notifications',
+      hint: `Add ${brandName()} to your Home Screen, then allow notifications`,
       done: facts.pushOn,
       href: '#settings/notifications',
     })
