@@ -226,11 +226,8 @@
   color: var(--ink);
 }
 
-/* Push in the notify step: its line sits under the checkbox; the permission row closes the block. */
+/* Notifications in the notify step: its line sits under the checkbox. */
 .ob-push-note {
   margin-top: -6px;
   padding-left: 26px;
-}
-.ob-allow {
-  margin-top: 2px;
 }

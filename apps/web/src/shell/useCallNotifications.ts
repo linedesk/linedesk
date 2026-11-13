@@ -1,11 +1,13 @@
-// Browser notifications for finished calls while Linedesk is open (Notification API, no push
-// service). Only when the tab is in the background, only for calls that finished after the app
+// Notifications for finished calls from the open page (Notification API, no push service), when the
+// device switch in Settings › Notifications is on: this browser subscribed for push (the page's
+// notification and the push share a tag, so one shows), or, where push cannot work, the member's
+// `browser` setting. Only when the tab is in the background, only for calls that finished after the app
 // opened, never for test calls or spam. Clicking one opens the call.
 import type { NotificationSettingsData } from '@linedesk/actions'
 import type { Call } from '@linedesk/db/types'
 import { useEffect, useRef } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
-import { onPushOpensCall } from '../push.ts'
+import { onPushOpensCall, pushSupport, thisDeviceId } from '../push.ts'
 import { readAction } from '../settings/settings-api.ts'
 import { useRows } from '../store.tsx'
 import { callHash } from './useRoute.ts'
@@ -57,6 +59,13 @@ function show(call: Call, callerName: (call: Call) => string) {
   }
 }
 
+/** Whether the device switch is on here (see the file comment); permission is checked by the caller. */
+export async function notifiesHere(prefs: NotificationSettingsData): Promise<boolean> {
+  if (pushSupport() !== 'supported' || !prefs.push.publicKey) return prefs.effective.browser
+  const id = await thisDeviceId().catch(() => null)
+  return id !== null && prefs.push.devices.includes(id)
+}
+
 export function useCallNotifications(callerName: (call: Call) => string) {
   const calls = useRows('calls')
   const prefs = useNotificationSettings()
@@ -77,8 +86,12 @@ export function useCallNotifications(callerName: (call: Call) => string) {
   useEffect(() => {
     const before = seen.current
     seen.current = new Map(calls.map(c => [c.id, c.status]))
-    if (!prefs?.effective.browser || !browserNotificationsSupported() || Notification.permission !== 'granted') return
+    if (!prefs || !browserNotificationsSupported() || Notification.permission !== 'granted') return
     if (document.visibilityState === 'visible' && document.hasFocus()) return
-    for (const call of newlyFinished(calls, before, since.current)) show(call, name.current)
+    const fresh = newlyFinished(calls, before, since.current)
+    if (fresh.length === 0) return
+    void notifiesHere(prefs).then(on => {
+      if (on) for (const call of fresh) show(call, name.current)
+    })
   }, [calls, prefs])
 }

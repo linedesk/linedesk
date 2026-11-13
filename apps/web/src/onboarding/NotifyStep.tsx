@@ -9,15 +9,7 @@ import type { Assistant } from '@linedesk/db/types'
 import { useState } from 'react'
 import { brandName } from '../brand.ts'
 import { Field, TextArea } from '../settings/fields.tsx'
-import {
-  AllowNotificationsRow,
-  notificationsAllowed,
-  pushBlocker,
-  turnOffPush,
-  turnOnPush,
-  useThisDevice,
-} from '../settings/Notifications.tsx'
-import { useNotificationPermission } from '../settings/notificationPermission.ts'
+import { useDeviceNotifications } from '../settings/Notifications.tsx'
 import { setNotificationSettings, useNotificationQuery } from '../shell/useCallNotifications.ts'
 import { useAssistant, useRows, useRun } from '../store.tsx'
 import { useMember } from '../team/members.ts'
@@ -223,8 +215,8 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
 }
 
 /**
- * Email for every call (saved with Continue) and push in this browser (at once), the same model as Settings ›
- * Notifications: the browser's permission in its own row, push greyed until it is given.
+ * Email for every call (saved with Continue) and notifications on this device (at once), the same switch as Settings ›
+ * Notifications: turning it on asks the browser for permission.
  */
 function Summaries({
   settings,
@@ -237,20 +229,7 @@ function Summaries({
   onEmail: (on: boolean) => void
   admin: boolean
 }) {
-  const run = useRun()
-  const device = useThisDevice(settings.push.devices)
-  const [note, setNote] = useState<string | null>(null)
-  const [permission] = useNotificationPermission()
-  const allowed = notificationsAllowed(permission)
-  const blocker = pushBlocker(settings.push.publicKey)
-  async function setPush(on: boolean) {
-    if (!on) return void turnOffPush(settings, device.id, run)
-    // Registering with the browser's push service can take a while the first time.
-    setNote('Turning on…')
-    const result = await turnOnPush(settings, run)
-    setNote(result.note)
-    if (result.id) device.setId(result.id)
-  }
+  const device = useDeviceNotifications(settings)
   return (
     <div className="ob-summaries">
       <Checkbox checked={email} onChange={onEmail}>
@@ -269,19 +248,10 @@ function Summaries({
           )}
         </p>
       )}
-      <Checkbox
-        checked={device.on && allowed && !blocker}
-        onChange={on => void setPush(on)}
-        disabled={!allowed || blocker !== null}
-      >
-        Push notifications in this browser
+      <Checkbox checked={device.on} onChange={on => void device.set(on)} disabled={device.disabled}>
+        Notifications on this device
       </Checkbox>
-      <p className="ob2-note ob-push-note">
-        {!allowed
-          ? 'New calls, urgent ones first, even when the app is closed. Only works once this browser allows notifications.'
-          : (blocker ?? note ?? 'New calls, urgent ones first, even when the app is closed.')}
-      </p>
-      <AllowNotificationsRow className="ob-allow" />
+      <p className="ob2-note ob-push-note">{device.note}</p>
     </div>
   )
 }

@@ -1,24 +1,20 @@
-// Settings › Notifications: your own new-call notifications (email per call, browser notifications
-// while Linedesk is open, push notifications in this browser while it is closed) and, for owners and
-// admins, the defaults for teammates who never changed theirs. Browser and push notifications need the browser's
-// permission: its own row asks for it, and the two toggles stay greyed until it is given.
-import type { NotificationChannels, NotificationSettingsData } from '@linedesk/actions'
+// Settings › Notifications: your own new-call notifications (email per call, and one switch for notifications on
+// this device: push where the browser and server can, else while Linedesk is open) and, for owners and admins, the
+// email default for teammates who never changed theirs. The device switch asks for the browser's permission itself.
+import type { NotificationSettingsData } from '@linedesk/actions'
 import { useEffect, useState } from 'react'
 import { brandName } from '../brand.ts'
 import { currentSubscription, pushSupport, subscribeThisBrowser, thisDeviceId } from '../push.ts'
-import { setNotificationSettings, useNotificationQuery } from '../shell/useCallNotifications.ts'
+import {
+  browserNotificationsSupported,
+  setNotificationSettings,
+  useNotificationQuery,
+} from '../shell/useCallNotifications.ts'
 import { useRun } from '../store.tsx'
 import { useCanAssign } from '../team/members.ts'
-import { Button, Icon } from '../ui/kit.tsx'
 import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
 import { Section, SwitchRow } from './fields.tsx'
-import {
-  type NotificationPermissionState,
-  permissionText,
-  useNotificationPermission,
-} from './notificationPermission.ts'
-
-type Channel = keyof NotificationChannels
+import { permissionText, useNotificationPermission } from './notificationPermission.ts'
 
 const blockedText = 'Blocked by the browser. Allow notifications for this site, then try again.'
 
@@ -87,53 +83,63 @@ export async function turnOffPush(
   if (subscription) void run('push.unsubscribe', { endpoint: subscription.endpoint })
 }
 
-/** Whether this browser may show notifications (AllowNotificationsRow asks). */
-export const notificationsAllowed = (permission: NotificationPermissionState) => permission === 'granted'
+/** Sets the member's own in-tab setting (the fallback where push cannot work); applies at once, saved through the outbox. */
+function setOwnBrowser(settings: NotificationSettingsData, on: boolean, run: (name: string, input: object) => unknown) {
+  setNotificationSettings({
+    ...settings,
+    own: { ...settings.own, browser: on },
+    effective: { ...settings.effective, browser: on },
+  })
+  void run('notifications.update', { browser: on })
+}
 
 /**
- * The browser's permission, the one thing behind browser and push notifications: Allow asks once, then a tick.
- * Settings › Notifications and the onboarding notify step show the same row.
+ * One switch for "notify me about new calls on this device". Where push works, on means this browser is subscribed
+ * (notifications even when Linedesk is closed); where it cannot (no VAPID keys, a browser without push), it falls
+ * back to notifications while Linedesk is open (the member's `browser` setting). Turning it on asks the browser for
+ * permission itself; `note` says what the switch does here, or why it cannot be turned on.
  */
-export function AllowNotificationsRow({ className }: { className?: string }) {
+export function useDeviceNotifications(settings: NotificationSettingsData) {
+  const run = useRun()
+  const device = useThisDevice(settings.push.devices)
   const [permission, askPermission] = useNotificationPermission()
-  const [asking, setAsking] = useState(false)
-  async function allow() {
-    setAsking(true)
+  const [busyNote, setBusyNote] = useState<string | null>(null)
+  const viaPush = pushBlocker(settings.push.publicKey) === null
+  const granted = permission === 'granted'
+  const on = granted && (viaPush ? device.on : settings.effective.browser)
+  const unavailable = permission === 'denied' || permission === 'unsupported' || permission === 'ios-needs-install'
+
+  async function set(next: boolean) {
+    setBusyNote(null)
+    if (!next) {
+      if (viaPush) await turnOffPush(settings, device.id, run)
+      else setOwnBrowser(settings, false, run)
+      return
+    }
     await askPermission()
-    setAsking(false)
+    if (!browserNotificationsSupported() || Notification.permission !== 'granted') return
+    if (!viaPush) return setOwnBrowser(settings, true, run)
+    // Registering with the browser's push service can take a while the first time.
+    setBusyNote('Turning on…')
+    const result = await turnOnPush(settings, run)
+    setBusyNote(result.note)
+    if (result.id) device.setId(result.id)
   }
-  return (
-    <div className={className ? `swrow ${className}` : 'swrow'}>
-      <div>
-        <b>Allow push notifications in this browser</b>
-        <span className="help">{permissionText(permission)}</span>
-      </div>
-      {permission === 'granted' ? (
-        <span className="swrow-ok">
-          <Icon name="check" size={14} />
-          Allowed
-        </span>
-      ) : (
-        permission === 'default' && (
-          <Button size="sm" busy={asking} onClick={() => void allow()}>
-            Allow
-          </Button>
-        )
-      )}
-    </div>
-  )
+
+  const fallback =
+    pushSupport() === 'supported'
+      ? `New calls while ${brandName()} is open. Notifications when it is closed are not set up on this server yet.`
+      : `New calls while ${brandName()} is open. This browser cannot show them when it is closed.`
+  const note = unavailable
+    ? permissionText(permission)
+    : (busyNote ?? (viaPush ? `New calls, urgent ones first, even when ${brandName()} is closed.` : fallback))
+  return { on, disabled: unavailable, note, set, pushOn: viaPush && on }
 }
 
 export function Notifications({ toast }: { toast: (text: string) => void }) {
-  const run = useRun()
-  const canAssign = useCanAssign()
   const query = useNotificationQuery()
   const settings = query.data ?? null
   const error = settings ? null : query.error
-  const [pushNote, setPushNote] = useState<string | null>(null)
-  const device = useThisDevice(settings?.push.devices ?? [])
-  const [permission] = useNotificationPermission()
-  const allowed = notificationsAllowed(permission)
 
   if (error)
     return (
@@ -147,70 +153,66 @@ export function Notifications({ toast }: { toast: (text: string) => void }) {
         <SkeletonRows label="Loading notification settings" rows={2} />
       </Section>
     )
+  return <NotificationSettings settings={settings} toast={toast} />
+}
+
+function NotificationSettings({
+  settings,
+  toast,
+}: {
+  settings: NotificationSettingsData
+  toast: (text: string) => void
+}) {
+  const run = useRun()
+  const canAssign = useCanAssign()
+  const device = useDeviceNotifications(settings)
 
   /** Applies at once on this page and in the browser-notification hook; the server gets it through the outbox. */
   function change(next: NotificationSettingsData) {
     setNotificationSettings(next)
   }
 
-  function setOwn(channel: Channel, on: boolean) {
-    if (!settings) return
+  function setOwnEmail(on: boolean) {
     change({
       ...settings,
-      own: { ...settings.own, [channel]: on },
-      effective: { ...settings.effective, [channel]: on },
+      own: { ...settings.own, email: on },
+      effective: { ...settings.effective, email: on },
     })
-    void run('notifications.update', { [channel]: on })
+    void run('notifications.update', { email: on })
   }
 
-  function setDefault(channel: Channel, on: boolean) {
-    if (!settings) return
-    const defaults = { ...settings.defaults, [channel]: on }
-    const effective = { ...settings.effective, [channel]: settings.own[channel] ?? on }
+  function setDefaultEmail(on: boolean) {
+    const defaults = { ...settings.defaults, email: on }
+    const effective = { ...settings.effective, email: settings.own.email ?? on }
     change({ ...settings, defaults, effective })
-    void run('notifications.setDefaults', { [channel]: on })
+    void run('notifications.setDefaults', { email: on })
     toast('Team defaults saved.')
   }
 
-  async function setPush(on: boolean) {
-    if (!settings?.push.publicKey) return
-    if (!on) return turnOffPush(settings, device.id, run)
-    // Registering with the browser's push service can take a while the first time.
-    setPushNote('Turning on…')
-    const result = await turnOnPush(settings, run)
-    setPushNote(result.note)
-    if (result.id) device.setId(result.id)
-  }
-
   function setPushSummary(on: boolean) {
-    if (!settings) return
     change({ ...settings, push: { ...settings.push, summary: on } })
     void run('notifications.update', { pushSummary: on })
   }
 
   function setAssignedEmail(on: boolean) {
-    if (!settings) return
     change({ ...settings, assignedEmail: on })
     void run('notifications.update', { assignedEmail: on })
   }
 
   function setSetupEmails(on: boolean) {
-    if (!settings) return
     change({ ...settings, setupEmails: on })
     void run('notifications.update', { setupEmails: on })
   }
 
-  const blocker = pushBlocker(settings.push.publicKey)
-  const followsDefault = (channel: Channel) => (settings.own[channel] === null ? 'Team default' : undefined)
   return (
     <>
       <Section id="st-notify" title="Notifications" description="Only for you.">
         <div className="st-swlist">
           <SwitchRow
             title="Email for every call"
-            aside={followsDefault('email')}
+            aside={settings.own.email === null ? 'Team default' : undefined}
             on={settings.effective.email}
-            onChange={on => setOwn('email', on)}
+            onChange={setOwnEmail}
           />
           {canAssign && (
             <SwitchRow
@@ -229,53 +231,27 @@ export function Notifications({ toast }: { toast: (text: string) => void }) {
             />
           )}
           <SwitchRow
-            title="Browser notifications"
-            description={`While ${brandName()} is open.`}
-            aside={followsDefault('browser')}
-            on={settings.effective.browser && allowed}
-            onChange={on => setOwn('browser', on)}
-            disabled={!allowed}
-            dimmed={!allowed}
+            title="Notifications on this device"
+            description={device.note}
+            on={device.on}
+            onChange={on => void device.set(on)}
+            disabled={device.disabled}
+            dimmed={device.disabled}
           />
-          <SwitchRow
-            title="Push notifications"
-            description={
-              (allowed && blocker) || pushNote || `New calls, urgent ones first, even when ${brandName()} is closed.`
-            }
-            on={device.on && allowed && !blocker}
-            onChange={on => void setPush(on)}
-            disabled={!allowed || blocker !== null}
-            dimmed={!allowed}
-          />
-          {device.on && allowed && !blocker && (
+          {device.pushOn && (
             <SwitchRow
               title="Say what the call was about"
-              description="Adds one line to each push. It shows on your lock screen."
+              description="Adds one line to each notification. It shows on your lock screen."
               on={settings.push.summary}
               onChange={setPushSummary}
             />
           )}
-          {!allowed && (
-            <p className="help st-notify-hint">
-              Browser and push notifications only work once this browser allows notifications.
-            </p>
-          )}
-          <AllowNotificationsRow />
         </div>
       </Section>
       {settings.canEditDefaults && (
         <Section id="st-notify-defaults" title="Team defaults" description="For teammates without their own.">
           <div className="st-swlist">
-            <SwitchRow
-              title="Email for every call"
-              on={settings.defaults.email}
-              onChange={on => setDefault('email', on)}
-            />
-            <SwitchRow
-              title="Browser notifications"
-              on={settings.defaults.browser}
-              onChange={on => setDefault('browser', on)}
-            />
+            <SwitchRow title="Email for every call" on={settings.defaults.email} onChange={setDefaultEmail} />
           </div>
         </Section>
       )}

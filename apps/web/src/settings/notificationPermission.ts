@@ -1,5 +1,5 @@
-// Whether this browser may show notifications: one permission behind both browser notifications (while the app is
-// open) and push (while it is closed). Settings › Notifications asks for it in its own row, the toggles only choose.
+// Whether this browser may show notifications: the one permission behind the device switch in Settings ›
+// Notifications and the onboarding notify step, which ask for it when turned on.
 import { useEffect, useState } from 'react'
 import { brandName } from '../brand.ts'
 import { pushSupport } from '../push.ts'
@@ -12,13 +12,13 @@ const read = (): NotificationPermissionState => {
   return browserNotificationsSupported() ? Notification.permission : 'unsupported'
 }
 
-/** The permission row's text: what it means, or why it cannot be given here. */
+/** What the permission means here, or why it cannot be given. */
 export function permissionText(state: NotificationPermissionState): string {
   switch (state) {
     case 'granted':
       return 'This browser may show notifications.'
     case 'default':
-      return 'Your browser asks once. Needed for browser and push notifications.'
+      return 'Your browser asks once when you turn notifications on.'
     case 'denied':
       return 'Blocked by the browser. Allow notifications for this site in the browser’s site settings, then reload the page.'
     case 'unsupported':
