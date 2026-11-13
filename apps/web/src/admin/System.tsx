@@ -41,7 +41,7 @@ function Livekit() {
     <Card
       title="LiveKit"
       actions={
-        <Button size="sm" variant="ghost" disabled={!status && !error} onClick={() => void check()}>
+        <Button busy={!status && !error} size="sm" variant="ghost" disabled={!status && !error} onClick={() => void check()}>
           {!status && !error ? 'Checking…' : 'Check again'}
         </Button>
       }

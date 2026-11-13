@@ -87,7 +87,7 @@ export function WorkspaceSwitcher({ all, currentId, invitations, onInvitationsCh
             </small>
           </div>
           <div className="me-inv-acts">
-            <Button size="sm" variant="primary" role="menuitem" disabled={!!busy} onClick={join(i)} title={`Join ${i.workspaceName} as ${i.role} and switch to it`}>
+            <Button busy={busy === i.invitationId} size="sm" variant="primary" role="menuitem" disabled={!!busy} onClick={join(i)} title={`Join ${i.workspaceName} as ${i.role} and switch to it`}>
               {busy === i.invitationId ? 'Joining…' : 'Join'}
             </Button>
             <Button size="sm" variant="ghost" role="menuitem" disabled={!!busy} onClick={decline(i)} title={`Decline the invitation to ${i.workspaceName}`}>

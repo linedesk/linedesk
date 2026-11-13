@@ -8,7 +8,7 @@ import { readLastUsedMethod, rememberSignInMethod } from './sign-in-methods.ts'
 import { useQuery } from './cachedQuery.ts'
 import { LastUsed, ProviderButton } from './ui/brand-logos.tsx'
 import { AuthError } from './ui/AuthError.tsx'
-import { AuthPage } from './ui/kit.tsx'
+import { AuthPage, cx, Spinner } from './ui/kit.tsx'
 import { brandName } from './brand.ts'
 
 type Step = 'start' | 'code' | 'password'
@@ -169,7 +169,9 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
           <form className="auth-form" onSubmit={sendCode} noValidate>
             <input type="email" aria-label="Email" placeholder="Email address" value={form.email} onChange={set('email')} autoComplete="email" autoFocus
               aria-describedby={error ? 'auth-error' : undefined} />
-            <button type="submit" className="k-btn k-btn-primary auth-provider" disabled={busy !== null}>
+            <button type="submit" className={cx('k-btn k-btn-primary auth-provider', busy === 'email' && 'is-busy')} disabled={busy !== null}
+              aria-busy={busy === 'email' || undefined}>
+              {busy === 'email' && <Spinner />}
               <span>{busy === 'email' ? 'Sending…' : 'Continue with Email'}</span>
               {lastUsed === 'email' && <LastUsed />}
             </button>
@@ -312,7 +314,9 @@ export function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
           inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={CODE_LENGTH + 6} autoFocus
           aria-describedby={error ? 'code-error' : undefined} />
         {error && <AuthError message={error} id="code-error" />}
-        <button type="submit" className="k-btn k-btn-primary" disabled={busy || code.length < CODE_LENGTH}>
+        <button type="submit" className={cx('k-btn k-btn-primary', (busy || signedIn) && 'is-busy')}
+          disabled={busy || code.length < CODE_LENGTH} aria-busy={busy || signedIn || undefined}>
+          {(busy || signedIn) && <Spinner />}
           {signedIn ? 'Signing in…' : busy ? 'Checking…' : 'Sign in'}
         </button>
         {waitS > 0

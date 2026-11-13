@@ -437,7 +437,7 @@ function CloneVoice({
       </Checkbox>
       {tried && problem && <FormMessage>{problem}</FormMessage>}
       <div className="vc-actions">
-        <Button
+        <Button busy={busy}
           size="sm"
           disabled={disabled || busy}
           onClick={() => void clone()}

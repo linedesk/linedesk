@@ -278,7 +278,7 @@ export function SaveBar({ dirty, saving, onCancel, disabled, label = 'Save', not
       <Button variant="ghost" onClick={onCancel} disabled={saving} title="Undo the changes">
         Cancel
       </Button>
-      <Button type="submit" variant="primary" disabled={saving || disabled} shortcut={['⌘', 'S']} title="Save (⌘S)">
+      <Button busy={saving} type="submit" variant="primary" disabled={saving || disabled} shortcut={['⌘', 'S']} title="Save (⌘S)">
         {saving ? 'Saving…' : label}
       </Button>
     </div>

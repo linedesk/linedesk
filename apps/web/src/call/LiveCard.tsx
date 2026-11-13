@@ -112,7 +112,7 @@ export function LiveCard({
                 {phase === 'listening' ? 'Stop listening' : 'Listen'}
               </Button>
               {!takenBy && (
-                <Button
+                <Button busy={phase === 'handingOff'}
                   size="sm"
                   variant="primary"
                   icon="phone-in"

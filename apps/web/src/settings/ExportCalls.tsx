@@ -65,7 +65,7 @@ function ExportForm({ toast }: Pick<Props, 'toast'>) {
         <Field id="ex-to" label="To">
           <Input id="ex-to" type="date" value={to} min={from} onChange={e => setTo(e.target.value)} />
         </Field>
-        <Button disabled={busy || !from || !to} onClick={run}>
+        <Button busy={busy} disabled={busy || !from || !to} onClick={run}>
           {busy ? 'Exporting…' : 'Export CSV'}
         </Button>
       </div>

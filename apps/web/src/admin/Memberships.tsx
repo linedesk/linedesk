@@ -150,7 +150,7 @@ function AddDialog({ title, submitLabel, picker, ready, onAdd, onClose }: AddDia
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button type="submit" variant="primary" disabled={!ready || busy}>
+          <Button busy={busy} type="submit" variant="primary" disabled={!ready || busy}>
             {busy ? 'Adding…' : submitLabel}
           </Button>
         </>

@@ -189,7 +189,7 @@ export function ProviderDialog(props: Props) {
         <Button variant="ghost" onClick={() => setPhase('idle')} disabled={phase === 'disconnecting'}>
           Cancel
         </Button>
-        <Button type="button" variant="danger" onClick={() => void disconnect()} disabled={phase === 'disconnecting'}>
+        <Button busy={phase === 'disconnecting'} type="button" variant="danger" onClick={() => void disconnect()} disabled={phase === 'disconnecting'}>
           {phase === 'disconnecting' ? 'Disconnecting…' : 'Disconnect'}
         </Button>
       </>
@@ -230,7 +230,7 @@ export function ProviderDialog(props: Props) {
               Cancel
             </Button>
             {manual && (
-              <Button
+              <Button busy={phase === 'saving' || phase === 'testing'}
                 type="submit"
                 variant="primary"
                 disabled={busy || (dirty && !canStore)}
@@ -283,7 +283,7 @@ export function ProviderDialog(props: Props) {
       {provider.fields.length === 0 && <p className="k-field-desc">Nothing to set up.</p>}
       {!manual && !result?.ok && (
         <div className="adm-oauth">
-          <Button
+          <Button busy={busy}
             variant="primary"
             disabled={busy || !canStore}
             onClick={() => void startOpenRouterConnect()}

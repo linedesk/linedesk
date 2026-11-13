@@ -267,8 +267,8 @@ function ConfirmDialog({ action, onClose, notify }: { action: AdminAction; onClo
               {confirm.alternative.action}
             </Button>
           )}
-          <Button type="submit" variant={confirm.variant ?? 'danger'} disabled={!unlocked || busy}>
-            {busy ? 'Working…' : confirm.action}
+          <Button busy={busy} type="submit" variant={confirm.variant ?? 'danger'} disabled={!unlocked || busy}>
+            {confirm.action}
           </Button>
         </>
       }

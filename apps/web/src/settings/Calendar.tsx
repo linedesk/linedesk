@@ -412,7 +412,7 @@ export function AddCalendar({
               title={c.name}
               sub={c.primary ? 'Main calendar' : undefined}
               actions={
-                <Button size="sm" disabled={taken.includes(c.id) || adding !== null} onClick={() => add(c.id, c.name)}>
+                <Button busy={adding === c.id} size="sm" disabled={taken.includes(c.id) || adding !== null} onClick={() => add(c.id, c.name)}>
                   {taken.includes(c.id) ? 'Added' : adding === c.id ? 'Adding…' : 'Add'}
                 </Button>
               }

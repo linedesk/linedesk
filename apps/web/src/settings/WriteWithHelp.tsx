@@ -97,7 +97,7 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
         <Button key="skip" variant="ghost" disabled={busy} onClick={() => { setUrl(''); setSite(null); setStep('business') }} title="No website: describe the business yourself">
           No website
         </Button>
-        <Button key="read" variant="primary" disabled={busy || !url.trim()} onClick={() => void readWebsite()}>
+        <Button busy={busy} key="read" variant="primary" disabled={busy || !url.trim()} onClick={() => void readWebsite()}>
           {busy ? 'Reading…' : 'Next'}
         </Button>
       </>
@@ -121,7 +121,7 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
         <Button key="back" variant="ghost" disabled={busy} onClick={() => setStep('business')}>
           Back
         </Button>
-        <Button
+        <Button busy={busy}
           key="write"
           variant="primary"
           disabled={busy}

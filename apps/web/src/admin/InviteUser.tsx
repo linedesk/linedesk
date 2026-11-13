@@ -89,7 +89,7 @@ export function InviteUser({ toast, reload }: Props) {
               <Button variant="ghost" onClick={close} disabled={busy}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" disabled={busy} title="Send invite (⌘S)">
+              <Button busy={busy} type="submit" variant="primary" disabled={busy} title="Send invite (⌘S)">
                 {busy ? 'Sending…' : 'Send invite'}
               </Button>
             </>

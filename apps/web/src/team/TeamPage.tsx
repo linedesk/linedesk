@@ -94,8 +94,8 @@ function OwnerConfirm({
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button type="submit" variant="danger-outline" disabled={busy}>
-            {busy ? 'Working…' : 'Make owner'}
+          <Button busy={busy} type="submit" variant="danger-outline" disabled={busy}>
+            Make owner
           </Button>
         </>
       }
@@ -247,7 +247,7 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (te
           onChange={setRole}
         />
       </FormField>
-      <Button type="submit" variant="primary" disabled={!valid || sending} title="Send the invitation (⏎)">
+      <Button busy={sending} type="submit" variant="primary" disabled={!valid || sending} title="Send the invitation (⏎)">
         {sending ? 'Sending…' : 'Invite'}
       </Button>
     </form>
@@ -302,7 +302,7 @@ function LeaveWorkspace({ data }: { data: TeamData }) {
               <Button variant="ghost" onClick={() => setAsking(false)} disabled={busy}>
                 Cancel
               </Button>
-              <Button type="submit" variant="danger" disabled={busy}>
+              <Button busy={busy} type="submit" variant="danger" disabled={busy}>
                 {busy ? 'Leaving…' : 'Leave workspace'}
               </Button>
             </>

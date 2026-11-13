@@ -88,7 +88,7 @@ export function WebhookLookups({ endpoint, toast }: Props) {
               sub={lookup.when}
               actions={
                 <>
-                  <Button
+                  <Button busy={testing === lookup.name}
                     size="sm"
                     variant="ghost"
                     disabled={testing !== null}

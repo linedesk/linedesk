@@ -144,7 +144,7 @@ export function StarPrompt({ prompt, quiet }: { prompt: Prompt | null; quiet: bo
             {failed ? 'Open GitHub' : 'Star on GitHub'}
           </Button>
         ) : (
-          <Button
+          <Button busy={state === 'starring'}
             size="sm"
             variant="primary"
             icon="star"

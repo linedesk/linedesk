@@ -279,7 +279,7 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
       )}
       {next && (
         <div className="adm-audit-more">
-          <Button size="sm" disabled={loadingMore} onClick={() => void older()} title="Load older entries">
+          <Button busy={loadingMore} size="sm" disabled={loadingMore} onClick={() => void older()} title="Load older entries">
             {loadingMore ? 'Loading…' : 'Show older'}
           </Button>
         </div>

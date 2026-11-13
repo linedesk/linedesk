@@ -59,7 +59,7 @@ export function AskName({ impersonating }: { impersonating: boolean }) {
           <Button variant="ghost" onClick={postpone} disabled={busy}>
             Later
           </Button>
-          <Button type="submit" variant="primary" disabled={busy || !name.trim()}>
+          <Button busy={busy} type="submit" variant="primary" disabled={busy || !name.trim()}>
             {busy ? 'Saving…' : 'Save'}
           </Button>
         </>

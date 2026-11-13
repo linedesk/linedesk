@@ -246,7 +246,7 @@ function PasswordForm({ account, reload }: SectionProps) {
       </div>
       <FormStatus request={request} />
       <div className="ac-actions">
-        <Button
+        <Button busy={request.busy}
           type="submit"
           variant="primary"
           title={exists ? 'Change your password and sign out your other sessions' : 'Set a password for this account'}

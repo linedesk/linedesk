@@ -141,7 +141,7 @@ function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             {changed ? 'Cancel' : 'Close'}
           </Button>
-          <Button
+          <Button busy={busy}
             variant={confirming ? 'danger' : 'primary'}
             type="submit"
             form="carrier-form"

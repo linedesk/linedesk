@@ -317,7 +317,7 @@ function ReleaseNumber({ number, onCancel }: { number: PhoneNumber; onCancel: ()
         <Button size="sm" variant="ghost" onClick={onCancel} disabled={sent}>
           Cancel
         </Button>
-        <Button type="submit" size="sm" variant="danger" disabled={sent || !confirmsNumber(typed, number.e164)}>
+        <Button busy={sent} type="submit" size="sm" variant="danger" disabled={sent || !confirmsNumber(typed, number.e164)}>
           {sent ? (bought ? 'Releasing…' : 'Disconnecting…') : bought ? 'Release number' : 'Disconnect number'}
         </Button>
       </div>
@@ -478,7 +478,7 @@ function ConnectNumber({
                 <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={busy}>
                   Cancel
                 </Button>
-                <Button
+                <Button busy={busy}
                   size="sm"
                   variant="primary"
                   disabled={busy}
@@ -504,7 +504,7 @@ function ConnectNumber({
               Cancel
             </Button>
           )}
-          <Button type="submit" size="sm" variant="primary" disabled={busy}>
+          <Button busy={busy} type="submit" size="sm" variant="primary" disabled={busy}>
             {busy ? 'Connecting…' : kind === 'existing' ? 'Connect number' : 'Get a number'}
           </Button>
         </div>

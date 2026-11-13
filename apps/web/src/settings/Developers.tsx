@@ -185,7 +185,7 @@ function CreateKey({ onClose, toast }: { onClose: () => void; toast: Props['toas
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant="primary" disabled={saving || !name.trim()}>
+          <Button busy={saving} type="submit" variant="primary" disabled={saving || !name.trim()}>
             {saving ? 'Creating…' : 'Create'}
           </Button>
         </>

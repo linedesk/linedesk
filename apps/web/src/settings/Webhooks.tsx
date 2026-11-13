@@ -369,7 +369,7 @@ function EndpointDialog({
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant="primary" disabled={saving || !url.trim()}>
+          <Button busy={saving} type="submit" variant="primary" disabled={saving || !url.trim()}>
             {endpoint ? 'Save' : saving ? 'Adding…' : 'Add'}
           </Button>
         </>

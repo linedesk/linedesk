@@ -26,7 +26,7 @@ export function SampleCallsBar({ canEdit, toast }: { canEdit: boolean; toast: (t
         <b>Sample calls.</b> {count} examples of how calls land here. Try E, A and Enter on them.
       </span>
       {canEdit && (
-        <Button
+        <Button busy={busy}
           size="sm"
           variant="ghost"
           disabled={busy}

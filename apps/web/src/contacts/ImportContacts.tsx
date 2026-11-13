@@ -155,7 +155,7 @@ export function ImportContacts({ onClose, toast }: Props) {
         <>
           <Button onClick={onClose}>Cancel</Button>
           {file ? (
-            <Button variant="primary" disabled={busy || !hasPhone || !plan?.rows.length} onClick={() => void run()}>
+            <Button busy={busy} variant="primary" disabled={busy || !hasPhone || !plan?.rows.length} onClick={() => void run()}>
               {busy ? 'Importing…' : `Import ${plan ? plan.rows.length : ''}`}
             </Button>
           ) : (
