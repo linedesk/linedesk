@@ -118,7 +118,8 @@ async function tryLlm(tx: Tx): Promise<Tried> {
   const { provider, config } = active
   // Only OpenAI's realtime model has a chat model behind the same key.
   const realtime = active.realtime && provider === 'openai_realtime'
-  if (active.realtime && !realtime) return failed(labelOf(provider), `${labelOf(provider)} can only be tested in a test call.`)
+  if (active.realtime && !realtime)
+    return failed(labelOf(provider), `${labelOf(provider)} can only be tested in a test call.`)
   const v = values(config)
   // With one OpenAI key, calls are answered by the realtime model; its summary model shows the key and quota work.
   const endpoint = realtime ? llmEndpoints.openai : llmEndpoints[provider as LlmProvider]
@@ -147,7 +148,8 @@ async function tryLlm(tx: Tx): Promise<Tried> {
   const body = (await res.json()) as { choices?: { message?: { content?: string } }[] }
   const reply = body.choices?.[0]?.message?.content?.trim()
   if (!reply) return failed(labelOf(provider), `${model} returned an empty answer.`)
-  const slow = took > 1.5 && !realtime ? ' Callers notice pauses longer than about 1.5 s, so a faster model would help.' : ''
+  const slow =
+    took > 1.5 && !realtime ? ' Callers notice pauses longer than about 1.5 s, so a faster model would help.' : ''
   return {
     ok: true,
     provider: labelOf(provider),
@@ -296,9 +298,11 @@ async function tryEmail(tx: Tx, actorId: string): Promise<Tried> {
         return false
       },
     )
-  if (!sent) return failed(null, 'The test email could not be sent. Check the email settings; the API log has the details.')
+  if (!sent)
+    return failed(null, 'The test email could not be sent. Check the email settings; the API log has the details.')
   emailCodes.set(actorId, { hash: hashCode(code), expires: Date.now() + EMAIL_CODE_MS, tries: 0 })
-  const where = emailSender.kind === 'log' ? ' It was written to the API log (EMAIL_TO_LOG), not sent to a real inbox.' : ''
+  const where =
+    emailSender.kind === 'log' ? ' It was written to the API log (EMAIL_TO_LOG), not sent to a real inbox.' : ''
   return {
     ok: true,
     provider: emailSender.kind === 'log' ? 'API log' : 'Email',
@@ -313,7 +317,7 @@ async function remember(tx: Tx, kind: TryOutKind, result: Tried) {
   if (!category) return
   const active = category === 'telephony' ? await activeProvider(tx, 'telephony') : await inUse(tx, category)
   // Speech heard by the realtime model counts for the realtime row, not for an unset speech provider.
-  if (active) rememberTest(active.provider, active.config, { ok: result.ok, message: result.message })
+  if (active) await rememberTest(tx, active.provider, active.config, { ok: result.ok, message: result.message })
 }
 
 function refuseImpersonation(actor: { impersonation?: unknown }) {
@@ -389,7 +393,7 @@ export const installSetupHandlers: Record<string, Handler> = {
     // settings stored now (not the API log, not settings a restart has not picked up yet).
     const email = await activeProvider(tx, 'email')
     if (email && emailSender.kind === 'smtp' && !(await restartState(db)).pending)
-      rememberTest(email.provider, email.config, { ok: true, message: 'Test email arrived' })
+      await rememberTest(tx, email.provider, email.config, { ok: true, message: 'Test email arrived' })
     return { rows: {}, data: { ok: true, message: 'Email works: the code arrived.' } }
   },
 }

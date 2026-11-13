@@ -1,10 +1,12 @@
 // The instance setup checklist (docs/architecture.md §12): per part a first answered call needs (email, phone
 // carrier, speech, model, voice, LiveKit and SIP) whether it is set up and whether the last test of exactly these
-// keys passed. GET /v1/admin/setup-checklist and `scripts/setup.sh --check` (setup-check.ts) read it.
+// keys passed. GET /v1/admin/setup-checklist, the install walkthrough, the setup MCP's setup_status and
+// `scripts/setup.sh --check` (setup-check.ts) all read it, so "Works" means the same everywhere.
 //
-// Test results are kept in memory per API process, keyed by a hash of the keys in effect: a changed key is untested
-// again, and nothing about a key is stored. After a restart items show "set up" until tested again (the admin page
-// tests them when it opens, through provider.test). Reading the checklist never calls a provider.
+// Test results are stored per provider (provider_tests, LIN-141) with a fingerprint of the keys in effect, an HMAC keyed
+// with SECRETS_KEY: a changed key is untested again, a restart or update forgets nothing, and nothing about a key is
+// stored. Any test counts, whoever ran it (an admin, the setup agent, the check a setup page runs when it opens).
+// Reading the checklist never calls a provider.
 import { createHmac, randomBytes } from 'node:crypto'
 import {
   checklistSummary,
@@ -17,53 +19,68 @@ import {
   setupItems,
   setupItemState,
 } from '@linedesk/actions'
-import type { Tx } from '@linedesk/db'
+import { provider_tests, type Tx } from '@linedesk/db'
+import { eq } from 'drizzle-orm'
 import { emailDelivery } from './auth-methods.ts'
 import { serverEnv } from './instance-env.ts'
 import { type LivekitStatus, livekitStatus } from './livekit-status.ts'
 import { type ProviderConfig, providerStatus, resolveProvider } from './provider-settings.ts'
-import { SecretsKeyError } from './secrets.ts'
+import { hasSecretsKey, SecretsKeyError, signWithSecretsKey } from './secrets.ts'
 
 type Env = Record<string, string | undefined>
 type TestResult = ProviderTestData & { at: string }
 
-const results = new Map<ProviderName, TestResult & { keys: string }>()
-/** A random key per process, so the fingerprint of the keys in memory cannot be checked against a guessed key. */
-const hashKey = randomBytes(32)
-/** Changes with any value in effect; kept only in memory, never sent or stored. */
-const keysHash = (config: ProviderConfig) =>
-  createHmac('sha256', hashKey)
-    .update(JSON.stringify(Object.entries(config).map(([field, entry]) => [field, entry?.value ?? null])))
-    .digest('hex')
+/** Without SECRETS_KEY no key can be stored in the app; env keys then get a fingerprint for this process only. */
+const processKey = randomBytes(32)
+/** Changes with any value in effect; never sent, and it says nothing about a key without SECRETS_KEY. */
+function keysHash(config: ProviderConfig) {
+  const values = JSON.stringify(Object.entries(config).map(([field, entry]) => [field, entry?.value ?? null]))
+  return hasSecretsKey()
+    ? signWithSecretsKey('provider-test', values)
+    : createHmac('sha256', processKey).update(values).digest('hex')
+}
 
-/** Called with every provider test (provider.test), so the checklist knows what passed. */
-export function rememberTest(
+/** Called with every provider test (provider.test, the walkthrough's round trips), so every setup screen knows what passed. */
+export async function rememberTest(
+  tx: Tx,
   provider: ProviderName,
   config: ProviderConfig,
   result: ProviderTestData,
   now = new Date(),
 ) {
-  results.set(provider, { ...result, at: now.toISOString(), keys: keysHash(config) })
+  const row = { keys: keysHash(config), ok: result.ok, message: result.message, tested_at: now.toISOString() }
+  await tx
+    .insert(provider_tests)
+    .values({ provider, ...row })
+    .onConflictDoUpdate({ target: provider_tests.provider, set: row })
 }
 
 /** The last test of exactly these keys, or null. */
-export function lastTest(provider: ProviderName, config: ProviderConfig): TestResult | null {
-  const result = results.get(provider)
-  if (!result || result.keys !== keysHash(config)) return null
-  return { ok: result.ok, message: result.message, at: result.at }
+export async function lastTest(tx: Tx, provider: ProviderName, config: ProviderConfig): Promise<TestResult | null> {
+  const [row] = await tx.select().from(provider_tests).where(eq(provider_tests.provider, provider))
+  if (!row || row.keys !== keysHash(config)) return null
+  return { ok: row.ok, message: row.message, at: new Date(row.tested_at).toISOString() }
 }
 
 /** provider.test asks a provider at most once in this window for the same keys; inside it, the last result is returned. */
 export const TEST_COOLDOWN_MS = 10_000
 
 /** The last test of exactly these keys when it is younger than the cooldown, else null. */
-export function recentTest(provider: ProviderName, config: ProviderConfig, now = new Date()): ProviderTestData | null {
-  const test = lastTest(provider, config)
+export async function recentTest(
+  tx: Tx,
+  provider: ProviderName,
+  config: ProviderConfig,
+  now = new Date(),
+): Promise<ProviderTestData | null> {
+  const test = await lastTest(tx, provider, config)
   if (!test || now.getTime() - new Date(test.at).getTime() >= TEST_COOLDOWN_MS) return null
   return { ok: test.ok, message: test.message }
 }
 
-export const forgetTests = () => results.clear()
+/** Forgets every stored result (tests: past the cooldown, or a clean start). */
+export const forgetTests = async (tx: Tx) => {
+  await tx.delete(provider_tests)
+}
 
 export const isSetUp = (provider: ProviderName, config: ProviderConfig) =>
   Object.entries(providerSpec(provider).fields).every(([field, spec]) => config[field] || spec.optional)
@@ -96,7 +113,7 @@ async function providerItem(
     return { ...base, state: 'failing', provider, providerLabel, message: e.message }
   }
   const setUp = isSetUp(provider, config)
-  const test = setUp ? lastTest(provider, config) : null
+  const test = setUp ? await lastTest(tx, provider, config) : null
   const state = setupItemState(setUp, test)
   const tested = test ? testMessage(provider, test.message) : null
   const message = coveredBy

@@ -19,9 +19,9 @@ async function testDatabaseBase(): Promise<string | null> {
 }
 
 /**
- * Files that change what is global to an install (provider keys, instance settings, instance admins)
- * or count across workspaces (the admin overview). They get a database of their own, so tests in
- * other files, which run at the same time, never see their keys or their counts move under them.
+ * Files that change what is global to an install (provider keys, instance settings, instance admins, stored provider
+ * test results) or count across workspaces (the admin overview). Each gets a database of its own, so tests in other
+ * files, which run at the same time, never see their keys or their counts move under them, and none clears another's.
  */
 const INSTANCE_WIDE_FILES = [
   'test/admin.test.ts',
@@ -32,7 +32,7 @@ const INSTANCE_WIDE_FILES = [
 ]
 
 // The API tests run against a real Postgres, in databases of their own (never the dev database): one
-// for the instance-wide files, one for everything else. global-setup.ts creates and drops each.
+// per instance-wide file, one for everything else. global-setup.ts creates and drops each.
 export default defineConfig(async () => {
   const base = await testDatabaseBase()
   const withDatabase = (name: string, files: { include?: string[]; exclude?: string[] }) => ({
@@ -50,7 +50,9 @@ export default defineConfig(async () => {
       projects: base
         ? [
             withDatabase('api', { exclude: [...configDefaults.exclude, ...INSTANCE_WIDE_FILES] }),
-            withDatabase('instance', { include: INSTANCE_WIDE_FILES }),
+            ...INSTANCE_WIDE_FILES.map(file =>
+              withDatabase(`instance:${file.replace(/^test\/|\.test\.ts$/g, '')}`, { include: [file] }),
+            ),
           ]
         : [{ extends: true as const, test: { name: 'api', exclude: [...configDefaults.exclude, 'test/**'] } }],
       env: {

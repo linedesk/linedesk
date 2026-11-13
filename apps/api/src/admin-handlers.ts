@@ -144,15 +144,20 @@ export const adminHandlers: Record<string, Handler> = {
   'provider.test': async ({ tx }, input) => {
     const config = await withSecretsKey(() => resolveProvider(tx, input.provider))
     // The same keys tested a moment ago (the overview tests on open, a double click): the last result, no request.
-    const recent = recentTest(input.provider, config)
+    const recent = await recentTest(tx, input.provider, config)
     if (recent) return { rows: {}, data: recent }
     const result = await testProvider(input.provider, config)
-    rememberTest(input.provider, config, result)
+    await rememberTest(tx, input.provider, config, result)
     // A provider that is set up: its test counts like a call (a pass clears its failure, an error records one,
     // without the email: the admin sees it). One that is not set up is not failing, only missing.
     if (!missingFields(input.provider, config).length) {
       if (result.ok) await noteProviderOk(input.provider)
-      else await noteProviderFailure(input.provider, { reason: result.reason ?? 'unknown', message: result.message }, 'test')
+      else
+        await noteProviderFailure(
+          input.provider,
+          { reason: result.reason ?? 'unknown', message: result.message },
+          'test',
+        )
     }
     return { rows: {}, data: result }
   },
@@ -175,7 +180,7 @@ export const adminHandlers: Record<string, Handler> = {
     await withSecretsKey(() => setProviderKeys(tx, realtime, { api_key: input.apiKey }, actor.actorId, now))
     await setActiveProvider(tx, 'realtime', realtime, actor.actorId, now)
     for (const provider of linked) await linkProviderKey(tx, provider, realtime, actor.actorId, now)
-    rememberTest(realtime, await resolveProvider(tx, realtime), result)
+    await rememberTest(tx, realtime, await resolveProvider(tx, realtime), result)
     return { rows: {}, data: { ok: true, message: result.message, linked } }
   },
 

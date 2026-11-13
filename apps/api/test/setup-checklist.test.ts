@@ -2,7 +2,7 @@
 // never calls a provider (tests run through provider.test), what each state means, that tests are remembered per
 // set of keys, and that no key ever leaves. Sets provider keys and
 // instance admins, so it is one of the instance-wide files (vitest.config.ts).
-import { commands, instance_settings, provider_settings, user } from '@linedesk/db'
+import { commands, instance_settings, provider_settings, provider_tests, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { forgetTests } from '../src/setup-checklist.ts'
@@ -27,7 +27,10 @@ const checklist = async (query = '') => {
 const item = (body: { items: Item[] }, id: string) => body.items.find(i => i.id === id)!
 // A body every provider test reads as fine (Deepgram's looks for the key's project).
 const answering = (status = 200) =>
-  vi.fn(async (_url?: unknown, _init?: unknown) => new Response(status === 200 ? JSON.stringify({ projects: [{ project_id: 'p1' }] }) : '{}', { status }))
+  vi.fn(
+    async (_url?: unknown, _init?: unknown) =>
+      new Response(status === 200 ? JSON.stringify({ projects: [{ project_id: 'p1' }] }) : '{}', { status }),
+  )
 /** The provider tests ran against one provider's API only (one test, however many requests it makes). */
 const oneProvider = (mock: ReturnType<typeof answering>) =>
   new Set(mock.mock.calls.map(c => new URL(String(c[0])).host)).size
@@ -48,7 +51,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await db.delete(provider_settings)
   await db.delete(instance_settings)
-  forgetTests()
+  await forgetTests(db)
 })
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -130,13 +133,20 @@ describe('states', () => {
     expect(item(tested, 'stt')).toMatchObject({ state: 'ok', message: 'Connected' })
     // Remembered: reading asks no one.
     expect(fetchMock).not.toHaveBeenCalled()
+    // Stored, so a restart or update keeps it; the row holds a fingerprint of the keys, never a key.
+    const stored = await db.select().from(provider_tests)
+    expect(stored).toMatchObject([{ provider: 'deepgram', ok: true }])
+    expect(JSON.stringify(stored)).not.toContain(SECRET)
 
     // Past the cooldown (provider.test answers from memory for 10 s): asked again.
-    forgetTests()
+    await forgetTests(db)
     vi.stubGlobal('fetch', answering(401))
     expect((await testProvider('deepgram')).ok).toBe(false)
     const failing = await checklist()
-    expect(item(failing, 'stt')).toMatchObject({ state: 'failing', message: 'Deepgram rejected the key (HTTP 401). Enter a valid key under Admin › Providers › Deepgram.' })
+    expect(item(failing, 'stt')).toMatchObject({
+      state: 'failing',
+      message: 'Deepgram rejected the key (HTTP 401). Enter a valid key under Admin › Providers › Deepgram.',
+    })
 
     // New keys are untested again.
     await act(operator, 'provider.setKeys', { provider: 'deepgram', values: { api_key: OTHER_SECRET } })
@@ -222,12 +232,12 @@ describe('provider.test cooldown', () => {
     const { recentTest, rememberTest, TEST_COOLDOWN_MS } = await import('../src/setup-checklist.ts')
     const config = { api_key: { value: SECRET, source: 'app' as const } }
     const at = new Date('2026-11-13T04:00:00Z')
-    rememberTest('deepgram', config, { ok: true, message: 'Connected' }, at)
-    expect(recentTest('deepgram', config, new Date(at.getTime() + TEST_COOLDOWN_MS - 1))).toEqual({
+    await rememberTest(db, 'deepgram', config, { ok: true, message: 'Connected' }, at)
+    expect(await recentTest(db, 'deepgram', config, new Date(at.getTime() + TEST_COOLDOWN_MS - 1))).toEqual({
       ok: true,
       message: 'Connected',
     })
-    expect(recentTest('deepgram', config, new Date(at.getTime() + TEST_COOLDOWN_MS))).toBeNull()
+    expect(await recentTest(db, 'deepgram', config, new Date(at.getTime() + TEST_COOLDOWN_MS))).toBeNull()
   })
 })
 

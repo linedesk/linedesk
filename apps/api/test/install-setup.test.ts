@@ -54,7 +54,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await db.delete(provider_settings)
   await db.delete(instance_settings)
-  forgetTests()
+  await forgetTests(db)
   forgetEmailCodes()
 })
 afterEach(() => {

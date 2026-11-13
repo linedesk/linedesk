@@ -6,7 +6,26 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { actions, REDACTED, recordingKey } from '@linedesk/actions'
-import { api_keys, auth_events, calls, commands, setup_emails, setup_events, instance_settings, invitation, member as memberTable, number_purchases, organization, passkey, phone_numbers, provider_settings, push_subscriptions, session, user, voice_clones } from '@linedesk/db'
+import {
+  api_keys,
+  auth_events,
+  calls,
+  commands,
+  setup_emails,
+  setup_events,
+  instance_settings,
+  invitation,
+  member as memberTable,
+  number_purchases,
+  organization,
+  passkey,
+  phone_numbers,
+  provider_settings,
+  push_subscriptions,
+  session,
+  user,
+  voice_clones,
+} from '@linedesk/db'
 import { and, eq, getTableName, inArray, sql } from 'drizzle-orm'
 import { auth } from '../src/auth.ts'
 import { KEPT_TABLES, workspaceTables } from '../src/workspace-delete.ts'
@@ -17,7 +36,12 @@ import { adminHandlers } from '../src/admin-handlers.ts'
 import { forgetTests } from '../src/setup-checklist.ts'
 import { decodeLogo, resetBranding } from '../src/branding.ts'
 import { signInCodeEmail } from '../src/emails/templates.ts'
-import { adminSecondFactorGap, adminSecondFactorRequired, markPasskeySession, secondFactorOffWarning } from '../src/admin-second-factor.ts'
+import {
+  adminSecondFactorGap,
+  adminSecondFactorRequired,
+  markPasskeySession,
+  secondFactorOffWarning,
+} from '../src/admin-second-factor.ts'
 import { mayReceiveEnrolmentCode, needsPasskeyStepUp } from '../src/admin-step-up.ts'
 import type { Actor } from '../src/context.ts'
 import { runAction } from '../src/run-action.ts'
@@ -30,7 +54,12 @@ import { CLIENT_IP_HEADER } from '../src/client-ip.ts'
 import { countSignInFailures, limitSignIns } from '../src/sign-in-limits.ts'
 import { mayRunWhileImpersonating } from '../src/impersonation-guard.ts'
 import { loadInstanceEnv } from '../src/instance-env.ts'
-import { createAdminWithPassword, grantFirstUser, instanceAdminHooks, refuseUnverifiedAdminAddress } from '../src/instance-admin.ts'
+import {
+  createAdminWithPassword,
+  grantFirstUser,
+  instanceAdminHooks,
+  refuseUnverifiedAdminAddress,
+} from '../src/instance-admin.ts'
 import { issuePasskeyEnrolment } from '../src/passkey-enrolment.ts'
 import { mayCreateUser } from '../src/signup-gate.ts'
 import { telephonyProvider } from '../src/provider-settings.ts'
@@ -215,7 +244,9 @@ describe('access', () => {
     const loner = await signUp()
     process.env.AUTH_SIGNUP_ENABLED = 'false'
     try {
-      expect((await request(loner, 'POST', '/v1/workspaces', { name: 'Not Allowed Yet' })).body).toMatchObject({ code: 'workspace_creation_closed' })
+      expect((await request(loner, 'POST', '/v1/workspaces', { name: 'Not Allowed Yet' })).body).toMatchObject({
+        code: 'workspace_creation_closed',
+      })
       await setAdmin(loner, true)
       const created = await request(loner, 'POST', '/v1/workspaces', { name: 'Operator Workspace' })
       expect(created).toMatchObject({ status: 200, body: { ok: true, workspace: { name: 'Operator Workspace' } } })
@@ -267,7 +298,12 @@ describe('provider keys', () => {
       vi.fn(async () => new Response(JSON.stringify({ errors: [{ detail: `bad key ${SECRET}` }] }), { status: 500 })),
     )
     const tested = await act(operator, 'provider.test', { provider: 'telnyx' })
-    expect(tested.body.data).toMatchObject({ ok: false, status: 'error', reason: 'network', message: expect.stringMatching(/^Telnyx did not answer or failed on its side \(HTTP 500\)/) })
+    expect(tested.body.data).toMatchObject({
+      ok: false,
+      status: 'error',
+      reason: 'network',
+      message: expect.stringMatching(/^Telnyx did not answer or failed on its side \(HTTP 500\)/),
+    })
 
     const [command] = await db.select().from(commands).where(eq(commands.id, key))
     expect(command?.input).toEqual({ provider: 'telnyx', values: { api_key: REDACTED, public_key: REDACTED } })
@@ -397,7 +433,10 @@ describe('provider keys', () => {
     expect((await config()).realtime).toBeNull()
     expect(await realtimeFlag()).toBe(false)
 
-    await act(operator, 'provider.setKeys', { provider: 'openai_realtime', values: { api_key: SECRET, voice: 'cedar' } })
+    await act(operator, 'provider.setKeys', {
+      provider: 'openai_realtime',
+      values: { api_key: SECRET, voice: 'cedar' },
+    })
     expect((await providers()).active.realtime).toEqual({ provider: 'openai_realtime', chosen: false })
     expect((await config()).realtime).toEqual({
       provider: 'openai_realtime',
@@ -417,10 +456,34 @@ describe('provider keys', () => {
 
   test('email and sign-in apps are stored like other keys and loaded as variables at start', async () => {
     const smtp = 'smtps://user:smtp-password-made-up@smtp.example.com:465'
-    expect((await act(operator, 'provider.setKeys', { provider: 'smtp', values: { url: smtp, from: 'Desk <desk@example.com>' } })).status).toBe(200)
-    expect((await act(operator, 'provider.setKeys', { provider: 'google', values: { client_id: 'gid', client_secret: SECRET } })).status).toBe(200)
-    expect((await act(operator, 'provider.setKeys', { provider: 'smtp', values: { url: 'https://smtp.example.com' } })).status).toBe(422)
-    expect((await act(operator, 'provider.setKeys', { provider: 'oidc', values: { discovery_url: 'http://id.example.com' } })).status).toBe(422)
+    expect(
+      (
+        await act(operator, 'provider.setKeys', {
+          provider: 'smtp',
+          values: { url: smtp, from: 'Desk <desk@example.com>' },
+        })
+      ).status,
+    ).toBe(200)
+    expect(
+      (
+        await act(operator, 'provider.setKeys', {
+          provider: 'google',
+          values: { client_id: 'gid', client_secret: SECRET },
+        })
+      ).status,
+    ).toBe(200)
+    expect(
+      (await act(operator, 'provider.setKeys', { provider: 'smtp', values: { url: 'https://smtp.example.com' } }))
+        .status,
+    ).toBe(422)
+    expect(
+      (
+        await act(operator, 'provider.setKeys', {
+          provider: 'oidc',
+          values: { discovery_url: 'http://id.example.com' },
+        })
+      ).status,
+    ).toBe(422)
     // Every sign-in app that is set up is in use; there is nothing to pick.
     expect((await act(operator, 'provider.setActive', { category: 'sign_in', provider: 'google' })).status).toBe(422)
     const env: Record<string, string | undefined> = { SMTP_URL: 'smtp://from-the-server', GITHUB_CLIENT_ID: 'kept' }
@@ -501,7 +564,9 @@ describe('provider keys', () => {
       values: { account_sid: `AC${'d4'.repeat(16)}`, auth_token: 'workspace-token-0123456789' },
     })
     expect(res.status).toBe(409)
-    expect(res.body.error).toBe('Your carrier account cannot be checked against this Linedesk right now. Ask whoever runs your Linedesk.')
+    expect(res.body.error).toBe(
+      'Your carrier account cannot be checked against this Linedesk right now. Ask whoever runs your Linedesk.',
+    )
   })
 
   test('test connection: ok, a rejected key, and keys that are not set; it is not logged as a command', async () => {
@@ -525,13 +590,17 @@ describe('provider keys', () => {
     expect(new Headers((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].headers).get('x-api-key')).toBe(
       SECRET,
     )
-    forgetTests() // past provider.test's 10 s cooldown for the same keys
+    await forgetTests(db) // past provider.test's 10 s cooldown for the same keys
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response(JSON.stringify({ error: `Invalid key ${SECRET}` }), { status: 401 })),
     )
     const rejected = await act(operator, 'provider.test', { provider: 'cartesia' })
-    expect(rejected.body.data).toMatchObject({ ok: false, reason: 'auth', message: expect.stringMatching(/^Cartesia rejected the key \(HTTP 401\)/) })
+    expect(rejected.body.data).toMatchObject({
+      ok: false,
+      reason: 'auth',
+      message: expect.stringMatching(/^Cartesia rejected the key \(HTTP 401\)/),
+    })
     expect(JSON.stringify(rejected.body)).not.toContain(SECRET)
     const after = await db
       .select({ n: sql<number>`count(*)::int` })
@@ -777,24 +846,28 @@ describe('recording storage', () => {
     expect(s3.log[0]![1]).toMatch(/^https:\/\/s3\.test\/calls\/linedesk\/\.linedesk-probe-/)
     expect(s3.objects.size).toBe(0)
 
-    forgetTests() // past provider.test's 10 s cooldown for the same keys
+    await forgetTests(db) // past provider.test's 10 s cooldown for the same keys
     vi.stubGlobal('fetch', fakeS3({ status: 403, code: 'SignatureDoesNotMatch' }).fetch)
     const refused = (await act(operator, 'provider.test', { provider: 's3' })).body.data
     expect(refused.ok).toBe(false)
     expect(refused.message).toBe('Keys rejected (HTTP 403)')
     expect(refused.message).not.toContain(s3Keys.access_key_id)
 
-    forgetTests() // past provider.test's 10 s cooldown for the same keys
+    await forgetTests(db) // past provider.test's 10 s cooldown for the same keys
     vi.stubGlobal('fetch', fakeS3({ status: 404, code: 'NoSuchBucket' }).fetch)
     expect((await act(operator, 'provider.test', { provider: 's3' })).body.data.message).toBe('Bucket not found')
 
-    forgetTests()
+    await forgetTests(db)
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => Promise.reject(new TypeError('fetch failed', { cause: { message: `bad ${S3_SECRET}` } }))),
     )
     const unreachable = (await act(operator, 'provider.test', { provider: 's3' })).body.data
-    expect(unreachable).toMatchObject({ ok: false, reason: 'network', message: 'Could not reach the storage: bad [redacted]' })
+    expect(unreachable).toMatchObject({
+      ok: false,
+      reason: 'network',
+      message: 'Could not reach the storage: bad [redacted]',
+    })
 
     await act(operator, 'provider.clearKeys', { provider: 's3' })
     expect((await act(operator, 'provider.test', { provider: 's3' })).body.data.message).toBe(
@@ -1067,35 +1140,65 @@ describe('overview', () => {
     await db.delete(calls).where(eq(calls.id, call!.id))
   })
 
-  test('reply delay: the agent stores each reply\'s parts, the overview gives p50 and p90 per pipeline and the phone share', async () => {
+  test("reply delay: the agent stores each reply's parts, the overview gives p50 and p90 per pipeline and the phone share", async () => {
     const newCall = async () =>
       (
         await db
           .insert(calls)
-          .values({ id: `call_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`, workspace_id: home.id, from_number: '+15035550100', to_number: home.number, status: 'completed' })
+          .values({
+            id: `call_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
+            workspace_id: home.id,
+            from_number: '+15035550100',
+            to_number: home.number,
+            status: 'completed',
+          })
           .returning()
       )[0]!
     const realtimeCall = await newCall()
     const cascadedCall = await newCall()
     const at = new Date().toISOString()
-    const record = (callId: string, body: Record<string, unknown>) => act(agent(home.id), 'call.recordTimings', { callId, ...body })
+    const record = (callId: string, body: Record<string, unknown>) =>
+      act(agent(home.id), 'call.recordTimings', { callId, ...body })
     expect(
-      (await record(realtimeCall.id, {
-        pipeline: 'realtime',
-        providers: { turn: 'openai_realtime', model: 'openai_realtime' },
-        replies: [
-          { at, turnMs: 500, modelMs: 300, serverMs: 20, totalMs: 820 },
-          { at, turnMs: 700, modelMs: 500, serverMs: 40, totalMs: 1240 },
-        ],
-      })).status,
+      (
+        await record(realtimeCall.id, {
+          pipeline: 'realtime',
+          providers: { turn: 'openai_realtime', model: 'openai_realtime' },
+          replies: [
+            { at, turnMs: 500, modelMs: 300, serverMs: 20, totalMs: 820 },
+            { at, turnMs: 700, modelMs: 500, serverMs: 40, totalMs: 1240 },
+          ],
+        })
+      ).status,
     ).toBe(200)
-    await record(cascadedCall.id, { pipeline: 'cascaded', providers: { turn: 'deepgram', model: 'openrouter', voice: 'elevenlabs' }, replies: [{ at, turnMs: 400, modelMs: 600, voiceMs: 200, serverMs: 100, totalMs: 1300 }] })
+    await record(cascadedCall.id, {
+      pipeline: 'cascaded',
+      providers: { turn: 'deepgram', model: 'openrouter', voice: 'elevenlabs' },
+      replies: [{ at, turnMs: 400, modelMs: 600, voiceMs: 200, serverMs: 100, totalMs: 1300 }],
+    })
     // The call test heard the realtime call's replies over the phone: 1.03 s on average, against 1.03 s on the agent's clock plus the network.
-    await record(realtimeCall.id, { pipeline: 'phone', replies: [{ at, heardMs: 1830 }, { at, heardMs: 2230 }] })
+    await record(realtimeCall.id, {
+      pipeline: 'phone',
+      replies: [
+        { at, heardMs: 1830 },
+        { at, heardMs: 2230 },
+      ],
+    })
     // A reply measured wrong (parts larger than its total, as realtime replies stored before #448) is left out.
-    await record(realtimeCall.id, { pipeline: 'realtime', replies: [{ at, turnMs: 0, modelMs: 671, serverMs: 1, totalMs: 268 }] })
+    await record(realtimeCall.id, {
+      pipeline: 'realtime',
+      replies: [{ at, turnMs: 0, modelMs: 671, serverMs: 1, totalMs: 268 }],
+    })
     // A member cannot write these; only the agent.
-    expect((await act(member, 'call.recordTimings', { callId: realtimeCall.id, pipeline: 'realtime', replies: [{ at, totalMs: 1 }] })).status).toBe(403)
+    expect(
+      (
+        await act(member, 'call.recordTimings', {
+          callId: realtimeCall.id,
+          pipeline: 'realtime',
+          replies: [{ at, totalMs: 1 }],
+        })
+      ).status,
+    ).toBe(403)
 
     const latency = (await request(operator, 'GET', '/v1/admin/latency?days=1')).body
     const realtime = latency.pipelines.find((p: { pipeline: string }) => p.pipeline === 'realtime')
@@ -1121,9 +1224,9 @@ describe('overview', () => {
   test('sample calls are not usage: not in calls, minutes or the workspace list', async () => {
     const before = (await request(operator, 'GET', '/v1/admin/overview')).body
     const listed = async () =>
-      ((await request(operator, 'GET', '/v1/admin/workspaces')).body.workspaces as { id: string; calls_30d: number }[]).find(
-        w => w.id === home.id,
-      )!.calls_30d
+      (
+        (await request(operator, 'GET', '/v1/admin/workspaces')).body.workspaces as { id: string; calls_30d: number }[]
+      ).find(w => w.id === home.id)!.calls_30d
     const listedBefore = await listed()
     const [sample] = await db
       .insert(calls)
@@ -1267,16 +1370,18 @@ describe('instance admins', () => {
     class RollbackOnly extends Error {}
     process.env.AUTH_SIGNUP_ENABLED = 'false'
     try {
-      await db.transaction(async tx => {
-        await tx.execute(sql`create temp table "user" (like public."user" including defaults) on commit drop`)
-        expect(await mayCreateUser(tx, 'stranger@linedesk.test', true)).toBe(false)
-        process.env.INSTANCE_ADMIN_EMAILS = 'operator@linedesk.test'
-        expect(await mayCreateUser(tx, 'operator@linedesk.test', true)).toBe(true)
-        expect(await mayCreateUser(tx, 'operator@linedesk.test', false)).toBe(false)
-        throw new RollbackOnly()
-      }).catch(e => {
-        if (!(e instanceof RollbackOnly)) throw e
-      })
+      await db
+        .transaction(async tx => {
+          await tx.execute(sql`create temp table "user" (like public."user" including defaults) on commit drop`)
+          expect(await mayCreateUser(tx, 'stranger@linedesk.test', true)).toBe(false)
+          process.env.INSTANCE_ADMIN_EMAILS = 'operator@linedesk.test'
+          expect(await mayCreateUser(tx, 'operator@linedesk.test', true)).toBe(true)
+          expect(await mayCreateUser(tx, 'operator@linedesk.test', false)).toBe(false)
+          throw new RollbackOnly()
+        })
+        .catch(e => {
+          if (!(e instanceof RollbackOnly)) throw e
+        })
     } finally {
       process.env.AUTH_SIGNUP_ENABLED = 'true'
     }
@@ -1315,11 +1420,19 @@ describe('instance admins', () => {
     expect(mapOidcProfile({ email: 'a@x.test' }, env)).toEqual({ email: null, emailVerified: false })
     expect(mapOidcProfile({ email: 'a@corp.test' }, {})).toEqual({ email: null, emailVerified: false })
     // A provider that says the address is not verified is believed, also on a listed domain.
-    expect(mapOidcProfile({ email: 'a@corp.test', email_verified: false }, env)).toEqual({ email: null, emailVerified: false })
+    expect(mapOidcProfile({ email: 'a@corp.test', email_verified: false }, env)).toEqual({
+      email: null,
+      emailVerified: false,
+    })
   })
 
   const passwordTry = (email: string, ip: string, returned?: unknown) =>
-    ({ path: '/sign-in/email', body: { email, password: 'x' }, headers: new Headers({ [CLIENT_IP_HEADER]: ip }), context: { returned } }) as never
+    ({
+      path: '/sign-in/email',
+      body: { email, password: 'x' },
+      headers: new Headers({ [CLIENT_IP_HEADER]: ip }),
+      context: { returned },
+    }) as never
   const wrongPassword = new APIError('UNAUTHORIZED', { code: 'INVALID_EMAIL_OR_PASSWORD' })
 
   test('ten wrong passwords from one network (an IPv6 /64) pause password sign-in for that address there only (security L4, review B1/B3)', async () => {
@@ -1340,7 +1453,13 @@ describe('instance admins', () => {
     const person = await signUp()
     const email = await emailOf(person)
     const tryPassword = (password: string) =>
-      request(anonymous, 'POST', '/api/auth/sign-in/email', { email, password }, { origin: 'http://localhost:5173', [FROM]: randomIp() })
+      request(
+        anonymous,
+        'POST',
+        '/api/auth/sign-in/email',
+        { email, password },
+        { origin: 'http://localhost:5173', [FROM]: randomIp() },
+      )
     for (let i = 0; i < 10; i++) expect((await tryPassword(`wrong-${i}-password`)).status).toBe(401)
     // Ten from as many networks do not pause it ...
     expect((await tryPassword('test-password-1234')).status).toBe(200)
@@ -1356,7 +1475,13 @@ describe('instance admins', () => {
     const [row] = await db.select().from(user).where(eq(user.id, created.userId))
     expect(row).toMatchObject({ email: email.toLowerCase(), emailVerified: true, instanceAdmin: true })
     const signIn = (password: string) =>
-      request(anonymous, 'POST', '/api/auth/sign-in/email', { email: email.toLowerCase(), password }, { origin: 'http://localhost:5173', [FROM]: randomIp() })
+      request(
+        anonymous,
+        'POST',
+        '/api/auth/sign-in/email',
+        { email: email.toLowerCase(), password },
+        { origin: 'http://localhost:5173', [FROM]: randomIp() },
+      )
     expect((await signIn(created.password)).status).toBe(200)
     expect((await signIn('not-the-password-1')).status).toBe(401)
     await expect(createAdminWithPassword({ email, name: 'Again' })).rejects.toThrow('already has an account')
@@ -1388,7 +1513,12 @@ describe('user.resetPasskeys: the recovery path that needs none of their passkey
     expect(res).toMatchObject({ status: 200, body: { data: { removed: 2 } } })
     expect(res.body.data.enrolmentCode).toBeUndefined()
     expect(await db.select().from(passkey).where(eq(passkey.userId, someone.userId))).toEqual([])
-    expect(send).toHaveBeenCalledWith(expect.objectContaining({ to: await emailOf(someone), subject: 'The passkeys of your Linedesk account were removed' }))
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: await emailOf(someone),
+        subject: 'The passkeys of your Linedesk account were removed',
+      }),
+    )
     const audit = (await request(operator, 'GET', '/v1/admin/audit?kind=admin')).body.entries as { what: string }[]
     expect(audit.some(e => e.what === 'user.resetPasskeys')).toBe(true)
   })
@@ -1401,10 +1531,20 @@ describe('user.resetPasskeys: the recovery path that needs none of their passkey
     const res = await act(operator, 'user.resetPasskeys', { userId: second.userId })
     expect(res.body.data).toMatchObject({ removed: 1, enrolmentCode: expect.any(String) })
     const code: string = res.body.data.enrolmentCode
-    expect(JSON.stringify(await db.select().from(commands).where(eq(commands.action, 'user.resetPasskeys')))).not.toContain(code)
+    expect(
+      JSON.stringify(await db.select().from(commands).where(eq(commands.action, 'user.resetPasskeys'))),
+    ).not.toContain(code)
     send.mockClear()
-    expect((await act(operator, 'user.resetPasskeys', { userId: second.userId })).body.data).toMatchObject({ removed: 0, enrolmentCode: expect.any(String) })
-    expect(send).toHaveBeenCalledWith(expect.objectContaining({ to: await emailOf(second), subject: 'A passkey enrolment code was issued for your Linedesk account' }))
+    expect((await act(operator, 'user.resetPasskeys', { userId: second.userId })).body.data).toMatchObject({
+      removed: 0,
+      enrolmentCode: expect.any(String),
+    })
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: await emailOf(second),
+        subject: 'A passkey enrolment code was issued for your Linedesk account',
+      }),
+    )
     await setAdmin(second, false)
     expect((await act(other.owner, 'user.resetPasskeys', { userId: member.userId })).status).toBe(403)
   })
@@ -1413,10 +1553,19 @@ describe('user.resetPasskeys: the recovery path that needs none of their passkey
     const self = await signUp()
     await setAdmin(self, true)
     await db.insert(passkey).values(passkeyRow(self.userId))
-    expect(await act(self, 'user.resetPasskeys', { userId: self.userId })).toMatchObject({ status: 403, body: { code: 'forbidden' } })
+    expect(await act(self, 'user.resetPasskeys', { userId: self.userId })).toMatchObject({
+      status: 403,
+      body: { code: 'forbidden' },
+    })
     expect((await db.select().from(passkey).where(eq(passkey.userId, self.userId))).length).toBe(1)
     // The operator on the server (the CLI's actor) still can.
-    const cli: Actor = { actorId: 'cli', role: 'member', workspaceId: null, permissions: ['instance:admin'], passkeyConfirmed: true }
+    const cli: Actor = {
+      actorId: 'cli',
+      role: 'member',
+      workspaceId: null,
+      permissions: ['instance:admin'],
+      passkeyConfirmed: true,
+    }
     expect((await runAction('user.resetPasskeys', { userId: self.userId }, cli)).status).toBe(200)
     await setAdmin(self, false)
   })
@@ -1460,7 +1609,9 @@ describe('user.invite', () => {
       instanceAdmin: true,
     })
     // One email to them; the other admins hear of the new admin separately (admin-alerts.ts).
-    const toThem = send.mock.calls.map(([m]) => m).filter(m => m.to === email.toLowerCase() && !/^New instance admin/.test(m.subject))
+    const toThem = send.mock.calls
+      .map(([m]) => m)
+      .filter(m => m.to === email.toLowerCase() && !/^New instance admin/.test(m.subject))
     expect(toThem).toHaveLength(1)
     const mail = toThem[0]!
     expect(mail).toMatchObject({ to: email.toLowerCase(), subject: 'Your Linedesk account is ready' })
@@ -1477,10 +1628,15 @@ describe('user.invite', () => {
     const code: string = res.body.data.enrolmentCode
     expect(code).toEqual(expect.any(String))
     expect((await accountOf(email))!.passkeyEnrolmentHash).toEqual(expect.any(String))
-    const [logged] = await db.select().from(commands).where(and(eq(commands.action, 'user.invite'), sql`${commands.input}->>'email' = ${email}`))
+    const [logged] = await db
+      .select()
+      .from(commands)
+      .where(and(eq(commands.action, 'user.invite'), sql`${commands.input}->>'email' = ${email}`))
     expect(JSON.stringify(logged)).not.toContain(code)
     // A plain user gets none.
-    expect((await act(operator, 'user.invite', { email: address('plain'), name: 'Bo' })).body.data.enrolmentCode).toBeUndefined()
+    expect(
+      (await act(operator, 'user.invite', { email: address('plain'), name: 'Bo' })).body.data.enrolmentCode,
+    ).toBeUndefined()
   })
 
   test('an address that already has an account is refused', async () => {
@@ -1656,7 +1812,9 @@ describe('impersonation', () => {
     expect(lifetime).toBeGreaterThan(59 * 60_000)
     expect(lifetime).toBeLessThanOrEqual(60 * 60_000 + 5_000)
     // An admin signing in as the user is not the user's last sign-in.
-    expect((await db.select().from(user).where(eq(user.id, target.userId)))[0]!.lastSignInAt?.getTime() ?? 0).toBeLessThan(before)
+    expect(
+      (await db.select().from(user).where(eq(user.id, target.userId)))[0]!.lastSignInAt?.getTime() ?? 0,
+    ).toBeLessThan(before)
     expect(await getSession(as)).toMatchObject({
       user: { id: target.userId },
       session: { impersonatedBy: operator.userId },
@@ -1682,7 +1840,10 @@ describe('impersonation', () => {
   })
 
   test('what an impersonated session may run is pinned: a new read-only action or allowed write needs a look here', () => {
-    const allowed = [...actions.values()].filter(mayRunWhileImpersonating).map(def => def.name).sort()
+    const allowed = [...actions.values()]
+      .filter(mayRunWhileImpersonating)
+      .map(def => def.name)
+      .sort()
     expect(allowed).toEqual([
       'apiKey.list',
       'assistant.version',
@@ -1729,7 +1890,10 @@ describe('impersonation', () => {
     expect(mayRunWhileImpersonating(def)).toBe(true)
     // An impersonation never has instance:admin, so it is the permission that refuses it, not the guard.
     const { as } = await start(operator, target.userId)
-    expect(await act(as, 'setupEmails.get', {})).toMatchObject({ status: 403, body: { error: 'missing permission instance:admin' } })
+    expect(await act(as, 'setupEmails.get', {})).toMatchObject({
+      status: 403,
+      body: { error: 'missing permission instance:admin' },
+    })
     expect((await act(operator, 'setupEmails.get', {})).status).toBe(200)
     await stop(as)
   })
@@ -1743,7 +1907,10 @@ describe('impersonation', () => {
         ['team.invite', { email: 'admin-backdoor@linedesk.test', role: 'owner' }],
         ['team.removeMember', { memberId: 'any' }],
         ['team.resendInvite', { invitationId: 'any' }],
-        ['webhook.create', { assistantId: other.assistant.id, hooks: ['call_end'], url: 'https://collector.example.com/hook' }],
+        [
+          'webhook.create',
+          { assistantId: other.assistant.id, hooks: ['call_end'], url: 'https://collector.example.com/hook' },
+        ],
         ['webhook.update', { endpointId: other.webhookEndpoint.id, url: 'https://collector.example.com/hook' }],
         ['apiKey.create', { name: 'Backdoor', role: 'admin' }],
         ['carrier.set', {}],
@@ -1755,7 +1922,10 @@ describe('impersonation', () => {
         ['call.export', { from: '2026-01-01', to: '2026-01-31' }],
       ]
       for (const [name, input] of refused) {
-        expect(await act(as, name, input), name).toMatchObject({ status: 403, body: { error: 'Not possible while signed in as another user.' } })
+        expect(await act(as, name, input), name).toMatchObject({
+          status: 403,
+          body: { error: 'Not possible while signed in as another user.' },
+        })
       }
       expect(await db.select().from(invitation).where(eq(invitation.email, 'admin-backdoor@linedesk.test'))).toEqual([])
       // Reading and triaging the inbox work.
@@ -1773,7 +1943,9 @@ describe('impersonation', () => {
     await db.update(memberTable).set({ role: 'owner' }).where(targetMember)
     try {
       const { as } = await start(operator, target.userId)
-      const [someone] = await db.select().from(memberTable)
+      const [someone] = await db
+        .select()
+        .from(memberTable)
         .where(and(eq(memberTable.organizationId, other.id), sql`${memberTable.userId} <> ${target.userId}`))
       const res = await act(as, 'team.setRole', { memberId: someone!.id, role: 'owner' })
       expect(res.status).not.toBe(200)
@@ -1790,7 +1962,10 @@ describe('impersonation', () => {
     const authCall = (path: string, body?: unknown) =>
       request(as, body === undefined ? 'GET' : 'POST', `/api/auth${path}`, body)
     const refused = [
-      await authCall('/change-password', { currentPassword: 'test-password-1234', newPassword: 'another-password-5678' }),
+      await authCall('/change-password', {
+        currentPassword: 'test-password-1234',
+        newPassword: 'another-password-5678',
+      }),
       await authCall('/change-email', { newEmail: 'taken-over@linedesk.test' }),
       await authCall('/delete-user', {}),
       await authCall('/revoke-other-sessions', {}),
@@ -1811,9 +1986,9 @@ describe('impersonation', () => {
     for (const res of refused) {
       expect(res).toMatchObject({ status: 403, body: { message: 'Not possible while signed in as another user.' } })
     }
-    expect(
-      (await request(as, 'POST', '/v1/account/password', { newPassword: 'another-password-5678' })).status,
-    ).toBe(403)
+    expect((await request(as, 'POST', '/v1/account/password', { newPassword: 'another-password-5678' })).status).toBe(
+      403,
+    )
     // No workspace made as the user either: it would outlast the hour.
     expect(await request(as, 'POST', '/v1/workspaces', { name: 'Made while impersonating' })).toMatchObject({
       status: 403,
@@ -1821,10 +1996,18 @@ describe('impersonation', () => {
     })
     // No joining a workspace as the user: not through Better Auth's endpoint, not through the registry.
     await db.update(user).set({ emailVerified: true }).where(eq(user.id, target.userId))
-    const [invite] = await db.insert(invitation).values({
-      id: `inv_${crypto.randomUUID()}`, organizationId: home.id, email: await emailOf(target), role: 'admin', status: 'pending',
-      expiresAt: new Date(Date.now() + 86_400_000), inviterId: operator.userId,
-    }).returning()
+    const [invite] = await db
+      .insert(invitation)
+      .values({
+        id: `inv_${crypto.randomUUID()}`,
+        organizationId: home.id,
+        email: await emailOf(target),
+        role: 'admin',
+        status: 'pending',
+        expiresAt: new Date(Date.now() + 86_400_000),
+        inviterId: operator.userId,
+      })
+      .returning()
     expect(await authCall('/organization/accept-invitation', { invitationId: invite!.id })).toMatchObject({
       status: 403,
       body: { message: 'Not possible while signed in as another user.' },
@@ -1836,7 +2019,9 @@ describe('impersonation', () => {
     })
     expect(await act(as, 'invitation.decline', { invitationId: invite!.id })).toMatchObject({ status: 403 })
     expect((await db.select().from(invitation).where(eq(invitation.id, invite!.id)))[0]?.status).toBe('pending')
-    expect((await db.select().from(memberTable).where(eq(memberTable.userId, target.userId))).map(m => m.organizationId)).toEqual([other.id])
+    expect(
+      (await db.select().from(memberTable).where(eq(memberTable.userId, target.userId))).map(m => m.organizationId),
+    ).toEqual([other.id])
     await db.delete(invitation).where(eq(invitation.id, invite!.id))
     // Still the same account, email and password.
     expect((await db.select().from(user).where(eq(user.id, target.userId)))[0]!.email).toBe(await emailOf(target))
@@ -1849,7 +2034,8 @@ describe('impersonation', () => {
     const key = crypto.randomUUID()
     expect((await act(as, 'call.markRead', { callId: other.call.id }, key)).status).toBe(200)
     // A tab names the user's workspace: works. The admin's own workspace is not the user's: refused.
-    const inTab = (workspaceId: string) => request(as, 'POST', '/v1/actions/call.markUnread', { callId: other.call.id }, { 'x-workspace-id': workspaceId })
+    const inTab = (workspaceId: string) =>
+      request(as, 'POST', '/v1/actions/call.markUnread', { callId: other.call.id }, { 'x-workspace-id': workspaceId })
     expect((await inTab(other.id)).status).toBe(200)
     expect(await inTab(home.id)).toMatchObject({ status: 403, body: { code: 'workspace_access_lost' } })
     expect((await db.select().from(commands).where(eq(commands.id, key)))[0]).toMatchObject({
@@ -1885,9 +2071,15 @@ describe('impersonation', () => {
       .from(commands)
       .where(sql`${commands.action} in ('user.impersonate', 'impersonation.stop') and ${commands.rejected} = false`)
     const started = log.find(
-      c => c.action === 'user.impersonate' && (c.result as { data: { sessionId: string } }).data.sessionId === body.data.sessionId,
+      c =>
+        c.action === 'user.impersonate' &&
+        (c.result as { data: { sessionId: string } }).data.sessionId === body.data.sessionId,
     )
-    expect(started).toMatchObject({ actor_id: operator.userId, impersonated_by: null, input: { userId: target.userId } })
+    expect(started).toMatchObject({
+      actor_id: operator.userId,
+      impersonated_by: null,
+      input: { userId: target.userId },
+    })
     expect(log.filter(c => c.action === 'impersonation.stop').at(-1)).toMatchObject({
       actor_id: target.userId,
       impersonated_by: operator.userId,
@@ -1943,7 +2135,8 @@ describe('impersonation', () => {
 })
 
 describe('memberships across workspaces', () => {
-  const membersOf = async (wsId: string) => (await request(operator, 'GET', `/v1/admin/workspaces/${wsId}/members`)).body
+  const membersOf = async (wsId: string) =>
+    (await request(operator, 'GET', `/v1/admin/workspaces/${wsId}/members`)).body
   const memberRow = async (wsId: string, who: User) =>
     (await db.select().from(memberTable).where(eq(memberTable.userId, who.userId))).find(m => m.organizationId === wsId)
   const userRow = async (who: User) =>
@@ -1951,7 +2144,11 @@ describe('memberships across workspaces', () => {
 
   test('an instance admin adds an existing user to any workspace, changes the role and removes them; all logged', async () => {
     const outsider = await signUp()
-    const added = await act(operator, 'membership.add', { userId: outsider.userId, workspaceId: other.id, role: 'admin' })
+    const added = await act(operator, 'membership.add', {
+      userId: outsider.userId,
+      workspaceId: other.id,
+      role: 'admin',
+    })
     expect(added).toMatchObject({ status: 200, body: { ok: true } })
     expect(await memberRow(other.id, outsider)).toMatchObject({ role: 'admin' })
     expect((await membersOf(other.id)).members.map((m: { email: string; role: string }) => m.role)).toContain('admin')
@@ -1959,8 +2156,14 @@ describe('memberships across workspaces', () => {
       { id: other.id, name: 'Brightwater Plumbing & Heating', role: 'admin', member_id: added.body.data.memberId },
     ])
     // The workspace's own owner sees the new member at once.
-    expect((await act(other.owner, 'team.list', {})).body.data.members.some((m: { userId: string }) => m.userId === outsider.userId)).toBe(true)
-    expect(await act(operator, 'membership.add', { userId: outsider.userId, workspaceId: other.id, role: 'member' })).toMatchObject({
+    expect(
+      (await act(other.owner, 'team.list', {})).body.data.members.some(
+        (m: { userId: string }) => m.userId === outsider.userId,
+      ),
+    ).toBe(true)
+    expect(
+      await act(operator, 'membership.add', { userId: outsider.userId, workspaceId: other.id, role: 'member' }),
+    ).toMatchObject({
       status: 409,
       body: { error: expect.stringMatching(/already a member/) },
     })
@@ -1983,7 +2186,9 @@ describe('memberships across workspaces', () => {
     expect(await act(operator, 'membership.remove', { memberId: ownerId })).toMatchObject(lastOwner)
     expect(await memberRow(ws.id, ws.owner)).toMatchObject({ role: 'owner' })
     const second = await signUp()
-    expect((await act(operator, 'membership.add', { userId: second.userId, workspaceId: ws.id, role: 'owner' })).status).toBe(200)
+    expect(
+      (await act(operator, 'membership.add', { userId: second.userId, workspaceId: ws.id, role: 'owner' })).status,
+    ).toBe(200)
     expect((await act(operator, 'membership.setRole', { memberId: ownerId, role: 'member' })).status).toBe(200)
     expect((await act(operator, 'membership.remove', { memberId: ownerId })).status).toBe(200)
   })
@@ -1991,14 +2196,31 @@ describe('memberships across workspaces', () => {
   test('one membership per user and workspace: the database refuses a second row', async () => {
     const row = await memberRow(other.id, member)
     await expect(
-      db.insert(memberTable).values({ id: `dup_${crypto.randomUUID()}`, organizationId: other.id, userId: member.userId, role: 'admin', createdAt: new Date() }),
+      db
+        .insert(memberTable)
+        .values({
+          id: `dup_${crypto.randomUUID()}`,
+          organizationId: other.id,
+          userId: member.userId,
+          role: 'admin',
+          createdAt: new Date(),
+        }),
     ).rejects.toThrow()
-    expect((await db.select().from(memberTable).where(eq(memberTable.userId, member.userId))).filter(m => m.organizationId === other.id)).toEqual([row])
+    expect(
+      (await db.select().from(memberTable).where(eq(memberTable.userId, member.userId))).filter(
+        m => m.organizationId === other.id,
+      ),
+    ).toEqual([row])
   })
 
   test('unknown users, workspaces, members and invitations are refused', async () => {
-    expect((await act(operator, 'membership.add', { userId: 'nope', workspaceId: other.id, role: 'member' })).body.error).toBe('user not found')
-    expect((await act(operator, 'membership.add', { userId: member.userId, workspaceId: 'nope', role: 'member' })).body.error).toBe('workspace not found')
+    expect(
+      (await act(operator, 'membership.add', { userId: 'nope', workspaceId: other.id, role: 'member' })).body.error,
+    ).toBe('user not found')
+    expect(
+      (await act(operator, 'membership.add', { userId: member.userId, workspaceId: 'nope', role: 'member' })).body
+        .error,
+    ).toBe('workspace not found')
     expect((await act(operator, 'membership.remove', { memberId: 'nope' })).body.error).toBe('member not found')
     expect((await act(operator, 'invitation.revoke', { invitationId: 'nope' })).body.error).toBe('invitation not found')
   })
@@ -2030,12 +2252,19 @@ describe('memberships across workspaces', () => {
       // The resent email names who invited them, not the instance admin who resent it.
       expect(texts.at(-1)).toMatch(/^Mike Brennan invited you/m)
       expect(texts.at(-1)).not.toMatch(/Ops Admin/)
-      await db.update(user).set({ name: 'Test User' }).where(inArray(user.id, [other.owner.userId, operator.userId]))
+      await db
+        .update(user)
+        .set({ name: 'Test User' })
+        .where(inArray(user.id, [other.owner.userId, operator.userId]))
       expect((await act(operator, 'invitation.revoke', { invitationId })).status).toBe(200)
       expect((await membersOf(other.id)).invitations).toEqual([])
       // An invitation that is still open is answered by adding the user directly.
-      const again = (await act(other.owner, 'team.invite', { email: email.toLowerCase(), role: 'admin' })).body.data.invitationId
-      expect((await act(operator, 'membership.add', { userId: invitee.userId, workspaceId: other.id, role: 'member' })).status).toBe(200)
+      const again = (await act(other.owner, 'team.invite', { email: email.toLowerCase(), role: 'admin' })).body.data
+        .invitationId
+      expect(
+        (await act(operator, 'membership.add', { userId: invitee.userId, workspaceId: other.id, role: 'member' }))
+          .status,
+      ).toBe(200)
       expect((await db.select().from(invitation).where(eq(invitation.id, again)))[0]?.status).toBe('canceled')
     } finally {
       send.mockRestore()
@@ -2046,23 +2275,42 @@ describe('memberships across workspaces', () => {
   test('an accepted invitation can no longer be revoked or resent', async () => {
     const invitee = await signUp()
     await db.update(user).set({ emailVerified: true }).where(eq(user.id, invitee.userId))
-    const [invite] = await db.insert(invitation).values({
-      id: `inv_${crypto.randomUUID()}`, organizationId: home.id, email: await emailOf(invitee), role: 'member', status: 'pending',
-      expiresAt: new Date(Date.now() + 86_400_000), inviterId: operator.userId,
-    }).returning()
-    const accepted = await request(invitee, 'POST', '/api/auth/organization/accept-invitation', { invitationId: invite!.id }, { [FROM]: randomIp() })
+    const [invite] = await db
+      .insert(invitation)
+      .values({
+        id: `inv_${crypto.randomUUID()}`,
+        organizationId: home.id,
+        email: await emailOf(invitee),
+        role: 'member',
+        status: 'pending',
+        expiresAt: new Date(Date.now() + 86_400_000),
+        inviterId: operator.userId,
+      })
+      .returning()
+    const accepted = await request(
+      invitee,
+      'POST',
+      '/api/auth/organization/accept-invitation',
+      { invitationId: invite!.id },
+      { [FROM]: randomIp() },
+    )
     expect(accepted.status).toBe(200)
     for (const name of ['invitation.revoke', 'invitation.resend'])
-      expect(await act(operator, name, { invitationId: invite!.id })).toMatchObject({ status: 409, body: { error: 'invitation not found' } })
+      expect(await act(operator, name, { invitationId: invite!.id })).toMatchObject({
+        status: 409,
+        body: { error: 'invitation not found' },
+      })
     expect((await db.select().from(invitation).where(eq(invitation.id, invite!.id)))[0]?.status).toBe('accepted')
     // Adding the same person again is refused with a clear reason.
-    expect(await act(operator, 'membership.add', { userId: invitee.userId, workspaceId: home.id, role: 'admin' })).toMatchObject({
+    expect(
+      await act(operator, 'membership.add', { userId: invitee.userId, workspaceId: home.id, role: 'admin' }),
+    ).toMatchObject({
       status: 409,
       body: { error: expect.stringMatching(/already a member of Linedesk Operations/) },
     })
   })
 
-  test('a workspace owner who is no instance admin cannot read another workspace\'s members', async () => {
+  test("a workspace owner who is no instance admin cannot read another workspace's members", async () => {
     expect((await request(other.owner, 'GET', `/v1/admin/workspaces/${home.id}/members`)).status).toBe(403)
   })
 })
@@ -2071,9 +2319,13 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
   const PASSKEY_PATH = '/passkey/verify-authentication'
   const HOUR = 3_600_000
   let admin: User
-  const sessionOfAdmin = (values: { passkeyVerifiedAt?: Date | null; impersonatedBy?: string | null; createdAt?: Date }) =>
-    db.update(session).set(values).where(eq(session.userId, admin.userId))
-  const confirmEmail = (emailVerified: boolean) => db.update(user).set({ emailVerified }).where(eq(user.id, admin.userId))
+  const sessionOfAdmin = (values: {
+    passkeyVerifiedAt?: Date | null
+    impersonatedBy?: string | null
+    createdAt?: Date
+  }) => db.update(session).set(values).where(eq(session.userId, admin.userId))
+  const confirmEmail = (emailVerified: boolean) =>
+    db.update(user).set({ emailVerified }).where(eq(user.id, admin.userId))
   const addPasskey = () =>
     db.insert(passkey).values({
       id: `pk_${crypto.randomUUID().slice(0, 12)}`,
@@ -2087,7 +2339,13 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
   /** The browser's cookie from a sign-in response, as a caller of its own. */
   const callerFrom = (res: Response): User => ({
     userId: admin.userId,
-    headers: { cookie: res.headers.getSetCookie().map(c => c.split(';')[0]).join('; '), origin: 'http://localhost:5173' },
+    headers: {
+      cookie: res.headers
+        .getSetCookie()
+        .map(c => c.split(';')[0])
+        .join('; '),
+      origin: 'http://localhost:5173',
+    },
   })
 
   beforeAll(async () => {
@@ -2121,7 +2379,10 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     }
     // user.impersonate runs only through its own route (POST /v1/actions refuses it before any permission check).
     for (const def of adminActions.filter(d => d.name !== 'user.impersonate')) {
-      expect(await act(admin, def.name, {}), def.name).toMatchObject({ status: 403, body: { code: 'SECOND_FACTOR_REQUIRED' } })
+      expect(await act(admin, def.name, {}), def.name).toMatchObject({
+        status: 403,
+        body: { code: 'SECOND_FACTOR_REQUIRED' },
+      })
     }
     expect(await request(admin, 'POST', '/v1/impersonation/start', { userId: member.userId })).toMatchObject({
       status: 403,
@@ -2139,7 +2400,10 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     expect(me.adminSecondFactor).toBeNull()
     expect(await status()).toBe(200)
     await sessionOfAdmin({ createdAt: new Date(Date.now() - 61 * 60_000) })
-    expect(await request(admin, 'GET', '/v1/admin/users')).toMatchObject({ status: 403, body: { code: 'SECOND_FACTOR_REQUIRED', secondFactor: 'confirm' } })
+    expect(await request(admin, 'GET', '/v1/admin/users')).toMatchObject({
+      status: 403,
+      body: { code: 'SECOND_FACTOR_REQUIRED', secondFactor: 'confirm' },
+    })
     // A passkey sign-in (marked when the session is made, so both times are the same).
     const elevenAgo = new Date(Date.now() - 11 * HOUR)
     await sessionOfAdmin({ createdAt: elevenAgo, passkeyVerifiedAt: elevenAgo })
@@ -2169,9 +2433,22 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
     const email = await emailOf(admin)
     const headers = { origin: 'http://localhost:5173', [FROM]: randomIp() }
-    expect((await request(anonymous, 'POST', '/api/auth/email-otp/send-verification-otp', { email, type: 'sign-in' }, headers)).status).toBe(200)
+    expect(
+      (
+        await request(
+          anonymous,
+          'POST',
+          '/api/auth/email-otp/send-verification-otp',
+          { email, type: 'sign-in' },
+          headers,
+        )
+      ).status,
+    ).toBe(200)
     await vi.waitFor(() => expect(send.mock.calls.some(([m]) => m.to === email)).toBe(true))
-    const otp = send.mock.calls.map(([m]) => m).findLast(m => m.to === email)!.subject.slice(0, 6)
+    const otp = send.mock.calls
+      .map(([m]) => m)
+      .findLast(m => m.to === email)!
+      .subject.slice(0, 6)
     const res = await appRequest('/api/auth/sign-in/email-otp', {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...headers },
@@ -2186,7 +2463,9 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     const now = Date.now()
     const recent = { createdAt: new Date(now - 30 * 60_000), passkeyVerifiedAt: null }
     expect(adminSecondFactorGap({ emailVerified: true }, recent, now)).toBeNull()
-    expect(adminSecondFactorGap({ emailVerified: true }, { ...recent, createdAt: new Date(now - HOUR) }, now)).toBe('confirm')
+    expect(adminSecondFactorGap({ emailVerified: true }, { ...recent, createdAt: new Date(now - HOUR) }, now)).toBe(
+      'confirm',
+    )
     expect(adminSecondFactorGap({ emailVerified: false }, recent, now)).toBe('email')
     expect(adminSecondFactorGap({ emailVerified: true }, { ...recent, impersonatedBy: 'someone' }, now)).toBe('confirm')
   })
@@ -2210,7 +2489,10 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     await sessionOfAdmin({ createdAt: new Date() })
     expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(200)
     const authCall = (path: string, body?: unknown) =>
-      request(admin, body === undefined ? 'GET' : 'POST', `/api/auth${path}`, body, { origin: 'http://localhost:5173', [FROM]: randomIp() })
+      request(admin, body === undefined ? 'GET' : 'POST', `/api/auth${path}`, body, {
+        origin: 'http://localhost:5173',
+        [FROM]: randomIp(),
+      })
     const [own] = await db.select().from(passkey).where(eq(passkey.userId, admin.userId))
     expect((await authCall('/passkey/generate-register-options')).body.code).toBe('PASSKEY_CONFIRMATION_REQUIRED')
     expect((await authCall('/passkey/delete-passkey', { id: own!.id })).body.code).toBe('PASSKEY_CONFIRMATION_REQUIRED')
@@ -2220,12 +2502,26 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
   test("an admin's first passkey needs the enrolment code from the granting admin; later ones a passkey session (H1)", async () => {
     await sessionOfAdmin({ createdAt: new Date() })
     const authCall = (path: string, body?: unknown, extra: Record<string, string> = {}) =>
-      request(admin, body === undefined ? 'GET' : 'POST', `/api/auth${path}`, body, { origin: 'http://localhost:5173', [FROM]: randomIp(), ...extra })
+      request(admin, body === undefined ? 'GET' : 'POST', `/api/auth${path}`, body, {
+        origin: 'http://localhost:5173',
+        [FROM]: randomIp(),
+        ...extra,
+      })
     const verify = (code?: string) =>
-      authCall('/passkey/verify-registration', { response: { id: 'x', rawId: 'x', type: 'public-key', response: {} } }, code ? { 'x-passkey-enrolment': code } : {})
+      authCall(
+        '/passkey/verify-registration',
+        { response: { id: 'x', rawId: 'x', type: 'public-key', response: {} } },
+        code ? { 'x-passkey-enrolment': code } : {},
+      )
     // No code: a fresh session with the first factor alone cannot even start.
-    await db.update(user).set({ passkeyEnrolmentHash: null, passkeyEnrolmentExpiresAt: null }).where(eq(user.id, admin.userId))
-    expect(await authCall('/passkey/generate-register-options')).toMatchObject({ status: 403, body: { code: 'PASSKEY_ENROLMENT_REQUIRED' } })
+    await db
+      .update(user)
+      .set({ passkeyEnrolmentHash: null, passkeyEnrolmentExpiresAt: null })
+      .where(eq(user.id, admin.userId))
+    expect(await authCall('/passkey/generate-register-options')).toMatchObject({
+      status: 403,
+      body: { code: 'PASSKEY_ENROLMENT_REQUIRED' },
+    })
     // A code issued for them (by grant, invite, reset or the CLI; reset itself is tested with user.resetPasskeys).
     const { enrolmentCode: code } = await issuePasskeyEnrolment(db, admin.userId)
     expect((await authCall('/passkey/generate-register-options')).status).toBe(200)
@@ -2236,7 +2532,10 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     expect(right.body?.code).not.toBe('PASSKEY_ENROLMENT_REQUIRED')
     expect(right.status).not.toBe(200) // no real authenticator response
     // Expired: refused again.
-    await db.update(user).set({ passkeyEnrolmentExpiresAt: new Date(Date.now() - 1000) }).where(eq(user.id, admin.userId))
+    await db
+      .update(user)
+      .set({ passkeyEnrolmentExpiresAt: new Date(Date.now() - 1000) })
+      .where(eq(user.id, admin.userId))
     expect((await verify(code)).body.code).toBe('PASSKEY_ENROLMENT_REQUIRED')
     // With a passkey: an attacker with the mailbox or password cannot add theirs or remove the real one.
     await addPasskey()
@@ -2297,21 +2596,29 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       const refusals = [
         await act(admin, 'instanceAdmin.grant', { userId: target.userId }),
         await act(admin, 'user.resetPasskeys', { userId: target.userId }),
-        await act(admin, 'user.invite', { email: `${crypto.randomUUID().slice(0, 8)}@linedesk.test`, name: 'New Admin', admin: true }),
+        await act(admin, 'user.invite', {
+          email: `${crypto.randomUUID().slice(0, 8)}@linedesk.test`,
+          name: 'New Admin',
+          admin: true,
+        }),
         await act(admin, 'user.disable', { userId: otherAdmin.userId }),
         await act(admin, 'instanceAdmin.revoke', { userId: otherAdmin.userId }),
         await request(admin, 'POST', '/v1/impersonation/start', { userId: target.userId }),
       ]
       // No passkey yet: what is missing is the first passkey (enrolment code path).
-      for (const res of refusals) expect(res).toMatchObject({ ...stepUpRefused, body: { ...stepUpRefused.body, stepUp: 'enrol' } })
+      for (const res of refusals)
+        expect(res).toMatchObject({ ...stepUpRefused, body: { ...stepUpRefused.body, stepUp: 'enrol' } })
       expect((await db.select().from(user).where(eq(user.id, target.userId)))[0]!.instanceAdmin).toBe(false)
       expect((await db.select().from(user).where(eq(user.id, otherAdmin.userId)))[0]!.disabledAt).toBeNull()
       // With a passkey on the account, the dialog asks to confirm with it.
       await addPasskey()
-      expect(await act(admin, 'instanceAdmin.grant', { userId: target.userId })).toMatchObject({ ...stepUpRefused, body: { stepUp: 'confirm' } })
+      expect(await act(admin, 'instanceAdmin.grant', { userId: target.userId })).toMatchObject({
+        ...stepUpRefused,
+        body: { stepUp: 'confirm' },
+      })
     })
 
-    test('F2: an admin\'s workspace membership counts as acting on them: setRole and remove by memberId need the passkey', async () => {
+    test("F2: an admin's workspace membership counts as acting on them: setRole and remove by memberId need the passkey", async () => {
       process.env.ADMIN_SECOND_FACTOR = 'on'
       await sessionOfAdmin({ createdAt: new Date() })
       const adminMember = `m_${crypto.randomUUID().slice(0, 12)}`
@@ -2320,9 +2627,13 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
         { id: adminMember, organizationId: other.id, userId: otherAdmin.userId, role: 'admin', createdAt: new Date() },
         { id: plainMember, organizationId: other.id, userId: target.userId, role: 'admin', createdAt: new Date() },
       ])
-      expect(await act(admin, 'membership.setRole', { memberId: adminMember, role: 'member' })).toMatchObject(stepUpRefused)
+      expect(await act(admin, 'membership.setRole', { memberId: adminMember, role: 'member' })).toMatchObject(
+        stepUpRefused,
+      )
       expect(await act(admin, 'membership.remove', { memberId: adminMember })).toMatchObject(stepUpRefused)
-      expect(await act(admin, 'membership.add', { userId: otherAdmin.userId, workspaceId: home.id, role: 'member' })).toMatchObject(stepUpRefused)
+      expect(
+        await act(admin, 'membership.add', { userId: otherAdmin.userId, workspaceId: home.id, role: 'member' }),
+      ).toMatchObject(stepUpRefused)
       // A member who is no instance admin: no passkey needed.
       expect((await act(admin, 'membership.setRole', { memberId: plainMember, role: 'member' })).status).toBe(200)
       expect((await act(admin, 'membership.remove', { memberId: plainMember })).status).toBe(200)
@@ -2348,13 +2659,22 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
 
     test('(c) the handlers themselves never give an enrolment code to a session without a passkey sign-in', async () => {
       process.env.ADMIN_SECOND_FACTOR = 'on'
-      const plain: Actor = { actorId: admin.userId, role: 'member', workspaceId: null, permissions: ['instance:admin'], sessionId: 's' }
+      const plain: Actor = {
+        actorId: admin.userId,
+        role: 'member',
+        workspaceId: null,
+        permissions: ['instance:admin'],
+        sessionId: 's',
+      }
       for (const [name, input] of [
         ['instanceAdmin.grant', { userId: target.userId }],
         ['user.resetPasskeys', { userId: target.userId }],
         ['user.invite', { email: 'never@linedesk.test', name: 'Never', admin: true }],
       ] as const) {
-        await expect(adminHandlers[name]!({ tx: db, actor: plain, now: new Date().toISOString() }, input), name).rejects.toThrow(/passkey/)
+        await expect(
+          adminHandlers[name]!({ tx: db, actor: plain, now: new Date().toISOString() }, input),
+          name,
+        ).rejects.toThrow(/passkey/)
       }
       expect(mayReceiveEnrolmentCode({ ...plain, passkeyConfirmed: true })).toBe(true)
       process.env.ADMIN_SECOND_FACTOR = 'off'
@@ -2382,7 +2702,10 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     })
     const mails = () => vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
     const sentTo = (send: ReturnType<typeof mails>, subject: RegExp) =>
-      send.mock.calls.map(([m]) => m).filter(m => subject.test(m.subject)).map(m => m.to)
+      send.mock.calls
+        .map(([m]) => m)
+        .filter(m => subject.test(m.subject))
+        .map(m => m.to)
 
     test('when an admin signs in with a password, every admin hears of it', async () => {
       process.env.ADMIN_SECOND_FACTOR = 'on'
@@ -2394,12 +2717,21 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       expect(mail.text).toMatch(/signed in with a password/)
     })
 
-    test('a sign-in from a known device sends nothing, with any method; from a new one it does; a member\'s sign-in never', async () => {
+    test("a sign-in from a known device sends nothing, with any method; from a new one it does; a member's sign-in never", async () => {
       const send = mails()
       const device = { ipAddress: '203.0.113.7', userAgent: `Browser ${crypto.randomUUID()}` }
       const passkeySignIn = { path: '/passkey/verify-authentication' }
       const record = () =>
-        db.insert(auth_events).values({ id: `ae_${crypto.randomUUID().slice(0, 12)}`, user_id: admin.userId, event: 'sign_in', method: 'passkey', ip_address: device.ipAddress, user_agent: device.userAgent })
+        db
+          .insert(auth_events)
+          .values({
+            id: `ae_${crypto.randomUUID().slice(0, 12)}`,
+            user_id: admin.userId,
+            event: 'sign_in',
+            method: 'passkey',
+            ip_address: device.ipAddress,
+            user_agent: device.userAgent,
+          })
       await record() // this sign-in, as the audit log records it first
       await alertOnAdminSignIn({ userId: admin.userId, ...device }, passkeySignIn)
       expect(sentTo(send, /^Admin sign-in/)).toContain(await emailOf(operator)) // first time from here
@@ -2409,11 +2741,14 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       await alertOnAdminSignIn({ userId: admin.userId, ...device }, { path: '/sign-in/email' })
       expect(sentTo(send, /^Admin sign-in/)).toEqual([])
       await alertOnAdminSignIn({ userId: member.userId, ...device }, { path: '/sign-in/email' })
-      await alertOnAdminSignIn({ userId: admin.userId, impersonatedBy: operator.userId, ...device }, { path: '/sign-in/email' })
+      await alertOnAdminSignIn(
+        { userId: admin.userId, impersonatedBy: operator.userId, ...device },
+        { path: '/sign-in/email' },
+      )
       expect(sentTo(send, /^Admin sign-in/)).toEqual([])
     })
 
-    test('the first admin\'s sign-in right after setup sends no alert; the next one does', async () => {
+    test("the first admin's sign-in right after setup sends no alert; the next one does", async () => {
       const send = mails()
       const device = { ipAddress: '203.0.113.8', userAgent: `Browser ${crypto.randomUUID()}` }
       markSetupSignIn(admin.userId)
@@ -2427,27 +2762,41 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       const send = mails()
       process.env.WEB_ORIGIN = 'http://localhost:8490'
       try {
-        await alertOnAdminSignIn({ userId: admin.userId, ipAddress: '198.51.100.9', userAgent: `Browser ${crypto.randomUUID()}` }, { path: '/sign-in/email' })
+        await alertOnAdminSignIn(
+          { userId: admin.userId, ipAddress: '198.51.100.9', userAgent: `Browser ${crypto.randomUUID()}` },
+          { path: '/sign-in/email' },
+        )
       } finally {
         process.env.WEB_ORIGIN = 'https://app.linedesk.test'
       }
       expect(sentTo(send, /^Admin sign-in/)).toEqual([])
-      expect(isLocalInstance({ PUBLIC_URL: 'https://app.linedesk.ai', WEB_ORIGIN: 'http://localhost:5173' })).toBe(false)
+      expect(isLocalInstance({ PUBLIC_URL: 'https://app.linedesk.ai', WEB_ORIGIN: 'http://localhost:5173' })).toBe(
+        false,
+      )
       expect(isLocalInstance({ WEB_ORIGIN: 'http://livemode.localhost:8490' })).toBe(true)
     })
 
     test('F1: an admin session from an endpoint the alert does not know is still reported, as another method', async () => {
       const send = mails()
-      await alertOnAdminSignIn({ userId: admin.userId, ipAddress: '198.51.100.4', userAgent: 'x' }, { path: '/some/new-endpoint' })
+      await alertOnAdminSignIn(
+        { userId: admin.userId, ipAddress: '198.51.100.4', userAgent: 'x' },
+        { path: '/some/new-endpoint' },
+      )
       await alertOnAdminSignIn({ userId: admin.userId }, undefined)
-      const alerts = send.mock.calls.map(([m]) => m).filter(m => /^Admin sign-in/.test(m.subject) && m.to === operatorEmail)
+      const alerts = send.mock.calls
+        .map(([m]) => m)
+        .filter(m => /^Admin sign-in/.test(m.subject) && m.to === operatorEmail)
       expect(alerts).toHaveLength(2)
       expect(alerts[0]!.text).toMatch(/a sign-in method this server does not recognise/)
     })
 
     test('F4: the alert carries no links and no long browser strings', () => {
       const ua = `Mozilla/5.0 (evil) visit https://phish.example/reset?x=1 or www.phish.example now ${'A'.repeat(300)}`
-      const { text } = adminSignInEmail('ann@linedesk.test', 'password', true, { userId: 'u', ipAddress: '203.0.113.9', userAgent: ua })
+      const { text } = adminSignInEmail('ann@linedesk.test', 'password', true, {
+        userId: 'u',
+        ipAddress: '203.0.113.9',
+        userAgent: ua,
+      })
       expect(text).not.toMatch(/https?:|www\./)
       expect(text).toContain('[link]')
       const browserLine = text.split('\n').find(line => line.startsWith('Browser: '))!
@@ -2463,7 +2812,9 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       await addPasskey()
       await sessionOfAdmin({ createdAt: now, passkeyVerifiedAt: now })
       expect((await act(admin, 'instanceAdmin.grant', { userId: someone.userId })).status).toBe(200)
-      expect(sentTo(send, /^New instance admin/)).toEqual(expect.arrayContaining([await emailOf(admin), await emailOf(operator)]))
+      expect(sentTo(send, /^New instance admin/)).toEqual(
+        expect.arrayContaining([await emailOf(admin), await emailOf(operator)]),
+      )
       expect((await act(admin, 'user.resetPasskeys', { userId: someone.userId })).status).toBe(200)
       const reset = send.mock.calls.map(([m]) => m).filter(m => /^Passkeys reset/.test(m.subject))
       expect(reset.map(m => m.to)).toEqual(expect.arrayContaining([await emailOf(operator)]))
@@ -2543,7 +2894,11 @@ describe('audit log', () => {
 
   test('an admin adding themselves to a workspace is listed under that workspace, with whom it was about', async () => {
     const operatorEmail = await emailOf(operator)
-    const added = await act(operator, 'membership.add', { userId: operator.userId, workspaceId: other.id, role: 'owner' })
+    const added = await act(operator, 'membership.add', {
+      userId: operator.userId,
+      workspaceId: other.id,
+      role: 'owner',
+    })
     expect(added.status).toBe(200)
     const removed = await act(operator, 'membership.remove', { memberId: added.body.data.memberId })
     expect(removed.status).toBe(200)
@@ -2551,7 +2906,8 @@ describe('audit log', () => {
     // Newest first; other tests in this file change memberships of `other` too.
     const mine = entries.filter(e => e.actor.id === operator.userId && e.what.startsWith('membership.')).slice(0, 2)
     expect(mine.map(e => e.what)).toEqual(['membership.remove', 'membership.add'])
-    for (const e of mine) expect(e).toMatchObject({ kind: 'admin', workspace: { id: other.id }, subject: { email: operatorEmail } })
+    for (const e of mine)
+      expect(e).toMatchObject({ kind: 'admin', workspace: { id: other.id }, subject: { email: operatorEmail } })
     expect(mine[1]!.input).toMatchObject({ role: 'owner' })
   })
 
@@ -2569,7 +2925,11 @@ describe('audit log', () => {
     expect((await act(ws.owner, 'webhook.delete', { endpointId: ws.webhookEndpoint.id })).status).toBe(200)
     const { entries } = await audit(`?workspace=${ws.id}&limit=50`)
     const byWhat = (what: string) => entries.find(e => e.what === what)
-    expect(byWhat('team.setRole')).toMatchObject({ kind: 'team', subject: { email: removedEmail }, input: { role: 'member' } })
+    expect(byWhat('team.setRole')).toMatchObject({
+      kind: 'team',
+      subject: { email: removedEmail },
+      input: { role: 'member' },
+    })
     expect(byWhat('team.removeMember')).toMatchObject({ kind: 'team', subject: { email: removedEmail } })
     expect(byWhat('team.leave')).toMatchObject({ kind: 'team', actor: { id: leaver.userId } })
     expect(byWhat('apiKey.create')).toMatchObject({ kind: 'integrations', input: { name: 'Zapier' } })
@@ -2650,12 +3010,18 @@ describe('audit log', () => {
 })
 
 describe('monthly spending cap', () => {
-  const capOf = async (workspaceId: string) => (await db.select().from(organization).where(eq(organization.id, workspaceId)))[0]?.spendingCapCents
+  const capOf = async (workspaceId: string) =>
+    (await db.select().from(organization).where(eq(organization.id, workspaceId)))[0]?.spendingCapCents
   /** A finished phone call of `minutes` this month (or `daysAgo` back), straight into the table. */
   const pastCall = (workspaceId: string, minutes: number, daysAgo = 0) =>
     db.insert(calls).values({
-      id: `call_cap_${randomBytes(6).toString('hex')}`, workspace_id: workspaceId, from_number: '+15035550142', to_number: '+15035550100',
-      source: 'phone', status: 'completed', duration_sec: Math.round(minutes * 60),
+      id: `call_cap_${randomBytes(6).toString('hex')}`,
+      workspace_id: workspaceId,
+      from_number: '+15035550142',
+      to_number: '+15035550100',
+      source: 'phone',
+      status: 'completed',
+      duration_sec: Math.round(minutes * 60),
       started_at: new Date(Date.now() - daysAgo * 86_400_000).toISOString(),
     })
   /** Starts and finishes a short phone call through the agent: call.finish queues the alerts. */
@@ -2703,36 +3069,55 @@ describe('monthly spending cap', () => {
     await finishedCall(ws)
     await finishedCall(ws)
     const month = new Date().toISOString().slice(0, 7)
-    expect(alerts.filter(a => a.name === SPENDING_CAP_ALERT).map(a => a.data)).toEqual([{ workspaceId: ws.id, month, level: 80 }])
+    expect(alerts.filter(a => a.name === SPENDING_CAP_ALERT).map(a => a.data)).toEqual([
+      { workspaceId: ws.id, month, level: 80 },
+    ])
 
     // Past the cap (a call that finished, so call.finish sends the 100 % email): the next phone call is not answered
     // by the assistant, and the 100 % email is not sent twice.
     const last = (await act(agent(), 'call.start', { from: '+15035550177', to: ws.number })).body.data.callId
-    await db.update(calls).set({ started_at: new Date(Date.now() - capMinutes * 0.2 * 60_000).toISOString() }).where(eq(calls.id, last))
+    await db
+      .update(calls)
+      .set({ started_at: new Date(Date.now() - capMinutes * 0.2 * 60_000).toISOString() })
+      .where(eq(calls.id, last))
     await act(agent(ws.id), 'call.finish', { callId: last })
     expect(alerts.filter(a => a.name === SPENDING_CAP_ALERT).map(a => a.data.level)).toEqual([80, 100])
     const capped = await act(agent(), 'call.start', { from: '+15035550178', to: ws.number })
     expect(alerts.filter(a => a.name === SPENDING_CAP_ALERT).map(a => a.data.level)).toEqual([80, 100])
     expect(capped.body.data).toMatchObject({ overCap: true, blocked: true, busy: false, booking: null })
     expect(await getCall(capped.body.data.callId)).toMatchObject({
-      status: 'completed', outcome: 'hangup', title: 'Missed call', unread: true, action_items: [{ text: 'Call back' }],
+      status: 'completed',
+      outcome: 'hangup',
+      title: 'Missed call',
+      unread: true,
+      action_items: [{ text: 'Call back' }],
       summary: expect.stringContaining('monthly spending cap'),
     })
-    expect(alerts.filter(a => a.name === 'call.push').map(a => a.data)).toContainEqual({ callId: capped.body.data.callId, kind: 'finished' })
+    expect(alerts.filter(a => a.name === 'call.push').map(a => a.data)).toContainEqual({
+      callId: capped.body.data.callId,
+      kind: 'finished',
+    })
     // Test calls are off too.
     vi.stubEnv('LIVEKIT_URL', 'ws://livekit.test:7880')
     vi.stubEnv('LIVEKIT_API_KEY', 'k')
     vi.stubEnv('LIVEKIT_API_SECRET', 'test-secret-test-secret-test-secret')
-    expect(await act(ws.owner, 'assistant.startTestCall', {})).toMatchObject({ status: 409, body: { error: TEST_CALLS_OVER_CAP } })
+    expect(await act(ws.owner, 'assistant.startTestCall', {})).toMatchObject({
+      status: 409,
+      body: { error: TEST_CALLS_OVER_CAP },
+    })
 
     // The admin list shows the cap and the estimate.
-    const listed = (await request(operator, 'GET', '/v1/admin/workspaces')).body.workspaces.find((w: { id: string }) => w.id === ws.id)
+    const listed = (await request(operator, 'GET', '/v1/admin/workspaces')).body.workspaces.find(
+      (w: { id: string }) => w.id === ws.id,
+    )
     expect(listed).toMatchObject({ spending_cap_usd: 1 })
     expect(listed.cost_this_month).toBeGreaterThanOrEqual(1)
 
     // A higher cap answers calls again, and its alerts start over; no cap at all answers too.
     alerts = []
-    expect((await act(operator, 'workspace.setSpendingCap', { workspaceId: ws.id, capUsd: 1.2 })).body.data).toMatchObject({ reached: false })
+    expect(
+      (await act(operator, 'workspace.setSpendingCap', { workspaceId: ws.id, capUsd: 1.2 })).body.data,
+    ).toMatchObject({ reached: false })
     expect(alerts.filter(a => a.name === SPENDING_CAP_ALERT).map(a => a.data.level)).toEqual([80])
     expect((await act(agent(), 'call.start', { from: '+15035550179', to: ws.number })).body.data.overCap).toBe(false)
     await act(operator, 'workspace.setSpendingCap', { workspaceId: ws.id, capUsd: null })
@@ -2742,17 +3127,31 @@ describe('monthly spending cap', () => {
   test('the alert email goes to the owners and the instance admins, once per address, and says what happens', async () => {
     const ws = await createWorkspace('Alerted Plumbing')
     const coOwner = await addMember(ws.id, 'admin')
-    await db.update(memberTable).set({ role: 'owner' }).where(and(eq(memberTable.organizationId, ws.id), eq(memberTable.userId, coOwner.userId)))
+    await db
+      .update(memberTable)
+      .set({ role: 'owner' })
+      .where(and(eq(memberTable.organizationId, ws.id), eq(memberTable.userId, coOwner.userId)))
     await addMember(ws.id, 'member')
     await db.update(organization).set({ spendingCapCents: 0 }).where(eq(organization.id, ws.id))
     const sent: { to: string; subject: string; text: string }[] = []
-    const sender = { kind: 'smtp' as const, send: async (email: (typeof sent)[number]) => void sent.push(email), check: async () => ({ ok: true, message: '' }) }
+    const sender = {
+      kind: 'smtp' as const,
+      send: async (email: (typeof sent)[number]) => void sent.push(email),
+      check: async () => ({ ok: true, message: '' }),
+    }
     const month = new Date().toISOString().slice(0, 7)
     expect(await sendSpendingAlert(db, sender, { workspaceId: ws.id, month, level: 100 })).toMatchObject({ failed: 0 })
     const to = sent.map(e => e.to)
-    expect(to).toEqual(expect.arrayContaining([await emailOf(ws.owner), await emailOf(coOwner), await emailOf(operator)].map(a => a.toLowerCase())))
+    expect(to).toEqual(
+      expect.arrayContaining(
+        [await emailOf(ws.owner), await emailOf(coOwner), await emailOf(operator)].map(a => a.toLowerCase()),
+      ),
+    )
     expect(new Set(to).size).toBe(to.length)
-    expect(sent[0]).toMatchObject({ subject: 'Alerted Plumbing reached its monthly spending cap', text: expect.stringContaining('call them back') })
+    expect(sent[0]).toMatchObject({
+      subject: 'Alerted Plumbing reached its monthly spending cap',
+      text: expect.stringContaining('call them back'),
+    })
     // A name that reads like a link is not put into the email (emailSafeName).
     await db.update(organization).set({ name: 'Pay at evil.example.com' }).where(eq(organization.id, ws.id))
     sent.length = 0
@@ -2762,17 +3161,25 @@ describe('monthly spending cap', () => {
     await db.update(organization).set({ name: 'Alerted Plumbing' }).where(eq(organization.id, ws.id))
     // Another month, or no cap any more: nothing is sent.
     sent.length = 0
-    expect(await sendSpendingAlert(db, sender, { workspaceId: ws.id, month: '2001-01', level: 80 })).toEqual({ sent: 0, failed: 0 })
+    expect(await sendSpendingAlert(db, sender, { workspaceId: ws.id, month: '2001-01', level: 80 })).toEqual({
+      sent: 0,
+      failed: 0,
+    })
     await db.update(organization).set({ spendingCapCents: null }).where(eq(organization.id, ws.id))
-    expect(await sendSpendingAlert(db, sender, { workspaceId: ws.id, month, level: 100 })).toEqual({ sent: 0, failed: 0 })
+    expect(await sendSpendingAlert(db, sender, { workspaceId: ws.id, month, level: 100 })).toEqual({
+      sent: 0,
+      failed: 0,
+    })
     expect(sent).toEqual([])
   })
 })
 
 test('changing email or sign-in settings needs the passkey; other providers do not', async () => {
   for (const provider of ['smtp', 'google', 'microsoft', 'github', 'oidc'])
-    for (const name of ['provider.setKeys', 'provider.clearKeys']) expect(await needsPasskeyStepUp(name, { provider }), `${name} ${provider}`).toBe(true)
-  for (const provider of ['telnyx', 'deepgram', 's3']) expect(await needsPasskeyStepUp('provider.setKeys', { provider })).toBe(false)
+    for (const name of ['provider.setKeys', 'provider.clearKeys'])
+      expect(await needsPasskeyStepUp(name, { provider }), `${name} ${provider}`).toBe(true)
+  for (const provider of ['telnyx', 'deepgram', 's3'])
+    expect(await needsPasskeyStepUp('provider.setKeys', { provider })).toBe(false)
 })
 
 describe('branding', () => {
@@ -2790,7 +3197,9 @@ describe('branding', () => {
       starPrompt: true,
       starCount: null,
     })
-    expect((await request(anonymous, 'GET', '/v1/branding/manifest.webmanifest')).body).toMatchObject({ name: 'Linedesk' })
+    expect((await request(anonymous, 'GET', '/v1/branding/manifest.webmanifest')).body).toMatchObject({
+      name: 'Linedesk',
+    })
     expect((await request(anonymous, 'GET', '/v1/branding/logo.png')).status).toBe(404)
   })
 
@@ -2805,13 +3214,19 @@ describe('branding', () => {
     expect(served.headers.get('content-type')).toBe('image/png')
     expect(Buffer.from(await served.arrayBuffer()).toString('base64')).toBe(PNG)
     const manifest = (await request(anonymous, 'GET', '/v1/branding/manifest.webmanifest')).body
-    expect(manifest).toMatchObject({ name: 'Front Desk Pro', icons: [{ src: logoUrl }, { src: logoUrl, purpose: 'maskable' }] })
+    expect(manifest).toMatchObject({
+      name: 'Front Desk Pro',
+      icons: [{ src: logoUrl }, { src: logoUrl, purpose: 'maskable' }],
+    })
     const email = signInCodeEmail('123456', 'https://desk.example')
     expect(email.subject).toBe('123456 is your Front Desk Pro sign-in code')
     expect(email.html).toContain(`https://desk.example${logoUrl}`)
 
     // Left out keeps the logo; null removes it.
-    expect((await act(operator, 'branding.set', { ...input, logo: undefined, name: 'Desk' })).body.data).toMatchObject({ name: 'Desk', logoUrl })
+    expect((await act(operator, 'branding.set', { ...input, logo: undefined, name: 'Desk' })).body.data).toMatchObject({
+      name: 'Desk',
+      logoUrl,
+    })
     expect((await act(operator, 'branding.set', { ...input, logo: null })).body.data.logoUrl).toBeNull()
     expect((await request(anonymous, 'GET', '/v1/branding/logo.png')).status).toBe(404)
   })
@@ -2827,7 +3242,10 @@ describe('branding', () => {
     wide.writeUInt32BE(1024, 16)
     expect(() => decodeLogo(`data:image/png;base64,${wide.toString('base64')}`)).toThrow('at most 512×512')
     const svg = `data:image/png;base64,${Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>').toString('base64')}`
-    expect((await act(operator, 'branding.set', { ...input, logo: svg })).body).toMatchObject({ ok: false, error: 'The logo must be a PNG image.' })
+    expect((await act(operator, 'branding.set', { ...input, logo: svg })).body).toMatchObject({
+      ok: false,
+      error: 'The logo must be a PNG image.',
+    })
     expect((await act(operator, 'branding.set', { ...input, logo: 'data:image/svg+xml;base64,AAAA' })).status).toBe(422)
     expect((await act(operator, 'branding.set', { ...input, name: ' ' })).status).toBe(422)
     expect((await request(anonymous, 'GET', '/v1/branding')).body.name).toBe('Linedesk')
@@ -2849,7 +3267,12 @@ describe('setup code', () => {
   })
 
   test('refuses a short password before anything else', async () => {
-    const res = await request(anonymous, 'POST', '/v1/setup', { code: 'x', name: 'A', email: 'a@brightwater.example', password: 'short' })
+    const res = await request(anonymous, 'POST', '/v1/setup', {
+      code: 'x',
+      name: 'A',
+      email: 'a@brightwater.example',
+      password: 'short',
+    })
     expect(res.status).toBe(400)
   })
 })
@@ -2857,7 +3280,11 @@ describe('setup code', () => {
 describe('setup emails and the at-risk list', () => {
   const spy = () => {
     const sent: Email[] = []
-    const sender: EmailSender = { kind: 'smtp', send: async email => void sent.push(email), check: async () => ({ ok: true, message: '' }) }
+    const sender: EmailSender = {
+      kind: 'smtp',
+      send: async email => void sent.push(email),
+      check: async () => ({ ok: true, message: '' }),
+    }
     return { sent, sender }
   }
   const signedUpDaysAgo = (ws: Workspace, days: number) =>
@@ -2866,8 +3293,9 @@ describe('setup emails and the at-risk list', () => {
       .set({ at: new Date(Date.now() - days * 86_400_000).toISOString() })
       .where(and(eq(setup_events.workspace_id, ws.id), eq(setup_events.event, 'signup')))
   const realCall = async (ws: Workspace) => {
-    const callId = (await act(agent(), 'call.start', { from: `+1503${Math.floor(1e6 + Math.random() * 9e6)}`, to: ws.number })).body
-      .data.callId as string
+    const callId = (
+      await act(agent(), 'call.start', { from: `+1503${Math.floor(1e6 + Math.random() * 9e6)}`, to: ws.number })
+    ).body.data.callId as string
     await act(agent(ws.id), 'call.finish', { callId, outcome: 'message', title: 'Dripping shower valve' })
     return callId
   }
@@ -2888,7 +3316,11 @@ describe('setup emails and the at-risk list', () => {
     const { sent, sender } = spy()
     expect(await sendDueSetupEmails(db, sender)).toMatchObject({ off: true })
     // Tests send no real email: the switch says so, and the partner directory is not set.
-    expect((await act(operator, 'setupEmails.get', {})).body.data).toEqual({ on: false, emailConnected: emailSender.kind === 'smtp', partnerDirectoryUrl: null })
+    expect((await act(operator, 'setupEmails.get', {})).body.data).toEqual({
+      on: false,
+      emailConnected: emailSender.kind === 'smtp',
+      partnerDirectoryUrl: null,
+    })
     expect((await act(ws.owner, 'notifications.get', {})).body.data.setupEmails).toBeNull()
 
     expect((await setOn(true)).body.data).toMatchObject({ on: true })
@@ -2908,14 +3340,22 @@ describe('setup emails and the at-risk list', () => {
     expect(sent[0]!.text).toContain('Your first call')
     await notifyCallFinished(db, sender, await realCall(ws))
     expect(sent[1]!.subject).not.toContain('first real call')
-    expect((await db.select().from(setup_emails).where(eq(setup_emails.workspace_id, ws.id))).map(r => r.kind)).toEqual(['first_call'])
+    expect((await db.select().from(setup_emails).where(eq(setup_emails.workspace_id, ws.id))).map(r => r.kind)).toEqual(
+      ['first_call'],
+    )
   })
 
   test('when no email could go out, the first-call email waits for the next try', async () => {
     await setOn(true)
     const ws = await createWorkspace('First Call Retry Plumbing')
     const callId = await realCall(ws)
-    const down: EmailSender = { kind: 'smtp', send: async () => { throw new Error('mail server down') }, check: async () => ({ ok: false, message: '' }) }
+    const down: EmailSender = {
+      kind: 'smtp',
+      send: async () => {
+        throw new Error('mail server down')
+      },
+      check: async () => ({ ok: false, message: '' }),
+    }
     expect(await notifyCallFinished(db, down, callId)).toMatchObject({ sent: 0, failed: 1 })
     expect(await db.select().from(setup_emails).where(eq(setup_emails.workspace_id, ws.id))).toEqual([])
     const { sent, sender } = spy()
@@ -2941,7 +3381,11 @@ describe('setup emails and the at-risk list', () => {
     const ws = await createWorkspace('First Call Log Only Plumbing')
     const callId = await realCall(ws)
     const sent: Email[] = []
-    const log: EmailSender = { kind: 'log', send: async email => void sent.push(email), check: async () => ({ ok: true, message: '' }) }
+    const log: EmailSender = {
+      kind: 'log',
+      send: async email => void sent.push(email),
+      check: async () => ({ ok: true, message: '' }),
+    }
     await notifyCallFinished(db, log, callId)
     expect(sent[0]!.subject).not.toContain('first real call')
     expect(await db.select().from(setup_emails).where(eq(setup_emails.workspace_id, ws.id))).toEqual([])
@@ -2965,7 +3409,11 @@ describe('setup emails and the at-risk list', () => {
     const early = await createWorkspace('Early Calls Setup Plumbing')
     await signedUpDaysAgo(early, 2)
     await realCall(early)
-    await db.delete(setup_events).where(and(eq(setup_events.workspace_id, early.id), inArray(setup_events.event, ['first_real_call', 'activated'])))
+    await db
+      .delete(setup_events)
+      .where(
+        and(eq(setup_events.workspace_id, early.id), inArray(setup_events.event, ['first_real_call', 'activated'])),
+      )
     const live = await createWorkspace('Live Setup Plumbing')
     await signedUpDaysAgo(live, 2)
     await realCall(live)
@@ -3017,7 +3465,8 @@ describe('workspace.delete', () => {
     const counts: Record<string, number> = {}
     for (const table of [...workspaceTables(), commands, auth_events, number_purchases, voice_clones]) {
       const column = (table as unknown as { workspace_id: typeof calls.workspace_id }).workspace_id
-      const [row] = (await db.execute(sql`select count(*)::int as n from ${table} where ${column} = ${workspaceId}`)).rows as { n: number }[]
+      const [row] = (await db.execute(sql`select count(*)::int as n from ${table} where ${column} = ${workspaceId}`))
+        .rows as { n: number }[]
       counts[getTableName(table)] = row!.n
     }
     return counts
@@ -3026,35 +3475,77 @@ describe('workspace.delete', () => {
   /** A workspace with more than the fixture: a recording, settings, a push subscription, an API key, an invitation, a member's session on it. */
   async function fullWorkspace(name: string) {
     const ws = await createWorkspace(name)
-    await db.update(calls).set({ recording_key: recordingKey(ws.id, ws.call.id), recording_store: 'file' }).where(eq(calls.id, ws.call.id))
-    await db.insert(push_subscriptions).values({ workspace_id: ws.id, user_id: ws.owner.userId, endpoint: `https://push.example/${ws.id}`, p256dh: 'p', auth: 'a' })
-    await db.insert(api_keys).values({ id: `key_${ws.id}`, workspace_id: ws.id, name: 'Zapier', prefix: 'ld_test', key_hash: `hash_${ws.id}`, created_by: ws.owner.userId })
-    await db.insert(invitation).values({ id: `inv_${ws.id}`, organizationId: ws.id, email: `invited-${ws.id}@example.com`, role: 'member', status: 'pending', expiresAt: new Date(Date.now() + 86_400_000), inviterId: ws.owner.userId, createdAt: new Date() })
+    await db
+      .update(calls)
+      .set({ recording_key: recordingKey(ws.id, ws.call.id), recording_store: 'file' })
+      .where(eq(calls.id, ws.call.id))
+    await db
+      .insert(push_subscriptions)
+      .values({
+        workspace_id: ws.id,
+        user_id: ws.owner.userId,
+        endpoint: `https://push.example/${ws.id}`,
+        p256dh: 'p',
+        auth: 'a',
+      })
+    await db
+      .insert(api_keys)
+      .values({
+        id: `key_${ws.id}`,
+        workspace_id: ws.id,
+        name: 'Zapier',
+        prefix: 'ld_test',
+        key_hash: `hash_${ws.id}`,
+        created_by: ws.owner.userId,
+      })
+    await db
+      .insert(invitation)
+      .values({
+        id: `inv_${ws.id}`,
+        organizationId: ws.id,
+        email: `invited-${ws.id}@example.com`,
+        role: 'member',
+        status: 'pending',
+        expiresAt: new Date(Date.now() + 86_400_000),
+        inviterId: ws.owner.userId,
+        createdAt: new Date(),
+      })
     await act(ws.owner, 'call.markDone', { callId: ws.call.id })
     return ws
   }
 
-  test('refused for anyone but an instance admin, and for a name that is not the workspace\'s', async () => {
+  test("refused for anyone but an instance admin, and for a name that is not the workspace's", async () => {
     const ws = await createWorkspace('Not Yours To Delete')
     for (const who of [ws.owner, other.owner, member, agent(ws.id)])
-      expect(await act(who, 'workspace.delete', { workspaceId: ws.id, name: 'Not Yours To Delete' })).toMatchObject({ status: 403 })
+      expect(await act(who, 'workspace.delete', { workspaceId: ws.id, name: 'Not Yours To Delete' })).toMatchObject({
+        status: 403,
+      })
     expect(await act(operator, 'workspace.delete', { workspaceId: ws.id, name: 'Not Yours' })).toMatchObject({
       status: 409,
       body: { error: "type the workspace's name, Not Yours To Delete, to confirm" },
     })
-    expect(await act(operator, 'workspace.delete', { workspaceId: 'org_missing', name: 'x' })).toMatchObject({ status: 409, body: { error: 'workspace not found' } })
+    expect(await act(operator, 'workspace.delete', { workspaceId: 'org_missing', name: 'x' })).toMatchObject({
+      status: 409,
+      body: { error: 'workspace not found' },
+    })
     expect((await db.select().from(organization).where(eq(organization.id, ws.id))).length).toBe(1)
   })
 
   test('keepUsers keeps the accounts of members only in it; an instance admin member always keeps theirs', async () => {
     const ws = await createWorkspace('Keep The People')
-    const res = await act(operator, 'workspace.delete', { workspaceId: ws.id, name: 'Keep The People', keepUsers: true })
+    const res = await act(operator, 'workspace.delete', {
+      workspaceId: ws.id,
+      name: 'Keep The People',
+      keepUsers: true,
+    })
     expect(res).toMatchObject({ status: 200, body: { data: { usersDeleted: [] } } })
     expect((await db.select().from(user).where(eq(user.id, ws.owner.userId))).length).toBe(1)
 
     const withAdmin = await createWorkspace('Admin Inside')
     await auth.api.addMember({ body: { userId: operator.userId, organizationId: withAdmin.id, role: 'member' } })
-    const listed = (await request(operator, 'GET', '/v1/admin/workspaces')).body.workspaces.find((w: { id: string }) => w.id === withAdmin.id)
+    const listed = (await request(operator, 'GET', '/v1/admin/workspaces')).body.workspaces.find(
+      (w: { id: string }) => w.id === withAdmin.id,
+    )
     expect(listed).toMatchObject({ members: 2, members_only_here: 1 })
     await act(operator, 'workspace.delete', { workspaceId: withAdmin.id, name: 'Admin Inside' })
     expect((await db.select().from(user).where(eq(user.id, operator.userId))).length).toBe(1)
@@ -3069,21 +3560,35 @@ describe('workspace.delete', () => {
     await auth.api.addMember({ body: { userId: both.userId, organizationId: kept.id, role: 'member' } })
     await db.update(session).set({ activeOrganizationId: gone.id }).where(eq(session.userId, both.userId))
     const queued: { name: string; data: unknown }[] = []
-    setJobQueue({ insert: async (name: string, jobs: { data: unknown }[]) => void queued.push(...jobs.map(j => ({ name, data: j.data }))) } as never)
+    setJobQueue({
+      insert: async (name: string, jobs: { data: unknown }[]) =>
+        void queued.push(...jobs.map(j => ({ name, data: j.data }))),
+    } as never)
     const keptBefore = await rowsOf(kept.id)
     const emailOf = async (id: string) => (await db.select().from(user).where(eq(user.id, id)))[0]!.email
     const [ownerEmail, bothEmail] = [await emailOf(gone.owner.userId), await emailOf(both.userId)]
     try {
       const res = await act(operator, 'workspace.delete', { workspaceId: gone.id, name: ' gone plumbing ' })
-      expect(res).toMatchObject({ status: 200, body: { ok: true, data: { workspaceId: gone.id, name: 'Gone Plumbing', recordings: 1 } } })
-      expect(res.body.data.deleted).toMatchObject({ calls: 1, contacts: 1, push_subscriptions: 1, api_keys: 1, phone_numbers: 1 })
+      expect(res).toMatchObject({
+        status: 200,
+        body: { ok: true, data: { workspaceId: gone.id, name: 'Gone Plumbing', recordings: 1 } },
+      })
+      expect(res.body.data.deleted).toMatchObject({
+        calls: 1,
+        contacts: 1,
+        push_subscriptions: 1,
+        api_keys: 1,
+        phone_numbers: 1,
+      })
       expect(res.body.data.numbers).toEqual([{ e164: gone.number, carrier: 'none' }])
       expect(res.body.data.usersDeleted).toContain(ownerEmail)
       expect(res.body.data.usersDeleted).not.toContain(bothEmail)
     } finally {
       setJobQueue(null)
     }
-    expect(queued).toEqual([{ name: 'recording.deleteFile', data: { store: 'file', key: recordingKey(gone.id, gone.call.id) } }])
+    expect(queued).toEqual([
+      { name: 'recording.deleteFile', data: { store: 'file', key: recordingKey(gone.id, gone.call.id) } },
+    ])
 
     const after = await rowsOf(gone.id)
     for (const [table, n] of Object.entries(after)) if (!(table in KEPT_TABLES)) expect(n, table).toBe(0)
@@ -3096,8 +3601,15 @@ describe('workspace.delete', () => {
     // The audit log keeps its entries, but nothing else of what the workspace's commands carried.
     const logged = await db.select().from(commands).where(eq(commands.workspace_id, gone.id))
     expect(logged.find(c => c.action === 'call.markDone')?.pruned_at).not.toBeNull()
-    const [entry] = await db.select().from(commands).where(and(eq(commands.action, 'workspace.delete'), sql`${commands.input}->>'workspaceId' = ${gone.id}`))
-    expect(entry).toMatchObject({ actor_id: operator.userId, rejected: false, input: { workspaceId: gone.id, name: 'gone plumbing' } })
+    const [entry] = await db
+      .select()
+      .from(commands)
+      .where(and(eq(commands.action, 'workspace.delete'), sql`${commands.input}->>'workspaceId' = ${gone.id}`))
+    expect(entry).toMatchObject({
+      actor_id: operator.userId,
+      rejected: false,
+      input: { workspaceId: gone.id, name: 'gone plumbing' },
+    })
     const audit = (await request(operator, 'GET', `/v1/admin/audit?workspace=${gone.id}`)).body
     expect(audit.entries.some((e: { what: string }) => e.what === 'workspace.delete')).toBe(true)
 
@@ -3107,7 +3619,10 @@ describe('workspace.delete', () => {
     expect(await db.select().from(session).where(eq(session.userId, gone.owner.userId))).toEqual([])
     expect((await request(gone.owner, 'GET', '/v1/me')).status).toBe(401)
     // A tab still on the deleted workspace is told it is gone.
-    expect(await request(both, 'GET', '/v1/me', undefined, { 'x-workspace-id': gone.id })).toMatchObject({ status: 403, body: { code: 'workspace_access_lost' } })
+    expect(await request(both, 'GET', '/v1/me', undefined, { 'x-workspace-id': gone.id })).toMatchObject({
+      status: 403,
+      body: { code: 'workspace_access_lost' },
+    })
   })
 
   test('numbers: bought ones are released in the install account, others un-routed; a carrier failure is reported, not fatal', async () => {
@@ -3115,9 +3630,24 @@ describe('workspace.delete', () => {
     await db.delete(phone_numbers).where(eq(phone_numbers.workspace_id, ws.id))
     const n = (suffix: string) => `+1971555${suffix}`
     await db.insert(phone_numbers).values([
-      { id: `pn_b_${ws.id}`, workspace_id: ws.id, e164: n('0101'), provider: 'telnyx', provider_ref: 'r1', purchased: true },
+      {
+        id: `pn_b_${ws.id}`,
+        workspace_id: ws.id,
+        e164: n('0101'),
+        provider: 'telnyx',
+        provider_ref: 'r1',
+        purchased: true,
+      },
       { id: `pn_a_${ws.id}`, workspace_id: ws.id, e164: n('0102'), provider: 'telnyx', provider_ref: 'r2' },
-      { id: `pn_o_${ws.id}`, workspace_id: ws.id, e164: n('0103'), provider: 'telnyx', provider_ref: 'r3', purchased: true, carrier_account: 'workspace' },
+      {
+        id: `pn_o_${ws.id}`,
+        workspace_id: ws.id,
+        e164: n('0103'),
+        provider: 'telnyx',
+        provider_ref: 'r3',
+        purchased: true,
+        carrier_account: 'workspace',
+      },
       { id: `pn_f_${ws.id}`, workspace_id: ws.id, e164: n('0104'), provider: 'telnyx', provider_ref: 'fail' },
       { id: `pn_t_${ws.id}`, workspace_id: ws.id, e164: n('0105'), provider: 'twilio', provider_ref: 'r5' },
     ])
@@ -3130,9 +3660,17 @@ describe('workspace.delete', () => {
         calls_.push(`unroute ${o.e164}`)
       },
     }
-    const actor = { actorId: operator.userId, role: 'owner', workspaceId: null, permissions: ['instance:admin'] } as unknown as Actor
+    const actor = {
+      actorId: operator.userId,
+      role: 'owner',
+      workspaceId: null,
+      permissions: ['instance:admin'],
+    } as unknown as Actor
     const result = await db.transaction(tx =>
-      adminHandlers['workspace.delete']!({ tx, actor, now: new Date().toISOString(), telephony: telephony as never }, { workspaceId: ws.id, name: 'Numbers Plumbing' }),
+      adminHandlers['workspace.delete']!(
+        { tx, actor, now: new Date().toISOString(), telephony: telephony as never },
+        { workspaceId: ws.id, name: 'Numbers Plumbing' },
+      ),
     )
     expect(calls_.sort()).toEqual([`release ${n('0101')}`, `unroute ${n('0102')}`, `unroute ${n('0103')}`].sort())
     const numbers = (result.data as { numbers: { e164: string; carrier: string }[] }).numbers

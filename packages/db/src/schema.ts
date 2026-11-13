@@ -22,8 +22,21 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import {
-  DEFAULT_TRANSFERS, type ActionItem, type AssistantLanguages, type AssistantVoice, type BookingField, type BusinessProfile, type CallField, type CallerDetails, type CallVoiceFailure,
-  type Closure, type ToolEvent, type TransferContact, type WebhookEvent, type WebhookHook, type WebhookLookup,
+  DEFAULT_TRANSFERS,
+  type ActionItem,
+  type AssistantLanguages,
+  type AssistantVoice,
+  type BookingField,
+  type BusinessProfile,
+  type CallField,
+  type CallerDetails,
+  type CallVoiceFailure,
+  type Closure,
+  type ToolEvent,
+  type TransferContact,
+  type WebhookEvent,
+  type WebhookHook,
+  type WebhookLookup,
 } from './types.ts'
 
 export const rowVersion = pgSequence('row_version')
@@ -50,7 +63,9 @@ export const phone_numbers = pgTable(
      * Whose carrier account the number is in: `install` (Admin, Providers) or `workspace` (the workspace's own
      * Twilio or Telnyx account, workspace_settings.carrier). Releasing and un-routing use that account only.
      */
-    carrier_account: text('carrier_account', { enum: ['install', 'workspace'] }).notNull().default('install'),
+    carrier_account: text('carrier_account', { enum: ['install', 'workspace'] })
+      .notNull()
+      .default('install'),
     /** Bought through Linedesk (phoneNumber.setup with purchase): only these are released at the carrier. */
     purchased: boolean('purchased').notNull().default(false),
     /** The assistant that answers this number (one of the workspace's); null: the workspace's first one. */
@@ -73,9 +88,15 @@ export const assistants = pgTable(
     /** Replaced by `ai_disclosure` (0054 migrated it); kept until the release after it is gone. */
     disclose_ai: boolean('disclose_ai').notNull().default(true),
     /** Whether and when the assistant mentions it is an AI (AI_DISCLOSURE_MODES in @linedesk/actions). */
-    ai_disclosure: text('ai_disclosure', { enum: ['never', 'when_asked', 'at_start', 'at_start_consent'] }).notNull().default('when_asked'),
+    ai_disclosure: text('ai_disclosure', { enum: ['never', 'when_asked', 'at_start', 'at_start_consent'] })
+      .notNull()
+      .default('when_asked'),
     /** The tone it uses (COMMUNICATION_STYLES in @linedesk/actions); `standard` adds nothing to the instructions. */
-    communication_style: text('communication_style', { enum: ['standard', 'professional', 'casual', 'formal', 'empathetic'] }).notNull().default('standard'),
+    communication_style: text('communication_style', {
+      enum: ['standard', 'professional', 'casual', 'formal', 'empathetic'],
+    })
+      .notNull()
+      .default('standard'),
     record_calls: boolean('record_calls').notNull().default(true),
     /** No longer used: greeting saved contacts by name was removed (0061 turned it off); dropped in a later release. */
     greet_by_name: boolean('greet_by_name').notNull().default(false),
@@ -113,7 +134,9 @@ export const assistants = pgTable(
     /** Asked when the line is quiet; null: "Are you still there?" in the language spoken (DEFAULT_SILENCE_REMINDER). */
     silence_reminder: text('silence_reminder'),
     /** Replaced by `talking_speed_pct`; the nearest of slow, normal, fast, kept for the release before. */
-    talking_speed: text('talking_speed', { enum: ['slow', 'normal', 'fast'] }).notNull().default('normal'),
+    talking_speed: text('talking_speed', { enum: ['slow', 'normal', 'fast'] })
+      .notNull()
+      .default('normal'),
     /**
      * How fast the assistant talks, in percent of the voice's own pace (TALKING_SPEED_PCT_* in @linedesk/actions).
      * Replaces `talking_speed`, which is still kept in step (the nearest of the three) for the release before.
@@ -335,7 +358,9 @@ export const workspace_settings = pgTable('workspace_settings', {
    * The carrier account the workspace's numbers use: `default` is the install's (Admin, Providers), `twilio`
    * or `telnyx` the workspace's own account, its credentials in provider_settings rows with this workspace_id.
    */
-  carrier: text('carrier', { enum: ['default', 'twilio', 'telnyx'] }).notNull().default('default'),
+  carrier: text('carrier', { enum: ['default', 'twilio', 'telnyx'] })
+    .notNull()
+    .default('default'),
   /** Vacation or closure mode: closed on these dates whatever the hours say, with its own greeting; null: off. */
   closure: jsonb('closure').$type<Closure>(),
   /** What a booked job is worth on average, in cents, for Insights ("≈ $X in booked work"). null: not set. */
@@ -575,7 +600,10 @@ export const assistant_versions = pgTable(
     restored_from: integer('restored_from'),
     created_at: createdAt(),
   },
-  t => [unique('assistant_versions_number').on(t.assistant_id, t.number), index('assistant_versions_ws').on(t.workspace_id)],
+  t => [
+    unique('assistant_versions_number').on(t.assistant_id, t.number),
+    index('assistant_versions_ws').on(t.workspace_id),
+  ],
 )
 
 export const bookings = pgTable(
@@ -624,7 +652,9 @@ export const api_keys = pgTable(
     prefix: text('prefix').notNull(),
     key_hash: text('key_hash').notNull().unique(),
     /** What the key may do: a member's or an admin's permissions (never an owner's, never key management). */
-    role: text('role', { enum: ['member', 'admin'] }).notNull().default('member'),
+    role: text('role', { enum: ['member', 'admin'] })
+      .notNull()
+      .default('member'),
     created_by: text('created_by').notNull(),
     created_at: createdAt(),
     last_used_at: ts('last_used_at'),
@@ -634,25 +664,29 @@ export const api_keys = pgTable(
 )
 
 // Every command the API accepted or rejected: idempotency per command id + audit log.
-export const commands = pgTable('commands', {
-  id: text('id').primaryKey(),
-  workspace_id: text('workspace_id'),
-  actor_id: text('actor_id').notNull(),
-  action: text('action').notNull(),
-  input: jsonb('input').notNull(),
-  result: jsonb('result').notNull(),
-  rejected: boolean('rejected').notNull().default(false),
-  /** The instance admin who did this while signed in as `actor_id` (impersonation); null otherwise. */
-  impersonated_by: text('impersonated_by'),
-  created_at: createdAt(),
-  /** When input and result were cut down to ids: 90 days on, or when the call or contact was deleted (apps/api/src/command-log.ts). */
-  pruned_at: ts('pruned_at'),
-}, t => [
-  // The daily prune finds old commands not yet pruned; deleting a call or contact finds the commands naming it.
-  index('commands_unpruned_created').on(t.created_at).where(sql`${t.pruned_at} is null`),
-  index('commands_unpruned_input').using('gin', t.input.op('jsonb_path_ops')).where(sql`${t.pruned_at} is null`),
-  index('commands_unpruned_result').using('gin', t.result.op('jsonb_path_ops')).where(sql`${t.pruned_at} is null`),
-])
+export const commands = pgTable(
+  'commands',
+  {
+    id: text('id').primaryKey(),
+    workspace_id: text('workspace_id'),
+    actor_id: text('actor_id').notNull(),
+    action: text('action').notNull(),
+    input: jsonb('input').notNull(),
+    result: jsonb('result').notNull(),
+    rejected: boolean('rejected').notNull().default(false),
+    /** The instance admin who did this while signed in as `actor_id` (impersonation); null otherwise. */
+    impersonated_by: text('impersonated_by'),
+    created_at: createdAt(),
+    /** When input and result were cut down to ids: 90 days on, or when the call or contact was deleted (apps/api/src/command-log.ts). */
+    pruned_at: ts('pruned_at'),
+  },
+  t => [
+    // The daily prune finds old commands not yet pruned; deleting a call or contact finds the commands naming it.
+    index('commands_unpruned_created').on(t.created_at).where(sql`${t.pruned_at} is null`),
+    index('commands_unpruned_input').using('gin', t.input.op('jsonb_path_ops')).where(sql`${t.pruned_at} is null`),
+    index('commands_unpruned_result').using('gin', t.result.op('jsonb_path_ops')).where(sql`${t.pruned_at} is null`),
+  ],
+)
 
 // How well the assistant handled a call, judged by the language model after the summary: a score
 // (1 to 5) and up to three issues. One row per call, replaced when it is evaluated again. For owners
@@ -746,11 +780,12 @@ export const knowledge_chunks = pgTable(
     assistant_id: text('assistant_id').notNull(),
     position: integer('position').notNull(),
     text: text('text').notNull(),
-    search: tsvector('search')
-      .notNull()
-      .generatedAlwaysAs(sql`to_tsvector('english', text)`),
+    search: tsvector('search').notNull().generatedAlwaysAs(sql`to_tsvector('english', text)`),
   },
-  t => [index('knowledge_chunks_assistant').on(t.assistant_id), index('knowledge_chunks_search').using('gin', t.search)],
+  t => [
+    index('knowledge_chunks_assistant').on(t.assistant_id),
+    index('knowledge_chunks_search').using('gin', t.search),
+  ],
 )
 
 export const knowledge_questions = pgTable(
@@ -771,7 +806,10 @@ export const knowledge_questions = pgTable(
     created_at: createdAt(),
     version: version(),
   },
-  t => [index('knowledge_questions_ws').on(t.workspace_id), index('knowledge_questions_assistant').on(t.assistant_id, t.status)],
+  t => [
+    index('knowledge_questions_ws').on(t.workspace_id),
+    index('knowledge_questions_assistant').on(t.assistant_id, t.status),
+  ],
 )
 
 // Spending-cap emails already sent: one row per workspace, UTC month ('2026-11') and level (80 or 100 percent),
@@ -799,7 +837,16 @@ export const auth_events = pgTable(
     /** The address at the time, kept in case the user changes or is removed. */
     email: text('email'),
     event: text('event', {
-      enum: ['sign_in', 'sign_up', 'provider_linked', 'passkey_added', 'passkey_removed', 'password_changed', 'invitation_accepted', 'call_routing_reset'],
+      enum: [
+        'sign_in',
+        'sign_up',
+        'provider_linked',
+        'passkey_added',
+        'passkey_removed',
+        'password_changed',
+        'invitation_accepted',
+        'call_routing_reset',
+      ],
     }).notNull(),
     /** sign_in / sign_up / provider_linked: password, email_code, passkey, google, microsoft, github, oidc. */
     method: text('method'),
@@ -827,7 +874,10 @@ export const number_purchases = pgTable(
     /** Bought by an instance admin: not counted against the limits for everyone else. */
     by_admin: boolean('by_admin').notNull().default(false),
   },
-  t => [index('number_purchases_ws').on(t.workspace_id, t.created_at), index('number_purchases_created').on(t.created_at)],
+  t => [
+    index('number_purchases_ws').on(t.workspace_id, t.created_at),
+    index('number_purchases_created').on(t.created_at),
+  ],
 )
 
 // Provider keys set in the admin area, one row per provider field. Provider and field are plain text: the
@@ -897,6 +947,18 @@ export const provider_failures = pgTable('provider_failures', {
   alerted_at: ts('alerted_at'),
 })
 
+// The last test of each provider (LIN-141): whether it passed, for exactly the keys in effect then, whoever ran it (an
+// admin, the setup agent, the automatic check when a setup page opens). `keys` is an HMAC of those values keyed with
+// SECRETS_KEY, so a changed key reads as untested again and nothing about a key can be learned from it. Every setup
+// screen reads it (apps/api/src/setup-checklist.ts), so they agree and a restart forgets nothing. Install-wide, not synced.
+export const provider_tests = pgTable('provider_tests', {
+  provider: text('provider').primaryKey(),
+  keys: text('keys').notNull(),
+  ok: boolean('ok').notNull(),
+  message: text('message').notNull(),
+  tested_at: ts('tested_at').notNull().defaultNow(),
+})
+
 // Voices a workspace cloned at its text-to-speech provider (voice.clone), with the consent given
 // for it. Not synced. A clone no assistant of the workspace uses any more is deleted at the provider
 // and marked deleted here (apps/api/src/voices.ts), also when its workspace is deleted; the row is
@@ -938,7 +1000,9 @@ export const webhook_endpoints = pgTable(
     /** @deprecated events are gone (each hook sends one thing); kept for the release before, dropped later. */
     events: jsonb('events').$type<WebhookEvent[]>().notNull().default([]),
     /** `disabled`: by a member, or by the API after too many failed deliveries (`disabled_reason`). */
-    status: text('status', { enum: ['active', 'disabled'] }).notNull().default('active'),
+    status: text('status', { enum: ['active', 'disabled'] })
+      .notNull()
+      .default('active'),
     disabled_reason: text('disabled_reason'),
     failure_count: integer('failure_count').notNull().default(0),
     last_delivery_at: ts('last_delivery_at'),
@@ -946,7 +1010,10 @@ export const webhook_endpoints = pgTable(
     created_at: createdAt(),
     version: version(),
   },
-  t => [index('webhook_endpoints_ws').on(t.workspace_id), uniqueIndex('webhook_endpoints_assistant').on(t.assistant_id)],
+  t => [
+    index('webhook_endpoints_ws').on(t.workspace_id),
+    uniqueIndex('webhook_endpoints_assistant').on(t.assistant_id),
+  ],
 )
 
 // The signing secret of a webhook endpoint, AES-256-GCM with SECRETS_KEY. Never synced.
@@ -971,7 +1038,9 @@ export const webhook_deliveries = pgTable(
     /** The event as sent. Cleared (null) after 30 days and when its call is deleted: it holds callers' details. */
     payload: jsonb('payload').$type<Record<string, unknown>>(),
     /** `pending` until it was delivered or every retry failed. */
-    status: text('status', { enum: ['pending', 'delivered', 'failed'] }).notNull().default('pending'),
+    status: text('status', { enum: ['pending', 'delivered', 'failed'] })
+      .notNull()
+      .default('pending'),
     attempts: integer('attempts').notNull().default(0),
     /** The endpoint's HTTP status of the last attempt; null when there was no answer. */
     response_status: integer('response_status'),
@@ -1025,8 +1094,20 @@ export const golive_checklist_steps = pgTable(
 
 /** Tables that read sync delivers to clients, filtered by workspace_id. */
 export const syncedTables = {
-  calls, contacts, assistants, phone_numbers, transcript_segments, appointment_types, bookings, calendar_connections, assistant_calendars,
-  webhook_endpoints, workspace_members, call_events, knowledge_documents, knowledge_questions,
+  calls,
+  contacts,
+  assistants,
+  phone_numbers,
+  transcript_segments,
+  appointment_types,
+  bookings,
+  calendar_connections,
+  assistant_calendars,
+  webhook_endpoints,
+  workspace_members,
+  call_events,
+  knowledge_documents,
+  knowledge_questions,
 } as const
 
 // A member's answer to the GitHub star prompt (apps/api/src/star-prompt.ts): once answered, it is
@@ -1044,8 +1125,17 @@ export const star_prompts = pgTable('star_prompts', {
  * records the others where they happen (apps/api/src/setup-events.ts).
  */
 export const setupEventKinds = [
-  'signup', 'business_found', 'assistant_heard', 'mobile_added', 'number_connected', 'forwarding_instructions_shown',
-  'forwarding_verified', 'onboarding_done', 'onboarding_skipped', 'first_real_call', 'activated',
+  'signup',
+  'business_found',
+  'assistant_heard',
+  'mobile_added',
+  'number_connected',
+  'forwarding_instructions_shown',
+  'forwarding_verified',
+  'onboarding_done',
+  'onboarding_skipped',
+  'first_real_call',
+  'activated',
 ] as const
 export type SetupEventKind = (typeof setupEventKinds)[number]
 
@@ -1087,7 +1177,17 @@ export const setup_emails = pgTable(
  */
 // forwards_elsewhere: the call arrived on another Linedesk number than this one. no_assistant: it reached Linedesk (the
 // call was answered there) but the assistant never picked it up, so the forwarding works and the agent does not.
-export const forwardingCheckStatuses = ['dialing', 'works', 'rang_through', 'answered', 'busy', 'unreachable', 'forwards_elsewhere', 'no_assistant', 'not_checked'] as const
+export const forwardingCheckStatuses = [
+  'dialing',
+  'works',
+  'rang_through',
+  'answered',
+  'busy',
+  'unreachable',
+  'forwards_elsewhere',
+  'no_assistant',
+  'not_checked',
+] as const
 export type ForwardingCheckStatus = (typeof forwardingCheckStatuses)[number]
 
 // One automatic test of call forwarding (apps/api/src/forwarding-check.ts): Linedesk calls the business's own number
