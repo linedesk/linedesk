@@ -478,6 +478,12 @@ export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast, lang
     ? catalog.providers.filter(p => p.configured).map(p => p.provider)
     : [provider, voice.provider].filter((p): p is string => !!p)
   const current = voiceInEffect(voice, usable)
+  // The default row already stands for the install's default voice: don't list that voice again under it,
+  // unless it was picked by name (then its own row is the checked one).
+  const defaultKey =
+    !forLanguage.length && provider && options?.defaultVoice ? voiceKey(provider, options.defaultVoice.id) : null
+  const listed =
+    defaultKey && current !== defaultKey ? suggested.filter(v => voiceKey(v.provider, v.id) !== defaultKey) : suggested
   const fromCatalog =
     current && !isSuggested
       ? (catalog?.voices.find(v => voiceKey(v.provider, v.id) === current) ?? {
@@ -529,7 +535,7 @@ export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast, lang
             preview={preview}
           />
         )}
-        {suggested.map(v => (
+        {listed.map(v => (
           <VoiceRow
             key={voiceKey(v.provider, v.id)}
             voice={v}
