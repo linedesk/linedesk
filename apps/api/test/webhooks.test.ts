@@ -6,7 +6,7 @@ import { createHmac } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { CALL_START_TIMEOUT_MS, DURING_CALL_MAX_PER_CALL, DURING_CALL_TIMEOUT_MS, newWebhookSecret, recordingKey, rolePermissions } from '@linedesk/actions'
-import { assistants, bookings, calls, commands, type Tx, webhook_deliveries, webhook_endpoints, webhook_secrets } from '@linedesk/db'
+import { assistants, bookings, calls, commands, contacts, type Tx, webhook_deliveries, webhook_endpoints, webhook_secrets } from '@linedesk/db'
 import type { WebhookHook, WebhookLookup } from '@linedesk/db/types'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
@@ -252,10 +252,27 @@ describe('when a call starts', () => {
     expect(verify(secret, request!)).toBe(true)
     expect(JSON.parse(request!.body)).toMatchObject({
       hook: 'call_start', call_id: callId, assistant_id: ws.assistant.id, from_number: ws.contact.phone, to_number: ws.number,
-      caller: { contact_id: ws.contact.id },
+      caller: { contact_id: ws.contact.id, name_confirmed: false },
     })
     expect((await callRow(callId)).caller_details).toEqual({ name: 'Sam', plan: 'Premium' })
     expect(await deliveriesOf(endpointId)).toMatchObject([{ event: 'call_start', status: 'delivered', attempts: 1, payload: { call_id: callId, reply: { name: 'Sam', plan: 'Premium' } } }])
+  })
+
+  test('caller.name_confirmed is true only for a name the team gave or confirmed', async () => {
+    await addHook(['call_start'])
+    const callerAfter = async (name_source: 'member' | 'caller' | null) => {
+      await db.update(contacts).set({ name_source }).where(eq(contacts.id, ws.contact.id))
+      received.length = 0
+      await act(agent(ws.id), 'call.lookUpCaller', { callId: await newCall() })
+      return JSON.parse(received[0]!.body).caller
+    }
+    try {
+      expect(await callerAfter('member')).toMatchObject({ name: ws.contact.name, name_confirmed: true })
+      expect(await callerAfter('caller')).toMatchObject({ name: ws.contact.name, name_confirmed: false })
+      expect(await callerAfter(null)).toMatchObject({ name_confirmed: false })
+    } finally {
+      await db.update(contacts).set({ name_source: null }).where(eq(contacts.id, ws.contact.id))
+    }
   })
 
   test(`an answer later than ${CALL_START_TIMEOUT_MS} ms, a failure or no JSON give no details; failures switch the webhook off`, async () => {

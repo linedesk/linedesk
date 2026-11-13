@@ -212,12 +212,13 @@ async function activeHook(tx: Tx, assistantId: string | null, hook: WebhookHook)
   return found ?? null
 }
 
-const callerOf = (contact: { id: string; name: string | null; company: string | null; email: string | null } | undefined) =>
-  contact ? { contact_id: contact.id, name: contact.name, company: contact.company, email: contact.email } : null
+/** `name_confirmed`: the team gave or confirmed the name (name_source "member"); a name only a caller gave proves nothing. */
+const callerOf = (contact: { id: string; name: string | null; name_source: string | null; company: string | null; email: string | null } | undefined) =>
+  contact ? { contact_id: contact.id, name: contact.name, name_confirmed: !!contact.name?.trim() && contact.name_source === 'member', company: contact.company, email: contact.email } : null
 
 async function callerContact(tx: Tx, call: Pick<Call, 'workspace_id' | 'contact_id'>) {
   if (!call.contact_id) return undefined
-  const [contact] = await tx.select({ id: contacts.id, name: contacts.name, company: contacts.company, email: contacts.email })
+  const [contact] = await tx.select({ id: contacts.id, name: contacts.name, name_source: contacts.name_source, company: contacts.company, email: contacts.email })
     .from(contacts).where(and(eq(contacts.id, call.contact_id), eq(contacts.workspace_id, call.workspace_id)))
   return contact
 }
@@ -460,7 +461,7 @@ function testRequest(endpoint: WebhookEndpoint, hook: WebhookHook, assistant: { 
   const call = {
     call_id: 'call_test', workspace_id: endpoint.workspace_id, assistant_id: assistant.id, assistant_name: assistant.name,
     from_number: '+15035550123', to_number: '+15035550100', started_at: now,
-    caller: { contact_id: 'ct_test', name: 'Sam Taylor', company: null, email: 'sam@example.com' },
+    caller: { contact_id: 'ct_test', name: 'Sam Taylor', name_confirmed: true, company: null, email: 'sam@example.com' },
   }
   if (hook === 'call_start') return { hook: 'call_start', ...call }
   if (hook === 'during_call' && lookup) return { hook: 'during_call', lookup: lookup.name, values: exampleLookupValues(lookup), ...call, test: true }

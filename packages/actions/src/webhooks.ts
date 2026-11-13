@@ -350,7 +350,13 @@ export function exampleLookupValues(lookup: WebhookLookup): Record<string, Looku
 
 const nullableText = z.string().nullable()
 const callerSchema = z
-  .object({ contact_id: z.string(), name: nullableText, company: nullableText, email: nullableText })
+  .object({
+    contact_id: z.string(),
+    name: nullableText,
+    name_confirmed: z.boolean().describe('True when the team gave or confirmed the name; false when only a caller said it (anyone can say a name), so it does not prove who is calling.'),
+    company: nullableText,
+    email: nullableText,
+  })
   .nullable()
   .describe('The saved contact the caller is, if any.')
 

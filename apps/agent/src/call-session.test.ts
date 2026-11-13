@@ -126,9 +126,12 @@ test('the contact call.start matched reaches the instructions with its note; a w
   const api = (contact: unknown) => ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: null, contact } }) }) as never
   const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
   const known = await startCall(api({ id: 'ct_1', name: 'Dana Ortiz', name_source: 'member', note: 'Prefers mornings.' }), phone)
-  expect(buildInstructions(known.assistant, known.businessHours, known.booking, [], known.contact)).toContain('<caller_notes>Prefers mornings.</caller_notes>')
+  expect(buildInstructions(known.assistant, known.businessHours, known.booking, [], known.caller)).toContain('<caller_notes>Prefers mornings.</caller_notes>')
+  // A name only a caller gave: the notes stay out.
+  const unconfirmed = await startCall(api({ id: 'ct_1', name: 'Dana Ortiz', name_source: 'caller', note: 'Prefers mornings.' }), phone)
+  expect(buildInstructions(unconfirmed.assistant, unconfirmed.businessHours, unconfirmed.booking, [], unconfirmed.caller)).not.toContain('caller_notes')
   const withheld = await startCall(api(null), { ...phone, from: 'anonymous' })
-  expect(buildInstructions(withheld.assistant, withheld.businessHours, withheld.booking, [], withheld.contact)).not.toContain('caller_notes')
+  expect(buildInstructions(withheld.assistant, withheld.businessHours, withheld.booking, [], withheld.caller)).not.toContain('caller_notes')
 })
 
 test('a returning phone caller hears the usual greeting; their history reaches the prompt, a withheld number brings none', async () => {

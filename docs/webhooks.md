@@ -31,10 +31,10 @@ The voice agent asks as soon as the call is registered (`call.lookUpCaller`, age
 ```json
 { "hook": "call_start", "call_id": "call_…", "workspace_id": "…", "assistant_id": "…", "assistant_name": "Maya",
   "from_number": "+15035550123", "to_number": "+15035550100", "started_at": "…",
-  "caller": { "contact_id": "ct_…", "name": "Sam Taylor", "company": null, "email": null } }
+  "caller": { "contact_id": "ct_…", "name": "Sam Taylor", "name_confirmed": true, "company": null, "email": null } }
 ```
 
-`from_number` is not a number when the caller withheld it ("anonymous"); `caller` is null without a saved contact. Times are ISO 8601 in UTC.
+`from_number` is not a number when the caller withheld it ("anonymous"); `caller` is null without a saved contact. `caller.name_confirmed` is true only when your team gave or confirmed the name; false when a caller said it on a call (anyone can say a name), so do not treat it as proof of who is calling. Times are ISO 8601 in UTC.
 
 Answer with a JSON object of caller details, e.g. `{"name": "Sam", "plan": "Premium"}`, or `{}` for an unknown caller. Kept: top-level names of letters, digits and `_` (a letter first, at most 40 characters) with a text, number or true/false value; at most 20 of them, texts on one line and cut to 200 characters (`callerDetailsFrom`). Nested objects, lists and null are left out.
 
@@ -58,7 +58,7 @@ The owner describes what the assistant can look up (Webhook, During the call; `w
 { "hook": "during_call", "lookup": "order_status", "values": { "order_number": "1234" },
   "call_id": "call_…", "workspace_id": "…", "assistant_id": "…", "assistant_name": "Maya",
   "from_number": "+15035550123", "to_number": "+15035550100", "started_at": "…", "test": false,
-  "caller": { "contact_id": "ct_…", "name": "Sam Taylor", "company": null, "email": null } }
+  "caller": { "contact_id": "ct_…", "name": "Sam Taylor", "name_confirmed": true, "company": null, "email": null } }
 ```
 
 `values` holds only the lookup's own fields, each as its type (`lookupValuesFrom`: "2" for a number is 2, "yes" for a boolean is true; a value that is not of its type is left out). A required field the assistant did not fill in sends nothing: the assistant is told to ask the caller for it first.
@@ -80,7 +80,7 @@ No answer within 3 s (`DURING_CALL_TIMEOUT_MS`), an error, or no `answer`: the a
   "title": "Water heater leaking", "summary": "…",
   "next_steps": [{ "text": "Call Sam back", "kind": "message" }],
   "fields": [{ "label": "Issue", "value": "Leaking water heater" }],
-  "caller": { "contact_id": "ct_…", "name": "Sam Taylor", "company": null, "email": null },
+  "caller": { "contact_id": "ct_…", "name": "Sam Taylor", "name_confirmed": true, "company": null, "email": null },
   "caller_details": { "name": "Sam", "plan": "Premium" },
   "transcript": [{ "speaker": "agent", "text": "…", "at_ms": 0 }], "transcript_text": "Maya: …\nCaller: …",
   "bookings": [{ "id": "bk_…", "start_at": "…", "end_at": "…", "status": "confirmed", "title": "…", "calendar_name": "Office", "appointment_type_id": "…" }],
