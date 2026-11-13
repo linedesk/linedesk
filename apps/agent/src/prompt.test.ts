@@ -2,7 +2,7 @@ import { AI_DISCLOSURE_MODES, CALLER_NAME_MAX, callRules, EMERGENCY_RULE } from 
 import type { Assistant } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import type { CallerHistory } from '@linedesk/actions'
-import { bookingInstructions, buildInstructions, callerDetailsInstructions, heldTransferContacts, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, clockInstructions, forHours, languageInstructions, quotedData } from './prompt.ts'
+import { bookingInstructions, buildInstructions, CALL_HEADING, callerDetailsInstructions, heldTransferContacts, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, clockInstructions, forHours, languageInstructions, quotedData } from './prompt.ts'
 
 const assistant = (over: Partial<Assistant> = {}) =>
   ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', disclose_ai: false, business_profile: { instructions: 'We fix pipes in Portland.' }, ...over }) as Assistant
@@ -239,14 +239,12 @@ test('a contact that takes calls only during business hours: while closed the as
 
 test('the date and time where the business is go into the prompt; none without a time zone', () => {
   const at = Date.parse('2026-11-12T21:31:00Z')
-  expect(clockInstructions('America/Los_Angeles', at)).toContain('It is now Thursday, November 12, 2026 at 1:31 PM (2026-11-12) where the business is (time zone America/Los_Angeles)')
+  expect(clockInstructions('America/Los_Angeles', at)).toBe(
+    "It is now Thursday, November 12, 2026 at 1:31 PM where the business is (time zone America/Los_Angeles). Use this for today's date, the day of the week and the time; never guess them.",
+  )
   expect(clockInstructions('Europe/Berlin', at)).toContain('Thursday, November 12, 2026 at 10:31 PM')
-  // The next days with their weekday, from the business's own date (late evening in Berlin is still the 12th there).
-  expect(clockInstructions('Europe/Berlin', at)).toContain('The days after today: Friday, November 13 = 2026-11-13; Saturday, November 14 = 2026-11-14;')
-  // Each weekday with its date written out, so the model never counts days itself.
-  expect(clockInstructions('America/Los_Angeles', at)).toContain('Wednesday, November 18 = 2026-11-18; Thursday, November 19 = 2026-11-19;')
-  expect(clockInstructions('America/Los_Angeles', at)).toContain('Thursday, November 26 = 2026-11-26.')
-  expect(clockInstructions('America/Los_Angeles', at)).toContain('never count days yourself')
+  // No list of days: the tools take the day as the caller says it and code works out the date (spoken-day.ts).
+  expect(clockInstructions('America/Los_Angeles', at)).not.toMatch(/days after today|2026-11-1/)
   expect(clockInstructions(null, at)).toBeNull()
   expect(clockInstructions('Not/AZone', at)).toBeNull()
   expect(buildInstructions(assistant(), null, null, [], null, 'America/Los_Angeles', at)).toContain('It is now Thursday, November 12, 2026')
@@ -278,7 +276,7 @@ test('booking: no second date line next to the clock, no phone number asked when
   expect(known).toContain('Pick the appointment type that fits the caller\'s request by its name and, where it has one, its "Use when" condition')
   // No time zone passed: the clock line takes the booking's, and there is still no second date line.
   const withheld = buildInstructions(assistant(), null, booking, [], null, null, at)
-  expect(withheld).toContain('It is now Thursday, November 12, 2026 at 1:31 PM (2026-11-12) where the business is (time zone America/Los_Angeles).')
+  expect(withheld).toContain('It is now Thursday, November 12, 2026 at 1:31 PM where the business is (time zone America/Los_Angeles).')
   expect(withheld).not.toContain('Today is')
   expect(withheld).toContain('- Repair visit (60 minutes), id at_1. Before booking ask for: name, address, phone number.')
   // A type that asks for an email: get_email is for that too, not only for a confirmation the caller asks for.
@@ -303,4 +301,14 @@ test('an assistant that speaks only one language other than English also says En
   expect(german).toMatch(/^Speak German only\./)
   expect(german).toContain('write the messages, notes and booking details you save with tools in English')
   expect(german).toContain('say them in the language you are speaking with the caller')
+})
+
+test('everything about this call comes last, after one heading: the part before it is the same on every call', () => {
+  const first = buildInstructions(assistant(), null, null, [], { name: null, note: null, phone: '+15035550142', history: null }, 'America/Los_Angeles', Date.parse('2026-11-12T18:30:00Z'))
+  const second = buildInstructions(assistant(), null, null, [], null, 'America/Los_Angeles', Date.parse('2026-11-20T01:00:00Z'))
+  const fixed = (prompt: string) => prompt.slice(0, prompt.indexOf(CALL_HEADING))
+  expect(first).toContain(`\n\n${CALL_HEADING}\n\nIt is now Thursday, November 12, 2026`)
+  expect(fixed(first)).toBe(fixed(second))
+  expect(fixed(first)).not.toMatch(/It is now|\(caller ID\)|caller ID withheld or not sent/)
+  expect(first.indexOf('calling from +1 503 555 0142')).toBeGreaterThan(first.indexOf(CALL_HEADING))
 })

@@ -5,6 +5,7 @@ import { appointmentBook, appointmentCancel, appointmentReschedule, type BookDat
 import { ActionError, type ApiClient } from './api-client.ts'
 import type { CallLog } from './call-log.ts'
 import type { CallSession } from './call-session.ts'
+import { type Day, resolveDay, todayIn } from './spoken-day.ts'
 import { z } from 'zod'
 
 /** Times the model gets to choose from: a few per day over a few days reads well on the phone. */
@@ -13,7 +14,7 @@ const MAX_OFFERED = 6
 /** Slots asked from the API; enough to spread over several days. */
 const SEARCH_LIMIT = 60
 
-/** A booking as the caller described it: its day (YYYY-MM-DD) and the name it is under; the API checks both. */
+/** A booking as the caller described it: its day (as the caller said it, resolveDay) and the name it is under; the API checks both. */
 export type DescribedBooking = { booking_date: string }
 /** Descriptions that matched no booking before the assistant stops trying on a call (no guessing names or days). */
 export const MAX_DESCRIBE_ATTEMPTS = 2
@@ -77,11 +78,20 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
   const notOffered = () =>
     `That is not a time find_slots offered. Use the key in brackets of one of these: ${[...offeredSlots].slice(-6).map(([key, s]) => `${s.label} [${key}]`).join(', ') || 'none yet, call find_slots first'}.`
 
+  /** The day the caller named, worked out from today where the business is; a question or a miss is said back as is. */
+  const today = () => todayIn(call.booking?.timeZone ?? 'America/New_York')
+  const dayOf = (said: string | null | undefined, end = false): Day | null => (said?.trim() ? resolveDay(said, today(), { end }) : null)
+  const notADay = (day: Day | null) => (day && !('date' in day) ? ('ask' in day ? day.ask : day.unknown) : null)
+
   async function findSlots(args: FindSlotsArgs): Promise<string> {
+    const from = dayOf(args.from_date)
+    const to = dayOf(args.to_date, true)
+    const unclear = notADay(from) ?? notADay(to)
+    if (unclear) return unclear
     try {
       const { data } = await api.run(calendarFindSlots, {
         appointmentTypeId: args.appointment_type_id, calendarId: args.calendar_id, callId, limit: SEARCH_LIMIT,
-        ...(args.from_date ? { fromDate: args.from_date } : {}), ...(args.to_date ? { toDate: args.to_date } : {}),
+        ...(from && 'date' in from ? { fromDate: from.date } : {}), ...(to && 'date' in to ? { toDate: to.date } : {}),
       }, call)
       const offered = spreadSlots((data as FindSlotsData).slots)
       log.record('system', `Checked availability · ${typeName(args.appointment_type_id)} · ${offered.length} slot${offered.length === 1 ? '' : 's'}`, calendarFindSlots.name)
@@ -153,9 +163,12 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
   }
   const NO_MORE = 'The booking could not be found on this call. Do not try again: take a message for the team instead.'
 
-  async function cancel(which: DescribedBooking): Promise<string> {
+  async function cancel(said: DescribedBooking): Promise<string> {
     if (outOfAttempts()) return NO_MORE
     if (!log.confirmedName) return NAME_FIRST
+    const day = dayOf(said.booking_date)
+    if (!day || !('date' in day)) return notADay(day) ?? 'Ask the caller which day the appointment is on.'
+    const which = { booking_date: day.date }
     try {
       const { data } = await api.run(appointmentCancel, { ...described(which), readsRefusals: true }, call)
       const no = declined(data)
@@ -173,9 +186,12 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
   }
 
   /** `searched`: the appointment type and calendar find_slots was asked with; the API checks the time with them first. */
-  async function reschedule(which: DescribedBooking, newStart: string, searched: { appointment_type_id: string; calendar_id: string }): Promise<string> {
+  async function reschedule(said: DescribedBooking, newStart: string, searched: { appointment_type_id: string; calendar_id: string }): Promise<string> {
     if (outOfAttempts()) return NO_MORE
     if (!log.confirmedName) return NAME_FIRST
+    const day = dayOf(said.booking_date)
+    if (!day || !('date' in day)) return notADay(day) ?? 'Ask the caller which day the appointment is on.'
+    const which = { booking_date: day.date }
     const start = offeredStart(newStart)
     if (!start) return notOffered()
     try {

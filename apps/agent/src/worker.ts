@@ -69,15 +69,15 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
   const booking = bookingTools(api, call, log)
   const typeId = z.string().describe('The id of the appointment type whose "Use when" condition fits the request, from the list in your instructions.')
   const calendarId = z.string().describe('The id of the calendar whose "Use when" condition fits the request, from the list in your instructions.')
-  const bookingDate = z.string().describe('The day of the appointment the caller wants to change, YYYY-MM-DD, as the caller said it.')
+  const bookingDate = z.string().describe('The day of the appointment the caller wants to change, as the caller said it, in English ("Tuesday", "the 17th", "November 17") or YYYY-MM-DD.')
   return {
     find_slots: llm.tool({
       description: 'Look up free times for an appointment in one calendar. Say a short filler like "Let me check the calendar" in the same response.',
       parameters: z.object({
         appointment_type_id: typeId,
         calendar_id: calendarId,
-        from_date: z.string().nullish().describe('First day to look at, YYYY-MM-DD; omit for today.'),
-        to_date: z.string().nullish().describe('Last day to look at, YYYY-MM-DD; omit to look ahead as far as possible.'),
+        from_date: z.string().nullish().describe('First day to look at, as the caller said it, in English ("tomorrow", "Wednesday", "next week", "the 17th", "November 17") or YYYY-MM-DD; omit for today.'),
+        to_date: z.string().nullish().describe('Last day to look at, said the same way ("Friday", "next week" for its Sunday); omit to look ahead as far as possible.'),
       }),
       execute: (args, opts) => nudged(opts, booking.findSlots(args)),
     }),

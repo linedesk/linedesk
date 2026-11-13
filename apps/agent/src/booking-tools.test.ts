@@ -262,3 +262,27 @@ test('no cancel or move before the caller confirmed their name on this call: the
   expect(api.sent[1]![1]).toMatchObject({ bookingDate: '2026-11-16', bookedName: 'Donna Ruiz' })
 })
 
+
+test('find_slots takes the day as the caller said it; an ambiguous one is asked back, nothing searched', async () => {
+  const call = session()
+  const log = new CallLog(call)
+  const api = fakeApi(() => ({ slots: [slot('17', '17:00')] }))
+  const tools = bookingTools(api, call, log)
+  const asked = await tools.findSlots({ ...search, from_date: 'next Wednesday', to_date: null })
+  expect(asked).toMatch(/can mean Wednesday, November \d+ or Wednesday, November \d+\. Ask the caller which one/)
+  expect(api.sent).toEqual([])
+  await tools.findSlots({ ...search, from_date: 'November 17', to_date: 'November 18' })
+  expect(api.sent[0]?.[1]).toMatchObject({ fromDate: '2026-11-17', toDate: '2026-11-18' })
+})
+
+test('cancel_appointment takes the day as the caller said it; a day it cannot read is asked again, not guessed', async () => {
+  const call = session()
+  const log = new CallLog(call)
+  log.confirmedName = 'Sam Lee'
+  const api = fakeApi(() => ({ changed: true, label: 'Tuesday, November 17 at 9:00 AM' }))
+  const tools = bookingTools(api, call, log)
+  expect(await tools.cancel({ booking_date: 'sometime' })).toContain('Ask the caller for the date')
+  expect(api.sent).toEqual([])
+  await tools.cancel({ booking_date: 'November 17' })
+  expect(api.sent[0]?.[1]).toMatchObject({ bookingDate: '2026-11-17', bookedName: 'Sam Lee' })
+})
