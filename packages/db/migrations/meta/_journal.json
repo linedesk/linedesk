@@ -575,6 +575,13 @@
       "when": 1794609717854,
       "tag": "0081_provider_tests",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1794613312636,
+      "tag": "0082_job_value_currency",
+      "breakpoints": true
     }
   ]
 }

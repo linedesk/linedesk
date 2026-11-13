@@ -1,0 +1,1 @@
+ALTER TABLE "workspace_settings" ADD COLUMN "job_value_currency" text DEFAULT 'USD' NOT NULL;

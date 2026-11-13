@@ -1,6 +1,13 @@
 // Workspace settings that live in workspace_settings (not synced to browsers): read and change them
 // through the registry. One row per workspace; a workspace without one gets it on the first change.
-import { type ClosedDay, DEFAULT_RECORDING_NOTICE, DEFAULT_RECORDING_RETENTION_DAYS, type PickupMode, type WorkspaceSettingsData } from '@linedesk/actions'
+import {
+  type ClosedDay,
+  DEFAULT_RECORDING_NOTICE,
+  DEFAULT_RECORDING_RETENTION_DAYS,
+  type JobValueCurrency,
+  type PickupMode,
+  type WorkspaceSettingsData,
+} from '@linedesk/actions'
 import type { Closure } from '@linedesk/db/types'
 import { availability_exceptions, availability_rules, organization, type Tx, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
@@ -41,6 +48,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       closedDays: await closedDaysOf(tx, actor.workspaceId),
       closure: row?.closure ?? null,
       jobValueCents: row?.job_value_cents ?? null,
+      jobValueCurrency: row?.job_value_currency ?? 'USD',
       pickupMode: row?.pickup_mode ?? null,
     }
     return { rows: {}, data }
@@ -60,7 +68,17 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
 
   'workspace.updateSettings': async (
     { tx, actor },
-    input: { recordingRetentionDays?: number | null; businessHoursOn?: boolean; recordingNoticeOn?: boolean; recordingNotice?: string; timeZone?: string; closure?: Closure | null; jobValueCents?: number | null; pickupMode?: PickupMode },
+    input: {
+      recordingRetentionDays?: number | null
+      businessHoursOn?: boolean
+      recordingNoticeOn?: boolean
+      recordingNotice?: string
+      timeZone?: string
+      closure?: Closure | null
+      jobValueCents?: number | null
+      jobValueCurrency?: JobValueCurrency
+      pickupMode?: PickupMode
+    },
   ) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     const set = {
@@ -71,6 +89,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       ...(input.timeZone !== undefined ? { timezone: input.timeZone } : {}),
       ...(input.closure !== undefined ? { closure: input.closure } : {}),
       ...(input.jobValueCents !== undefined ? { job_value_cents: input.jobValueCents } : {}),
+      ...(input.jobValueCurrency !== undefined ? { job_value_currency: input.jobValueCurrency } : {}),
       ...(input.pickupMode !== undefined ? { pickup_mode: input.pickupMode } : {}),
     }
     if (!Object.keys(set).length) return { rows: {} }
@@ -89,8 +108,20 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
         timeZone: row!.timezone,
         closure: row!.closure,
         jobValueCents: row!.job_value_cents,
+        jobValueCurrency: row!.job_value_currency,
         pickupMode: row!.pickup_mode,
-      } satisfies Pick<WorkspaceSettingsData, 'recordingRetentionDays' | 'businessHoursOn' | 'recordingNoticeOn' | 'recordingNotice' | 'timeZone' | 'closure' | 'jobValueCents' | 'pickupMode'>,
+      } satisfies Pick<
+        WorkspaceSettingsData,
+        | 'recordingRetentionDays'
+        | 'businessHoursOn'
+        | 'recordingNoticeOn'
+        | 'recordingNotice'
+        | 'timeZone'
+        | 'closure'
+        | 'jobValueCents'
+        | 'jobValueCurrency'
+        | 'pickupMode'
+      >,
     }
   },
 
@@ -138,9 +169,17 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
 
 /** The workspace's holidays and closure days, by date. */
 async function closedDaysOf(tx: Tx, workspaceId: string): Promise<ClosedDay[]> {
-  const rows = await tx.select().from(availability_exceptions).where(eq(availability_exceptions.workspace_id, workspaceId))
+  const rows = await tx
+    .select()
+    .from(availability_exceptions)
+    .where(eq(availability_exceptions.workspace_id, workspaceId))
   return rows
-    .map(r => ({ date: r.date, name: r.name, start: r.start_time?.slice(0, 5) ?? null, end: r.end_time?.slice(0, 5) ?? null }))
+    .map(r => ({
+      date: r.date,
+      name: r.name,
+      start: r.start_time?.slice(0, 5) ?? null,
+      end: r.end_time?.slice(0, 5) ?? null,
+    }))
     .sort((a, b) => a.date.localeCompare(b.date))
 }
 

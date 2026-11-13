@@ -2,6 +2,8 @@ import type { InsightDay } from '@linedesk/actions'
 import { describe, expect, test } from 'vitest'
 import {
   busiestTime,
+  formatMoney,
+  parseMoney,
   change,
   columns,
   compareLabel,
@@ -110,4 +112,23 @@ test('the totals table leaves out after hours without business hours and adds th
   expect(t.header).not.toContain('After hours')
   expect(t.header.at(-1)).toBe('Booked value (USD)')
   expect(t.rows[0]!.at(-1)).toBe(700)
+})
+
+test('money is shown in the job value currency, in whole units', () => {
+  expect(formatMoney(125_000)).toBe('$1,250')
+  expect(formatMoney(35_000, 'EUR')).toBe('€350')
+  expect(formatMoney(9_000, 'GBP')).toBe('£90')
+  expect(formatMoney(35_000, 'CHF')).toBe('CHF\u00a0350')
+  expect(parseMoney('€1,250.50')).toBe(125_050)
+  expect(parseMoney('£90')).toBe(9_000)
+})
+
+test('the totals table names the currency of the value', () => {
+  const t = totalsTable({
+    current: { afterHours: null },
+    jobValueCents: 35000,
+    jobValueCurrency: 'EUR',
+    daily: [{ ...day('2026-11-13', 2), booked: 2 }],
+  } as never)
+  expect(t.header.at(-1)).toBe('Booked value (EUR)')
 })

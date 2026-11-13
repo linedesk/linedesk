@@ -1,7 +1,14 @@
 // Insights (insights.get): counts over the workspace's calls for a period and the period it is compared
 // with, from calls, bookings, transcripts and business hours. One query, grouped by local day and hour;
 // the totals, the daily rows and the busiest hours and weekdays are folded from it.
-import type { InsightCounts, InsightDay, InsightPeriod, InsightRange, InsightsData } from '@linedesk/actions'
+import type {
+  InsightCounts,
+  InsightDay,
+  InsightPeriod,
+  InsightRange,
+  InsightsData,
+  JobValueCurrency,
+} from '@linedesk/actions'
 import { availability_rules, type Tx, workspace_settings } from '@linedesk/db'
 import { eq, sql } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
@@ -143,6 +150,7 @@ type FoldOptions = {
   timeZone: string
   hoursOn: boolean
   jobValueCents: number | null
+  jobValueCurrency: JobValueCurrency
 }
 
 /** Folds the query's buckets into what the page shows. Spam counts toward neither the busiest times. */
@@ -186,6 +194,7 @@ export function foldInsights(buckets: InsightBucket[], opts: FoldOptions): Insig
     byWeekdayHour,
     firstCall: opts.firstCall,
     jobValueCents: opts.jobValueCents,
+    jobValueCurrency: opts.jobValueCurrency,
   }
 }
 
@@ -301,6 +310,7 @@ export const insightsHandlers: Record<string, Handler> = {
       timeZone,
       hoursOn: Boolean(settings?.business_hours_on && rule),
       jobValueCents: settings?.job_value_cents ?? null,
+      jobValueCurrency: settings?.job_value_currency ?? 'USD',
     })
     return { rows: {}, data }
   },

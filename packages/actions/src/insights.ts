@@ -17,6 +17,10 @@ export type InsightRange = (typeof insightRanges)[number]
 /** The value of a booked job an owner can set, in cents (up to $1,000,000). */
 export const JOB_VALUE_MAX_CENTS = 100_000_000
 
+/** The currencies a job value can be set in (workspace.updateSettings, jobValueCurrency); USD by default. */
+export const jobValueCurrencies = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'CHF'] as const
+export type JobValueCurrency = (typeof jobValueCurrencies)[number]
+
 /**
  * Counts for one period; the same fields for the period and the one before it. Every real call is
  * exactly one of spam, missed, booked, transferred, messages or other, so those add up to `calls`.
@@ -74,12 +78,14 @@ export type InsightsData = {
   firstCall: string | null
   /** The value of one booked job in cents; null when nobody set it. */
   jobValueCents: number | null
+  /** The currency of jobValueCents. Missing from an older API: USD. */
+  jobValueCurrency?: JobValueCurrency
 }
 
 export const insightsGet = defineAction({
   name: 'insights.get',
   description:
-    "How the assistant did over a period and the period before it. `period`: 7d, 30d (default), month (this month so far, compared with the same days of last month), lastMonth, 12m (the last 12 calendar months, this one included), all (since the first call, nothing to compare) or custom (`from` to `to`, YYYY-MM-DD in the business time zone, both included, compared with the same number of days before). The older `days` (7, 30 or 90: the last that many days) still works. Returns calls answered and missed, urgent, booked, messages taken, transferred, other answered calls, spam blocked, minutes, calls after business hours, every day's counts, calls per hour, per weekday and per weekday and hour (the workspace's time zone), the first call's day, and the value of a booked job when one is set.",
+    "How the assistant did over a period and the period before it. `period`: 7d, 30d (default), month (this month so far, compared with the same days of last month), lastMonth, 12m (the last 12 calendar months, this one included), all (since the first call, nothing to compare) or custom (`from` to `to`, YYYY-MM-DD in the business time zone, both included, compared with the same number of days before). The older `days` (7, 30 or 90: the last that many days) still works. Returns calls answered and missed, urgent, booked, messages taken, transferred, other answered calls, spam blocked, minutes, calls after business hours, every day's counts, calls per hour, per weekday and per weekday and hour (the workspace's time zone), the first call's day, and the value of a booked job and its currency when one is set.",
   input: z
     .object({
       period: z.enum([...insightPeriods, 'custom']).optional(),

@@ -1,6 +1,7 @@
 // What the Insights page says about the numbers: periods, the summary sentence, changes, the chart's
 // grouping by day, week or month, the busiest time, and money.
-import type { InsightCounts, InsightDay, InsightPeriod, InsightsData } from '@linedesk/actions'
+import type { InsightCounts, InsightDay, InsightPeriod, InsightsData, JobValueCurrency } from '@linedesk/actions'
+import { jobValueCurrencies } from '@linedesk/actions'
 
 export const plural = (n: number, one: string, many = `${one}s`) =>
   `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`
@@ -199,11 +200,18 @@ export function busiestTime(byWeekdayHour: number[][]): string | null {
 
 // --- Money ---------------------------------------------------------------------------------------
 
-export const formatMoney = (cents: number) => `$${Math.round(cents / 100).toLocaleString('en-US')}`
+/** Whole units in the job value's currency: "$1,250", "€350", "£90", "CA$400", "A$400", "CHF 350". */
+export const formatMoney = (cents: number, currency: JobValueCurrency = 'USD') =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(
+    Math.round(cents / 100),
+  )
 
-/** "380", "$1,250.50" → cents; "" → null (clears it); anything else → undefined (not a value). */
+/** The currencies offered next to the job value, in the order of the menu. */
+export const CURRENCY_OPTIONS = jobValueCurrencies.map(c => ({ value: c, label: c }))
+
+/** "380", "$1,250.50", "€90" → cents; "" → null (clears it); anything else → undefined (not a value). */
 export function parseMoney(text: string): number | null | undefined {
-  const cleaned = text.replace(/[$,\s]/g, '')
+  const cleaned = text.replace(/[$€£,\s]/g, '')
   if (cleaned === '') return null
   if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return undefined
   return Math.round(Number(cleaned) * 100)
@@ -228,7 +236,7 @@ export function totalsTable(data: InsightsData): { header: string[]; rows: (stri
     'Urgent',
     ...(hours ? ['After hours'] : []),
     'Minutes',
-    ...(value !== null ? ['Booked value (USD)'] : []),
+    ...(value !== null ? [`Booked value (${data.jobValueCurrency ?? 'USD'})`] : []),
   ]
   const rows = data.daily.map(d => [
     d.date,

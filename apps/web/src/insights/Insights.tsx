@@ -1,7 +1,7 @@
 // Insights: how the assistant did over a period (insights.get, counted on the server). One sentence,
 // four numbers that switch the chart below them, how calls ended, when people call, and an export of
 // the period (every call through call.export for owners and admins, totals per day for everyone).
-import type { CallExportData, InsightPeriod, InsightsData } from '@linedesk/actions'
+import type { CallExportData, InsightPeriod, InsightsData, JobValueCurrency } from '@linedesk/actions'
 import { insightPeriods } from '@linedesk/actions'
 import { useEffect, useRef, useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
@@ -16,6 +16,7 @@ import {
   type ChartMetric,
   change,
   columns,
+  CURRENCY_OPTIONS,
   compareLabel,
   exportName,
   formatMoney,
@@ -171,23 +172,24 @@ function Loading() {
 function Summary({ data, assistant, canEdit, toast }: { data: InsightsData; assistant: string } & Props) {
   const [editing, setEditing] = useState(false)
   const job = data.jobValueCents
+  const currency = data.jobValueCurrency ?? 'USD'
   const booked = data.current.booked
   return (
     <section className="k-card in-summary" aria-label="Summary">
       <p className="in-sentence">{summarySentence(assistant, data, data.current)}</p>
       {editing ? (
-        <JobValue value={job} shown={data} onDone={() => setEditing(false)} toast={toast} />
+        <JobValue value={job} currency={currency} shown={data} onDone={() => setEditing(false)} toast={toast} />
       ) : job !== null ? (
         <p className="in-value">
           {booked > 0 && (
             <>
-              ≈ <b>{formatMoney(job * booked)}</b> in booked work{' '}
+              ≈ <b>{formatMoney(job * booked, currency)}</b> in booked work{' '}
             </>
           )}
           <span className="in-muted">
             {booked > 0
-              ? `· ${plural(booked, 'job')} × ${formatMoney(job)}`
-              : `A booked job counts as ${formatMoney(job)}`}
+              ? `· ${plural(booked, 'job')} × ${formatMoney(job, currency)}`
+              : `A booked job counts as ${formatMoney(job, currency)}`}
             {canEdit && (
               <>
                 {' · '}
@@ -212,36 +214,46 @@ function Summary({ data, assistant, canEdit, toast }: { data: InsightsData; assi
   )
 }
 
-/** What a booked job is worth on average: owners and admins set it, the summary multiplies it. */
+/**
+ * What a booked job is worth on average and in which currency: owners and admins set it, the summary
+ * multiplies it. Saved when the focus leaves the form (not when it moves from the amount to the currency).
+ */
 function JobValue({
   value,
+  currency: savedCurrency,
   shown,
   onDone,
   toast,
 }: {
   value: number | null
+  currency: JobValueCurrency
   shown: Range
   onDone: () => void
   toast: Props['toast']
 }) {
   const run = useRun()
   const [text, setText] = useState(value === null ? '' : String(value / 100))
+  const [currency, setCurrency] = useState(savedCurrency)
   const parsed = parseMoney(text)
   const invalid = parsed === undefined
 
   function save() {
     if (invalid) return
     onDone()
-    if (parsed === value) return
+    if (parsed === value && currency === savedCurrency) return
     const keys = [
       ...insightPeriods.map(p => queryKey(p, { from: '', to: '' })),
       queryKey('custom', { from: shown.from, to: shown.to }),
     ]
     for (const key of keys)
-      setQueryData<InsightsData | undefined>(key, s => (s ? { ...s, jobValueCents: parsed } : s), { persist: true })
-    patchWorkspaceSettings({ jobValueCents: parsed })
-    void run('workspace.updateSettings', { jobValueCents: parsed })
-    toast(parsed === null ? 'Job value cleared.' : `A booked job counts as ${formatMoney(parsed)}.`)
+      setQueryData<InsightsData | undefined>(
+        key,
+        s => (s ? { ...s, jobValueCents: parsed, jobValueCurrency: currency } : s),
+        { persist: true },
+      )
+    patchWorkspaceSettings({ jobValueCents: parsed, jobValueCurrency: currency })
+    void run('workspace.updateSettings', { jobValueCents: parsed, jobValueCurrency: currency })
+    toast(parsed === null ? 'Job value cleared.' : `A booked job counts as ${formatMoney(parsed, currency)}.`)
   }
 
   return (
@@ -251,24 +263,28 @@ function JobValue({
         e.preventDefault()
         save()
       }}
+      onBlur={e => {
+        if (!e.currentTarget.contains(e.relatedTarget)) save()
+      }}
+      onKeyDown={e => {
+        if (e.key === 'Escape') onDone()
+      }}
     >
       <label htmlFor="in-job-value-input" className="in-muted">
         Average value of a booked job
       </label>
-      <Input
-        id="in-job-value-input"
-        inputMode="decimal"
-        autoFocus
-        placeholder="e.g. 350"
-        value={text}
-        invalid={invalid}
-        onChange={e => setText(e.target.value)}
-        onBlur={save}
-        onKeyDown={e => {
-          if (e.key === 'Escape') onDone()
-        }}
-        end={<span className="in-unit">USD</span>}
-      />
+      <div className="in-job-row">
+        <Input
+          id="in-job-value-input"
+          inputMode="decimal"
+          autoFocus
+          placeholder="e.g. 350"
+          value={text}
+          invalid={invalid}
+          onChange={e => setText(e.target.value)}
+        />
+        <Select label="Currency" value={currency} options={CURRENCY_OPTIONS} onChange={setCurrency} size="sm" />
+      </div>
       {invalid && <span className="in-error">A number, like 350 or 1,250.</span>}
     </form>
   )
@@ -304,7 +320,7 @@ function Numbers({
             n.key === 'answered' && real > 0
               ? `${Math.round((c.answered / real) * 100)}% of ${plural(real, 'call')}`
               : n.key === 'booked' && data.jobValueCents !== null && value > 0
-                ? `≈ ${formatMoney(value * data.jobValueCents)}`
+                ? `≈ ${formatMoney(value * data.jobValueCents, data.jobValueCurrency)}`
                 : null
           const delta = versus ? `${change(value, data.previous[n.key])} vs ${versus}` : null
           return (

@@ -9,7 +9,7 @@ import type { Closure } from '@linedesk/db/types'
 import { z } from 'zod'
 import { ASSISTANT_CALL_MAX_MINUTES } from './calls.ts'
 import { defineAction } from './define.ts'
-import { JOB_VALUE_MAX_CENTS } from './insights.ts'
+import { JOB_VALUE_MAX_CENTS, type JobValueCurrency, jobValueCurrencies } from './insights.ts'
 import { assistantLanguages } from './languages.ts'
 import { transferContacts } from './transfer.ts'
 import { voiceId } from './voices.ts'
@@ -383,6 +383,8 @@ export type WorkspaceSettingsData = {
   closure?: Closure | null
   /** The value of one booked job in cents (Insights); null: not set. */
   jobValueCents: number | null
+  /** The currency of jobValueCents. Missing from an older API: USD. */
+  jobValueCurrency?: JobValueCurrency
   /** When the assistant picks up, as chosen in onboarding; null: never chosen. Missing from an older API. */
   pickupMode?: PickupMode | null
 }
@@ -473,7 +475,7 @@ export const workspaceGetSettings = defineAction({
 export const workspaceUpdateSettings = defineAction({
   name: 'workspace.updateSettings',
   description:
-    'Change workspace settings: `recordingRetentionDays` (0: no recordings are kept, calls are not recorded; 30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting; off by default), `recordingNotice` (that sentence, e.g. "This call may be recorded."), `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles") and `jobValueCents` (what a booked job is worth on average, in cents, for Insights; null clears it); `closure` (vacation or closure mode: closed from `from` to `until`, with its own `greeting`, and `transfers` none or urgent only; null: off); `pickupMode` (when the assistant picks up, as chosen in onboarding: no_answer, always or after_hours; it decides which forwarding code is shown, the routing itself stays with the number\'s mode and the business hours).',
+    'Change workspace settings: `recordingRetentionDays` (0: no recordings are kept, calls are not recorded; 30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting; off by default), `recordingNotice` (that sentence, e.g. "This call may be recorded."), `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles") and `jobValueCents` (what a booked job is worth on average, in cents, for Insights; null clears it), `jobValueCurrency` (its currency: USD, EUR, GBP, CAD, AUD or CHF; USD until set); `closure` (vacation or closure mode: closed from `from` to `until`, with its own `greeting`, and `transfers` none or urgent only; null: off); `pickupMode` (when the assistant picks up, as chosen in onboarding: no_answer, always or after_hours; it decides which forwarding code is shown, the routing itself stays with the number\'s mode and the business hours).',
   input: z.object({
     recordingRetentionDays: z.union([z.literal(recordingRetentionChoices), z.null()]).optional(),
     businessHoursOn: z.boolean().optional(),
@@ -488,6 +490,7 @@ export const workspaceUpdateSettings = defineAction({
     /** Vacation or closure mode; null turns it off. */
     closure: closureSchema.nullable().optional(),
     jobValueCents: z.number().int().min(0).max(JOB_VALUE_MAX_CENTS).nullable().optional(),
+    jobValueCurrency: z.enum(jobValueCurrencies).optional(),
     pickupMode: z.enum(pickupModes).optional(),
   }),
   permission: 'settings:write',
@@ -551,7 +554,7 @@ export function workspaceNameProblem(name: unknown): string | null {
 export const workspaceRename = defineAction({
   name: 'workspace.rename',
   description:
-    'Rename the workspace: `name` is the business name shown in the app (the workspace menu, emails). The assistant\'s greeting is changed separately with assistant.update.',
+    "Rename the workspace: `name` is the business name shown in the app (the workspace menu, emails). The assistant's greeting is changed separately with assistant.update.",
   input: z.object({
     name: workspaceName,
   }),

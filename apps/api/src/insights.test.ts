@@ -81,6 +81,7 @@ describe('foldInsights', () => {
         timeZone: 'America/New_York',
         hoursOn: false,
         jobValueCents: null,
+        jobValueCurrency: 'USD',
       },
     )
     expect(data.current).toMatchObject({
