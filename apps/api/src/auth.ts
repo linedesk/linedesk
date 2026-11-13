@@ -198,7 +198,11 @@ export const auth = betterAuth({
   hooks: { before: beforeAuthEndpoints, after: afterAuthEndpoints },
   // Set by user.impersonate only (impersonation.ts); `input: false` keeps clients from setting it.
   // passkeyVerifiedAt: set by the session.create hook on a passkey sign-in (admin-second-factor.ts).
+  // A sign-in lasts 30 days and is renewed at most once a day while it is used: a member who opens
+  // Linedesk at least once a month stays signed in. Impersonations keep their own end (impersonation-guard.ts).
   session: {
+    expiresIn: 30 * 24 * 60 * 60,
+    updateAge: 24 * 60 * 60,
     additionalFields: {
       impersonatedBy: { type: 'string', required: false, input: false },
       passkeyVerifiedAt: { type: 'date', required: false, input: false },

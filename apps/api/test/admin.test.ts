@@ -1849,7 +1849,7 @@ describe('impersonation', () => {
       impersonated_by: operator.userId,
       workspace_id: other.id,
     })
-    // Without the "not remembered" cookie Better Auth would extend a used session to 7 days: it keeps its expiry.
+    // Without the "not remembered" cookie Better Auth would extend a used session to 30 days: it keeps its expiry.
     const [started] = await impersonations()
     expect((await getSession(withCookie(as, DONT_REMEMBER, null)))?.user.id).toBe(target.userId)
     expect((await impersonations())[0]!.expiresAt).toEqual(started!.expiresAt)
