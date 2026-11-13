@@ -118,7 +118,7 @@ describe('provider.tryOut', () => {
     expect(result).toMatchObject({ ok: true, kind: 'telephony' })
     expect(result.numbers).toHaveLength(3)
     expect(result.numbers!.every(n => n.startsWith('+1971'))).toBe(true)
-    expect(result.message).toContain('Nothing was bought')
+    expect(result.message).toContain('Nothing was purchased')
   })
 
   test('telephony: a wrong area code is refused before anything runs', async () => {

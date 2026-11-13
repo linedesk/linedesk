@@ -118,11 +118,11 @@ async function tryLlm(tx: Tx): Promise<Tried> {
   const { provider, config } = active
   // Only OpenAI's realtime model has a chat model behind the same key.
   const realtime = active.realtime && provider === 'openai_realtime'
-  if (active.realtime && !realtime) return failed(labelOf(provider), `${labelOf(provider)} is tried in a test call.`)
+  if (active.realtime && !realtime) return failed(labelOf(provider), `${labelOf(provider)} can only be tested in a test call.`)
   const v = values(config)
   // With one OpenAI key, calls are answered by the realtime model; its summary model shows the key and quota work.
   const endpoint = realtime ? llmEndpoints.openai : llmEndpoints[provider as LlmProvider]
-  if (!endpoint) return failed(labelOf(provider), `${labelOf(provider)} cannot be tried here.`)
+  if (!endpoint) return failed(labelOf(provider), `${labelOf(provider)} can't be tested here.`)
   const model = realtime ? v.summary_model || 'gpt-4.1-mini' : v.model?.split(',')[0]?.trim() || endpoint.models[0]
   const limit = provider === 'openai' || realtime ? { max_completion_tokens: 80 } : { max_tokens: 80 }
   const start = performance.now()
@@ -146,8 +146,8 @@ async function tryLlm(tx: Tx): Promise<Tried> {
   if (!res.ok) return failed(labelOf(provider), (await problemOfResponse(provider, res, `the model ${model}`)).message)
   const body = (await res.json()) as { choices?: { message?: { content?: string } }[] }
   const reply = body.choices?.[0]?.message?.content?.trim()
-  if (!reply) return failed(labelOf(provider), `${model} answered with nothing.`)
-  const slow = took > 1.5 && !realtime ? ' Callers notice a pause above about 1.5 s: a faster model helps.' : ''
+  if (!reply) return failed(labelOf(provider), `${model} returned an empty answer.`)
+  const slow = took > 1.5 && !realtime ? ' Callers notice pauses longer than about 1.5 s, so a faster model would help.' : ''
   return {
     ok: true,
     provider: labelOf(provider),
@@ -198,7 +198,7 @@ async function trySpeech(tx: Tx): Promise<Tried> {
   if (!active) return failed(null, 'No speech to text is set up yet.')
   const { provider, config } = active
   if (!['deepgram', 'elevenlabs_stt', 'openai_stt', 'openai_realtime'].includes(provider))
-    return failed(labelOf(provider), `${labelOf(provider)} cannot be tried here.`)
+    return failed(labelOf(provider), `${labelOf(provider)} can't be tested here.`)
   const start = performance.now()
   const res = await transcribe(provider, values(config), await readFile(TEST_CLIP))
   const took = seconds(start)
@@ -217,8 +217,8 @@ async function trySpeech(tx: Tx): Promise<Tried> {
     message: ok
       ? `Heard ${Math.round(match * 100)}% of the words in ${took} s.`
       : heard
-        ? `Only ${Math.round(match * 100)}% of the words came back. Check the model setting, or try another provider.`
-        : 'Nothing came back from the recording. Check the model setting, or try another provider.',
+        ? `Only ${Math.round(match * 100)}% of the words were recognized. Check the model setting, or try another provider.`
+        : 'The recording returned no text. Check the model setting, or try another provider.',
   }
 }
 
@@ -233,7 +233,7 @@ async function tryVoice(tx: Tx): Promise<Tried> {
       return {
         ok: true,
         provider: labelOf(realtime.provider),
-        message: `${labelOf(realtime.provider)} speaks on calls with its own voice: hear it in a test call.`,
+        message: `${labelOf(realtime.provider)} uses its own voice on calls. Hear it in a test call.`,
       }
     return failed(null, 'No voice is set up yet.')
   }
@@ -264,13 +264,13 @@ async function tryCarrier(tx: Tx, areaCode: string): Promise<Tried> {
       ok: true,
       provider: label,
       numbers: [],
-      message: `${label} answers, but has no numbers in ${areaCode} right now. Try a nearby area code.`,
+      message: `${label} is reachable but has no numbers in ${areaCode} right now. Try a nearby area code.`,
     }
   return {
     ok: true,
     provider: label,
     numbers: found.map(n => n.e164),
-    message: `${label} can give out numbers: ${found.length} available in ${areaCode}. Nothing was bought.`,
+    message: `${label} works: ${found.length} numbers available in ${areaCode}. Nothing was purchased.`,
   }
 }
 
@@ -278,7 +278,7 @@ async function tryEmail(tx: Tx, actorId: string): Promise<Tried> {
   if (emailSender.kind === 'none') return failed(null, 'No email is set up yet.')
   // The API sends with the settings it started with: a saved change is tried once it runs with it.
   if ((await restartState(db)).pending)
-    return failed(null, 'The new email settings are used after the API restarts. Try again then.')
+    return failed(null, 'The new email settings take effect after the API restarts. Try again then.')
   const [me] = await tx.select({ email: user.email }).from(user).where(eq(user.id, actorId))
   if (!me?.email) return failed(null, 'Your account has no email address.')
   const code = String(randomInt(0, 1_000_000)).padStart(6, '0')
@@ -286,7 +286,7 @@ async function tryEmail(tx: Tx, actorId: string): Promise<Tried> {
     .send({
       to: me.email,
       subject: `${code} is your Linedesk test code`,
-      text: `Your email works.\n\nType this code into the install setup to finish the test:\n\n    ${code}\n\nIt works for ten minutes.`,
+      text: `Your email works.\n\nEnter this code in the setup to finish the test:\n\n    ${code}\n\nIt expires in 10 minutes.`,
     })
     .then(
       () => true,
@@ -296,14 +296,14 @@ async function tryEmail(tx: Tx, actorId: string): Promise<Tried> {
         return false
       },
     )
-  if (!sent) return failed(null, 'The test email could not be sent. Check the email settings; the API log says why.')
+  if (!sent) return failed(null, 'The test email could not be sent. Check the email settings; the API log has the details.')
   emailCodes.set(actorId, { hash: hashCode(code), expires: Date.now() + EMAIL_CODE_MS, tries: 0 })
-  const where = emailSender.kind === 'log' ? ' It went to the API log (EMAIL_TO_LOG), not a real inbox.' : ''
+  const where = emailSender.kind === 'log' ? ' It was written to the API log (EMAIL_TO_LOG), not sent to a real inbox.' : ''
   return {
     ok: true,
     provider: emailSender.kind === 'log' ? 'API log' : 'Email',
     sentTo: me.email,
-    message: `A code went to ${me.email}. Type it in to finish the test.${where}`,
+    message: `A code was sent to ${me.email}. Enter it to finish the test.${where}`,
   }
 }
 
@@ -317,7 +317,7 @@ async function remember(tx: Tx, kind: TryOutKind, result: Tried) {
 }
 
 function refuseImpersonation(actor: { impersonation?: unknown }) {
-  if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
+  if (actor.impersonation) throw new Forbidden('Not available while you are signed in as another user.')
 }
 
 export const installSetupHandlers: Record<string, Handler> = {
@@ -339,7 +339,7 @@ export const installSetupHandlers: Record<string, Handler> = {
     refuseImpersonation(actor)
     const kind = input.kind as TryOutKind
     const limiter = kind === 'email' ? emailLimit : tryLimit
-    if (!limiter(`${actor.actorId}:${kind}`)) throw new Reject('Tried too often in the last hour; try again later.')
+    if (!limiter(`${actor.actorId}:${kind}`)) throw new Reject('Too many tests in the last hour. Try again later.')
     let result: Tried
     try {
       result =
@@ -377,10 +377,10 @@ export const installSetupHandlers: Record<string, Handler> = {
   'provider.confirmEmail': async ({ tx, actor }, input) => {
     refuseImpersonation(actor)
     const pending = emailCodes.get(actor.actorId)
-    if (!pending || pending.expires < Date.now()) throw new Reject('No test code is waiting: send a new one.')
+    if (!pending || pending.expires < Date.now()) throw new Reject('No test code is pending. Send a new one.')
     if (pending.tries >= 5) {
       emailCodes.delete(actor.actorId)
-      throw new Reject('Too many wrong codes: send a new one.')
+      throw new Reject('Too many wrong codes. Send a new one.')
     }
     pending.tries++
     if (pending.hash !== hashCode(input.code)) throw new Reject('That is not the code from the email.')

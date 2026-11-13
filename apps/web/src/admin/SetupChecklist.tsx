@@ -198,7 +198,7 @@ export function SetupChecklist({ data, notify, reload }: Props) {
     try {
       const result = (await runAdmin('provider.tryOut', { kind: item.id as TryOutKind })) as TryOutData
       if (result.audio) void new Audio(result.audio).play().catch(() => {})
-      if (result.numbers?.length) notify(`Available: ${result.numbers.join(', ')}. Nothing was bought.`)
+      if (result.numbers?.length) notify(`Available: ${result.numbers.join(', ')}. Nothing was purchased.`)
     } catch (err) {
       setRowProblem([item.id], `The test could not run: ${problemText(errorText(err))}`)
     }

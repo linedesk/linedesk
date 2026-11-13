@@ -66,11 +66,11 @@ const tryLabels: Record<TryOutKind, string> = {
 }
 const tryHelp: Record<TryOutKind, string> = {
   email:
-    'A six-digit code goes to your own address. Type it in here: that shows email arrives, not only that it sends.',
-  llm: 'Sends one short question a caller might ask to the model in use, and shows its answer and how long it took.',
-  stt: 'Sends a short recording that ships with the app and compares what comes back with what it says.',
-  tts: 'Speaks the greeting a caller would hear, here in the page.',
-  telephony: 'Searches the carrier for three numbers in an area code. Nothing is bought.',
+    'Sends a six-digit code to your own address. Enter it here to confirm emails actually arrive, not just that they are sent.',
+  llm: 'Asks the current model a short question a caller might ask, and shows the answer and how long it took.',
+  stt: 'Transcribes a short sample recording and checks the result against what was said.',
+  tts: 'Plays the greeting a caller would hear, right here in the page.',
+  telephony: 'Looks up three available numbers in an area code. Nothing is purchased.',
 }
 
 type Props = {
@@ -181,7 +181,7 @@ export function InstallSetup({ onExit }: Props) {
           size="sm"
           variant="ghost"
           onClick={() => void later()}
-          title="Leave the setup now; Admin › Overview continues it where you are"
+          title="Leave now and pick up where you left off in Admin › Overview"
         >
           Set up later
         </Button>
@@ -197,7 +197,7 @@ export function InstallSetup({ onExit }: Props) {
             </p>
           ) : (
             <p className="as-small">
-              <Spinner /> Reading the setup…
+              <Spinner /> Loading the setup…
             </p>
           )
         ) : step === 'welcome' ? (
@@ -325,13 +325,13 @@ function Welcome({ checklist, onStart }: { checklist: SetupChecklist; onStart: (
       <div className="ob-body">
         <h1>Set up this server by hand</h1>
         <p className="ob-lede">
-          Five parts, each an account of its own. Every step says where to get the key and what it costs, and tries it
-          for real before you go on. About 30 to 45 minutes; you can skip a part and come back to it.
+          Five parts, each with its own account. Every step says where to get the key and what it costs, and tests it
+          for real before you move on. About 30 to 45 minutes; you can skip a part and come back to it.
         </p>
       </div>
       <PartList checklist={checklist} ids={partSteps.map(s => installStepItems[s]!)} />
       <p className="as-note is-agent-note">
-        An AI agent does the same in about 15 minutes, and checks the server itself.{' '}
+        An AI agent can do this in about 15 minutes and check the server for you.{' '}
         <button
           type="button"
           className="k-link"
@@ -464,13 +464,13 @@ function PartStep({
         <p className="as-note" role="status">
           {setup.restart.automatic ? (
             <>
-              <Spinner /> {restarting ? 'Restarting the server' : 'The server restarts'} to send with the new email
-              settings. This takes a few seconds.
+              <Spinner /> {restarting ? 'Restarting the server' : 'Waiting for the server to restart'} so it uses
+              the new email settings. This takes a few seconds.
             </>
           ) : (
             <>
-              Email settings are read when the API starts. Restart the API (with pnpm dev: stop it and run it again);
-              this page goes on by itself once it runs with the new settings.
+              Email settings are read when the API starts. Restart the API (with pnpm dev, stop it and start it
+              again); this page continues on its own once the API is running with the new settings.
             </>
           )}
         </p>
@@ -698,10 +698,10 @@ function Extras({ checklist, onBack, onNext }: { checklist: SetupChecklist; onBa
     <>
       <div className="ob-body">
         <span className="as-kicker">Optional</span>
-        <h1>Calls over the phone network</h1>
+        <h1>Real phone calls</h1>
         <p className="ob-lede">
-          LiveKit carries the call audio and runs on this server. Test calls in the browser work without the rest; real
-          phone calls need the ports open.
+          LiveKit carries the call audio and runs on this server. Browser test calls work without the rest; real
+          phone calls need these ports open.
         </p>
       </div>
       <section className="as-card">
@@ -733,7 +733,7 @@ function Extras({ checklist, onBack, onNext }: { checklist: SetupChecklist; onBa
         <b>Later, in Admin › Providers</b>
         <span className="as-small">
           Sign-in with Google or GitHub, calendar apps for bookings, and where call recordings are kept. None of them is
-          needed for a first answered call.
+          needed to answer a first call.
         </span>
         <div>
           <Button size="sm" variant="secondary" onClick={() => (window.location.hash = '#admin/providers')}>
@@ -767,7 +767,7 @@ function Done({
         <h1>{open.length ? 'The server is almost set up' : 'The server is set up'}</h1>
         <p className="ob-lede">
           {open.length
-            ? 'What is left is in Admin › Overview, with the same steps. Next: your business, its assistant and its number.'
+            ? 'The remaining steps are in Admin › Overview. Next: your business, its assistant and its number.'
             : 'Every part works. Next: your business, its assistant and its number; then call it to hear it answer.'}
         </p>
       </div>

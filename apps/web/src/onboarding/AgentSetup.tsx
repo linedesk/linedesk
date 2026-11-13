@@ -130,7 +130,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
       setCreated((await runAdmin('agentSetup.createKey', {})) as AgentSetupKeyCreated)
       await load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not make a setup link')
+      setError(e instanceof Error ? e.message : 'Could not create a setup link')
     } finally {
       setBusy(null)
     }
@@ -223,18 +223,18 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
               ) : (
                 <div className="as-step">
                   <span>
-                    A setup link lets your agent set up this server as you, with setup tools only, for 24 hours. You can
-                    end it here at any time.
+                    A setup link lets your agent set up this server on your behalf for 24 hours, using setup tools
+                    only. You can end it here at any time.
                   </span>
                   <div>
                     <Button variant="primary" busy={busy === 'create'} onClick={() => void createKey()}>
-                      {state?.key ? 'Make a new setup link' : 'Make a setup link'}
+                      {state?.key ? 'Create a new setup link' : 'Create a setup link'}
                     </Button>
                   </div>
                   {state?.key && (
                     <span className="as-small">
-                      Your agent has a link ({state.key.prefix}…, until {timeOf(state.key.expiresAt)}). A new one ends
-                      it.
+                      Your agent has a setup link ({state.key.prefix}…, valid until {timeOf(state.key.expiresAt)}).
+                      Creating a new one ends it.
                     </span>
                   )}
                 </div>
@@ -250,7 +250,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
                   </div>
                 </div>
               ) : (
-                <span className="as-small">After you make the setup link.</span>
+                <span className="as-small">After you create the setup link.</span>
               )}
             </li>
           </ol>
@@ -330,14 +330,14 @@ function Progress({
             </span>
             <span>{step.label}</span>
             {step.state === 'failing' && <span className="as-small">failing</span>}
-            {step.state === 'admin_only' && <span className="as-small">you, in the app</span>}
+            {step.state === 'admin_only' && <span className="as-small">do this in the app</span>}
           </li>
         ))}
       </ul>
       {(allDone || connected) && (
         <div>
           <Button variant={allDone ? 'primary' : 'secondary'} onClick={onDone}>
-            {allDone ? `Open ${brandName()}` : `Look at ${brandName()} now`}
+            {allDone ? `Open ${brandName()}` : `Open ${brandName()} now`}
           </Button>
         </div>
       )}
