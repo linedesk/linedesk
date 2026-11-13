@@ -9,7 +9,9 @@ body,
    a large title, then full-width fields and buttons. */
 .auth {
   box-sizing: border-box;
-  min-height: 100%;
+  /* The body never scrolls, so the page scrolls itself when the window is too short for all buttons. */
+  height: 100%;
+  overflow-y: auto;
   display: flex;
   justify-content: center;
   align-items: flex-start;
