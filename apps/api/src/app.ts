@@ -287,14 +287,22 @@ async function needsPasskeyEnrolment({ actorId, impersonation }: Actor): Promise
 }
 
 /** The workspaces a user is a member of, by name. */
-function workspacesOf(userId: string) {
-  return db
-    .select({ id: organization.id, name: organization.name })
+/** A disabled workspace stays in the list (the switcher shows it greyed out) but cannot be switched to. */
+async function workspacesOf(userId: string) {
+  const rows = await db
+    .select({ id: organization.id, name: organization.name, disabledAt: organization.disabledAt })
     .from(member)
     .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(eq(member.userId, userId))
     .orderBy(asc(organization.name))
+  return rows.map(({ id, name, disabledAt }) => ({ id, name, disabled: disabledAt !== null }))
 }
+
+// The member's workspaces for the switcher, read again when the menu opens; the same list /v1/me brings at boot.
+app.get('/v1/me/workspaces', async c => {
+  c.header('cache-control', 'no-store')
+  return c.json(await workspacesOf(c.get('actor').actorId))
+})
 
 /** Who is signed in as this user, for the banner while impersonating. */
 async function impersonationOf({ actorId, impersonation }: Actor) {

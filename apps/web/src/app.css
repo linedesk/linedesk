@@ -1493,6 +1493,11 @@ button.k-link {
 .me-ws-mark {
   opacity: 0;
 }
+/* A workspace an admin disabled: listed, greyed out, cannot be chosen (WorkspaceSwitcher). */
+.me-ws .nav-item.is-ws-disabled {
+  color: var(--ink-muted);
+  cursor: default;
+}
 .me-ws-busy,
 .me-ws-none {
   font-size: 11px;
