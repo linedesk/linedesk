@@ -10,7 +10,7 @@ import { Transcript } from '../call/Transcript.tsx'
 import { useFollowLive } from '../call/useFollowLive.ts'
 import { callHash } from '../shell/useRoute.ts'
 import { clock, longDuration, parseTs } from '../time.ts'
-import { Button } from '../ui/kit.tsx'
+import { Button, Note } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { AudioSink, type TestCallSession } from './TestCall.tsx'
 import './test-call-panel.css'
@@ -133,7 +133,7 @@ export function TestCallPanel({
               </div>
             </header>
             <div className="tcp-scroll" ref={ref} onScroll={onScroll}>
-              {message && <p className="tcp-problem">{message}</p>}
+              {message && <Note tone="danger">{message}</Note>}
               {!message && !call && phase !== 'ended' && (
                 <p className="tcp-wait">
                   <span className="st-spin" aria-hidden="true" />

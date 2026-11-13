@@ -23,6 +23,7 @@ import { useAssistant, useRows, useRun } from '../store.tsx'
 import { useMember } from '../team/members.ts'
 import { Checkbox, RadioCard } from '../ui/controls.tsx'
 import { Input } from '../ui/form.tsx'
+import { Note } from '../ui/kit.tsx'
 import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
 import {
@@ -172,11 +173,11 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
           />
         </div>
         {nobodyAlerted && (
-          <p className="ob-warn" role="status">
+          <Note tone="warning">
             {emailOn
               ? 'Without email on this server and with notifications off, nobody is alerted. Turn on notifications above.'
               : 'With email and notifications off, nobody is alerted. Turn on one of them above.'}
-          </p>
+          </Note>
         )}
         {draft.urgent === 'transfer' && (
           <div className="ob-urgent">
@@ -208,11 +209,7 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
             </Field>
           </div>
         )}
-        {otherMessage && (
-          <p className="ob-error" role="alert">
-            {otherMessage}
-          </p>
-        )}
+        {otherMessage && <Note tone="danger">{otherMessage}</Note>}
       </div>
       <Foot
         onBack={onBack}

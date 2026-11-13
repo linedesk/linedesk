@@ -5,11 +5,6 @@
 .ob .ta {
   min-height: 112px;
 }
-.ob-error {
-  margin: 0;
-  font-size: 12.5px;
-  color: var(--danger);
-}
 .ob-prompt .ob2-row {
   flex: none;
 }
@@ -184,12 +179,6 @@
 .ob-star-heart {
   color: var(--ink);
 }
-/* Who hears: the quiet warning when "take a message and alert me" would alert nobody (NotifyStep). */
-.ob-warn {
-  margin: 0;
-  font-size: 12.5px;
-  color: var(--ink);
-}
 /* The phone step: a quiet link (to a number already in the carrier account, and back to the choices). */
 .ob-link {
   justify-self: start;
@@ -223,12 +212,6 @@
 .ob-save-errors {
   display: grid;
   gap: var(--space-2);
-}
-.ob-save-error {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
 }
 /* Done: what is left before calls are answered. */
 .ob-left {

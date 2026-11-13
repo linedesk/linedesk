@@ -11,7 +11,7 @@ import {
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { Switch } from '../ui/controls.tsx'
 import { Dialog, FormField, Input, SecretInput } from '../ui/form.tsx'
-import { Button, Icon } from '../ui/kit.tsx'
+import { Button, Icon, Note } from '../ui/kit.tsx'
 import { type ProviderField, type ProviderStatus, runAdmin, testProvider } from './api.ts'
 import {
   changedValues,
@@ -199,7 +199,13 @@ export function ProviderDialog(props: Props) {
         <Button variant="ghost" onClick={() => setPhase('idle')} disabled={phase === 'disconnecting'}>
           Cancel
         </Button>
-        <Button busy={phase === 'disconnecting'} type="button" variant="danger" onClick={() => void disconnect()} disabled={phase === 'disconnecting'}>
+        <Button
+          busy={phase === 'disconnecting'}
+          type="button"
+          variant="danger"
+          onClick={() => void disconnect()}
+          disabled={phase === 'disconnecting'}
+        >
           {phase === 'disconnecting' ? 'Disconnecting…' : 'Disconnect'}
         </Button>
       </>
@@ -240,7 +246,8 @@ export function ProviderDialog(props: Props) {
               Cancel
             </Button>
             {manual && (
-              <Button busy={phase === 'saving' || phase === 'testing'}
+              <Button
+                busy={phase === 'saving' || phase === 'testing'}
                 type="submit"
                 variant="primary"
                 disabled={busy || (dirty && !canStore)}
@@ -264,7 +271,7 @@ export function ProviderDialog(props: Props) {
       footer={footer}
     >
       {!canStore && provider.fields.length > 0 && (
-        <p className="k-note">No encryption key on the server, so keys can't be saved.</p>
+        <Note tone="warning">No encryption key on the server, so keys can't be saved.</Note>
       )}
       {helpOf(provider) && provider.category !== 'recording' && <p className="k-field-desc">{helpOf(provider)}</p>}
       {presets.length > 0 && (
@@ -293,7 +300,8 @@ export function ProviderDialog(props: Props) {
       {provider.fields.length === 0 && <p className="k-field-desc">Nothing to set up.</p>}
       {!manual && !result?.ok && (
         <div className="adm-oauth">
-          <Button busy={busy}
+          <Button
+            busy={busy}
             variant="primary"
             disabled={busy || !canStore}
             onClick={() => void startOpenRouterConnect()}
@@ -324,8 +332,7 @@ export function ProviderDialog(props: Props) {
         ))}
       {manual && redirects.length > 0 && <RedirectUris uris={redirects} />}
       {result && (
-        <div className={result.ok ? 'k-note' : 'k-note k-note-danger'} role="status">
-          <Icon name={!result.ok ? 'ban' : result.status === 'warning' ? 'alert' : 'check'} size={14} />
+        <Note tone={!result.ok ? 'danger' : result.status === 'warning' ? 'warning' : 'success'} role="status">
           <span className="adm-result">
             {result.ok
               ? appliesOnRestart && savedNow
@@ -333,7 +340,7 @@ export function ProviderDialog(props: Props) {
                 : resultLine(result.message)
               : result.message}
           </span>
-        </div>
+        </Note>
       )}
     </Dialog>
   )

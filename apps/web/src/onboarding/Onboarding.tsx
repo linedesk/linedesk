@@ -11,7 +11,7 @@ import { usePresence } from '../shell/presence.ts'
 import { rejectionReason } from '../shell/rejections.ts'
 import { queueTour } from '../shell/tour.ts'
 import { useAssistantName, useRejection, useRows, useRun } from '../store.tsx'
-import { Button, Icon } from '../ui/kit.tsx'
+import { Button, Icon, Note } from '../ui/kit.tsx'
 import { AssistantStep } from './AssistantStep.tsx'
 import { BusinessStep } from './BusinessStep.tsx'
 import { Foot, Frame, useStepKeys } from './Frame.tsx'
@@ -225,19 +225,24 @@ function SaveErrors({
   return (
     <div className="ob-save-errors">
       {errors.map(e => (
-        <div key={e.step ?? 'progress'} className="ob-error ob-save-error" role="alert">
-          <span>{e.text}</span>
-          <span className="ob2-row">
-            {e.step && e.step !== step && (
-              <Button size="sm" onClick={() => onOpen(e.step!)} title="Open that step to fix it">
-                Back to {stepLabels[e.step]}
+        <Note
+          key={e.step ?? 'progress'}
+          tone="danger"
+          action={
+            <>
+              {e.step && e.step !== step && (
+                <Button size="sm" onClick={() => onOpen(e.step!)} title="Open that step to fix it">
+                  Back to {stepLabels[e.step]}
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" onClick={() => onDismiss(e)}>
+                Dismiss
               </Button>
-            )}
-            <Button size="sm" variant="ghost" onClick={() => onDismiss(e)}>
-              Dismiss
-            </Button>
-          </span>
-        </div>
+            </>
+          }
+        >
+          {e.text}
+        </Note>
       ))}
     </div>
   )
@@ -352,11 +357,7 @@ function Done({
             )}
           </p>
         )}
-        {sampleError && (
-          <p className="ob-error" role="alert">
-            {sampleError}
-          </p>
-        )}
+        {sampleError && <Note tone="danger">{sampleError}</Note>}
         <StarLine />
       </div>
       <Foot onBack={onBack} onContinue={onDone} canContinue label="Open my calls" />

@@ -3,7 +3,7 @@ import { createWorkspace } from './auth.ts'
 import { type CreatingPhase, CreatingStatus } from './CreatingStatus.tsx'
 import { signOutAndForget } from './localData.ts'
 import { leftOnPurpose } from './session.ts'
-import { AuthPage, Spinner } from './ui/kit.tsx'
+import { AuthPage, Note, Spinner } from './ui/kit.tsx'
 
 /** How long "Opening…" may last before the page says to reload. */
 const OPENING_MS = 15_000
@@ -91,11 +91,7 @@ export function CreateWorkspace({
             disabled={busy}
           />
         </label>
-        {error && (
-          <div className="auth-error" role="alert">
-            {error}
-          </div>
-        )}
+        {error && <Note tone="danger">{error}</Note>}
         <button
           type="submit"
           className={busy ? 'k-btn k-btn-primary is-busy' : 'k-btn k-btn-primary'}

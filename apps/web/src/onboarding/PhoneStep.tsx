@@ -8,7 +8,7 @@ import { Field, TextInput } from '../settings/fields.tsx'
 import { useWorkspaceSettings, useWriteAction } from '../settings/settings-api.ts'
 import { useAssistant, useAssistantName, useRows, useRun } from '../store.tsx'
 import { RadioCard } from '../ui/controls.tsx'
-import { Button, Icon } from '../ui/kit.tsx'
+import { Button, Icon, Note } from '../ui/kit.tsx'
 import { ForwardingCheck } from './ForwardingCheck.tsx'
 import { CarrierPicker, ForwardingSteps, useForwardingGuide } from './ForwardingGuide.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
@@ -46,7 +46,6 @@ type Props = {
 
 /** A number is never skipped, only connected later: it stays in the go-live checklist. */
 const LATER = { laterLabel: 'Connect later', laterTitle: 'It stays in your go-live checklist' }
-
 
 export function PhoneStep(p: Props) {
   const number = useRows('phone_numbers')[0]
@@ -251,11 +250,7 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
             )}
           </>
         )}
-        {error && (
-          <p className="ob-error" role="alert">
-            {error}
-          </p>
-        )}
+        {error && <Note tone="danger">{error}</Note>}
       </div>
       <Foot
         onBack={onBack}
@@ -338,11 +333,7 @@ function Connected({
                   : 'Forward the calls I miss on my current number too'}
               </Button>
             </div>
-            {forwardProblem && (
-              <p className="ob-error" role="alert">
-                {forwardProblem}
-              </p>
-            )}
+            {forwardProblem && <Note tone="danger">{forwardProblem}</Note>}
           </>
         )}
         {forwards && (

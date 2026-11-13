@@ -1,6 +1,6 @@
-// A failed sign-in, said in a panel: what happened in bold, what to do next below it. Messages come
+// A failed sign-in, said in a danger note: what happened in bold, what to do next below it. Messages come
 // from sign-in-code.ts and read "What happened. What to do."; the first sentence is the heading.
-import { Icon } from './kit.tsx'
+import { Note } from './kit.tsx'
 
 /** Splits "That code is not right. Check the email and try again." into heading and next step. */
 export function splitAuthError(message: string): { title: string; next: string | null } {
@@ -14,17 +14,14 @@ type Props = { message: string; id?: string; link?: { href: string; label: strin
 export function AuthError({ message, id, link }: Props) {
   const { title, next } = splitAuthError(message)
   return (
-    <div className="auth-alert" role="alert" id={id}>
-      <Icon name="alert" size={18} className="auth-alert-icon" />
-      <div>
-        <strong className="auth-alert-title">{title}</strong>
-        {next && <span className="auth-alert-next">{next}</span>}
-        {link && (
-          <a className="auth-alert-link" href={link.href}>
-            {link.label}
-          </a>
-        )}
-      </div>
-    </div>
+    <Note tone="danger" title={title} id={id}>
+      {next}
+      {link && (
+        <>
+          {next && ' '}
+          <a href={link.href}>{link.label}</a>
+        </>
+      )}
+    </Note>
   )
 }

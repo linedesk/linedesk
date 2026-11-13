@@ -18,7 +18,7 @@ import { loadAgentSetup, runAdmin, watchAdminSignIn } from '../admin/api.ts'
 import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
 import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
-import { BrandMark, Button, cx, Icon, Spinner } from '../ui/kit.tsx'
+import { BrandMark, Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
 import { CopyButton } from './Frame.tsx'
 import './agent-setup.css'
 
@@ -208,11 +208,11 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
             </p>
           )}
           {cloudBlocked && (
-            <p className="as-note" role="note">
+            <Note tone="warning" title={`${agentClientLabels[client]} can’t reach this server`}>
               {agentClientLabels[client]} runs in the cloud and can only reach a public https address. This server is at{' '}
               {state?.mcpUrl.replace(/\/mcp\/setup$/, '')}: use Claude Code, Codex or Cursor on this computer, or open{' '}
               {brandName()} on its public address.
-            </p>
+            </Note>
           )}
 
           <ol className="as-steps">
@@ -251,11 +251,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
               )}
             </li>
           </ol>
-          {error && (
-            <p className="ob-error" role="alert">
-              {error}
-            </p>
-          )}
+          {error && <Note tone="danger">{error}</Note>}
         </section>
 
         <Progress state={state} loadError={loadError} connected={connected} onDone={onDone} />
@@ -296,7 +292,7 @@ function Progress({
   connected: boolean
   onDone: () => void
 }) {
-  if (!state) return loadError ? <p className="ob-error">{loadError}</p> : null
+  if (!state) return loadError ? <Note tone="danger">{loadError}</Note> : null
   const { steps, allDone } = state.progress
   const done = steps.filter(s => s.state === 'done').length
   return (
@@ -395,20 +391,20 @@ function StartAgent({ client, url }: { client: AgentClient; url: string }) {
 export function HostingNote({ address }: { address: string }) {
   const place = installPlace(address)
   if (place === 'public') return null
+  const local = place === 'this_computer'
   return (
-    <p className="as-note" role="note">
-      {place === 'this_computer'
-        ? `This copy of ${brandName()} runs on this computer. You can set it up and try it here, but real phone calls need a server with a public address.`
-        : 'This server has no https address: browsers block the microphone for test calls, and Claude or ChatGPT on the web cannot connect.'}{' '}
+    <Note tone="warning" title={local ? 'Real phone calls can’t reach this copy' : 'This server has no https address'}>
+      {local
+        ? `${brandName()} is running on this computer. You can set it up and try it here, but callers can only reach it on a server with a public address.`
+        : 'Browsers block the microphone for test calls, and Claude or ChatGPT on the web cannot connect.'}{' '}
       <a
-        className="k-link"
-        href={place === 'this_computer' ? HOSTING_GUIDE_URL : `${HOSTING_GUIDE_URL}#your-own-domain`}
+        href={local ? HOSTING_GUIDE_URL : `${HOSTING_GUIDE_URL}#your-own-domain`}
         target="_blank"
         rel="noreferrer"
         title="How to put it on a server: providers, one-command install, ports"
       >
-        {place === 'this_computer' ? 'Put it on a server' : 'Add an https address'}
+        {local ? 'Put it on a server' : 'Add an https address'}
       </a>
-    </p>
+    </Note>
   )
 }

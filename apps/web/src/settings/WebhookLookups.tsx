@@ -15,7 +15,7 @@ import { type FormEvent, useState } from 'react'
 import { useRun } from '../store.tsx'
 import { Checkbox, Select } from '../ui/controls.tsx'
 import { Dialog, Input, Textarea } from '../ui/form.tsx'
-import { Button } from '../ui/kit.tsx'
+import { Button, Note } from '../ui/kit.tsx'
 import { DeleteButton, EditButton, List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { Field } from './fields.tsx'
 import { callAction } from './settings-api.ts'
@@ -88,7 +88,8 @@ export function WebhookLookups({ endpoint, toast }: Props) {
               sub={lookup.when}
               actions={
                 <>
-                  <Button busy={testing === lookup.name}
+                  <Button
+                    busy={testing === lookup.name}
                     size="sm"
                     variant="ghost"
                     disabled={testing !== null}
@@ -241,11 +242,7 @@ function LookupDialog({
           </Button>
         </div>
       </Field>
-      {error && (
-        <p className="help wh-reason" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <Note tone="danger">{error}</Note>}
     </Dialog>
   )
 }

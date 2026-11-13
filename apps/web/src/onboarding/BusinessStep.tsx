@@ -17,7 +17,7 @@ import { Field, TextArea, TextInput } from '../settings/fields.tsx'
 import { callAction, patchWorkspaceSettings } from '../settings/settings-api.ts'
 import { useAssistant, useRun } from '../store.tsx'
 import { Checkbox, Select } from '../ui/controls.tsx'
-import { Button } from '../ui/kit.tsx'
+import { Button, Note } from '../ui/kit.tsx'
 import { SkeletonRows } from '../ui/LoadStates.tsx'
 import {
   draftFrom,
@@ -248,11 +248,7 @@ function FindBusiness({
           </p>
         </>
       )}
-      {typeof error === 'string' && (
-        <p className="ob-error" role="alert">
-          {error}
-        </p>
-      )}
+      {typeof error === 'string' && <Note tone="danger">{error}</Note>}
       {error && typeof error !== 'string' && <ProblemNote problem={error} admin={admin} alert />}
     </FindForm>
   )
@@ -297,7 +293,7 @@ const isGoogle = (f: BusinessLookupFailure) => f.provider === 'business'
  */
 function ProblemNote({ problem, admin, alert }: { problem: ProviderProblem; admin: boolean; alert?: boolean }) {
   return (
-    <p className="ob2-note" role={alert ? 'alert' : undefined}>
+    <Note tone="warning" role={alert ? 'alert' : undefined}>
       {problem.text}{' '}
       {admin ? (
         <>
@@ -310,7 +306,7 @@ function ProblemNote({ problem, admin, alert }: { problem: ProviderProblem; admi
       ) : (
         'Ask whoever runs this server.'
       )}
-    </p>
+    </Note>
   )
 }
 

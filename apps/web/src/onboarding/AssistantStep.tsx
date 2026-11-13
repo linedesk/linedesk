@@ -10,7 +10,7 @@ import { TestCallButton, useTestCall } from '../settings/TestCall.tsx'
 import { TestCallPanel } from '../settings/TestCallPanel.tsx'
 import { VoiceSettings } from '../settings/VoiceSettings.tsx'
 import { useAssistant, useRun } from '../store.tsx'
-import { Button } from '../ui/kit.tsx'
+import { Button, Note } from '../ui/kit.tsx'
 import { SkeletonRows } from '../ui/LoadStates.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
 import { assistantChanges, type AssistantDraft, renameInGreeting } from './flow.ts'
@@ -131,11 +131,7 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
         </div>
         {/* No Open in inbox here: the inbox would end onboarding before the number is connected. */}
         <TestCallPanel session={session} onOpenCall={null} onStart={() => void talk()} />
-        {message && (
-          <p className="ob-error" role="alert">
-            {message}
-          </p>
-        )}
+        {message && <Note tone="danger">{message}</Note>}
       </div>
       <Foot onBack={back} onContinue={next} canContinue={!problem} />
     </>

@@ -64,18 +64,11 @@
   text-transform: uppercase;
   opacity: 0.7;
 }
-.as-why,
-.as-note {
+.as-why {
   margin: 0;
   font-size: 12.5px;
   line-height: 18px;
   color: var(--ink-muted);
-}
-.as-note {
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-hover);
-  color: var(--ink);
 }
 .as-steps {
   margin: 0;

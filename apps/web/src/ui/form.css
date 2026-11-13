@@ -342,27 +342,6 @@
   margin-right: auto;
 }
 
-/* Status note inside a form: a result, not an error */
-.k-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 0;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-hover);
-  font-size: 12.5px;
-  line-height: 18px;
-  color: var(--ink);
-}
-.k-note .k-icon {
-  margin-top: 1px;
-}
-.k-note-danger {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
 @media (max-width: 560px) {
   .k-card {
     padding: 12px 14px;

@@ -7,7 +7,7 @@ import { carrierFields } from '@linedesk/actions'
 import { type FormEvent, useState } from 'react'
 import { RadioCard } from '../ui/controls.tsx'
 import { Dialog, SecretInput } from '../ui/form.tsx'
-import { Button } from '../ui/kit.tsx'
+import { Button, Note } from '../ui/kit.tsx'
 import { Skeleton } from '../ui/LoadStates.tsx'
 import {
   type CarrierDraft,
@@ -143,7 +143,8 @@ function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             {changed ? 'Cancel' : 'Close'}
           </Button>
-          <Button busy={busy}
+          <Button
+            busy={busy}
             variant={confirming ? 'danger' : 'primary'}
             type="submit"
             form="carrier-form"
@@ -169,8 +170,8 @@ function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose
         </div>
         {confirming && (
           <p className="k-field-msg" role="alert">
-            Back to the default carrier: the {ownName} keys are deleted from {brandName()}, and numbers come from the carrier
-            this server is set up with.
+            Back to the default carrier: the {ownName} keys are deleted from {brandName()}, and numbers come from the
+            carrier this server is set up with.
           </p>
         )}
         {!status.canStore && own && (
@@ -230,11 +231,7 @@ function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose
               </Field>
             )
           })}
-        {result && (
-          <p className={result.ok ? 'help pn-carrier-ok' : 'help pn-carrier-error'} role="status">
-            {result.message}
-          </p>
-        )}
+        {result && <Note tone={result.ok ? 'success' : 'danger'}>{result.message}</Note>}
       </form>
     </Dialog>
   )

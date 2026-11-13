@@ -30,7 +30,7 @@ import { usePresence } from '../shell/presence.ts'
 import { useAssistantName, useAssistants, useClaimedRejection, useRows, useRun } from '../store.tsx'
 import { RadioCard, Select, type SelectOption } from '../ui/controls.tsx'
 import { Dialog } from '../ui/form.tsx'
-import { Button, cx } from '../ui/kit.tsx'
+import { Button, cx, Note } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { sectionHash, sectionParts } from '../ui/SettingsLayout.tsx'
@@ -412,11 +412,7 @@ function ReleaseNumber({ number, onCancel }: { number: PhoneNumber; onCancel: ()
           placeholder={formatted}
         />
       </Field>
-      {problem && (
-        <p className="auth-error" role="alert">
-          {problem}
-        </p>
-      )}
+      {problem && <Note tone="danger">{problem}</Note>}
       <div className="st-connect-foot">
         <Button size="sm" variant="ghost" onClick={onCancel} disabled={sent}>
           Cancel
@@ -632,11 +628,7 @@ function ConnectNumber({
           )}
         </>
       )}
-      {problem && (
-        <p className="auth-error" role="alert">
-          {problem}
-        </p>
-      )}
+      {problem && <Note tone="danger">{problem}</Note>}
       {!confirming && (
         <div className="st-connect-foot">
           {onCancel && (

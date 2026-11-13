@@ -17,7 +17,7 @@ import {
 } from '@linedesk/actions'
 import { useEffect, useRef, useState } from 'react'
 import { HelpTip } from '../ui/form.tsx'
-import { Button, cx } from '../ui/kit.tsx'
+import { Button, cx, Note } from '../ui/kit.tsx'
 import { type ActiveProviders, keyUsersOf, type ProviderStatus, runAdmin, testProvider } from './api.ts'
 import { FailingProviders, failingSince } from './FailingProviders.tsx'
 import { connectionOf, isConfigured, providerState, type TestState } from './model.ts'
@@ -196,7 +196,7 @@ function PipelinesNote({ active, failing }: { active: ActiveProviders; failing: 
   const state = (pipeline: VoicePipeline) =>
     setUp[pipeline] ? 'set up' : pipeline === 'realtime' && active.realtime?.provider ? 'failing' : 'not set up'
   return (
-    <p className="adm-notice" role="note">
+    <Note tone={setUp.realtime || setUp.three_stage ? 'info' : 'warning'}>
       Answering calls: {VOICE_PIPELINE_LABELS.realtime} {state('realtime')};{' '}
       {VOICE_PIPELINE_LABELS.three_stage.toLowerCase()}{' '}
       {setUp.three_stage ? 'set up' : missing.length < 3 ? stages : 'not set up'}.{' '}
@@ -206,7 +206,7 @@ function PipelinesNote({ active, failing }: { active: ActiveProviders; failing: 
           ? `Every assistant uses the ${(setUp.realtime ? VOICE_PIPELINE_LABELS.realtime : VOICE_PIPELINE_LABELS.three_stage).toLowerCase()}.`
           : 'Calls are not answered until one is set up.'}{' '}
       <HelpTip text="Realtime model: one model listens and speaks (fast, in its own voice). Three stages: speech to text, a language model and a voice of your choice. Both put calls through to a person. With both set up, each assistant chooses." />
-    </p>
+    </Note>
   )
 }
 
@@ -262,10 +262,10 @@ export function Providers({ providers, active, canStore, failures, notify, reloa
   return (
     <>
       {!canStore && (
-        <p className="adm-notice" role="note">
+        <Note tone="warning">
           No encryption key on the server, so keys can't be saved.{' '}
           <HelpTip text="Whoever runs the server sets SECRETS_KEY (make one with openssl rand -base64 32) and restarts the API. Keys are then saved encrypted." />
-        </p>
+        </Note>
       )}
       <FailingProviders failures={stillFailing} />
       <PipelinesNote active={active} failing={failing} />

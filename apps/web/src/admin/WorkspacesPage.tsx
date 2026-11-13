@@ -1,7 +1,7 @@
 // Workspaces: a searchable list; a click opens the workspace with its facts and actions.
 import { type FormEvent, useEffect, useState } from 'react'
 import { Card, FormField, Input } from '../ui/form.tsx'
-import { Badge, Button } from '../ui/kit.tsx'
+import { Badge, Button, Note } from '../ui/kit.tsx'
 import { ActionBar, RowActions, useActionRunner, workspaceActions } from './actions.tsx'
 import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
 import { type AdminUser, type AdminWorkspace, runAdmin } from './api.ts'
@@ -116,7 +116,15 @@ export function WorkspaceDetail({ workspace: w, users, notify, reload, onDeleted
 }
 
 /** The workspace's monthly spending cap: empty is no cap. Instance admins only (the whole admin area is). */
-function SpendingCapCard({ workspace: w, notify, reload }: { workspace: AdminWorkspace; notify: Notify; reload: () => Promise<void> }) {
+function SpendingCapCard({
+  workspace: w,
+  notify,
+  reload,
+}: {
+  workspace: AdminWorkspace
+  notify: Notify
+  reload: () => Promise<void>
+}) {
   const saved = w.spending_cap_usd === null ? '' : String(w.spending_cap_usd)
   const [text, setText] = useState(saved)
   const [problem, setProblem] = useState<string | null>(null)
@@ -132,7 +140,11 @@ function SpendingCapCard({ workspace: w, notify, reload }: { workspace: AdminWor
     try {
       await runAdmin('workspace.setSpendingCap', { workspaceId: w.id, capUsd: parsed.capUsd })
       await reload()
-      notify(parsed.capUsd === null ? `${w.name} has no spending cap.` : `${w.name}'s monthly spending cap is ${formatUsd(parsed.capUsd)}.`)
+      notify(
+        parsed.capUsd === null
+          ? `${w.name} has no spending cap.`
+          : `${w.name}'s monthly spending cap is ${formatUsd(parsed.capUsd)}.`,
+      )
     } catch (err) {
       setProblem(errorText(err))
     } finally {
@@ -147,13 +159,24 @@ function SpendingCapCard({ workspace: w, notify, reload }: { workspace: AdminWor
     >
       <form onSubmit={save} className="adm-cap-form">
         <FormField id="adm-spending-cap" label="Cap in USD" aside="Empty: no cap" error={problem}>
-          <Input id="adm-spending-cap" inputMode="decimal" placeholder="No cap" value={text} invalid={!!problem} onChange={e => setText(e.target.value)} />
+          <Input
+            id="adm-spending-cap"
+            inputMode="decimal"
+            placeholder="No cap"
+            value={text}
+            invalid={!!problem}
+            onChange={e => setText(e.target.value)}
+          />
         </FormField>
         <Button type="submit" variant="primary" disabled={saving || text.trim() === saved}>
           Save
         </Button>
       </form>
-      {reached && <p className="adm-cap-note">Reached this month: the assistant is not answering this workspace's calls.</p>}
+      {reached && (
+        <Note tone="danger" className="adm-cap-note">
+          Reached this month: the assistant is not answering this workspace's calls.
+        </Note>
+      )}
     </Card>
   )
 }

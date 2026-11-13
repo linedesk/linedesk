@@ -78,11 +78,6 @@
   font-family: var(--font-mono);
   font-size: 12px;
 }
-.adm-error {
-  flex-basis: 100%;
-  font-size: 12.5px;
-  color: var(--danger);
-}
 .adm-notice {
   margin: 0;
   padding: 10px 12px;
@@ -365,9 +360,7 @@
   flex: 1;
 }
 .adm-cap-note {
-  margin: 10px 0 0;
-  font-size: 13.5px;
-  color: var(--danger);
+  margin-top: 10px;
 }
 /* Actions: a row of buttons under a detail's title; quick icon buttons at the end of a list row
    (on hover, focus or the cursor), a ⋯ menu instead on touch screens. */

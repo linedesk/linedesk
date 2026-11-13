@@ -41,7 +41,7 @@ import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { peekQuery, setQueryData } from '../cachedQuery.ts'
 import { Input } from '../ui/form.tsx'
-import { BrandMark, Button, cx, Icon, Spinner } from '../ui/kit.tsx'
+import { BrandMark, Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
 import { problemText } from '../ui/LoadStates.tsx'
 import { HostingNote, openAgentSetup } from './AgentSetup.tsx'
 import '../admin/admin.css'
@@ -192,9 +192,7 @@ export function InstallSetup({ onExit }: Props) {
       <div className="ob-main as-main">
         {!setup || !step || !checklist ? (
           loadError ? (
-            <p className="ob-error" role="alert">
-              {loadError}
-            </p>
+            <Note tone="danger">{loadError}</Note>
           ) : (
             <p className="as-small">
               <Spinner /> Loading the setup…
@@ -331,7 +329,7 @@ function Welcome({ checklist, onStart }: { checklist: SetupChecklist; onStart: (
       </div>
       <HostingNote address={window.location.origin} />
       <PartList checklist={checklist} ids={partSteps.map(s => installStepItems[s]!)} />
-      <p className="as-note is-agent-note">
+      <Note tone="info">
         An AI agent can do this in about 15 minutes and check the server for you.{' '}
         <button
           type="button"
@@ -341,7 +339,7 @@ function Welcome({ checklist, onStart }: { checklist: SetupChecklist; onStart: (
         >
           Set up with an AI agent instead
         </button>
-      </p>
+      </Note>
       <Foot onNext={onStart} nextLabel="Start" />
     </>
   )
@@ -462,7 +460,7 @@ function PartStep({
       </section>
 
       {waiting && (
-        <p className="as-note" role="status">
+        <Note role="status">
           {setup.restart.automatic ? (
             <>
               <Spinner /> {restarting ? 'Restarting the server' : 'Waiting for the server to restart'} so it uses the
@@ -474,7 +472,7 @@ function PartStep({
               this page continues on its own once the API is running with the new settings.
             </>
           )}
-        </p>
+        </Note>
       )}
 
       {oneKeyOffer && (

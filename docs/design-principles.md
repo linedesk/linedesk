@@ -19,7 +19,7 @@ Linedesk should feel like a calm, native tool, not a dashboard. These rules come
 
 ## Rules in this codebase
 
-1. **Black is the primary colour** (primary buttons, selection bar, focus). **Green** only for live and unread, **red** only for urgent, missed and destructive. Everything else is greyscale.
+1. **Black is the primary colour** (primary buttons, selection bar, focus). **Green** only for live and unread, **red** only for urgent, missed, failed and destructive, **amber** only for warnings (see Messages below). Everything else is greyscale.
 2. **No decorative colour.** No avatars in lists, statuses are plain text or quiet badges, tags are grey.
 3. **Shadows for raised objects, nothing for the rest.** The list, header and side panel are flat; real objects (player, summary, booking card, setting groups) are white cards lifted by a soft shadow; no borders where a shadow is used.
 4. **Shortcuts are discoverable, not loud.** Hovering any control shows a dark tooltip with the action and its key after ~550 ms (neighbours appear instantly). Icon-only buttons explain themselves in the tooltip. Shortcuts also live in ⌘K and the `?` sheet; menu shortcuts appear on hover only.
@@ -32,3 +32,24 @@ Linedesk should feel like a calm, native tool, not a dashboard. These rules come
 11. **Motion under 200 ms.** Rows fade and collapse on done, ease back in on undo; respect reduced motion.
 12. **Copy is short and human.** "Nothing needs you. Maya has it." beats "No items found". Use the terms Assistant (not Receptionist) and Remind (not Snooze).
 13. **Show the result of an action immediately; never require a reload.** What the user just did (connected a calendar, created a key, cloned a voice, set up a number) is on screen in the next frame, also after a redirect away and back. While it cannot be known yet, show a placeholder for under a second, never the state from before. How: CLAUDE.md, core rule 3.
+
+## Messages: one look per kind
+
+Every message in the app is one of these four. Don't add a new style; pick the kind, then the tone.
+
+| Kind | Use it for | How |
+| --- | --- | --- |
+| **Toast** | The result of what the user just did ("Key copied.", "Vacation mode is on.", an action that failed). Disappears on its own, with Undo where the action can be undone. | `toast(text)` / `toast(text, true)`; the one dark pill at the bottom (`.toast`). Never for a state that stays. |
+| **Note** | A state of the page that stays until something changes: a hint, a warning, an error loading or saving. | `<Note tone=… title=… action=…>` from `ui/kit.tsx`. |
+| **Field error** | One field that can't be saved as it is. | `error` on `FormField`, or `FormMessage`: one red line right under the field. |
+| **Badge** | The status of one item in a list ("Failing", "Off"). | `<Badge tone=…>`. |
+
+Note tones, from quiet to loud:
+
+- **neutral**: grey, no icon. A plain hint or a status while something waits ("Waiting for the server to restart").
+- **info**: blue-grey with the info icon. Context worth knowing that needs nothing from the user.
+- **success**: grey with a check. The result of a test or a check on the page ("Connected").
+- **warning**: amber with the triangle and an amber edge. It works, but something important is missing or won't work as expected ("Real phone calls can't reach this copy"). Give it a title that says the consequence, then the reason, then the fix as a link or button.
+- **danger**: red with the alert circle and a red edge, announced at once. Something failed or is blocked.
+
+Rules: red and amber appear only in these tones (and badges), never as plain coloured text. Muted grey helper text (`.help`) is for explaining a control, not for problems. The title is one short sentence; the body says why and what to do; a fix is a link or button inside the note, never a second note.

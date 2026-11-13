@@ -5,7 +5,7 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { auth } from './auth.ts'
 import { authErrorMessage, CODE_LENGTH, normalizeCode, RESEND_AFTER_S } from './sign-in-code.ts'
-import { Button } from './ui/kit.tsx'
+import { Button, Note } from './ui/kit.tsx'
 
 type Result = { error: { code?: string; message?: string; status?: number } | null }
 const check = (res: Result) => {
@@ -13,7 +13,15 @@ const check = (res: Result) => {
 }
 
 /** `email`: the session's address when the caller knows it; otherwise it is read from the session. */
-export function ConfirmEmail({ email: known, why, onDone }: { email?: string; why: string; onDone: () => void | Promise<void> }) {
+export function ConfirmEmail({
+  email: known,
+  why,
+  onDone,
+}: {
+  email?: string
+  why: string
+  onDone: () => void | Promise<void>
+}) {
   const [email, setEmail] = useState(known ?? '')
   const [code, setCode] = useState('')
   const [sent, setSent] = useState(false)
@@ -73,22 +81,37 @@ export function ConfirmEmail({ email: known, why, onDone }: { email?: string; wh
       {sent ? (
         <div className="confirm-email-row">
           <span className="k-input">
-            <input aria-label="Confirmation code" value={code} onChange={e => setCode(normalizeCode(e.target.value))} disabled={busy}
-              inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={CODE_LENGTH + 6} autoFocus
+            <input
+              aria-label="Confirmation code"
+              value={code}
+              onChange={e => setCode(normalizeCode(e.target.value))}
+              disabled={busy}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]*"
+              maxLength={CODE_LENGTH + 6}
+              autoFocus
               // Enter confirms the code; the page's own Enter (onboarding: next step) must not run too.
-              onKeyDown={e => { if (e.key === 'Enter') e.stopPropagation() }} />
+              onKeyDown={e => {
+                if (e.key === 'Enter') e.stopPropagation()
+              }}
+            />
           </span>
-          <Button type="submit" variant="primary" size="sm" disabled={busy || code.length !== CODE_LENGTH}>Confirm</Button>
+          <Button type="submit" variant="primary" size="sm" disabled={busy || code.length !== CODE_LENGTH}>
+            Confirm
+          </Button>
           <Button size="sm" variant="ghost" disabled={busy || waitS > 0} onClick={() => void sendCode()}>
             {waitS > 0 ? `New code in ${waitS} s` : 'Send a new code'}
           </Button>
         </div>
       ) : (
         <div className="confirm-email-row">
-          <Button variant="primary" size="sm" disabled={busy || !email} onClick={() => void sendCode()}>Email me a code</Button>
+          <Button variant="primary" size="sm" disabled={busy || !email} onClick={() => void sendCode()}>
+            Email me a code
+          </Button>
         </div>
       )}
-      {error && <div className="confirm-email-error" role="alert">{error}</div>}
+      {error && <Note tone="danger">{error}</Note>}
     </form>
   )
 }

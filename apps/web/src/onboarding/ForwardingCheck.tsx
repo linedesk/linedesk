@@ -9,7 +9,7 @@ import { Field } from '../settings/fields.tsx'
 import { rejectionText } from '../shell/rejections.ts'
 import { useAssistantName, useRun } from '../store.tsx'
 import { Input } from '../ui/form.tsx'
-import { Button, cx, Icon } from '../ui/kit.tsx'
+import { Button, cx, Icon, Note } from '../ui/kit.tsx'
 import {
   checkResultText,
   type GuidePickedBy,
@@ -248,13 +248,9 @@ export function ForwardingCheck({
           </Button>
         </div>
       )}
-      {problem && (
-        <p className="ob-error" role="alert">
-          {problem}
-        </p>
-      )}
+      {problem && <Note tone="danger">{problem}</Note>}
       {lost && (
-        <p className="ob-error fc-lost" role="alert">
+        <Note tone="danger" className="fc-lost">
           {dialing ? 'The check’s result could not be read.' : 'The last check could not be loaded.'} Check your
           connection.{' '}
           <button
@@ -267,7 +263,7 @@ export function ForwardingCheck({
           >
             Check again
           </button>
-        </p>
+        </Note>
       )}
       {result && (
         <div className={cx('fc-result', result.ok && 'ok')} role="status" aria-live="polite">

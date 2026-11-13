@@ -10,7 +10,7 @@ import { useWriteAction } from '../settings/settings-api.ts'
 import { useRows } from '../store.tsx'
 import { Select } from '../ui/controls.tsx'
 import { Dialog } from '../ui/form.tsx'
-import { Button } from '../ui/kit.tsx'
+import { Button, Note } from '../ui/kit.tsx'
 import {
   type ColumnMap,
   type CsvTable,
@@ -155,7 +155,12 @@ export function ImportContacts({ onClose, toast }: Props) {
         <>
           <Button onClick={onClose}>Cancel</Button>
           {file ? (
-            <Button busy={busy} variant="primary" disabled={busy || !hasPhone || !plan?.rows.length} onClick={() => void run()}>
+            <Button
+              busy={busy}
+              variant="primary"
+              disabled={busy || !hasPhone || !plan?.rows.length}
+              onClick={() => void run()}
+            >
               {busy ? 'Importing…' : `Import ${plan ? plan.rows.length : ''}`}
             </Button>
           ) : (
@@ -177,11 +182,7 @@ export function ImportContacts({ onClose, toast }: Props) {
           void read(picked).catch(err => setError((err as Error).message))
         }}
       />
-      {error && (
-        <p className="auth-error" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <Note tone="danger">{error}</Note>}
       {file && (
         <>
           <div className="imp-cols">

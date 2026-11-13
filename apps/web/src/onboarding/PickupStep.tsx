@@ -10,6 +10,7 @@ import { patchWorkspaceSettings, useWorkspaceSettings, useWriteAction } from '..
 import { browserTimeZone } from '../settings/timeZones.ts'
 import { useAssistantName, useRows, useRun } from '../store.tsx'
 import { RadioCard } from '../ui/controls.tsx'
+import { Note } from '../ui/kit.tsx'
 import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
 import {
@@ -135,11 +136,7 @@ function PickupForm({ saved, onBack, onNext, memory, onMemory }: StepProps & { s
             <HoursGrid days={days} set={set} canEdit />
           </>
         )}
-        {problem && (
-          <p className="ob-error" role="alert">
-            {problem}
-          </p>
-        )}
+        {problem && <Note tone="danger">{problem}</Note>}
       </div>
       <Foot onBack={onBack} onContinue={next} canContinue={!problem} />
     </>

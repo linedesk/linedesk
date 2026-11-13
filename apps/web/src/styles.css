@@ -73,6 +73,23 @@ body { margin: 0; font-family: var(--font-sans); background: var(--bg); color: v
 .k-badge-signal { background: var(--signal-soft); color: var(--signal); }
 .k-badge-info { background: var(--info-soft); color: var(--info); }
 .k-badge-warning { background: var(--warning-soft); color: var(--warning); }
+
+/* Note: the one box for a message on a page (docs/design-principles.md, Messages). Tones: neutral (grey, a plain
+   hint), info (blue-grey), success (a result, check icon), warning (amber: works, but something important is
+   missing), danger (red: failed or blocked). Warning and danger carry an accent edge and their icon. */
+.k-note { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 10px 12px; border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--surface-hover); color: var(--ink); font-size: 13px; line-height: 18px; text-align: left; overflow-wrap: anywhere; }
+.k-note-icon { flex: none; margin-top: 1px; }
+.k-note-body { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.k-note-title { font-weight: 600; }
+.k-note-text a:not(.k-btn), .k-note-text .k-link { color: inherit; font-weight: 500; text-decoration: underline; text-underline-offset: 2px; }
+.k-note-action { flex: none; align-self: center; display: flex; gap: var(--space-2); }
+.k-note-info { background: var(--info-soft); }
+.k-note-info .k-note-icon { color: var(--info); }
+.k-note-success .k-note-icon { color: var(--ink); }
+.k-note-warning { background: var(--warning-soft); border-color: color-mix(in srgb, var(--warning) 30%, transparent); border-left: 3px solid var(--warning); }
+.k-note-warning .k-note-icon { color: var(--warning); }
+.k-note-danger { background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 25%, transparent); border-left: 3px solid var(--danger); }
+.k-note-danger .k-note-icon { color: var(--danger); }
 .k-badge-danger { background: var(--danger-soft); color: var(--danger); }
 .k-badge-ok { background: var(--surface-hover); color: var(--ink); }
 .k-badge-outline { background: transparent; color: var(--ink-muted); box-shadow: inset 0 0 0 1px var(--line-soft); }
@@ -456,8 +473,13 @@ span.mono { font-family: var(--font-mono); font-size: 12px; color: var(--ink-mut
 .help-group h3 { font-size: 12px; font-weight: 500; color: var(--ink-muted); margin: 0 0 4px; }
 .help-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 30px; font-size: 13px; border-bottom: 1px solid var(--line); }
 .help-empty { padding: 24px 0; font-size: 13px; color: var(--ink-muted); }
-.toast { position: fixed; z-index: 60; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; align-items: center; gap: 12px; max-width: calc(100% - 32px); padding: 10px 14px; border-radius: var(--radius-md); background: var(--ink); color: var(--bg); font-size: 13px; line-height: 18px; box-shadow: var(--shadow-popover); }
-.toast-undo { display: inline-flex; align-items: center; gap: 6px; border: 0; padding: 0 0 0 12px; border-left: 1px solid currentColor; background: transparent; color: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+/* Toast: the one way to report the result of what the user just did (docs/design-principles.md, Messages). */
+.toast { position: fixed; z-index: 60; left: 50%; bottom: calc(44px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; align-items: center; gap: 10px; max-width: calc(100% - 32px); padding: 6px 12px; border-radius: var(--radius-sm); background: rgb(28 25 23 / 0.88); color: rgb(250 250 248 / 0.92); font-size: 12px; line-height: 16px; box-shadow: 0 4px 14px -4px rgb(28 25 23 / 0.25); backdrop-filter: blur(6px); }
+.toast.has-undo { padding: 6px 6px 6px 12px; }
+.toast-undo { display: inline-flex; align-items: center; gap: 5px; border: 0; padding: 3px 8px; border-radius: var(--radius-xs); background: rgb(255 255 255 / 0.12); color: #fff; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.toast-undo:hover { background: rgb(255 255 255 / 0.22); }
+.toast-undo:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+.toast-undo .k-kbd { height: 16px; min-width: 16px; font-size: 10px; background: transparent; border-color: rgb(255 255 255 / 0.35); color: inherit; }
 
 
 @media (max-width: 719px) {
@@ -688,7 +710,6 @@ body { font-size: 13px; }
 .k-btn-primary { background: var(--action); color: var(--on-action); }
 .k-btn-secondary { background: var(--surface); }
 .k-btn-ghost:hover { background: #efede8; }
-.toast { background: var(--ink); color: #fafaf8; }
 .k-cmd, .help-sheet { background: var(--surface); }
 .k-cmd-item[aria-selected="true"] { background: var(--highlight); color: var(--highlight-ink); }
 .overlay, .app.nav-open .scrim { background: rgba(28, 25, 23, 0.28); }
@@ -772,7 +793,6 @@ body { font-size: 13px; }
 .kt span { margin-right: 4px; }
 .kt kbd { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 3px; background: rgba(255, 255, 255, 0.16); color: inherit; font-family: var(--font-mono); font-size: 10px; box-sizing: border-box; }
 
-.toast-undo { font-weight: 400; }
 
 /* Variant: plain white page */
 :root { --bg: #ffffff; }
@@ -881,9 +901,8 @@ body { font-size: 13px; }
 .ob-prompt { border: 0; box-shadow: var(--ring-action), var(--shadow-1); }
 .ob-prompt.ok { box-shadow: none; }
 
-/* ---- Level 2: floating (palette, remind, search, help, toast, tooltips) ---- */
+/* ---- Level 2: floating (palette, remind, search, help, tooltips; the toast keeps its own rule) ---- */
 .k-cmd, .help-sheet { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-2); }
-.toast { background: var(--ink); color: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-2); }
 .kt { border-radius: var(--radius-xs); box-shadow: var(--shadow-2); font-size: 11px; }
 .overlay, .app.nav-open .scrim { background: var(--scrim); }
 
@@ -942,7 +961,7 @@ span.mono, .facts dd.mono, .ib-tab .n, .ib-mode .n, .nav-n, .cv-who .sub, .k-met
 .k-cmd-foot, .help-foot, .side-facts, .sc-top, .ob-newnum span { font-size: 12px; }
 /* 13: body / UI */
 .row, .facts, .field label, .swrow b, .opt b, .help-row, .ib-mode, .side-who b, .ob-point b, .ob-choice b,
-.ob-foot .k-btn, .empty, .toast, .me b, .cv .k-bubble, .ob-row, .ob-open-h { font-size: 13px; }
+.ob-foot .k-btn, .empty, .me b, .cv .k-bubble, .ob-row, .ob-open-h { font-size: 13px; }
 .sum-h > b, .tr-h b { font-size: 13px; font-weight: 600; }
 /* 14: titles */
 .pagebar b, .sec h2, .ws b, .help-head b, .empty b, .sum-text, .ob-top > b, .ob-open p { font-size: 14px; }
@@ -1443,7 +1462,6 @@ mark { background: rgb(250 204 21 / 0.38); color: inherit; border-radius: 2px; p
 .lvc-pill { margin-left: auto; font-size: 11.5px; padding: 2px 8px; border-radius: var(--radius-full); background: var(--surface-hover); color: var(--ink-muted); }
 .lvc-note { margin: 0; font-size: 12.5px; color: var(--ink-muted); }
 .lvc-acts { margin-left: auto; display: inline-flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-.lvc-problem { color: var(--danger); }
 .sum-todo { display: grid; gap: 6px; padding-top: 12px; border-top: 1px solid var(--line); }
 .k-typing { display: inline-flex; gap: 4px; align-items: center; padding: 10px 12px; }
 .k-typing i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .35; animation: k-typing 1.2s infinite; }
@@ -1570,13 +1588,6 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
   .ib-day { padding-left: 62px; }
 }
 
-/* Toasts: smaller, quieter; Undo reads as a button */
-.toast { gap: 10px; padding: 6px 6px 6px 12px; font-size: 12px; line-height: 16px; border-radius: var(--radius-sm); background: rgb(28 25 23 / 0.88); color: rgb(250 250 248 / 0.92); box-shadow: 0 4px 14px -4px rgb(28 25 23 / 0.25); backdrop-filter: blur(6px); }
-.toast-undo { border-left: 0; padding: 3px 8px; border-radius: var(--radius-xs); background: rgb(255 255 255 / 0.12); color: #fff; font-size: 12px; font-weight: 500; gap: 5px; cursor: pointer; }
-.toast-undo:hover { background: rgb(255 255 255 / 0.22); }
-.toast-undo:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
-.toast { bottom: calc(44px + env(safe-area-inset-bottom, 0px)); }
-.toast-undo .k-kbd { height: 16px; min-width: 16px; font-size: 10px; background: transparent; border-color: rgb(255 255 255 / 0.35); color: inherit; }
 
 /* A pick list opened from a button (the member picker on a row or in a call): a popover under it, the app not dimmed. */
 .overlay.is-anchored { background: transparent; padding: 0; }

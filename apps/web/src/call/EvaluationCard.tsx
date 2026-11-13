@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { readAction } from '../settings/settings-api.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
-import { Badge, Button } from '../ui/kit.tsx'
+import { Badge, Button, Note } from '../ui/kit.tsx'
 
 export const evaluationKey = (callId: string) => `evaluation:${callId}`
 export const REVIEW_KEY = 'evaluations:review'
@@ -68,7 +68,7 @@ export function EvaluationCard({ call }: { call: Call }) {
             Evaluate
           </Button>
         )}
-        {error && <span className="auth-error">{error}</span>}
+        {error && <Note tone="danger">{error}</Note>}
       </section>
     )
   }

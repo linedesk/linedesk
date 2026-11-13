@@ -1,6 +1,6 @@
 import type { Call, TranscriptSegment } from '@linedesk/db/types'
 import { useEffect } from 'react'
-import { Button } from '../ui/kit.tsx'
+import { Button, Note } from '../ui/kit.tsx'
 import { type LiveSession, liveSession, useLiveSession } from './liveSession.ts'
 
 /** L listens or stops listening, ⇧T takes the call over: the open live call registers them while shown. */
@@ -112,7 +112,8 @@ export function LiveCard({
                 {phase === 'listening' ? 'Stop listening' : 'Listen'}
               </Button>
               {!takenBy && (
-                <Button busy={phase === 'handingOff'}
+                <Button
+                  busy={phase === 'handingOff'}
                   size="sm"
                   variant="primary"
                   icon="phone-in"
@@ -130,11 +131,7 @@ export function LiveCard({
       </div>
       {phase === 'talking' && <p className="lvc-note">The caller hears you. This part of the call is not recorded.</p>}
       {phase !== 'talking' && lastEvent && <p className="lvc-note">{lastEvent.label}</p>}
-      {mine && session.problem && (
-        <p className="lvc-note lvc-problem" role="alert">
-          {session.problem}
-        </p>
-      )}
+      {mine && session.problem && <Note tone="danger">{session.problem}</Note>}
     </section>
   )
 }

@@ -24,9 +24,6 @@
 .is-part-state {
   white-space: nowrap;
 }
-.is-agent-note {
-  font-size: 12.5px;
-}
 .is-status {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

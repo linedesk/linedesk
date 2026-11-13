@@ -10,7 +10,7 @@ import { refreshTeam } from '../../team/team-api.ts'
 import { Skeleton } from '../../ui/LoadStates.tsx'
 import { dateTimeLabel } from '../../time.ts'
 import { onSaveKey, SaveBar } from '../../ui/form.tsx'
-import { Badge, Button } from '../../ui/kit.tsx'
+import { Badge, Button, Note } from '../../ui/kit.tsx'
 import { type PageSection, SettingsLayout, useSection } from '../../ui/SettingsLayout.tsx'
 import { Field, Section, TextInput } from '../fields.tsx'
 import {
@@ -112,9 +112,7 @@ function FormStatus({
     const { confirmPasskey } = request
     return (
       <div className="ac-inline">
-        <div className="ac-error" role="alert">
-          {request.error}
-        </div>
+        <Note tone="danger">{request.error}</Note>
         {confirmPasskey ? (
           <Button
             title="Sign in with one of your passkeys, then try again"
@@ -246,7 +244,8 @@ function PasswordForm({ account, reload }: SectionProps) {
       </div>
       <FormStatus request={request} />
       <div className="ac-actions">
-        <Button busy={request.busy}
+        <Button
+          busy={request.busy}
           type="submit"
           variant="primary"
           title={exists ? 'Change your password and sign out your other sessions' : 'Set a password for this account'}
@@ -308,11 +307,7 @@ function Passkeys() {
         label="Passkeys"
         tip="A passkey lets you sign in with your fingerprint, face or device PIN instead of a code or password."
       >
-        {!list && passkeys.error && (
-          <div className="ac-error" role="alert">
-            {passkeys.error}
-          </div>
-        )}
+        {!list && passkeys.error && <Note tone="danger">{passkeys.error}</Note>}
         {!list && !passkeys.error && <ListSkeleton label="Loading passkeys" rows={1} />}
         {list && list.length === 0 && <span className="help">No passkeys yet.</span>}
         {list && list.length > 0 && (
@@ -454,11 +449,7 @@ function Sessions() {
         </div>
       )}
       {!list && !query.error && <ListSkeleton label="Loading sessions" />}
-      {!list && query.error && (
-        <div className="ac-error" role="alert">
-          {query.error}
-        </div>
-      )}
+      {!list && query.error && <Note tone="danger">{query.error}</Note>}
       {sessions && (
         <ul className="ac-list">
           {(showAll ? sessions : sessions.slice(0, SESSIONS_SHOWN)).map(s => (
