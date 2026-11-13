@@ -21,7 +21,7 @@ import { earlyOrigin, livekitParticipants } from './early-origin.ts'
 import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, stagesOf, withRealtimeModel } from './config.ts'
 import { AGENT_NAME, requireLivekitEnv } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
-import { type CallLanguages, createPipeline, createRealtimePipeline, createTts, greetingVoice, type LineVoice, lineVoiceOf, realtimeLine, realtimeRepliesEvent, type RealtimeEvents, summaryLlm, transferSpeechOf, talkingSpeedOf, warmUpLlm, REALTIME_TURNS } from './pipeline.ts'
+import { type CallLanguages, createPipeline, createRealtimePipeline, createTts, greetingVoice, type LineVoice, lineVoiceOf, realtimeLine, spokeWithBackup, realtimeRepliesEvent, type RealtimeEvents, summaryLlm, transferSpeechOf, talkingSpeedOf, warmUpLlm, REALTIME_TURNS } from './pipeline.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
 import { cascadedReplyTimer, logTurnMetrics } from './turn-metrics.ts'
 import { describeRealtimeReply, realtimeTurnTimer } from './realtime-timing.ts'
@@ -248,8 +248,10 @@ async function greet(session: voice.AgentSession, config: AgentConfig, call: Cal
     return 'cached'
   }
   session.say(text)
-  void synthesize(createTts(config.tts, call.assistant?.voice, mainLanguageOf(call.assistant?.languages), talkingSpeedOf(call.assistant)), text)
-    .then(synthesized => greetingCache.put(key, synthesized))
+  const voiceOfGreeting = createTts(config.tts, call.assistant?.voice, mainLanguageOf(call.assistant?.languages), talkingSpeedOf(call.assistant))
+  // Made by the backup voice (the voice provider failed): not stored as the assistant's own greeting.
+  void synthesize(voiceOfGreeting, text)
+    .then(synthesized => (spokeWithBackup(voiceOfGreeting) ? undefined : greetingCache.put(key, synthesized)))
     .catch(e => console.warn(`could not store the greeting audio: ${e instanceof Error ? e.message : String(e)}`))
   return 'synthesized'
 }

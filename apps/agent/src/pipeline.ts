@@ -5,7 +5,7 @@
 // Or, when an admin picked one, a realtime model alone: it hears the caller and answers in its own voice.
 // The worker only sees LiveKit's interfaces and `CompleteJson`.
 import { type Language, mainLanguageOf, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S, TALKING_SPEED_PCT_DEFAULT, type TalkingSpeed, talkingSpeedPctOf } from '@linedesk/actions'
-import type { tts as ttsTypes, voice } from '@livekit/agents'
+import { tts as ttsTypes, type voice } from '@livekit/agents'
 import * as cartesia from '@livekit/agents-plugin-cartesia'
 import * as deepgram from '@livekit/agents-plugin-deepgram'
 import * as elevenlabs from '@livekit/agents-plugin-elevenlabs'
@@ -94,8 +94,23 @@ export const ttsModelOf = (tts: TtsConfig) => tts.model ?? (tts.provider === 'el
  * ElevenLabs' voice settings come as a whole, so a speed also sets stability and similarity, to ElevenLabs' defaults;
  * at the voice's own pace nothing is sent and the voice's own settings apply.
  */
-export function createTts(config: AgentConfig['tts'], assistantVoice?: AssistantVoice | null, language: Language = 'en', speedPct = TALKING_SPEED_PCT_DEFAULT) {
-  const { voiceId, ...tts } = ttsFor(config, assistantVoice)
+/**
+ * The voice of a call. With a backup (VoiceWithBackup: OpenAI's speech model when an OpenAI key is set up, else another
+ * voice provider with a key) it switches to that when the voice provider fails: a used-up quota (ElevenLabs then
+ * answers with no audio and no error), a refused key, an outage or a timeout.
+ */
+export function createTts(config: AgentConfig['tts'], assistantVoice?: AssistantVoice | null, language: Language = 'en', speedPct = TALKING_SPEED_PCT_DEFAULT): CallVoice {
+  const own = ttsFor(config, assistantVoice)
+  const primary = providerTts(own, language, speedPct)
+  const others = [config, ...(config.others ?? [])].filter(other => other.provider !== own.provider)
+  const backups = [
+    ...(config.openAiBackup ? [createRealtimeLineTts(config.openAiBackup, speedPct)] : []),
+    ...others.map(other => providerTts({ ...other, voiceId: providerDefaultVoices[other.provider] }, language, speedPct)),
+  ]
+  return backups.length ? new VoiceWithBackup(primary, backups) : primary
+}
+
+function providerTts({ voiceId, ...tts }: TtsConfig & { voiceId?: string }, language: Language, speedPct: number) {
   const spoken = language === 'en' ? {} : { language }
   const speed = speedPct !== TALKING_SPEED_PCT_DEFAULT ? speedPct / 100 : undefined
   if (tts.provider === 'cartesia')
@@ -103,6 +118,41 @@ export function createTts(config: AgentConfig['tts'], assistantVoice?: Assistant
   const paced = speed ? { voiceSettings: { stability: 0.5, similarity_boost: 0.75, speed } } : {}
   return new elevenlabs.TTS({ apiKey: tts.apiKey, model: tts.model ?? ELEVENLABS_DEFAULT_MODEL, ...(voiceId ? { voiceId } : {}), ...spoken, ...paced })
 }
+
+/** A voice whose language can be changed mid-call (followCallerLanguage): either provider, or one with a backup. */
+export type CallVoice = ttsTypes.TTS & { updateOptions(opts: { language?: string }): void }
+
+/**
+ * How long a voice provider that failed rests before it is tried again: longer than any call, so a call that switched to
+ * its backup stays with it to the end (a provider that answers again right away, as after a single timeout, comes back).
+ */
+export const VOICE_PROVIDER_REST_MS = 2 * 60 * 60_000
+
+/**
+ * The voice provider with backups (LiveKit's FallbackAdapter): the first request it cannot answer goes to the next one,
+ * and the rest of the call stays there. `fellBack`: something was said by a backup, so it is not stored as the voice's
+ * own audio (greeting and line cache).
+ */
+export class VoiceWithBackup extends ttsTypes.FallbackAdapter {
+  fellBack = false
+
+  constructor(primary: ttsTypes.TTS & { updateOptions(opts: { language?: string }): void }, backups: ttsTypes.TTS[], log: (line: string) => void = console.warn) {
+    super({ ttsInstances: [primary, ...backups], maxRetryPerTTS: 0, recoveryDelayMs: VOICE_PROVIDER_REST_MS })
+    this.on('tts_availability_changed' as never, (({ tts, available }: ttsTypes.AvailabilityChangedEvent) => {
+      if (tts !== primary || available || this.fellBack) return
+      this.fellBack = true
+      log(`voice ${primary.provider} failed: speaking with ${backups[0]!.provider} ${backups[0]!.model} for the rest of the call`)
+    }) as never)
+  }
+
+  /** The language goes to the voice providers that take one; OpenAI's speech model reads it from the text. */
+  updateOptions(opts: { language?: string }) {
+    for (const instance of this.ttsInstances) if (instance instanceof elevenlabs.TTS || instance instanceof cartesia.TTS) instance.updateOptions(opts)
+  }
+}
+
+/** Whether a backup voice said any of this (VoiceWithBackup): then it is not cached as the voice's own audio. */
+export const spokeWithBackup = (tts: ttsTypes.TTS) => tts instanceof VoiceWithBackup && tts.fellBack
 
 type TalkingSpeedFields = { talking_speed_pct?: number | null; talking_speed?: TalkingSpeed | null }
 /** The assistant's talking speed in percent; a row of an older API has only slow, normal or fast, or nothing: 100. */
@@ -132,7 +182,7 @@ function createLlm({ apiKey, baseUrl, model, fallbacks }: AgentConfig['llm']) {
 export const sttDetectsTurns = ({ provider, model }: AgentConfig['stt']) => provider !== 'deepgram' || model.startsWith('flux')
 
 /** Session options for one call. */
-export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVoice | null, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, languages: CallLanguages = ENGLISH_CALL, speedPct = TALKING_SPEED_PCT_DEFAULT): voice.AgentSessionOptions & { tts: ReturnType<typeof createTts> } {
+export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVoice | null, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, languages: CallLanguages = ENGLISH_CALL, speedPct = TALKING_SPEED_PCT_DEFAULT): voice.AgentSessionOptions & { tts: CallVoice } {
   const sttTurns = sttDetectsTurns(config.stt)
   return {
     vad: null,

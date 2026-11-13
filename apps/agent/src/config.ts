@@ -35,12 +35,14 @@ export interface AgentConfig {
    * `voiceId` is the default voice; an assistant can bring its own, also of another provider in
    * `others` (every other voice provider set up with a key).
    */
-  tts: TtsConfig & { voiceId?: string; others?: TtsConfig[] }
+  tts: TtsConfig & { voiceId?: string; others?: TtsConfig[]; openAiBackup?: OpenAiVoiceBackup }
   /** Where calls are recorded (holds the S3 secret: never log it). Not a stage: `off` does not stop calls. */
   recording: RecordingConfig
 }
 
 export type TtsConfig = { provider: 'elevenlabs' | 'cartesia'; apiKey: string; model?: string }
+/** OpenAI's speech model as the backup voice of the three stages (createTts): an OpenAI key set up for anything, and a voice. */
+export type OpenAiVoiceBackup = { apiKey: string; voice: string }
 export type SttProvider = keyof (typeof stages)['stt']['providers']
 
 /** A speech-to-speech model: hears the caller and answers in its own voice. The summary goes to OpenAI's chat API with the same key. */
@@ -260,9 +262,29 @@ export function resolveAgentConfig(settings: ProviderSettings | null, env: Env =
       others: (settings?.tts_providers ?? [])
         .filter(p => p.provider !== tts.provider && p.api_key && p.provider in stages.tts.providers)
         .map(p => ({ provider: p.provider as TtsConfig['provider'], apiKey: p.api_key!, model: p.model || undefined })),
+      ...withOpenAiBackup(openAiVoiceBackup(settings, env)),
     },
     recording: resolveRecording(settings?.recording, env),
   }
+}
+
+const withOpenAiBackup = (backup: OpenAiVoiceBackup | null) => (backup ? { openAiBackup: backup } : {})
+
+/**
+ * The backup voice when the voice provider fails during a call (quota used up, refused key, outage): OpenAI's speech
+ * model with an OpenAI key that is set up anyway (the realtime model's first, then OpenAI transcription or language
+ * model, then OPENAI_API_KEY), in the realtime voice when one is picked. null: no OpenAI key anywhere.
+ */
+export function openAiVoiceBackup(settings: ProviderSettings | null, env: Env = process.env): OpenAiVoiceBackup | null {
+  const realtime = settings?.realtime?.provider === 'openai_realtime' ? settings.realtime : null
+  const apiKey =
+    realtime?.api_key ||
+    env[realtimeEnv.apiKey] ||
+    (settings?.stt?.provider === 'openai_stt' ? settings.stt.api_key : null) ||
+    (settings?.llm?.provider === 'openai' ? settings.llm.api_key : null) ||
+    env.OPENAI_API_KEY
+  if (!apiKey) return null
+  return { apiKey, voice: realtime?.voice || env[realtimeEnv.voice] || realtimeDefaults.voice }
 }
 
 /** The realtime model connected in Linedesk, else one with OPENAI_REALTIME_API_KEY; null: the three stages answer calls. */

@@ -6,7 +6,7 @@ import type { Room } from '@livekit/rtc-node'
 import type { CallSession } from './call-session.ts'
 import { createGreetingCache, type GreetingAudio, greetingKey, synthesize } from './greeting-cache.ts'
 import { publishVoice, speak } from './on-call-dialer.ts'
-import type { LineVoice } from './pipeline.ts'
+import { type LineVoice, spokeWithBackup } from './pipeline.ts'
 
 // The lines in English; the call says them in the assistant's main language (spokenLines).
 export const BUSY_LINE = spokenLines('en').busy
@@ -25,8 +25,10 @@ export async function lineAudio(voice: LineVoice, text: string): Promise<Greetin
   const key = greetingKey({ ...voice.key, text })
   const cached = await lines.get(key)
   if (cached) return cached
-  const audio = await synthesize(voice.tts(), text)
-  void lines.put(key, audio).catch(() => {})
+  const tts = voice.tts()
+  const audio = await synthesize(tts, text)
+  // Made by the backup voice (the voice provider failed): not stored as a line in this voice.
+  if (!spokeWithBackup(tts)) void lines.put(key, audio).catch(() => {})
   return audio
 }
 

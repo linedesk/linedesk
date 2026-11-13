@@ -28,7 +28,7 @@ test('every stage can be changed by env', async () => {
   })
   expect(config.stt.model).toBe('nova-3')
   expect(config.llm).toEqual({ provider: 'openai', apiKey: 'oa', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4', fallbacks: [], summaryModel: 'gpt-4.1-mini', summaryFallbacks: [] })
-  expect(config.tts).toEqual({ provider: 'cartesia', apiKey: 'ca', model: 'sonic-3', voiceId: 'voice_1', others: [] })
+  expect(config.tts).toEqual({ provider: 'cartesia', apiKey: 'ca', model: 'sonic-3', voiceId: 'voice_1', others: [], openAiBackup: { apiKey: 'oa', voice: 'marin' } })
   expect((await configFromEnv({ ...keys, LLM_BASE_URL: 'https://llm.internal/v1/', LLM_MODEL: 'local' })).llm).toMatchObject({ baseUrl: 'https://llm.internal/v1', model: 'local' })
 })
 
@@ -36,7 +36,8 @@ test('settings stored in Linedesk win over the environment, stage by stage', () 
   expect(resolveAgentConfig(stored, keys)).toEqual({
     stt: { provider: 'deepgram', apiKey: 'dg-app', model: 'flux-general-en' },
     llm: { provider: 'openai', apiKey: 'oa-app', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4', fallbacks: [], summaryModel: 'gpt-4.1-mini', summaryFallbacks: [] },
-    tts: { provider: 'elevenlabs', apiKey: 'el-app', model: undefined, voiceId: 'voice_app', others: [] },
+    // The OpenAI language model's key also makes the backup voice.
+    tts: { provider: 'elevenlabs', apiKey: 'el-app', model: undefined, voiceId: 'voice_app', others: [], openAiBackup: { apiKey: 'oa-app', voice: 'marin' } },
     recording: { store: 'off' },
   })
   // A stage that is not set up in Linedesk comes from the environment.
