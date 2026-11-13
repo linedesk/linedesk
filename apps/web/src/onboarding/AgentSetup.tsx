@@ -18,6 +18,7 @@ import { loadAgentSetup, runAdmin, watchAdminSignIn } from '../admin/api.ts'
 import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
 import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
+import { SETUP_LINK_KEY } from '../localData.ts'
 import { BrandMark, Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
 import { CopyButton } from './Frame.tsx'
 import './agent-setup.css'
@@ -63,11 +64,32 @@ const POLL_MS = 3000
 const INSTALL_STEPS = ['ai', 'telephony', 'email', 'livekit']
 
 /**
- * The setup link made in this page, kept in memory (never in storage) while the page is open: the key is shown once,
- * and the page is mounted again when the agent creates the workspace (the session moves on from "no workspace").
+ * The setup link made in this browser, kept until it ends: it expires, a new one is made, the admin ends agent access
+ * or signs out (localData.ts). So a reload, another tab or picking another agent still shows the link and how to
+ * start with it. The page shows it only while the server says this admin's working link is this one (AgentSetup).
+ * In memory too, for private windows without storage.
  */
 let shownKey: AgentSetupKeyCreated | null = null
-const stillShown = () => (shownKey && Date.parse(shownKey.expiresAt) > Date.now() ? shownKey : null)
+const unexpired = (link: AgentSetupKeyCreated | null) => (link && Date.parse(link.expiresAt) > Date.now() ? link : null)
+function stillShown(): AgentSetupKeyCreated | null {
+  if (unexpired(shownKey)) return shownKey
+  try {
+    const saved = unexpired(JSON.parse(localStorage.getItem(SETUP_LINK_KEY) ?? 'null') as AgentSetupKeyCreated | null)
+    if (!saved) localStorage.removeItem(SETUP_LINK_KEY)
+    return saved
+  } catch {
+    return null
+  }
+}
+function keepShown(link: AgentSetupKeyCreated | null) {
+  shownKey = link
+  try {
+    if (link) localStorage.setItem(SETUP_LINK_KEY, JSON.stringify(link))
+    else localStorage.removeItem(SETUP_LINK_KEY)
+  } catch {
+    // Private windows: the link lasts while this page is open.
+  }
+}
 
 type Props = {
   /**
@@ -85,10 +107,16 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
   const [state, setState] = useState<AgentSetupState | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [created, setShown] = useState<AgentSetupKeyCreated | null>(stillShown)
-  const setCreated = (key: AgentSetupKeyCreated | null) => {
-    shownKey = key
+  // When the link on the page was set (0: kept from before), and when the shown state was asked for: only a state
+  // asked for after the link was set can say it ended.
+  const linkSetAt = useRef(0)
+  const stateAskedAt = useRef(0)
+  const setCreated = useCallback((key: AgentSetupKeyCreated | null) => {
+    keepShown(key)
+    linkSetAt.current = Date.now()
     setShown(key)
-  }
+  }, [])
+
   const [client, setClient] = useState<AgentClient>(savedClient)
   const [busy, setBusy] = useState<'create' | 'end' | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -98,7 +126,11 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
 
   const load = useCallback(async () => {
     try {
-      setState(await loadAgentSetup())
+      const asked = Date.now()
+      const next = await loadAgentSetup()
+      if (asked < stateAskedAt.current) return // an older answer that arrived late
+      stateAskedAt.current = asked
+      setState(next)
       setLoadError(null)
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'Could not read the setup state')
@@ -161,6 +193,11 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
 
   const connected = Boolean(state?.key?.lastUsedAt)
   // One setup link at a time: while one is active the page offers only to end it, otherwise only to create one.
+  // The link ended elsewhere (expired, replaced in another browser, agent access ended): it goes from the page too.
+  useEffect(() => {
+    if (!state || !created || stateAskedAt.current < linkSetAt.current) return
+    if (state.key?.prefix !== created.prefix || !unexpired(created)) setCreated(null)
+  }, [state, created, setCreated])
   const hasLink = state ? Boolean(state.key) : Boolean(created)
   const cloudBlocked = state !== null && !state.reachableFromCloud && cloudClients.includes(client)
   // After signing in, the page loads again at the same address (SecondFactorPrompt).
@@ -250,7 +287,8 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
                 <StartAgent client={client} url={created.url} />
               ) : hasLink ? (
                 <span className="as-small">
-                  The link is shown only when it is created. To start an agent again, end access and create a new link.
+                  This link was created in another browser and is shown only there. To start an agent here, end access
+                  and create a new link.
                 </span>
               ) : (
                 <span className="as-small">After you create the setup link.</span>

@@ -55,6 +55,11 @@ export async function forgetLocalData() {
 const ACCOUNT_KEY = 'linedesk-account'
 /** Invitations this browser already announced (shell/invitations.ts): they name the person's workspaces. */
 const SEEN_INVITATIONS_KEY = 'linedesk.seenInvitations'
+/**
+ * The setup link this browser made (onboarding/AgentSetup.tsx), kept until it ends. Not part of forgetLocalData: an
+ * admin without a workspace passes through that on every load. Signing out ends it here.
+ */
+export const SETUP_LINK_KEY = 'linedesk.setup.link'
 
 function forgetKeys(keys: string[]) {
   try {
@@ -80,6 +85,7 @@ export async function signOutAndForget() {
   await stopPushOnSignOut()
   await auth.signOut()
   await forgetLocalData()
+  forgetKeys([SETUP_LINK_KEY])
 }
 
 /** Ends this session and shows the sign-in screen; signing in comes back to the same page. */
