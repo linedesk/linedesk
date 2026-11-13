@@ -71,6 +71,7 @@ const adminRoutes = [
   '/v1/admin/overview',
   '/v1/admin/health',
   '/v1/admin/onboarding',
+  '/v1/admin/install-setup',
 ] as const
 const AGENT_ROUTE = '/v1/agent/provider-config'
 const adminActions = [...actions.values()].filter(def => def.permission === 'instance:admin')
@@ -135,6 +136,7 @@ describe('access', () => {
       'agentSetup.createKey',
       'agentSetup.revoke',
       'branding.set',
+      'install.setProgress',
       'instanceAdmin.grant',
       'instanceAdmin.revoke',
       'invitation.resend',
@@ -143,10 +145,12 @@ describe('access', () => {
       'membership.remove',
       'membership.setRole',
       'provider.clearKeys',
+      'provider.confirmEmail',
       'provider.connectOneKey',
       'provider.setActive',
       'provider.setKeys',
       'provider.test',
+      'provider.tryOut',
       'setupEmails.get',
       'setupEmails.set',
       'user.disable',
@@ -1705,7 +1709,9 @@ describe('impersonation', () => {
       // The go-live checklist's facts, so the inbox looks as the user sees it. Closing or reopening it stays refused.
       'onboarding.goLiveChecklist',
       'phoneNumber.forwardingCheck',
+      'provider.confirmEmail',
       'provider.test',
+      'provider.tryOut',
       // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
       'setupEmails.get',
       'team.list',

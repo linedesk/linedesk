@@ -16,6 +16,7 @@ import { listProviderFailures } from './provider-failures.ts'
 import { providerStatus, voiceProviderConfig } from './provider-settings.ts'
 import { SecretsKeyError } from './secrets.ts'
 import { agentSetupState, setupActor } from './agent-setup.ts'
+import { installSetupState } from './install-setup.ts'
 import { setupProgress } from './setup-mcp.ts'
 import { setupChecklist } from './setup-checklist.ts'
 import { LATENCY_DAYS_DEFAULT, LATENCY_DAYS_MAX, replyLatency } from './reply-latency.ts'
@@ -212,6 +213,9 @@ export function registerAdminRoutes(app: Hono<Env>) {
     const asAgent = (await setupActor(actor.actorId, 'page')) ?? actor
     return c.json({ ...(await agentSetupState(actor.actorId)), progress: await setupProgress(asAgent) })
   })
+
+  // Install setup by hand (install-setup.ts): where the walkthrough is, and whether a saved change waits for a restart.
+  app.get('/v1/admin/install-setup', async c => c.json(await installSetupState()))
 
   // The instance setup checklist (setup-checklist.ts), read-only: tests run through provider.test.
   app.get('/v1/admin/setup-checklist', async c => c.json(await setupChecklist(db)))

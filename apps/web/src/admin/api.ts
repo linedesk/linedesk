@@ -5,6 +5,8 @@ import { StepUpRequired, stepUpOf, withPasskeyStepUp } from './PasskeyStepUp.tsx
 import {
   type AgentSetupState,
   type BrandingInput,
+  type InstallSetupState,
+  type InstallStep,
   type MembershipRole,
   type ProviderCategory,
   type ProviderFailure,
@@ -12,6 +14,7 @@ import {
   type ProviderTestData,
   providerCategories,
   type SetupChecklist,
+  type TryOutKind,
   providers as providerRegistry,
 } from '@linedesk/actions'
 import type { AdminSecondFactor } from '../auth.ts'
@@ -237,6 +240,9 @@ type AdminInputs = {
   'branding.set': BrandingInput
   'agentSetup.createKey': Record<string, never>
   'agentSetup.revoke': Record<string, never>
+  'install.setProgress': { step?: InstallStep; skip?: InstallStep; setAside?: boolean; finished?: boolean }
+  'provider.tryOut': { kind: TryOutKind; areaCode?: string }
+  'provider.confirmEmail': { code: string }
 }
 
 /**
@@ -288,6 +294,8 @@ export const loadOverview = () => get<AdminOverview>('/v1/admin/overview')
 
 /** GET /v1/admin/agent-setup (apps/api/src/agent-setup.ts): the setup key in use (never the key) and the agent's progress. */
 export const loadAgentSetup = () => get<AgentSetupState>('/v1/admin/agent-setup')
+/** Install setup by hand (InstallSetup.tsx): where it is, and whether a saved email or sign-in change waits for a restart. */
+export const loadInstallSetup = () => get<InstallSetupState>('/v1/admin/install-setup')
 
 /**
  * GET /v1/admin/onboarding (apps/api/src/setup-emails.ts): workspaces without a real call `days` after sign-up, and how many

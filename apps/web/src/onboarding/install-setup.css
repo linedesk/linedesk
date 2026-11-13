@@ -1,0 +1,177 @@
+/* Install setup by hand (InstallSetup.tsx): the agent setup page's shell and cards (agent-setup.css), one part per screen. */
+.is-parts {
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+.is-part {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  font-size: 13.5px;
+}
+.is-part b {
+  font-weight: 600;
+}
+.is-part-state {
+  white-space: nowrap;
+}
+.is-agent-note {
+  font-size: 12.5px;
+}
+.is-status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+.is-status > div {
+  display: grid;
+  gap: 2px;
+  font-size: 13.5px;
+}
+.is-status b {
+  font-weight: 600;
+}
+.is-guide {
+  margin: 0;
+}
+.is-try-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.is-try-head > div {
+  display: grid;
+  gap: 2px;
+  max-width: 44ch;
+  font-size: 13.5px;
+}
+.is-try-head b {
+  font-weight: 600;
+}
+.is-try-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.is-area input,
+.is-code-input input {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.is-area {
+  width: 72px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.is-code-input {
+  width: 128px;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+}
+.is-result {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  font-size: 13px;
+  line-height: 19px;
+}
+.is-result-mark {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--on-action);
+  font-size: 11px;
+  font-weight: 700;
+}
+.is-result.bad .is-result-mark {
+  background: var(--danger);
+  color: var(--on-danger);
+}
+.is-result-body {
+  display: grid;
+  gap: 8px;
+}
+.is-quote {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+}
+.is-heard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 10px;
+  margin: 0;
+}
+.is-heard dt {
+  color: var(--ink-muted);
+}
+.is-heard dd {
+  margin: 0;
+}
+.is-audio {
+  width: 100%;
+  max-width: 360px;
+  height: 36px;
+}
+.is-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+.is-numbers li {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+}
+.is-open {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+@media (max-width: 719px) {
+  .is-part,
+  .is-status {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .is-part-state,
+  .is-status > .k-btn {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+.is-onekey .adm-setup-onekey {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}

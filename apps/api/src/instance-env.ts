@@ -45,6 +45,8 @@ const signatureOf = (rows: { provider: string; field: string; updated_at: string
 const EMAIL_PICK = 'active_provider.email'
 
 let loadedSignature: string | null = null
+/** The settings this process started with; unlike loadedSignature never moved on, so a pending change stays visible. */
+let bootSignature: string | null = null
 let loadedEmailProvider: ProviderName = 'smtp'
 const isProviderName = (name: string): name is ProviderName => (providerNames as string[]).includes(name)
 /** The email provider this process sends with: a mail service (Resend, Gmail, ...) or plain SMTP. */
@@ -72,6 +74,7 @@ export async function loadInstanceEnv(db: Db, env: Env = process.env): Promise<v
     if (mail.from) setVariable(env, 'EMAIL_FROM', mail.from)
   }
   loadedSignature = signatureOf(rows, emailPick)
+  bootSignature = loadedSignature
   await loadPushKeys(db, env).catch(error => console.error('push notifications are off: could not load their keys', error))
 }
 
@@ -138,6 +141,16 @@ export function restartToApply(reason: string) {
   console.log(`${reason}: restarting the API to apply it.`)
   // After the current response went out.
   setTimeout(() => process.kill(process.pid, 'SIGTERM'), 500).unref()
+}
+
+/**
+ * Whether stored sign-in or email settings wait for a restart (the install setup waits for it before testing), and
+ * whether this process restarts by itself; under `pnpm dev` the person restarts it.
+ */
+export async function restartState(db: Db): Promise<{ pending: boolean; automatic: boolean }> {
+  if (bootSignature === null) return { pending: false, automatic: canRestart() }
+  const signature = signatureOf(await storedRows(db), await readSetting(db, EMAIL_PICK))
+  return { pending: signature !== bootSignature, automatic: canRestart() }
 }
 
 /** Restarts when the stored sign-in or email settings differ from what this process loaded. */

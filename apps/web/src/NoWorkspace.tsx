@@ -10,6 +10,7 @@ import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { auth, fetchAuthMethods, isInstanceAdmin, type Me } from './auth.ts'
 import { CreateWorkspace } from './CreateWorkspace.tsx'
 import { AGENT_SETUP_HASH, AgentSetup, choseManualSetup, openAgentSetup } from './onboarding/AgentSetup.tsx'
+import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
 import { AccountSettings } from './settings/account/index.tsx'
 import { signOutAndForget } from './localData.ts'
 import { leftOnPurpose } from './session.ts'
@@ -67,13 +68,17 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
     if (me.adminSecondFactor) return <SecondFactorPrompt state={me.adminSecondFactor} onExit={leave} />
     return <AdminMode currentUserId={me.actorId} onExit={leave} />
   }
+  if (me && admin && !me.impersonation && hash === INSTALL_SETUP_HASH) {
+    if (me.adminSecondFactor) return <SecondFactorPrompt state={me.adminSecondFactor} onExit={leave} />
+    return <InstallSetup onExit={leave} />
+  }
   if (me && admin && !me.impersonation && (hash === AGENT_SETUP_HASH || !manualSetup))
     return (
       <AgentSetup
         onManual={installFirst => {
           setManualSetup(true)
-          // The install by hand: the setup checklist; "Back to Linedesk" there goes on to naming the business.
-          if (installFirst) window.location.hash = '#admin'
+          // The install by hand, step by step; leaving it goes on to naming the business.
+          if (installFirst) window.location.hash = INSTALL_SETUP_HASH
           else if (hash === AGENT_SETUP_HASH) leave()
         }}
         onDone={() => {

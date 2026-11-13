@@ -15,6 +15,7 @@ import { issueCallToken } from './agent-token.ts'
 import { startS3Recording } from './recording-egress.ts'
 import { purgeCommandsAbout } from './command-log.ts'
 import { agentSetupHandlers } from './agent-setup.ts'
+import { installSetupHandlers } from './install-setup.ts'
 import { apiKeyHandlers } from './api-keys.ts'
 import { assistantForNumber, assistantHandlers, assistantIn } from './assistants.ts'
 import { assistantVersionHandlers, recordVersion, versionForCall, versionOf, VERSIONED_ACTIONS, withVersion } from './assistant-versions.ts'
@@ -453,6 +454,7 @@ const handlers: Record<string, Handler> = {
   ...liveCallHandlers(),
   ...apiKeyHandlers,
   ...agentSetupHandlers,
+  ...installSetupHandlers,
   ...bookingHandlers,
   ...evaluationHandlers(queueCallEvaluation),
   ...webhookHandlers,

@@ -5,6 +5,8 @@ import { Login } from './Login.tsx'
 import { backoffMs } from './retry.ts'
 import { loadSession, renamedWorkspace, type Session } from './session.ts'
 import { AGENT_SETUP_HASH, AgentSetup, choseManualSetup } from './onboarding/AgentSetup.tsx'
+import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
+import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { Onboarding } from './onboarding/Onboarding.tsx'
 import { ImpersonationFrame } from './shell/ImpersonationBar.tsx'
 import { switchToWorkspace } from './shell/invitations.ts'
@@ -26,14 +28,14 @@ function Unreachable() {
   )
 }
 
-/** Whether the address is the agent setup page (#setup-agent), followed as it changes. */
-function useAgentSetupHash(): boolean {
-  const [on, setOn] = useState(() => window.location.hash === AGENT_SETUP_HASH)
+/** Whether the address is this hash (#setup-agent, #setup-install), followed as it changes. */
+function useHashIs(hash: string): boolean {
+  const [on, setOn] = useState(() => window.location.hash === hash)
   useEffect(() => {
-    const follow = () => setOn(window.location.hash === AGENT_SETUP_HASH)
+    const follow = () => setOn(window.location.hash === hash)
     window.addEventListener('hashchange', follow)
     return () => window.removeEventListener('hashchange', follow)
-  }, [])
+  }, [hash])
   return on
 }
 
@@ -68,7 +70,8 @@ export function App() {
   // Finishing onboarding is a queued command; the app moves on without waiting for it.
   const [onboarded, setOnboarded] = useState(false)
   const adminHash = useAdminHash()
-  const agentSetupHash = useAgentSetupHash()
+  const agentSetupHash = useHashIs(AGENT_SETUP_HASH)
+  const installSetupHash = useHashIs(INSTALL_SETUP_HASH)
   // An instance admin sets up with an AI agent first (AgentSetup.tsx), unless they chose to do it by hand.
   const [manualSetup, setManualSetup] = useState(choseManualSetup)
   const refresh = useCallback(async () => setSession(await loadSession()), [])
@@ -165,6 +168,19 @@ export function App() {
   }
   const instanceAdmin = session.me.permissions.includes('instance:admin') && !session.me.impersonation
   const settingUp = session.me.onboarding && !onboarded
+  // The install by hand, step by step (InstallSetup.tsx); leaving it goes on to the business setup.
+  if (instanceAdmin && installSetupHash) {
+    if (session.me.adminSecondFactor)
+      return <SecondFactorPrompt state={session.me.adminSecondFactor} onExit={() => (window.location.hash = '')} />
+    return (
+      <InstallSetup
+        onExit={() => {
+          if (window.location.hash === INSTALL_SETUP_HASH) window.location.hash = ''
+          void refresh()
+        }}
+      />
+    )
+  }
   if (instanceAdmin && !adminHash && (agentSetupHash || (settingUp && !manualSetup))) {
     const leave = () => {
       if (window.location.hash === AGENT_SETUP_HASH) window.location.hash = ''
@@ -173,8 +189,8 @@ export function App() {
       <AgentSetup
         onManual={installFirst => {
           setManualSetup(true)
-          // The install by hand: the setup checklist; "Back to Linedesk" there goes on to the business.
-          if (installFirst) window.location.hash = '#admin'
+          // The install by hand, step by step (off on Cloud: it opens the setup checklist instead).
+          if (installFirst) window.location.hash = INSTALL_SETUP_HASH
           else leave()
         }}
         onDone={() => {

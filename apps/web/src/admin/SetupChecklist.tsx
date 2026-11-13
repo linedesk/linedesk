@@ -2,6 +2,7 @@
 // live state, a short guide for the provider we recommend, the rough cost and a Test (the providers' own
 // connection tests). Connect opens the same dialog as Admin, Providers. Folds into one line once every part works.
 import { openAgentSetup } from '../onboarding/AgentSetup.tsx'
+import { openInstallSetup } from '../onboarding/InstallSetup.tsx'
 import {
   type SetupChecklist as Checklist,
   oneKey,
@@ -12,17 +13,27 @@ import {
   type SetupChecklistItem,
   type SetupItemState,
   setupItemSpec,
+  type TryOutData,
+  type TryOutKind,
 } from '@linedesk/actions'
 import { useEffect, useRef, useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { FormField, SecretInput } from '../ui/form.tsx'
 import { Button, cx, Icon, Spinner } from '../ui/kit.tsx'
 import { LoadProblem, problemText } from '../ui/LoadStates.tsx'
-import { ADMIN_SETUP_CHECKLIST, type AdminData, keyUsersOf, loadSetupChecklist, runAdmin, testProvider } from './api.ts'
+import {
+  ADMIN_SETUP_CHECKLIST,
+  type AdminData,
+  keyUsersOf,
+  loadInstallSetup,
+  loadSetupChecklist,
+  runAdmin,
+  testProvider,
+} from './api.ts'
 import { errorText, type Notify } from './notify.ts'
 import { ProviderDialog } from './ProviderDialog.tsx'
 
-const stateWords: Record<SetupItemState, string> = {
+export const stateWords: Record<SetupItemState, string> = {
   ok: 'Works',
   set_up: 'Not tested',
   failing: 'Failing',
@@ -30,7 +41,7 @@ const stateWords: Record<SetupItemState, string> = {
 }
 
 /** The row's state at a glance: a tick, a "!", a half-done ring, or the step's number while it is still to do. */
-function StatusMark({ state, index }: { state: SetupItemState | 'checking'; index: number }) {
+export function StatusMark({ state, index }: { state: SetupItemState | 'checking'; index: number }) {
   return (
     <span className={cx('adm-mark', state)} aria-hidden="true">
       {state === 'checking' ? (
@@ -47,6 +58,13 @@ function StatusMark({ state, index }: { state: SetupItemState | 'checking'; inde
 }
 
 const voiceItems = ['stt', 'llm', 'tts'] as const
+/**
+ * Rows whose Test is a real round trip (provider.tryOut): a caller's question to the model, a sample call transcribed,
+ * the voice spoken (and played), numbers listed. Email's needs a code typed back, so it lives in the install setup;
+ * the tests when the page opens stay the providers' own key checks (provider.test), which cost nothing.
+ */
+const tryKinds: readonly string[] = ['llm', 'stt', 'tts', 'telephony'] satisfies TryOutKind[]
+export const ADMIN_INSTALL_SETUP = 'admin.installSetup'
 
 /**
  * The item's message, with the provider in front unless the message names it already.
@@ -75,6 +93,8 @@ type Props = { data: AdminData | null; notify: Notify; reload: () => Promise<voi
 
 export function SetupChecklist({ data, notify, reload }: Props) {
   const query = useQuery(ADMIN_SETUP_CHECKLIST, () => loadSetupChecklist())
+  // The install setup by hand: offered next to the agent while it is on (not on Cloud) and not finished.
+  const install = useQuery(ADMIN_INSTALL_SETUP, () => loadInstallSetup()).data
   const checklist = query.data ?? null
   const [testing, setTesting] = useState<Set<string>>(new Set())
   const [open, setOpen] = useState<boolean | null>(null)
@@ -171,7 +191,23 @@ export function SetupChecklist({ data, notify, reload }: Props) {
       return next
     })
 
+  /** The row's round trip; the result is remembered for the row's provider, so reading the checklist shows it. */
+  async function tryOut(item: SetupChecklistItem) {
+    setTesting(t => new Set(t).add(item.id))
+    setRowProblem([item.id], null)
+    try {
+      const result = (await runAdmin('provider.tryOut', { kind: item.id as TryOutKind })) as TryOutData
+      if (result.audio) void new Audio(result.audio).play().catch(() => {})
+      if (result.numbers?.length) notify(`Available: ${result.numbers.join(', ')}. Nothing was bought.`)
+    } catch (err) {
+      setRowProblem([item.id], `The test could not run: ${problemText(errorText(err))}`)
+    }
+    await refresh()
+    setTesting(t => new Set([...t].filter(id => id !== item.id)))
+  }
+
   async function test(item: SetupChecklistItem) {
+    if (item.provider && tryKinds.includes(item.id)) return tryOut(item)
     if (item.provider) return testProviders([item])
     // LiveKit: reading the checklist again asks it.
     setTesting(t => new Set(t).add(item.id))
@@ -227,6 +263,18 @@ export function SetupChecklist({ data, notify, reload }: Props) {
             title="Let Claude, ChatGPT or another AI agent set up this install with you"
           >
             Set up with an AI agent
+          </Button>
+        )}
+        {!checklist.complete && install?.enabled && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={openInstallSetup}
+            title="Go through each part yourself, one screen at a time, with a real test for each"
+          >
+            {install.progress.step !== 'welcome' && !install.progress.finishedAt
+              ? 'Continue step by step'
+              : 'Step by step'}
           </Button>
         )}
         <Button
@@ -438,7 +486,7 @@ function SetupRow({
   )
 }
 
-function OneKey({ disabled, onDone }: { disabled: boolean; onDone: () => Promise<void> }) {
+export function OneKey({ disabled, onDone }: { disabled: boolean; onDone: () => Promise<void> }) {
   const [key, setKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
