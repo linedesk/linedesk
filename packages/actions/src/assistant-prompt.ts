@@ -17,6 +17,13 @@ const ASK_TIMES = 'ask which day and time suit the caller, put that in the messa
  * How every assistant handles a call: fixed rules, not a setting, with only the cases of this call's setup. The
  * caller's name, callback number, prices and promises have their own parts of the prompt and are not repeated here.
  */
+/**
+ * The one fixed safety rule, the same for every business: an emergency goes to 911, not to the business. Everything
+ * else that can't wait is an urgent matter, handled by the owner's urgent rules (transfer contacts, flag_urgent).
+ */
+export const EMERGENCY_RULE =
+  'Emergencies (danger to people, fire, a break-in, a gas smell): tell the caller to hang up and call 911 right away, before anything else.'
+
 export function callRules({ booking, transfer }: CallSetup = {}): string {
   const appointments =
     booking === undefined
@@ -27,6 +34,7 @@ export function callRules({ booking, transfer }: CallSetup = {}): string {
   const canTransfer = transfer !== false
   return [
     'Find out why the person is calling.',
+    EMERGENCY_RULE,
     'Take a message for every request you cannot handle yourself: a callback, a visit, a quote. Then tell the caller the team will get back to them.',
     appointments,
     `If the caller asks for a specific person: ${canTransfer ? 'put them through if a transfer contact covers it, otherwise ' : ''}take a message for that person and say they will call back.`,

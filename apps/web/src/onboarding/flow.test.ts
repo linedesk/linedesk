@@ -1,22 +1,26 @@
-import { resumeStep } from '@linedesk/actions'
-import { expect, test } from 'vitest'
+import { forwardingGuideById, resumeStep } from '@linedesk/actions'
+import { DEFAULT_TRANSFERS, type TransferContact } from '@linedesk/db/types'
+import { describe, expect, it, test } from 'vitest'
 import {
+  ALSO_PERSON,
+  areaCodeOf,
   assistantChanges,
+  doneState,
+  rejectionStep,
+  urgentCasesFrom,
   buyQuestion,
   carrierName,
-  carriers,
+  DEFAULT_URGENT_CONDITION,
+  dialPath,
   existingLinkText,
+  FALLBACK_OWNER_NAME,
   firstHoursDraft,
   firstPickup,
-  DEFAULT_URGENT_CONDITION,
-  FALLBACK_OWNER_NAME,
   firstWhoHears,
   formatNumber,
   phoneSetupErrorText,
-  forwardingCode,
-  mobileErrorText,
-  forwardingDigits,
   forwardingOffer,
+  mobileErrorText,
   NO_PICKUP_MEMORY,
   nextStep,
   oldForwardingAfter,
@@ -31,11 +35,12 @@ import {
   progress,
   renameInGreeting,
   toE164,
+  turnOffFirst,
   URGENT_CONTACT_ID,
+  type WhoHearsDraft,
   whoHearsProblem,
   whoHearsTransfers,
 } from './flow.ts'
-import { DEFAULT_TRANSFERS, type TransferContact } from '@linedesk/db/types'
 
 test('steps run business → assistant → pick-up → who hears → phone → done, and back', () => {
   expect(nextStep('business')).toBe('assistant')
@@ -187,8 +192,10 @@ test('a bought number the business forwards to is bought with that forwarding, n
 })
 
 test('the phone step leads with keeping the business number; a new number to give out comes last', () => {
-  expect(phoneOptions(true)).toEqual(['forward', 'existing', 'new'])
-  expect(phoneOptions(false)).toEqual(['forward', 'new'])
+  // Two cards for everyone; a number already in the carrier account is a link (admins only), not a card.
+  expect(phoneOptions).toEqual(['forward', 'new'])
+  expect(existingLinkText('Telnyx')).toBe('Already have a number in Telnyx? Use it')
+  expect(existingLinkText(null)).toBe('Already have a number? Use it')
   const fields = { number: '(503) 555-0142', areaCode: '503', confirmed: true }
   // Every pick-up choice: keeping the number buys a number to forward to, with the forwarding the choice needs.
   for (const pickup of ['no_answer', 'after_hours', 'always'] as const) {
@@ -228,21 +235,19 @@ test('a new number is only requested with purchase after the user confirmed the 
   })
 })
 
-test('forwarding codes per carrier', () => {
-  const digits = forwardingDigits('+15035550142')
-  expect(digits).toBe('5035550142')
-  expect(carriers.map(c => [c.name, c.on(digits), c.off])).toEqual([
-    ['Verizon', '*715035550142', '*73'],
-    ['AT&T', '**004*5035550142#', '##004#'],
-    ['T-Mobile', '**004*5035550142#', '##004#'],
-  ])
-  const [verizon, att] = carriers
-  expect(forwardingCode(verizon!, 'forward_all', '+15035550142')).toEqual({ on: '*725035550142', off: '*73' })
-  expect(forwardingCode(att!, 'forward_all', '+15035550142')).toEqual({ on: '**21*5035550142#', off: '##21#' })
-  expect(forwardingCode(att!, 'forward_conditional', '+15035550142')).toEqual({
-    on: '**004*5035550142#',
-    off: '##004#',
-  })
+test('an earlier forwarding is turned off with its own codes, or where it was set', () => {
+  const tmobile = forwardingGuideById('tmobile')!
+  expect(turnOffFirst(tmobile, 'forward_all', '+15035550142')).toBe(
+    'Dialled the earlier code already? Turn that forwarding off first with ##21#.',
+  )
+  expect(turnOffFirst(tmobile, 'forward_conditional', '+15035550142')).toMatch(/##61#, ##67#, ##62#\.$/)
+  expect(turnOffFirst(forwardingGuideById('ringcentral')!, 'forward_all', '+15035550142')).toBe(
+    'Set up the earlier forwarding already? Turn it off first in the RingCentral app or admin portal.',
+  )
+  // Google Fi has no missed-calls forwarding: nothing to name.
+  expect(turnOffFirst(forwardingGuideById('google-fi')!, 'forward_conditional', '+15035550142')).toBe(
+    'Turned on forwarding earlier? Turn it off first.',
+  )
 })
 
 test('renaming the assistant keeps the greeting in step', () => {
@@ -256,6 +261,20 @@ test('renaming the assistant keeps the greeting in step', () => {
 test('the buy question does not speak of a bill in development mode', () => {
   expect(buyQuestion('telnyx', '503')).toMatch(/billed every month/)
   expect(buyQuestion('dev', '503')).not.toMatch(/billed every month/)
+})
+
+describe('dialPath', () => {
+  const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148'
+  const ipad = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.1 Safari/605.1.15'
+  const android = 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/131.0 Mobile Safari/537.36'
+  it('copies on an iPhone or iPad, since iOS may not open tel: links with * or #', () => {
+    expect(dialPath(iphone, 5, true)).toBe('copy')
+    expect(dialPath(ipad, 5, true)).toBe('copy')
+  })
+  it('dials on Android and shows the QR code on a laptop', () => {
+    expect(dialPath(android, 5, true)).toBe('dial')
+    expect(dialPath(ipad, 0, false)).toBe('qr')
+  })
 })
 
 const settingsContact: TransferContact = {
@@ -272,70 +291,88 @@ const settingsContact: TransferContact = {
 const withNumber = (c: TransferContact, number: string | null): TransferContact => ({ ...c, number })
 const person = DEFAULT_TRANSFERS[0]!
 
-test("who hears: a new workspace starts empty with urgent calls on; only the person contact's number is offered", () => {
-  expect(firstWhoHears(DEFAULT_TRANSFERS)).toEqual({ mobile: '', urgentOn: true, condition: DEFAULT_URGENT_CONDITION })
+test("who hears: a new workspace starts with no urgent-matter choice; only the person contact's number is offered", () => {
+  expect(firstWhoHears(DEFAULT_TRANSFERS)).toEqual({ urgent: null, mobile: '', condition: DEFAULT_URGENT_CONDITION })
   // Dana's billing line is not the owner's mobile.
   expect(firstWhoHears([...DEFAULT_TRANSFERS, settingsContact]).mobile).toBe('')
   expect(firstWhoHears([withNumber(person, '+15035550177'), settingsContact]).mobile).toBe('+1 503 555 0177')
 })
 
-test('who hears: the mobile must be a US mobile or landline; urgent calls need one and a condition', () => {
-  const ok = { mobile: '(503) 555-0142', urgentOn: true, condition: 'Flooding' }
-  const field = (d: typeof ok, list: TransferContact[] = []) => whoHearsProblem(d, list)
+test('who hears: Continue needs a choice; only "put through" needs a valid mobile and a condition', () => {
+  const ok = { urgent: 'transfer' as const, mobile: '(503) 555-0142', condition: 'Flooding' }
+  const field = (d: WhoHearsDraft, list: TransferContact[] = []) => whoHearsProblem(d, list)
   expect(field(ok)).toBeNull()
+  expect(field({ ...ok, urgent: null })).toMatchObject({ field: 'choice', message: expect.stringMatching(/Choose/) })
+  // "Take a message" needs no number, also with an empty or broken one left in the hidden field.
+  expect(field({ urgent: 'message', mobile: '', condition: '' })).toBeNull()
+  expect(field({ urgent: 'message', mobile: '555', condition: '' })).toBeNull()
+  expect(field({ ...ok, mobile: '' })).toMatchObject({ field: 'mobile', message: expect.stringMatching(/mobile/) })
   expect(field({ ...ok, mobile: '555-0142' })).toMatchObject({
     field: 'mobile',
     message: expect.stringMatching(/area code/),
   })
   expect(field({ ...ok, mobile: '900 555 0142' })?.message).toMatch(/Premium-rate/)
   expect(field({ ...ok, mobile: '800 555 0142' })?.message).toMatch(/Toll-free/)
-  expect(field({ ...ok, mobile: '' })).toMatchObject({
-    field: 'mobile',
-    message: expect.stringMatching(/turn urgent calls off/),
-  })
   // An empty condition is the condition's problem, not the mobile's.
   expect(field({ ...ok, condition: '  ' })?.field).toBe('condition')
-  expect(field({ mobile: '', urgentOn: false, condition: '' })).toBeNull()
-  // A full list cannot take the step's contact.
+  // A full list cannot take the step's contact; "take a message" still can go on.
   const full = Array.from({ length: 10 }, (_, i) => ({ ...settingsContact, id: `tc_${i}`, name: `Contact ${i}` }))
   expect(field(ok, full)?.field).toBe('list')
+  expect(field({ ...ok, urgent: 'message' }, full)).toBeNull()
 })
 
-test('who hears: in a new workspace its contact goes first, rings at any hour, takes a message', () => {
-  const draft = { mobile: '503-555-0142', urgentOn: true, condition: ' Flooding ' }
+test('who hears: "put through" in a new workspace: one contact for urgent calls and callers who ask for a person', () => {
+  const draft = { urgent: 'transfer' as const, mobile: '503-555-0142', condition: ' Flooding ' }
   const saved = whoHearsTransfers(DEFAULT_TRANSFERS, draft, 'Mike Brennan')!
-  expect(saved.map(c => c.id)).toEqual([URGENT_CONTACT_ID, 'person'])
+  // The default "asks for a person" contact had no number: the owner's mobile serves it too, as one contact.
+  expect(saved.map(c => c.id)).toEqual([URGENT_CONTACT_ID])
   expect(saved[0]).toEqual({
     id: URGENT_CONTACT_ID,
     name: 'Mike Brennan',
     number: '+15035550142',
-    condition: 'Flooding',
+    condition: `Flooding\n${ALSO_PERSON}`,
     hours_only: false,
     ring_seconds: 25,
     if_no_answer: 'message',
     enabled: true,
   })
-  expect(saved[1]).toEqual(person)
-  // Back on the step: its own contact shows, and saving it unchanged changes nothing.
-  expect(firstWhoHears(saved)).toEqual({ mobile: '+1 503 555 0142', urgentOn: true, condition: 'Flooding' })
+  // Back on the step: its own contact shows with its choice, and saving it unchanged changes nothing.
+  expect(firstWhoHears(saved)).toEqual({ urgent: 'transfer', mobile: '+1 503 555 0142', condition: 'Flooding' })
   expect(whoHearsTransfers(saved, firstWhoHears(saved), 'Mike Brennan')).toBeNull()
-  // Turned off: the number stays on a switched-off contact, in the same place.
-  const off = whoHearsTransfers(saved, { ...firstWhoHears(saved), urgentOn: false }, 'Mike Brennan')!
-  expect(off[0]).toMatchObject({ id: URGENT_CONTACT_ID, enabled: false, number: '+15035550142' })
-  expect(off).toHaveLength(2)
+  // Switched to "take a message": the contact is off and keeps its number and condition in the same place, even
+  // when the hidden field was edited before switching.
+  const off = whoHearsTransfers(saved, { urgent: 'message', mobile: '503 555 0199', condition: '' }, 'Mike Brennan')!
+  expect(off[0]).toMatchObject({
+    id: URGENT_CONTACT_ID,
+    enabled: false,
+    number: '+15035550142',
+    condition: `Flooding\n${ALSO_PERSON}`,
+  })
+  expect(off).toHaveLength(1)
+  // Edited on the step again: the person line stays.
+  const edited = whoHearsTransfers(saved, { ...firstWhoHears(saved), condition: 'No heat' }, 'Mike Brennan')!
+  expect(edited[0]!.condition).toBe(`No heat\n${ALSO_PERSON}`)
+  expect(firstWhoHears(off).urgent).toBe('message')
 })
 
 test('who hears: contacts set up in Settings keep their place; the new one goes last', () => {
-  const draft = { mobile: '503-555-0142', urgentOn: true, condition: 'Flooding' }
+  const draft = { urgent: 'transfer' as const, mobile: '503-555-0142', condition: 'Flooding' }
   const saved = whoHearsTransfers([...DEFAULT_TRANSFERS, settingsContact], draft, 'Mike Brennan')!
-  expect(saved.map(c => c.id)).toEqual(['person', 'tc_2', URGENT_CONTACT_ID])
-  expect(saved[1]).toEqual(settingsContact)
+  // The person contact without a number is taken over; Dana's stays where it was.
+  expect(saved.map(c => c.id)).toEqual(['tc_2', URGENT_CONTACT_ID])
+  // A person contact with its own number stays its own contact.
+  const kept = whoHearsTransfers([withNumber(person, '+15035550177'), settingsContact], draft, 'Mike Brennan')!
+  expect(kept.map(c => c.id)).toEqual(['person', 'tc_2', URGENT_CONTACT_ID])
+  expect(kept[2]!.condition).toBe('Flooding')
+  expect(saved[0]).toEqual(settingsContact)
 })
 
-test('who hears: nothing to save without a mobile; a taken, long or missing name gets a free one', () => {
-  expect(whoHearsTransfers(DEFAULT_TRANSFERS, { mobile: '', urgentOn: false, condition: '' }, 'Mike')).toBeNull()
-  const draft = { mobile: '5035550142', urgentOn: true, condition: 'Flooding' }
-  expect(whoHearsTransfers(DEFAULT_TRANSFERS, draft, 'owner')![0]!.name).toBe('owner 2')
+test('who hears: nothing to save without a choice or for a first "take a message"; names stay free', () => {
+  const draft = { urgent: 'transfer' as const, mobile: '5035550142', condition: 'Flooding' }
+  expect(whoHearsTransfers(DEFAULT_TRANSFERS, { ...draft, urgent: null }, 'Mike')).toBeNull()
+  // A number typed and then hidden by "take a message" is not saved.
+  expect(whoHearsTransfers(DEFAULT_TRANSFERS, { ...draft, urgent: 'message' }, 'Mike')).toBeNull()
+  expect(whoHearsTransfers([withNumber(person, '+15035550177')], draft, 'owner')![1]!.name).toBe('owner 2')
   expect(whoHearsTransfers(DEFAULT_TRANSFERS, draft, 'x'.repeat(80))![0]!.name).toHaveLength(60)
   const unnamed = whoHearsTransfers(DEFAULT_TRANSFERS, draft, '  ')!
   expect(unnamed[0]!.name).toBe(FALLBACK_OWNER_NAME)
@@ -354,6 +391,54 @@ test("who hears: refusals about its own contact read as the step's own words; ot
   const other = "Dana's number is a Linedesk number; enter the person's own phone"
   expect(mobileErrorText(other, 'Mike')).toBe(other)
   expect(mobileErrorText('Confirm your email first', 'Mike')).toMatch(/Confirm your email address/)
+})
+
+test('"Urgent means" starts from the urgent cases the common calls name', () => {
+  const instructions =
+    'We fix pipes.\n\nCommon calls:\n- When a caller has a leak, flooding or no heat, treat it as urgent: take their address.\n- When a caller asks about prices, give them.'
+  expect(urgentCasesFrom(instructions)).toBe('A leak, flooding or no heat')
+  expect(urgentCasesFrom('- When a caller has a court deadline this week, mark the message urgent.')).toBe(
+    'A court deadline this week',
+  )
+  expect(urgentCasesFrom('We fix pipes.')).toBeNull()
+  expect(firstWhoHears(DEFAULT_TRANSFERS, 'A leak').condition).toBe('A leak')
+})
+
+test('the area code comes from a number the owner gave, never an example', () => {
+  expect(areaCodeOf(null, '+15035550142')).toBe('503')
+  expect(areaCodeOf('(206) 555-0100', '+15035550142')).toBe('206')
+  expect(areaCodeOf(undefined, 'not a number')).toBe('')
+  expect(phoneOptionSetup('new', { number: '', areaCode: '', confirmed: true }, undefined as never)).toEqual({
+    problem: 'Enter the 3-digit area code for the new number.',
+  })
+})
+
+test('a refused save names the step it came from', () => {
+  expect(rejectionStep('assistant.update', { transfers: [] }, 'phone')).toBe('notify')
+  expect(rejectionStep('assistant.update', { business_profile: {} }, 'pickup')).toBe('business')
+  expect(rejectionStep('assistant.update', { greeting: 'Hi' }, 'pickup')).toBe('assistant')
+  expect(rejectionStep('workspace.updateSettings', { pickupMode: 'always' }, 'phone')).toBe('pickup')
+  expect(rejectionStep('businessHours.set', { hours: [] }, 'business')).toBe('business')
+  expect(rejectionStep('push.subscribe', {}, 'phone')).toBe('notify')
+  expect(rejectionStep('onboarding.setStep', { step: 'phone' }, 'notify')).toBeNull()
+})
+
+test('done says live only when calls are really answered', () => {
+  const base = { voiceMissing: false, forwardingVerified: false, admin: false, assistant: 'Maya' }
+  expect(doneState({ ...base, number: null })).toMatchObject({ live: false, left: [{ href: '#settings/phone' }] })
+  const forwarded = { e164: '+15035550142', mode: 'forward_conditional' as const }
+  const almost = doneState({ ...base, number: forwarded })
+  expect(almost.live).toBe(false)
+  expect(almost.lede).toBe('Maya answers +1 503 555 0142 once forwarding is on.')
+  expect(doneState({ ...base, number: forwarded, forwardingVerified: true }).title).toBe("You're live.")
+  expect(doneState({ ...base, number: { ...forwarded, mode: 'new' } }).live).toBe(true)
+  const noVoice = doneState({ ...base, number: { ...forwarded, mode: 'new' }, voiceMissing: true })
+  expect(noVoice.left).toEqual([
+    { label: "The voice service isn't working yet: ask whoever runs this server", href: null },
+  ])
+  expect(
+    doneState({ ...base, admin: true, number: { ...forwarded, mode: 'new' }, voiceMissing: true }).left[0]!.href,
+  ).toBe('#admin/providers')
 })
 
 test('the phone options read the same in onboarding and Settings › Phone numbers', () => {

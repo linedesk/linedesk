@@ -5,7 +5,16 @@ import { isRecordingPrefix } from './calls.ts'
 import { defineAction } from './define.ts'
 import type { ProviderCheckStatus, ProviderFailureReason } from './provider-health.ts'
 
-export type ProviderCategory = 'telephony' | 'stt' | 'llm' | 'tts' | 'realtime' | 'email' | 'sign_in' | 'recording'
+export type ProviderCategory =
+  | 'telephony'
+  | 'stt'
+  | 'llm'
+  | 'tts'
+  | 'realtime'
+  | 'email'
+  | 'sign_in'
+  | 'recording'
+  | 'business'
 export const providerCategories: Record<ProviderCategory, string> = {
   telephony: 'Telephony',
   stt: 'Speech to text',
@@ -15,6 +24,7 @@ export const providerCategories: Record<ProviderCategory, string> = {
   email: 'Email',
   sign_in: 'Sign-in and calendar',
   recording: 'Recording storage',
+  business: 'Business lookup',
 }
 
 /** Categories where every provider that is set up is in use at once (no pick): sign-in with Google and GitHub, say. */
@@ -55,6 +65,19 @@ type ProviderSpec = {
 }
 
 const apiKey = (env: string): ProviderField => ({ label: 'API key', env, secret: true })
+/**
+ * The number forwarding checks call businesses from (apps/api/src/forwarding-check.ts). A number in this account
+ * that no workspace uses; empty: the first such number in the account.
+ */
+const checkNumber = (env: string): ProviderField => ({
+  label: 'Forwarding check number',
+  env,
+  secret: false,
+  optional: true,
+  hint: 'any unused number in this account',
+})
+const FORWARDING_CHECK_HELP =
+  'Forwarding checks call a business from the forwarding check number, a number in this account that no workspace uses (a few cents a check). Empty: the first such number in the account.'
 const model = (env: string): ProviderField => ({ label: 'Model', env, secret: false, optional: true })
 /**
  * Where each language-model provider answers (OpenAI-compatible chat completions) and its default models: `models`
@@ -130,7 +153,9 @@ export const providers = {
     fields: {
       api_key: apiKey('TELNYX_API_KEY'),
       public_key: { label: 'Webhook public key', env: 'TELNYX_PUBLIC_KEY', secret: false, optional: true },
+      check_number: checkNumber('TELNYX_CHECK_NUMBER'),
     },
+    help: FORWARDING_CHECK_HELP,
   },
   twilio: {
     label: 'Twilio',
@@ -138,7 +163,9 @@ export const providers = {
     fields: {
       account_sid: { label: 'Account SID', env: 'TWILIO_ACCOUNT_SID', secret: false },
       auth_token: { label: 'Auth token', env: 'TWILIO_AUTH_TOKEN', secret: true },
+      check_number: checkNumber('TWILIO_CHECK_NUMBER'),
     },
+    help: FORWARDING_CHECK_HELP,
   },
   deepgram: {
     label: 'Deepgram',
@@ -412,6 +439,14 @@ export const providers = {
     },
     help: 'Okta, Microsoft Entra, Keycloak, Authentik or any OpenID Connect provider. It must send email_verified only for verified addresses; for one that sends none, list the email domains it owns.',
   },
+  // Business lookup: onboarding finds the business's listing (address, phone, hours, website, category) by name and
+  // city. Optional: without it the owner types the name and website. Called only from the API (business.search).
+  google_places: {
+    label: 'Google Places',
+    category: 'business',
+    fields: { api_key: apiKey('GOOGLE_PLACES_API_KEY') },
+    help: 'An API key with the Places API (New) enabled, restricted to it. Onboarding uses it to find a business by name and city and prefill its address, phone, hours and website. Google bills each search as Text Search Pro and each picked listing as Place Details Enterprise (the hours and the website are in that tier). BUSINESS_LOOKUP_DAILY_CAP limits the requests per day.',
+  },
 } as const satisfies Record<string, ProviderSpec>
 
 export type ProviderName = keyof typeof providers
@@ -633,3 +668,26 @@ export const impersonationStop = defineAction({
   input: z.object({}).strict(),
   permission: 'impersonation:stop',
 })
+
+/**
+ * Setup emails (day 0, 1 and 3 until the first real call, the first call, the first week's summary) to the owners of
+ * new workspaces. Off by default, so a self-hosted install sends none unless its admin turns them on.
+ */
+export const setupEmailsGet = defineAction({
+  name: 'setupEmails.get',
+  description: 'Whether new workspaces of this install get setup emails until their first real call (off by default).',
+  input: z.object({}),
+  permission: 'instance:admin',
+  readOnly: true,
+})
+export const setupEmailsSet = adminAction(
+  'setupEmails.set',
+  'Turn setup emails to the owners of new workspaces on or off for this install. Each email still goes out at most once.',
+  z.object({ on: z.boolean() }),
+)
+/**
+ * `data` of `setupEmails.get` and `setupEmails.set`. `emailConnected`: email goes out over SMTP (not only to the
+ * log); until then none are sent. `partnerDirectoryUrl`: the partner link on day 3 (PARTNER_DIRECTORY_URL), null
+ * when the install has none.
+ */
+export type SetupEmailsData = { on: boolean; emailConnected: boolean; partnerDirectoryUrl: string | null }

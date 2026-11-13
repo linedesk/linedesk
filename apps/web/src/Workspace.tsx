@@ -31,7 +31,16 @@ import { Overlays, type Picker } from './shell/Overlays.tsx'
 import { rejectionText } from './shell/rejections.ts'
 import { SetupBanner } from './shell/SetupBanner.tsx'
 import { Tour } from './shell/Tour.tsx'
-import { finishTour, tourDue } from './shell/tour.ts'
+import { finishTour, tourStartsNow } from './shell/tour.ts'
+import {
+  GoLiveChecklist,
+  undoGoLiveRefusal,
+  useGoLiveChecklist,
+  useGoLiveVisible,
+  useHadRealCall,
+  useShowGoLive,
+} from './inbox/GoLiveChecklist.tsx'
+import { firstCallHint } from './inbox/goLive.ts'
 import { KnowledgeQuestionsBar } from './inbox/KnowledgeQuestionsBar.tsx'
 import { SampleCallsBar } from './inbox/SampleCallsBar.tsx'
 import { StarPrompt } from './shell/StarPrompt.tsx'
@@ -59,17 +68,32 @@ const NAV_DOCKED_QUERY = '(min-width: 1600px)'
 
 /** The not-found toasts (call, page) stay long enough to be read after the jump. */
 const NOT_FOUND_TOAST_MS = 4500
-const chordTabs: Record<string, InboxTab> = { i: 'you', e: 'done', h: 'reminders', m: 'mine', u: 'unassigned', r: 'review' }
-const chordPages: Record<string, PageRoute> = { a: 'assistant', c: 'contacts', n: 'insights', t: 'team', s: 'settings' }
+const chordTabs: Record<string, InboxTab> = {
+  i: 'you',
+  e: 'done',
+  h: 'reminders',
+  m: 'mine',
+  u: 'unassigned',
+  r: 'review',
+}
+const chordPages: Record<string, PageRoute> = {
+  a: 'assistant',
+  c: 'contacts',
+  n: 'insights',
+  t: 'team',
+  s: 'settings',
+}
 
 type Props = {
   me: Me
   onSignedOut: () => void | Promise<void>
   /** `me` is out of date (the workspace was disabled or enabled meanwhile): load it again, in place. */
   onSessionStale: () => void | Promise<void>
+  /** Said once when the app opens: why a link did not open here (App, linkNotice). */
+  notice?: string | null
 }
 
-export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
+export function Workspace({ me, onSignedOut, onSessionStale, notice = null }: Props) {
   const nav = useRoute()
   // Disabled or enabled by an instance admin while this tab is open: the banner follows the server's
   // latest answer, and the member's permissions are loaded again.
@@ -98,6 +122,12 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
   // A notification when a call ends while this tab is in the background (Settings, Notifications).
   useCallNotifications(call => callerName(call, call.contact_id ? view.contacts.get(call.contact_id) : undefined))
   const assistantName = useAssistantName()
+  const canEditSettings = me.permissions.includes('settings:write')
+  // Until the first real call, the inbox says what happens when one comes in (goLive.ts).
+  const hadRealCall = useHadRealCall(useGoLiveChecklist(canEditSettings, me.workspace!.id))
+  const showGoLive = useShowGoLive(canEditSettings, me.workspace!.id)
+  // The checklist's first step is connecting the number: while it is on screen, the banner saying so stays away.
+  const goLiveVisible = useGoLiveVisible()
   const [overlay, setOverlay] = useState<Overlay>(null)
   const [navOpen, setNavOpen] = useState(false)
   // On very wide windows the menu stays open beside the content instead of sliding over it.
@@ -113,15 +143,26 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
   const instanceAdmin = isInstanceAdmin(me)
   // Error texts built without `me` (refusals, toasts) send admins to Admin › Providers, others to whoever runs it.
   setProviderAudience(instanceAdmin ? 'admin' : 'member')
-  // First-use tour (FIRST_USE): once after onboarding in this browser, and from ⌘K.
+  // First-use tour (FIRST_USE): queued when onboarding ends in this browser, started once the inbox shows a
+  // call (the go-live checklist comes first; never in an empty inbox), and from ⌘K any time.
   const tourOffered = offersTour(me.firstUse ?? 'off')
-  const [tourOpen, setTourOpen] = useState(() => tourOffered && tourDue(me.workspace!.id))
+  const [tourOpen, setTourOpen] = useState(false)
   const closeTour = () => {
     finishTour()
     setTourOpen(false)
   }
+  const inboxCalls = nav.route === 'calls' && !openCall ? list.length : 0
+  useEffect(() => {
+    if (!tourOffered || tourOpen || !tourStartsNow(me.workspace!.id, inboxCalls)) return
+    finishTour() // once: a reload during the tour does not start it again
+    setTourOpen(true)
+  }, [tourOffered, tourOpen, inboxCalls, me.workspace])
+  // An instance admin who must sign in again still finds the admin area; it asks them to sign in.
+  const canOpenAdmin = instanceAdmin
   // The same rule as the screen without a workspace (#220): sign-up open, or an instance admin.
-  const authMethods = useQuery('auth-methods', loadAuthMethods, { persist: true }).data
+  const authMethods = useQuery('auth-methods', loadAuthMethods, {
+    persist: true,
+  }).data
   const canCreateWorkspace = !!authMethods && mayCreateWorkspace(authMethods.signUp !== false, me)
   const [newWorkspace, setNewWorkspace] = useState(false)
   // What is not in the local store loads at start, so Settings, Assistant and Team open with it.
@@ -201,7 +242,10 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
     }
     const groups = assignGroups(members, me.actorId, calls).map(g => ({
       label: g.label,
-      items: g.items.map(item => ({ ...item, run: () => pick(item.userId, item.label) })),
+      items: g.items.map(item => ({
+        ...item,
+        run: () => pick(item.userId, item.label),
+      })),
     }))
     setPicker({ label: 'Assign', placeholder: 'Assign to…', groups, anchor })
     setOverlay('pick')
@@ -210,9 +254,17 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
   function openAssigneeViews(anchor: DOMRect) {
     const groups = assigneeViewGroups(members, me.actorId).map(g => ({
       label: g.label,
-      items: g.items.map(item => ({ ...item, run: () => view.setTab(item.tab, item.member) })),
+      items: g.items.map(item => ({
+        ...item,
+        run: () => view.setTab(item.tab, item.member),
+      })),
     }))
-    setPicker({ label: 'Assigned to', placeholder: 'Show calls assigned to…', groups, anchor })
+    setPicker({
+      label: 'Assigned to',
+      placeholder: 'Show calls assigned to…',
+      groups,
+      anchor,
+    })
     setOverlay('pick')
   }
   // The last teammate left: the assignee views are gone, back to Needs you.
@@ -293,6 +345,10 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
     nav.backToInbox()
   }, [lost, toaster.show, nav.backToInbox])
 
+  useEffect(() => {
+    if (notice) toaster.show(notice, false, NOT_FOUND_TOAST_MS)
+  }, [notice, toaster.show])
+
   // The keyboard cursor wins over a resting mouse: while keys are used, hover does not highlight a second row.
   useEffect(() => {
     const root = document.documentElement
@@ -337,21 +393,31 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
 
   const { rejection, clearRejection } = useRejection()
   useEffect(() => {
-    if (!rejection) return
+    // A refusal a screen claimed is shown there (useClaimedRejection), not again as a toast.
+    if (!rejection || rejection.claimed) return
     toaster.show(rejectionText(rejection.action, rejection.error))
+    undoGoLiveRefusal(me.workspace!.id, rejection.action)
     clearRejection()
-  }, [rejection, clearRejection, toaster.show])
+  }, [rejection, clearRejection, toaster.show, me.workspace])
 
   const runAction = useRun()
   const commands = commandGroups({
     ...callHandlers,
-    setUrgent: (call, urgent) => void runAction('call.setUrgency', { callId: call.id, urgency: urgent ? 'urgent' : 'normal' }),
+    setUrgent: (call, urgent) =>
+      void runAction('call.setUrgency', {
+        callId: call.id,
+        urgency: urgent ? 'urgent' : 'normal',
+      }),
     me: me.actorId,
     assign: canAssign
       ? {
           members,
           open: call => openAssign(call),
-          to: (call, userId, name) => each(c => actions.assign(c, userId, name), list => actions.many.assign(list, userId, name))(call),
+          to: (call, userId, name) =>
+            each(
+              c => actions.assign(c, userId, name),
+              list => actions.many.assign(list, userId, name),
+            )(call),
           showMember: userId => view.setTab('member', userId),
         }
       : null,
@@ -380,6 +446,12 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
     openHelp: () => setOverlay('help'),
     showTour: tourOffered ? () => setTourOpen(true) : undefined,
     openNav: () => setNavOpen(true),
+    showGoLive: showGoLive
+      ? () => {
+          if (nav.route !== 'calls' || openCall) view.setTab('you')
+          showGoLive()
+        }
+      : undefined,
   })
   function runCommand(command: Command, via: SelectVia) {
     setOverlay(null)
@@ -393,7 +465,14 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
     if (nav.route !== 'admin') beforeAdmin.current = window.location.hash || '#calls'
   }, [nav.route, nav.callId, nav.tab, nav.search])
   if (nav.route === 'admin' && me.adminSecondFactor) {
-    return <SecondFactorPrompt state={me.adminSecondFactor} onExit={() => { window.location.hash = beforeAdmin.current }} />
+    return (
+      <SecondFactorPrompt
+        state={me.adminSecondFactor}
+        onExit={() => {
+          window.location.hash = beforeAdmin.current
+        }}
+      />
+    )
   }
   if (nav.route === 'admin' && instanceAdmin) {
     return (
@@ -435,9 +514,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
       />
       <button type="button" className="scrim" aria-label="Close menu" tabIndex={-1} onClick={() => setNavOpen(false)} />
       <main className="main">
-        {nav.route !== 'settings' && (
-          <SetupBanner canEdit={me.permissions.includes('settings:write')} onConnect={() => goPage('settings')} />
-        )}
+        {nav.route !== 'settings' && !goLiveVisible && <SetupBanner canEdit={canEditSettings} />}
         {!page && !openCall && (
           <SampleCallsBar canEdit={me.permissions.includes('settings:write')} toast={toaster.show} />
         )}
@@ -512,6 +589,17 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
             menu={menu}
             selected={selection.ids}
             groups={view.groups}
+            aside={
+              <GoLiveChecklist
+                canEdit={canEditSettings}
+                workspaceId={me.workspace!.id}
+                toaster={toaster}
+                undoable={actions.undoable}
+                quiet={tourOpen}
+                canFixVoice={instanceAdmin}
+              />
+            }
+            firstCallHint={hadRealCall ? null : firstCallHint(assistantName)}
             onSelect={(c, range) => (range ? selection.range(c.id) : selection.toggle(c.id))}
             bulk={{
               count: selection.count,
@@ -565,7 +653,10 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
         onReminder={pickReminder}
       />
       {tourOpen && !page && <Tour onClose={closeTour} />}
-      <StarPrompt prompt={me.starPrompt ?? null} quiet={tourOpen || !!page || !!openCall || overlay !== null || newWorkspace} />
+      <StarPrompt
+        prompt={me.starPrompt ?? null}
+        quiet={tourOpen || !!page || !!openCall || overlay !== null || newWorkspace}
+      />
       {newWorkspace && <NewWorkspaceDialog onClose={() => setNewWorkspace(false)} />}
       {toaster.toast && <Toast toast={toaster.toast} onUndo={actions.undo} />}
     </div>

@@ -2,7 +2,16 @@
 // call is assigned to me", on by default) and a push to their browsers (push.ts). Sent by a pg-boss job a few seconds
 // after call.assign committed (jobs.ts), and only when that assignment still stands: an undo or a
 // quick change of mind sends nothing.
-import { call_events, calls, contacts, member, member_notification_settings, organization, type Tx, user } from '@linedesk/db'
+import {
+  call_events,
+  calls,
+  contacts,
+  member,
+  member_notification_settings,
+  organization,
+  type Tx,
+  user,
+} from '@linedesk/db'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import type { EmailSender } from './email.ts'
 import { assignedCallEmail, emailSafeName } from './emails/templates.ts'
@@ -70,8 +79,12 @@ export async function notifyAssigned(
   let email: AssignNotifyResult['email'] = 'off'
   if (assignee.wantsEmail) {
     try {
-      const [workspace] = await tx.select({ name: organization.name }).from(organization).where(eq(organization.id, call.workspace_id))
+      const [workspace] = await tx
+        .select({ name: organization.name })
+        .from(organization)
+        .where(eq(organization.id, call.workspace_id))
       const content = assignedCallEmail({
+        workspaceId: call.workspace_id,
         callId: call.id,
         title: call.title,
         summary: call.summary,

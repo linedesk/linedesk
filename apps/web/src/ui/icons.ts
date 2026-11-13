@@ -41,6 +41,7 @@ export const icons = {
   'phone-in': [['path',{d:'M5 4h3l2 5-2.5 1.5a11 11 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z'}],['path',{d:'M21 3l-6 6M15 4v5h5'}]],
   'phone-out': [['path',{d:'M5 4h3l2 5-2.5 1.5a11 11 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z'}],['path',{d:'M15 9l6-6M16 3h5v5'}]],
   'phone-missed': [['path',{d:'M5 4h3l2 5-2.5 1.5a11 11 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z'}],['path',{d:'M15 3l6 6M21 3l-6 6'}]],
+  bell: [['path',{d:'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9'}],['path',{d:'M10.3 21a1.94 1.94 0 0 0 3.4 0'}]],
   'phone-off': [['path',{d:'M2.5 14.5a13.5 13.5 0 0 1 19 0l-2 2.5-3.5-1.2V13a11 11 0 0 0-8 0v2.8L4.5 17z'}]],
   headset: [['path',{d:'M4 15v-3a8 8 0 0 1 16 0v3'}],['rect',{x:3,y:14,width:4,height:6,rx:1.5}],['rect',{x:17,y:14,width:4,height:6,rx:1.5}]],
   mic: [['rect',{x:9,y:3,width:6,height:11,rx:3}],['path',{d:'M5 11a7 7 0 0 0 14 0M12 18v3'}]],

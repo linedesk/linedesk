@@ -85,6 +85,12 @@ export function useVoiceReady(): boolean | null {
   return useVoiceStatus()?.voiceReady ?? null
 }
 
+/** The voice service: set up (`ready`) and, if so, whether a provider it needs is failing; null until known. */
+export function useVoiceHealth(): { ready: boolean; failing: boolean } | null {
+  const status = useVoiceStatus()
+  return status ? { ready: status.voiceReady, failing: status.voiceFailing } : null
+}
+
 /** Whether a number is connected; null until the numbers first arrive on this device. */
 function useHasNumber(): boolean | null {
   const count = useRows('phone_numbers').length

@@ -3,6 +3,7 @@ import { generateKeyPairSync, sign } from 'node:crypto'
 import { describe, expect, test } from 'vitest'
 import { describeProviderContract } from './contract.ts'
 import { createTelnyxProvider, devProvider, installCarrierName, telephonyProviderFromEnv, TelephonyError } from './index.ts'
+import { telnyxLineType } from './telnyx.ts'
 
 type Call = { method: string; path: string; body?: any; auth: string }
 type Route = (call: Call) => { status?: number; json: unknown } | undefined
@@ -61,6 +62,9 @@ const telnyxAccount = (account: Account = {}): Route => ({ method, path, body })
     account.routedTo = body.connection_id
     return { json: { data: { id: 'num_1' } } }
   }
+  if (method === 'GET' && path.startsWith('/number_lookup/')) {
+    return { json: { data: { phone_number: path.split('/')[2]!.split('?')[0], carrier: { name: 'T-Mobile USA, Inc.', type: 'mobile' }, portability: { line_type: 'wireless' } } } }
+  }
   if (method === 'DELETE' && path === '/phone_numbers/num_1') {
     account.owned = false
     return { json: { data: { id: 'num_1' } } }
@@ -74,6 +78,30 @@ function signedWebhook(body: object, timestamp = NOW / 1000) {
 }
 
 describeProviderContract('dev', () => devProvider)
+
+describe('telnyx number lookup', () => {
+  test('asks Number Lookup for the carrier part and reads line type and carrier name', async () => {
+    const { provider, calls } = mockTelnyx(telnyxAccount())
+    expect(await provider.lookupNumber('+15035550142')).toEqual({ e164: '+15035550142', lineType: 'mobile', carrier: 'T-Mobile USA, Inc.' })
+    expect(calls).toEqual([{ method: 'GET', path: '/number_lookup/+15035550142?type=carrier', body: undefined, auth: 'Bearer KEY' }])
+  })
+
+  test('falls back to the portability data, and says unknown when nothing fits', async () => {
+    const landline = mockTelnyx(() => ({ json: { data: { carrier: { name: '', type: null }, portability: { line_type: 'landline', spid_carrier_name: 'Comcast Phone' } } } }))
+    expect(await landline.provider.lookupNumber('+15035550142')).toEqual({ e164: '+15035550142', lineType: 'landline', carrier: 'Comcast Phone' })
+    const empty = mockTelnyx(() => ({ json: { data: {} } }))
+    expect(await empty.provider.lookupNumber('+15035550142')).toEqual({ e164: '+15035550142', lineType: 'unknown', carrier: null })
+  })
+
+  test('"fixed line or mobile" says nothing about the line: unknown', () => {
+    expect(['fixed line or mobile', 'mobile', 'fixed line', 'VoIP'].map(telnyxLineType)).toEqual(['unknown', 'mobile', 'landline', 'voip'])
+  })
+
+  test('a refused lookup is a TelephonyError', async () => {
+    const { provider } = mockTelnyx(() => ({ status: 403, json: { errors: [{ detail: 'Number Lookup is not enabled' }] } }))
+    await expect(provider.lookupNumber('+15035550142')).rejects.toThrow(TelephonyError)
+  })
+})
 describeProviderContract('telnyx', () => {
   const account = telnyxAccount()
   return mockTelnyx(account).provider

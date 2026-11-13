@@ -95,6 +95,11 @@ export const providerMeta: Record<ProviderName, Meta> = {
     blurb: 'Email from a Gmail address.',
     keysUrl: 'https://myaccount.google.com/apppasswords',
   },
+  google_places: {
+    mark: { brand: 'google' },
+    blurb: 'Finds a business by name and city in onboarding.',
+    keysUrl: 'https://console.cloud.google.com/google/maps-apis/credentials',
+  },
   google: {
     mark: { brand: 'google' },
     blurb: 'Sign in with Google and Google Calendar.',

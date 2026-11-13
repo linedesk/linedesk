@@ -5,7 +5,12 @@ import {
   bookingConfirmationEmail,
   confirmationCodeEmail,
   callEmail,
+  firstCallEmail,
+  setupDay0Email,
+  setupNudgeEmail,
+  weekSummaryEmail,
   invitationEmail,
+  PARTNER_DIRECTORY_URL,
   passkeyChangedEmail,
   passkeysResetEmail,
   signInCodeEmail,
@@ -16,7 +21,13 @@ import { brandName } from '../branding.ts'
 
 export type Preview = { name: string; email: RenderedEmail }
 
+const WORKSPACE_ID = 'ws_demo'
+
+/** The partner block of day 3 shows in the previews whether or not this install has a partner directory. */
+const partners = PARTNER_DIRECTORY_URL ?? 'https://linedesk.ai/partners'
+
 const call = {
+  workspaceId: WORKSPACE_ID,
   callId: 'call_demo_01',
   title: 'Water heater leaking in the basement',
   summary:
@@ -31,6 +42,16 @@ const call = {
   nextSteps: ['Confirm the technician can bring a replacement tank', 'Text Sarah the arrival window'],
   booking: { what: 'Emergency repair', when: 'Tuesday, November 10 at 1:00 PM PST' },
   workspace: 'Brightwater Plumbing & Heating',
+}
+
+const setup = {
+  workspaceId: WORKSPACE_ID,
+  workspace: 'Brightwater Plumbing & Heating',
+  assistantName: 'Maya',
+  numberId: 'pn_preview',
+  number: '+15035550142',
+  takesAllCalls: false,
+  step: 'forwarding' as const,
 }
 
 export function previewEmails(origin: string): Preview[] {
@@ -48,6 +69,46 @@ export function previewEmails(origin: string): Preview[] {
           fromNumber: '+15035550177',
           nextSteps: ['Call back with a site-visit time'],
           booking: null,
+        },
+        origin,
+      ),
+    },
+    { name: 'setup-day0', email: setupDay0Email(setup, origin) },
+    { name: 'setup-day1', email: setupNudgeEmail(1, setup, origin) },
+    {
+      name: 'setup-day1-no-number',
+      email: setupNudgeEmail(1, { ...setup, numberId: null, number: null, step: 'number' }, origin),
+    },
+    { name: 'setup-day3', email: setupNudgeEmail(3, setup, origin, null, partners) },
+    { name: 'setup-day3-test', email: setupNudgeEmail(3, { ...setup, step: 'first_call' }, origin, null, partners) },
+    {
+      name: 'first-call',
+      email: firstCallEmail(
+        {
+          ...call,
+          title: 'Dripping shower valve',
+          summary:
+            'Dana has a shower valve that keeps dripping after it is turned off. Wants a callback after 4 pm to set up a visit.',
+          urgent: false,
+          callerName: 'Dana Whitaker',
+          fromNumber: '+15035550154',
+          nextSteps: ['Call Dana back after 4 pm'],
+          booking: null,
+        },
+        origin,
+      ),
+    },
+    {
+      name: 'week-summary',
+      email: weekSummaryEmail(
+        {
+          workspaceId: WORKSPACE_ID,
+          workspace: setup.workspace,
+          assistantName: 'Maya',
+          calls: 9,
+          urgent: 2,
+          booked: 3,
+          messages: 4,
         },
         origin,
       ),

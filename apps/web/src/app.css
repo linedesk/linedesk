@@ -937,6 +937,290 @@ a.k-btn {
   flex: 1 1 240px;
 }
 
+.setup-bar a {
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* The inbox body: the calls and, while there is one, the go-live checklist (inbox/GoLiveChecklist.tsx). */
+.ib-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.ib-body > .ib-list {
+  min-width: 0;
+}
+/* Until the first real call: one quiet line that says what happens when one comes in. */
+.ib-firstcall {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: var(--w-list);
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 8px var(--gutter) 8px var(--row-lead);
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+  line-height: 17px;
+  color: var(--ink-muted);
+}
+.ib-firstcall .k-icon,
+.ib-firstcall svg {
+  flex: none;
+}
+
+/* Go live: narrow windows get a card above the calls, one line until opened; open, it scrolls on its own. */
+.golive {
+  flex: none;
+  margin: 8px 12px 4px;
+  padding: 4px 6px 4px 12px;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  font-size: 13px;
+}
+.golive-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.golive-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.golive-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+.golive-toggle b {
+  font-weight: 600;
+}
+.golive-count {
+  font-size: 12px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.golive-next {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.golive-rows {
+  display: none;
+  margin: 0;
+  padding: 2px 0 6px;
+  list-style: none;
+}
+.golive.is-open {
+  max-height: 50vh;
+  overflow: auto;
+}
+.golive.is-open .golive-rows {
+  display: grid;
+  gap: 2px;
+}
+.golive-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.golive-row > a,
+.golive-row > div {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+  padding: 5px 6px;
+  margin-left: -6px;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  text-decoration: none;
+}
+.golive-row > a:hover {
+  background: var(--surface-hover);
+}
+.golive-row > a:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.golive-row b {
+  font-weight: 500;
+}
+.golive-row span:not(.sr-only):not(.golive-mark) {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+.golive-row.is-done b {
+  font-weight: 400;
+  color: var(--ink-muted);
+  text-decoration: line-through;
+}
+/* The tick: an empty ring until done, then filled in ink (black is the primary colour, not green). */
+.golive-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 6px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--line-control);
+  border-radius: var(--radius-full);
+}
+.golive-row.is-done .golive-mark {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--surface);
+}
+/* The checklist did not load (nothing kept from before): one line and Try again. */
+.golive-problem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+/* Remind me (H) and Not needed (⌫) on an open step: shown on hover and while the step has the focus; always on touch. */
+.golive-acts {
+  flex: none;
+  display: flex;
+  gap: 0;
+  margin-top: 2px;
+  opacity: 0;
+}
+.golive-row:hover .golive-acts,
+.golive-row:focus-within .golive-acts {
+  opacity: 1;
+}
+@media (hover: none) {
+  .golive-acts {
+    opacity: 1;
+  }
+}
+.golive-row > div.golive-target:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+/* Reminders · N and Not needed · N under the open steps, collapsed; one click on a step brings it back. */
+.golive-set {
+  display: none;
+  padding: 2px 0 4px;
+}
+.golive.is-open .golive-set {
+  display: grid;
+  gap: 2px;
+}
+.golive-more {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  margin-left: -6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.golive-more:hover,
+.golive-back:hover {
+  background: var(--surface-hover);
+}
+.golive-more[aria-expanded="false"] .k-icon {
+  transform: rotate(-90deg);
+}
+.golive-more span {
+  color: var(--ink-muted);
+}
+.golive-set ul {
+  margin: 0 0 4px;
+  padding: 0 0 0 18px;
+  list-style: none;
+}
+.golive-back {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+  padding: 4px 6px;
+  margin-left: -6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.golive-back b {
+  font-weight: 500;
+}
+.golive-back span {
+  grid-row: 2;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.golive-back .k-icon {
+  grid-row: 1 / 3;
+  grid-column: 2;
+  color: var(--ink-muted);
+}
+.golive-more:focus-visible,
+.golive-back:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+/* Wide windows: a side panel beside the calls, always open, like the contact panel in a call. */
+@media (min-width: 1100px) {
+  .ib-body {
+    flex-direction: row;
+  }
+  .ib-body > .ib-list {
+    flex: 1;
+  }
+  .golive,
+  .golive.is-open {
+    order: 2;
+    width: 272px;
+    max-height: none;
+    margin: 0;
+    padding: 14px 14px 16px;
+    overflow: auto;
+    border-radius: 0;
+    box-shadow: none;
+    border-left: 1px solid var(--line);
+  }
+  .golive-toggle {
+    cursor: default;
+  }
+}
+
 /* Settings, Phone numbers */
 .st-pn {
   gap: 10px;
@@ -997,6 +1281,19 @@ a.k-btn {
 }
 .pn-status.is-on::before {
   background: var(--live-dot, var(--ink));
+}
+/* Forwarding not verified yet: the status opens the number, where the check is. */
+.pn-status-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+.pn-status-link:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .pn-release {
   color: var(--danger);

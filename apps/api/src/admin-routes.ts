@@ -6,6 +6,7 @@ import type { Permission } from '@linedesk/actions'
 import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
 import type { Context, Hono, Next } from 'hono'
+import { z } from 'zod'
 import { adminHealth, adminOverview, costEstimate, noteAgentSeen } from './admin-overview.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
@@ -16,6 +17,7 @@ import { providerStatus, voiceProviderConfig } from './provider-settings.ts'
 import { SecretsKeyError } from './secrets.ts'
 import { setupChecklist } from './setup-checklist.ts'
 import { LATENCY_DAYS_DEFAULT, LATENCY_DAYS_MAX, replyLatency } from './reply-latency.ts'
+import { AT_RISK_MAX_DAYS, atRiskWorkspaces, workspacesOldEnough } from './setup-emails.ts'
 
 type Env = { Variables: { actor: Actor } }
 // biome-ignore lint/suspicious/noExplicitAny: rows of hand-written aggregate queries
@@ -28,6 +30,9 @@ const requirePermission = (permission: Permission) => async (c: Context<Env>, ne
     return c.json({ ok: false, error: `missing permission ${permission}` }, 403)
   await next()
 }
+
+/** `days` of GET /v1/admin/onboarding: whole days, clamped to 0 … AT_RISK_MAX_DAYS; anything else is the default. */
+const setupDays = z.coerce.number().int()
 
 const rows = async (tx: Tx, query: ReturnType<typeof sql>) => (await tx.execute(query)).rows as Row[]
 const minutes = (seconds: number) => Math.round(seconds / 6) / 10
@@ -177,6 +182,18 @@ export function registerAdminRoutes(app: Hono<Env>) {
   app.get('/v1/admin/latency', async c => {
     const days = Math.min(LATENCY_DAYS_MAX, Math.max(1, Number(c.req.query('days')) || LATENCY_DAYS_DEFAULT))
     return c.json(await replyLatency(db, days))
+  })
+  // Workspaces that signed up more than `days` days ago (default 1) and no real call has reached yet: where each stopped.
+  // `oldEnough`: how many workspaces signed up in that window at all, so an empty list on a new install says so.
+  app.get('/v1/admin/onboarding', async c => {
+    const parsed = setupDays.safeParse(c.req.query('days'))
+    const days = parsed.success ? Math.min(AT_RISK_MAX_DAYS, Math.max(0, parsed.data)) : 1
+    const now = new Date().toISOString()
+    const [workspaces, oldEnough] = await Promise.all([
+      atRiskWorkspaces(db, days, now),
+      workspacesOldEnough(db, days, now),
+    ])
+    return c.json({ days, oldEnough, workspaces })
   })
   // Health of the parts of the install; can take a few seconds (LiveKit, SMTP).
   app.get('/v1/admin/health', async c => c.json(await adminHealth()))

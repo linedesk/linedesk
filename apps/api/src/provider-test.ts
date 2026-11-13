@@ -378,6 +378,16 @@ const cartesia: Check = async (values, http) => {
   return ok()
 }
 
+/** A place every key can read (Google's own example, the Google office in Sydney). */
+export const PLACES_TEST_PLACE = 'ChIJN1t_tDeuEmsRUsoyG83frY4'
+// Place Details asking only for the ID (Google's free "IDs only" request), for a well-known place.
+const googlePlaces: Check = async (values, http) => {
+  const answer = await http.json(`https://places.googleapis.com/v1/places/${PLACES_TEST_PLACE}`, {
+    headers: { 'x-goog-api-key': values.api_key!, 'x-goog-fieldmask': 'id' },
+  })
+  return answer.ok ? ok() : failed(answer.problem)
+}
+
 type HttpProvider = Exclude<ProviderName, RecordingStoreName | OAuthApp | 'smtp' | MailService>
 /** How to test each provider of the registry (packages/actions/src/admin.ts) that answers over HTTP. */
 const checks: Record<HttpProvider, Check> = {
@@ -395,6 +405,7 @@ const checks: Record<HttpProvider, Check> = {
   openai_realtime: openaiRealtime,
   elevenlabs,
   cartesia,
+  google_places: googlePlaces,
 }
 
 // --- Email --------------------------------------------------------------------------------------

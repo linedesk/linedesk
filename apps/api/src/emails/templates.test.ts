@@ -2,17 +2,26 @@ import { describe, expect, it } from 'vitest'
 import { defuseLinks, escapeHtml, renderEmail } from './layout.ts'
 import { previewEmails } from './previews.ts'
 import {
+  appLink,
+  assignedCallEmail,
   bookingConfirmationEmail,
   type CallEmail,
   callEmail,
+  firstCallEmail,
   invitationEmail,
   passkeyChangedEmail,
+  readPartnerDirectoryUrl,
+  type SetupEmail,
+  setupDay0Email,
+  setupNudgeEmail,
   signInCodeEmail,
+  weekSummaryEmail,
 } from './templates.ts'
 
 const ORIGIN = 'https://desk.example.com'
 
 const call: CallEmail = {
+  workspaceId: 'ws_1',
   callId: 'call_1',
   title: 'Water heater',
   summary: 'No hot water since this morning.',
@@ -92,9 +101,9 @@ describe('call summary', () => {
     expect(email.text).toContain('Caller: Priya Shah')
     expect(email.text).toContain('Number: +1 503 555 0191')
     expect(email.text).toContain('- Call back before noon')
-    expect(email.text).toContain('https://desk.example.com/#call/call_1')
-    expect(email.html).toContain('href="https://desk.example.com/#call/call_1"')
-    expect(email.html).toContain('href="https://desk.example.com/#assistant/notifications"')
+    expect(email.text).toContain('https://desk.example.com/#call/call_1?ws=ws_1')
+    expect(email.html).toContain('href="https://desk.example.com/#call/call_1?ws=ws_1"')
+    expect(email.html).toContain('href="https://desk.example.com/#settings/notifications?ws=ws_1"')
     expect(email.html).not.toContain('class="ld-badge"')
   })
 
@@ -129,6 +138,84 @@ describe('call summary', () => {
     expect(email.subject).toBe('New call · +1 503 555 0191')
     expect(email.text).toContain('Caller: Unknown caller')
     expect(email.text).not.toContain('Next steps')
+  })
+})
+
+describe('links into the app name their workspace', () => {
+  it('appLink adds the workspace to the hash, after a query the path already has', () => {
+    expect(appLink(ORIGIN, 'ws_1', 'call/call_1')).toBe('https://desk.example.com/#call/call_1?ws=ws_1')
+    expect(appLink(ORIGIN, 'ws_1', 'calls?q=leak')).toBe('https://desk.example.com/#calls?q=leak&ws=ws_1')
+    expect(appLink(ORIGIN, 'a b&c', 'calls')).toBe('https://desk.example.com/#calls?ws=a%20b%26c')
+  })
+
+  const setup: SetupEmail = {
+    workspaceId: 'ws_1',
+    workspace: 'Brightwater Plumbing & Heating',
+    assistantName: 'Maya',
+    numberId: 'pn_1',
+    number: '+15035550142',
+    takesAllCalls: false,
+    step: 'forwarding',
+  }
+  const assigned = assignedCallEmail(
+    { ...call, assignedBy: 'Mike Brennan', workspace: 'Brightwater Plumbing & Heating' },
+    ORIGIN,
+  )
+  const week = { ...setup, calls: 3, urgent: 1, booked: 1, messages: 1 }
+
+  it.each([
+    ['call', callEmail(call, ORIGIN)],
+    ['first call', firstCallEmail(call, ORIGIN)],
+    ['assigned call', assigned],
+    ['setup day 0', setupDay0Email(setup, ORIGIN)],
+    ['setup day 1', setupNudgeEmail(1, setup, ORIGIN)],
+    ['setup day 3', setupNudgeEmail(3, setup, ORIGIN, null, 'https://partners.example.com')],
+    ['week summary', weekSummaryEmail(week, ORIGIN)],
+  ])('%s: every link to the app carries ws=', (_name, email) => {
+    const appLinks = [...email.html.matchAll(/href="(https:\/\/desk\.example\.com\/[^"]*)"/g)].map(m => m[1]!)
+    expect(appLinks.length).toBeGreaterThan(0)
+    for (const link of appLinks) expect(link).toMatch(/#[^"]*[?&]ws=ws_1$/)
+  })
+
+  it('setup emails open the next step in their workspace, like the go-live checklist', () => {
+    expect(setupDay0Email(setup, ORIGIN).html).toContain('href="https://desk.example.com/#settings/phone/pn_1?ws=ws_1"')
+    const noNumber = { ...setup, numberId: null, number: null, step: 'number' as const }
+    expect(setupDay0Email(noNumber, ORIGIN).html).toContain('href="https://desk.example.com/#settings/phone?ws=ws_1"')
+    const firstCall = setupNudgeEmail(1, { ...setup, step: 'first_call' }, ORIGIN)
+    expect(firstCall.html).toContain('href="https://desk.example.com/#calls?ws=ws_1"')
+    expect(firstCall.text).toContain('Open your inbox')
+    // A teammate who takes transferred calls is one of the business's own phones: only a friend's phone is suggested.
+    expect(firstCall.text).not.toContain('colleague')
+  })
+})
+
+describe('partner directory', () => {
+  const setup: SetupEmail = {
+    workspaceId: 'ws_1',
+    workspace: 'Brightwater Plumbing & Heating',
+    assistantName: 'Maya',
+    numberId: null,
+    number: null,
+    takesAllCalls: false,
+    step: 'number',
+  }
+
+  it('day 3 offers a partner only when the install has a directory', () => {
+    const withDirectory = setupNudgeEmail(3, setup, ORIGIN, null, 'https://partners.example.com')
+    expect(withDirectory.text).toContain('Find a partner')
+    expect(withDirectory.html).toContain('href="https://partners.example.com"')
+    const without = setupNudgeEmail(3, setup, ORIGIN, null, null)
+    expect(without.text).not.toContain('partner')
+    expect(setupNudgeEmail(1, setup, ORIGIN, null, 'https://partners.example.com').text).not.toContain('partner')
+  })
+
+  it('PARTNER_DIRECTORY_URL: unset is none, an http(s) link is used, anything else fails at start', () => {
+    expect(readPartnerDirectoryUrl({})).toBeNull()
+    expect(readPartnerDirectoryUrl({ PARTNER_DIRECTORY_URL: '  ' })).toBeNull()
+    expect(readPartnerDirectoryUrl({ PARTNER_DIRECTORY_URL: 'https://linedesk.ai/partners' })).toBe(
+      'https://linedesk.ai/partners',
+    )
+    expect(() => readPartnerDirectoryUrl({ PARTNER_DIRECTORY_URL: 'javascript:alert(1)' })).toThrow()
   })
 })
 

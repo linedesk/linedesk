@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { forgetBeyond } from './localData.ts'
 import { NoWorkspace } from './NoWorkspace.tsx'
 import { Login } from './Login.tsx'
 import { backoffMs } from './retry.ts'
-import { loadSession, type Session } from './session.ts'
+import { loadSession, renamedWorkspace, type Session } from './session.ts'
 import { Onboarding } from './onboarding/Onboarding.tsx'
 import { ImpersonationFrame } from './shell/ImpersonationBar.tsx'
+import { switchToWorkspace } from './shell/invitations.ts'
+import { linkNotice, linkWorkspace, linkWorkspaceTarget, withoutLinkWorkspace } from './shell/useRoute.ts'
 import { TabWorkspaceGuard } from './shell/TabWorkspaceNotice.tsx'
 import { DISABLED_WORKSPACE, StoreProvider } from './store.tsx'
 import { Workspace } from './Workspace.tsx'
@@ -23,12 +25,73 @@ function Unreachable() {
   )
 }
 
+/** Whether the address is in Admin (#admin…), followed as it changes. */
+function useAdminHash(): boolean {
+  const [admin, setAdmin] = useState(() => window.location.hash.startsWith('#admin'))
+  useEffect(() => {
+    const follow = () => setAdmin(window.location.hash.startsWith('#admin'))
+    window.addEventListener('hashchange', follow)
+    return () => window.removeEventListener('hashchange', follow)
+  }, [])
+  return admin
+}
+
+const LINK_SWITCH = 'linedesk.linkSwitch'
+
+/** Whether this tab already switched for the link to `id` (and remembers it now); null forgets it. */
+function attemptedSwitch(id: string | null): boolean {
+  try {
+    const before = sessionStorage.getItem(LINK_SWITCH)
+    if (id) sessionStorage.setItem(LINK_SWITCH, id)
+    else sessionStorage.removeItem(LINK_SWITCH)
+    return !!id && before === id
+  } catch {
+    return false // private mode: no guard, the switch itself checks membership
+  }
+}
+
 export function App() {
   const [session, setSession] = useState<Session>({ state: 'loading' })
   const [inviteId, setInviteId] = useState(readInviteId)
   // Finishing onboarding is a queued command; the app moves on without waiting for it.
   const [onboarded, setOnboarded] = useState(false)
+  const adminHash = useAdminHash()
   const refresh = useCallback(async () => setSession(await loadSession()), [])
+  // A link from an email names its workspace (`?ws=` in the hash): read once at load, settled before the app opens.
+  const [link, setLink] = useState(() => linkWorkspace(window.location.hash))
+  const [notice, setNotice] = useState<string | null>(null)
+  const target = useMemo(
+    () =>
+      session.state === 'ready' && link
+        ? linkWorkspaceTarget(link, session.me.workspace!.id, session.me.workspaces, session.offline)
+        : null,
+    [session, link],
+  )
+  useEffect(() => {
+    if (!link || !target) return
+    // A workspace the member belongs to: make it the session's and reload into the same page (it keeps the link,
+    // which then names this workspace). Could not switch: the inbox says which workspace the link is for.
+    if (target.kind === 'switch') {
+      const failed = () => {
+        window.history.replaceState(null, '', '#calls')
+        setNotice(linkNotice({ kind: 'elsewhere', workspace: target.workspace }))
+        setLink(null)
+      }
+      // Once per link and tab: should the reload not land in it, never switch again in a loop.
+      if (attemptedSwitch(link)) return failed()
+      switchToWorkspace(link, null).catch(failed)
+      return
+    }
+    attemptedSwitch(null)
+    // This workspace: the page opens without the parameter. Another one: the inbox, and why.
+    window.history.replaceState(
+      null,
+      '',
+      target.kind === 'here' ? withoutLinkWorkspace(window.location.hash) : '#calls',
+    )
+    setNotice(linkNotice(target))
+    setLink(null)
+  }, [link, target])
   useEffect(() => {
     void refresh()
   }, [refresh])
@@ -72,10 +135,16 @@ export function App() {
   if (session.state === 'loading') return <BootScreen line={`Opening ${brandName()}…`} />
   if (session.state === 'unreachable') return <Unreachable />
   if (session.state === 'signedOut') return <Login onDone={refresh} />
+  if (target) return <BootScreen line={`Opening ${target.kind === 'switch' ? target.workspace.name : brandName()}…`} />
   if (session.state === 'needsWorkspace') {
     return (
       <ImpersonationFrame impersonation={session.impersonation}>
-        <NoWorkspace me={session.me} lostWorkspace={session.lostWorkspace} onDone={refresh} onOpenInvite={setInviteId} />
+        <NoWorkspace
+          me={session.me}
+          lostWorkspace={session.lostWorkspace}
+          onDone={refresh}
+          onOpenInvite={setInviteId}
+        />
       </ImpersonationFrame>
     )
   }
@@ -87,10 +156,18 @@ export function App() {
         readOnly={session.me.workspace?.disabled ? DISABLED_WORKSPACE : undefined}
       >
         <TabWorkspaceGuard me={session.me}>
-          {session.me.onboarding && !onboarded ? (
-            <Onboarding me={session.me} state={session.me.onboarding} onDone={() => setOnboarded(true)} />
+          {/* An instance admin can open Admin in the middle of onboarding (the business step links to Providers). */}
+          {session.me.onboarding && !onboarded && !(adminHash && session.me.permissions.includes('instance:admin')) ? (
+            <Onboarding
+              me={session.me}
+              state={session.me.onboarding}
+              onDone={() => setOnboarded(true)}
+              onRenamed={name =>
+                setSession(s => (s.state === 'ready' ? { ...s, me: renamedWorkspace(s.me, name) } : s))
+              }
+            />
           ) : (
-            <Workspace me={session.me} onSignedOut={refresh} onSessionStale={refresh} />
+            <Workspace me={session.me} onSignedOut={refresh} onSessionStale={refresh} notice={notice} />
           )}
         </TabWorkspaceGuard>
       </StoreProvider>

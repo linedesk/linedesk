@@ -357,6 +357,8 @@ export const member_notification_settings = pgTable(
     push_summary: boolean('push_summary'),
     /** An email when a teammate assigns a call to this member; null: on. */
     assigned_email: boolean('assigned_email'),
+    /** Setup emails (apps/api/src/setup-emails.ts) while the workspace gets set up; null: on. */
+    setup_emails: boolean('setup_emails'),
     updated_at: ts('updated_at').notNull().defaultNow(),
   },
   t => [primaryKey({ columns: [t.workspace_id, t.user_id] })],
@@ -960,6 +962,47 @@ export const webhook_deliveries = pgTable(
   t => [index('webhook_deliveries_endpoint').on(t.endpoint_id, t.created_at)],
 )
 
+// A member closed the go-live checklist in the inbox (onboarding.dismissGoLiveChecklist): it stays closed for them
+// in this workspace, in every browser, until they reopen it from the command menu. Not synced; read through
+// onboarding.goLiveChecklist, only the caller's own row.
+export const golive_checklist_dismissals = pgTable(
+  'golive_checklist_dismissals',
+  {
+    workspace_id: text('workspace_id').notNull(),
+    user_id: text('user_id').notNull(),
+    dismissed_at: ts('dismissed_at').notNull().defaultNow(),
+  },
+  t => [primaryKey({ columns: [t.workspace_id, t.user_id] })],
+)
+
+// A go-live step set aside (onboarding.skipGoLiveStep, onboarding.remindGoLiveStep, onboarding.restoreGoLiveStep).
+// user_id null: the whole workspace's row, only `skipped` ("Not needed") of a workspace-scoped step: every owner and
+// admin stops seeing it. user_id set: one person's row, a `later` (back for them at `until`) or the `skipped` of a
+// person-scoped step (goLiveStepScope in @linedesk/actions: push is about their own devices).
+// Not synced; read through onboarding.goLiveChecklist (the workspace's rows and the caller's own).
+export const golive_checklist_steps = pgTable(
+  'golive_checklist_steps',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    step: text('step').notNull(),
+    state: text('state', { enum: ['skipped', 'later'] }).notNull(),
+    /** Whose row it is: a `later`, or the `skipped` of a person-scoped step; null for the whole workspace. */
+    user_id: text('user_id'),
+    /** When a `later` step comes back; null for `skipped`. */
+    until: ts('until'),
+    /** Who skipped it or put it off. */
+    by_user_id: text('by_user_id').notNull(),
+    created_at: createdAt(),
+  },
+  t => [
+    uniqueIndex('golive_checklist_steps_workspace').on(t.workspace_id, t.step).where(sql`${t.user_id} is null`),
+    uniqueIndex('golive_checklist_steps_person')
+      .on(t.workspace_id, t.user_id, t.step, t.state)
+      .where(sql`${t.user_id} is not null`),
+  ],
+)
+
 /** Tables that read sync delivers to clients, filtered by workspace_id. */
 export const syncedTables = {
   calls, contacts, assistants, phone_numbers, transcript_segments, appointment_types, bookings, calendar_connections, assistant_calendars,
@@ -981,7 +1024,7 @@ export const star_prompts = pgTable('star_prompts', {
  * records the others where they happen (apps/api/src/setup-events.ts).
  */
 export const setupEventKinds = [
-  'signup', 'business_found', 'assistant_heard', 'mobile_added', 'forwarding_instructions_shown',
+  'signup', 'business_found', 'assistant_heard', 'mobile_added', 'number_connected', 'forwarding_instructions_shown',
   'forwarding_verified', 'onboarding_done', 'onboarding_skipped', 'first_real_call', 'activated',
 ] as const
 export type SetupEventKind = (typeof setupEventKinds)[number]
@@ -995,5 +1038,96 @@ export const setup_events = pgTable(
     event: text('event', { enum: setupEventKinds }).notNull(),
     at: ts('at').notNull().defaultNow(),
   },
-  t => [primaryKey({ columns: [t.workspace_id, t.event] })],
+  t => [
+    primaryKey({ columns: [t.workspace_id, t.event] }),
+    // The setup emails job looks up recent sign-ups every few minutes (apps/api/src/setup-emails.ts).
+    index('setup_events_signup_at').on(t.at).where(sql`event = 'signup'`),
+  ],
+)
+
+/** The setup emails (apps/api/src/setup-emails.ts): days after sign-up, the first real call, the first week. */
+export const setupEmailKinds = ['setup_day0', 'setup_day1', 'setup_day3', 'first_call', 'week_summary'] as const
+export type SetupEmailKind = (typeof setupEmailKinds)[number]
+
+// Setup emails a workspace got: each goes out at most once per workspace. Not synced to browsers.
+export const setup_emails = pgTable(
+  'setup_emails',
+  {
+    workspace_id: workspaceId(),
+    kind: text('kind', { enum: setupEmailKinds }).notNull(),
+    sent_at: ts('sent_at').notNull().defaultNow(),
+  },
+  t => [primaryKey({ columns: [t.workspace_id, t.kind] })],
+)
+
+/**
+ * What a forwarding check found: `dialing` while it runs; `works` (our call arrived on the Linedesk number),
+ * `rang_through` (rang the business phone, never forwarded), `answered` (picked up before it forwarded: voicemail or
+ * a person), `busy`, `unreachable`, or `not_checked` (it could not run: no carrier, no number to call from).
+ */
+// forwards_elsewhere: the call arrived on another Linedesk number than this one. no_assistant: it reached Linedesk (the
+// call was answered there) but the assistant never picked it up, so the forwarding works and the agent does not.
+export const forwardingCheckStatuses = ['dialing', 'works', 'rang_through', 'answered', 'busy', 'unreachable', 'forwards_elsewhere', 'no_assistant', 'not_checked'] as const
+export type ForwardingCheckStatus = (typeof forwardingCheckStatuses)[number]
+
+// One automatic test of call forwarding (apps/api/src/forwarding-check.ts): Linedesk calls the business's own number
+// from a number of the install and watches whether that call arrives on the workspace's Linedesk number. Not synced:
+// the web app reads it through phoneNumber.forwardingCheck while a check runs.
+export const forwarding_checks = pgTable(
+  'forwarding_checks',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    phone_number_id: text('phone_number_id').notNull(),
+    /** The business's own number that was called; saved as phone_numbers.forwarded_from once a check works. */
+    business_number: text('business_number').notNull(),
+    /** The workspace's Linedesk number the call should arrive on (phone_numbers.e164). */
+    linedesk_number: text('linedesk_number').notNull(),
+    /** The install's number the check called from; the arriving call is matched on it. Null until the check dials. */
+    caller_number: text('caller_number'),
+    /** Run by the development carrier (`dev`): nothing was dialled, so a `works` never verifies the number. */
+    simulated: boolean('simulated').notNull().default(false),
+    status: text('status', { enum: forwardingCheckStatuses }).notNull().default('dialing'),
+    /** Why a check could not run, or what the carrier answered (no secrets): for the owner and the admin. */
+    detail: text('detail'),
+    created_by: text('created_by'),
+    started_at: ts('started_at').notNull().defaultNow(),
+    dialed_at: ts('dialed_at'),
+    arrived_at: ts('arrived_at'),
+    finished_at: ts('finished_at'),
+  },
+  t => [
+    index('forwarding_checks_ws').on(t.workspace_id, t.started_at),
+    // Arrivals are matched on our caller number and the time since the dial; limits count by business number.
+    index('forwarding_checks_arrival').on(t.caller_number, t.dialed_at),
+    index('forwarding_checks_business').on(t.business_number, t.started_at),
+  ],
+)
+
+/**
+ * Carrier line lookups that reached the carrier (phoneNumber.lookupLine; each costs a fraction of a cent), counted
+ * for the daily limits per workspace and per install. Not synced to the browser.
+ */
+export const line_lookups = pgTable(
+  'line_lookups',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    number: text('number').notNull(),
+    looked_up_at: ts('looked_up_at').notNull().defaultNow(),
+  },
+  t => [index('line_lookups_ws').on(t.workspace_id, t.looked_up_at), index('line_lookups_at').on(t.looked_up_at)],
+)
+
+// Business lookup imports and searches per UTC day: one row per workspace, and one with workspace_id '' for the whole
+// install, so the caps hold across API processes and deploys (apps/api/src/business-import.ts). No foreign key: the
+// install row has no workspace; old days are deleted as new ones start. Not synced to browsers.
+export const business_lookup_usage = pgTable(
+  'business_lookup_usage',
+  {
+    day: date('day').notNull(),
+    workspace_id: text('workspace_id').notNull(),
+    requests: integer('requests').notNull().default(0),
+  },
+  t => [primaryKey({ columns: [t.day, t.workspace_id] })],
 )

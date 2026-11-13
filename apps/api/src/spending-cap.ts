@@ -8,6 +8,7 @@ import { and, eq, gte, isNull, notInArray, sql } from 'drizzle-orm'
 import { costEstimate } from './admin-overview.ts'
 import { WEB_ORIGIN } from './auth.ts'
 import type { Email, EmailSender } from './email.ts'
+import { emailSafeName } from './emails/templates.ts'
 import { instanceAdminEmails } from './instance-admin.ts'
 import { queueSpendingCapAlert } from './jobs.ts'
 
@@ -95,7 +96,7 @@ export async function sendSpendingAlert(tx: Tx, sender: EmailSender, { workspace
   let failed = 0
   for (const to of addresses) {
     try {
-      await sender.send(spendingAlertEmail(workspace.name, level, cap, to))
+      await sender.send(spendingAlertEmail(emailSafeName(workspace.name, 'Your workspace'), level, cap, to))
       sent++
     } catch (e) {
       failed++

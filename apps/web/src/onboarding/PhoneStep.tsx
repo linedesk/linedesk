@@ -1,69 +1,117 @@
 // The phone step: connect a number the assistant answers, then (for a number the business keeps) the forwarding code.
 // It leads with keeping the business's number: a new number to give out reaches the assistant only when dialled.
+import { forwardingGuideById } from '@linedesk/actions'
 import type { PhoneNumber } from '@linedesk/db/types'
 import { useEffect, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
 import { Field, TextInput } from '../settings/fields.tsx'
 import { useWorkspaceSettings, useWriteAction } from '../settings/settings-api.ts'
-import { useAssistantName, useRows, useRun } from '../store.tsx'
+import { useAssistant, useAssistantName, useRows, useRun } from '../store.tsx'
 import { RadioCard } from '../ui/controls.tsx'
-import { Button, cx, Icon } from '../ui/kit.tsx'
-import { CopyButton, Foot, useStepKeys } from './Frame.tsx'
+import { Button, Icon } from '../ui/kit.tsx'
+import { ForwardingCheck } from './ForwardingCheck.tsx'
+import { CarrierPicker, ForwardingSteps, useForwardingGuide } from './ForwardingGuide.tsx'
+import { Foot, useStepKeys } from './Frame.tsx'
 import {
+  areaCodeOf,
   buyQuestion,
   carrierName,
-  carriers,
+  existingLinkText,
   firstPickup,
   formatNumber,
-  forwardingCode,
   forwardingOffer,
   type PhoneOption,
-  phoneOptions,
   phoneOptionSetup,
+  phoneOptions,
   phoneOptionText,
   pickupNumberMode,
   priceNote,
+  turnOffFirst,
+  URGENT_CONTACT_ID,
 } from './flow.ts'
 
 type Props = {
   status: PhoneSetupStatus
   /** How the number forwarded before the pick-up step changed it this session: its off code is shown first. */
   oldForwarding: 'forward_conditional' | 'forward_all' | null
+  /** The business phone given in the first step: prefills the business number of the forwarding check. */
+  businessNumber?: string
   setupError: string | null
   clearError: () => void
+  /** An instance admin: hints about the server link to Admin › Providers; everyone else is told whom to ask. */
+  admin: boolean
   onBack: () => void
   onNext: () => void
 }
 
+/** A number is never skipped, only connected later: it stays in the go-live checklist. */
+const LATER = { laterLabel: 'Connect later', laterTitle: 'It stays in your go-live checklist' }
+
+
 export function PhoneStep(p: Props) {
   const number = useRows('phone_numbers')[0]
-  if (number) return <Connected number={number} oldForwarding={p.oldForwarding} onBack={p.onBack} onNext={p.onNext} />
-  if (!p.status.available) return <Unavailable detail={p.status.detail} onBack={p.onBack} onNext={p.onNext} />
-  return <Choose {...p} />
+  const assistant = useAssistant()
+  // The business phone from step 1 (#491 saves it in the profile) and the owner's mobile from step 4.
+  const businessPhone = (assistant?.business_profile as { phone?: string } | undefined)?.phone ?? null
+  const mobile = assistant?.transfers.find(c => c.id === URGENT_CONTACT_ID)?.number ?? null
+  if (number)
+    return (
+      <Connected
+        number={number}
+        oldForwarding={p.oldForwarding}
+        // The business phone from step 1 prefills the forwarding check's business-number field.
+        businessNumber={p.businessNumber ?? businessPhone ?? undefined}
+        onBack={p.onBack}
+        onNext={p.onNext}
+      />
+    )
+  if (!p.status.available)
+    return <Unavailable detail={p.status.detail} admin={p.admin} onBack={p.onBack} onNext={p.onNext} />
+  return <Choose {...p} firstAreaCode={areaCodeOf(businessPhone, mobile)} />
 }
 
-function Unavailable({ detail, onBack, onNext }: { detail: string | null; onBack: () => void; onNext: () => void }) {
+function Unavailable({
+  detail,
+  admin,
+  onBack,
+  onNext,
+}: {
+  detail: string | null
+  admin: boolean
+  onBack: () => void
+  onNext: () => void
+}) {
   useStepKeys({ onEnter: onNext, onEscape: onBack })
   return (
     <>
       <div className="ob-body">
         <h1>No phone carrier on this server yet.</h1>
-        <p className="ob-lede">Skip for now and connect one later in Settings.</p>
-        {detail && <p className="ob2-note">For admins: {detail}. Connect one in Admin, Providers.</p>}
+        <p className="ob-lede">
+          Connect your number later: it stays in your go-live checklist.{' '}
+          {/* The same as Settings › Phone numbers: admins get the place to fix it, everyone else whom to ask. */}
+          {admin ? (
+            <a className="k-link" href="#admin/providers" title={detail ?? undefined}>
+              Connect a carrier in Admin › Providers
+            </a>
+          ) : (
+            'Ask whoever runs this server.'
+          )}
+        </p>
       </div>
-      <Foot onBack={onBack} onContinue={onNext} canContinue label="Skip for now" />
+      <Foot onBack={onBack} onContinue={onNext} canContinue label={LATER.laterLabel} />
     </>
   )
 }
 
-function Choose({ status, setupError, clearError, onBack, onNext }: Props) {
+function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode }: Props & { firstAreaCode: string }) {
   const run = useRun()
   const name = useAssistantName()
-  // Numbers already in the install's carrier account are for instance admins only.
-  const options = phoneOptions(status?.canAttach !== false)
-  const [option, setOption] = useState<PhoneOption>(options[0]!)
+  // Numbers already in the install's carrier account are for instance admins only: only they see the link to it.
+  const canAttach = status?.canAttach !== false
+  const [option, setOption] = useState<PhoneOption>(phoneOptions[0]!)
   const [typed, setTyped] = useState('')
-  const [areaCode, setAreaCode] = useState('')
+  // Prefilled from a number the owner already gave; empty otherwise (no example that looks filled in).
+  const [areaCode, setAreaCode] = useState(firstAreaCode)
   const [confirming, setConfirming] = useState(false)
   const [sending, setSending] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
@@ -73,6 +121,7 @@ function Choose({ status, setupError, clearError, onBack, onNext }: Props) {
   const pickup = firstPickup(useWorkspaceSettings().data ?? null)
   const forwarding = pickupNumberMode(pickup)
   const buying = option !== 'existing'
+  const dev = status.provider === 'dev'
 
   // A rejection ends the wait; success shows up as the new phone_numbers row (this screen then unmounts).
   useEffect(() => {
@@ -106,9 +155,14 @@ function Choose({ status, setupError, clearError, onBack, onNext }: Props) {
     setConfirming(false)
     setProblem(null)
   }
-  useStepKeys({ onEnter: primary, onEscape: () => (confirming ? setConfirming(false) : onBack()) })
+  const toChoices = () => pick(phoneOptions[0]!)
+  useStepKeys({
+    onEnter: primary,
+    onEscape: () => (confirming ? setConfirming(false) : option === 'existing' ? toChoices() : onBack()),
+  })
 
   const error = problem ?? setupError
+  const existing = phoneOptionText('existing', name, carrier)
   return (
     <>
       <div className="ob-body">
@@ -121,33 +175,52 @@ function Choose({ status, setupError, clearError, onBack, onNext }: Props) {
           Callers keep dialing the number they know, and{' '}
           {forwarding === 'forward_all' ? 'every call' : 'the calls you miss'} reach {name}.
         </p>
-        <div className="k-radios" role="radiogroup" aria-label="Phone number">
-          {options.map(o => (
-            <RadioCard
-              key={o}
-              name="ob-mode"
-              checked={option === o}
-              onPick={() => pick(o)}
-              {...phoneOptionText(o, name, carrier)}
-            />
-          ))}
-        </div>
-        {status.provider === 'dev' && option === 'existing' && (
+        {option === 'existing' ? (
+          <div className="ob-existing">
+            <b>{existing.title}</b>
+            <span className="ob2-note">{existing.description}</span>
+          </div>
+        ) : (
+          <>
+            <div className="k-radios" role="radiogroup" aria-label="Phone number">
+              {phoneOptions.map(o => (
+                <RadioCard
+                  key={o}
+                  name="ob-mode"
+                  checked={option === o}
+                  onPick={() => pick(o)}
+                  {...phoneOptionText(o, name, carrier)}
+                />
+              ))}
+            </div>
+            {canAttach && (
+              <button type="button" className="ob-link" onClick={() => pick('existing')}>
+                {existingLinkText(carrier)}
+              </button>
+            )}
+          </>
+        )}
+        {dev && option === 'existing' && (
           <p className="ob2-note">Development mode: any number works, nothing is called.</p>
         )}
         {option === 'existing' ? (
-          <Field id="ob-number" label={carrier ? `Number in ${carrier}` : 'Number'}>
-            <TextInput
-              id="ob-number"
-              value={typed}
-              onChange={v => {
-                setTyped(v)
-                setProblem(null)
-                clearError()
-              }}
-              placeholder="+1 503 555 0100"
-            />
-          </Field>
+          <>
+            <Field id="ob-number" label={carrier ? `Number in ${carrier}` : 'Number'}>
+              <TextInput
+                id="ob-number"
+                value={typed}
+                onChange={v => {
+                  setTyped(v)
+                  setProblem(null)
+                  clearError()
+                }}
+                placeholder="The number, with area code"
+              />
+            </Field>
+            <button type="button" className="ob-link" onClick={toChoices} title="Back to the choices (Esc)">
+              Back to the choices
+            </button>
+          </>
         ) : (
           <>
             <Field id="ob-area" label={option === 'forward' ? `Area code for ${name}'s number` : 'Area code'}>
@@ -160,7 +233,6 @@ function Choose({ status, setupError, clearError, onBack, onNext }: Props) {
                   setProblem(null)
                   clearError()
                 }}
-                placeholder="503"
               />
             </Field>
             <p className="ob2-note">{priceNote(status.provider)}</p>
@@ -171,8 +243,8 @@ function Choose({ status, setupError, clearError, onBack, onNext }: Props) {
                   <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={sending}>
                     Cancel
                   </Button>
-                  <Button size="sm" variant="primary" disabled={sending} onClick={() => send(true)}>
-                    Buy number
+                  <Button size="sm" variant="primary" busy={sending} onClick={() => send(true)}>
+                    {dev ? 'Add test number' : 'Buy number'}
                   </Button>
                 </span>
               </div>
@@ -189,9 +261,10 @@ function Choose({ status, setupError, clearError, onBack, onNext }: Props) {
         onBack={onBack}
         onContinue={primary}
         onSkipStep={onNext}
+        {...LATER}
         canContinue={!confirming}
-        busy={sending}
-        label={sending ? 'Connecting…' : buying ? 'Get a number' : 'Connect number'}
+        busy={sending && !confirming}
+        label={buying ? (dev ? 'Add a test number' : 'Get a number') : 'Connect number'}
       />
     </>
   )
@@ -203,22 +276,24 @@ let forwardingShownSent = false
 function Connected({
   number,
   oldForwarding,
+  businessNumber,
   onBack,
   onNext,
 }: {
   number: PhoneNumber
   oldForwarding: Props['oldForwarding']
+  businessNumber?: string
   onBack: () => void
   onNext: () => void
 }) {
-  const [carrierId, setCarrierId] = useState(carriers[0]!.id)
-  const carrier = carriers.find(c => c.id === carrierId) ?? carriers[0]!
+  const [carrierId, setCarrierId, pickedByOwner] = useForwardingGuide(number.id)
+  // No carrier is assumed: until the owner picks one or the lookup finds it, the picker is empty and no codes show.
+  const carrier = carrierId ? forwardingGuideById(carrierId) : undefined
   const all = number.mode === 'forward_all'
   const forwards = all || number.mode === 'forward_conditional'
-  const code = forwardingCode(carrier, number.mode, number.e164)
   // The pick-up choice changed after the code was shown: an old forwarding that is still on must go first.
   const oldOff =
-    oldForwarding && oldForwarding !== number.mode ? forwardingCode(carrier, oldForwarding, number.e164).off : null
+    carrier && oldForwarding && oldForwarding !== number.mode ? turnOffFirst(carrier, oldForwarding, number.e164) : null
   const name = useAssistantName()
   const run = useRun()
   const write = useWriteAction()
@@ -277,39 +352,34 @@ function Connected({
                 ? `Keep your business number. Every call goes to ${name}.`
                 : `Keep your business number. Missed and busy calls go to ${name}.`}
             </p>
-            <div className="field">
-              <span id="ob-carrier-l" className="ob-label">
-                Your carrier
-              </span>
-              <div className="ob2-chips" role="radiogroup" aria-labelledby="ob-carrier-l">
-                {carriers.map(c => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={c.id === carrierId}
-                    className={cx('ob2-seg', c.id === carrierId && 'on')}
-                    onClick={() => setCarrierId(c.id)}
-                  >
-                    {c.name}
-                  </button>
-                ))}
+            <ForwardingCheck
+              number={number}
+              businessNumber={businessNumber}
+              onCarrier={setCarrierId}
+              pickedByOwner={pickedByOwner}
+              lookupOnOpen
+            >
+              <div className="field">
+                <label htmlFor="ob-carrier" className="ob-label">
+                  Your carrier or phone system
+                </label>
+                <CarrierPicker id="ob-carrier" value={carrierId} onChange={setCarrierId} />
               </div>
-            </div>
-            {oldOff && (
-              <p className="ob2-note" role="status">
-                Dialled the earlier code already? Turn that forwarding off first with {oldOff}.
-              </p>
-            )}
-            <div className="ob2-dial">
-              <span>From your business phone, dial</span>
-              <b>{code.on}</b>
-              <CopyButton text={code.on} label="Copy code" />
-              <span>
-                Turn it off any time with {code.off}. Other carriers: look up "
-                {all ? 'call forwarding' : 'conditional call forwarding'}".
-              </span>
-            </div>
+              {oldOff && (
+                <p className="ob2-note" role="status">
+                  {oldOff}
+                </p>
+              )}
+              {carrier ? (
+                <ForwardingSteps
+                  guide={carrier}
+                  mode={all ? 'forward_all' : 'forward_conditional'}
+                  e164={number.e164}
+                />
+              ) : (
+                <p className="ob2-note">Pick your carrier or phone system to see how to forward.</p>
+              )}
+            </ForwardingCheck>
           </>
         )}
       </div>

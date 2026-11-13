@@ -18,7 +18,8 @@ import {
 import { and, asc, desc, eq, isNull, ne, sql } from 'drizzle-orm'
 import type { EmailSender } from './email.ts'
 import { slotWithZone } from './bookings.ts'
-import { type CallEmail, callEmail, emailSafeName } from './emails/templates.ts'
+import { type CallEmail, callEmail, emailSafeName, firstCallEmail } from './emails/templates.ts'
+import { claimFirstCallEmail, releaseFirstCallEmail, setupRecipients } from './setup-emails.ts'
 
 export { formatNumber } from './emails/templates.ts'
 
@@ -27,7 +28,11 @@ export async function emailRecipients(tx: Tx, workspaceId: string): Promise<{ em
   const [settings] = await tx.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
   const fallback = settings?.notify_email_default ?? DEFAULT_NOTIFICATIONS.email
   const rows = await tx
-    .select({ email: user.email, name: user.name, own: member_notification_settings.email })
+    .select({
+      email: user.email,
+      name: user.name,
+      own: member_notification_settings.email,
+    })
     .from(member)
     .innerJoin(user, eq(user.id, member.userId))
     .leftJoin(
@@ -63,7 +68,10 @@ export async function notifyCallFinished(tx: Tx, sender: EmailSender, callId: st
     .from(workspace_settings)
     .where(eq(workspace_settings.workspace_id, call.workspace_id))
   const timeZone = settings?.timezone ?? 'America/New_York'
-  const [workspace] = await tx.select({ name: organization.name }).from(organization).where(eq(organization.id, call.workspace_id))
+  const [workspace] = await tx
+    .select({ name: organization.name })
+    .from(organization)
+    .where(eq(organization.id, call.workspace_id))
   const [booked] = await tx
     .select({ start_at: bookings.start_at, type: appointment_types.name, title: bookings.title })
     .from(bookings)
@@ -72,6 +80,7 @@ export async function notifyCallFinished(tx: Tx, sender: EmailSender, callId: st
     .orderBy(desc(bookings.created_at))
     .limit(1)
   const content: CallEmail = {
+    workspaceId: call.workspace_id,
     callId: call.id,
     title: call.title,
     summary: call.summary,
@@ -83,19 +92,35 @@ export async function notifyCallFinished(tx: Tx, sender: EmailSender, callId: st
     durationSec: call.duration_sec,
     timeZone,
     nextSteps: call.action_items.filter(item => !item.done).map(item => item.text),
-    booking: booked ? { what: booked.type ?? booked.title ?? 'Appointment', when: slotWithZone(booked.start_at, timeZone) } : null,
+    booking: booked
+      ? { what: booked.type ?? booked.title ?? 'Appointment', when: slotWithZone(booked.start_at, timeZone) }
+      : null,
     workspace: emailSafeName(workspace?.name, 'your workspace'),
   }
   const email = callEmail(content)
+  const recipients = await emailRecipients(tx, call.workspace_id)
+  // The workspace's first real call is a moment of its own (setup-emails.ts), for those of them who get setup
+  // emails (owners who did not turn them off: the same rule as the other setup emails); marked sent only when one
+  // of them gets an email at all, and only when email really goes out (not only to the log).
+  const setupTo = new Set(await setupRecipients(tx, call.workspace_id))
+  const getsFirst = (r: { email: string }) => setupTo.has(r.email.toLowerCase())
+  const first =
+    sender.kind === 'smtp' &&
+    recipients.some(getsFirst) &&
+    (await claimFirstCallEmail(tx, call, new Date().toISOString()))
+      ? firstCallEmail(content)
+      : null
   const result: NotifyResult = { sent: 0, failed: 0 }
-  for (const recipient of await emailRecipients(tx, call.workspace_id)) {
+  for (const recipient of recipients) {
     try {
-      await sender.send({ to: recipient.email, ...email })
+      await sender.send({ to: recipient.email, ...(first && getsFirst(recipient) ? first : email) })
       result.sent++
     } catch (e) {
       result.failed++
       console.warn(`call email to a member of ${call.workspace_id} failed: ${e instanceof Error ? e.message : e}`)
     }
   }
+  // Nothing went out (the job tries again): the first-call email is still to come.
+  if (first && result.failed && !result.sent) await releaseFirstCallEmail(tx, call.workspace_id)
   return result
 }

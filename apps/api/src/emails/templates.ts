@@ -2,8 +2,9 @@
 // The code that decides when to send lives with its feature; these only say what the email shows.
 // Names that reach an email go through emailSafeName (team.ts) or defuseLinks first: they come from
 // workspaces, members or callers and must not turn into links.
+import { type SetupStep, setupStepPath } from '@linedesk/actions'
 import { brandName } from '../branding.ts'
-import { defuseLinks, type Block, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
+import { defuseLinks, type Block, type EmailContent, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
 
 export const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
 
@@ -26,6 +27,24 @@ export function emailSafeName(name: string | null | undefined, fallback: string)
 }
 
 const securityUrl = (origin: string) => `${origin}/#account/security`
+
+/** The hash parameter that names the workspace a link is for (the web app's parseHash reads it). */
+export const WORKSPACE_PARAM = 'ws'
+
+/**
+ * A link into one workspace of the web app: `<origin>/#<path>?ws=<id>`. Every email link to a workspace page
+ * carries it, so someone in several workspaces (an owner of two, a partner) lands in the one the email is about;
+ * the web app switches to it when they are a member, and says they have no access otherwise.
+ */
+export function appLink(origin: string, workspaceId: string, path: string): string {
+  const separator = path.includes('?') ? '&' : '?'
+  return `${origin}/#${path}${separator}${WORKSPACE_PARAM}=${encodeURIComponent(workspaceId)}`
+}
+
+const callLink = (origin: string, workspaceId: string, callId: string) =>
+  appLink(origin, workspaceId, `call/${encodeURIComponent(callId)}`)
+const notificationsLink = (origin: string, workspaceId: string) =>
+  appLink(origin, workspaceId, 'settings/notifications')
 
 // ---------------------------------------------------------------- sign-in and account
 
@@ -90,8 +109,7 @@ export function verifyEmailEmail(url: string, origin = WEB_ORIGIN): RenderedEmai
       { kind: 'button', label: 'Confirm email address', url },
       { kind: 'text', tone: 'muted', text: `Or paste this link into your browser:\n${url}` },
     ],
-    reason:
-      `You got this email because this address was used to sign up for ${brandName()}. If it wasn't you, you can ignore it.`,
+    reason: `You got this email because this address was used to sign up for ${brandName()}. If it wasn't you, you can ignore it.`,
     origin,
   })
 }
@@ -218,6 +236,8 @@ export function adminAlertEmail(subject: string, text: string, origin = WEB_ORIG
 // ---------------------------------------------------------------- calls
 
 export type CallEmail = {
+  /** The call's workspace: its links open there. */
+  workspaceId: string
   callId: string
   title: string | null
   summary: string | null
@@ -238,7 +258,9 @@ export type CallEmail = {
 const minutes = (sec: number) => `${Math.max(1, Math.round(sec / 60))} min`
 
 /** One finished call: what it was about, who called, the summary, next steps, the booking and a link. */
-export function callEmail(call: CallEmail, origin = WEB_ORIGIN): RenderedEmail {
+export const callEmail = (call: CallEmail, origin = WEB_ORIGIN): RenderedEmail => renderEmail(callContent(call, origin))
+
+function callContent(call: CallEmail, origin: string): EmailContent {
   const number = formatNumber(call.fromNumber)
   const callerName = call.callerName ? defuseLinks(call.callerName) : null
   const topic = call.title ? defuseLinks(call.title) : 'New call'
@@ -270,10 +292,10 @@ export function callEmail(call: CallEmail, origin = WEB_ORIGIN): RenderedEmail {
     })
   }
   blocks.push(
-    { kind: 'button', label: 'Open the call', url: `${origin}/#call/${encodeURIComponent(call.callId)}` },
+    { kind: 'button', label: 'Open the call', url: callLink(origin, call.workspaceId, call.callId) },
     { kind: 'text', tone: 'muted', text: `The recording and the transcript are in ${brandName()}.` },
   )
-  return renderEmail({
+  return {
     subject: `${call.urgent ? 'Urgent: ' : ''}${topic} · ${callerName ?? number}`,
     preheader: call.summary
       ? defuseLinks(call.summary).slice(0, 140)
@@ -283,12 +305,14 @@ export function callEmail(call: CallEmail, origin = WEB_ORIGIN): RenderedEmail {
     heading: topic,
     blocks,
     reason: `You get one email per call to ${call.workspace}.`,
-    settings: { label: 'Change in Assistant, Notifications', url: `${origin}/#assistant/notifications` },
+    settings: { label: 'Change in Settings, Notifications', url: notificationsLink(origin, call.workspaceId) },
     origin,
-  })
+  }
 }
 
 export type AssignedCallEmail = {
+  /** The call's workspace: its links open there. */
+  workspaceId: string
   callId: string
   title: string | null
   summary: string | null
@@ -316,7 +340,7 @@ export function assignedCallEmail(a: AssignedCallEmail, origin = WEB_ORIGIN): Re
     },
   ]
   if (a.summary) blocks.push({ kind: 'text', text: defuseLinks(a.summary) })
-  blocks.push({ kind: 'button', label: 'Open the call', url: `${origin}/#call/${encodeURIComponent(a.callId)}` })
+  blocks.push({ kind: 'button', label: 'Open the call', url: callLink(origin, a.workspaceId, a.callId) })
   return renderEmail({
     subject: `${a.assignedBy} assigned you a call: ${topic}`,
     preheader: `${a.assignedBy} assigned you a call from ${callerName ?? number}.`,
@@ -325,7 +349,7 @@ export function assignedCallEmail(a: AssignedCallEmail, origin = WEB_ORIGIN): Re
     heading: topic,
     blocks,
     reason: `You got this email because a teammate in ${a.workspace} assigned you a call.`,
-    settings: { label: 'Change in Assistant, Notifications', url: `${origin}/#assistant/notifications` },
+    settings: { label: 'Change in Settings, Notifications', url: notificationsLink(origin, a.workspaceId) },
     origin,
   })
 }
@@ -365,6 +389,193 @@ export function bookingConfirmationEmail(b: BookingConfirmation, origin = WEB_OR
       { kind: 'text', text: change },
     ],
     reason: `You got this email because you booked by phone with ${b.business} and gave this address.`,
+    origin,
+  })
+}
+
+// ---------------------------------------------------------------- setup (setup-emails.ts)
+
+/**
+ * The partner directory (agencies that set up Linedesk for a business; hands-on help comes from them, not from calls
+ * with us): PARTNER_DIRECTORY_URL, set on Linedesk Cloud. Unset (a self-hosted install), the setup emails offer no
+ * partner. A malformed value fails at start, not silently.
+ */
+export function readPartnerDirectoryUrl(env: Record<string, string | undefined>): string | null {
+  const url = env.PARTNER_DIRECTORY_URL?.trim()
+  if (!url) return null
+  if (!/^https?:\/\/\S+$/i.test(url)) throw new Error(`PARTNER_DIRECTORY_URL ${url} is not an http(s) URL`)
+  return url
+}
+
+export const PARTNER_DIRECTORY_URL = readPartnerDirectoryUrl(process.env)
+
+export type SetupEmail = {
+  /** The workspace the email is about: its links open there. */
+  workspaceId: string
+  /** Email-safe (emailSafeName), like the assistant's name. */
+  workspace: string
+  assistantName: string
+  /** The workspace's setup number (setupNumber, @linedesk/actions), when it has one: its id and e164. */
+  numberId: string | null
+  number: string | null
+  /** The number takes every call (takesAllCalls: forward all, or a new number callers dial), not only the missed ones. */
+  takesAllCalls: boolean
+  /** The next open step (nextSetupStep), the same one the go-live checklist in the inbox shows first. */
+  step: SetupStep
+}
+
+/** The button: straight to where the next step is done (setupStepPath), like the go-live checklist's row. */
+const setupButton = (s: SetupEmail, origin: string) => ({
+  kind: 'button' as const,
+  label: s.step === 'first_call' ? 'Open your inbox' : 'Finish setup',
+  url: appLink(origin, s.workspaceId, setupStepPath(s.step, s.numberId ? { id: s.numberId } : null)),
+})
+/** Where a setup email's footer link goes: the one-click unsubscribe link when there is one, else the signed-in setting. */
+const setupSettings = (origin: string, workspaceId: string, unsubscribeUrl?: string | null) => ({
+  label: 'Turn off setup emails',
+  url: unsubscribeUrl ?? notificationsLink(origin, workspaceId),
+})
+const setupFooter = (
+  s: { workspaceId: string; workspace: string; assistantName: string },
+  origin: string,
+  unsubscribeUrl?: string | null,
+) => ({
+  reason: `You get a few emails while ${s.workspace} gets set up. They stop once ${s.assistantName} answers real calls.`,
+  settings: setupSettings(origin, s.workspaceId, unsubscribeUrl),
+})
+
+/** The one next step, plain. */
+function nextStep({ assistantName: a, number, takesAllCalls, step }: SetupEmail): string {
+  if (step === 'number') return `Pick a phone number for ${a}. It takes a minute in ${brandName()}.`
+  // Calls from the business's own phones are the owner trying it out and never count as real calls.
+  // A teammate whose phone takes transferred calls counts as the business's own too, so: a friend's.
+  const from = "from a phone that isn't one of yours (a friend's)"
+  if (step === 'first_call')
+    return takesAllCalls
+      ? `Call your business number ${from}: ${a} answers.`
+      : `Call your business number ${from} and let it ring. When you don't pick up, ${a} does.`
+  const to = number ? formatNumber(number) : `your ${brandName()} number`
+  const what = takesAllCalls ? 'your business line' : "the calls you don't pick up on your business line"
+  return `If you haven't yet, forward ${what} to ${to}. The steps for your phone company are in ${brandName()}.`
+}
+
+/** A few hours after sign-up, while no real call has reached the assistant yet: what is left. */
+export function setupDay0Email(s: SetupEmail, origin = WEB_ORIGIN, unsubscribeUrl?: string | null): RenderedEmail {
+  return renderEmail({
+    subject: `${s.assistantName} is almost ready to answer for ${s.workspace}`,
+    preheader: nextStep(s),
+    heading: s.step === 'first_call' ? 'Try it with a real call' : 'One step left',
+    blocks: [
+      {
+        kind: 'text',
+        text: `${s.assistantName} is set up for ${s.workspace}. One thing is left before callers reach ${s.assistantName}:`,
+      },
+      { kind: 'text', text: nextStep(s) },
+      setupButton(s, origin),
+    ],
+    ...setupFooter(s, origin, unsubscribeUrl),
+    origin,
+  })
+}
+
+/**
+ * Day 1 and day 3 without a real call: the one next step; on day 3 also a partner who does it for them, when the
+ * install has a partner directory (`partnerDirectory`, PARTNER_DIRECTORY_URL).
+ */
+export function setupNudgeEmail(
+  day: 1 | 3,
+  s: SetupEmail,
+  origin = WEB_ORIGIN,
+  unsubscribeUrl?: string | null,
+  partnerDirectory: string | null = PARTNER_DIRECTORY_URL,
+): RenderedEmail {
+  const blocks: Block[] = [
+    { kind: 'text', text: `No real calls have reached ${s.assistantName} yet. The one thing left:` },
+    { kind: 'text', text: nextStep(s) },
+    setupButton(s, origin),
+  ]
+  if (day === 3 && partnerDirectory) {
+    blocks.push(
+      {
+        kind: 'text',
+        text: `Rather have someone do it for you? A partner can set up ${brandName()} for ${s.workspace}, phone settings included.`,
+      },
+      { kind: 'button', label: 'Find a partner', url: partnerDirectory },
+    )
+  }
+  return renderEmail({
+    subject:
+      day === 1
+        ? `${s.assistantName} hasn't answered a real call yet`
+        : `Still one step before ${s.assistantName} answers your calls`,
+    preheader: nextStep(s),
+    heading: day === 1 ? 'No calls yet' : 'One step left',
+    blocks,
+    ...setupFooter(s, origin, unsubscribeUrl),
+    origin,
+  })
+}
+
+/** The first real call: the call email, as a moment. Sent instead of the usual one to members who get call emails. */
+export function firstCallEmail(call: CallEmail, origin = WEB_ORIGIN): RenderedEmail {
+  const content = callContent(call, origin)
+  const callerName = call.callerName ? defuseLinks(call.callerName) : null
+  return renderEmail({
+    ...content,
+    subject: `${call.urgent ? 'Urgent: ' : ''}Your first real call · ${callerName ?? formatNumber(call.fromNumber)}`,
+    heading: 'Your first call',
+    blocks: [
+      {
+        kind: 'text',
+        text: `The first real call to ${call.workspace} just came in${call.title ? `: ${defuseLinks(call.title)}.` : '.'}`,
+      },
+      ...content.blocks,
+    ],
+    reason: `From now on you get one email per call to ${call.workspace}.`,
+  })
+}
+
+export type WeekSummaryEmail = {
+  /** The workspace the email is about: its links open there. */
+  workspaceId: string
+  /** Email-safe (emailSafeName), like the assistant's name. */
+  workspace: string
+  assistantName: string
+  /** Real calls since sign-up (not tests, not the business's own phones, not spam). */
+  calls: number
+  urgent: number
+  booked: number
+  messages: number
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+
+/** A week after sign-up, for a business that is live: what its assistant did. */
+export function weekSummaryEmail(
+  w: WeekSummaryEmail,
+  origin = WEB_ORIGIN,
+  unsubscribeUrl?: string | null,
+): RenderedEmail {
+  const answered = plural(w.calls, 'call', 'calls')
+  return renderEmail({
+    subject: `${w.assistantName}'s first week at ${w.workspace}`,
+    preheader: `${w.assistantName} answered ${answered} in the first week.`,
+    heading: 'Your first week',
+    blocks: [
+      { kind: 'text', text: `In its first week, ${w.assistantName} answered ${answered} for ${w.workspace}.` },
+      {
+        kind: 'facts',
+        rows: [
+          ['Calls answered', String(w.calls)],
+          ['Urgent', String(w.urgent)],
+          ['Appointments booked', String(w.booked)],
+          ['Messages taken', String(w.messages)],
+        ],
+      },
+      { kind: 'button', label: 'Open the inbox', url: appLink(origin, w.workspaceId, 'calls') },
+    ],
+    reason: `You get this once, a week after ${w.workspace} signed up.`,
+    settings: setupSettings(origin, w.workspaceId, unsubscribeUrl),
     origin,
   })
 }

@@ -10,6 +10,10 @@ import {
   contactImport,
   contactMerge,
   contactUnblock,
+  workspaceName,
+  workspaceNameProblem,
+  businessPhoneProblem,
+  businessWebsiteProblem,
   workspaceGetSettings,
   workspaceUpdateSettings,
   confirmsNumber,
@@ -160,5 +164,28 @@ describe('contact.import', () => {
     expect(contactImport.input.safeParse({ rows: [{ phone: '5035550142' }] }).success).toBe(false)
     expect(contactImport.input.safeParse({ rows: [] }).success).toBe(false)
     expect(contactImport.input.safeParse({ rows: Array(CONTACT_IMPORT_MAX_ROWS + 1).fill({ phone: '+15035550142' }) }).success).toBe(false)
+  })
+})
+
+describe('workspaceName', () => {
+  it('one line of 1 to 80 characters, trimmed, without control or bidi characters', () => {
+    expect(workspaceName.parse('  Brightwater Plumbing & Heating  ')).toBe('Brightwater Plumbing & Heating')
+    expect(workspaceName.parse('Café Dentistry, Portland')).toBe('Café Dentistry, Portland')
+    expect(workspaceNameProblem('x'.repeat(80))).toBeNull()
+    const bad = ['', '   ', 'x'.repeat(81), 'Two\nlines', 'Nul\u0000', 'C1\u0085', 'Rtl \u202Egnirts', 'Isolate \u2067x', 'Mark\u200F', 42]
+    for (const name of bad) expect(workspaceNameProblem(name), JSON.stringify(name)).not.toBeNull()
+  })
+})
+
+describe('the business phone and website in the profile', () => {
+  it('a phone as people and listings write it, a website address; empty is fine', () => {
+    for (const ok of ['', '(503) 555-0142', '+1 503-555-0142', '503.555.0142', '+15035550142'])
+      expect(businessPhoneProblem(ok), ok).toBeNull()
+    for (const bad of ['abc', '555', '+1 503 555 0142 call me', '1234567890123456'])
+      expect(businessPhoneProblem(bad), bad).not.toBeNull()
+    for (const ok of ['', 'yourbusiness.com', 'https://www.yourbusiness.com/', 'http://a.co/contact?x=1'])
+      expect(businessWebsiteProblem(ok), ok).toBeNull()
+    for (const bad of ['not a url', 'yourbusiness', 'ftp://x.com', 'https://'])
+      expect(businessWebsiteProblem(bad), bad).not.toBeNull()
   })
 })

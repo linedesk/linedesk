@@ -2,11 +2,13 @@ import * as admin from './admin.ts'
 import * as apiKeys from './api-keys.ts'
 import * as assistantVersions from './assistant-versions.ts'
 import * as branding from './branding.ts'
+import * as business from './business.ts'
 import * as calendar from './calendar.ts'
 import * as callExport from './call-export.ts'
 import * as carrier from './carrier.ts'
 import * as calls from './calls.ts'
 import * as evaluations from './evaluations.ts'
+import * as forwarding from './forwarding.ts'
 import * as insights from './insights.ts'
 import type { ActionDef } from './define.ts'
 import * as knowledge from './knowledge.ts'
@@ -33,11 +35,14 @@ export * from './api-keys.ts'
 export * from './assistant-prompt.ts'
 export * from './assistant-versions.ts'
 export * from './branding.ts'
+export * from './business.ts'
 export * from './calendar.ts'
 export * from './call-export.ts'
 export * from './carrier.ts'
 export * from './calls.ts'
 export * from './evaluations.ts'
+export * from './forwarding.ts'
+export * from './forwarding-guides.ts'
 export * from './insights.ts'
 export * from './knowledge.ts'
 export * from './languages.ts'
@@ -51,6 +56,7 @@ export * from './provider-health.ts'
 export * from './sample.ts'
 export * from './settings.ts'
 export * from './setup-checklist.ts'
+export * from './setup-state.ts'
 export * from './star.ts'
 export * from './team.ts'
 export * from './transfer.ts'
@@ -112,6 +118,9 @@ const all = [
   settings.phoneNumberSetup,
   settings.phoneNumberUpdate,
   settings.phoneNumberRelease,
+  forwarding.phoneNumberLookupLine,
+  forwarding.phoneNumberCheckForwarding,
+  forwarding.phoneNumberForwardingCheck,
   carrier.carrierSet,
   carrier.carrierGet,
   carrier.carrierTest,
@@ -120,6 +129,7 @@ const all = [
   settings.assistantStartTestCall,
   settings.workspaceGetSettings,
   settings.workspaceUpdateSettings,
+  settings.workspaceRename,
   settings.businessHoursSet,
   settings.closedDaysSet,
   sample.sampleAdd,
@@ -166,6 +176,8 @@ const all = [
   admin.instanceAdminRevoke,
   admin.userImpersonate,
   admin.impersonationStop,
+  admin.setupEmailsGet,
+  admin.setupEmailsSet,
   team.teamList,
   team.teamInvite,
   team.teamResendInvite,
@@ -183,6 +195,12 @@ const all = [
   membership.invitationResend,
   onboarding.onboardingSetStep,
   onboarding.onboardingRecordEvent,
+  onboarding.onboardingGoLiveChecklist,
+  onboarding.onboardingDismissGoLiveChecklist,
+  onboarding.onboardingReopenGoLiveChecklist,
+  onboarding.onboardingSkipGoLiveStep,
+  onboarding.onboardingRemindGoLiveStep,
+  onboarding.onboardingRestoreGoLiveStep,
   evaluations.callGetEvaluation,
   evaluations.callListEvaluations,
   evaluations.callEvaluate,
@@ -197,6 +215,8 @@ const all = [
   knowledge.knowledgeImport,
   knowledge.knowledgeQuestionAnswer,
   knowledge.knowledgeQuestionDismiss,
+  business.businessSearch,
+  business.businessImport,
 ] as ActionDef[]
 
 /** The registry: every action by name. */

@@ -1,9 +1,10 @@
 // Twilio adapter: phone numbers through the REST API, inbound calls through Elastic SIP Trunking.
 // Plain fetch. https://www.twilio.com/docs/sip-trunking/api
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import { installCarrierName, TelephonyError, type AvailableNumber, type CallStatus, type CallStatusEvent, type OwnedNumber, type TelephonyProvider } from './provider.ts'
+import { installCarrierName, TelephonyError, type AvailableNumber, type CallStatus, type CallStatusEvent, type LineType, type NumberLookup, type OwnedNumber, type TelephonyProvider } from './provider.ts'
 
 const TRUNKING = 'https://trunking.twilio.com/v1'
+const LOOKUPS = 'https://lookups.twilio.com/v2'
 const TRUNK_NAME = 'linedesk-livekit'
 
 /**
@@ -13,6 +14,8 @@ const TRUNK_NAME = 'linedesk-livekit'
 export type TwilioOptions = {
   accountSid: string
   fetch?: typeof fetch
+  /** How long one API call may take (default TWILIO_TIMEOUT_MS). */
+  timeoutMs?: number
 } & ({ authToken: string; apiKeySid?: undefined; apiKeySecret?: undefined } | { authToken?: undefined; apiKeySid: string; apiKeySecret: string })
 
 // biome-ignore lint/suspicious/noExplicitAny: Twilio's JSON is read field by field
@@ -33,23 +36,43 @@ function toIso(timestamp: string | null): string | undefined {
 
 const fail = (message: string, status?: number) => new TelephonyError('twilio', message, status)
 
+/** Lookup v2's line type intelligence: mobile, landline, fixedVoip, nonFixedVoip, tollFree, … */
+export function twilioLineType(type: unknown): LineType {
+  if (type === 'mobile') return 'mobile'
+  if (type === 'landline') return 'landline'
+  if (type === 'fixedVoip' || type === 'nonFixedVoip') return 'voip'
+  if (type === 'tollFree') return 'toll_free'
+  return 'unknown'
+}
+
 /** Twilio forwards to this URI; TCP is what LiveKit SIP expects from Twilio. */
 const originationUrl = (sipEndpoint: string) => `sip:${sipEndpoint};transport=tcp`
+
+/** How long one Twilio API call may take before it fails (like Telnyx's). */
+export const TWILIO_TIMEOUT_MS = 15_000
 
 /**
  * One authenticated Twilio API call, with the auth token or an API key. `what` names the step in error
  * messages; URLs carry the account SID and stay out of them, and so does every credential.
  */
 export function twilioRequest(options: TwilioOptions) {
-  const { accountSid, authToken, fetch: doFetch = fetch } = options
+  const { accountSid, authToken, fetch: doFetch = fetch, timeoutMs = TWILIO_TIMEOUT_MS } = options
   const [user, password] = options.apiKeySid ? [options.apiKeySid, options.apiKeySecret] : [accountSid, authToken]
   const authorization = `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}`
   return async function request(what: string, method: string, url: string, form?: Form): Promise<Json> {
-    const res = await doFetch(url, {
-      method,
-      headers: { authorization, accept: 'application/json', ...(form ? { 'content-type': 'application/x-www-form-urlencoded' } : {}) },
-      body: form ? new URLSearchParams(form).toString() : undefined,
-    })
+    const signal = AbortSignal.timeout(timeoutMs)
+    let res: Response
+    try {
+      res = await doFetch(url, {
+        method,
+        headers: { authorization, accept: 'application/json', ...(form ? { 'content-type': 'application/x-www-form-urlencoded' } : {}) },
+        body: form ? new URLSearchParams(form).toString() : undefined,
+        signal,
+      })
+    } catch (e) {
+      if (signal.aborted) throw fail(`${what}: Twilio did not answer within ${timeoutMs / 1000} s`)
+      throw e
+    }
     const json = (await res.json().catch(() => ({}))) as Json
     if (!res.ok) throw fail(`${what} failed: ${json.message ?? res.statusText}`, res.status)
     return json
@@ -153,6 +176,14 @@ export function createTwilioProvider(options: TwilioOptions): TelephonyProvider 
 
     async releaseNumber(number) {
       await request('release number', 'DELETE', `${account}/IncomingPhoneNumbers/${number.providerRef}.json`)
+    },
+
+    // Lookup v2 with line type intelligence: https://www.twilio.com/docs/lookup/v2-api/line-type-intelligence
+    async lookupNumber(e164): Promise<NumberLookup> {
+      const json = await request('look up line type', 'GET', `${LOOKUPS}/PhoneNumbers/${encodeURIComponent(e164)}?Fields=line_type_intelligence`)
+      const info = json.line_type_intelligence ?? {}
+      const name = typeof info.carrier_name === 'string' && info.carrier_name.trim() ? info.carrier_name.trim() : null
+      return { e164, lineType: twilioLineType(info.type), carrier: name }
     },
 
     parseWebhook({ headers, rawBody, url }): CallStatusEvent {

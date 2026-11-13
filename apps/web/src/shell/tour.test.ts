@@ -1,5 +1,15 @@
 import { expect, test, vi } from 'vitest'
-import { findTarget, finishTour, onScreen, spotlightBox, queueTour, tourDue, tourKey, tourSteps } from './tour.ts'
+import {
+  findTarget,
+  finishTour,
+  onScreen,
+  queueTour,
+  spotlightBox,
+  tourDue,
+  tourKey,
+  tourStartsNow,
+  tourSteps,
+} from './tour.ts'
 
 test('five short steps: inbox, a call, assign and finish, settings, the rest', () => {
   const steps = tourSteps('Ava')
@@ -35,6 +45,24 @@ test('due once in the workspace whose onboarding finished in this browser', () =
   expect(tourDue('ws-2')).toBe(false)
   finishTour()
   expect(tourDue('ws-1')).toBe(false)
+  vi.unstubAllGlobals()
+})
+
+test('queued after onboarding, it waits for the first call in the inbox, then starts once', () => {
+  const data = new Map<string, string>()
+  vi.stubGlobal('localStorage', {
+    getItem: (k: string) => data.get(k) ?? null,
+    setItem: (k: string, v: string) => void data.set(k, v),
+    removeItem: (k: string) => void data.delete(k),
+  })
+  expect(tourStartsNow('ws-1', 3)).toBe(false) // not queued: never on its own
+  queueTour('ws-1')
+  expect(tourStartsNow('ws-1', 0)).toBe(false) // empty inbox: the checklist first, the tour waits
+  expect(tourDue('ws-1')).toBe(true) // still queued
+  expect(tourStartsNow('ws-2', 1)).toBe(false) // another workspace's inbox
+  expect(tourStartsNow('ws-1', 1)).toBe(true) // a call shows up (real or sample)
+  finishTour() // started: Workspace finishes it at once
+  expect(tourStartsNow('ws-1', 5)).toBe(false) // only once
   vi.unstubAllGlobals()
 })
 

@@ -1,7 +1,8 @@
 // Where the app is, kept in the URL hash so reload and the browser's Back work:
 // `#calls` (Needs you), `#calls/done` (another view), `#calls?q=leak` (search),
 // `#calls/member/<user id>` (calls assigned to a member), `#call/<id>` (one call), `#assistant`, `#assistant/<section>`, `#account`, `#admin/<section>`.
-// Old links to moved sections are rewritten (movedHash).
+// Old links to moved sections are rewritten (movedHash). A link from an email names its workspace
+// (`#call/<id>?ws=<workspace id>`); the app switches to it before the page opens (linkWorkspaceTarget).
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { InboxTab } from '../inbox-model.ts'
 import { hasSections, isPageRoute, type Route } from './pages.tsx'
@@ -17,23 +18,39 @@ const HOME: InboxPlace = { tab: 'you', search: null, member: null }
 
 export const callHash = (id: string) => `#${CALL_PREFIX}${id}`
 export function listHash({ tab, search, member }: InboxPlace): string {
-  const view = tab === 'member' && member ? `/member/${encodeURIComponent(member)}` : tab === 'you' || tab === 'member' ? '' : `/${tab}`
+  const view =
+    tab === 'member' && member
+      ? `/member/${encodeURIComponent(member)}`
+      : tab === 'you' || tab === 'member'
+        ? ''
+        : `/${tab}`
   return `#calls${view}${search === null ? '' : `?q=${encodeURIComponent(search)}`}`
 }
 
 function decode(value: string): string {
-  try { return decodeURIComponent(value) } catch { return value }
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
 }
 
 /** `last` is the inbox view to keep while a call or another page is open (they do not carry it in the hash). */
 export function parseHash(hash: string, last: InboxPlace = HOME): Location {
   const [path = '', query] = hash.replace(/^#/, '').split('?')
-  if (path.startsWith(CALL_PREFIX) && path.length > CALL_PREFIX.length) return { ...last, route: 'calls', callId: path.slice(CALL_PREFIX.length), known: true }
+  if (path.startsWith(CALL_PREFIX) && path.length > CALL_PREFIX.length)
+    return { ...last, route: 'calls', callId: path.slice(CALL_PREFIX.length), known: true }
   if (isPageRoute(path)) return { ...last, route: path, callId: null, known: true }
   // A section of a page (`#settings/recordings`), or of one of several things on it
   // (`#assistant/<assistant id>/hours`): the page reads which (ui/SettingsLayout.tsx).
   const [page = '', ...parts] = path.split('/')
-  if (isPageRoute(page) && hasSections(page) && parts.length >= 1 && parts.length <= 2 && parts.every(p => /^[A-Za-z0-9_-]+$/.test(p)))
+  if (
+    isPageRoute(page) &&
+    hasSections(page) &&
+    parts.length >= 1 &&
+    parts.length <= 2 &&
+    parts.every(p => /^[A-Za-z0-9_-]+$/.test(p))
+  )
     return { ...last, route: page, callId: null, known: true }
   // Admin mode has sections of its own (`#admin/users/<id>`); admin/route.ts reads them.
   if (path.startsWith('admin/')) return { ...last, route: 'admin', callId: null, known: true }
@@ -50,6 +67,60 @@ export function parseHash(hash: string, last: InboxPlace = HOME): Location {
   const isList = (head === 'calls' || path === '') && tabs.includes(view as InboxTab) && rest.length === 0
   if (!isList) return { ...HOME, route: 'calls', callId: null, known: false }
   return { route: 'calls', callId: null, tab: view as InboxTab, member: null, ...filters, known: true }
+}
+
+/** The hash parameter a link names its workspace with (the API's appLink, apps/api/src/emails/templates.ts). */
+const WORKSPACE_PARAM = 'ws'
+
+const splitHash = (hash: string) => {
+  const [path = '', ...rest] = hash.replace(/^#/, '').split('?')
+  return { path, params: rest.join('?').split('&').filter(Boolean) }
+}
+
+/** The workspace a link is for (`#call/<id>?ws=<id>`), or null when it names none. */
+export function linkWorkspace(hash: string): string | null {
+  const found = splitHash(hash).params.find(p => p.startsWith(`${WORKSPACE_PARAM}=`))
+  const id = found ? decode(found.slice(WORKSPACE_PARAM.length + 1)) : ''
+  return id || null
+}
+
+/** The hash without its workspace (`#call/<id>?ws=<id>` → `#call/<id>`); the rest of it as it was. */
+export function withoutLinkWorkspace(hash: string): string {
+  const { path, params } = splitHash(hash)
+  const kept = params.filter(p => !p.startsWith(`${WORKSPACE_PARAM}=`))
+  return `#${path}${kept.length ? `?${kept.join('&')}` : ''}`
+}
+
+type Named = { id: string; name: string }
+/**
+ * What opening a link for `linked` does in a tab on `current`: stay (`here`), switch the session to it and
+ * reload (`switch`, the member belongs to it), or not: `elsewhere` when they belong to it but cannot switch now
+ * (offline), `noAccess` when they don't (the inbox opens and says so).
+ */
+export type LinkTarget =
+  | { kind: 'here' }
+  | { kind: 'switch'; workspace: Named }
+  | { kind: 'elsewhere'; workspace: Named }
+  | { kind: 'noAccess' }
+
+export function linkWorkspaceTarget(
+  linked: string,
+  current: string,
+  mine: readonly Named[] | undefined,
+  offline = false,
+): LinkTarget {
+  if (linked === current) return { kind: 'here' }
+  const workspace = mine?.find(w => w.id === linked)
+  if (!workspace) return { kind: 'noAccess' }
+  return offline ? { kind: 'elsewhere', workspace } : { kind: 'switch', workspace }
+}
+
+/** What the inbox says after a link it could not open in this workspace. */
+export function linkNotice(target: LinkTarget): string | null {
+  if (target.kind === 'noAccess') return "You don't have access to the workspace that link is for."
+  if (target.kind === 'elsewhere')
+    return `That link is for ${target.workspace.name}. Switch to it in your profile menu.`
+  return null
 }
 
 /**
@@ -79,7 +150,9 @@ function currentHash(): string {
 }
 
 /** A new history entry. */
-const push = (hash: string) => { window.location.hash = hash }
+const push = (hash: string) => {
+  window.location.hash = hash
+}
 /** The same history entry, so Back skips it. */
 const replace = (hash: string) => window.history.replaceState(null, '', hash)
 
@@ -89,7 +162,10 @@ export function useRoute() {
   const current = useRef(location)
   /** True when the open call was reached from the inbox or a page in this tab, so closing it is a step back (to Contacts, say). */
   const openedFromList = useRef(false)
-  const apply = useCallback((next: Location) => { current.current = next; setLocation(next) }, [])
+  const apply = useCallback((next: Location) => {
+    current.current = next
+    setLocation(next)
+  }, [])
 
   useEffect(() => {
     const onHash = () => apply(parseHash(currentHash(), current.current))
@@ -97,29 +173,44 @@ export function useRoute() {
     return () => window.removeEventListener('hashchange', onHash)
   }, [apply])
 
-  const go = useCallback((to: Route) => {
-    const now = current.current
-    openedFromList.current = false // a page in between: closing a call later must not step back into it
-    push(to === 'calls' ? listHash(now) : `#${to}`)
-    apply({ ...now, route: to, callId: null, known: true })
-  }, [apply])
+  const go = useCallback(
+    (to: Route) => {
+      const now = current.current
+      openedFromList.current = false // a page in between: closing a call later must not step back into it
+      push(to === 'calls' ? listHash(now) : `#${to}`)
+      apply({ ...now, route: to, callId: null, known: true })
+    },
+    [apply],
+  )
   /** Change the inbox view or search. Replaces the entry: Back leaves the inbox, it does not step through views. */
-  const setView = useCallback((place: InboxPlace) => {
-    const now = current.current
-    if (now.route === 'calls' && !now.callId) replace(listHash({ ...now, ...place }))
-    apply({ ...now, ...place })
-  }, [apply])
+  const setView = useCallback(
+    (place: InboxPlace) => {
+      const now = current.current
+      if (now.route === 'calls' && !now.callId) replace(listHash({ ...now, ...place }))
+      apply({ ...now, ...place })
+    },
+    [apply],
+  )
   /** Opening from the list adds a history entry; moving between calls replaces it, so Back returns to the list. */
-  const openCall = useCallback((id: string) => {
-    const now = current.current
-    if (now.callId) replace(callHash(id))
-    else { openedFromList.current = true; push(callHash(id)) }
-    apply({ ...now, route: 'calls', callId: id, known: true })
-  }, [apply])
+  const openCall = useCallback(
+    (id: string) => {
+      const now = current.current
+      if (now.callId) replace(callHash(id))
+      else {
+        openedFromList.current = true
+        push(callHash(id))
+      }
+      apply({ ...now, route: 'calls', callId: id, known: true })
+    },
+    [apply],
+  )
   const closeCall = useCallback(() => {
     const now = current.current
     if (!now.callId) return
-    if (openedFromList.current) { openedFromList.current = false; window.history.back() } // the hash follows on `hashchange`
+    if (openedFromList.current) {
+      openedFromList.current = false
+      window.history.back()
+    } // the hash follows on `hashchange`
     else replace(listHash(now))
     apply({ ...now, callId: null }) // at once, so nothing renders a call that is already closed
   }, [apply])

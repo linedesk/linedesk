@@ -16,9 +16,9 @@ const PICKER_WIDTH = 300
 const GAP = 4
 
 /** Under the button, its right edges lined up with it, kept inside the window. */
-function anchoredStyle(anchor: DOMRect): CSSProperties {
-  const left = Math.max(8, Math.min(anchor.right - PICKER_WIDTH, window.innerWidth - PICKER_WIDTH - 8))
-  return { position: 'fixed', top: anchor.bottom + GAP, left, width: PICKER_WIDTH }
+export function anchoredStyle(anchor: DOMRect, width = PICKER_WIDTH): CSSProperties {
+  const left = Math.max(8, Math.min(anchor.right - width, window.innerWidth - width - 8))
+  return { position: 'fixed', top: anchor.bottom + GAP, left, width }
 }
 
 type Props = {
@@ -38,7 +38,13 @@ export function Overlays({ overlay, commands, picker, onClose, onCommand, onRemi
     return (
       <Backdrop onClose={onClose} anchored>
         <div className="k-cmd-anchored" style={anchoredStyle(anchor)}>
-          <CommandMenu numbered label={picker.label} placeholder={picker.placeholder} groups={picker.groups} onSelect={onCommand} />
+          <CommandMenu
+            numbered
+            label={picker.label}
+            placeholder={picker.placeholder}
+            groups={picker.groups}
+            onSelect={onCommand}
+          />
         </div>
       </Backdrop>
     )
@@ -59,7 +65,13 @@ export function Overlays({ overlay, commands, picker, onClose, onCommand, onRemi
         />
       )}
       {overlay === 'pick' && picker && (
-        <CommandMenu numbered label={picker.label} placeholder={picker.placeholder} groups={picker.groups} onSelect={onCommand} />
+        <CommandMenu
+          numbered
+          label={picker.label}
+          placeholder={picker.placeholder}
+          groups={picker.groups}
+          onSelect={onCommand}
+        />
       )}
       {overlay === 'help' && <HelpSheet />}
     </Backdrop>

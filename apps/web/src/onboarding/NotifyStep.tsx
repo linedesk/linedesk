@@ -1,24 +1,38 @@
-// Step 4, "Who hears about calls?": the owner's mobile, where urgent calls are put through (a transfer contact of
-// the assistant, assistant.update), and where call summaries go: email and push for this member (notifications.*).
-// No texts yet. Skippable; it shows what exists (the contact it saved before, the member's notification settings).
+// Step 4, "Who hears about calls?": first where call summaries go (email and push for this member,
+// notifications.*), then what happens when a caller has an urgent matter: put through to the owner's mobile (a transfer
+// contact of the assistant, assistant.update) or a message with an alert right away. Nothing is preselected for
+// urgent matters, and only "put through" asks for a number. No texts yet. Can be done later; it shows what exists (the
+// contact it saved before, the member's notification settings). Continue never waits for the server: the saves are
+// queued, and a refusal comes back as the onboarding's save error for this step (Onboarding.tsx).
 import { type NotificationSettingsData, setsTransferNumber } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
-import { useEffect, useRef, useState } from 'react'
-import { pushBlocker, turnOnPush, useThisDevice } from '../settings/Notifications.tsx'
+import { useState } from 'react'
+import { brandName } from '../brand.ts'
 import { Field, TextArea } from '../settings/fields.tsx'
-import { useWriteAction } from '../settings/settings-api.ts'
+import {
+  AllowNotificationsRow,
+  notificationsAllowed,
+  pushBlocker,
+  turnOffPush,
+  turnOnPush,
+  useThisDevice,
+} from '../settings/Notifications.tsx'
+import { useNotificationPermission } from '../settings/notificationPermission.ts'
 import { setNotificationSettings, useNotificationQuery } from '../shell/useCallNotifications.ts'
+import { useAssistant, useRows, useRun } from '../store.tsx'
 import { useMember } from '../team/members.ts'
-import { useAssistant, useRun } from '../store.tsx'
-import { Checkbox, Switch } from '../ui/controls.tsx'
+import { Checkbox, RadioCard } from '../ui/controls.tsx'
 import { Input } from '../ui/form.tsx'
-import { Button } from '../ui/kit.tsx'
 import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
 import {
+  EMERGENCY_NOTE,
   firstWhoHears,
   mobileErrorText,
+  toE164,
   URGENT_CONTACT_ID,
+  type UrgentChoice,
+  urgentCasesFrom,
   type WhoHearsDraft,
   whoHearsProblem,
   whoHearsTransfers,
@@ -29,6 +43,8 @@ type Props = {
   actorId: string
   /** False while the address is unconfirmed: the server puts no calls through to a number until it is. */
   emailConfirmed: boolean
+  /** An instance admin: what the server lacks links to Admin › Providers; everyone else is told whom to ask. */
+  admin: boolean
   onBack: () => void
   onNext: () => void
 }
@@ -42,35 +58,35 @@ export function NotifyStep(p: Props) {
         <h1>Who hears about calls?</h1>
         <SkeletonRows label="Loading your assistant" rows={3} />
       </div>
-      <Foot onBack={p.onBack} onContinue={p.onNext} canContinue={false} onSkipStep={p.onNext} />
+      <Foot onBack={p.onBack} onContinue={p.onNext} canContinue={false} onSkipStep={p.onNext} laterTitle={LATER} />
     </>
   )
 }
 
-function NotifyForm({ assistant, actorId, emailConfirmed, onBack, onNext }: Props & { assistant: Assistant }) {
-  const write = useWriteAction()
+const LATER = 'Set this up later in Settings › Notifications and Settings › Assistant'
+
+function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext }: Props & { assistant: Assistant }) {
   const run = useRun()
   const me = useMember(actorId)
-  const [draft, setDraft] = useState<WhoHearsDraft>(() => firstWhoHears(assistant.transfers))
-  // A problem shows once the mobile field was left or Continue was tried, never while typing the first digits.
+  const numbers = useRows('phone_numbers')
+  // "Urgent means" starts from the urgent cases the business step's common calls already name.
+  const [draft, setDraft] = useState<WhoHearsDraft>(() =>
+    firstWhoHears(assistant.transfers, urgentCasesFrom(assistant.business_profile.instructions)),
+  )
+  // A problem shows once the mobile field was left or Continue was tried, never while typing the first digits or
+  // before the owner had a chance to choose.
   const [shown, setShown] = useState(false)
-  /** A refusal of the last save; `mobile` when it is about the number typed. */
+  /** What the step itself can tell before saving; `mobile` when it is about the number typed. */
   const [error, setError] = useState<{ message: string; mobile: boolean } | null>(null)
-  const [saving, setSaving] = useState(false)
-  // While saving, Back and Esc wait; and a save that ends after the step was left (unmounted) moves nothing.
-  const left = useRef(false)
-  // Set again on every mount: React's development double mount runs the cleanup once in between.
-  useEffect(() => {
-    left.current = false
-    return () => {
-      left.current = true
-    }
-  }, [])
   const notifications = useNotificationQuery()
   const [email, setEmail] = useState<boolean | null>(null)
   const settings = notifications.data ?? null
   const emailOn = email ?? settings?.effective.email ?? true
   const problem = whoHearsProblem(draft, assistant.transfers)
+  // "Take a message and alert me" alerts by email or push; with both off nobody hears of an urgent call until they look.
+  // Email that this server cannot send alerts nobody either.
+  const emailWorks = emailOn && settings?.emailReady !== false
+  const nobodyAlerted = draft.urgent === 'message' && !!settings && !emailWorks && settings.push.devices.length === 0
   const name = assistant.name
 
   const set = (change: Partial<WhoHearsDraft>) => {
@@ -78,14 +94,17 @@ function NotifyForm({ assistant, actorId, emailConfirmed, onBack, onNext }: Prop
     setError(null)
   }
 
-  async function next() {
-    if (saving) return
+  function next() {
     setShown(true)
     if (problem) return
     const transfers = whoHearsTransfers(assistant.transfers, draft, me?.name ?? '')
     const contactName = transfers?.find(c => c.id === URGENT_CONTACT_ID)?.name ?? ''
     if (transfers && !emailConfirmed && setsTransferNumber({ transfers }))
       return setError({ message: mobileErrorText('Confirm your email first', contactName), mobile: false })
+    // The server refuses a number of this workspace too; said here at once, without a round trip.
+    const typed = draft.urgent === 'transfer' ? toE164(draft.mobile) : null
+    if (typed && numbers.some(n => n.e164 === typed))
+      return setError({ message: `That is a ${brandName()} number. Enter your own mobile.`, mobile: true })
     if (settings && emailOn !== settings.effective.email) {
       setNotificationSettings({
         ...settings,
@@ -94,73 +113,36 @@ function NotifyForm({ assistant, actorId, emailConfirmed, onBack, onNext }: Prop
       })
       void run('notifications.update', { email: emailOn })
     }
-    if (transfers) {
-      // Run directly: a Linedesk number or an unconfirmed address is refused by the server, and the owner
-      // should see that here, not later in Settings.
-      setSaving(true)
-      try {
-        await write('assistant.update', { assistantId: assistant.id, transfers })
-      } catch (e) {
-        if (left.current) return
-        setSaving(false)
-        const raw = (e as Error).message
-        const message = mobileErrorText(raw, contactName)
-        return setError({ message, mobile: message !== raw })
-      }
-      if (left.current) return
-      setSaving(false)
-    }
+    // Queued, not awaited: a refusal (a number forwarding to us, say) comes back as this step's save error.
+    if (transfers) void run('assistant.update', { assistantId: assistant.id, transfers })
     onNext()
   }
-  const back = () => {
-    if (!saving) onBack()
-  }
-  useStepKeys({ onEnter: () => void next(), onEscape: back })
+  useStepKeys({ onEnter: next, onEscape: onBack })
 
   const shownProblem = shown ? problem : null
   const message = error?.message ?? shownProblem?.message ?? null
   const mobileInvalid = error ? error.mobile : shownProblem?.field === 'mobile' && !!draft.mobile.trim()
+  // Field errors show under their field; the rest (no choice, a full list, confirm your email) under the choices.
+  const at =
+    draft.urgent !== 'transfer' ? null : error ? (error.mobile ? 'mobile' : null) : (shownProblem?.field ?? null)
+  const mobileError = at === 'mobile' ? message : null
+  const conditionError = at === 'condition' ? message : null
+  const otherMessage = at === 'mobile' || at === 'condition' ? null : message
+  const pick = (urgent: UrgentChoice) => {
+    // A new choice starts without the old complaint; a mobile problem shows again once the field is left.
+    if (urgent !== draft.urgent) setShown(false)
+    set({ urgent })
+  }
   return (
     <>
       <div className="ob-body">
         <h1>Who hears about calls?</h1>
-        <p className="ob-lede">
-          {name} sends you a summary of every call. Urgent ones can ring your mobile right away.
-        </p>
-        <Field id="ob-mobile" label="Your mobile number" help="Where urgent calls are put through.">
-          <Input
-            id="ob-mobile"
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            placeholder="(503) 555-0142"
-            value={draft.mobile}
-            invalid={mobileInvalid}
-            onChange={e => set({ mobile: e.target.value })}
-            onBlur={() => draft.mobile.trim() && setShown(true)}
-          />
-        </Field>
-        <div className="ob-urgent">
-          <div className="swrow">
-            <div>
-              <b>Put urgent calls through to me</b>
-              <span className="help">
-                {draft.urgentOn
-                  ? `At any hour. If you don't pick up, ${name} takes a message for you.`
-                  : `${name} takes a message on every call.`}
-              </span>
-            </div>
-            <Switch on={draft.urgentOn} onChange={on => set({ urgentOn: on })} label="Put urgent calls through to me" />
-          </div>
-          {draft.urgentOn && (
-            <Field id="ob-urgent" label="Urgent means">
-              <TextArea id="ob-urgent" value={draft.condition} onChange={v => set({ condition: v })} />
-            </Field>
-          )}
-        </div>
-        <span className="ob-label">Call summaries</span>
+        <p className="ob-lede">{name} answers, then tells you what each call was about.</p>
+        <span className="ob-label" id="ob-hear">
+          How do you want to hear about calls?
+        </span>
         {settings ? (
-          <Summaries settings={settings} email={emailOn} onEmail={setEmail} />
+          <Summaries settings={settings} email={emailOn} onEmail={setEmail} admin={admin} />
         ) : notifications.error ? (
           <LoadProblem
             what="Your notification settings"
@@ -170,43 +152,105 @@ function NotifyForm({ assistant, actorId, emailConfirmed, onBack, onNext }: Prop
         ) : (
           <SkeletonRows label="Loading your notification settings" rows={2} />
         )}
-        {message && (
+        <span className="ob-label" id="ob-urgent">
+          If a call is urgent
+        </span>
+        <div className="k-radios ob-choices" role="radiogroup" aria-labelledby="ob-urgent">
+          <RadioCard
+            name="ob-urgent"
+            checked={draft.urgent === 'transfer'}
+            onPick={() => pick('transfer')}
+            title="Put them through to my mobile"
+            description={`At any hour. If you don't pick up, ${name} takes a message.`}
+          />
+          <RadioCard
+            name="ob-urgent"
+            checked={draft.urgent === 'message'}
+            onPick={() => pick('message')}
+            title="Take a message and alert me right away"
+            description="No number needed."
+          />
+        </div>
+        {nobodyAlerted && (
+          <p className="ob-warn" role="status">
+            {emailOn
+              ? 'Without email on this server and with notifications off, nobody is alerted. Turn on notifications above.'
+              : 'With email and notifications off, nobody is alerted. Turn on one of them above.'}
+          </p>
+        )}
+        {draft.urgent === 'transfer' && (
+          <div className="ob-urgent">
+            <Field
+              id="ob-mobile"
+              label="Your mobile number"
+              help="Where urgent calls, and callers who ask for a person, are put through."
+              error={mobileError}
+            >
+              <Input
+                id="ob-mobile"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="Your mobile number"
+                value={draft.mobile}
+                invalid={mobileInvalid}
+                onChange={e => set({ mobile: e.target.value })}
+                onBlur={() => draft.mobile.trim() && setShown(true)}
+              />
+            </Field>
+            <Field id="ob-urgent-means" label="Urgent means" help={EMERGENCY_NOTE(name)} error={conditionError}>
+              <TextArea
+                id="ob-urgent-means"
+                value={draft.condition}
+                onChange={v => set({ condition: v })}
+                invalid={!!conditionError}
+              />
+            </Field>
+          </div>
+        )}
+        {otherMessage && (
           <p className="ob-error" role="alert">
-            {message}
+            {otherMessage}
           </p>
         )}
       </div>
       <Foot
-        onBack={back}
-        onContinue={() => void next()}
+        onBack={onBack}
+        onContinue={next}
         canContinue={!(shown && problem)}
-        busy={saving}
         onSkipStep={onNext}
+        laterTitle={LATER}
       />
     </>
   )
 }
 
-/** Email for every call (saved with Continue) and push on this device (turned on at once: the browser asks). */
+/**
+ * Email for every call (saved with Continue) and push in this browser (at once), the same model as Settings ›
+ * Notifications: the browser's permission in its own row, push greyed until it is given.
+ */
 function Summaries({
   settings,
   email,
   onEmail,
+  admin,
 }: {
   settings: NotificationSettingsData
   email: boolean
   onEmail: (on: boolean) => void
+  admin: boolean
 }) {
   const run = useRun()
   const device = useThisDevice(settings.push.devices)
   const [note, setNote] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [permission] = useNotificationPermission()
+  const allowed = notificationsAllowed(permission)
   const blocker = pushBlocker(settings.push.publicKey)
-  async function turnOn() {
-    setBusy(true)
-    setNote(null)
+  async function setPush(on: boolean) {
+    if (!on) return void turnOffPush(settings, device.id, run)
+    // Registering with the browser's push service can take a while the first time.
+    setNote('Turning on…')
     const result = await turnOnPush(settings, run)
-    setBusy(false)
     setNote(result.note)
     if (result.id) device.setId(result.id)
   }
@@ -215,18 +259,32 @@ function Summaries({
       <Checkbox checked={email} onChange={onEmail}>
         Email me a summary of every call
       </Checkbox>
-      {device.on ? (
-        <p className="ob2-note">Push notifications are on for this device.</p>
-      ) : (
-        <div className="ob-talk">
-          <Button size="sm" icon="phone" disabled={!!blocker || busy} onClick={() => void turnOn()}>
-            {busy ? 'Turning on…' : 'Turn on notifications on this device'}
-          </Button>
-          <span className="ob2-note">
-            {blocker ?? note ?? 'New calls, urgent ones first, even when the app is closed.'}
-          </span>
-        </div>
+      {/* The choice is kept either way; it says that nothing arrives until the server sends email. */}
+      {settings.emailReady === false && (
+        <p className="ob2-note" role="status">
+          Email isn't set up on this server yet.{' '}
+          {admin ? (
+            <a className="k-link" href="#admin/providers">
+              Set it up in Admin › Providers
+            </a>
+          ) : (
+            'Ask whoever runs this server.'
+          )}
+        </p>
       )}
+      <Checkbox
+        checked={device.on && allowed && !blocker}
+        onChange={on => void setPush(on)}
+        disabled={!allowed || blocker !== null}
+      >
+        Push notifications in this browser
+      </Checkbox>
+      <p className="ob2-note ob-push-note">
+        {!allowed
+          ? 'New calls, urgent ones first, even when the app is closed. Only works once this browser allows notifications.'
+          : (blocker ?? note ?? 'New calls, urgent ones first, even when the app is closed.')}
+      </p>
+      <AllowNotificationsRow className="ob-allow" />
     </div>
   )
 }

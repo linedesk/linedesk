@@ -90,11 +90,13 @@ type SwitchRowProps = {
   on: boolean
   onChange: (on: boolean) => void
   disabled?: boolean
+  /** Greyed out: it has no effect yet (browser notifications before the browser allows them). */
+  dimmed?: boolean
 }
 
-export function SwitchRow({ title, description, aside, on, onChange, disabled }: SwitchRowProps) {
+export function SwitchRow({ title, description, aside, on, onChange, disabled, dimmed }: SwitchRowProps) {
   return (
-    <div className="swrow">
+    <div className={dimmed ? 'swrow is-dimmed' : 'swrow'}>
       <div>
         <b>
           {title}

@@ -25,6 +25,13 @@ export function describeProviderContract(name: string, make: () => TelephonyProv
       expect(await provider.findNumber(found!.e164)).toEqual(bought)
     })
 
+    test('lookupNumber tells the line type and carrier of any number, in one shape', async () => {
+      const found = await make().lookupNumber('+15035550142')
+      expect(found.e164).toBe('+15035550142')
+      expect(['mobile', 'landline', 'voip', 'toll_free', 'unknown']).toContain(found.lineType)
+      expect(found.carrier === null || typeof found.carrier === 'string').toBe(true)
+    })
+
     // `dev` has no account: it owns nothing and lists nothing.
     test.skipIf(name === 'dev')('listNumbers lists the numbers of the account, with the same reference', async () => {
       const provider = make()

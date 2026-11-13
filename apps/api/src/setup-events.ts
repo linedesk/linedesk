@@ -26,7 +26,7 @@ export async function isOwnNumber(tx: Db, workspaceId: string, from: string): Pr
 }
 
 /** Outcomes where the assistant did something for the caller: a business that got one is live. */
-const HANDLED: ReadonlySet<Call['outcome']> = new Set<Call['outcome']>([
+export const HANDLED: ReadonlySet<Call['outcome']> = new Set<Call['outcome']>([
   'booked',
   'rescheduled',
   'cancelled',
@@ -38,7 +38,10 @@ const HANDLED: ReadonlySet<Call['outcome']> = new Set<Call['outcome']>([
 
 type CallFacts = Pick<Call, 'workspace_id' | 'source' | 'from_own_number' | 'outcome' | 'started_at'>
 
-/** A real caller's call just came in (call.start): the first one is the first real call. Spam doesn't count. */
+/**
+ * A real caller's call just came in (call.start): the first one is the first real call. Spam doesn't count, and only
+ * source 'phone' does: test, sample and simulated calls never tick a milestone (isRealCall, @linedesk/actions).
+ */
 export async function recordCallStarted(tx: Db, call: CallFacts, spam: boolean) {
   if (call.source !== 'phone' || call.from_own_number || spam) return
   await recordSetupEvent(tx, call.workspace_id, 'first_real_call', call.started_at)

@@ -1,6 +1,8 @@
-// The first-use tour without React: its steps and whether it is due. It starts once after onboarding
-// (when the install offers it, FIRST_USE) and again from ⌘K "Show the tour". Kept in this browser only:
-// a convenience, not a record.
+// The first-use tour without React: its steps and whether it is due. It is queued when onboarding ends
+// (when the install offers it, FIRST_USE) and starts once, the first time the inbox shows a call (real or
+// sample): right after onboarding the go-live checklist comes first, and a tour of an empty inbox has
+// nothing to point at. ⌘K "Show the tour" starts it any time. Kept in this browser only: a convenience,
+// not a record.
 
 export type TourPlacement = 'top' | 'bottom' | 'bottom-start' | 'bottom-end'
 
@@ -41,7 +43,7 @@ export function tourSteps(assistant: string): TourStep[] {
     },
     {
       title: 'Settings',
-      text: `G then S opens Settings: phone numbers, hours, notifications. G then A sets up ${assistant}.`,
+      text: `G then S opens Settings: phone numbers, notifications. G then A sets up ${assistant}, business hours included.`,
       targets: ['.menu-btn'],
       placement: 'bottom-start',
     },
@@ -77,6 +79,12 @@ export const queueTour = (workspaceId: string) => write(PENDING_KEY, workspaceId
 export const tourDue = (workspaceId: string) => read(PENDING_KEY) === workspaceId
 /** Done or dismissed: it does not start again on its own. */
 export const finishTour = () => write(PENDING_KEY, null)
+
+/**
+ * Whether the queued tour starts now: the inbox list is on screen with at least one call in it. Until then it
+ * stays queued; once started it is finished (finishTour), so it starts only once.
+ */
+export const tourStartsNow = (workspaceId: string, inboxCalls: number) => inboxCalls > 0 && tourDue(workspaceId)
 
 /** The next step for a key, or 'close'; null for keys the tour leaves to the app. */
 export function tourKey(key: string, at: number, count: number): number | 'close' | null {

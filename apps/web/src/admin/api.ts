@@ -231,6 +231,8 @@ type AdminInputs = {
   'invitation.resend': { invitationId: string }
   'voiceCloning.get': Record<string, never>
   'voiceCloning.set': { on: boolean }
+  'setupEmails.get': Record<string, never>
+  'setupEmails.set': { on: boolean }
   'branding.set': BrandingInput
 }
 
@@ -280,6 +282,24 @@ export const loadWorkspaceMembers = (workspaceId: string) =>
   get<WorkspaceMembers>(`/v1/admin/workspaces/${encodeURIComponent(workspaceId)}/members`)
 
 export const loadOverview = () => get<AdminOverview>('/v1/admin/overview')
+
+/**
+ * GET /v1/admin/onboarding (apps/api/src/setup-emails.ts): workspaces without a real call `days` after sign-up, and how many
+ * signed up that long ago at all (none on a new install).
+ */
+export type AtRiskWorkspace = {
+  id: string
+  name: string
+  signed_up_at: string
+  onboarding_step: string | null
+  owner_email: string | null
+  /** Each setup milestone reached, with when. */
+  milestones: Record<string, string>
+  /** Setup emails sent, with when. */
+  emails: Record<string, string>
+}
+export const loadAtRisk = (days: number) =>
+  get<{ days: number; oldEnough: number; workspaces: AtRiskWorkspace[] }>(`/v1/admin/onboarding?days=${days}`)
 
 /** GET /v1/admin/latency (apps/api/src/reply-latency.ts): reply delay per pipeline, split by where the time goes. */
 export type Percentiles = { p50: number | null; p90: number | null }

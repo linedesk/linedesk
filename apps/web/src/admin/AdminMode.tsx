@@ -14,6 +14,7 @@ import { SecondFactorPrompt } from './SecondFactorPrompt.tsx'
 import { AuditLog } from './AuditLog.tsx'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { errorText, type Notify } from './notify.ts'
+import { Onboarding } from './Onboarding.tsx'
 import { Overview } from './Overview.tsx'
 import { Providers } from './Providers.tsx'
 import { SetupChecklist } from './SetupChecklist.tsx'
@@ -31,6 +32,7 @@ const icons: Record<AdminSection, IconName> = {
   workspaces: 'database',
   users: 'users',
   usage: 'clock',
+  onboarding: 'flag',
   providers: 'plug',
   branding: 'pencil',
   system: 'gear',
@@ -179,7 +181,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   const detailTitle = workspace?.name ?? (user ? user.name || user.email : null)
 
   function page(): ReactNode {
-    // The overview loads its own numbers, so it shows while the lists are still on their way.
+    // The overview and Onboarding load their own numbers, so they show while the lists are still on their way.
     if (place.section === 'overview')
       return (
         <>
@@ -187,6 +189,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
           <Overview onOpen={section => go({ section, id: null })} />
         </>
       )
+    if (place.section === 'onboarding') return <Onboarding />
     if (!data)
       return error ? (
         <LoadProblem className="adm-card" what="Admin" message={error} onRetry={() => void reload()} />

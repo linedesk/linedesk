@@ -20,12 +20,31 @@ export const auth = createAuthClient({
 
 /** Whether this server can set up phone numbers and with which carrier. `detail` (what the server lacks) only reaches instance admins. */
 /** `canAttach`: the member may connect a number already in the carrier account (else only a new one). */
-export type PhoneSetupStatus = { provider: string | null; available: boolean; detail: string | null; canAttach: boolean }
+export type PhoneSetupStatus = {
+  provider: string | null
+  available: boolean
+  detail: string | null
+  canAttach: boolean
+}
 /** Present while the workspace is in onboarding and this member may finish it. */
-export type OnboardingState = { step: Exclude<OnboardingStep, 'done'>; phone: PhoneSetupStatus }
+/**
+ * `businessLookup`: the install can look businesses up by name and city. `websiteImport`: whether the business step
+ * may offer to read the website: `no_model` without a language model, `paused` when today's lookups are used up or
+ * turned off. Both absent in what an older version remembered.
+ */
+export type WebsiteImport = 'on' | 'no_model' | 'paused'
+export type OnboardingState = {
+  step: Exclude<OnboardingStep, 'done'>
+  phone: PhoneSetupStatus
+  businessLookup?: boolean
+  websiteImport?: WebsiteImport
+}
 
 export type Me = {
-  actorId: string; role: string; permissions: string[]; workspace: { id: string; name: string; disabled?: boolean } | null
+  actorId: string
+  role: string
+  permissions: string[]
+  workspace: { id: string; name: string; disabled?: boolean } | null
   /** Every workspace this member belongs to, by name (absent in what an older version remembered). */
   workspaces?: { id: string; name: string; disabled?: boolean }[]
   onboarding: OnboardingState | null
@@ -73,7 +92,10 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
  * Keeps trying while the API is unreachable (for example during a restart), so the screen recovers by itself.
  * With `attempts`, gives up after that many tries and throws, so a page can show its error instead.
  */
-export async function fetchAuthMethods({ retryMs = [500, 1000, 2000, 4000, 8000], attempts = Number.POSITIVE_INFINITY } = {}): Promise<AuthMethods> {
+export async function fetchAuthMethods({
+  retryMs = [500, 1000, 2000, 4000, 8000],
+  attempts = Number.POSITIVE_INFINITY,
+} = {}): Promise<AuthMethods> {
   for (let attempt = 1; ; attempt++) {
     const res = await fetch('/v1/auth-methods').catch(() => null)
     if (res?.ok) return (await res.json()) as AuthMethods
@@ -113,7 +135,10 @@ export async function createWorkspace(name: string) {
 
 /** Where the API sends the browser back to: errors arrive as `?error=CODE` on the sign-in screen. */
 // A successful sign-in returns to the page it started from (`#account` after "Sign in again").
-const back = () => ({ callbackURL: window.location.origin + window.location.pathname + window.location.hash, errorCallbackURL: window.location.origin + window.location.pathname + window.location.hash })
+const back = () => ({
+  callbackURL: window.location.origin + window.location.pathname + window.location.hash,
+  errorCallbackURL: window.location.origin + window.location.pathname + window.location.hash,
+})
 
 /** Emails a sign-in code. The answer is the same whether or not the address has an account. */
 export function requestSignInCode(email: string) {

@@ -8,6 +8,7 @@ import type { ActionItem, Assistant, Closure, PhoneNumber, TransferContact } fro
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { and, asc, desc, eq, gt, gte, inArray, or, sql, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
+import { setupEmailHandlers } from './setup-emails.ts'
 import { providerHealthHandlers, recordProviderFailure } from './provider-failures.ts'
 import { brandingHandlers, brandName } from './branding.ts'
 import { issueCallToken } from './agent-token.ts'
@@ -36,10 +37,13 @@ import { insightsHandlers } from './insights.ts'
 import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
 import { checkAssistantVoice, releaseUnusedClones, voiceHandlers, voicePreparers } from './voices.ts'
 import { sampleHandlers } from './sample-calls.ts'
+import { goLiveChecklistHandlers } from './go-live-checklist.ts'
 import { isOwnNumber, recordCallFinished, recordCallStarted, recordOnboardingStep, recordSetupEvent } from './setup-events.ts'
-import { queueAssignNotification, queueCallEvaluation, queueRecordingDeletion, queueCallNotification, queueCallPush } from './jobs.ts'
+import { queueAssignNotification, queueCallEvaluation, queueForwardingCheck, queueRecordingDeletion, queueCallNotification, queueCallPush } from './jobs.ts'
+import { claimForwardingCheck, forwardingCheckHandlers, forwardingCheckStart } from './forwarding-check.ts'
 import { queueSpendingAlerts, spendingCap } from './spending-cap.ts'
 import { evaluatedAutomatically, evaluationHandlers } from './evaluations.ts'
+import { businessHandlers } from './business-import.ts'
 import { knowledgeHandlers } from './knowledge.ts'
 import { knowledgeQuestionHandlers } from './knowledge-questions.ts'
 import { notificationHandlers } from './notification-settings.ts'
@@ -338,14 +342,20 @@ const blockedCall = (now: string) => ({
 
 /**
  * The on-call number is a person's phone, never a Linedesk number (the workspace's own or any other on the
- * install) nor a business line that forwards to one (`forwarded_from`): a transfer there would ring back
- * into Linedesk and be answered by an assistant.
+ * install) nor a business line that forwards to one of the workspace's own numbers (`forwarded_from`): a transfer
+ * there would ring back into Linedesk and be answered by an assistant. Another workspace's `forwarded_from` does not
+ * count: a forwarding check saves it from a caller ID, which can be faked, so it must never lock anyone else out.
  */
-async function checkOnCallNotLinedesk(tx: HandlerCtx['tx'], e164: string, name: string) {
+async function checkOnCallNotLinedesk(tx: HandlerCtx['tx'], workspaceId: string, e164: string, name: string) {
   const [linedesk] = await tx
     .select({ e164: phone_numbers.e164 })
     .from(phone_numbers)
-    .where(or(eq(phone_numbers.e164, e164), eq(phone_numbers.forwarded_from, e164)))
+    .where(
+      or(
+        eq(phone_numbers.e164, e164),
+        and(eq(phone_numbers.forwarded_from, e164), eq(phone_numbers.workspace_id, workspaceId)),
+      ),
+    )
     .limit(1)
   if (!linedesk) return
   throw new Reject(
@@ -373,7 +383,7 @@ const handlers: Record<string, Handler> = {
     // Only contacts that can be dialled: one switched off because its line forwards to Linedesk
     // (switchOffLoopingTransfers) keeps its number, and the rest of the list stays editable.
     for (const contact of (input.transfers ?? []) as TransferContact[])
-      if (isActiveContact(contact)) await checkOnCallNotLinedesk(ctx.tx, contact.number!, contact.name)
+      if (isActiveContact(contact)) await checkOnCallNotLinedesk(ctx.tx, ctx.actor.workspaceId, contact.number!, contact.name)
     const result = await runPatch(ctx, actions.get('assistant.update')!, input)
     if (input.voice) await releaseUnusedClones(ctx.tx, ctx.actor.workspaceId)
     if (setsTransferNumber(input)) await recordSetupEvent(ctx.tx, ctx.actor.workspaceId, 'mobile_added', ctx.now)
@@ -392,7 +402,7 @@ const handlers: Record<string, Handler> = {
     await checkAssistantVoice(tx, workspaceId, fields.voice).catch(e => {
       throw new Reject(`Version ${input.number}'s voice can't be used any more (${errorMessage(e)}): pick a voice and save instead`)
     })
-    for (const contact of fields.transfers ?? []) if (contact.number) await checkOnCallNotLinedesk(tx, contact.number, contact.name)
+    for (const contact of fields.transfers ?? []) if (contact.number) await checkOnCallNotLinedesk(tx, workspaceId, contact.number, contact.name)
     const restored = await tx.update(assistants).set(fields).where(and(eq(assistants.id, input.assistantId), eq(assistants.workspace_id, workspaceId))).returning()
     await releaseUnusedClones(tx, workspaceId)
     const linked = await tx.select().from(assistant_calendars).where(eq(assistant_calendars.assistant_id, input.assistantId))
@@ -430,11 +440,14 @@ const handlers: Record<string, Handler> = {
   ...voiceHandlers,
   ...brandingHandlers,
   ...sampleHandlers,
+  ...goLiveChecklistHandlers,
   ...notificationHandlers,
+  ...setupEmailHandlers,
   ...starHandlers,
   ...pushHandlers,
   ...calendarConnectionHandlers,
   ...carrierHandlers(),
+  ...forwardingCheckHandlers(queueForwardingCheck),
   ...transferTrunkHandlers(),
   ...liveCallHandlers(),
   ...apiKeyHandlers,
@@ -442,6 +455,7 @@ const handlers: Record<string, Handler> = {
   ...evaluationHandlers(queueCallEvaluation),
   ...webhookHandlers,
   ...knowledgeHandlers,
+  ...businessHandlers,
   ...knowledgeQuestionHandlers,
   ...callExportHandlers,
 
@@ -486,6 +500,9 @@ const handlers: Record<string, Handler> = {
     if (!number) throw new Reject(`no workspace for number ${input.to}`)
     const assistant = await assistantForNumber(tx, number.workspace_id, number.assistant_id)
     const from = normalizeCallerId(input.from, { nationalUs: number.e164.startsWith('+1') })
+    // Our own forwarding check arriving: not answered, not filed, never a real call (forwarding-check.ts).
+    const check = await claimForwardingCheck(tx, { from, to, now })
+    if (check) return forwardingCheckStart(check)
     return withCallToken(await openCall({ tx, now }, number.workspace_id, { from, to, room: input.room, source: input.source, label: to, assistant }))
   },
 
@@ -781,6 +798,8 @@ const handlers: Record<string, Handler> = {
     }).returning()
     // Warm transfers from a number in the workspace account dial through that account: set its trunk up now.
     if (carrier_account === 'workspace') await refreshTransferTrunk(tx, workspace_id, { actorId: actor.actorId, trigger: 'phoneNumber.setup', impersonatedBy: actor.impersonation?.by })
+    // The go-live checklist's first step ("Connect your number"), and where Admin › Onboarding sees a business stop.
+    await recordSetupEvent(tx, workspace_id, 'number_connected', now)
     // A transfer contact on this number would now ring back into Linedesk: switched off.
     const switchedOff = await switchOffLoopingTransfers(tx, workspace_id, [e164])
     return { rows: { phone_numbers: rows, ...(switchedOff.length ? { assistants: switchedOff } : {}) } }

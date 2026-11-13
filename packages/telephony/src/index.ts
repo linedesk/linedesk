@@ -5,10 +5,10 @@ import { createTelnyxOutbound, type OutboundSip, TRANSFER_OUTBOUND_NAME } from '
 import { createTwilioProvider } from './twilio.ts'
 
 export * from './provider.ts'
-export { devProvider } from './dev.ts'
-export { createTelnyxProvider, type TelnyxOptions } from './telnyx.ts'
+export { DEV_LOOKUP, devForwardingOutcome, devProvider, type DevForwardingOutcome } from './dev.ts'
+export { createTelnyxProvider, telnyxLineType, type TelnyxOptions } from './telnyx.ts'
 export { createTelnyxOutbound, sipUserName, TRANSFER_OUTBOUND_NAME, type OutboundSip, type TelnyxOutboundOptions } from './telnyx-outbound.ts'
-export { createTwilioProvider, type TwilioOptions } from './twilio.ts'
+export { createTwilioProvider, twilioLineType, type TwilioOptions } from './twilio.ts'
 export { createTwilioOutbound, TWILIO_OUTBOUND_NAME, type TwilioOutboundOptions } from './twilio-outbound.ts'
 export { CARRIER_SIGNALING_ADDRESSES, type CarrierSignalingAddresses, type SignalingCarrier } from './signaling-addresses.ts'
 

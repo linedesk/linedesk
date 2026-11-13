@@ -37,6 +37,7 @@ import {
 } from './calendarModel.ts'
 import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { Field, Section } from './fields.tsx'
+import { useCalendarProviders } from './calendar-providers.ts'
 import { callAction, useWriteAction } from './settings-api.ts'
 import './calendar.css'
 
@@ -57,24 +58,12 @@ const noSubmit = (e: KeyboardEvent) => {
   if (e.key === 'Enter') e.preventDefault()
 }
 
-async function loadProviders(): Promise<ProviderId[]> {
-  const res = await fetch('/v1/calendar/providers', { credentials: 'include' })
-  if (!res.ok) throw new Error(`The server answered ${res.status}`)
-  return ((await res.json()) as { providers: ProviderId[] }).providers
-}
-
-/** The calendar providers this install can connect: the last known at once; none when they cannot be read. */
-function useProviders(): ProviderId[] | null {
-  const { data, error } = useQuery('calendar.providers', loadProviders, { persist: true })
-  return data ?? (error ? [] : null)
-}
-
 /**
  * Connecting an account: opens the provider's consent page, and the callback brings the browser back
  * to this app. `busy` is the provider whose page is opening.
  */
 function useConnect(assistantId: string, toast: (text: string) => void) {
-  const providers = useProviders()
+  const providers = useCalendarProviders()
   const [busy, setBusy] = useState<ProviderId | null>(null)
 
   async function connect(provider: ProviderId) {

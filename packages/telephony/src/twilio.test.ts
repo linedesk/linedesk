@@ -2,7 +2,7 @@
 import { createHmac } from 'node:crypto'
 import { describe, expect, test } from 'vitest'
 import { describeProviderContract } from './contract.ts'
-import { createTwilioProvider, TelephonyError } from './index.ts'
+import { createTwilioProvider, TelephonyError, twilioLineType } from './index.ts'
 
 type Call = { method: string; host: string; path: string; form?: Record<string, string>; auth: string }
 type Account = {
@@ -52,6 +52,9 @@ function mockTwilio(
       state.numbers = state.numbers.filter(n => n.sid !== 'PN1')
       return new Response(null, { status: 204 })
     }
+    if (method === 'GET' && url.host === 'lookups.twilio.com' && path.startsWith('/v2/PhoneNumbers/')) {
+      return json({ phone_number: decodeURIComponent(path.split('/')[3]!), line_type_intelligence: { type: 'mobile', carrier_name: 'AT&T Wireless' } })
+    }
     if (method === 'GET' && path === '/v1/Trunks') return json({ trunks: state.trunks })
     if (method === 'POST' && path === '/v1/Trunks') {
       state.trunks.push({ sid: 'TK1', friendly_name: form!.FriendlyName! })
@@ -86,6 +89,28 @@ const routed = { e164: NUMBER, providerRef: 'PN1' }
 
 describeProviderContract('twilio', () => mockTwilio().provider)
 describeProviderContract('twilio with an API key', () => mockTwilio({}, undefined, { apiKeySid: 'SK1', apiKeySecret: 'key-secret' }).provider)
+
+describe('twilio lookup', () => {
+  test('asks Lookup v2 for line type intelligence and reads type and carrier', async () => {
+    const { provider, calls } = mockTwilio()
+    expect(await provider.lookupNumber('+15035550142')).toEqual({ e164: '+15035550142', lineType: 'mobile', carrier: 'AT&T Wireless' })
+    expect(calls.at(-1)).toMatchObject({ method: 'GET', host: 'lookups.twilio.com', path: '/v2/PhoneNumbers/%2B15035550142?Fields=line_type_intelligence' })
+  })
+
+  test('VoIP types read as voip; a refused lookup is a TelephonyError', async () => {
+    expect(['fixedVoip', 'nonFixedVoip', 'tollFree', 'pager'].map(twilioLineType)).toEqual(['voip', 'voip', 'toll_free', 'unknown'])
+    const { provider } = mockTwilio({}, call => (call.host === 'lookups.twilio.com' ? { status: 401, message: 'Authenticate' } : undefined))
+    await expect(provider.lookupNumber('+15035550142')).rejects.toThrow(TelephonyError)
+  })
+
+  test('a lookup Twilio never answers fails after the timeout', async () => {
+    const hung: typeof fetch = (_url, init) => new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal!.reason)))
+    const provider = createTwilioProvider({ accountSid: 'AC1', authToken: TOKEN, fetch: hung, timeoutMs: 20 })
+    const failed = await provider.lookupNumber('+15035550142').catch(e => e)
+    expect(failed).toBeInstanceOf(TelephonyError)
+    expect(failed.message).toMatch(/look up line type: Twilio did not answer within 0.02 s/)
+  })
+})
 
 describe('twilio adapter', () => {
   test('searches local voice numbers by country and area code, with basic auth', async () => {

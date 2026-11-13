@@ -47,6 +47,25 @@ function primeQueries(me: Me) {
   if (me.workspaces) setQueryData(WORKSPACES_QUERY, me.workspaces, { persist: true })
 }
 
+/**
+ * The workspace was renamed here (onboarding's business step): `me` with the new name, and the cached workspace list
+ * and the remembered `me` changed with it, so the menu shows the name right away.
+ */
+export function renamedWorkspace(me: Me, name: string): Me {
+  const id = me.workspace?.id
+  const rename = (list: { id: string; name: string }[]) => list.map(w => (w.id === id ? { ...w, name } : w))
+  const next: Me = {
+    ...me,
+    workspace: me.workspace && { ...me.workspace, name },
+    ...(me.workspaces ? { workspaces: rename(me.workspaces) } : {}),
+  }
+  setQueryData<{ id: string; name: string }[]>(WORKSPACES_QUERY, list => rename(list ?? next.workspaces ?? []), {
+    persist: true,
+  })
+  remember(next)
+  return next
+}
+
 /** Forget the member this device remembers and what was cached for them (on sign-out). */
 export function forgetMe() {
   remember(null)

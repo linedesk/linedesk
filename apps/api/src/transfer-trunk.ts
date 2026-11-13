@@ -66,18 +66,18 @@ export function livekitSip(env: Env = process.env, doFetch: typeof fetch = fetch
   const secret = env.LIVEKIT_API_SECRET
   if (!url || !key || !secret) return null
   const base = `${url.replace(/^ws/, 'http').replace(/\/$/, '')}/twirp`
-  async function call(method: string, body: object): Promise<Record<string, unknown>> {
+  async function call(method: string, body: object, timeoutMs = CARRIER_TIMEOUT_MS): Promise<Record<string, unknown>> {
     const res = await doFetch(`${base}/livekit.SIP/${method}`, {
       method: 'POST',
       body: JSON.stringify(body),
       headers: {
-        authorization: `Bearer ${livekitToken(key!, secret!, { sip: { admin: true, call: true } })}`,
+        authorization: `Bearer ${livekitToken(key!, secret!, { sip: { admin: true, call: true } }, undefined, { ttlSec: Math.ceil(timeoutMs / 1000) + 60 })}`,
         'content-type': 'application/json',
       },
-      signal: AbortSignal.timeout(CARRIER_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     })
     const json = ((await res.json().catch(() => null)) as Record<string, unknown> | null) ?? {}
-    if (!res.ok) throw new Error(`LiveKit ${method} answered HTTP ${res.status}`)
+    if (!res.ok) throw new LivekitError(`LiveKit ${method} answered HTTP ${res.status}`, res.status, json)
     return json
   }
   return {
@@ -101,7 +101,38 @@ export function livekitSip(env: Env = process.env, doFetch: typeof fetch = fetch
     async deleteTrunk(sipTrunkId: string) {
       await call('DeleteSIPTrunk', { sipTrunkId })
     },
+    /**
+     * Dials out through an outbound trunk into `roomName` (forwarding checks). With `waitUntilAnswered` it returns
+     * once the callee answered; a refusal (busy, no answer) is a LivekitError whose body says the SIP status.
+     */
+    async createSipParticipant(request: SipParticipantRequest, timeoutMs: number): Promise<void> {
+      await call('CreateSIPParticipant', request, timeoutMs)
+    },
   }
+}
+
+/** A refused LiveKit request: the HTTP status and LiveKit's (Twirp) error body, which may name a SIP status. */
+export class LivekitError extends Error {
+  readonly status: number
+  readonly body: Record<string, unknown>
+  constructor(message: string, status: number, body: Record<string, unknown>) {
+    super(message)
+    this.status = status
+    this.body = body
+  }
+}
+
+/** LiveKit's CreateSIPParticipant request (protobuf JSON: durations as "40s"). */
+export type SipParticipantRequest = {
+  sipTrunkId: string
+  sipCallTo: string
+  sipNumber: string
+  roomName: string
+  participantIdentity: string
+  participantName?: string
+  waitUntilAnswered: boolean
+  ringingTimeout: string
+  maxCallDuration: string
 }
 
 type Deps = { env?: Env; fetch?: typeof fetch }

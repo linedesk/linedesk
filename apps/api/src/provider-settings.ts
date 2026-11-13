@@ -173,19 +173,31 @@ export async function setUpProviders(tx: Tx, category: ProviderCategory, env: En
 }
 
 /**
+ * The install's telephony provider and its config, chosen as telephonyProvider says; `named` is `dev` (or a name the
+ * registry does not know) when no registry provider is in effect.
+ */
+export async function installTelephony(
+  tx: Tx,
+  env: Env = serverEnv(),
+): Promise<{ named: string } | { provider: ProviderName; config: ProviderConfig }> {
+  const named = (await chosenProvider(tx, 'telephony')) ?? (env.TELEPHONY_PROVIDER || null)
+  if (named && !isProvider(named)) return { named }
+  const provider = named && isProvider(named) ? named : null
+  const active = provider
+    ? { provider, config: await resolveProvider(tx, provider, env) }
+    : await activeProvider(tx, 'telephony', env)
+  return active ?? { named: 'dev' }
+}
+
+/**
  * The telephony provider in effect: the one picked in the admin area, else TELEPHONY_PROVIDER
  * (`dev` means no carrier), else the first one in the registry that is set up (Telnyx before
  * Twilio), else dev. Keys come from the app first, then env; `packages/telephony` gets them as variables.
  */
 export async function telephonyProvider(tx: Tx, env: Env = serverEnv()): Promise<TelephonyProvider> {
-  const named = (await chosenProvider(tx, 'telephony')) ?? (env.TELEPHONY_PROVIDER || null)
+  const active = await installTelephony(tx, env)
   // `dev` or a name the registry does not know: the telephony package decides (dev, or a clear error).
-  if (named && !isProvider(named)) return telephonyProviderFromEnv({ TELEPHONY_PROVIDER: named })
-  const provider = named && isProvider(named) ? named : null
-  const active = provider
-    ? { provider, config: await resolveProvider(tx, provider, env) }
-    : await activeProvider(tx, 'telephony', env)
-  if (!active) return telephonyProviderFromEnv({ TELEPHONY_PROVIDER: 'dev' })
+  if ('named' in active) return telephonyProviderFromEnv({ TELEPHONY_PROVIDER: active.named })
   const asEnv = Object.entries(providerSpec(active.provider).fields).map(([field, spec]) => [
     spec.env,
     active.config[field]?.value,

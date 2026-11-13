@@ -2,7 +2,7 @@
 // through the registry. One row per workspace; a workspace without one gets it on the first change.
 import { type ClosedDay, DEFAULT_RECORDING_NOTICE, DEFAULT_RECORDING_RETENTION_DAYS, type PickupMode, type WorkspaceSettingsData } from '@linedesk/actions'
 import type { Closure } from '@linedesk/db/types'
-import { availability_exceptions, availability_rules, type Tx, workspace_settings } from '@linedesk/db'
+import { availability_exceptions, availability_rules, organization, type Tx, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 import { activeProvider } from './provider-settings.ts'
@@ -44,6 +44,18 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       pickupMode: row?.pickup_mode ?? null,
     }
     return { rows: {}, data }
+  },
+
+  /** The business name is the workspace's (organization) name. */
+  'workspace.rename': async ({ tx, actor }, input: { name: string }) => {
+    if (!actor.workspaceId) throw new Reject('no workspace')
+    const [row] = await tx
+      .update(organization)
+      .set({ name: input.name })
+      .where(eq(organization.id, actor.workspaceId))
+      .returning({ id: organization.id, name: organization.name })
+    if (!row) throw new Reject('no workspace')
+    return { rows: {}, data: row }
   },
 
   'workspace.updateSettings': async (

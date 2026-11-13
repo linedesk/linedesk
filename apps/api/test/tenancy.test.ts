@@ -117,7 +117,7 @@ describe('agent-facing actions', () => {
   // carrier.transferTrunk and carrier.provisionTransferTrunk are scoped by the workspace's numbers, not a call: apps/api/test/carrier-routing.test.ts.
   test('the list above covers every agent-only action except the ones that open or find a call or list the numbers, and the transfer carrier', () => {
     const agentOnly = [...actions.values()].filter(def => def.permission === 'agent').map(def => def.name)
-    expect([...onCall('x').map(([name]) => name), 'call.start', 'call.startTest', 'call.findForTest', 'call.listNumbers', 'carrier.transferTrunk', 'carrier.provisionTransferTrunk'].sort()).toEqual(agentOnly.sort())
+    expect([...onCall('x').map(([name]) => name), 'call.start', 'call.startTest', 'call.findForTest', 'call.listNumbers', 'carrier.transferTrunk', 'carrier.provisionTransferTrunk', 'call.reportVoiceFailure', 'provider.reportFailure', 'provider.reportOk'].sort()).toEqual(agentOnly.sort())
   })
 
   test('an agent scoped to one workspace cannot write to a call of another', async () => {
@@ -319,8 +319,8 @@ test('/v1/me lists the workspaces the member belongs to, by name, and no others'
   await auth.api.addMember({ body: { userId: a.owner.userId, organizationId: b.id, role: 'member' } })
   const { body } = await request(a.owner, 'GET', '/v1/me')
   expect(body.workspaces).toEqual([
-    { id: b.id, name: 'Alder Heating' },
-    { id: a.id, name: 'Zephyr Plumbing' },
+    { id: b.id, name: 'Alder Heating', disabled: false },
+    { id: a.id, name: 'Zephyr Plumbing', disabled: false },
   ])
 })
 

@@ -7,6 +7,7 @@ import { clock, parseTs } from '../time.ts'
 import { Button, Icon } from '../ui/kit.tsx'
 import { useElapsed } from '../ui/LiveIndicator.tsx'
 import { type BulkActions, BulkBar } from './BulkBar.tsx'
+import { voiceFailing, voiceFix, voiceNotSetUp } from './goLive.ts'
 
 export type InboxHeadProps = {
   tab: InboxTab
@@ -143,12 +144,6 @@ function LiveCallButton({ call, onOpen }: { call: Call; onOpen?: (call: Call) =>
   )
 }
 
-const notAnsweringWhy = {
-  number: 'No phone number is connected yet, so calls do not reach the assistant.',
-  voice: 'The voice service of this server is not set up yet, so calls are not answered.',
-  failing: 'A service the assistant needs is failing (a used-up quota or a rejected key), so calls are not answered.',
-}
-
 /** What the assistant is doing right now: green only when calls are really answered. */
 function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveCall' | 'onOpen' | 'canFixVoice'>) {
   const assistant = useAssistantName()
@@ -171,25 +166,25 @@ function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveC
       </span>
     )
   }
-  const why = notAnsweringWhy[presence.reason]
-  // No number: the setup bar above the inbox already says so, with the button; the header keeps the dot.
+  // No number: the setup bar above the inbox (or the go-live checklist) already says so, with the link; the header keeps the dot.
   if (presence.reason === 'number')
     return (
-      <span className="ib-maya is-off" title={why}>
+      <span className="ib-maya is-off" title={`${assistant} has no phone number yet, so calls don't reach it.`}>
         <span className="ib-dot" />
-        <span className="sr-only">{assistant} is not answering yet</span>
+        <span className="sr-only">{assistant} has no phone number yet</span>
       </span>
     )
+  // The voice service: the same sentence as the go-live checklist's first step.
   const fix = canFixVoice ? '#admin/providers' : null
   const failing = presence.reason === 'failing'
   return (
     <span
       className="ib-maya is-off"
-      title={fix ? why : `${why} Ask whoever runs this server to ${failing ? 'fix' : 'finish'} it.`}
+      title={failing ? voiceFailing(assistant, Boolean(fix)) : `${voiceNotSetUp(assistant)} ${voiceFix(Boolean(fix))}`}
     >
       <span className="ib-dot" />
       <span className="ib-maya-t">
-        {assistant} {failing ? "can't answer calls" : 'is not answering yet'}
+        {assistant} can't answer calls{failing ? '' : ' yet'}
       </span>
       {fix && (
         <a className="ib-maya-fix" href={fix}>

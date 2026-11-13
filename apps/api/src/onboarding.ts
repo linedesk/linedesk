@@ -2,6 +2,7 @@
 import { DEFAULT_AI_DISCLOSURE, type OnboardingStep, resumeStep } from '@linedesk/actions'
 import { assistants, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
+import { businessLookupOn, type WebsiteImport, websiteImportFor } from './business-import.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { phoneSetupStatus, type PhoneSetupStatus } from './handlers.ts'
@@ -21,7 +22,16 @@ export type PhoneSetupView = {
    */
   canAttach: boolean
 }
-export type OnboardingState = { step: Exclude<OnboardingStep, 'done'>; phone: PhoneSetupView }
+/**
+ * `businessLookup`: the install can look businesses up (Google Places): the first step searches by name and city.
+ * `websiteImport`: whether that step may offer to read the business's website (websiteImportFor).
+ */
+export type OnboardingState = {
+  step: Exclude<OnboardingStep, 'done'>
+  phone: PhoneSetupView
+  businessLookup: boolean
+  websiteImport: WebsiteImport
+}
 
 export function phoneSetupView(
   status: PhoneSetupStatus,
@@ -112,5 +122,10 @@ export async function onboardingFor(actor: Actor): Promise<OnboardingState | nul
   // A step of the earlier flow resumes at the step that took its place.
   const resumed = resumeStep(step)
   if (resumed === 'done') return null
-  return { step: resumed, phone: (await phoneSetupFor(actor))! }
+  return {
+    step: resumed,
+    phone: (await phoneSetupFor(actor))!,
+    businessLookup: await businessLookupOn(),
+    websiteImport: await websiteImportFor(actor.workspaceId),
+  }
 }

@@ -59,6 +59,10 @@ export const NEEDS_CONFIRMED_EMAIL: ReadonlySet<string> = new Set([
   'phoneNumber.setup',
   // Where calls go: forwarding a number, bookings with callers' details into a calendar.
   'phoneNumber.update',
+  // A real call to the business's phone, at the install's cost.
+  'phoneNumber.checkForwarding',
+  // A carrier lookup, at the cost of the workspace's or the install's carrier account.
+  'phoneNumber.lookupLine',
   'calendar.connectStart',
   'calendar.connectFinish',
 ])

@@ -1,5 +1,5 @@
-// Step 3, "When should Maya pick up?": when the business can't answer (the default), only when it is closed,
-// or every call. Business hours are asked only for "only when we're closed". The choice picks the forwarding
+// Step 3, "When should Maya pick up?": when the business can't answer (the default), when it is closed,
+// or every call. The choices speak as the business ("we"). Business hours are asked only for "when we're closed". The choice picks the forwarding
 // code on the phone step; routing stays with the number's mode and the hours (no new call routing).
 import type { PickupMode, WorkspaceSettingsData } from '@linedesk/actions'
 import { useState } from 'react'
@@ -33,12 +33,12 @@ type StepProps = {
 const choiceText = (mode: PickupMode, name: string): { title: string; description: string } =>
   ({
     no_answer: {
-      title: "When I can't answer",
+      title: "When we can't answer",
       description: `Busy, or no answer after about 4 rings. Most businesses start here.`,
     },
     after_hours: {
-      title: "Only when we're closed",
-      description: `Outside your business hours. Calls you miss while open reach ${name} too.`,
+      title: "When we're closed",
+      description: `Outside your business hours ${name} tells callers when you open again. Calls you miss while open reach ${name} as well.`,
     },
     always: {
       title: 'Every call',
@@ -62,7 +62,7 @@ export function PickupStep(p: StepProps) {
         )}
       </div>
       {settings.error ? (
-        <Foot onBack={onBack} onContinue={onNext} canContinue label="Skip for now" />
+        <Foot onBack={onBack} onContinue={onNext} canContinue label="Later" />
       ) : (
         <Foot onBack={onBack} onContinue={onNext} canContinue={false} />
       )}

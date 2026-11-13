@@ -6,7 +6,10 @@ import { brandName } from '../brand.ts'
 
 type Keys = { onEnter?: () => void; onEscape?: () => void }
 
-/** Enter outside buttons, links and text areas (there ⌘/Ctrl+Enter) runs `onEnter`; Esc runs `onEscape`. */
+/**
+ * Enter outside buttons, links and text areas (there ⌘/Ctrl+Enter) runs `onEnter`; Esc runs `onEscape`. Shift+Esc is
+ * the frame's own: Finish later.
+ */
 export function useStepKeys(keys: Keys) {
   const ref = useRef(keys)
   ref.current = keys
@@ -14,7 +17,7 @@ export function useStepKeys(keys: Keys) {
     function onKey(e: KeyboardEvent) {
       if (e.isComposing || e.defaultPrevented) return
       const { onEnter, onEscape } = ref.current
-      if (e.key === 'Escape' && onEscape) {
+      if (e.key === 'Escape' && onEscape && !e.shiftKey) {
         e.preventDefault()
         onEscape()
         return
@@ -38,10 +41,22 @@ export function Frame({
 }: {
   step: OnboardingStep
   complete: boolean
+  /** Leave setup now and finish it later (what is left stays in the go-live checklist). */
   onSkip?: () => void
   children: ReactNode
 }) {
   const index = onboardingSteps.indexOf(step)
+  const skipRef = useRef(onSkip)
+  skipRef.current = onSkip
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape' || !e.shiftKey || e.isComposing || !skipRef.current) return
+      e.preventDefault()
+      skipRef.current()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   return (
     <div className="ob" role="main" aria-label={`Set up ${brandName()}`}>
       <div className="ob-top">
@@ -51,8 +66,13 @@ export function Frame({
           Step {index + 1} of {onboardingSteps.length} · {stepLabels[step]}
         </span>
         {onSkip && (
-          <Button size="sm" variant="ghost" onClick={onSkip}>
-            Skip setup
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onSkip}
+            title="Finish setup later: what is left stays in your go-live checklist (Shift+Esc)"
+          >
+            Finish later
           </Button>
         )}
       </div>
@@ -70,12 +90,28 @@ type FootProps = {
   canContinue: boolean
   label?: string
   hint?: string
+  /** Waiting for something that must finish first: the primary button shows a spinner (never a text-only "…ing"). */
   busy?: boolean
-  /** This step alone can be left out ("Skip for now"), next to its own action. */
+  /**
+   * This step can be done later, next to its own action. Nothing in setup is skipped for good: the label says
+   * "Later" (or `laterLabel`) and the tooltip says where it waits (`laterTitle`).
+   */
   onSkipStep?: () => void
+  laterLabel?: string
+  laterTitle?: string
 }
 
-export function Foot({ onBack, onContinue, canContinue, label = 'Continue', hint, busy, onSkipStep }: FootProps) {
+export function Foot({
+  onBack,
+  onContinue,
+  canContinue,
+  label = 'Continue',
+  hint,
+  busy,
+  onSkipStep,
+  laterLabel = 'Later',
+  laterTitle = 'Do this later in Settings',
+}: FootProps) {
   return (
     <div className="ob-foot">
       {onBack ? (
@@ -88,15 +124,16 @@ export function Foot({ onBack, onContinue, canContinue, label = 'Continue', hint
       <div className="ob2-foot-r">
         {hint && <span className="ob2-hint">{hint}</span>}
         {onSkipStep && (
-          <Button variant="ghost" onClick={onSkipStep} disabled={busy} title="Go on without this step">
-            Skip for now
+          <Button variant="ghost" onClick={onSkipStep} disabled={busy} title={laterTitle}>
+            {laterLabel}
           </Button>
         )}
         {onContinue && (
           <Button
             variant="primary"
             shortcut={canContinue && !busy ? ['⏎'] : undefined}
-            disabled={!canContinue || busy}
+            disabled={!canContinue}
+            busy={busy}
             onClick={onContinue}
           >
             {label}
@@ -108,7 +145,15 @@ export function Foot({ onBack, onContinue, canContinue, label = 'Continue', hint
 }
 
 /** A value with a Copy button that says "Copied" for a moment. */
-export function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
+export function CopyButton({
+  text,
+  label = 'Copy',
+  variant,
+}: {
+  text: string
+  label?: string
+  variant?: 'primary' | 'secondary'
+}) {
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
   useEffect(() => {
     if (state === 'idle') return
@@ -123,6 +168,7 @@ export function CopyButton({ text, label = 'Copy' }: { text: string; label?: str
   return (
     <Button
       size="sm"
+      variant={variant}
       icon={state === 'copied' ? 'check' : undefined}
       onClick={() => void copy()}
       aria-label={`${label} ${text}`}

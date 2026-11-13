@@ -3,15 +3,17 @@
 import { DEFAULT_NOTIFICATIONS, type NotificationSettingsData } from '@linedesk/actions'
 import { member_notification_settings, type Tx, workspace_settings } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
+import { emailDelivery } from './auth-methods.ts'
 import type { Actor } from './context.ts'
 import { type Handler, Reject } from './handler-context.ts'
 import { pushSettings } from './push.ts'
+import { setupEmailsOn } from './setup-emails.ts'
 
 /** Used until a workspace has stored its own time zone (same default as onboarding). */
 const DEFAULT_TIME_ZONE = 'America/New_York'
 
 type Channels = { email?: boolean | null; browser?: boolean | null }
-type OwnInput = Channels & { pushSummary?: boolean; assignedEmail?: boolean }
+type OwnInput = Channels & { pushSummary?: boolean; assignedEmail?: boolean; setupEmails?: boolean }
 
 /** A member of a workspace, not the voice agent: only people have notification settings. */
 function memberOf(actor: Actor): { workspaceId: string; userId: string } {
@@ -40,6 +42,9 @@ async function loadSettings(tx: Tx, actor: Actor): Promise<NotificationSettingsD
     canEditDefaults: actor.permissions.includes('settings:write'),
     push: await pushSettings(tx, workspaceId, userId, own?.push_summary ?? null),
     assignedEmail: own?.assigned_email ?? true,
+    // Only owners get setup emails (setup-emails.ts).
+    setupEmails: actor.role === 'owner' && (await setupEmailsOn(tx)) ? (own?.setup_emails ?? true) : null,
+    emailReady: emailDelivery(process.env) === 'smtp',
   }
 }
 
@@ -50,12 +55,13 @@ const named = (input: Channels) =>
 export const notificationHandlers: Record<string, Handler> = {
   'notifications.get': async ({ tx, actor }) => ({ rows: {}, data: await loadSettings(tx, actor) }),
 
-  'notifications.update': async ({ tx, actor, now }, { pushSummary, assignedEmail, ...channels }: OwnInput) => {
+  'notifications.update': async ({ tx, actor, now }, { pushSummary, assignedEmail, setupEmails, ...channels }: OwnInput) => {
     const { workspaceId, userId } = memberOf(actor)
     const changes = {
       ...named(channels),
       ...(pushSummary === undefined ? {} : { push_summary: pushSummary }),
       ...(assignedEmail === undefined ? {} : { assigned_email: assignedEmail }),
+      ...(setupEmails === undefined ? {} : { setup_emails: setupEmails }),
     }
     await tx
       .insert(member_notification_settings)

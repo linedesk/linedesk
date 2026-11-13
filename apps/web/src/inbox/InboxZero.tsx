@@ -13,15 +13,26 @@ function Art() {
   )
 }
 
-/** Calm full-height state when nothing needs a person. A workspace without any calls gets a first-run line instead. */
-export function InboxZero({ handledCount, hasAnyCalls }: { handledCount: number; hasAnyCalls: boolean }) {
+/**
+ * Calm full-height state when nothing needs a person. A workspace without any calls gets a first-run line
+ * instead, unless `quiet`: the first-call hint above the list already says what happens.
+ */
+export function InboxZero({
+  handledCount,
+  hasAnyCalls,
+  quiet,
+}: {
+  handledCount: number
+  hasAnyCalls: boolean
+  quiet?: boolean
+}) {
   const assistant = useAssistantName()
   if (!hasAnyCalls) {
     return (
       <div className="zero" role="status">
         <Art />
         <h2>No calls yet</h2>
-        <p className="zero-greet">Calls {assistant} answers show up here.</p>
+        {!quiet && <p className="zero-greet">Calls {assistant} answers show up here.</p>}
       </div>
     )
   }

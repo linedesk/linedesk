@@ -36,11 +36,12 @@
 .ob-tight {
   margin: 0;
 }
-/* The pick-up choices: one under the other, the recommended first. */
-.ob .ob-pickup {
+/* Choices as cards one under the other: pick-up (the recommended first) and urgent matters. */
+.ob .ob-pickup,
+.ob .ob-choices {
   grid-template-columns: 1fr;
 }
-/* Who hears about calls: the urgent switch with its condition, and the summaries (email, push on this device). */
+/* Who hears about calls: the summaries (email, push on this device), then the mobile and condition under "Put them through". */
 .ob-urgent {
   display: flex;
   flex-direction: column;
@@ -100,4 +101,153 @@
 }
 .ob-instance a {
   color: var(--ink);
+}
+/* Find your business: the search field with its button, the listings, and the review's two-column fields. */
+.ob-biz-search {
+  display: flex;
+  gap: 8px;
+}
+.ob-biz-search > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.ob-biz-results {
+  display: grid;
+  gap: 6px;
+}
+.ob-biz-results ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ob-biz-result {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ob-biz-result:hover {
+  background: var(--surface-hover);
+}
+.ob-biz-result:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.ob-biz-result span {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+/* Google's attribution for Places content shown without a map: its product name, in plain text. */
+.ob-biz-credit {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+.ob-biz-loading {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.ob-biz-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+}
+.ob-biz-hours {
+  display: grid;
+  gap: 6px;
+}
+.ob-biz-hours ul {
+  margin: 0;
+  padding-left: 26px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  list-style: none;
+}
+@media (max-width: 520px) {
+  .ob-biz-pair {
+    grid-template-columns: 1fr;
+  }
+}
+/* The thank-you heart: quiet like the line around it (red is only for urgent and missed). */
+.ob-star-heart {
+  color: var(--ink);
+}
+/* Who hears: the quiet warning when "take a message and alert me" would alert nobody (NotifyStep). */
+.ob-warn {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink);
+}
+/* The phone step: a quiet link (to a number already in the carrier account, and back to the choices). */
+.ob-link {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.ob-link:hover {
+  color: var(--ink);
+}
+.ob-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.ob-existing {
+  display: grid;
+  gap: 2px;
+}
+.ob-existing > b {
+  font-size: 13px;
+  font-weight: 600;
+}
+/* Saves refused after their step was left (Onboarding.tsx SaveErrors): one line each, with the way back. */
+.ob-save-errors {
+  display: grid;
+  gap: var(--space-2);
+}
+.ob-save-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+/* Done: what is left before calls are answered. */
+.ob-left {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  display: grid;
+  gap: 4px;
+}
+.ob-left .ob-link {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+/* Push in the notify step: its line sits under the checkbox; the permission row closes the block. */
+.ob-push-note {
+  margin-top: -6px;
+  padding-left: 26px;
+}
+.ob-allow {
+  margin-top: 2px;
 }

@@ -360,3 +360,14 @@ test('oidc: a discovery URL that answers no JSON gets a fixed message, not the b
   expect(result.message).not.toContain('secret-banner')
   expect(result.message).toMatch(/did not answer with JSON/)
 })
+
+test('google_places: a free IDs-only Place Details request with the key in a header', async () => {
+  const fake = provider({ 'GET /v1/places': [200, { id: 'x' }] })
+  expect(await testProvider('google_places', config({ api_key: KEY }), fake.doFetch)).toMatchObject({ ok: true })
+  const request = fake.requests[0]!
+  expect(request.url).toMatch(/^https:\/\/places\.googleapis\.com\/v1\/places\/[A-Za-z0-9_-]+$/)
+  const headers = new Headers(request.init.headers)
+  expect(headers.get('x-goog-api-key')).toBe(KEY)
+  expect(headers.get('x-goog-fieldmask')).toBe('id')
+  expect(await testProvider('google_places', config({ api_key: KEY }), answer(403))).toMatchObject({ ok: false })
+})

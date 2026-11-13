@@ -1,8 +1,8 @@
 // phoneNumber.setup through the API: a number bought by the command is released whenever the
 // command does not commit, also when the failure comes after the handler has finished.
-import { phone_numbers } from '@linedesk/db'
+import { phone_numbers, setup_events } from '@linedesk/db'
 import { devProvider } from '@linedesk/telephony'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
 import { act, createWorkspace, randomNumber, type Workspace } from './helpers.ts'
@@ -45,6 +45,12 @@ test('with purchase: true the number is bought and stored', async () => {
   expect(res.body.rows.phone_numbers).toMatchObject([{ e164, workspace_id: ws.id, mode: 'new' }])
   expect(buy).toHaveBeenCalledWith(e164)
   expect(release).not.toHaveBeenCalled()
+  // The setup milestone the go-live checklist's first step and Admin › Onboarding read.
+  const milestone = await db
+    .select()
+    .from(setup_events)
+    .where(and(eq(setup_events.workspace_id, ws.id), eq(setup_events.event, 'number_connected')))
+  expect(milestone).toHaveLength(1)
 })
 
 test('a bought number is released when routing fails unexpectedly', async () => {

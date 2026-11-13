@@ -35,12 +35,13 @@ export function AssistantStep(p: Props) {
 function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & { assistant: Assistant }) {
   const run = useRun()
   const write = useWriteAction()
-  const session = useTestCall(true, { id: assistant.id, name: assistant.name }, operator)
   const [draft, setDraft] = useState<AssistantDraft>(() => ({
     name: assistant.name,
     greeting: assistant.greeting,
     voice: assistant.voice,
   }))
+  // The test call's lines ("Maya can't take calls yet") use the name on screen, not the saved one.
+  const session = useTestCall(true, { id: assistant.id, name: draft.name.trim() || assistant.name }, operator)
   const [message, setMessage] = useState<string | null>(null)
   const name = draft.name.trim()
   const changes = assistantChanges(assistant, draft)
@@ -55,6 +56,11 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
     if (changes) void run('assistant.update', { assistantId: assistant.id, ...changes })
     onNext()
   }
+  // Back keeps what was typed: a valid draft is saved like Continue (queued), so a rename is not lost.
+  function back() {
+    if (!problem && changes) void run('assistant.update', { assistantId: assistant.id, ...changes })
+    onBack()
+  }
   // The call must hear what is on screen: unsaved changes are saved first (directly, not through the outbox).
   async function talk() {
     if (problem) return setMessage(problem)
@@ -66,7 +72,7 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
       setMessage((e as Error).message)
     }
   }
-  useStepKeys({ onEnter: next, onEscape: onBack })
+  useStepKeys({ onEnter: next, onEscape: back })
 
   return (
     <>
@@ -131,7 +137,7 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
           </p>
         )}
       </div>
-      <Foot onBack={onBack} onContinue={next} canContinue={!problem} />
+      <Foot onBack={back} onContinue={next} canContinue={!problem} />
     </>
   )
 }

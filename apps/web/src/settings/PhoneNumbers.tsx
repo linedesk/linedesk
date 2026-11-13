@@ -5,16 +5,16 @@
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 
 type PhoneNumberMode = PhoneNumber['mode']
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
-import { CopyButton } from '../onboarding/Frame.tsx'
+import { ForwardingCheck } from '../onboarding/ForwardingCheck.tsx'
+import { CarrierPicker, ForwardingSteps, useForwardingGuide } from '../onboarding/ForwardingGuide.tsx'
+import { forwardingUnverified, type GuidePickedBy } from '../onboarding/forwarding-check.ts'
 import {
   buyQuestion,
   carrierName,
-  carriers,
   existingLinkText,
   firstPickup,
-  forwardingCode,
   formatNumber,
   numberModeLabel,
   type PhoneOption,
@@ -24,10 +24,10 @@ import {
   pickupNumberMode,
   priceNote,
 } from '../onboarding/flow.ts'
-import { confirmsNumber, phoneNumberModes } from '@linedesk/actions'
+import { confirmsNumber, forwardingGuideById, phoneNumberModes } from '@linedesk/actions'
 import { providerAudience } from '../providerAudience.ts'
 import { usePresence } from '../shell/presence.ts'
-import { useAssistantName, useAssistants, useRejection, useRows, useRun } from '../store.tsx'
+import { useAssistantName, useAssistants, useClaimedRejection, useRows, useRun } from '../store.tsx'
 import { RadioCard, Select, type SelectOption } from '../ui/controls.tsx'
 import { Dialog } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
@@ -44,7 +44,11 @@ const modeOptions: SelectOption<PhoneNumberMode>[] = phoneNumberModes.map(mode =
   label: numberModeLabel[mode],
 }))
 
-type Props = { canEdit: boolean; status: PhoneSetupStatus | null; isInstanceAdmin: boolean }
+type Props = {
+  canEdit: boolean
+  status: PhoneSetupStatus | null
+  isInstanceAdmin: boolean
+}
 
 /** The assistant that answers a number: its own, else the workspace's first. */
 const answeredBy = (number: PhoneNumber, assistants: Assistant[]) =>
@@ -56,16 +60,25 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
   const carrier = useCarrierStatus(canEdit)
   const status: PhoneSetupStatus | null =
     carrier && carrier.carrier !== 'default'
-      ? { provider: carrier.carrier, available: carrier.sipReady, detail: null, canAttach: true }
+      ? {
+          provider: carrier.carrier,
+          available: carrier.sipReady,
+          detail: null,
+          canAttach: true,
+        }
       : serverStatus
   const numbers = useRows('phone_numbers').sort((a, b) => a.created_at.localeCompare(b.created_at))
   const numbersLoad = useLoadState('phone_numbers')
+  const calls = useRows('calls')
   const assistants = useAssistants()
   const presence = usePresence()
   const answering = presence.kind === 'answering'
   const [adding, setAdding] = useState(false)
   /** The number whose dialog is open, and whether it opens on releasing it. */
-  const [managing, setManaging] = useState<{ id: string; release: boolean } | null>(null)
+  const [managing, setManaging] = useState<{
+    id: string
+    release: boolean
+  } | null>(null)
   const managed = numbers.find(n => n.id === managing?.id)
   // A link to one number (`#settings/phone/<id>`, from the assistant's page) opens its dialog once the numbers are
   // loaded; the address then names the section only, so closing the dialog or reloading does not open it again.
@@ -106,9 +119,22 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
               title={<span className="st-mono">{formatNumber(n.e164)}</span>}
               sub={`${answeredBy(n, assistants)?.name ?? 'The assistant'} · ${numberModeLabel[n.mode]}`}
               aside={
-                <span className={cx('pn-status', answering && 'is-on')}>
-                  {answering ? 'Answering' : 'Not answering'}
-                </span>
+                // Forwarding nobody has seen work yet (the go-live checklist's rule): not "Answering" until it is,
+                // and the check is in the number's dialog.
+                forwardingUnverified(n, calls) ? (
+                  <button
+                    type="button"
+                    className="pn-status pn-status-link"
+                    title="Check the forwarding of this number"
+                    onClick={() => setManaging({ id: n.id, release: false })}
+                  >
+                    Forwarding not verified
+                  </button>
+                ) : (
+                  <span className={cx('pn-status', answering && 'is-on')}>
+                    {answering ? 'Answering' : 'Not answering'}
+                  </span>
+                )
               }
               actions={
                 <MenuButton
@@ -165,7 +191,11 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
   )
 }
 
-type UnavailableProps = { detail: string | null; isInstanceAdmin: boolean; ownCarrier: boolean }
+type UnavailableProps = {
+  detail: string | null
+  isInstanceAdmin: boolean
+  ownCarrier: boolean
+}
 
 function Unavailable({ detail, isInstanceAdmin, ownCarrier }: UnavailableProps) {
   return (
@@ -174,7 +204,7 @@ function Unavailable({ detail, isInstanceAdmin, ownCarrier }: UnavailableProps) 
       {ownCarrier ? 'This server cannot connect numbers yet.' : 'No phone carrier on this server yet.'}{' '}
       {isInstanceAdmin ? (
         <a className="k-link" href="#admin/providers" title={detail ?? undefined}>
-          Connect one in Admin
+          Connect one in Admin › Providers
         </a>
       ) : (
         'Ask whoever runs this server.'
@@ -199,6 +229,7 @@ function ManageNumber({ number, assistants, canEdit, release = false, onClose }:
   const forwards = number.mode === 'forward_conditional' || number.mode === 'forward_all'
   const carrier = carrierName(number.provider)
   const who = answeredBy(number, assistants)
+  const [guideId, setGuideId, pickedByOwner] = useForwardingGuide(number.id)
   return (
     <Dialog
       title={formatNumber(number.e164)}
@@ -235,8 +266,16 @@ function ManageNumber({ number, assistants, canEdit, release = false, onClose }:
                   value={who?.id ?? ''}
                   label="Assistant"
                   disabled={!canEdit}
-                  options={assistants.map(a => ({ value: a.id, label: a.name }))}
-                  onChange={assistantId => void run('phoneNumber.update', { phoneNumberId: number.id, assistantId })}
+                  options={assistants.map(a => ({
+                    value: a.id,
+                    label: a.name,
+                  }))}
+                  onChange={assistantId =>
+                    void run('phoneNumber.update', {
+                      phoneNumberId: number.id,
+                      assistantId,
+                    })
+                  }
                 />
               </div>
             </Field>
@@ -249,26 +288,63 @@ function ManageNumber({ number, assistants, canEdit, release = false, onClose }:
                 label="How it's used"
                 disabled={!canEdit}
                 options={modeOptions}
-                onChange={mode => void run('phoneNumber.update', { phoneNumberId: number.id, mode })}
+                onChange={mode =>
+                  void run('phoneNumber.update', {
+                    phoneNumberId: number.id,
+                    mode,
+                  })
+                }
               />
             </div>
           </Field>
           {forwards && (
-            <Field
-              id="pn-codes"
-              label="Forwarding codes"
-              tip={
-                number.mode === 'forward_all'
-                  ? 'Dial the Turn on code once from your business phone. From then on, every call goes to your assistant. Dial Turn off to stop.'
-                  : "Dial the Turn on code once from your business phone. From then on, calls you don't answer or can't take because you're on the line go to your assistant. Dial Turn off to stop."
-              }
-            >
-              <Forwarding e164={number.e164} mode={number.mode} />
-            </Field>
+            <CheckWhenEditing number={number} canEdit={canEdit} onCarrier={setGuideId} pickedByOwner={pickedByOwner}>
+              <Field
+                id="pn-codes"
+                label="Call forwarding"
+                tip={
+                  number.mode === 'forward_all'
+                    ? 'Set it up once on your business phone or phone system. From then on, every call goes to your assistant.'
+                    : "Set it up once on your business phone or phone system. From then on, calls you don't answer or can't take because you're on the line go to your assistant."
+                }
+              >
+                <Forwarding
+                  guideId={guideId}
+                  onGuide={setGuideId}
+                  e164={number.e164}
+                  mode={number.mode === 'forward_all' ? 'forward_all' : 'forward_conditional'}
+                />
+              </Field>
+            </CheckWhenEditing>
           )}
         </>
       )}
     </Dialog>
+  )
+}
+
+/**
+ * The forwarding codes in the order of the check: owners and admins enter the business number first (its lookup picks
+ * the carrier), then the codes, then "Check forwarding". Others see only the codes.
+ */
+function CheckWhenEditing({
+  number,
+  canEdit,
+  onCarrier,
+  pickedByOwner,
+  children,
+}: {
+  number: PhoneNumber
+  canEdit: boolean
+  onCarrier: (guideId: string, by?: GuidePickedBy) => void
+  pickedByOwner: string | null
+  children: ReactNode
+}) {
+  if (!canEdit) return children
+  return (
+    <ForwardingCheck number={number} onCarrier={onCarrier} pickedByOwner={pickedByOwner}>
+      {children}
+    </ForwardingCheck>
   )
 }
 
@@ -279,23 +355,28 @@ function ManageNumber({ number, assistants, canEdit, release = false, onClose }:
 function ReleaseNumber({ number, onCancel }: { number: PhoneNumber; onCancel: () => void }) {
   const run = useRun()
   const name = useAssistantName()
-  const { rejection } = useRejection()
   const [typed, setTyped] = useState('')
   const [sent, setSent] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const carrier = carrierName(number.provider) ?? 'the carrier'
   const formatted = formatNumber(number.e164)
+  // Shown here, not also as a toast.
+  const { rejection, clearRejection } = useClaimedRejection('phoneNumber.release', sent)
   useEffect(() => {
-    if (!sent || rejection?.action !== 'phoneNumber.release') return
+    if (!sent || !rejection) return
     setSent(false)
     setProblem(releaseErrorText(rejection.error))
-  }, [rejection, sent])
+    clearRejection()
+  }, [rejection, sent, clearRejection])
 
   function release() {
     if (!confirmsNumber(typed, number.e164) || sent) return
     setProblem(null)
     setSent(true)
-    void run('phoneNumber.release', { phoneNumberId: number.id, confirm: typed })
+    void run('phoneNumber.release', {
+      phoneNumberId: number.id,
+      confirm: typed,
+    })
   }
   const bought = number.purchased && number.provider !== 'dev'
   return (
@@ -362,37 +443,32 @@ function releaseErrorText(error: string): string {
   return `The carrier did not release the number. Nothing changed. (${error})`
 }
 
-/** Call forwarding codes per carrier for the number's mode (conditional or all calls), to dial from the business line. */
-function Forwarding({ e164, mode }: { e164: string; mode: PhoneNumber['mode'] }) {
-  const [carrierId, setCarrierId] = useState(carriers[0]!.id)
-  const carrier = carriers.find(c => c.id === carrierId) ?? carriers[0]!
-  const { on, off } = forwardingCode(carrier, mode, e164)
+/** The forwarding instructions for the number's mode (conditional or all calls), per carrier or phone system. */
+function Forwarding({
+  guideId,
+  onGuide,
+  e164,
+  mode,
+}: {
+  guideId: string | null
+  onGuide: (guideId: string) => void
+  e164: string
+  mode: 'forward_conditional' | 'forward_all'
+}) {
+  const guide = guideId ? forwardingGuideById(guideId) : undefined
   return (
     <div className="st-codes">
-      <div className="st-seg" role="radiogroup" aria-label="Your carrier">
-        {carriers.map(c => (
-          <button
-            key={c.id}
-            type="button"
-            role="radio"
-            aria-checked={c.id === carrierId}
-            className={cx('st-seg-b', c.id === carrierId && 'on')}
-            onClick={() => setCarrierId(c.id)}
-          >
-            {c.name}
-          </button>
-        ))}
-      </div>
-      <div className="st-code">
-        <span className="help">Turn on</span>
-        <code>{on}</code>
-        <CopyButton text={on} />
-      </div>
-      <div className="st-code">
-        <span className="help">Turn off</span>
-        <code>{off}</code>
-        <CopyButton text={off} />
-      </div>
+      <CarrierPicker
+        id={`pn-carrier-${e164}`}
+        label="Your carrier or phone system"
+        value={guideId}
+        onChange={onGuide}
+      />
+      {guide ? (
+        <ForwardingSteps guide={guide} mode={mode} e164={e164} compact />
+      ) : (
+        <p className="help">Pick your carrier or phone system to see how to forward.</p>
+      )}
     </div>
   )
 }
@@ -414,7 +490,6 @@ function ConnectNumber({
   const name = useAssistantName()
   const numbers = useRows('phone_numbers')
   const count = numbers.length
-  const { rejection } = useRejection()
   // Numbers already in the install's carrier account are for instance admins only: only they see the link to it.
   const canAttach = status?.canAttach !== false
   const [option, setOption] = useState<PhoneOption>(connectOptions[0]!)
@@ -424,6 +499,8 @@ function ConnectNumber({
   const [sentAt, setSentAt] = useState<number | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
   const carrier = carrierName(status?.provider ?? null)
+  // A refusal while this waits is shown here, not also as a toast.
+  const { rejection, clearRejection } = useClaimedRejection('phoneNumber.setup', sentAt !== null)
   // The business's number forwards as chosen for pick-up (Settings › Hours); until loaded, the calls it misses.
   const forwarding = pickupNumberMode(firstPickup(useWorkspaceSettings().data ?? null))
   const buying = option !== 'existing'
@@ -437,11 +514,12 @@ function ConnectNumber({
     if (added) onDone(added)
   }, [count, sentAt, numbers, onDone])
   useEffect(() => {
-    if (rejection?.action !== 'phoneNumber.setup' || sentAt === null) return
+    if (!rejection || sentAt === null) return
     setSentAt(null)
     setConfirming(false)
     setProblem(phoneSetupErrorText(rejection.error))
-  }, [rejection, sentAt])
+    clearRejection()
+  }, [rejection, sentAt, clearRejection])
 
   function send(confirmed: boolean) {
     const result = phoneOptionSetup(option, { number: typed, areaCode, confirmed }, forwarding)

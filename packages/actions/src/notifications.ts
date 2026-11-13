@@ -22,6 +22,10 @@ export type NotificationSettingsData = {
   push: PushSettings
   /** An email when a teammate assigns a call to you (on unless you turned it off). */
   assignedEmail: boolean
+  /** Setup emails while the workspace gets set up (on unless you turned them off); null: you are no owner, or this install sends none. */
+  setupEmails: boolean | null
+  /** False while this server sends no email (none set up, or only to its log): the settings are kept, nothing arrives. Absent from an older server. */
+  emailReady?: boolean
 }
 
 /** Until a workspace sets its own defaults: email and browser notifications are on. */
@@ -48,6 +52,8 @@ export const notificationsUpdate = defineAction({
     pushSummary: z.boolean().optional(),
     /** An email when a teammate assigns a call to you. */
     assignedEmail: z.boolean().optional(),
+    /** Setup emails while the workspace gets set up (the unsubscribe of those emails). */
+    setupEmails: z.boolean().optional(),
   }),
   permission: 'call:read',
 })

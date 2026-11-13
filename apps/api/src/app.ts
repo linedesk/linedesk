@@ -1,4 +1,4 @@
-import { actions, CLONE_BODY_MAX_BYTES, openApiDocument } from '@linedesk/actions'
+import { actions, CLONE_BODY_MAX_BYTES, openApiDocument, workspaceNameProblem } from '@linedesk/actions'
 import {
   assistants,
   member,
@@ -19,6 +19,7 @@ const ACTION_BODY_MAX_BYTES = 4 * 1024 * 1024
 import { setFirstPassword } from './account.ts'
 import { API_KEY_REQUESTS_PER_MINUTE, apiKeyWithinLimit, isApiKey, tooManyInvalidApiKeys } from './api-keys.ts'
 import { registerAdminRoutes } from './admin-routes.ts'
+import { registerSetupUnsubscribeRoutes } from './setup-unsubscribe.ts'
 import { clientIpOf, withClientIp } from './client-ip.ts'
 import { MCP_MAX_BODY_BYTES, serveMcp } from './mcp.ts'
 import { authMethods } from './auth-methods.ts'
@@ -79,6 +80,8 @@ app.onError((err, c) => {
 
 app.get('/healthz', c => c.json({ ok: true }))
 app.on(['GET', 'POST'], '/api/auth/*', c => auth.handler(withClientIp(c)))
+// Public: one-click unsubscribe from setup emails, by a signed token instead of a session (setup-unsubscribe.ts).
+registerSetupUnsubscribeRoutes(app)
 
 // Before every /v1 route: a write signed in by the cookie only from the web app, as JSON (csrf.ts).
 app.use('/v1/*', refuseCrossSite(TRUSTED_ORIGINS))
@@ -161,8 +164,9 @@ app.post('/v1/workspaces', async c => {
   const body = await c.req
     .json<{ name?: unknown; timeZone?: unknown }>()
     .catch(() => ({ name: undefined, timeZone: undefined }))
-  const name = typeof body.name === 'string' ? body.name.trim() : ''
-  if (!name || name.length > 80) return c.json({ ok: false, error: 'name is required (80 characters at most)' }, 422)
+  const problem = workspaceNameProblem(body.name)
+  if (problem) return c.json({ ok: false, error: problem }, 422)
+  const name = (body.name as string).trim()
   const slug = `${name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')

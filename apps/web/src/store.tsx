@@ -1,12 +1,29 @@
 // One local store per workspace. Components read rows with useRows() and write with useRun().
 import type { TableName, Tables } from '@linedesk/db/types'
 import { resetLocalCache, type Rejection, type Store } from '@linedesk/sync'
-import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { forgetElectricState } from './localData.ts'
 import { leaseStore } from './storeCache.ts'
 import { BootScreen } from './ui/BootScreen.tsx'
 
-type Ctx = { store: Store; rejection: Rejection | null; clearRejection: () => void }
+/** `claimed`: a screen was waiting for this action when it was refused and shows the refusal itself (no toast). */
+export type ClaimableRejection = Rejection & { claimed?: boolean }
+type Ctx = {
+  store: Store
+  rejection: ClaimableRejection | null
+  clearRejection: () => void
+  claim: (action: string) => () => void
+}
 const StoreContext = createContext<Ctx | null>(null)
 
 export const localDbName = (workspaceId: string) => `linedesk-${workspaceId}`
@@ -28,10 +45,24 @@ export function StoreProvider({
   children,
 }: { workspaceId: string; account: string; readOnly?: string; children: ReactNode }) {
   const [boot, setBoot] = useState<Boot>({ state: 'loading' })
-  const [rejection, setRejection] = useState<Rejection | null>(null)
+  const [rejection, setRejection] = useState<ClaimableRejection | null>(null)
+  // The actions a screen is waiting on and shows refusals of inline, with how many screens wait on each.
+  const claims = useRef(new Map<string, number>())
+  const reject = useCallback(
+    (r: Rejection) => setRejection({ ...r, claimed: (claims.current.get(r.action) ?? 0) > 0 }),
+    [],
+  )
+  const claim = useCallback((action: string) => {
+    claims.current.set(action, (claims.current.get(action) ?? 0) + 1)
+    return () => {
+      const left = (claims.current.get(action) ?? 1) - 1
+      if (left > 0) claims.current.set(action, left)
+      else claims.current.delete(action)
+    }
+  }, [])
   useEffect(() => {
     let live = true
-    const lease = leaseStore(localDbName(workspaceId), workspaceId, account, setRejection)
+    const lease = leaseStore(localDbName(workspaceId), workspaceId, account, reject)
     lease.ready.then(
       store => {
         if (live) setBoot({ state: 'ready', store })
@@ -46,13 +77,18 @@ export function StoreProvider({
       lease.release()
       setBoot({ state: 'loading' })
     }
-  }, [workspaceId, account])
+  }, [workspaceId, account, reject])
   const store = boot.state === 'ready' ? boot.store : null
   const value = useMemo(() => {
     if (!store) return null
-    const refuse: Store['run'] = async (name, input) => setRejection({ action: name, input, error: readOnly! })
-    return { store: readOnly ? { ...store, run: refuse } : store, rejection, clearRejection: () => setRejection(null) }
-  }, [store, rejection, readOnly])
+    const refuse: Store['run'] = async (name, input) => reject({ action: name, input, error: readOnly! })
+    return {
+      store: readOnly ? { ...store, run: refuse } : store,
+      rejection,
+      clearRejection: () => setRejection(null),
+      claim,
+    }
+  }, [store, rejection, readOnly, reject, claim])
   if (value) return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
   if (boot.state === 'failed') {
     return (
@@ -121,6 +157,17 @@ export function useStore() {
 export function useRejection() {
   const { rejection, clearRejection } = useCtx()
   return { rejection, clearRejection }
+}
+
+/**
+ * One place per error: a screen that shows refusals of `action` inline claims them while `waiting` (its own run is
+ * on its way). A refusal that arrives then is marked claimed, the app-wide toast leaves it alone, and it comes back
+ * here; `clearRejection` once it is shown. A refusal while nothing waits (the screen closed) still toasts.
+ */
+export function useClaimedRejection(action: string, waiting: boolean) {
+  const { rejection, clearRejection, claim } = useCtx()
+  useEffect(() => (waiting ? claim(action) : undefined), [action, waiting, claim])
+  return { rejection: rejection?.claimed && rejection.action === action ? rejection : null, clearRejection }
 }
 
 export function useContact(id: string | null) {

@@ -52,6 +52,8 @@ export const pricePerMinute: Record<ProviderName, number> = {
   microsoft: 0,
   github: 0,
   oidc: 0,
+  // Business lookup is billed per search and listing in onboarding, not per call minute.
+  google_places: 0,
 }
 
 export type ProviderCost = {
@@ -124,6 +126,7 @@ async function activeRates(tx: Tx): Promise<ActiveRate[]> {
     'recording',
     'email',
     'sign_in',
+    'business',
     ...((await realtimeInUse(tx)) ? ['stt', 'llm', 'tts'] : ['realtime']),
   ]
   for (const category of categoryNames.filter(c => !skipped.includes(c))) {

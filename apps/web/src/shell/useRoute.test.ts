@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { knownSectionHash } from '../ui/SettingsLayout.tsx'
-import { callHash, listHash, movedHash, parseHash } from './useRoute.ts'
+import {
+  callHash,
+  linkNotice,
+  linkWorkspace,
+  linkWorkspaceTarget,
+  listHash,
+  movedHash,
+  parseHash,
+  withoutLinkWorkspace,
+} from './useRoute.ts'
 
 const list = { route: 'calls', callId: null, tab: 'you', search: null, member: null, known: true }
 
@@ -34,7 +43,19 @@ describe('route parsing', () => {
     expect(parseHash('#calls/spam', last)).toMatchObject({ tab: 'spam', search: null })
   })
   it('marks unknown and inherited names as unknown and shows the inbox', () => {
-    for (const hash of ['#nope', '#bogus/route', '#toString', '#constructor', '#__proto__', '#call/', '#calls/nope', '#calls/done/extra', '#team/members', '#assistant/a/b/c', '#assistant/h%20x']) {
+    for (const hash of [
+      '#nope',
+      '#bogus/route',
+      '#toString',
+      '#constructor',
+      '#__proto__',
+      '#call/',
+      '#calls/nope',
+      '#calls/done/extra',
+      '#team/members',
+      '#assistant/a/b/c',
+      '#assistant/h%20x',
+    ]) {
       expect(parseHash(hash)).toEqual({ ...list, known: false })
     }
   })
@@ -43,6 +64,53 @@ describe('route parsing', () => {
     expect(listHash({ tab: 'reminders', search: null })).toBe('#calls/reminders')
     expect(listHash({ tab: 'you', search: 'a b' })).toBe('#calls?q=a%20b')
     expect(parseHash(listHash({ tab: 'done', search: '50%' }))).toMatchObject({ tab: 'done', search: '50%' })
+  })
+})
+
+describe('the workspace a link is for', () => {
+  it('reads ws= from the hash, next to a search, and nothing else', () => {
+    expect(linkWorkspace('#call/call_1?ws=ws_1')).toBe('ws_1')
+    expect(linkWorkspace('#calls?q=leak&ws=ws_1')).toBe('ws_1')
+    expect(linkWorkspace('#settings/phone?ws=a%20b%26c')).toBe('a b&c')
+    expect(linkWorkspace('#settings/phone')).toBeNull()
+    expect(linkWorkspace('#calls?q=ws=1')).toBeNull()
+    expect(linkWorkspace('#call/call_1?ws=')).toBeNull()
+    expect(linkWorkspace('')).toBeNull()
+  })
+
+  it('drops it and keeps the rest of the hash', () => {
+    expect(withoutLinkWorkspace('#call/call_1?ws=ws_1')).toBe('#call/call_1')
+    expect(withoutLinkWorkspace('#calls?q=leak&ws=ws_1')).toBe('#calls?q=leak')
+    expect(withoutLinkWorkspace('#settings/phone')).toBe('#settings/phone')
+  })
+
+  it('does not change where a link leads', () => {
+    expect(parseHash('#call/call_1?ws=ws_1')).toEqual(parseHash('#call/call_1'))
+    expect(parseHash('#settings/phone?ws=ws_1')).toEqual(parseHash('#settings/phone'))
+    expect(parseHash('#settings/notifications?ws=ws_1')).toEqual(parseHash('#settings/notifications'))
+    expect(parseHash('#calls?ws=ws_1')).toEqual(parseHash('#calls'))
+    expect(parseHash('#calls?q=leak&ws=ws_1')).toEqual(parseHash('#calls?q=leak'))
+  })
+
+  const mine = [
+    { id: 'ws_1', name: 'Brightwater Plumbing & Heating' },
+    { id: 'ws_2', name: 'Brightwater Rentals' },
+  ]
+
+  it('stays in this workspace, switches to another of the member, or says there is no access', () => {
+    expect(linkWorkspaceTarget('ws_1', 'ws_1', mine)).toEqual({ kind: 'here' })
+    expect(linkWorkspaceTarget('ws_2', 'ws_1', mine)).toEqual({ kind: 'switch', workspace: mine[1] })
+    expect(linkWorkspaceTarget('ws_9', 'ws_1', mine)).toEqual({ kind: 'noAccess' })
+    expect(linkWorkspaceTarget('ws_2', 'ws_1', undefined)).toEqual({ kind: 'noAccess' })
+    // Offline the session cannot switch: the inbox names the workspace instead.
+    expect(linkWorkspaceTarget('ws_2', 'ws_1', mine, true)).toEqual({ kind: 'elsewhere', workspace: mine[1] })
+  })
+
+  it('says why a link did not open here', () => {
+    expect(linkNotice({ kind: 'here' })).toBeNull()
+    expect(linkNotice({ kind: 'switch', workspace: mine[1]! })).toBeNull()
+    expect(linkNotice({ kind: 'noAccess' })).toMatch(/don't have access/)
+    expect(linkNotice({ kind: 'elsewhere', workspace: mine[1]! })).toContain('Brightwater Rentals')
   })
 })
 

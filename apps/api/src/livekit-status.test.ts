@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto'
-import { expect, test, vi } from 'vitest'
-import { deleteLivekitRoom, livekitStatus } from './livekit-status.ts'
+import { describe, expect, test, vi } from 'vitest'
+import { deleteLivekitRoom, inboundRoomsSince, isSipCall, livekitStatus } from './livekit-status.ts'
 
 const env = {
   LIVEKIT_URL: 'wss://livekit.example.test/',
@@ -89,4 +89,30 @@ test('deleting a room: one signed DeleteRoom request; gone already counts as del
   expect(await deleteLivekitRoom('call-gone', env, answers({ DeleteRoom: [404, { code: 'not_found' }] }) as unknown as typeof fetch)).toBe(true)
   expect(await deleteLivekitRoom('call-x', env, answers({ DeleteRoom: [401, {}] }) as unknown as typeof fetch)).toBe(false)
   expect(await deleteLivekitRoom('call-x', {}, fetchMock as unknown as typeof fetch)).toBe(false)
+})
+
+describe('finding a forwarding check call in a LiveKit room', () => {
+  const call = { from: '+15551234567', to: '+15035550142' }
+
+  test('carrier numbers without "+" or as ten digits match their E.164 form', () => {
+    expect(isSipCall({ 'sip.phoneNumber': '15551234567', 'sip.trunkPhoneNumber': '15035550142' }, call)).toBe(true)
+    expect(isSipCall({ 'sip.phoneNumber': '5551234567', 'sip.trunkPhoneNumber': '5035550142' }, call)).toBe(true)
+    expect(isSipCall({ 'sip.phoneNumber': '+15551234567', 'sip.trunkPhoneNumber': '+15035550142' }, call)).toBe(true)
+    expect(isSipCall({ 'sip.phoneNumber': '15551234568', 'sip.trunkPhoneNumber': '15035550142' }, call)).toBe(false)
+    expect(isSipCall({ 'sip.phoneNumber': '15551234567', 'sip.trunkPhoneNumber': '15035550143' }, call)).toBe(false)
+    expect(isSipCall({ 'sip.phoneNumber': '15551234567' }, call)).toBe(false)
+  })
+
+  test('only inbound call rooms made since the dial are opened', () => {
+    const dial = Date.parse('2026-11-13T10:00:00Z')
+    const at = (s: number) => String(dial / 1000 + s)
+    const rooms = [
+      { name: 'call-new', creation_time: at(5) },
+      { name: 'call-old', creation_time: at(-120) },
+      { name: 'fwdcheck-1', creation_time: at(5) },
+      { name: 'test-call-1', creation_time: at(5) },
+      { name: 'call-edge', creation_time: at(0) },
+    ]
+    expect(inboundRoomsSince(rooms, dial)).toEqual(['call-new', 'call-edge'])
+  })
 })

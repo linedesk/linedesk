@@ -21,6 +21,10 @@ type Props = InboxHeadProps &
     selected: ReadonlySet<string>
     bulk: BulkActions
     groups: CallGroups
+    /** Beside the calls on wide windows, above them on narrow ones: the go-live checklist. */
+    aside?: ReactNode
+    /** One line above the calls until the first real call: what happens when one comes in. */
+    firstCallHint?: string | null
   }
 
 const viewHeading: Record<InboxTab, string> = {
@@ -81,7 +85,20 @@ function Hints({ tab }: { tab: InboxTab }) {
 }
 
 /** The list of calls for one view, grouped by day. */
-export function Inbox({ list, segments, cursor, leaving, entering, menu, selected, bulk, groups, ...rest }: Props) {
+export function Inbox({
+  list,
+  segments,
+  cursor,
+  leaving,
+  entering,
+  menu,
+  selected,
+  bulk,
+  groups,
+  aside,
+  firstCallHint,
+  ...rest
+}: Props) {
   const { tab, search, counts } = rest
   const listRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -100,49 +117,66 @@ export function Inbox({ list, segments, cursor, leaving, entering, menu, selecte
   return (
     <div className="cv">
       <h1 className="sr-only">
-        {search !== null ? 'Search calls' : tab === 'member' && rest.memberName ? `Assigned to ${rest.memberName}` : viewHeading[tab]}
+        {search !== null
+          ? 'Search calls'
+          : tab === 'member' && rest.memberName
+            ? `Assigned to ${rest.memberName}`
+            : viewHeading[tab]}
       </h1>
       <InboxHead {...rest} resultCount={list.length} menu={menu} bulk={bulk} />
       <div className="sr-only" aria-live="polite">
         {spoken}
       </div>
-      <div
-        className={cx(
-          'ib-list',
-          zero && 'is-zero',
-          selected.size > 0 && 'is-selecting',
-          (tab === 'done' || tab === 'spam') && search === null && 'is-quiet',
-        )}
-        ref={listRef}
-        role="list"
-      >
-        {list.map((c, i) => (
-          <Fragment key={c.id}>
-            {groupByDay && (i === 0 || day(list[i - 1]!) !== day(c)) && (
-              <div className="ib-day" role="presentation">
-                {day(c)}
-              </div>
-            )}
-            <Row
-              {...rest}
-              call={c}
-              segments={segments.get(c.id) ?? []}
-              isCursor={cursor === c.id}
-              selected={selected.has(c.id)}
-              group={groups.get(c.id)}
-              motion={leaving === c.id ? 'leaving' : entering === c.id ? 'entering' : null}
+      {firstCallHint && tab === 'you' && search === null && loadState === 'ready' && (
+        <div className="ib-firstcall" role="note">
+          <Icon name="phone-in" size={14} />
+          <span>{firstCallHint}</span>
+        </div>
+      )}
+      <div className="ib-body">
+        {aside}
+        <div
+          className={cx(
+            'ib-list',
+            zero && 'is-zero',
+            selected.size > 0 && 'is-selecting',
+            (tab === 'done' || tab === 'spam') && search === null && 'is-quiet',
+          )}
+          ref={listRef}
+          role="list"
+        >
+          {list.map((c, i) => (
+            <Fragment key={c.id}>
+              {groupByDay && (i === 0 || day(list[i - 1]!) !== day(c)) && (
+                <div className="ib-day" role="presentation">
+                  {day(c)}
+                </div>
+              )}
+              <Row
+                {...rest}
+                call={c}
+                segments={segments.get(c.id) ?? []}
+                isCursor={cursor === c.id}
+                selected={selected.has(c.id)}
+                group={groups.get(c.id)}
+                motion={leaving === c.id ? 'leaving' : entering === c.id ? 'entering' : null}
+              />
+            </Fragment>
+          ))}
+          {loadState === 'loading' ? (
+            <SkeletonRows label="Loading calls" />
+          ) : loadState === 'slow' ? (
+            <LoadProblem what="Your calls" />
+          ) : zero ? (
+            <InboxZero
+              handledCount={counts.ai}
+              hasAnyCalls={Object.values(counts).some(n => n > 0)}
+              quiet={!!firstCallHint}
             />
-          </Fragment>
-        ))}
-        {loadState === 'loading' ? (
-          <SkeletonRows label="Loading calls" />
-        ) : loadState === 'slow' ? (
-          <LoadProblem what="Your calls" />
-        ) : zero ? (
-          <InboxZero handledCount={counts.ai} hasAnyCalls={Object.values(counts).some(n => n > 0)} />
-        ) : (
-          !list.length && <Empty tab={tab} search={search} />
-        )}
+          ) : (
+            !list.length && <Empty tab={tab} search={search} />
+          )}
+        </div>
       </div>
       {list.length ? <Hints tab={tab} /> : null}
     </div>

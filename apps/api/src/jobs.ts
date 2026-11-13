@@ -10,12 +10,14 @@ import { sendBookingConfirmation } from './booking-confirmation.ts'
 import { notifyCallFinished } from './call-notifications.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
+import { runForwardingCheck } from './forwarding-check.ts'
 import { evaluateCall, evaluationModel } from './evaluations.ts'
 import { notifyCallPush, type PushKind, pushSender } from './push.ts'
 import { deleteCallRecording, deleteExpiredRecordings } from './recording-retention.ts'
 import { pruneOldCommands } from './command-log.ts'
 import { recordingStoreCache } from './recording-store.ts'
 import { deleteClonedVoice } from './voices.ts'
+import { sendDueSetupEmails } from './setup-emails.ts'
 import { sendSpendingAlert, type SpendingAlert } from './spending-cap.ts'
 import { attemptDelivery, clearOldPayloads, WEBHOOK_ATTEMPTS } from './webhooks.ts'
 
@@ -55,8 +57,16 @@ const WEBHOOK_CLEANUP_CRON = '37 3 * * *'
 /** Daily: command log inputs and results older than 90 days keep only ids (command-log.ts). */
 export const COMMAND_PRUNE = 'commands.prune'
 const COMMAND_PRUNE_CRON = '47 3 * * *'
+/** One forwarding check (forwarding-check.ts): dials, waits up to a minute, never retried (each try is a real call). */
+export const FORWARDING_CHECK = 'forwarding.check'
+/** Checks one API process runs at the same time; each mostly waits on the phone ringing. */
+const FORWARDING_CHECK_WORKERS = 5
+
 /** The email to owners and instance admins when a workspace reaches 80 % or 100 % of its spending cap. */
 export const SPENDING_CAP_ALERT = 'spending.capAlert'
+/** Every 15 minutes: the setup emails due to new workspaces (setup-emails.ts), when the install sends them. */
+export const SETUP_EMAILS = 'setup.emails'
+const SETUP_EMAILS_CRON = '*/15 * * * *'
 
 let boss: PgBoss | null = null
 
@@ -105,6 +115,11 @@ async function runJobs(instance: PgBoss, env: Env) {
   await instance.work<{ bookingId: string }>(BOOKING_CONFIRM, async ([job]) => sendBookingConfirmation(db, emailSender, job!.data.bookingId))
   // No language model set up: nothing to do, and no retry. A failed request (provider down) is retried.
   await instance.work<{ callId: string }>(CALL_EVALUATE, async ([job]) => evaluateCall(db, job!.data.callId, await evaluationModel(db)))
+  await instance.work<{ checkId: string }>(FORWARDING_CHECK, { localConcurrency: FORWARDING_CHECK_WORKERS }, async ([job]) => ({
+    status: await runForwardingCheck(job!.data.checkId),
+  }))
+  await instance.schedule(SETUP_EMAILS, SETUP_EMAILS_CRON)
+  await instance.work(SETUP_EMAILS, async () => sendDueSetupEmails(db, emailSender))
   await instance.schedule(COMMAND_PRUNE, COMMAND_PRUNE_CRON)
   await instance.work(COMMAND_PRUNE, async () => ({ pruned: await pruneOldCommands(db) }))
   await instance.schedule(WEBHOOK_CLEANUP, WEBHOOK_CLEANUP_CRON)
@@ -136,8 +151,10 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(SPENDING_CAP_ALERT, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(BOOKING_CONFIRM, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(CALL_EVALUATE, { retryLimit: 2, retryDelay: 120, retryBackoff: true })
+  await instance.createQueue(FORWARDING_CHECK, { retryLimit: 0, expireInSeconds: 180 })
   await instance.createQueue(WEBHOOK_CLEANUP)
   await instance.createQueue(COMMAND_PRUNE)
+  await instance.createQueue(SETUP_EMAILS)
   await instance.createQueue(VOICE_DELETE, { retryLimit: 24, retryDelay: 3600 })
   await instance.createQueue(WEBHOOK_DELIVER, { retryLimit: WEBHOOK_ATTEMPTS - 1, retryDelay: 60, retryBackoff: true })
   if (workHere) await runJobs(instance, env)
@@ -209,4 +226,9 @@ export async function queueWebhookDelivery(tx: Tx, deliveryId: string, afterSec 
 /** Queues the deletion of a cloned voice at its provider, in the transaction that stopped using it. */
 export async function queueVoiceDeletion(tx: Tx, provider: string, voiceId: string) {
   await boss?.send(VOICE_DELETE, { provider, voiceId }, { db: fromDrizzle(tx, sql) })
+}
+
+/** Queues a forwarding check in the transaction that started it: it dials only once the check is committed. */
+export async function queueForwardingCheck(tx: Tx, checkId: string) {
+  await boss?.send(FORWARDING_CHECK, { checkId }, { db: fromDrizzle(tx, sql) })
 }

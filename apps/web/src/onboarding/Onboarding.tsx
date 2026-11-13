@@ -1,14 +1,14 @@
 // Onboarding, from the first sign-in to the first answered call. Progress lives on the workspace
 // (`onboarding.setStep`), so a reload resumes at the same step.
 import { formatStarCount, offersSampleCalls, offersTour, STAR_REPO_URL } from '@linedesk/actions'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AdminMode } from '../admin/AdminMode.tsx'
 import type { Me, OnboardingState } from '../auth.ts'
-import { useBrand } from '../brand.ts'
+import { brandName, useBrand } from '../brand.ts'
 import { ConfirmEmail } from '../ConfirmEmail.tsx'
 import { preloadWorkspaceSettings, useWriteAction } from '../settings/settings-api.ts'
 import { usePresence } from '../shell/presence.ts'
-import { rejectionText } from '../shell/rejections.ts'
+import { rejectionReason } from '../shell/rejections.ts'
 import { queueTour } from '../shell/tour.ts'
 import { useAssistantName, useRejection, useRows, useRun } from '../store.tsx'
 import { Button, Icon } from '../ui/kit.tsx'
@@ -16,13 +16,18 @@ import { AssistantStep } from './AssistantStep.tsx'
 import { BusinessStep } from './BusinessStep.tsx'
 import { Foot, Frame, useStepKeys } from './Frame.tsx'
 import {
-  formatNumber,
+  doneState,
+  mobileErrorText,
   NO_PICKUP_MEMORY,
   nextStep,
   type OnboardingStep,
   type PickupMemory,
   phoneSetupErrorText,
   previousStep,
+  rejectionStep,
+  stepLabels,
+  stepSaves,
+  URGENT_CONTACT_ID,
 } from './flow.ts'
 import { NotifyStep } from './NotifyStep.tsx'
 import { InstanceSetupNotice, isInstanceAdmin, useHash } from './InstanceSetup.tsx'
@@ -30,7 +35,13 @@ import { PhoneStep } from './PhoneStep.tsx'
 import { PickupStep } from './PickupStep.tsx'
 import './onboarding.css'
 
-type Props = { me: Me; state: OnboardingState; onDone: () => void }
+type Props = {
+  me: Me
+  state: OnboardingState
+  onDone: () => void
+  /** The business step renamed the workspace. */
+  onRenamed: (name: string) => void
+}
 
 /** An instance admin can open Admin from here (the setup checklist) and come back to the same step. */
 export function Onboarding(props: Props) {
@@ -47,7 +58,7 @@ export function Onboarding(props: Props) {
   return <OnboardingFlow {...props} />
 }
 
-function OnboardingFlow({ me, state, onDone }: Props) {
+function OnboardingFlow({ me, state, onDone, onRenamed }: Props) {
   const run = useRun()
   const firstUse = me.firstUse ?? 'off'
   // Leaving onboarding: the tour (where the install offers it) starts in the inbox.
@@ -69,7 +80,11 @@ function OnboardingFlow({ me, state, onDone }: Props) {
   // The address was confirmed here: `me` is from the page load and still says otherwise.
   const [confirmed, setConfirmed] = useState(false)
   const [setupError, setSetupError] = useState<string | null>(null)
-  const [otherError, setOtherError] = useState<string | null>(null)
+  // Saves the steps queued and moved on from, refused later: each names its step and stays until dismissed or that
+  // step is saved again (Continue there). One per step: a newer refusal replaces an older one of the same step.
+  const [saveErrors, setSaveErrors] = useState<SaveError[]>([])
+  // The step the owner last moved on from: where a refusal that doesn't say otherwise was queued.
+  const left = useRef<OnboardingStep | null>(null)
   // What the pick-up step changed this session (hours it turned on, the forwarding a number had before).
   const [pickupMemory, setPickupMemory] = useState<PickupMemory>(NO_PICKUP_MEMORY)
   const hasNumber = useRows('phone_numbers').length > 0
@@ -78,20 +93,31 @@ function OnboardingFlow({ me, state, onDone }: Props) {
   useEffect(() => {
     if (!rejection) return
     if (rejection.action === 'phoneNumber.setup') setSetupError(phoneSetupErrorText(rejection.error))
-    else setOtherError(rejectionText(rejection.action, rejection.error))
+    else {
+      const from = rejectionStep(rejection.action, rejection.input, left.current)
+      const error: SaveError = {
+        step: from,
+        text: saveErrorText(from, rejection.action, rejection.input, rejection.error),
+      }
+      setSaveErrors(all => [...all.filter(e => e.step !== from), error])
+    }
     clearRejection()
   }, [rejection, clearRejection])
 
   function go(to: OnboardingStep) {
     setStep(to)
-    setOtherError(null)
     void run('onboarding.setStep', { step: to })
   }
   const back = () => {
     const to = previousStep(step)
     if (to) go(to)
   }
-  const forward = () => go(nextStep(step))
+  // Continue saves the step again: its old refusal goes.
+  const forward = () => {
+    left.current = step
+    setSaveErrors(all => all.filter(e => e.step !== step))
+    go(nextStep(step))
+  }
   function skip() {
     void run('onboarding.setStep', { step: 'skipped' })
     finish()
@@ -103,6 +129,12 @@ function OnboardingFlow({ me, state, onDone }: Props) {
       complete={step === 'done' || (step === 'phone' && hasNumber)}
       onSkip={step === 'done' ? undefined : skip}
     >
+      <SaveErrors
+        errors={saveErrors}
+        step={step}
+        onOpen={go}
+        onDismiss={e => setSaveErrors(all => all.filter(x => x !== e))}
+      />
       {me.emailUnconfirmed && !confirmed && (
         <ConfirmEmail
           onDone={() => setConfirmed(true)}
@@ -110,7 +142,16 @@ function OnboardingFlow({ me, state, onDone }: Props) {
         />
       )}
       {isInstanceAdmin(me) && <InstanceSetupNotice />}
-      {step === 'business' && <BusinessStep businessName={me.workspace!.name} onNext={forward} />}
+      {step === 'business' && (
+        <BusinessStep
+          businessName={me.workspace!.name}
+          lookup={!!state.businessLookup}
+          websiteImport={state.websiteImport}
+          admin={me.permissions.includes('instance:admin')}
+          onRenamed={onRenamed}
+          onNext={forward}
+        />
+      )}
       {step === 'assistant' && (
         <AssistantStep
           onBack={back}
@@ -125,6 +166,7 @@ function OnboardingFlow({ me, state, onDone }: Props) {
         <NotifyStep
           actorId={me.actorId}
           emailConfirmed={!me.emailUnconfirmed || confirmed}
+          admin={me.permissions.includes('instance:admin')}
           onBack={back}
           onNext={forward}
         />
@@ -134,29 +176,87 @@ function OnboardingFlow({ me, state, onDone }: Props) {
           status={state.phone}
           setupError={setupError}
           clearError={() => setSetupError(null)}
+          admin={me.permissions.includes('instance:admin')}
           oldForwarding={pickupMemory.oldForwarding}
           onBack={back}
           onNext={forward}
         />
       )}
-      {step === 'done' && <Done onBack={back} onDone={finish} offerSamples={offersSampleCalls(firstUse)} />}
-      {otherError && (
-        <p className="ob-error" role="alert">
-          {otherError}
-        </p>
+      {step === 'done' && (
+        <Done
+          onBack={back}
+          onDone={finish}
+          offerSamples={offersSampleCalls(firstUse)}
+          admin={me.permissions.includes('instance:admin')}
+        />
       )}
     </Frame>
   )
 }
 
-/** "You're live" only when calls are really answered; otherwise what is left, with the way to it. */
-/** The end of onboarding: a quiet word that Linedesk is open source, unless an admin turned the star prompt off. */
+/** A save the server refused after its step was left; `step` null: not about one step (setup progress). */
+type SaveError = { step: OnboardingStep | null; text: string }
+
+/** "Couldn't save your business details: reason." The step's own words for its refusals (the mobile), else the shared ones. */
+function saveErrorText(step: OnboardingStep | null, action: string, input: unknown, error: string): string {
+  const what = step ? stepSaves[step] : 'your setup progress'
+  if (step === 'notify' && action === 'assistant.update') {
+    const transfers = (input as { transfers?: { id: string; name: string }[] }).transfers ?? []
+    const name = transfers.find(c => c.id === URGENT_CONTACT_ID)?.name ?? ''
+    const own = mobileErrorText(error, name)
+    if (own !== error) return `Couldn't save ${what}: ${own}`
+  }
+  return `Couldn't save ${what}: ${rejectionReason(error)}`
+}
+
+/** The one place save errors show, above the step: what failed, a way back to that step, and Dismiss. */
+function SaveErrors({
+  errors,
+  step,
+  onOpen,
+  onDismiss,
+}: {
+  errors: SaveError[]
+  step: OnboardingStep
+  onOpen: (step: OnboardingStep) => void
+  onDismiss: (error: SaveError) => void
+}) {
+  if (!errors.length) return null
+  return (
+    <div className="ob-save-errors">
+      {errors.map(e => (
+        <div key={e.step ?? 'progress'} className="ob-error ob-save-error" role="alert">
+          <span>{e.text}</span>
+          <span className="ob2-row">
+            {e.step && e.step !== step && (
+              <Button size="sm" onClick={() => onOpen(e.step!)} title="Open that step to fix it">
+                Back to {stepLabels[e.step]}
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => onDismiss(e)}>
+              Dismiss
+            </Button>
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * The end of onboarding: a quiet word that the product is open source, why a star helps and a thank-you, unless an
+ * admin turned the star prompt off.
+ */
 function StarLine() {
   const { starPrompt, starCount } = useBrand()
   if (!starPrompt) return null
   return (
     <p className="ob-star">
-      Linedesk is open source.{' '}
+      {brandName()} is open source. A star on GitHub helps other businesses find it and keeps us building. We're really
+      grateful for every one{' '}
+      <span className="ob-star-heart" aria-hidden="true">
+        ♥
+      </span>{' '}
       <a href={STAR_REPO_URL} target="_blank" rel="noreferrer">
         Star it on GitHub
       </a>
@@ -170,15 +270,35 @@ function StarLine() {
   )
 }
 
-function Done({ onBack, onDone, offerSamples }: { onBack: () => void; onDone: () => void; offerSamples: boolean }) {
+/** "You're live" only when calls are really answered; otherwise what is left, with the way to it. */
+function Done({
+  onBack,
+  onDone,
+  offerSamples,
+  admin,
+}: {
+  onBack: () => void
+  onDone: () => void
+  offerSamples: boolean
+  admin: boolean
+}) {
   const name = useAssistantName()
-  const number = useRows('phone_numbers')[0]
+  const number = useRows('phone_numbers')[0] ?? null
   const presence = usePresence()
   useStepKeys({ onEnter: onDone, onEscape: onBack })
   const write = useWriteAction()
   const hasCalls = useRows('calls').length > 0
   const [adding, setAdding] = useState(false)
   const [sampleError, setSampleError] = useState<string | null>(null)
+  const state = doneState({
+    number,
+    // Not set up, or set up but failing (a used-up quota, LIN-111): either way calls are not answered.
+    voiceMissing: presence.kind === 'notAnswering' && presence.reason !== 'number',
+    // LIN-85 (#488): read from the go-live checklist's state once it is on main.
+    forwardingVerified: false,
+    admin,
+    assistant: name,
+  })
   // Sample calls land in the inbox at once (the answer carries the rows), then the inbox opens.
   async function trySamples() {
     setAdding(true)
@@ -188,42 +308,46 @@ function Done({ onBack, onDone, offerSamples }: { onBack: () => void; onDone: ()
       window.history.replaceState(null, '', '#calls')
       onDone()
     } catch (e) {
-      setSampleError((e as Error).message)
+      setSampleError(`Couldn't add the sample calls: ${rejectionReason((e as Error).message)}`)
       setAdding(false)
     }
   }
-  const openPhoneSettings = () => {
-    window.history.replaceState(null, '', '#settings')
+  // The same places the go-live checklist leads to.
+  const open = (href: string) => {
+    window.history.replaceState(null, '', href)
     onDone()
   }
-  const live = number && presence.kind === 'answering'
   return (
     <>
       <div className="ob-body">
-        <h1>{live ? "You're live." : 'Almost there.'}</h1>
-        <p className="ob-lede">
-          {live
-            ? `${name} answers ${formatNumber(number.e164)}. Calls land in your inbox.`
-            : number
-              ? `${formatNumber(number.e164)} is connected. ${name} answers once the voice service is set up.`
-              : `One step left: connect a phone number in Settings.`}
-        </p>
-        {(!number || (offerSamples && !hasCalls)) && (
+        <h1>{state.title}</h1>
+        <p className="ob-lede">{state.lede}</p>
+        {state.left.length > 0 && (
+          <ul className="ob-left">
+            {state.left.map(l => (
+              <li key={l.label}>
+                {l.href ? (
+                  <button type="button" className="ob-link" onClick={() => open(l.href!)}>
+                    {l.label}
+                  </button>
+                ) : (
+                  l.label
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {offerSamples && !hasCalls && (
           <p className="ob2-row ob-tight">
-            {!number && (
-              <Button size="sm" icon="phone" onClick={openPhoneSettings} title="Settings, Phone numbers">
-                Connect a number
-              </Button>
-            )}
             {offerSamples && !hasCalls && (
               <Button
                 size="sm"
                 icon="spark"
-                disabled={adding}
+                busy={adding}
                 onClick={() => void trySamples()}
                 title="Fill the inbox with example calls you can remove in one click"
               >
-                {adding ? 'Adding sample calls…' : 'Try with sample calls'}
+                Try with sample calls
               </Button>
             )}
           </p>

@@ -56,6 +56,8 @@ export interface CallSession {
    * monthly spending cap).
    */
   blocked: boolean
+  /** Linedesk's own forwarding check arriving (blocked too): hang up at once, without a word; nothing is filed. */
+  forwardingCheck: boolean
   busy: boolean
   overCap: boolean
   /** null: the business has no hours set, and the assistant says nothing about them. */
@@ -95,6 +97,7 @@ export type CallTimings = Omit<z.input<typeof callRecordTimings.input>, 'callId'
 type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'contact'> & {
   callToken?: string
   blocked?: boolean
+  forwardingCheck?: boolean
   busy?: boolean
   overCap?: boolean
   businessHours?: BusinessHours | null
@@ -234,7 +237,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
           { workspaceId: origin.workspaceId },
         )
   const started = data as StartData
-  const { callId, workspaceId, contact, blocked = false, busy = false, overCap = false } = started
+  const { callId, workspaceId, contact, blocked = false, forwardingCheck = false, busy = false, overCap = false } = started
   const scope = { workspaceId, ...(started.callToken ? { token: started.callToken } : {}) }
   const businessHours = (origin.kind === 'test' && origin.businessHours) || started.businessHours || null
   // The call test may set an outside greeting to check without touching the real assistant.
@@ -267,6 +270,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     assistant,
     contact,
     blocked,
+    forwardingCheck,
     busy,
     overCap,
     businessHours,

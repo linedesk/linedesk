@@ -51,7 +51,10 @@ describe('notification settings', () => {
       defaults: { email: true, browser: true },
       canEditDefaults: false,
       push: { publicKey: null, devices: [], summary: false },
+      setupEmails: null,
       assignedEmail: true,
+      // The tests send no email (no SMTP_URL): the step and Settings say so.
+      emailReady: !!process.env.SMTP_URL,
     })
 
     expect((await act(member, 'notifications.update', { email: false })).status).toBe(200)

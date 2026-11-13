@@ -10,6 +10,8 @@ export interface Email {
   text: string
   /** The same content as HTML (emails/layout.ts); mail apps show it, the text part is the fallback. */
   html?: string
+  /** Extra headers, e.g. List-Unsubscribe on setup emails. */
+  headers?: Record<string, string>
 }
 export interface EmailSender {
   kind: 'smtp' | 'log' | 'none'

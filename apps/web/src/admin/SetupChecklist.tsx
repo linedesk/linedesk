@@ -446,7 +446,7 @@ function OneKey({ disabled, onDone }: { disabled: boolean; onDone: () => Promise
         <FormField id="adm-onekey" label="OpenAI API key">
           <SecretInput id="adm-onekey" value={key} onChange={setKey} placeholder="sk-…" />
         </FormField>
-        <Button
+        <Button busy={busy}
           type="submit"
           variant="primary"
           disabled={!ready}

@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { actions, REDACTED, recordingKey } from '@linedesk/actions'
-import { api_keys, auth_events, calls, commands, instance_settings, invitation, member as memberTable, number_purchases, organization, passkey, phone_numbers, provider_settings, push_subscriptions, session, user, voice_clones } from '@linedesk/db'
+import { api_keys, auth_events, calls, commands, setup_emails, setup_events, instance_settings, invitation, member as memberTable, number_purchases, organization, passkey, phone_numbers, provider_settings, push_subscriptions, session, user, voice_clones } from '@linedesk/db'
 import { and, eq, getTableName, inArray, sql } from 'drizzle-orm'
 import { auth } from '../src/auth.ts'
 import { KEPT_TABLES, workspaceTables } from '../src/workspace-delete.ts'
@@ -37,6 +37,9 @@ import { telephonyProvider } from '../src/provider-settings.ts'
 import { deleteExpiredRecordings } from '../src/recording-retention.ts'
 import { recordingStoreCache } from '../src/recording-store.ts'
 import { costEstimate } from '../src/admin-overview.ts'
+import { notifyCallFinished } from '../src/call-notifications.ts'
+import type { Email, EmailSender } from '../src/email.ts'
+import { atRiskWorkspaces, sendDueSetupEmails, workspacesOldEnough } from '../src/setup-emails.ts'
 import { setJobQueue, SPENDING_CAP_ALERT } from '../src/jobs.ts'
 import { sendSpendingAlert } from '../src/spending-cap.ts'
 import { TEST_CALLS_OVER_CAP } from '../src/test-call.ts'
@@ -67,6 +70,7 @@ const adminRoutes = [
   '/v1/admin/system',
   '/v1/admin/overview',
   '/v1/admin/health',
+  '/v1/admin/onboarding',
 ] as const
 const AGENT_ROUTE = '/v1/agent/provider-config'
 const adminActions = [...actions.values()].filter(def => def.permission === 'instance:admin')
@@ -141,6 +145,8 @@ describe('access', () => {
       'provider.setActive',
       'provider.setKeys',
       'provider.test',
+      'setupEmails.get',
+      'setupEmails.set',
       'user.disable',
       'user.enable',
       'user.impersonate',
@@ -245,6 +251,7 @@ describe('provider keys', () => {
         updated_by: { id: operator.userId, name: 'Test User' },
       },
       { field: 'public_key', secret: false, source: 'app', last4: null, value: 'cHVibGljLWtleQ==' },
+      { field: 'check_number', secret: false, source: null, value: null },
     ])
     const replay = await act(operator, 'provider.setKeys', { provider: 'telnyx', values: { api_key: SECRET } }, key)
     const invalid = await act(operator, 'provider.setKeys', { provider: 'telnyx', values: { api_secret: SECRET } })
@@ -333,6 +340,7 @@ describe('provider keys', () => {
       email: { provider: null, chosen: false },
       sign_in: { provider: null, chosen: false },
       recording: { provider: null, chosen: false },
+      business: { provider: null, chosen: false },
     })
 
     // Only OpenAI is set up: it is used although OpenRouter comes first in the registry.
@@ -606,6 +614,7 @@ describe('provider keys', () => {
       'microsoft',
       'github',
       'oidc',
+      'google_places',
     ])
     process.env.LIVEKIT_URL = 'ws://livekit.env.test:7880'
     process.env.LIVEKIT_API_KEY = 'APImadeup'
@@ -1131,7 +1140,7 @@ describe('overview', () => {
 
   test('health names each part; the agent shows up once it has asked for its settings', async () => {
     const before = (await request(operator, 'GET', '/v1/admin/health')).body
-    expect(Object.keys(before).sort()).toEqual(['agent', 'api', 'email', 'livekit', 'sip'])
+    expect(Object.keys(before).sort()).toEqual(['agent', 'api', 'email', 'livekit', 'readSync', 'sip'])
     expect(before.api.ok).toBe(true)
     await request(agent(), 'GET', AGENT_ROUTE)
     expect((await request(operator, 'GET', '/v1/admin/health')).body.agent).toMatchObject({ ok: true })
@@ -1691,7 +1700,12 @@ describe('impersonation', () => {
       'invitation.listMine',
       'member.list',
       'notifications.get',
+      // The go-live checklist's facts, so the inbox looks as the user sees it. Closing or reopening it stays refused.
+      'onboarding.goLiveChecklist',
+      'phoneNumber.forwardingCheck',
       'provider.test',
+      // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
+      'setupEmails.get',
       'team.list',
       'voice.catalog',
       'voice.options',
@@ -1699,6 +1713,17 @@ describe('impersonation', () => {
       'webhook.deliveries',
       'workspace.getSettings',
     ])
+  })
+
+  test('setupEmails.get passes the impersonation guard (an on/off flag, nothing sensitive), yet needs instance:admin', async () => {
+    const def = actions.get('setupEmails.get')!
+    expect(def.readOnly).toBe(true)
+    expect(mayRunWhileImpersonating(def)).toBe(true)
+    // An impersonation never has instance:admin, so it is the permission that refuses it, not the guard.
+    const { as } = await start(operator, target.userId)
+    expect(await act(as, 'setupEmails.get', {})).toMatchObject({ status: 403, body: { error: 'missing permission instance:admin' } })
+    expect((await act(operator, 'setupEmails.get', {})).status).toBe(200)
+    await stop(as)
   })
 
   test('as an owner, only reads and inbox triage run; every other write is refused centrally (security M3)', async () => {
@@ -2701,6 +2726,13 @@ describe('monthly spending cap', () => {
     expect(to).toEqual(expect.arrayContaining([await emailOf(ws.owner), await emailOf(coOwner), await emailOf(operator)].map(a => a.toLowerCase())))
     expect(new Set(to).size).toBe(to.length)
     expect(sent[0]).toMatchObject({ subject: 'Alerted Plumbing reached its monthly spending cap', text: expect.stringContaining('call them back') })
+    // A name that reads like a link is not put into the email (emailSafeName).
+    await db.update(organization).set({ name: 'Pay at evil.example.com' }).where(eq(organization.id, ws.id))
+    sent.length = 0
+    await sendSpendingAlert(db, sender, { workspaceId: ws.id, month, level: 100 })
+    expect(sent[0]!.subject).toBe('Your workspace reached its monthly spending cap')
+    expect(JSON.stringify(sent)).not.toContain('evil.example.com')
+    await db.update(organization).set({ name: 'Alerted Plumbing' }).where(eq(organization.id, ws.id))
     // Another month, or no cap any more: nothing is sent.
     sent.length = 0
     expect(await sendSpendingAlert(db, sender, { workspaceId: ws.id, month: '2001-01', level: 80 })).toEqual({ sent: 0, failed: 0 })
@@ -2792,6 +2824,163 @@ describe('setup code', () => {
   test('refuses a short password before anything else', async () => {
     const res = await request(anonymous, 'POST', '/v1/setup', { code: 'x', name: 'A', email: 'a@brightwater.example', password: 'short' })
     expect(res.status).toBe(400)
+  })
+})
+
+describe('setup emails and the at-risk list', () => {
+  const spy = () => {
+    const sent: Email[] = []
+    const sender: EmailSender = { kind: 'smtp', send: async email => void sent.push(email), check: async () => ({ ok: true, message: '' }) }
+    return { sent, sender }
+  }
+  const signedUpDaysAgo = (ws: Workspace, days: number) =>
+    db
+      .update(setup_events)
+      .set({ at: new Date(Date.now() - days * 86_400_000).toISOString() })
+      .where(and(eq(setup_events.workspace_id, ws.id), eq(setup_events.event, 'signup')))
+  const realCall = async (ws: Workspace) => {
+    const callId = (await act(agent(), 'call.start', { from: `+1503${Math.floor(1e6 + Math.random() * 9e6)}`, to: ws.number })).body
+      .data.callId as string
+    await act(agent(ws.id), 'call.finish', { callId, outcome: 'message', title: 'Dripping shower valve' })
+    return callId
+  }
+  const setOn = (on: boolean) => act(operator, 'setupEmails.set', { on })
+  /** Without the call the helper files for it: no real call has reached it yet. */
+  const newWorkspace = async (name: string) => {
+    const ws = await createWorkspace(name)
+    await db.delete(calls).where(eq(calls.id, ws.call.id))
+    return ws
+  }
+
+  afterAll(() => setOn(false))
+
+  test('off by default: nothing goes out until an instance admin turns them on', async () => {
+    await db.delete(instance_settings).where(eq(instance_settings.key, 'setup_emails'))
+    const ws = await newWorkspace('Setup Off Plumbing')
+    await signedUpDaysAgo(ws, 0.2)
+    const { sent, sender } = spy()
+    expect(await sendDueSetupEmails(db, sender)).toMatchObject({ off: true })
+    // Tests send no real email: the switch says so, and the partner directory is not set.
+    expect((await act(operator, 'setupEmails.get', {})).body.data).toEqual({ on: false, emailConnected: emailSender.kind === 'smtp', partnerDirectoryUrl: null })
+    expect((await act(ws.owner, 'notifications.get', {})).body.data.setupEmails).toBeNull()
+
+    expect((await setOn(true)).body.data).toMatchObject({ on: true })
+    expect((await act(ws.owner, 'notifications.get', {})).body.data.setupEmails).toBe(true)
+    expect(await sendDueSetupEmails(db, sender)).toMatchObject({ off: false })
+    expect(sent.filter(e => e.subject.includes('Setup Off Plumbing'))).toHaveLength(1)
+    await sendDueSetupEmails(db, sender)
+    expect(sent.filter(e => e.subject.includes('Setup Off Plumbing'))).toHaveLength(1)
+  })
+
+  test('the first real call gets its own email, once; later calls the usual one', async () => {
+    await setOn(true)
+    const ws = await createWorkspace('First Call Plumbing')
+    const { sent, sender } = spy()
+    await notifyCallFinished(db, sender, await realCall(ws))
+    expect(sent.map(e => e.subject)).toEqual([expect.stringContaining('Your first real call')])
+    expect(sent[0]!.text).toContain('Your first call')
+    await notifyCallFinished(db, sender, await realCall(ws))
+    expect(sent[1]!.subject).not.toContain('first real call')
+    expect((await db.select().from(setup_emails).where(eq(setup_emails.workspace_id, ws.id))).map(r => r.kind)).toEqual(['first_call'])
+  })
+
+  test('when no email could go out, the first-call email waits for the next try', async () => {
+    await setOn(true)
+    const ws = await createWorkspace('First Call Retry Plumbing')
+    const callId = await realCall(ws)
+    const down: EmailSender = { kind: 'smtp', send: async () => { throw new Error('mail server down') }, check: async () => ({ ok: false, message: '' }) }
+    expect(await notifyCallFinished(db, down, callId)).toMatchObject({ sent: 0, failed: 1 })
+    expect(await db.select().from(setup_emails).where(eq(setup_emails.workspace_id, ws.id))).toEqual([])
+    const { sent, sender } = spy()
+    await notifyCallFinished(db, sender, callId)
+    expect(sent[0]!.subject).toContain('Your first real call')
+  })
+
+  test('the first-call email goes only to owners, like the other setup emails; other members get the usual one', async () => {
+    await setOn(true)
+    const ws = await createWorkspace('First Call Owners Only Plumbing')
+    const admin = await addMember(ws.id, 'admin')
+    const { sent, sender } = spy()
+    await notifyCallFinished(db, sender, await realCall(ws))
+    const ownerEmail = (await emailOf(ws.owner)).toLowerCase()
+    const adminEmail = (await emailOf(admin)).toLowerCase()
+    expect(sent.find(e => e.to.toLowerCase() === ownerEmail)?.subject).toContain('Your first real call')
+    expect(sent.find(e => e.to.toLowerCase() === adminEmail)?.subject).not.toContain('first real call')
+    expect(sent.find(e => e.to.toLowerCase() === adminEmail)?.text).toContain(`#call/`)
+  })
+
+  test('while email only goes to the log, the first call is not marked as sent', async () => {
+    await setOn(true)
+    const ws = await createWorkspace('First Call Log Only Plumbing')
+    const callId = await realCall(ws)
+    const sent: Email[] = []
+    const log: EmailSender = { kind: 'log', send: async email => void sent.push(email), check: async () => ({ ok: true, message: '' }) }
+    await notifyCallFinished(db, log, callId)
+    expect(sent[0]!.subject).not.toContain('first real call')
+    expect(await db.select().from(setup_emails).where(eq(setup_emails.workspace_id, ws.id))).toEqual([])
+  })
+
+  test('an owner who turned setup emails off gets the usual call email for the first call', async () => {
+    await setOn(true)
+    const ws = await createWorkspace('First Call Opt Out Plumbing')
+    await act(ws.owner, 'notifications.update', { setupEmails: false })
+    const { sent, sender } = spy()
+    await notifyCallFinished(db, sender, await realCall(ws))
+    expect(sent).toHaveLength(1)
+    expect(sent[0]!.subject).not.toContain('first real call')
+  })
+
+  test('at risk: signed up more than N days ago, no real call yet; milestones, emails and the owner', async () => {
+    const stuck = await newWorkspace('Stuck Setup Plumbing')
+    await signedUpDaysAgo(stuck, 2)
+    await act(stuck.owner, 'onboarding.recordEvent', { event: 'forwarding_instructions_shown' })
+    // Real calls from before the milestones were recorded: live too.
+    const early = await createWorkspace('Early Calls Setup Plumbing')
+    await signedUpDaysAgo(early, 2)
+    await realCall(early)
+    await db.delete(setup_events).where(and(eq(setup_events.workspace_id, early.id), inArray(setup_events.event, ['first_real_call', 'activated'])))
+    const live = await createWorkspace('Live Setup Plumbing')
+    await signedUpDaysAgo(live, 2)
+    await realCall(live)
+    const fresh = await newWorkspace('Fresh Setup Plumbing')
+
+    const list = async (query = '') =>
+      (await request(operator, 'GET', `/v1/admin/onboarding${query}`)).body as {
+        days: number
+        oldEnough: number
+        workspaces: { id: string }[]
+      }
+    const byDefault = await list()
+    expect(byDefault.days).toBe(1)
+    // Stuck, early and live are old enough to judge, whether or not a real call came in; fresh is not.
+    expect(byDefault.oldEnough).toBeGreaterThanOrEqual(3)
+    expect(byDefault.oldEnough).toBeGreaterThan(byDefault.workspaces.length)
+    const ids = byDefault.workspaces.map(w => w.id)
+    expect(ids).toContain(stuck.id)
+    expect(ids).not.toContain(live.id)
+    expect(ids).not.toContain(early.id)
+    expect(ids).not.toContain(fresh.id)
+    expect(byDefault.workspaces.find(w => w.id === stuck.id)).toMatchObject({
+      name: 'Stuck Setup Plumbing',
+      owner_email: await emailOf(stuck.owner),
+      milestones: { signup: expect.any(String), forwarding_instructions_shown: expect.any(String) },
+      emails: {},
+    })
+    expect((await list('?days=3')).workspaces.map(w => w.id)).not.toContain(stuck.id)
+    expect((await list('?days=0')).workspaces.map(w => w.id)).toContain(fresh.id)
+    expect((await list('?days=-4')).days).toBe(0)
+  })
+
+  test('at risk: on a new install no workspace is old enough yet, which is not the same as all had a real call', async () => {
+    const days = 30
+    const now = new Date().toISOString()
+    // Nothing in this test database signed up 30 days ago: an empty list with nobody to judge.
+    expect(await workspacesOldEnough(db, days, now)).toBe(0)
+    const old = await newWorkspace('Old Setup Plumbing')
+    await signedUpDaysAgo(old, days + 1)
+    await realCall(old)
+    expect(await atRiskWorkspaces(db, days, now)).toEqual([])
+    expect(await workspacesOldEnough(db, days, now)).toBe(1)
   })
 })
 

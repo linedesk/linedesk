@@ -31,6 +31,8 @@ type UndoEntry = {
   wasOpen: boolean
   cancelWrite: () => boolean
   page?: true
+  /** Undoes a change that is not a list of steps (the go-live checklist's "Not needed", with its cached read). */
+  revert?: () => void
 }
 
 const LEAVE_MS = 170
@@ -148,7 +150,7 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     const entry = undoStack.current.pop()
     if (!entry) return toaster.show('Nothing to undo.')
     const neverSent = entry.cancelWrite()
-    if (!neverSent) runAll(entry.steps)
+    if (!neverSent) entry.revert ? entry.revert() : runAll(entry.steps)
     if (entry.page) return toaster.show(toaster.withTip('Undone.', 'Z'))
     setTab(entry.tab)
     setCursor(entry.callId)
@@ -170,11 +172,21 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     toaster.show(toaster.withTip(label, key), true)
   }
 
+  /** A change made elsewhere that undoes itself (`revert`): one toast with Undo, undone with Z like the rest. */
+  function undoable(label: string, key: string, revert: () => void) {
+    undoStack.current = [
+      ...undoStack.current,
+      { steps: [], callId: '', tab, wasOpen: false, cancelWrite: () => false, page: true as const, revert },
+    ].slice(-UNDO_DEPTH)
+    toaster.show(toaster.withTip(label, key), true)
+  }
+
   return {
     leaving,
     entering,
     undo,
     runUndoable,
+    undoable,
     markDone: (call: Call) =>
       call.inbox_state === 'done' ? toaster.show('Already done.') : act(call, doneChange(call)),
     markNotDone: (call: Call) =>

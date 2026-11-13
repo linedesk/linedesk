@@ -1,6 +1,6 @@
 // Telnyx adapter, REST API v2 with plain fetch. https://developers.telnyx.com/api
 import { createPublicKey, verify } from 'node:crypto'
-import { installCarrierName, TelephonyError, type AvailableNumber, type CallStatus, type CallStatusEvent, type OwnedNumber, type TelephonyProvider } from './provider.ts'
+import { installCarrierName, TelephonyError, type AvailableNumber, type CallStatus, type CallStatusEvent, type LineType, type NumberLookup, type OwnedNumber, type TelephonyProvider } from './provider.ts'
 
 const API = 'https://api.telnyx.com/v2'
 const CONNECTION_NAME = 'linedesk-livekit'
@@ -35,6 +35,18 @@ const statusByEvent: Record<string, CallStatus> = {
 }
 
 const fail = (message: string, status?: number) => new TelephonyError('telnyx', message, status)
+
+/** Telnyx's carrier type ("mobile", "fixed line", "voip", "toll free") or portability line type ("wireless", "landline"). */
+export function telnyxLineType(type: unknown): LineType {
+  const text = typeof type === 'string' ? type.toLowerCase() : ''
+  // "fixed line or mobile" (numbering plans that share ranges) says nothing about this line.
+  if (/fixed|landline|wireline/.test(text) && /mobile|wireless|cellular/.test(text)) return 'unknown'
+  if (/mobile|wireless|cellular/.test(text)) return 'mobile'
+  if (/toll/.test(text)) return 'toll_free'
+  if (/voip/.test(text)) return 'voip'
+  if (/fixed|landline|wireline/.test(text)) return 'landline'
+  return 'unknown'
+}
 
 /**
  * One authenticated Telnyx API call; errors carry the status and Telnyx's own reason, never the key. Gives up after
@@ -183,6 +195,15 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
 
     async releaseNumber(number) {
       await request('DELETE', `/phone_numbers/${number.providerRef}`)
+    },
+
+    // Number Lookup with the carrier part: https://developers.telnyx.com/api/number-lookup
+    async lookupNumber(e164): Promise<NumberLookup> {
+      const { data } = await request('GET', `/number_lookup/${encodeURIComponent(e164)}?type=carrier`)
+      const carrier = data?.carrier ?? {}
+      const lineType = telnyxLineType(carrier.type) !== 'unknown' ? telnyxLineType(carrier.type) : telnyxLineType(data?.portability?.line_type)
+      const name = carrier.name || data?.portability?.spid_carrier_name || null
+      return { e164, lineType, carrier: typeof name === 'string' && name.trim() ? name.trim() : null }
     },
 
     parseWebhook({ headers, rawBody }): CallStatusEvent {

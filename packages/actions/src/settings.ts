@@ -243,6 +243,9 @@ export const DEFAULT_SILENCE_REMINDER = 'Are you still there?'
 /** The reminder an assistant asks: its own, or the default. */
 export const silenceReminderOf = (stored: string | null | undefined) => stored?.trim() || DEFAULT_SILENCE_REMINDER
 
+const BUSINESS_PHONE_PROBLEM = 'Enter the phone number with its area code, or leave it empty.'
+const BUSINESS_WEBSITE_PROBLEM = 'Enter a website address, like yourbusiness.com, or leave it empty.'
+
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
@@ -302,7 +305,19 @@ export const assistantUpdate = defineAction({
         service_area: z.string().optional(),
         address: z.string().optional(),
         hours: z.string().optional(),
-        website: z.string().trim().max(2000).optional(),
+        website: z
+          .string()
+          .trim()
+          .max(2000)
+          .refine(w => !businessWebsiteProblem(w), BUSINESS_WEBSITE_PROBLEM)
+          .optional(),
+        /** The business's own number as its listing gives it (business.import) or the owner types it. */
+        phone: z
+          .string()
+          .trim()
+          .max(40)
+          .refine(p => !businessPhoneProblem(p), BUSINESS_PHONE_PROBLEM)
+          .optional(),
       })
       .optional(),
   }),
@@ -474,6 +489,71 @@ export const workspaceUpdateSettings = defineAction({
     closure: closureSchema.nullable().optional(),
     jobValueCents: z.number().int().min(0).max(JOB_VALUE_MAX_CENTS).nullable().optional(),
     pickupMode: z.enum(pickupModes).optional(),
+  }),
+  permission: 'settings:write',
+})
+
+export const WORKSPACE_NAME_MAX = 80
+
+/** Control characters (C0, DEL, C1), line and paragraph separators, and the bidi controls that reorder text. */
+const unsafeNameChar = (c: number) =>
+  c < 0x20 ||
+  (c >= 0x7f && c <= 0x9f) ||
+  c === 0x2028 ||
+  c === 0x2029 ||
+  c === 0x061c ||
+  c === 0x200e ||
+  c === 0x200f ||
+  (c >= 0x202a && c <= 0x202e) ||
+  (c >= 0x2066 && c <= 0x2069)
+
+/**
+ * A workspace (business) name, the same for creating a workspace and for workspace.rename: trimmed, 1 to 80
+ * characters, one line, no control or bidi characters (it goes into emails, the menu and other members' screens).
+ */
+export const workspaceName = z
+  .string()
+  .trim()
+  .min(1, 'Enter the business name.')
+  .max(WORKSPACE_NAME_MAX, `The name can be ${WORKSPACE_NAME_MAX} characters at most.`)
+  .refine(
+    name => ![...name].some(ch => unsafeNameChar(ch.codePointAt(0)!)),
+    'The name must be one line, without control characters.',
+  )
+
+/**
+ * Why the business's phone in its profile is not a phone number, or null (empty is fine). As people and listings
+ * write it ("(503) 555-0142", "+1 503-555-0142"): digits with spaces, dots, dashes, brackets and a leading +, 7 to 15
+ * digits.
+ */
+export function businessPhoneProblem(phone: string): string | null {
+  const text = phone.trim()
+  if (!text) return null
+  const digits = text.replace(/\D/g, '').length
+  return /^\+?[\d\s().-]+$/.test(text) && digits >= 7 && digits <= 15 ? null : BUSINESS_PHONE_PROBLEM
+}
+
+/** Why the business's website in its profile is not a website address, or null (empty is fine). */
+export function businessWebsiteProblem(website: string): string | null {
+  const text = website.trim()
+  if (!text) return null
+  return /^(https?:\/\/)?[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(:\d+)?([/?#]\S*)?$/i.test(text)
+    ? null
+    : BUSINESS_WEBSITE_PROBLEM
+}
+
+/** Why `name` is not a workspace name, or null when it is one. */
+export function workspaceNameProblem(name: unknown): string | null {
+  const parsed = workspaceName.safeParse(name)
+  return parsed.success ? null : (parsed.error.issues[0]?.message ?? 'Enter the business name.')
+}
+
+export const workspaceRename = defineAction({
+  name: 'workspace.rename',
+  description:
+    'Rename the workspace: `name` is the business name shown in the app (the workspace menu, emails). The assistant\'s greeting is changed separately with assistant.update.',
+  input: z.object({
+    name: workspaceName,
   }),
   permission: 'settings:write',
 })

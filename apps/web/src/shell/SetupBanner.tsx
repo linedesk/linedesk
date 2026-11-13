@@ -1,9 +1,13 @@
-// Says so while the assistant cannot answer calls because no number is connected; gone once one is.
+// While no number is connected (onboarding skipped or left before the phone step), one slim line above
+// everything says so and leads to the phone setup; gone once a number is there, and while the go-live checklist
+// (whose first step this is) is on screen. The inbox header's "can't answer calls yet" (voice service) is the other cause.
 import { useAssistantName, useRows } from '../store.tsx'
-import { Button, Icon } from '../ui/kit.tsx'
+import { Icon } from '../ui/kit.tsx'
 import { useLoadState } from '../ui/LoadStates.tsx'
 
-export function SetupBanner({ canEdit, onConnect }: { canEdit: boolean; onConnect: () => void }) {
+const PHONE_SETUP_HASH = '#settings/phone'
+
+export function SetupBanner({ canEdit }: { canEdit: boolean }) {
   const hasNumber = useRows('phone_numbers').length > 0
   const name = useAssistantName()
   // A fresh browser has no rows until the first sync: only a synced empty list means no number.
@@ -13,14 +17,16 @@ export function SetupBanner({ canEdit, onConnect }: { canEdit: boolean; onConnec
     <div className="setup-bar" role="status">
       <Icon name="phone-off" size={15} />
       <span>
-        <b>{name} isn't answering calls yet.</b>{' '}
-        {canEdit ? 'Connect a phone number to finish setup.' : 'An owner or admin needs to connect a phone number.'}
+        <b>{name} has no phone number yet</b>
+        {' · '}
+        {canEdit ? (
+          <a href={PHONE_SETUP_HASH} title="Settings › Phone numbers">
+            Connect your number
+          </a>
+        ) : (
+          'An owner or admin needs to connect one'
+        )}
       </span>
-      {canEdit && (
-        <Button size="sm" variant="primary" onClick={onConnect} title="Settings, Phone numbers (G S)">
-          Finish setup
-        </Button>
-      )}
     </div>
   )
 }

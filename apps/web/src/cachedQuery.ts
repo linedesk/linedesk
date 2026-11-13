@@ -14,12 +14,18 @@ export type QueryState<T> = {
   error: string | null
 }
 export type Query<T> = QueryState<T> & { reload: () => Promise<void> }
-type Options = { persist?: boolean }
+/**
+ * `freshMs`: how long an answer counts as fresh, so mounting or focus does not load it again (default 5 s).
+ * `idle`: the answer is settled; it is shown and kept, but only loaded again on refreshQuery().
+ */
+type Options = { persist?: boolean; freshMs?: number; idle?: boolean }
 
 type Entry = {
   state: QueryState<unknown>
   load?: () => Promise<unknown>
   persist: boolean
+  freshMs: number
+  idle: boolean
   loadedAt: number
   /** How often the page put an answer in place itself (setQueryData). */
   changes: number
@@ -61,6 +67,8 @@ function entryFor(key: string, persist = false): Entry {
     entry = {
       state: stored === undefined ? EMPTY : { data: stored, error: null },
       persist,
+      freshMs: FRESH_MS,
+      idle: false,
       loadedAt: 0,
       changes: 0,
       listeners: new Set(),
@@ -99,7 +107,10 @@ export function fetchQuery<T>(key: string, load?: () => Promise<T>, options: Opt
     // An answer the server gave before a change the page made since would undo that change on screen.
     data => (entry.changes !== changesBefore ? undefined : publish(key, entry, { data, error: null })),
     (err: unknown) =>
-      publish(key, entry, { data: entry.state.data, error: err instanceof Error ? err.message : String(err) }),
+      publish(key, entry, {
+        data: entry.state.data,
+        error: err instanceof Error ? err.message : String(err),
+      }),
   )
   entry.inflight = inflight.finally(() => {
     entry.inflight = undefined
@@ -124,6 +135,9 @@ export function setQueryData<T>(key: string, update: T | ((previous: T | undefin
 /** The answer the cache has right now, without loading. */
 export const peekQuery = <T>(key: string): T | undefined => entries.get(key)?.state.data as T | undefined
 
+/** The same, including an answer kept in localStorage that nothing has used yet in this page (`persist`). */
+export const peekStoredQuery = <T>(key: string): T | undefined => entryFor(key, true).state.data as T | undefined
+
 /**
  * On sign-out: drops every answer of every member on this device, in memory and in localStorage.
  * Answers without a member (what the sign-in page shows) stay.
@@ -146,7 +160,8 @@ export function forgetOtherMembersQueries(actorId: string) {
   const own = `${STORAGE_PREFIX}${actorId}/`
   try {
     for (const key of Object.keys(localStorage))
-      if (key.startsWith(STORAGE_PREFIX) && !key.startsWith(signedOut) && !key.startsWith(own)) localStorage.removeItem(key)
+      if (key.startsWith(STORAGE_PREFIX) && !key.startsWith(signedOut) && !key.startsWith(own))
+        localStorage.removeItem(key)
   } catch {
     /* nothing was stored */
   }
@@ -156,7 +171,7 @@ export function forgetOtherMembersQueries(actorId: string) {
 function refreshShown() {
   const now = Date.now()
   for (const [key, entry] of entries)
-    if (entry.listeners.size > 0 && now - entry.loadedAt > FRESH_MS) void fetchQuery(key)
+    if (entry.listeners.size > 0 && !entry.idle && now - entry.loadedAt > entry.freshMs) void fetchQuery(key)
 }
 if (typeof window !== 'undefined') {
   window.addEventListener('focus', refreshShown)
@@ -188,8 +203,10 @@ export function useQuery<T>(key: string | null, load: () => Promise<T>, options:
     if (!key) return
     const entry = entryFor(key, options.persist)
     entry.load = load
-    if (!entry.inflight && Date.now() - entry.loadedAt > FRESH_MS) void fetchQuery(key)
-  }, [key])
+    entry.freshMs = options.freshMs ?? FRESH_MS
+    entry.idle = Boolean(options.idle)
+    if (!entry.inflight && !entry.idle && Date.now() - entry.loadedAt > entry.freshMs) void fetchQuery(key)
+  }, [key, options.idle, options.freshMs])
   const reload = useCallback(() => (key ? fetchQuery(key) : Promise.resolve()), [key])
   return { ...state, reload }
 }

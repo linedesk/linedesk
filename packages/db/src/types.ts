@@ -99,12 +99,15 @@ export type BusinessProfile = {
   service_list?: { name: string; description: string; price: string }[]
   /** The website the knowledge was last imported from. */
   website?: string
+  /** The business's own number as its listing gives it (onboarding, business.import). */
+  phone?: string
 }
 
 export type Call = typeof calls.$inferSelect
 export type Contact = typeof contacts.$inferSelect
 export type Assistant = typeof assistants.$inferSelect
 export type PhoneNumber = typeof phone_numbers.$inferSelect
+export type { ForwardingCheckStatus } from './schema.ts'
 export type TranscriptSegment = typeof transcript_segments.$inferSelect
 // Not delivered by read sync (so not in `Tables`): the API reads them for calendar actions.
 export type WorkspaceSettings = typeof workspace_settings.$inferSelect

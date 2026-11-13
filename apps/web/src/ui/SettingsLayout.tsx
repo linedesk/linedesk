@@ -4,7 +4,11 @@
 import { type MouseEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import './settings-layout.css'
 
-export type PageSection<T extends string = string> = { id: T; label: string; description?: string }
+export type PageSection<T extends string = string> = {
+  id: T
+  label: string
+  description?: string
+}
 
 /** The page's part of the hash: `#<page>/<section>`; `page` may have a part of its own (`assistant/<id>`). */
 export const sectionHash = (page: string, section: string) => `#${page}/${section}`

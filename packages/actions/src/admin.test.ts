@@ -75,6 +75,7 @@ test('every provider has a category, and the first of each category is the defau
     ['email', ['smtp', 'resend', 'postmark', 'sendgrid', 'brevo', 'mailgun', 'gmail']],
     ['sign_in', ['google', 'microsoft', 'github', 'oidc']],
     ['recording', ['file', 's3']],
+    ['business', ['google_places']],
   ])
   // Sign-in apps are all in use at once: nothing to pick.
   expect(providerSetActive.input.safeParse({ category: 'sign_in', provider: 'google' }).success).toBe(false)

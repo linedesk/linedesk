@@ -36,6 +36,16 @@ export interface CallStatusEvent {
   occurredAt?: string
 }
 
+/** What kind of line a number is, as far as the carrier lookup tells. */
+export type LineType = 'mobile' | 'landline' | 'voip' | 'toll_free' | 'unknown'
+
+/** A carrier lookup of a number: its line type and the carrier it belongs to (null when the lookup does not say). */
+export interface NumberLookup {
+  e164: string
+  lineType: LineType
+  carrier: string | null
+}
+
 export interface WebhookRequest {
   /** Lower-case header names. */
   headers: Record<string, string | undefined>
@@ -85,6 +95,11 @@ export interface TelephonyProvider {
    */
   unrouteNumber(number: OwnedNumber): Promise<void>
   releaseNumber(number: OwnedNumber): Promise<void>
+  /**
+   * Looks up any number's line type and carrier (Telnyx Number Lookup, Twilio Lookup v2). Costs a fraction of a
+   * cent at the carrier; reads only, changes nothing.
+   */
+  lookupNumber(e164: string): Promise<NumberLookup>
   /** Verifies and parses a status webhook. Throws TelephonyError if the signature is not valid. */
   parseWebhook(request: WebhookRequest): CallStatusEvent
 }

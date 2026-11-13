@@ -419,6 +419,9 @@ span.mono { font-family: var(--font-mono); font-size: 12px; color: var(--ink-mut
 .swrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 10px; border-top: 1px solid var(--line); }
 .swrow div { display: grid; gap: 2px; min-width: 0; }
 .swrow b { font-size: 13.5px; font-weight: 500; }
+.swrow.is-dimmed b, .swrow.is-dimmed .help { color: var(--ink-disabled); }
+.swrow-ok { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--ink-muted); white-space: nowrap; }
+.st-notify-hint { margin: 2px 0 0; }
 .sw { position: relative; flex: none; width: 34px; height: 20px; border: 0; border-radius: var(--radius-full); background: var(--line-control); cursor: pointer; padding: 0; }
 .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: var(--radius-full); background: var(--surface-raised); }
 .sw[aria-checked="true"] { background: var(--signal); }
@@ -702,7 +705,8 @@ body { font-size: 13px; }
 .ib-hint { margin-top: auto; }
 
 /* ===== Onboarding ===== */
-.ob { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; background: var(--bg); color: var(--ink); overflow: auto; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+/* Onboarding is a page, not an overlay: the test-call panel (40), dialogs (50), toasts and help tips (60) open over it. */
+.ob { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; background: var(--bg); color: var(--ink); overflow: auto; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
 .ob-top { display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 max(20px, env(safe-area-inset-right, 0px)) 0 max(20px, env(safe-area-inset-left, 0px)); flex: none; }
 .ob-top > b { font-size: 14px; font-weight: 600; }
 .ob-top .ws-mark { margin: 0; }
@@ -1591,3 +1595,17 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
 /* An install's own logo (Admin, Branding) in place of the mark: the image itself, no dark square. */
 .ws-mark.is-logo, .auth-mark.is-logo { background: none; overflow: hidden; }
 .is-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+/* Forwarding check (onboarding phone step and Settings, Phone numbers) */
+.fc { display: grid; gap: 8px; }
+.fc-switch { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.fc-result { display: flex; gap: 8px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface-hover); font-size: 13px; line-height: 19px; }
+.fc-result.ok { background: var(--highlight); color: var(--highlight-ink); }
+.fc-result > span { display: grid; gap: 2px; }
+.fc-result b { font-weight: 500; }
+.fc-next { color: var(--ink-muted); }
+/* A failed check's fixes (forward every call, give out the assistant's number): buttons under its advice. */
+.fc-fixes { margin-top: 6px; flex-wrap: wrap; }
+/* Development carrier: a quiet marker, never alarming, so a made-up result is never read as a real one. */
+.fc-sim { display: inline-block; margin-left: 8px; padding: 0 6px; border: 1px solid var(--line); border-radius: var(--radius-xs); color: var(--ink-muted); font-size: 11px; line-height: 18px; font-weight: 400; }
+.fc-result .fc-sim { margin-left: 0; justify-self: start; }

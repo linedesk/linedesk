@@ -552,6 +552,11 @@ async function entry(ctx: JobContext) {
   callerJoined.catch(() => {}) // a caller who never comes: the session closes with the room; awaited below where needed
   const call = (await early) ?? (await startCall(api, callOrigin(ctx.job.metadata, (await callerJoined).attributes, ctx.room.name ?? '')))
   setup.mark('registered')
+  if (call.forwardingCheck) {
+    // Our own forwarding check arrived: the API recorded it. Nobody is on the line, so nothing is said.
+    await ctx.deleteRoom()
+    return ctx.shutdown('forwarding check')
+  }
   if (call.blocked) {
     // The API already filed the call: in Spam (blocked caller) or as missed with a callback (busy, over the spending
     // cap). Each caller hears one line first, once the voice is set up.

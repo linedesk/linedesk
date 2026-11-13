@@ -49,6 +49,8 @@ function useClosedDays() {
 
 export function Holidays({ canEdit, toast }: Props) {
   const { loaded, today, days, setDays } = useClosedDays()
+  // Without weekly hours there are none to apply: the empty list says only that there are no holidays.
+  const hoursOn = useWorkspaceSettings().data?.businessHoursOn ?? false
   const [date, setDate] = useState('')
   const [name, setName] = useState('')
   // Past days stay saved (they change nothing) but are not shown.
@@ -97,7 +99,7 @@ export function Holidays({ canEdit, toast }: Props) {
           ))}
         </List>
       ) : (
-        <ListEmpty>No holidays yet: the weekly hours apply every day.</ListEmpty>
+        <ListEmpty>{hoursOn ? 'No holidays yet: the weekly hours apply every day.' : 'No holidays yet.'}</ListEmpty>
       )}
       {canEdit && (
         <form className="st-inline hd-add" onSubmit={add}>

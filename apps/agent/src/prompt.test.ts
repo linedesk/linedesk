@@ -1,4 +1,4 @@
-import { AI_DISCLOSURE_MODES, CALLER_NAME_MAX, callRules } from '@linedesk/actions'
+import { AI_DISCLOSURE_MODES, CALLER_NAME_MAX, callRules, EMERGENCY_RULE } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import type { CallerHistory } from '@linedesk/actions'
@@ -7,13 +7,16 @@ import { bookingInstructions, buildInstructions, callerDetailsInstructions, held
 const assistant = (over: Partial<Assistant> = {}) =>
   ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', disclose_ai: false, business_profile: { instructions: 'We fix pipes in Portland.' }, ...over }) as Assistant
 
-test('the call rules: no number or known name asked, booking per setup, no fixed emergency rule', () => {
+test('the call rules: no number or known name asked, booking per setup, emergencies to 911 and nothing trade-specific', () => {
   const prompt = buildInstructions(assistant())
   expect(prompt).toContain(`How to handle calls (where what the business wants you to know says otherwise, follow the business):\n${callRules({ booking: false, transfer: false })}`)
   expect(prompt).toContain('What the business wants you to know:\nWe fix pipes in Portland.')
   expect(callRules()).toMatch(/Take a message for every request you cannot handle/)
   expect(callRules()).not.toMatch(/you cannot book|best number to reach/)
-  expect(callRules()).not.toMatch(/Emergenc|burst pipe|gas smell/)
+  // One fixed safety rule for every business; what is urgent beyond that is the owner's to say.
+  expect(callRules()).toContain(EMERGENCY_RULE)
+  expect(callRules()).toMatch(/hang up and call 911/)
+  expect(callRules()).not.toMatch(/burst pipe|no heat|leak/)
 })
 
 test('the call rules hold only the cases of this call, and leave name, number, prices and promises to their own parts', () => {

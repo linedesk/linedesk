@@ -7,6 +7,11 @@ export const adminSections = [
   { id: 'workspaces', label: 'Workspaces', description: '' },
   { id: 'users', label: 'Users', description: '' },
   { id: 'usage', label: 'Usage', description: 'Answered minutes per month, UTC.' },
+  {
+    id: 'onboarding',
+    label: 'Onboarding',
+    description: 'New workspaces on their way to their first real call, and who is stuck.',
+  },
   { id: 'providers', label: 'Providers', description: '' },
   { id: 'branding', label: 'Branding', description: 'Your name and logo instead of Linedesk.' },
   { id: 'system', label: 'System', description: 'Set on the server.' },
