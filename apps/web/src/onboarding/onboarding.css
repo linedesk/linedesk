@@ -93,3 +93,11 @@
   vertical-align: -1px;
   font-variant-numeric: tabular-nums;
 }
+.ob-instance {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.ob-instance a {
+  color: var(--ink);
+}

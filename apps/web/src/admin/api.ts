@@ -10,6 +10,7 @@ import {
   type ProviderName,
   type ProviderTestData,
   providerCategories,
+  type SetupChecklist,
   providers as providerRegistry,
 } from '@linedesk/actions'
 import type { AdminSecondFactor } from '../auth.ts'
@@ -89,6 +90,8 @@ export type ProviderField = {
   value: string | null
   updated_at: string | null
   updated_by: { id: string; name: string } | null
+  /** The stored key in effect is this provider's (one-key mode: the realtime model's key). */
+  key_from?: ProviderName | null
 }
 export type ProviderStatus = {
   provider: ProviderName
@@ -210,6 +213,7 @@ type AdminInputs = {
   'provider.clearKeys': { provider: ProviderName }
   'provider.setActive': { category: ProviderCategory; provider: ProviderName | null }
   'provider.test': { provider: ProviderName }
+  'provider.connectOneKey': { apiKey: string }
   'user.invite': { email: string; name: string; admin?: boolean }
   'user.disable': { userId: string }
   'user.enable': { userId: string }
@@ -261,6 +265,10 @@ const stepUpLabels: Partial<Record<keyof AdminInputs, string>> = {
   'workspace.delete': 'delete a workspace',
 }
 export const stepUpLabel = (name: keyof AdminInputs) => stepUpLabels[name] ?? 'this admin change'
+
+/** The providers that use this one's stored key (one-key mode): Disconnect ends them too. */
+export const keyUsersOf = (providers: readonly ProviderStatus[], provider: ProviderName) =>
+  providers.filter(p => p.fields.some(f => f.key_from === provider))
 
 export const testProvider = async (provider: ProviderName) =>
   (await runAdmin('provider.test', { provider })) as ProviderTestData
@@ -321,3 +329,8 @@ export const loadAudit = (filter: AuditFilter) =>
   )
 /** Waits for LiveKit and the mail server: can take a few seconds. */
 export const loadHealth = () => get<AdminHealth>('/v1/admin/health')
+
+/** GET /v1/admin/setup-checklist (apps/api/src/setup-checklist.ts); `test` makes one request per provider. */
+export const ADMIN_SETUP_CHECKLIST = 'admin.setupChecklist'
+/** Read-only: tests run through provider.test (testProvider). */
+export const loadSetupChecklist = () => get<SetupChecklist>('/v1/admin/setup-checklist')

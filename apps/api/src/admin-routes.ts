@@ -14,6 +14,7 @@ import { livekitStatus } from './livekit-status.ts'
 import { listProviderFailures } from './provider-failures.ts'
 import { providerStatus, voiceProviderConfig } from './provider-settings.ts'
 import { SecretsKeyError } from './secrets.ts'
+import { setupChecklist } from './setup-checklist.ts'
 import { LATENCY_DAYS_DEFAULT, LATENCY_DAYS_MAX, replyLatency } from './reply-latency.ts'
 
 type Env = { Variables: { actor: Actor } }
@@ -184,6 +185,9 @@ export function registerAdminRoutes(app: Hono<Env>) {
   app.get('/v1/admin/providers', async c =>
     c.json({ ...(await providerStatus(db)), failures: await listProviderFailures(db) }),
   )
+
+  // The instance setup checklist (setup-checklist.ts), read-only: tests run through provider.test.
+  app.get('/v1/admin/setup-checklist', async c => c.json(await setupChecklist(db)))
 
   // LiveKit is part of the install (keys in env): read-only status of the server and its SIP service.
   app.get('/v1/admin/system', async c => c.json({ livekit: await livekitStatus() }))

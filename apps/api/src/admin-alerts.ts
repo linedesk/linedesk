@@ -10,6 +10,7 @@ import { emailSender } from './email.ts'
 import { adminAlertEmail } from './emails/templates.ts'
 import { instanceAdminEmails, isInstanceAdmin } from './instance-admin.ts'
 import { brandName } from './branding.ts'
+import { takeSetupSignIn } from './setup.ts'
 
 /** Emails every enabled instance admin. Resolves once the list is read; the sends run on their own. */
 export async function alertInstanceAdmins(subject: string, text: string) {
@@ -79,6 +80,8 @@ export function adminSignInEmail(who: string, method: string, newDevice: boolean
 /** Better Auth `session.create.after`, merged after the audit log's (auth.ts). */
 export async function alertOnAdminSignIn(created: SignIn, ctx: unknown) {
   if (created.impersonatedBy) return
+  // The first admin's sign-in at setup: the account was made seconds ago by the person signing in.
+  if (takeSetupSignIn(created.userId)) return
   // Every session an admin gets counts; one made by an endpoint not known here is reported as 'other'.
   const method = signInMethod(ctx as Parameters<typeof signInMethod>[0]) ?? 'other'
   try {

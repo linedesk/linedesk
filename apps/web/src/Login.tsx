@@ -355,7 +355,10 @@ function SetupStep({ onDone }: { onDone: () => Promise<void> }) {
     <AuthPage>
       <form className="auth-card" onSubmit={submit} noValidate>
         <h1>Set up {brandName()}</h1>
-        <p>Create the first admin account. The setup code is in the server log: <code>docker compose logs api</code>.</p>
+        <p>
+          Create the first admin account. The setup code is in the API’s log (<code>docker compose logs api</code>, or
+          the terminal running <code>pnpm dev</code>).
+        </p>
         <div className="auth-form">
           <input aria-label="Setup code" placeholder="Setup code" value={form.code} onChange={set('code')} autoComplete="one-time-code"
             autoCapitalize="characters" spellCheck={false} autoFocus />
@@ -366,7 +369,7 @@ function SetupStep({ onDone }: { onDone: () => Promise<void> }) {
           <button type="submit" className="k-btn k-btn-primary" disabled={busy}>{busy ? 'Setting up…' : 'Create admin account'}</button>
           {error && <AuthError message={error} />}
         </div>
-        <p className="auth-note">Next you connect phone, voice and email under Admin, Providers.</p>
+        <p className="auth-note">Next you name your business. Phone, voice and email are connected under Admin › Providers.</p>
       </form>
     </AuthPage>
   )

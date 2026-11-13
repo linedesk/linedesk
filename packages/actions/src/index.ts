@@ -50,6 +50,7 @@ export * from './openapi.ts'
 export * from './provider-health.ts'
 export * from './sample.ts'
 export * from './settings.ts'
+export * from './setup-checklist.ts'
 export * from './star.ts'
 export * from './team.ts'
 export * from './transfer.ts'
@@ -150,6 +151,7 @@ const all = [
   admin.providerClearKeys,
   admin.providerSetActive,
   admin.providerTest,
+  admin.providerConnectOneKey,
   providerHealth.providerReportFailure,
   providerHealth.providerReportOk,
   admin.userInvite,

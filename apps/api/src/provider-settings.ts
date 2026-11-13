@@ -34,14 +34,68 @@ const instanceRows = (tx: Tx, provider?: ProviderName) =>
     .from(provider_settings)
     .where(and(isNull(provider_settings.workspace_id), provider ? eq(provider_settings.provider, provider) : undefined))
 
+/**
+ * A provider can use another provider's stored API key instead of its own (one-key mode: OpenAI transcription and
+ * language model use the realtime model's key). A reference, not a copy: the key lives once, so removing it
+ * (Disconnect) ends every use of it. Kept in instance_settings as `key_from.<provider>` = the provider it reads.
+ */
+const KEY_FIELD = 'api_key'
+const keyFromSetting = (provider: ProviderName) => `key_from.${provider}`
+
+/** The provider whose stored API key this one uses, or null. */
+export async function keySource(tx: Tx, provider: ProviderName): Promise<ProviderName | null> {
+  const [row] = await tx
+    .select()
+    .from(instance_settings)
+    .where(eq(instance_settings.key, keyFromSetting(provider)))
+  const from = row?.value
+  return isProvider(from) && from !== provider && KEY_FIELD in providerSpec(from).fields ? from : null
+}
+
+/** `provider` uses `from`'s stored API key from now on (its own stored key is removed). */
+export async function linkProviderKey(
+  tx: Tx,
+  provider: ProviderName,
+  from: ProviderName,
+  actorId: string,
+  now: string,
+) {
+  await tx
+    .delete(provider_settings)
+    .where(
+      and(
+        isNull(provider_settings.workspace_id),
+        eq(provider_settings.provider, provider),
+        eq(provider_settings.field, KEY_FIELD),
+      ),
+    )
+  await tx.delete(instance_settings).where(eq(instance_settings.key, keyFromSetting(provider)))
+  await tx
+    .insert(instance_settings)
+    .values({ key: keyFromSetting(provider), value: from, updated_at: now, updated_by: actorId })
+}
+
+/** The providers that use `provider`'s stored API key. */
+export async function keyUsers(tx: Tx, provider: ProviderName): Promise<ProviderName[]> {
+  const rows = await tx.select().from(instance_settings).where(eq(instance_settings.value, provider))
+  return rows.flatMap(row => {
+    const name = row.key.startsWith('key_from.') ? row.key.slice('key_from.'.length) : ''
+    return isProvider(name) ? [name] : []
+  })
+}
+
 /** The config in effect for a provider. Throws SecretsKeyError when a stored value cannot be decrypted. */
 export async function resolveProvider(tx: Tx, provider: ProviderName, env: Env = serverEnv()): Promise<ProviderConfig> {
   const stored = new Map((await instanceRows(tx, provider)).map(row => [row.field, row]))
+  const from = await keySource(tx, provider)
+  const shared = from && (await instanceRows(tx, from)).find(row => row.field === KEY_FIELD)
   return Object.fromEntries(
     Object.entries(providerSpec(provider).fields).map(([field, spec]) => {
       const row = stored.get(field)
       if (row)
         return [field, { value: decryptSecret(row.value_encrypted, slot(provider, field)), source: 'app' as const }]
+      if (field === KEY_FIELD && shared)
+        return [field, { value: decryptSecret(shared.value_encrypted, slot(from, KEY_FIELD)), source: 'app' as const }]
       const fromEnv = env[spec.env]
       return [field, fromEnv ? { value: fromEnv, source: 'env' as const } : undefined]
     }),
@@ -213,6 +267,8 @@ export type FieldStatus = {
   value: string | null
   updated_at: string | null
   updated_by: { id: string; name: string } | null
+  /** The stored key in effect is another provider's (one-key mode); null for the provider's own or none. */
+  key_from: ProviderName | null
 }
 export type ProviderStatus = {
   provider: ProviderName
@@ -234,6 +290,11 @@ function decryptForDisplay(stored: string, slotName: string): string | null {
 /** What the admin area shows: which source is in effect, never a secret. */
 export async function providerStatus(tx: Tx, env: Env = serverEnv()) {
   const rows = await instanceRows(tx)
+  const links = new Map<ProviderName, ProviderName>()
+  for (const name of providerNames) {
+    const from = await keySource(tx, name)
+    if (from) links.set(name, from)
+  }
   const editorIds = [...new Set(rows.map(row => row.updated_by).filter(id => id !== null))]
   const editors = editorIds.length
     ? await tx.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, editorIds))
@@ -243,7 +304,10 @@ export async function providerStatus(tx: Tx, env: Env = serverEnv()) {
     label: providerSpec(provider).label,
     category: providerSpec(provider).category,
     fields: Object.entries(providerSpec(provider).fields).map(([field, spec]) => {
-      const row = rows.find(r => r.provider === provider && r.field === field)
+      const own = rows.find(r => r.provider === provider && r.field === field)
+      const linkedFrom = !own && field === KEY_FIELD ? (links.get(provider) ?? null) : null
+      const shared = linkedFrom ? rows.find(r => r.provider === linkedFrom && r.field === KEY_FIELD) : undefined
+      const row = own ?? shared
       const fromEnv = env[spec.env]
       const base = {
         field,
@@ -256,9 +320,10 @@ export async function providerStatus(tx: Tx, env: Env = serverEnv()) {
           ...base,
           source: 'app',
           last4: spec.secret ? row.last4 : null,
-          value: spec.secret ? null : decryptForDisplay(row.value_encrypted, slot(provider, field)),
+          value: spec.secret ? null : decryptForDisplay(row.value_encrypted, slot(row.provider as ProviderName, field)),
           updated_at: new Date(row.updated_at).toISOString(),
           updated_by: editors.find(editor => editor.id === row.updated_by) ?? null,
+          key_from: shared ? linkedFrom : null,
         }
       }
       return {
@@ -268,6 +333,7 @@ export async function providerStatus(tx: Tx, env: Env = serverEnv()) {
         value: !spec.secret && fromEnv ? fromEnv : null,
         updated_at: null,
         updated_by: null,
+        key_from: null,
       }
     }),
   })
@@ -296,6 +362,8 @@ export async function setProviderKeys(
   actorId: string,
   now: string,
 ) {
+  // Its own key from now on: no longer the shared one.
+  if (KEY_FIELD in values) await tx.delete(instance_settings).where(eq(instance_settings.key, keyFromSetting(provider)))
   for (const [field, value] of Object.entries(values)) {
     const secret = providerSpec(provider).fields[field]!.secret
     const row = {
@@ -317,7 +385,20 @@ export async function setProviderKeys(
   }
 }
 
-export const clearProviderKeys = (tx: Tx, provider: ProviderName) =>
-  tx
+/**
+ * Removes a provider's stored keys and its use of another's key. The providers that used its key lose it too
+ * (their reference is removed), so Disconnect leaves no copy working. Returns those providers.
+ */
+export async function clearProviderKeys(tx: Tx, provider: ProviderName): Promise<ProviderName[]> {
+  const users = await keyUsers(tx, provider)
+  await tx
     .delete(provider_settings)
     .where(and(isNull(provider_settings.workspace_id), eq(provider_settings.provider, provider)))
+  await tx.delete(instance_settings).where(
+    inArray(
+      instance_settings.key,
+      [provider, ...users].map(name => keyFromSetting(name)),
+    ),
+  )
+  return users
+}

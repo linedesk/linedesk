@@ -497,6 +497,22 @@ export type ProviderTestData = {
   message: string
 }
 
+/**
+ * One OpenAI key for speech, model and voice (the setup checklist's one-key mode): one step on the server. The key is
+ * tested against OpenAI first; only when it works is it stored as the realtime model's key and that model picked,
+ * and OpenAI transcription and language model use the same stored key where those categories have no provider
+ * (a reference, not a copy: Disconnect on the realtime model ends all three). A key that fails changes nothing.
+ */
+export const providerConnectOneKey = defineAction({
+  name: 'provider.connectOneKey',
+  description:
+    'Connect one OpenAI key for speech, model and voice: tested first, then stored for the realtime model, which is picked; OpenAI transcription and language model use the same key where nothing is set up. A key that fails its test changes nothing.',
+  input: z.object({ apiKey: z.string().trim().min(1).max(2000) }),
+  permission: 'instance:admin',
+  sensitive: ['apiKey'],
+})
+export type ProviderConnectOneKeyData = { ok: true; message: string; linked: ProviderName[] }
+
 const userId = z.object({ userId: z.string().min(1) })
 const workspaceId = z.object({ workspaceId: z.string().min(1) })
 const adminAction = <S extends z.ZodType>(name: string, description: string, input: S) =>

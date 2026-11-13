@@ -50,6 +50,8 @@ type Props = {
   /** The page's last test of these keys worked. */
   connected: boolean
   canStore: boolean
+  /** Providers that use this one's stored key (one-key mode): Disconnect removes it for them too. */
+  keyUsers?: readonly ProviderStatus[]
   /** Back from "Connect with OpenRouter": the code to exchange, or why there is none. */
   oauthReturn?: OpenRouterReturn | null
   onTested: (result: ProviderTestData) => void
@@ -70,7 +72,7 @@ const presetsOf = (provider: ProviderStatus) =>
 
 export function ProviderDialog(props: Props) {
   const { provider, inUse, chosen, canUse, connected, canStore, oauthReturn, confirmDisconnect } = props
-  const { onTested, onUse, onStopUsing, reload, notify, onClose } = props
+  const { onTested, onUse, onStopUsing, reload, notify, onClose, keyUsers = [] } = props
   const meta = providerMeta[provider.provider]
   const [values, setValues] = useState(() => initialValues(provider))
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -155,7 +157,11 @@ export function ProviderDialog(props: Props) {
       await runAdmin('provider.clearKeys', { provider: provider.provider })
       if (inUse && chosen) await onStopUsing()
       await reload()
-      notify(`${provider.label} disconnected.`)
+      notify(
+        keyUsers.length
+          ? `${[provider, ...keyUsers].map(p => p.label).join(', ')} disconnected.`
+          : `${provider.label} disconnected.`,
+      )
       onClose()
     } catch (err) {
       setResult({ ok: false, message: errorText(err) })
@@ -185,7 +191,11 @@ export function ProviderDialog(props: Props) {
   const footer =
     phase === 'confirm-disconnect' || phase === 'disconnecting' ? (
       <>
-        <span className="k-dialog-foot-start adm-confirm-text">Delete the stored {provider.label} keys?</span>
+        <span className="k-dialog-foot-start adm-confirm-text">
+          Delete the stored {provider.label} keys?
+          {keyUsers.length > 0 &&
+            ` ${keyUsers.map(p => p.label).join(' and ')} use${keyUsers.length === 1 ? 's' : ''} the same key and stop too.`}
+        </span>
         <Button variant="ghost" onClick={() => setPhase('idle')} disabled={phase === 'disconnecting'}>
           Cancel
         </Button>
@@ -354,7 +364,15 @@ function ProviderInput(props: InputProps) {
       {keysLabel}
     </a>
   )
-  const aside = fromServer || getKey || (isOptional(provider, field) ? 'Optional' : undefined)
+  const shared = field.key_from && (
+    <span
+      className="help"
+      title="One-key mode: Disconnect there ends it here too; a key saved here is this provider's own"
+    >
+      Uses the {providerSpecs[field.key_from].label} key
+    </span>
+  )
+  const aside = fromServer || shared || getKey || (isOptional(provider, field) ? 'Optional' : undefined)
   if (isSwitch(provider, field)) {
     const on = (value || field.value || 'true') !== 'false'
     return (

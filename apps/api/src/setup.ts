@@ -28,8 +28,14 @@ const normalise = (code: string) => code.toUpperCase().replace(/[^A-Z0-9]/g, '')
 export const setupNeeded = async (tx: Pick<Tx, 'select'>) =>
   !(await tx.select({ id: user.id }).from(user).limit(1))[0]
 
+/** Where the web app is: PUBLIC_URL on a server, WEB_ORIGIN (Vite's address) under pnpm dev; auth.ts's default. */
+const webAddress = () => process.env.PUBLIC_URL || process.env.WEB_ORIGIN || 'http://localhost:5173'
+
+/** Where the setup code is printed, said the same way here and on the setup page (Login.tsx). */
+const WHERE_THE_CODE_IS = "the API's log (docker compose logs api, or the terminal running pnpm dev)"
+
 /** On an install without users: makes a new setup code, stores its hash and prints it. */
-export async function issueSetupCode(tx: Tx, publicUrl = process.env.PUBLIC_URL || 'http://localhost') {
+export async function issueSetupCode(tx: Tx, publicUrl = webAddress()) {
   if (!(await setupNeeded(tx))) return
   const code = Array.from({ length: 8 }, () => ALPHABET[randomInt(ALPHABET.length)]).join('')
   const now = new Date().toISOString()
@@ -71,7 +77,7 @@ export async function completeSetup(db: Db, input: SetupInput, clientIp: string 
   if (!(await codeMatches(db, input.code))) {
     wrongPerAddress.fail(address)
     wrongInAll.fail(ALL)
-    throw new SetupError('That setup code is not right. It is in the server log (docker compose logs api).', 403)
+    throw new SetupError(`That setup code is not right. It is in ${WHERE_THE_CODE_IS}.`, 403)
   }
   const hashed = await hashPassword(input.password)
   return db.transaction(async tx => {
@@ -89,6 +95,15 @@ export async function completeSetup(db: Db, input: SetupInput, clientIp: string 
     return { userId: id }
   })
 }
+
+/**
+ * The first admin is signed in right after setup (app.ts): that sign-in is not one to warn about, the account is
+ * seconds old and its only admin is the person signing in (admin-alerts.ts skips it). In memory, one request long.
+ */
+const setupSignIns = new Set<string>()
+export const markSetupSignIn = (userId: string) => void setupSignIns.add(userId)
+/** True once for a sign-in marked by markSetupSignIn; forgets it. */
+export const takeSetupSignIn = (userId: string) => setupSignIns.delete(userId)
 
 async function codeMatches(tx: Pick<Tx, 'select'>, code: string) {
   const [stored] = await tx.select().from(instance_settings).where(eq(instance_settings.key, CODE_KEY))

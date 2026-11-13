@@ -15,6 +15,7 @@ import { anotherAdminRemains, isEnvAdmin, isInstanceAdmin } from './instance-adm
 import { issuePasskeyEnrolment, removeAllPasskeys } from './passkey-enrolment.ts'
 import {
   clearProviderKeys,
+  linkProviderKey,
   providerStatus,
   resolveProvider,
   setActiveProvider,
@@ -22,6 +23,7 @@ import {
 } from './provider-settings.ts'
 import { noteProviderFailure, noteProviderOk } from './provider-failures.ts'
 import { missingFields, testProvider } from './provider-test.ts'
+import { recentTest, rememberTest } from './setup-checklist.ts'
 import { dropUserPush } from './push.ts'
 import { SecretsKeyError } from './secrets.ts'
 import { monthOf, queueSpendingAlerts, spendingCap } from './spending-cap.ts'
@@ -141,7 +143,11 @@ export const adminHandlers: Record<string, Handler> = {
 
   'provider.test': async ({ tx }, input) => {
     const config = await withSecretsKey(() => resolveProvider(tx, input.provider))
+    // The same keys tested a moment ago (the overview tests on open, a double click): the last result, no request.
+    const recent = recentTest(input.provider, config)
+    if (recent) return { rows: {}, data: recent }
     const result = await testProvider(input.provider, config)
+    rememberTest(input.provider, config, result)
     // A provider that is set up: its test counts like a call (a pass clears its failure, an error records one,
     // without the email: the admin sees it). One that is not set up is not failing, only missing.
     if (!missingFields(input.provider, config).length) {
@@ -149,6 +155,28 @@ export const adminHandlers: Record<string, Handler> = {
       else await noteProviderFailure(input.provider, { reason: result.reason ?? 'unknown', message: result.message }, 'test')
     }
     return { rows: {}, data: result }
+  },
+
+  'provider.connectOneKey': async ({ tx, actor, now }, input) => {
+    const realtime = 'openai_realtime' as const
+    // Tested before anything is written: a key that fails changes nothing, and a key stored before stays.
+    const current = await withSecretsKey(() => resolveProvider(tx, realtime))
+    const candidate = { ...current, api_key: { value: input.apiKey, source: 'app' as const } }
+    const result = await testProvider(realtime, candidate)
+    if (!result.ok) throw new Reject(`${result.message}. Nothing was changed; check the key and try again`)
+    // Speech and model use the realtime key only where their category has no provider yet.
+    const { active } = await providerStatus(tx)
+    const linked = (
+      [
+        ['stt', 'openai_stt'],
+        ['llm', 'openai'],
+      ] as const
+    ).flatMap(([category, provider]) => (active[category].provider ? [] : [provider]))
+    await withSecretsKey(() => setProviderKeys(tx, realtime, { api_key: input.apiKey }, actor.actorId, now))
+    await setActiveProvider(tx, 'realtime', realtime, actor.actorId, now)
+    for (const provider of linked) await linkProviderKey(tx, provider, realtime, actor.actorId, now)
+    rememberTest(realtime, await resolveProvider(tx, realtime), result)
+    return { rows: {}, data: { ok: true, message: result.message, linked } }
   },
 
   'user.invite': async ({ actor, onRollback }, input) => {

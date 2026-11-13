@@ -2,7 +2,8 @@
 // removed from the last one. What they can do here:
 // - join a workspace they are invited to (a skipped invitation stays here until it is answered);
 // - name their own business, where this server lets them (sign-up open, or an instance admin);
-// - an instance admin opens Admin, which needs no workspace.
+// - an instance admin opens Admin, which needs no workspace. Right after setting up the server they land on "Name
+//   your business" too (the first workspace), with Admin one click away; once they have a workspace, / opens it.
 import { type ReactNode, useEffect, useState } from 'react'
 import { AdminMode } from './admin/AdminMode.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
@@ -54,11 +55,6 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
       () => setSignUpOpen(false),
     )
   }, [])
-  // An instance admin without a workspace starts in Admin: it is the part of the app they can use.
-  useEffect(() => {
-    if (admin && (!window.location.hash || window.location.hash === '#calls')) window.location.hash = '#admin'
-  }, [admin])
-
   const leave = () => {
     window.location.hash = '#start'
   }
@@ -74,7 +70,12 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
     <>
       {invitations.length > 0 && <InvitationList invitations={invitations} onOpen={onOpenInvite} />}
       {admin && (
-        <button type="button" className="k-btn k-btn-secondary" onClick={() => (window.location.hash = '#admin')}>
+        <button
+          type="button"
+          className="k-btn k-btn-secondary"
+          onClick={() => (window.location.hash = '#admin')}
+          title="Admin: providers, users and the setup checklist; no workspace needed"
+        >
           Open Admin
         </button>
       )}

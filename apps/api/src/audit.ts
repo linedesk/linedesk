@@ -152,6 +152,7 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'provider.setKeys': 'keys',
   'provider.clearKeys': 'keys',
   'provider.setActive': 'keys',
+  'provider.connectOneKey': 'keys',
   'carrier.set': 'keys',
   'carrier.provisionTransferTrunk': 'keys',
   'user.invite': 'admin',

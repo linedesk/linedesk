@@ -12,7 +12,9 @@ import { auth } from '../src/auth.ts'
 import { KEPT_TABLES, workspaceTables } from '../src/workspace-delete.ts'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { adminSignInEmail, alertOnAdminSignIn, plainSnippet } from '../src/admin-alerts.ts'
+import { markSetupSignIn } from '../src/setup.ts'
 import { adminHandlers } from '../src/admin-handlers.ts'
+import { forgetTests } from '../src/setup-checklist.ts'
 import { decodeLogo, resetBranding } from '../src/branding.ts'
 import { signInCodeEmail } from '../src/emails/templates.ts'
 import { adminSecondFactorGap, adminSecondFactorRequired, markPasskeySession, secondFactorOffWarning } from '../src/admin-second-factor.ts'
@@ -124,7 +126,7 @@ describe('access', () => {
     expect((await request(anonymous, 'GET', path)).status).toBe(401)
   })
 
-  test('the registry has the twenty-two admin actions', () => {
+  test('the registry has the admin actions', () => {
     expect(adminActions.map(def => def.name).sort()).toEqual([
       'branding.set',
       'instanceAdmin.grant',
@@ -135,6 +137,7 @@ describe('access', () => {
       'membership.remove',
       'membership.setRole',
       'provider.clearKeys',
+      'provider.connectOneKey',
       'provider.setActive',
       'provider.setKeys',
       'provider.test',
@@ -160,6 +163,7 @@ describe('access', () => {
         provider: 'openai',
         category: 'llm',
         values: { api_key: SECRET },
+        apiKey: SECRET,
         userId: operator.userId,
         workspaceId: home.id,
         role: 'owner',
@@ -507,6 +511,7 @@ describe('provider keys', () => {
     expect(new Headers((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].headers).get('x-api-key')).toBe(
       SECRET,
     )
+    forgetTests() // past provider.test's 10 s cooldown for the same keys
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response(JSON.stringify({ error: `Invalid key ${SECRET}` }), { status: 401 })),
@@ -757,15 +762,18 @@ describe('recording storage', () => {
     expect(s3.log[0]![1]).toMatch(/^https:\/\/s3\.test\/calls\/linedesk\/\.linedesk-probe-/)
     expect(s3.objects.size).toBe(0)
 
+    forgetTests() // past provider.test's 10 s cooldown for the same keys
     vi.stubGlobal('fetch', fakeS3({ status: 403, code: 'SignatureDoesNotMatch' }).fetch)
     const refused = (await act(operator, 'provider.test', { provider: 's3' })).body.data
     expect(refused.ok).toBe(false)
     expect(refused.message).toBe('Keys rejected (HTTP 403)')
     expect(refused.message).not.toContain(s3Keys.access_key_id)
 
+    forgetTests() // past provider.test's 10 s cooldown for the same keys
     vi.stubGlobal('fetch', fakeS3({ status: 404, code: 'NoSuchBucket' }).fetch)
     expect((await act(operator, 'provider.test', { provider: 's3' })).body.data.message).toBe('Bucket not found')
 
+    forgetTests()
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => Promise.reject(new TypeError('fetch failed', { cause: { message: `bad ${S3_SECRET}` } }))),
@@ -1443,7 +1451,8 @@ describe('user.invite', () => {
     expect(mail).toMatchObject({ to: email.toLowerCase(), subject: 'Your Linedesk account is ready' })
     expect(send.mock.calls.some(([m]) => /^New instance admin/.test(m.subject))).toBe(true)
     expect(mail.text).toContain('Enter this email address')
-    expect(mail.text).not.toMatch(/\d{6}|token=/)
+    // No sign-in code or link. The address itself is left out: its random part can hold six digits in a row.
+    expect(mail.text.replaceAll(email.toLowerCase(), '')).not.toMatch(/\d{6}|token=/)
   })
 
   test('a new instance admin comes with a one-time passkey enrolment code for the inviting admin, not in the log', async () => {
@@ -2363,6 +2372,16 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       await alertOnAdminSignIn({ userId: member.userId, ...device }, { path: '/sign-in/email' })
       await alertOnAdminSignIn({ userId: admin.userId, impersonatedBy: operator.userId, ...device }, { path: '/sign-in/email' })
       expect(sentTo(send, /^Admin sign-in/)).toEqual([])
+    })
+
+    test('the first admin\'s sign-in right after setup sends no alert; the next one does', async () => {
+      const send = mails()
+      const device = { ipAddress: '203.0.113.8', userAgent: `Browser ${crypto.randomUUID()}` }
+      markSetupSignIn(admin.userId)
+      await alertOnAdminSignIn({ userId: admin.userId, ...device }, { path: '/sign-in/email' })
+      expect(sentTo(send, /^Admin sign-in/)).toEqual([])
+      await alertOnAdminSignIn({ userId: admin.userId, ...device }, { path: '/sign-in/email' })
+      expect(sentTo(send, /^Admin sign-in/)).toContain(await emailOf(operator))
     })
 
     test('F1: an admin session from an endpoint the alert does not know is still reported, as another method', async () => {

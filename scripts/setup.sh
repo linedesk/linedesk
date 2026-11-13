@@ -7,11 +7,26 @@
 #   scripts/setup.sh                        # http://localhost
 #   scripts/setup.sh https://desk.example.com
 #   docker compose up -d && docker compose logs api | grep -A3 "setup code"
+#   scripts/setup.sh --check                # what is still missing for a first answered call
+#     exit 0: every part works; 1: something is missing or failing, or the stack is not running; 2: the check failed
 #
 # Run again, it keeps every value that is set and only fills secrets that are empty or still the
 # development value. It never changes POSTGRES_PASSWORD once set: the database keeps the first one.
 set -eu
 cd "$(dirname "$0")/.."
+
+# The instance setup checklist (apps/api/src/setup-check.ts): in the running API container; from the checkout
+# only in a development checkout (node_modules installed).
+if [ "${1:-}" = "--check" ]; then
+  if [ -f docker-compose.yml ] && docker compose ps --status running --services 2>/dev/null | grep -qx api; then
+    exec docker compose exec -T api node apps/api/src/setup-check.ts
+  fi
+  if [ ! -d node_modules ]; then
+    echo "Start the stack first: docker compose up -d" >&2
+    exit 1
+  fi
+  exec node --env-file-if-exists=.env apps/api/src/setup-check.ts
+fi
 
 public_url=${1:-}
 case "$public_url" in

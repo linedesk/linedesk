@@ -40,7 +40,7 @@ import {
   type Actor,
 } from './context.ts'
 import { db } from './db.ts'
-import { completeSetup, SetupError, setupInput, setupNeeded } from './setup.ts'
+import { completeSetup, markSetupSignIn, SetupError, setupInput, setupNeeded, takeSetupSignIn } from './setup.ts'
 import { COOKIE_ACTIONS } from './impersonation.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { registerImpersonationRoutes } from './impersonation-routes.ts'
@@ -109,19 +109,25 @@ app.get('/v1/branding/logo.png', async c => {
 app.post('/v1/setup', async c => {
   const parsed = setupInput.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'invalid input' }, 400)
+  let userId: string
   try {
-    await completeSetup(db, parsed.data, clientIpOf(c))
+    ;({ userId } = await completeSetup(db, parsed.data, clientIpOf(c)))
   } catch (e) {
     if (e instanceof SetupError) return c.json({ error: e.message }, e.status)
     throw e
   }
-  // Signed in at once, with the password just chosen.
+  // Signed in at once, with the password just chosen; no "new device" alert for this first sign-in.
   if (!authMethods.password) return c.json({ ok: true, signedIn: false })
-  return auth.api.signInEmail({
-    body: { email: parsed.data.email, password: parsed.data.password },
-    headers: c.req.raw.headers,
-    asResponse: true,
-  })
+  markSetupSignIn(userId)
+  try {
+    return await auth.api.signInEmail({
+      body: { email: parsed.data.email, password: parsed.data.password },
+      headers: c.req.raw.headers,
+      asResponse: true,
+    })
+  } finally {
+    takeSetupSignIn(userId)
+  }
 })
 
 // Public: the invitation link shows whom it is for and which workspace, before sign-in.

@@ -16,6 +16,7 @@ import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { errorText, type Notify } from './notify.ts'
 import { Overview } from './Overview.tsx'
 import { Providers } from './Providers.tsx'
+import { SetupChecklist } from './SetupChecklist.tsx'
 import { type AdminSection, adminSections, useAdminPlace } from './route.ts'
 import { System } from './System.tsx'
 import { BrandingSettings } from './Branding.tsx'
@@ -179,7 +180,13 @@ export function AdminMode({ currentUserId, onExit }: Props) {
 
   function page(): ReactNode {
     // The overview loads its own numbers, so it shows while the lists are still on their way.
-    if (place.section === 'overview') return <Overview onOpen={section => go({ section, id: null })} />
+    if (place.section === 'overview')
+      return (
+        <>
+          <SetupChecklist data={data} {...shared} />
+          <Overview onOpen={section => go({ section, id: null })} />
+        </>
+      )
     if (!data)
       return error ? (
         <LoadProblem className="adm-card" what="Admin" message={error} onRetry={() => void reload()} />

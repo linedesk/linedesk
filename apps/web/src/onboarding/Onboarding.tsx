@@ -2,6 +2,7 @@
 // (`onboarding.setStep`), so a reload resumes at the same step.
 import { formatStarCount, offersSampleCalls, offersTour, STAR_REPO_URL } from '@linedesk/actions'
 import { useEffect, useState } from 'react'
+import { AdminMode } from '../admin/AdminMode.tsx'
 import type { Me, OnboardingState } from '../auth.ts'
 import { useBrand } from '../brand.ts'
 import { ConfirmEmail } from '../ConfirmEmail.tsx'
@@ -24,11 +25,29 @@ import {
   previousStep,
 } from './flow.ts'
 import { NotifyStep } from './NotifyStep.tsx'
+import { InstanceSetupNotice, isInstanceAdmin, useHash } from './InstanceSetup.tsx'
 import { PhoneStep } from './PhoneStep.tsx'
 import { PickupStep } from './PickupStep.tsx'
 import './onboarding.css'
 
-export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingState; onDone: () => void }) {
+type Props = { me: Me; state: OnboardingState; onDone: () => void }
+
+/** An instance admin can open Admin from here (the setup checklist) and come back to the same step. */
+export function Onboarding(props: Props) {
+  const hash = useHash()
+  if (isInstanceAdmin(props.me) && hash.startsWith('#admin'))
+    return (
+      <AdminMode
+        currentUserId={props.me.actorId}
+        onExit={() => {
+          window.location.hash = ''
+        }}
+      />
+    )
+  return <OnboardingFlow {...props} />
+}
+
+function OnboardingFlow({ me, state, onDone }: Props) {
   const run = useRun()
   const firstUse = me.firstUse ?? 'off'
   // Leaving onboarding: the tour (where the install offers it) starts in the inbox.
@@ -90,6 +109,7 @@ export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingSta
           why="We email you a code to confirm your address. Setting up a phone number, a carrier, API keys, webhooks and invitations waits for it."
         />
       )}
+      {isInstanceAdmin(me) && <InstanceSetupNotice />}
       {step === 'business' && <BusinessStep businessName={me.workspace!.name} onNext={forward} />}
       {step === 'assistant' && (
         <AssistantStep

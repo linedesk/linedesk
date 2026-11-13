@@ -63,6 +63,11 @@ export function Skeleton({ className }: { className?: string }) {
 
 /** The answer of a server that is down or restarting, as the browser reports it. */
 const UNREACHABLE = /server answered 5\d\d|failed to fetch|networkerror|load failed/i
+const NO_ANSWER = 'The server did not answer. It may be restarting, or this device is offline.'
+
+/** An error's text as a person reads it: the server's own reason, or what an unreachable server means. */
+export const problemText = (message: string | null | undefined) =>
+  message && !UNREACHABLE.test(message) ? message : NO_ANSWER
 
 type LoadProblemProps = {
   /** "Your calls", "Contacts", "Health": what did not arrive. */
@@ -79,10 +84,8 @@ export function LoadProblem({ what, message, onRetry, className }: LoadProblemPr
   // A synced list (no reason, no retry of its own) while read sync is down: it comes back by itself.
   const readSyncDown = useReadSyncDown()
   if (readSyncDown && !message && !onRetry) return <ServerUnreachable className={className} />
-  const reason =
-    message && !UNREACHABLE.test(message)
-      ? message
-      : `The server did not answer. It may be restarting, or this device is offline.${onRetry ? '' : ' Your changes are kept.'}`
+  const unreachable = !message || UNREACHABLE.test(message)
+  const reason = unreachable && !onRetry ? `${NO_ANSWER} Your changes are kept.` : problemText(message)
   return (
     <div className={cx('empty', 'load-problem', className)} role="alert">
       <b>{what} could not be loaded.</b>

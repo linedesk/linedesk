@@ -995,6 +995,97 @@
   vertical-align: -1px;
 }
 
+/* Instance setup checklist (SetupChecklist.tsx), on top of the overview. */
+.adm-setup-list {
+  display: grid;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.adm-setup-row {
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.adm-setup-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.adm-setup-line {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 13px;
+}
+.adm-setup-line .adm-health-dot {
+  transform: none;
+}
+.adm-setup-what {
+  display: grid;
+  min-width: 0;
+}
+.adm-setup-what b {
+  font-weight: 500;
+}
+.adm-setup-what .help {
+  overflow-wrap: anywhere;
+}
+.adm-setup-state {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.adm-setup-state.ok {
+  display: inline-flex;
+  color: var(--ink);
+}
+.adm-setup-state.failing {
+  color: var(--danger);
+}
+.adm-setup-actions {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.adm-setup-guide {
+  margin: 8px 0 0 20px;
+  font-size: 13px;
+}
+.adm-setup-guide ol,
+.adm-setup-guide-steps {
+  margin: 0 0 6px;
+  padding-left: 18px;
+  display: grid;
+  gap: 3px;
+}
+.adm-setup-onekey {
+  margin: 14px 0 0;
+  font-size: 13px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 6px;
+}
+.adm-setup-onekey-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+.adm-setup-onekey-form .k-field {
+  flex: 1 1 240px;
+  margin: 0;
+}
+@media (min-width: 720px) {
+  .adm-setup-line {
+    /* A fixed actions column: the state and the buttons line up in every row, with or without Edit keys. */
+    grid-template-columns: 10px minmax(0, 1fr) 80px 264px;
+  }
+  .adm-setup-actions {
+    grid-column: auto;
+    justify-content: flex-end;
+  }
+}
 /* A confirmation's list of what it affects (deleting a workspace). */
 .adm-confirm-list {
   margin: 0 0 8px;

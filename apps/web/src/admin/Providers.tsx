@@ -18,7 +18,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { HelpTip } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
-import { type ActiveProviders, type ProviderStatus, runAdmin, testProvider } from './api.ts'
+import { type ActiveProviders, keyUsersOf, type ProviderStatus, runAdmin, testProvider } from './api.ts'
 import { FailingProviders, failingSince } from './FailingProviders.tsx'
 import { connectionOf, isConfigured, providerState, type TestState } from './model.ts'
 import { errorText, type Notify } from './notify.ts'
@@ -313,6 +313,7 @@ export function Providers({ providers, active, canStore, failures, notify, reloa
             (providers.filter(p => p.category === opened.category).length > 1 || opened.category === 'recording')
           }
           canStore={canStore}
+          keyUsers={keyUsersOf(providers, opened.provider)}
           oauthReturn={opened.provider === 'openrouter' ? oauthReturn : null}
           onTested={result => record(opened.provider, result)}
           onUse={() => use(opened.category, opened.provider)}
