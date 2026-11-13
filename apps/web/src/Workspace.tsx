@@ -18,7 +18,7 @@ import type { ReminderOption } from './inbox/remind.ts'
 import { useSelection } from './inbox/selection.ts'
 import { useCallActions } from './inbox/useCallActions.ts'
 import { useInboxView } from './inbox/useInboxView.ts'
-import { assigneeTabs, callerName, callTitle, type InboxTab } from './inbox-model.ts'
+import { assigneeTabs, callerName, callTitle, type InboxTab, visibleSplits } from './inbox-model.ts'
 import { commandGroups, type Command } from './shell/commands.ts'
 import type { Overlay } from './shell/keys.ts'
 import { invitationNotice, unannounced, useMyInvitations } from './shell/invitations.ts'
@@ -253,6 +253,7 @@ export function Workspace({ me, onSignedOut, onSessionStale }: Props) {
       onInbox: view.onInbox,
       canAssign,
       tab,
+      views: visibleSplits(view.counts, tab),
       searching: search !== null,
       target,
       step: view.step,

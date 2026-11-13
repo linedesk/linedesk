@@ -2,7 +2,7 @@
 // with the mouse; the handler only maps keys to the same commands.
 import type { Call } from '@linedesk/db/types'
 import { SEARCH_INPUT_ID } from '../inbox/InboxHead.tsx'
-import { splits, viewByKey, type InboxTab } from '../inbox-model.ts'
+import { type InboxTab, splits, viewByKey } from '../inbox-model.ts'
 
 /** `pick`: a pick list such as the member picker (A). */
 export type Overlay = 'remind' | 'commands' | 'pick' | 'help' | null
@@ -15,6 +15,8 @@ export type KeyContext = {
   navOpen: boolean
   setNavOpen: (open: boolean) => void
   tab: InboxTab
+  /** The views Tab cycles through right now (visibleSplits: Spam only while there is a spam call). */
+  views: readonly InboxTab[]
   searching: boolean
   /** The open call, else the call under the cursor. */
   target: Call | undefined
@@ -100,9 +102,9 @@ function onEscape(el: HTMLElement, c: KeyContext) {
   if (!splits.includes(c.tab as never)) c.setTab('you')
 }
 
-function nextView(tab: InboxTab, back: boolean): InboxTab {
-  const i = splits.indexOf(tab as never)
-  return i < 0 ? 'you' : splits[(i + (back ? -1 : 1) + splits.length) % splits.length]!
+function nextView(tab: InboxTab, back: boolean, views: readonly InboxTab[]): InboxTab {
+  const i = views.indexOf(tab)
+  return i < 0 ? 'you' : views[(i + (back ? -1 : 1) + views.length) % views.length]!
 }
 
 /** Keys that act on the selected call. Returns false when the key is not one of them. */
@@ -131,7 +133,7 @@ function onCallKey(key: string, call: Call, c: KeyContext): boolean {
 function onInboxTab(el: HTMLElement, back: boolean, c: KeyContext): boolean {
   if (c.isCallOpen) return false
   if (el.tagName !== 'BODY') el.blur() // a tab or row clicked with the mouse must not show a ring now
-  c.setTab(nextView(c.tab, back))
+  c.setTab(nextView(c.tab, back, c.views))
   return true
 }
 

@@ -1,12 +1,13 @@
 import type { Call } from '@linedesk/db/types'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { handleKey, setPageKeys, type KeyContext } from './keys.ts'
+import { handleKey, type KeyContext, setPageKeys } from './keys.ts'
 
 const call = { id: 'c1' } as Call
 const context = (over: Partial<KeyContext> = {}) =>
   ({
     overlay: null,
     tab: 'you',
+    views: ['you', 'ai', 'spam'],
     searching: false,
     target: call,
     isCallOpen: false,
@@ -204,6 +205,12 @@ describe('shell keys', () => {
     expect(c.step).toHaveBeenCalledWith(1)
     expect(c.back).toHaveBeenCalled() // one Escape, not two
   })
+  it('skips Spam with Tab when it is not shown', () => {
+    const c = context({ tab: 'ai', views: ['you', 'ai'] })
+    press('Tab', c)
+    expect(vi.mocked(c.setTab).mock.calls).toEqual([['you']])
+  })
+
   it('uses Tab in the list only for the views, whatever has the focus, and blurs a clicked control', () => {
     const c = context()
     const blur = vi.fn()

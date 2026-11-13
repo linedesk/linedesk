@@ -11,6 +11,9 @@ export type InboxTab = 'you' | 'ai' | 'spam' | 'reminders' | 'done' | 'mine' | '
 export const assigneeTabs: readonly InboxTab[] = ['mine', 'member', 'unassigned']
 /** The three views Tab cycles through. Reminders, Done and Assigned to me are modes outside the cycle. */
 export const splits = ['you', 'ai', 'spam'] as const satisfies readonly InboxTab[]
+/** The views shown as tabs and cycled with Tab: Spam only while there is a spam call, or while it is open. */
+export const visibleSplits = (counts: Record<InboxTab, number>, tab: InboxTab): (typeof splits)[number][] =>
+  splits.filter(s => s !== 'spam' || counts.spam > 0 || tab === 'spam')
 export const viewByKey: Record<string, InboxTab> = { 1: 'you', 2: 'ai', 3: 'spam', 4: 'reminders', 5: 'done' }
 
 const needsPerson = new Set<Call['outcome']>(['callback', 'message', 'hangup'])

@@ -1,12 +1,12 @@
 import type { Call } from '@linedesk/db/types'
 import type { ReactNode } from 'react'
-import { assigneeTabs, callerName, splits, type InboxTab } from '../inbox-model.ts'
+import { assigneeTabs, callerName, type InboxTab, type splits, visibleSplits } from '../inbox-model.ts'
 import { usePresence } from '../shell/presence.ts'
 import { useAssistantName, useContact } from '../store.tsx'
 import { clock, parseTs } from '../time.ts'
 import { Button, Icon } from '../ui/kit.tsx'
 import { useElapsed } from '../ui/LiveIndicator.tsx'
-import { BulkBar, type BulkActions } from './BulkBar.tsx'
+import { type BulkActions, BulkBar } from './BulkBar.tsx'
 
 export type InboxHeadProps = {
   tab: InboxTab
@@ -74,7 +74,7 @@ function Tabs({ tab, setTab, counts }: Pick<InboxHeadProps, 'tab' | 'setTab' | '
   }
   return (
     <div className="ib-tabs" role="tablist" aria-label="Views">
-      {splits.map((id, i) => (
+      {visibleSplits(counts, tab).map((id, i) => (
         <button
           key={id}
           type="button"

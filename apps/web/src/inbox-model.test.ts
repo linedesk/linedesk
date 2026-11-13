@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { whenLabel } from './time.ts'
 import {
   answeredByLabel,
+  visibleSplits,
   callStatus,
   countsFor,
   groupRepeats,
@@ -283,5 +284,14 @@ describe('opening a call', () => {
     expect(viewForOpened(urgent, 'review', [urgent], now)).toBe('review')
     expect(viewForOpened(urgent, 'mine', [urgent], now)).toBe('mine')
     expect(viewForOpened(urgent, 'done', [], now)).toBe('you')
+  })
+})
+
+describe('visibleSplits', () => {
+  const none = { you: 0, ai: 0, spam: 0, reminders: 0, done: 0, mine: 0, member: 0, unassigned: 0, review: 0 }
+  it('shows Spam only while there is a spam call or the view is open', () => {
+    expect(visibleSplits(none, 'you')).toEqual(['you', 'ai'])
+    expect(visibleSplits({ ...none, spam: 1 }, 'you')).toEqual(['you', 'ai', 'spam'])
+    expect(visibleSplits(none, 'spam')).toEqual(['you', 'ai', 'spam'])
   })
 })
