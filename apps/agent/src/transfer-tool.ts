@@ -22,6 +22,7 @@ import {
   notConnectedMessage,
   notConnectedReply,
   transferLabel,
+  transferCallerName,
   transferPlan,
   tryingNextLine,
 } from './transfer.ts'
@@ -211,10 +212,12 @@ export function transferTool({ ctx, api, call, log, speech, callerIdentity, cont
       session.input.setAudioEnabled(false)
       const caller = await callerIdentity
       const left = callerLeft(ctx, caller)
-      // The name the caller confirmed on this call beats the one on file (a shared or test number has someone else's).
-      const callerName = caller_name ?? log.confirmedName ?? call.contact?.name ?? null
+      // The name the caller gave on this call beats the one on file (a shared or test number has someone else's). Only a
+      // name the team gave or confirmed is said as the caller's; any other as who they say they are.
+      const { name: callerName, confirmed: nameConfirmed } = transferCallerName(caller_name ?? log.confirmedName, call.contact && { name: call.contact.name, nameConfirmed: call.caller?.nameConfirmed })
       const briefing = briefingText({
         callerName,
+        nameConfirmed,
         callerNumber: call.contact?.phone ?? null,
         about,
       })
@@ -281,7 +284,7 @@ export function transferTool({ ctx, api, call, log, speech, callerIdentity, cont
         if (left.aborted) break
         previous = contact
       }
-      if (triedNames.length) await saveNotConnectedMessage(api, call, log, notConnectedMessage({ callerName, about, tried: triedNames }))
+      if (triedNames.length) await saveNotConnectedMessage(api, call, log, notConnectedMessage({ callerName, nameConfirmed, about, tried: triedNames }))
       session.input.setAudioEnabled(true)
       log.onHold = false
       return notConnectedReply()

@@ -19,6 +19,7 @@ import {
   type Dialable,
   MAX_TRANSFER_TRIES,
   notConnectedMessage,
+  transferCallerName,
   notConnectedReply,
   resultOf,
   transferContactsFor,
@@ -102,10 +103,24 @@ test('the assistant hears what to tell the caller when nobody accepts: a message
 })
 
 test('when nobody took the call the team gets a message naming who was tried and why', () => {
-  expect(notConnectedMessage({ callerName: 'Dana Ruiz', about: 'a burst pipe.', tried: ['On-call', 'Backup'] })).toBe(
+  expect(notConnectedMessage({ callerName: 'Dana Ruiz', nameConfirmed: true, about: 'a burst pipe.', tried: ['On-call', 'Backup'] })).toBe(
     'Dana Ruiz wanted to be put through to On-call, then Backup about a burst pipe; nobody took the call. Call them back.',
   )
   expect(notConnectedMessage({ callerName: ' ', about: '', tried: ['Mike'] })).toBe('The caller wanted to be put through to Mike; nobody took the call. Call them back.')
+  // A name the team did not give or confirm is only who the caller says they are.
+  expect(notConnectedMessage({ callerName: 'Dana Ruiz', about: 'a burst pipe', tried: ['Mike'] })).toBe(
+    'A caller who says they are Dana Ruiz wanted to be put through to Mike about a burst pipe; nobody took the call. Call them back.',
+  )
+})
+
+test("only the contact's name the team gave or confirmed counts as confirmed; any name the caller gives is what they say", () => {
+  const member = { name: 'Dana Ruiz', nameConfirmed: true }
+  expect(transferCallerName(null, member)).toEqual({ name: 'Dana Ruiz', confirmed: true })
+  expect(transferCallerName('dana ruiz', member)).toEqual({ name: 'dana ruiz', confirmed: true })
+  expect(transferCallerName('Sam Lee', member)).toEqual({ name: 'Sam Lee', confirmed: false })
+  expect(transferCallerName(null, { name: 'Dana Ruiz', nameConfirmed: false })).toEqual({ name: 'Dana Ruiz', confirmed: false })
+  expect(transferCallerName('Dana Ruiz', null)).toEqual({ name: 'Dana Ruiz', confirmed: false })
+  expect(transferCallerName(null, null)).toEqual({ name: null, confirmed: false })
 })
 
 test('the tool names every contact with its condition', () => {
@@ -122,10 +137,15 @@ test('the call test\'s simulated on-call person is one contact for urgent calls'
 
 test('the briefing names the caller (or reads the number) and what it is about, and says how to answer', () => {
   expect(
-    briefingText({ callerName: 'Dana Ruiz', callerNumber: '+15035550142', about: 'a burst pipe in the kitchen.' }),
+    briefingText({ callerName: 'Dana Ruiz', nameConfirmed: true, callerNumber: '+15035550142', about: 'a burst pipe in the kitchen.' }),
   ).toBe(
     'Call from Dana Ruiz about a burst pipe in the kitchen. Press 1 or say yes to take it, or press 2 or say no.',
   )
+  // A name the team did not confirm: the number, and who the caller says they are.
+  expect(briefingText({ callerName: 'Dana Ruiz', callerNumber: '+15035550142', about: 'no heat' })).toBe(
+    'Call from 503 555 0142, who says they are Dana Ruiz, about no heat. Press 1 or say yes to take it, or press 2 or say no.',
+  )
+  expect(briefingText({ callerName: 'Dana Ruiz', callerNumber: 'test', about: '' })).toMatch(/^Call from a caller, who says they are Dana Ruiz\. Press 1/)
   expect(briefingText({ callerName: ' ', callerNumber: '+15035550142', about: 'no heat' })).toMatch(
     /^Call from 503 555 0142 about no heat\./,
   )

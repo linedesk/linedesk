@@ -62,14 +62,31 @@ export function spokenNumber(e164: string): string {
 /** +15035550142 → "+1 503 555 0142", the way the app shows numbers. */
 export const displayNumber = (e164: string) => (/^\+1\d{10}$/.test(e164) ? `+1 ${spokenNumber(e164)}` : e164)
 
-export type Briefing = { callerName?: string | null; callerNumber?: string | null; about: string }
+/**
+ * `nameConfirmed`: the name is the one the team gave or confirmed on the contact (contacts.name_source `member`). Any other
+ * name only says who the caller says they are: caller ID can be faked, and so can a name.
+ */
+export type Briefing = { callerName?: string | null; nameConfirmed?: boolean; callerNumber?: string | null; about: string }
 
 /** What the person hears when they pick up. */
-export function briefingText({ callerName, callerNumber, about }: Briefing): string {
+export function briefingText({ callerName, nameConfirmed = false, callerNumber, about }: Briefing): string {
   const name = callerName?.trim()
-  const who = name || (callerNumber && /^\+\d+$/.test(callerNumber) ? spokenNumber(callerNumber) : 'a caller')
+  const number = callerNumber && /^\+\d+$/.test(callerNumber) ? spokenNumber(callerNumber) : null
+  const who = name && nameConfirmed ? name : name ? `${number ?? 'a caller'}, who says they are ${name},` : (number ?? 'a caller')
   const topic = about.trim().replace(/[.!?]+$/, '')
-  return `Call from ${who}${topic ? ` about ${topic}` : ''}. Press 1 or say yes to take it, or press 2 or say no.`
+  return `Call from ${who}${topic ? ` about ${topic}` : ''}`.replace(/,$/, '') + '. Press 1 or say yes to take it, or press 2 or say no.'
+}
+
+/**
+ * The caller's name for a transfer, and whether the team confirmed it: the name the caller gave on this call (the tool's
+ * argument, else the one confirmed with get_name), else the contact's. Confirmed only when it is the contact's name and
+ * the team gave or confirmed that (`nameConfirmed`).
+ */
+export function transferCallerName(said: string | null | undefined, contact: { name?: string | null; nameConfirmed?: boolean } | null | undefined) {
+  const own = contact?.name?.trim() || null
+  const name = said?.trim() || own
+  const confirmed = !!(name && own && contact?.nameConfirmed && name.toLowerCase() === own.toLowerCase())
+  return { name, confirmed }
 }
 
 export type Answer = 'yes' | 'no'
@@ -124,8 +141,9 @@ export const tryingNextLine = (previous: string, next: string) =>
  * The message the team gets when nobody took the call, saved by the transfer itself: the assistant does not always
  * take one afterwards, and without it the call has nothing to do for the team.
  */
-export function notConnectedMessage({ callerName, about, tried }: { callerName?: string | null; about: string; tried: string[] }): string {
-  const who = callerName?.trim() || 'The caller'
+export function notConnectedMessage({ callerName, nameConfirmed = false, about, tried }: { callerName?: string | null; nameConfirmed?: boolean; about: string; tried: string[] }): string {
+  const name = callerName?.trim()
+  const who = name && nameConfirmed ? name : name ? `A caller who says they are ${name}` : 'The caller'
   const topic = about.trim().replace(/[.!?]+$/, '')
   return `${who} wanted to be put through to ${tried.join(', then ')}${topic ? ` about ${topic}` : ''}; nobody took the call. Call them back.`
 }
