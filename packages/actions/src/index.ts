@@ -156,6 +156,7 @@ const all = [
   admin.userDisable,
   admin.userEnable,
   admin.workspaceDisable,
+  admin.workspaceDelete,
   admin.workspaceEnable,
   admin.workspaceSetSpendingCap,
   admin.instanceAdminGrant,

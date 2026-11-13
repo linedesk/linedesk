@@ -26,6 +26,7 @@ import { dropUserPush } from './push.ts'
 import { SecretsKeyError } from './secrets.ts'
 import { monthOf, queueSpendingAlerts, spendingCap } from './spending-cap.ts'
 import { brandName } from './branding.ts'
+import { deleteWorkspace } from './workspace-delete.ts'
 
 const hasPasskey = async (tx: Tx, userId: string) =>
   (await tx.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, userId)).limit(1)).length > 0
@@ -69,10 +70,20 @@ async function setSpendingCap(tx: Tx, workspaceId: string, capUsd: number | null
     .where(eq(organization.id, workspaceId))
     .returning({ id: organization.id })
   if (!workspace) throw new Reject('workspace not found')
-  await tx.delete(spending_cap_alerts).where(and(eq(spending_cap_alerts.workspace_id, workspaceId), eq(spending_cap_alerts.month, monthOf(now))))
+  await tx
+    .delete(spending_cap_alerts)
+    .where(and(eq(spending_cap_alerts.workspace_id, workspaceId), eq(spending_cap_alerts.month, monthOf(now))))
   const cap = await spendingCap(tx, workspaceId, now)
   await queueSpendingAlerts(tx, workspaceId, now, cap)
-  return { rows: {}, data: { workspaceId, spending_cap_usd: cap?.capUsd ?? null, spent_usd: cap?.spentUsd ?? null, reached: cap?.reached ?? false } }
+  return {
+    rows: {},
+    data: {
+      workspaceId,
+      spending_cap_usd: cap?.capUsd ?? null,
+      spent_usd: cap?.spentUsd ?? null,
+      reached: cap?.reached ?? false,
+    },
+  }
 }
 
 /** Handlers that hand out an enrolment code refuse a session that is not passkey-confirmed (admin-step-up.ts). */
@@ -213,6 +224,10 @@ export const adminHandlers: Record<string, Handler> = {
 
   'workspace.disable': ({ tx, now }, input) => setWorkspaceDisabled(tx, input.workspaceId, new Date(now)),
   'workspace.enable': ({ tx }, input) => setWorkspaceDisabled(tx, input.workspaceId, null),
+  'workspace.delete': async ({ tx, now, actor, telephony }, input) => ({
+    rows: {},
+    data: await deleteWorkspace(tx, input, now, actor.actorId, telephony),
+  }),
   'workspace.setSpendingCap': ({ tx, now }, input) => setSpendingCap(tx, input.workspaceId, input.capUsd, now),
 
   'instanceAdmin.grant': async ({ tx, actor }, input) => {
@@ -230,7 +245,9 @@ export const adminHandlers: Record<string, Handler> = {
   // never on the admin's own account: that would turn a stolen first factor into a passkey.
   'user.resetPasskeys': async ({ tx, actor }, input) => {
     if (input.userId === actor.actorId)
-      throw new Forbidden('you cannot reset your own passkeys; ask another instance admin, or run user:passkeys --remove on the server')
+      throw new Forbidden(
+        'you cannot reset your own passkeys; ask another instance admin, or run user:passkeys --remove on the server',
+      )
     refuseEnrolmentCode(actor)
     const account = await loadUser(tx, input.userId)
     const isAdmin = isInstanceAdmin(account)

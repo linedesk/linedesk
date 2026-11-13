@@ -1,6 +1,7 @@
 // Background jobs with pg-boss, in the API process: its tables live in the `pgboss` schema of the
 // same database, so self-hosting needs nothing extra. Several API replicas share the work.
 // JOBS_ENABLED=false: this process only queues jobs and runs none (another replica does them).
+import type { RecordingStoreName } from '@linedesk/actions'
 import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
 import { fromDrizzle, PgBoss } from 'pg-boss'
@@ -28,6 +29,8 @@ const RECORDING_CLEANUP_CRON = '17 3 * * *'
  * for about a day; the daily cleanup catches anything left after that.
  */
 export const RECORDING_DELETE = 'recording.delete'
+/** Deletes one recording file by store and key, for calls whose rows are gone already (a deleted workspace). Retried for about a day. */
+export const RECORDING_FILE_DELETE = 'recording.deleteFile'
 /** Emails about one finished call. Retried a few times when no email could go out at all. */
 export const CALL_NOTIFY = 'call.notify'
 /** Push notifications about one call (push.ts): flagged urgent, message taken, or ended. */
@@ -74,6 +77,9 @@ async function runJobs(instance: PgBoss, env: Env) {
   await instance.work<{ callId: string }>(RECORDING_DELETE, async ([job]) => ({
     deleted: await deleteCallRecording(db, recordingStoreCache(db, env), job!.data.callId),
   }))
+  await instance.work<RecordingFile>(RECORDING_FILE_DELETE, async ([job]) => {
+    await (await recordingStoreCache(db, env)(job!.data.store)).delete(job!.data.key)
+  })
   await instance.work<{ callId: string }>(CALL_NOTIFY, async ([job]) => {
     const result = await notifyCallFinished(db, emailSender, job!.data.callId)
     // Nothing went out (mail server down?): fail, so pg-boss tries again later.
@@ -122,6 +128,7 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.start()
   await instance.createQueue(RECORDING_CLEANUP)
   await instance.createQueue(RECORDING_DELETE, { retryLimit: 12, retryDelay: 60, retryBackoff: true })
+  await instance.createQueue(RECORDING_FILE_DELETE, { retryLimit: 12, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(CALL_NOTIFY, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   // Few, quick retries: a push about a call is news only for a while.
   await instance.createQueue(CALL_PUSH, { retryLimit: 2, retryDelay: 30, retryBackoff: true })
@@ -154,6 +161,14 @@ export const setJobQueue = (queue: PgBoss | null) => {
  */
 export async function queueCallNotification(tx: Tx, callId: string) {
   await boss?.send(CALL_NOTIFY, { callId }, { db: fromDrizzle(tx, sql) })
+}
+
+/** A recording file in its store (calls.recording_store, calls.recording_key). */
+export type RecordingFile = { store: RecordingStoreName | null; key: string }
+
+/** Queues the deletion of recording files in the caller's transaction: they go once it commits, retried until the store takes it. */
+export async function queueRecordingFileDeletions(tx: Tx, files: RecordingFile[]) {
+  if (files.length) await boss?.insert(RECORDING_FILE_DELETE, files.map(data => ({ data })), { db: fromDrizzle(tx, sql) })
 }
 
 /** Queues the deletion of a call's recording in the caller's transaction (a workspace that keeps none). */

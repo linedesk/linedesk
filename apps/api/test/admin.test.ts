@@ -6,8 +6,10 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { actions, REDACTED, recordingKey } from '@linedesk/actions'
-import { auth_events, calls, commands, instance_settings, invitation, member as memberTable, organization, passkey, provider_settings, session, user } from '@linedesk/db'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { api_keys, auth_events, calls, commands, instance_settings, invitation, member as memberTable, number_purchases, organization, passkey, phone_numbers, provider_settings, push_subscriptions, session, user, voice_clones } from '@linedesk/db'
+import { and, eq, getTableName, inArray, sql } from 'drizzle-orm'
+import { auth } from '../src/auth.ts'
+import { KEPT_TABLES, workspaceTables } from '../src/workspace-delete.ts'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { adminSignInEmail, alertOnAdminSignIn, plainSnippet } from '../src/admin-alerts.ts'
 import { adminHandlers } from '../src/admin-handlers.ts'
@@ -122,7 +124,7 @@ describe('access', () => {
     expect((await request(anonymous, 'GET', path)).status).toBe(401)
   })
 
-  test('the registry has the twenty-one admin actions', () => {
+  test('the registry has the twenty-two admin actions', () => {
     expect(adminActions.map(def => def.name).sort()).toEqual([
       'branding.set',
       'instanceAdmin.grant',
@@ -143,6 +145,7 @@ describe('access', () => {
       'user.resetPasskeys',
       'voiceCloning.get',
       'voiceCloning.set',
+      'workspace.delete',
       'workspace.disable',
       'workspace.enable',
       'workspace.setSpendingCap',
@@ -2770,5 +2773,141 @@ describe('setup code', () => {
   test('refuses a short password before anything else', async () => {
     const res = await request(anonymous, 'POST', '/v1/setup', { code: 'x', name: 'A', email: 'a@brightwater.example', password: 'short' })
     expect(res.status).toBe(400)
+  })
+})
+
+describe('workspace.delete', () => {
+  /** Rows per table of a workspace, over every table that has workspace_id (kept ones included). */
+  async function rowsOf(workspaceId: string) {
+    const counts: Record<string, number> = {}
+    for (const table of [...workspaceTables(), commands, auth_events, number_purchases, voice_clones]) {
+      const column = (table as unknown as { workspace_id: typeof calls.workspace_id }).workspace_id
+      const [row] = (await db.execute(sql`select count(*)::int as n from ${table} where ${column} = ${workspaceId}`)).rows as { n: number }[]
+      counts[getTableName(table)] = row!.n
+    }
+    return counts
+  }
+
+  /** A workspace with more than the fixture: a recording, settings, a push subscription, an API key, an invitation, a member's session on it. */
+  async function fullWorkspace(name: string) {
+    const ws = await createWorkspace(name)
+    await db.update(calls).set({ recording_key: recordingKey(ws.id, ws.call.id), recording_store: 'file' }).where(eq(calls.id, ws.call.id))
+    await db.insert(push_subscriptions).values({ workspace_id: ws.id, user_id: ws.owner.userId, endpoint: `https://push.example/${ws.id}`, p256dh: 'p', auth: 'a' })
+    await db.insert(api_keys).values({ id: `key_${ws.id}`, workspace_id: ws.id, name: 'Zapier', prefix: 'ld_test', key_hash: `hash_${ws.id}`, created_by: ws.owner.userId })
+    await db.insert(invitation).values({ id: `inv_${ws.id}`, organizationId: ws.id, email: `invited-${ws.id}@example.com`, role: 'member', status: 'pending', expiresAt: new Date(Date.now() + 86_400_000), inviterId: ws.owner.userId, createdAt: new Date() })
+    await act(ws.owner, 'call.markDone', { callId: ws.call.id })
+    return ws
+  }
+
+  test('refused for anyone but an instance admin, and for a name that is not the workspace\'s', async () => {
+    const ws = await createWorkspace('Not Yours To Delete')
+    for (const who of [ws.owner, other.owner, member, agent(ws.id)])
+      expect(await act(who, 'workspace.delete', { workspaceId: ws.id, name: 'Not Yours To Delete' })).toMatchObject({ status: 403 })
+    expect(await act(operator, 'workspace.delete', { workspaceId: ws.id, name: 'Not Yours' })).toMatchObject({
+      status: 409,
+      body: { error: "type the workspace's name, Not Yours To Delete, to confirm" },
+    })
+    expect(await act(operator, 'workspace.delete', { workspaceId: 'org_missing', name: 'x' })).toMatchObject({ status: 409, body: { error: 'workspace not found' } })
+    expect((await db.select().from(organization).where(eq(organization.id, ws.id))).length).toBe(1)
+  })
+
+  test('keepUsers keeps the accounts of members only in it; an instance admin member always keeps theirs', async () => {
+    const ws = await createWorkspace('Keep The People')
+    const res = await act(operator, 'workspace.delete', { workspaceId: ws.id, name: 'Keep The People', keepUsers: true })
+    expect(res).toMatchObject({ status: 200, body: { data: { usersDeleted: [] } } })
+    expect((await db.select().from(user).where(eq(user.id, ws.owner.userId))).length).toBe(1)
+
+    const withAdmin = await createWorkspace('Admin Inside')
+    await auth.api.addMember({ body: { userId: operator.userId, organizationId: withAdmin.id, role: 'member' } })
+    const listed = (await request(operator, 'GET', '/v1/admin/workspaces')).body.workspaces.find((w: { id: string }) => w.id === withAdmin.id)
+    expect(listed).toMatchObject({ members: 2, members_only_here: 1 })
+    await act(operator, 'workspace.delete', { workspaceId: withAdmin.id, name: 'Admin Inside' })
+    expect((await db.select().from(user).where(eq(user.id, operator.userId))).length).toBe(1)
+    expect(await db.select().from(user).where(eq(user.id, withAdmin.owner.userId))).toEqual([])
+  })
+
+  test('removes every row of the workspace and none of another; members only here lose their accounts, others land elsewhere', async () => {
+    const gone = await fullWorkspace('Gone Plumbing')
+    const kept = await fullWorkspace('Kept Plumbing')
+    // Someone in both: their session is on the one that goes.
+    const both = await addMember(gone.id, 'member')
+    await auth.api.addMember({ body: { userId: both.userId, organizationId: kept.id, role: 'member' } })
+    await db.update(session).set({ activeOrganizationId: gone.id }).where(eq(session.userId, both.userId))
+    const queued: { name: string; data: unknown }[] = []
+    setJobQueue({ insert: async (name: string, jobs: { data: unknown }[]) => void queued.push(...jobs.map(j => ({ name, data: j.data }))) } as never)
+    const keptBefore = await rowsOf(kept.id)
+    const emailOf = async (id: string) => (await db.select().from(user).where(eq(user.id, id)))[0]!.email
+    const [ownerEmail, bothEmail] = [await emailOf(gone.owner.userId), await emailOf(both.userId)]
+    try {
+      const res = await act(operator, 'workspace.delete', { workspaceId: gone.id, name: ' gone plumbing ' })
+      expect(res).toMatchObject({ status: 200, body: { ok: true, data: { workspaceId: gone.id, name: 'Gone Plumbing', recordings: 1 } } })
+      expect(res.body.data.deleted).toMatchObject({ calls: 1, contacts: 1, push_subscriptions: 1, api_keys: 1, phone_numbers: 1 })
+      expect(res.body.data.numbers).toEqual([{ e164: gone.number, carrier: 'none' }])
+      expect(res.body.data.usersDeleted).toContain(ownerEmail)
+      expect(res.body.data.usersDeleted).not.toContain(bothEmail)
+    } finally {
+      setJobQueue(null)
+    }
+    expect(queued).toEqual([{ name: 'recording.deleteFile', data: { store: 'file', key: recordingKey(gone.id, gone.call.id) } }])
+
+    const after = await rowsOf(gone.id)
+    for (const [table, n] of Object.entries(after)) if (!(table in KEPT_TABLES)) expect(n, table).toBe(0)
+    expect(await rowsOf(kept.id)).toEqual(keptBefore)
+    expect(await db.select().from(organization).where(eq(organization.id, gone.id))).toEqual([])
+    expect(await db.select().from(memberTable).where(eq(memberTable.organizationId, gone.id))).toEqual([])
+    expect(await db.select().from(invitation).where(eq(invitation.organizationId, gone.id))).toEqual([])
+    expect((await db.select().from(invitation).where(eq(invitation.organizationId, kept.id))).length).toBe(1)
+
+    // The audit log keeps its entries, but nothing else of what the workspace's commands carried.
+    const logged = await db.select().from(commands).where(eq(commands.workspace_id, gone.id))
+    expect(logged.find(c => c.action === 'call.markDone')?.pruned_at).not.toBeNull()
+    const [entry] = await db.select().from(commands).where(and(eq(commands.action, 'workspace.delete'), sql`${commands.input}->>'workspaceId' = ${gone.id}`))
+    expect(entry).toMatchObject({ actor_id: operator.userId, rejected: false, input: { workspaceId: gone.id, name: 'gone plumbing' } })
+    const audit = (await request(operator, 'GET', `/v1/admin/audit?workspace=${gone.id}`)).body
+    expect(audit.entries.some((e: { what: string }) => e.what === 'workspace.delete')).toBe(true)
+
+    // One in another workspace keeps the account and lands there; the owner of only this one is deleted.
+    expect((await request(both, 'GET', '/v1/me')).body.workspace).toMatchObject({ id: kept.id })
+    expect(await db.select().from(user).where(eq(user.id, gone.owner.userId))).toEqual([])
+    expect(await db.select().from(session).where(eq(session.userId, gone.owner.userId))).toEqual([])
+    expect((await request(gone.owner, 'GET', '/v1/me')).status).toBe(401)
+    // A tab still on the deleted workspace is told it is gone.
+    expect(await request(both, 'GET', '/v1/me', undefined, { 'x-workspace-id': gone.id })).toMatchObject({ status: 403, body: { code: 'workspace_access_lost' } })
+  })
+
+  test('numbers: bought ones are released in the install account, others un-routed; a carrier failure is reported, not fatal', async () => {
+    const ws = await createWorkspace('Numbers Plumbing')
+    await db.delete(phone_numbers).where(eq(phone_numbers.workspace_id, ws.id))
+    const n = (suffix: string) => `+1971555${suffix}`
+    await db.insert(phone_numbers).values([
+      { id: `pn_b_${ws.id}`, workspace_id: ws.id, e164: n('0101'), provider: 'telnyx', provider_ref: 'r1', purchased: true },
+      { id: `pn_a_${ws.id}`, workspace_id: ws.id, e164: n('0102'), provider: 'telnyx', provider_ref: 'r2' },
+      { id: `pn_o_${ws.id}`, workspace_id: ws.id, e164: n('0103'), provider: 'telnyx', provider_ref: 'r3', purchased: true, carrier_account: 'workspace' },
+      { id: `pn_f_${ws.id}`, workspace_id: ws.id, e164: n('0104'), provider: 'telnyx', provider_ref: 'fail' },
+      { id: `pn_t_${ws.id}`, workspace_id: ws.id, e164: n('0105'), provider: 'twilio', provider_ref: 'r5' },
+    ])
+    const calls_: string[] = []
+    const telephony = {
+      name: 'telnyx',
+      releaseNumber: async (o: { e164: string }) => void calls_.push(`release ${o.e164}`),
+      unrouteNumber: async (o: { e164: string; providerRef: string }) => {
+        if (o.providerRef === 'fail') throw new Error('carrier down')
+        calls_.push(`unroute ${o.e164}`)
+      },
+    }
+    const actor = { actorId: operator.userId, role: 'owner', workspaceId: null, permissions: ['instance:admin'] } as unknown as Actor
+    const result = await db.transaction(tx =>
+      adminHandlers['workspace.delete']!({ tx, actor, now: new Date().toISOString(), telephony: telephony as never }, { workspaceId: ws.id, name: 'Numbers Plumbing' }),
+    )
+    expect(calls_.sort()).toEqual([`release ${n('0101')}`, `unroute ${n('0102')}`, `unroute ${n('0103')}`].sort())
+    const numbers = (result.data as { numbers: { e164: string; carrier: string }[] }).numbers
+    expect(Object.fromEntries(numbers.map(x => [x.e164, x.carrier]))).toEqual({
+      [n('0101')]: 'released',
+      [n('0102')]: 'unrouted',
+      [n('0103')]: 'unrouted',
+      [n('0104')]: 'left',
+      [n('0105')]: 'left',
+    })
+    expect(await db.select().from(phone_numbers).where(eq(phone_numbers.workspace_id, ws.id))).toEqual([])
   })
 })

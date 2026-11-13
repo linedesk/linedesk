@@ -97,6 +97,8 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
       return `Added a webhook to ${hostOf(input.url)}`
     case 'webhook.update':
       return input.url ? `Changed a webhook to ${hostOf(input.url)}` : 'Changed a webhook'
+    case 'workspace.delete':
+      return `Deleted the workspace ${quoted(input.name)}`.trim()
     case 'user.resetPasskeys':
       return "Reset a user's passkeys"
     case 'webhook.delete':

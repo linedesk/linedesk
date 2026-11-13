@@ -534,6 +534,32 @@ export const workspaceEnable = adminAction(
   'Answer the calls of a disabled workspace again.',
   workspaceId,
 )
+/**
+ * Deletes a workspace and everything in it (apps/api/src/workspace-delete.ts). `name` is the workspace's name as
+ * typed to confirm. Members without another workspace lose their accounts too, unless `keepUsers`; members of
+ * other workspaces and instance admins always keep theirs.
+ */
+export const workspaceDelete = adminAction(
+  'workspace.delete',
+  "Delete a workspace with all its data: calls, contacts, bookings, settings, members and invitations, recordings and phone numbers. Members who belong to no other workspace lose their accounts too, unless keepUsers is true; members of other workspaces and instance admins keep theirs. Type the workspace's name to confirm.",
+  z.object({
+    workspaceId: z.string().min(1),
+    name: z.string().trim().min(1).max(200),
+    keepUsers: z.boolean().optional(),
+  }),
+)
+/** What `workspace.delete` did. Phone numbers: what happened at the carrier to each. */
+export type WorkspaceDeleteData = {
+  workspaceId: string
+  name: string
+  /** Rows deleted per table (only tables that had any). */
+  deleted: Record<string, number>
+  /** Recordings queued for deletion from their store. */
+  recordings: number
+  /** Accounts deleted with it (members without another workspace), by email. */
+  usersDeleted: string[]
+  numbers: { e164: string; carrier: 'released' | 'unrouted' | 'none' | 'left'; note?: string }[]
+}
 /** The most a monthly spending cap can be, in USD: a typo should not lift it to nothing. */
 export const SPENDING_CAP_MAX_USD = 100_000
 export const workspaceSetSpendingCap = adminAction(

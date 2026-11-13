@@ -84,7 +84,7 @@ const idsOnlySql = (value: SQL) => sql`(
 /** A stored result cut down to whether it succeeded and the ids in its data (rows were never kept in full since this file). */
 const prunedResultSql = sql`jsonb_strip_nulls(jsonb_build_object('ok', ${commands.result} -> 'ok', 'data', case when ${commands.result} ? 'data' then ${idsOnlySql(sql`${commands.result} -> 'data'`)} end))`
 
-const pruneSet = (now: Date) => ({
+export const pruneSet = (now: Date) => ({
   input: idsOnlySql(sql`${commands.input}`),
   result: prunedResultSql,
   pruned_at: now.toISOString(),

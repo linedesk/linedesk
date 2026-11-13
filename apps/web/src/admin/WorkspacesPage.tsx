@@ -81,13 +81,20 @@ export function WorkspacesList({ workspaces, onOpen, keysRef, notify, reload }: 
   )
 }
 
-type DetailProps = { workspace: AdminWorkspace; users: AdminUser[]; notify: Notify; reload: () => Promise<void> }
+type DetailProps = {
+  workspace: AdminWorkspace
+  users: AdminUser[]
+  notify: Notify
+  reload: () => Promise<void>
+  /** Back to the list, once the workspace is deleted. */
+  onDeleted: () => void
+}
 
-export function WorkspaceDetail({ workspace: w, users, notify, reload }: DetailProps) {
+export function WorkspaceDetail({ workspace: w, users, notify, reload, onDeleted }: DetailProps) {
   const runner = useActionRunner(notify)
   return (
     <>
-      <ActionBar actions={workspaceActions(w, reload)} onPick={runner.pick} />
+      <ActionBar actions={workspaceActions(w, reload, onDeleted)} onPick={runner.pick} />
       <Card title="Details" className="adm-detail">
         <dl className="adm-facts">
           <Fact label="Status">{w.disabled_at ? `Disabled ${when(w.disabled_at)}` : 'Active'}</Fact>

@@ -3,6 +3,7 @@
 // Actions that change access ask once in a dialog; the rest run at once.
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { confirmText, startImpersonation } from '../impersonation.ts'
+import { Checkbox } from '../ui/controls.tsx'
 import { Dialog, FormMessage, Input } from '../ui/form.tsx'
 import type { IconName } from '../ui/icons.ts'
 import { Button, Icon } from '../ui/kit.tsx'
@@ -12,11 +13,16 @@ import { brandName } from '../brand.ts'
 
 type Confirmation = {
   text: string
+  /** What it affects, one item a line (a delete lists what goes); `after` closes the dialog's text. */
+  list?: string[]
+  after?: string
   /** The confirming button. */
   action: string
   /** The heaviest actions: the button unlocks once this is typed. */
   typed?: string
   variant?: 'primary' | 'danger' | 'danger-outline'
+  /** A checkbox under the list, off by default; `run` gets whether it is ticked. */
+  option?: string
   /** A second way to confirm, next to the main button (resolves like `run`). */
   alternative?: { action: string; tip: string; run: () => Promise<unknown> }
 }
@@ -29,10 +35,10 @@ export type AdminAction = {
   /** What it does, for the tooltip. */
   tip: string
   confirm?: Confirmation
-  /** May resolve with a PasskeyEnrolment when the action made one (shown once, in its dialog). */
-  run: () => Promise<unknown>
-  /** The toast afterwards. */
-  done?: string
+  /** May resolve with a PasskeyEnrolment when the action made one (shown once, in its dialog). `option`: whether the confirmation's checkbox is ticked. */
+  run: (option?: boolean) => Promise<unknown>
+  /** The toast afterwards; a function gets what `run` resolved with. */
+  done?: string | ((made: unknown) => string)
   /** Whom it is about, for its result ("Give this code to …"). */
   subject?: string
 }
@@ -52,7 +58,15 @@ export const enrolmentOf = (data: Record<string, unknown>): PasskeyEnrolment | u
     : undefined
 
 /** Shows an enrolment code once: the admin passes it on; nobody can see it again. */
-export function EnrolmentCodeDialog({ who, enrolment, onClose }: { who: string; enrolment: PasskeyEnrolment; onClose: () => void }) {
+export function EnrolmentCodeDialog({
+  who,
+  enrolment,
+  onClose,
+}: {
+  who: string
+  enrolment: PasskeyEnrolment
+  onClose: () => void
+}) {
   return (
     <Dialog
       title="Passkey enrolment code"
@@ -77,7 +91,10 @@ export function EnrolmentCodeDialog({ who, enrolment, onClose }: { who: string; 
 /** A user's passkeys as the grant dialog lists them: they become the new admin's second factor. */
 export function existingPasskeysText(passkeys: NonNullable<AdminUser['passkeys']>): string {
   const list = passkeys
-    .map(p => `${p.name || (p.device_type === 'multiDevice' ? 'Synced passkey' : 'Passkey on a device')}${p.created_at ? ` (added ${new Date(p.created_at).toLocaleDateString()})` : ''}`)
+    .map(
+      p =>
+        `${p.name || (p.device_type === 'multiDevice' ? 'Synced passkey' : 'Passkey on a device')}${p.created_at ? ` (added ${new Date(p.created_at).toLocaleDateString()})` : ''}`,
+    )
     .join(', ')
   return `They already have ${passkeys.length === 1 ? 'a passkey' : `${passkeys.length} passkeys`}: ${list}. These open the admin area for them. If you are not sure they are all theirs, reset them instead: you get a one-time code for their new first passkey.`
 }
@@ -189,12 +206,70 @@ export function userActions(u: AdminUser, currentUserId: string, reload: () => P
   return actions
 }
 
-export function workspaceActions(w: AdminWorkspace, reload: () => Promise<void>): AdminAction[] {
+const count = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`
+
+/** What deleting the workspace removes, said before it happens: one line per kind of data. */
+export function deleteWorkspaceText(w: AdminWorkspace): Pick<Confirmation, 'text' | 'list' | 'after' | 'option'> {
+  const numbers = w.phone_numbers.length
+  const onlyHere = w.members_only_here
+  const others = w.members - onlyHere
+  return {
+    text: `This deletes ${w.name} and all its data for good:`,
+    list: [
+      `${count(w.calls_total, 'call')}, with their transcripts and recordings`,
+      `${count(w.contacts, 'contact')}`,
+      numbers
+        ? `${count(numbers, 'phone number')}: numbers bought through ${brandName()} are released at the carrier, the others stop reaching ${brandName()}`
+        : count(numbers, 'phone number'),
+      'Its bookings, settings and invitations',
+      ...(onlyHere
+        ? [`The accounts of ${count(onlyHere, 'member')} who ${onlyHere === 1 ? 'belongs' : 'belong'} to no other workspace`]
+        : []),
+      ...(others
+        ? [`The access of ${count(others, 'other member')}; their accounts and other workspaces stay`]
+        : []),
+    ],
+    option: onlyHere ? `Keep the ${onlyHere === 1 ? "member's account" : `${onlyHere} members' accounts`}` : undefined,
+    after: 'This cannot be undone.',
+  }
+}
+
+/** The toast after a delete: numbers left at the carrier are named, since someone has to release them there. */
+export function deletedWorkspaceText(name: string, data: unknown): string {
+  const numbers = (
+    (data as { numbers?: { e164: string; carrier: string; note?: string }[] } | null)?.numbers ?? []
+  ).filter(n => n.carrier === 'left')
+  const left = numbers.map(n => `${n.e164}: ${n.note ?? 'left at the carrier'}`).join('; ')
+  const users = (data as { usersDeleted?: string[] } | null)?.usersDeleted?.length ?? 0
+  const accounts = users ? ` ${count(users, 'account')} deleted with it.` : ''
+  return `${name} is deleted.${accounts}${left ? ` Still at the carrier: ${left}.` : ''}`
+}
+
+/** `onDeleted`: leave the page of a workspace that is gone. */
+export function workspaceActions(
+  w: AdminWorkspace,
+  reload: () => Promise<void>,
+  onDeleted?: () => void,
+): AdminAction[] {
   const set = (disabled: boolean) => async () => {
     await runAdmin(disabled ? 'workspace.disable' : 'workspace.enable', { workspaceId: w.id })
     await reload()
   }
-  return w.disabled_at
+  const remove: AdminAction = {
+    id: 'delete',
+    label: 'Delete workspace…',
+    icon: 'trash',
+    tip: 'Deletes it with all its calls, contacts, numbers and settings, and the accounts of members who belong to no other workspace.',
+    confirm: { ...deleteWorkspaceText(w), action: 'Delete workspace', typed: w.name },
+    run: async keepUsers => {
+      const data = await runAdmin('workspace.delete', { workspaceId: w.id, name: w.name, keepUsers: !!keepUsers })
+      onDeleted?.()
+      await reload()
+      return data
+    },
+    done: made => deletedWorkspaceText(w.name, made),
+  }
+  const toggle: AdminAction[] = w.disabled_at
     ? [
         {
           id: 'enable',
@@ -220,23 +295,28 @@ export function workspaceActions(w: AdminWorkspace, reload: () => Promise<void>)
           done: `${w.name} is disabled. Its calls are no longer answered.`,
         },
       ]
+  return [...toggle, remove]
 }
+
+const doneText = (action: AdminAction, made: unknown) =>
+  typeof action.done === 'function' ? action.done(made) : (action.done ?? '')
 
 function ConfirmDialog({ action, onClose, notify }: { action: AdminAction; onClose: () => void; notify: Notify }) {
   const confirm = action.confirm!
   const [typed, setTyped] = useState('')
+  const [option, setOption] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [enrolment, setEnrolment] = useState<PasskeyEnrolment | null>(null)
   const unlocked = !confirm.typed || typed.trim().toLowerCase() === confirm.typed.trim().toLowerCase()
-  async function submit(e: FormEvent, run: () => Promise<unknown> = action.run) {
+  async function submit(e: FormEvent, run: (option?: boolean) => Promise<unknown> = action.run) {
     e.preventDefault()
     if (!unlocked || busy) return
     setBusy(true)
     setError(null)
     try {
-      const made = await run()
-      if (action.done) notify(action.done)
+      const made = await run(option)
+      if (action.done) notify(doneText(action, made))
       if (isEnrolment(made)) return setEnrolment(made)
       onClose()
     } catch (err) {
@@ -273,6 +353,19 @@ function ConfirmDialog({ action, onClose, notify }: { action: AdminAction; onClo
         </>
       }
     >
+      {confirm.list && (
+        <ul className="adm-confirm-list">
+          {confirm.list.map(item => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      )}
+      {confirm.option && (
+        <Checkbox checked={option} onChange={setOption} disabled={busy} className="adm-confirm-option">
+          {confirm.option}
+        </Checkbox>
+      )}
+      {confirm.after && <p className="adm-confirm-after">{confirm.after}</p>}
       {confirm.typed && (
         <Input
           value={typed}
@@ -293,8 +386,8 @@ export function useActionRunner(notify: Notify) {
   async function pick(action: AdminAction) {
     if (action.confirm) return setPending(action)
     try {
-      await action.run()
-      if (action.done) notify(action.done)
+      const made = await action.run()
+      if (action.done) notify(doneText(action, made))
     } catch (err) {
       notify(errorText(err))
     }

@@ -2,7 +2,7 @@
 // someone with only an admin's mailbox, password or provider account gets that far. What would let
 // them keep the role or take over passkeys needs a passkey sign-in in the last 12 hours: granting
 // admin, resetting passkeys, inviting an admin (these hand out enrolment codes), signing in as a
-// user, any action on an instance admin (by user or by workspace membership), the caller
+// user, deleting a workspace, any action on an instance admin (by user or by workspace membership), the caller
 // included, and changing email or sign-in settings (an SMTP server or sign-in provider of an
 // attacker's own would hand them sign-in codes or any account). Admins without a passkey add their first with the enrolment code (passkey-enrolment.ts).
 // The server operator (CLI) needs none.
@@ -16,8 +16,11 @@ import { isInstanceAdmin } from './instance-admin.ts'
 
 export const PASSKEY_STEP_UP_REQUIRED = 'PASSKEY_STEP_UP_REQUIRED'
 
-/** Actions that always need the passkey: they hand out admin rights, enrolment codes or someone else's account. */
-const ALWAYS = new Set(['instanceAdmin.grant', 'user.resetPasskeys', 'user.impersonate'])
+/**
+ * Actions that always need the passkey: they hand out admin rights, enrolment codes or someone else's account,
+ * or destroy a whole workspace's data for good.
+ */
+const ALWAYS = new Set(['instanceAdmin.grant', 'user.resetPasskeys', 'user.impersonate', 'workspace.delete'])
 
 /** The user an admin action is about: its `userId`, or the user of its `memberId` (membership.setRole, .remove). */
 async function targetUserId(fields: { userId?: unknown; memberId?: unknown }): Promise<string | null> {

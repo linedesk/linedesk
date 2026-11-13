@@ -42,6 +42,11 @@ const listWorkspaces = (tx: Tx) =>
     sql`
   select o.id, o.name, ${utc('o.created_at')} as created_at, ${utc('o.disabled_at')} as disabled_at, o.spending_cap_cents,
     (select count(*)::int from member m where m.organization_id = o.id) as members,
+    (select count(*)::int from member m join "user" u on u.id = m.user_id where m.organization_id = o.id
+      and not u.instance_admin and not exists (select 1 from member other where other.user_id = m.user_id
+      and other.organization_id <> o.id)) as members_only_here,
+    (select count(*)::int from calls c where c.workspace_id = o.id) as calls_total,
+    (select count(*)::int from contacts ct where ct.workspace_id = o.id) as contacts,
     coalesce((select json_agg(p.e164 order by p.e164) from phone_numbers p where p.workspace_id = o.id), '[]'::json) as phone_numbers,
     (select count(*)::int from calls c where c.workspace_id = o.id and c.source not in ('sample', 'simulated') and c.started_at > now() - interval '30 days') as calls_30d,
     (select ${tz('max(c.started_at)')} from calls c where c.workspace_id = o.id and c.source not in ('sample', 'simulated')) as last_call_at,

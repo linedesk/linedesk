@@ -159,6 +159,7 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'user.enable': 'admin',
   'workspace.disable': 'admin',
   'workspace.enable': 'admin',
+  'workspace.delete': 'admin',
   'workspace.setSpendingCap': 'admin',
   'instanceAdmin.grant': 'admin',
   'instanceAdmin.revoke': 'admin',

@@ -192,7 +192,12 @@ export function AdminMode({ currentUserId, onExit }: Props) {
     switch (place.section) {
       case 'workspaces':
         return workspace ? (
-          <WorkspaceDetail workspace={workspace} users={data.users} {...shared} />
+          <WorkspaceDetail
+            workspace={workspace}
+            users={data.users}
+            onDeleted={() => go({ section: 'workspaces', id: null })}
+            {...shared}
+          />
         ) : (
           <WorkspacesList workspaces={data.workspaces} onOpen={open} keysRef={listKeys} {...shared} />
         )

@@ -22,6 +22,7 @@ test('every admin area action needs instance:admin, which no role has', () => {
     'user.invite',
     'workspace.disable',
     'workspace.enable',
+    'workspace.delete',
     'instanceAdmin.grant',
     'instanceAdmin.revoke',
     'user.resetPasskeys',

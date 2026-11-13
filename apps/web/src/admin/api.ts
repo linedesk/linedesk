@@ -21,6 +21,11 @@ export type AdminWorkspace = {
   created_at: string
   disabled_at: string | null
   members: number
+  /** Members without another workspace (instance admins aside): deleting the workspace deletes their accounts. */
+  members_only_here: number
+  /** Every call it has, sample and test calls included: what deleting it removes. */
+  calls_total: number
+  contacts: number
   phone_numbers: string[]
   calls_30d: number
   last_call_at: string | null
@@ -210,6 +215,7 @@ type AdminInputs = {
   'user.enable': { userId: string }
   'workspace.disable': { workspaceId: string }
   'workspace.enable': { workspaceId: string }
+  'workspace.delete': { workspaceId: string; name: string; keepUsers?: boolean }
   'workspace.setSpendingCap': { workspaceId: string; capUsd: number | null }
   'instanceAdmin.grant': { userId: string }
   'instanceAdmin.revoke': { userId: string }
@@ -252,6 +258,7 @@ const stepUpLabels: Partial<Record<keyof AdminInputs, string>> = {
   'membership.add': 'add an admin to a workspace',
   'membership.setRole': "change an admin's role",
   'membership.remove': 'remove an admin from a workspace',
+  'workspace.delete': 'delete a workspace',
 }
 export const stepUpLabel = (name: keyof AdminInputs) => stepUpLabels[name] ?? 'this admin change'
 
