@@ -445,7 +445,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   // The instructions change when the call-start webhook answers.
   const known: { details: CallerDetails | null } = { details: null }
   // A realtime model says the greeting itself; the voice provider says it before the model's first turn otherwise.
-  const instructionsNow = () => buildInstructions(call.assistant, call.businessHours, call.booking, transfer?.contacts ?? [], call.caller, call.timeZone, undefined, known.details)
+  const instructionsNow = () => buildInstructions(call.assistant, call.businessHours, call.booking, transfer?.contacts ?? [], call.caller, call.timeZone, undefined, known.details, call.lookups.length > 0)
   const instructions = instructionsNow()
   const collect: CollectContext = {
     log,

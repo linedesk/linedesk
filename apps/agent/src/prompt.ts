@@ -55,8 +55,20 @@ function hoursContext(hours: BusinessHours | null | undefined, canBook: boolean)
   return `${hours.summary} The office is closed right now: take a message as usual and tell the caller the team will call back when the office opens, saying when.${booking}`
 }
 
-const MESSAGES_ONLY = 'You can do two things for the caller: save a message for the team with take_message, and flag the call as urgent with flag_urgent. You cannot book appointments, transfer calls, send anyone out or look up records such as jobs, invoices or accounts.'
-const MESSAGES_AND_TRANSFER = 'You can do three things for the caller: save a message for the team with take_message, flag the call as urgent with flag_urgent, and put the caller through to a person with transfer_call. You cannot book appointments, send anyone out or look up records such as jobs, invoices or accounts.'
+/**
+ * What the assistant cannot do on this call, so it never promises it: only what is missing (the tools it has are
+ * described with the tools). null when nothing is missing.
+ */
+export function cannotInstructions({ booking, transfer, lookup }: { booking: boolean; transfer: boolean; lookup: boolean }): string | null {
+  const missing = [
+    ...(booking ? [] : ['book appointments', 'send anyone out']),
+    ...(transfer ? [] : ['transfer calls']),
+    ...(lookup ? [] : ['look up records such as jobs, invoices or accounts']),
+  ]
+  if (!missing.length) return null
+  const list = missing.length === 1 ? missing[0] : `${missing.slice(0, -1).join(', ')} or ${missing.at(-1)}`
+  return `You cannot ${list}; for those, take a message.`
+}
 
 /** A transfer contact as the assistant sees it: who, and when to put the caller through. */
 export type TransferRule = Pick<TransferContact, 'name' | 'condition'>
@@ -66,13 +78,8 @@ export type TransferRule = Pick<TransferContact, 'name' | 'condition'>
  * (transferContactsFor). They come before the call rules: a rule that says "take a message" for a
  * caller who asks for a person gives way to a contact whose condition is exactly that.
  */
-export function transferInstructions(rules: readonly TransferRule[]): string {
-  const list = rules.map((r, i) => `${i + 1}. ${r.name}: ${r.condition.trim().replace(/[.!?]+$/, '')}.`).join('\n')
-  return [
-    `Some calls go to a person. This comes before the rules above, also while the office is closed. The contacts, in order, with when each one takes calls:\n${list}`,
-    "When a contact's condition fits the call, do not take a message first: as soon as you know the caller's name and what they need, use transfer_call with every contact whose condition fits. Call it without saying anything yourself: it tells the caller whom you are trying to reach. Never transfer a call that fits no contact's condition; then handle it as the rules above say.",
-    'Only if transfer_call says nobody took the call, tell the caller you could not reach anyone right now and say what transfer_call told you: that their message is passed on and when the team gets back to them.',
-  ].join('\n')
+export function transferInstructions(): string {
+  return "Putting a caller through to a person with transfer_call comes before the rules above, also while the office is closed: when a contact's condition fits, don't take a message first."
 }
 
 /**
@@ -143,20 +150,16 @@ export function calendarLine(c: BookingContext['calendars'][number]): string {
  */
 export type BookingPromptOptions = {
   /** transfer_call is on this call. */
-  transfer?: boolean
   /** call.start listed the caller's upcoming bookings. */
   listed?: boolean
   /** Caller ID gave the caller's number. */
   callerNumber?: boolean
 }
 
-export function bookingInstructions(booking: BookingContext, { transfer = false, listed = false, callerNumber = false }: BookingPromptOptions = {}): string {
+export function bookingInstructions(booking: BookingContext, { listed = false, callerNumber = false }: BookingPromptOptions = {}): string {
   const types = booking.appointmentTypes.map(t => typeLine(t, callerNumber)).join('\n')
   const calendars = booking.calendars.map(calendarLine).join('\n')
   return [
-    transfer
-      ? 'You can do four things for the caller: book an appointment, save a message for the team with take_message, flag the call as urgent with flag_urgent, and put the caller through to a person with transfer_call. You cannot look up records such as jobs, invoices or accounts.'
-      : 'You can do three things for the caller: book an appointment, save a message for the team with take_message, and flag the call as urgent with flag_urgent. You cannot transfer calls or look up records such as jobs, invoices or accounts.',
     `Appointment types, with when to use each:\n${types}`,
     `Calendars, with when to use each:\n${calendars}`,
     booking.appointmentTypes.length > 1
@@ -320,10 +323,6 @@ export function collectLanguageRule(assistant: Pick<Assistant, 'languages'> | nu
   return `Speak the language the caller has been speaking in this call if it is ${languageNames([main, ...others], 'or')}, else ${LANGUAGES[main]}. ${keep}`
 }
 
-/** How many days after today the prompt lists with their weekday, so "next Wednesday" is read off, not worked out. */
-const UPCOMING_DAYS = 14
-
-
 /**
  * The date and time where the business is, when the call starts ("Thursday, November 12, 2026, 1:31 PM"), so the
  * assistant can say what day it is and work out "tomorrow". null without a time zone (an older API).
@@ -356,6 +355,7 @@ export function buildInstructions(
   timeZone?: string | null,
   now: number = Date.now(),
   callerDetails?: CallerDetails | null,
+  lookup = false,
 ): string {
   const transfer = transfers.length > 0
   const name = assistant?.name ?? 'the assistant'
@@ -368,9 +368,11 @@ export function buildInstructions(
     // When to mention being an AI is the owner's setting; answering truthfully when asked is part of every mode.
     aiDisclosureInstructions(assistant?.ai_disclosure),
     communicationStyleInstructions(assistant?.communication_style),
+    // A contact held while the office is closed: the assistant must not say it cannot transfer calls.
+    cannotInstructions({ booking: !!booking, transfer: transfer || heldTransferContacts(assistant, hours).length > 0, lookup }),
     booking
-      ? bookingInstructions(booking, { transfer, listed: !!(caller?.nameConfirmed && caller.history?.upcomingBookings.length), callerNumber: !!caller })
-      : transfer ? MESSAGES_AND_TRANSFER : MESSAGES_ONLY,
+      ? bookingInstructions(booking, { listed: !!(caller?.nameConfirmed && caller.history?.upcomingBookings.length), callerNumber: !!caller })
+      : null,
     'Only state facts about the business that these instructions give you; if you do not know something, say so.',
     knowledge ? `What the business wants you to know:\n${knowledge}` : null,
     PRICE_RULE,
@@ -390,7 +392,7 @@ export function buildInstructions(
     clock,
     hoursContext(hours, !!booking),
     callerIdInstructions(caller),
-    transfer ? transferInstructions(transfers) : heldTransferInstructions(heldTransferContacts(assistant, hours)),
+    transfer ? transferInstructions() : heldTransferInstructions(heldTransferContacts(assistant, hours)),
     callerNotesInstructions(caller),
     callerDetailsInstructions(callerDetails),
     callerHistoryInstructions(caller),

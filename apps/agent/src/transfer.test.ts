@@ -264,12 +264,12 @@ test('what the call shows for each result', () => {
 
 test('the prompt offers transfer_call only when the assistant transfers on this call, with each contact\'s condition', () => {
   const withTransfer = buildInstructions(assistant(), null, null, [contact(), office])
-  expect(withTransfer).toContain('put the caller through to a person with transfer_call')
-  expect(withTransfer).toContain('1. Mike: Urgent: a burst pipe, a gas smell, no heat.\n2. Office: Billing questions.')
-  expect(withTransfer).toContain('Never transfer a call that fits no contact')
-  expect(withTransfer).not.toContain('You cannot book appointments, transfer calls')
+  expect(withTransfer).toContain("Putting a caller through to a person with transfer_call comes before the rules above, also while the office is closed: when a contact's condition fits, don't take a message first.")
+  // The contacts and how to use the tool are in transfer_call's description, not repeated in the prompt.
+  expect(withTransfer).not.toContain('1. Mike:')
+  expect(withTransfer).not.toContain('transfer calls')
   const without = buildInstructions(assistant(), null, null, [])
-  expect(without).toContain('You cannot book appointments, transfer calls')
+  expect(without).toContain('You cannot book appointments, send anyone out, transfer calls or look up records')
   expect(without).not.toContain('transfer_call')
 })
 

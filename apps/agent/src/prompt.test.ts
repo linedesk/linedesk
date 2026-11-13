@@ -2,7 +2,7 @@ import { AI_DISCLOSURE_MODES, CALLER_NAME_MAX, callRules, EMERGENCY_RULE } from 
 import type { Assistant } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import type { CallerHistory } from '@linedesk/actions'
-import { bookingInstructions, buildInstructions, CALL_HEADING, callerDetailsInstructions, heldTransferContacts, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, clockInstructions, forHours, languageInstructions, quotedData } from './prompt.ts'
+import { bookingInstructions, buildInstructions, CALL_HEADING, cannotInstructions, callerDetailsInstructions, heldTransferContacts, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, clockInstructions, forHours, languageInstructions, quotedData } from './prompt.ts'
 
 const assistant = (over: Partial<Assistant> = {}) =>
   ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', disclose_ai: false, business_profile: { instructions: 'We fix pipes in Portland.' }, ...over }) as Assistant
@@ -313,4 +313,20 @@ test('everything about this call comes last, after one heading: the part before 
   expect(fixed(first)).toBe(fixed(second))
   expect(fixed(first)).not.toMatch(/It is now|\(caller ID\)|caller ID withheld or not sent/)
   expect(first.indexOf('calling from +1 503 555 0142')).toBeGreaterThan(first.indexOf(CALL_HEADING))
+})
+
+test('the prompt says only what the assistant cannot do on this call, never what a tool or a held contact covers', () => {
+  expect(cannotInstructions({ booking: true, transfer: true, lookup: true })).toBeNull()
+  expect(cannotInstructions({ booking: true, transfer: false, lookup: false })).toBe(
+    'You cannot transfer calls or look up records such as jobs, invoices or accounts; for those, take a message.',
+  )
+  expect(cannotInstructions({ booking: true, transfer: true, lookup: false })).toBe('You cannot look up records such as jobs, invoices or accounts; for those, take a message.')
+  // With a webhook lookup it never says it cannot look up records.
+  expect(buildInstructions(assistant(), null, null, [], null, null, Date.now(), null, true)).not.toContain('look up records')
+  // A contact held while closed: "Never say that you cannot transfer calls" is not contradicted.
+  const closed = { openNow: false, summary: 'Closed now.' } as never
+  const held = buildInstructions(assistant({ transfers: [{ id: 'o', name: 'Office', number: '+15035550187', condition: 'Billing questions', hours_only: true, ring_seconds: 25, if_no_answer: 'message', enabled: true }] } as never), closed)
+  expect(held).toContain('Never say that you cannot transfer calls')
+  expect(held).not.toContain('transfer calls or')
+  expect(held).not.toMatch(/You cannot [^.]*transfer calls/)
 })
