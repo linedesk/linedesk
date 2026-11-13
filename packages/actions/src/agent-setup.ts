@@ -119,7 +119,7 @@ export function startPlan(
       return {
         steps: [
           {
-            text: 'Run this in a terminal, on this server if you can (Claude Code can then also check the install). It connects the setup server and starts the setup:',
+            text: 'Run this in a terminal. It connects the setup server and starts the setup:',
             code: `claude ${shellQuote(COMMAND_PROMPT)} --mcp-config ${shellQuote(JSON.stringify({ mcpServers: { [MCP_NAME]: { type: 'http', url } } }))}`,
           },
           {

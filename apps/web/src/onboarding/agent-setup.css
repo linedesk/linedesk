@@ -57,19 +57,6 @@
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
-.as-tag {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  opacity: 0.7;
-}
-.as-why {
-  margin: 0;
-  font-size: 12.5px;
-  line-height: 18px;
-  color: var(--ink-muted);
-}
 .as-steps {
   margin: 0;
   padding: 0;
@@ -154,6 +141,14 @@
 .as-small {
   font-size: 12px;
   color: var(--ink-muted);
+}
+/* An active setup link: what it is and, next to it, the one thing to do with it (end it). */
+.as-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
 }
 .as-progress-head {
   display: flex;
@@ -240,20 +235,4 @@
 }
 .as-manual:hover {
   color: var(--ink-muted);
-}
-.as-more {
-  display: grid;
-  gap: 8px;
-  font-size: 13px;
-}
-.as-more > summary {
-  cursor: pointer;
-  color: var(--ink-muted);
-  width: fit-content;
-}
-.as-more > summary:hover {
-  color: var(--ink);
-}
-.as-more[open] > summary {
-  margin-bottom: 8px;
 }

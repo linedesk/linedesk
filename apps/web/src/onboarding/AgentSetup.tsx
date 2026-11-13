@@ -160,6 +160,8 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
   }
 
   const connected = Boolean(state?.key?.lastUsedAt)
+  // One setup link at a time: while one is active the page offers only to end it, otherwise only to create one.
+  const hasLink = state ? Boolean(state.key) : Boolean(created)
   const cloudBlocked = state !== null && !state.reachableFromCloud && cloudClients.includes(client)
   // After signing in, the page loads again at the same address (SecondFactorPrompt).
   if (signInAgain) return <SecondFactorPrompt state={signInAgain} onExit={onDone} />
@@ -198,15 +200,9 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
                 title={`Show the steps for ${agentClientLabels[id]}`}
               >
                 {agentClientLabels[id]}
-                {id === 'claude_code' && <span className="as-tag">Best</span>}
               </button>
             ))}
           </div>
-          {client === 'claude_code' && (
-            <p className="as-why">
-              Claude Code can also run commands on this server, so it can check and fix the install itself.
-            </p>
-          )}
           {cloudBlocked && (
             <Note tone="warning" title={`${agentClientLabels[client]} can’t reach this server`}>
               {agentClientLabels[client]} runs in the cloud and can only reach a public https address. This server is at{' '}
@@ -216,12 +212,24 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
           )}
 
           <ol className="as-steps">
-            <li className={cx(created && 'as-done')}>
+            <li className={cx(hasLink && 'as-done')}>
               <b>Create a setup link</b>
-              {created ? (
-                <span className="as-small">
-                  Ready, valid until {timeOf(created.expiresAt)}. It lets an agent act as you, so keep it to yourself.
-                </span>
+              {hasLink ? (
+                <div className="as-link">
+                  <span className="as-small">
+                    {created
+                      ? `Ready, valid until ${timeOf(created.expiresAt)}. It lets an agent act as you, so keep it to yourself.`
+                      : `Your agent has a setup link (${state?.key?.prefix}…), valid until ${timeOf(state?.key?.expiresAt ?? '')}.`}
+                  </span>
+                  <Button
+                    size="sm"
+                    busy={busy === 'end'}
+                    onClick={() => void endAccess()}
+                    title="The setup link stops working at once"
+                  >
+                    End access
+                  </Button>
+                </div>
               ) : (
                 <div className="as-step">
                   <span>
@@ -230,22 +238,20 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
                   </span>
                   <div>
                     <Button variant="primary" busy={busy === 'create'} onClick={() => void createKey()}>
-                      {state?.key ? 'Create a new setup link' : 'Create a setup link'}
+                      Create a setup link
                     </Button>
                   </div>
-                  {state?.key && (
-                    <span className="as-small">
-                      Your agent has a setup link ({state.key.prefix}…, valid until {timeOf(state.key.expiresAt)}).
-                      Creating a new one ends it.
-                    </span>
-                  )}
                 </div>
               )}
             </li>
-            <li className={cx(!created && 'as-later')}>
+            <li className={cx(!(hasLink && created) && 'as-later')}>
               <b>Start {agentClientLabels[client] === 'Other' ? 'your agent' : agentClientLabels[client]}</b>
-              {created ? (
+              {hasLink && created ? (
                 <StartAgent client={client} url={created.url} />
+              ) : hasLink ? (
+                <span className="as-small">
+                  The link is shown only when it is created. To start an agent again, end access and create a new link.
+                </span>
               ) : (
                 <span className="as-small">After you create the setup link.</span>
               )}
@@ -260,17 +266,6 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
           <button type="button" className="as-manual" onClick={manual} title="Go through the setup steps yourself">
             Set up by hand instead
           </button>
-          {state?.key && (
-            <button
-              type="button"
-              className="as-manual"
-              onClick={() => void endAccess()}
-              disabled={busy === 'end'}
-              title="The setup link stops working at once"
-            >
-              End agent access
-            </button>
-          )}
         </div>
       </div>
     </div>
@@ -338,7 +333,7 @@ function Progress({
   )
 }
 
-/** One command or link per agent where it can connect itself; the prompt to copy as the other way (or the main one). */
+/** One command or link per agent where it can connect itself (it carries the prompt); the prompt to copy where pasting it is the way in. */
 function StartAgent({ client, url }: { client: AgentClient; url: string }) {
   const { steps, prompt, promptFirst } = startPlan(client, url)
   const promptBlock = (
@@ -372,14 +367,7 @@ function StartAgent({ client, url }: { client: AgentClient; url: string }) {
           )}
         </div>
       ))}
-      {promptFirst ? (
-        promptBlock
-      ) : (
-        <details className="as-more">
-          <summary>Or copy the prompt and paste it yourself</summary>
-          {promptBlock}
-        </details>
-      )}
+      {promptFirst && promptBlock}
     </>
   )
 }
