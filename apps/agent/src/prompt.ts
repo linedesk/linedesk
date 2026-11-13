@@ -1,5 +1,5 @@
 // The assistant's system prompt, built from its configuration.
-import { aiDisclosureInstructions, type BookingContext, CALLER_NAME_MAX, isActiveContact, communicationStyleInstructions, behaviourLines, type CallerHistory, callRules, fenceData, fillTemplate, isE164, templateNames, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf, PRICE_RULE } from '@linedesk/actions'
+import { aiDisclosureInstructions, type BookingContext, CALLER_NAME_MAX, isActiveContact, communicationStyleInstructions, behaviourLines, type CallerHistory, callRules, fenceData, isE164, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf, PRICE_RULE } from '@linedesk/actions'
 import type { Assistant, CallerDetails, Contact, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 import { displayNumber } from './transfer.ts'
@@ -360,10 +360,8 @@ export function clockInstructions(timeZone: string | null | undefined, now: numb
  * `caller`: the contact this call matched (null: withheld number); its note goes in as the team's notes, its
  * history (call.start's callerHistory) as what the records say.
  * `documents`: the assistant's reference documents (inline text, or the look_up tool).
- * `opening`: who says the greeting. `said`: the voice says it before the model's first turn (the three stages);
- * `say`: the model says it itself (a realtime model), so it is told to, not that it already did. A greeting with caller
- * details ({{name}}) is then not written into the instructions: the model gets it, filled in, with the request to say it
- * (realtimeLine), so instructions built before the details arrived cannot make it greet without them.
+ * The greeting is not in the instructions: the model has it as its own first message (the voice says it with say(),
+ * which puts it into the conversation; a realtime model is asked for it with realtimeLine), as Vapi's firstMessage.
  */
 export function buildInstructions(
   assistant: Assistant | null,
@@ -374,10 +372,8 @@ export function buildInstructions(
   timeZone?: string | null,
   now: number = Date.now(),
   callerDetails?: CallerDetails | null,
-  opening: 'said' | 'say' = 'said',
 ): string {
   const transfer = transfers.length > 0
-  const greeting = assistant?.greeting ? fillTemplate(assistant.greeting, callerDetails ?? null) : null
   const name = assistant?.name ?? 'the assistant'
   const knowledge = assistant ? businessKnowledge(assistant) : ''
   // The booking context carries the business's time zone too, so a call that can book always has the clock line.
@@ -385,13 +381,6 @@ export function buildInstructions(
   return [
     `You are ${name}, the AI assistant answering the phone. You are on a live phone call: keep every reply to one or two short spoken sentences, start with a short first sentence, ask one question at a time, and never use lists, markdown or emojis.`,
     languageInstructions(assistant),
-    greeting
-      ? opening === 'said'
-        ? `You have already opened the call with: ${quotedData(greeting)} Do not repeat it.`
-        : assistant?.greeting && templateNames(assistant.greeting).length
-          ? 'Open the call with exactly the greeting line you are given for it. Say it once, as your first words, and never repeat it.'
-          : `Open the call with exactly: ${quotedData(greeting)} Say it once, as your first words, and never repeat it.`
-      : null,
     clock,
     // When to mention being an AI is the owner's setting; answering truthfully when asked is part of every mode.
     aiDisclosureInstructions(assistant?.ai_disclosure),

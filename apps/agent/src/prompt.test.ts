@@ -64,13 +64,10 @@ test('says it is an AI when asked, whatever the greeting setting and the busines
   }
 })
 
-test('English only, the greeting is not repeated, and works without an assistant row', () => {
+test('English only, the greeting is not in the instructions, and works without an assistant row', () => {
   expect(buildInstructions(assistant())).toContain('Speak English only')
-  expect(buildInstructions(assistant())).toContain('You have already opened the call with: "Thanks for calling Brightwater."')
-  // A realtime model says the greeting itself: it is told to open with it, not that it already did.
-  const realtime = buildInstructions(assistant(), null, null, [], null, null, Date.now(), null, 'say')
-  expect(realtime).toContain('Open the call with exactly: "Thanks for calling Brightwater." Say it once, as your first words')
-  expect(realtime).not.toContain('already opened')
+  // The model has the greeting as its own first message (say() puts it into the conversation), not in the instructions.
+  expect(buildInstructions(assistant())).not.toMatch(/Thanks for calling Brightwater|opened the call|Open the call/)
   expect(buildInstructions(null)).toContain(`How to handle calls:\n${callRules({ booking: false, transfer: false })}`)
 })
 

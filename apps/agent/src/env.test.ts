@@ -26,11 +26,11 @@ const assistant = {
   business_profile: { description: 'Family-run plumbing company in Portland.', services: ['Leak repair', 'Water heaters'], hours: 'Mon–Fri 7 am – 6 pm', faqs: [{ q: 'Do you serve Lake Oswego?', a: 'Yes.' }] },
 } as Assistant
 
-test('the system prompt is built from name, greeting and the free-text instructions', () => {
+test('the system prompt is built from name and the free-text instructions; the greeting is not in it', () => {
   const instructions = 'We are a plumbing company in Portland. We do not work on Sundays.\nAlways ask for the address.'
   const prompt = buildInstructions({ ...assistant, business_profile: { ...assistant.business_profile, instructions } } as Assistant)
   expect(prompt).toContain('You are Maya')
-  expect(prompt).toContain('You have already opened the call with: "Thanks for calling Brightwater. This is Maya. How can I help?"')
+  expect(prompt).not.toContain('Thanks for calling Brightwater') // the model has it as its own first message
   expect(prompt).toContain(`What the business wants you to know:\n${instructions}`)
   expect(prompt).not.toContain('Services: Leak repair') // the free text replaces the structured fields
 })
@@ -60,5 +60,4 @@ test('the prompt holds the product rules: messages only, no transfer, no booking
   expect(prompt).toContain('say your reply in the same response as the tool call')
   expect(prompt).not.toMatch(/\brecord(ed|ing)\b/i) // no recording notice unless it is turned on
   expect(buildInstructions(null)).toContain('take_message')
-  expect(buildInstructions({ ...assistant, greeting: '' })).not.toContain('already opened the call')
 })
