@@ -8,16 +8,19 @@ import {
 } from '@linedesk/actions'
 import { voice } from '@livekit/agents'
 
-/** Longest wait for the goodbye to finish playing before the line is cut anyway. */
-export const GOODBYE_PLAYOUT_MAX_MS = 6000
 /** A short pause after the last word, so the line does not cut the end of it. */
 const AFTER_SPEECH_MS = 400
-/** How long end_call waits for the goodbye the model said with it to start playing. */
-const GOODBYE_START_WAIT_MS = 1500
-/** Speech that ended this recently counts as the goodbye: nothing more is said before hanging up. */
-const RECENT_SPEECH_MS = 4000
-/** Said when end_call comes without a goodbye of the model's: a call never ends in silence. */
-export const GOODBYE_LINE = 'Thanks for calling. Goodbye!'
+/** How long end_call waits for the goodbye it asked for to start (as LiveKit's own end-call tool does). */
+export const GOODBYE_REPLY_WAIT_MS = 5000
+/** Longest the whole goodbye may take before the line is cut anyway. */
+export const GOODBYE_MAX_MS = 20_000
+
+/**
+ * What end_call returns: the assistant's goodbye is its reply to the tool, said in the caller's language. The call ends
+ * once it has played.
+ */
+export const END_CALL_RESULT =
+  'In the language you are speaking with the caller, tell them you will hang up now and say goodbye (for example "Alright, I\'ll hang up now. Thanks for calling, goodbye!"). Say nothing else.'
 
 /**
  * end_call written into the reply ("goodbye! {end_call}", "<end_call>", "[end_call()]"), as a realtime model sometimes does
@@ -47,70 +50,99 @@ export function announcesHangUp(text: string): boolean {
 /** The assistant's words without an end_call written into them, for the transcript. */
 export const withoutEndCall = (text: string) => text.replace(END_CALL_IN_WORDS, '').trim()
 
-type Speaking = {
-  agentState: string
-  /** Calls `listener` once the assistant is neither speaking nor thinking any more. */
-  onDone(listener: () => void): void
-  /** Whether the assistant's speech ended within the last `ms`. */
-  spokeWithin(ms: number): boolean
+/** A reply of the assistant, as the hang-up needs it (LiveKit's SpeechHandle). */
+export type Reply = {
+  done(): boolean
+  addDoneCallback(callback: () => void): void
+  readonly chatItems: readonly { type: string; role?: string; textContent?: string }[]
 }
 
 /**
- * Hangs up after the assistant's goodbye: once it has played (after a short pause), at the latest after the cap. A
- * reply still being generated counts as the goodbye on its way. When nothing was said just before, `sayGoodbye` says
- * GOODBYE_LINE first. `goodbyeSaid`: the goodbye is a line the assistant has already said (its hang-up line), so once
- * nothing plays any more the call ends at once, before the caller's own goodbye can start another reply.
+ * Once `reply` has played (or was cut off). Not `waitForPlayout()`: LiveKit refuses that from inside the tool that owns
+ * the reply, which end_call is.
  */
-export function hangUpAfterSpeech(
-  agent: Speaking,
-  hangUp: () => void,
-  sayGoodbye?: () => Promise<unknown>,
-  { maxMs = GOODBYE_PLAYOUT_MAX_MS, goodbyeSaid = false }: { maxMs?: number; goodbyeSaid?: boolean } = {},
-) {
+const playedOut = (reply: Reply) => new Promise<void>(resolve => (reply.done() ? resolve() : reply.addDoneCallback(() => resolve())))
+
+/** Whether the assistant said any words in `reply`. */
+export const saidWords = (reply: Reply) =>
+  reply.chatItems.some(item => item.type === 'message' && item.role === 'assistant' && !!item.textContent?.trim())
+
+/**
+ * Hangs up after the goodbye, the way LiveKit's own end-call tool does it: end_call asks for the goodbye (END_CALL_RESULT),
+ * and the call ends once it has played, after a short pause. `toolReply`: the reply that called end_call, null when the
+ * assistant's hang-up line ends the call; `goodbyeSaid`: that line has played already. `nextReply`: the goodbye a realtime
+ * model says in a reply of its own, null when none starts within `waitMs`. With no words from the assistant at all,
+ * `sayGoodbye` says the goodbye line: a call never ends in silence. `stopListening` once the goodbye starts: the caller
+ can no longer cut it off or start another reply (not before: a "bye" they are still saying must end, or a realtime model
+ waits for it and never says its goodbye). At most `maxMs` in all.
+ */
+export async function hangUpAfterGoodbye({
+  toolReply,
+  goodbyeSaid = false,
+  nextReply,
+  sayGoodbye,
+  stopListening = () => {},
+  hangUp,
+  maxMs = GOODBYE_MAX_MS,
+}: {
+  toolReply: Reply | null
+  goodbyeSaid?: boolean
+  nextReply: (waitMs: number) => Promise<Reply | null>
+  sayGoodbye: () => Promise<unknown>
+  stopListening?: () => void
+  hangUp: () => void
+  maxMs?: number
+}) {
   let done = false
   const once = () => {
     if (done) return
     done = true
     hangUp()
   }
-  const afterPause = () => setTimeout(once, AFTER_SPEECH_MS).unref?.()
-  // After the model's last words, or with nothing said just before, GOODBYE_LINE first.
-  const finish = () => {
-    if (agent.spokeWithin(RECENT_SPEECH_MS + GOODBYE_START_WAIT_MS) || !sayGoodbye) return afterPause()
-    hangUpAfterLine(sayGoodbye(), once)
+  setTimeout(once, maxMs).unref?.()
+  let said = goodbyeSaid
+  if (!said && toolReply) {
+    await playedOut(toolReply)
+    said = saidWords(toolReply)
   }
-  // Speaking, or still thinking up the goodbye it says with end_call: wait for it, at most `maxMs`.
-  const busy = () => agent.agentState === 'speaking' || agent.agentState === 'thinking'
-  const afterReply = () => {
-    setTimeout(once, maxMs).unref?.()
-    agent.onDone(finish)
+  if (!said) {
+    const reply = await nextReply(GOODBYE_REPLY_WAIT_MS)
+    if (reply) {
+      stopListening()
+      await playedOut(reply)
+      said = saidWords(reply)
+    }
   }
-  if (busy()) return afterReply()
-  if (goodbyeSaid) return afterPause()
-  // The model's goodbye may still be on its way to the speaker: give it a moment to start.
-  setTimeout(() => (busy() ? afterReply() : finish()), GOODBYE_START_WAIT_MS).unref?.()
+  if (!said) {
+    stopListening()
+    await sayGoodbye().catch(e => console.warn(`could not say the goodbye line: ${e instanceof Error ? e.message : String(e)}`))
+  }
+  setTimeout(once, AFTER_SPEECH_MS).unref?.()
 }
 
-/** The session as `hangUpAfterSpeech` needs it. */
-export function speakingOf(session: voice.AgentSession, now = Date.now): Speaking {
-  let lastSpokeAt = 0
-  session.on(voice.AgentSessionEventTypes.AgentStateChanged, ({ oldState }: { oldState: string }) => {
-    if (oldState === 'speaking') lastSpokeAt = now()
-  })
-  return {
-    get agentState() {
-      return session.agentState
-    },
-    onDone(listener) {
-      const onState = ({ newState }: { newState: string }) => {
-        if (newState === 'speaking' || newState === 'thinking') return
-        session.off(voice.AgentSessionEventTypes.AgentStateChanged, onState)
-        listener()
-      }
-      session.on(voice.AgentSessionEventTypes.AgentStateChanged, onState)
-    },
-    spokeWithin: ms => session.agentState === 'speaking' || now() - lastSpokeAt < ms,
+/**
+ * The next reply the assistant starts (other than `toolReply`), listened for from now on, so a reply that starts before
+ * anyone asks for it is not missed.
+ */
+export function nextReplyOf(session: voice.AgentSession, toolReply: Reply | null): (waitMs: number) => Promise<Reply | null> {
+  let started: Reply | null = null
+  let notify: ((reply: Reply) => void) | null = null
+  const onCreated = ({ speechHandle }: { speechHandle: Reply }) => {
+    if (speechHandle === toolReply || started) return
+    started = speechHandle
+    session.off(voice.AgentSessionEventTypes.SpeechCreated, onCreated)
+    notify?.(speechHandle)
   }
+  session.on(voice.AgentSessionEventTypes.SpeechCreated, onCreated)
+  return waitMs =>
+    new Promise(resolve => {
+      if (started) return resolve(started)
+      notify = resolve
+      setTimeout(() => {
+        session.off(voice.AgentSessionEventTypes.SpeechCreated, onCreated)
+        resolve(started)
+      }, waitMs).unref?.()
+    })
 }
 
 export const STILL_THERE_LINE = 'Are you still there?'

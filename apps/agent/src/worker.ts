@@ -29,7 +29,7 @@ import { describeRealtimeReply, realtimeTurnTimer } from './realtime-timing.ts'
 import { describeRealtimeUsage, type RealtimeUsageMetrics, realtimeUsageCounter } from './realtime-usage.ts'
 import { followCallerLanguage } from './caller-language.ts'
 import { MESSAGE_SAVED_RESULT, skipQuietToolReplies } from './tool-replies.ts'
-import { greetingPlayed, hangUpAfterLine, hangUpAfterSpeech, hangUpAtCallLimit, remindOnSilence, silencePolicyOf, speakingOf, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
+import { END_CALL_RESULT, greetingPlayed, hangUpAfterGoodbye, hangUpAfterLine, hangUpAtCallLimit, nextReplyOf, type Reply, remindOnSilence, silencePolicyOf, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
 import { lineAudio, playLine, unansweredLine } from './busy-line.ts'
 import { realtimeLineSpeaker, type SayFixedLine } from './realtime-lines.ts'
 import { promisesUrgent, urgentFlagger } from './urgent-promise.ts'
@@ -120,7 +120,7 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
 /** transfer_call, when the assistant has transfer contacts that take calls now; given from the start of the call. */
 type Transfer = Omit<Parameters<typeof transferTool>[0], 'api' | 'call' | 'log'> | null
 
-function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: () => void, flagUrgent: () => Promise<void>, transfer: Transfer, collect: CollectContext) {
+function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: (toolReply: Reply) => void, flagUrgent: () => Promise<void>, transfer: Transfer, collect: CollectContext) {
   const { callId } = call
   const callerId = callerIdOf(call)
   return {
@@ -154,11 +154,12 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
       },
     }),
     end_call: llm.tool({
-      description: 'Hang up. Use it in the same response as your goodbye: after the caller said they need nothing else, or said goodbye.',
-      // No result: the call ends after the goodbye has played, without another reply.
-      execute: async () => {
-        endCall()
-        return undefined
+      description:
+        'Hang up: when the caller said they need nothing else, or said goodbye. Call it without saying anything first; you say your goodbye right after it.',
+      // The goodbye is the reply to this result; the call ends once it has played (hangUpAfterGoodbye).
+      execute: async (_, { ctx }) => {
+        endCall(ctx.speechHandle)
+        return END_CALL_RESULT
       },
     }),
     flag_urgent: llm.tool({
@@ -206,10 +207,10 @@ function keepUrgentPromises(session: voice.AgentSession, flagUrgent: () => Promi
  * When the assistant said it hangs up now, or wrote end_call into its goodbye, but left out the tool, the call ends
  * after those words as if it had called it.
  */
-function keepHangUpPromises(session: voice.AgentSession, log: CallLog, endCall: (goodbyeSaid: boolean) => void) {
+function keepHangUpPromises(session: voice.AgentSession, log: CallLog, endCall: () => void) {
   session.on(voice.AgentSessionEventTypes.ConversationItemAdded, ({ item }) => {
     if (item.type !== 'message' || item.role !== 'assistant' || !item.textContent || log.transferred) return
-    if (writesEndCall(item.textContent) || announcesHangUp(item.textContent)) endCall(true)
+    if (writesEndCall(item.textContent) || announcesHangUp(item.textContent)) endCall()
   })
 }
 
@@ -385,15 +386,22 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   // The assistant always says something before the call ends: its goodbye (else the goodbye line in the language spoken), the closing line
   // after silence, or the goodbye at its time limit.
   const sayLine = (text: string) => speak(text, { allowInterruptions: false, last: true })
-  const speaking = speakingOf(session)
-  // Once per call: the tool and the hang-up line (keepHangUpPromises, `goodbyeSaid`: that line has been said) can both ask for it.
+  // Once per call: end_call (with the reply that called it) and the hang-up line (keepHangUpPromises: it has played) can
+  // both ask for it.
   let ending = false
-  const endCall = (goodbyeSaid = false) => {
+  const endCall = (toolReply: Reply | null = null) => {
     if (ending) return
     ending = true
-    hangUpAfterSpeech(speaking, deleteRoom, () => sayLine(lines().goodbye), { goodbyeSaid })
+    void hangUpAfterGoodbye({
+      toolReply,
+      goodbyeSaid: !toolReply,
+      nextReply: nextReplyOf(session, toolReply),
+      sayGoodbye: () => sayLine(lines().goodbye),
+      stopListening: () => session.input.setAudioEnabled(false),
+      hangUp: deleteRoom,
+    })
   }
-  keepHangUpPromises(session, log, endCall)
+  keepHangUpPromises(session, log, () => endCall())
   // After a warm transfer or a take-over the caller talks with a person and the assistant is out of it: neither silence on its
   // side nor its time limit ends that call (the trunk's CALL_MAX_MINUTES does).
   const transferred = () => log.transferred
