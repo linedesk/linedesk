@@ -21,6 +21,8 @@ export class CallLog {
   confirmedName: string | undefined
   /** Phone numbers the caller confirmed with get_phone_number (E.164): only these may go into a message besides caller ID. */
   readonly confirmedNumbers: string[] = []
+  /** The value a collection step is getting right now (its label); null between steps. A call that ends meanwhile still files a call back. */
+  collecting: string | null = null
   /** How long each reply took (ReplyTimes), sent at hang-up for the admin overview; `timing` says which pipeline and providers. */
   readonly replies: ReplyTimes[] = []
   timing: Omit<CallTimings, 'replies'> | null = null

@@ -10,7 +10,7 @@ import type { RemoteParticipant } from '@livekit/rtc-node'
 import { z } from 'zod'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { bookingTools } from './booking-tools.ts'
-import { type CollectContext, collectTools, nudgeIfQuiet } from './collect/collect-tools.ts'
+import { type CollectContext, collectTools, nudgeIfQuiet, stepFacts } from './collect/collect-tools.ts'
 import { partialPhoneNumberIn } from './collect/collectors.ts'
 import { callerIdOf, withCallbackNumber } from './callback-number.ts'
 import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log.ts'
@@ -408,6 +408,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     languageRule: collectLanguageRule(call.assistant) ?? undefined,
     addToMessage: detail => addToMessage(api, call, log, detail),
     callerId: callerIdOf(call),
+    facts: () => stepFacts({ today: collect.today(), hours: call.businessHours?.summary, address: call.assistant?.business_profile?.address }),
   }
   const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, flagUrgent, transfer, collect) })
   if (stages) void warmUpLlm(stages.llm, instructions)

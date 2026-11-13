@@ -1,6 +1,7 @@
 import { llm } from '@livekit/agents'
 import { describe, expect, it, test, vi } from 'vitest'
-import { addedToMessage, nudgeIfQuiet, saidMeanwhile } from './collect-tools.ts'
+import { addedToMessage, nudgeIfQuiet, saidMeanwhile, stepFacts } from './collect-tools.ts'
+import { askedAgainAfterPutOff, putsOff } from './collect-task.ts'
 import { Collection, describeOutcome, MAX_ATTEMPTS, outcomeEvent } from './collection.ts'
 import { addressCollector, dateCollector, digitsCollector, emailCollector, isWholePhoneNumber, nameCollector, partialPhoneNumberIn, parseDate, phoneCollector, stateCode, toE164, upcomingDates } from './collectors.ts'
 import { readDigits, readLetters, spokenDigits, spokenEmail, spokenLetters } from './spoken.ts'
@@ -193,4 +194,38 @@ test('the date step lists the next days with their weekday and date, so the mode
   const day = dateCollector({ what: 'preferred day', today: '2026-11-12' })
   expect(day.instructions).toContain('Wednesday 2026-11-18')
   expect(day.instructions).toContain('never count days yourself')
+})
+
+describe('a question during a step (LIN-103)', () => {
+  it('hands the question back to the assistant with what was heard so far', () => {
+    const step = new Collection(phoneCollector('callback number'))
+    step.record({ phone_number: '503 555' })
+    const reply = step.handBack('Which date is Wednesday next week?')
+    expect(reply.outcome).toEqual({ status: 'question', label: 'callback number', question: 'Which date is Wednesday next week?', partial: '503 555' })
+    const told = describeOutcome(reply.outcome!)
+    expect(told).toContain('the caller asked: "Which date is Wednesday next week?"')
+    expect(told).toContain('get it again with the same tool')
+    expect(outcomeEvent(reply.outcome!)).toBe("Callback number paused for the caller's question")
+  })
+
+  it('never puts the caller off twice in a row: asking again after a put-off goes back to the assistant', () => {
+    const putOff = "I'll come back to that in a moment. What's the best number to reach you?"
+    expect(putsOff(putOff)).toBe(true)
+    expect(putsOff('Could you share the phone number you would like us to use?')).toBe(false)
+    expect(askedAgainAfterPutOff(putOff, 'Can you just give me next Friday’s date?')).toBe(true)
+    expect(askedAgainAfterPutOff(putOff, 'which date is that')).toBe(true)
+    // An answer to the step's question stays in the step; so does a first question.
+    expect(askedAgainAfterPutOff(putOff, '503 555 0142')).toBe(false)
+    expect(askedAgainAfterPutOff('What is the best number to reach you?', 'Which date is Wednesday?')).toBe(false)
+    expect(askedAgainAfterPutOff(undefined, 'Which date is Wednesday?')).toBe(false)
+  })
+
+  it('gives the step the next days with their dates and the business hours to answer from', () => {
+    const facts = stepFacts({ today: '2026-11-12', hours: 'Open now, until 6 PM.', address: ' 1200 SE Morrison St, Portland ' })
+    expect(facts).toContain('Wednesday 2026-11-18')
+    expect(facts).toContain('Friday 2026-11-20')
+    expect(facts).toContain('Business hours: Open now, until 6 PM.')
+    expect(facts).toContain('Business address: 1200 SE Morrison St, Portland')
+    expect(stepFacts({ today: '2026-11-12' })).not.toContain('Business')
+  })
 })

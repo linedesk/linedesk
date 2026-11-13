@@ -33,7 +33,7 @@ Answer with one JSON object and nothing else:
   "action_items": things the owner still has to do, each a short imperative sentence, [] if none,
   "caller_name": the caller's name if they gave it, else null
 }
-Outcomes: "booked" when the assistant booked an appointment, "message" when the assistant took a message, "callback" when the caller expects a call back, "answered" when the question was fully answered, "transferred" when the caller was put through to a person, "hangup" when the caller said nothing or left right away, "spam" for sales and robocalls. Use "urgent" only for emergencies.
+Outcomes: "booked" when the assistant booked an appointment, "message" when the assistant took a message, "callback" when the caller expects a call back, "answered" when the question was fully answered, "transferred" when the caller was put through to a person, "hangup" when the caller said nothing or left right away, "spam" for sales and robocalls. A caller who said what they wanted and then gave up or hung up before anything was saved is "callback", with an action item to call them back about it (with their name and number if they gave them), never "hangup". Use "urgent" only for emergencies.
 Write the title, summary and action items in English, also when the call was in another language. When it was not in English, begin the summary with "Call in <language>." (for example "Call in Spanish.").
 Lines starting with "system:" are tools the assistant used. Messages the assistant already saved are listed after the transcript: they are action items already, never repeat or rephrase them in "action_items".`
 
@@ -67,6 +67,18 @@ function headline(text: string) {
   return `${cut.slice(0, cut.lastIndexOf(' ') > 0 ? cut.lastIndexOf(' ') : cut.length)}…`
 }
 
+/**
+ * The caller hung up while a collection step was asking them for something, before any message, booking or transfer:
+ * what the call gathered still reaches the owner as a call back, never as a hang-up without an action item.
+ */
+function endedMidStep(result: CallResult, tools: Parameters<typeof mergeToolResults>[1]): CallResult | null {
+  if (!tools.collecting || tools.messages.length || tools.bookings?.length || tools.transferred) return null
+  if (result.outcome !== 'hangup' && result.outcome !== 'answered' && result.actionItems?.length) return null
+  const who = [tools.confirmedName, ...(tools.confirmedNumbers ?? [])].filter(Boolean).join(', ')
+  const item = `Call the caller back${who ? ` (${who})` : ''}: the call ended while the assistant was asking for the ${tools.collecting}. ${result.summary}`.trim()
+  return { ...result, outcome: 'callback', urgency: tools.urgent ? 'urgent' : result.urgency, actionItems: [{ text: item }, ...(result.actionItems ?? [])] }
+}
+
 /** Outcomes that do not fit a call in which the assistant took a message. */
 const NOT_A_MESSAGE = new Set<CallResult['outcome']>(['answered', 'hangup'])
 const ONLY_BY_TOOLS = new Set<CallResult['outcome']>(['booked', 'transferred'])
@@ -86,7 +98,12 @@ export async function summarizeCall(lines: TranscriptLine[], complete: CompleteJ
  * What goes into `call.finish`: tools used during the call win over the summary (a transfer that
  * connected makes it transferred, a booking booked, a taken message a message).
  */
-export function mergeToolResults(result: CallResult, tools: { messages: string[]; urgent: boolean; bookings?: string[]; transferred?: boolean }): CallResult {
+export function mergeToolResults(
+  result: CallResult,
+  tools: { messages: string[]; urgent: boolean; bookings?: string[]; transferred?: boolean; collecting?: string | null; confirmedName?: string | undefined; confirmedNumbers?: readonly string[] },
+): CallResult {
+  const leftMidStep = endedMidStep(result, tools)
+  if (leftMidStep) return leftMidStep
   const taken = tools.messages.map(text => ({ text }))
   const extra = (result.actionItems ?? []).filter(item => !tools.messages.includes(item.text))
   // Booked and transferred come only from what the tools did, never from the summary's guess (a caller who

@@ -92,3 +92,16 @@ test('without a summary, a long message is cut to a title at a word boundary', (
   expect(result.title!.endsWith('…')).toBe(true)
   expect(result).toMatchObject({ outcome: 'message', summary: long })
 })
+
+test('a caller who gives up during a step still leaves a call back with what was gathered (LIN-103)', () => {
+  const gaveUp = { outcome: 'hangup' as const, urgency: 'low' as const, title: 'Water heater maintenance', summary: 'Sam Patel wants a water heater maintenance visit next Wednesday morning.', actionItems: [] }
+  const tools = { messages: [], urgent: false, collecting: 'callback number', confirmedName: 'Sam Patel', confirmedNumbers: [] }
+  const result = mergeToolResults(gaveUp, tools)
+  expect(result.outcome).toBe('callback')
+  expect(result.actionItems).toEqual([
+    { text: 'Call the caller back (Sam Patel): the call ended while the assistant was asking for the callback number. Sam Patel wants a water heater maintenance visit next Wednesday morning.' },
+  ])
+  // No step open, or a message already saved: as before.
+  expect(mergeToolResults(gaveUp, { ...tools, collecting: null }).outcome).toBe('hangup')
+  expect(mergeToolResults(gaveUp, { ...tools, messages: ['Call Sam back'] }).actionItems).toEqual([{ text: 'Call Sam back' }])
+})

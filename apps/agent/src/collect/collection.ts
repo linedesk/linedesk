@@ -11,6 +11,8 @@ export type CollectOutcome =
   /** Out of tries: `partial` is the best unconfirmed guess, if any. */
   | { status: 'incomplete'; label: string; partial: string | null }
   | { status: 'declined'; label: string; reason: string }
+  /** The caller asked something the step cannot answer: the assistant answers it and gets the value again if needed. */
+  | { status: 'question'; label: string; question: string; partial: string | null }
 
 /** What a tool call returns to the collecting model, and whether the step is over. */
 export type StepReply = { say: string; outcome?: CollectOutcome }
@@ -65,6 +67,11 @@ export class Collection<Args extends Record<string, unknown>, T> {
     return this.finish({ status: 'declined', label: this.collector.label, reason })
   }
 
+  /** The caller asked something only the assistant can answer: the step hands back with the question. */
+  handBack(question: string): StepReply {
+    return this.finish({ status: 'question', label: this.collector.label, question, partial: this.pending ? this.collector.display(this.pending.value) : this.lastHeard })
+  }
+
   /** The caller gave up without a usable value. */
   giveUp(): StepReply {
     return this.finish({ status: 'incomplete', label: this.collector.label, partial: this.lastHeard })
@@ -96,6 +103,8 @@ export function describeOutcome(outcome: CollectOutcome): string {
       return `Could not get a confirmed ${outcome.label}${outcome.partial ? `; best guess (not confirmed): ${outcome.partial}` : ''}. Tell the caller you will note what you have and someone will call them back. Put it in take_message${outcome.partial ? ' marked as unconfirmed' : ''}, and do not ask for it again.`
     case 'declined':
       return `The caller did not want to give the ${outcome.label} (${outcome.reason}). Go on without it.`
+    case 'question':
+      return `While you were getting the ${outcome.label}, the caller asked: "${outcome.question}". Answer that now, in a sentence or two${outcome.partial ? ` (heard so far, not confirmed: ${outcome.partial})` : ''}. Then, if you still need the ${outcome.label}, get it again with the same tool.`
   }
 }
 
@@ -104,5 +113,6 @@ export function outcomeEvent(outcome: CollectOutcome): string {
   const what = outcome.label.charAt(0).toUpperCase() + outcome.label.slice(1)
   if (outcome.status === 'confirmed') return `${what} confirmed`
   if (outcome.status === 'declined') return `${what} not given`
+  if (outcome.status === 'question') return `${what} paused for the caller's question`
   return `${what} not confirmed`
 }

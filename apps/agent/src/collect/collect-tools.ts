@@ -5,7 +5,7 @@ import { z } from 'zod'
 import type { CallLog } from '../call-log.ts'
 import { CollectTask, type CollectTaskOptions } from './collect-task.ts'
 import { type CollectOutcome, describeOutcome, outcomeEvent } from './collection.ts'
-import { addressCollector, dateCollector, digitsCollector, emailCollector, nameCollector, phoneCollector } from './collectors.ts'
+import { addressCollector, dateCollector, digitsCollector, emailCollector, nameCollector, phoneCollector, upcomingDates } from './collectors.ts'
 import { phoneStepRefusal } from '../callback-number.ts'
 
 type AnyCollector = CollectTaskOptions['collector']
@@ -23,6 +23,16 @@ export type CollectContext = {
   addToMessage?: (detail: string) => Promise<boolean>
   /** The caller's number from caller ID (callerIdOf); null or missing: unknown. Then it is the callback number. */
   callerId?: string | null
+  /** What a step may answer a short question from (stepFacts); missing: only the value. */
+  facts?: () => string
+}
+
+/**
+ * What a step may answer a caller's short question from, without handing back: the next two weeks with weekday and
+ * date, and the business hours and address when known. Anything else goes back to the assistant (hand_back).
+ */
+export function stepFacts({ today, hours, address }: { today: string; hours?: string | null; address?: string | null }): string {
+  return [upcomingDates(today), hours && `Business hours: ${hours}`, address?.trim() && `Business address: ${address.trim()}`].filter(Boolean).join('\n')
 }
 
 /**
@@ -42,8 +52,13 @@ async function runStep(ctx: CollectContext, { ctx: run }: llm.ToolOptions, colle
       collector,
       chatCtx,
       ...(ctx.languageRule ? { languageRule: ctx.languageRule } : {}),
+      ...(ctx.facts ? { facts: ctx.facts() } : {}),
     })
-    const outcome = await task.run()
+    // While a step runs: if the call ends now, the call log still files a call back (mergeToolResults).
+    ctx.log.collecting = collector.label
+    const outcome = await task.run().finally(() => {
+      ctx.log.collecting = null
+    })
     ctx.log.record('system', outcomeEvent(outcome))
     if (collector.kind === 'name' && outcome.status === 'confirmed') ctx.log.confirmedName = outcome.value
     if (collector.kind === 'phone_number' && outcome.status === 'confirmed') ctx.log.confirmedNumbers.push(outcome.value)

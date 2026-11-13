@@ -10,9 +10,23 @@ const STEP_RULES = [
   'You are only a single step in a phone call, responsible solely for collecting one piece of information. One or two short sentences at a time, no lists or markdown.',
   'Call the record tool as soon as you form a new hypothesis about the value, before asking anything else. Do not invent values: stick strictly to what the caller said.',
   'After the record tool, read the value back exactly as it tells you and ask whether it is right. If the caller says yes, call the confirm tool; if they say no or correct it, call the wrong tool (or record the correction).',
-  'If the caller does not want to give it, call decline. Ignore unrelated requests: say you will come back to that in a moment. Always call tools explicitly; never pretend to.',
-  'You know nothing else about the caller, their appointments or their account: never confirm or deny anything they ask about (not even "yes, I see that"); only say you will come back to it in a moment.',
+  'If the caller does not want to give it, call decline. Always call tools explicitly; never pretend to.',
+  'If the caller asks a short question you can answer from the facts below (a date from the list of days, the business hours), answer it in one sentence, then ask for the value again.',
+  'Any other question or request: call hand_back with it right away, so the assistant answers it. Never put the caller off ("I will come back to that") twice in a row.',
+  'You know nothing else about the caller, their appointments or their account: never confirm or deny anything they ask about (not even "yes, I see that"); call hand_back with it.',
 ].join('\n')
+
+/** A line in which the step put the caller's question off. */
+export const putsOff = (text: string) => /\b(come back to (that|it|this)|get (back )?to (that|it|this) in a (moment|minute|second)|in a moment)\b/i.test(text)
+
+/**
+ * Whether the caller's new line goes back to the assistant: the step's last line put a question off and the caller
+ * asks again (a question mark, or a question word at the start), so a second "I'll come back to that" never comes.
+ */
+export function askedAgainAfterPutOff(lastStepLine: string | undefined, callerLine: string): boolean {
+  if (!lastStepLine || !putsOff(lastStepLine)) return false
+  return /\?\s*$/.test(callerLine.trim()) || /^(what|which|when|where|who|why|how|can|could|do|does|is|are|will|would)\b/i.test(callerLine.trim())
+}
 
 // biome-ignore lint/suspicious/noExplicitAny: a step holds one collector of any argument and value type
 type AnyCollector = Collector<any, any>
@@ -26,12 +40,14 @@ export type CollectTaskOptions = {
   languageRule?: string
   /** The call so far, so a name or number already given is not asked again. */
   chatCtx?: llm.ChatContext
+  /** What the step may answer a short question from (stepFacts): the next days with their dates, the business hours. */
+  facts?: string
 }
 
 export class CollectTask extends voice.AgentTask<CollectOutcome> {
   private readonly collection: Collection<Record<string, unknown>, unknown>
 
-  constructor({ collector, chatCtx, languageRule = COLLECT_ENGLISH_ONLY }: CollectTaskOptions) {
+  constructor({ collector, chatCtx, facts, languageRule = COLLECT_ENGLISH_ONLY }: CollectTaskOptions) {
     const collection = new Collection(collector)
     const kind = collector.kind
     // The tools finish the task; it exists once super() returned.
@@ -41,7 +57,7 @@ export class CollectTask extends voice.AgentTask<CollectOutcome> {
       return reply.outcome ? undefined : reply.say
     }
     super({
-      instructions: `${STEP_RULES}\n${languageRule}\n\n${collector.instructions}`,
+      instructions: `${STEP_RULES}\n${languageRule}\n\n${collector.instructions}${facts ? `\n\nFacts you may answer from:\n${facts}` : ''}`,
       ...(chatCtx ? { chatCtx } : {}),
       tools: {
         [`record_${kind}`]: llm.tool({
@@ -57,6 +73,11 @@ export class CollectTask extends voice.AgentTask<CollectOutcome> {
           description: `The caller says the ${collector.label} you read back is wrong and did not say the right one yet.`,
           execute: async () => settle(collection.reject()),
         }),
+        hand_back: llm.tool({
+          description: 'The caller asked or wants something other than the value, which the facts here do not answer: the assistant takes it over.',
+          parameters: z.object({ question: z.string().describe("The caller's question or request, in their words.") }),
+          execute: async ({ question }) => settle(collection.handBack(question)),
+        }),
         decline: llm.tool({
           description: `The caller does not want to give the ${collector.label}, or cannot.`,
           parameters: z.object({ reason: z.string().describe('In a few words, why.') }),
@@ -66,6 +87,17 @@ export class CollectTask extends voice.AgentTask<CollectOutcome> {
     })
     self.task = this
     this.collection = collection
+  }
+
+  /** The caller asks again after the step put them off: the question goes to the assistant instead of a second put-off. */
+  override async onUserTurnCompleted(chatCtx: llm.ChatContext, newMessage: llm.ChatMessage) {
+    const lastStepLine = chatCtx.items
+      .filter((item): item is llm.ChatMessage => item.type === 'message' && item.role === 'assistant')
+      .at(-1)?.textContent
+    const callerLine = newMessage.textContent ?? ''
+    if (this.done || !askedAgainAfterPutOff(lastStepLine, callerLine)) return
+    this.complete(this.collection.handBack(callerLine).outcome!)
+    throw new voice.StopResponse()
   }
 
   override async onEnter() {
