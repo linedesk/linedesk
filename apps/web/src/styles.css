@@ -38,6 +38,13 @@ body { margin: 0; font-family: var(--font-sans); background: var(--bg); color: v
 .k-btn { box-sizing: border-box; display: inline-flex; align-items: center; gap: var(--space-2); height: 32px; padding: 0 var(--space-3); font: inherit; font-size: 13px; font-weight: 500; line-height: 1; border: 1px solid transparent; border-radius: var(--radius-sm); cursor: pointer; white-space: nowrap; }
 .k-btn:focus-visible, .k-send:focus-visible, .k-chat:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .k-btn-primary { background: var(--action); color: var(--on-action); }
+.k-btn.is-busy:disabled { cursor: progress; }
+/* Busy is not unavailable: the primary button stays black while it works. */
+.k-btn-primary.is-busy:disabled { background: var(--action); color: var(--on-action); }
+/* Spinner in the text colour: on a black button it is white, in muted text it is grey. */
+.k-spin { flex: none; width: 12px; height: 12px; box-sizing: border-box; border-radius: var(--radius-full); border: 1.5px solid color-mix(in srgb, currentColor 28%, transparent); border-top-color: currentColor; }
+@media (prefers-reduced-motion: no-preference) { .k-spin { animation: st-spin .7s linear infinite; } }
+.ws-creating { margin: 0; font-size: 12px; color: var(--ink-muted); }
 .k-btn-primary:hover { opacity: .88; }
 .k-btn-primary .k-kbd, .k-btn-danger .k-kbd { background: transparent; border-color: currentColor; color: inherit; opacity: .72; }
 .k-btn-secondary { background: var(--surface-raised); color: var(--ink); border-color: var(--line); }

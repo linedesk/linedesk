@@ -25,17 +25,25 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   size?: 'sm' | 'md'
   icon?: IconName
   shortcut?: string[]
+  /** Working on it: a small spinner in place of the icon, the button disabled, no shortcut shown. */
+  busy?: boolean
   ref?: Ref<HTMLButtonElement>
 }
 
-export function Button({ variant = 'secondary', size = 'md', icon, shortcut, className, children, ...rest }: ButtonProps) {
+export function Button({ variant = 'secondary', size = 'md', icon, shortcut, busy, className, children, disabled, ...rest }: ButtonProps) {
   return (
-    <button type="button" {...rest} className={cx('k-btn', `k-btn-${variant}`, `k-btn-${size}`, icon && !children && 'k-btn-icon', className)}>
-      {icon && <Icon name={icon} size={size === 'sm' ? 14 : 16} />}
+    <button type="button" {...rest} disabled={disabled || busy} aria-busy={busy || undefined}
+      className={cx('k-btn', `k-btn-${variant}`, `k-btn-${size}`, icon && !children && 'k-btn-icon', busy && 'is-busy', className)}>
+      {busy ? <Spinner /> : icon && <Icon name={icon} size={size === 'sm' ? 14 : 16} />}
       {children ? <span>{children}</span> : null}
-      {shortcut && <Kbd keys={shortcut} />}
+      {shortcut && !busy && <Kbd keys={shortcut} />}
     </button>
   )
+}
+
+/** A small spinner in the current text colour, for a button or a line that is working on something. */
+export function Spinner() {
+  return <span className="k-spin" aria-hidden="true" />
 }
 
 type BadgeProps = {

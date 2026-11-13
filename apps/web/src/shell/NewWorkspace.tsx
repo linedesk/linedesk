@@ -3,27 +3,31 @@
 // the server checks again.
 import { useState } from 'react'
 import { createWorkspace } from '../auth.ts'
+import { type CreatingPhase, CreatingStatus } from '../CreatingStatus.tsx'
 import { Dialog, FormField, Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 
 export function NewWorkspaceDialog({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [phase, setPhase] = useState<CreatingPhase>('idle')
+  const busy = phase !== 'idle'
 
   async function create() {
     if (busy) return
     if (!name.trim()) return setError('Give the business a name.')
-    setBusy(true)
+    setPhase('creating')
     setError(null)
     try {
       // The new workspace is the session's active one now; reloading opens it with its own local store.
       await createWorkspace(name.trim())
+      // The page stays on screen until the reload has loaded the app again: say so meanwhile.
+      setPhase('opening')
       window.location.hash = ''
       window.location.reload()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
-      setBusy(false)
+      setPhase('idle')
     }
   }
 
@@ -42,8 +46,8 @@ export function NewWorkspaceDialog({ onClose }: { onClose: () => void }) {
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button type="submit" variant="primary" disabled={busy} shortcut={busy ? undefined : ['⏎']}>
-            {busy ? 'Creating…' : 'Create workspace'}
+          <Button type="submit" variant="primary" busy={busy} shortcut={['⏎']}>
+            {phase === 'opening' ? 'Opening…' : busy ? 'Creating…' : 'Create workspace'}
           </Button>
         </>
       }
@@ -54,6 +58,7 @@ export function NewWorkspaceDialog({ onClose }: { onClose: () => void }) {
           value={name}
           invalid={!!error}
           autoComplete="organization"
+          disabled={busy}
           placeholder="Riverside Electric"
           onChange={e => {
             setName(e.target.value)
@@ -61,6 +66,7 @@ export function NewWorkspaceDialog({ onClose }: { onClose: () => void }) {
           }}
         />
       </FormField>
+      <CreatingStatus phase={phase} name={name.trim()} />
     </Dialog>
   )
 }
