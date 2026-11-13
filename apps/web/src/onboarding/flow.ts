@@ -1,12 +1,18 @@
 // Onboarding without React: step order, the phone setup input and the carrier forwarding codes.
 import {
   type BusinessHoursSpan,
+  isActiveContact,
+  onCallNumberProblem,
   onboardingSteps,
+  RING_SECONDS_DEFAULT,
+  TRANSFER_CONDITION_MAX,
+  TRANSFER_CONTACTS_MAX,
+  TRANSFER_NAME_MAX,
   type OnboardingStep,
   type PickupMode,
   type WorkspaceSettingsData,
 } from '@linedesk/actions'
-import type { Assistant, PhoneNumber } from '@linedesk/db/types'
+import type { Assistant, PhoneNumber, TransferContact } from '@linedesk/db/types'
 import { type DayHours, dayRows } from '../settings/businessHoursModel.ts'
 import { brandName } from '../brand.ts'
 
@@ -18,6 +24,7 @@ export const stepLabels: Record<OnboardingStep, string> = {
   business: 'Business',
   assistant: 'Your assistant',
   pickup: 'When to pick up',
+  notify: 'Who hears about calls',
   phone: 'Phone',
   done: 'Done',
 }
@@ -290,4 +297,130 @@ export function assistantChanges(
   if (draft.voice.provider !== saved.voice.provider || draft.voice.voice_id !== saved.voice.voice_id)
     changes.voice = draft.voice
   return Object.keys(changes).length ? changes : null
+}
+
+/** The transfer contact the "Who hears about calls?" step owns: the owner's mobile for urgent calls. */
+export const URGENT_CONTACT_ID = 'urgent'
+/** The contact every new assistant has for callers who ask for a person (DEFAULT_TRANSFERS). */
+const PERSON_CONTACT_ID = 'person'
+/** What counts as urgent until the owner says otherwise. */
+export const DEFAULT_URGENT_CONDITION = 'An urgent problem or emergency that cannot wait until we call back'
+/** The contact's name while the member's own name is not known (yet); replaced once it is. */
+export const FALLBACK_OWNER_NAME = 'the owner'
+
+/** What the step edits: the mobile as typed, whether urgent calls ring it, and what counts as urgent. */
+export type WhoHearsDraft = { mobile: string; urgentOn: boolean; condition: string }
+
+/**
+ * What the step shows first. Its own contact when it saved one before (also after Back); else the number of the
+ * contact for callers who ask for a person, the owner's phone (another contact's number, like a billing
+ * colleague's, is never offered as the owner's mobile), urgent calls on, and the default condition.
+ */
+export function firstWhoHears(transfers: readonly TransferContact[]): WhoHearsDraft {
+  const own = transfers.find(c => c.id === URGENT_CONTACT_ID)
+  if (own)
+    return { mobile: own.number ? formatNumber(own.number) : '', urgentOn: own.enabled, condition: own.condition }
+  const person = transfers.find(c => c.id === PERSON_CONTACT_ID)
+  return {
+    mobile: person?.number ? formatNumber(person.number) : '',
+    urgentOn: true,
+    condition: DEFAULT_URGENT_CONDITION,
+  }
+}
+
+/** What is wrong, and where: the mobile field, the condition, or the contact list itself. */
+export type WhoHearsProblem = { field: 'mobile' | 'condition' | 'list'; message: string }
+
+/** Why the step cannot be saved as it is, in words for the owner; null when it can. */
+export function whoHearsProblem(
+  draft: WhoHearsDraft,
+  transfers: readonly TransferContact[] = [],
+): WhoHearsProblem | null {
+  const typed = draft.mobile.trim()
+  if (typed) {
+    const e164 = toE164(typed)
+    if (!e164) return { field: 'mobile', message: 'Enter your mobile number with its area code, like (503) 555-0142.' }
+    const problem = onCallNumberProblem(e164)
+    if (problem) return { field: 'mobile', message: problem }
+    if (!transfers.some(c => c.id === URGENT_CONTACT_ID) && transfers.length >= TRANSFER_CONTACTS_MAX)
+      return {
+        field: 'list',
+        message: `${TRANSFER_CONTACTS_MAX} transfer contacts is the most an assistant can have. Remove one in Settings, or skip this step.`,
+      }
+  }
+  if (!draft.urgentOn) return null
+  if (!typed) return { field: 'mobile', message: 'Enter your mobile number, or turn urgent calls off.' }
+  if (!draft.condition.trim()) return { field: 'condition', message: 'Say which calls are urgent.' }
+  if (draft.condition.trim().length > TRANSFER_CONDITION_MAX)
+    return { field: 'condition', message: `At most ${TRANSFER_CONDITION_MAX} characters.` }
+  return null
+}
+
+/**
+ * A contact name no other contact of the list has (names are what the assistant picks by, and says), within
+ * TRANSFER_NAME_MAX.
+ */
+function freeName(transfers: readonly TransferContact[], wanted: string): string {
+  const base = (wanted.trim() || FALLBACK_OWNER_NAME).slice(0, TRANSFER_NAME_MAX).trim()
+  const taken = new Set(transfers.filter(c => c.id !== URGENT_CONTACT_ID).map(c => c.name.trim().toLowerCase()))
+  if (!taken.has(base.toLowerCase())) return base
+  for (let i = 2; ; i++) {
+    const suffix = ` ${i}`
+    const name = `${base.slice(0, TRANSFER_NAME_MAX - suffix.length).trim()}${suffix}`
+    if (!taken.has(name.toLowerCase())) return name
+  }
+}
+
+/**
+ * The assistant's transfer list after the step, or null when it stays as it is. The step's contact rings the
+ * mobile for urgent calls at any hour; when nobody picks up, the assistant takes a message. A new one goes first
+ * when no other contact can be dialled yet (a new workspace), else last, so contacts the owner set up and ordered
+ * in Settings keep their place. Urgent calls off keeps the number on a switched-off contact, so turning it on
+ * later in Settings needs no retyping. Other contacts are left alone. `name` is how the assistant names the person
+ * to the caller ("I'm trying to reach Mike Brennan now"); a contact saved before the name was known gets it now.
+ */
+export function whoHearsTransfers(
+  transfers: readonly TransferContact[],
+  draft: WhoHearsDraft,
+  name: string,
+): TransferContact[] | null {
+  const number = toE164(draft.mobile)
+  const own = transfers.find(c => c.id === URGENT_CONTACT_ID)
+  if (!own && !number) return null
+  const condition = draft.condition.trim() || own?.condition || DEFAULT_URGENT_CONDITION
+  const renamed = own?.name === FALLBACK_OWNER_NAME && name.trim() ? freeName(transfers, name) : own?.name
+  const contact: TransferContact = own
+    ? { ...own, name: renamed!, number, condition, enabled: draft.urgentOn }
+    : {
+        id: URGENT_CONTACT_ID,
+        name: freeName(transfers, name),
+        number,
+        condition,
+        hours_only: false,
+        ring_seconds: RING_SECONDS_DEFAULT,
+        if_no_answer: 'message',
+        enabled: draft.urgentOn,
+      }
+  if (own) {
+    const same =
+      own.name === contact.name &&
+      own.number === contact.number &&
+      own.condition === contact.condition &&
+      own.enabled === contact.enabled
+    return same ? null : transfers.map(c => (c.id === URGENT_CONTACT_ID ? contact : c))
+  }
+  return transfers.some(isActiveContact) ? [...transfers, contact] : [contact, ...transfers]
+}
+
+/**
+ * An assistant.update refusal in words for this step. Refusals about the step's own contact (named `name`) are
+ * about the mobile; anything else (another contact, the list) is said as the server says it.
+ */
+export function mobileErrorText(error: string, name: string): string {
+  if (/confirm your email/i.test(error))
+    return 'Confirm your email address above first: then urgent calls can ring your mobile.'
+  if (error.includes(`${name}'s number is a `)) return `That is a ${brandName()} number. Enter your own mobile.`
+  if (error.includes(`${name}'s number forwards its calls to`))
+    return `That number forwards its calls to ${brandName()}. Enter your own mobile.`
+  return error
 }

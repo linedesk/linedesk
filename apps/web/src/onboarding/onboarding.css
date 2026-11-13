@@ -40,6 +40,20 @@
 .ob .ob-pickup {
   grid-template-columns: 1fr;
 }
+/* Who hears about calls: the urgent switch with its condition, and the summaries (email, push on this device). */
+.ob-urgent {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ob .ob-urgent .ta {
+  min-height: 64px;
+}
+.ob-summaries {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 /* The assistant step's test call: the button with a short line beside it (wraps under it on phones). */
 .ob-talk {
   display: flex;

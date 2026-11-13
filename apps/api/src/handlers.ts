@@ -1,5 +1,5 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, type AssistantRestoreData, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type ReplyTiming, } from '@linedesk/actions'
+import { actions, type AssistantRestoreData, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type ReplyTiming, } from '@linedesk/actions'
 import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, localDate } from '@linedesk/calendar'
 import {assistant_calendars, assistants, availability_exceptions, availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, reply_timings, syncedTables,
   transcript_segments, workspace_members, workspace_settings, type Tx,
@@ -20,6 +20,7 @@ import { calendarConnectionHandlers } from './calendar-connections.ts'
 import { callerHistory } from './caller-history.ts'
 import { type CarrierAccount, carrierHandlers, INSTALL_NUMBER_ADMIN_ONLY, lockWorkspaceCarrier, ownCarrierProvider, telephonyForWorkspace, tryLockWorkspaceCarrier } from './workspace-carrier.ts'
 import { refreshTransferTrunk, transferTrunkHandlers } from './transfer-trunk.ts'
+import { switchOffLoopingTransfers } from './transfer-loops.ts'
 import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, lockCall, type Preparer, Forbidden, Reject, type Undo } from './handler-context.ts'
@@ -363,8 +364,10 @@ const handlers: Record<string, Handler> = {
   'assistant.update': async (ctx, input) => {
     if (!ctx.actor.workspaceId) throw new Reject('no workspace')
     if (input.voice) await checkAssistantVoice(ctx.tx, ctx.actor.workspaceId, input.voice)
+    // Only contacts that can be dialled: one switched off because its line forwards to Linedesk
+    // (switchOffLoopingTransfers) keeps its number, and the rest of the list stays editable.
     for (const contact of (input.transfers ?? []) as TransferContact[])
-      if (contact.number) await checkOnCallNotLinedesk(ctx.tx, contact.number, contact.name)
+      if (isActiveContact(contact)) await checkOnCallNotLinedesk(ctx.tx, contact.number!, contact.name)
     const result = await runPatch(ctx, actions.get('assistant.update')!, input)
     if (input.voice) await releaseUnusedClones(ctx.tx, ctx.actor.workspaceId)
     if (setsTransferNumber(input)) await recordSetupEvent(ctx.tx, ctx.actor.workspaceId, 'mobile_added', ctx.now)
@@ -744,7 +747,9 @@ const handlers: Record<string, Handler> = {
     }).returning()
     // Warm transfers from a number in the workspace account dial through that account: set its trunk up now.
     if (carrier_account === 'workspace') await refreshTransferTrunk(tx, workspace_id, { actorId: actor.actorId, trigger: 'phoneNumber.setup', impersonatedBy: actor.impersonation?.by })
-    return { rows: { phone_numbers: rows } }
+    // A transfer contact on this number would now ring back into Linedesk: switched off.
+    const switchedOff = await switchOffLoopingTransfers(tx, workspace_id, [e164])
+    return { rows: { phone_numbers: rows, ...(switchedOff.length ? { assistants: switchedOff } : {}) } }
   },
 
   // Detaches the number from the workspace; a number Linedesk bought also goes back to the carrier, an

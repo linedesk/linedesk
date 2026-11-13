@@ -6,8 +6,12 @@ import {
   carriers,
   firstHoursDraft,
   firstPickup,
+  DEFAULT_URGENT_CONDITION,
+  FALLBACK_OWNER_NAME,
+  firstWhoHears,
   formatNumber,
   forwardingCode,
+  mobileErrorText,
   forwardingDigits,
   forwardingOffer,
   NO_PICKUP_MEMORY,
@@ -23,19 +27,26 @@ import {
   progress,
   renameInGreeting,
   toE164,
+  URGENT_CONTACT_ID,
+  whoHearsProblem,
+  whoHearsTransfers,
 } from './flow.ts'
+import { DEFAULT_TRANSFERS, type TransferContact } from '@linedesk/db/types'
 
-test('steps run business → assistant → pick-up → phone → done, and back', () => {
+test('steps run business → assistant → pick-up → who hears → phone → done, and back', () => {
   expect(nextStep('business')).toBe('assistant')
   expect(nextStep('assistant')).toBe('pickup')
-  expect(nextStep('pickup')).toBe('phone')
+  expect(nextStep('pickup')).toBe('notify')
+  expect(nextStep('notify')).toBe('phone')
   expect(nextStep('phone')).toBe('done')
   expect(nextStep('done')).toBe('done')
   expect(previousStep('business')).toBeNull()
   expect(previousStep('pickup')).toBe('assistant')
+  expect(previousStep('notify')).toBe('pickup')
+  expect(previousStep('phone')).toBe('notify')
   expect(previousStep('done')).toBe('phone')
   expect(progress('business', false)).toBe(0)
-  expect(progress('assistant', true)).toBe(40)
+  expect(progress('assistant', true)).toBe(33)
   expect(progress('done', true)).toBe(100)
 })
 
@@ -241,4 +252,102 @@ test('renaming the assistant keeps the greeting in step', () => {
 test('the buy question does not speak of a bill in development mode', () => {
   expect(buyQuestion('telnyx', '503')).toMatch(/billed every month/)
   expect(buyQuestion('dev', '503')).not.toMatch(/billed every month/)
+})
+
+const settingsContact: TransferContact = {
+  id: 'tc_2',
+  name: 'Dana',
+  number: '+15035550188',
+  condition: 'Billing questions',
+  hours_only: false,
+  ring_seconds: 25,
+  if_no_answer: 'message',
+  enabled: true,
+}
+
+const withNumber = (c: TransferContact, number: string | null): TransferContact => ({ ...c, number })
+const person = DEFAULT_TRANSFERS[0]!
+
+test("who hears: a new workspace starts empty with urgent calls on; only the person contact's number is offered", () => {
+  expect(firstWhoHears(DEFAULT_TRANSFERS)).toEqual({ mobile: '', urgentOn: true, condition: DEFAULT_URGENT_CONDITION })
+  // Dana's billing line is not the owner's mobile.
+  expect(firstWhoHears([...DEFAULT_TRANSFERS, settingsContact]).mobile).toBe('')
+  expect(firstWhoHears([withNumber(person, '+15035550177'), settingsContact]).mobile).toBe('+1 503 555 0177')
+})
+
+test('who hears: the mobile must be a US mobile or landline; urgent calls need one and a condition', () => {
+  const ok = { mobile: '(503) 555-0142', urgentOn: true, condition: 'Flooding' }
+  const field = (d: typeof ok, list: TransferContact[] = []) => whoHearsProblem(d, list)
+  expect(field(ok)).toBeNull()
+  expect(field({ ...ok, mobile: '555-0142' })).toMatchObject({
+    field: 'mobile',
+    message: expect.stringMatching(/area code/),
+  })
+  expect(field({ ...ok, mobile: '900 555 0142' })?.message).toMatch(/Premium-rate/)
+  expect(field({ ...ok, mobile: '800 555 0142' })?.message).toMatch(/Toll-free/)
+  expect(field({ ...ok, mobile: '' })).toMatchObject({
+    field: 'mobile',
+    message: expect.stringMatching(/turn urgent calls off/),
+  })
+  // An empty condition is the condition's problem, not the mobile's.
+  expect(field({ ...ok, condition: '  ' })?.field).toBe('condition')
+  expect(field({ mobile: '', urgentOn: false, condition: '' })).toBeNull()
+  // A full list cannot take the step's contact.
+  const full = Array.from({ length: 10 }, (_, i) => ({ ...settingsContact, id: `tc_${i}`, name: `Contact ${i}` }))
+  expect(field(ok, full)?.field).toBe('list')
+})
+
+test('who hears: in a new workspace its contact goes first, rings at any hour, takes a message', () => {
+  const draft = { mobile: '503-555-0142', urgentOn: true, condition: ' Flooding ' }
+  const saved = whoHearsTransfers(DEFAULT_TRANSFERS, draft, 'Mike Brennan')!
+  expect(saved.map(c => c.id)).toEqual([URGENT_CONTACT_ID, 'person'])
+  expect(saved[0]).toEqual({
+    id: URGENT_CONTACT_ID,
+    name: 'Mike Brennan',
+    number: '+15035550142',
+    condition: 'Flooding',
+    hours_only: false,
+    ring_seconds: 25,
+    if_no_answer: 'message',
+    enabled: true,
+  })
+  expect(saved[1]).toEqual(person)
+  // Back on the step: its own contact shows, and saving it unchanged changes nothing.
+  expect(firstWhoHears(saved)).toEqual({ mobile: '+1 503 555 0142', urgentOn: true, condition: 'Flooding' })
+  expect(whoHearsTransfers(saved, firstWhoHears(saved), 'Mike Brennan')).toBeNull()
+  // Turned off: the number stays on a switched-off contact, in the same place.
+  const off = whoHearsTransfers(saved, { ...firstWhoHears(saved), urgentOn: false }, 'Mike Brennan')!
+  expect(off[0]).toMatchObject({ id: URGENT_CONTACT_ID, enabled: false, number: '+15035550142' })
+  expect(off).toHaveLength(2)
+})
+
+test('who hears: contacts set up in Settings keep their place; the new one goes last', () => {
+  const draft = { mobile: '503-555-0142', urgentOn: true, condition: 'Flooding' }
+  const saved = whoHearsTransfers([...DEFAULT_TRANSFERS, settingsContact], draft, 'Mike Brennan')!
+  expect(saved.map(c => c.id)).toEqual(['person', 'tc_2', URGENT_CONTACT_ID])
+  expect(saved[1]).toEqual(settingsContact)
+})
+
+test('who hears: nothing to save without a mobile; a taken, long or missing name gets a free one', () => {
+  expect(whoHearsTransfers(DEFAULT_TRANSFERS, { mobile: '', urgentOn: false, condition: '' }, 'Mike')).toBeNull()
+  const draft = { mobile: '5035550142', urgentOn: true, condition: 'Flooding' }
+  expect(whoHearsTransfers(DEFAULT_TRANSFERS, draft, 'owner')![0]!.name).toBe('owner 2')
+  expect(whoHearsTransfers(DEFAULT_TRANSFERS, draft, 'x'.repeat(80))![0]!.name).toHaveLength(60)
+  const unnamed = whoHearsTransfers(DEFAULT_TRANSFERS, draft, '  ')!
+  expect(unnamed[0]!.name).toBe(FALLBACK_OWNER_NAME)
+  // Once the member's name is known, the contact gets it.
+  expect(whoHearsTransfers(unnamed, firstWhoHears(unnamed), 'Mike Brennan')![0]!.name).toBe('Mike Brennan')
+  expect(whoHearsTransfers(unnamed, firstWhoHears(unnamed), '')).toBeNull()
+})
+
+test("who hears: refusals about its own contact read as the step's own words; others as the server says", () => {
+  expect(mobileErrorText("Mike's number is a Linedesk number; enter the person's own phone", 'Mike')).toMatch(
+    /Enter your own mobile/,
+  )
+  expect(mobileErrorText("Mike's number forwards its calls to Linedesk; enter the person's own phone", 'Mike')).toMatch(
+    /That number forwards its calls/,
+  )
+  const other = "Dana's number is a Linedesk number; enter the person's own phone"
+  expect(mobileErrorText(other, 'Mike')).toBe(other)
+  expect(mobileErrorText('Confirm your email first', 'Mike')).toMatch(/Confirm your email address/)
 })

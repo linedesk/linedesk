@@ -28,7 +28,7 @@ async function browserAllows(): Promise<'granted' | 'denied' | 'unsupported'> {
 const blockedText = 'Blocked by the browser. Allow notifications for this site, then try again.'
 
 /** Why push cannot be turned on here, or null when it can. */
-function pushBlocker(publicKey: string | null): string | null {
+export function pushBlocker(publicKey: string | null): string | null {
   const support = pushSupport()
   if (support === 'ios-needs-install')
     return `On iPhone and iPad, add ${brandName()} to your Home Screen first (Share, Add to Home Screen), then open it from there.`
@@ -38,7 +38,7 @@ function pushBlocker(publicKey: string | null): string | null {
 }
 
 /** Whether this browser gets pushes in this workspace: its device id is among the member's. */
-function useThisDevice(devices: readonly string[]) {
+export function useThisDevice(devices: readonly string[]) {
   // Read once; subscribing here sets it (setId).
   const [id, setId] = useState<string | null>(null)
   useEffect(() => {
@@ -51,6 +51,31 @@ function useThisDevice(devices: readonly string[]) {
     }
   }, [])
   return { id, on: id !== null && devices.includes(id), setId }
+}
+
+/**
+ * Asks the browser for permission and subscribes it for pushes in this workspace (push.subscribe through the
+ * outbox); the settings show the device at once. `note`: why it did not work, null when it did.
+ */
+export async function turnOnPush(
+  settings: NotificationSettingsData,
+  run: (name: string, input: object) => unknown,
+): Promise<{ id: string | null; note: string | null }> {
+  if (!settings.push.publicKey) return { id: null, note: pushBlocker(null) }
+  try {
+    const subscription = await subscribeThisBrowser(settings.push.publicKey)
+    if (subscription === 'denied') return { id: null, note: blockedText }
+    const id = await thisDeviceId()
+    if (id)
+      setNotificationSettings({
+        ...settings,
+        push: { ...settings.push, devices: [...settings.push.devices.filter(d => d !== id), id] },
+      })
+    void run('push.subscribe', subscription)
+    return { id, note: null }
+  } catch (e) {
+    return { id: null, note: `Push could not be turned on: ${e instanceof Error ? e.message : String(e)}` }
+  }
 }
 
 export function Notifications({ toast }: { toast: (text: string) => void }) {
@@ -118,24 +143,11 @@ export function Notifications({ toast }: { toast: (text: string) => void }) {
       if (subscription) void run('push.unsubscribe', { endpoint: subscription.endpoint })
       return
     }
-    try {
-      // Registering with the browser's push service can take a while the first time.
-      setPushNote('Turning on…')
-      const subscription = await subscribeThisBrowser(settings.push.publicKey)
-      if (subscription === 'denied') return setPushNote(blockedText)
-      setPushNote(null)
-      const id = await thisDeviceId()
-      if (id) {
-        device.setId(id)
-        change({
-          ...settings,
-          push: { ...settings.push, devices: [...settings.push.devices.filter(d => d !== id), id] },
-        })
-      }
-      void run('push.subscribe', subscription)
-    } catch (e) {
-      setPushNote(`Push could not be turned on: ${e instanceof Error ? e.message : String(e)}`)
-    }
+    // Registering with the browser's push service can take a while the first time.
+    setPushNote('Turning on…')
+    const result = await turnOnPush(settings, run)
+    setPushNote(result.note)
+    if (result.id) device.setId(result.id)
   }
 
   function setPushSummary(on: boolean) {

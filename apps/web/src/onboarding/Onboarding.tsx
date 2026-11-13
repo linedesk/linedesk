@@ -23,6 +23,7 @@ import {
   phoneSetupErrorText,
   previousStep,
 } from './flow.ts'
+import { NotifyStep } from './NotifyStep.tsx'
 import { PhoneStep } from './PhoneStep.tsx'
 import { PickupStep } from './PickupStep.tsx'
 import './onboarding.css'
@@ -93,6 +94,14 @@ export function Onboarding({ me, state, onDone }: { me: Me; state: OnboardingSta
       {step === 'assistant' && <AssistantStep onBack={back} onNext={forward} />}
       {step === 'pickup' && (
         <PickupStep onBack={back} onNext={forward} memory={pickupMemory} onMemory={setPickupMemory} />
+      )}
+      {step === 'notify' && (
+        <NotifyStep
+          actorId={me.actorId}
+          emailConfirmed={!me.emailUnconfirmed || confirmed}
+          onBack={back}
+          onNext={forward}
+        />
       )}
       {step === 'phone' && (
         <PhoneStep

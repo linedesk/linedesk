@@ -306,7 +306,7 @@ export const workspace_settings = pgTable('workspace_settings', {
    * `hours`, `calendar` and `test_call` are steps of the earlier flow, still read (resumeStep maps them).
    */
   onboarding_step: text('onboarding_step', {
-    enum: ['business', 'assistant', 'pickup', 'phone', 'hours', 'calendar', 'test_call', 'done', 'skipped'],
+    enum: ['business', 'assistant', 'pickup', 'notify', 'phone', 'hours', 'calendar', 'test_call', 'done', 'skipped'],
   }),
   /**
    * When the assistant picks up, as chosen in onboarding: `no_answer` (calls the business doesn't answer, by

@@ -3,10 +3,10 @@ import { defineAction } from './define.ts'
 
 /**
  * The onboarding screens in order. `done` is the last one: reaching it finishes onboarding.
- * A new step goes in here at its place (e.g. who hears about calls, between `pickup` and `phone`); the web app
- * follows this list for order, progress and the step count.
+ * A new step goes in here at its place; the web app follows this list for order, progress and the step count.
+ * `notify` is "Who hears about calls?": the owner's mobile for urgent calls and where call summaries go.
  */
-export const onboardingSteps = ['business', 'assistant', 'pickup', 'phone', 'done'] as const
+export const onboardingSteps = ['business', 'assistant', 'pickup', 'notify', 'phone', 'done'] as const
 export type OnboardingStep = (typeof onboardingSteps)[number]
 /** What a workspace stores: a step, or `skipped` when the owner left onboarding early. */
 export type OnboardingProgress = OnboardingStep | 'skipped'
