@@ -26,8 +26,9 @@ export const pricePerMinute: Record<ProviderName, number> = {
   mistral: 0.002,
   elevenlabs: 0.018,
   cartesia: 0.018,
-  // gpt-realtime-mini, audio in and out with a call's growing context: rough, and in place of the three stages.
-  openai_realtime: 0.05,
+  // gpt-realtime (the default), audio in and out with a call's growing context, measured on test calls (2026-11-13):
+  // about $0.12 a minute; gpt-realtime-mini about $0.03. In place of the three stages.
+  openai_realtime: 0.12,
   // Recording storage is billed per stored byte, not per call minute: not part of this estimate.
   file: 0,
   s3: 0,

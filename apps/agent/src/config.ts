@@ -65,7 +65,12 @@ export const isRealtime = (config: CallConfig): config is RealtimeCallConfig => 
 /** The three stages of either kind of config, or null when a realtime model answers and they are not set up. */
 export const stagesOf = (config: CallConfig): AgentConfig | null => (isRealtime(config) ? config.stages : config)
 
-export const realtimeDefaults = { model: 'gpt-realtime-mini', voice: 'marin', summaryModel: 'gpt-4.1-mini' } as const
+/**
+ * gpt-realtime, not gpt-realtime-mini: mini turned weekdays into the wrong date (Wednesday into Thursday the 19th), also
+ * with every date written out in the prompt; gpt-realtime got them right, ~0.3 s slower and ~4.5x the cost per minute
+ * (LIN-92 follow-up, staging comparison 2026-11-13). REALTIME_MODEL or the model field in Admin › Providers picks another.
+ */
+export const realtimeDefaults = { model: 'gpt-realtime', voice: 'marin', summaryModel: 'gpt-4.1-mini' } as const
 
 type Env = Record<string, string | undefined>
 

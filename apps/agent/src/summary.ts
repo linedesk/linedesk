@@ -112,5 +112,8 @@ export function mergeToolResults(
   const outcome = tools.transferred
     ? 'transferred'
     : tools.bookings?.length ? 'booked' : taken.length && NOT_A_MESSAGE.has(guessed) ? 'message' : guessed
-  return { ...result, outcome, urgency: tools.urgent ? 'urgent' : result.urgency, actionItems: [...taken, ...extra] }
+  const items = [...taken, ...extra]
+  // A call back or message with nothing to act on would be lost in the inbox: what the call was about becomes the item.
+  if (!items.length && (outcome === 'callback' || outcome === 'message') && result.summary?.trim()) items.push({ text: `Call the caller back: ${result.summary.trim()}` })
+  return { ...result, outcome, urgency: tools.urgent ? 'urgent' : result.urgency, actionItems: items }
 }

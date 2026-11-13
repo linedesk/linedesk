@@ -194,7 +194,7 @@ export const providers = {
     category: 'realtime',
     fields: {
       api_key: apiKey('OPENAI_REALTIME_API_KEY'),
-      model: { ...model('REALTIME_MODEL'), hint: 'gpt-realtime-mini' },
+      model: { ...model('REALTIME_MODEL'), hint: 'gpt-realtime' },
       voice: { label: 'Voice', env: 'REALTIME_VOICE', secret: false, optional: true, hint: 'marin' },
       summary_model: {
         label: 'Summary model',

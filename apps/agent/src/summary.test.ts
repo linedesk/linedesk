@@ -105,3 +105,10 @@ test('a caller who gives up during a step still leaves a call back with what was
   expect(mergeToolResults(gaveUp, { ...tools, collecting: null }).outcome).toBe('hangup')
   expect(mergeToolResults(gaveUp, { ...tools, messages: ['Call Sam back'] }).actionItems).toEqual([{ text: 'Call Sam back' }])
 })
+
+test('a call back the summary left without an action item gets one from the summary', () => {
+  const callback = { outcome: 'callback' as const, urgency: 'normal' as const, title: 'Maintenance visit', summary: 'Sam Patel wants a water heater visit on Wednesday morning.', actionItems: [] }
+  expect(mergeToolResults(callback, { messages: [], urgent: false }).actionItems).toEqual([{ text: 'Call the caller back: Sam Patel wants a water heater visit on Wednesday morning.' }])
+  // An answered question needs nothing.
+  expect(mergeToolResults({ ...callback, outcome: 'answered' }, { messages: [], urgent: false }).actionItems).toEqual([])
+})

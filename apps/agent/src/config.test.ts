@@ -192,7 +192,7 @@ test('without a realtime model connected, a call goes through the three stages, 
 test('a realtime model connected in Linedesk answers calls, with its defaults, and keeps the stages that are set up', () => {
   const config = resolveCallConfig({ ...stored, realtime: { provider: 'openai_realtime', api_key: 'rt-app' } }, {})
   if (!isRealtime(config)) throw new Error('expected a realtime config')
-  expect(config.realtime).toEqual({ provider: 'openai_realtime', apiKey: 'rt-app', model: 'gpt-realtime-mini', voice: 'marin', summaryModel: 'gpt-4.1-mini' })
+  expect(config.realtime).toEqual({ provider: 'openai_realtime', apiKey: 'rt-app', model: 'gpt-realtime', voice: 'marin', summaryModel: 'gpt-4.1-mini' })
   expect(config.stages?.llm.apiKey).toBe('oa-app')
 })
 
@@ -206,7 +206,7 @@ test('a realtime model does not need the three stages', () => {
 test('OPENAI_REALTIME_API_KEY switches the realtime model on from the environment', () => {
   const config = resolveCallConfig(null, { OPENAI_REALTIME_API_KEY: 'oa', REALTIME_VOICE: 'cedar' })
   if (!isRealtime(config)) throw new Error('expected a realtime config')
-  expect(config.realtime).toMatchObject({ apiKey: 'oa', voice: 'cedar', model: 'gpt-realtime-mini' })
+  expect(config.realtime).toMatchObject({ apiKey: 'oa', voice: 'cedar', model: 'gpt-realtime' })
 })
 
 test('a realtime model without a key names the realtime model as not set up, never a value', () => {
