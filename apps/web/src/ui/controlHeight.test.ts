@@ -42,3 +42,11 @@ test('every date field is a DateInput, so it never shows the browser format ("tt
   )
   expect(plain.map(path => path.slice(src.length))).toEqual([])
 })
+
+test('the More voices filter row is one height: the search is small like its selects and button', () => {
+  const voices = read('settings/VoiceSettings.tsx')
+  const tools = voices.slice(voices.indexOf('className="vp-tools"'), voices.indexOf('Show all languages'))
+  expect(tools).toMatch(/id="vp-search"\s+size="sm"/)
+  expect(tools).toMatch(/<Select[^>]*?size="sm"/s)
+  expect(tools).toMatch(/<Button\s+size="sm"/)
+})

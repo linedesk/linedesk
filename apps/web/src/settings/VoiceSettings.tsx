@@ -1,7 +1,10 @@
-// Settings › Assistant › Voice: suggested voices (the curated ones and the workspace's clones) as
-// compact rows with a play button, and More voices: every voice of every provider with a key, with
-// search and filters. Cloning a voice where the provider can. The pick is part of the page's draft
-// (Save); cloning saves at once, since the provider creates the voice right away.
+// Settings › Assistant › Voice: suggested voices (the curated ones and the workspace's clones, or for other languages
+// the voices that perform them) as compact rows with a play button, and More voices: every voice of every provider
+// with a key, with search and filters, opened on the assistant's languages. The assistant's languages decide the voice:
+// when they change and the voice can't perform them all, it follows (with Undo). Each row says which of them the voice
+// performs ("Native German · English", "German with an American accent"); samples are spoken in the main language
+// where the provider has no sample of its own. Cloning a voice where the provider can. The pick is part of the page's draft (Save); cloning
+// saves at once, since the provider creates the voice right away.
 import {
   CLONE_CONSENT_TEXT,
   type CatalogProvider,
@@ -14,32 +17,42 @@ import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 import { Checkbox, Select } from '../ui/controls.tsx'
 import { FormMessage } from '../ui/form.tsx'
+import { HelpTip } from '../ui/HelpTip.tsx'
 import { Button, cx, Icon } from '../ui/kit.tsx'
 import { Loading, Skeleton, SkeletonList } from '../ui/LoadStates.tsx'
 import { Field, Section, TextInput } from './fields.tsx'
 import { readAction, useWriteAction } from './settings-api.ts'
 import {
-  byEnglishThenName,
+  ASSISTANT_FILTER,
+  ASSISTANT_LANGUAGES,
+  byLanguageFit,
   cloneProblem,
+  coverageNote,
+  type FollowedVoice,
   facetValues,
   fileToBase64,
   filterVoices,
-  NO_FILTER,
+  followedNotice,
+  followLanguages,
+  languageLabel,
+  languageName,
+  missingNativeNote,
+  oncePerVoice,
   type PickerVoice,
   previewProblem,
   previewUrl,
+  suggestedForLanguage,
   type VoiceFilter,
   voiceFacts,
   voiceInEffect,
   voiceKey,
-  voicesForLanguage,
 } from './voiceModel.ts'
 
 const VOICE_OPTIONS = 'voice.options'
 const VOICE_CATALOG = 'voice.catalog'
 const loadOptions = () => readAction<VoiceOptionsData>(VOICE_OPTIONS)
 /** Every voice of the providers with a key (voice.catalog); the server caches it a few minutes. */
-export const loadCatalog = () => readAction<VoiceCatalogData>(VOICE_CATALOG)
+const loadCatalog = () => readAction<VoiceCatalogData>(VOICE_CATALOG)
 /** The voices of the provider in effect; the same for every assistant of the install. */
 export const useVoiceOptions = () => useQuery(VOICE_OPTIONS, loadOptions, { persist: true })
 /** How many voices More voices shows at first, and adds per "Show more". */
@@ -48,10 +61,16 @@ const PAGE = 30
 type PreviewFailure = { key: string; message: string }
 
 /** The sample as a playable URL, or why there is none. Fetched first so a refusal can say why. */
-async function loadPreview(key: string, voiceId: string, provider: string | null): Promise<string | PreviewFailure> {
-  const res = await fetch(previewUrl(voiceId, provider), { credentials: 'include', headers: workspaceHeaders() }).catch(
-    () => null,
-  )
+async function loadPreview(
+  key: string,
+  voiceId: string,
+  provider: string | null,
+  language: string,
+): Promise<string | PreviewFailure> {
+  const res = await fetch(previewUrl(voiceId, provider, language), {
+    credentials: 'include',
+    headers: workspaceHeaders(),
+  }).catch(() => null)
   if (!res?.ok || !res.headers.get('content-type')?.startsWith('audio/')) {
     const body = (await res?.json().catch(() => null)) as { error?: string; message?: string } | null
     return { key, message: previewProblem(res?.status ?? 0, body?.error, body?.message) }
@@ -60,10 +79,10 @@ async function loadPreview(key: string, voiceId: string, provider: string | null
 }
 
 /**
- * One preview at a time: playing another stops the first. A sample is fetched once per page view.
- * `progress` (0–1) of the one playing, for its ring.
+ * One preview at a time: playing another stops the first. A sample is fetched once per page view and language (the
+ * assistant's main language, which samples are spoken in). `progress` (0–1) of the one playing, for its ring.
  */
-function usePreview(activeProvider: string | null) {
+function usePreview(activeProvider: string | null, language: string) {
   const audio = useRef<HTMLAudioElement | null>(null)
   const loaded = useRef(new Map<string, string>())
   /** The voice the last click asked for; a sample that arrives after another click is not played. */
@@ -91,11 +110,17 @@ function usePreview(activeProvider: string | null) {
       return setLoading(null)
     }
     wanted.current = key
-    let url = loaded.current.get(key)
+    const sample = `${key}|${language}`
+    let url = loaded.current.get(sample)
     if (!url) {
       setLoading(key)
-      const result = await loadPreview(key, voice.id, voice.provider === activeProvider ? null : voice.provider)
-      if (typeof result === 'string') loaded.current.set(key, result)
+      const result = await loadPreview(
+        key,
+        voice.id,
+        voice.provider === activeProvider ? null : voice.provider,
+        language,
+      )
+      if (typeof result === 'string') loaded.current.set(sample, result)
       if (wanted.current !== key) return
       setLoading(null)
       if (typeof result !== 'string') {
@@ -250,6 +275,12 @@ function filterOptions(all: string, values: { value: string; label: string }[]) 
 
 type MoreProps = {
   catalog: VoiceCatalogData | undefined
+  /** The catalog's voices, each once (oncePerVoice). */
+  voices: readonly PickerVoice[]
+  /** The assistant's main language and the others it speaks: the order, the rows' language line and the filter. */
+  main: string
+  others: readonly string[]
+  assistantName: string
   error: string | null
   onRetry: () => void
   selected: string
@@ -258,18 +289,40 @@ type MoreProps = {
   preview: Preview
 }
 
-/** Every voice of every provider with a key: search, filters, preview, pick. */
-function MoreVoices({ catalog, error, onRetry, selected, onPick, disabled, preview }: MoreProps) {
-  const [filter, setFilter] = useState<VoiceFilter>(NO_FILTER)
+/**
+ * Every voice of every provider with a key: search, filters, preview, pick. Opens on the assistant's languages, voices
+ * native in the main language first; "All languages" shows every voice.
+ */
+export function MoreVoices({
+  catalog,
+  voices: listed,
+  main,
+  others,
+  assistantName,
+  error,
+  onRetry,
+  selected,
+  onPick,
+  disabled,
+  preview,
+}: MoreProps) {
+  const [filter, setFilter] = useState<VoiceFilter>(ASSISTANT_FILTER)
   const [shown, setShown] = useState(PAGE)
   const set = (change: Partial<VoiceFilter>) => {
     setFilter(f => ({ ...f, ...change }))
     setShown(PAGE)
   }
-  const voices = useMemo(() => [...(catalog?.voices ?? [])].sort(byEnglishThenName), [catalog])
+  // New languages for the assistant: the language filter goes back to them, nothing of the languages before stays.
+  const languagesKey = [main, ...others].join(',')
+  const [filterFor, setFilterFor] = useState(languagesKey)
+  if (filterFor !== languagesKey) {
+    setFilterFor(languagesKey)
+    set({ language: ASSISTANT_LANGUAGES })
+  }
+  const voices = useMemo(() => [...listed].sort(byLanguageFit(main, others)), [listed, main, others])
   const configured = (catalog?.providers ?? []).filter(p => p.configured)
   const labelOf = (provider: string) => configured.find(p => p.provider === provider)?.label
-  const matches = useMemo(() => filterVoices(voices, filter), [voices, filter])
+  const matches = useMemo(() => filterVoices(voices, filter, main, others), [voices, filter, main, others])
   if (!catalog)
     return (
       <Loading
@@ -297,7 +350,11 @@ function MoreVoices({ catalog, error, onRetry, selected, onPick, disabled, previ
     {
       key: 'language' as const,
       label: 'Language',
-      options: filterOptions('Any language', facetValues(voices, 'language')),
+      options: [
+        { value: ASSISTANT_LANGUAGES, label: others.length ? `${assistantName}'s languages` : languageName(main) },
+        { value: '', label: 'All languages' },
+        ...facetValues(voices, 'language'),
+      ],
     },
     { key: 'gender' as const, label: 'Gender', options: filterOptions('Any gender', facetValues(voices, 'gender')) },
     { key: 'accent' as const, label: 'Accent', options: filterOptions('Any accent', facetValues(voices, 'accent')) },
@@ -309,6 +366,7 @@ function MoreVoices({ catalog, error, onRetry, selected, onPick, disabled, previ
           <Icon name="search" size={14} />
           <TextInput
             id="vp-search"
+            size="sm"
             label="Search voices"
             placeholder="Search voices"
             value={filter.query}
@@ -328,6 +386,16 @@ function MoreVoices({ catalog, error, onRetry, selected, onPick, disabled, previ
               />
             ),
         )}
+        {filter.language === ASSISTANT_LANGUAGES && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => set({ language: '' })}
+            title="Show the voices of every language, not only the ones the assistant speaks"
+          >
+            Show all languages
+          </Button>
+        )}
       </div>
       {matches.length ? (
         <div className="vp-list" role="radiogroup" aria-label="More voices">
@@ -339,7 +407,7 @@ function MoreVoices({ catalog, error, onRetry, selected, onPick, disabled, previ
               onPick={() => onPick(v)}
               disabled={disabled}
               preview={preview}
-              facts={voiceFacts(v, configured.length > 1 ? labelOf(v.provider) : undefined)}
+              facts={voiceFacts(v, main, others, configured.length > 1 ? labelOf(v.provider) : undefined)}
             />
           ))}
         </div>
@@ -383,9 +451,14 @@ type Props = {
   toast: (text: string) => void
   /** The assistant's main language: Suggested lists voices made for it when the providers have some. */
   language: string
+  /** The languages besides the main one the assistant speaks (otherLanguagesOf): ranked after the main language. */
+  otherLanguages: readonly string[]
   /** The assistant's name, for the line under the default voice ("Maya speaks with it unless you pick another"). */
   assistantName: string
 }
+
+/** How long the notice of a voice switched for the languages stays, with its Undo. */
+const FOLLOWED_NOTICE_MS = 10_000
 
 /** How many voices Suggested lists for a main language other than English. */
 const SUGGESTED_FOR_LANGUAGE = 6
@@ -460,19 +533,50 @@ function CloneVoice({
   )
 }
 
-export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast, language, assistantName }: Props) {
+export function VoiceSettings({
+  assistantId,
+  voice,
+  onPick,
+  canEdit,
+  toast,
+  language,
+  otherLanguages,
+  assistantName,
+}: Props) {
   const { data: options } = useVoiceOptions()
   const provider = options?.provider ?? null
-  const preview = usePreview(provider)
+  const preview = usePreview(provider, language)
   const [moreOpen, setMoreOpen] = useState(false)
   const clones: PickerVoice[] = provider
     ? (options?.clones ?? []).map(v => ({ provider, id: v.id, name: v.name, description: 'Your cloned voice' }))
     : []
   const curated: PickerVoice[] = provider ? (options?.voices ?? []).map(v => ({ provider, ...v })) : []
   const isCurated = [...curated, ...clones].some(v => v.provider === voice.provider && v.id === voice.voice_id)
-  // The catalog is read when More voices opens, for a main language other than English (its voices are suggested),
-  // or at once when the voice in use is one of it.
-  const needCatalog = moreOpen || language !== 'en' || (!!voice.voice_id && !!options && !isCurated)
+  // The assistant's languages changed since the last look: the voice may have to follow them (below).
+  const languagesKey = [language, ...otherLanguages].join(',')
+  const [seenLanguages, setSeenLanguages] = useState(languagesKey)
+  const [follow, setFollow] = useState(false)
+  if (seenLanguages !== languagesKey) {
+    setSeenLanguages(languagesKey)
+    setFollow(true)
+  }
+  /** The last switch made for the languages, with Undo, for a few seconds. */
+  const [followed, setFollowed] = useState<(FollowedVoice & { from: { provider: string; voice_id: string } }) | null>(
+    null,
+  )
+  useEffect(() => {
+    if (!followed) return
+    const timer = setTimeout(() => setFollowed(null), FOLLOWED_NOTICE_MS)
+    return () => clearTimeout(timer)
+  }, [followed])
+  // The catalog is read when More voices opens, for languages besides English alone (their voices are suggested), when
+  // the voice in use is one of it, or to follow a change of the languages.
+  const needCatalog =
+    moreOpen ||
+    follow ||
+    language !== 'en' ||
+    otherLanguages.some(code => code !== 'en') ||
+    (!!voice.voice_id && !!options && !isCurated)
   const {
     data: catalog,
     error: catalogError,
@@ -480,12 +584,35 @@ export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast, lang
   } = useQuery(needCatalog ? VOICE_CATALOG : null, loadCatalog, {
     persist: true,
   })
-  // Another main language: the providers' voices made for it, else the curated (English) ones.
+  // Each voice once: a catalog kept from an older API lists a library voice once per language it is verified in.
+  const catalogVoices = useMemo(() => oncePerVoice(catalog?.voices ?? []), [catalog])
+  // A suggested voice as the provider's list describes it (its languages), where the list has it.
+  const described = (v: PickerVoice): PickerVoice =>
+    catalogVoices.find(c => c.provider === v.provider && c.id === v.id) ?? v
+  // Another main language: the voices native in it first (suggestedForLanguage), else the curated ones, each saying
+  // its accent, with a note why there is no native voice.
   const forLanguage =
-    language !== 'en' && catalog
-      ? voicesForLanguage(catalog.voices, language, provider).slice(0, SUGGESTED_FOR_LANGUAGE)
-      : []
-  const suggested = [...(forLanguage.length ? forLanguage : curated), ...clones]
+    (catalog &&
+      suggestedForLanguage(catalogVoices, curated, language, otherLanguages, provider, SUGGESTED_FOR_LANGUAGE)) ||
+    []
+  const nativeNote =
+    catalog && !forLanguage.length
+      ? missingNativeNote(
+          language,
+          catalog.providers.find(p => p.active),
+        )
+      : null
+  const configuredProviders = catalog?.providers.filter(p => p.configured) ?? []
+  const coverage =
+    catalog && forLanguage.length
+      ? coverageNote(
+          oncePerVoice([...catalogVoices, ...curated]),
+          language,
+          otherLanguages,
+          configuredProviders.length === 1 ? configuredProviders[0]!.label : null,
+        )
+      : null
+  const suggested = [...(forLanguage.length ? forLanguage : curated.map(described)), ...clones.map(described)]
   const isSuggested = suggested.some(v => v.provider === voice.provider && v.id === voice.voice_id)
   const usable = catalog
     ? catalog.providers.filter(p => p.configured).map(p => p.provider)
@@ -499,16 +626,50 @@ export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast, lang
     defaultKey && current !== defaultKey ? suggested.filter(v => voiceKey(v.provider, v.id) !== defaultKey) : suggested
   const fromCatalog =
     current && !isSuggested
-      ? (catalog?.voices.find(v => voiceKey(v.provider, v.id) === current) ?? {
+      ? (catalogVoices.find(v => voiceKey(v.provider, v.id) === current) ?? {
           provider: voice.provider,
           id: voice.voice_id,
           name: 'Chosen voice',
           description: voice.voice_id,
         })
       : null
-  const pick = (v: PickerVoice | null) =>
-    v ? onPick({ provider: v.provider, voice_id: v.id }) : provider && onPick({ provider, voice_id: '' })
+  // The voice "Default voice" stands for, with its languages where they are known.
+  const defaultVoice =
+    provider && options?.defaultVoice
+      ? described(
+          curated.find(v => v.id === options.defaultVoice?.id) ?? {
+            provider,
+            id: options.defaultVoice.id,
+            name: options.defaultVoice.name ?? 'Default voice',
+            description: null,
+          },
+        )
+      : null
+  const pick = (v: PickerVoice | null) => {
+    setFollowed(null)
+    if (v) onPick({ provider: v.provider, voice_id: v.id })
+    else if (provider) onPick({ provider, voice_id: '' })
+  }
   const failure = preview.failed
+  // The assistant's languages decide the voice: after they change, a voice that can't perform all of them is switched
+  // to the one that performs the most (followLanguages), with a notice and Undo. A voice that still does stays.
+  useEffect(() => {
+    if (!follow || !catalog || !options) return
+    setFollow(false)
+    if (!canEdit) return
+    const inEffect = current ? voice : { provider: provider ?? voice.provider, voice_id: '' }
+    const next = followLanguages({
+      voices: catalogVoices,
+      curated: curated.map(described),
+      defaultVoice,
+      current: inEffect,
+      main: language,
+      others: otherLanguages,
+    })
+    if (!next) return setFollowed(null)
+    onPick(next.voice)
+    setFollowed({ ...next, from: voice })
+  })
 
   if (options && !provider)
     return (
@@ -533,7 +694,12 @@ export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast, lang
             onPick={() => pick(fromCatalog)}
             disabled={!canEdit}
             preview={preview}
-            facts={voiceFacts(fromCatalog, catalog?.providers.find(p => p.provider === fromCatalog.provider)?.label)}
+            facts={voiceFacts(
+              fromCatalog,
+              language,
+              otherLanguages,
+              catalog?.providers.find(p => p.provider === fromCatalog.provider)?.label,
+            )}
           />
         )}
         {/* The default voice speaks English: offered for English, and for a language the providers have no voices for. */}
@@ -546,6 +712,7 @@ export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast, lang
             onPick={() => pick(null)}
             disabled={!canEdit}
             preview={preview}
+            facts={(defaultVoice && languageLabel(defaultVoice, language, otherLanguages)) || undefined}
           />
         )}
         {listed.map(v => (
@@ -556,10 +723,35 @@ export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast, lang
             onPick={() => pick(v)}
             disabled={!canEdit}
             preview={preview}
-            facts={forLanguage.includes(v) ? voiceFacts(v) : undefined}
+            facts={
+              (forLanguage.includes(v)
+                ? voiceFacts(v, language, otherLanguages)
+                : languageLabel(v, language, otherLanguages)) || undefined
+            }
           />
         ))}
       </div>
+      {followed && (
+        <p className="help vp-followed" role="status">
+          {followedNotice(followed)}{' '}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              onPick(followed.from)
+              setFollowed(null)
+            }}
+          >
+            Undo
+          </Button>
+        </p>
+      )}
+      {coverage && <p className="help vp-native-note">{coverage}</p>}
+      {nativeNote && (
+        <p className="help vp-native-note">
+          {nativeNote.text} <HelpTip label="Why there are no native voices" text={nativeNote.help} />
+        </p>
+      )}
       {failure && <FormMessage>{failure.message}</FormMessage>}
       <details className="vp-more" onToggle={e => setMoreOpen(e.currentTarget.open)}>
         <summary title="Every voice of your voice providers, with search and filters">
@@ -569,6 +761,10 @@ export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast, lang
         {moreOpen && (
           <MoreVoices
             catalog={catalog}
+            voices={catalogVoices}
+            main={language}
+            others={otherLanguages}
+            assistantName={assistantName}
             error={catalogError}
             onRetry={() => void reloadCatalog()}
             selected={current}

@@ -57,10 +57,20 @@ type TextProps = {
   invalid?: boolean
 }
 
-export function TextInput({ id, value, onChange, placeholder, label, invalid }: TextProps) {
+/** `size` as on Input: "sm" in a row of small selects and buttons (one height per row). */
+export function TextInput({
+  id,
+  value,
+  onChange,
+  placeholder,
+  label,
+  invalid,
+  size,
+}: TextProps & { size?: 'sm' | 'md' }) {
   return (
     <Input
       id={id}
+      size={size}
       value={value}
       placeholder={placeholder}
       aria-label={label}

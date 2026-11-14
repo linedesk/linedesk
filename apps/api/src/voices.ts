@@ -2,7 +2,8 @@
 // workspace's own clones), cloning one (voice.clone: off until an instance admin turns it on), and
 // GET /v1/voices/preview/<voiceId>, a short sample in that voice. The curated voices' samples ship with
 // the app (assets/voice-previews), so they play without a provider key and cost nothing; any other
-// sample is generated once per provider, model, voice and text and kept on disk.
+// sample is generated once per provider, model, voice, language and text and kept on disk. A sample is spoken in the
+// assistant's main language (`?language=`), except where the provider hosts one of its own.
 import { createHash } from 'node:crypto'
 import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -14,6 +15,8 @@ import {
   cloningProviders,
   curatedVoices,
   isCuratedVoice,
+  type Language,
+  languageCodes,
   providerDefaultVoices,
   providerFailureText,
   pipelinesAllowed,
@@ -52,10 +55,26 @@ import {
 } from './voice-provider.ts'
 
 /**
- * What every preview says. Changing it makes new samples (the text is part of the cache key); the
- * bundled ones in assets/voice-previews say it too and have to be made again.
+ * What a preview says, per language: the same short greeting in each. Changing one makes new samples (the text is part
+ * of the cache key); the bundled English ones in assets/voice-previews say the English one and have to be made again.
  */
-export const PREVIEW_TEXT = 'Hi, thanks for calling. This is how I sound on the phone. How can I help you today?'
+export const PREVIEW_TEXTS: Record<Language, string> = {
+  en: 'Hi, thanks for calling. This is how I sound on the phone. How can I help you today?',
+  es: 'Hola, gracias por llamar. Así sueno por teléfono. ¿En qué puedo ayudarle hoy?',
+  fr: "Bonjour, merci de votre appel. Voici ma voix au téléphone. Comment puis-je vous aider aujourd'hui ?",
+  de: 'Hallo, danke für Ihren Anruf. So klinge ich am Telefon. Wie kann ich Ihnen heute helfen?',
+  it: 'Salve, grazie per aver chiamato. Ecco come suono al telefono. Come posso aiutarla oggi?',
+  pt: 'Olá, agradecemos a sua ligação. É assim que eu soo ao telefone. Como posso ajudar hoje?',
+  nl: 'Hallo, bedankt voor het bellen. Zo klink ik aan de telefoon. Waarmee kan ik u vandaag helpen?',
+  ru: 'Здравствуйте, спасибо за звонок. Вот так я звучу по телефону. Чем могу помочь сегодня?',
+  hi: 'नमस्ते, कॉल करने के लिए धन्यवाद। फ़ोन पर मेरी आवाज़ ऐसी सुनाई देती है। आज मैं आपकी क्या मदद करूँ?',
+  ja: 'お電話ありがとうございます。電話ではこのような声でお話しします。本日はどのようなご用件でしょうか？',
+}
+/** The English preview: what the bundled samples say, and what the install's speech test listens for. */
+export const PREVIEW_TEXT = PREVIEW_TEXTS.en
+/** A `?language=` of the preview route: a supported language, else null. */
+export const previewLanguage = (value: string | undefined): Language | null =>
+  languageCodes.find(code => code === value) ?? null
 /** New samples a workspace may have made per hour (each is a paid request); cached ones are free. */
 export const PREVIEWS_PER_HOUR = 20
 /** The preview cache keeps at most this many samples; the oldest go first. */
@@ -239,8 +258,8 @@ export const voicePreparers: Record<string, Preparer> = {
  * A preview made by the provider. Its result goes into the provider failure record (provider-failures.ts): a quota
  * used up or a rejected key there is what stops the assistant's voice too. A voice it does not know is about that voice.
  */
-function trackedSynthesis(provider: VoiceProvider, voiceId: string): Promise<Buffer> {
-  return provider.synthesize(voiceId, PREVIEW_TEXT).then(
+function trackedSynthesis(provider: VoiceProvider, voiceId: string, language: Language): Promise<Buffer> {
+  return provider.synthesize(voiceId, PREVIEW_TEXTS[language], language).then(
     audio => {
       void noteProviderOk(provider.name)
       return audio.bytes
@@ -364,9 +383,19 @@ export function previewCache(
   }
 }
 
-export const previewKey = (provider: VoiceProvider, voiceId: string, text = PREVIEW_TEXT) =>
+/**
+ * A synthesized sample's cache key: provider, model, voice, language and text. English keeps the key it had before
+ * samples had a language, so the samples cached then are still used.
+ */
+export const previewKey = (provider: VoiceProvider, voiceId: string, language: Language = 'en') =>
   createHash('sha256')
-    .update(JSON.stringify([provider.name, provider.model, voiceId, text]))
+    .update(
+      JSON.stringify(
+        language === 'en'
+          ? [provider.name, provider.model, voiceId, PREVIEW_TEXTS.en]
+          : [provider.name, provider.model, voiceId, PREVIEW_TEXTS[language], language],
+      ),
+    )
     .digest('hex')
     .slice(0, 32)
 
@@ -427,6 +456,11 @@ type PreviewOptions = {
   installDefault?: { provider: string; voiceId: string } | null
   /** The voice in the provider's list (default: looked up); null when it is not listed. */
   catalogEntry?: CatalogEntry | null
+  /**
+   * The language to speak the sample in (the assistant's main language; default English). Not for a sample the
+   * provider hosts: that one is played as it is.
+   */
+  language?: Language
   doFetch?: typeof fetch
 }
 
@@ -470,16 +504,19 @@ export async function hostedSample(provider: string, url: string, doFetch: typeo
 }
 
 /**
- * The preview of a voice the workspace may use: a curated voice (its shipped sample, no provider
+ * The preview of a voice the workspace may use: a curated voice (its shipped sample in English, no provider
  * needed), one of its own clones, or a voice of a provider's list (the sample the provider hosts, else
- * one synthesized). A synthesized sample not in the cache counts against PREVIEWS_PER_HOUR.
+ * one synthesized). Synthesized samples are spoken in `language`. A synthesized sample not in the cache counts against
+ * PREVIEWS_PER_HOUR.
  */
 export async function servePreview(actor: Actor, rawVoiceId: string, options: PreviewOptions = {}): Promise<Response> {
   if (!actor.workspaceId || !actor.permissions.includes('call:read')) return error(403, 'missing permission call:read')
   const parsed = voiceIdSchema.safeParse(rawVoiceId)
   if (!parsed.success) return error(400, 'not a voice id')
   const voiceId = parsed.data
-  const shipped = await bundledPreview(voiceId, options.bundledDir)
+  const language = options.language ?? 'en'
+  // The shipped samples are English; in another language the curated voices are synthesized like any other.
+  const shipped = language === 'en' ? await bundledPreview(voiceId, options.bundledDir) : null
   if (shipped) return audioResponse(shipped)
   const provider =
     options.provider !== undefined
@@ -502,7 +539,9 @@ export async function servePreview(actor: Actor, rawVoiceId: string, options: Pr
     return error(404, "not one of the voice providers' voices or this workspace's cloned voices")
   const hosted = listed?.previewUrl ?? null
   const cache = options.cache ?? previewCache()
-  const key = hosted ? createHash('sha256').update(hosted).digest('hex').slice(0, 32) : previewKey(provider, voiceId)
+  const key = hosted
+    ? createHash('sha256').update(hosted).digest('hex').slice(0, 32)
+    : previewKey(provider, voiceId, language)
   const stored = await cache.get(key)
   if (stored) return audioResponse(stored)
   try {
@@ -512,7 +551,7 @@ export async function servePreview(actor: Actor, rawVoiceId: string, options: Pr
         return error(429, `at most ${PREVIEWS_PER_HOUR} new voice samples an hour`)
       const made = hosted
         ? hostedSample(provider.name, hosted, options.doFetch ?? fetch)
-        : trackedSynthesis(provider, voiceId)
+        : trackedSynthesis(provider, voiceId, language)
       pending = made.then(async bytes => {
         await cache
           .put(key, bytes)

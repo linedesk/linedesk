@@ -15,30 +15,30 @@ import {
 } from '@linedesk/actions'
 import { type Tx, voice_clones } from '@linedesk/db'
 import { activeProvider, setUpProviders } from './provider-settings.ts'
-import { createVoiceProvider, type ProviderVoice, type VoiceProvider } from './voice-provider.ts'
+import { createVoiceProvider, type ProviderVoice, type VoiceList, type VoiceProvider } from './voice-provider.ts'
 
 /** How long a provider's list is reused; a failure is retried sooner. */
 export const CATALOG_TTL_MS = 5 * 60 * 1000
 const FAILURE_TTL_MS = 30 * 1000
 
-type Listed = { at: number; voices?: ProviderVoice[]; error?: string; pending?: Promise<ProviderVoice[]> }
+type Listed = { at: number; list?: VoiceList; error?: string; pending?: Promise<VoiceList> }
 
 /** The lists per provider and key (a new key reads again). Per API process. */
 export function catalogCache(now = Date.now) {
   const lists = new Map<string, Listed>()
   return {
-    async voicesOf(adapter: VoiceProvider, apiKey: string): Promise<ProviderVoice[]> {
+    async voicesOf(adapter: VoiceProvider, apiKey: string): Promise<VoiceList> {
       const key = `${adapter.name}:${createHash('sha256').update(apiKey).digest('hex').slice(0, 16)}`
       const hit = lists.get(key)
       if (hit?.pending) return hit.pending
-      if (hit?.voices && now() - hit.at < CATALOG_TTL_MS) return hit.voices
+      if (hit?.list && now() - hit.at < CATALOG_TTL_MS) return hit.list
       if (hit?.error && now() - hit.at < FAILURE_TTL_MS) throw new Error(hit.error)
       const pending = adapter.listVoices()
       lists.set(key, { at: now(), pending })
       try {
-        const voices = await pending
-        lists.set(key, { at: now(), voices })
-        return voices
+        const list = await pending
+        lists.set(key, { at: now(), list })
+        return list
       } catch (e) {
         const error = e instanceof Error ? e.message : String(e)
         lists.set(key, { at: now(), error })
@@ -89,7 +89,7 @@ export async function voiceCatalog(tx: Tx, workspaceId: string, options: Catalog
       continue
     }
     try {
-      const listed = await cache.voicesOf(adapter, apiKey)
+      const { voices: listed, freePlan } = await cache.voicesOf(adapter, apiKey)
       const ofProvider = clones.filter(c => c.provider === provider)
       const own = new Set(ofProvider.filter(c => c.workspace_id === workspaceId && !c.deleted_at).map(c => c.voice_id))
       const others = new Set(ofProvider.filter(c => !own.has(c.voice_id)).map(c => c.voice_id))
@@ -97,7 +97,7 @@ export async function voiceCatalog(tx: Tx, workspaceId: string, options: Catalog
         if (others.has(voice.id) || (voice.clone && !own.has(voice.id))) continue
         voices.push({ ...voice, provider })
       }
-      providers.push({ ...state, configured: true, error: null })
+      providers.push({ ...state, configured: true, error: null, ...(freePlan ? { freePlan } : {}) })
     } catch (e) {
       providers.push({
         ...state,
@@ -119,6 +119,7 @@ export const catalogData = ({ providers, voices }: Awaited<ReturnType<typeof voi
       id: v.id,
       name: v.name,
       description: v.description,
+      languages: v.languages,
       language: v.language,
       gender: v.gender,
       accent: v.accent,

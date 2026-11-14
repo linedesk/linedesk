@@ -32,6 +32,7 @@ import {
   languageCodes,
   LANGUAGES,
   answeredQuestionLine,
+  otherLanguagesOf,
 } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -80,8 +81,7 @@ import { AssistantReview } from '../review/AssistantReview.tsx'
 import { loadReviewList, reviewListKey } from '../review/reviewData.ts'
 import { REVIEW_SECTION, reviewTitle } from '../review/reviewModel.ts'
 import { useQuery } from '../cachedQuery.ts'
-import { loadCatalog, useVoiceOptions, VoiceSettings } from './VoiceSettings.tsx'
-import { voiceForMainLanguage } from './voiceModel.ts'
+import { useVoiceOptions, VoiceSettings } from './VoiceSettings.tsx'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
 import { TransferContacts, transferFieldId } from './TransferContacts.tsx'
@@ -724,27 +724,11 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
     toast('Assistant settings saved.')
   }
   /**
-   * A new main language: its default texts, and a voice made for it when the providers have one (back to the
-   * default voice for English). The voice comes from the catalog, so it follows a moment later, with a toast.
+   * A new main language: its default texts. The voice follows in VoiceSettings, which switches it when it can't
+   * perform the assistant's languages (the same for a change of the other languages).
    */
-  async function changeMainLanguage(code: Language) {
+  function changeMainLanguage(code: Language) {
     setDraft(d => withMainLanguage(d, code))
-    // A realtime model speaks every language in its own voice: nothing to pick.
-    if (realtime) return
-    const catalog = await loadCatalog().catch(() => null)
-    if (!catalog) return
-    const active = catalog.providers.find(p => p.active)?.provider ?? null
-    const next = voiceForMainLanguage(catalog.voices, code, draft.voice, active)
-    if (!next || (next === 'default' && !active)) return
-    const voice =
-      next === 'default' ? { provider: active!, voice_id: '' } : { provider: next.provider, voice_id: next.id }
-    // Only while that language is still the one picked: a quick second change wins.
-    setDraft(d => (mainOf(d) === code ? { ...d, voice } : d))
-    toast(
-      next === 'default'
-        ? 'Voice changed to the default voice, for English. Save to keep it.'
-        : `Voice changed to ${next.name}, a ${LANGUAGES[code]} voice. Save to keep it.`,
-    )
   }
 
   function cancel() {
@@ -767,7 +751,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
           <>
             <AssistantNameSection draft={draft} set={set} />
             <Greeting draft={draft} set={set} savedName={assistant.name} hoursOn={hoursOn} canEdit={canEdit} />
-            <Languages draft={draft} set={set} onMainLanguage={code => void changeMainLanguage(code)} />
+            <Languages draft={draft} set={set} onMainLanguage={changeMainLanguage} />
             <NotAnswered setUp={setUp} />
             {realtime ? (
               <RealtimeVoice canSwitch={setUp?.three_stage === true} />
@@ -779,6 +763,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
                 canEdit={canEdit}
                 toast={toast}
                 language={mainOf(draft)}
+                otherLanguages={otherLanguagesOf(draft.languages)}
                 assistantName={assistantName(draft)}
               />
             )}

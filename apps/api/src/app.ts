@@ -62,7 +62,7 @@ import { starPromptFor } from './star-prompt.ts'
 import { voiceFailing } from './provider-failures.ts'
 import { voiceReady } from './provider-settings.ts'
 import { isSignedRecordingRequest, serveRecording, serveSignedRecording } from './recording-route.ts'
-import { servePreview } from './voices.ts'
+import { previewLanguage, servePreview } from './voices.ts'
 import { runAction } from './run-action.ts'
 
 const ELECTRIC_URL = process.env.ELECTRIC_URL ?? 'http://localhost:3001'
@@ -504,9 +504,16 @@ app.post('/v1/actions/:name', async c => {
   return c.json(body, status)
 })
 
-app.get('/v1/voices/preview/:voiceId', c =>
-  servePreview(c.get('actor'), c.req.param('voiceId'), { providerName: c.req.query('provider') || undefined }),
-)
+app.get('/v1/voices/preview/:voiceId', c => {
+  // `language`: the assistant's main language, which the sample is spoken in (missing: English).
+  const asked = c.req.query('language') || undefined
+  const language = asked === undefined ? undefined : previewLanguage(asked)
+  if (language === null) return Response.json({ ok: false, error: 'not a supported language' }, { status: 400 })
+  return servePreview(c.get('actor'), c.req.param('voiceId'), {
+    providerName: c.req.query('provider') || undefined,
+    language,
+  })
+})
 
 app.get('/v1/calls/:id/recording', c => {
   const signature = c.req.query('signature')

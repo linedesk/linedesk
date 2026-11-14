@@ -2,9 +2,13 @@
 // voices per supported language on a paid plan, picked for a phone assistant. Cartesia's languages pass through.
 import { describe, expect, it, test, vi } from 'vitest'
 import {
+  accentOfLocale,
+  accentWords,
+  CARTESIA_LIST_VERSION,
   cartesiaVoice,
   createVoiceProvider,
   elevenLabsLibraryVoice,
+  elevenLabsVoice,
   genderBalanced,
   LIBRARY_LANGUAGES,
   LIBRARY_PER_LANGUAGE,
@@ -66,8 +70,9 @@ function fakeElevenLabs({ tier = 'creator', subscriptionStatus = 200, librarySta
   return { doFetch: doFetch as unknown as typeof fetch, requests }
 }
 
-const listWith = (fake: ReturnType<typeof fakeElevenLabs>) =>
+const listFull = (fake: ReturnType<typeof fakeElevenLabs>) =>
   createVoiceProvider('elevenlabs', { api_key: KEY }, fake.doFetch)!.listVoices()
+const listWith = async (fake: ReturnType<typeof fakeElevenLabs>) => (await listFull(fake)).voices
 
 describe('ElevenLabs Voice Library voices', () => {
   it('a paid plan lists a few native voices for every supported language besides English', async () => {
@@ -84,6 +89,7 @@ describe('ElevenLabs Voice Library voices', () => {
       id: 'es-m1',
       name: 'es-m1 - Warm and Clear',
       description: 'Friendly support voice',
+      languages: [{ code: 'es', accent: 'latin american', native: true }],
       language: 'es',
       gender: 'male',
       accent: 'latin american',
@@ -108,10 +114,16 @@ describe('ElevenLabs Voice Library voices', () => {
   })
 
   it('a free plan, or a key that cannot read the plan, gets only the account’s voices', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     for (const fake of [fakeElevenLabs({ tier: 'free' }), fakeElevenLabs({ subscriptionStatus: 401 })]) {
       expect((await listWith(fake)).map(v => v.id)).toEqual(['premade1'])
       expect(fake.requests.some(r => r.url.pathname === '/v1/shared-voices')).toBe(false)
     }
+    // Only a plan known to be free says so (the picker then explains why there are no native voices).
+    expect((await listFull(fakeElevenLabs({ tier: 'free' }))).freePlan).toBe(true)
+    expect((await listFull(fakeElevenLabs({ subscriptionStatus: 401 }))).freePlan).toBeUndefined()
+    expect((await listFull(fakeElevenLabs())).freePlan).toBeUndefined()
+    warn.mockRestore()
   })
 
   it('the account’s voices still list when the library cannot be read', async () => {
@@ -133,9 +145,58 @@ describe('ElevenLabs Voice Library voices', () => {
     const voices = await listWith(fakeElevenLabs({ account: [added] }))
     expect(voices.filter(v => v.id === 'es-f1')).toEqual([expect.objectContaining({ name: 'Mine', clone: false })])
   })
+
+  it('a voice verified in several languages is listed once, of its own language, with every language it was listed for', async () => {
+    // Alexandra: an Austrian German voice, verified in German, Dutch and Portuguese, so the library lists her for each.
+    const alexandra = (listedFor: string) =>
+      shared('alexandra', listedFor, {
+        name: 'Alexandra',
+        accent: 'austrian',
+        language: 'de',
+        verified_languages: ['de', 'nl', 'pt'].map(language => ({ language, model_id: MODEL, locale: null })),
+      })
+    const fake = fakeElevenLabs()
+    const libraryFetch = fake.doFetch
+    const doFetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(String(input))
+      const language = url.searchParams.get('language') ?? ''
+      if (url.pathname === '/v1/shared-voices' && ['de', 'nl', 'pt'].includes(language))
+        return Response.json({ voices: [alexandra(language)], has_more: false })
+      return libraryFetch(input, init)
+    }) as typeof fetch
+    const { voices } = await createVoiceProvider('elevenlabs', { api_key: KEY }, doFetch)!.listVoices()
+    const listed = voices.filter(v => v.id === 'alexandra')
+    expect(listed).toHaveLength(1)
+    expect(listed[0]).toMatchObject({ language: 'de', accent: 'austrian' })
+    expect(listed[0]!.languages).toEqual([
+      { code: 'de', accent: 'austrian', native: true },
+      { code: 'nl', accent: null, native: true },
+      { code: 'pt', accent: null, native: true },
+    ])
+  })
 })
 
 describe('which library voices fit a phone assistant', () => {
+  it('a voice listed for another language than its own keeps its own language and accent', () => {
+    const voice = elevenLabsLibraryVoice(
+      shared('alexandra', 'nl', {
+        accent: 'austrian',
+        language: 'de',
+        verified_languages: [
+          { language: 'de', model_id: MODEL },
+          { language: 'nl', model_id: MODEL, accent: 'flemish' },
+        ],
+      }),
+      'nl',
+      MODEL,
+    )
+    expect(voice).toMatchObject({ language: 'de', accent: 'austrian' })
+    expect(voice?.languages).toEqual([
+      { code: 'de', accent: 'austrian', native: true },
+      { code: 'nl', accent: 'flemish', native: true },
+    ])
+  })
+
   it('keeps a voice verified for the language with the model in use and a sample on the sample host', () => {
     expect(elevenLabsLibraryVoice(shared('a', 'fr'), 'fr', MODEL)).toMatchObject({
       id: 'a',
@@ -170,6 +231,7 @@ test('the picks per language mix female and male voices, in the order given', ()
     id,
     name: id,
     description: null,
+    languages: [{ code: 'es', accent: null, native: true }],
     language: 'es',
     gender,
     accent: null,
@@ -183,9 +245,193 @@ test('the picks per language mix female and male voices, in the order given', ()
   expect(genderBalanced(ranked.slice(0, 5)).map(v => v.id)).toEqual(['f1', 'f2', 'f3', 'f4', 'f5'])
 })
 
-test('Cartesia voices keep the language Cartesia lists', () => {
+test('Cartesia voices of an older API version (no accents) keep the language Cartesia lists, as native', () => {
   expect(cartesiaVoice({ id: 'c1', name: 'Lucía', language: 'es', gender: 'feminine' })).toMatchObject({
+    languages: [{ code: 'es', accent: null, native: true }],
     language: 'es',
     gender: 'female',
+  })
+})
+
+/** Voices as Cartesia's GET /voices returns them (API version 2026-08-14), trimmed to the fields we read. */
+const CARTESIA_PAGE_1 = {
+  data: [
+    {
+      id: 'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4',
+      is_owner: false,
+      status: 'active',
+      access: 'public',
+      visibility: 'all',
+      name: 'Skylar',
+      tagline: 'Friendly Guide',
+      description: 'A friendly, clear voice',
+      gender: 'feminine',
+      language: 'en',
+      accents: [
+        { accent: 'general-american', locale: 'en-US', is_native: true },
+        { accent: 'mexican', locale: 'es-MX', is_native: false },
+        { accent: 'castilian', locale: 'es-ES', is_native: false },
+        { accent: 'standard-german', locale: 'de-DE', is_native: false },
+      ],
+      country: 'US',
+      created_at: '2026-03-31T17:37:05.961874Z',
+    },
+  ],
+  has_more: true,
+  next_page: 'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4',
+}
+const CARTESIA_PAGE_2 = {
+  data: [
+    {
+      id: 'b9de4a89-2257-424b-94c2-db18ba68c81a',
+      is_owner: false,
+      name: 'Johanna',
+      description: 'Ruhig und freundlich',
+      gender: 'feminine',
+      language: 'de',
+      accents: [{ accent: 'standard-german', locale: 'de-DE', is_native: true }],
+    },
+    // No locale: nothing to tell; the deprecated language is used.
+    { id: 'c0ffee00-0000-4000-8000-000000000000', is_owner: true, name: 'Own', language: 'fr', accents: [] },
+  ],
+  has_more: false,
+  next_page: null,
+}
+
+describe('Cartesia voice list (current API version)', () => {
+  function fakeCartesia() {
+    const requests: { url: URL; version: string | null }[] = []
+    const doFetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(String(input))
+      requests.push({ url, version: new Headers(init?.headers).get('cartesia-version') })
+      return Response.json(url.searchParams.get('starting_after') ? CARTESIA_PAGE_2 : CARTESIA_PAGE_1)
+    })
+    return { doFetch: doFetch as unknown as typeof fetch, requests }
+  }
+
+  it('reads every language from accents[]: native where it was recorded, the accent it speaks the others with', async () => {
+    const fake = fakeCartesia()
+    const { voices, freePlan } = await createVoiceProvider('cartesia', { api_key: 'sk' }, fake.doFetch)!.listVoices()
+    expect(freePlan).toBeUndefined()
+    expect(voices.map(v => v.name)).toEqual(['Skylar', 'Johanna', 'Own'])
+    expect(voices[0]).toMatchObject({
+      languages: [
+        { code: 'en', accent: 'american', native: true },
+        { code: 'es', accent: 'mexican', native: false },
+        { code: 'de', accent: 'german', native: false },
+      ],
+      language: 'en',
+      accent: 'american',
+      gender: 'female',
+    })
+    expect(voices[1]).toMatchObject({ languages: [{ code: 'de', accent: 'german', native: true }], language: 'de' })
+    expect(voices[2]).toMatchObject({ languages: [{ code: 'fr', accent: null, native: true }], clone: true })
+    expect(fake.requests.map(r => r.version)).toEqual([CARTESIA_LIST_VERSION, CARTESIA_LIST_VERSION])
+    expect(fake.requests[1]!.url.searchParams.get('starting_after')).toBe(CARTESIA_PAGE_1.next_page)
+  })
+
+  it('a native accent wins over another of the same language; a locale alone gives the accent of its region', () => {
+    expect(
+      cartesiaVoice({
+        id: 'x1',
+        name: 'X',
+        accents: [
+          { accent: 'mexican', locale: 'es-MX', is_native: false },
+          { locale: 'es-AR', is_native: true },
+        ],
+      })?.languages,
+    ).toEqual([{ code: 'es', accent: 'argentinian', native: true }])
+  })
+})
+
+describe('ElevenLabs voice languages', () => {
+  it('keeps every verified language, each native, once per language', () => {
+    const voice = elevenLabsVoice({
+      voice_id: 'v1',
+      name: 'Lena',
+      category: 'professional',
+      is_owner: false,
+      sharing: { status: 'copied', original_voice_id: 'o' },
+      labels: { accent: 'standard', language: 'de' },
+      verified_languages: [
+        { language: 'de', model_id: 'eleven_multilingual_v2', accent: 'standard', locale: 'de-DE' },
+        { language: 'de', model_id: MODEL, accent: 'standard', locale: 'de-DE' },
+        { language: 'en', model_id: MODEL, accent: null, locale: 'en-GB' },
+      ],
+    })
+    expect(voice?.languages).toEqual([
+      { code: 'de', accent: 'standard', native: true },
+      { code: 'en', accent: 'british', native: true },
+    ])
+    expect(voice).toMatchObject({ language: 'de', accent: 'standard' })
+  })
+
+  it('without verified languages: the language label, or English for a premade voice', () => {
+    expect(
+      elevenLabsVoice({ voice_id: 'p1', name: 'Sarah', category: 'premade', labels: { accent: 'american' } })
+        ?.languages,
+    ).toEqual([{ code: 'en', accent: 'american', native: true }])
+    expect(elevenLabsVoice({ voice_id: 'g1', name: 'Gen', category: 'generated' })?.languages).toEqual([])
+  })
+
+  it('a library voice is native in the language it was listed for, and keeps its other verified ones', () => {
+    const voice = elevenLabsLibraryVoice(
+      shared('a', 'fr', {
+        accent: 'parisian',
+        verified_languages: [
+          { language: 'fr', model_id: MODEL, locale: 'fr-FR' },
+          { language: 'en', model_id: MODEL, accent: 'american', locale: 'en-US' },
+        ],
+      }),
+      'fr',
+      MODEL,
+    )
+    expect(voice?.languages).toEqual([
+      { code: 'fr', accent: 'parisian', native: true },
+      { code: 'en', accent: 'american', native: true },
+    ])
+  })
+
+  it('accent words and locales', () => {
+    expect(accentWords('general-american')).toBe('american')
+    expect(accentWords('Latin American')).toBe('latin american')
+    expect(accentWords('standard')).toBe('standard')
+    expect(accentWords('')).toBeNull()
+    expect(accentOfLocale('en-GB')).toBe('british')
+    expect(accentOfLocale('pt_BR')).toBe('brazilian')
+    expect(accentOfLocale('ja-JP')).toBeNull()
+    expect(accentOfLocale(null)).toBeNull()
+  })
+})
+
+describe('samples in a language', () => {
+  const capture = () => {
+    const bodies: Record<string, unknown>[] = []
+    const doFetch = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)))
+      return new Response(new Uint8Array([0xff, 0xfb, 0, 0]))
+    }) as unknown as typeof fetch
+    return { bodies, doFetch }
+  }
+  it('ElevenLabs gets language_code with Flash or Turbo v2.5, other models only the text', async () => {
+    const flash = capture()
+    await createVoiceProvider('elevenlabs', { api_key: KEY }, flash.doFetch)!.synthesize('v', 'Hallo', 'de')
+    await createVoiceProvider('elevenlabs', { api_key: KEY }, flash.doFetch)!.synthesize('v', 'Hi')
+    expect(flash.bodies).toEqual([
+      { text: 'Hallo', model_id: MODEL, language_code: 'de' },
+      { text: 'Hi', model_id: MODEL },
+    ])
+    const other = capture()
+    await createVoiceProvider(
+      'elevenlabs',
+      { api_key: KEY, model: 'eleven_multilingual_v2' },
+      other.doFetch,
+    )!.synthesize('v', 'Hallo', 'de')
+    expect(other.bodies[0]).toEqual({ text: 'Hallo', model_id: 'eleven_multilingual_v2' })
+  })
+  it('Cartesia gets language', async () => {
+    const fake = capture()
+    await createVoiceProvider('cartesia', { api_key: 'sk' }, fake.doFetch)!.synthesize('v', 'Hallo', 'de')
+    expect(fake.bodies[0]).toMatchObject({ transcript: 'Hallo', language: 'de', voice: { mode: 'id', id: 'v' } })
   })
 })

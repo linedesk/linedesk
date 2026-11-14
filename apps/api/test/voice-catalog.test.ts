@@ -28,8 +28,8 @@ const ids = {
   spanish: `spanish${suffix}`,
 }
 
-/** ElevenLabs' GET /v2/voices, in two pages, and the hosted sample. */
-function fakeElevenLabs() {
+/** ElevenLabs' GET /v2/voices, in two pages, and the hosted sample. The plan is `tier`. */
+function fakeElevenLabs(tier = 'creator') {
   const calls: string[] = []
   const voice = (voice_id: string, category: string, extra: object = {}) => ({
     voice_id,
@@ -42,7 +42,7 @@ function fakeElevenLabs() {
     calls.push(url)
     if (url === SAMPLE_URL || url === SPANISH_SAMPLE_URL)
       return new Response(new Uint8Array(MP3), { headers: { 'content-type': 'audio/mpeg' } })
-    if (url.includes('/v1/user/subscription')) return Response.json({ tier: 'creator' })
+    if (url.includes('/v1/user/subscription')) return Response.json({ tier })
     // The Voice Library, read for each language besides English: one Spanish voice.
     if (url.includes('/v1/shared-voices'))
       return Response.json({
@@ -123,6 +123,7 @@ test('provider voices are parsed into one shape', () => {
     id: 'a1',
     name: 'Ann',
     description: null,
+    languages: [{ code: 'en', accent: 'british', native: true }],
     language: 'en',
     gender: 'female',
     accent: 'british',
@@ -131,7 +132,7 @@ test('provider voices are parsed into one shape', () => {
   })
   expect(
     elevenLabsVoice({ voice_id: 'b2', name: 'Bo', category: 'cloned', preview_url: 'http://insecure' }),
-  ).toMatchObject({ clone: true, previewUrl: null, language: null })
+  ).toMatchObject({ clone: true, previewUrl: null, language: null, languages: [] })
   expect(elevenLabsVoice({ name: 'no id' })).toBeNull()
   const library = { voice_id: 'l1', name: 'Lea', category: 'professional', is_owner: false }
   expect(elevenLabsVoice({ ...library, sharing: { status: 'copied', original_voice_id: 'o1' } })?.clone).toBe(false)
@@ -160,7 +161,7 @@ test('a provider list is read once and reused for a few minutes; a failure is re
     listVoices: async () => {
       reads++
       if (fail) throw new Error('down')
-      return []
+      return { voices: [] }
     },
   } as unknown as VoiceProvider
   await cache.voicesOf(adapter, 'k')
@@ -195,18 +196,34 @@ test("the catalog lists the providers' voices and the workspace's own clones, ne
   expect(data.voices.map(v => v.id).sort()).toEqual(
     [ids.library, ids.ownClone, ids.premade, ids.shared, ids.spanish].sort(),
   )
-  expect(data.voices.find(v => v.id === ids.spanish)).toMatchObject({ language: 'es', gender: 'female' })
+  expect(data.voices.find(v => v.id === ids.spanish)).toMatchObject({
+    language: 'es',
+    languages: [{ code: 'es', accent: null, native: true }],
+    gender: 'female',
+  })
   expect(data.voices.find(v => v.id === ids.premade)).toEqual({
     provider: 'elevenlabs',
     id: ids.premade,
     name: ids.premade,
     description: 'warm',
+    languages: [{ code: 'en', accent: 'american', native: true }],
     language: 'en',
     gender: 'female',
     accent: 'american',
   })
   expect(JSON.stringify(body)).not.toContain('storage.googleapis.com') // samples go through the API
   expect(elevenlabs.calls.every(url => !url.includes('key-'))).toBe(true)
+})
+
+test('on a free ElevenLabs plan the catalog says so: no native voices besides English', async () => {
+  elevenlabs = fakeElevenLabs('free')
+  vi.stubGlobal('fetch', elevenlabs.fake)
+  vi.stubEnv('ELEVENLABS_API_KEY', `free-key-${suffix}`) // a new key: not the paid list cached above
+  const ws = await createWorkspace('Free Plan Plumbing')
+  const data = (await act(ws.owner, 'voice.catalog', {})).body.data as VoiceCatalogData
+  expect(data.providers[0]).toMatchObject({ provider: 'elevenlabs', configured: true, freePlan: true })
+  expect(data.voices.some(v => v.id === ids.spanish)).toBe(false)
+  expect(elevenlabs.calls.some(url => url.includes('/v1/shared-voices'))).toBe(false)
 })
 
 test('an assistant can be given a listed voice, not another workspace’s clone', async () => {
@@ -236,6 +253,8 @@ test('a listed voice plays the sample the provider hosts: fetched on the server,
   // A Voice Library voice plays ElevenLabs' sample: nothing is synthesized (that would add it to the account).
   expect((await servePreview(member, ids.spanish, options)).status).toBe(200)
   expect(elevenlabs.calls).toContain(SPANISH_SAMPLE_URL)
+  // A hosted sample is played as it is, whatever the assistant's language.
+  expect((await servePreview(member, ids.library, { ...options, language: 'de' })).status).toBe(200)
   expect(elevenlabs.calls.some(url => url.includes('/text-to-speech/'))).toBe(false)
   expect((await servePreview(member, 'NotListedAnywhere123', options)).status).toBe(404)
   expect((await servePreview(member, ids.premade, { ...options, providerName: 'cartesia' })).status).toBe(409) // no Cartesia key

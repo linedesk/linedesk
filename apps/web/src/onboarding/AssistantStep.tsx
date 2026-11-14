@@ -1,6 +1,6 @@
 // Step 2, "Meet your assistant": its name, the greeting callers hear and its voice, then a test call in the
 // browser, before anything about phones. Talking is encouraged, not required: Continue is always there.
-import { mainLanguageOf } from '@linedesk/actions'
+import { mainLanguageOf, otherLanguagesOf } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { useState } from 'react'
 import { staleGreetingName } from '../settings/assistantDraft.ts'
@@ -120,6 +120,7 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
           canEdit
           toast={setMessage}
           language={mainLanguageOf(assistant.languages)}
+          otherLanguages={otherLanguagesOf(assistant.languages)}
           assistantName={name || assistant.name}
         />
         <div className="ob-talk">

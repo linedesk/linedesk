@@ -5,7 +5,24 @@ import { z } from 'zod'
 import { defineAction } from './define.ts'
 import type { PipelinesSetUp } from './settings.ts'
 
-export type CuratedVoice = { id: string; name: string; description: string }
+/**
+ * A language a voice speaks, as its provider describes it. `code`: the language without region (`de`). `native`: the
+ * voice can perform it (ElevenLabs: verified for it; Cartesia: the accent it was recorded in); the picker's voice
+ * follows these for the assistant's languages. `accent`: the accent it
+ * speaks this language with, in words (`american`, `latin american`), null when the provider does not say. Every voice
+ * speaks every language the assistant supports; a language it is not native in it speaks with its own accent.
+ */
+export type VoiceLanguage = { code: string; accent: string | null; native: boolean }
+
+export type CuratedVoice = {
+  id: string
+  name: string
+  description: string
+  /** Missing from an API of an older version. */
+  languages?: readonly VoiceLanguage[]
+}
+
+const AMERICAN_ENGLISH: readonly VoiceLanguage[] = [{ code: 'en', accent: 'american', native: true }]
 
 /**
  * Picked for a phone line: clear, natural, American English. ElevenLabs default voices, available on
@@ -13,12 +30,27 @@ export type CuratedVoice = { id: string; name: string; description: string }
  */
 export const curatedVoices: Record<string, readonly CuratedVoice[]> = {
   elevenlabs: [
-    { id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica', description: 'Warm and bright, female' },
-    { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', description: 'Calm and reassuring, female' },
-    { id: 'XrExE9yKIg1WjnnlVkGX', name: 'Matilda', description: 'Professional, female' },
-    { id: 'cjVigY5qzO86Huf0OWal', name: 'Eric', description: 'Smooth and trustworthy, male' },
-    { id: 'iP95p4xoKVk53GoZ742B', name: 'Chris', description: 'Down-to-earth, male' },
-    { id: 'SAz9YHcvj6GT2YYXdXww', name: 'River', description: 'Relaxed and neutral' },
+    {
+      id: 'cgSgspJ2msm6clMCkdW9',
+      name: 'Jessica',
+      description: 'Warm and bright, female',
+      languages: AMERICAN_ENGLISH,
+    },
+    {
+      id: 'EXAVITQu4vr4xnSDxMaL',
+      name: 'Sarah',
+      description: 'Calm and reassuring, female',
+      languages: AMERICAN_ENGLISH,
+    },
+    { id: 'XrExE9yKIg1WjnnlVkGX', name: 'Matilda', description: 'Professional, female', languages: AMERICAN_ENGLISH },
+    {
+      id: 'cjVigY5qzO86Huf0OWal',
+      name: 'Eric',
+      description: 'Smooth and trustworthy, male',
+      languages: AMERICAN_ENGLISH,
+    },
+    { id: 'iP95p4xoKVk53GoZ742B', name: 'Chris', description: 'Down-to-earth, male', languages: AMERICAN_ENGLISH },
+    { id: 'SAz9YHcvj6GT2YYXdXww', name: 'River', description: 'Relaxed and neutral', languages: AMERICAN_ENGLISH },
   ],
   cartesia: [],
 }
@@ -90,9 +122,18 @@ export type CatalogVoice = {
   id: string
   name: string
   description: string | null
-  /** Language code as the provider gives it, e.g. `en`. */
+  /**
+   * Every language the provider lists for the voice, native ones first. Missing from an API of an older version (then
+   * `language` and `accent` are all there is).
+   */
+  languages?: readonly VoiceLanguage[]
+  /**
+   * The voice's own language, the one it was recorded in (one of the native ones of `languages`, else the first), e.g.
+   * `de` for an Austrian German voice that is verified in Dutch too.
+   */
   language: string | null
   gender: string | null
+  /** The accent of that native language. */
   accent: string | null
 }
 
@@ -106,6 +147,11 @@ export type CatalogProvider = {
   active: boolean
   configured: boolean
   error: string | null
+  /**
+   * The provider's plan offers no native voices for languages besides English (ElevenLabs' free plan cannot use
+   * Voice Library voices). Missing when the plan is paid, unknown, or does not matter for the provider.
+   */
+  freePlan?: boolean
 }
 
 /** `data` of `voice.catalog`: every supported provider, and the voices of those with a key. */

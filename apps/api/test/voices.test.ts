@@ -1,6 +1,7 @@
 // Voices: previews (once per voice, only voices the workspace may use, a budget for new ones, a
 // bounded cache), cloning (off by default, outside the transaction, magic bytes, consent stored,
 // clones released at the provider), and which voices an assistant may be given.
+import { createHash } from 'node:crypto'
 import { mkdtemp, readdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -17,8 +18,11 @@ import {
   bundledPreview,
   NO_PROVIDER_FOR_PREVIEW,
   PREVIEW_TEXT,
+  PREVIEW_TEXTS,
   previewBudget,
   previewCache,
+  previewKey,
+  previewLanguage,
   releaseWorkspaceClones,
   servePreview,
 } from '../src/voices.ts'
@@ -30,19 +34,21 @@ const WAV = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WA
 
 function fakeProvider(fail?: VoiceProviderError) {
   const made: string[] = []
+  const languages: (string | undefined)[] = []
   const provider: VoiceProvider = {
     name: 'elevenlabs',
     model: 'eleven_flash_v2_5',
-    async synthesize(voiceId, text) {
+    async synthesize(voiceId, text, language) {
       made.push(`${voiceId}:${text}`)
+      languages.push(language)
       if (fail) throw fail
       return { bytes: Buffer.from(`mp3 of ${voiceId}`), contentType: 'audio/mpeg' }
     },
     async listVoices() {
-      return []
+      return { voices: [] }
     },
   }
-  return { provider, made }
+  return { provider, made, languages }
 }
 const cacheDir = () => mkdtemp(join(tmpdir(), 'voice-preview-test-'))
 const unlimited = () => previewBudget(1000)
@@ -66,6 +72,54 @@ test('every curated voice has a shipped sample: it plays without a provider key 
     }
   }
   expect(made).toEqual([])
+})
+
+test('in another main language a sample is spoken in it: also a curated voice, synthesized once per language', async () => {
+  const { provider, made, languages } = fakeProvider()
+  const cache = previewCache(await cacheDir())
+  const options = { provider, cache, budget: unlimited() }
+  // English: the shipped sample, nothing made.
+  expect((await servePreview(member, JESSICA, { ...options, language: 'en' })).status).toBe(200)
+  expect(made).toEqual([])
+  const german = await servePreview(member, JESSICA, { ...options, language: 'de' })
+  expect(german.status).toBe(200)
+  expect(Buffer.from(await german.arrayBuffer()).toString()).toBe(`mp3 of ${JESSICA}`)
+  expect((await servePreview(member, JESSICA, { ...options, language: 'de' })).status).toBe(200) // cached
+  expect((await servePreview(member, JESSICA, { ...options, language: 'es' })).status).toBe(200)
+  expect(made).toEqual([`${JESSICA}:${PREVIEW_TEXTS.de}`, `${JESSICA}:${PREVIEW_TEXTS.es}`])
+  expect(languages).toEqual(['de', 'es'])
+})
+
+test('the preview cache key has the language; English keeps the key it had before languages', () => {
+  const { provider } = fakeProvider()
+  const before = createHash('sha256')
+    .update(JSON.stringify([provider.name, provider.model, JESSICA, PREVIEW_TEXT]))
+    .digest('hex')
+    .slice(0, 32)
+  expect(previewKey(provider, JESSICA)).toBe(before)
+  expect(previewKey(provider, JESSICA, 'en')).toBe(before)
+  const keys = new Set(['en', 'de', 'es', 'fr', 'ja'].map(l => previewKey(provider, JESSICA, l as 'en')))
+  expect(keys.size).toBe(5)
+  expect(PREVIEW_TEXT).toBe(PREVIEW_TEXTS.en)
+  // Every supported language has its own sentence.
+  expect(new Set(Object.values(PREVIEW_TEXTS)).size).toBe(Object.keys(PREVIEW_TEXTS).length)
+})
+
+test('?language= takes only a supported language', () => {
+  expect(previewLanguage('de')).toBe('de')
+  expect(previewLanguage('xx')).toBeNull()
+  expect(previewLanguage('de-DE')).toBeNull()
+  expect(previewLanguage(undefined)).toBeNull()
+})
+
+test('a sample in another language counts against the hourly limit like any new sample', async () => {
+  const { provider } = fakeProvider()
+  const cache = previewCache(await cacheDir())
+  const budget = previewBudget(1)
+  expect((await servePreview(member, JESSICA, { provider, cache, budget, language: 'de' })).status).toBe(200)
+  expect((await servePreview(member, JESSICA, { provider, cache, budget, language: 'fr' })).status).toBe(429)
+  expect((await servePreview(member, JESSICA, { provider, cache, budget, language: 'en' })).status).toBe(200) // shipped
+  expect((await servePreview(member, JESSICA, { provider, cache, budget, language: 'de' })).status).toBe(200) // cached
 })
 
 test('a sample that has to be made without a provider says how to add one', async () => {
