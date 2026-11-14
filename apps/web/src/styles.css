@@ -252,6 +252,33 @@ html, body { height: 100%; }
 body { overflow: hidden; }
 #app { height: 100%; }
 button { font: inherit; }
+/* Everything clickable shows the pointer; :where keeps this at zero specificity, so a component's own
+   cursor (not-allowed when disabled, grab while dragging, default when not clickable) still wins. */
+:where(
+  button,
+  a[href],
+  summary,
+  select,
+  label:has(> input[type="checkbox"], > input[type="radio"]),
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="range"],
+  input[type="color"],
+  input[type="file"],
+  input[type="submit"],
+  input[type="button"],
+  [role="button"],
+  [role="link"],
+  [role="tab"],
+  [role="option"],
+  [role="menuitem"],
+  [role="menuitemcheckbox"],
+  [role="menuitemradio"],
+  [role="switch"],
+  [role="checkbox"],
+  [role="radio"]
+) { cursor: pointer; }
+:where(button, select, input):disabled, :where([aria-disabled="true"]) { cursor: not-allowed; }
 .k-btn > span { display: inline-flex; align-items: center; gap: 6px; }
 
 .app { display: grid; grid-template-columns: 56px minmax(0, 1fr); height: 100%; background: var(--bg); color: var(--ink); }

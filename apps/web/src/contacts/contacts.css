@@ -9,9 +9,6 @@
 .ib-list .ib-cols.ct-cols {
   grid-template-columns: var(--ct-columns);
 }
-.row.cust-row.ct-row {
-  cursor: default;
-}
 .row.cust-row.ct-row .c-company,
 .row.cust-row.ct-row .c-count {
   color: var(--ink-muted);
