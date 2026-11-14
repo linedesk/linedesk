@@ -558,7 +558,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
             onDone={perRow(actions.markDone, actions.many.markDone)}
             onNotDone={perRow(actions.markNotDone, actions.many.markNotDone)}
             onRemind={openRemind}
-            onClearReminder={actions.clearReminder}
+            onClearReminder={callHandlers.clearReminder}
             onCommands={() => setOverlay('commands')}
             onToggleSpam={callHandlers.toggleSpam}
             onAssign={canAssign ? openAssign : undefined}
@@ -620,7 +620,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
             onToggleDone={toggleDone}
             onToggleUnread={callHandlers.toggleUnread}
             onRemind={openRemind}
-            onClearReminder={actions.clearReminder}
+            onClearReminder={callHandlers.clearReminder}
             onAssign={canAssign ? openAssign : undefined}
             memberName={memberName}
             onAssigneeViews={canAssign ? openAssigneeViews : undefined}

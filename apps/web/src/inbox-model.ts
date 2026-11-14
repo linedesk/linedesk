@@ -71,7 +71,7 @@ export function listFor(
   return sortForList(inTab)
 }
 
-/** Needs you counts rows, so repeat hang-ups from one number count once (see groupRepeats). */
+/** Every view counts rows, so repeat hang-ups from one number count once (see groupRepeats). */
 export function countsFor(
   calls: Call[],
   now = new Date(),
@@ -88,14 +88,25 @@ export function countsFor(
     member: 0,
     unassigned: 0,
   }
+  const inView: Record<InboxTab, Call[]> = {
+    you: [],
+    ai: [],
+    spam: [],
+    reminders: [],
+    done: [],
+    mine: [],
+    member: [],
+    unassigned: [],
+  }
   for (const c of calls) {
     if (c.deleted_at) continue
-    counts[tabOf(c, now)]++
-    if (isOpenFor(c, me, now)) counts.mine++
-    if (isOpenFor(c, member, now)) counts.member++
-    if (isUnassigned(c, now)) counts.unassigned++
+    inView[tabOf(c, now)].push(c)
+    if (isOpenFor(c, me, now)) inView.mine.push(c)
+    if (isOpenFor(c, member, now)) inView.member.push(c)
+    if (isUnassigned(c, now)) inView.unassigned.push(c)
   }
-  counts.you = groupRepeats(listFor(calls, 'you', now)).list.length
+  // The rows a view shows do not depend on its order, so the calls are grouped unsorted.
+  for (const tab of Object.keys(counts) as InboxTab[]) counts[tab] = groupRepeats(inView[tab]).list.length
   return counts
 }
 
@@ -108,6 +119,8 @@ const foldable = (c: Call) => c.outcome === 'hangup' && c.status !== 'live' && c
  * Repeat calls from one number that left nothing to act on (hang-ups and missed calls) fold into one row,
  * so ten hang-ups are one line, not ten. They join the newest real call from that number in the list
  * (its issue stays the title), else the newest of them. Calls with an issue of their own keep their rows.
+ * Every inbox view groups its own list this way (Needs you, Handled, Spam, Reminders, Done, the assignee
+ * views); search lists single calls (each hit is one call, from any view), and so does a contact's history.
  */
 export function groupRepeats(list: Call[]): { list: Call[]; groups: CallGroups } {
   const anchorOf = new Map<string, Call>()

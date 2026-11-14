@@ -54,8 +54,8 @@ export function useInboxView(
       )
       return { list: sortForList(hits), groups: new Map() }
     }
-    const inTab = listFor(calls, tab, now, me, member)
-    return tab === 'you' ? groupRepeats(inTab) : { list: inTab, groups: new Map() }
+    // Repeat hang-ups fold into one row in every view (search above lists single calls).
+    return groupRepeats(listFor(calls, tab, now, me, member))
   }, [calls, contacts, segments, assistantName, tab, search, now, me, member])
   /** Every call a row stands for: a folded row's repeat calls, else the call alone. */
   const groupOf = (call: Call): Call[] => groups.get(call.id) ?? [call]

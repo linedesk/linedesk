@@ -3,14 +3,15 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react'
 import type { SegmentsByCall } from '../call/segments.ts'
 import type { CallGroups, InboxTab } from '../inbox-model.ts'
-import { useContact } from '../store.tsx'
+import { useAssistantName, useContact } from '../store.tsx'
 import { Checkbox } from '../ui/controls.tsx'
 import { cx, Icon, Kbd } from '../ui/kit.tsx'
 import { LoadProblem, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { ColumnHeads } from '../ui/list.tsx'
 import type { BulkActions } from './BulkBar.tsx'
 import { InboxHead, type InboxHeadProps } from './InboxHead.tsx'
-import { InboxZero } from './InboxZero.tsx'
+import { InboxEmpty } from './InboxEmpty.tsx'
+import { listFrame } from './listFrame.ts'
 import { Row, type RowHandlers, rowLabel } from './Row.tsx'
 
 type Props = InboxHeadProps &
@@ -40,25 +41,6 @@ const viewHeading: Record<InboxTab, string> = {
   member: 'Assigned to a teammate',
   unassigned: 'Unassigned',
 }
-const emptyTitle: Record<InboxTab, string> = {
-  you: 'Nothing needs you',
-  ai: 'Nothing here yet',
-  spam: 'No spam',
-  done: 'Nothing done yet',
-  reminders: 'No reminders',
-  mine: 'Nothing assigned to you',
-  member: 'Nothing assigned to them',
-  unassigned: 'Every call that needs someone has someone',
-}
-function Empty({ tab, search }: { tab: InboxTab; search: string | null }) {
-  return (
-    <div className="empty">
-      <Icon name={tab === 'done' ? 'check' : tab === 'reminders' ? 'clock' : 'tasks'} size={22} />
-      <b>{search ? `No call mentions “${search}”` : emptyTitle[tab]}</b>
-    </div>
-  )
-}
-
 /** What the status column shows in each view; search lists calls of every view, so there it is the status. */
 const statusHeading: Partial<Record<InboxTab, string>> = { you: 'Next step', reminders: 'Reminder' }
 
@@ -81,6 +63,8 @@ function ListHead({
 }) {
   const all = bulk.count > 0 && bulk.count >= total
   const some = bulk.count > 0 && !all
+  // An empty view keeps its headings; the box is there, but there is nothing to select.
+  const none = total === 0
   const lead = (
     <>
       {/* Like a row's box: the click is handled here, so the box only shows the selection. */}
@@ -90,6 +74,7 @@ function ListHead({
         title={all ? 'Unselect all (Esc)' : 'Select all (⌘ A)'}
         onClick={e => {
           e.stopPropagation()
+          if (none) return
           // A click on the label would click the input a second time; one on the input itself (Space) toggles it the way the selection goes.
           if (!(e.target instanceof HTMLInputElement)) e.preventDefault()
           if (all) bulk.onClear()
@@ -99,6 +84,7 @@ function ListHead({
         <Checkbox
           checked={all}
           indeterminate={some}
+          disabled={none}
           label={all ? 'Unselect all calls' : 'Select all calls'}
           onChange={() => {}}
         >
@@ -257,7 +243,14 @@ export function Inbox({
     if (cursorIndex >= 0) virtualizer.scrollToIndex(cursorIndex, { align: 'auto' })
   }, [cursor])
   const loadState = useLoadState('calls') // before the first sync an empty list is not "nothing needs you"
-  const zero = !list.length && tab === 'you' && search === null && loadState === 'ready'
+  const assistant = useAssistantName()
+  const frame = listFrame({
+    search,
+    loadState,
+    count: list.length,
+    firstCallHint,
+    selectable: Boolean(rest.onSelect),
+  })
   // Screen readers hear the call under the cursor as J and K move it (the rows themselves never take focus).
   const cursorCall = cursorIndex >= 0 ? list[cursorIndex] : undefined
   const cursorContact = useContact(cursorCall?.contact_id ?? null)
@@ -286,7 +279,7 @@ export function Inbox({
       <div className="sr-only" aria-live="polite">
         {spoken}
       </div>
-      {firstCallHint && tab === 'you' && search === null && loadState === 'ready' && (
+      {frame.firstCallLine && (
         <div className="ib-firstcall" role="note">
           <Icon name="phone-in" size={14} />
           <span>{firstCallHint}</span>
@@ -297,14 +290,14 @@ export function Inbox({
         <div
           className={cx(
             'ib-list',
-            zero && 'is-zero',
+            frame.empty && 'is-zero',
             selected.size > 0 && 'is-selecting',
             (tab === 'done' || tab === 'spam') && search === null && 'is-quiet',
           )}
           ref={listRef}
           role="list"
         >
-          {list.length > 0 && rest.onSelect && (
+          {frame.columnHeads && (
             <ListHead tab={tab} searching={search !== null} total={list.length} bulk={bulk} ref={setHead} />
           )}
           <div ref={topRef} className="ib-spacer" style={{ height: before }} aria-hidden="true" />
@@ -333,18 +326,21 @@ export function Inbox({
             <SkeletonRows label="Loading calls" />
           ) : loadState === 'slow' ? (
             <LoadProblem what="Your calls" />
-          ) : zero ? (
-            <InboxZero
-              handledCount={counts.ai}
-              hasAnyCalls={Object.values(counts).some(n => n > 0)}
-              quiet={!!firstCallHint}
-            />
           ) : (
-            !list.length && <Empty tab={tab} search={search} />
+            frame.empty && (
+              <InboxEmpty
+                tab={tab}
+                search={search}
+                assistant={assistant}
+                handledCount={counts.ai}
+                hasAnyCalls={Object.values(counts).some(n => n > 0)}
+                quiet={frame.firstCallLine}
+              />
+            )
           )}
         </div>
       </div>
-      {list.length ? <Hints tab={tab} /> : null}
+      <Hints tab={tab} />
     </div>
   )
 }

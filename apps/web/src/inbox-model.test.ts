@@ -120,6 +120,43 @@ describe('repeat calls', () => {
     expect(groups.get('leak')?.map(c => c.id)).toEqual(['leak', 'hang'])
     expect(groups.size).toBe(1)
   })
+  it('folds the same way in every view, and every view counts rows', () => {
+    const reminder = '2026-11-11T09:00:00.000Z'
+    const sets: [view: 'done' | 'reminders' | 'mine' | 'unassigned', over: Partial<Call>][] = [
+      ['done', { inbox_state: 'done' }],
+      ['reminders', { reminder_at: reminder }],
+      ['mine', { assignee_id: 'u1' }],
+      ['unassigned', {}],
+    ]
+    for (const [view, over] of sets) {
+      const calls = [
+        call({ id: 'leak', outcome: 'callback', started_at: at(8), ...over }),
+        call({ id: 'hang1', outcome: 'hangup', started_at: at(9), ...over }),
+        call({ id: 'hang2', outcome: 'hangup', started_at: at(7), ...over }),
+        call({ id: 'other', outcome: 'hangup', from_number: '+15035550199', started_at: at(6), ...over }),
+      ]
+      const { list, groups } = groupRepeats(listFor(calls, view, now, 'u1'))
+      expect(list.map(c => c.id).sort(), view).toEqual(['leak', 'other'])
+      // The row is the call with the issue; the hang-ups ride along, so an action on the row reaches them all.
+      expect(
+        groups.get('leak')?.map(c => c.id),
+        view,
+      ).toEqual(['leak', 'hang1', 'hang2'])
+      expect(countsFor(calls, now, 'u1')[view], view).toBe(2)
+    }
+  })
+  it('folds nothing in Handled and Spam: only hang-ups fold, and they are never there', () => {
+    const calls = [
+      call({ id: 'a1', started_at: at(8) }),
+      call({ id: 'a2', started_at: at(9) }),
+      call({ id: 's1', outcome: 'spam', started_at: at(8) }),
+      call({ id: 's2', outcome: 'spam', started_at: at(9) }),
+    ]
+    for (const view of ['ai', 'spam'] as const) {
+      expect(groupRepeats(listFor(calls, view, now)).groups.size, view).toBe(0)
+      expect(countsFor(calls, now)[view], view).toBe(2)
+    }
+  })
 })
 
 describe('status column', () => {
