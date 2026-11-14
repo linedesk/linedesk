@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
 import { auth } from '../auth.ts'
 import { useBrand } from '../brand.ts'
 import { callAction } from '../settings/settings-api.ts'
-import { Button } from '../ui/kit.tsx'
+import { Button, Icon } from '../ui/kit.tsx'
 import {
   markGranting,
   markShown,
@@ -128,7 +128,10 @@ export function StarPrompt({ prompt, quiet }: { prompt: Prompt | null; quiet: bo
         title="Close for now"
         onClick={() => setState('closed')}
       />
-      <h2>Enjoying Linedesk?</h2>
+      <h2 className="star-title">
+        <Icon name="heart" size={15} className="star-heart" />
+        Support Linedesk
+      </h2>
       <p>
         {failed
           ? 'That did not work from here. You can star it on GitHub instead.'

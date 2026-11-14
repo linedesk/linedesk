@@ -2002,6 +2002,17 @@ button.k-link {
 .star-card h2 {
   padding-right: 28px;
 }
+/* Same calm outline heart as Admin › Branding, Support Linedesk: muted ink, centred on the heading. */
+.star-card .star-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 20px;
+}
+.star-card .star-heart {
+  color: var(--ink-muted);
+  flex: none;
+}
 .tour h2 {
   margin: 0;
   font-size: 14px;
