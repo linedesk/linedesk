@@ -60,10 +60,11 @@ export async function unsubscribeFromSetupEmails(workspaceId: string, userId: st
   if (!membership) return false
   await db
     .insert(member_notification_settings)
-    .values({ workspace_id: workspaceId, user_id: userId, setup_emails: false })
+    .values({ workspace_id: workspaceId, user_id: userId, setup_emails: false, updated_by: userId })
     .onConflictDoUpdate({
       target: [member_notification_settings.workspace_id, member_notification_settings.user_id],
-      set: { setup_emails: false, updated_at: new Date().toISOString() },
+      // The member's own choice (the link in their email): "Last changed by" an admin no longer applies.
+      set: { setup_emails: false, updated_at: new Date().toISOString(), updated_by: userId },
     })
   return true
 }

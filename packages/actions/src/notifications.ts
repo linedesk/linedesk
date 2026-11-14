@@ -6,6 +6,9 @@ import { defineAction } from './define.ts'
 
 export type NotificationChannels = { email: boolean; browser: boolean }
 
+/** Who last changed something of a member's, when it was not the member: "Last changed by <name> on <date>". */
+export type ChangedBy = { name: string; at: string }
+
 /**
  * Web Push for the caller: `publicKey` is the server's VAPID key (null: push is not set up on this
  * install), `devices` the ids (pushDeviceId) of the browsers that get pushes in this workspace,
@@ -26,6 +29,8 @@ export type NotificationSettingsData = {
   setupEmails: boolean | null
   /** False while this server sends no email (none set up, or only to its log): the settings are kept, nothing arrives. Absent from an older server. */
   emailReady?: boolean
+  /** The last change was made by an owner or admin (Workspace settings › Team), not by you; null when it was yours. Absent from an older server. */
+  changedBy?: ChangedBy | null
 }
 
 /** Until a workspace sets its own defaults: email and browser notifications are on. */

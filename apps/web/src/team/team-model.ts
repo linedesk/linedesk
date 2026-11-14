@@ -1,5 +1,5 @@
 // What the Team page shows and offers, kept out of the component so it can be tested.
-import type { TeamData, TeamInvitation, TeamMember } from '@linedesk/actions'
+import type { ChangedBy, TeamData, TeamInvitation, TeamMember } from '@linedesk/actions'
 
 const DAY_MS = 86_400_000
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -47,4 +47,19 @@ export function invitationStatus(invite: TeamInvitation, now = Date.now()) {
   if (invite.expired) return 'Resend to renew the link'
   const days = Math.ceil((Date.parse(invite.expiresAt) - now) / DAY_MS)
   return days <= 1 ? 'Expires today' : `Expires in ${days} days`
+}
+
+/**
+ * Owners and admins edit a teammate (name, picture, notifications): not themselves (their own pages do that), and an
+ * owner only when they are an owner too. The API checks the same.
+ */
+export const canEditMember = (data: TeamData, m: TeamMember) =>
+  data.canManage && m.userId !== data.me && (m.role !== 'owner' || isOwner(data))
+
+/** "Last changed by Ana Admin on Nov 14": on a member's own page, when someone else made the last change. */
+export function changedByLabel(c: ChangedBy, now = new Date()) {
+  const date = new Date(c.at)
+  const sameYear = date.getFullYear() === now.getFullYear()
+  const day = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }) })
+  return `Last changed by ${c.name} on ${day}.`
 }

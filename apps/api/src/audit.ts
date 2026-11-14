@@ -177,6 +177,11 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'team.setRole': 'team',
   'team.removeMember': 'team',
   'team.leave': 'team',
+  // An owner or admin changing a teammate's name, picture or notifications (team-member-edit.ts).
+  'team.updateMemberProfile': 'team',
+  'team.setMemberAvatar': 'team',
+  'team.removeMemberAvatar': 'team',
+  'team.updateMemberNotifications': 'team',
   'workspace.deleteOwn': 'team',
   'invitation.accept': 'team',
   'invitation.decline': 'team',

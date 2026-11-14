@@ -3,7 +3,7 @@
 // switch asks for the browser's permission itself. NotificationDefaults: for owners and admins, the email default for
 // teammates who never changed theirs (at the end of Workspace settings › Team).
 import type { NotificationSettingsData } from '@linedesk/actions'
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { brandName } from '../brand.ts'
 import { currentSubscription, pushSupport, subscribeThisBrowser, thisDeviceId } from '../push.ts'
 import {
@@ -13,6 +13,7 @@ import {
 } from '../shell/useCallNotifications.ts'
 import { useRun } from '../store.tsx'
 import { useCanAssign } from '../team/members.ts'
+import { changedByLabel } from '../team/team-model.ts'
 import { useWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
 import { Loading } from '../ui/LoadStates.tsx'
 import { Section, SkeletonSwitchRows, SwitchRow } from './fields.tsx'
@@ -163,6 +164,94 @@ export function Notifications({ workspaceName }: { workspaceName: string }) {
   )
 }
 
+/** The settings a member keeps per workspace that NotificationSwitches changes. */
+export type NotificationChange = { email?: boolean; assignedEmail?: boolean; setupEmails?: boolean; pushSummary?: boolean }
+
+/** `settings` with `change` applied, as the page shows it before the server answers. */
+export function withChange(settings: NotificationSettingsData, change: NotificationChange): NotificationSettingsData {
+  const { email, assignedEmail, setupEmails, pushSummary } = change
+  return {
+    ...settings,
+    ...(email === undefined
+      ? {}
+      : { own: { ...settings.own, email }, effective: { ...settings.effective, email } }),
+    ...(assignedEmail === undefined ? {} : { assignedEmail }),
+    ...(setupEmails === undefined ? {} : { setupEmails }),
+    ...(pushSummary === undefined ? {} : { push: { ...settings.push, summary: pushSummary } }),
+  }
+}
+
+/**
+ * The switches of a member's notifications in one workspace: their own page (Account settings › Notifications) and an
+ * owner's or admin's Edit dialog (Workspace settings › Team) show the same ones. `device`: the switch for this
+ * device, only on the member's own page (it needs this browser's permission). `pushOn`: pushes reach the member
+ * somewhere, so the one-line summary applies. `them`: the wording for someone else's settings.
+ */
+export function NotificationSwitches({
+  settings,
+  canAssign,
+  pushOn,
+  device,
+  them,
+  pushSummaryOffOnly,
+  onChange,
+}: {
+  settings: NotificationSettingsData
+  canAssign: boolean
+  pushOn: boolean
+  device?: ReactNode
+  them?: boolean
+  /** The push summary can only be turned off (someone else's: what a call was about is theirs to put on a lock screen). */
+  pushSummaryOffOnly?: boolean
+  onChange: (change: NotificationChange) => void
+}) {
+  return (
+    <div className="st-swlist">
+      <SwitchRow
+        title="Email for every call"
+        aside={settings.own.email === null ? 'Team default' : undefined}
+        on={settings.effective.email}
+        onChange={email => onChange({ email })}
+      />
+      {canAssign && (
+        <SwitchRow
+          title={them ? 'Email when a call is assigned to them' : 'Email me when a call is assigned to me'}
+          description={
+            them
+              ? 'When a teammate assigns them a call. Never for calls they take themselves.'
+              : 'When a teammate assigns you a call. Never for calls you take yourself.'
+          }
+          on={settings.assignedEmail}
+          onChange={assignedEmail => onChange({ assignedEmail })}
+        />
+      )}
+      {settings.setupEmails !== null && (
+        <SwitchRow
+          title="Setup emails"
+          description={`A few emails while ${them ? 'the' : 'your'} workspace gets set up, and a summary of its first week.`}
+          on={settings.setupEmails}
+          onChange={setupEmails => onChange({ setupEmails })}
+        />
+      )}
+      {device}
+      {pushOn && (
+        <SwitchRow
+          nested={!!device}
+          title={them ? 'Push notifications say what the call was about' : 'Include what the call was about'}
+          description={
+            them
+              ? 'Adds one line about the call to the notifications on their devices. It can show on a lock screen, so only they can turn it on.'
+              : 'Adds one line about the call to these notifications. It can show on your lock screen.'
+          }
+          on={settings.push.summary}
+          onChange={pushSummary => onChange({ pushSummary })}
+          disabled={pushSummaryOffOnly && !settings.push.summary}
+        />
+      )}
+    </div>
+  )
+}
+
 function OwnNotifications({ settings }: { settings: NotificationSettingsData }) {
   const run = useRun()
   const canAssign = useCanAssign()
@@ -171,77 +260,30 @@ function OwnNotifications({ settings }: { settings: NotificationSettingsData }) 
   const several = (useWorkspaces()?.length ?? 1) > 1
 
   /** Applies at once on this page and in the browser-notification hook; the server gets it through the outbox. */
-  function change(next: NotificationSettingsData) {
-    setNotificationSettings(next)
-  }
-
-  function setOwnEmail(on: boolean) {
-    change({
-      ...settings,
-      own: { ...settings.own, email: on },
-      effective: { ...settings.effective, email: on },
-    })
-    void run('notifications.update', { email: on })
-  }
-
-  function setPushSummary(on: boolean) {
-    change({ ...settings, push: { ...settings.push, summary: on } })
-    void run('notifications.update', { pushSummary: on })
-  }
-
-  function setAssignedEmail(on: boolean) {
-    change({ ...settings, assignedEmail: on })
-    void run('notifications.update', { assignedEmail: on })
-  }
-
-  function setSetupEmails(on: boolean) {
-    change({ ...settings, setupEmails: on })
-    void run('notifications.update', { setupEmails: on })
+  function change(next: NotificationChange) {
+    setNotificationSettings({ ...withChange(settings, next), changedBy: null })
+    void run('notifications.update', next)
   }
 
   return (
     <>
-      <div className="st-swlist">
-        <SwitchRow
-          title="Email for every call"
-          aside={settings.own.email === null ? 'Team default' : undefined}
-          on={settings.effective.email}
-          onChange={setOwnEmail}
-        />
-        {canAssign && (
+      <NotificationSwitches
+        settings={settings}
+        canAssign={canAssign}
+        pushOn={device.pushOn}
+        onChange={change}
+        device={
           <SwitchRow
-            title="Email me when a call is assigned to me"
-            description="When a teammate assigns you a call. Never for calls you take yourself."
-            on={settings.assignedEmail}
-            onChange={setAssignedEmail}
+            title="Notifications on this device"
+            description={device.note}
+            on={device.on}
+            onChange={on => void device.set(on)}
+            disabled={device.disabled}
+            dimmed={device.disabled}
           />
-        )}
-        {settings.setupEmails !== null && (
-          <SwitchRow
-            title="Setup emails"
-            description="A few emails while your workspace gets set up, and a summary of its first week."
-            on={settings.setupEmails}
-            onChange={setSetupEmails}
-          />
-        )}
-        <SwitchRow
-          title="Notifications on this device"
-          description={device.note}
-          on={device.on}
-          onChange={on => void device.set(on)}
-          disabled={device.disabled}
-          dimmed={device.disabled}
-        />
-        {device.pushOn && (
-          <SwitchRow
-            nested
-            title="Include what the call was about"
-            description="Adds one line about the call to these notifications. It can show on your lock screen."
-            on={settings.push.summary}
-            onChange={setPushSummary}
-          />
-        )}
-      </div>
+        }
+      />
+      {settings.changedBy && <p className="help">{changedByLabel(settings.changedBy)}</p>}
       {several && <p className="help">Each workspace has its own. Switch workspace to change another's.</p>}
     </>
   )

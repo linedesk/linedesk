@@ -28,6 +28,8 @@ import { guardPasskeyChanges, notifyPasskeyChange, passkeyPlugin, passkeyRelying
 import { ALLOWED_TRIES, afterPasswordReset, endSessionsAfterReset, guardPasswordReset, PASSWORD_RESET_PATHS, sameAnswerForRefusedCodes, sendPasswordResetCode } from './password-reset.ts'
 import { maySendSignInCode } from './signup-gate.ts'
 import { starOnGrantHooks } from './star-prompt.ts'
+import { personNameHooks } from './team-member-edit.ts'
+import { clearProfileChangeAfterOwnUpdate } from './user-avatar.ts'
 import { releaseWorkspaceClones } from './voices.ts'
 
 const { google, microsoft, github, oidc, trustedProviders, methods } = authConfig
@@ -98,7 +100,8 @@ const beforeAuthEndpoints = createAuthMiddleware(async ctx => {
 })
 
 // After: wrong codes and passwords count towards their limits (sign-in-limits.ts); the audit log
-// records the auth endpoints that change how someone signs in (audit.ts), and the account is
+// records the auth endpoints that change how someone signs in (audit.ts), a name the person changed themselves
+// clears "Last changed by" on their profile (user-avatar.ts), and the account is
 // emailed when a passkey is added or removed (passkeys.ts). A password reset ends the account's
 // sessions once more, and every refused reset or email change code gets one answer (password-reset.ts,
 // email-change.ts): last, since that replaces the response. An email change ends the other sessions and
@@ -108,6 +111,7 @@ const afterAuthEndpoints = createAuthMiddleware(async ctx => {
   await finishEmailChange(ctx)
   await countSignInFailures(ctx)
   await recordAuthEndpoint(ctx)
+  await clearProfileChangeAfterOwnUpdate(ctx)
   await notifyPasskeyChange(ctx)
   await endSessionsAfterReset(ctx)
   sameAnswerForRefusedCodes(ctx)
@@ -171,7 +175,14 @@ export const auth = betterAuth({
   onAPIError: { errorURL: WEB_ORIGIN },
   // A reset by emailed code (password-reset.ts) ends every session of the account.
   emailAndPassword: { enabled: methods.password, revokeSessionsOnPasswordReset: true, onPasswordReset: afterPasswordReset },
-  databaseHooks: mergeDatabaseHooks(instanceAdminHooks, accountLinkingHooks, auditHooks, starOnGrantHooks, adminAlertHooks),
+  databaseHooks: mergeDatabaseHooks(
+    personNameHooks,
+    instanceAdminHooks,
+    accountLinkingHooks,
+    auditHooks,
+    starOnGrantHooks,
+    adminAlertHooks,
+  ),
   emailVerification: {
     sendVerificationEmail,
     autoSignInAfterVerification: true,

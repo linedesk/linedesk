@@ -55,6 +55,8 @@ describe('notification settings', () => {
       assignedEmail: true,
       // The tests send no email (no SMTP_URL): the step and Settings say so.
       emailReady: !!process.env.SMTP_URL,
+      // Nobody else changed them (Workspace settings › Team › Edit).
+      changedBy: null,
     })
 
     expect((await act(member, 'notifications.update', { email: false })).status).toBe(200)

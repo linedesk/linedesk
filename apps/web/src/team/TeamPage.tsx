@@ -1,5 +1,6 @@
 // Workspace settings › Team: who is in the workspace, with which role, and who is invited. Owners and admins
-// invite, change roles and remove; members see the list read-only. Every change is a team.* action. Leaving the
+// invite, change roles and remove, and edit a teammate's profile and notifications (MemberEdit.tsx); members see
+// the list read-only. Every change is a team.* action. Leaving the
 // workspace (LeaveWorkspace) is in the Danger zone section.
 import {
   type AssignableRole,
@@ -22,7 +23,9 @@ import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { Loading, SkeletonList } from '../ui/LoadStates.tsx'
 import { sectionParts } from '../ui/SettingsLayout.tsx'
 import { teamApi, useTeam } from './team-api.ts'
+import { MemberEditDialog } from './MemberEdit.tsx'
 import {
+  canEditMember,
   canEditRole,
   canRemove,
   invitationStatus,
@@ -108,7 +111,7 @@ function OwnerConfirm({
   )
 }
 
-function MemberRow({ data, m, run }: { data: TeamData; m: TeamMember; run: Run }) {
+function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; run: Run; onEdit: () => void }) {
   const [confirming, setConfirming] = useState(false)
   const [owning, setOwning] = useState(false)
   const name = m.name || m.email
@@ -139,6 +142,11 @@ function MemberRow({ data, m, run }: { data: TeamData; m: TeamMember; run: Run }
               }}
             >
               Edit profile
+            </Button>
+          )}
+          {canEditMember(data, m) && (
+            <Button size="sm" variant="ghost" title={`${name}'s name, picture and notifications`} onClick={onEdit}>
+              Edit
             </Button>
           )}
           {canEditRole(data, m) ? (
@@ -351,6 +359,7 @@ export function LeaveWorkspace({ data }: { data: TeamData }) {
 /** The team section of Workspace settings; the team defaults for notifications at its end (owners and admins). */
 export function TeamSection({ toast }: { toast: (text: string) => void }) {
   const team = useTeam()
+  const [editing, setEditing] = useState<TeamMember | null>(null)
   const data = team.data ?? null
   const error = data ? null : team.error
   const load = team.reload
@@ -374,7 +383,7 @@ export function TeamSection({ toast }: { toast: (text: string) => void }) {
         id="team-members"
         title="Members"
         description={data && !data.canManage ? 'Only owners and admins can invite or change roles.' : undefined}
-        help="Owners and admins can change settings and invite or remove people. Members work with calls, contacts and appointments but can't change settings."
+        help="Owners and admins can change settings, invite or remove people, and edit a teammate's name, picture and notifications (an owner's only by an owner). Members work with calls, contacts and appointments but can't change settings."
       >
         <Loading
           what="The team"
@@ -386,11 +395,19 @@ export function TeamSection({ toast }: { toast: (text: string) => void }) {
           {data && (
             <List label="Members">
               {data.members.map(m => (
-                <MemberRow key={m.memberId} data={data} m={m} run={run} />
+                <MemberRow key={m.memberId} data={data} m={m} run={run} onEdit={() => setEditing(m)} />
               ))}
             </List>
           )}
         </Loading>
+        {editing && (
+          <MemberEditDialog
+            memberId={editing.memberId}
+            name={editing.name || editing.email}
+            onClose={() => setEditing(null)}
+            toast={toast}
+          />
+        )}
       </Section>
       {data && (data.canManage || data.invitations.length > 0) && (
         <Section id="team-invites" title="Invitations" description="Links in the email work for 7 days.">

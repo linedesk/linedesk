@@ -15,31 +15,49 @@ import { Field } from '../fields.tsx'
 import { useWriteAction } from '../settings-api.ts'
 import { ACCOUNT, type Account } from './account-api.ts'
 
+/** Your own picture, changed by you: the profile no longer says someone else changed it last. */
 const showAvatar = (avatarUrl: string | null) =>
-  setQueryData<Account | undefined>(ACCOUNT, a => (a ? { ...a, avatarUrl } : a), { persist: true })
+  setQueryData<Account | undefined>(ACCOUNT, a => (a ? { ...a, avatarUrl, profileChangedBy: null } : a), {
+    persist: true,
+  })
 
-export function AvatarField({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
+/**
+ * `member`: a teammate's picture, changed by an owner or admin (Workspace settings › Team › Edit) with the team.*
+ * actions; `onSaved` gets the new address. Without it, the signed-in member's own (Account settings › Profile).
+ */
+export function AvatarField({
+  name,
+  avatarUrl,
+  member,
+}: {
+  name: string
+  avatarUrl: string | null
+  member?: { memberId: string; onSaved: (avatarUrl: string | null) => void }
+}) {
   const run = useWriteAction()
+  const shown = member ? member.onSaved : showAvatar
   const fileRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState<'upload' | 'remove' | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
   const [done, setDone] = useState<string | null>(null)
   const [cropping, setCropping] = useState<File | null>(null)
 
-  async function save(
-    action: 'account.setAvatar' | 'account.removeAvatar',
-    input: object,
-    shown: string | null,
-    text: string,
-  ) {
+  async function save(remove: boolean, input: object, picked: string | null, text: string) {
     const before = avatarUrl
-    showAvatar(shown)
+    const action = member
+      ? remove
+        ? 'team.removeMemberAvatar'
+        : 'team.setMemberAvatar'
+      : remove
+        ? 'account.removeAvatar'
+        : 'account.setAvatar'
+    shown(picked)
     try {
-      showAvatar((await run<UserAvatarData>(action, input)).avatarUrl)
+      shown((await run<UserAvatarData>(action, member ? { ...input, memberId: member.memberId } : input)).avatarUrl)
       setDone(text)
       void refreshTeam() // the team list shows the new picture
     } catch (e) {
-      showAvatar(before)
+      shown(before)
       setProblem(e instanceof Error ? e.message : 'Could not save the picture. Try again.')
     } finally {
       setBusy(null)
@@ -57,7 +75,7 @@ export function AvatarField({ name, avatarUrl }: { name: string; avatarUrl: stri
   async function saveCropped(avatar: string) {
     setCropping(null)
     setBusy('upload')
-    await save('account.setAvatar', { avatar }, avatar, 'Picture saved.')
+    await save(false, { avatar }, avatar, 'Picture saved.')
   }
 
   function remove() {
@@ -65,14 +83,18 @@ export function AvatarField({ name, avatarUrl }: { name: string; avatarUrl: stri
     setProblem(null)
     setDone(null)
     setBusy('remove')
-    void save('account.removeAvatar', {}, null, 'Picture removed.')
+    void save(true, {}, null, 'Picture removed.')
   }
 
   return (
     <Field
       id="ac-avatar"
       label="Picture"
-      tip="Shown to your team wherever you appear, for example on calls assigned to you. A square image works best."
+      tip={
+        member
+          ? 'Shown to the team wherever they appear, in every workspace they are in. A square image works best.'
+          : 'Shown to your team wherever you appear, for example on calls assigned to you. A square image works best.'
+      }
       error={problem}
     >
       <div className="ac-avatar">
@@ -106,7 +128,7 @@ export function AvatarField({ name, avatarUrl }: { name: string; avatarUrl: stri
           busy={busy === 'upload'}
           disabled={!!busy}
           onClick={() => fileRef.current?.click()}
-          title="Choose an image of you"
+          title={member ? `Choose an image of ${name}` : 'Choose an image of you'}
         >
           {avatarUrl ? 'Replace…' : 'Upload…'}
         </Button>
@@ -117,7 +139,7 @@ export function AvatarField({ name, avatarUrl }: { name: string; avatarUrl: stri
             busy={busy === 'remove'}
             disabled={!!busy}
             onClick={remove}
-            title="Show your initials instead"
+            title={member ? 'Show their initials instead' : 'Show your initials instead'}
           >
             Remove
           </Button>

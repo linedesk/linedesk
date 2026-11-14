@@ -87,6 +87,14 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
       return `Removed ${who} from the workspace`
     case 'team.leave':
       return 'Left the workspace'
+    case 'team.updateMemberProfile':
+      return `Changed the name of ${who}`
+    case 'team.setMemberAvatar':
+      return `Changed the picture of ${who}`
+    case 'team.removeMemberAvatar':
+      return `Removed the picture of ${who}`
+    case 'team.updateMemberNotifications':
+      return `Changed the notifications of ${who} (${changedFields(input)})`
     case 'user.invite':
       return input.workspaceId
         ? `Added ${String(input.email ?? who)} as ${roleName(input.role ?? 'member')}${input.admin ? ' and server admin' : ''}`
@@ -126,6 +134,19 @@ const hostOf = (url: unknown) => {
     return typeof url === 'string' && url && !url.includes('/') ? url : 'a URL'
   }
 }
+
+/** Which notification settings a change named: "email for every call, setup emails". */
+const notificationFields: Record<string, string> = {
+  email: 'email for every call',
+  assignedEmail: 'assigned-call email',
+  setupEmails: 'setup emails',
+  pushSummary: 'push summary',
+}
+const changedFields = (input: Record<string, unknown>) =>
+  Object.keys(notificationFields)
+    .filter(key => input[key] !== undefined)
+    .map(key => notificationFields[key])
+    .join(', ') || 'none'
 
 /** "owner", "an admin", "a member": a role as it reads in a sentence. */
 const roleName = (role: unknown) => (role === 'owner' ? 'owner' : role === 'admin' ? 'an admin' : 'a member')

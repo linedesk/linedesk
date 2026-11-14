@@ -1,5 +1,6 @@
 // The Account page's calls. Everything goes to Better Auth: its client, or the one server-only
 // method (set a first password) through POST /v1/account/password.
+import type { ChangedBy } from '@linedesk/actions'
 import { auth, type AuthMethods, fetchAuthMethods, fetchMe, signedInAccount, signInWithPasskey } from '../../auth.ts'
 import { signOutAndForget } from '../../localData.ts'
 import { authErrorMessage } from '../../sign-in-code.ts'
@@ -51,6 +52,8 @@ export type Account = {
   methods: AuthMethods
   /** The profile picture (Account settings › Profile), null without one (absent in what an older version remembered). */
   avatarUrl?: string | null
+  /** An owner or admin changed the name or picture last (Workspace settings › Team › Edit); null when you did. */
+  profileChangedBy?: ChangedBy | null
 }
 
 /** Cache keys (cachedQuery.ts). The account is kept across page loads; sessions and passkeys only in memory. */
@@ -72,6 +75,7 @@ export async function loadAccount(): Promise<Account> {
     accounts: unwrap(accounts, 'Could not load your sign-in methods.'),
     methods,
     avatarUrl: me?.avatarUrl ?? null,
+    profileChangedBy: me?.profileChangedBy ?? null,
   }
 }
 

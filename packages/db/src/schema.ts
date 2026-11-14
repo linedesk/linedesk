@@ -402,7 +402,8 @@ export const workspace_settings = pgTable('workspace_settings', {
 })
 
 // A member's own new-call notifications in one workspace. null: the workspace default applies.
-// Not synced: read and written through notifications.* actions, only ever the caller's own row.
+// Not synced: read and written through notifications.* actions (the caller's own row), and by the workspace's
+// owners and admins through team.updateMemberNotifications.
 export const member_notification_settings = pgTable(
   'member_notification_settings',
   {
@@ -417,6 +418,11 @@ export const member_notification_settings = pgTable(
     /** Setup emails (apps/api/src/setup-emails.ts) while the workspace gets set up; null: on. */
     setup_emails: boolean('setup_emails'),
     updated_at: ts('updated_at').notNull().defaultNow(),
+    /**
+     * Who made the last change: the member, or an owner or admin of the workspace (team.updateMemberNotifications).
+     * null: the member (rows from before this column). The member's page says when it was someone else.
+     */
+    updated_by: text('updated_by'),
   },
   t => [primaryKey({ columns: [t.workspace_id, t.user_id] })],
 )
@@ -1339,3 +1345,25 @@ export const user_avatars = pgTable('user_avatars', {
   version: text('version').notNull(),
   updated_at: ts('updated_at').notNull().defaultNow(),
 })
+
+// The last change to a person's profile (name, picture) made by someone else: an owner or admin of a workspace they
+// are in (team.updateMemberProfile, team.setMemberAvatar, team.removeMemberAvatar). Account settings › Profile says
+// "Last changed by <name>". One row per account at most; it goes when the person changes their profile themselves.
+export const profile_changes = pgTable('profile_changes', {
+  user_id: text('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  /** The owner or admin who made the change (no foreign key: the entry stays readable as "a teammate" if they go). */
+  changed_by: text('changed_by').notNull(),
+  /** The workspace whose owner or admin made it. */
+  workspace_id: text('workspace_id').notNull(),
+  changed_at: ts('changed_at').notNull().defaultNow(),
+  /**
+   * What the profile was before someone else first changed it, so it can be put back: `name`, and `avatar` (the
+   * picture's version and PNG, null: no picture). Only what was changed; later changes by others keep the first value.
+   */
+  previous: jsonb('previous').$type<ProfileBefore>().notNull().default({}),
+})
+
+/** profile_changes.previous. */
+export type ProfileBefore = { name?: string; avatar?: { version: string; png: string } | null }

@@ -31,6 +31,21 @@ describe('audit labels', () => {
     expect(label('team.removeMember', { memberId: 'm1' })).toBe('Removed a member from the workspace')
   })
 
+  test("an owner's or admin's changes to a teammate say whom and what", () => {
+    expect(label('team.updateMemberProfile', { memberId: 'm1', name: 'Sam' }, 'sam@example.com')).toBe(
+      'Changed the name of sam@example.com',
+    )
+    expect(label('team.setMemberAvatar', { memberId: 'm1', avatar: '[redacted]' }, 'sam@example.com')).toBe(
+      'Changed the picture of sam@example.com',
+    )
+    expect(label('team.removeMemberAvatar', { memberId: 'm1' }, 'sam@example.com')).toBe(
+      'Removed the picture of sam@example.com',
+    )
+    expect(
+      label('team.updateMemberNotifications', { memberId: 'm1', email: false, setupEmails: true }, 'sam@example.com'),
+    ).toBe('Changed the notifications of sam@example.com (email for every call, setup emails)')
+  })
+
   test('Add user says whom, as what, and server admin', () => {
     expect(
       label('user.invite', { email: 'ana@example.com', workspaceId: 'w1', role: 'admin' }, 'ana@example.com'),

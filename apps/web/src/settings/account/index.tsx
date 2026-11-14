@@ -9,6 +9,7 @@ import { signInAgain } from '../../localData.ts'
 import { CODE_LENGTH, normalizeCode, RESEND_AFTER_S } from '../../sign-in-code.ts'
 import { refreshQuery, useQuery } from '../../cachedQuery.ts'
 import { refreshTeam } from '../../team/team-api.ts'
+import { changedByLabel } from '../../team/team-model.ts'
 import { Loading, Skeleton } from '../../ui/LoadStates.tsx'
 import { dateTimeLabel } from '../../time.ts'
 import { onSaveKey, SaveBar } from '../../ui/form.tsx'
@@ -242,6 +243,7 @@ function Profile({ account, reload, hasWorkspace }: SectionProps & { hasWorkspac
             />
           )}
           <FormStatus request={request} />
+          {account.profileChangedBy && <p className="help">{changedByLabel(account.profileChangedBy)}</p>}
         </Section>
         <SaveBar dirty={dirty} saving={request.busy} disabled={!trimmed} onCancel={() => setName(account.user.name)} />
       </form>

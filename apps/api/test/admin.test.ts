@@ -2082,6 +2082,8 @@ describe('impersonation', () => {
       'provider.tryOut',
       // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
       'setupEmails.get',
+      // A teammate's profile and notifications as the Edit dialog shows them; changing them stays refused.
+      'team.getMember',
       'team.list',
       'voice.catalog',
       'voice.options',

@@ -34,6 +34,7 @@ import { liveCallHandlers } from './live-call.ts'
 import { membershipHandlers } from './memberships.ts'
 import { installPurchaseRefusal, logPurchase, NUMBER_SETUP_BUSY } from './number-purchases.ts'
 import { teamHandlers } from './team.ts'
+import { teamMemberEditHandlers } from './team-member-edit.ts'
 import { transferHandlers } from './transfers.ts'
 import { insightsHandlers } from './insights.ts'
 import { userAvatarHandlers } from './user-avatar.ts'
@@ -443,6 +444,7 @@ const handlers: Record<string, Handler> = {
   ...assistantVersionHandlers,
   ...impersonationHandlers,
   ...teamHandlers,
+  ...teamMemberEditHandlers,
   ...membershipHandlers,
   ...workspaceSettingsHandlers,
   ...workspaceIconHandlers,

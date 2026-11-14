@@ -617,6 +617,13 @@
       "when": 1794655671681,
       "tag": "0087_user_avatars",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1794661745569,
+      "tag": "0088_team_member_edit",
+      "breakpoints": true
     }
   ]
 }

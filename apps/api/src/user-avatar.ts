@@ -4,10 +4,12 @@
 // version into workspace_members (migration 0087), so every member of the person's workspaces gets the new address
 // with the next sync; the handlers return the actor's own rows so their tab shows it at once.
 import { avatarPath, type UserAvatarData } from '@linedesk/actions'
-import { type Db, member, type Tx, user_avatars, workspace_members } from '@linedesk/db'
+import { type Db, member, profile_changes, type Tx, user_avatars, workspace_members } from '@linedesk/db'
 import { and, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
+import { isAPIError } from 'better-auth/api'
 import { decodeLogo } from './branding.ts'
+import { db } from './db.ts'
 import type { Actor } from './context.ts'
 import { type Handler, Reject } from './handler-context.ts'
 
@@ -58,27 +60,48 @@ function ownAccount(actor: Actor) {
   if (actor.role === 'agent' || actor.actorId === 'agent') throw new Reject('only a person can change their picture')
 }
 
+/** Stores a checked PNG as `userId`'s picture; answers with its new address. Throws a Reject for a bad image. */
+export async function storeAvatar(tx: Tx, userId: string, avatar: string, now: string): Promise<string> {
+  const png = decodeLogo(avatar, 'The picture').toString('base64')
+  let version = crypto.randomUUID().slice(0, 8)
+  // A new address every time, also when the same short id came up again.
+  if (version === (await avatarVersionOf(tx, userId))) version = crypto.randomUUID().slice(0, 8)
+  const set = { png, version, updated_at: now }
+  await tx.insert(user_avatars).values({ user_id: userId, ...set }).onConflictDoUpdate({ target: user_avatars.user_id, set })
+  return avatarPath(userId, version)
+}
+
+export const dropAvatar = (tx: Tx, userId: string) => tx.delete(user_avatars).where(eq(user_avatars.user_id, userId))
+
+/** The person changed their own profile: it no longer says an owner or admin changed it last. */
+export const clearProfileChange = (db: Db | Tx, userId: string) =>
+  db.delete(profile_changes).where(eq(profile_changes.user_id, userId))
+
+/**
+ * After Better Auth's /update-user (Account settings › Profile › Name, the person's own session; refused while
+ * impersonating): the profile was changed by its owner last. Runs in auth.ts's after-hook.
+ */
+export async function clearProfileChangeAfterOwnUpdate(ctx: {
+  path: string
+  context: { returned?: unknown; session?: unknown }
+}) {
+  if (ctx.path !== '/update-user' || isAPIError(ctx.context.returned)) return
+  const userId = (ctx.context.session as { user?: { id?: string } } | null)?.user?.id
+  if (userId) await clearProfileChange(db, userId)
+}
+
 export const userAvatarHandlers: Record<string, Handler> = {
   'account.setAvatar': async ({ tx, actor, now }, input: { avatar: string }) => {
     ownAccount(actor)
-    const png = decodeLogo(input.avatar, 'The picture').toString('base64')
-    let version = crypto.randomUUID().slice(0, 8)
-    // A new address every time, also when the same short id came up again.
-    if (version === (await avatarVersionOf(tx, actor.actorId))) version = crypto.randomUUID().slice(0, 8)
-    const set = { png, version, updated_at: now }
-    await tx
-      .insert(user_avatars)
-      .values({ user_id: actor.actorId, ...set })
-      .onConflictDoUpdate({ target: user_avatars.user_id, set })
-    return {
-      rows: await ownMemberRows(tx, actor),
-      data: { avatarUrl: avatarPath(actor.actorId, version) } satisfies UserAvatarData,
-    }
+    const avatarUrl = await storeAvatar(tx, actor.actorId, input.avatar, now)
+    await clearProfileChange(tx, actor.actorId)
+    return { rows: await ownMemberRows(tx, actor), data: { avatarUrl } satisfies UserAvatarData }
   },
 
   'account.removeAvatar': async ({ tx, actor }) => {
     ownAccount(actor)
-    await tx.delete(user_avatars).where(eq(user_avatars.user_id, actor.actorId))
+    await dropAvatar(tx, actor.actorId)
+    await clearProfileChange(tx, actor.actorId)
     return { rows: await ownMemberRows(tx, actor), data: { avatarUrl: null } satisfies UserAvatarData }
   },
 }

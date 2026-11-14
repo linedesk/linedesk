@@ -28,6 +28,7 @@ import { setsUpByHand } from './install-setup.ts'
 import { authMethods } from './auth-methods.ts'
 import { browserErrorReporting, errorReportingEnabled, type ReportedUser, reportError } from './error-reporting.ts'
 import { currentBranding, manifestFor, readLogo } from './branding.ts'
+import { profileChangedBy } from './team-member-edit.ts'
 import { avatarVersionOf, readAvatarFor } from './user-avatar.ts'
 import { iconUrlOf, readIconFor } from './workspace-icon.ts'
 import { auth, TRUSTED_ORIGINS, WEB_ORIGIN, WORKSPACE_LIMIT } from './auth.ts'
@@ -336,6 +337,8 @@ app.get('/v1/me', async c => {
     permissions: actor.permissions,
     // The member's own profile picture (Account settings › Profile), null without one.
     avatarUrl: avatarUrlOf(actor.actorId, await avatarVersionOf(db, actor.actorId)),
+    // An owner or admin changed the member's name or picture last (team-member-edit.ts): Profile says who and when.
+    profileChangedBy: await profileChangedBy(db, actor.actorId, actor.workspaceId),
     workspace: workspace
       ? {
           id: workspace.id,

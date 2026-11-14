@@ -1,7 +1,9 @@
 import type { TeamData, TeamMember } from '@linedesk/actions'
 import { describe, expect, it } from 'vitest'
 import {
+  canEditMember,
   canEditRole,
+  changedByLabel,
   canRemove,
   invitationStatus,
   isEmail,
@@ -23,6 +25,21 @@ const data = (canManage: boolean, me = 'mike'): TeamData => ({
 })
 
 describe('team model', () => {
+  it('owners edit everyone else; admins everyone but owners; members nobody; nobody themselves', () => {
+    const asOwner = data(true)
+    expect(asOwner.members.map(m => canEditMember(asOwner, m))).toEqual([false, true, true])
+    const asAdmin = data(true, 'sarah')
+    expect(asAdmin.members.map(m => canEditMember(asAdmin, m))).toEqual([false, false, true])
+    const asMember = data(false, 'jo')
+    expect(asMember.members.some(m => canEditMember(asMember, m))).toBe(false)
+  })
+
+  it('says who changed a setting last and when', () => {
+    const now = new Date('2026-11-20T12:00:00Z')
+    expect(changedByLabel({ name: 'Ana Admin', at: '2026-11-14T15:00:00Z' }, now)).toBe('Last changed by Ana Admin on Nov 14.')
+    expect(changedByLabel({ name: 'Ana', at: '2025-03-02T15:00:00Z' }, now)).toBe('Last changed by Ana on Mar 2, 2025.')
+  })
+
   it('the last owner is never edited; members see everything read-only', () => {
     const d = data(true)
     expect(d.members.map(m => canEditRole(d, m))).toEqual([false, true, true])
