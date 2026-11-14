@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { knownSectionHash } from '../ui/SettingsLayout.tsx'
 import {
   callHash,
+  clearRoute,
   linkNotice,
   linkWorkspace,
   linkWorkspaceTarget,
@@ -196,5 +197,22 @@ describe('settings sections', () => {
     expect(knownSectionHash('settings', sections, '#settings/phone')).toBeNull()
     expect(knownSectionHash('settings', sections, '#settings')).toBeNull()
     expect(knownSectionHash('settings', sections, '#assistant/a1/hours')).toBeNull()
+  })
+})
+
+describe('signing out (LIN-161)', () => {
+  it('drops the in-app route, so the next account starts in the inbox', () => {
+    let address = '/app?x=1#assistant'
+    const win = {
+      location: { pathname: '/app', search: '?x=1' },
+      history: {
+        replaceState: (_data: unknown, _unused: string, url?: string | URL | null) => {
+          address = String(url)
+        },
+      },
+    }
+    clearRoute(win)
+    expect(address).toBe('/app?x=1')
+    expect(parseHash(address.includes('#') ? address.slice(address.indexOf('#')) : '')).toEqual(list)
   })
 })

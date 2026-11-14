@@ -19,6 +19,7 @@ import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
 import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { SETUP_LINK_KEY } from '../localData.ts'
+import { untilLabel } from '../time.ts'
 import { BrandMark, Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
 import { CopyButton } from './Frame.tsx'
 import './agent-setup.css'
@@ -310,8 +311,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
   )
 }
 
-const timeOf = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })
+const timeOf = (iso: string) => untilLabel(new Date(iso))
 
 /** What the agent has set up so far, live. */
 function Progress({

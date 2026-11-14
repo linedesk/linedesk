@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest'
-import { clock, dateTimeLabel, formatDate, listTime, longDuration, parseTs, shortDuration, whenLabel } from './time.ts'
+import { describe, expect, it, test } from 'vitest'
+import {
+  clock,
+  dateTimeLabel,
+  formatDate,
+  listTime,
+  longDuration,
+  parseTs,
+  shortDuration,
+  untilLabel,
+  whenLabel,
+} from './time.ts'
 
 describe('time labels', () => {
   const now = new Date(2026, 10, 10, 15, 0)
@@ -45,4 +55,11 @@ describe('formatDate', () => {
     ] as const)
       expect(formatDate(date, options)).toBe(date.toLocaleString('en-US', options))
   })
+})
+
+test('a setup link says until when it is valid, in English and with the clock time (LIN-161)', () => {
+  const now = new Date(2026, 10, 14, 1, 0) // Saturday
+  expect(untilLabel(new Date(2026, 10, 14, 18, 30), now)).toBe('today 6:30 PM')
+  expect(untilLabel(new Date(2026, 10, 15, 1, 0), now)).toBe('tomorrow 1:00 AM')
+  expect(untilLabel(new Date(2026, 10, 16, 1, 0), now)).toBe('Mon 1:00 AM')
 })

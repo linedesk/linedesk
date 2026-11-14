@@ -87,3 +87,10 @@ export function whenLabel(date: Date, now = new Date()): string {
   if (days > 1 && days < 7) return `${formatDate(date, { weekday: 'short' })} ${time}`
   return `${formatDate(date, { month: 'short', day: 'numeric' })}, ${time}`
 }
+
+/**
+ * When something runs out, after "valid until": "today 6:30 PM", "tomorrow 1:00 AM", "Sun 1:00 AM", "Dec 10, 8:00 AM".
+ * In English whatever the browser's language, like every label here (LIN-161: the setup link said "So., 01:00").
+ */
+export const untilLabel = (date: Date, now = new Date()) =>
+  whenLabel(date, now).replace(/^(Today|Tomorrow)\b/, day => day.toLowerCase())

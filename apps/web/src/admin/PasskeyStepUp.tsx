@@ -84,6 +84,10 @@ export function PasskeyStepUpHost() {
   )
 }
 
+/** The dialog's line under the title: what is confirmed, then why a passkey ("Delete workspace Riverside Electric. …"). */
+export const stepUpReason = (what: string) =>
+  `${what.charAt(0).toUpperCase()}${what.slice(1)}. Deleting a workspace, granting admin, resetting passkeys, signing in as a user and changes to an admin need a passkey sign-in from the last 12 hours.`
+
 function ConfirmPasskey({ what, onClose }: { what: string; onClose: (confirmed: boolean) => void }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -97,8 +101,8 @@ function ConfirmPasskey({ what, onClose }: { what: string; onClose: (confirmed: 
   }
   return (
     <Dialog
-      title={`Confirm with your passkey: ${what}`}
-      description="Granting admin, resetting passkeys, signing in as a user and changes to an admin need a passkey sign-in from the last 12 hours."
+      title="Confirm with your passkey"
+      description={stepUpReason(what)}
       size="sm"
       onClose={() => onClose(false)}
       onSubmit={e => {

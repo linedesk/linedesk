@@ -290,7 +290,9 @@ function Done({
   const name = useAssistantName()
   const number = useRows('phone_numbers')[0] ?? null
   const presence = usePresence()
-  useStepKeys({ onEnter: onDone, onEscape: onBack })
+  // "Open my calls" (or Enter) opens the inbox, whatever page the address still named (one from before signing up).
+  const openCalls = () => open('#calls')
+  useStepKeys({ onEnter: openCalls, onEscape: onBack })
   const write = useWriteAction()
   const hasCalls = useRows('calls').length > 0
   const [adding, setAdding] = useState(false)
@@ -318,7 +320,7 @@ function Done({
     }
   }
   // The same places the go-live checklist leads to.
-  const open = (href: string) => {
+  function open(href: string) {
     window.history.replaceState(null, '', href)
     onDone()
   }
@@ -360,7 +362,7 @@ function Done({
         {sampleError && <Note tone="danger">{sampleError}</Note>}
         <StarLine />
       </div>
-      <Foot onBack={onBack} onContinue={onDone} canContinue label="Open my calls" />
+      <Foot onBack={onBack} onContinue={openCalls} canContinue label="Open my calls" />
     </>
   )
 }

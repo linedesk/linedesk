@@ -114,7 +114,7 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
 function StarLink() {
   const { starPrompt, starCount } = useBrand()
   if (!starPrompt) return null
-  const title = starCount === null ? `Open ${STAR_REPO} on GitHub` : `${starCount.toLocaleString()} ${starCount === 1 ? 'star' : 'stars'} on GitHub`
+  const title = starCount === null ? `Open ${STAR_REPO} on GitHub` : `${starCount.toLocaleString('en-US')} ${starCount === 1 ? 'star' : 'stars'} on GitHub`
   return (
     <a className="nav-item" href={STAR_REPO_URL} target="_blank" rel="noreferrer" title={title}>
       <Icon name="star" size={15} /><span className="lbl">Star on GitHub</span>

@@ -259,7 +259,7 @@ export function runAdmin<N extends keyof AdminInputs>(name: N, input: AdminInput
       body: JSON.stringify(input),
     })
     return (await body<{ data?: Record<string, unknown> }>(res)).data ?? {}
-  }, stepUpLabel(name))
+  }, stepUpLabel(name, input))
 }
 
 /** What the passkey dialog says it confirms. */
@@ -275,7 +275,14 @@ const stepUpLabels: Partial<Record<keyof AdminInputs, string>> = {
   'membership.remove': 'remove an admin from a workspace',
   'workspace.delete': 'delete a workspace',
 }
-export const stepUpLabel = (name: keyof AdminInputs) => stepUpLabels[name] ?? 'this admin change'
+/** What the passkey dialog says it confirms; a workspace about to be deleted by its name (LIN-161). */
+export function stepUpLabel<N extends keyof AdminInputs>(name: N, input?: AdminInputs[N]): string {
+  if (name === 'workspace.delete') {
+    const workspace = (input as AdminInputs['workspace.delete'] | undefined)?.name?.trim()
+    if (workspace) return `delete workspace ${workspace}`
+  }
+  return stepUpLabels[name] ?? 'this admin change'
+}
 
 /** The providers that use this one's stored key (one-key mode): Disconnect ends them too. */
 export const keyUsersOf = (providers: readonly ProviderStatus[], provider: ProviderName) =>

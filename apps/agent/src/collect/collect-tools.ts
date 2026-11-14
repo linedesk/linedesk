@@ -151,7 +151,7 @@ export function collectTools(ctx: CollectContext) {
     }),
     get_date: llm.tool({
       description: 'Get a date from the caller (for example a preferred day or a date of birth) and confirm it.',
-      parameters: z.object({ what: z.string().describe('What the date is, e.g. "preferred day".') }),
+      parameters: z.object({ what: z.string().describe('What the date is for, e.g. "preferred day" or "callback day" (not the day itself).') }),
       execute: async ({ what }, opts) => runStep(ctx, opts, dateCollector({ what, today: ctx.today() })),
     }),
     get_digits: llm.tool({

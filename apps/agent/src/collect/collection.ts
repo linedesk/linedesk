@@ -39,7 +39,8 @@ export class Collection<Args extends Record<string, unknown>, T> {
     if (this.outcome) return { say: 'This step is over.' }
     const parsed = this.collector.parse(args)
     this.lastHeard = describeArgs(args)
-    if (!parsed.ok) return this.fail(parsed.problem)
+    // Which of two days is a question for the caller, not a wrong value: it does not use up a try.
+    if (!parsed.ok) return parsed.ask ? { say: parsed.problem } : this.fail(parsed.problem)
     this.pending = { value: parsed.value }
     this.lastHeard = this.collector.display(parsed.value)
     return {

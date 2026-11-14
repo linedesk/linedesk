@@ -196,6 +196,36 @@ test('the date step lists the next days with their weekday and date, so the mode
   expect(day.instructions).toContain('never count days yourself')
 })
 
+describe('the date step works out the day the caller names, like the booking tools (LIN-161)', () => {
+  // Friday, November 13, 2026: the QA call asked for a callback "next Tuesday afternoon".
+  const day = dateCollector({ what: 'callback day', today: '2026-11-13' })
+
+  it('asks which one when "next Tuesday" can mean two days, without using up a try', () => {
+    const parsed = day.parse({ date: 'next Tuesday afternoon' })
+    expect(parsed).toEqual({ ok: false, ask: true, problem: expect.stringContaining('Tuesday, November 17 or Tuesday, November 24') })
+    const step = new Collection(day, 1)
+    expect(step.record({ date: 'next Tuesday' }).outcome).toBeUndefined()
+    expect(step.record({ date: '2026-11-24' }).say).toContain('Tuesday, November 24, 2026')
+  })
+
+  it('takes a clear day as it is: "this Tuesday", "Tuesday", a plain date', () => {
+    expect(day.parse({ date: 'this Tuesday' })).toEqual({ ok: true, value: '2026-11-17' })
+    expect(day.parse({ date: 'Tuesday' })).toEqual({ ok: true, value: '2026-11-17' })
+    expect(day.parse({ date: 'on Tuesday afternoon' })).toEqual({ ok: true, value: '2026-11-17' })
+    expect(day.parse({ date: 'November 24' })).toEqual({ ok: true, value: '2026-11-24' })
+    expect(day.parse({ date: '11/24' })).toEqual({ ok: true, value: '2026-11-24' })
+    expect(day.parse({ date: '2026-11-24' })).toEqual({ ok: true, value: '2026-11-24' })
+    expect(day.parse({ date: 'tomorrow' })).toEqual({ ok: true, value: '2026-11-14' })
+  })
+
+  it('still takes a date of birth and refuses what is not a day', () => {
+    const birthday = dateCollector({ what: 'date of birth', today: '2026-11-13' })
+    expect(birthday.parse({ date: '1/15/90' })).toEqual({ ok: true, value: '1990-01-15' })
+    expect(birthday.parse({ date: 'January 15th 1990' })).toEqual({ ok: true, value: '1990-01-15' })
+    expect(birthday.parse({ date: 'sometime soon' }).ok).toBe(false)
+  })
+})
+
 describe('a question during a step (LIN-103)', () => {
   it('hands the question back to the assistant with what was heard so far', () => {
     const step = new Collection(phoneCollector('callback number'))

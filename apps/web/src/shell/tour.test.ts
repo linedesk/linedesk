@@ -1,5 +1,6 @@
 import { expect, test, vi } from 'vitest'
 import {
+  dialogOpen,
   findTarget,
   finishTour,
   onScreen,
@@ -109,4 +110,24 @@ test('the spotlight leaves room around the target and stays inside the window', 
   const view = { width: 1000, height: 800 }
   expect(spotlightBox(box(100, 100, 40, 20), view)).toEqual({ left: 94, top: 94, width: 52, height: 32 })
   expect(spotlightBox(box(0, 120, 1000, 48), view)).toEqual({ left: 4, top: 114, width: 992, height: 60 }) // a full-width row
+})
+
+test('the tour waits while a dialog is open: New workspace, ⌘K, the shortcut sheet (LIN-161)', () => {
+  // A page of elements by their attributes, matched against attribute selectors like [role="dialog"][aria-modal="true"].
+  const page = (...elements: Record<string, string>[]) => ({
+    querySelector: (selectors: string) =>
+      selectors.split(',').some(selector =>
+        elements.some(attrs =>
+          [...selector.matchAll(/\[([a-z-]+)="([^"]*)"\]/g)].every(([, name, value]) => attrs[name!] === value),
+        ),
+      )
+        ? ({} as Element)
+        : null,
+  })
+  const tourCard = { role: 'dialog', 'aria-modal': 'false' }
+  expect(dialogOpen(page())).toBe(false)
+  // The tour's own card is a dialog too, but not a modal one: it never pauses itself.
+  expect(dialogOpen(page(tourCard))).toBe(false)
+  expect(dialogOpen(page(tourCard, { role: 'dialog', 'aria-modal': 'true' }))).toBe(true) // New workspace, ⌘K, ?
+  expect(dialogOpen(page({ role: 'alertdialog' }))).toBe(true)
 })

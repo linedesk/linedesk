@@ -1,5 +1,14 @@
 import { expect, test, vi } from 'vitest'
-import { answer, attachStepUpDialog, shownStepUp, StepUpRequired, stepUpOf, withPasskeyStepUp } from './PasskeyStepUp.tsx'
+import { stepUpLabel } from './api.ts'
+import {
+  answer,
+  attachStepUpDialog,
+  shownStepUp,
+  StepUpRequired,
+  stepUpOf,
+  stepUpReason,
+  withPasskeyStepUp,
+} from './PasskeyStepUp.tsx'
 
 test('only the step-up refusal asks for a passkey; enrol when the admin has none yet', () => {
   expect(stepUpOf({ code: 'PASSKEY_STEP_UP_REQUIRED', stepUp: 'confirm' })).toBe('confirm')
@@ -46,4 +55,11 @@ test('two step-ups at once: the dialog names each in turn; one passkey confirms 
   await vi.waitFor(() => expect(shownStepUp()?.what).toBe('remove an admin from a workspace'))
   detach()
   await expect(d).rejects.toBeInstanceOf(StepUpRequired)
+})
+
+test('the passkey dialog says what it confirms: a workspace to delete by its name (LIN-161)', () => {
+  const what = stepUpLabel('workspace.delete', { workspaceId: 'ws_1', name: 'Riverside Electric' })
+  expect(what).toBe('delete workspace Riverside Electric')
+  expect(stepUpReason(what)).toMatch(/^Delete workspace Riverside Electric\. /)
+  expect(stepUpLabel('instanceAdmin.grant')).toBe('make an instance admin')
 })

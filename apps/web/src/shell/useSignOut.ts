@@ -3,6 +3,7 @@ import { auth } from '../auth.ts'
 import { forgetLocalData } from '../localData.ts'
 import { stopPushOnSignOut } from '../push.ts'
 import { useStore } from '../store.tsx'
+import { clearRoute } from './useRoute.ts'
 
 const SETTLE_MS = 2000
 const POLL_MS = 150
@@ -38,6 +39,8 @@ export function useSignOut({ onSignedOut, toast }: Options) {
     await auth.signOut()
     // Every workspace's local rows, Electric's state and cached reads belong to the member who leaves.
     await forgetLocalData()
+    // The page this member was on is theirs too: whoever signs in next starts in the inbox.
+    clearRoute()
     await onSignedOut()
   }
 }

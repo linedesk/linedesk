@@ -1,12 +1,12 @@
 // The first-use tour: five steps, each a small card next to what it explains, with an arrow pointing at it
 // and the rest of the screen dimmed around it. With nothing to point at (phones hide some of it) the card
 // is centred. → or Enter next, ← back, Esc closes; every other key still works, so the shortcuts it names
-// can be tried at once, and clicks go through to the app.
+// can be tried at once, and clicks go through to the app. While a dialog is open over it, the tour waits.
 import { arrow, autoUpdate, flip, hide, offset, shift, useFloating } from '@floating-ui/react-dom'
 import { type ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useAssistantName } from '../store.tsx'
 import { Button } from '../ui/kit.tsx'
-import { findTarget, onScreen, spotlightBox, type TourStep, tourKey, tourSteps } from './tour.ts'
+import { dialogOpen, findTarget, onScreen, spotlightBox, type TourStep, tourKey, tourSteps } from './tour.ts'
 
 const GAP = 12 // between the target and the card's arrow tip
 const EDGE = 12 // the card keeps this far from the window's edges
@@ -21,9 +21,12 @@ export function Tour({ onClose }: { onClose: () => void }) {
   const titleId = useId()
   const textId = useId()
 
-  useTourKeys(at, steps.length, setAt, onClose)
-  const nextRef = useFocusWhileOpen()
+  // A dialog opened over the inbox (New workspace, ⌘K, ?): the tour steps aside until it closes, keys included.
+  const paused = useDialogOpen()
+  useTourKeys(at, steps.length, setAt, onClose, paused)
+  const nextRef = useFocusWhileOpen(paused)
 
+  if (paused) return null
   return (
     <>
       <Spotlight target={target} />
@@ -167,8 +170,9 @@ function useStepTarget(step: TourStep): Element | null {
 }
 
 /** → / ← / Esc for the tour, before the app's own shortcuts (Esc there closes a call). */
-function useTourKeys(at: number, count: number, setAt: (n: number) => void, onClose: () => void) {
+function useTourKeys(at: number, count: number, setAt: (n: number) => void, onClose: () => void, paused: boolean) {
   useEffect(() => {
+    if (paused) return // the dialog's own keys (Esc closes it, not the tour)
     function onKey(e: KeyboardEvent) {
       if (e.isComposing || e.metaKey || e.ctrlKey || e.altKey) return
       const tag = (e.target as HTMLElement | null)?.tagName
@@ -182,13 +186,30 @@ function useTourKeys(at: number, count: number, setAt: (n: number) => void, onCl
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [at, count, setAt, onClose])
+  }, [at, count, setAt, onClose, paused])
 }
 
-/** Focus starts on Next (Enter moves on, a screen reader reads the step) and goes back where it was after. */
-function useFocusWhileOpen() {
+/** Whether a modal dialog is open anywhere on the page (dialogOpen), followed as dialogs open and close. */
+function useDialogOpen(): boolean {
+  const [open, setOpen] = useState(() => dialogOpen())
+  useEffect(() => {
+    const check = () => setOpen(dialogOpen())
+    check()
+    const observer = new MutationObserver(check)
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['role', 'aria-modal'] })
+    return () => observer.disconnect()
+  }, [])
+  return open
+}
+
+/**
+ * Focus starts on Next (Enter moves on, a screen reader reads the step) and goes back where it was after. While a
+ * dialog has paused the tour, focus stays with the dialog; the tour takes it again once the dialog has closed.
+ */
+function useFocusWhileOpen(paused: boolean) {
   const ref = useRef<HTMLButtonElement>(null)
   useEffect(() => {
+    if (paused) return
     let before: HTMLElement | null = null
     // A frame later: started from ⌘K, the closing palette first puts focus back where it was.
     const frame = requestAnimationFrame(() => {
@@ -199,6 +220,6 @@ function useFocusWhileOpen() {
       cancelAnimationFrame(frame)
       if (before?.isConnected && document.activeElement === ref.current) before.focus({ preventScroll: true })
     }
-  }, [])
+  }, [paused])
   return ref
 }

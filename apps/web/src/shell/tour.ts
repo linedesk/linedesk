@@ -117,6 +117,13 @@ export function findTarget(
   return null
 }
 
+/**
+ * Whether a dialog is open (New workspace, ⌘K, the shortcut sheet, any modal): the tour then waits behind it and
+ * comes back at the same step once it closes. The tour's own card is not modal, so it never counts.
+ */
+const MODAL_SELECTOR = '[role="dialog"][aria-modal="true"], [role="alertdialog"]'
+export const dialogOpen = (root: Pick<Document, 'querySelector'> = document) => root.querySelector(MODAL_SELECTOR) !== null
+
 /** The spotlight's window: the target with some room around it, kept inside the screen so its corners show. */
 export function spotlightBox(target: Box, viewport: { width: number; height: number }, pad = 6, inset = 4) {
   const left = Math.max(inset, target.left - pad)

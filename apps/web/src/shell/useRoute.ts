@@ -171,6 +171,14 @@ function currentHash(): string {
   return window.location.hash
 }
 
+/** The parts of `window` the address helpers below use (a stand-in in tests). */
+type Address = { location: { pathname: string; search: string }; history: { replaceState: History['replaceState'] } }
+
+/** The address without the in-app route (signing out): the next account to sign in here starts in the inbox. */
+export function clearRoute(win: Address = window) {
+  win.history.replaceState(null, '', `${win.location.pathname}${win.location.search}`)
+}
+
 /** A new history entry. */
 const push = (hash: string) => {
   window.location.hash = hash

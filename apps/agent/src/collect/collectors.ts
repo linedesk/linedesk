@@ -3,9 +3,11 @@
 // GetEmailTask, GetAddressTask, GetDOBTask): the same prompts and checks, but the
 // normalizing of spoken input is done in code (spoken.ts), so it is the same on every model.
 import { z } from 'zod'
+import { resolveDay } from '../spoken-day.ts'
 import { capitalizeName, readDigits, readLetters, spokenDigits, spokenEmail, spokenLetters } from './spoken.ts'
 
-export type Parsed<T> = { ok: true; value: T } | { ok: false; problem: string }
+/** Not ok: `problem` says what to do; `ask` marks a question back to the caller (which of two days), not a wrong value. */
+export type Parsed<T> = { ok: true; value: T } | { ok: false; problem: string; ask?: boolean }
 
 export interface Collector<Args extends Record<string, unknown>, T> {
   /** Used in tool names: record_<kind>, confirm_<kind>. */
@@ -254,21 +256,31 @@ export function upcomingDates(today: string, days = 14): string {
   return `Today is ${withWeekday(today)}. The days after it: ${dates.map(withWeekday).join('; ')}.`
 }
 
+/** "next Tuesday afternoon" → "next Tuesday": the date step collects the day; a time of day said with it is not part of it. */
+const withoutTimeOfDay = (said: string) => said.replace(/\s+(?:in the\s+)?(?:morning|afternoon|evening|night)\s*$/i, '').trim()
+
 export function dateCollector({ what, today, notBefore, notAfter }: DateOptions): Collector<{ date: string }, string> {
   return {
     kind: 'date',
     label: what,
-    parameters: z.object({ date: z.string().describe(`The ${what} as YYYY-MM-DD (today is ${withWeekday(today)}); a weekday the caller names: its date from the list in your instructions.`) }),
+    parameters: z.object({
+      date: z
+        .string()
+        .describe(`The ${what} in the caller's words ("next Tuesday", "the 15th", "1/15/90"), or YYYY-MM-DD once the caller picked one of two days you offered.`),
+    }),
+    // The same day words as the booking tools (resolveDay, LIN-136): an ambiguous "next Tuesday" is asked back, never guessed.
     parse({ date }) {
-      const iso = parseDate(date, today)
-      if (!iso) return problem(`"${date}" is not a date. Ask for the month, then the day, then the year.`)
+      const day = resolveDay(withoutTimeOfDay(date), today)
+      if ('ask' in day) return { ok: false, problem: day.ask, ask: true }
+      if ('unknown' in day) return problem(`"${date}" is not a date. Ask for the month, then the day, then the year.`)
+      const iso = day.date
       if (notBefore && iso < notBefore) return problem(`${iso} is too early for the ${what}. Ask again.`)
       if (notAfter && iso > notAfter) return problem(`${iso} is too late for the ${what}. Ask again.`)
       return ok(iso)
     },
     display: iso => iso,
     readBack: iso => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }),
-    instructions: `You collect the ${what}. ${upcomingDates(today)} Callers say dates many ways ("next Tuesday", "the fifteenth", "1/15/90"); a weekday they name is the one with that name in this list, with the date written next to it (never count days yourself). Pass the date as YYYY-MM-DD. Read it back with the weekday, month, day and year in words.`,
+    instructions: `You collect the ${what}. ${upcomingDates(today)} Callers say dates many ways ("next Tuesday", "the fifteenth", "1/15/90"). Pass the day in the caller's own words; the tool works out the date (never count days yourself), and when the words can mean two days ("next Tuesday") it tells you to ask which one. Use the list only to answer a question about a date. Read the date back with the weekday, month, day and year in words.`,
     ask: `Ask for the ${what}.`,
   }
 }
