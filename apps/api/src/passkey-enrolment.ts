@@ -5,8 +5,8 @@
 // admin of an install. Only the code's SHA-256 is stored; it works once and for ENROLMENT_HOURS.
 // Also here: removing every passkey of a user, the recovery path that does not need their passkeys.
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
-import { passkey, session, type Tx, user } from '@linedesk/db'
-import { eq } from 'drizzle-orm'
+import { agent_setup_keys, passkey, session, type Tx, user } from '@linedesk/db'
+import { and, eq, isNull } from 'drizzle-orm'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { passkeysResetEmail } from './emails/templates.ts'
@@ -53,8 +53,19 @@ export async function clearPasskeyEnrolment(userId: string) {
 export { passkeysResetEmail }
 
 /**
+ * Ends every AI agent setup link of the user (agent-setup.ts) wherever all their sessions end: a link is a way in
+ * that would outlast them, with email and sign-in too while its passkey confirmation lasts.
+ */
+export async function revokeSetupKeysOf(tx: Tx, userId: string) {
+  await tx
+    .update(agent_setup_keys)
+    .set({ revoked_at: new Date().toISOString() })
+    .where(and(eq(agent_setup_keys.created_by, userId), isNull(agent_setup_keys.revoked_at)))
+}
+
+/**
  * Removes every passkey of a user and signs them out everywhere, in the caller's transaction: a
- * session started by a passkey someone else added must not outlive it. Never on the caller's own
+ * session started by a passkey someone else added must not outlive it, nor must their AI agent setup links. Never on the caller's own
  * account (user.resetPasskeys refuses that). The user is emailed when there were passkeys,
  * and always when they are an instance admin. Returns how many passkeys there were.
  */
@@ -66,6 +77,8 @@ export async function removeAllPasskeys(
   await tx
     .delete(session)
     .where(eq(session.userId, target.id))
+  // A setup link the admin confirmed with a passkey could still change email and sign-in: it ends with the rest.
+  await revokeSetupKeysOf(tx, target.id)
   if (removed.length || target.isAdmin) {
     void emailSender
       .send({ to: target.email, ...passkeysResetEmail(removed.length) })

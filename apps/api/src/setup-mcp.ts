@@ -3,42 +3,63 @@
 // URL (/mcp/setup/<key>, for clients that cannot send headers: claude.ai, ChatGPT) or as Bearer. Stateless like /mcp.
 //
 // The tools: setup_status (what is done, the next step and how), providers_list, workspace_create, forwarding_guide,
-// and the registry actions in SETUP_ACTIONS, run through runAction as the admin (same permissions and command log).
-// Nothing else: no users, admins, other workspaces, keys, impersonation or deleting. Never email, sign-in or recording
-// storage (whoever controls those can sign in as anyone or gets the recordings: the admin does them in the app), and
-// the workspace actions run without instance:admin, so buying numbers keeps the caps of number-purchases.ts.
+// and the registry actions in SETUP_ACTIONS, run through runAction as the admin (same permissions and command log,
+// marked as done with the setup key). Nothing else: no users, admins, other workspaces, API keys, impersonation or
+// deleting. Every provider key can be set here (LIN-182: the admin never pastes a key into the app); provider_setKeys
+// runs the free provider test right after saving and returns it, and answers with "set" and the last 4 of a secret,
+// never the secret. Email and sign-in keep the passkey step-up (admin-step-up.ts): only a key the admin confirmed
+// with a passkey changes them, and the refusal tells the agent to ask the admin in the chat. The workspace actions
+// run without instance:admin, so buying numbers keeps the caps of number-purchases.ts.
 import {
   type ActionDef,
   actions,
+  agentSetupAllowHash,
   callAudioGuide,
   type ForwardingMode,
-  type GroupStatus,
   forwardingInstructions,
+  type GroupStatus,
   installPlace,
   isMultiCategory,
   LOCAL_INSTALL_NOTE,
   oneKey,
   type ProviderCategory,
+  type ProviderName,
   providerCategories,
   providerGroupIds,
-  type ProviderName,
+  providerGroups,
   providerSpec,
   recommendedProviders,
+  restartCategories,
   SETUP_MCP_INSTRUCTIONS,
   searchForwardingGuides,
   statusText,
 } from '@linedesk/actions'
-import { assistants, member, organization, phone_numbers, user, workspace_settings } from '@linedesk/db'
+import {
+  agent_setup_keys,
+  assistants,
+  member,
+  organization,
+  phone_numbers,
+  user,
+  workspace_settings,
+} from '@linedesk/db'
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
 import { and, asc, eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { actorForSetupKey, setupKeyWithinLimit, tooManyRefusedSetupKeys, webAddress } from './agent-setup.ts'
-import { changesSignInOrEmail } from './admin-step-up.ts'
+import { PASSKEY_STEP_UP_REQUIRED, type StepUp } from './admin-step-up.ts'
+import {
+  actorForSetupKey,
+  emailAndSignInAllowed,
+  setupKeyWithinLimit,
+  tooManyRefusedSetupKeys,
+  webAddress,
+} from './agent-setup.ts'
 import { auth } from './auth.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { goLiveChecklist } from './go-live-checklist.ts'
-import { MCP_MAX_BODY_BYTES, guard, takeSlot, toolName } from './mcp.ts'
+import { readInstallProgress } from './install-setup.ts'
+import { guard, MCP_MAX_BODY_BYTES, takeSlot, toolName } from './mcp.ts'
 import { ensureWorkspaceRows } from './onboarding.ts'
 import { providerStatus } from './provider-settings.ts'
 import { runAction } from './run-action.ts'
@@ -55,6 +76,9 @@ export const SETUP_ACTIONS = [
   'provider.test',
   'provider.connectOneKey',
   'provider.clearKeys',
+  'provider.tryOut',
+  'provider.confirmEmail',
+  'install.setProgress',
   'business.search',
   'business.import',
   'workspace.rename',
@@ -77,6 +101,16 @@ const ASK_FIRST: Record<string, string> = {
   'phoneNumber.setup':
     'With purchase: true this buys a phone number on the carrier account (about $1 a month on Telnyx): ask the admin first and say the cost. With purchase: false it attaches a number the account already has.',
   'provider.clearKeys': 'Removes the stored keys of a provider: ask the admin first.',
+  'provider.tryOut':
+    'kind "email" sends one real email with a six-digit code to the admin\'s own address: ask them for the code, then provider_confirmEmail { code }. kind "telephony" lists numbers without buying any.',
+}
+
+/** What the agent is told about a tool on top of the registry's description. */
+const EXTRA: Record<string, string> = {
+  'provider.setKeys':
+    "Ask the admin for the key in the chat and pass it here; never ask them to paste it into the app. The answer shows each field as set (secrets only by their last 4) and `test`: the free provider test run right after saving. Email and sign-in providers need the admin's passkey confirmation of this setup link (the refusal says what to ask).",
+  'install.setProgress':
+    'The install part is marked finished by setup_status once its groups work; use this to skip a part the admin does not want now (skip: "<step>").',
 }
 
 type ToolResult = {
@@ -84,49 +118,88 @@ type ToolResult = {
   structuredContent?: Record<string, unknown>
   isError?: boolean
 }
-const answer = (data: Record<string, unknown>): ToolResult => ({
-  content: [{ type: 'text', text: JSON.stringify(data) }],
-  structuredContent: data,
-})
-const refusal = (error: string): ToolResult => ({ content: [{ type: 'text', text: error }], isError: true })
-
-/** Provider categories the setup tools leave alone: email and sign-in (changesSignInOrEmail), and recording storage. */
-const IN_APP_ONLY: readonly ProviderCategory[] = ['recording']
-function inAppOnly(name: string, input: unknown): boolean {
-  if (changesSignInOrEmail(name, input)) return true
-  const fields = (input ?? {}) as { provider?: unknown; category?: unknown }
-  const category =
-    typeof fields.category === 'string'
-      ? fields.category
-      : typeof fields.provider === 'string' && name !== 'provider.test'
-        ? (providerSpec(fields.provider as never)?.category ?? null)
-        : null
-  return (IN_APP_ONLY as readonly string[]).includes(category ?? '')
+/**
+ * Messages from provider tests and errors are written for the app ("Enter a valid key under Admin › Providers ›
+ * Deepgram."). The agent stores keys itself, so they say what the agent does instead of sending the admin there.
+ */
+export function forAgent(text: string): string {
+  return text
+    .replace(
+      /Enter a (valid key|new client secret) under Admin › Providers › [^."]+\./g,
+      (_, what: string) => `Ask the admin for a ${what} and store it again with provider_setKeys.`,
+    )
+    .replace(/ under Admin › Providers › [^."]+\./g, ' with the admin, then store it again with provider_setKeys.')
+    .replace(/[Cc]onnect (it|email) in Admin, Providers(, Email)?/g, 'set up email with provider_setKeys')
 }
-const IN_APP_ONLY_REFUSAL =
-  'The setup tools do not change email, sign-in or recording storage: ask the admin to do this in the app (app_links.providers_email, providers_sign_in or providers_recording), then check it with provider_test.'
+const answer = (data: Record<string, unknown>): ToolResult => {
+  const text = forAgent(JSON.stringify(data))
+  return { content: [{ type: 'text', text }], structuredContent: JSON.parse(text) }
+}
+const refusal = (error: string): ToolResult => ({ content: [{ type: 'text', text: forAgent(error) }], isError: true })
 
-/** Instance admin rights only for the provider actions; the business's own actions run as its owner would. */
-const actorFor = (name: string, actor: Actor): Actor =>
-  name.startsWith('provider.')
-    ? actor
-    : { ...actor, permissions: actor.permissions.filter(p => p !== 'instance:admin') }
+/** The setup page with Allow for this setup key only (agent-setup.ts confirmPasskey refuses any other key). */
+const allowPage = (keyId: string | undefined) =>
+  `${webAddress()}/${keyId ? agentSetupAllowHash(keyId) : '#setup-agent'}`
+
+/**
+ * Email and sign-in decide who can sign in, so changing them needs the admin's passkey (admin-step-up.ts), for an
+ * agent too; so does recording storage on this server or a private network (s3-endpoint.ts). What the agent says in
+ * the chat: never "paste it in the app", only the one thing a person must do, with the link that allows this key.
+ */
+export function passkeyNeeded(stepUp: StepUp | undefined, keyId?: string, reason?: string): string {
+  const page = allowPage(keyId)
+  const why =
+    reason === 'private_endpoint'
+      ? 'a storage endpoint on this server or a private network could reach internal services, so it needs'
+      : 'email and sign-in decide who can sign in, so changing them needs'
+  return stepUp === 'enrol'
+    ? `PASSKEY_NEEDED: ${why} the admin's passkey, and they have none yet. Nothing was stored. Ask the admin in this chat to add one: an enrolment code from the server (if you can run commands there, run it for them: docker compose exec api node apps/api/src/user-passkeys.ts --enrol --email <their email>, or pnpm --filter @linedesk/api user:passkeys --enrol --email <their email>), then Account › Sign-in & security › Add passkey with that code, then open ${page} and click "Allow". Then call this tool again with the same values; this setup link keeps working. Or skip this for now and go on with the next step.`
+    : `PASSKEY_NEEDED: ${why} the admin's passkey. This setup link does not have it. Nothing was stored. Ask the admin in this chat to open ${page}, check that the link shown there is the one you use, click "Allow" and confirm with their passkey (one click, no keys to paste). Then call this tool again with the same values; this setup link keeps working.`
+}
+
+/** Instance admin rights only for the provider and install actions; the business's own actions run as its owner would. */
+const actorFor = (name: string, actor: Actor): Actor => {
+  if (name.startsWith('provider.') || name.startsWith('install.')) return actor
+  const { passkeyConfirmed: _, ...rest } = actor
+  return { ...rest, permissions: actor.permissions.filter(p => p !== 'instance:admin') }
+}
+
+/** provider.setKeys through the agent: stored like in the app, then the free test, so the agent can react at once. */
+async function saveAndTest(provider: ProviderName, actor: Actor, saved: Record<string, unknown>) {
+  const { body } = await runAction('provider.test', { provider, free: true }, actor)
+  const test = body.ok ? body.data : { ok: false, message: body.error }
+  const restarts = restartCategories.includes(providerSpec(provider).category)
+    ? 'Email and sign-in are read at start: the API restarts to apply this, a few seconds. Call setup_status again after that.'
+    : null
+  return answer({ ok: true, ...saved, test, ...(restarts ? { note: restarts } : {}) })
+}
 
 function registerAction(server: McpServer, def: ActionDef, actor: Actor) {
+  const notes = [def.description, EXTRA[def.name], ASK_FIRST[def.name]].filter(Boolean)
   const caution = ASK_FIRST[def.name]
   server.registerTool(
     toolName(def.name),
     {
-      description: caution ? `${def.description} ${caution}` : def.description,
+      description: notes.join(' '),
       inputSchema: def.input as never,
       annotations: { readOnlyHint: Boolean(def.readOnly), destructiveHint: Boolean(caution) },
     },
     ((input: unknown) =>
       guard(def.name, async () => {
-        if (inAppOnly(def.name, input)) return refusal(IN_APP_ONLY_REFUSAL)
-        const { body } = await runAction(def.name, input ?? {}, actorFor(def.name, actor))
-        if (!body.ok) return refusal(body.error)
-        return answer({ ok: true, rows: body.rows, ...(body.data ? { data: body.data } : {}) })
+        const as = actorFor(def.name, actor)
+        const { body } = await runAction(def.name, input ?? {}, as)
+        if (!body.ok) {
+          const refused = body as { code?: string; stepUp?: StepUp; reason?: string }
+          return refusal(
+            refused.code === PASSKEY_STEP_UP_REQUIRED
+              ? passkeyNeeded(refused.stepUp, actor.setupKeyId, refused.reason)
+              : body.error,
+          )
+        }
+        const result = { rows: body.rows, ...(body.data ? { data: body.data } : {}) }
+        if (def.name === 'provider.setKeys')
+          return saveAndTest((input as { provider: ProviderName }).provider, as, result)
+        return answer({ ok: true, ...result })
       })) as never,
   )
 }
@@ -141,6 +214,8 @@ const appLinks = () => {
   return {
     app,
     setup: `${app}/#admin/overview`,
+    // The setup page: "Allow" there lets this setup link change email and sign-in (the admin's passkey).
+    agent_setup: `${app}/#setup-agent`,
     providers: `${app}/#admin/providers`,
     ...groups,
     test_call: `${app}/#assistant`,
@@ -193,7 +268,7 @@ const guideLines = (provider: ProviderName) => {
     // The guides are written for the app ("Paste it here"); an agent asks for the key instead.
     ...guide.steps.map(line => line.replace(/^Paste (it|both|them) here/, 'Ask the admin to paste $1 to you')),
     `Cost: ${guide.cost}`,
-    `Store with provider_setKeys { provider: "${provider}", values: { <field>: <value> } } (fields: providers_list), then provider_setActive { category: "${category}", provider: "${provider}" } if another one is picked, then provider_test.`,
+    `Store with provider_setKeys { provider: "${provider}", values: { <field>: <value> } } (fields: providers_list); it runs the free test right away and returns it as \`test\`. Then provider_setActive { category: "${category}", provider: "${provider}" } if another one is picked.`,
   ]
 }
 const callAudioLines = () => [
@@ -223,11 +298,17 @@ async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean
     groupStep(group('telephony'), guideLines(recommendedProviders.telephony)),
     groupStep(group('email'), [
       ...guideLines(recommendedProviders.email),
-      'The setup tools cannot change email: walk the admin through the account, then ask them to paste the key in the app (app_links.providers_email). Check it with provider_test.',
+      'Ask for the From address too (an address on the domain verified with the mail service) and store it with the key: values { api_key, from }.',
+      `Email decides who gets sign-in codes, so it needs the admin's passkey: ${await emailAndSignInNote(actor)}`,
+      'Once the test passes and the API has restarted: provider_tryOut { kind: "email" } sends a six-digit code to the admin\'s own address; ask them for it in the chat and call provider_confirmEmail { code }. That proves delivery end to end.',
     ]),
     groupStep(group('call-audio'), callAudioLines(), 'livekit'),
     ...(await workspaceSteps(actor, advance)),
   ]
+  // The install's own part is done: the setup by hand does not open on it later (bookkeeping, like onboarding_setStep).
+  const installDone = steps.slice(0, 4).every(s => s.state === 'done')
+  if (advance && installDone && !(await readInstallProgress()).finishedAt)
+    await runAction('install.setProgress', { finished: true }, actor)
   const next = steps.find(s => s.state !== 'done' && s.state !== 'admin_only') ?? null
   return {
     you_act_as: await whoAmI(actor),
@@ -235,8 +316,70 @@ async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean
     steps: steps.map(({ how, ...s }) => (s.id === next?.id ? { ...s, how } : s)),
     next_step: next ? next.id : null,
     all_done: !next,
+    optional: optionalSteps(groups, await emailAndSignInNote(actor)),
     app_links: appLinks(),
   }
+}
+
+/** Where an OAuth app sends people back to: the same list as the provider's dialog (web ProviderLogo.tsx). */
+function redirectUris(provider: ProviderName): string[] {
+  const app = webAddress()
+  if (provider === 'google' || provider === 'microsoft')
+    return [`${app}/api/auth/callback/${provider}`, `${app}/v1/calendar/callback/${provider}`]
+  if (provider === 'github') return [`${app}/api/auth/callback/github`]
+  if (provider === 'oidc') return [`${app}/api/auth/oauth2/callback/oidc`]
+  return []
+}
+
+/** Whether this setup link may change email and sign-in now, said for the agent. */
+async function emailAndSignInNote(actor: Actor): Promise<string> {
+  const [key] = actor.setupKeyId
+    ? await db
+        .select({ until: agent_setup_keys.passkey_confirmed_until })
+        .from(agent_setup_keys)
+        .where(eq(agent_setup_keys.id, actor.setupKeyId))
+    : []
+  return emailAndSignInAllowed(key?.until ?? null)
+    ? 'this setup link has it, so provider_setKeys stores email and sign-in keys directly.'
+    : `this setup link does not have it yet. Before asking for the key, ask the admin in this chat to open ${allowPage(actor.setupKeyId)}, click "Allow" and confirm with their passkey (no keys to paste there). If provider_setKeys still answers PASSKEY_NEEDED, follow its message.`
+}
+
+/**
+ * The groups a first call does not need (sign-in, calendar, recording, business lookup): their state and how to set
+ * them up through these tools, offered once the needed steps are done. Calendars themselves are connected per business
+ * by signing in to Google or Microsoft in the browser (Settings › Calendar), the one part an agent cannot do.
+ */
+function optionalSteps(groups: GroupStatus[], passkey: string) {
+  const how: Record<string, string[]> = {
+    'sign-in': [
+      ...guideLines(recommendedProviders.sign_in),
+      'The OAuth app needs the redirect URIs that providers_list gives per provider (redirect_uris).',
+      `Sign-in needs the admin's passkey: ${passkey}`,
+    ],
+    calendar: [
+      'The Google or Microsoft sign-in app also connects calendars (set it up as for sign-in, with the calendar scopes in its help).',
+      `Sign-in apps need the admin's passkey: ${passkey}`,
+      `Connecting a calendar to the business is a Google or Microsoft sign-in in the browser: the admin does it in ${webAddress()}/#settings/assistant after setup. Say so; it is optional.`,
+    ],
+    recording: [
+      'Local disk is the simplest: provider_setActive { category: "recording", provider: "file" } and, on the server, docker compose --profile recording up -d (if you can run commands there, do it).',
+      ...guideLines('s3'),
+    ],
+    business: guideLines(recommendedProviders.business),
+  }
+  return providerGroups
+    .filter(g => !g.needed)
+    .map(spec => {
+      const group = groups.find(g => g.id === spec.id)
+      const state = group ? GROUP_STATE[group.state] : 'todo'
+      return {
+        id: spec.id,
+        label: spec.label,
+        why: spec.why,
+        state: group?.state === 'off' ? 'off' : state,
+        ...(group?.state === 'works' ? {} : { how: how[spec.id] ?? [] }),
+      }
+    })
 }
 
 /** Where the install runs: on a computer or a private network, carriers cannot reach it (LOCAL_INSTALL_NOTE). */
@@ -384,7 +527,8 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<Step[]> {
       id: 'phone',
       label: 'A phone number for the assistant',
       state: done(phoneDone),
-      detail: numbers.map(n => `${n.e164} (${n.mode})`).join(', ') || null,
+      // The id too: the forwarding tools need it, also while another step is next and this one has no `how`.
+      detail: numbers.map(n => `${n.e164} (${n.mode}, phoneNumberId ${n.id})`).join(', ') || null,
       how: [
         'Ask how calls should reach the assistant: keep the business number and forward to a new Linedesk number (mode "forward_conditional", or "forward_all" for every call), or a new number of its own (mode "new").',
         'phoneNumber_setup { areaCode, purchase: true, mode } buys one; say the cost and ask first. A number the carrier account already has: { e164, purchase: false, mode }.',
@@ -458,6 +602,7 @@ function registerTools(server: McpServer, actor: Actor) {
                 hint: fieldSpec(f.field)?.hint ?? null,
               })),
               help: spec.help ?? null,
+              ...(spec.category === 'sign_in' ? { redirect_uris: redirectUris(p.provider) } : {}),
             }
           })
         return answer({ categories: providerCategories, providers: rows })

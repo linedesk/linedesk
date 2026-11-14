@@ -9,7 +9,7 @@ import { AdminMode } from './admin/AdminMode.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { auth, fetchAuthMethods, isInstanceAdmin, type Me } from './auth.ts'
 import { CreateWorkspace } from './CreateWorkspace.tsx'
-import { AGENT_SETUP_HASH, AgentSetup, choseManualSetup, openAgentSetup, rememberManual } from './onboarding/AgentSetup.tsx'
+import { AgentSetup, choseManualSetup, isAgentSetupHash, openAgentSetup, rememberManual } from './onboarding/AgentSetup.tsx'
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
 import { AccountSettings } from './settings/account/index.tsx'
 import { signOutAndForget } from './localData.ts'
@@ -81,17 +81,17 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
       />
     )
   }
-  if (me && admin && !me.impersonation && (hash === AGENT_SETUP_HASH || !choseManualSetup(me, manualSetup)))
+  if (me && admin && !me.impersonation && (isAgentSetupHash(hash) || !choseManualSetup(me, manualSetup)))
     return (
       <AgentSetup
         onManual={installFirst => {
           setManualSetup(true)
           // The install by hand, step by step; leaving it goes on to naming the business.
           if (installFirst) window.location.hash = INSTALL_SETUP_HASH
-          else if (hash === AGENT_SETUP_HASH) leave()
+          else if (isAgentSetupHash(hash)) leave()
         }}
         onDone={() => {
-          if (hash === AGENT_SETUP_HASH) leave()
+          if (isAgentSetupHash(hash)) leave()
           onDone()
         }}
         onWorkspaceReady={onDone}

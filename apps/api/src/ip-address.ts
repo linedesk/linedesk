@@ -3,6 +3,7 @@
 // (webhooks). IPv6 is parsed to its eight groups, so every way of writing an address is the same
 // address, and IPv4 addresses embedded in IPv6 (mapped, compatible, NAT64, 6to4) are checked as the
 // IPv4 address they reach.
+import { type LookupAddress, lookup as dnsLookup } from 'node:dns'
 import { isIP } from 'node:net'
 
 function ipv4Octets(ip: string): number[] | null {
@@ -68,4 +69,48 @@ export function isPrivateAddress(ip: string): boolean {
   if (v4) return privateIpv4(v4)
   const v6 = ipv6Groups(ip)
   return v6 ? privateIpv6(v6) : true
+}
+
+/**
+ * Link-local addresses (169.254.0.0/16, fe80::/10), where clouds answer with the server's own credentials, and the
+ * other cloud metadata addresses (AWS over IPv6, Alibaba): never a place the API sends a request to, whoever set the
+ * URL. IPv4 addresses embedded in IPv6 count as the IPv4 address they reach.
+ */
+export function isLinkLocalAddress(ip: string): boolean {
+  const v4 = ipv4Octets(ip)
+  if (v4) return linkLocalIpv4(v4)
+  const g = ipv6Groups(ip)
+  if (!g) return false
+  const zeroUpTo = (n: number) => g.slice(0, n).every(x => x === 0)
+  if (zeroUpTo(6) || (zeroUpTo(5) && g[5] === 0xffff) || (g[0] === 0x64 && g[1] === 0xff9b))
+    return linkLocalIpv4(embeddedIpv4(g[6]!, g[7]!))
+  if (g[0] === 0x2002) return linkLocalIpv4(embeddedIpv4(g[1]!, g[2]!))
+  // fd00:ec2::254: the AWS metadata service over IPv6.
+  const awsMetadata = g[0] === 0xfd00 && g[1] === 0xec2 && g.slice(2, 7).every(x => x === 0) && g[7] === 0x254
+  return (g[0]! & 0xffc0) === 0xfe80 || awsMetadata
+}
+
+function linkLocalIpv4([a, b, c, d]: number[]): boolean {
+  return (a === 169 && b === 254) || (a === 100 && b === 100 && c === 100 && d === 200)
+}
+
+/** All addresses of a name, as the connection would get them. */
+export type Resolve = (hostname: string, callback: (err: Error | null, addresses: LookupAddress[]) => void) => void
+export const resolveAll: Resolve = (hostname, callback) => dnsLookup(hostname, { all: true }, callback)
+
+/**
+ * A `lookup` for a connection (an undici Agent's `connect.lookup`): resolves the name once and refuses it when any
+ * address is `refused`, so the request goes to exactly the address that was checked (no second lookup to rebind).
+ * The refusal is an error with code EPRIVATEADDRESS and `message`.
+ */
+export function checkedLookup(refused: (ip: string) => boolean, message: string, resolve: Resolve = resolveAll) {
+  return (hostname: string, options: { all?: boolean }, callback: (...args: unknown[]) => void) => {
+    resolve(hostname, (err, addresses) => {
+      if (err) return callback(err)
+      if (!addresses.length || addresses.some(a => refused(a.address)))
+        return callback(Object.assign(new Error(message), { code: 'EPRIVATEADDRESS' }))
+      if (options.all) callback(null, addresses)
+      else callback(null, addresses[0]!.address, addresses[0]!.family)
+    })
+  }
 }

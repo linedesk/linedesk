@@ -3,11 +3,13 @@
 // setup key and does the setup with them; this page makes the key, says how to connect each agent, gives the prompt,
 // and shows the agent's progress as it works. Setting up by hand stays one small link away.
 import {
+  AGENT_SETUP_HASH,
   type AgentClient,
   type AgentSetupKeyCreated,
   type AgentSetupState,
   agentClientLabels,
   agentClients,
+  allowKeyIdOf,
   cloudClients,
   HOSTING_GUIDE_URL,
   installPlace,
@@ -38,8 +40,11 @@ function savedClient(): AgentClient {
   }
 }
 
-/** The address of the setup page: opened from Admin › Overview, or after choosing the manual way. */
-export const AGENT_SETUP_HASH = '#setup-agent'
+/**
+ * The address of the setup page (#setup-agent): opened from Admin › Overview, or after choosing the manual way. The
+ * agent's link adds `?allow=<keyId>` when it needs email and sign-in: Allow is offered only for that key.
+ */
+export { AGENT_SETUP_HASH, isAgentSetupHash } from '@linedesk/actions'
 export const openAgentSetup = () => {
   rememberManual(false)
   window.location.hash = AGENT_SETUP_HASH
@@ -104,7 +109,14 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
   }, [])
 
   const [client, setClient] = useState<AgentClient>(savedClient)
-  const [busy, setBusy] = useState<'create' | 'end' | null>(null)
+  const [busy, setBusy] = useState<'create' | 'end' | 'allow' | 'withdraw' | null>(null)
+  // The key the agent's link asks to allow (#setup-agent?allow=<keyId>), followed as the address changes.
+  const [allowKeyId, setAllowKeyId] = useState(() => allowKeyIdOf(window.location.hash))
+  useEffect(() => {
+    const follow = () => setAllowKeyId(allowKeyIdOf(window.location.hash))
+    window.addEventListener('hashchange', follow)
+    return () => window.removeEventListener('hashchange', follow)
+  }, [])
   const [error, setError] = useState<string | null>(null)
   // The admin sign-in ran out (1 hour, 12 with a passkey): the page turns into the sign-in, never an error line.
   const [signInAgain, setSignInAgain] = useState<AdminSecondFactor | null>(null)
@@ -155,6 +167,37 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create a setup link')
+    } finally {
+      setBusy(null)
+    }
+  }
+  // Email and sign-in need the admin's passkey, for the agent too: one passkey sign-in lets the link the agent named
+  // (and only that one, if it is still the admin's working link) do them. The dialog names the link too.
+  const allowEmailAndSignIn = async (key: NonNullable<AgentSetupState['key']>) => {
+    setBusy('allow')
+    setError(null)
+    try {
+      await runAdmin(
+        'agentSetup.confirmPasskey',
+        { keyId: key.id },
+        `let setup link ${key.prefix}… (created ${timeOf(key.createdAt)}) set up email and sign-in`,
+      )
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not allow email and sign-in')
+    } finally {
+      setBusy(null)
+    }
+  }
+  // Lowering the link's rights needs no passkey.
+  const withdrawEmailAndSignIn = async () => {
+    setBusy('withdraw')
+    setError(null)
+    try {
+      await runAdmin('agentSetup.withdrawPasskey', {})
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not withdraw it')
     } finally {
       setBusy(null)
     }
@@ -238,21 +281,32 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
             <li className={cx(hasLink && 'as-done')}>
               <b>Create a setup link</b>
               {hasLink ? (
-                <div className="as-link">
-                  <span className="as-small">
-                    {created
-                      ? `Ready, valid until ${timeOf(created.expiresAt)}. It lets an agent act as you, so keep it to yourself.`
-                      : `Your agent has a setup link (${state?.key?.prefix}…), valid until ${timeOf(state?.key?.expiresAt ?? '')}.`}
-                  </span>
-                  <Button
-                    size="sm"
-                    busy={busy === 'end'}
-                    onClick={() => void endAccess()}
-                    title="The setup link stops working at once"
-                  >
-                    End access
-                  </Button>
-                </div>
+                <>
+                  <div className="as-link">
+                    <span className="as-small">
+                      {created
+                        ? `Ready, valid until ${timeOf(created.expiresAt)}. It lets an agent act as you, so keep it to yourself.`
+                        : `Your agent has a setup link (${state?.key?.prefix}…), valid until ${timeOf(state?.key?.expiresAt ?? '')}.`}
+                    </span>
+                    <Button
+                      size="sm"
+                      busy={busy === 'end'}
+                      onClick={() => void endAccess()}
+                      title="The setup link stops working at once"
+                    >
+                      End access
+                    </Button>
+                  </div>
+                  {state?.key && (
+                    <EmailAndSignIn
+                      linkKey={state.key}
+                      allowKeyId={allowKeyId}
+                      busy={busy}
+                      onAllow={key => void allowEmailAndSignIn(key)}
+                      onWithdraw={() => void withdrawEmailAndSignIn()}
+                    />
+                  )}
+                </>
               ) : (
                 <div className="as-step">
                   <span>
@@ -281,6 +335,12 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
               )}
             </li>
           </ol>
+          {state && allowKeyId && state.key?.id !== allowKeyId && (
+            <Note tone="warning" title="Nothing to allow">
+              The link you opened asks to allow a setup link that ended or is not yours. If your agent needs email and
+              sign-in, ask it for a new link.
+            </Note>
+          )}
           {error && <Note tone="danger">{error}</Note>}
         </section>
 
@@ -292,6 +352,68 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Whether the working link may change email and sign-in. Allow only when the agent's link named this key
+ * (#setup-agent?allow=<keyId>), with its prefix and when it was made next to the button; while a passkey confirmation
+ * lasts, until when, with Withdraw.
+ */
+function EmailAndSignIn({
+  linkKey,
+  allowKeyId,
+  busy,
+  onAllow,
+  onWithdraw,
+}: {
+  linkKey: NonNullable<AgentSetupState['key']>
+  allowKeyId: string | null
+  busy: string | null
+  onAllow: (key: NonNullable<AgentSetupState['key']>) => void
+  onWithdraw: () => void
+}) {
+  if (linkKey.emailAndSignInUntil)
+    return (
+      <div className="as-link">
+        <span className="as-small">
+          This link can also change email and sign-in until {timeOf(linkKey.emailAndSignInUntil)}.
+        </span>
+        <Button
+          size="sm"
+          busy={busy === 'withdraw'}
+          onClick={onWithdraw}
+          title="Your agent can no longer change email and sign-in with this link"
+        >
+          Withdraw
+        </Button>
+      </div>
+    )
+  if (linkKey.emailAndSignIn) return null
+  if (allowKeyId !== linkKey.id)
+    return (
+      <div className="as-link">
+        <span className="as-small">
+          Email and sign-in decide who can sign in, so your agent needs your passkey for them. When it does, it gives
+          you a link to allow it here.
+        </span>
+      </div>
+    )
+  return (
+    <div className="as-link">
+      <span className="as-small">
+        Your agent asks to set up email and sign-in with setup link <b>{linkKey.prefix}…</b>, created{' '}
+        {timeOf(linkKey.createdAt)}. Allow only if that is the link you gave your agent.
+      </span>
+      <Button
+        size="sm"
+        busy={busy === 'allow'}
+        onClick={() => onAllow(linkKey)}
+        title={`Confirm with your passkey: your agent can then set up email and sign-in with ${linkKey.prefix}…`}
+      >
+        Allow
+      </Button>
     </div>
   )
 }

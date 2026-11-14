@@ -161,6 +161,8 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
     workspace_id: actor.workspaceId,
     actor_id: actor.actorId,
     impersonated_by: actor.impersonation?.by ?? null,
+    // An AI agent with the admin's setup key (agent-setup.ts): the audit log says so.
+    setup_key_id: actor.setupKeyId ?? null,
     action: name,
     input: storedInput(def, redactInput(def, parsed.data)) as object,
   }

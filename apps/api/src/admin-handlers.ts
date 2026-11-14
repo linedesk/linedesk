@@ -1,6 +1,6 @@
 // Server handlers of the admin area actions (packages/actions/src/admin.ts).
 import { type ProviderName, providerSpec, restartCategories } from '@linedesk/actions'
-import { organization, passkey, session, spending_cap_alerts, type Tx, user } from '@linedesk/db'
+import { agent_setup_keys, organization, passkey, session, spending_cap_alerts, type Tx, user } from '@linedesk/db'
 import { emailDelivery } from './auth-methods.ts'
 import { emailSender } from './email.ts'
 import { emailSafeName, welcomeEmail } from './emails/templates.ts'
@@ -12,7 +12,7 @@ import { mayReceiveEnrolmentCode } from './admin-step-up.ts'
 import type { Actor } from './context.ts'
 import { checkInstanceEnvSoon } from './instance-env.ts'
 import { anotherAdminRemains, isEnvAdmin, isInstanceAdmin } from './instance-admin.ts'
-import { issuePasskeyEnrolment, removeAllPasskeys } from './passkey-enrolment.ts'
+import { issuePasskeyEnrolment, removeAllPasskeys, revokeSetupKeysOf } from './passkey-enrolment.ts'
 import {
   clearProviderKeys,
   linkProviderKey,
@@ -24,6 +24,7 @@ import {
 import { noteProviderFailure, noteProviderOk } from './provider-failures.ts'
 import { missingFields, testProvider } from './provider-test.ts'
 import { recentTest, rememberTest } from './setup-checklist.ts'
+import { endpointRuleFor, s3EndpointProblem } from './s3-endpoint.ts'
 import { dropUserPush } from './push.ts'
 import { SecretsKeyError } from './secrets.ts'
 import { monthOf, queueSpendingAlerts, spendingCap } from './spending-cap.ts'
@@ -129,14 +130,36 @@ async function applyAfterCommit(provider: ProviderName, actor: Actor, cleared = 
   const { category, label } = providerSpec(provider)
   if (!restartCategories.includes(category)) return
   checkInstanceEnvSoon(db)
+  const how = await viaWhat(actor)
   await alertInstanceAdmins(
-    `${label} settings ${cleared ? 'removed' : 'changed'}`,
-    `${await actorName(actor)} ${cleared ? 'removed' : 'changed'} the ${label} settings (Admin, Providers). They decide how people sign in or get sign-in codes.\n\nIf you did not expect this, sign in with your passkey and check Admin, Providers and Audit log.`,
+    `${label} settings ${cleared ? 'removed' : 'changed'}${how.subject}`,
+    `${await actorName(actor)} ${cleared ? 'removed' : 'changed'} the ${label} settings ${how.body}. They decide how people sign in or get sign-in codes.\n\nIf you did not expect this, sign in with your passkey and check Admin, Providers and Audit log.${how.after}`,
   )
+}
+
+/** Where a change came from, for the alert: the app, or an AI agent with a setup link (named by its prefix and time). */
+async function viaWhat(actor: Actor): Promise<{ subject: string; body: string; after: string }> {
+  if (!actor.setupKeyId) return { subject: '', body: '(Admin, Providers)', after: '' }
+  const [key] = await db
+    .select({ prefix: agent_setup_keys.prefix, createdAt: agent_setup_keys.created_at })
+    .from(agent_setup_keys)
+    .where(eq(agent_setup_keys.id, actor.setupKeyId))
+  const made = key ? `, made ${new Date(key.createdAt).toISOString().slice(0, 16).replace('T', ' ')} UTC` : ''
+  return {
+    subject: ' by an AI agent',
+    body: `through the AI agent setup link ${key?.prefix ?? actor.setupKeyId}…${made}`,
+    after: ` That admin ends the link with End access on the setup page; disabling the admin ends it too.`,
+  }
 }
 
 export const adminHandlers: Record<string, Handler> = {
   'provider.setKeys': async ({ tx, actor, now }, input) => {
+    // Recording storage is never on a link-local or metadata address (s3-endpoint.ts); a setup key without the
+    // admin's Allow got the step-up for a private one already (admin-step-up.ts).
+    if (input.provider === 's3' && input.values.endpoint) {
+      const refused = await s3EndpointProblem(input.values.endpoint, endpointRuleFor(actor))
+      if (refused) throw new Reject(refused.message)
+    }
     await withSecretsKey(() => setProviderKeys(tx, input.provider, input.values, actor.actorId, now))
     await applyAfterCommit(input.provider, actor)
     return { rows: {}, data: { provider: await statusOf(tx, input.provider) } }
@@ -156,12 +179,22 @@ export const adminHandlers: Record<string, Handler> = {
     return { rows: {}, data: { active: (await providerStatus(tx)).active } }
   },
 
-  'provider.test': async ({ tx }, input) => {
+  'provider.test': async ({ tx, actor }, input) => {
     const config = await withSecretsKey(() => resolveProvider(tx, input.provider))
+    const endpointRule = endpointRuleFor(actor)
+    // A setup key without the admin's Allow never reaches storage on this server or its network, also when the admin
+    // set it up there: refused before any request, and not counted as the provider failing.
+    if (input.provider === 's3' && endpointRule === 'public' && config.endpoint?.value) {
+      const refused = await s3EndpointProblem(config.endpoint.value, endpointRule)
+      if (refused && refused.kind !== 'link_local') throw new Reject(refused.message)
+    }
     // The same keys tested a moment ago (the overview tests on open, a double click): the last result, no request.
     const recent = await recentTest(tx, input.provider, config)
     if (recent) return { rows: {}, data: recent }
-    const result = await testProvider(input.provider, config, fetch, process.env, { free: input.free ?? false })
+    const result = await testProvider(input.provider, config, fetch, process.env, {
+      free: input.free ?? false,
+      endpointRule,
+    })
     await rememberTest(tx, input.provider, config, result)
     // A provider that is set up: its test counts like a call (a pass clears its failure, an error records one,
     // without the email: the admin sees it). One that is not set up is not failing, only missing.
@@ -183,7 +216,8 @@ export const adminHandlers: Record<string, Handler> = {
     const current = await withSecretsKey(() => resolveProvider(tx, realtime))
     const candidate = { ...current, api_key: { value: input.apiKey, source: 'app' as const } }
     const result = await testProvider(realtime, candidate)
-    if (!result.ok) throw new Reject(`${result.message}. Nothing was changed; check the key and try again`)
+    if (!result.ok)
+      throw new Reject(`${result.message.replace(/\.$/, '')}. Nothing was changed; check the key and try again`)
     // Speech and model use the realtime key only where their category has no provider yet.
     const { active } = await providerStatus(tx)
     const linked = (
@@ -260,6 +294,7 @@ export const adminHandlers: Record<string, Handler> = {
       .where(eq(user.id, account.id))
     // Their sessions end, and so do the impersonations they started (Better Auth's own endpoints do not check those).
     await tx.delete(session).where(or(eq(session.userId, account.id), eq(session.impersonatedBy, account.id)))
+    await revokeSetupKeysOf(tx, account.id)
     await dropUserPush(tx, account.id)
     return { rows: {}, data: { userId: account.id, disabled_at: now } }
   },
@@ -304,7 +339,7 @@ export const adminHandlers: Record<string, Handler> = {
     const enrolment = isAdmin ? await issuePasskeyEnrolment(tx, account.id) : {}
     await alertInstanceAdmins(
       `Passkeys reset on ${brandName()}: ${account.email}`,
-      `${await actorName(actor)} removed every passkey of ${account.email} (${removed} removed) and ended their sessions.${isAdmin ? ' They are an instance admin and got a new enrolment code for their first passkey.' : ''}\n\nIf you did not expect this, sign in with your passkey and check Admin, Audit log.`,
+      `${await actorName(actor)} removed every passkey of ${account.email} (${removed} removed) and ended their sessions and AI agent setup links.${isAdmin ? ' They are an instance admin and got a new enrolment code for their first passkey.' : ''}\n\nIf you did not expect this, sign in with your passkey and check Admin, Audit log.`,
     )
     return { rows: {}, data: { userId: account.id, removed, ...enrolment } }
   },

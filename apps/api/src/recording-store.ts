@@ -12,6 +12,7 @@ import { isStoreKey, recordingObjectKey, recordingStores, type RecordingStoreNam
 import type { Tx } from '@linedesk/db'
 import { AwsClient } from 'aws4fetch'
 import { activeProvider, resolveProvider } from './provider-settings.ts'
+import { s3Fetch } from './s3-endpoint.ts'
 
 /** How the API gets a recording to the browser: a local file to stream, or a link to redirect to. */
 export type RecordingLocation = { path: string; size: number } | { url: string }
@@ -203,7 +204,8 @@ export function s3StoreFromValues(values: S3Values, doFetch?: typeof fetch): Rec
     secretAccessKey: values.secret_access_key!,
     prefix: values.prefix || undefined,
     forcePathStyle: values.force_path_style !== 'false',
-    fetch: doFetch,
+    // Never to link-local or cloud metadata addresses, whoever set the endpoint (s3-endpoint.ts).
+    fetch: doFetch ?? s3Fetch('not_link_local'),
   })
 }
 

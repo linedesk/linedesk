@@ -695,6 +695,8 @@ export const commands = pgTable(
     rejected: boolean('rejected').notNull().default(false),
     /** The instance admin who did this while signed in as `actor_id` (impersonation); null otherwise. */
     impersonated_by: text('impersonated_by'),
+    /** The agent setup key (agent_setup_keys.id) this was done with: an AI agent acting as `actor_id`; null otherwise. */
+    setup_key_id: text('setup_key_id'),
     created_at: createdAt(),
     /** When input and result were cut down to ids: 90 days on, or when the call or contact was deleted (apps/api/src/command-log.ts). */
     pruned_at: ts('pruned_at'),
@@ -942,6 +944,11 @@ export const agent_setup_keys = pgTable(
     expires_at: ts('expires_at').notNull(),
     last_used_at: ts('last_used_at'),
     revoked_at: ts('revoked_at'),
+    /**
+     * Until when the key may change email and sign-in (the passkey step-up, admin-step-up.ts): the admin confirmed
+     * with a passkey when making it, or afterwards on the setup page; 12 hours from that passkey sign-in. Null: never.
+     */
+    passkey_confirmed_until: ts('passkey_confirmed_until'),
   },
   t => [index('agent_setup_keys_creator').on(t.created_by)],
 )

@@ -1,7 +1,16 @@
 // The agent setup page's start plan (agent-setup.ts): one command or link where the agent connects itself, a
 // connector step only for the cloud chat apps, and the setup key never in a link to a website.
 import { describe, expect, test } from 'vitest'
-import { agentClients, installPlace, reachableFromCloud, shellQuote, startPlan } from './agent-setup.ts'
+import {
+  agentClients,
+  agentSetupAllowHash,
+  allowKeyIdOf,
+  installPlace,
+  isAgentSetupHash,
+  reachableFromCloud,
+  shellQuote,
+  startPlan,
+} from './agent-setup.ts'
 
 const URL = 'https://desk.example.com/mcp/setup/lds_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG'
 
@@ -67,4 +76,16 @@ describe('installPlace', () => {
     expect(reachableFromCloud('http://desk.example.com')).toBe(false)
     expect(reachableFromCloud('https://review.localhost')).toBe(false)
   })
+})
+
+test('the setup page address with ?allow= names the one key to allow', () => {
+  expect(agentSetupAllowHash('sk_abc123')).toBe('#setup-agent?allow=sk_abc123')
+  expect(allowKeyIdOf(agentSetupAllowHash('sk_abc123'))).toBe('sk_abc123')
+  expect(allowKeyIdOf('#setup-agent')).toBeNull()
+  expect(allowKeyIdOf('#setup-agent?allow=')).toBeNull()
+  expect(allowKeyIdOf('#admin?allow=sk_abc123')).toBeNull()
+  expect(isAgentSetupHash('#setup-agent')).toBe(true)
+  expect(isAgentSetupHash('#setup-agent?allow=sk_abc123')).toBe(true)
+  expect(isAgentSetupHash('#setup-agents')).toBe(false)
+  expect(isAgentSetupHash('#setup-install')).toBe(false)
 })

@@ -14,6 +14,7 @@ import {
   type RecordingStoreName,
 } from '@linedesk/actions'
 import { smtpCheck } from './email.ts'
+import { type EndpointRule, s3EndpointProblem, s3Fetch } from './s3-endpoint.ts'
 import { isMailService, type MailService, smtpOf } from './email-services.ts'
 import { type ProviderProblem, problemOfError, problemOfResponse } from './provider-errors.ts'
 import type { ProviderConfig } from './provider-settings.ts'
@@ -592,16 +593,21 @@ async function testRecordingStore(
   values: Values,
   doFetch: typeof fetch,
   env: Record<string, string | undefined>,
+  endpointRule: EndpointRule,
 ): Promise<ProviderTestData> {
   const secrets = [values.secret_access_key, values.access_key_id].filter((v): v is string => !!v && v.length >= 4)
   const scrub = (text: string) =>
     secrets.reduce((t, value) => t.replaceAll(value, '[redacted]'), text).slice(0, MAX_MESSAGE)
   try {
+    // Never to link-local or metadata addresses; an unconfirmed setup key only to public ones (s3-endpoint.ts).
+    const refused = provider === 's3' && values.endpoint ? await s3EndpointProblem(values.endpoint, endpointRule) : null
+    if (refused) return error('config', refused.message)
+    const guarded = s3Fetch(endpointRule, doFetch)
     const store =
       provider === 'file'
         ? createFileRecordingStore(recordingsDir(env))
         : s3StoreFromValues(values, (input, init) =>
-            doFetch(input, { ...init, redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT_MS) }),
+            guarded(input, { ...init, redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT_MS) }),
           )
     await store.probe()
     return ok()
@@ -632,7 +638,14 @@ export async function testProvider(
   config: ProviderConfig,
   doFetch: typeof fetch = fetch,
   env: Record<string, string | undefined> = process.env,
-  { free = false }: { free?: boolean } = {},
+  {
+    free = false,
+    endpointRule = 'not_link_local',
+  }: {
+    free?: boolean
+    /** Where recording storage may be (s3-endpoint.ts): public only for an unconfirmed setup key. */
+    endpointRule?: EndpointRule
+  } = {},
 ): Promise<ProviderTestData> {
   const { label, fields } = providerSpec(provider)
   const values: Values = Object.fromEntries(
@@ -640,7 +653,7 @@ export async function testProvider(
   )
   const missing = missingFields(provider, config)
   if (missing.length) return error('config', `Not set: ${missing.map(field => fields[field]!.label).join(', ')}`)
-  if (isRecordingStore(provider)) return testRecordingStore(provider, values, doFetch, env)
+  if (isRecordingStore(provider)) return testRecordingStore(provider, values, doFetch, env, endpointRule)
   if (provider === 'smtp') return testSmtp(values.url!, values.from)
   if (isMailService(provider)) {
     const smtp = smtpOf(provider, values)

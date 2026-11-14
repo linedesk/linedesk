@@ -5,6 +5,7 @@
 // `email_not_found` before it looks up or creates a user. GitHub's rule is in github-sign-in.ts.
 import {
   account,
+  agent_setup_keys,
   api_keys,
   assistants,
   calendar_connections,
@@ -115,6 +116,11 @@ export async function dropUnprovenAccessOf(userId: string, keepAccountId?: strin
       .update(api_keys)
       .set({ revoked_at: new Date().toISOString() })
       .where(and(eq(api_keys.created_by, userId), isNull(api_keys.revoked_at)))
+    // So are AI agent setup links (agent-setup.ts); an unproven account is no instance admin, but never keep one.
+    await tx
+      .update(agent_setup_keys)
+      .set({ revoked_at: new Date().toISOString() })
+      .where(and(eq(agent_setup_keys.created_by, userId), isNull(agent_setup_keys.revoked_at)))
     await tx.delete(webhook_endpoints).where(eq(webhook_endpoints.created_by, userId))
     // A calendar it connected would receive bookings with callers' details.
     await tx.delete(calendar_connections).where(eq(calendar_connections.connected_by, userId))
@@ -202,6 +208,10 @@ export async function dropUnprovenAccessBeforeEmailLink(
 export async function endSessionsAfterEmailLink(target: { id: string }, sessionUserId: string | null) {
   if (sessionUserId === target.id) return
   await db.delete(session).where(eq(session.userId, target.id))
+  await db
+    .update(agent_setup_keys)
+    .set({ revoked_at: new Date().toISOString() })
+    .where(and(eq(agent_setup_keys.created_by, target.id), isNull(agent_setup_keys.revoked_at)))
 }
 
 /**

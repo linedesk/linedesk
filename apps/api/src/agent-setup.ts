@@ -3,27 +3,31 @@
 // SETUP_KEY_HOURS. Stored as a SHA-256 hash (256 random bits, so a fast hash is enough), like a workspace API key.
 //
 // What the key can never do, whatever tool it reaches: anything outside setup-mcp.ts's list (users, admins, other
-// workspaces, impersonation, deleting), changing email, sign-in or recording storage (setup-mcp.ts refuses those: the
-// admin does them in the app), skipping the number-purchase caps, and outliving its creator's admin role, account or
-// the 24 hours.
+// workspaces, impersonation, deleting), skipping the number-purchase caps, and outliving its creator's admin role,
+// account or the 24 hours. Email and sign-in (whoever controls them can sign in as anyone) keep the passkey step-up of
+// admin-step-up.ts: only a key the admin confirmed with a passkey changes them (LIN-182), for the 12 hours that passkey
+// sign-in counts; made right after one, or afterwards with agentSetup.confirmPasskey ("Allow" on the setup page, opened
+// from the link the agent gives, which names the key), until agentSetup.withdrawPasskey. Resetting the admin's passkeys,
+// disabling them or ending all their sessions revokes their keys (passkey-enrolment.ts revokeSetupKeysOf).
 import { createHash, randomBytes } from 'node:crypto'
 import {
   type AgentSetupKeyCreated,
   type AgentSetupState,
+  type Role,
   reachableFromCloud,
   rolePermissions,
   SETUP_KEY_HOURS,
   SETUP_KEY_PREFIX,
-  type Role,
   teamRoles,
 } from '@linedesk/actions'
-import { agent_setup_keys, member, user } from '@linedesk/db'
+import { agent_setup_keys, member, session, type Tx, user } from '@linedesk/db'
 import { and, asc, desc, eq, gt, isNull } from 'drizzle-orm'
+import { adminSecondFactorRequired, PASSKEY_CONFIRM_HOURS, passkeyConfirmed } from './admin-second-factor.ts'
 import { mustConfirmEmail } from './auth-methods.ts'
 import { addressBucket } from './client-ip.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
-import { Forbidden, type Handler } from './handler-context.ts'
+import { Forbidden, type Handler, Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { createFailureLimiter, createRateLimiter } from './rate-limit.ts'
 
@@ -61,7 +65,11 @@ async function workspaceOf(userId: string): Promise<{ workspaceId: string; role:
 }
 
 /** The actor of a setup key's creator, as setup-mcp.ts runs their tools. Exported for the tests. */
-export async function setupActor(userId: string, keyId: string): Promise<Actor | null> {
+export async function setupActor(
+  userId: string,
+  keyId: string,
+  passkeyConfirmedUntil: string | null = null,
+): Promise<Actor | null> {
   const [account] = await db.select().from(user).where(eq(user.id, userId))
   if (!account || account.disabledAt || !isInstanceAdmin(account)) return null
   const ws = await workspaceOf(userId)
@@ -73,7 +81,11 @@ export async function setupActor(userId: string, keyId: string): Promise<Actor |
     // Never team:write (inviting people, roles) or key management: setup only.
     permissions: [...base.filter(p => p !== 'team:write'), 'instance:admin'],
     setupKeyId: keyId,
-    // Never passkeyConfirmed: the key is a bearer URL kept in agent settings and transcripts.
+    // The key is a bearer URL kept in agent settings and transcripts: it passes the passkey step-up (email and
+    // sign-in) only while the admin's passkey confirmation of it lasts. setup-mcp.ts keeps it to the provider tools.
+    ...(passkeyConfirmedUntil && Date.parse(passkeyConfirmedUntil) > Date.now()
+      ? { passkeyConfirmed: true as const }
+      : {}),
     ...(mustConfirmEmail(account.emailVerified) ? { emailUnverified: true as const } : {}),
   }
 }
@@ -101,7 +113,7 @@ export async function actorForSetupKey(key: string, ip: string | null): Promise<
       ),
     )
   if (!row) return fail()
-  const actor = await setupActor(row.created_by, row.id)
+  const actor = await setupActor(row.created_by, row.id, row.passkey_confirmed_until)
   if (!actor) return fail()
   if (!row.last_used_at || Date.now() - Date.parse(row.last_used_at) > LAST_USED_EVERY_MS)
     void db
@@ -117,6 +129,18 @@ function refuseNonPerson(actor: Actor) {
   if (actor.apiKeyId || actor.setupKeyId || actor.callId || actor.role === 'agent')
     throw new Forbidden('Make a setup key in the app, signed in as an instance admin.')
   if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
+}
+
+/**
+ * Until when a key made or confirmed by this session may change email and sign-in: 12 hours from the session's
+ * passkey sign-in, never past the key's own end. Null when the session has no recent passkey sign-in.
+ */
+async function passkeyConfirmedUntil(tx: Tx, actor: Actor, keyExpiresAt: string): Promise<string | null> {
+  if (!actor.passkeyConfirmed || !actor.sessionId) return null
+  const [row] = await tx.select({ at: session.passkeyVerifiedAt }).from(session).where(eq(session.id, actor.sessionId))
+  if (!row?.at || !passkeyConfirmed(row.at)) return null
+  const until = new Date(row.at).getTime() + PASSKEY_CONFIRM_HOURS * 3_600_000
+  return new Date(Math.min(until, Date.parse(keyExpiresAt))).toISOString()
 }
 
 export const agentSetupHandlers: Record<string, Handler> = {
@@ -137,6 +161,8 @@ export const agentSetupHandlers: Record<string, Handler> = {
         key_hash: hashSetupKey(key),
         created_by: actor.actorId,
         expires_at: expiresAt,
+        // Made right after a passkey sign-in: the agent may change email and sign-in too, like the admin now.
+        passkey_confirmed_until: await passkeyConfirmedUntil(tx, actor, expiresAt),
       })
       .returning()
     const data: AgentSetupKeyCreated = {
@@ -149,6 +175,45 @@ export const agentSetupHandlers: Record<string, Handler> = {
     return { rows: {}, data }
   },
 
+  // Needs a passkey sign-in (admin-step-up.ts lists it): that sign-in is what the key then carries. Only for the key
+  // the agent's link names (#setup-agent?allow=<keyId>), and only the admin's own working one: an Allow never lands on
+  // a key someone else made meanwhile with the admin's mailbox (a newer key would be the working one, not this id).
+  'agentSetup.confirmPasskey': async ({ tx, actor, now }, input: { keyId: string }) => {
+    refuseNonPerson(actor)
+    const [key] = await tx
+      .select()
+      .from(agent_setup_keys)
+      .where(
+        and(
+          eq(agent_setup_keys.id, input.keyId),
+          eq(agent_setup_keys.created_by, actor.actorId),
+          isNull(agent_setup_keys.revoked_at),
+          gt(agent_setup_keys.expires_at, now),
+        ),
+      )
+    if (!key)
+      throw new Reject(
+        'That setup link is not your working one: it ended, expired or is not yours. Nothing was allowed; open the newest link from your agent.',
+      )
+    const until = adminSecondFactorRequired()
+      ? await passkeyConfirmedUntil(tx, actor, new Date(key.expires_at).toISOString())
+      : new Date(key.expires_at).toISOString()
+    if (!until) throw new Forbidden('Confirm with your passkey to do this.')
+    await tx.update(agent_setup_keys).set({ passkey_confirmed_until: until }).where(eq(agent_setup_keys.id, key.id))
+    return { rows: {}, data: { keyId: key.id, emailAndSignInUntil: until } }
+  },
+
+  // Lowering rights needs no passkey: the admin's setup links can no longer change email and sign-in.
+  'agentSetup.withdrawPasskey': async ({ tx, actor }) => {
+    refuseNonPerson(actor)
+    const withdrawn = await tx
+      .update(agent_setup_keys)
+      .set({ passkey_confirmed_until: null })
+      .where(and(eq(agent_setup_keys.created_by, actor.actorId), isNull(agent_setup_keys.revoked_at)))
+      .returning({ id: agent_setup_keys.id })
+    return { rows: {}, data: { withdrawn: withdrawn.length } }
+  },
+
   'agentSetup.revoke': async ({ tx, actor, now }) => {
     refuseNonPerson(actor)
     const ended = await tx
@@ -159,6 +224,10 @@ export const agentSetupHandlers: Record<string, Handler> = {
     return { rows: {}, data: { ended: ended.length } }
   },
 }
+
+/** Whether a key may change email and sign-in now: its passkey confirmation lasts, or the install has the rule off. */
+export const emailAndSignInAllowed = (passkeyConfirmedUntil: string | null) =>
+  !adminSecondFactorRequired() || Boolean(passkeyConfirmedUntil && Date.parse(passkeyConfirmedUntil) > Date.now())
 
 /** GET /v1/admin/agent-setup: the admin's working key (never the key itself) and where agents connect. */
 export async function agentSetupState(userId: string): Promise<Omit<AgentSetupState, 'progress'>> {
@@ -179,9 +248,19 @@ export async function agentSetupState(userId: string): Promise<Omit<AgentSetupSt
     reachableFromCloud: reachableFromCloud(webAddress()),
     key: row
       ? {
+          id: row.id,
           prefix: row.prefix,
+          createdAt: new Date(row.created_at).toISOString(),
           expiresAt: new Date(row.expires_at).toISOString(),
           lastUsedAt: row.last_used_at ? new Date(row.last_used_at).toISOString() : null,
+          emailAndSignIn: emailAndSignInAllowed(row.passkey_confirmed_until),
+          // Only a passkey confirmation that lasts (not the passkey rule turned off): the page offers Withdraw.
+          emailAndSignInUntil:
+            adminSecondFactorRequired() &&
+            row.passkey_confirmed_until &&
+            Date.parse(row.passkey_confirmed_until) > Date.now()
+              ? new Date(row.passkey_confirmed_until).toISOString()
+              : null,
         }
       : null,
   }

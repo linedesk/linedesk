@@ -6,7 +6,7 @@
 // is in it), POSTs it signed with the endpoint's secret and retries with backoff. An endpoint whose
 // requests keep failing is switched off.
 import { createHmac } from 'node:crypto'
-import { type LookupAddress, lookup as dnsLookup } from 'node:dns'
+import type { LookupAddress } from 'node:dns'
 import { isIP } from 'node:net'
 import {
   CALL_END_DELAY_SEC,
@@ -33,7 +33,7 @@ import { and, asc, desc, eq, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm'
 import { Agent, fetch as undiciFetch } from 'undici'
 import { WEB_ORIGIN } from './auth.ts'
 import { type Handler, Reject } from './handler-context.ts'
-import { isPrivateAddress } from './ip-address.ts'
+import { checkedLookup, isPrivateAddress, type Resolve, resolveAll } from './ip-address.ts'
 import { queueWebhookDelivery } from './jobs.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { recordingLink } from './recording-route.ts'
@@ -78,23 +78,12 @@ function addressProblem(url: string, env: Env): string | null {
   return isIP(host) && isPrivateAddress(host) ? PRIVATE : null
 }
 
-type Resolve = (hostname: string, callback: (err: Error | null, addresses: LookupAddress[]) => void) => void
-const resolveAll: Resolve = (hostname, callback) => dnsLookup(hostname, { all: true }, callback)
-
 /**
  * A `lookup` for the connection: resolves the name once and refuses it when any address is private,
  * so the request goes to exactly the address that was checked (no second lookup to rebind).
  */
 export function publicLookup(resolve: Resolve = resolveAll) {
-  return (hostname: string, options: { all?: boolean }, callback: (...args: unknown[]) => void) => {
-    resolve(hostname, (err, addresses) => {
-      if (err) return callback(err)
-      if (!addresses.length || addresses.some(a => isPrivateAddress(a.address)))
-        return callback(Object.assign(new Error(PRIVATE), { code: 'EPRIVATEADDRESS' }))
-      if (options.all) callback(null, addresses)
-      else callback(null, addresses[0]!.address, addresses[0]!.family)
-    })
-  }
+  return checkedLookup(isPrivateAddress, PRIVATE, resolve)
 }
 
 const publicAgent = new Agent({ connect: { lookup: publicLookup() as never, timeout: TIMEOUT_MS } })

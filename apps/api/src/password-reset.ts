@@ -13,15 +13,16 @@
 //   session is no passkey sign-in, so changing passkeys and the admin step-ups still need one
 //   (passkeys.ts, admin-step-up.ts);
 // - the account is told by email, and the audit log has it.
-import { account, agent_setup_keys, session, user } from '@linedesk/db'
+import { account, session, user } from '@linedesk/db'
 import { APIError, type createAuthMiddleware, isAPIError } from 'better-auth/api'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { dropUnprovenAccessOf } from './account-linking.ts'
 import { recordAuthEvent } from './audit.ts'
 import { CLIENT_IP_HEADER } from './client-ip.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { passwordChangedEmail, passwordResetCodeEmail } from './emails/templates.ts'
+import { revokeSetupKeysOf } from './passkey-enrolment.ts'
 import { countWrongCode } from './sign-in-limits.ts'
 
 /** Better Auth's two endpoints of the reset; off over HTTP unless password sign-in is on. */
@@ -155,10 +156,7 @@ export async function afterPasswordReset(
       userAgent: request?.headers.get('user-agent') ?? null,
     })
   try {
-    await db
-      .update(agent_setup_keys)
-      .set({ revoked_at: new Date().toISOString() })
-      .where(and(eq(agent_setup_keys.created_by, resetUser.id), isNull(agent_setup_keys.revoked_at)))
+    await revokeSetupKeysOf(db, resetUser.id)
     if (!resetUser.emailVerified) {
       const [credential] = await db
         .select({ id: account.id })

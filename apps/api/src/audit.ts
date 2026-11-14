@@ -189,6 +189,11 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'webhook.update': 'integrations',
   'webhook.delete': 'integrations',
   'webhook.test': 'integrations',
+  // An AI agent acting as an instance admin: its setup link, and letting it change email and sign-in.
+  'agentSetup.createKey': 'integrations',
+  'agentSetup.confirmPasskey': 'integrations',
+  'agentSetup.withdrawPasskey': 'integrations',
+  'agentSetup.revoke': 'integrations',
 }
 
 /**
@@ -232,6 +237,8 @@ export type AuditEntry = {
   actor: { id: string | null; email: string | null; name: string | null }
   /** The instance admin acting as `actor` (impersonation). */
   impersonatedBy: { id: string; email: string | null } | null
+  /** Done by an AI agent with the actor's setup key (agent_setup_keys.id): "via agent setup link". */
+  viaSetupKey: string | null
   workspace: { id: string; name: string | null } | null
   /** Whom a team or membership change was about (`AuditSubject`). */
   subject: { email: string | null } | null
@@ -290,14 +297,14 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
   const commandRows =
     kindActions.length || withImpersonated
       ? sql`select c.id, c.created_at as at, c.action as what, null::text as method, c.actor_id, null::text as email_then,
-        c.impersonated_by,
+        c.impersonated_by, c.setup_key_id,
         coalesce(c.result->'data'->'subject'->>'workspaceId', c.input->>'workspaceId', c.workspace_id) as workspace_id,
         c.input, c.result->'data'->'subject'->>'email' as subject_email, c.rejected as refused, null::text as ip_address, 'command' as source
         from commands c where ${listed}${withImpersonated ? sql` or c.impersonated_by is not null` : sql``}`
       : null
   const eventRows = kindEvents.length
     ? sql`select e.id, e.created_at as at, e.event as what, e.method, e.user_id as actor_id, e.email as email_then,
-        null::text as impersonated_by, e.workspace_id, null::jsonb as input, null::text as subject_email, false as refused, e.ip_address, 'auth' as source
+        null::text as impersonated_by, null::text as setup_key_id, e.workspace_id, null::jsonb as input, null::text as subject_email, false as refused, e.ip_address, 'auth' as source
         from auth_events e where e.event in (${sql.join(
           kindEvents.map(e => sql`${e}`),
           sql`, `,
@@ -350,6 +357,7 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
         name: r.actor_name ?? null,
       },
       impersonatedBy: r.impersonated_by ? { id: r.impersonated_by, email: r.impersonator_email ?? null } : null,
+      viaSetupKey: r.setup_key_id ?? null,
       workspace: r.workspace_id ? { id: r.workspace_id, name: r.workspace_name ?? null } : null,
       subject: r.subject_email ? { email: r.subject_email } : null,
       input: maskAuditInput(r.input),

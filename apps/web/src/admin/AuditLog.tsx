@@ -261,6 +261,7 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
                   <th scope="row">
                     {e.actor.email ?? (e.actor.id ? e.actor.id : 'Command line')}
                     {e.impersonatedBy && <span className="adm-sub">by {e.impersonatedBy.email ?? 'an admin'}</span>}
+                    {e.viaSetupKey && <span className="adm-sub">via AI agent setup link</span>}
                   </th>
                   <td>
                     {auditLabel(e)}

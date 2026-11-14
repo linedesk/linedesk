@@ -1,11 +1,41 @@
 // Setup MCP at /mcp/setup (LIN-125): an instance admin's setup key, the short list of setup tools, and every way a
 // key stops working. In INSTANCE_WIDE_FILES: it makes instance admins and stores provider keys.
-import { agent_setup_keys, phone_numbers, provider_settings, user } from '@linedesk/db'
-import { eq } from 'drizzle-orm'
-import { beforeAll, describe, expect, test } from 'vitest'
+import { SETUP_MCP_INSTRUCTIONS } from '@linedesk/actions'
+import { agent_setup_keys, commands, passkey, phone_numbers, provider_settings, session, user } from '@linedesk/db'
+import { and, desc, eq, isNotNull } from 'drizzle-orm'
+import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
-import { SETUP_ACTIONS } from '../src/setup-mcp.ts'
-import { act, appRequest, createWorkspace, FROM, randomIp, signUp, type User, type Workspace } from './helpers.ts'
+import { emailSender } from '../src/email.ts'
+import type * as RunActionModule from '../src/run-action.ts'
+import { PRIVATE_ENDPOINT } from '../src/s3-endpoint.ts'
+import { forAgent, SETUP_ACTIONS } from '../src/setup-mcp.ts'
+import {
+  act,
+  appRequest,
+  createWorkspace,
+  FROM,
+  randomIp,
+  request,
+  signUp,
+  type User,
+  type Workspace,
+} from './helpers.ts'
+
+/** Every action the API runs, with what its actor carried: the setup MCP must not pass the passkey on to workspace actions. */
+const ran = vi.hoisted(() => [] as { name: string; setupKeyId?: string; passkeyConfirmed: boolean; admin: boolean }[])
+vi.mock('../src/run-action.ts', async importOriginal => {
+  const real = await importOriginal<typeof RunActionModule>()
+  const runAction: typeof real.runAction = (name, input, actor, ...rest) => {
+    ran.push({
+      name,
+      setupKeyId: actor.setupKeyId,
+      passkeyConfirmed: Boolean(actor.passkeyConfirmed),
+      admin: actor.permissions.includes('instance:admin'),
+    })
+    return real.runAction(name, input, actor, ...rest)
+  }
+  return { ...real, runAction }
+})
 
 let id = 0
 let ws: Workspace
@@ -213,21 +243,6 @@ describe('tools', () => {
     await db.delete(provider_settings).where(eq(provider_settings.provider, 'deepgram'))
   })
 
-  test('email, sign-in and recording storage stay in the app', async () => {
-    const { key } = await makeKey(ws.owner)
-    for (const [name, args] of [
-      ['provider_setKeys', { provider: 'resend', values: { api_key: 're_test_1234' } }],
-      ['provider_setKeys', { provider: 's3', values: { bucket: 'elsewhere' } }],
-      ['provider_clearKeys', { provider: 'smtp' }],
-      ['provider_setActive', { category: 'recording', provider: 's3' }],
-    ] as const) {
-      const res = await call(key, name, args)
-      expect(res.body.result.isError).toBe(true)
-      expect(res.body.result.content[0].text).toMatch(/do this in the app/)
-    }
-    expect(await db.select().from(provider_settings).where(eq(provider_settings.provider, 'resend'))).toEqual([])
-  })
-
   test('forwarding_guide gives the codes for a number in a forwarding mode', async () => {
     const { key } = await makeKey(ws.owner)
     await db.update(phone_numbers).set({ mode: 'forward_conditional' }).where(eq(phone_numbers.workspace_id, ws.id))
@@ -237,5 +252,448 @@ describe('tools', () => {
     }
     expect(guide.forward_to).toBe(ws.number)
     expect(guide.guides[0]!.instructions.on[0]!.code).toContain(ws.number.slice(2))
+  })
+})
+
+describe('every key through the agent (LIN-182)', () => {
+  const SECRET = 'sk-secret-value-WXYZ'
+  const text = (res: { body: { result: { content: { text: string }[] } } }) => res.body.result.content[0]!.text
+  const passkeyRow = (userId: string) => ({
+    id: `pk_${crypto.randomUUID().slice(0, 12)}`,
+    userId,
+    publicKey: 'cHVibGlj',
+    credentialID: `cred-${crypto.randomUUID()}`,
+    counter: 0,
+    deviceType: 'multiDevice',
+    backedUp: true,
+  })
+  /** The admin's own browser session: signed in a moment ago, with a passkey or not. */
+  const signedIn = (who: User, withPasskey: boolean) =>
+    db
+      .update(session)
+      .set({ createdAt: new Date(), passkeyVerifiedAt: withPasskey ? new Date() : null })
+      .where(eq(session.userId, who.userId))
+  const clear = (...providers: string[]) =>
+    Promise.all(providers.map(p => db.delete(provider_settings).where(eq(provider_settings.provider, p))))
+
+  beforeEach(() => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"error":"invalid key"}', { status: 401 }))
+  })
+  afterEach(async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'off'
+    vi.restoreAllMocks()
+    await db.delete(passkey).where(eq(passkey.userId, ws.owner.userId))
+    await signedIn(ws.owner, false)
+    await clear('resend', 's3', 'google_places', 'google')
+  })
+
+  test('recording storage and business lookup: stored, tested right after, never echoed; the audit log says it was the agent', async () => {
+    const made = await makeKey(ws.owner)
+    const res = await call(made.key, 'provider_setKeys', {
+      provider: 'google_places',
+      values: { api_key: SECRET },
+    })
+    expect(res.body.result.isError).toBeFalsy()
+    const saved = data(res) as {
+      ok: boolean
+      data: { provider: { fields: { field: string; last4: string | null; value: unknown }[] } }
+      test: { ok: boolean; message: string }
+    }
+    expect(saved.ok).toBe(true)
+    // The free test ran at once: a made-up key fails with a message the agent can pass on.
+    expect(saved.test).toMatchObject({ ok: expect.any(Boolean), message: expect.any(String) })
+    expect(saved.data.provider.fields.find(f => f.field === 'api_key')).toMatchObject({ last4: 'WXYZ', value: null })
+    // The test's words are for the agent: it stores keys itself, the admin is never sent to the app.
+    expect(saved.test.message).toMatch(/provider_setKeys/)
+    expect(JSON.stringify(res.body)).not.toMatch(/Admin › Providers/)
+    expect(JSON.stringify(res.body)).not.toContain(SECRET)
+    const [row] = await db.select().from(provider_settings).where(eq(provider_settings.provider, 'google_places'))
+    expect(row!.value_encrypted).not.toContain(SECRET)
+    // The command log keeps the values redacted and names the setup key; so does the audit log.
+    const [logged] = await db
+      .select()
+      .from(commands)
+      .where(and(eq(commands.action, 'provider.setKeys'), eq(commands.actor_id, ws.owner.userId)))
+      .orderBy(desc(commands.created_at))
+      .limit(1)
+    expect(logged!.setup_key_id).toBe(made.keyId)
+    expect(JSON.stringify(logged!.input)).not.toContain(SECRET)
+    const audit = (await request(ws.owner, 'GET', '/v1/admin/audit?kind=keys')).body.entries as {
+      what: string
+      viaSetupKey: string | null
+    }[]
+    expect(audit.find(e => e.what === 'provider.setKeys')?.viaSetupKey).toBe(made.keyId)
+
+    const s3 = await call(made.key, 'provider_setKeys', {
+      provider: 's3',
+      values: { bucket: 'calls', access_key_id: 'AKIAEXAMPLE', secret_access_key: SECRET },
+    })
+    expect(data(s3)).toMatchObject({ ok: true, test: { ok: false } })
+    expect(JSON.stringify(s3.body)).not.toContain(SECRET)
+    expect(data(await call(made.key, 'provider_setActive', { category: 'recording', provider: 's3' }))).toMatchObject({
+      ok: true,
+    })
+  })
+
+  test('forAgent turns the app wording (under Admin › Providers) into what the agent does', () => {
+    expect(
+      forAgent('Deepgram rejected the key (HTTP 401). Enter a valid key under Admin › Providers › Deepgram.'),
+    ).toBe(
+      'Deepgram rejected the key (HTTP 401). Ask the admin for a valid key and store it again with provider_setKeys.',
+    )
+    expect(forAgent('Telnyx refused the request. Check the settings under Admin › Providers › Telnyx.')).toBe(
+      'Telnyx refused the request. Check the settings with the admin, then store it again with provider_setKeys.',
+    )
+    expect(forAgent('Email is not set up: connect it in Admin, Providers, Email')).toBe(
+      'Email is not set up: set up email with provider_setKeys',
+    )
+  })
+
+  test('a refused input names the field, never the value', async () => {
+    const { key } = await makeKey(ws.owner)
+    const res = await call(key, 'provider_setKeys', { provider: 's3', values: { endpoint: `ftp://${SECRET}` } })
+    expect(res.body.result.isError).toBe(true)
+    expect(JSON.stringify(res.body)).not.toContain(SECRET)
+  })
+
+  test('with the passkey rule off (as in the app), email is stored and tested at once', async () => {
+    const { key } = await makeKey(ws.owner)
+    const res = await call(key, 'provider_setKeys', {
+      provider: 'resend',
+      values: { api_key: SECRET, from: 'desk@brightwater.test' },
+    })
+    expect(data(res)).toMatchObject({
+      ok: true,
+      test: { ok: expect.any(Boolean) },
+      note: expect.stringMatching(/restarts/),
+    })
+    expect(JSON.stringify(res.body)).not.toContain(SECRET)
+    expect(await db.select().from(provider_settings).where(eq(provider_settings.provider, 'resend'))).toHaveLength(2)
+  })
+
+  test('email and sign-in keep the passkey step-up: PASSKEY_NEEDED says what to ask, nothing is stored', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    await signedIn(ws.owner, false)
+    const { key, keyId } = await makeKey(ws.owner)
+    // No passkey yet: the agent hears how the admin gets one, not "paste it in the app".
+    const enrol = await call(key, 'provider_setKeys', { provider: 'resend', values: { api_key: SECRET } })
+    expect(enrol.body.result.isError).toBe(true)
+    expect(text(enrol)).toMatch(/^PASSKEY_NEEDED: .*enrol/)
+    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
+    for (const [name, args] of [
+      ['provider_setKeys', { provider: 'resend', values: { api_key: SECRET } }],
+      ['provider_setKeys', { provider: 'google', values: { client_id: 'id', client_secret: SECRET } }],
+      ['provider_clearKeys', { provider: 'smtp' }],
+      ['provider_setActive', { category: 'email', provider: 'resend' }],
+    ] as const) {
+      const res = await call(key, name, args)
+      expect(res.body.result.isError).toBe(true)
+      expect(text(res)).toMatch(/^PASSKEY_NEEDED: email and sign-in .*"Allow"/)
+      // The link names this key: Allow on that page confirms it and nothing else.
+      expect(text(res)).toContain(`/#setup-agent?allow=${keyId}`)
+      expect(text(res)).not.toMatch(/paste (it|the key) in/i)
+      expect(JSON.stringify(res.body)).not.toContain(SECRET)
+    }
+    expect(await db.select().from(provider_settings).where(eq(provider_settings.provider, 'resend'))).toEqual([])
+    const state = (await request(ws.owner, 'GET', '/v1/admin/agent-setup')).body
+    expect(state.key.emailAndSignIn).toBe(false)
+    // Allow needs the passkey itself.
+    const refused = await act(ws.owner, 'agentSetup.confirmPasskey', { keyId })
+    expect(refused).toMatchObject({ status: 403, body: { code: 'PASSKEY_STEP_UP_REQUIRED' } })
+  })
+
+  test('Allow with a passkey (or a key made right after a passkey sign-in) lets the same link set email and sign-in', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
+    await signedIn(ws.owner, false)
+    const { key, keyId } = await makeKey(ws.owner)
+    await signedIn(ws.owner, true)
+    const allowed = await act(ws.owner, 'agentSetup.confirmPasskey', { keyId })
+    expect(allowed.status).toBe(200)
+    const [row] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, keyId))
+    // 12 hours from that passkey sign-in, never past the key's own end.
+    expect(Date.parse(row!.passkey_confirmed_until!) - Date.now()).toBeGreaterThan(11.9 * 3_600_000)
+    expect(Date.parse(row!.passkey_confirmed_until!) - Date.now()).toBeLessThanOrEqual(12 * 3_600_000)
+    expect((await request(ws.owner, 'GET', '/v1/admin/agent-setup')).body.key.emailAndSignIn).toBe(true)
+    const res = await call(key, 'provider_setKeys', {
+      provider: 'resend',
+      values: { api_key: SECRET, from: 'desk@brightwater.test' },
+    })
+    expect(data(res)).toMatchObject({ ok: true, test: { message: expect.any(String) } })
+    expect(JSON.stringify(res.body)).not.toContain(SECRET)
+    // A passkey confirmation that ran out stops it again.
+    await db
+      .update(agent_setup_keys)
+      .set({ passkey_confirmed_until: new Date(Date.now() - 1000).toISOString() })
+      .where(eq(agent_setup_keys.id, keyId))
+    expect(text(await call(key, 'provider_clearKeys', { provider: 'resend' }))).toMatch(/^PASSKEY_NEEDED/)
+    // A key made in a passkey session carries it from the start.
+    const fresh = await makeKey(ws.owner)
+    const [made] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, fresh.keyId))
+    expect(made!.passkey_confirmed_until).not.toBeNull()
+    expect(data(await call(fresh.key, 'provider_setActive', { category: 'email', provider: 'resend' }))).toMatchObject({
+      ok: true,
+    })
+  })
+
+  test('the passkey confirmation never reaches the workspace tools, and a setup key cannot allow itself', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
+    await signedIn(ws.owner, true)
+    const { key, keyId } = await makeKey(ws.owner)
+    const names: string[] = (await mcp(key, 'tools/list')).body.result.tools.map((t: { name: string }) => t.name)
+    expect(names).not.toContain('agentSetup_confirmPasskey')
+    expect(names).not.toContain('agentSetup_withdrawPasskey')
+    expect(names).not.toContain('agentSetup_createKey')
+    expect((await call(key, 'agentSetup_confirmPasskey', { keyId })).body.error.message).toMatch(/not found/)
+    // A confirmed key: a provider action gets the confirmation, a workspace action runs without it (and without
+    // instance:admin), as the business's owner would.
+    ran.length = 0
+    expect(data(await call(key, 'provider_setActive', { category: 'email', provider: 'resend' }))).toMatchObject({
+      ok: true,
+    })
+    expect(data(await call(key, 'workspace_rename', { name: 'Brightwater Plumbing & Heating' }))).toMatchObject({
+      ok: true,
+    })
+    expect(ran.find(r => r.name === 'provider.setActive')).toMatchObject({
+      setupKeyId: keyId,
+      passkeyConfirmed: true,
+      admin: true,
+    })
+    expect(ran.find(r => r.name === 'workspace.rename')).toEqual({
+      name: 'workspace.rename',
+      setupKeyId: keyId,
+      passkeyConfirmed: false,
+      admin: false,
+    })
+  })
+
+  test("Allow confirms only the key the agent named, and only if it is the admin's own working key (M1)", async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'off'
+    const theirs = await makeKey(fresh)
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
+    // Someone with only the mailbox (no passkey sign-in) makes a key; then a second one ends the first.
+    await signedIn(ws.owner, false)
+    const first = await makeKey(ws.owner)
+    const second = await makeKey(ws.owner)
+    const state = (await request(ws.owner, 'GET', '/v1/admin/agent-setup')).body
+    expect(state.key).toMatchObject({ id: second.keyId, emailAndSignIn: false, emailAndSignInUntil: null })
+    expect(Date.parse(state.key.createdAt)).toBeLessThanOrEqual(Date.now())
+    // The admin then allows with a passkey sign-in: an id that is not theirs, ended or made up is refused.
+    await signedIn(ws.owner, true)
+    for (const keyId of [first.keyId, theirs.keyId, 'sk_madeup']) {
+      const refused = await act(ws.owner, 'agentSetup.confirmPasskey', { keyId })
+      expect(refused.status, keyId).toBe(409)
+      expect(refused.body.error).toMatch(/not your working one/)
+    }
+    const confirmed = () =>
+      db.select().from(agent_setup_keys).where(isNotNull(agent_setup_keys.passkey_confirmed_until))
+    expect((await confirmed()).map(r => r.id)).not.toContain(second.keyId)
+    expect((await confirmed()).map(r => r.id)).not.toContain(theirs.keyId)
+    // An expired key is not the working one either.
+    await db
+      .update(agent_setup_keys)
+      .set({ expires_at: new Date(Date.now() - 1000).toISOString() })
+      .where(eq(agent_setup_keys.id, second.keyId))
+    expect((await act(ws.owner, 'agentSetup.confirmPasskey', { keyId: second.keyId })).status).toBe(409)
+    // The key the agent's link names, still working: allowed.
+    const third = await makeKey(ws.owner)
+    await db.update(agent_setup_keys).set({ passkey_confirmed_until: null }).where(eq(agent_setup_keys.id, third.keyId))
+    const allowed = await act(ws.owner, 'agentSetup.confirmPasskey', { keyId: third.keyId })
+    expect(allowed).toMatchObject({ status: 200, body: { data: { keyId: third.keyId } } })
+    expect((await confirmed()).map(r => r.id)).toEqual(expect.arrayContaining([third.keyId]))
+    expect((await confirmed()).map(r => r.id)).not.toContain(theirs.keyId)
+  })
+
+  test('Withdraw ends the passkey confirmation without a passkey; the page shows until when it lasts (L1)', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
+    await signedIn(ws.owner, true)
+    const { key } = await makeKey(ws.owner)
+    const until = (await request(ws.owner, 'GET', '/v1/admin/agent-setup')).body.key.emailAndSignInUntil
+    expect(Date.parse(until)).toBeGreaterThan(Date.now() + 11 * 3_600_000)
+    await signedIn(ws.owner, false)
+    expect((await act(ws.owner, 'agentSetup.withdrawPasskey', {})).status).toBe(200)
+    expect((await request(ws.owner, 'GET', '/v1/admin/agent-setup')).body.key).toMatchObject({
+      emailAndSignIn: false,
+      emailAndSignInUntil: null,
+    })
+    expect(text(await call(key, 'provider_setActive', { category: 'email', provider: 'resend' }))).toMatch(
+      /^PASSKEY_NEEDED/,
+    )
+    // A setup key cannot withdraw (or do anything with) setup links.
+    expect((await call(key, 'agentSetup_withdrawPasskey')).body.error.message).toMatch(/not found/)
+  })
+
+  test('recording storage on this server or a private network needs the Allow; link-local never (M2)', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
+    await signedIn(ws.owner, false)
+    const { key, keyId } = await makeKey(ws.owner)
+    const stored = async () =>
+      (await db.select().from(provider_settings).where(eq(provider_settings.provider, 's3'))).map(r => r.field)
+    // `localhost` is a name that resolves to a loopback address: checked after DNS, like the written ones.
+    for (const endpoint of [
+      'http://127.0.0.1:9000',
+      'http://localhost:9000',
+      'http://10.0.0.5:9000',
+      'http://[::1]:9000',
+    ]) {
+      const res = await call(key, 'provider_setKeys', { provider: 's3', values: { endpoint, bucket: 'calls' } })
+      expect(res.body.result.isError, endpoint).toBe(true)
+      expect(text(res)).toMatch(/^PASSKEY_NEEDED: a storage endpoint on this server or a private network/)
+      expect(text(res)).toContain(`/#setup-agent?allow=${keyId}`)
+    }
+    for (const endpoint of ['http://169.254.169.254', 'http://[fe80::1]:9000']) {
+      const res = await call(key, 'provider_setKeys', { provider: 's3', values: { endpoint } })
+      expect(res.body.result.isError, endpoint).toBe(true)
+      expect(text(res)).toMatch(/link-local or cloud metadata/)
+    }
+    expect(await stored()).toEqual([])
+    // A public address is stored and tested at once (the test request is the faked fetch).
+    const fetched = vi.mocked(globalThis.fetch)
+    const pub = await call(key, 'provider_setKeys', {
+      provider: 's3',
+      values: {
+        endpoint: 'https://93.184.215.14',
+        bucket: 'calls',
+        access_key_id: 'AKIAEXAMPLE',
+        secret_access_key: SECRET,
+      },
+    })
+    expect(data(pub)).toMatchObject({ ok: true, test: { ok: false } })
+    expect(fetched).toHaveBeenCalled()
+    expect(await stored()).toContain('endpoint')
+
+    // The admin puts storage on the Docker network themselves: fine for them, but the unconfirmed setup key
+    // cannot test it (no request goes there, and the provider is not marked as failing).
+    expect(
+      (await act(ws.owner, 'provider.setKeys', { provider: 's3', values: { endpoint: 'http://127.0.0.1:9000' } }))
+        .status,
+    ).toBe(200)
+    fetched.mockClear()
+    const tested = await call(key, 'provider_test', { provider: 's3' })
+    expect(tested.body.result.isError).toBe(true)
+    expect(text(tested)).toContain(PRIVATE_ENDPOINT)
+    expect(fetched).not.toHaveBeenCalled()
+    // Link-local is refused for the admin too, in the app.
+    const app = await act(ws.owner, 'provider.setKeys', {
+      provider: 's3',
+      values: { endpoint: 'http://169.254.169.254' },
+    })
+    expect(app.status).toBe(409)
+    expect(app.body.error).toMatch(/link-local/)
+
+    // After the admin's Allow, the same link may use a private endpoint, but still no link-local one.
+    await signedIn(ws.owner, true)
+    expect((await act(ws.owner, 'agentSetup.confirmPasskey', { keyId })).status).toBe(200)
+    expect(
+      data(await call(key, 'provider_setKeys', { provider: 's3', values: { endpoint: 'http://localhost:9000' } })),
+    ).toMatchObject({ ok: true })
+    expect(
+      text(await call(key, 'provider_setKeys', { provider: 's3', values: { endpoint: 'http://169.254.169.254' } })),
+    ).toMatch(/link-local/)
+  })
+
+  test("resetting an admin's passkeys ends their setup links, a confirmed one too (M3)", async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'off'
+    const victim = await signUp()
+    await db.update(user).set({ emailVerified: true, instanceAdmin: true }).where(eq(user.id, victim.userId))
+    const { key, keyId } = await makeKey(victim)
+    await db
+      .update(agent_setup_keys)
+      .set({ passkey_confirmed_until: new Date(Date.now() + 3_600_000).toISOString() })
+      .where(eq(agent_setup_keys.id, keyId))
+    expect((await mcp(key, 'tools/list')).status).toBe(200)
+    const mails: string[] = []
+    const send = vi.spyOn(emailSender, 'send').mockImplementation(async e => void mails.push(e.text))
+    expect((await act(fresh, 'user.resetPasskeys', { userId: victim.userId })).status).toBe(200)
+    const [row] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, keyId))
+    expect(row!.revoked_at).not.toBeNull()
+    expect((await mcp(key, 'tools/list')).status).toBe(401)
+    expect(mails.some(t => /ended their sessions and AI agent setup links/.test(t))).toBe(true)
+    send.mockRestore()
+    // Disabling an admin ends them too.
+    await db.update(user).set({ disabledAt: null }).where(eq(user.id, victim.userId))
+    const other = await signUp()
+    await db.update(user).set({ emailVerified: true, instanceAdmin: true }).where(eq(user.id, other.userId))
+    const again = await makeKey(other)
+    expect((await act(fresh, 'user.disable', { userId: other.userId })).status).toBe(200)
+    const [ended] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, again.keyId))
+    expect(ended!.revoked_at).not.toBeNull()
+  })
+
+  test('the alert for an email or sign-in change says it came through the agent and names the link (L2)', async () => {
+    const mails: { subject: string; text: string }[] = []
+    const send = vi.spyOn(emailSender, 'send').mockImplementation(async e => void mails.push(e))
+    const made = await makeKey(ws.owner)
+    expect(
+      data(
+        await call(made.key, 'provider_setKeys', {
+          provider: 'resend',
+          values: { api_key: SECRET, from: 'desk@brightwater.test' },
+        }),
+      ),
+    ).toMatchObject({ ok: true })
+    await vi.waitFor(() => expect(mails.some(m => /Resend settings changed by an AI agent/.test(m.subject))).toBe(true))
+    const alert = mails.find(m => /Resend settings changed/.test(m.subject))!
+    expect(alert.text).toContain(`through the AI agent setup link ${made.key.slice(0, 12)}…, made `)
+    expect(alert.text).not.toContain(made.key)
+    expect(alert.text).not.toContain(SECRET)
+    // Done in the app, it says so as before.
+    mails.length = 0
+    await act(ws.owner, 'provider.clearKeys', { provider: 'resend' })
+    await vi.waitFor(() => expect(mails.some(m => /Resend settings removed$/.test(m.subject))).toBe(true))
+    expect(mails.find(m => /Resend settings removed/.test(m.subject))!.text).toMatch(/\(Admin, Providers\)/)
+    send.mockRestore()
+  })
+
+  test('the test email round trip and the install progress are agent tools', async () => {
+    const { key } = await makeKey(ws.owner)
+    const names: string[] = (await mcp(key, 'tools/list')).body.result.tools.map((t: { name: string }) => t.name)
+    expect(names).toEqual(expect.arrayContaining(['provider_tryOut', 'provider_confirmEmail', 'install_setProgress']))
+    expect(data(await call(key, 'install_setProgress', { skip: 'call-audio' }))).toMatchObject({ ok: true })
+    const wrong = await call(key, 'provider_confirmEmail', { code: '123456' })
+    expect(wrong.body.result.isError).toBe(true)
+    expect(text(wrong)).toMatch(/No test code is pending/)
+  })
+
+  test('the rate limit of the setup key covers saving keys too', async () => {
+    const { key } = await makeKey(ws.owner)
+    let status = 200
+    for (let i = 0; i < 125 && status === 200; i++) status = (await mcp(key, 'tools/list')).status
+    expect(status).toBe(429)
+    const res = await call(key, 'provider_setKeys', { provider: 'google_places', values: { api_key: SECRET } })
+    expect(res.status).toBe(429)
+    expect(await db.select().from(provider_settings).where(eq(provider_settings.provider, 'google_places'))).toEqual([])
+  })
+
+  test('the agent is never sent to the app to paste a key: instructions, setup_status and optional groups', async () => {
+    expect(SETUP_MCP_INSTRUCTIONS).not.toMatch(/paste those keys in the app|never changed through these tools/)
+    expect(SETUP_MCP_INSTRUCTIONS).toMatch(/Resend API key/)
+    expect(SETUP_MCP_INSTRUCTIONS).toMatch(/PASSKEY_NEEDED/)
+    const { key } = await makeKey(ws.owner)
+    const init = await mcp(key, 'initialize', {
+      protocolVersion: '2025-06-18',
+      capabilities: {},
+      clientInfo: { name: 'test', version: '1' },
+    })
+    expect(init.body.result.instructions).toBe(SETUP_MCP_INSTRUCTIONS)
+    const status = data(await call(key, 'setup_status')) as {
+      steps: { id: string; how?: string[] }[]
+      optional: { id: string; how?: string[] }[]
+      app_links: Record<string, string>
+    }
+    expect(status.optional.map(o => o.id)).toEqual(['sign-in', 'calendar', 'recording', 'business'])
+    const all = JSON.stringify(status)
+    expect(all).not.toMatch(/paste (it|the key|them) in the app|cannot change email/i)
+    expect(status.app_links.agent_setup).toMatch(/#setup-agent$/)
+    const listed = data(await call(key, 'providers_list', { category: 'sign_in' })) as {
+      providers: { provider: string; redirect_uris?: string[] }[]
+    }
+    expect(listed.providers.find(p => p.provider === 'google')?.redirect_uris?.[0]).toMatch(
+      /\/api\/auth\/callback\/google$/,
+    )
   })
 })

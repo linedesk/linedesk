@@ -13,14 +13,22 @@ import { adminSecondFactorRequired } from './admin-second-factor.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
+import { s3EndpointProblem } from './s3-endpoint.ts'
 
 export const PASSKEY_STEP_UP_REQUIRED = 'PASSKEY_STEP_UP_REQUIRED'
 
 /**
  * Actions that always need the passkey: they hand out admin rights, enrolment codes or someone else's account,
- * or destroy a whole workspace's data for good.
+ * destroy a whole workspace's data for good, or hand the email and sign-in step-up to an AI agent's setup key.
  */
-const ALWAYS = new Set(['instanceAdmin.grant', 'user.resetPasskeys', 'user.impersonate', 'workspace.delete'])
+const ALWAYS = new Set([
+  'instanceAdmin.grant',
+  'user.resetPasskeys',
+  'user.impersonate',
+  'workspace.delete',
+  // Lets an AI agent's setup key change email and sign-in (agent-setup.ts): the same rule as doing it yourself.
+  'agentSetup.confirmPasskey',
+])
 
 /** The user an admin action is about: its `userId`, or the user of its `memberId` (membership.setRole, .remove). */
 async function targetUserId(fields: { userId?: unknown; memberId?: unknown }): Promise<string | null> {
@@ -56,20 +64,41 @@ export async function needsPasskeyStepUp(name: string, input: unknown): Promise<
   return Boolean(target && isInstanceAdmin(target))
 }
 
+/**
+ * An AI agent's setup key storing a recording storage endpoint on this server or a private network (or one that does
+ * not resolve): like email, only with the admin's passkey Allow (s3-endpoint.ts). A leaked setup link must not probe
+ * or write to internal services. Link-local endpoints are refused for everyone by the handler instead.
+ */
+export async function setsPrivateS3Endpoint(name: string, input: unknown, actor: Actor): Promise<boolean> {
+  if (!actor.setupKeyId || name !== 'provider.setKeys') return false
+  const { provider, values } = (input ?? {}) as { provider?: unknown; values?: { endpoint?: unknown } }
+  if (provider !== 's3' || typeof values?.endpoint !== 'string') return false
+  const problem = await s3EndpointProblem(values.endpoint, 'public')
+  return Boolean(problem && problem.kind !== 'link_local')
+}
+
 /** `confirm`: sign in with your passkey; `enrol`: add your first passkey (with an enrolment code). */
 export type StepUp = 'confirm' | 'enrol'
 
 /** The 403 body when this admin action needs a passkey sign-in the caller's session lacks, else null. */
 export async function passkeyStepUpRefusal(def: Pick<ActionDef, 'name' | 'permission'>, input: unknown, actor: Actor) {
   if (def.permission !== 'instance:admin' || actor.passkeyConfirmed || !adminSecondFactorRequired()) return null
-  if (!(await needsPasskeyStepUp(def.name, input))) return null
+  const privateEndpoint = await setsPrivateS3Endpoint(def.name, input, actor)
+  if (!privateEndpoint && !(await needsPasskeyStepUp(def.name, input))) return null
   const [own] = await db.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, actor.actorId)).limit(1)
   const stepUp: StepUp = own ? 'confirm' : 'enrol'
   const error =
     stepUp === 'confirm'
       ? 'Confirm with your passkey to do this.'
       : 'This needs a passkey. Add your first under Account, Sign-in & security with the enrolment code another admin or the server gives you.'
-  return { ok: false as const, error, code: PASSKEY_STEP_UP_REQUIRED, stepUp }
+  return {
+    ok: false as const,
+    error,
+    code: PASSKEY_STEP_UP_REQUIRED,
+    stepUp,
+    // What the passkey is for, when it is not email or sign-in (setup-mcp.ts says it to the agent).
+    ...(privateEndpoint ? { reason: 'private_endpoint' as const } : {}),
+  }
 }
 
 /** For handlers that hand out an enrolment code: never to a session that is not passkey-confirmed. */

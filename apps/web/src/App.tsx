@@ -12,7 +12,7 @@ import {
   type Session,
 } from './session.ts'
 import { onUnauthorized } from './signedOutWatch.ts'
-import { AGENT_SETUP_HASH, AgentSetup, choseManualSetup, rememberManual } from './onboarding/AgentSetup.tsx'
+import { AgentSetup, choseManualSetup, isAgentSetupHash, rememberManual } from './onboarding/AgentSetup.tsx'
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { Onboarding } from './onboarding/Onboarding.tsx'
@@ -36,14 +36,18 @@ function Unreachable() {
   )
 }
 
-/** Whether the address is this hash (#setup-agent, #setup-install), followed as it changes. */
-function useHashIs(hash: string): boolean {
-  const [on, setOn] = useState(() => window.location.hash === hash)
+/** Whether the address is this hash (#setup-install), or matches it (#setup-agent with ?allow=), followed as it changes. */
+function useHashIs(hash: string | ((hash: string) => boolean)): boolean {
+  const matches = useCallback(
+    (current: string) => (typeof hash === 'string' ? current === hash : hash(current)),
+    [hash],
+  )
+  const [on, setOn] = useState(() => matches(window.location.hash))
   useEffect(() => {
-    const follow = () => setOn(window.location.hash === hash)
+    const follow = () => setOn(matches(window.location.hash))
     window.addEventListener('hashchange', follow)
     return () => window.removeEventListener('hashchange', follow)
-  }, [hash])
+  }, [matches])
   return on
 }
 
@@ -83,7 +87,7 @@ export function App() {
   // Finishing onboarding is a queued command; the app moves on without waiting for it.
   const [onboarded, setOnboarded] = useState(false)
   const adminHash = useAdminHash()
-  const agentSetupHash = useHashIs(AGENT_SETUP_HASH)
+  const agentSetupHash = useHashIs(isAgentSetupHash)
   const installSetupHash = useHashIs(INSTALL_SETUP_HASH)
   // An instance admin sets up with an AI agent first (AgentSetup.tsx), unless they chose to do it by hand.
   const [manualSetup, setManualSetup] = useState(false)
@@ -247,7 +251,7 @@ export function App() {
   }
   if (instanceAdmin && !adminHash && (agentSetupHash || (settingUp && !choseManualSetup(session.me, manualSetup)))) {
     const leave = () => {
-      if (window.location.hash === AGENT_SETUP_HASH) window.location.hash = ''
+      if (isAgentSetupHash(window.location.hash)) window.location.hash = ''
     }
     return (
       <AgentSetup

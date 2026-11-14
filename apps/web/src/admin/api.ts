@@ -261,6 +261,8 @@ type AdminInputs = {
   'branding.set': BrandingInput
   'agentSetup.createKey': Record<string, never>
   'agentSetup.revoke': Record<string, never>
+  'agentSetup.confirmPasskey': { keyId: string }
+  'agentSetup.withdrawPasskey': Record<string, never>
   'install.setProgress': {
     step?: InstallStep
     skip?: InstallStep
@@ -274,9 +276,9 @@ type AdminInputs = {
 
 /**
  * Runs an admin action through the registry. Throws with the server's reason when it is rejected;
- * when it needs a passkey sign-in, asks for one and runs again (PasskeyStepUp.tsx).
+ * when it needs a passkey sign-in, asks for one and runs again (PasskeyStepUp.tsx). `what`: what the dialog says it confirms.
  */
-export function runAdmin<N extends keyof AdminInputs>(name: N, input: AdminInputs[N]) {
+export function runAdmin<N extends keyof AdminInputs>(name: N, input: AdminInputs[N], what = stepUpLabel(name, input)) {
   return withPasskeyStepUp(async () => {
     const res = await fetch(`/v1/actions/${name}`, {
       ...HIGH,
@@ -286,7 +288,7 @@ export function runAdmin<N extends keyof AdminInputs>(name: N, input: AdminInput
       body: JSON.stringify(input),
     })
     return (await body<{ data?: Record<string, unknown> }>(res)).data ?? {}
-  }, stepUpLabel(name, input))
+  }, what)
 }
 
 /** What the passkey dialog says it confirms. */
@@ -303,6 +305,7 @@ const stepUpLabels: Partial<Record<keyof AdminInputs, string>> = {
   'workspace.delete': 'delete a workspace',
   'provider.setKeys': 'save email or sign-in keys',
   'provider.clearKeys': 'disconnect email or sign-in',
+  'agentSetup.confirmPasskey': 'let your agent set up email and sign-in',
 }
 /** What the passkey dialog says it confirms; a workspace about to be deleted by its name (LIN-161). */
 export function stepUpLabel<N extends keyof AdminInputs>(name: N, input?: AdminInputs[N]): string {
@@ -377,6 +380,8 @@ export type AuditEntry = {
   method: string | null
   actor: { id: string | null; email: string | null; name: string | null }
   impersonatedBy: { id: string; email: string | null } | null
+  /** Done by an AI agent with the actor's setup link (agent setup): the setup key's id. */
+  viaSetupKey?: string | null
   workspace: { id: string; name: string | null } | null
   /** Whom a team or membership change was about. */
   subject: { email: string | null } | null
