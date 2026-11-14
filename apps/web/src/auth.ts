@@ -64,6 +64,8 @@ export type Me = {
   adminSecondFactor?: AdminSecondFactor | null
   /** An instance admin without a passkey: their first needs the enrolment code another admin (or the CLI) gave them. */
   passkeyEnrolment?: boolean
+  /** Whether the member has a passkey; null when this install has passkeys off (absent in what an older version remembered). */
+  hasPasskey?: boolean | null
   /** The address is not confirmed yet: the app asks for a code, and sensitive actions wait for it. */
   emailUnconfirmed?: boolean
   /** How this install introduces a new workspace after onboarding: tour, sample calls, both or off. */

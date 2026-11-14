@@ -1,7 +1,8 @@
 // Account: profile, notifications, sign-in and sessions of the signed-in member, one section at a time
 // (#account/<section>). Profile, sign-in and sessions are Better Auth's own data (see account-api.ts), so they do
 // not go through the outbox; notifications are per workspace (settings/Notifications.tsx).
-import { forgetEnrolmentCode, readEnrolmentCode } from '../../enrolment-code.ts'
+import { readEnrolmentCode } from '../../enrolment-code.ts'
+import { PASSKEY_WHY } from '../../AddPasskey.tsx'
 import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useState } from 'react'
 import { passkeySupported } from '../../auth.ts'
 import { ConfirmEmail } from '../../ConfirmEmail.tsx'
@@ -21,7 +22,7 @@ import { Notifications } from '../Notifications.tsx'
 import {
   ACCOUNT,
   type Account,
-  addPasskey,
+  addPasskeyForThisDevice,
   PASSKEYS,
   SESSIONS,
   changeEmail,
@@ -42,7 +43,6 @@ import {
   signOutSession,
 } from './account-api.ts'
 import {
-  describeDevice,
   hasPassword,
   orderSessions,
   passwordProblem,
@@ -490,12 +490,13 @@ function Passkeys() {
   const load = passkeys.reload
   // An instance admin's first passkey needs the one-time code another admin (or the CLI) gave them.
   const needsCode = enrolment.data === true
+  // None yet: the way in we recommend, so it says so and adding one is the main button here.
+  const none = list?.length === 0
 
   const add = () =>
     request.run(async () => {
       if (needsCode && !enrolmentCode.trim()) throw new Error('Enter your passkey enrolment code first.')
-      await addPasskey(describeDevice(navigator.userAgent), needsCode ? enrolmentCode : undefined)
-      forgetEnrolmentCode()
+      await addPasskeyForThisDevice(needsCode ? enrolmentCode : undefined)
       setEnrolmentCode('')
       await Promise.all([load(), enrolment.reload()])
     }, 'Passkey added.')
@@ -511,6 +512,7 @@ function Passkeys() {
       <Field
         label="Passkeys"
         tip="A passkey lets you sign in with your fingerprint, face or device PIN instead of a code or password."
+        labelAfter={none && <Badge>Recommended</Badge>}
       >
         <Loading
           what="Passkeys"
@@ -519,7 +521,7 @@ function Passkeys() {
           onRetry={() => void load()}
           skeleton={<ListSkeleton rows={1} />}
         >
-          {list && list.length === 0 && <span className="help">No passkeys yet.</span>}
+          {none && <span className="help">{PASSKEY_WHY}</span>}
           {list && list.length > 0 && (
             <ul className="ac-list">
               {list.map(p => (
@@ -573,6 +575,7 @@ function Passkeys() {
       <FormStatus request={request} />
       <div className="ac-actions">
         <Button
+          variant={none ? 'primary' : undefined}
           title="Create a passkey on this device for your account"
           disabled={request.busy}
           onClick={() => void add()}

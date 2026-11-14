@@ -47,6 +47,15 @@ const authErrors: Record<string, string> = {
   },
   AUTHENTICATION_FAILED: 'That passkey did not work. Try again.',
   ERROR_CEREMONY_ABORTED: 'Adding the passkey was cancelled.',
+  // The browser's NotAllowedError, passed through by SimpleWebAuthn: closed, timed out, or no passkey for this site here.
+  ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY: 'The passkey request was closed. Try again when you are ready.',
+  // The page is open at another address than the one passkeys belong to (PUBLIC_URL), or one browsers refuse.
+  get ERROR_INVALID_RP_ID() {
+    return `Passkeys don't work at this address. Open ${brandName()} at its usual address and try again.`
+  },
+  get ERROR_INVALID_DOMAIN() {
+    return `Passkeys don't work at this address. Open ${brandName()} at its usual address and try again.`
+  },
   ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED: 'This passkey is already added.',
   SESSION_NOT_FRESH: 'Sign in again to do this.',
   EMAIL_UNUSABLE: "That address can't be used. Enter a different one.",

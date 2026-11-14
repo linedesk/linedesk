@@ -1,12 +1,14 @@
-// Sign-in. Shows what this install offers (GET /v1/auth-methods): email first (a code sent by email),
-// then the sign-in providers, and a password under "Show other options". New people are signed up on
+// Sign-in. Shows what this install offers (GET /v1/auth-methods): the passkey first where the install and the browser
+// can use one, with "Use an email code instead" (a code sent by email) below it; without passkeys the email form comes
+// first. Then the sign-in providers, and a password under "Show other options". New people are signed up on
 // first sign-in, unless sign-up is closed. "Forgot password?" sets a new one with an emailed code.
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { type AuthMethods, auth, completeSetup, type LegalLinks, passkeySupported, type SsoMethod, fetchAuthMethods, requestPasswordResetCode, requestSignInCode, resetPasswordWithCode, signInWithCode, signInWithPasskey, startSso, takeRedirectError, lostSignInState, providerElsewhereMessage, providerSignInElsewhere } from './auth.ts'
 import { authErrorMessage, authFormError, CODE_LENGTH, codeErrorMessage, emailError, newPasswordError, normalizeCode, passwordResetOffer, RESEND_AFTER_S, resetErrorMessage } from './sign-in-code.ts'
-import { readLastUsedMethod, rememberSignInMethod } from './sign-in-methods.ts'
+import { passkeyRequestClosed, readLastUsedMethod, rememberSignInMethod, signInStart } from './sign-in-methods.ts'
+import { emailFieldPasskey } from './passkey-autofill.ts'
 import { useQuery } from './cachedQuery.ts'
-import { LastUsed, ProviderButton } from './ui/brand-logos.tsx'
+import { LastUsed, ProviderButton, SignInMark } from './ui/brand-logos.tsx'
 import { AuthError } from './ui/AuthError.tsx'
 import { HelpTip, type HelpTipContent } from './ui/HelpTip.tsx'
 import { AuthPage, cx, Spinner } from './ui/kit.tsx'
@@ -23,6 +25,7 @@ const loadAuthMethods = () => fetchAuthMethods()
 const fail = (res: Result) => {
   if (res.error) throw res.error
 }
+
 
 /** Signing in again for a place that asks for a recent sign-in (the admin area): why, and the way back. */
 export type Reauth = { title: string; why: string; onBack: () => void }
@@ -47,6 +50,38 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
   const [busy, setBusy] = useState<string | null>(null)
   const [lastUsed] = useState(readLastUsedMethod)
   const [otherOptions, setOtherOptions] = useState(lastUsed === 'password')
+  // The passkey first (LIN-215); the email form opens on "Use an email code instead", after a passkey that did not work,
+  // or at once when this device last signed in with email.
+  const start = signInStart({
+    passkeyOn: Boolean(methods?.passkey),
+    supported: passkeySupported(),
+    signUp: intent === 'signUp' || Boolean(reauth),
+    lastUsed,
+  })
+  const [emailChosen, setEmailChosen] = useState(false)
+  const emailOpen = start.emailOpen || emailChosen
+  // The browser's own passkey suggestion in the email field, started again after a passkey request ends.
+  const [autofillRound, setAutofillRound] = useState(0)
+  const autofill = start.passkeyFirst && emailOpen && methods?.emailCode === true && step === 'start'
+  // Changes when the suggestion should start (again); 0 while it should not run.
+  const autofillRun = autofill ? autofillRound + 1 : 0
+  const done = useRef(onDone)
+  done.current = onDone
+  useEffect(() => {
+    if (!autofillRun) return
+    let live = true
+    void emailFieldPasskey.offer().then(async signedIn => {
+      // Not offered, stopped by the button, or closed: nothing to say.
+      if (!live || !signedIn) return
+      setBusy('passkey')
+      rememberSignInMethod('passkey')
+      await done.current()
+    })
+    return () => {
+      live = false
+      emailFieldPasskey.stop()
+    }
+  }, [autofillRun])
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm(f => ({ ...f, [key]: e.target.value }))
 
   /** Runs one sign-in attempt; `leaves` is true when success hands over to another page (no flash of the form). */
@@ -99,8 +134,17 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
   }
 
   function continueWithPasskey() {
+    // The suggestion in the email field shares the challenge cookie: stopped before the button asks for its own.
+    emailFieldPasskey.stop()
     void attempt('passkey', async () => {
-      fail(await signInWithPasskey())
+      const res = await signInWithPasskey()
+      if (res.error) {
+        // No passkey here, or the person closed the request: the email code is right below, no error.
+        setEmailChosen(true)
+        setAutofillRound(r => r + 1)
+        if (passkeyRequestClosed(res.error)) return false
+        throw res.error
+      }
       rememberSignInMethod('passkey')
       await onDone()
       return true
@@ -164,7 +208,8 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
     ) : (
       error && <AuthError id={id} message={error} />
     )
-  const withPasskey = methods.passkey && passkeySupported()
+  // A passkey signs in existing accounts only: not offered for creating one.
+  const withPasskey = methods.passkey && passkeySupported() && intent === 'signIn'
   const passkeyButton = withPasskey && (
     <ProviderButton method="passkey" label="Passkey" lastUsed={lastUsed === 'passkey'} busy={busy === 'passkey'} busyText="Signing in…"
       disabled={busy !== null} onClick={continueWithPasskey} />
@@ -172,6 +217,70 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
   const hasOtherOptions = methods.password && methods.emailCode
   // A passkey alone is no way in: it is added after signing in some other way.
   const nothing = !methods.emailCode && !methods.password && methods.sso.length === 0
+  const emailForm = methods.emailCode && (
+    <form className="auth-form" onSubmit={sendCode} noValidate>
+      <input type="email" aria-label="Email" placeholder="Email address" value={form.email} onChange={set('email')}
+        // With the passkey first, the browser may offer a passkey right in this field (autofill).
+        autoComplete={start.passkeyFirst ? 'email webauthn' : 'email'} autoFocus={!start.passkeyFirst || emailOpen}
+        aria-describedby={error ? 'auth-error' : undefined} />
+      <button type="submit" className={cx('k-btn auth-provider', start.passkeyFirst ? 'k-btn-secondary' : 'k-btn-primary', busy === 'email' && 'is-busy')}
+        disabled={busy !== null} aria-busy={busy === 'email' || undefined}>
+        {busy === 'email' && <Spinner />}
+        <span>{busy === 'email' ? 'Sending…' : 'Continue with Email'}</span>
+        {lastUsed === 'email' && <LastUsed />}
+      </button>
+      {errorPanel('auth-error')}
+    </form>
+  )
+
+  if (start.passkeyFirst && !reauth) {
+    const passkeyBusy = busy === 'passkey'
+    return (
+      <AuthPage>
+        <div className="auth-card">
+          <h1>{title}</h1>
+          {deleted?.accountDeleted && (
+            <p className="auth-lost" role="status">
+              Workspace and account deleted.
+            </p>
+          )}
+          <button type="button" className={cx('k-btn k-btn-primary auth-provider', passkeyBusy && 'is-busy')} disabled={busy !== null}
+            aria-busy={passkeyBusy || undefined} autoFocus={!emailOpen} onClick={continueWithPasskey}>
+            {passkeyBusy ? <Spinner /> : <SignInMark method="passkey" />}
+            <span>{passkeyBusy ? 'Signing in…' : 'Sign in with passkey'}</span>
+            {lastUsed === 'passkey' && <LastUsed />}
+          </button>
+          {!methods.emailCode && errorPanel()}
+          {methods.emailCode && (emailOpen ? (
+            <>
+              <hr className="auth-separator" />
+              {emailForm}
+            </>
+          ) : (
+            <>
+              {errorPanel()}
+              <button type="button" className="auth-switch auth-more" onClick={() => setEmailChosen(true)}>Use an email code instead</button>
+            </>
+          ))}
+          {methods.sso.length > 0 && <hr className="auth-separator" />}
+          {methods.sso.map(m => (
+            <ProviderButton key={m.id} method={m.id} label={m.label} lastUsed={lastUsed === m.id} busy={busy === m.id}
+              disabled={busy !== null} onClick={() => continueWith(m)} />
+          ))}
+          {elsewhere && !lostHere && (
+            <p className="auth-hint">
+              Google, Microsoft and GitHub sign in at <a href={elsewhere.href}>{elsewhere.host}</a>.
+            </p>
+          )}
+          {methods.password && (otherOptions || !methods.emailCode
+            ? <ProviderButton method="password" label="Password" lastUsed={lastUsed === 'password'} disabled={busy !== null} onClick={() => go('password')} />
+            : <button type="button" className="auth-switch auth-more" onClick={() => setOtherOptions(true)}>Show other options</button>)}
+          {footer}
+        </div>
+      </AuthPage>
+    )
+  }
+
   return (
     <AuthPage>
       <div className="auth-card">
@@ -185,19 +294,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
         {/* Signing in again: the passkey first, the way that also counts longest (12 hours). */}
         {reauth && passkeyButton}
         {reauth && passkeyButton && (methods.emailCode || methods.password || methods.sso.length > 0) && <hr className="auth-separator" />}
-        {methods.emailCode && (
-          <form className="auth-form" onSubmit={sendCode} noValidate>
-            <input type="email" aria-label="Email" placeholder="Email address" value={form.email} onChange={set('email')} autoComplete="email" autoFocus
-              aria-describedby={error ? 'auth-error' : undefined} />
-            <button type="submit" className={cx('k-btn k-btn-primary auth-provider', busy === 'email' && 'is-busy')} disabled={busy !== null}
-              aria-busy={busy === 'email' || undefined}>
-              {busy === 'email' && <Spinner />}
-              <span>{busy === 'email' ? 'Sending…' : 'Continue with Email'}</span>
-              {lastUsed === 'email' && <LastUsed />}
-            </button>
-            {errorPanel('auth-error')}
-          </form>
-        )}
+        {emailForm}
         {passwordFirst && passwordForm}
         {passwordFirst && forgotPassword}
         {(methods.emailCode || passwordFirst) && (methods.sso.length > 0 || (withPasskey && !reauth)) && <hr className="auth-separator" />}

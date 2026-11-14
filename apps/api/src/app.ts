@@ -358,6 +358,9 @@ app.get('/v1/me', async c => {
     adminSecondFactor: actor.adminSecondFactor ?? null,
     // An instance admin without a passkey: adding the first one asks for their enrolment code (passkey-enrolment.ts).
     passkeyEnrolment: await needsPasskeyEnrolment(actor),
+    // Whether the member has a passkey, for the app's "Add a passkey" page and card (null: passkeys are off here).
+    // Their own account only: the sign-in page never learns this for an address (no account enumeration).
+    hasPasskey: await hasPasskeyFor(actor),
     // The member's address is not confirmed yet: the app asks for a code (sensitive actions wait for it).
     emailUnconfirmed: Boolean(actor.emailUnverified && !actor.impersonation),
     // How this install introduces a new workspace after onboarding (FIRST_USE).
@@ -373,6 +376,13 @@ app.get('/v1/me', async c => {
 async function setupByHandFor({ actorId, permissions, adminSecondFactor, impersonation }: Actor): Promise<boolean> {
   if (impersonation || !(permissions.includes('instance:admin') || adminSecondFactor)) return false
   return setsUpByHand(actorId)
+}
+
+/** Whether the signed-in member has a passkey; null when passkeys are off on this install or while impersonating. */
+async function hasPasskeyFor({ actorId, impersonation }: Actor): Promise<boolean | null> {
+  if (!authMethods.passkey || impersonation) return null
+  const [any] = await db.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, actorId)).limit(1)
+  return Boolean(any)
 }
 
 /** Whether this is an instance admin (by account, also before the second factor) without a passkey. */

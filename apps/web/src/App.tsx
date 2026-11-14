@@ -24,6 +24,9 @@ import { DISABLED_WORKSPACE, StoreProvider } from './store.tsx'
 import { Workspace } from './Workspace.tsx'
 import { AcceptInvite, clearInviteId, readInviteId } from './team/AcceptInvite.tsx'
 import { BootScreen } from './ui/BootScreen.tsx'
+import { AddPasskeyPage } from './AddPasskey.tsx'
+import { passkeySupported, type Me } from './auth.ts'
+import { clearSignedIn, passkeyAsk, pausedAt, signedInJustNow } from './passkey-ask.ts'
 import { brandName } from './brand.ts'
 
 /** Shown when the server is unreachable and this device has nothing to open offline. It retries on its own. */
@@ -33,6 +36,23 @@ function Unreachable() {
       <b>Can't reach {brandName()}</b>
       <span>Trying again… This page continues on its own once the connection is back.</span>
     </div>
+  )
+}
+
+/** Whether the "Add a passkey" page comes before the app: right after signing in without one (passkey-ask.ts). */
+function passkeyPageDue(me: Me | null): boolean {
+  if (!me) return false
+  return (
+    passkeyAsk({
+      hasPasskey: me.hasPasskey,
+      supported: passkeySupported(),
+      impersonating: Boolean(me.impersonation),
+      emailUnconfirmed: Boolean(me.emailUnconfirmed),
+      needsEnrolmentCode: Boolean(me.passkeyEnrolment),
+      justSignedIn: signedInJustNow(),
+      pausedAt: pausedAt(me.actorId),
+      now: Date.now(),
+    }) === 'prompt'
   )
 }
 
@@ -91,6 +111,8 @@ export function App() {
   const installSetupHash = useHashIs(INSTALL_SETUP_HASH)
   // An instance admin sets up with an AI agent first (AgentSetup.tsx), unless they chose to do it by hand.
   const [manualSetup, setManualSetup] = useState(false)
+  // The "Add a passkey" page was answered in this tab (or is not needed): on into the app.
+  const [passkeyPageDone, setPasskeyPageDone] = useState(false)
   const shown = useRef(session)
   shown.current = session
   const signedOutHere = useRef(false)
@@ -147,6 +169,11 @@ export function App() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+  // A member who has a passkey is never asked for one: a sign-in another way just now needs no page.
+  const hasPasskey = session.state === 'ready' && session.me.hasPasskey === true
+  useEffect(() => {
+    if (hasPasskey) clearSignedIn()
+  }, [hasPasskey])
   // Signed out anywhere (the API answered 401): ask who is signed in, and show the sign-in page if nobody is. The
   // address stays, so signing in returns to the same page. One check at a time; a 401 on the sign-in page itself
   // (or while loading) needs none.
@@ -206,6 +233,14 @@ export function App() {
       void refresh()
     }
     return <AcceptInvite invitationId={inviteId} onDone={leaveInvite} />
+  }
+  const sessionMe = session.state === 'ready' ? (session.offline ? null : session.me) : session.state === 'needsWorkspace' ? session.me : null
+  if (!passkeyPageDone && passkeyPageDue(sessionMe)) {
+    const done = () => {
+      clearSignedIn()
+      setPasskeyPageDone(true)
+    }
+    return <AddPasskeyPage account={sessionMe!.actorId} onAdded={refresh} onDone={done} />
   }
   if (session.state === 'loading') return <BootScreen line={`Opening ${brandName()}…`} />
   if (session.state === 'unreachable') return <Unreachable />

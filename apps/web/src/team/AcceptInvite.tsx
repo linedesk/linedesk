@@ -3,11 +3,12 @@
 // redirect (a provider) comes back to this same URL, so the flow picks up where it was.
 import type { InvitationPreview } from '@linedesk/actions'
 import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from 'react'
-import { type AuthMethods, auth, fetchAuthMethods, requestSignInCode } from '../auth.ts'
+import { type AuthMethods, auth, fetchAuthMethods, passkeySupported, requestSignInCode, signInWithPasskey } from '../auth.ts'
 import { ConfirmEmail } from '../ConfirmEmail.tsx'
 import { signOutAndForget } from '../localData.ts'
 import { CodeStep } from '../Login.tsx'
 import { authErrorMessage, authFormError } from '../sign-in-code.ts'
+import { rememberSignInMethod, startRedirectSignIn, takeRedirectSignIn } from '../sign-in-methods.ts'
 import { previewInvitation } from './team-api.ts'
 import { roleInSentence } from './team-model.ts'
 import { AuthError } from '../ui/AuthError.tsx'
@@ -46,6 +47,7 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
 
   const loadAccount = useCallback(async () => {
     const session = (await auth.getSession()).data
+    takeRedirectSignIn(Boolean(session))
     setAccount(session ? { email: session.user.email, emailVerified: session.user.emailVerified } : null)
   }, [])
   useEffect(() => {
@@ -138,6 +140,7 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
       if (invalid) throw new Error(invalid)
       if (mode === 'signUp') fail(await auth.signUp.email({ name: form.name, email, password: form.password }))
       else fail(await auth.signIn.email({ email, password: form.password }))
+      rememberSignInMethod('password')
       await onSignedIn()
     })
   }
@@ -156,9 +159,22 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
                 onCodeSent()
               })}>Email me a code</button>
             )}
+            {/* Someone who already has an account with a passkey: in with it (another account's is caught below). */}
+            {methods.passkey && passkeySupported() && (
+              <ProviderButton method="passkey" label="Passkey" lastUsed={false} disabled={busy}
+                onClick={() => attempt(async () => {
+                  fail(await signInWithPasskey())
+                  rememberSignInMethod('passkey')
+                  await onSignedIn()
+                })} />
+            )}
             {methods.sso.map(m => (
               <ProviderButton key={m.id} method={m.id} label={m.label} lastUsed={false} disabled={busy}
-                onClick={() => attempt(async () => fail(await auth.signIn.social({ provider: m.id, ...back })))} />
+                onClick={() => attempt(async () => {
+                  // Counted as a sign-in only once it comes back with a session (loadAccount).
+                  startRedirectSignIn(m.id)
+                  fail(await auth.signIn.social({ provider: m.id, ...back }))
+                })} />
             ))}
             {methods.password && methods.signUp !== false && <button type="button" className="auth-switch" onClick={() => setMode('signUp')}>Create an account with a password</button>}
             {methods.password && <button type="button" className="auth-switch" onClick={() => setMode('signIn')}>I already have a password</button>}

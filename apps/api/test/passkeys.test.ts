@@ -6,11 +6,12 @@ import { auth_events, passkey, session, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { readAuthConfig } from '../src/auth-methods.ts'
+import { PASSKEY_CHALLENGE_LIMIT, PASSKEY_CHALLENGE_PATH } from '../src/auth.ts'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
 import { notifyPasskeyChange, PASSKEY_CONFIRMATION_REQUIRED, PASSKEY_ENROLMENT_REQUIRED, passkeyChangeRefusal, passkeyRelyingParty } from '../src/passkeys.ts'
 import { enrolmentCodeValid, issuePasskeyEnrolment } from '../src/passkey-enrolment.ts'
-import { anonymous, appRequest, type Caller, randomIp, request, signUp, FROM, type User } from './helpers.ts'
+import { anonymous, appRequest, type Caller, createWorkspace, randomIp, request, signUp, FROM, type User } from './helpers.ts'
 
 const ORIGIN = { origin: 'http://localhost:5173' }
 const address = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}@linedesk.test`
@@ -143,6 +144,36 @@ describe('signing in with a passkey', () => {
     expect(res.status).toBeGreaterThanOrEqual(400)
     // No session: the endpoint only ever signs in the owner of a stored passkey; it has no way to create a user.
     expect(res.headers.getSetCookie().some(c => c.includes('session_token=') && !c.includes('Max-Age=0'))).toBe(false)
+  })
+})
+
+describe('the passkey-first sign-in page (LIN-215)', () => {
+  test('the challenge names no account: the page learns nothing about which addresses have a passkey', async () => {
+    const member = await verifiedSignUp(address('enum'))
+    await addPasskeyRow(member)
+    const res = await authGet(anonymous, '/passkey/generate-authenticate-options')
+    expect(res.status).toBe(200)
+    // Discoverable credentials: the browser offers what it holds; the server lists none.
+    expect(res.body.allowCredentials ?? []).toEqual([])
+    expect(JSON.stringify(res.body)).not.toContain(member.userId)
+  })
+
+  test('one address may ask for at most PASSKEY_CHALLENGE_LIMIT challenges a minute', async () => {
+    const ip = randomIp()
+    const ask = () => request(anonymous, 'GET', `/api/auth${PASSKEY_CHALLENGE_PATH}`, undefined, { ...ORIGIN, [FROM]: ip })
+    for (let i = 0; i < PASSKEY_CHALLENGE_LIMIT.max; i++) expect((await ask()).status).toBe(200)
+    expect((await ask()).status).toBe(429)
+    // Another address is not held up.
+    expect((await authGet(anonymous, PASSKEY_CHALLENGE_PATH)).status).toBe(200)
+  })
+
+  test('/v1/me says whether the signed-in member has a passkey (their own account only)', async () => {
+    const { owner } = await createWorkspace('Passkey first')
+    const { owner: other } = await createWorkspace('Passkey first, other')
+    expect((await request(owner, 'GET', '/v1/me')).body.hasPasskey).toBe(false)
+    await addPasskeyRow(owner)
+    expect((await request(owner, 'GET', '/v1/me')).body.hasPasskey).toBe(true)
+    expect((await request(other, 'GET', '/v1/me')).body.hasPasskey).toBe(false)
   })
 })
 

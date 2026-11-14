@@ -2,8 +2,11 @@
 // method (set a first password) through POST /v1/account/password.
 import type { ChangedBy } from '@linedesk/actions'
 import { auth, type AuthMethods, fetchAuthMethods, fetchMe, signedInAccount, signInWithPasskey } from '../../auth.ts'
+import { refreshQuery } from '../../cachedQuery.ts'
+import { forgetEnrolmentCode } from '../../enrolment-code.ts'
 import { signOutAndForget } from '../../localData.ts'
 import { authErrorMessage } from '../../sign-in-code.ts'
+import { rememberSignInMethod } from '../../sign-in-methods.ts'
 import { describeDevice, type LinkedAccount, type SessionRow } from './account-model.ts'
 
 type Result<T> = { data: T | null; error: { message?: string; code?: string; status?: number } | null }
@@ -199,6 +202,18 @@ export async function addPasskey(name: string, enrolmentCode?: string) {
       throw new ConfirmWithPasskey(PASSKEY_SIGN_IN)
     throw new Error(authErrorMessage(result.error))
   }
+}
+
+/**
+ * Adds a passkey on this device, named after it: Account › Sign-in & security, the "Add a passkey" page after signing
+ * in and the card in the app all use this. A remembered enrolment code is used up; the passkey list is read again.
+ */
+export async function addPasskeyForThisDevice(enrolmentCode?: string) {
+  await addPasskey(describeDevice(navigator.userAgent), enrolmentCode)
+  forgetEnrolmentCode()
+  // This device signs in with it from now on: the sign-in page opens on the passkey, not the email form.
+  rememberSignInMethod('passkey')
+  await refreshQuery(PASSKEYS).catch(() => {})
 }
 
 /** Whether adding a passkey asks for an enrolment code: an instance admin without a passkey. */

@@ -75,6 +75,10 @@ export const TRUSTED_ORIGINS: readonly string[] = [...new Set([normaliseOrigin(W
 /** A member can create this many workspaces. */
 export const WORKSPACE_LIMIT = 5
 
+/** Where the browser asks for a passkey challenge, and how often one address may (per minute). */
+export const PASSKEY_CHALLENGE_PATH = '/passkey/generate-authenticate-options'
+export const PASSKEY_CHALLENGE_LIMIT = { window: 60, max: 20 }
+
 /** The endpoints that take a provider's ID token straight from the client instead of the redirect. */
 const ID_TOKEN_PATHS = ['/sign-in/social', '/link-social']
 
@@ -217,8 +221,10 @@ export const auth = betterAuth({
     // only 5, so a sign-in that took longer (a slow account chooser, MFA) failed with state_mismatch.
     storeStateStrategy: 'cookie',
   },
-  // On in every environment, not only when NODE_ENV says production.
-  rateLimit: { enabled: true },
+  // On in every environment, not only when NODE_ENV says production. A passkey challenge is asked for without an
+  // account (the sign-in page, and the browser's passkey suggestion in its email field) and each one is stored until it
+  // expires: at most PASSKEY_CHALLENGE_LIMIT per minute per address (expired ones are deleted daily, verifications.ts).
+  rateLimit: { enabled: true, customRules: { [PASSKEY_CHALLENGE_PATH]: PASSKEY_CHALLENGE_LIMIT } },
   // The client address comes from our own header (client-ip.ts), never from one the client sets.
   advanced: { ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] } },
   // Members and invitations change only through the team.* actions (team.ts), which apply the

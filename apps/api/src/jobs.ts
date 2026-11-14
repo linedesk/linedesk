@@ -16,6 +16,7 @@ import { evaluateCall, evaluationModel } from './evaluations.ts'
 import { notifyCallPush, type PushKind, pushSender } from './push.ts'
 import { deleteCallRecording, deleteExpiredRecordings } from './recording-retention.ts'
 import { pruneOldCommands } from './command-log.ts'
+import { pruneExpiredVerifications } from './verifications.ts'
 import { healthCheckCron, healthCheckHours, PROVIDER_HEALTH_CHECK, runProviderHealthCheck } from './provider-health-check.ts'
 import { syncDerivedDays, workspacesWithDerivedDays } from './public-holidays.ts'
 import { recordingStoreCache } from './recording-store.ts'
@@ -142,7 +143,11 @@ async function runJobs(instance: PgBoss, env: Env) {
   await instance.schedule(SETUP_EMAILS, SETUP_EMAILS_CRON)
   await instance.work(SETUP_EMAILS, async () => sendDueSetupEmails(db, emailSender))
   await instance.schedule(COMMAND_PRUNE, COMMAND_PRUNE_CRON)
-  await instance.work(COMMAND_PRUNE, async () => ({ pruned: await pruneOldCommands(db) }))
+  // Daily: the command log's old inputs, and expired codes and passkey challenges (verifications.ts).
+  await instance.work(COMMAND_PRUNE, async () => ({
+    pruned: await pruneOldCommands(db),
+    expiredVerifications: await pruneExpiredVerifications(db),
+  }))
   await instance.schedule(HOLIDAY_SYNC, HOLIDAY_SYNC_CRON)
   await instance.work(HOLIDAY_SYNC, async () => {
     // One transaction per workspace, so a long run holds no locks for long.

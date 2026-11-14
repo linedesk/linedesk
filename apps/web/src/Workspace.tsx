@@ -1,13 +1,15 @@
 // The signed-in app: composes the inbox, the pages, the navigation, overlays and toasts.
 import { offersTour } from '@linedesk/actions'
 import type { Call } from '@linedesk/db/types'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from './cachedQuery.ts'
 import { useReviewCount } from './review/reviewData.ts'
 import { AdminMode } from './admin/AdminMode.tsx'
 import { PasskeyStepUpHost } from './admin/PasskeyStepUp.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
-import { isInstanceAdmin, type Me } from './auth.ts'
+import { isInstanceAdmin, type Me, passkeySupported } from './auth.ts'
+import { PasskeyCard } from './AddPasskey.tsx'
+import { passkeyAsk, pausedAt } from './passkey-ask.ts'
 import { CallView } from './call/CallView.tsx'
 import { ContactSide } from './call/ContactSide.tsx'
 import { toggleContactPanel } from './call/contactPanel.ts'
@@ -65,6 +67,25 @@ import { useBrand } from './brand.ts'
 import { setProviderAudience } from './providerAudience.ts'
 import { cx } from './ui/kit.tsx'
 import { useMediaQuery } from './ui/useMediaQuery.ts'
+
+/** Whether the passkey card is due for this member: no passkey, not paused with "Not now" (passkey-ask.ts). */
+function usePasskeyCard(me: Me): boolean {
+  const { actorId, hasPasskey, impersonation, emailUnconfirmed } = me
+  return useMemo(
+    () =>
+      passkeyAsk({
+        hasPasskey,
+        supported: passkeySupported(),
+        impersonating: Boolean(impersonation),
+        emailUnconfirmed: Boolean(emailUnconfirmed),
+        needsEnrolmentCode: false,
+        justSignedIn: false,
+        pausedAt: pausedAt(actorId),
+        now: Date.now(),
+      }) !== null,
+    [actorId, hasPasskey, impersonation, emailUnconfirmed],
+  )
+}
 
 /** From this width the menu is docked: always shown, the content beside it. */
 const NAV_DOCKED_QUERY = '(min-width: 1600px)'
@@ -151,6 +172,9 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
   }).data
   const canCreateWorkspace = !!authMethods && mayCreateWorkspace(authMethods.signUp !== false, me)
   const [newWorkspace, setNewWorkspace] = useState(false)
+  // Members without a passkey: a quiet card asks for one (passkey-ask.ts), not at the same time as the star prompt.
+  const [passkeyCardClosed, setPasskeyCardClosed] = useState(false)
+  const askForPasskey = usePasskeyCard(me) && !passkeyCardClosed
   // What is not in the local store loads at start, so Settings, Assistant and Team open with it.
   useEffect(() => {
     void preloadWorkspaceSettings()
@@ -648,9 +672,17 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         onReminder={pickReminder}
       />
       {tourOpen && !page && <Tour onClose={closeTour} />}
+      {askForPasskey && !(tourOpen || !!page || !!openCall || overlay !== null || newWorkspace) && (
+        <PasskeyCard account={me.actorId} needsEnrolmentCode={Boolean(me.passkeyEnrolment)} onAdded={() => {
+            toaster.show('Passkey added. Next time, sign in with it.')
+            setPasskeyCardClosed(true)
+            return onSessionStale()
+          }}
+          onClose={() => setPasskeyCardClosed(true)} />
+      )}
       <StarPrompt
         prompt={me.starPrompt ?? null}
-        quiet={tourOpen || !!page || !!openCall || overlay !== null || newWorkspace}
+        quiet={askForPasskey || tourOpen || !!page || !!openCall || overlay !== null || newWorkspace}
       />
       {newWorkspace && <NewWorkspaceDialog onClose={() => setNewWorkspace(false)} />}
       {toaster.toast && <Toast toast={toaster.toast} onUndo={actions.undo} />}
