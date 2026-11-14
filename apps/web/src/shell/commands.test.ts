@@ -72,7 +72,7 @@ describe('⌘K places (LIN-165)', () => {
 
   it('Account is a place like the others, and the old names are gone', () => {
     const c = context()
-    find(c, 'Go to Account').run()
+    find(c, 'Go to Account settings').run()
     expect(c.goPage).toHaveBeenLastCalledWith('account')
     const labels = commandGroups(c).flatMap(g => g.items.map(i => i.label))
     expect(labels).not.toContain('Go to Settings')

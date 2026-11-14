@@ -1,14 +1,11 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { fetchAuthMethods, type LegalLinks } from '../auth.ts'
+import { auth, fetchAuthMethods, type LegalLinks } from '../auth.ts'
 import { useQuery } from '../cachedQuery.ts'
 import { Avatar, Icon } from '../ui/kit.tsx'
 import type { IconName } from '../ui/icons.ts'
-import type { MyInvitation } from '@linedesk/actions'
-import { refreshInvitations } from './invitations.ts'
-import { refreshWorkspaces, useWorkspaces, WorkspaceSwitcher } from './WorkspaceSwitcher.tsx'
+import { useMenu } from './useMenu.ts'
 
-/** `onAdmin` is set for instance admins only: Admin then leads the menu. `onNewWorkspace` only where POST /v1/workspaces would allow it. */
-type Props = { name: string; workspaceName: string; workspaceId: string; toast: (message: string) => void; invitations: MyInvitation[]; onInvitationsChanged: () => void; navOpen: boolean; onNewWorkspace?: () => void; onAdmin?: () => void; onAccount: () => void; onTeam: () => void; onSignOut: () => void }
+/** Only what is yours: your account, help and legal links, signing out. The workspace has its own menu at the top. */
+type Props = { navOpen: boolean; onAccount: () => void; onSignOut: () => void }
 
 /** This install's terms, privacy and support links: the last known ones at once, none that are not set. */
 export const loadAuthMethods = () => fetchAuthMethods({ attempts: 1 })
@@ -25,61 +22,33 @@ function Item({ label, icon, onClick }: { label: string; icon: IconName; onClick
   return <button type="button" role="menuitem" className="nav-item" onClick={onClick}><Icon name={icon} size={15} /><span className="lbl">{label}</span></button>
 }
 
-/** The profile row at the bottom of the navigation. Clicking it opens a small menu above it. */
-export function ProfileMenu({ name, workspaceName, workspaceId, toast, invitations, onInvitationsChanged, navOpen, onNewWorkspace, onAdmin, onAccount, onTeam, onSignOut }: Props) {
-  const [open, setOpen] = useState(false)
+/** The profile row at the bottom of the navigation: your name and email. Clicking it opens a small menu above it. */
+export function ProfileMenu({ navOpen, onAccount, onSignOut }: Props) {
+  const user = auth.useSession().data?.user
+  const name = user?.name ?? ''
+  const email = user?.email ?? ''
+  const menu = useMenu(navOpen)
   const links = useLegalLinks()
-  const workspaces = useWorkspaces() // known with the session; here so the menu never waits for it
   const hasLinks = !!(links?.terms || links?.privacy || links?.supportEmail)
-  useEffect(() => { if (!navOpen) setOpen(false) }, [navOpen]) // the menu never outlives the navigation
-  const root = useRef<HTMLDivElement>(null)
-  const trigger = useRef<HTMLButtonElement>(null)
-  const items = () => [...(root.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])]
-
-  useEffect(() => {
-    if (!open) return
-    // In the background: the menu already shows the last known lists.
-    void refreshWorkspaces()
-    void refreshInvitations()
-    root.current?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus()
-    const onMouseDown = (e: MouseEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false) }
-    document.addEventListener('mousedown', onMouseDown)
-    return () => document.removeEventListener('mousedown', onMouseDown)
-  }, [open])
-
-  function onKeyDown(e: KeyboardEvent) {
-    e.stopPropagation() // the menu has the keyboard while it is open
-    const all = items()
-    const at = all.indexOf(document.activeElement as HTMLElement)
-    if (e.key === 'Escape' || e.key === 'Tab') { setOpen(false); trigger.current?.focus() } // Tab then moves on from the row
-    else if (e.key === 'ArrowDown') { e.preventDefault(); all[(at + 1) % all.length]?.focus() }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); all[(at - 1 + all.length) % all.length]?.focus() }
-  }
-  const choose = (run: () => void) => () => { setOpen(false); run() }
 
   return (
-    <div className="me-wrap" ref={root}>
-      {open && (
-        <div className="me-menu" role="menu" aria-label="Account" onKeyDown={onKeyDown}>
-          <WorkspaceSwitcher all={workspaces} currentId={workspaceId} invitations={invitations} onInvitationsChanged={onInvitationsChanged} onError={m => { setOpen(false); toast(m) }} />
-          {onNewWorkspace && <Item label="New workspace…" icon="plus" onClick={choose(onNewWorkspace)} />}
-          {onAdmin && <Item label="Admin" icon="shield" onClick={choose(onAdmin)} />}
-          <Item label="Account settings" icon="user" onClick={choose(onAccount)} />
-          <Item label="Team" icon="users" onClick={choose(onTeam)} />
+    <div className="me-wrap" ref={menu.root}>
+      {menu.open && (
+        <div className="me-menu" role="menu" aria-label="Account" onKeyDown={menu.onKeyDown}>
+          <Item label="Account settings" icon="user" onClick={menu.choose(onAccount)} />
           {hasLinks && <hr />}
           {links?.supportEmail && <LinkItem label="Help" icon="mail" href={`mailto:${links.supportEmail}`} />}
           {links?.terms && <LinkItem label="Terms" icon="globe" href={links.terms} />}
           {links?.privacy && <LinkItem label="Privacy" icon="globe" href={links.privacy} />}
           <hr />
-          <Item label="Sign out" icon="arrow-up-right" onClick={choose(onSignOut)} />
+          <Item label="Sign out" icon="arrow-up-right" onClick={menu.choose(onSignOut)} />
         </div>
       )}
-      <button type="button" ref={trigger} className="me" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)} title={invitations.length ? `${invitations.length === 1 ? 'An invitation' : `${invitations.length} invitations`} to join` : undefined}>
+      <button type="button" ref={menu.trigger} className="me" aria-haspopup="menu" aria-expanded={menu.open} onClick={() => menu.setOpen(!menu.open)} title={email || undefined}>
         <span className="me-avatar">
-          <Avatar name={name || workspaceName} size={24} />
-          {invitations.length > 0 && <span className="me-dot" aria-hidden="true" />}
+          <Avatar name={name || email} size={24} />
         </span>
-        <div><b>{name}</b><small>{workspaceName}</small></div>
+        <div><b>{name || email}</b>{name && email && <small>{email}</small>}</div>
         <Icon name="down" size={14} className="me-chevron" />
       </button>
     </div>

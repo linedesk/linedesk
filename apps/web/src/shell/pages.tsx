@@ -60,7 +60,7 @@ export const pages = {
     ),
   },
   account: {
-    title: 'Account',
+    title: 'Account settings',
     sections: true,
     render: p => <AccountSettings hasWorkspace workspaceName={p.workspaceName} />,
   },

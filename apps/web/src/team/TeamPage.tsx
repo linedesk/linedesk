@@ -10,7 +10,7 @@ import {
   type TeamRole,
   teamRoles,
 } from '@linedesk/actions'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { Section } from '../settings/fields.tsx'
 import { NotificationDefaults } from '../settings/Notifications.tsx'
 import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
@@ -20,6 +20,7 @@ import { Select } from '../ui/controls.tsx'
 import { Avatar, Badge, Button } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { Skeleton } from '../ui/LoadStates.tsx'
+import { sectionParts } from '../ui/SettingsLayout.tsx'
 import { teamApi, useTeam } from './team-api.ts'
 import {
   canEditRole,
@@ -235,6 +236,15 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (te
     }
   }
   const [sending, setSending] = useState(false)
+  // Invite people… in the workspace menu (`#workspace/team/invite`): the address field takes focus.
+  useEffect(() => {
+    const focus = () => {
+      if (sectionParts('workspace', window.location.hash).item === 'invite') document.getElementById('team-invite-email')?.focus()
+    }
+    focus()
+    window.addEventListener('hashchange', focus)
+    return () => window.removeEventListener('hashchange', focus)
+  }, [])
   return (
     <form
       className="team-invite"

@@ -121,7 +121,7 @@ export function linkWorkspaceTarget(
 export function linkNotice(target: LinkTarget): string | null {
   if (target.kind === 'noAccess') return "You don't have access to the workspace that link is for."
   if (target.kind === 'elsewhere')
-    return `That link is for ${target.workspace.name}. Switch to it in your profile menu.`
+    return `That link is for ${target.workspace.name}. Switch to it in the workspace menu.`
   return null
 }
 

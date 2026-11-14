@@ -94,7 +94,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
   // The call code (LiveKit) loads after the first screen, before anyone opens a live call.
   useEffect(preloadLiveKit, [])
   const toaster = useToast()
-  // Invitations to other workspaces: a dot on the menu, a toast once per invitation, Join in the profile menu.
+  // Invitations to other workspaces: a dot on the menu, a toast once per invitation, Join in the workspace menu.
   const invites = useMyInvitations()
   useEffect(() => {
     const fresh = unannounced(invites.invitations)
@@ -110,7 +110,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
   useEffect(() => {
     if (!canReview && view.tab === 'review') view.setTabState('you')
   }, [canReview, view.tab])
-  // A notification when a call ends while this tab is in the background (Account, Notifications).
+  // A notification when a call ends while this tab is in the background (Account settings, Notifications).
   useCallNotifications(call => callerName(call, call.contact_id ? view.contacts.get(call.contact_id) : undefined))
   const assistantName = useAssistantName()
   const canEditSettings = me.permissions.includes('settings:write')
@@ -495,6 +495,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         invitations={invites.invitations}
         onInvitationsChanged={invites.reload}
         isInstanceAdmin={instanceAdmin}
+        canManageMembers={me.permissions.includes('team:write')}
         onNewWorkspace={canCreateWorkspace ? () => setNewWorkspace(true) : undefined}
         onInbox={view.setTab}
         onPage={goPage}

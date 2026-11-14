@@ -405,7 +405,7 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
             ]
           : []),
         {
-          label: 'Go to Account',
+          label: 'Go to Account settings',
           keywords: 'account settings profile password passkeys sessions',
           icon: 'user',
           run: () => c.goPage('account'),

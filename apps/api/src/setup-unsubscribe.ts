@@ -77,7 +77,7 @@ function page(title: string, body: string) {
 
 const INVALID = page(
   'This link is not valid',
-  '<p>Turn off setup emails in Account, Notifications after signing in instead.</p>',
+  '<p>Turn off setup emails in Account settings, Notifications after signing in instead.</p>',
 )
 
 export function registerSetupUnsubscribeRoutes<E extends Env>(app: Hono<E>) {

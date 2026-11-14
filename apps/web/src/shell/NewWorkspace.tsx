@@ -1,4 +1,4 @@
-// "New workspace…" from the profile menu: name another business, then open it (its onboarding starts).
+// "New workspace…" from the workspace menu: name another business, then open it (its onboarding starts).
 // Offered only where POST /v1/workspaces would allow it (`mayCreateWorkspace`, the rule from NoWorkspace);
 // the server checks again.
 import { useState } from 'react'

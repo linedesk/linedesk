@@ -44,7 +44,7 @@ describe('team model', () => {
     expect(d.members.map(m => canRemove(d, m))).toEqual([false, false, true])
   })
 
-  it('only your own row offers Edit profile, and it opens Account › Profile', () => {
+  it('only your own row offers Edit profile, and it opens Account settings › Profile', () => {
     const d = data(true, 'sarah')
     expect(d.members.map(m => isMe(d, m))).toEqual([false, true, false])
     expect(PROFILE_HASH).toBe('#account/profile')

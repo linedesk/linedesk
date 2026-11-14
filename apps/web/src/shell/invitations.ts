@@ -1,4 +1,4 @@
-// Invitations to other workspaces, for someone who already has one: listed in the profile menu,
+// Invitations to other workspaces, for someone who already has one: listed in the workspace menu,
 // announced once by a toast, accepted or declined there. Memberships are not in the local store:
 // the list is a cached read (last answer on the first frame, refreshed on open and focus), and
 // joining reloads into the new workspace.
@@ -77,6 +77,6 @@ export const roleLabel = (role: string) => role.charAt(0).toUpperCase() + role.s
 
 /** The toast for new invitations: one names the workspace, several are counted. */
 export function invitationNotice(fresh: MyInvitation[]): string {
-  if (fresh.length === 1) return `${fresh[0]!.invitedBy} invited you to ${fresh[0]!.workspaceName}. Join from your profile in the menu.`
-  return `You have ${fresh.length} invitations to other workspaces. Join from your profile in the menu.`
+  if (fresh.length === 1) return `${fresh[0]!.invitedBy} invited you to ${fresh[0]!.workspaceName}. Join from the workspace menu at the top of the navigation.`
+  return `You have ${fresh.length} invitations to other workspaces. Join from the workspace menu at the top of the navigation.`
 }
