@@ -74,7 +74,7 @@ export function App() {
   const agentSetupHash = useHashIs(AGENT_SETUP_HASH)
   const installSetupHash = useHashIs(INSTALL_SETUP_HASH)
   // An instance admin sets up with an AI agent first (AgentSetup.tsx), unless they chose to do it by hand.
-  const [manualSetup, setManualSetup] = useState(choseManualSetup)
+  const [manualSetup, setManualSetup] = useState(false)
   const refresh = useCallback(async () => setSession(await loadSession()), [])
   // A link from an email names its workspace (`?ws=` in the hash): read once at load, settled before the app opens.
   const [link, setLink] = useState(() => linkWorkspace(window.location.hash))
@@ -217,7 +217,7 @@ export function App() {
       />
     )
   }
-  if (instanceAdmin && !adminHash && (agentSetupHash || (settingUp && !manualSetup))) {
+  if (instanceAdmin && !adminHash && (agentSetupHash || (settingUp && !choseManualSetup(session.me, manualSetup)))) {
     const leave = () => {
       if (window.location.hash === AGENT_SETUP_HASH) window.location.hash = ''
     }

@@ -36,7 +36,13 @@ const TIMEOUT_MS = 15_000
 export const installSetupEnabled = (env: Record<string, string | undefined> = process.env) =>
   env.LINEDESK_INSTALL_SETUP?.trim().toLowerCase() !== 'off'
 
-const fresh = (): InstallProgress => ({ step: 'welcome', skipped: [], finishedAt: null, setAsideAt: null })
+const fresh = (): InstallProgress => ({
+  step: 'welcome',
+  skipped: [],
+  finishedAt: null,
+  setAsideAt: null,
+  manualBy: [],
+})
 
 export async function readInstallProgress(tx: Tx | typeof db = db): Promise<InstallProgress> {
   const [row] = await tx.select().from(instance_settings).where(eq(instance_settings.key, SETTING))
@@ -49,10 +55,16 @@ export async function readInstallProgress(tx: Tx | typeof db = db): Promise<Inst
       skipped: Array.isArray(stored.skipped) ? stored.skipped.filter(known) : [],
       finishedAt: typeof stored.finishedAt === 'string' ? stored.finishedAt : null,
       setAsideAt: typeof stored.setAsideAt === 'string' ? stored.setAsideAt : null,
+      manualBy: Array.isArray(stored.manualBy) ? stored.manualBy.filter(id => typeof id === 'string') : [],
     }
   } catch {
     return fresh()
   }
+}
+
+/** Whether this admin chose to set up by hand on this install (`/v1/me.setupByHand`): not the agent setup page first. */
+export async function setsUpByHand(userId: string, tx: Tx | typeof db = db): Promise<boolean> {
+  return (await readInstallProgress(tx)).manualBy.includes(userId)
 }
 
 /** GET /v1/admin/install-setup: where the walkthrough is, whether it is on, and whether a restart is pending. */
@@ -331,6 +343,10 @@ export const installSetupHandlers: Record<string, Handler> = {
     if (input.skip && !progress.skipped.includes(input.skip)) progress.skipped.push(input.skip)
     if (input.setAside !== undefined) progress.setAsideAt = input.setAside ? now : null
     if (input.finished !== undefined) progress.finishedAt = input.finished ? now : null
+    if (input.manual !== undefined) {
+      const others = progress.manualBy.filter(id => id !== actor.actorId)
+      progress.manualBy = input.manual ? [...others, actor.actorId] : others
+    }
     const value = JSON.stringify(progress)
     await tx
       .insert(instance_settings)

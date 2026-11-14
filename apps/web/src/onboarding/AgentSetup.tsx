@@ -22,28 +22,13 @@ import { SETUP_LINK_KEY } from '../localData.ts'
 import { untilLabel } from '../time.ts'
 import { BrandMark, Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
 import { CopyButton } from './Frame.tsx'
+import { rememberManual } from './setup-choice.ts'
 import './agent-setup.css'
 
-const MANUAL_KEY = 'linedesk.setup.manual'
+export { choseManualSetup, rememberManual } from './setup-choice.ts'
+
 const CLIENT_KEY = 'linedesk.setup.client'
 
-/** Whether this admin chose to set up by hand (per browser; the setup page comes back with #setup-agent). */
-export function choseManualSetup(): boolean {
-  try {
-    return localStorage.getItem(MANUAL_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-/** Remembers the choice; leaving the install walkthrough counts as choosing the manual way too. */
-export function rememberManual(on: boolean) {
-  try {
-    if (on) localStorage.setItem(MANUAL_KEY, '1')
-    else localStorage.removeItem(MANUAL_KEY)
-  } catch {
-    // Private windows: the choice lasts this page only.
-  }
-}
 function savedClient(): AgentClient {
   try {
     const saved = localStorage.getItem(CLIENT_KEY)
@@ -218,8 +203,8 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
           <h1>Set up {brandName()} with your AI agent</h1>
           <p className="ob-lede">
             Your agent connects to this server and does the whole setup with you: the AI, a phone carrier, email, your
-            business and its number. About 15 minutes. You create the accounts; it asks before anything that costs
-            money.
+            business and its number. <b>About 15 minutes.</b> You create the accounts; it asks before anything that
+            costs money.
           </p>
         </div>
 

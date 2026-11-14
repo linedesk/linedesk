@@ -62,6 +62,8 @@ export type Me = {
   firstUse?: FirstUse
   /** The GitHub star prompt while it is due for this member (absent in what an older version remembered). */
   starPrompt?: StarPrompt | null
+  /** An instance admin who chose to set up this install by hand: no agent setup page first (absent for others). */
+  setupByHand?: boolean
 }
 
 /** `email`: the address is not confirmed yet; `confirm`: the last sign-in is more than 12 hours ago. */

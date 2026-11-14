@@ -240,7 +240,13 @@ type AdminInputs = {
   'branding.set': BrandingInput
   'agentSetup.createKey': Record<string, never>
   'agentSetup.revoke': Record<string, never>
-  'install.setProgress': { step?: InstallStep; skip?: InstallStep; setAside?: boolean; finished?: boolean }
+  'install.setProgress': {
+    step?: InstallStep
+    skip?: InstallStep
+    setAside?: boolean
+    finished?: boolean
+    manual?: boolean
+  }
   'provider.tryOut': { kind: TryOutKind; areaCode?: string }
   'provider.confirmEmail': { code: string }
 }

@@ -23,6 +23,7 @@ import { registerSetupUnsubscribeRoutes } from './setup-unsubscribe.ts'
 import { clientIpOf, withClientIp } from './client-ip.ts'
 import { MCP_MAX_BODY_BYTES, serveMcp } from './mcp.ts'
 import { serveSetupMcp } from './setup-mcp.ts'
+import { setsUpByHand } from './install-setup.ts'
 import { authMethods } from './auth-methods.ts'
 import { browserErrorReporting, errorReportingEnabled, type ReportedUser, reportError } from './error-reporting.ts'
 import { currentBranding, manifestFor, readLogo } from './branding.ts'
@@ -326,8 +327,16 @@ app.get('/v1/me', async c => {
     firstUse: firstUse(),
     // The GitHub star prompt while it is due for this member (star-prompt.ts), else null.
     starPrompt: await starPromptFor(actor),
+    // An instance admin who chose to set up this install by hand: no agent setup page first (install-setup.ts).
+    setupByHand: await setupByHandFor(actor),
   })
 })
+
+/** Only for an instance admin (also before the second factor), never while signed in as someone else. */
+async function setupByHandFor({ actorId, permissions, adminSecondFactor, impersonation }: Actor): Promise<boolean> {
+  if (impersonation || !(permissions.includes('instance:admin') || adminSecondFactor)) return false
+  return setsUpByHand(actorId)
+}
 
 /** Whether this is an instance admin (by account, also before the second factor) without a passkey. */
 async function needsPasskeyEnrolment({ actorId, impersonation }: Actor): Promise<boolean> {

@@ -330,7 +330,7 @@ function Welcome({ checklist, onStart }: { checklist: SetupChecklist; onStart: (
       <HostingNote address={window.location.origin} />
       <PartList checklist={checklist} ids={partSteps.map(s => installStepItems[s]!)} />
       <Note tone="info">
-        An AI agent can do this in about 15 minutes and check the server for you.{' '}
+        An AI agent can do this in <b>about 15 minutes</b> and check the server for you.{' '}
         <button
           type="button"
           className="k-link"

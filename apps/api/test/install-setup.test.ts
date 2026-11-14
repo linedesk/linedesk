@@ -86,7 +86,7 @@ describe('progress', () => {
     const start = (await request(operator, 'GET', '/v1/admin/install-setup')).body
     expect(start).toMatchObject({
       enabled: true,
-      progress: { step: 'welcome', skipped: [], finishedAt: null, setAsideAt: null },
+      progress: { step: 'welcome', skipped: [], finishedAt: null, setAsideAt: null, manualBy: [] },
       restart: { pending: false },
     })
 
@@ -100,6 +100,34 @@ describe('progress', () => {
     await act(operator, 'install.setProgress', { setAside: false, finished: true, step: 'done' })
     progress = (await request(operator, 'GET', '/v1/admin/install-setup')).body.progress
     expect(progress).toMatchObject({ step: 'done', setAsideAt: null, finishedAt: expect.any(String) })
+  })
+
+  test('set up by hand: remembered for this admin on this install, not for another admin or a new install', async () => {
+    const second = await addMember(other.id, 'member')
+    await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, second.userId))
+    const byHand = async (who: User) => (await request(who, 'GET', '/v1/me')).body.setupByHand
+    // A new install: every admin starts on the agent setup page.
+    expect(await byHand(operator)).toBe(false)
+    expect(await byHand(second)).toBe(false)
+
+    expect((await act(operator, 'install.setProgress', { manual: true })).status).toBe(200)
+    await act(operator, 'install.setProgress', { manual: true })
+    expect((await request(operator, 'GET', '/v1/admin/install-setup')).body.progress.manualBy).toEqual([
+      operator.userId,
+    ])
+    expect(await byHand(operator)).toBe(true)
+    expect(await byHand(second)).toBe(false)
+    // Not instance admins: never asked.
+    expect(await byHand(member)).toBe(false)
+
+    // Back to the agent page ("Set up with an AI agent instead").
+    await act(operator, 'install.setProgress', { manual: false })
+    expect(await byHand(operator)).toBe(false)
+
+    // A fresh database is a new install: the choice is gone with it.
+    await act(operator, 'install.setProgress', { manual: true })
+    await db.delete(instance_settings)
+    expect(await byHand(operator)).toBe(false)
   })
 
   test('an empty change is refused', async () => {

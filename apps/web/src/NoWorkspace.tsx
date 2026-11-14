@@ -51,7 +51,7 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
   const [invitations, setInvitations] = useState<PendingInvitation[] | null>(null)
   const [signUpOpen, setSignUpOpen] = useState<boolean | null>(null)
   // A new install: its first admin sets it up with an AI agent first, unless they chose to do it by hand.
-  const [manualSetup, setManualSetup] = useState(choseManualSetup)
+  const [manualSetup, setManualSetup] = useState(false)
   useEffect(() => {
     void loadInvitations().then(setInvitations)
     fetchAuthMethods({ attempts: 3 }).then(
@@ -81,7 +81,7 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
       />
     )
   }
-  if (me && admin && !me.impersonation && (hash === AGENT_SETUP_HASH || !manualSetup))
+  if (me && admin && !me.impersonation && (hash === AGENT_SETUP_HASH || !choseManualSetup(me, manualSetup)))
     return (
       <AgentSetup
         onManual={installFirst => {

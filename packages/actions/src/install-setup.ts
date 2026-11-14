@@ -46,18 +46,25 @@ export type InstallProgress = {
   finishedAt: string | null
   /** "Set up later": the walkthrough does not open by itself again; Admin › Overview resumes it. */
   setAsideAt: string | null
+  /**
+   * The instance admins who chose to set up by hand on this install: they open on the walkthrough or their business,
+   * not on the agent setup page. Kept here, not in the browser, so it resets with the database and is per admin.
+   */
+  manualBy: string[]
 }
 
 export const installSetProgress = defineAction({
   name: 'install.setProgress',
   description:
-    'Remember where the install setup by hand is: the step, a step skipped for now, set aside for later, or finished.',
+    'Remember where the install setup by hand is: the step, a step skipped for now, set aside for later, finished, or whether you chose to set up by hand instead of with an AI agent.',
   input: z
     .object({
       step: z.enum(installSteps).optional(),
       skip: z.enum(installSteps).optional(),
       setAside: z.boolean().optional(),
       finished: z.boolean().optional(),
+      /** You (this admin) chose to set up by hand (true) or with an AI agent again (false). */
+      manual: z.boolean().optional(),
     })
     .refine(i => Object.values(i).some(v => v !== undefined), { message: 'say what changed' }),
   permission: 'instance:admin',
