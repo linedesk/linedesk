@@ -112,12 +112,12 @@ test('the prompt lists types and calendars with their notes only when the assist
   expect(withBooking).toContain('where the business is (time zone America/Los_Angeles)')
   expect(withBooking).not.toContain('Today is')
   expect(withBooking).toContain(
-    '- Repair visit (60 minutes), id at_1. Use when: the caller has something broken. Before booking ask for: name, address.',
+    '- Repair visit (60 min, id at_1): use when the caller has something broken. Ask for: name, address.',
   )
   expect(withBooking).toContain(
-    '- Appointment (30 minutes), id at_2. Use when: no other type fits. No details to ask for beyond the reason.',
+    '- Appointment (30 min, id at_2): use when no other type fits. Nothing to ask for beyond the reason.',
   )
-  expect(withBooking).toContain('Pick the appointment type that fits the caller\'s request by its name and, where it has one, its "Use when" condition')
+  expect(withBooking).toContain('Pick the appointment type whose name or "use when" fits the request')
   // The caller's bookings are never in the prompt: the caller describes one, the API checks it.
   expect(withBooking).toContain(CHANGE_BOOKING_INSTRUCTIONS)
   expect(withBooking).not.toMatch(/booking id|upcoming appointments/)
@@ -126,10 +126,10 @@ test('the prompt lists types and calendars with their notes only when the assist
   expect(noChanges).not.toContain(CHANGE_BOOKING_INSTRUCTIONS)
   // An API of an older version does not say: no changes.
   expect(buildInstructions(null, null, { ...booking, canChangeBookings: undefined as unknown as boolean })).not.toContain(CHANGE_BOOKING_INSTRUCTIONS)
-  expect(withBooking).toContain('- Office, id acal_office. Use when: Estimates. (default)')
-  expect(withBooking).toContain('- Mike, id acal_mike. Use when: Emergencies.')
+  expect(withBooking).toContain('- Office (id acal_office): use when Estimates (default).')
+  expect(withBooking).toContain('- Mike (id acal_mike): use when Emergencies.')
   expect(withBooking).toContain(
-    'Pick the calendar whose "Use when" condition fits the caller\'s request; if none fits, use the default.',
+    'Pick the calendar whose "use when" fits the request, else the default.',
   )
   expect(withBooking).not.toContain('You cannot book appointments')
   expect(buildInstructions(null, null, null)).toContain('You cannot book appointments')
@@ -229,14 +229,14 @@ test('the same time is not booked twice on one call', async () => {
 })
 
 test('conditions: a default calendar without one is used when no other fits; one type needs no picking rule', () => {
-  expect(calendarLine({ id: 'acal_1', name: 'Office', instruction: ' ', is_default: true })).toBe('- Office, id acal_1. Use when: no other calendar fits. (default)')
-  expect(calendarLine({ id: 'acal_2', name: 'Mike', instruction: '', is_default: false })).toBe('- Mike, id acal_2.')
+  expect(calendarLine({ id: 'acal_1', name: 'Office', instruction: ' ', is_default: true })).toBe('- Office (id acal_1) (default).')
+  expect(calendarLine({ id: 'acal_2', name: 'Mike', instruction: '', is_default: false })).toBe('- Mike (id acal_2).')
   const one = buildInstructions(null, null, { ...booking, appointmentTypes: [booking.appointmentTypes[0]!] })
   expect(one).not.toContain('Pick the appointment type')
 })
 
 test('an API of an older version lists no name and no condition: the name is still asked for', () => {
-  expect(typeLine({ id: 'at_1', name: 'Repair visit', duration_min: 60, required_fields: ['address'] })).toBe('- Repair visit (60 minutes), id at_1. Before booking ask for: name, address.')
+  expect(typeLine({ id: 'at_1', name: 'Repair visit', duration_min: 60, required_fields: ['address'] })).toBe('- Repair visit (60 min, id at_1). Ask for: name, address.')
 })
 
 test('book_appointment without a name sends none, for a type that does not ask for it', async () => {
@@ -285,4 +285,27 @@ test('cancel_appointment takes the day as the caller said it; a day it cannot re
   expect(api.sent).toEqual([])
   await tools.cancel({ booking_date: 'November 17' })
   expect(api.sent[0]?.[1]).toMatchObject({ bookingDate: '2026-11-17', bookedName: 'Sam Lee' })
+})
+
+test('one calendar: not listed in the prompt, and the tools use it when the model leaves calendar_id out', async () => {
+  const single = { ...booking, calendars: [booking.calendars[0]!] }
+  const prompt = buildInstructions(null, null, single)
+  expect(prompt).not.toMatch(/Calendars:|Pick the calendar|acal_office/)
+  const call = { ...session(), booking: single }
+  const api = fakeApi(() => ({ slots: [slot('17', '17:00')] }))
+  await bookingTools(api, call, new CallLog(call)).findSlots({ appointment_type_id: 'at_1', calendar_id: null })
+  expect(api.sent[0]?.[1]).toMatchObject({ calendarId: 'acal_office' })
+  // Several calendars: the one the model names, else the default.
+  const two = fakeApi(() => ({ slots: [] }))
+  const tools = bookingTools(two, session(), new CallLog(session()))
+  await tools.findSlots({ appointment_type_id: 'at_1', calendar_id: 'acal_mike' })
+  await tools.findSlots({ appointment_type_id: 'at_1' })
+  expect(two.sent.map(([, input]) => input.calendarId)).toEqual(['acal_mike', 'acal_office'])
+})
+
+test('the booking rules: one short way to book, and the two costly mistakes kept in the prompt', () => {
+  const prompt = buildInstructions(null, null, booking)
+  expect(prompt).toContain('To book: use find_slots for the days the caller wants and offer two or three of its times.')
+  expect(prompt).toContain('Only offer times find_slots returned, and book only a time the caller said yes to in their own words')
+  expect(prompt).not.toMatch(/Never make up a free time|pass it to book_appointment|Always confirm the day and time out loud/)
 })

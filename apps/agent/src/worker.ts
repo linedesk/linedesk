@@ -68,7 +68,7 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
   if (!call.booking) return {}
   const booking = bookingTools(api, call, log)
   const typeId = z.string().describe('The id of the appointment type whose "Use when" condition fits the request, from the list in your instructions.')
-  const calendarId = z.string().describe('The id of the calendar whose "Use when" condition fits the request, from the list in your instructions.')
+  const calendarId = z.string().nullish().describe('The id of the calendar whose "use when" fits the request, from the list in your instructions; leave it out when no calendars are listed.')
   const bookingDate = z.string().describe('The day of the appointment the caller wants to change, as the caller said it, in English ("Tuesday", "the 17th", "November 17") or YYYY-MM-DD.')
   return {
     find_slots: llm.tool({

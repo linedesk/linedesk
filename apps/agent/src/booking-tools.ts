@@ -19,9 +19,9 @@ export type DescribedBooking = { booking_date: string }
 /** Descriptions that matched no booking before the assistant stops trying on a call (no guessing names or days). */
 export const MAX_DESCRIBE_ATTEMPTS = 2
 
-export type FindSlotsArgs = { appointment_type_id: string; calendar_id: string; from_date?: string | null; to_date?: string | null }
+export type FindSlotsArgs = { appointment_type_id: string; calendar_id?: string | null; from_date?: string | null; to_date?: string | null }
 export type BookArgs = {
-  appointment_type_id: string; calendar_id: string; start: string; caller_name?: string | null; reason: string; address?: string | null; email?: string | null
+  appointment_type_id: string; calendar_id?: string | null; start: string; caller_name?: string | null; reason: string; address?: string | null; email?: string | null
 }
 
 /** `count` items spread evenly over `list`, first and last included (all of it when it is short). */
@@ -81,6 +81,9 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
   /** The day the caller named, worked out from today where the business is; a question or a miss is said back as is. */
   const today = () => todayIn(call.booking?.timeZone ?? 'America/New_York')
   const dayOf = (said: string | null | undefined, end = false): Day | null => (said?.trim() ? resolveDay(said, today(), { end }) : null)
+  /** The calendar the model named, else the default one (the prompt lists calendars only when there are several). */
+  const calendarOf = (id: string | null | undefined) =>
+    id?.trim() || call.booking?.calendars.find(c => c.is_default)?.id || call.booking?.calendars[0]?.id || ''
   const notADay = (day: Day | null) => (day && !('date' in day) ? ('ask' in day ? day.ask : day.unknown) : null)
 
   async function findSlots(args: FindSlotsArgs): Promise<string> {
@@ -90,7 +93,7 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
     if (unclear) return unclear
     try {
       const { data } = await api.run(calendarFindSlots, {
-        appointmentTypeId: args.appointment_type_id, calendarId: args.calendar_id, callId, limit: SEARCH_LIMIT,
+        appointmentTypeId: args.appointment_type_id, calendarId: calendarOf(args.calendar_id), callId, limit: SEARCH_LIMIT,
         ...(from && 'date' in from ? { fromDate: from.date } : {}), ...(to && 'date' in to ? { toDate: to.date } : {}),
       }, call)
       const offered = spreadSlots((data as FindSlotsData).slots)
@@ -122,7 +125,7 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
       return `"${args.email}" is not a valid email address. Get it with get_email, or book without an email (then there is no confirmation email).`
     try {
       const { data } = await api.run(appointmentBook, {
-        appointmentTypeId: args.appointment_type_id, calendarId: args.calendar_id, start, reason: args.reason,
+        appointmentTypeId: args.appointment_type_id, calendarId: calendarOf(args.calendar_id), start, reason: args.reason,
         ...(args.caller_name?.trim() ? { callerName: args.caller_name.trim() } : {}),
         ...(args.address ? { address: args.address } : {}), ...(args.email?.trim() ? { callerEmail: args.email.trim() } : {}), callId, ...(call.assistant ? { assistantId: call.assistant.id } : {}),
       }, call)
@@ -186,7 +189,7 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
   }
 
   /** `searched`: the appointment type and calendar find_slots was asked with; the API checks the time with them first. */
-  async function reschedule(said: DescribedBooking, newStart: string, searched: { appointment_type_id: string; calendar_id: string }): Promise<string> {
+  async function reschedule(said: DescribedBooking, newStart: string, searched: { appointment_type_id: string; calendar_id?: string | null }): Promise<string> {
     if (outOfAttempts()) return NO_MORE
     if (!log.confirmedName) return NAME_FIRST
     const day = dayOf(said.booking_date)
@@ -196,7 +199,7 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
     if (!start) return notOffered()
     try {
       const { data } = await api.run(appointmentReschedule, {
-        ...described(which), start, appointmentTypeId: searched.appointment_type_id, calendarId: searched.calendar_id,
+        ...described(which), start, appointmentTypeId: searched.appointment_type_id, calendarId: calendarOf(searched.calendar_id),
       }, call)
       const no = declined(data)
       if (no) {

@@ -132,16 +132,16 @@ export function typeLine(t: BookingType, callerNumber = false): string {
   const wanted: BookingType['required_fields'] = t.instruction === undefined && !t.required_fields.includes('name') ? ['name', ...t.required_fields] : t.required_fields
   const fields = callerNumber ? wanted.filter(f => f !== 'phone') : wanted
   return [
-    `- ${t.name} (${t.duration_min} minutes), id ${t.id}.`,
-    condition ? ` Use when: ${condition}.` : '',
-    fields.length ? ` Before booking ask for: ${fields.map(f => DETAIL_LABEL[f]).join(', ')}.` : ' No details to ask for beyond the reason.',
+    `- ${t.name} (${t.duration_min} min, id ${t.id})`,
+    condition ? `: use when ${condition}.` : '.',
+    fields.length ? ` Ask for: ${fields.map(f => DETAIL_LABEL[f]).join(', ')}.` : ' Nothing to ask for beyond the reason.',
   ].join('')
 }
 
 /** "- Office, id acal_1. Use when: no other calendar fits. (default)" */
 export function calendarLine(c: BookingContext['calendars'][number]): string {
-  const condition = c.instruction.trim() || (c.is_default ? 'no other calendar fits' : '')
-  return `- ${c.name}, id ${c.id}.${condition ? ` Use when: ${condition}.` : ''}${c.is_default ? ' (default)' : ''}`
+  const condition = c.instruction.trim()
+  return `- ${c.name} (id ${c.id})${condition ? `: use when ${condition}` : ''}${c.is_default ? ' (default)' : ''}.`
 }
 
 /**
@@ -160,18 +160,16 @@ export function bookingInstructions(booking: BookingContext, { listed = false, c
   const types = booking.appointmentTypes.map(t => typeLine(t, callerNumber)).join('\n')
   const calendars = booking.calendars.map(calendarLine).join('\n')
   return [
-    `Appointment types, with when to use each:\n${types}`,
-    `Calendars, with when to use each:\n${calendars}`,
+    `Appointment types:\n${types}`,
+    // One calendar: the tools use it by themselves (calendar_id left out), so it is not listed.
+    booking.calendars.length > 1 ? `Calendars:\n${calendars}` : null,
     booking.appointmentTypes.length > 1
-      ? 'Pick the appointment type that fits the caller\'s request by its name and, where it has one, its "Use when" condition; if none fits, the one for when no other type fits, else the first.'
+      ? 'Pick the appointment type whose name or "use when" fits the request; if none fits, the one for when no other type fits, else the first.'
       : null,
-    booking.calendars.length > 1
-      ? 'Pick the calendar whose "Use when" condition fits the caller\'s request; if none fits, use the default.'
-      : null,
-    'To book: find out what the caller needs, then use find_slots with the appointment type, the calendar and the days the caller wants. Offer at most two or three of the times it returns, in plain words. When the caller picks one, get the details that type needs (listed with it) that you do not have yet: the name with get_name if you do not have it confirmed, an address with get_address. Then use book_appointment with the key of that time (like s3). Only say the appointment is booked after book_appointment confirmed it. If no time suits or the calendar cannot be reached, take a message with the times the caller prefers.',
-    'Never make up a free time: only offer times find_slots returned.',
-    'Book only a time the caller said yes to in their own words. If you suggest a time yourself, ask whether it works and wait for the answer; getting other details (an address) is not a yes.',
-    'If the caller gives an email address, pass it to book_appointment: they get the confirmation by email. Always confirm the day and time out loud.',
+    booking.calendars.length > 1 ? 'Pick the calendar whose "use when" fits the request, else the default.' : null,
+    "To book: use find_slots for the days the caller wants and offer two or three of its times. Once the caller says yes to one, get the details its type asks for that you don't have yet (get_name, get_address, get_email), then use book_appointment. If no time suits or the calendar can't be reached, take a message with the times the caller prefers.",
+    // Kept in the prompt as well as at the tools: the costliest mistakes a light model makes when booking.
+    'Only offer times find_slots returned, and book only a time the caller said yes to in their own words; getting other details (an address) is not a yes.',
     canChangeBookings(booking)
       ? listed ? CHANGE_LISTED_BOOKING_INSTRUCTIONS : CHANGE_BOOKING_INSTRUCTIONS
       : 'You cannot cancel or move appointments on this call. If the caller asks to, take a message for the team.',

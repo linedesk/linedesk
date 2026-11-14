@@ -274,13 +274,13 @@ test('booking: no second date line next to the clock, no phone number asked when
   const at = Date.parse('2026-11-12T21:31:00Z')
   const known = buildInstructions(assistant(), null, booking, [], { name: null, note: null }, 'America/Los_Angeles', at)
   expect(known).not.toContain('Today is')
-  expect(known).toContain('- Repair visit (60 minutes), id at_1. Before booking ask for: name, address.')
-  expect(known).toContain('Pick the appointment type that fits the caller\'s request by its name and, where it has one, its "Use when" condition')
+  expect(known).toContain('- Repair visit (60 min, id at_1). Ask for: name, address.')
+  expect(known).toContain('Pick the appointment type whose name or "use when" fits the request')
   // No time zone passed: the clock line takes the booking's, and there is still no second date line.
   const withheld = buildInstructions(assistant(), null, booking, [], null, null, at)
   expect(withheld).toContain('It is now Thursday, November 12, 2026 at 1:31 PM where the business is (time zone America/Los_Angeles).')
   expect(withheld).not.toContain('Today is')
-  expect(withheld).toContain('- Repair visit (60 minutes), id at_1. Before booking ask for: name, address, phone number.')
+  expect(withheld).toContain('- Repair visit (60 min, id at_1). Ask for: name, address, phone number.')
   // A type that asks for an email: get_email is for that too, not only for a confirmation the caller asks for.
   expect(known).toContain('get_email for an email address (when the appointment type asks for one, or the caller wants a confirmation by email)')
 })
