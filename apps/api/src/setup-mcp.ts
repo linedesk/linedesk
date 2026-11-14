@@ -192,7 +192,7 @@ async function saveAndTest(provider: ProviderName, actor: Actor, saved: Record<s
   const { body } = await runAction('provider.test', { provider, free: true }, actor)
   const test = body.ok ? body.data : { ok: false, message: body.error }
   const restarts = restartCategories.includes(providerSpec(provider).category)
-    ? 'Email and sign-in are read at start: the API restarts to apply this, a few seconds. Call setup_status again after that.'
+    ? 'Sign-in is read at start: the API restarts to apply this, a few seconds. Call setup_status again after that.'
     : null
   return answer({ ok: true, ...saved, test, ...(restarts ? { note: restarts } : {}) })
 }
@@ -318,6 +318,13 @@ const guideLines = (provider: ProviderName) => {
     `Store with provider_setKeys { provider: "${provider}", values: { <field>: <value> } } (fields: providers_list); it runs the free test right away and returns it as \`test\`. Then provider_setActive { category: "${category}", provider: "${provider}" } if another one is picked.`,
   ]
 }
+/** Not on a public address (a test install): a number without a carrier, for trying it out. */
+export const devNumberLine = () =>
+  whereItRuns().public
+    ? []
+    : [
+        'For a test without a carrier, set TELEPHONY_PROVIDER=dev in .env and restart the API: you get a simulated number.',
+      ]
 const callAudioLines = () => [
   'LiveKit and its SIP bridge carry the call audio; they run on this server.',
   ...callAudioGuide.steps,
@@ -376,12 +383,12 @@ async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean
         ],
         'ai',
       ),
-      groupStep(group('telephony'), guideLines(recommendedProviders.telephony)),
+      groupStep(group('telephony'), [...guideLines(recommendedProviders.telephony), ...devNumberLine()]),
       groupStep(group('email'), [
         ...guideLines(recommendedProviders.email),
         'Ask for the From address too (an address on the domain verified with the mail service) and store it with the key: values { api_key, from }.',
         `Email decides who gets sign-in codes, so it needs the admin's passkey: ${emailAndSignInNote(actor, emailAndSignIn)}`,
-        'Once the test passes and the API has restarted: provider_tryOut { kind: "email" } sends a six-digit code to the admin\'s own address; ask them for it in the chat and call provider_confirmEmail { code }. That proves delivery end to end.',
+        'Once the test passes: provider_tryOut { kind: "email" } sends a six-digit code to the admin\'s own address; ask them for it in the chat and call provider_confirmEmail { code }. That proves delivery end to end.',
       ]),
       groupStep(group('call-audio'), callAudioLines(), 'livekit'),
     ]),

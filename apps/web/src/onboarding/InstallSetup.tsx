@@ -41,7 +41,7 @@ import { addPasskey, confirmWithPasskey } from '../settings/account/account-api.
 import { describeDevice } from '../settings/account/account-model.ts'
 import { Input } from '../ui/form.tsx'
 import { HelpTip, type HelpTipContent } from '../ui/HelpTip.tsx'
-import { BrandMark, Button, Note, Spinner } from '../ui/kit.tsx'
+import { BrandMark, Button, Note } from '../ui/kit.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { type PasskeyHere, PasskeyFirstStep, usePasskeyHere } from './AddPasskeyStep.tsx'
 import type { PasskeyStep } from './agent-setup-passkey.ts'
@@ -119,20 +119,18 @@ export function InstallSetup({ onExit }: Props) {
     reloadAll,
   )
 
-  // A saved email or sign-in change waits for a restart: read again until the API runs with it.
-  const [restarting, setRestarting] = useState(false)
+  // A saved sign-in change waits for a restart: read again until the API runs with it. Email applies at once.
   const pending = setup?.restart.pending ?? false
   useEffect(() => {
     if (!pending) return
     const id = setInterval(() => {
       loadInstallSetup().then(
         next => {
-          setRestarting(false)
           setSetup(next)
           if (!next.restart.pending) void reloadAll()
         },
         // The API is restarting: it answers again in a few seconds.
-        () => setRestarting(true),
+        () => {},
       )
     }, RESTART_POLL_MS)
     return () => clearInterval(id)
@@ -209,7 +207,6 @@ export function InstallSetup({ onExit }: Props) {
             data={data}
             status={status}
             setup={setup}
-            restarting={restarting}
             reloadAll={reloadAll}
             onBack={() => go(installSteps[index - 1]!)}
             onNext={() => go(installSteps[index + 1]!)}
@@ -486,7 +483,6 @@ type PartProps = {
   data: AdminData
   status: ProviderStatusState
   setup: InstallSetupState
-  restarting: boolean
   reloadAll: () => Promise<void>
   onBack: () => void
   onNext: () => void
@@ -494,12 +490,11 @@ type PartProps = {
 }
 
 /** One group: its heading, the same panel as Admin › Providers, and the footer. */
-function PartStep({ step, number, data, status, setup, restarting, reloadAll, onBack, onNext, onSkip }: PartProps) {
+function PartStep({ step, number, data, status, setup, reloadAll, onBack, onNext, onSkip }: PartProps) {
   const group = groupOfStep(status, step)
   const [dialog, setDialog] = useState<ProviderName | null>(null)
   const [note, setNote] = useState<string | null>(null)
   const emailByLog = step === 'email' && setup.emailDelivery === 'log'
-  const waiting = step === 'email' && setup.restart.pending
   const ready = group.state !== 'missing' || emailByLog
   useWalkKeys(ready ? onNext : null, onBack)
 
@@ -526,26 +521,8 @@ function PartStep({ step, number, data, status, setup, restarting, reloadAll, on
         embedded
       />
 
-      {waiting && (
-        <Note role="status">
-          {setup.restart.automatic ? (
-            <>
-              <Spinner /> {restarting ? 'Restarting the server' : 'Waiting for the server to restart'} so it uses the
-              new email settings. This takes a few seconds.
-            </>
-          ) : (
-            <>
-              Email settings are read when the API starts. Restart the API (with pnpm dev, stop it and start it again);
-              this page continues on its own once the API is running with the new settings.
-            </>
-          )}
-        </Note>
-      )}
-
       {/* No email provider in development: codes go to the API log, and Try it shows they do. */}
-      {emailByLog && group.state === 'missing' && !waiting && (
-        <TryOut kind="email" primary={false} onTried={reloadAll} />
-      )}
+      {emailByLog && group.state === 'missing' && <TryOut kind="email" primary={false} onTried={reloadAll} />}
 
       {note && (
         <p className="as-small" role="status">

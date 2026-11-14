@@ -10,9 +10,10 @@ import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import { refuseOtherAccountsPasskey } from '../src/passkeys.ts'
 import { emailSender } from '../src/email.ts'
+import nodemailer from 'nodemailer'
 import type * as RunActionModule from '../src/run-action.ts'
 import { PRIVATE_ENDPOINT } from '../src/s3-endpoint.ts'
-import { forAgent, installPartDone, SETUP_ACTIONS } from '../src/setup-mcp.ts'
+import { devNumberLine, forAgent, installPartDone, SETUP_ACTIONS } from '../src/setup-mcp.ts'
 import { hashSetupKey } from '../src/agent-setup.ts'
 import { runAction } from '../src/run-action.ts'
 import {
@@ -522,6 +523,19 @@ describe('every key through the agent (LIN-182)', () => {
     })
   })
 
+  test('the phone step offers the simulated dev number only on an install that is not public', () => {
+    // The tests run on localhost.
+    expect(devNumberLine().join(' ')).toMatch(/TELEPHONY_PROVIDER=dev .*restart.*simulated number/)
+    const before = process.env.PUBLIC_URL
+    process.env.PUBLIC_URL = 'https://desk.example.com'
+    try {
+      expect(devNumberLine()).toEqual([])
+    } finally {
+      if (before === undefined) delete process.env.PUBLIC_URL
+      else process.env.PUBLIC_URL = before
+    }
+  })
+
   test('forAgent turns the app wording (under Admin › Providers) into what the agent does', () => {
     expect(
       forAgent('Deepgram rejected the key (HTTP 401). Enter a valid key under Admin › Providers › Deepgram.'),
@@ -543,17 +557,15 @@ describe('every key through the agent (LIN-182)', () => {
     expect(JSON.stringify(res.body)).not.toContain(SECRET)
   })
 
-  test('with the passkey rule off (as in the app), email is stored and tested at once', async () => {
+  test('with the passkey rule off (as in the app), email is stored and tested at once, no restart', async () => {
     const { key } = await makeKey(ws.owner)
     const res = await call(key, 'provider_setKeys', {
       provider: 'resend',
       values: { api_key: SECRET, from: 'desk@brightwater.test' },
     })
-    expect(data(res)).toMatchObject({
-      ok: true,
-      test: { ok: expect.any(Boolean) },
-      note: expect.stringMatching(/restarts/),
-    })
+    expect(data(res)).toMatchObject({ ok: true, test: { ok: expect.any(Boolean) } })
+    // Email applies at once: no restart to wait for.
+    expect(data(res)).not.toHaveProperty('note')
     expect(JSON.stringify(res.body)).not.toContain(SECRET)
     expect(await db.select().from(provider_settings).where(eq(provider_settings.provider, 'resend'))).toHaveLength(2)
   })
@@ -1006,8 +1018,20 @@ describe('every key through the agent (LIN-182)', () => {
   })
 
   test('the alert for an email or sign-in change says it came through the agent and names the link (L2)', async () => {
+    // Email alerts go through the sender before the change (here the API log, EMAIL_TO_LOG) and the new one (Resend,
+    // nodemailer's transport replaced): both are collected.
     const mails: { subject: string; text: string }[] = []
-    const send = vi.spyOn(emailSender, 'send').mockImplementation(async e => void mails.push(e))
+    const log = console.log
+    vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      const line = String(args[0])
+      const logged = line.match(/\nSubject: (.*)\n\n([\s\S]*)\n$/)
+      if (line.includes('[email, not sent') && logged) mails.push({ subject: logged[1]!, text: logged[2]! })
+      else log(...args)
+    })
+    vi.spyOn(nodemailer, 'createTransport').mockImplementation((() => ({
+      sendMail: async (mail: { subject: string; text: string }) => void mails.push(mail),
+      verify: async () => true,
+    })) as never)
     const made = await makeKey(ws.owner)
     expect(
       data(
@@ -1027,7 +1051,7 @@ describe('every key through the agent (LIN-182)', () => {
     await act(ws.owner, 'provider.clearKeys', { provider: 'resend' })
     await vi.waitFor(() => expect(mails.some(m => /Resend settings removed$/.test(m.subject))).toBe(true))
     expect(mails.find(m => /Resend settings removed/.test(m.subject))!.text).toMatch(/\(Admin, Providers\)/)
-    send.mockRestore()
+    vi.restoreAllMocks()
   })
 
   test('the test email round trip and the install progress are agent tools', async () => {

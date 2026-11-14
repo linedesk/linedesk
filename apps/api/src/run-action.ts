@@ -170,17 +170,20 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   // transaction does not commit: the handler threw, the command could not be logged, or the commit failed.
   const undos: Undo[] = []
   const onRollback = (undo: Undo) => void undos.push(undo)
+  const committed: (() => Promise<void>)[] = []
+  const onCommit = (work: () => Promise<void>) => void committed.push(work)
   try {
     const prepare = preparers[name]
     const prepared = prepare ? await prepare({ actor, now: new Date().toISOString(), onRollback }, parsed.data) : undefined
     const body = await db.transaction(async tx => {
-      const ctx = { tx, actor, now: new Date().toISOString(), onRollback, prepared }
+      const ctx = { tx, actor, now: new Date().toISOString(), onRollback, onCommit, prepared }
       const result: ActionResult = { ok: true, ...(await runHandler(ctx, def, parsed.data)) }
       // A secret in the result (a new API key) goes to the caller once and never into the log, so a replay does not repeat it.
       // Rows only by id (a replay reads them again), and no secret or personal data (command-log.ts).
       await tx.insert(commands).values({ ...record, result: storedResult(def, result) })
       return result
     })
+    for (const work of committed) await work().catch(e => console.error(`${name}: after the commit`, e))
     return { status: 200, body }
   } catch (e) {
     const undone = await runUndos(undos)

@@ -6,7 +6,7 @@
 // included, and changing email or sign-in settings (an SMTP server or sign-in provider of an
 // attacker's own would hand them sign-in codes or any account). Admins without a passkey add their first with the enrolment code (passkey-enrolment.ts).
 // The server operator (CLI) needs none.
-import { type ActionDef, providerNames, providerSpec, restartCategories } from '@linedesk/actions'
+import { type ActionDef, providerNames, providerSpec, signInCategories } from '@linedesk/actions'
 import { member, passkey, session, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { adminSecondFactorRequired, signedInWithin } from './admin-second-factor.ts'
@@ -74,12 +74,12 @@ async function targetUserId(fields: { userId?: unknown; memberId?: unknown }): P
 export function changesSignInOrEmail(name: string, input: unknown): boolean {
   if (name === 'provider.setActive') {
     const category = (input as { category?: unknown } | null)?.category
-    return typeof category === 'string' && (restartCategories as readonly string[]).includes(category)
+    return typeof category === 'string' && (signInCategories as readonly string[]).includes(category)
   }
   if (name !== 'provider.setKeys' && name !== 'provider.clearKeys') return false
   const provider = (input as { provider?: unknown } | null)?.provider
   if (typeof provider !== 'string' || !(providerNames as string[]).includes(provider)) return false
-  return restartCategories.includes(providerSpec(provider as (typeof providerNames)[number]).category)
+  return signInCategories.includes(providerSpec(provider as (typeof providerNames)[number]).category)
 }
 
 /** Whether this admin action needs a passkey sign-in: see the file comment. */

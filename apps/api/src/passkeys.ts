@@ -7,7 +7,7 @@ import { APIError, type createAuthMiddleware, getSessionFromCtx, isAPIError } fr
 import { eq } from 'drizzle-orm'
 import { passkeyConfirmed } from './admin-second-factor.ts'
 import { db } from './db.ts'
-import { emailSender } from './email.ts'
+import { sendNotice } from './email.ts'
 import { passkeyChangedEmail } from './emails/templates.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { clearPasskeyEnrolment, ENROLMENT_HEADER, enrolmentCodeValid, enrolmentPending } from './passkey-enrolment.ts'
@@ -176,8 +176,7 @@ export async function notifyPasskeyChange(ctx: Parameters<Parameters<typeof crea
     const userId = (ctx.context.session as { user?: { id?: string } } | null)?.user?.id
     if (userId) await clearPasskeyEnrolment(userId)
   }
-  // Not awaited: the change is made; a slow or broken mail server must not fail it.
-  void emailSender
-    .send({ to: email, ...passkeyChangedEmail(change) })
-    .catch(err => console.error('passkey email failed', err))
+  // Not awaited: the change is made; a slow or broken mail server must not fail it. A fresh install has no email yet
+  // (its first admin adds a passkey before connecting it): one log line, no error.
+  sendNotice({ to: email, ...passkeyChangedEmail(change) }, 'passkey email')
 }

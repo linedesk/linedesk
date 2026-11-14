@@ -3,15 +3,28 @@
 // instance admins only, real requests to the provider in use (stubbed here), the result in the setup checklist, and
 // no key or audio in the command log. Sets provider keys and instance settings, so it is one of the instance-wide
 // files (vitest.config.ts).
-import { commands, instance_settings, provider_settings, user } from '@linedesk/db'
+import { commands, instance_settings, provider_settings, user, verification } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
+import nodemailer from 'nodemailer'
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
 import { forgetEmailCodes, wordMatch } from '../src/install-setup.ts'
+import { followEmailSettings } from '../src/instance-env.ts'
+import { instanceAdminEmails } from '../src/instance-admin.ts'
 import { forgetTests } from '../src/setup-checklist.ts'
 import { PREVIEW_TEXT } from '../src/voices.ts'
-import { act, addMember, createWorkspace, request, type User, type Workspace } from './helpers.ts'
+import {
+  act,
+  addMember,
+  anonymous,
+  createWorkspace,
+  FROM,
+  randomIp,
+  request,
+  type User,
+  type Workspace,
+} from './helpers.ts'
 
 const SECRET = 'KEY-made-up-install-0123456789'
 
@@ -303,6 +316,128 @@ describe('email round trip', () => {
     const wrong = code === '000000' ? '111111' : '000000'
     for (let i = 0; i < 5; i++) await act(operator, 'provider.confirmEmail', { code: wrong })
     expect((await act(operator, 'provider.confirmEmail', { code })).status).toBe(409)
+  })
+})
+
+describe('email saved in the app works at once (no restart)', () => {
+  const ORIGIN = 'http://localhost:5173'
+  const requestCode = (email: string) =>
+    request(
+      anonymous,
+      'POST',
+      '/api/auth/email-otp/send-verification-otp',
+      { email, type: 'sign-in' },
+      { origin: ORIGIN, [FROM]: randomIp() },
+    )
+  const URL_A = 'smtp://desk:made-up-password@smtp-a.example.com:587'
+  const URL_B = 'smtp://desk:made-up-password@smtp-b.example.com:587'
+  type Mail = { via: string; from?: unknown; to?: unknown; subject?: unknown; text?: unknown }
+
+  let admin: User
+  let adminEmail: string
+  /** What the real SMTP sender would send, with nodemailer's transport replaced, and through which server. */
+  let mails: Mail[]
+  const tryEmail = async () => {
+    const res = await act(admin, 'provider.tryOut', { kind: 'email' })
+    expect(res.status, JSON.stringify(res.body)).toBe(200)
+    return res.body.data as TryOut
+  }
+  const saveSmtp = async (url: string) => {
+    const res = await act(admin, 'provider.setKeys', { provider: 'smtp', values: { url, from: 'Desk <desk@example.com>' } })
+    expect(res.status, JSON.stringify(res.body)).toBe(200)
+  }
+  const sent = (subject: RegExp) => mails.filter(m => subject.test(String(m.subject)))
+
+  beforeEach(async () => {
+    // Started without email: no SMTP_URL, no EMAIL_TO_LOG, nothing stored.
+    process.env.EMAIL_TO_LOG = ''
+    await followEmailSettings(db)
+    // An admin of its own: the email round trips above used up the operator's hourly tries.
+    admin = (await createWorkspace('Fresh Install')).owner
+    await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, admin.userId))
+    adminEmail = (await db.select({ email: user.email }).from(user).where(eq(user.id, admin.userId)))[0]!.email
+    mails = []
+    vi.spyOn(nodemailer, 'createTransport').mockImplementation(((options: { url: string }) => ({
+      sendMail: async (mail: Omit<Mail, 'via'>) => void mails.push({ via: options.url, ...mail }),
+      verify: async () => true,
+    })) as never)
+  })
+  afterEach(async () => {
+    process.env.EMAIL_TO_LOG = 'true'
+    await db.delete(provider_settings)
+    await db.delete(instance_settings)
+    await followEmailSettings(db)
+  })
+
+  test('an install without email: SMTP saved, then the test email and a sign-in code go out through it', async () => {
+    const before = await tryEmail()
+    expect(before).toMatchObject({ ok: false, message: 'No email is set up yet.' })
+    expect((await requestCode(adminEmail)).status).toBe(404)
+    expect((await request(anonymous, 'GET', '/v1/auth-methods')).body.emailCode).toBe(false)
+
+    await saveSmtp(URL_A)
+    expect((await act(admin, 'provider.setActive', { category: 'email', provider: 'smtp' })).status).toBe(200)
+    expect((await request(admin, 'GET', '/v1/admin/install-setup')).body).toMatchObject({
+      restart: { pending: false },
+      emailDelivery: 'smtp',
+    })
+    // The first setup had no sender before: the alert goes through the new one.
+    await vi.waitFor(() => expect(sent(/^SMTP settings changed/).map(m => m.via)).toContain(URL_A))
+
+    const after = await tryEmail()
+    expect(after).toMatchObject({ ok: true, provider: 'Email', sentTo: adminEmail })
+    const test = sent(/is your Linedesk test code$/)
+    expect(test).toEqual([expect.objectContaining({ via: URL_A, to: adminEmail, from: 'Desk <desk@example.com>' })])
+    // The code arrived: the checklist calls email working, for the settings that sent it.
+    const code = String(test[0]!.text).match(/\b(\d{6})\b/)![1]!
+    expect((await act(admin, 'provider.confirmEmail', { code })).status).toBe(200)
+    expect((await checklistGroup('email')).state).toBe('works')
+
+    // Sign-in by code is offered and its code goes out, without a restart.
+    expect((await request(anonymous, 'GET', '/v1/auth-methods')).body.emailCode).toBe(true)
+    expect((await requestCode(adminEmail)).status).toBe(200)
+    await vi.waitFor(() => expect(sent(/is your .* code$|^\d{6}/).some(m => m.via === URL_A && m.to === adminEmail)).toBe(true))
+
+    // Removed again: nothing goes out, and the code endpoints are gone.
+    expect((await act(admin, 'provider.clearKeys', { provider: 'smtp' })).status).toBe(200)
+    expect(await tryEmail()).toMatchObject({ ok: false, message: 'No email is set up yet.' })
+    expect((await requestCode(adminEmail)).status).toBe(404)
+  })
+
+  test('a change of the mail server is told through the previous one; its pending codes stop working', async () => {
+    await saveSmtp(URL_A)
+    const admins = (await instanceAdminEmails()).length
+    await vi.waitFor(() => expect(sent(/^SMTP settings changed/)).toHaveLength(admins))
+    mails.length = 0
+    // A code the previous server delivered (or kept) is pending.
+    const identifier = `sign-in-otp-${adminEmail}`
+    await db.insert(verification).values({
+      id: crypto.randomUUID(),
+      identifier,
+      value: 'hashed:0',
+      expiresAt: new Date(Date.now() + 600_000),
+    })
+
+    await saveSmtp(URL_B)
+    // Through A, the server in effect before: a server of an attacker's own cannot swallow the alert about itself.
+    // Through B as well, the one that sends from now on.
+    await vi.waitFor(() => expect(sent(/^SMTP settings changed/)).toHaveLength(2 * admins))
+    expect(sent(/^SMTP settings changed/).filter(m => m.via === URL_A)).toHaveLength(admins)
+    expect(await db.select().from(verification).where(eq(verification.identifier, identifier))).toEqual([])
+
+    // Removed: told through B before it disappears.
+    mails.length = 0
+    expect((await act(admin, 'provider.clearKeys', { provider: 'smtp' })).status).toBe(200)
+    await vi.waitFor(() => expect(sent(/^SMTP settings removed/)).toHaveLength(admins))
+    expect(sent(/^SMTP settings removed/).every(m => m.via === URL_B)).toBe(true)
+
+    // Picking which provider sends is told as well, through the sender before the switch.
+    await saveSmtp(URL_A)
+    mails.length = 0
+    expect((await act(admin, 'provider.setActive', { category: 'email', provider: 'resend' })).status).toBe(200)
+    // Resend has no keys stored, so nothing sends after the switch: only A has it.
+    await vi.waitFor(() => expect(sent(/^Email now sent with Resend/)).toHaveLength(admins))
+    expect(sent(/^Email now sent with Resend/).every(m => m.via === URL_A)).toBe(true)
   })
 })
 

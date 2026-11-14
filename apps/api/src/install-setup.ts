@@ -25,7 +25,7 @@ import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
-import { restartState } from './instance-env.ts'
+import { followEmailSettings, restartState } from './instance-env.ts'
 import { problemOfError, problemOfResponse } from './provider-errors.ts'
 import { activeProvider, type ProviderConfig, telephonyProvider } from './provider-settings.ts'
 import { createRateLimiter } from './rate-limit.ts'
@@ -102,7 +102,9 @@ const emailLimit = createRateLimiter({ max: 5, windowMs: 3_600_000 })
 
 /** The code of the last test email per admin: only its hash, for ten minutes, five tries. */
 const EMAIL_CODE_MS = 10 * 60_000
-const emailCodes = new Map<string, { hash: string; expires: number; tries: number }>()
+/** `sentWith`: the email provider and settings that sent it (a real mail server, not the API log), for the checklist. */
+type SentWith = { provider: ProviderName; config: ProviderConfig } | null
+const emailCodes = new Map<string, { hash: string; expires: number; tries: number; sentWith: SentWith }>()
 const hashCode = (code: string) => createHash('sha256').update(code).digest('hex')
 /** For the tests: forget every pending code. */
 export const forgetEmailCodes = () => emailCodes.clear()
@@ -305,13 +307,14 @@ async function tryCarrier(tx: Tx, areaCode: string): Promise<Tried> {
 }
 
 async function tryEmail(tx: Tx, actorId: string): Promise<Tried> {
+  // The settings stored now, also when another API process saved them a moment ago.
+  await followEmailSettings(tx)
   if (emailSender.kind === 'none') return failed(null, 'No email is set up yet.')
-  // The API sends with the settings it started with: a saved change is tried once it runs with it.
-  if ((await restartState(db)).pending)
-    return failed(null, 'The new email settings take effect after the API restarts. Try again then.')
   const [me] = await tx.select({ email: user.email }).from(user).where(eq(user.id, actorId))
   if (!me?.email) return failed(null, 'Your account has no email address.')
   const code = String(randomInt(0, 1_000_000)).padStart(6, '0')
+  // Which settings send it, read before sending (a real mail server only, not the API log).
+  const active = emailSender.kind === 'smtp' ? await activeProvider(tx, 'email') : null
   const sent = await emailSender
     .send({
       to: me.email,
@@ -328,7 +331,10 @@ async function tryEmail(tx: Tx, actorId: string): Promise<Tried> {
     )
   if (!sent)
     return failed(null, 'The test email could not be sent. Check the email settings; the API log has the details.')
-  emailCodes.set(actorId, { hash: hashCode(code), expires: Date.now() + EMAIL_CODE_MS, tries: 0 })
+  // Settings saved meanwhile (another admin): not known which ones sent it, so the checklist records nothing.
+  const changed = await followEmailSettings(tx)
+  const sentWith = active && !changed ? { provider: active.provider, config: active.config } : null
+  emailCodes.set(actorId, { hash: hashCode(code), expires: Date.now() + EMAIL_CODE_MS, tries: 0, sentWith })
   const where =
     emailSender.kind === 'log' ? ' It was written to the API log (EMAIL_TO_LOG), not sent to a real inbox.' : ''
   return {
@@ -427,11 +433,11 @@ export const installSetupHandlers: Record<string, Handler> = {
     pending.tries++
     if (pending.hash !== hashCode(input.code)) throw new Reject('That is not the code from the email.')
     emailCodes.delete(actor.actorId)
-    // Delivery works end to end: the email row of the checklist says so, when a real mail server sent it with the
-    // settings stored now (not the API log, not settings a restart has not picked up yet).
-    const email = await activeProvider(tx, 'email')
-    if (email && emailSender.kind === 'smtp' && !(await restartState(db)).pending)
-      await rememberTest(tx, email.provider, email.config, { ok: true, message: 'Test email arrived' })
+    // Delivery works end to end: the email row of the checklist says so for the settings that sent the code, when a
+    // real mail server sent it (not the API log). Settings changed since then count as untested there.
+    const { sentWith } = pending
+    if (sentWith)
+      await rememberTest(tx, sentWith.provider, sentWith.config, { ok: true, message: 'Test email arrived' })
     return { rows: {}, data: { ok: true, message: 'Email works: the code arrived.' } }
   },
 }

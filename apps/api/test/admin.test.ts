@@ -2555,8 +2555,7 @@ describe('memberships across workspaces', () => {
       sent.push(e.to)
       texts.push(e.text)
     })
-    const kind = emailSender.kind
-    Object.assign(emailSender, { kind: 'log' })
+    vi.spyOn(emailSender, 'kind', 'get').mockReturnValue('log')
     try {
       const invitee = await signUp()
       const email = (await emailOf(invitee)).toUpperCase()
@@ -2592,7 +2591,7 @@ describe('memberships across workspaces', () => {
       expect((await db.select().from(invitation).where(eq(invitation.id, again)))[0]?.status).toBe('canceled')
     } finally {
       send.mockRestore()
-      Object.assign(emailSender, { kind })
+      vi.restoreAllMocks()
     }
   })
 

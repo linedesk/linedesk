@@ -25,7 +25,7 @@ import { clientIpOf, withClientIp } from './client-ip.ts'
 import { MCP_MAX_BODY_BYTES, serveMcp } from './mcp.ts'
 import { serveSetupMcp } from './setup-mcp.ts'
 import { setsUpByHand } from './install-setup.ts'
-import { authMethods } from './auth-methods.ts'
+import { authMethods, currentAuthMethods } from './auth-methods.ts'
 import { browserErrorReporting, errorReportingEnabled, type ReportedUser, reportError } from './error-reporting.ts'
 import { currentBranding, manifestFor, readLogo } from './branding.ts'
 import { profileChangedBy } from './team-member-edit.ts'
@@ -113,7 +113,7 @@ app.use('/v1/*', refuseCrossSite(TRUSTED_ORIGINS))
 
 // Public: the sign-in screen asks which methods this install offers, and whether it still needs its first admin.
 app.get('/v1/auth-methods', async c =>
-  c.json({ ...authMethods, errorReporting: browserErrorReporting(), setupNeeded: await setupNeeded(db) }),
+  c.json({ ...currentAuthMethods(), errorReporting: browserErrorReporting(), setupNeeded: await setupNeeded(db) }),
 )
 
 // Public: the product name, logo and color an instance admin set (branding.ts), for every page including sign-in.

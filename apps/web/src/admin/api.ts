@@ -153,7 +153,7 @@ export type AdminData = {
   /** What the status needs besides the providers: how assistants answer, email to the log, the dev carrier. */
   statusContext: StatusContext
 }
-export type StatusContext = Pick<StatusInput, 'assistantPipelines' | 'emailToLog' | 'devCarrier'>
+export type StatusContext = Pick<StatusInput, 'assistantPipelines' | 'emailToLog' | 'devCarrier' | 'signInPending'>
 
 /** Thrown when the admin area's sign-in has run out (more than 1 hour, 12 with a passkey) or the email is unconfirmed. */
 export class AdminSignInRequired extends Error {
@@ -348,7 +348,7 @@ export const loadOverview = () => get<AdminOverview>('/v1/admin/overview')
 export const loadAgentSetup = () => get<AgentSetupState>('/v1/admin/agent-setup')
 /** The same without the progress (quick): the Allow dialog opens as soon as the key is known. */
 export const loadAgentSetupKey = () => get<Omit<AgentSetupState, 'progress'>>('/v1/admin/agent-setup?part=key')
-/** Install setup by hand (InstallSetup.tsx): where it is, and whether a saved email or sign-in change waits for a restart. */
+/** Install setup by hand (InstallSetup.tsx): where it is, and whether a saved sign-in change waits for a restart. */
 export const loadInstallSetup = () => get<InstallSetupState>('/v1/admin/install-setup')
 
 /**

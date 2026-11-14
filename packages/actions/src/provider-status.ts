@@ -202,6 +202,8 @@ export type StatusInput = {
   emailToLog?: boolean
   /** TELEPHONY_PROVIDER=dev: the line that says so, when no carrier is in use. */
   devCarrier?: string | null
+  /** Sign-in settings were saved but the API still runs with the ones it started with (it restarts to apply them). */
+  signInPending?: boolean
 }
 
 export type ProviderLine = {
@@ -421,8 +423,13 @@ export function statusGroups(input: StatusInput): StatusGroups {
         return answering(input, inUse)
       case 'call-audio':
         return callAudio(input.callAudio)
-      case 'sign-in':
-        return several(configured(providersIn('sign_in')))
+      case 'sign-in': {
+        const apps = several(configured(providersIn('sign_in')))
+        // A test passes before the API runs with the new settings: until it restarted, it is not in effect.
+        if (!input.signInPending || apps.state === 'off') return apps
+        const later = 'saved, takes effect after the API restarts'
+        return { ...apps, state: 'partly', detail: later, message: 'Saved, takes effect after the API restarts.' }
+      }
       case 'calendar':
         return several(configured(CALENDAR_APPS))
       case 'recording': {

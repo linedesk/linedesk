@@ -85,3 +85,9 @@ export const mustConfirmEmail = (emailVerified: boolean | null | undefined, env:
 
 export const authConfig = readAuthConfig(process.env)
 export const authMethods = authConfig.methods
+
+/** Whether codes by email can go out now: email connected in Server admin › Providers applies without a restart. */
+export const emailCodesOn = (env: Env = process.env) => emailDelivery(env) !== 'none'
+
+/** The sign-in methods as offered now (the sign-in screen): read at start, except email codes, which follow email. */
+export const currentAuthMethods = (): AuthMethods => ({ ...authMethods, emailCode: emailCodesOn() })

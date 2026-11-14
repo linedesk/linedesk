@@ -3,7 +3,7 @@ import { betterAuth } from 'better-auth'
 import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { emailOTP, genericOAuth, organization } from 'better-auth/plugins'
-import { authConfig } from './auth-methods.ts'
+import { authConfig, emailCodesOn } from './auth-methods.ts'
 import {
   accountLinkingHooks,
   dropUnprovenAccessBeforeEmailLink,
@@ -106,7 +106,17 @@ export function refuseIdTokenSignIn(ctx: { path: string; body?: unknown }) {
   throw new APIError('FORBIDDEN', { code: 'ID_TOKEN_SIGN_IN_OFF', message: "Sign in on the provider's page." })
 }
 
+/**
+ * The email code endpoints (sign-in, confirmation, password reset, email change) are there only while email can go
+ * out. The plugin is always loaded, so email connected in Server admin › Providers turns them on without a restart.
+ */
+export const isEmailCodePath = (path: string) => path.startsWith('/email-otp/') || path.endsWith('/email-otp')
+function refuseEmailCodesWithoutEmail(ctx: { path: string }) {
+  if (isEmailCodePath(ctx.path) && !emailCodesOn()) throw new APIError('NOT_FOUND')
+}
+
 const beforeAuthEndpoints = createAuthMiddleware(async ctx => {
+  refuseEmailCodesWithoutEmail(ctx)
   refuseIdTokenSignIn(ctx)
   await limitSignIns(ctx)
   await refuseWhileImpersonating(ctx)
@@ -290,20 +300,17 @@ export const auth = betterAuth({
       },
     }),
     // Email sign-in by a typed code: 6 digits, 10 minutes, 3 tries per code, stored hashed, at most 3 requests a minute per IP.
-    // The same codes move an account to a new address (email-change.ts).
-    ...(methods.emailCode
-      ? [
-          emailOTP({
-            sendVerificationOTP: sendSignInCode,
-            otpLength: 6,
-            expiresIn: 600,
-            allowedAttempts: ALLOWED_TRIES,
-            storeOTP: 'hashed',
-            rateLimit: { window: 60, max: 3 },
-            changeEmail: { enabled: true },
-          }),
-        ]
-      : []),
+    // The same codes move an account to a new address (email-change.ts). Answered only while email can go out
+    // (refuseEmailCodesWithoutEmail), so connecting email needs no restart.
+    emailOTP({
+      sendVerificationOTP: sendSignInCode,
+      otpLength: 6,
+      expiresIn: 600,
+      allowedAttempts: ALLOWED_TRIES,
+      storeOTP: 'hashed',
+      rateLimit: { window: 60, max: 3 },
+      changeEmail: { enabled: true },
+    }),
     // Passkeys sign in existing accounts only; they are added in Account settings (passkeys.ts).
     ...(methods.passkey ? [passkeyPlugin(process.env)] : []),
     // Like Google: no email unless the provider says it is verified (`email_verified`) or the address is on a domain listed in OIDC_TRUST_EMAIL_DOMAINS, so an unproven address creates nobody.

@@ -10,8 +10,8 @@ import { act, addMember, agent, anonymous, appRequest, createWorkspace, FROM, ra
 
 const ORIGIN = 'http://localhost:5173'
 const sent: Email[] = []
-// Email is off in the test env; collect what would be sent instead.
-Object.assign(emailSender, { kind: 'log', send: async (email: Email) => void sent.push(email) })
+// The test env prints email to the log (EMAIL_TO_LOG); collect what would be sent instead.
+Object.assign(emailSender, { send: async (email: Email) => void sent.push(email) })
 
 const newEmail = () => `invitee_${crypto.randomUUID().slice(0, 8)}@linedesk.test`
 const verify = (u: User) => db.update(user).set({ emailVerified: true }).where(eq(user.id, u.userId))

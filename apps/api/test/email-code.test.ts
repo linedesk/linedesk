@@ -6,6 +6,7 @@ import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
 import { APIError } from 'better-auth/api'
+import { auth, isEmailCodePath } from '../src/auth.ts'
 import { CLIENT_IP_HEADER } from '../src/client-ip.ts'
 import { countSignInFailures, limitSignIns } from '../src/sign-in-limits.ts'
 import { anonymous, createWorkspace, randomIp, request, type Workspace, FROM } from './helpers.ts'
@@ -146,6 +147,35 @@ describe('signing in with a code', () => {
       await countSignInFailures(at(other, '203.0.113.8', '/sign-in/email-otp', new APIError('TOO_MANY_REQUESTS')))
     }
     await expect(limitSignIns(at(other, '203.0.113.8'))).resolves.toBeUndefined()
+  })
+})
+
+describe('without email', () => {
+  // Every endpoint of Better Auth's email OTP plugin, read from the plugin itself: one added by an update that does
+  // not match the path check fails here instead of answering while no email can go out.
+  const plugin = (auth.options.plugins as { id: string; endpoints?: Record<string, unknown> }[]).find(
+    p => p.id === 'email-otp',
+  )!
+  const api = auth.api as unknown as Record<string, { path?: string }>
+  // Endpoints without a path (createVerificationOTP, getVerificationOTP) are server-only: not reachable over HTTP.
+  const paths = Object.keys(plugin.endpoints!).flatMap(name => api[name]?.path ?? [])
+
+  test('the email OTP plugin has its endpoints, and the path check covers each', () => {
+    expect(paths).toEqual(expect.arrayContaining(['/sign-in/email-otp', '/email-otp/send-verification-otp']))
+    expect(paths.length).toBeGreaterThanOrEqual(9)
+    expect(paths.filter(path => !isEmailCodePath(path))).toEqual([])
+  })
+
+  test('each of them answers 404 while email cannot go out', async () => {
+    process.env.EMAIL_TO_LOG = ''
+    try {
+      for (const path of paths) {
+        const res = await request(anonymous, 'POST', `/api/auth${path}`, { email: 'a@linedesk.test', otp: '123456', type: 'sign-in', newEmail: 'b@linedesk.test', password: 'new-password-123' }, { origin: ORIGIN, [FROM]: randomIp() })
+        expect(res.status, path).toBe(404)
+      }
+    } finally {
+      process.env.EMAIL_TO_LOG = 'true'
+    }
   })
 })
 

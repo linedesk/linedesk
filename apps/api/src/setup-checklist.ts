@@ -24,7 +24,7 @@ import {
 import { assistants, provider_settings, provider_tests, type Tx } from '@linedesk/db'
 import { eq, isNull, max } from 'drizzle-orm'
 import { emailDelivery } from './auth-methods.ts'
-import { serverEnv } from './instance-env.ts'
+import { restartState, serverEnv } from './instance-env.ts'
 import { type LivekitStatus, livekitStatus } from './livekit-status.ts'
 import { listProviderFailures } from './provider-failures.ts'
 import { type ProviderConfig, providerStatus, resolveProvider, voicePipelinePolicy } from './provider-settings.ts'
@@ -166,7 +166,8 @@ async function assistantPipelines(tx: Tx): Promise<(VoicePipeline | null)[]> {
 
 /**
  * What else the status needs besides the providers (GET /v1/admin/providers `status`, so the web app computes the same):
- * how each assistant answers, whether email codes go to the log, and the development carrier's line.
+ * how each assistant answers, whether email codes go to the log, the development carrier's line, and whether saved
+ * sign-in settings wait for a restart.
  */
 export async function statusContext(tx: Tx, env: Env = serverEnv(), facts?: readonly ProviderFact[]) {
   const providers = facts ?? (await providerFacts(tx, env))
@@ -177,6 +178,7 @@ export async function statusContext(tx: Tx, env: Env = serverEnv(), facts?: read
     assistantPipelines: await assistantPipelines(tx),
     emailToLog: emailDelivery(env) === 'log',
     devCarrier: !telephonyInUse && env.TELEPHONY_PROVIDER === 'dev' ? devCarrierMessage(providers) : null,
+    signInPending: (await restartState(tx)).pending,
   }
 }
 

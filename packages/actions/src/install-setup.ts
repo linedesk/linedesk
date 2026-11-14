@@ -133,8 +133,8 @@ export type InstallSetupState = {
   enabled: boolean
   progress: InstallProgress
   /**
-   * Email and sign-in are read at start: `pending` while a saved change waits for a restart; `automatic` when the API
-   * restarts itself (Docker), else the admin restarts it.
+   * Sign-in is read at start: `pending` while a saved change waits for a restart; `automatic` when the API restarts
+   * itself (Docker), else the admin restarts it. Email applies at once.
    */
   restart: { pending: boolean; automatic: boolean }
   emailDelivery: 'smtp' | 'log' | 'none'

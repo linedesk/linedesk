@@ -1,22 +1,25 @@
 // Server handlers of the admin area actions (packages/actions/src/admin.ts).
 import {
   type MembershipRole,
+  type ProviderCategory,
   type ProviderName,
   providerSpec,
-  restartCategories,
+  signInCategories,
   type UserInviteData,
 } from '@linedesk/actions'
 import { agent_setup_keys, organization, session, spending_cap_alerts, type Tx, user } from '@linedesk/db'
 import { emailDelivery } from './auth-methods.ts'
-import { emailSender, sendNotice } from './email.ts'
+import { createEmailSender, type EmailSender, emailSender, emailSettingsOf, sendNotice } from './email.ts'
 import { emailSafeName, passkeyEnrolmentIssuedEmail, welcomeEmail } from './emails/templates.ts'
 import { db } from './db.ts'
 import { and, eq, or, sql } from 'drizzle-orm'
-import { Forbidden, type Handler, Reject } from './handler-context.ts'
+import { Forbidden, type Handler, type HandlerCtx, Reject } from './handler-context.ts'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { mayReceiveEnrolmentCode } from './admin-step-up.ts'
 import type { Actor } from './context.ts'
-import { checkInstanceEnvSoon } from './instance-env.ts'
+import { checkInstanceEnvSoon, followEmailSettings } from './instance-env.ts'
+import { forgetEmailCodes } from './install-setup.ts'
+import { dropPendingEmailCodes } from './verifications.ts'
 import { anotherAdminRemains, isEnvAdmin, isInstanceAdmin } from './instance-admin.ts'
 import {
   issueFirstPasskeyEnrolment,
@@ -170,18 +173,55 @@ async function alertAdminGranted(actor: Actor, email: string) {
 }
 
 /**
- * Sign-in and email settings are read at start (instance-env.ts): a change restarts the API. Every
- * instance admin is told, like about other changes that could hand over accounts (admin-alerts.ts).
+ * The senders an alert about an email change goes through: the one in effect before it, so a mail server of an
+ * attacker's own cannot swallow the alert about itself; the new one too when it differs (the first setup has no
+ * previous one).
  */
-async function applyAfterCommit(provider: ProviderName, actor: Actor, cleared = false) {
-  const { category, label } = providerSpec(provider)
-  if (!restartCategories.includes(category)) return
-  checkInstanceEnvSoon(db)
+function alertSenders(before: EmailSender, beforeSettings: string): EmailSender[] {
+  const after = createEmailSender({ ...process.env })
+  if (before.kind === 'none') return [after]
+  if (emailSettingsOf(process.env) === beforeSettings || after.kind === 'none') return [before]
+  return [before, after]
+}
+
+/** What changed, for the alert: its subject ("Resend settings changed") and what the actor did ("changed the …"). */
+type Change = { subject: string; did: string; actor: Actor }
+const keysChange = (provider: ProviderName, what: 'changed' | 'removed', actor: Actor): Change => {
+  const { label } = providerSpec(provider)
+  return { subject: `${label} settings ${what}`, did: `${what} the ${label} settings`, actor }
+}
+
+/** Every instance admin hears about a change of email or sign-in (admin-alerts.ts), through `senders`. */
+async function alertChange({ subject, did, actor }: Change, senders: EmailSender[] = [emailSender]) {
   const how = await viaWhat(actor)
-  await alertInstanceAdmins(
-    `${label} settings ${cleared ? 'removed' : 'changed'}${how.subject}`,
-    `${await actorName(actor)} ${cleared ? 'removed' : 'changed'} the ${label} settings ${how.body}. They decide how people sign in or get sign-in codes.\n\nIf you did not expect this, sign in with your passkey and check Admin, Providers and Audit log.${how.after}`,
-  )
+  const text = `${await actorName(actor)} ${did} ${how.body}. They decide how people sign in or get sign-in codes.\n\nIf you did not expect this, sign in with your passkey and check Admin, Providers and Audit log.${how.after}`
+  for (const sender of senders) await alertInstanceAdmins(`${subject}${how.subject}`, text, sender)
+}
+
+/**
+ * After a change of email or sign-in, once it committed. Sign-in settings are read at start (instance-env.ts): the
+ * API restarts. Email applies at once: the stored settings go into this process before the answer, so the next email
+ * (a test, a sign-in code) uses them; codes sent through the previous settings stop working; the alert goes through
+ * the previous sender (alertSenders). Other processes follow within 15 s.
+ */
+function afterSignInChange(onCommit: HandlerCtx['onCommit'], category: ProviderCategory, change: Change) {
+  if (!signInCategories.includes(category)) return
+  const apply = async () => {
+    if (category !== 'email') {
+      checkInstanceEnvSoon(db)
+      return alertChange(change)
+    }
+    const beforeSettings = emailSettingsOf(process.env)
+    const before = createEmailSender({ ...process.env })
+    if (await followEmailSettings(db)) {
+      await dropPendingEmailCodes(db)
+      forgetEmailCodes()
+    }
+    await alertChange(change, alertSenders(before, beforeSettings))
+  }
+  // Without the action runner (handler tests): at once.
+  if (onCommit) onCommit(apply)
+  else void apply().catch(e => console.error('email or sign-in change:', e))
 }
 
 /** Where a change came from, for the alert: the app, or an AI agent with a setup link (named by its prefix and time). */
@@ -200,7 +240,7 @@ async function viaWhat(actor: Actor): Promise<{ subject: string; body: string; a
 }
 
 export const adminHandlers: Record<string, Handler> = {
-  'provider.setKeys': async ({ tx, actor, now }, input) => {
+  'provider.setKeys': async ({ tx, actor, now, onCommit }, input) => {
     // Recording storage is never on a link-local or metadata address (s3-endpoint.ts); a setup key without the
     // admin's Allow got the step-up for a private one already (admin-step-up.ts).
     if (input.provider === 's3' && input.values.endpoint) {
@@ -208,21 +248,28 @@ export const adminHandlers: Record<string, Handler> = {
       if (refused) throw new Reject(refused.message)
     }
     await withSecretsKey(() => setProviderKeys(tx, input.provider, input.values, actor.actorId, now))
-    await applyAfterCommit(input.provider, actor)
+    afterSignInChange(onCommit, providerSpec(input.provider).category, keysChange(input.provider, 'changed', actor))
     return { rows: {}, data: { provider: await statusOf(tx, input.provider) } }
   },
 
-  'provider.clearKeys': async ({ tx, actor }, input) => {
+  'provider.clearKeys': async ({ tx, actor, onCommit }, input) => {
     await clearProviderKeys(tx, input.provider)
-    await applyAfterCommit(input.provider, actor, true)
+    afterSignInChange(onCommit, providerSpec(input.provider).category, keysChange(input.provider, 'removed', actor))
     return { rows: {}, data: { provider: await statusOf(tx, input.provider) } }
   },
 
-  'provider.setActive': async ({ tx, actor, now }, input) => {
+  'provider.setActive': async ({ tx, actor, now, onCommit }, input) => {
     if (input.provider) await shareOpenAiKey(tx, input.provider, actor.actorId, now)
     await setActiveProvider(tx, input.category, input.provider, actor.actorId, now)
-    // Which mail service sends is read at start, like its keys (instance-env.ts).
-    if (restartCategories.includes(input.category)) checkInstanceEnvSoon(db)
+    // Which mail service sends applies at once, like its keys, and the admins are told (afterSignInChange).
+    if (input.category === 'email') {
+      const label = input.provider ? providerSpec(input.provider).label : null
+      afterSignInChange(onCommit, 'email', {
+        subject: label ? `Email now sent with ${label}` : 'Email provider pick cleared',
+        did: label ? `switched email to ${label}` : 'cleared which email provider sends',
+        actor,
+      })
+    }
     return { rows: {}, data: { active: (await providerStatus(tx)).active } }
   },
 

@@ -86,7 +86,7 @@ export function ProviderDialog(props: Props) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [result, setResult] = useState<ProviderTestData | null>(null)
   const [preset, setPreset] = useState<ProviderPreset | null>(null)
-  /** Keys were stored in this dialog: sign-in and email apply after the API restarts. */
+  /** Keys were stored in this dialog: sign-in applies after the API restarts. */
   const [savedNow, setSavedNow] = useState(false)
   const configured = isConfigured(provider)
   const connected = configured && line.state === 'works'

@@ -25,7 +25,8 @@ export type Undo = () => Promise<string>
 
 /**
  * `telephony`, `recordings` and `calendars` override what is in effect (tests). `onRollback` registers an undo
- * that runs if the action's transaction does not commit, for whatever reason.
+ * that runs if the action's transaction does not commit, for whatever reason. `onCommit` registers work that runs
+ * once it has committed, before the answer goes out (a failure there is logged, the action stays done).
  */
 export type HandlerCtx = {
   tx: Tx
@@ -35,6 +36,7 @@ export type HandlerCtx = {
   recordings?: RecordingStore
   calendars?: CalendarServices
   onRollback?: (undo: Undo) => void
+  onCommit?: (work: () => Promise<void>) => void
   /** What the action's preparer returned (see Preparer). */
   prepared?: unknown
 }

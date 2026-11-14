@@ -1,9 +1,10 @@
-// Settings from the admin area that the API reads once at start, as environment variables: the
-// sign-in providers (Better Auth is built with them) and SMTP (the mail transport). server.ts loads
-// them into process.env before it imports the app, so the stored value wins over the server's own
-// variable. A change in the admin area restarts the API (a few seconds); every API process also
-// checks every 15 s, so one that did not handle the change follows. Everything else in the admin
-// area is read on every use and needs no restart (provider-settings.ts).
+// Settings from the admin area that the API keeps as environment variables. The sign-in providers are read once at
+// start (Better Auth is built with them): server.ts loads them into process.env before it imports the app, so the
+// stored value wins over the server's own variable, and a change in the admin area restarts the API (a few seconds);
+// every API process also checks every 15 s, so one that did not handle the change follows. Email (SMTP or a mail
+// service) applies without a restart: followEmailSettings copies the stored settings in again whenever they changed,
+// right after the admin's change committed and in that 15 s check, and the sender (email.ts) follows process.env. Everything
+// else in the admin area is read on every use (provider-settings.ts).
 import { type ProviderName, providerNames, providerSpec, providersIn, restartCategories } from '@linedesk/actions'
 import { instance_settings, provider_settings, type Tx } from '@linedesk/db'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
@@ -14,68 +15,134 @@ import { decryptSecret, encryptSecret, hasSecretsKey } from './secrets.ts'
 type Env = Record<string, string | undefined>
 type Db = Pick<Tx, 'select' | 'insert'>
 
-/** What loadInstanceEnv replaced in process.env: each variable's value from the server (undefined: not set). */
-const overlaid = new Map<string, string | undefined>()
+/** Per environment: what the stored settings replaced, each variable's value from the server (undefined: not set). */
+const overlays = new WeakMap<Env, Map<string, string | undefined>>()
+const overlayOf = (env: Env) => {
+  const overlay = overlays.get(env) ?? new Map<string, string | undefined>()
+  overlays.set(env, overlay)
+  return overlay
+}
 
 /** The server's own variables, without the stored settings copied in: the fallback the admin area shows. */
 export function serverEnv(): Env {
-  if (!overlaid.size) return process.env
-  return { ...process.env, ...Object.fromEntries(overlaid) }
+  const overlay = overlays.get(process.env)
+  if (!overlay?.size) return process.env
+  return { ...process.env, ...Object.fromEntries(overlay) }
 }
 
 const setVariable = (env: Env, name: string, value: string) => {
-  if (env === process.env && !overlaid.has(name)) overlaid.set(name, env[name])
+  const overlay = overlayOf(env)
+  if (!overlay.has(name)) overlay.set(name, env[name])
   env[name] = value
 }
 
-const restartProviders = restartCategories.flatMap(category => providersIn(category))
+/** Puts a variable back to the server's own value (or unsets it), after a stored setting was removed. */
+const resetVariable = (env: Env, name: string) => {
+  const overlay = overlays.get(env)
+  if (!overlay?.has(name)) return
+  const value = overlay.get(name)
+  if (value === undefined) delete env[name]
+  else env[name] = value
+}
 
-const storedRows = (db: Db) =>
+type Row = typeof provider_settings.$inferSelect
+const restartProviders = restartCategories.flatMap(category => providersIn(category))
+const emailProviders = providersIn('email')
+
+const storedRows = (db: Db, providers: readonly ProviderName[]) =>
   db
     .select()
     .from(provider_settings)
-    .where(and(isNull(provider_settings.workspace_id), inArray(provider_settings.provider, restartProviders)))
+    .where(and(isNull(provider_settings.workspace_id), inArray(provider_settings.provider, [...providers])))
 
-/** Changes whenever a stored sign-in or email setting, or the picked email provider, changes. */
-const signatureOf = (rows: { provider: string; field: string; updated_at: string | Date }[], emailPick: string | null) =>
+/** Changes whenever a stored setting of these rows, or the picked email provider, changes. */
+const signatureOf = (
+  rows: { provider: string; field: string; updated_at: string | Date }[],
+  emailPick?: string | null,
+) =>
   [
     ...rows.map(row => `${row.provider}.${row.field}@${new Date(row.updated_at).toISOString()}`).sort(),
-    `email:${emailPick ?? ''}`,
+    ...(emailPick === undefined ? [] : [`email:${emailPick ?? ''}`]),
   ].join(',')
 const EMAIL_PICK = 'active_provider.email'
+
+/** Copies stored rows into the environment. A value that cannot be decrypted is skipped. */
+function copyRows(rows: Row[], env: Env) {
+  for (const row of rows) {
+    const spec = providerSpec(row.provider as ProviderName).fields[row.field]
+    if (!spec) continue
+    try {
+      setVariable(env, spec.env, decryptSecret(row.value_encrypted, `${row.provider}.${row.field}`))
+    } catch {
+      console.error(
+        `${row.provider} ${row.field}: the stored value cannot be decrypted (SECRETS_KEY changed?); set it again in Server admin › Providers`,
+      )
+    }
+  }
+}
 
 let loadedSignature: string | null = null
 /** The settings this process started with; unlike loadedSignature never moved on, so a pending change stays visible. */
 let bootSignature: string | null = null
 let loadedEmailProvider: ProviderName = 'smtp'
+/** followEmailSettings' reads in the order they started, and the latest one applied. */
+let emailReads = 0
+let emailApplied = 0
+/** Per environment: the stored email settings it holds now (followEmailSettings). */
+const emailSignatures = new WeakMap<Env, string>()
 const isProviderName = (name: string): name is ProviderName => (providerNames as string[]).includes(name)
 /** The email provider this process sends with: a mail service (Resend, Gmail, ...) or plain SMTP. */
 export const emailProviderInUse = (): ProviderName => loadedEmailProvider
 
-/** Copies the stored sign-in and email settings into process.env. A value that cannot be decrypted is skipped. */
-export async function loadInstanceEnv(db: Db, env: Env = process.env): Promise<void> {
-  const rows = await storedRows(db)
-  for (const row of rows) {
-    const spec = providerSpec(row.provider as (typeof restartProviders)[number]).fields[row.field]
-    if (!spec) continue
-    try {
-      setVariable(env, spec.env, decryptSecret(row.value_encrypted, `${row.provider}.${row.field}`))
-    } catch {
-      console.error(`${row.provider} ${row.field}: the stored value cannot be decrypted (SECRETS_KEY changed?); set it again in Server admin › Providers`)
-    }
-  }
-  // A mail service (Resend, Gmail, ...) sends as SMTP: its fields become SMTP_URL and EMAIL_FROM (email-services.ts).
+/** Every variable the stored email settings may set: each email provider's fields, and what a mail service becomes. */
+const emailVariables = [
+  ...new Set([
+    ...emailProviders.flatMap(provider => Object.values(providerSpec(provider).fields).map(field => field.env)),
+    'SMTP_URL',
+    'EMAIL_FROM',
+  ]),
+]
+
+/**
+ * Brings the email settings in the environment to what is stored (Server admin › Providers › Email), when they
+ * changed since the last time: the sender (email.ts) uses them from the next email on, no restart. Called once a
+ * change committed (admin-handlers.ts), never inside its transaction. True when something changed.
+ */
+export async function followEmailSettings(db: Db, env: Env = process.env): Promise<boolean> {
+  // Reads that started earlier and finish later (a 15 s check that read before an admin's change committed) are
+  // stale: only the latest read is applied.
+  const read = ++emailReads
+  const rows = await storedRows(db, emailProviders)
   const emailPick = await readSetting(db, EMAIL_PICK)
-  const mail = mailServiceFromEnv(emailPick ?? env.EMAIL_PROVIDER ?? null, env)
+  if (read < emailApplied) return false
+  emailApplied = read
+  const signature = signatureOf(rows, emailPick)
+  if (emailSignatures.get(env) === signature) return false
+  // From here on synchronous: an email sent meanwhile sees the old settings or the new ones, never a mix.
+  for (const name of emailVariables) resetVariable(env, name)
+  copyRows(rows, env)
+  // A mail service (Resend, Gmail, ...) sends as SMTP: its fields become SMTP_URL and EMAIL_FROM (email-services.ts).
   const service = emailPick ?? env.EMAIL_PROVIDER ?? null
-  loadedEmailProvider = mail && service && isProviderName(service) ? service : 'smtp'
+  const mail = mailServiceFromEnv(service, env)
   if (mail) {
     setVariable(env, 'SMTP_URL', mail.url)
     if (mail.from) setVariable(env, 'EMAIL_FROM', mail.from)
   }
-  loadedSignature = signatureOf(rows, emailPick)
+  if (env === process.env) loadedEmailProvider = mail && service && isProviderName(service) ? service : 'smtp'
+  emailSignatures.set(env, signature)
+  return true
+}
+
+/** Copies the stored sign-in and email settings into process.env. A value that cannot be decrypted is skipped. */
+export async function loadInstanceEnv(db: Db, env: Env = process.env): Promise<void> {
+  const rows = await storedRows(db, restartProviders)
+  copyRows(rows, env)
+  await followEmailSettings(db, env)
+  loadedSignature = signatureOf(rows)
   bootSignature = loadedSignature
-  await loadPushKeys(db, env).catch(error => console.error('push notifications are off: could not load their keys', error))
+  await loadPushKeys(db, env).catch(error =>
+    console.error('push notifications are off: could not load their keys', error),
+  )
 }
 
 const VAPID_PUBLIC = 'push.vapid_public_key'
@@ -144,21 +211,22 @@ export function restartToApply(reason: string) {
 }
 
 /**
- * Whether stored sign-in or email settings wait for a restart (the install setup waits for it before testing), and
- * whether this process restarts by itself; under `pnpm dev` the person restarts it.
+ * Whether stored sign-in settings wait for a restart, and whether this process restarts by itself; under `pnpm dev`
+ * the person restarts it. Email never waits: it applies at once (followEmailSettings).
  */
 export async function restartState(db: Db): Promise<{ pending: boolean; automatic: boolean }> {
   if (bootSignature === null) return { pending: false, automatic: canRestart() }
-  const signature = signatureOf(await storedRows(db), await readSetting(db, EMAIL_PICK))
+  const signature = signatureOf(await storedRows(db, restartProviders))
   return { pending: signature !== bootSignature, automatic: canRestart() }
 }
 
-/** Restarts when the stored sign-in or email settings differ from what this process loaded. */
+/** Follows changed email settings; restarts when the stored sign-in settings differ from what this process loaded. */
 async function checkForChange(db: Db) {
   try {
-    const signature = signatureOf(await storedRows(db), await readSetting(db, EMAIL_PICK))
+    await followEmailSettings(db)
+    const signature = signatureOf(await storedRows(db, restartProviders))
     if (loadedSignature === null || signature === loadedSignature) return
-    restartToApply('Sign-in or email settings changed')
+    restartToApply('Sign-in settings changed')
     if (!canRestart()) loadedSignature = signature // said once; `pnpm dev` is restarted by hand
   } catch (e) {
     console.error('could not check the sign-in and email settings', e)
@@ -167,7 +235,8 @@ async function checkForChange(db: Db) {
 
 /**
  * After an admin changed sign-in or email settings: checks once the action's transaction has
- * committed, so a change that rolled back restarts nothing (the 15 s check is the safety net).
+ * committed, so a change that rolled back restarts nothing and leaves the email settings as stored
+ * (the 15 s check is the safety net).
  */
 export function checkInstanceEnvSoon(db: Db, afterMs = 1500) {
   setTimeout(() => void checkForChange(db), afterMs).unref()

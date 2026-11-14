@@ -1,5 +1,5 @@
 // Outgoing email behind one interface. SMTP when it is connected (Admin, Providers, Email, or SMTP_URL); with EMAIL_TO_LOG=true the
-// message is printed to the server log instead (development); otherwise nothing can be sent.
+// message is printed to the server log instead (development); otherwise nothing can be sent. A change applies at once.
 import nodemailer from 'nodemailer'
 import { emailDelivery } from './auth-methods.ts'
 import { brandName } from './branding.ts'
@@ -151,7 +151,30 @@ export function createEmailSender(
   return delivery === 'log' ? logSender : noSender
 }
 
-export const emailSender = createEmailSender(process.env)
+/** What decides how email goes out: two environments with the same value send the same way. */
+export const emailSettingsOf = (env: Record<string, string | undefined>) =>
+  JSON.stringify([env.SMTP_URL ?? '', env.EMAIL_FROM ?? '', env.EMAIL_TO_LOG ?? ''])
+
+let current: { settings: string; sender: EmailSender } | null = null
+/** The sender for the settings in process.env now; made again only when they changed. */
+function senderNow(): EmailSender {
+  const env = process.env
+  const settings = emailSettingsOf(env)
+  if (current?.settings !== settings) current = { settings, sender: createEmailSender(env) }
+  return current.sender
+}
+
+/**
+ * The install's sender. It follows the email settings as they are now (instance-env.ts copies a saved change into
+ * process.env), so email connected in Server admin › Providers sends from the next email on, without a restart.
+ */
+export const emailSender: EmailSender = {
+  get kind() {
+    return senderNow().kind
+  },
+  send: email => senderNow().send(email),
+  check: () => senderNow().check(),
+}
 
 /**
  * Sends a notice without waiting (an alert, a "your passkeys were reset"): it never holds up what it is about. Without

@@ -33,10 +33,15 @@ export const multiCategories: readonly ProviderCategory[] = ['sign_in']
 export const isMultiCategory = (category: ProviderCategory) => multiCategories.includes(category)
 
 /**
- * Categories the API reads once at start (Better Auth's sign-in providers, the mail transport): a
- * change there restarts the API, which takes a few seconds (instance-env.ts). The others apply at once.
+ * Categories the API reads once at start (Better Auth's sign-in providers): a change there restarts the API, which
+ * takes a few seconds (instance-env.ts). The others apply at once, email too (the API follows its stored settings).
  */
-export const restartCategories: readonly ProviderCategory[] = ['email', 'sign_in']
+export const restartCategories: readonly ProviderCategory[] = ['sign_in']
+/**
+ * Categories whose settings decide how people sign in or get sign-in codes: whoever controls them can sign in as
+ * anyone, so a change needs the passkey step-up (admin-step-up.ts) and every instance admin is told (admin-alerts.ts).
+ */
+export const signInCategories: readonly ProviderCategory[] = ['email', 'sign_in']
 /** The variable that picks a category's provider when none is picked in the admin area. */
 export const categoryEnv: Partial<Record<ProviderCategory, string>> = {
   telephony: 'TELEPHONY_PROVIDER',
