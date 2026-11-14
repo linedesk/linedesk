@@ -44,9 +44,10 @@ export type Me = {
   actorId: string
   role: string
   permissions: string[]
-  workspace: { id: string; name: string; disabled?: boolean } | null
+  /** `iconUrl`: the workspace icon (Workspace settings › General); null or absent: the initial shows. */
+  workspace: { id: string; name: string; disabled?: boolean; iconUrl?: string | null } | null
   /** Every workspace this member belongs to, by name (absent in what an older version remembered). */
-  workspaces?: { id: string; name: string; disabled?: boolean }[]
+  workspaces?: { id: string; name: string; disabled?: boolean; iconUrl?: string | null }[]
   onboarding: OnboardingState | null
   /** null for members who cannot change settings. */
   phoneSetup: PhoneSetupStatus | null

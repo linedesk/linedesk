@@ -1,6 +1,6 @@
 // Workspace settings › General: what is the same for the whole workspace. The business name (workspace.rename),
-// the time zone (moved here from the assistant's Advanced section; Hours & holidays links here) and the value of a
-// booked appointment (also set from the Insights summary). Owners and admins change them; members see them.
+// the workspace icon (WorkspaceIconField), the time zone (moved here from the assistant's Advanced section;
+// Hours & holidays links here) and the value of a booked appointment (also set from the Insights summary). Owners and admins change them; members see them.
 import { type KeyboardEvent, useEffect, useState } from 'react'
 import { showAppointmentValue } from '../insights/Insights.tsx'
 import { useRun } from '../store.tsx'
@@ -10,6 +10,7 @@ import { TimeZoneSelect } from './BusinessHours.tsx'
 import { Field, Section } from './fields.tsx'
 import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
 import { renameCheck } from './workspaceGeneral.ts'
+import { WorkspaceIconField } from './WorkspaceIconField.tsx'
 
 const READ_ONLY = 'Only owners and admins can change this.'
 
@@ -25,6 +26,7 @@ export function WorkspaceGeneral({ canEdit, name, onRenamed, toast }: Props) {
   return (
     <Section id="ws-general" title="General">
       <BusinessName canEdit={canEdit} name={name} onRenamed={onRenamed} toast={toast} />
+      <WorkspaceIconField canEdit={canEdit} name={name} readOnlyNote={READ_ONLY} toast={toast} />
       <TimeZone canEdit={canEdit} />
       <Value canEdit={canEdit} toast={toast} />
     </Section>

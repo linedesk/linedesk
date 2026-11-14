@@ -83,17 +83,20 @@ export async function readLogo(tx: Tx): Promise<Buffer | null> {
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 
-/** The PNG in a data URL, checked: a real PNG (signature and header), at most LOGO_SIZE square and LOGO_MAX_BYTES. */
-export function decodeLogo(dataUrl: string): Buffer {
+/**
+ * The PNG in a data URL, checked: a real PNG (signature and header), at most LOGO_SIZE square and LOGO_MAX_BYTES.
+ * Also the workspace icon's check (workspace-icon.ts); `what` names the image in the messages.
+ */
+export function decodeLogo(dataUrl: string, what = 'The logo'): Buffer {
   const bytes = Buffer.from(dataUrl.slice(dataUrl.indexOf(',') + 1), 'base64')
-  if (bytes.length > LOGO_MAX_BYTES) throw new Reject(`The logo is too large: at most ${LOGO_MAX_BYTES / 1024} KB.`)
+  if (bytes.length > LOGO_MAX_BYTES) throw new Reject(`${what} is too large: at most ${LOGO_MAX_BYTES / 1024} KB.`)
   const isPng =
     bytes.length > 24 && bytes.subarray(0, 8).equals(PNG_SIGNATURE) && bytes.toString('ascii', 12, 16) === 'IHDR'
-  if (!isPng) throw new Reject('The logo must be a PNG image.')
+  if (!isPng) throw new Reject(`${what} must be a PNG image.`)
   const width = bytes.readUInt32BE(16)
   const height = bytes.readUInt32BE(20)
   if (!width || !height || width > LOGO_SIZE || height > LOGO_SIZE)
-    throw new Reject(`The logo must be at most ${LOGO_SIZE}×${LOGO_SIZE} pixels.`)
+    throw new Reject(`${what} must be at most ${LOGO_SIZE}×${LOGO_SIZE} pixels.`)
   return bytes
 }
 

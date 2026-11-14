@@ -589,6 +589,13 @@
       "when": 1794614844364,
       "tag": "0083_holiday_calendar",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1794621216006,
+      "tag": "0084_workspace_icons",
+      "breakpoints": true
     }
   ]
 }

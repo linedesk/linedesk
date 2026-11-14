@@ -5,6 +5,7 @@ import {
   organization,
   passkey,
   user,
+  workspace_icons,
   workspace_settings,
   tableNames,
   type TableName,
@@ -27,6 +28,7 @@ import { setsUpByHand } from './install-setup.ts'
 import { authMethods } from './auth-methods.ts'
 import { browserErrorReporting, errorReportingEnabled, type ReportedUser, reportError } from './error-reporting.ts'
 import { currentBranding, manifestFor, readLogo } from './branding.ts'
+import { iconUrlOf, readIconFor } from './workspace-icon.ts'
 import { auth, TRUSTED_ORIGINS, WEB_ORIGIN, WORKSPACE_LIMIT } from './auth.ts'
 import { refuseCrossSite } from './csrf.ts'
 import { calendarCallback } from './calendar-callback.ts'
@@ -305,13 +307,29 @@ app.use('/v1/*', async (c, next) => {
 app.get('/v1/me', async c => {
   const actor = c.get('actor')
   const [workspace] = actor.workspaceId
-    ? await db.select().from(organization).where(eq(organization.id, actor.workspaceId))
+    ? await db
+        .select({
+          id: organization.id,
+          name: organization.name,
+          disabledAt: organization.disabledAt,
+          iconVersion: workspace_icons.version,
+        })
+        .from(organization)
+        .leftJoin(workspace_icons, eq(workspace_icons.workspace_id, organization.id))
+        .where(eq(organization.id, actor.workspaceId))
     : []
   return c.json({
     actorId: actor.actorId,
     role: actor.role,
     permissions: actor.permissions,
-    workspace: workspace ? { id: workspace.id, name: workspace.name, disabled: Boolean(workspace.disabledAt) } : null,
+    workspace: workspace
+      ? {
+          id: workspace.id,
+          name: workspace.name,
+          disabled: Boolean(workspace.disabledAt),
+          iconUrl: iconUrlOf(workspace.id, workspace.iconVersion),
+        }
+      : null,
     // Every workspace this member belongs to, for the switcher in the profile menu: known at boot, never fetched when it opens.
     workspaces: await workspacesOf(actor.actorId),
     onboarding: workspace ? await onboardingFor(actor) : null,
@@ -347,17 +365,42 @@ async function needsPasskeyEnrolment({ actorId, impersonation }: Actor): Promise
   return !any
 }
 
-/** The workspaces a user is a member of, by name. */
+/** The workspaces a user is a member of, by name, with their icons' addresses (null: the initial shows). */
 /** A disabled workspace stays in the list (the switcher shows it greyed out) but cannot be switched to. */
 async function workspacesOf(userId: string) {
   const rows = await db
-    .select({ id: organization.id, name: organization.name, disabledAt: organization.disabledAt })
+    .select({
+      id: organization.id,
+      name: organization.name,
+      disabledAt: organization.disabledAt,
+      iconVersion: workspace_icons.version,
+    })
     .from(member)
     .innerJoin(organization, eq(organization.id, member.organizationId))
+    .leftJoin(workspace_icons, eq(workspace_icons.workspace_id, organization.id))
     .where(eq(member.userId, userId))
     .orderBy(asc(organization.name))
-  return rows.map(({ id, name, disabledAt }) => ({ id, name, disabled: disabledAt !== null }))
+  return rows.map(({ id, name, disabledAt, iconVersion }) => ({
+    id,
+    name,
+    disabled: disabledAt !== null,
+    iconUrl: iconUrlOf(id, iconVersion),
+  }))
 }
+
+// A workspace's icon (workspace-icon.ts), for members of that workspace: any of theirs, not only the tab's, as the
+// switcher shows them all. Only ever a PNG the server checked; nosniff and a CSP that allows nothing keep the
+// browser from reading it as anything else. The address changes with every new icon (?v=), so it is cached for good.
+app.get('/v1/workspace-icons/:file', async c => {
+  const file = c.req.param('file')
+  const icon = file.endsWith('.png') ? await readIconFor(db, file.slice(0, -4), c.get('actor').actorId) : null
+  if (!icon) return c.json({ ok: false, error: 'no icon' }, 404)
+  c.header('content-type', 'image/png')
+  c.header('x-content-type-options', 'nosniff')
+  c.header('content-security-policy', "default-src 'none'; sandbox")
+  c.header('cache-control', 'private, max-age=31536000, immutable')
+  return c.body(new Uint8Array(icon))
+})
 
 // The member's workspaces for the switcher, read again when the menu opens; the same list /v1/me brings at boot.
 app.get('/v1/me/workspaces', async c => {

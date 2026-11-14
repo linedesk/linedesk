@@ -319,8 +319,8 @@ test('/v1/me lists the workspaces the member belongs to, by name, and no others'
   await auth.api.addMember({ body: { userId: a.owner.userId, organizationId: b.id, role: 'member' } })
   const { body } = await request(a.owner, 'GET', '/v1/me')
   expect(body.workspaces).toEqual([
-    { id: b.id, name: 'Alder Heating', disabled: false },
-    { id: a.id, name: 'Zephyr Plumbing', disabled: false },
+    { id: b.id, name: 'Alder Heating', disabled: false, iconUrl: null },
+    { id: a.id, name: 'Zephyr Plumbing', disabled: false, iconUrl: null },
   ])
 })
 

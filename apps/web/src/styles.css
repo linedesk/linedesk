@@ -661,6 +661,12 @@ body { font-size: 13px; }
 .ws-btn:hover, .ws-btn[aria-expanded="true"] { background: var(--surface-hover); }
 .ws-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .ws-initial { position: relative; display: grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: var(--radius-sm); background: var(--signal); color: var(--on-signal); font-size: 12px; font-weight: 600; }
+/* A workspace icon instead of the initial (shell/WorkspaceMark.tsx): square, scaled to fit; small in the switcher rows, large as the preview in General. */
+.ws-initial.has-icon { background: none; }
+.ws-initial img { width: 100%; height: 100%; object-fit: contain; border-radius: inherit; display: block; }
+.ws-initial.is-sm { width: 16px; height: 16px; border-radius: 4px; font-size: 9.5px; }
+.ws-initial.is-lg { width: 48px; height: 48px; border-radius: var(--radius-md); font-size: 20px; }
+.st-ws-icon { display: flex; align-items: center; gap: 10px; }
 .ws-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
 .ws-menu { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 5; display: grid; gap: 1px; padding: 4px; border-radius: var(--radius-md); background: var(--surface-raised); box-shadow: var(--shadow-popover); }
 .ws-menu, .ws-menu .me-ws, .ws-menu .me-ws-list { grid-template-columns: minmax(0, 1fr); } /* long workspace names end in … instead of widening the menu */

@@ -20,6 +20,8 @@ const verbs: Record<string, string> = {
   'notifications.setDefaults': 'save the notification defaults',
   'workspace.updateSettings': 'save the workspace settings',
   'workspace.rename': 'rename the business',
+  'workspace.setIcon': 'save the workspace icon',
+  'workspace.removeIcon': 'remove the workspace icon',
   'businessHours.set': 'save the business hours',
   'phoneNumber.update': 'change the number',
   'push.subscribe': 'turn on notifications on this device',

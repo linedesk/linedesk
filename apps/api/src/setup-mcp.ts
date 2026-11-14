@@ -58,6 +58,8 @@ export const SETUP_ACTIONS = [
   'business.search',
   'business.import',
   'workspace.rename',
+  'workspace.setIcon',
+  'workspace.removeIcon',
   'assistant.update',
   'workspace.updateSettings',
   'businessHours.set',

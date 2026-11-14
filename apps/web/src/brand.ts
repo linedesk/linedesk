@@ -65,6 +65,24 @@ function renameInTitle(from: string, to: string) {
 
 const DEFAULT_ICONS = { icon: '/favicon.svg', apple: '/apple-touch-icon.png' }
 
+/** The open workspace's icon (shell/WorkspaceMenu.tsx): the browser tab shows it instead of the install's. */
+let workspaceIcon: string | null = null
+
+/** The tab's icon: the open workspace's, else the install logo, else the default mark. */
+export const tabIcon = (b: Pick<Branding, 'logoUrl'>, workspace: string | null) =>
+  workspace
+    ? { href: workspace, type: 'image/png' }
+    : b.logoUrl
+      ? { href: b.logoUrl, type: 'image/png' }
+      : { href: DEFAULT_ICONS.icon, type: 'image/svg+xml' }
+
+/** While a workspace with an icon is open, the tab shows that icon; null puts the install's back. */
+export function setWorkspaceFavicon(url: string | null) {
+  workspaceIcon = url
+  const icon = tabIcon(current, workspaceIcon)
+  setLink('icon', icon.href, icon.type)
+}
+
 function setLink(rel: string, href: string, type?: string) {
   for (const link of document.querySelectorAll<HTMLLinkElement>(`link[rel="${rel}"]`)) {
     link.href = href
@@ -74,7 +92,8 @@ function setLink(rel: string, href: string, type?: string) {
 
 function applyToPage(b: Branding) {
   document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content', b.name)
-  setLink('icon', b.logoUrl ?? DEFAULT_ICONS.icon, b.logoUrl ? 'image/png' : 'image/svg+xml')
+  const icon = tabIcon(b, workspaceIcon)
+  setLink('icon', icon.href, icon.type)
   setLink('apple-touch-icon', b.logoUrl ?? DEFAULT_ICONS.apple)
   const root = document.documentElement.style
   if (b.color) {

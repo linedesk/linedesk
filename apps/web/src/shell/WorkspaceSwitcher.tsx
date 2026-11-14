@@ -7,9 +7,13 @@ import { fetchQuery, useQuery } from '../cachedQuery.ts'
 import { WORKSPACES_QUERY } from '../session.ts'
 import { Button, Icon } from '../ui/kit.tsx'
 import { declineInvitation, joinWorkspace, roleLabel, switchToWorkspace } from './invitations.ts'
+import { WorkspaceMark } from './WorkspaceMark.tsx'
 
-/** `disabled`: an admin turned the workspace off; it shows greyed out and cannot be chosen. */
-export type Workspace = { id: string; name: string; disabled?: boolean }
+/**
+ * `disabled`: an admin turned the workspace off; it shows greyed out and cannot be chosen. `iconUrl`: its icon
+ * (Workspace settings › General), null or absent: its initial shows.
+ */
+export type Workspace = { id: string; name: string; disabled?: boolean; iconUrl?: string | null }
 
 /** From this many workspaces the list gets a filter field and scrolls instead of growing. */
 export const WORKSPACE_FILTER_FROM = 6
@@ -132,8 +136,9 @@ export function WorkspaceSwitcher({ all, currentId, invitations, onInvitationsCh
       <div className={many ? 'me-ws-list is-scroll' : 'me-ws-list'}>
         {shown.map(w => (
           <button key={w.id} type="button" role="menuitemradio" aria-checked={w.id === currentId} aria-disabled={w.disabled && w.id !== currentId ? true : undefined} className={w.disabled ? 'nav-item is-ws-disabled' : 'nav-item'} onClick={choose(w)} title={w.id === currentId ? 'Current workspace' : w.disabled ? `${w.name} was disabled by an admin` : `Switch to ${w.name}`}>
-            <Icon name={w.id === currentId ? 'check' : 'spark'} size={15} className={w.id === currentId ? undefined : 'me-ws-mark'} />
+            <WorkspaceMark name={w.name} iconUrl={w.iconUrl} size="sm" />
             <span className="lbl">{w.name}</span>
+            {w.id === currentId && <Icon name="check" size={15} />}
             {w.disabled && <span className="me-ws-busy">Disabled</span>}
             {busy === w.id && <span className="me-ws-busy">Switching…</span>}
           </button>

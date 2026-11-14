@@ -1270,3 +1270,16 @@ export const business_lookup_usage = pgTable(
   },
   t => [primaryKey({ columns: [t.day, t.workspace_id] })],
 )
+
+// The workspace icon (Workspace settings › General; apps/api/src/workspace-icon.ts): a checked PNG of at most
+// 512×512 pixels, base64, like the install logo in instance_settings. One row per workspace that has an icon;
+// no row: the initial letter shows. `version` changes with every new icon and is part of its address
+// (/v1/workspace-icons/<workspace_id>.png?v=<version>), so the image is cached for good. Not synced to browsers:
+// the workspace lists of /v1/me carry the address.
+export const workspace_icons = pgTable('workspace_icons', {
+  workspace_id: text('workspace_id').primaryKey(),
+  png: text('png').notNull(),
+  version: text('version').notNull(),
+  updated_at: ts('updated_at').notNull().defaultNow(),
+  updated_by: text('updated_by'),
+})

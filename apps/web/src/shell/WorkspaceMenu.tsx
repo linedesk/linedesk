@@ -1,11 +1,14 @@
-// The workspace button at the top of the navigation: the current workspace's initial and name. It opens
+// The workspace button at the top of the navigation: the current workspace's icon (or initial) and name. It opens
 // a menu with the other workspaces and invitations (WorkspaceSwitcher), New workspace…, Workspace settings
-// and, for owners and admins, Invite people…
+// and, for owners and admins, Invite people… While the workspace is open its icon is also the browser tab's.
 import type { MyInvitation } from '@linedesk/actions'
+import { useEffect } from 'react'
+import { setWorkspaceFavicon } from '../brand.ts'
 import type { IconName } from '../ui/icons.ts'
 import { Icon, Kbd } from '../ui/kit.tsx'
 import { refreshInvitations } from './invitations.ts'
 import { useMenu } from './useMenu.ts'
+import { WorkspaceMark, workspaceIconOf } from './WorkspaceMark.tsx'
 import { refreshWorkspaces, useWorkspaces, WorkspaceSwitcher } from './WorkspaceSwitcher.tsx'
 
 export type WorkspaceMenuItem = 'switcher' | 'new' | 'settings' | 'invite'
@@ -34,8 +37,7 @@ export function workspaceMenuItems({
   return items
 }
 
-/** The first letter of the workspace's name, for its square at the top of the navigation. */
-export const workspaceInitial = (name: string) => [...name.trim()][0]?.toUpperCase() ?? '?'
+export { workspaceInitial } from './WorkspaceMark.tsx'
 
 type Props = {
   name: string
@@ -86,6 +88,12 @@ export function WorkspaceMenu({
     canManage,
   })
   const waiting = invitations.length
+  const iconUrl = workspaceIconOf(workspaces, id)
+  // The tab shows the workspace's icon while it is open; the install's again after (sign-out, no icon).
+  useEffect(() => {
+    setWorkspaceFavicon(iconUrl)
+    return () => setWorkspaceFavicon(null)
+  }, [iconUrl])
   return (
     <div className="ws-wrap" ref={menu.root}>
       <button
@@ -102,10 +110,9 @@ export function WorkspaceMenu({
             : `${name}: switch, settings, invite`
         }
       >
-        <span className="ws-initial" aria-hidden="true">
-          {workspaceInitial(name)}
+        <WorkspaceMark name={name} iconUrl={iconUrl}>
           {waiting > 0 && <span className="me-dot" />}
-        </span>
+        </WorkspaceMark>
         <span className="ws-name">{name}</span>
         <Icon name="down" size={14} className="me-chevron" />
       </button>

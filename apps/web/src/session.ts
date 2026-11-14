@@ -66,6 +66,23 @@ export function renamedWorkspace(me: Me, name: string): Me {
   return next
 }
 
+/**
+ * The workspace's icon changed here (Workspace settings › General): the cached workspace list, which the workspace
+ * button, the switcher and the tab icon read, and the remembered `me` show the new one at once.
+ */
+export function changedWorkspaceIcon(id: string, iconUrl: string | null) {
+  type Listed = { id: string; name: string; iconUrl?: string | null }
+  const withIcon = <T extends Listed>(list: T[]) => list.map(w => (w.id === id ? { ...w, iconUrl } : w))
+  const before = remembered()
+  setQueryData<Listed[]>(WORKSPACES_QUERY, list => withIcon(list ?? before?.workspaces ?? []), { persist: true })
+  if (before)
+    remember({
+      ...before,
+      workspace: before.workspace?.id === id ? { ...before.workspace, iconUrl } : before.workspace,
+      ...(before.workspaces ? { workspaces: withIcon(before.workspaces) } : {}),
+    })
+}
+
 /** Forget the member this device remembers and what was cached for them (on sign-out). */
 export function forgetMe() {
   remember(null)

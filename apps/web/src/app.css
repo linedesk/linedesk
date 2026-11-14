@@ -1820,9 +1820,6 @@ button.k-link {
   background: var(--signal);
   box-shadow: 0 0 0 2px var(--surface);
 }
-.me-ws-mark {
-  opacity: 0;
-}
 /* A workspace an admin disabled: listed, greyed out, cannot be chosen (WorkspaceSwitcher). */
 .me-ws .nav-item.is-ws-disabled {
   color: var(--ink-muted);

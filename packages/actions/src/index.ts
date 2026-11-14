@@ -27,6 +27,7 @@ import * as transfer from './transfer.ts'
 import * as voiceFailure from './voice-failure.ts'
 import * as voices from './voices.ts'
 import * as webhooks from './webhooks.ts'
+import * as workspaceIcon from './workspace-icon.ts'
 
 export * from './define.ts'
 export * from './agent-token.ts'
@@ -68,6 +69,7 @@ export * from './transfer.ts'
 export * from './voice-failure.ts'
 export * from './voices.ts'
 export * from './webhooks.ts'
+export * from './workspace-icon.ts'
 
 const all = [
   calls.callMarkDone,
@@ -140,6 +142,8 @@ const all = [
   settings.workspaceRename,
   settings.workspaceDeleteOwn,
   settings.workspaceDeletePreview,
+  workspaceIcon.workspaceSetIcon,
+  workspaceIcon.workspaceRemoveIcon,
   settings.businessHoursSet,
   settings.closedDaysSet,
   settings.holidaysLookup,
