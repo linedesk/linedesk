@@ -69,7 +69,7 @@ export function WorkspaceIconField({ canEdit, name, readOnlyNote, toast }: Props
       label="Workspace icon"
       help={
         canEdit
-          ? `On the workspace button, in the workspace menu and as the browser tab icon. A square PNG, JPEG, WebP or SVG works best; it is saved as a PNG of at most ${LOGO_SIZE}×${LOGO_SIZE} pixels.`
+          ? 'On the workspace button, in the workspace menu and as the browser tab icon. A square image works best.'
           : readOnlyNote
       }
       error={problem}

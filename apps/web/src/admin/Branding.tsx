@@ -100,7 +100,7 @@ function LogoField({
     <FormField
       id="brand-logo"
       label="Logo"
-      description={`Square works best. Shown on the sign-in page and while the app loads, as the browser tab and app icon, and next to the name in emails. Saved as a PNG of at most ${LOGO_SIZE}×${LOGO_SIZE} pixels.`}
+      description="Square works best. Shown on the sign-in page and while the app loads, as the browser tab and app icon, and next to the name in emails."
       error={problem}
     >
       <div className="adm-brand-logo">
