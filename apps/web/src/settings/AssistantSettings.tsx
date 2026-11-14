@@ -1,6 +1,6 @@
 // Assistant settings by topic, one section at a time (#assistant/<id>/<section>): general (name, greeting,
 // languages), business info, hours and holidays, rules (AI disclosure, tone, behaviour checklist), transfers
-// (transfer contacts), booking, voice, and Advanced (silence on the line).
+// (transfer contacts), booking, voice, and Advanced (how calls are answered, talking speed, silence on the line).
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays and booking save on their own.
 import {
@@ -101,7 +101,7 @@ function RealtimeVoice({ canSwitch }: { canSwitch: boolean }) {
     <Section id="as-voice" title="Voice">
       <span className="help">
         The realtime model speaks in its own voice, set by an instance admin under Admin, Providers.
-        {canSwitch && ` To pick a voice here, set Answered by above to ${VOICE_PIPELINE_LABELS.three_stage}.`}
+        {canSwitch && ` To pick a voice here, set Answered by under Advanced to ${VOICE_PIPELINE_LABELS.three_stage}.`}
       </span>
     </Section>
   )
@@ -127,22 +127,25 @@ const pipelineOptions: SelectOption<VoicePipeline>[] = [
  */
 const pipelinesOf = (options: VoiceOptionsData | undefined): PipelinesSetUp | null => options?.pipelines ?? null
 
+/** Neither way of answering is set up: said in General, where the assistant is set up, not tucked away in Advanced. */
+function NotAnswered({ setUp }: { setUp: PipelinesSetUp | null }) {
+  if (!setUp || setUp.realtime || setUp.three_stage) return null
+  return (
+    <Section id="as-not-answered" title="Answering calls">
+      <span className="help">
+        Calls are not answered yet: an instance admin sets up a realtime model, or speech to text, a language model and
+        a voice, under Admin, Providers.
+      </span>
+    </Section>
+  )
+}
+
 /**
- * How the assistant's calls are answered: a choice only while the workspace may use both (the instance admin lets
- * workspaces choose, Admin › Providers), a warning while neither is set up, else nothing: there is nothing to decide.
+ * How the assistant's calls are answered, in Advanced: a choice only while the workspace may use both (the instance
+ * admin lets workspaces choose, Admin › Providers); else nothing, there is nothing to decide.
  */
 function PipelineSection({ draft, set, setUp }: SectionProps & { setUp: PipelinesSetUp | null }) {
-  if (!setUp || setUp.realtime !== setUp.three_stage) return null
-  if (!setUp.realtime) {
-    return (
-      <Section id="as-pipeline" title="Answering calls">
-        <span className="help">
-          Calls are not answered yet: an instance admin sets up a realtime model, or speech to text, a language model
-          and a voice, under Admin, Providers.
-        </span>
-      </Section>
-    )
-  }
+  if (!setUp?.realtime || !setUp.three_stage) return null
   const used = pipelineFor(draft.voice_pipeline, setUp)
   return (
     <Section id="as-pipeline" title="Answering calls">
@@ -163,10 +166,11 @@ type OwnSection = 'hours' | 'booking' | 'webhooks'
 /** Which draft fields each section holds. */
 const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   business: ['instructions', 'website'],
-  general: ['name', 'greeting', 'greeting_outside', 'languages', 'voice_pipeline', 'voice'],
+  general: ['name', 'greeting', 'greeting_outside', 'languages', 'voice'],
   rules: ['ai_disclosure', 'communication_style', 'behaviours'],
   transfers: ['transfers'],
   advanced: [
+    'voice_pipeline',
     'talking_speed_pct',
     'silence_first_gap_s',
     'silence_reminders',
@@ -731,7 +735,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
             <AssistantNameSection draft={draft} set={set} />
             <Greeting draft={draft} set={set} savedName={assistant.name} hoursOn={hoursOn} canEdit={canEdit} />
             <Languages draft={draft} set={set} onMainLanguage={code => void changeMainLanguage(code)} />
-            <PipelineSection draft={draft} set={set} setUp={setUp} />
+            <NotAnswered setUp={setUp} />
             {realtime ? (
               <RealtimeVoice canSwitch={setUp?.three_stage === true} />
             ) : (
@@ -761,6 +765,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
         )}
         {current === 'advanced' && (
           <>
+            <PipelineSection draft={draft} set={set} setUp={setUp} />
             <TalkingSpeedSection draft={draft} set={set} />
             <Advanced draft={draft} set={set} />
           </>
