@@ -4,7 +4,10 @@
 // container) while sampling the business agent's container (CPU, memory, its processes). Prints a table per level and
 // puts the limits back. Each call is billed on both sides (speech, model, voice): about a cent a minute per side.
 //   pnpm --filter @linedesk/agent load-test [--calls 1,5,10] [--scenario callback-message] [--spread 2]
-//     [--pipeline realtime|three_stage] [--to <business number>] [--container linedesk-agent-1] [--memory 4g] [--caller-memory 3g]
+//     [--pipeline realtime|three_stage] [--to <business number>] [--container linedesk-agent-1] [--memory 4g] [--cpuset 1-3]
+//     [--caller-memory 3g] [--caller-cpuset 6-13]
+// --memory and --cpuset: the business agent's limits during the test (e.g. the defaults: --memory 672m --cpuset 1).
+// --caller-cpuset: cores for the test callers, apart from the business agent's and LiveKit's, so only its CPU is measured.
 // --to: the Linedesk number whose workspace answers (default: CALL_TEST_TO in the agent's env).
 import { execFile } from 'node:child_process'
 import { writeFile } from 'node:fs/promises'
@@ -39,12 +42,29 @@ const flag = (args: string[], name: string, fallback: string) => {
   return at >= 0 && args[at + 1] ? args[at + 1]! : fallback
 }
 
-async function sample(container: string): Promise<Sample> {
-  const [stats, rss] = await Promise.all([
+/**
+ * Memory as docker counts it, each process's RSS, and the container's CPU time so far (cgroup cpu.stat). `cpuCores`
+ * is filled in by the sampler from two readings: docker stats' CPU figure is unreliable on Docker Desktop.
+ */
+async function sample(container: string): Promise<Sample & { cpuUsec: number }> {
+  const [stats, inside] = await Promise.all([
     docker('stats', '--no-stream', '--format', '{{.CPUPerc}}|{{.MemUsage}}', container),
-    docker('exec', container, 'sh', '-c', 'cat /proc/[0-9]*/status 2>/dev/null | grep VmRSS'),
+    docker(
+      'exec',
+      container,
+      'sh',
+      '-c',
+      'grep usage_usec /sys/fs/cgroup/cpu.stat; cat /proc/[0-9]*/status 2>/dev/null | grep VmRSS',
+    ),
   ])
-  return { at: Date.now(), ...parseDockerStats(stats), processMb: parseRss(rss) }
+  const cpuUsec = Number(/usage_usec (\d+)/.exec(inside)?.[1] ?? 0)
+  return { at: Date.now(), cpuCores: 0, memMb: parseDockerStats(stats).memMb, processMb: parseRss(inside), cpuUsec }
+}
+
+/** How many processes the kernel has killed for memory in `container` since it started. */
+async function oomKillCount(container: string) {
+  const events = await docker('exec', container, 'cat', '/sys/fs/cgroup/memory.events').catch(() => '')
+  return Number(/^oom_kill (\d+)$/m.exec(events)?.[1] ?? 0)
 }
 
 /** Samples `container` every couple of seconds until `stop` is called; returns what it collected. */
@@ -52,10 +72,14 @@ function sampler(container: string) {
   const samples: Sample[] = []
   let running = true
   const loop = (async () => {
+    let previous: (Sample & { cpuUsec: number }) | null = null
     while (running) {
-      samples.push(
-        await sample(container).catch(() => samples.at(-1) ?? { at: Date.now(), cpuCores: 0, memMb: 0, processMb: [] }),
-      )
+      const current = await sample(container).catch(() => null)
+      if (current) {
+        if (previous) current.cpuCores = (current.cpuUsec - previous.cpuUsec) / ((current.at - previous.at) * 1000)
+        samples.push(current)
+        previous = current
+      }
       await sleep(1000)
     }
   })()
@@ -68,14 +92,31 @@ function sampler(container: string) {
   }
 }
 
-const memoryOf = async (container: string) =>
-  (await docker('inspect', '-f', '{{.HostConfig.Memory}} {{.HostConfig.MemorySwap}}', container)).trim().split(' ')
+/** The limits the test changes, to put back afterwards, and the compose project the container belongs to. */
+async function limitsOf(container: string) {
+  const format =
+    '{{.HostConfig.Memory}}|{{.HostConfig.MemorySwap}}|{{.HostConfig.CpusetCpus}}|{{index .Config.Labels "com.docker.compose.project"}}'
+  const [memory, swap, cpuset, project] = (await docker('inspect', '-f', format, container)).trim().split('|')
+  return { memory: memory!, swap: swap!, cpuset: cpuset ?? '', project: project || 'linedesk' }
+}
 
 /** `to`: the business number the calls go to (CALL_TEST_TO); without it, the agent's own CALL_TEST_TO. */
-async function startCallerWorker(idleProcesses: number, memory: string, to: string | undefined) {
+/**
+ * `cpuset`: the cores the test callers run on. Give them cores the business agent does not use, or the callers' CPU
+ * counts against it (on one machine both would otherwise share the voice cores).
+ */
+async function startCallerWorker(
+  project: string,
+  idleProcesses: number,
+  memory: string,
+  cpuset: string | undefined,
+  to: string | undefined,
+) {
   await docker('rm', '-f', CALLER_CONTAINER).catch(() => '')
   await docker(
     'compose',
+    '-p',
+    project,
     'run',
     '-d',
     '--rm',
@@ -89,7 +130,15 @@ async function startCallerWorker(idleProcesses: number, memory: string, to: stri
     ...(to ? ['-e', `CALL_TEST_TO=${to}`] : []),
     'agent',
   )
-  await docker('update', '--memory', memory, '--memory-swap', memory, CALLER_CONTAINER)
+  await docker(
+    'update',
+    '--memory',
+    memory,
+    '--memory-swap',
+    memory,
+    ...(cpuset ? ['--cpuset-cpus', cpuset] : []),
+    CALLER_CONTAINER,
+  )
   for (const deadline = Date.now() + 120_000; Date.now() < deadline; await sleep(2000)) {
     const logs = await docker('logs', CALLER_CONTAINER).catch(() => '')
     if (logs.includes('registered worker')) return
@@ -108,6 +157,7 @@ async function keepCallerLogs() {
 
 async function runLevel(calls: number, container: string, callArgs: string[]): Promise<LevelSummary> {
   console.log(`\n${calls} call(s) at once…`)
+  const oomBefore = await oomKillCount(container)
   const baseline = await sample(container)
   const watch = sampler(container)
   const { stdout } = await exec(
@@ -140,7 +190,7 @@ async function runLevel(calls: number, container: string, callArgs: string[]): P
     )
   await sleep(SETTLE_MS)
   const after = await sample(container)
-  return summarizeLevel(calls, results, baseline, during, after)
+  return summarizeLevel(calls, results, baseline, during, after, (await oomKillCount(container)) - oomBefore)
 }
 
 async function main() {
@@ -156,27 +206,40 @@ async function main() {
     ...(args.includes('--pipeline') ? ['--pipeline', flag(args, '--pipeline', '')] : []),
   ]
 
-  const [memory, swap] = await memoryOf(container)
-  console.log(`Raising ${container}'s memory limit for the test (was ${Math.round(Number(memory) / 2 ** 20)} MB)…`)
+  const before = await limitsOf(container)
+  const memory = flag(args, '--memory', '4g')
+  const cpuset = flag(args, '--cpuset', before.cpuset)
+  console.log(
+    `Limits of ${container} for the test: memory ${memory} (was ${Math.round(Number(before.memory) / 2 ** 20)} MB), cores ${cpuset || 'all'} (was ${before.cpuset || 'all'})`,
+  )
   await docker(
     'update',
     '--memory',
-    flag(args, '--memory', '4g'),
+    memory,
     '--memory-swap',
-    flag(args, '--memory', '4g'),
+    memory,
+    ...(cpuset ? ['--cpuset-cpus', cpuset] : []),
     container,
   )
   const summaries: LevelSummary[] = []
   try {
     console.log('Starting the caller worker…')
     const to = args.includes('--to') ? flag(args, '--to', '') : undefined
-    await startCallerWorker(Math.max(...levels), flag(args, '--caller-memory', '3g'), to)
+    const callerCpuset = args.includes('--caller-cpuset') ? flag(args, '--caller-cpuset', '') : undefined
+    await startCallerWorker(before.project, Math.max(...levels), flag(args, '--caller-memory', '3g'), callerCpuset, to)
     for (const calls of levels) summaries.push(await runLevel(calls, container, callArgs))
   } finally {
     await keepCallerLogs()
     await docker('rm', '-f', CALLER_CONTAINER).catch(() => '')
-    await docker('update', '--memory', memory!, '--memory-swap', swap!, container).catch(e =>
-      console.error(`Could not put ${container}'s memory limit back: ${e}`),
+    const restore = [
+      '--memory',
+      before.memory,
+      '--memory-swap',
+      before.swap,
+      ...(before.cpuset ? ['--cpuset-cpus', before.cpuset] : []),
+    ]
+    await docker('update', ...restore, container).catch(e =>
+      console.error(`Could not put ${container}'s limits back: ${e}`),
     )
   }
   console.log(`\n${formatSummaries(summaries)}`)

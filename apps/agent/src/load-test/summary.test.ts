@@ -40,9 +40,12 @@ describe('load test summary', () => {
       s(600),
       [s(900, 1.5, [190, 300, 300, 1]), s(1000, 0.5)],
       s(650),
+      1,
     )
     expect(row).toMatchObject({
       answered: 2,
+      talked: 2,
+      oomKills: 1,
       peakMb: 1000,
       perCallMb: 200,
       afterMb: 650,

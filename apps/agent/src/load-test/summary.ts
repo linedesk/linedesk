@@ -7,6 +7,10 @@ export type Sample = { at: number; cpuCores: number; memMb: number; processMb: n
 export type LevelSummary = {
   calls: number
   answered: number
+  /** Answered calls in which the test caller heard at least one reply: a conversation, not only a greeting. */
+  talked: number
+  /** Processes the kernel killed for memory in the container during the level (cgroup memory.events oom_kill). */
+  oomKills: number
   baselineMb: number
   peakMb: number
   /** (peak − before) / answered calls. */
@@ -64,6 +68,7 @@ export function summarizeLevel(
   baseline: Sample,
   during: Sample[],
   after: Sample,
+  oomKills = 0,
 ): LevelSummary {
   const all = [baseline, ...during]
   const answered = results.filter(r => r.answered)
@@ -74,6 +79,8 @@ export function summarizeLevel(
   return {
     calls,
     answered: answered.length,
+    talked: answered.filter(r => r.replyMs.length > 0).length,
+    oomKills,
     baselineMb: baseline.memMb,
     peakMb,
     perCallMb: answered.length ? (peakMb - baseline.memMb) / answered.length : null,
@@ -94,10 +101,10 @@ const sec = (v: number | null) => (v === null ? '–' : `${(v / 1000).toFixed(2)
 
 export function formatSummaries(rows: LevelSummary[]): string {
   const head =
-    '| Calls | Answered | Before | Peak | Per call | After | CPU peak / mean (cores) | Processes | Largest | Greeting p50 / max | Reply p50 / p95 |'
+    '| Calls | Answered | Talked | OOM kills | Before | Peak | Per call | After | CPU peak / mean (cores) | Processes | Largest | Greeting p50 / max | Reply p50 / p95 |'
   const lines = rows.map(
     r =>
-      `| ${r.calls} | ${r.answered} | ${mb(r.baselineMb)} | ${mb(r.peakMb)} | ${mb(r.perCallMb)} | ${mb(r.afterMb)} | ${r.peakCpu.toFixed(2)} / ${r.meanCpu.toFixed(2)} | ${r.peakProcesses} | ${mb(r.largestProcessMb)} | ${sec(r.greetingP50)} / ${sec(r.greetingMax)} | ${sec(r.replyP50)} / ${sec(r.replyP95)} |`,
+      `| ${r.calls} | ${r.answered} | ${r.talked} | ${r.oomKills} | ${mb(r.baselineMb)} | ${mb(r.peakMb)} | ${mb(r.perCallMb)} | ${mb(r.afterMb)} | ${r.peakCpu.toFixed(2)} / ${r.meanCpu.toFixed(2)} | ${r.peakProcesses} | ${mb(r.largestProcessMb)} | ${sec(r.greetingP50)} / ${sec(r.greetingMax)} | ${sec(r.replyP50)} / ${sec(r.replyP95)} |`,
   )
-  return [head, `|${'---|'.repeat(11)}`, ...lines].join('\n')
+  return [head, `|${'---|'.repeat(13)}`, ...lines].join('\n')
 }
