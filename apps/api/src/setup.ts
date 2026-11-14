@@ -2,12 +2,16 @@
 // log; whoever enters it on the sign-in page (Login.tsx shows the setup form while `setupNeeded`)
 // becomes the first instance admin. Reading the log needs access to the server, so the code proves
 // what INSTANCE_ADMIN_EMAILS proves otherwise: this is the operator. That person's address counts as
-// confirmed, as with `user:create --admin` (instance-admin.ts): there may be no email set up yet.
+// confirmed, as with `user:create --admin` (instance-admin.ts): there may be no email set up yet. For the same reason
+// they get their passkey enrolment code at once (what `user:passkeys --enrol` would print): email and sign-in need a
+// passkey, and the first admin has nobody to ask for the code.
 import { createHash, randomInt, timingSafeEqual } from 'node:crypto'
 import { account, type Db, instance_settings, type Tx, user } from '@linedesk/db'
 import { hashPassword } from 'better-auth/crypto'
 import { eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
+import { adminSecondFactorRequired } from './admin-second-factor.ts'
+import { issuePasskeyEnrolment, type PasskeyEnrolment } from './passkey-enrolment.ts'
 import { createFailureLimiter } from './rate-limit.ts'
 
 const CODE_KEY = 'setup.code_sha256'
@@ -67,7 +71,7 @@ export class SetupError extends Error {
 
 const newId = () => crypto.randomUUID().replaceAll('-', '')
 
-/** Checks the code and creates the first instance admin, with the password they chose. */
+/** Checks the code and creates the first instance admin, with the password they chose, and their passkey enrolment code. */
 export async function completeSetup(db: Db, input: SetupInput, clientIp: string | null) {
   const address = clientIp ?? 'unknown'
   if (wrongPerAddress.blocked(address) || wrongInAll.blocked(ALL))
@@ -91,8 +95,9 @@ export async function completeSetup(db: Db, input: SetupInput, clientIp: string 
       .insert(account)
       .values({ id: newId(), accountId: id, providerId: 'credential', userId: id, password: hashed })
     await tx.delete(instance_settings).where(eq(instance_settings.key, CODE_KEY))
+    const enrolment: PasskeyEnrolment | null = adminSecondFactorRequired() ? await issuePasskeyEnrolment(tx, id) : null
     console.log(`First instance admin created with the setup code: ${input.email}`)
-    return { userId: id }
+    return { userId: id, enrolment }
   })
 }
 

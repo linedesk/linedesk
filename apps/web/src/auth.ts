@@ -1,3 +1,4 @@
+import { type EnrolmentCode, rememberEnrolmentCode } from './enrolment-code.ts'
 import { passkeyClient } from '@better-auth/passkey/client'
 import { emailOTPClient, organizationClient } from 'better-auth/client/plugins'
 import type { AuthMethods, LegalLinks, SsoMethod } from '@linedesk/api/auth-types'
@@ -121,7 +122,10 @@ export async function completeSetup(input: { code: string; name: string; email: 
     const body = (await res.json().catch(() => null)) as { error?: string; message?: string } | null
     throw new Error(body?.error ?? body?.message ?? 'Setup did not work. Try again.')
   }
-  return (await res.json().catch(() => ({}))) as { signedIn?: boolean }
+  const body = (await res.json().catch(() => ({}))) as { signedIn?: boolean; enrolment?: EnrolmentCode | null }
+  // The first passkey's enrolment code: Account › Sign-in & security fills it in (enrolment-code.ts).
+  rememberEnrolmentCode(body.enrolment)
+  return body
 }
 
 export async function createWorkspace(name: string) {

@@ -20,6 +20,8 @@ import {
 } from '@linedesk/actions'
 import { instance_settings, type Tx, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
+import { passkeyStillNeeded } from './admin-step-up.ts'
+import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
@@ -76,8 +78,9 @@ export async function setsUpByHand(userId: string, tx: Tx | typeof db = db): Pro
 }
 
 /** GET /v1/admin/install-setup: where the walkthrough is, whether it is on, and whether a restart is pending. */
-export async function installSetupState() {
+export async function installSetupState(actor: Actor) {
   return {
+    passkeyNeeded: await passkeyStillNeeded(actor.actorId),
     enabled: installSetupEnabled(),
     progress: await readInstallProgress(),
     restart: await restartState(db),

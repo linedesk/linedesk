@@ -1,6 +1,7 @@
 // Account: profile, notifications, sign-in and sessions of the signed-in member, one section at a time
 // (#account/<section>). Profile, sign-in and sessions are Better Auth's own data (see account-api.ts), so they do
 // not go through the outbox; notifications are per workspace (settings/Notifications.tsx).
+import { forgetEnrolmentCode, readEnrolmentCode } from '../../enrolment-code.ts'
 import { type FormEvent, useCallback, useState } from 'react'
 import { passkeySupported } from '../../auth.ts'
 import { ConfirmEmail } from '../../ConfirmEmail.tsx'
@@ -282,7 +283,8 @@ function Passkeys() {
   const enrolment = useQuery(PASSKEY_ENROLMENT, loadPasskeyEnrolment)
   const list = passkeys.data
   const [confirming, setConfirming] = useState<string | null>(null)
-  const [enrolmentCode, setEnrolmentCode] = useState('')
+  // The first admin's code came back with the setup (enrolment-code.ts): filled in, so adding the passkey is one click.
+  const [enrolmentCode, setEnrolmentCode] = useState(() => readEnrolmentCode() ?? '')
   const request = useRequest()
   const load = passkeys.reload
   // An instance admin's first passkey needs the one-time code another admin (or the CLI) gave them.
@@ -292,6 +294,7 @@ function Passkeys() {
     request.run(async () => {
       if (needsCode && !enrolmentCode.trim()) throw new Error('Enter your passkey enrolment code first.')
       await addPasskey(describeDevice(navigator.userAgent), needsCode ? enrolmentCode : undefined)
+      forgetEnrolmentCode()
       setEnrolmentCode('')
       await Promise.all([load(), enrolment.reload()])
     }, 'Passkey added.')

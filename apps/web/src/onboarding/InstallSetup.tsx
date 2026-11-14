@@ -3,7 +3,8 @@
 // each step is its heading, the same group panel as Admin › Providers (ProviderGroup, embedded: it opens the
 // provider's dialog in place and never navigates away) and the footer. The dialog has Test again and Try it, a real
 // round trip (`provider.tryOut`). Welcome and Done show the "Ready for calls" list. Where the admin got to is kept on
-// the server (`install.setProgress`), so it resumes there.
+// the server (`install.setProgress`), so it resumes there. An admin without a passkey adds one before Email
+// (PasskeyFirst, LIN-189): email and sign-in keys need it.
 import {
   groupSpec,
   type InstallSetupState,
@@ -34,7 +35,14 @@ import { TryOut } from '../admin/TryOut.tsx'
 import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { peekQuery, setQueryData } from '../cachedQuery.ts'
+import { forgetEnrolmentCode, readEnrolmentCode } from '../enrolment-code.ts'
+import { passkeySupported } from '../auth.ts'
+import { addPasskey, confirmWithPasskey } from '../settings/account/account-api.ts'
+import { describeDevice } from '../settings/account/account-model.ts'
+import { TextInput } from '../settings/fields.tsx'
 import { BrandMark, Button, Note, Spinner } from '../ui/kit.tsx'
+import { StatusMark } from '../ui/StatusMark.tsx'
+import { showPasskeyFirst } from './passkey-first.ts'
 import { problemText } from '../ui/LoadStates.tsx'
 import { HostingNote, openAgentSetup } from './AgentSetup.tsx'
 import '../admin/admin.css'
@@ -61,6 +69,8 @@ export function InstallSetup({ onExit }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [step, setStep] = useState<InstallStep | null>(null)
   const [signInAgain, setSignInAgain] = useState<AdminSecondFactor | null>(null)
+  // "Skip for now" on the passkey screen: Email shows, and its save asks for the passkey then (PasskeyStepUp).
+  const [passkeySkipped, setPasskeySkipped] = useState(false)
   useEffect(() => watchAdminSignIn(setSignInAgain), [])
   // Read here and shared with Admin's cache (the page opens before the session settles the cache's scope, so a cached
   // read could miss its answer).
@@ -139,14 +149,15 @@ export function InstallSetup({ onExit }: Props) {
   const index = step ? installSteps.indexOf(step) : 0
   const partIndex = step ? partSteps.indexOf(step as PartStepId) : -1
   const groups = status.status?.groups ?? null
+  const passkeyFirst = showPasskeyFirst(step, setup, passkeySkipped)
   return (
     <div className="ob is" role="main" aria-label={`Set up ${brandName()} by hand`}>
       <div className="ob-top">
         <BrandMark />
         <b>{brandName()}</b>
         <span className="ob-count">
-          Setup by hand{step ? ` · ${installStepLabels[step]}` : ''}
-          {partIndex >= 0 ? ` · ${partIndex + 1} of ${partSteps.length}` : ''}
+          Setup by hand{passkeyFirst ? ' · Your passkey' : step ? ` · ${installStepLabels[step]}` : ''}
+          {partIndex >= 0 && !passkeyFirst ? ` · ${partIndex + 1} of ${partSteps.length}` : ''}
         </span>
         <Button
           size="sm"
@@ -170,7 +181,15 @@ export function InstallSetup({ onExit }: Props) {
             </p>
           )
         ) : step === 'welcome' ? (
-          <Welcome status={status} onStart={() => go('email')} />
+          <Welcome status={status} passkeyNeeded={setup.passkeyNeeded} onStart={() => go('email')} />
+        ) : passkeyFirst ? (
+          <PasskeyFirst
+            onBack={() => go('welcome')}
+            onSkip={() => setPasskeySkipped(true)}
+            onDone={async () => {
+              await reloadAll()
+            }}
+          />
         ) : step === 'done' ? (
           <Done
             status={status}
@@ -265,15 +284,24 @@ function Foot({
 const groupOfStep = (status: ProviderStatusState, step: PartStepId) =>
   status.status!.groups.find(g => g.id === installStepGroups[step])!
 
-function Welcome({ status, onStart }: { status: ProviderStatusState; onStart: () => void }) {
+function Welcome({
+  status,
+  passkeyNeeded,
+  onStart,
+}: {
+  status: ProviderStatusState
+  passkeyNeeded: boolean
+  onStart: () => void
+}) {
   useWalkKeys(onStart, null)
   return (
     <>
       <div className="ob-body">
         <h1>Set up this server by hand</h1>
         <p className="ob-lede">
-          Four parts, most with their own account. Every step says where to get the key and what it costs, and tests it
-          for real before you move on. About 30 to 45 minutes; you can skip a part and come back to it.
+          {passkeyNeeded ? 'First a passkey for you, then four parts' : 'Four parts'}, most with their own account.
+          Every step says where to get the key and what it costs, and tests it for real before you move on. About 30 to
+          45 minutes; you can skip a part and come back to it.
         </p>
       </div>
       <HostingNote address={window.location.origin} />
@@ -292,6 +320,126 @@ function Welcome({ status, onStart }: { status: ProviderStatusState; onStart: ()
         </button>
       </Note>
       <Foot onNext={onStart} nextLabel="Start" />
+    </>
+  )
+}
+
+/**
+ * Before Email, for an admin without a passkey: email and sign-in keys need one. Add it (the first admin's enrolment
+ * code came back with the setup and is filled in), then sign in with it once, so saving those keys just works.
+ */
+function PasskeyFirst({
+  onBack,
+  onSkip,
+  onDone,
+}: {
+  onBack: () => void
+  onSkip: () => void
+  onDone: () => Promise<void>
+}) {
+  const [code, setCode] = useState(() => readEnrolmentCode() ?? '')
+  // Filled in from the setup: the field stays hidden unless that code is missing or did not work.
+  const [askCode, setAskCode] = useState(() => !readEnrolmentCode())
+  const [added, setAdded] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const supported = passkeySupported()
+
+  const run = async (work: () => Promise<void>) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await work()
+    } catch (e) {
+      setError(errorText(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const add = () =>
+    run(async () => {
+      if (!code.trim()) {
+        setAskCode(true)
+        throw new Error('Enter your enrolment code first.')
+      }
+      try {
+        await addPasskey(describeDevice(navigator.userAgent), code)
+      } catch (e) {
+        setAskCode(true)
+        throw e
+      }
+      forgetEnrolmentCode()
+      setAdded(true)
+    })
+  const signIn = () =>
+    run(async () => {
+      await confirmWithPasskey()
+      await onDone()
+    })
+  const primary = !supported ? onSkip : added ? () => void signIn() : () => void add()
+  useWalkKeys(busy ? null : primary, onBack)
+
+  return (
+    <>
+      <div className="ob-body">
+        <span className="as-kicker">Before you start</span>
+        <h1>Add your passkey</h1>
+        <p className="ob-lede">
+          Email and sign-in decide who can sign in, so saving their keys needs your passkey. Add it now: your
+          fingerprint, face or device PIN.
+        </p>
+      </div>
+
+      <section className="as-card">
+        <ul className="is-passkey">
+          <li>
+            <StatusMark state={added ? 'works' : 'missing'} label={added ? 'Added' : 'Not added yet'} />
+            Add a passkey on this device
+          </li>
+          <li>
+            <StatusMark state="missing" label="Not yet" />
+            Sign in with it once
+          </li>
+        </ul>
+        {askCode && !added && (
+          <TextInput
+            label="Enrolment code"
+            placeholder="Enrolment code (user:passkeys --enrol on the server)"
+            value={code}
+            onChange={setCode}
+          />
+        )}
+        {!supported && (
+          <Note tone="danger">Passkeys need https. Open this page at its https address, or skip for now.</Note>
+        )}
+        {error && <Note tone="danger">{error}</Note>}
+      </section>
+
+      <div className="ob-foot">
+        <Button variant="ghost" icon="left" onClick={onBack} title="Back (Esc)">
+          Back
+        </Button>
+        <div className="ob2-foot-r">
+          {supported && (
+            <Button
+              variant="ghost"
+              onClick={onSkip}
+              title="Skip for now. Saving email and sign-in keys asks for a passkey then."
+            >
+              Skip for now
+            </Button>
+          )}
+          <Button variant="primary" shortcut={['⏎']} disabled={busy} onClick={primary}>
+            {busy
+              ? 'Waiting for your device…'
+              : !supported
+                ? 'Skip for now'
+                : added
+                  ? 'Sign in with passkey'
+                  : 'Add passkey'}
+          </Button>
+        </div>
+      </div>
     </>
   )
 }

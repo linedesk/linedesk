@@ -8,7 +8,7 @@ import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
 import type * as RunActionModule from '../src/run-action.ts'
 import { PRIVATE_ENDPOINT } from '../src/s3-endpoint.ts'
-import { forAgent, SETUP_ACTIONS } from '../src/setup-mcp.ts'
+import { forAgent, installPartDone, SETUP_ACTIONS } from '../src/setup-mcp.ts'
 import {
   act,
   appRequest,
@@ -369,6 +369,59 @@ describe('every key through the agent (LIN-182)', () => {
     })
     expect(JSON.stringify(res.body)).not.toContain(SECRET)
     expect(await db.select().from(provider_settings).where(eq(provider_settings.provider, 'resend'))).toHaveLength(2)
+  })
+
+  test('setup_status lists the passkey first while the admin has none, with how to add it (LIN-189)', async () => {
+    type Status = {
+      steps: { id: string; state: string; how?: string[] }[]
+      next_step: string | null
+    }
+    // Admins need no passkey on this install: no passkey step, the providers come first as before.
+    const { key } = await makeKey(ws.owner)
+    const off = data(await call(key, 'setup_status')) as Status
+    expect(off.steps.map(s => s.id)).not.toContain('passkey')
+    expect(off.steps[0]!.id).toBe('answering')
+
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    const before = data(await call(key, 'setup_status')) as Status
+    expect(before.steps.map(s => s.id).slice(0, 5)).toEqual([
+      'passkey',
+      'answering',
+      'telephony',
+      'email',
+      'call-audio',
+    ])
+    const step = before.steps[0]!
+    // Only the admin can add it, in the browser: the agent asks and goes on with the next step meanwhile.
+    expect(step.state).toBe('admin_only')
+    expect(before.next_step).toBe('answering')
+    const how = step.how!.join(' ')
+    expect(how).toMatch(/agents cannot add passkeys/)
+    expect(how).toContain('/#account/security')
+    expect(how).toMatch(/enrolment code is filled in already/)
+    expect(how).toContain('user-passkeys.ts --enrol')
+    expect(how).toMatch(/"Allow"/)
+    // The next step keeps its own how-to as well.
+    expect(before.steps.find(s => s.id === 'answering')?.how).toBeDefined()
+
+    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
+    const after = data(await call(key, 'setup_status')) as Status
+    expect(after.steps[0]).toMatchObject({ id: 'passkey', state: 'done' })
+    expect(after.steps[0]!.how).toBeUndefined()
+  })
+
+  test('the install part is finished when its four provider steps are done, the passkey step aside', () => {
+    const step = (id: string, state: string) =>
+      ({ id, label: id, state }) as Parameters<typeof installPartDone>[0][number]
+    const providers = ['answering', 'telephony', 'email', 'call-audio'].map(id => step(id, 'done'))
+    const business = [step('workspace', 'todo'), step('test_call', 'admin_only')]
+    // The passkey comes first and only the admin adds it: it never holds the install part back.
+    expect(installPartDone([step('passkey', 'admin_only'), ...providers, ...business])).toBe(true)
+    expect(installPartDone([...providers, ...business])).toBe(true)
+    // With the passkey first, the old "first four" left call audio out.
+    expect(
+      installPartDone([step('passkey', 'done'), ...providers.slice(0, 3), step('call-audio', 'todo'), ...business]),
+    ).toBe(false)
   })
 
   test('email and sign-in keep the passkey step-up: PASSKEY_NEEDED says what to ask, nothing is stored', async () => {

@@ -134,25 +134,36 @@ app.get('/v1/branding/logo.png', async c => {
 })
 
 // Public, only while nobody has an account: the setup code from the server log makes the first admin (setup.ts).
+// Whoever holds the setup code is the operator, so their passkey enrolment code comes straight back to this browser
+// (`enrolment`, null when admins need no passkey): the first passkey needs no command on the server.
 app.post('/v1/setup', async c => {
   const parsed = setupInput.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'invalid input' }, 400)
-  let userId: string
+  let made: Awaited<ReturnType<typeof completeSetup>>
   try {
-    ;({ userId } = await completeSetup(db, parsed.data, clientIpOf(c)))
+    made = await completeSetup(db, parsed.data, clientIpOf(c))
   } catch (e) {
     if (e instanceof SetupError) return c.json({ error: e.message }, e.status)
     throw e
   }
+  const { userId, enrolment } = made
   // Signed in at once, with the password just chosen; no "new device" alert for this first sign-in.
-  if (!authMethods.password) return c.json({ ok: true, signedIn: false })
+  if (!authMethods.password) return c.json({ ok: true, signedIn: false, enrolment })
   markSetupSignIn(userId)
   try {
-    return await auth.api.signInEmail({
+    const signedIn = await auth.api.signInEmail({
       body: { email: parsed.data.email, password: parsed.data.password },
       headers: c.req.raw.headers,
       asResponse: true,
     })
+    if (!signedIn.ok) return signedIn
+    // Better Auth's answer with its cookies, and the enrolment code added to its body.
+    const body = (await signedIn.json().catch(() => ({}))) as Record<string, unknown>
+    const headers = new Headers(signedIn.headers)
+    headers.delete('content-length')
+    headers.set('content-type', 'application/json')
+    headers.set('cache-control', 'no-store')
+    return new Response(JSON.stringify({ ...body, enrolment }), { status: signedIn.status, headers })
   } finally {
     takeSetupSignIn(userId)
   }

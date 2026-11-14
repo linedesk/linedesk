@@ -46,7 +46,8 @@ import {
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
 import { and, asc, eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { PASSKEY_STEP_UP_REQUIRED, type StepUp } from './admin-step-up.ts'
+import { adminSecondFactorRequired } from './admin-second-factor.ts'
+import { PASSKEY_STEP_UP_REQUIRED, passkeyStillNeeded, type StepUp } from './admin-step-up.ts'
 import {
   actorForSetupKey,
   emailAndSignInAllowed,
@@ -153,8 +154,16 @@ export function passkeyNeeded(stepUp: StepUp | undefined, keyId?: string, reason
       ? 'a storage endpoint on this server or a private network could reach internal services, so it needs'
       : 'email and sign-in decide who can sign in, so changing them needs'
   return stepUp === 'enrol'
-    ? `PASSKEY_NEEDED: ${why} the admin's passkey, and they have none yet. Nothing was stored. Ask the admin in this chat to add one: an enrolment code from the server (if you can run commands there, run it for them: docker compose exec api node apps/api/src/user-passkeys.ts --enrol --email <their email>, or pnpm --filter @linedesk/api user:passkeys --enrol --email <their email>), then Account › Sign-in & security › Add passkey with that code, then open ${page} and click "Allow". Then call this tool again with the same values; this setup link keeps working. Or skip this for now and go on with the next step.`
+    ? `PASSKEY_NEEDED: ${why} the admin's passkey, and they have none yet. Nothing was stored. Ask the admin in this chat to add one in the browser (you cannot add passkeys): ${addPasskeyHow()} Then ask them to open ${page} and click "Allow". Then call this tool again with the same values; this setup link keeps working. Or skip this for now and go on with the next step.`
     : `PASSKEY_NEEDED: ${why} the admin's passkey. This setup link does not have it. Nothing was stored. Ask the admin in this chat to open ${page}, check that the link shown there is the one you use, click "Allow" and confirm with their passkey (one click, no keys to paste). Then call this tool again with the same values; this setup link keeps working.`
+}
+
+/**
+ * How the admin adds their first passkey, said for the agent. The first admin, made with the setup code, has the
+ * enrolment code filled in already in the browser they set up in (app.ts /v1/setup); anyone else needs one.
+ */
+function addPasskeyHow(): string {
+  return `open ${webAddress()}/#account/security and click "Add passkey". If they made their account with the setup code from the server log, the enrolment code is filled in already in that browser; otherwise it needs one: if you can run commands on the server, run docker compose exec api node apps/api/src/user-passkeys.ts --enrol --email <their email> (or pnpm --filter @linedesk/api user:passkeys --enrol --email <their email>) and give them the code it prints, or another instance admin gives them one.`
 }
 
 /** Instance admin rights only for the provider and install actions; the business's own actions run as its owner would. */
@@ -278,11 +287,43 @@ const callAudioLines = () => [
   'If you cannot run commands on the server, tell the admin these steps.',
 ]
 
+/** The install's own steps (provider groups a first call needs); when all are done, the setup by hand is finished. */
+const INSTALL_GROUP_STEPS: readonly string[] = ['answering', 'telephony', 'email', 'call-audio']
+
+/** Whether the install's own part is done: its provider steps by id, whatever comes before them (the passkey). */
+export const installPartDone = (steps: readonly Pick<Step, 'id' | 'state'>[]) =>
+  steps.filter(s => INSTALL_GROUP_STEPS.includes(s.id)).every(s => s.state === 'done')
+
+/**
+ * First, on an install that asks admins for a passkey: the admin's own passkey. Email and sign-in need it, and an
+ * agent can never add one, so the step is the admin's (admin_only) and carries its how-to until it is done; the
+ * agent goes on with the next step meanwhile. Not listed when admins need no passkey (ADMIN_SECOND_FACTOR=off).
+ */
+async function passkeyStep(actor: Actor): Promise<Step[]> {
+  if (!adminSecondFactorRequired()) return []
+  const needed = await passkeyStillNeeded(actor.actorId)
+  return [
+    {
+      id: 'passkey',
+      label: 'Your passkey',
+      state: needed ? 'admin_only' : 'done',
+      detail: needed ? 'Not added yet: email and sign-in wait for it' : 'Added',
+      how: [
+        "Do this first. Email and sign-in decide who can sign in, so changing them needs the admin's passkey; agents cannot add passkeys.",
+        `Ask the admin in this chat to add one in the browser: ${addPasskeyHow()}`,
+        `Then ask them to open ${allowPage(actor.setupKeyId)} and click "Allow" (it confirms with the new passkey), so this setup link may change email and sign-in.`,
+        'Meanwhile go on with the next step. If the admin wants to skip the passkey for now, that is fine: only email and sign-in wait for it.',
+      ],
+    },
+  ]
+}
+
 /** What the agent reads first and after every step. */
 async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean } = {}) {
   const { groups } = await setupChecklist(db)
   const group = (id: GroupStatus['id']) => groups.find(g => g.id === id)!
   const steps: Step[] = [
+    ...(await passkeyStep(actor)),
     groupStep(
       group('answering'),
       [
@@ -306,14 +347,16 @@ async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean
     ...(await workspaceSteps(actor, advance)),
   ]
   // The install's own part is done: the setup by hand does not open on it later (bookkeeping, like onboarding_setStep).
-  const installDone = steps.slice(0, 4).every(s => s.state === 'done')
-  if (advance && installDone && !(await readInstallProgress()).finishedAt)
+  if (advance && installPartDone(steps) && !(await readInstallProgress()).finishedAt)
     await runAction('install.setProgress', { finished: true }, actor)
   const next = steps.find(s => s.state !== 'done' && s.state !== 'admin_only') ?? null
   return {
     you_act_as: await whoAmI(actor),
     install: whereItRuns(),
-    steps: steps.map(({ how, ...s }) => (s.id === next?.id ? { ...s, how } : s)),
+    // The next step's how-to, and the passkey's while the admin has none (it comes first; only they can add it).
+    steps: steps.map(({ how, ...s }) =>
+      s.id === next?.id || (s.id === 'passkey' && s.state !== 'done') ? { ...s, how } : s,
+    ),
     next_step: next ? next.id : null,
     all_done: !next,
     optional: optionalSteps(groups, await emailAndSignInNote(actor)),

@@ -101,6 +101,16 @@ export async function passkeyStepUpRefusal(def: Pick<ActionDef, 'name' | 'permis
   }
 }
 
+/**
+ * An instance admin who has no passkey on an install that asks for one: email and sign-in settings wait for it, so the
+ * first-run setup asks for the passkey first (install-setup.ts, setup-mcp.ts).
+ */
+export async function passkeyStillNeeded(userId: string): Promise<boolean> {
+  if (!adminSecondFactorRequired()) return false
+  const [own] = await db.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, userId)).limit(1)
+  return !own
+}
+
 /** For handlers that hand out an enrolment code: never to a session that is not passkey-confirmed. */
 export function mayReceiveEnrolmentCode(actor: Actor): boolean {
   return Boolean(actor.passkeyConfirmed) || !adminSecondFactorRequired()

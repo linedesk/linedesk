@@ -3,6 +3,7 @@
 // cached reads (cachedQuery.ts) and the last /v1/me (session.ts). It belongs to that session only,
 // so every way out (sign-out, another account, removal, an impersonation that starts or ends)
 // deletes all of it, not only the workspace that happens to be open.
+import { forgetEnrolmentCode } from './enrolment-code.ts'
 import { auth } from './auth.ts'
 import { setReportedMember } from './errorReporting.ts'
 import { forgetOtherMembersQueries } from './cachedQuery.ts'
@@ -88,6 +89,7 @@ export async function signOutAndForget() {
   setReportedMember(null)
   await forgetLocalData()
   forgetKeys([SETUP_LINK_KEY])
+  forgetEnrolmentCode()
 }
 
 /** Ends this session and shows the sign-in screen; signing in comes back to the same page. */

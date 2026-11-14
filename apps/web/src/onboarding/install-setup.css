@@ -7,3 +7,18 @@
   font-size: 13px;
   color: var(--ink-muted);
 }
+
+/* The passkey screen before Email (PasskeyFirst): the two things to do, each with its mark. */
+.is-passkey {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  font-size: 14px;
+}
+.is-passkey li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}

@@ -43,7 +43,7 @@ ssh root@<server IP> cat /root/linedesk-setup.txt     # Lightsail: ssh ubuntu@<s
 curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/HEAD/scripts/install.sh | sudo sh
 ```
 
-Open the address, enter the setup code, and set up the rest with your AI agent or by hand.
+Open the address, enter the setup code, add your passkey when it asks (email and sign-in settings need it), and set up the rest with your AI agent or by hand.
 
 **With an AI agent:** Claude Code or Codex on your computer can do the whole move. The Linedesk setup tells your agent when it runs only on your computer; ask it to put Linedesk on a server. It helps you pick a provider, and once it can reach the server over SSH, it runs the install there and reads you the setup code.
 
