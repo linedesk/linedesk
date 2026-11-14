@@ -816,8 +816,12 @@ body,
   height: 14px;
   border-radius: 4px;
 }
+.ib-cols-check .k-check {
+  gap: 0;
+}
 .ib-cols-all {
   display: none;
+  margin-left: 8px;
 }
 .ib-list .ib-day {
   padding-left: var(--row-lead);

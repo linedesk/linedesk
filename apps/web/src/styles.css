@@ -467,6 +467,8 @@ span.mono { font-family: var(--font-mono); font-size: 12px; color: var(--ink-mut
 .field { display: grid; gap: 6px; }
 .field label { font-size: 13px; font-weight: 500; }
 .help { font-size: 12px; color: var(--ink-muted); }
+/* A plain link inside helper text looks like every other link (.k-link), never the browser's blue. */
+.help a:not([class]) { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
 .ta { font: inherit; font-size: 13.5px; line-height: 20px; padding: 8px 10px; border: 1px solid var(--line-control); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); resize: vertical; min-height: 72px; }
 .ta:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
 .row2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
@@ -1018,7 +1020,8 @@ body { font-size: 13px; }
 .ib-hint .k-kbd, .kt kbd { height: 16px; min-width: 16px; padding: 0 3px; font-size: 10px; }
 .k-btn-primary .k-kbd, .k-btn-danger .k-kbd { background: transparent; border-color: currentColor; }
 .nav-item, .k-cmd-item { height: 32px; font-size: 13px; }
-.ib-tab { height: 24px; font-size: 13px; }
+/* Tabs as tall as the small controls beside them (menu button, search), so the header's controls share one height. */
+.ib-tab { height: var(--control-h-sm); font-size: 13px; }
 
 /* ---- Type scale ---- */
 /* 11: captions, section labels, mono numbers */
@@ -1347,7 +1350,7 @@ mark { background: rgb(250 204 21 / 0.38); color: inherit; border-radius: 2px; p
 
 /* notifications: first row without the hairline */
 .st-swlist { display: grid; gap: 10px; }
-.st-swlist > .swrow:first-child { padding-top: 0; border-top: 0; }
+.st-swlist > .swrow:first-child, .k-card-head + .swrow { padding-top: 0; border-top: 0; }
 
 /* providers */
 .st-rec { margin-left: 6px; vertical-align: 1px; }

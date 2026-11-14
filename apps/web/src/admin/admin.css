@@ -703,6 +703,7 @@
 }
 .adm-stat {
   display: grid;
+  align-content: start;
   gap: 2px;
   min-height: 74px;
   box-sizing: border-box;
@@ -750,6 +751,7 @@
   gap: 10px;
 }
 .adm-ready-head > .k-mark {
+  align-self: flex-start;
   margin-top: 3px;
 }
 .adm-ready-text {
@@ -852,6 +854,9 @@
 @media (max-width: 559px) {
   .adm-status-row .k-row-aside {
     margin-left: auto;
+  }
+  .adm-status-row .k-row-main {
+    flex-basis: 110px;
   }
 }
 .adm-status-value {
@@ -1011,6 +1016,9 @@
 .adm-brand-logo-mark {
   width: 40px;
   height: 40px;
+  margin: 0;
+}
+.adm-brand-logo > .adm-brand-logo-mark {
   margin: 0;
 }
 .adm-brand-logo-mark img {

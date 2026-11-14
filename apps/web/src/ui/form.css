@@ -44,7 +44,9 @@
   align-items: center;
   gap: 8px;
   flex: none;
-  /* A small button (28px) fits the title's line (20px) without making the header taller. */
+  /* A small button (28px) fits the title's line (20px) without making the header taller; anything lower (a switch,
+     a value) is centred in the same 28px, so it sits on the title's centre line too. */
+  min-height: var(--control-h-sm);
   margin: -4px 0;
 }
 
