@@ -894,11 +894,15 @@ export const auth_events = pgTable(
         'passkey_added',
         'passkey_removed',
         'password_changed',
+        'email_changed',
         'invitation_accepted',
         'call_routing_reset',
       ],
     }).notNull(),
-    /** sign_in / sign_up / provider_linked: password, email_code, passkey, google, microsoft, github, oidc. */
+    /**
+     * sign_in / sign_up / provider_linked: password, email_code, passkey, google, microsoft, github, oidc.
+     * email_changed: the new address (`email` keeps the old one).
+     */
     method: text('method'),
     workspace_id: text('workspace_id'),
     ip_address: text('ip_address'),

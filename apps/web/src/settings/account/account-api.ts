@@ -115,6 +115,38 @@ export async function setFirstPassword(newPassword: string) {
   throw new Error(body.error ?? 'Could not set your password.')
 }
 
+/**
+ * Asks for a code at the new address (apps/api/src/email-change.ts). The answer is the same whether or not
+ * the address can be used: one that has an account gets a notice instead of a code. While the current address
+ * is confirmed and the session is no recent passkey sign-in, it must be proven first: the answer is then
+ * `confirmCurrentEmail`, a code went to the current address, and asking again with that `otp` sends the
+ * code to the new one.
+ */
+export async function requestEmailChange(newEmail: string, otp?: string): Promise<{ confirmCurrentEmail: boolean }> {
+  const result = (await auth.$fetch('/email-otp/request-email-change', {
+    method: 'POST',
+    body: otp ? { newEmail, otp } : { newEmail },
+  })) as Result<{ confirmCurrentEmail?: boolean }>
+  emailChangeResult(result)
+  return { confirmCurrentEmail: result.data?.confirmCurrentEmail === true }
+}
+
+/** Moves the account to the new address with its code; the other sessions are signed out. */
+export async function changeEmail(newEmail: string, otp: string) {
+  const result = (await auth.$fetch('/email-otp/change-email', {
+    method: 'POST',
+    body: { newEmail, otp },
+  })) as Result<unknown>
+  emailChangeResult(result)
+}
+
+function emailChangeResult(result: Result<unknown>) {
+  if (!result.error) return
+  if (result.error.code === 'SESSION_NOT_FRESH') throw new SignInAgain('Sign in again to change your email address.')
+  if (result.error.code === 'PASSKEY_CONFIRMATION_REQUIRED') throw new ConfirmWithPasskey(PASSKEY_SIGN_IN)
+  throw new Error(authErrorMessage(result.error))
+}
+
 export async function signOutSession(id: string) {
   const token = tokens.get(id)
   if (!token) throw new Error('That session is no longer there.')

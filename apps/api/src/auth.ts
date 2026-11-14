@@ -17,6 +17,7 @@ import { CLIENT_IP_HEADER } from './client-ip.ts'
 import { mergeDatabaseHooks } from './db-hooks.ts'
 import { githubProvider } from './github-sign-in.ts'
 import { db } from './db.ts'
+import { finishEmailChange, guardEmailChange, sameAnswerForEmailChange, sendEmailChangeCode } from './email-change.ts'
 import { emailSender } from './email.ts'
 import { confirmationCodeEmail as confirmationCodeTemplate, signInCodeEmail } from './emails/templates.ts'
 import { refuseExistingMember, sendVerificationEmail } from './invitations.ts'
@@ -92,19 +93,25 @@ const beforeAuthEndpoints = createAuthMiddleware(async ctx => {
   await refuseWhileImpersonating(ctx)
   await guardPasskeyChanges(ctx)
   await guardPasswordReset(ctx)
+  // The first step of proving the current address is answered from here (email-change.ts).
+  return guardEmailChange(ctx)
 })
 
 // After: wrong codes and passwords count towards their limits (sign-in-limits.ts); the audit log
 // records the auth endpoints that change how someone signs in (audit.ts), and the account is
 // emailed when a passkey is added or removed (passkeys.ts). A password reset ends the account's
-// sessions once more, and every refused reset code gets one answer (password-reset.ts): last, since
-// that replaces the response.
+// sessions once more, and every refused reset or email change code gets one answer (password-reset.ts,
+// email-change.ts): last, since that replaces the response. An email change ends the other sessions and
+// tells the old address first, so nothing after it can skip that.
 const afterAuthEndpoints = createAuthMiddleware(async ctx => {
+  // First: once an address changed, the other sessions end and the old address is told, whatever follows.
+  await finishEmailChange(ctx)
   await countSignInFailures(ctx)
   await recordAuthEndpoint(ctx)
   await notifyPasskeyChange(ctx)
   await endSessionsAfterReset(ctx)
   sameAnswerForRefusedCodes(ctx)
+  sameAnswerForEmailChange(ctx)
 })
 
 /**
@@ -121,14 +128,11 @@ const INVITATION_READ_PATHS = ['/organization/get-full-organization', '/organiza
 // never needs them there, and a script injected into the page would get the member's GitHub token.
 const PROVIDER_TOKEN_PATHS = ['/get-access-token', '/account-info', '/refresh-token']
 /**
- * The plugin's endpoints for email change and plain verification are not offered, nor its older
- * duplicate of request-password-reset. The password reset itself (password-reset.ts) is on only
- * where password sign-in is.
+ * The plugin's plain verification check is not offered, nor its older duplicate of
+ * request-password-reset. The password reset itself (password-reset.ts) is on only where password
+ * sign-in is; the email change (email-change.ts) wherever email codes are.
  */
-const UNUSED_EMAIL_CODE_PATHS = [
-  '/forget-password/email-otp',
-  '/email-otp/check-verification-otp', '/email-otp/request-email-change', '/email-otp/change-email',
-]
+const UNUSED_EMAIL_CODE_PATHS = ['/forget-password/email-otp', '/email-otp/check-verification-otp']
 const OFF_PASSWORD_RESET_PATHS = methods.password ? [] : PASSWORD_RESET_PATHS
 
 export { signInCodeEmail }
@@ -141,8 +145,9 @@ export { signInCodeEmail }
 export const confirmationCodeEmail = (otp: string, env: Record<string, string | undefined> = process.env) =>
   confirmationCodeTemplate(otp, passkeyRelyingParty(env).origin)
 
-/** Sign-in, confirmation and password reset codes are sent; the plugin's email change codes are not offered. */
-async function sendSignInCode({ email, otp, type }: { email: string; otp: string; type: string }) {
+/** Sign-in, confirmation, password reset and email change codes. */
+async function sendSignInCode({ email, otp, type }: { email: string; otp: string; type: string }, ctx?: unknown) {
+  if (type === 'change-email') return sendEmailChangeCode(email, otp, ctx)
   if (type === 'email-verification') {
     await emailSender.send({ to: email, ...confirmationCodeEmail(otp) })
     return
@@ -235,8 +240,9 @@ export const auth = betterAuth({
       },
     }),
     // Email sign-in by a typed code: 6 digits, 10 minutes, 3 tries per code, stored hashed, at most 3 requests a minute per IP.
+    // The same codes move an account to a new address (email-change.ts).
     ...(methods.emailCode
-      ? [emailOTP({ sendVerificationOTP: sendSignInCode, otpLength: 6, expiresIn: 600, allowedAttempts: ALLOWED_TRIES, storeOTP: 'hashed', rateLimit: { window: 60, max: 3 } })]
+      ? [emailOTP({ sendVerificationOTP: sendSignInCode, otpLength: 6, expiresIn: 600, allowedAttempts: ALLOWED_TRIES, storeOTP: 'hashed', rateLimit: { window: 60, max: 3 }, changeEmail: { enabled: true } })]
       : []),
     // Passkeys sign in existing accounts only; they are added in Account settings (passkeys.ts).
     ...(methods.passkey ? [passkeyPlugin(process.env)] : []),

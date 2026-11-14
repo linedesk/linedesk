@@ -150,11 +150,8 @@ describe('signing in with a code', () => {
 })
 
 describe('what is not offered', () => {
-  // The password reset has its own tests (password-reset.test.ts).
-  const unused = [
-    '/forget-password/email-otp',
-    '/email-otp/check-verification-otp', '/email-otp/request-email-change', '/email-otp/change-email',
-  ]
+  // The password reset and the email change have their own tests (password-reset.test.ts, email-change.test.ts).
+  const unused = ['/forget-password/email-otp', '/email-otp/check-verification-otp']
   test.each(unused)('POST /api/auth%s is not there', async path => {
     const res = await request(anonymous, 'POST', `/api/auth${path}`, { email: 'a@linedesk.test', otp: '123456', password: 'new-password-123', type: 'forget-password' }, { origin: ORIGIN, [FROM]: randomIp() })
     expect(res.status).toBe(404)

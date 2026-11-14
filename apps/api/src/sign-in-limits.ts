@@ -26,17 +26,29 @@ export const passwordFailures = createFailureLimiter({ max: 10, windowMs: 15 * 6
 /** 100 wrong passwords in an hour per address, from any IP: guesses spread over many networks. */
 export const passwordFailuresAnywhere = createFailureLimiter({ max: 100, windowMs: 60 * 60_000 })
 
-const emailOf = (ctx: Ctx) => (typeof ctx.body?.email === 'string' ? ctx.body.email.trim().toLowerCase() : '')
+/** The address a code is for: `newEmail` when an account moves to a new address (email-change.ts). */
+const emailOf = (ctx: Ctx) => {
+  const email = ctx.body?.email ?? ctx.body?.newEmail
+  return typeof email === 'string' ? email.trim().toLowerCase() : ''
+}
 const ipOf = (ctx: Ctx) => ctx.headers?.get(CLIENT_IP_HEADER) ?? ctx.request?.headers.get(CLIENT_IP_HEADER) ?? null
 const addressAndIp = (ctx: Ctx) => `${emailOf(ctx)}|${addressBucket(ipOf(ctx))}`
 
-/** Where a code is checked: signing in, confirming one's own address, setting a new password. Wrong ones count together. */
+/**
+ * Where a code is checked: signing in, confirming one's own address, setting a new password, moving the
+ * account to a new address. Wrong ones count together.
+ */
 const isCodeCheck = (path: string) =>
-  path === '/sign-in/email-otp' || path === '/email-otp/verify-email' || path === '/email-otp/reset-password'
+  path === '/sign-in/email-otp' ||
+  path === '/email-otp/verify-email' ||
+  path === '/email-otp/reset-password' ||
+  path === '/email-otp/change-email'
 
-/** Where a code is sent: sign-in and confirmation codes, and password reset codes. They share one limit. */
+/** Where a code is sent: sign-in, confirmation, password reset and email change codes. They share one limit. */
 const isCodeRequest = (path: string) =>
-  path === '/email-otp/send-verification-otp' || path === '/email-otp/request-password-reset'
+  path === '/email-otp/send-verification-otp' ||
+  path === '/email-otp/request-password-reset' ||
+  path === '/email-otp/request-email-change'
 
 /**
  * A code that confirms the signed-in member's own address (`email-verification`, the in-app

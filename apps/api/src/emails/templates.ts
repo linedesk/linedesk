@@ -268,6 +268,112 @@ export function passwordChangedEmail(origin = WEB_ORIGIN): RenderedEmail {
   })
 }
 
+/**
+ * The code that moves an account to a new address (Account settings › Profile › Change), sent to the
+ * new address: proving it is the change. Like the other codes: in the subject and the body, no link.
+ */
+export function emailChangeCodeEmail(code: string, origin = WEB_ORIGIN): RenderedEmail {
+  const site = siteHost(origin)
+  return renderEmail({
+    subject: `${code} is your ${brandName()} code to change your email`,
+    preheader: `Enter it in Account settings on ${site} to sign in with this address from now on.`,
+    heading: 'Confirm your new email address',
+    blocks: [
+      {
+        kind: 'text',
+        text: `Enter this code in Account settings on ${site}. Your ${brandName()} account then uses this address to sign in and for its emails.`,
+      },
+      { kind: 'code', code },
+      {
+        kind: 'text',
+        tone: 'muted',
+        text: `It works once and expires in ${SIGN_IN_CODE_MINUTES} minutes. Don't share this code: nobody from ${brandName()} or your team will ever ask you for it.`,
+      },
+    ],
+    reason: `You got this email because someone signed in to ${brandName()} on ${site} asked to use this address for their account. If it wasn't you, you can ignore it: nothing changes without this code.`,
+    origin,
+  })
+}
+
+/**
+ * The first step of an email change in a session without a recent passkey sign-in: a code to the
+ * current address proves the person asking still has it, so a stolen password alone can't move the
+ * account. No link, as the other codes.
+ */
+export function emailChangeConfirmCurrentEmail(code: string, origin = WEB_ORIGIN): RenderedEmail {
+  const site = siteHost(origin)
+  return renderEmail({
+    subject: `${code} is your ${brandName()} code to confirm it's you`,
+    preheader: `Someone signed in to your account on ${site} wants to change its email address.`,
+    heading: "Confirm it's you",
+    blocks: [
+      {
+        kind: 'text',
+        text: `Someone signed in to your ${brandName()} account on ${site} wants to change its email address. Enter this code in Account settings to confirm it's you.`,
+      },
+      { kind: 'code', code },
+      {
+        kind: 'text',
+        tone: 'muted',
+        text: `It works once and expires in ${SIGN_IN_CODE_MINUTES} minutes. Don't share this code: nobody from ${brandName()} or your team will ever ask you for it.`,
+      },
+    ],
+    reason:
+      "You got this email because it is the address of your account. If it wasn't you, don't enter the code: change your password and tell your administrator.",
+    origin,
+  })
+}
+
+/**
+ * Sent instead of the code when the new address already has an account (or is reserved for an
+ * administrator): only the mailbox's owner learns that it cannot be used, never the person asking.
+ */
+export function emailChangeRefusedEmail(origin = WEB_ORIGIN): RenderedEmail {
+  const site = siteHost(origin)
+  return renderEmail({
+    subject: `This address can't be used for another ${brandName()} account`,
+    preheader: 'Someone asked to move their account to this address. Nothing was changed.',
+    heading: "This address can't be used",
+    blocks: [
+      {
+        kind: 'text',
+        text: `Someone signed in to ${brandName()} on ${site} asked to use this address for their account. It already belongs to an account there or is kept for an administrator, so it can't be used for another one, and nothing was changed.`,
+      },
+      {
+        kind: 'text',
+        tone: 'muted',
+        text: 'If that was you, use a different address, or sign in with this one instead. If it was not you, you can ignore this email.',
+      },
+    ],
+    reason: 'You got this email because this address was entered as a new sign-in address. We always send it.',
+    origin,
+  })
+}
+
+/** To the old address once an account moved to a new one: the only place the real owner can still be told. */
+export function emailChangedEmail(newEmail: string, origin = WEB_ORIGIN): RenderedEmail {
+  const site = siteHost(origin)
+  const shown = defuseLinks(newEmail)
+  return renderEmail({
+    subject: `The email of your ${brandName()} account was changed`,
+    preheader: `Your account now signs in with ${shown}.`,
+    eyebrow: 'Security notice',
+    heading: 'Your email address was changed',
+    blocks: [
+      {
+        kind: 'text',
+        text: `Your ${brandName()} account at ${site} now uses ${shown} to sign in and for its emails, and its other sessions were signed out. This address no longer signs in to it. If this was you, there is nothing to do.`,
+      },
+      {
+        kind: 'text',
+        text: 'If it was not you, someone has access to your account: tell your administrator right away, so they can turn the account off.',
+      },
+    ],
+    reason: 'You got this email because it was the address of your account until now. We always send it.',
+    origin,
+  })
+}
+
 /** When an admin resets someone's passkeys (also with none to remove, for an instance admin). */
 export function passkeysResetEmail(removed: number, origin = WEB_ORIGIN): RenderedEmail {
   const what =

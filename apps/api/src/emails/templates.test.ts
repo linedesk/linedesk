@@ -8,6 +8,10 @@ import {
   bookingConfirmationEmail,
   type CallEmail,
   callEmail,
+  emailChangeCodeEmail,
+  emailChangeConfirmCurrentEmail,
+  emailChangedEmail,
+  emailChangeRefusedEmail,
   firstCallEmail,
   invitationEmail,
   passkeyChangedEmail,
@@ -289,6 +293,44 @@ describe('password reset', () => {
   })
 })
 
+describe('email change', () => {
+  it('the code email shows the code, says what it is for and has no link', () => {
+    const email = emailChangeCodeEmail('604218', ORIGIN)
+    expect(email.subject).toBe('604218 is your Linedesk code to change your email')
+    expect(email.html).toMatch(/font-size:34px[^>]*>604218</)
+    expect(email.text).toContain('Account settings on desk.example.com')
+    expect(email.text).toContain('expires in 10 minutes')
+    expect(email.text).not.toMatch(/https?:\/\//)
+    expect(email.html).not.toMatch(/href=/)
+  })
+
+  it('the current address gets a code to confirm it is them, and what to do if it was not', () => {
+    const email = emailChangeConfirmCurrentEmail('381940', ORIGIN)
+    expect(email.subject).toBe("381940 is your Linedesk code to confirm it's you")
+    expect(email.html).toMatch(/font-size:34px[^>]*>381940</)
+    expect(email.text).toContain('wants to change its email address')
+    expect(email.text).toContain("If it wasn't you, don't enter the code")
+    expect(email.html).not.toMatch(/href=/)
+  })
+
+  it('a taken address is told it cannot be used, without a code', () => {
+    const email = emailChangeRefusedEmail(ORIGIN)
+    expect(email.subject).toBe("This address can't be used for another Linedesk account")
+    expect(email.text).toContain('nothing was changed')
+    expect(email.text).not.toMatch(/\d{6}/)
+  })
+
+  it('the old address is told the new one, as plain text, and what to do if it was not them', () => {
+    const email = emailChangedEmail('new.owner@evil.example', ORIGIN)
+    expect(email.subject).toBe('The email of your Linedesk account was changed')
+    expect(email.text).toContain('other sessions were signed out')
+    expect(email.text).toContain('If it was not you')
+    expect(email.html).not.toContain('href="mailto:')
+    expect(email.text).not.toContain('evil.example')
+    expect(email.text).toContain(defuseLinks('new.owner@evil.example'))
+  })
+})
+
 describe('invitation', () => {
   it('names who invited, links to accept and says how long it works', () => {
     const email = invitationEmail(
@@ -352,7 +394,9 @@ describe('workspace deleted', () => {
   it('says who deleted it and when, and that the account went with it', () => {
     const email = workspaceDeletedEmail({ ...base, accountDeleted: true }, ORIGIN)
     expect(email.subject).toBe('Brightwater Plumbing was deleted on Linedesk')
-    expect(email.text).toContain('Mike Brennan deleted the workspace Brightwater Plumbing on November 14, 2026 at 9:05 AM PST.')
+    expect(email.text).toContain(
+      'Mike Brennan deleted the workspace Brightwater Plumbing on November 14, 2026 at 9:05 AM PST.',
+    )
     expect(email.text).toContain('account at desk.example.com was deleted with it')
     expect(email.text).not.toContain('stay as they are')
   })

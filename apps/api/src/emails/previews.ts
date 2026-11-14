@@ -14,6 +14,10 @@ import {
   passkeyChangedEmail,
   passkeysResetEmail,
   passwordChangedEmail,
+  emailChangeCodeEmail,
+  emailChangeConfirmCurrentEmail,
+  emailChangeRefusedEmail,
+  emailChangedEmail,
   passwordResetCodeEmail,
   signInCodeEmail,
   verifyEmailEmail,
@@ -145,6 +149,10 @@ export function previewEmails(origin: string): Preview[] {
     { name: 'passkey-added', email: passkeyChangedEmail('added', origin) },
     { name: 'passkeys-reset', email: passkeysResetEmail(2, origin) },
     { name: 'password-changed', email: passwordChangedEmail(origin) },
+    { name: 'email-change-confirm-current', email: emailChangeConfirmCurrentEmail('318274', origin) },
+    { name: 'email-change-code', email: emailChangeCodeEmail('604218', origin) },
+    { name: 'email-change-refused', email: emailChangeRefusedEmail(origin) },
+    { name: 'email-changed', email: emailChangedEmail('mike.brennan@brightwater.example', origin) },
     {
       name: 'workspace-deleted',
       email: workspaceDeletedEmail(

@@ -12,6 +12,8 @@ export type AuthEventName = (typeof auth_events.$inferInsert)['event']
 type AuthEvent = {
   event: AuthEventName
   userId: string | null
+  /** The address to keep with the event; by default the account's current one (email_changed keeps the old one). */
+  email?: string | null
   method?: string | null
   workspaceId?: string | null
   ipAddress?: string | null
@@ -26,7 +28,7 @@ const newId = () => `ae_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
  */
 export async function recordAuthEvent(e: AuthEvent, tx: Db = db) {
   try {
-    const [who] = e.userId ? await tx.select({ email: user.email }).from(user).where(eq(user.id, e.userId)) : []
+    const [who] = e.email !== undefined ? [{ email: e.email }] : e.userId ? await tx.select({ email: user.email }).from(user).where(eq(user.id, e.userId)) : []
     await tx.insert(auth_events).values({
       id: newId(),
       user_id: e.userId,
@@ -224,6 +226,7 @@ const AUTH_EVENT_KIND: Record<AuthEventName, AuditKind> = {
   passkey_added: 'account',
   passkey_removed: 'account',
   password_changed: 'account',
+  email_changed: 'account',
   invitation_accepted: 'team',
   call_routing_reset: 'integrations',
 }

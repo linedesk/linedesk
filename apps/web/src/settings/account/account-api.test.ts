@@ -3,15 +3,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const signedInAccount = vi.fn<() => Promise<string | null>>()
 const signInWithPasskey = vi.fn<() => Promise<{ error?: { message?: string } } | undefined>>()
 const signOutAndForget = vi.fn(async () => {})
+const authFetch = vi.fn<(path: string, init: { body: unknown }) => Promise<unknown>>()
 vi.mock('../../auth.ts', () => ({
-  auth: {},
+  auth: { $fetch: authFetch },
   fetchAuthMethods: vi.fn(),
   fetchMe: vi.fn(),
   signedInAccount,
   signInWithPasskey,
 }))
 vi.mock('../../localData.ts', () => ({ signOutAndForget }))
-const { confirmWithPasskey, ConfirmWithPasskey, PasskeyOfAnotherAccount } = await import('./account-api.ts')
+const { confirmWithPasskey, ConfirmWithPasskey, PasskeyOfAnotherAccount, requestEmailChange } = await import(
+  './account-api.ts'
+)
 
 describe('confirmWithPasskey', () => {
   const reload = vi.fn()
@@ -50,5 +53,23 @@ describe('confirmWithPasskey', () => {
     signInWithPasskey.mockResolvedValue({ error: { message: 'cancelled' } })
     await expect(confirmWithPasskey()).rejects.toBeInstanceOf(ConfirmWithPasskey)
     expect(signOutAndForget).not.toHaveBeenCalled()
+  })
+})
+
+describe('requestEmailChange', () => {
+  beforeEach(() => authFetch.mockReset())
+
+  it('says when the current address must confirm first, and sends its code with the next ask', async () => {
+    authFetch.mockResolvedValueOnce({ data: { success: true, confirmCurrentEmail: true } })
+    expect(await requestEmailChange('new@example.com')).toEqual({ confirmCurrentEmail: true })
+    expect(authFetch.mock.calls[0]![1].body).toEqual({ newEmail: 'new@example.com' })
+    authFetch.mockResolvedValueOnce({ data: { success: true } })
+    expect(await requestEmailChange('new@example.com', '123456')).toEqual({ confirmCurrentEmail: false })
+    expect(authFetch.mock.calls[1]![1].body).toEqual({ newEmail: 'new@example.com', otp: '123456' })
+  })
+
+  it('a wrong code for the current address is an error', async () => {
+    authFetch.mockResolvedValueOnce({ error: { code: 'INVALID_OTP', message: 'Invalid OTP', status: 400 } })
+    await expect(requestEmailChange('new@example.com', '000000')).rejects.toThrow()
   })
 })

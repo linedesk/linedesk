@@ -2,10 +2,11 @@
 // (#account/<section>). Profile, sign-in and sessions are Better Auth's own data (see account-api.ts), so they do
 // not go through the outbox; notifications are per workspace (settings/Notifications.tsx).
 import { forgetEnrolmentCode, readEnrolmentCode } from '../../enrolment-code.ts'
-import { type FormEvent, useCallback, useState } from 'react'
+import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useState } from 'react'
 import { passkeySupported } from '../../auth.ts'
 import { ConfirmEmail } from '../../ConfirmEmail.tsx'
 import { signInAgain } from '../../localData.ts'
+import { CODE_LENGTH, normalizeCode, RESEND_AFTER_S } from '../../sign-in-code.ts'
 import { refreshQuery, useQuery } from '../../cachedQuery.ts'
 import { refreshTeam } from '../../team/team-api.ts'
 import { Loading, Skeleton } from '../../ui/LoadStates.tsx'
@@ -21,6 +22,7 @@ import {
   addPasskey,
   PASSKEYS,
   SESSIONS,
+  changeEmail,
   changeName,
   changePassword,
   ConfirmWithPasskey,
@@ -31,6 +33,7 @@ import {
   PASSKEY_ENROLMENT,
   loadSessions,
   removePasskey,
+  requestEmailChange,
   setFirstPassword,
   SignInAgain,
   signOutOtherSessions,
@@ -176,6 +179,10 @@ function Profile({ account, reload }: SectionProps) {
   }
   // `=== false`: an account remembered from before this field existed says nothing either way.
   const unconfirmed = account.user.emailVerified === false && account.methods.emailCode
+  // The new address is proven with an email code, so it can only change where those are on.
+  const canChangeEmail = account.methods.emailCode
+  const [changingEmail, setChangingEmail] = useState(false)
+  const [emailChanged, setEmailChanged] = useState<string | null>(null)
   return (
     <>
       {unconfirmed && (
@@ -192,15 +199,204 @@ function Profile({ account, reload }: SectionProps) {
           </Field>
           <Field
             label="Email"
-            tip="You sign in with this address, and sign-in codes are sent to it. You can't change it here yet."
+            tip={
+              canChangeEmail
+                ? 'You sign in with this address, and sign-in codes and emails go to it. To change it, confirm the new address with a code.'
+                : 'You sign in with this address, and sign-in codes and emails go to it.'
+            }
           >
-            <span className="ac-value">{account.user.email}</span>
+            <div className="ac-inline">
+              <span className="ac-value">{account.user.email}</span>
+              {canChangeEmail && !changingEmail && (
+                <Button
+                  size="sm"
+                  title="Use a different email address for this account"
+                  onClick={() => {
+                    setEmailChanged(null)
+                    setChangingEmail(true)
+                  }}
+                >
+                  Change…
+                </Button>
+              )}
+            </div>
+            {emailChanged && (
+              <span className="help" role="status">
+                {emailChanged}
+              </span>
+            )}
           </Field>
+          {/* Inside the name's form, so a group of its own: Enter and its buttons never save the name. */}
+          {changingEmail && (
+            <ChangeEmail
+              current={account.user.email}
+              onCancel={() => setChangingEmail(false)}
+              onDone={async next => {
+                await Promise.all([reload(), refreshTeam()]) // the Team list shows members' addresses
+                setChangingEmail(false)
+                setEmailChanged(`Email changed to ${next}. Your other sessions were signed out.`)
+              }}
+            />
+          )}
           <FormStatus request={request} />
         </Section>
         <SaveBar dirty={dirty} saving={request.busy} disabled={!trimmed} onCancel={() => setName(account.user.name)} />
       </form>
     </>
+  )
+}
+
+const looksLikeEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+
+/**
+ * Profile › Email › Change: the new address, then (unless this is a recent passkey sign-in) a code sent to
+ * the current address to confirm it's you, then the code emailed to the new address, which moves the account
+ * (apps/api/src/email-change.ts). Needs a recent sign-in, or a passkey sign-in once the account has a
+ * passkey: the request offers "Sign in again" or "Confirm with passkey" then.
+ */
+function ChangeEmail({
+  current,
+  onCancel,
+  onDone,
+}: {
+  current: string
+  onCancel: () => void
+  onDone: (next: string) => Promise<void>
+}) {
+  const [email, setEmail] = useState('')
+  // The new address, and whose code is asked for: the current address's first, when the server wants it.
+  const [target, setTarget] = useState<string | null>(null)
+  const [step, setStep] = useState<'current' | 'new'>('new')
+  const [code, setCode] = useState('')
+  const [waitS, setWaitS] = useState(0)
+  const request = useRequest()
+  useEffect(() => {
+    if (waitS <= 0) return
+    const timer = setTimeout(() => setWaitS(s => s - 1), 1000)
+    return () => clearTimeout(timer)
+  }, [waitS])
+
+  const next = email.trim().toLowerCase()
+  const codeSent = (to: string, confirmCurrentEmail: boolean) => {
+    setTarget(to)
+    setStep(confirmCurrentEmail ? 'current' : 'new')
+    setCode('')
+    setWaitS(RESEND_AFTER_S)
+  }
+  const send = (to: string) =>
+    request.run(async () => {
+      if (!looksLikeEmail(to)) throw new Error('Enter a valid email address.')
+      if (to === current.toLowerCase()) throw new Error('That is already your email address.')
+      const { confirmCurrentEmail } = await requestEmailChange(to)
+      codeSent(to, confirmCurrentEmail)
+    })
+  const submit = () => {
+    if (!target) return void send(next)
+    if (code.length !== CODE_LENGTH) return
+    void request.run(async () => {
+      if (step === 'current') {
+        const { confirmCurrentEmail } = await requestEmailChange(target, code)
+        return codeSent(target, confirmCurrentEmail)
+      }
+      await changeEmail(target, code)
+      await onDone(target)
+    })
+  }
+
+  // Enter in either input sends the code or changes the address; it must not submit the name around it.
+  const onEnter = (e: KeyboardEvent) => {
+    if (e.key !== 'Enter' || !(e.target instanceof HTMLInputElement)) return
+    e.preventDefault()
+    e.stopPropagation()
+    if (!request.busy) submit()
+  }
+
+  return (
+    <div className="ac-form ac-divided" role="group" aria-label="Change email" onKeyDown={onEnter}>
+      {target ? (
+        <Field
+          key={step}
+          id="ac-email-code"
+          label="Code"
+          help={
+            step === 'current'
+              ? `Confirm it's you: enter the ${CODE_LENGTH}-digit code we sent to ${current}.`
+              : `Enter the ${CODE_LENGTH}-digit code we sent to ${target}.`
+          }
+          tip={
+            step === 'current'
+              ? 'Your current address confirms the change first, so a stolen password alone cannot move your account. After a recent passkey sign-in, this step is skipped.'
+              : undefined
+          }
+        >
+          <div className="ac-inline">
+            <span className="k-input">
+              <input
+                id="ac-email-code"
+                value={code}
+                onChange={e => setCode(normalizeCode(e.target.value))}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]*"
+                maxLength={CODE_LENGTH + 6}
+                autoFocus
+              />
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              title={
+                step === 'current' ? 'Email a new code to your current address' : 'Email a new code to the new address'
+              }
+              disabled={request.busy || waitS > 0}
+              onClick={() => void send(target)}
+            >
+              {waitS > 0 ? `New code in ${waitS} s` : 'Send a new code'}
+            </Button>
+          </div>
+        </Field>
+      ) : (
+        <Field
+          id="ac-new-email"
+          label="New email address"
+          help="We'll send a code to the new address. Your address changes once you enter it."
+          tip="Unless you recently signed in with a passkey, your current address gets a code first to confirm it's you. If the new address already belongs to another account, no code comes; that address gets a notice instead. After the change, your old address gets a notice and your other sessions are signed out."
+        >
+          <span className="k-input">
+            <input
+              id="ac-new-email"
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              autoComplete="email"
+              placeholder="you@example.com"
+              autoFocus
+            />
+          </span>
+        </Field>
+      )}
+      <FormStatus request={request} />
+      <div className="ac-actions">
+        <Button variant="ghost" title="Keep your current email address" disabled={request.busy} onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          busy={request.busy}
+          variant="primary"
+          title={
+            !target
+              ? 'Email a code'
+              : step === 'current'
+                ? 'Confirm and email a code to the new address'
+                : 'Change your email address to the new one'
+          }
+          disabled={request.busy || (target ? code.length !== CODE_LENGTH : !next)}
+          onClick={submit}
+        >
+          {!target ? 'Send code' : step === 'current' ? 'Continue' : 'Change email'}
+        </Button>
+      </div>
+    </div>
   )
 }
 

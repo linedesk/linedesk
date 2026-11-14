@@ -19,6 +19,9 @@ export const IMPERSONATION_REFUSED_PATHS = [
   '/verify-password',
   '/update-user',
   '/change-email',
+  // Moving the account to another address (email-change.ts): the admin could then sign in as the user for good.
+  '/email-otp/request-email-change',
+  '/email-otp/change-email',
   '/delete-user',
   '/list-sessions',
   '/revoke-session',

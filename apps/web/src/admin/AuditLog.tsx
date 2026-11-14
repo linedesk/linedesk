@@ -51,6 +51,8 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
       return 'Removed a passkey'
     case 'password_changed':
       return 'Changed the password'
+    case 'email_changed':
+      return e.method ? `Changed the email address to ${e.method}` : 'Changed the email address'
     case 'invitation_accepted':
       return 'Joined a workspace'
     case 'call_routing_reset':
