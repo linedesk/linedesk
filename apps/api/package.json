@@ -11,6 +11,7 @@
     "seed": "tsx --env-file=../../.env src/seed.ts",
     "user:create": "tsx --env-file=../../.env src/user-create.ts",
     "user:passkeys": "tsx --env-file=../../.env src/user-passkeys.ts",
+    "setup:code": "node --env-file-if-exists=../../.env src/setup-code.ts",
     "providers:import": "node --env-file-if-exists=../../.env src/providers-import.ts",
     "workspace:create": "node --env-file-if-exists=../../.env src/workspace-create.ts",
     "typecheck": "tsc -p .",

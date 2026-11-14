@@ -115,7 +115,7 @@ main() {
 
   # 3. Build and start.
   say "Building and starting Linedesk (about 10 minutes on a small server)"
-  started=$(date -u +%Y-%m-%dT%H:%M:%SZ) # only a setup code printed from now on is shown
+  started=$(date -u +%Y-%m-%dT%H:%M:%SZ) # only a setup code printed from now on is shown (an install without admins prints it at every start)
   docker compose up -d --build --quiet-pull 2>&1 | grep -Ev '^ *(#|=>)|Pulling|Pulled|Waiting|Downloading|Extracting' || true
   docker compose ps --status running --services 2>/dev/null | grep -qx api ||
     fail "the stack did not start. See: cd $dir && docker compose ps && docker compose logs api"
@@ -137,9 +137,9 @@ main() {
     echo "Linedesk on this server"
     echo "  Open:        $url"
     if [ -n "$code" ]; then
-      echo "  Setup code:  $code   (works once; a restart of the API makes a new one: docker compose logs api)"
+      echo "  Setup code:  $code   (works once, for 7 days; again: docker compose exec api node apps/api/src/setup-code.ts)"
     else
-      echo "  No new setup code: the API was not restarted or already has an admin. Sign in, or see: docker compose logs api"
+      echo "  No setup code: the API already has an admin, or has not started yet. Sign in, or see: docker compose logs api"
     fi
     echo
     echo "If your provider has a firewall (AWS Lightsail has one by default), allow these ports:"
