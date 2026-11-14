@@ -1,0 +1,52 @@
+#!/bin/sh
+# Lets SIP (5060 udp/tcp) reach LiveKit only from the carriers in /etc/linedesk/sip-allow.txt (installed from
+# ops/server/etc/sip-allow.txt) and the addresses in /etc/linedesk/sip-allow.local.txt (this server's own extras,
+# e.g. an uptime check). Docker publishes ports past ufw, so the rules sit in DOCKER-USER (via the chain
+# LINEDESK-SIP). Traffic from Docker's own bridges passes: LiveKit SIP's calls out to a carrier come from there.
+# SIP is published on IPv4 only (docker-compose.yml), so there is nothing to filter for IPv6.
+#
+# Fails closed: the chain is replaced in one step (iptables-restore), so it never exists without its final DROP, and an
+# invalid entry in a list makes the chain allow no carrier at all (and the unit fail, which sends an alert) rather
+# than leave SIP open. Idempotent; runs before Docker at boot.
+set -eu
+lists="/etc/linedesk/sip-allow.txt /etc/linedesk/sip-allow.local.txt"
+rules=$(mktemp) entries=$(mktemp); trap 'rm -f "$rules" "$entries"' EXIT
+# allow_lines <list>: one RETURN rule per address; fails on the first entry that is not an IPv4 address or range.
+allow_lines() {
+  sed 's/#.*//; s/[[:space:]]//g; /^$/d' "$1" | while read -r addr; do
+    if ! printf '%s\n' "$addr" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}(/([0-9]|[12][0-9]|3[0-2]))?$'; then
+      echo "linedesk-sip-firewall: not an IPv4 address or range in $1: $addr" >&2
+      exit 1
+    fi
+    echo "-A LINEDESK-SIP -s $addr -j RETURN"
+  done
+}
+status=0
+for list in $lists; do
+  [ ! -f "$list" ] && continue
+  allow_lines "$list" >> "$entries" || status=1
+done
+# An invalid list allows no carrier at all: SIP stays shut until it is fixed (the unit fails and alerts).
+[ "$status" = 0 ] || : > "$entries"
+{
+  echo '*filter'
+  echo ':LINEDESK-SIP - [0:0]'
+  echo '-A LINEDESK-SIP -i docker0 -j RETURN'
+  echo '-A LINEDESK-SIP -i br-+ -j RETURN'
+  cat "$entries"
+  echo '-A LINEDESK-SIP -j DROP'
+  echo 'COMMIT'
+} > "$rules"
+iptables -w -N DOCKER-USER 2>/dev/null || true
+iptables-restore -w --noflush < "$rules"
+for proto in udp tcp; do
+  rule="-p $proto -m conntrack --ctorigdstport 5060 --ctdir ORIGINAL -j LINEDESK-SIP"
+  # shellcheck disable=SC2086
+  iptables -w -C DOCKER-USER $rule 2>/dev/null || iptables -w -I DOCKER-USER $rule
+done
+# Jumps from older versions (limited to the default route's interface) are covered by the one above.
+iptables -w -S DOCKER-USER | grep -- ' -i .*-j LINEDESK-SIP$' | sed 's/^-A /-D /' | while read -r old; do
+  # shellcheck disable=SC2086
+  iptables -w $old
+done
+exit "$status"

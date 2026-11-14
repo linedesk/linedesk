@@ -1,0 +1,13 @@
+#!/bin/sh
+# Emails an alert about a failed systemd unit (OnFailure=linedesk-alert@%n.service) with the unit's last log lines.
+set -eu
+unit=${1:?unit}
+# The unit's last lines, shortened, without what a failed database step can print about rows (DETAIL, Failing row,
+# COPY data): enough to see what broke, the rest is on the server (journalctl -u <unit>).
+log=$(journalctl -u "$unit" -n 40 --no-pager -o short-iso 2>/dev/null |
+  grep -viE 'DETAIL:|Failing row|COPY |INSERT INTO|VALUES ?\(' | tail -15 | cut -c1-240 || true)
+exec /usr/local/sbin/linedesk-alert-text "$unit failed on $(hostname)" "$unit failed at $(date -u '+%F %T UTC').
+
+Last log lines:
+
+$log"

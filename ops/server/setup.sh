@@ -1,0 +1,180 @@
+#!/bin/sh
+# Sets up the server around a Linedesk install (as root, from the checkout in /opt/linedesk/app): email alerts, disk and
+# memory checks, the nightly backup with its freshness check and weekly restore test, SIP only from carriers, and on
+# request the web ports only from Cloudflare, SSH hardening, ufw and uptime checks of another install. Everything it
+# installs is in ops/server/ (README there). Run it again after an update: it is idempotent and keeps /etc/linedesk/ops.env.
+#
+#   sudo ops/server/setup.sh --alert-to ops@example.com --label prod
+#   sudo ops/server/setup.sh --dry-run                       # what would change, nothing is touched
+#   options: --cloudflare        web ports 80/443 only from Cloudflare (an install behind its proxy)
+#            --harden-ssh        keys only, no root login, 3 tries (needs a sudo user with an SSH key)
+#            --ufw               ufw on: only SSH reaches host services (Docker's published ports are not affected)
+#            --monitor <host> [--monitor-sip <host>]   check another install every 2 minutes from this server
+set -eu
+here=$(cd "$(dirname "$0")" && pwd)
+app_dir=${LINEDESK_APP_DIR:-$(cd "$here/../.." && pwd)}
+dry=0 cloudflare=0 harden_ssh=0 ufw=0 alert_to='' label='' monitor='' monitor_sip=''
+while [ $# -gt 0 ]; do
+  case $1 in
+    --dry-run) dry=1 ;;
+    --cloudflare) cloudflare=1 ;;
+    --harden-ssh) harden_ssh=1 ;;
+    --ufw) ufw=1 ;;
+    --alert-to) alert_to=${2:?--alert-to needs an address}; shift ;;
+    --label) label=${2:?--label needs a name}; shift ;;
+    --monitor) monitor=${2:?--monitor needs a host}; shift ;;
+    --monitor-sip) monitor_sip=${2:?--monitor-sip needs a host}; shift ;;
+    *) sed -n '2,13p' "$0" >&2; exit 2 ;;
+  esac
+  shift
+done
+[ "$(id -u)" = 0 ] || [ "$dry" = 1 ] || { echo "run as root (sudo)" >&2; exit 1; }
+[ -f "$app_dir/.env" ] || { echo "no $app_dir/.env: install Linedesk first (scripts/install.sh)" >&2; exit 1; }
+user=$(stat -c %U "$app_dir/.env")
+
+changed=0
+say() { echo "$*"; }
+run() { if [ "$dry" = 1 ]; then say "  would run: $*"; else "$@"; fi; }
+# put <file> <target> <mode>: installs the file when it differs, shows the difference.
+put() {
+  if [ -f "$2" ] && cmp -s "$1" "$2" && [ "$(stat -c %a "$2")" = "$3" ]; then return 0; fi
+  changed=1
+  say "${2}: $([ -f "$2" ] && echo changed || echo new)"
+  [ -f "$2" ] && diff -u "$2" "$1" | sed '1,2d; s/^/  /' | head -40 || true
+  [ "$dry" = 1 ] || install -D -m "$3" "$1" "$2"
+}
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+
+# Settings for the scripts (no secrets: SMTP comes from the app's .env). Values set before are kept.
+ops_env=/etc/linedesk/ops.env
+current() { sed -n "s/^$1=//p" "$ops_env" 2>/dev/null | tail -1; }
+alert_to=${alert_to:-$(current LINEDESK_ALERT_TO)}
+[ -n "$alert_to" ] || { echo "who gets the alerts? --alert-to <email address>" >&2; exit 1; }
+label=${label:-$(current LINEDESK_ALERT_LABEL)}
+monitor=${monitor:-$(current LINEDESK_MONITOR_HOST)}
+monitor_sip=${monitor_sip:-$(current LINEDESK_MONITOR_SIP_HOST)}
+label=${label:-$(hostname)}
+# ops.env is sourced by scripts that run as root: only plain values go in.
+valid() { printf '%s\n' "$2" | grep -Eq "$3" || { echo "not a valid $1: $2" >&2; exit 1; }; }
+valid "email address" "$alert_to" '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
+valid label "$label" '^[A-Za-z0-9._-]+$'
+valid "app folder" "$app_dir" '^/[A-Za-z0-9._/-]+$'
+[ -z "$monitor" ] || valid "host name" "$monitor" '^[A-Za-z0-9.-]+$'
+[ -z "$monitor_sip" ] || valid "host name" "$monitor_sip" '^[A-Za-z0-9.-]+$'
+{
+  echo "# Settings for the scripts from ops/server (setup.sh writes this file; edit it and run setup.sh again)."
+  echo "LINEDESK_APP_DIR=$app_dir"
+  echo "LINEDESK_ALERT_TO=$alert_to"
+  echo "LINEDESK_ALERT_LABEL=$label"
+  [ -z "$monitor" ] || echo "LINEDESK_MONITOR_HOST=$monitor"
+  [ -z "$monitor_sip" ] || echo "LINEDESK_MONITOR_SIP_HOST=$monitor_sip"
+} > "$tmp/ops.env"
+put "$tmp/ops.env" "$ops_env" 644
+
+for f in "$here"/bin/*; do put "$f" "/usr/local/sbin/$(basename "$f")" 755; done
+# Once, from a hand-made install: addresses its allow list had beyond the carriers' (an uptime check, say) move to
+# this server's own list. Later runs leave the local list alone, so a carrier address dropped from the repo is gone.
+if [ -f /etc/linedesk/sip-allow.txt ] && [ ! -e /etc/linedesk/sip-allow.local.txt ]; then
+  sed 's/#.*//; /^[[:space:]]*$/d' /etc/linedesk/sip-allow.txt | sort -u > "$tmp/sip-old"
+  sed 's/#.*//; /^[[:space:]]*$/d' "$here/etc/sip-allow.txt" | sort -u > "$tmp/sip-new"
+  comm -23 "$tmp/sip-old" "$tmp/sip-new" > "$tmp/sip-extra"
+  if [ -s "$tmp/sip-extra" ]; then
+    { echo "# This server's own addresses that may send SIP, besides the carriers in sip-allow.txt (linedesk-sip-firewall)."; cat "$tmp/sip-extra"; } > "$tmp/sip-allow.local.txt"
+    put "$tmp/sip-allow.local.txt" /etc/linedesk/sip-allow.local.txt 644
+  fi
+fi
+put "$here/etc/sip-allow.txt" /etc/linedesk/sip-allow.txt 644
+
+for f in "$here"/systemd/*; do
+  name=$(basename "$f")
+  sed -e "s|@USER@|$user|g" -e "s|@APP_DIR@|$app_dir|g" "$f" > "$tmp/$name"
+  put "$tmp/$name" "/etc/systemd/system/$name" 644
+done
+# Older hand-made installs kept the backup's alert in a drop-in; the unit has it now.
+if [ -e /etc/systemd/system/linedesk-backup.service.d/alert.conf ]; then
+  changed=1; say "/etc/systemd/system/linedesk-backup.service.d/alert.conf: removed (in the unit now)"
+  run rm -f /etc/systemd/system/linedesk-backup.service.d/alert.conf
+  run rmdir --ignore-fail-on-non-empty /etc/systemd/system/linedesk-backup.service.d
+fi
+
+# What runs: always the alerts, disk and memory and the SIP firewall; the backups once backup.env is set up.
+units='linedesk-resources.timer linedesk-sip-firewall.service'
+if [ -f "$app_dir/backup.env" ]; then
+  units="$units linedesk-backup.timer linedesk-backup-check.timer linedesk-restore-test.timer"
+else
+  say "no $app_dir/backup.env: backup timers stay off (README, Backups)"
+fi
+
+if [ "$cloudflare" = 1 ] || [ -f /etc/linedesk/cloudflare-v4.txt ]; then
+  for v in 4 6; do
+    # Only a plausible list replaces the one in place: every line a range, at least a few of them (Cloudflare has 15
+    # IPv4 and 7 IPv6), and not much shorter than before. An error or challenge page never reaches the firewall.
+    curl -fsS -m 20 "https://www.cloudflare.com/ips-v$v" | tr -d '\r' | grep -v '^[[:space:]]*$' > "$tmp/cloudflare-v$v.txt" || true
+    count=$(wc -l < "$tmp/cloudflare-v$v.txt")
+    old=$(grep -c . "/etc/linedesk/cloudflare-v$v.txt" 2>/dev/null || echo 0)
+    min=$([ "$v" = 4 ] && echo 10 || echo 5)
+    if grep -vEq '^[0-9a-fA-F.:]+/[0-9]{1,3}$' "$tmp/cloudflare-v$v.txt" || [ "$count" -lt "$min" ] || [ "$count" -lt $((old / 2)) ]; then
+      echo "Cloudflare's IPv$v list looks wrong ($count lines); the one in place stays" >&2
+      exit 1
+    fi
+    put "$tmp/cloudflare-v$v.txt" "/etc/linedesk/cloudflare-v$v.txt" 644
+  done
+  units="$units linedesk-web-firewall.service"
+fi
+[ -z "$monitor" ] || units="$units linedesk-monitor.timer"
+
+if [ "$harden_ssh" = 1 ]; then
+  # Never lock the last way in: a non-root user with a full SSH key (not a forced-command one like a deploy key) who
+  # can use sudo (without a password, or with one set) must exist first.
+  ok=''
+  for home in /home/*; do
+    u=$(basename "$home")
+    grep -Ev '^[[:space:]]*(#|$)' "$home/.ssh/authorized_keys" 2>/dev/null | grep -qvE '(^|,)(command=|restrict)' || continue
+    if sudo -l -U "$u" 2>/dev/null | grep -q 'NOPASSWD: ALL' ||
+      { id -nG "$u" | grep -qwE 'sudo|wheel' && passwd -S "$u" 2>/dev/null | awk '{ exit $2 != "P" }'; }; then
+      ok="$ok $u"
+    fi
+  done
+  [ -n "$ok" ] || { echo "--harden-ssh: first add a sudo user with a full SSH key in ~/.ssh/authorized_keys (root login goes off)" >&2; exit 1; }
+  # Whoever runs this through sudo must be one of them: they are the one who has to get back in.
+  if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != root ]; then
+    case " $ok " in *" $SUDO_USER "*) ;; *) echo "--harden-ssh: $SUDO_USER has no full SSH key or no sudo; fix that first (qualify:$ok)" >&2; exit 1 ;; esac
+  fi
+  say "--harden-ssh: these users keep the way in:$ok"
+  put "$here/etc/sshd-hardening.conf" /etc/ssh/sshd_config.d/01-hardening.conf 644
+  if [ "$dry" = 0 ]; then
+    if ! sshd -t; then
+      rm -f /etc/ssh/sshd_config.d/01-hardening.conf
+      echo "--harden-ssh: sshd rejects the configuration; the hardening file is removed again, sshd unchanged" >&2
+      exit 1
+    fi
+    systemctl try-reload-or-restart ssh.service 2>/dev/null || systemctl try-reload-or-restart sshd.service
+    sshd -T | grep -qx 'permitrootlogin no' && sshd -T | grep -qx 'passwordauthentication no' ||
+      { echo "--harden-ssh: sshd does not report the hardening (another file in sshd_config.d wins?)" >&2; exit 1; }
+  fi
+fi
+
+if [ "$ufw" = 1 ]; then
+  command -v ufw >/dev/null || run apt-get install -y ufw
+  if ! ufw status 2>/dev/null | grep -q '^Status: active'; then
+    changed=1
+    ssh_port=$(sshd -T 2>/dev/null | awk '/^port /{ print $2; exit }')
+    run ufw allow "${ssh_port:-22}/tcp"
+    run ufw default deny incoming
+    run ufw --force enable
+  fi
+fi
+
+if [ "$dry" = 1 ]; then
+  say "units that would be on: $units"
+  [ "$changed" = 1 ] || say "nothing to change"
+  exit 0
+fi
+systemctl daemon-reload
+# shellcheck disable=SC2086
+systemctl enable --now $units >/dev/null
+# A changed firewall script only takes effect when it runs again.
+systemctl restart linedesk-sip-firewall.service
+case $units in *linedesk-web-firewall*) systemctl restart linedesk-web-firewall.service ;; esac
+say "on: $units"
+say "test the alert email: /usr/local/sbin/linedesk-alert-text 'Test' 'Alerts from $(hostname) work.'"

@@ -1,0 +1,10 @@
+[Unit]
+Description=Linedesk: offsite database backup (scripts/backup.sh)
+After=docker.service
+Requires=docker.service
+OnFailure=linedesk-alert@%n.service
+[Service]
+Type=oneshot
+User=@USER@
+WorkingDirectory=@APP_DIR@
+ExecStart=@APP_DIR@/scripts/backup.sh

@@ -1,0 +1,8 @@
+[Unit]
+Description=Linedesk: disk and memory check
+OnFailure=linedesk-alert@%n.service
+[Service]
+Type=oneshot
+User=@USER@
+StateDirectory=linedesk
+ExecStart=/usr/local/sbin/linedesk-resources

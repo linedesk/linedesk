@@ -1,0 +1,6 @@
+[Unit]
+Description=Linedesk: email alert for %i
+[Service]
+Type=oneshot
+User=@USER@
+ExecStart=/usr/local/sbin/linedesk-alert %i

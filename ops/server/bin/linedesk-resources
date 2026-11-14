@@ -1,0 +1,25 @@
+#!/bin/sh
+# Disk and memory on the server, every 15 minutes (linedesk-resources.timer). Emails only when the state
+# changes: one alert when a limit is crossed, one all-clear when it is fine again (linedesk-alert, SMTP of the stack).
+set -eu
+# StateDirectory=linedesk in the unit gives the stack user its own /var/lib/linedesk.
+state=${STATE_DIRECTORY:-/var/lib/linedesk}/resources.state
+disk_free_pct=$(df -P / | awk 'NR == 2 { gsub("%", "", $5); print 100 - $5 }')
+disk_free_gb=$(df -P -BG / | awk 'NR == 2 { gsub("G", "", $4); print $4 }')
+mem_avail_pct=$(awk '/MemTotal/ { t = $2 } /MemAvailable/ { a = $2 } END { printf "%d", a * 100 / t }' /proc/meminfo)
+swap_used_pct=$(awk '/SwapTotal/ { t = $2 } /SwapFree/ { f = $2 } END { if (t > 0) printf "%d", (t - f) * 100 / t; else print 0 }' /proc/meminfo)
+problems=""
+[ "$disk_free_pct" -ge 15 ] && [ "$disk_free_gb" -ge 8 ] || problems="$problems disk: ${disk_free_gb} GB (${disk_free_pct}%) free;"
+[ "$mem_avail_pct" -ge 10 ] || problems="$problems memory: ${mem_avail_pct}% available;"
+[ "$swap_used_pct" -lt 50 ] || problems="$problems swap: ${swap_used_pct}% used;"
+summary="disk ${disk_free_gb} GB (${disk_free_pct}%) free, memory ${mem_avail_pct}% available, swap ${swap_used_pct}% used"
+before=$(cat "$state" 2>/dev/null || echo ok)
+if [ -n "$problems" ] && [ "$before" = ok ]; then
+  echo alert > "$state"
+  /usr/local/sbin/linedesk-alert-text "Resources low on $(hostname):$problems" "$summary
+$(docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' 2>/dev/null)"
+elif [ -z "$problems" ] && [ "$before" = alert ]; then
+  echo ok > "$state"
+  /usr/local/sbin/linedesk-alert-text "Resources OK again on $(hostname)" "$summary"
+fi
+echo "$summary${problems:+ — PROBLEM:$problems}"

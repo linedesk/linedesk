@@ -68,6 +68,14 @@ Linedesk publishes only the ports it needs. DigitalOcean and Vultr have no firew
 | 5060 (udp and tcp) | SIP from the phone carrier |
 | 10000-10100 (udp) | Phone call audio |
 
+## Alerts, backups and firewall on the server
+
+For a server that runs real calls, [`ops/server/setup.sh`](../ops/server/README.md) adds what `docker compose` does not: email alerts, disk and memory checks, the nightly backup with a freshness check and a weekly restore test, SIP only from the carriers, and optionally SSH hardening and ufw.
+
+```sh
+sudo /opt/linedesk/app/ops/server/setup.sh --alert-to you@example.com
+```
+
 ## From your computer to the server
 
 Settings and keys do not move with the install: set the server up again (the agent does it in about 15 minutes). Then stop the copy on your computer: `docker compose down` in its folder.
