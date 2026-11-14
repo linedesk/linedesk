@@ -13,7 +13,7 @@ import {
 } from '@linedesk/calendar'
 import { assistant_calendars, assistants, calendar_connections, calendar_credentials, calendar_oauth_states, type CalendarConnection, type Tx } from '@linedesk/db'
 import { and, asc, eq, lt, ne } from 'drizzle-orm'
-import { ensureAppointmentType } from './bookings.ts'
+import { ensureAppointmentType, timeZoneOf } from './bookings.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { type Handler, type HandlerCtx, Forbidden, Reject } from './handler-context.ts'
@@ -220,7 +220,9 @@ export async function providerFor(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, wo
   const services = servicesOf(ctx)
   if (isPasswordProvider(connection.provider)) {
     const login = await loginOf(tx, connection).catch(e => rejectCalendarError(e))
-    return { connection, provider: markingRefusedLogin(services.provider(connection.provider, { login }), connection) }
+    // All-day events in a CalDAV calendar have no zone of their own: they are the business's days.
+    const timeZone = await timeZoneOf(tx, workspaceId)
+    return { connection, provider: markingRefusedLogin(services.provider(connection.provider, { login, timeZone }), connection) }
   }
   return { connection, provider: services.provider(connection.provider, { accessToken: tokenSource(tx, ctx, connection) }) }
 }

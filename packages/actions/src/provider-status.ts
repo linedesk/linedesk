@@ -80,7 +80,7 @@ export const providerGroups: readonly ProviderGroupSpec[] = [
     needed: false,
     categories: ['sign_in'],
     only: CALENDAR_APPS,
-    why: 'Bookings in Google or Microsoft calendars. The same apps as for sign-in: connected once for both.',
+    why: 'Bookings in Google or Microsoft calendars. The same apps as for sign-in: connected once for both. iCloud and other CalDAV calendars need no app.',
   },
   {
     id: 'recording',
