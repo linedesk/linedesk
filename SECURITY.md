@@ -13,7 +13,7 @@ Include what you found, how to reproduce it, and the version or commit you teste
 
 ## Supported versions
 
-Until 1.0, only the latest release and `main` get security fixes.
+Until 1.0, only the latest release and `master-dev` get security fixes.
 
 ## Scope
 

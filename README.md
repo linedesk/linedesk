@@ -44,7 +44,7 @@ One command starts the whole application in its own Docker project (`linedesk`):
 On a new server (Ubuntu or Debian), one command installs everything: Docker, the code, the settings with random secrets, HTTPS, and the server's public IP for calls. It ends with the address and the setup code. Where to get a server, which size and which ports: [docs/hosting.md](docs/hosting.md).
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/main/scripts/install.sh | sudo sh
+curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/HEAD/scripts/install.sh | sudo sh
 ```
 
 Real phone calls need a server with a public IP (carriers send calls and their audio over UDP). On your own computer everything else works, including test calls in the browser.

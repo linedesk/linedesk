@@ -1,8 +1,8 @@
 #!/bin/sh
 # Installs Linedesk on a new Linux server (Ubuntu 22.04 or newer, Debian 12 or newer) with one command, as root:
 #
-#   curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/main/scripts/install.sh | sudo sh
-#   curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/main/scripts/install.sh | sudo sh -s -- desk.example.com
+#   curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/HEAD/scripts/install.sh | sudo sh
+#   curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/HEAD/scripts/install.sh | sudo sh -s -- desk.example.com
 #
 # The second form uses your own domain: point its DNS A record at the server first. Without a domain, the install
 # gets a free name for the server's IP (203-0-113-7.sslip.io) with a real certificate, so it is on https from the

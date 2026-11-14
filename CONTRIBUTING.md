@@ -47,7 +47,7 @@ The rules that matter most:
 
 ## Pull requests
 
-- Branch from `main`; one logical change per pull request. We squash on merge.
+- Branch from `master-dev`; one logical change per pull request. We squash on merge.
 - `pnpm typecheck`, `pnpm lint` and `pnpm test` must pass (CI runs all three). The API tests need Postgres (`pnpm db:up`).
 - `pnpm format <files>` formats only the files you touched; please don't reformat unrelated code.
 - New actions need tests (handler, `apply` and permission); new adapters need contract tests.

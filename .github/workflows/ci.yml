@@ -70,7 +70,7 @@ jobs:
 
   # No secrets in the repo: gitleaks scans the whole history of the commit under test (about 2 s), rules and exceptions
   # in .gitleaks.toml. Only HEAD's history, not every branch (gitleaks' default --all): otherwise one branch with a
-  # finding turns every other pull request and main red until it is deleted.
+  # finding turns every other pull request and master-dev red until it is deleted.
   # The binary is pinned by version and checksum instead of gitleaks-action, which needs a paid licence for organisations.
   secrets:
     runs-on: depot-ubuntu-24.04

@@ -28,7 +28,7 @@ One command does it all: Docker, the code in `/opt/linedesk`, the settings with 
 
 ```sh
 #!/bin/sh
-curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/HEAD/scripts/install.sh | sh
 ```
 
 About 15 minutes after the server starts, get the address and the setup code:
@@ -40,7 +40,7 @@ ssh root@<server IP> cat /root/linedesk-setup.txt     # Lightsail: ssh ubuntu@<s
 **On a server you already have:**
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/main/scripts/install.sh | sudo sh
+curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/HEAD/scripts/install.sh | sudo sh
 ```
 
 Open the address, enter the setup code, and set up the rest with your AI agent or by hand.
@@ -52,7 +52,7 @@ Open the address, enter the setup code, and set up the rest with your AI agent o
 Point the domain's DNS A record at the server, then run the install command again with the domain:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/main/scripts/install.sh | sudo sh -s -- desk.example.com
+curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/HEAD/scripts/install.sh | sudo sh -s -- desk.example.com
 ```
 
 It keeps all data and settings and only changes the address; everyone signs in again once. Behind Cloudflare's proxy, see the README (Three ways to put it on the web).
