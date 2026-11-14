@@ -14,8 +14,8 @@ import {
 import { useRun } from '../store.tsx'
 import { useCanAssign } from '../team/members.ts'
 import { useWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
-import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
-import { Section, SwitchRow } from './fields.tsx'
+import { Loading } from '../ui/LoadStates.tsx'
+import { Section, SkeletonSwitchRows, SwitchRow } from './fields.tsx'
 import { permissionText, useNotificationPermission } from './notificationPermission.ts'
 
 /** Your own notifications, linked from the team defaults (Workspace settings › Team). */
@@ -148,22 +148,22 @@ export function Notifications({ workspaceName }: { workspaceName: string }) {
   const error = settings ? null : query.error
   const description = `In ${workspaceName}: email, and this device.`
 
-  if (error)
-    return (
-      <Section id="st-notify" title="Notifications" description={description}>
-        <LoadProblem what="Notification settings" message={error} onRetry={() => void query.reload()} />
-      </Section>
-    )
-  if (!settings)
-    return (
-      <Section id="st-notify" title="Notifications" description={description}>
-        <SkeletonRows label="Loading notification settings" rows={2} />
-      </Section>
-    )
-  return <OwnNotifications settings={settings} description={description} />
+  return (
+    <Section id="st-notify" title="Notifications" description={description}>
+      <Loading
+        what="Notification settings"
+        loading={!settings}
+        error={error}
+        onRetry={() => void query.reload()}
+        skeleton={<SkeletonSwitchRows rows={2} />}
+      >
+        {settings && <OwnNotifications settings={settings} />}
+      </Loading>
+    </Section>
+  )
 }
 
-function OwnNotifications({ settings, description }: { settings: NotificationSettingsData; description: string }) {
+function OwnNotifications({ settings }: { settings: NotificationSettingsData }) {
   const run = useRun()
   const canAssign = useCanAssign()
   const device = useDeviceNotifications(settings)
@@ -200,7 +200,7 @@ function OwnNotifications({ settings, description }: { settings: NotificationSet
   }
 
   return (
-    <Section id="st-notify" title="Notifications" description={description}>
+    <>
       <div className="st-swlist">
         <SwitchRow
           title="Email for every call"
@@ -243,7 +243,7 @@ function OwnNotifications({ settings, description }: { settings: NotificationSet
         )}
       </div>
       {several && <p className="help">Each workspace has its own. Switch workspace to change another's.</p>}
-    </Section>
+    </>
   )
 }
 

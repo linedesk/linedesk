@@ -11,7 +11,7 @@ import { Select } from '../ui/controls.tsx'
 import { Input } from '../ui/form.tsx'
 import { AppointmentValue } from '../settings/AppointmentValue.tsx'
 import { cx, Icon } from '../ui/kit.tsx'
-import { LoadProblem, Skeleton } from '../ui/LoadStates.tsx'
+import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import {
   busiestTime,
   type ChartMetric,
@@ -96,28 +96,32 @@ export function Insights({ canEdit, toast }: Props) {
           </div>
         </div>
         {period === 'custom' && range && <RangeFields range={range} onChange={setRange} />}
-        {!data && query.error && (
-          <LoadProblem what="Insights" message={query.error} onRetry={() => void query.reload()} />
-        )}
-        {!data && !query.error && <Loading />}
-        {data && (
-          <>
-            <Summary data={data} assistant={assistant} canEdit={canEdit} toast={toast} />
-            <Numbers data={data} metric={metric} onMetric={setMetric} />
-            <div className="in-two">
-              <Outcomes data={data} />
-              <BusyTimes data={data} />
-            </div>
-            <p className="in-foot">
-              Test calls and calls from your own phones are not counted.{' '}
-              {data.compareWith
-                ? `Compared with ${spanLabel(data.compareWith.from, data.compareWith.to)}.`
-                : data.firstCall
-                  ? `First call ${longDate(data.firstCall)}.`
-                  : ''}
-            </p>
-          </>
-        )}
+        <Loading
+          what="Insights"
+          loading={!data}
+          error={query.error}
+          onRetry={() => void query.reload()}
+          skeleton={<InsightsSkeleton />}
+        >
+          {data && (
+            <>
+              <Summary data={data} assistant={assistant} canEdit={canEdit} toast={toast} />
+              <Numbers data={data} metric={metric} onMetric={setMetric} />
+              <div className="in-two">
+                <Outcomes data={data} />
+                <BusyTimes data={data} />
+              </div>
+              <p className="in-foot">
+                Test calls and calls from your own phones are not counted.{' '}
+                {data.compareWith
+                  ? `Compared with ${spanLabel(data.compareWith.from, data.compareWith.to)}.`
+                  : data.firstCall
+                    ? `First call ${longDate(data.firstCall)}.`
+                    : ''}
+              </p>
+            </>
+          )}
+        </Loading>
       </div>
     </div>
   )
@@ -157,12 +161,38 @@ function RangeFields({ range, onChange }: { range: Range; onChange: (r: Range) =
   )
 }
 
-function Loading() {
+/** The page's cards in grey, in their own classes and sizes: summary, the four numbers with the chart, two panels. */
+function InsightsSkeleton() {
   return (
-    <div className="in-loading" role="status" aria-busy="true" aria-label="Loading insights">
-      <Skeleton className="sk-card" />
-      <Skeleton className="sk-card" />
-    </div>
+    <>
+      <section className="k-card in-summary">
+        <Skeleton shape="text" width="62%" className="in-sk-sentence" />
+        <Skeleton shape="text" width="40%" />
+      </section>
+      <section className="k-card in-numbers">
+        <div className="in-tiles">
+          {NUMBERS.map(n => (
+            <div key={n.key} className="in-tile">
+              <span className="in-tile-l">{n.label}</span>
+              <Skeleton width={40} height={24} className="in-sk-number" />
+              <Skeleton shape="text" width="70%" />
+            </div>
+          ))}
+        </div>
+        <div className="in-chart">
+          <Skeleton shape="text" width={120} />
+          <Skeleton height={160} />
+        </div>
+      </section>
+      <div className="in-two">
+        {['How calls ended', 'When people call'].map(title => (
+          <section key={title} className="k-card in-panel">
+            <h2>{title}</h2>
+            <Skeleton height={140} />
+          </section>
+        ))}
+      </div>
+    </>
   )
 }
 

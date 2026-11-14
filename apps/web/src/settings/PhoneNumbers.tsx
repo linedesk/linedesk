@@ -33,7 +33,7 @@ import { RadioCard, Select, type SelectOption } from '../ui/controls.tsx'
 import { Dialog } from '../ui/form.tsx'
 import { Button, cx, Note } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
-import { SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
+import { Loading, SkeletonList, useLoadState } from '../ui/LoadStates.tsx'
 import { sectionHash, sectionParts } from '../ui/SettingsLayout.tsx'
 import { CarrierLine, useCarrierStatus } from './Carrier.tsx'
 import { AreaCodeInput } from './AreaCodeInput.tsx'
@@ -112,61 +112,66 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
           ownCarrier={!!carrier && carrier.carrier !== 'default'}
         />
       )}
-      {numbersLoad !== 'ready' ? (
-        <SkeletonRows label="Loading phone numbers" rows={1} />
-      ) : numbers.length > 0 ? (
-        <List label="Phone numbers">
-          {numbers.map(n => (
-            <ListRow
-              key={n.id}
-              title={<span className="st-mono">{formatNumber(n.e164)}</span>}
-              sub={`${answeredBy(n, assistants)?.name ?? 'The assistant'} · ${numberModeLabel[n.mode]}`}
-              aside={
-                // Forwarding nobody has seen work yet (the go-live checklist's rule): not "Answering" until it is,
-                // and the check is in the number's dialog.
-                forwardingUnverified(n, calls) ? (
-                  <button
-                    type="button"
-                    className="pn-status pn-status-link"
-                    title="Check the forwarding of this number"
-                    onClick={() => setManaging({ id: n.id, release: false })}
-                  >
-                    Forwarding not verified
-                  </button>
-                ) : (
-                  <span className={cx('pn-status', answering && 'is-on')}>
-                    {answering ? 'Answering' : 'Not answering'}
-                  </span>
-                )
-              }
-              actions={
-                <MenuButton
-                  title={`Actions for ${formatNumber(n.e164)}`}
-                  items={[
-                    {
-                      id: 'manage',
-                      label: canEdit ? 'Manage…' : 'Details…',
-                      onSelect: () => setManaging({ id: n.id, release: false }),
-                    },
-                    ...(canEdit
-                      ? [
-                          {
-                            id: 'release',
-                            label: n.purchased ? 'Release…' : 'Disconnect…',
-                            danger: true,
-                            onSelect: () => setManaging({ id: n.id, release: true }),
-                          },
-                        ]
-                      : []),
-                  ]}
-                />
-              }
-            />
-          ))}
-        </List>
-      ) : (
-        <ListEmpty>{canEdit ? 'No number yet.' : 'No number yet. Only owners and admins can add one.'}</ListEmpty>
-      )}
+      <Loading
+        what="Phone numbers"
+        loading={numbersLoad !== 'ready'}
+        error={numbersLoad === 'slow'}
+        skeleton={<SkeletonList rows={1} aside action />}
+      >
+        {numbers.length > 0 ? (
+          <List label="Phone numbers">
+            {numbers.map(n => (
+              <ListRow
+                key={n.id}
+                title={<span className="st-mono">{formatNumber(n.e164)}</span>}
+                sub={`${answeredBy(n, assistants)?.name ?? 'The assistant'} · ${numberModeLabel[n.mode]}`}
+                aside={
+                  // Forwarding nobody has seen work yet (the go-live checklist's rule): not "Answering" until it is,
+                  // and the check is in the number's dialog.
+                  forwardingUnverified(n, calls) ? (
+                    <button
+                      type="button"
+                      className="pn-status pn-status-link"
+                      title="Check the forwarding of this number"
+                      onClick={() => setManaging({ id: n.id, release: false })}
+                    >
+                      Forwarding not verified
+                    </button>
+                  ) : (
+                    <span className={cx('pn-status', answering && 'is-on')}>
+                      {answering ? 'Answering' : 'Not answering'}
+                    </span>
+                  )
+                }
+                actions={
+                  <MenuButton
+                    title={`Actions for ${formatNumber(n.e164)}`}
+                    items={[
+                      {
+                        id: 'manage',
+                        label: canEdit ? 'Manage…' : 'Details…',
+                        onSelect: () => setManaging({ id: n.id, release: false }),
+                      },
+                      ...(canEdit
+                        ? [
+                            {
+                              id: 'release',
+                              label: n.purchased ? 'Release…' : 'Disconnect…',
+                              danger: true,
+                              onSelect: () => setManaging({ id: n.id, release: true }),
+                            },
+                          ]
+                        : []),
+                    ]}
+                  />
+                }
+              />
+            ))}
+          </List>
+        ) : (
+          <ListEmpty>{canEdit ? 'No number yet.' : 'No number yet. Only owners and admins can add one.'}</ListEmpty>
+        )}
+      </Loading>
       {adding && (
         <Dialog title="Add a number" size="md" onClose={() => setAdding(false)}>
           <ConnectNumber

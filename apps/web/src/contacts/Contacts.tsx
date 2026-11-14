@@ -5,7 +5,7 @@ import type { Step } from '../inbox/changes.ts'
 import { callTitle } from '../inbox-model.ts'
 import { parseTs, timeLabel } from '../time.ts'
 import { Button, cx, Icon, Kbd } from '../ui/kit.tsx'
-import { LoadProblem, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
+import { Loading, SkeletonRows, useLoading, useLoadState } from '../ui/LoadStates.tsx'
 import { ColumnHeads } from '../ui/list.tsx'
 import { ContactDetail } from './ContactDetail.tsx'
 import './contacts.css'
@@ -150,6 +150,8 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
     )
   const page = useContactsPage({ remove })
   const loadState = useLoadState('contacts')
+  const listView = useLoading(loadState === 'loading')
+  const waiting = loadState !== 'ready' || listView.phase !== 'content'
   const numbers = useMemo(() => new Set(page.all.map(r => r.contact.phone)), [page.all])
   const { rows, cursor, opened, query } = page
   const [importing, setImporting] = useState(false)
@@ -204,21 +206,30 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
               </Button>
             </div>
           )}
-          <div className="ib-list ct-list" ref={listRef} role="list" aria-label="Contacts">
-            {rows.length > 0 && <ColumnHeads className="ct-cols" labels={CONTACT_COLUMNS} />}
-            {rows.map(row => (
-              <Row
-                key={row.contact.id}
-                row={row}
-                isCursor={cursor === row}
-                onOpen={() => page.open(row.contact.id)}
-                onHover={() => page.hover(row.contact.id)}
+          <div
+            className={cx('ib-list', 'ct-list', listView.fadeIn && 'ld-rows-in')}
+            ref={listRef}
+            role="list"
+            aria-label="Contacts"
+          >
+            {(rows.length > 0 || waiting) && <ColumnHeads className="ct-cols" labels={CONTACT_COLUMNS} />}
+            {!waiting &&
+              rows.map(row => (
+                <Row
+                  key={row.contact.id}
+                  row={row}
+                  isCursor={cursor === row}
+                  onOpen={() => page.open(row.contact.id)}
+                  onHover={() => page.hover(row.contact.id)}
+                />
+              ))}
+            {waiting ? (
+              <Loading
+                what="Contacts"
+                loading
+                error={loadState === 'slow'}
+                skeleton={<SkeletonRows rows={8} columns={5} />}
               />
-            ))}
-            {loadState === 'loading' ? (
-              <SkeletonRows label="Loading contacts" />
-            ) : loadState === 'slow' ? (
-              <LoadProblem what="Contacts" />
             ) : (
               !rows.length && <Empty query={query} />
             )}

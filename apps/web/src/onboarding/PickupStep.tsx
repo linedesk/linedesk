@@ -11,7 +11,7 @@ import { browserTimeZone } from '../settings/timeZones.ts'
 import { useAssistantName, useRows, useRun } from '../store.tsx'
 import { RadioCard } from '../ui/controls.tsx'
 import { Note } from '../ui/kit.tsx'
-import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
+import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
 import {
   firstHoursDraft,
@@ -56,11 +56,13 @@ export function PickupStep(p: StepProps) {
     <>
       <div className="ob-body">
         <h1>When should {name} pick up?</h1>
-        {settings.error ? (
-          <LoadProblem what="Your settings" message={settings.error} onRetry={() => void settings.reload()} />
-        ) : (
-          <SkeletonRows label="Loading your settings" rows={3} />
-        )}
+        <Loading
+          what="Your settings"
+          loading
+          error={settings.error}
+          onRetry={() => void settings.reload()}
+          skeleton={<SkeletonFields fields={3} />}
+        />
       </div>
       {settings.error ? (
         <Foot onBack={onBack} onContinue={onNext} canContinue label="Later" />

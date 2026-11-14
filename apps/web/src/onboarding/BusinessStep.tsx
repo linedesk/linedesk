@@ -18,7 +18,7 @@ import { callAction, patchWorkspaceSettings } from '../settings/settings-api.ts'
 import { useAssistant, useRun } from '../store.tsx'
 import { Checkbox, Select } from '../ui/controls.tsx'
 import { Button, Note } from '../ui/kit.tsx'
-import { SkeletonRows } from '../ui/LoadStates.tsx'
+import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import {
   draftFrom,
   draftProblem,
@@ -57,9 +57,9 @@ export function BusinessStep(p: Props) {
     <>
       <div className="ob-body">
         <h1>{HEADING}</h1>
-        <SkeletonRows label="Loading your assistant" rows={2} />
+        <Loading what="Your assistant" loading skeleton={<SkeletonFields fields={2} />} />
       </div>
-      <Foot canContinue={false} hint="Loading your assistant…" />
+      <Foot canContinue={false} />
     </>
   )
 }
@@ -175,7 +175,7 @@ function FindBusiness({
       {phase.kind === 'loading' && (
         <div className="ob-biz-loading" role="status">
           <span>{phase.what}</span>
-          <SkeletonRows label={phase.what} rows={3} />
+          <Loading what={phase.what} loading skeleton={<SkeletonFields fields={3} />} />
         </div>
       )}
       {phase.kind === 'find' && (

@@ -5,7 +5,7 @@
 import { useState } from 'react'
 import { useRun } from '../store.tsx'
 import { Select, type SelectOption, Switch } from '../ui/controls.tsx'
-import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
+import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { Section } from './fields.tsx'
 import {
   type DayHours,
@@ -127,7 +127,17 @@ export function HoursGrid({ days, set, canEdit }: GridProps) {
 }
 
 /** The workspace's time zone as a searchable picker, with each zone's GMT offset and time now (TimeZonePicker). */
-export function TimeZoneSelect({ value, onChange, disabled, id }: { value: string; onChange: (zone: string) => void; disabled?: boolean; id?: string }) {
+export function TimeZoneSelect({
+  value,
+  onChange,
+  disabled,
+  id,
+}: {
+  value: string
+  onChange: (zone: string) => void
+  disabled?: boolean
+  id?: string
+}) {
   return <TimeZonePicker id={id} value={value} onChange={onChange} disabled={disabled} />
 }
 
@@ -144,20 +154,35 @@ export function BusinessHours({ canEdit }: { canEdit: boolean }) {
       title="Business hours"
       description={on ? undefined : 'Off'}
       help="Your assistant tells callers when you are open and, when you are closed, when to expect a call back. Appointments are only booked inside these hours unless a type says otherwise, and the greeting can be different outside them."
-      actions={<EditBusinessHours canEdit={canEdit} variant="button" label={on ? 'Edit business hours' : 'Set business hours'} />}
+      actions={
+        <EditBusinessHours
+          canEdit={canEdit}
+          variant="button"
+          label={on ? 'Edit business hours' : 'Set business hours'}
+        />
+      }
     >
-      {!saved ? (
-        loadError ? (
-          <LoadProblem what="Business hours" message={loadError} onRetry={() => void hours.retry()} />
+      <Loading
+        what="Business hours"
+        loading={!saved}
+        error={loadError}
+        onRetry={() => void hours.retry()}
+        skeleton={
+          <>
+            <Skeleton shape="text" width={300} />
+            <Skeleton shape="text" width={190} />
+          </>
+        }
+      >
+        {on ? (
+          <p className="bh-summary">{weekSummary(days)}</p>
         ) : (
-          <SkeletonRows label="Loading business hours" rows={1} />
-        )
-      ) : on ? (
-        <p className="bh-summary">{weekSummary(days)}</p>
-      ) : (
-        <p className="help">Not used: bookings use Monday to Friday, 9 to 5, and greetings and transfers do not depend on the time.</p>
-      )}
-      {saved && timeZone && <TimeZoneLine zone={timeZone} canEdit={canEdit} />}
+          <p className="help">
+            Not used: bookings use Monday to Friday, 9 to 5, and greetings and transfers do not depend on the time.
+          </p>
+        )}
+        {timeZone && <TimeZoneLine zone={timeZone} canEdit={canEdit} />}
+      </Loading>
     </Section>
   )
 }

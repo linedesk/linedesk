@@ -6,7 +6,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { Toast } from '../shell/Toast.tsx'
 import type { IconName } from '../ui/icons.ts'
 import { Icon, Kbd } from '../ui/kit.tsx'
-import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
+import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import type { ListKeys } from './AdminList.tsx'
 import { ADMIN_DATA, ADMIN_HEALTH, type HealthPart, loadAdminData, loadHealth, watchAdminSignIn } from './api.ts'
 import type { AdminSecondFactor } from '../auth.ts'
@@ -194,11 +194,15 @@ export function AdminMode({ currentUserId, onExit }: Props) {
       )
     if (place.section === 'onboarding') return <Onboarding />
     if (!data)
-      return error ? (
-        <LoadProblem className="adm-card" what="Admin" message={error} onRetry={() => void reload()} />
-      ) : (
+      return (
         <div className="adm-card adm-listcard">
-          <SkeletonRows label="Loading" />
+          <Loading
+            what="Admin"
+            loading
+            error={error}
+            onRetry={() => void reload()}
+            skeleton={<SkeletonRows rows={6} columns={4} className="adm-sk-rows" />}
+          />
         </div>
       )
     // Providers' ids are groups and providers (Providers.tsx), not rows.

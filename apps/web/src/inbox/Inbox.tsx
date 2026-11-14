@@ -6,7 +6,7 @@ import type { CallGroups, InboxTab } from '../inbox-model.ts'
 import { useAssistantName, useContact } from '../store.tsx'
 import { Checkbox } from '../ui/controls.tsx'
 import { cx, Icon, Kbd } from '../ui/kit.tsx'
-import { LoadProblem, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
+import { Loading, SkeletonRows, useLoading, useLoadState } from '../ui/LoadStates.tsx'
 import { ColumnHeads } from '../ui/list.tsx'
 import type { BulkActions } from './BulkBar.tsx'
 import { InboxHead, type InboxHeadProps } from './InboxHead.tsx'
@@ -96,7 +96,7 @@ function ListHead({
   return (
     <ColumnHeads
       ref={ref}
-      lead={lead}
+      lead={total > 0 ? lead : undefined}
       labels={['Time', 'Caller', 'Call', (!searching && statusHeading[tab]) || 'Status', 'Duration']}
     />
   )
@@ -243,6 +243,9 @@ export function Inbox({
     if (cursorIndex >= 0) virtualizer.scrollToIndex(cursorIndex, { align: 'auto' })
   }, [cursor])
   const loadState = useLoadState('calls') // before the first sync an empty list is not "nothing needs you"
+  // The skeleton rows stay until the gate lets them go (no flash, no blink); then the calls fade in.
+  const listView = useLoading(loadState === 'loading')
+  const waiting = loadState !== 'ready' || listView.phase !== 'content'
   const assistant = useAssistantName()
   const frame = listFrame({
     search,
@@ -251,6 +254,8 @@ export function Inbox({
     firstCallHint,
     selectable: Boolean(rest.onSelect),
   })
+  // Nothing in the view, once the skeleton (if it showed) has gone.
+  const empty = frame.empty && !waiting
   // Screen readers hear the call under the cursor as J and K move it (the rows themselves never take focus).
   const cursorCall = cursorIndex >= 0 ? list[cursorIndex] : undefined
   const cursorContact = useContact(cursorCall?.contact_id ?? null)
@@ -290,44 +295,50 @@ export function Inbox({
         <div
           className={cx(
             'ib-list',
-            frame.empty && 'is-zero',
+            empty && 'is-zero',
+            listView.fadeIn && 'ld-rows-in',
             selected.size > 0 && 'is-selecting',
             (tab === 'done' || tab === 'spam') && search === null && 'is-quiet',
           )}
           ref={listRef}
           role="list"
         >
-          {frame.columnHeads && (
+          {/* While the calls load, the headings stand over the skeleton rows (no jump when they arrive). */}
+          {(frame.columnHeads || (waiting && rest.onSelect)) && (
             <ListHead tab={tab} searching={search !== null} total={list.length} bulk={bulk} ref={setHead} />
           )}
           <div ref={topRef} className="ib-spacer" style={{ height: before }} aria-hidden="true" />
-          {items.map(item => {
-            const c = list[item.index]!
-            return (
-              <Row
-                key={c.id}
-                {...handlers}
-                tab={tab}
-                search={search}
-                call={c}
-                segments={segments.get(c.id) ?? NO_SEGMENTS}
-                isCursor={cursor === c.id}
-                selected={selected.has(c.id)}
-                group={groups.get(c.id)}
-                motion={leaving === c.id ? 'leaving' : entering === c.id ? 'entering' : null}
-                index={item.index}
-                setSize={list.length}
-                measure={virtualizer.measureElement}
-              />
-            )
-          })}
+          {!waiting &&
+            items.map(item => {
+              const c = list[item.index]!
+              return (
+                <Row
+                  key={c.id}
+                  {...handlers}
+                  tab={tab}
+                  search={search}
+                  call={c}
+                  segments={segments.get(c.id) ?? NO_SEGMENTS}
+                  isCursor={cursor === c.id}
+                  selected={selected.has(c.id)}
+                  group={groups.get(c.id)}
+                  motion={leaving === c.id ? 'leaving' : entering === c.id ? 'entering' : null}
+                  index={item.index}
+                  setSize={list.length}
+                  measure={virtualizer.measureElement}
+                />
+              )
+            })}
           <div className="ib-spacer" style={{ height: after }} aria-hidden="true" />
-          {loadState === 'loading' ? (
-            <SkeletonRows label="Loading calls" />
-          ) : loadState === 'slow' ? (
-            <LoadProblem what="Your calls" />
+          {waiting ? (
+            <Loading
+              what="Your calls"
+              loading
+              error={loadState === 'slow'}
+              skeleton={<SkeletonRows rows={8} columns={5} />}
+            />
           ) : (
-            frame.empty && (
+            empty && (
               <InboxEmpty
                 tab={tab}
                 search={search}

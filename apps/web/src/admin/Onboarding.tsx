@@ -7,7 +7,7 @@ import { useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { Select, Switch } from '../ui/controls.tsx'
 import { Card } from '../ui/form.tsx'
-import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
+import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { type AtRiskWorkspace, loadAtRisk, runAdmin } from './api.ts'
 import { day, when } from './parts.tsx'
 
@@ -128,11 +128,13 @@ function AtRisk() {
       }
     >
       {!rows ? (
-        query.error ? (
-          <LoadProblem what="the list" message={query.error} onRetry={() => void query.reload()} />
-        ) : (
-          <SkeletonRows label="Loading" />
-        )
+        <Loading
+          what="The list"
+          loading
+          error={query.error}
+          onRetry={() => void query.reload()}
+          skeleton={<SkeletonRows rows={6} columns={4} className="adm-sk-rows" />}
+        />
       ) : rows.length === 0 ? (
         <p className="adm-notice">{emptyText(query.data?.oldEnough ?? 0, days)}</p>
       ) : (

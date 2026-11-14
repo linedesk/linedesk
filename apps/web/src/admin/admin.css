@@ -755,15 +755,15 @@
 }
 
 /* Loading and error states (ui/LoadStates.tsx) inside admin cards */
-.adm-stats .sk-block {
-  min-height: 74px;
-  border-radius: var(--radius-lg);
+.adm-stat .adm-sk-value {
+  margin: 3px 0;
 }
 .adm-skel-card {
   min-height: 220px;
   box-shadow: none;
 }
-.adm-listcard .sk-row {
+.adm-listcard .sk-row,
+.adm-sk-rows .sk-row {
   padding: 0 12px;
 }
 .adm-card.load-problem {

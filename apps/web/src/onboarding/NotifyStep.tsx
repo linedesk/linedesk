@@ -16,7 +16,7 @@ import { useMember } from '../team/members.ts'
 import { Checkbox, RadioCard } from '../ui/controls.tsx'
 import { Input } from '../ui/form.tsx'
 import { Note } from '../ui/kit.tsx'
-import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
+import { Loading, Skeleton, SkeletonFields } from '../ui/LoadStates.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
 import {
   EMERGENCY_NOTE,
@@ -49,7 +49,7 @@ export function NotifyStep(p: Props) {
     <>
       <div className="ob-body">
         <h1>Who hears about calls?</h1>
-        <SkeletonRows label="Loading your assistant" rows={3} />
+        <Loading what="Your assistant" loading skeleton={<SkeletonFields fields={3} />} />
       </div>
       <Foot onBack={p.onBack} onContinue={p.onNext} canContinue={false} onSkipStep={p.onNext} laterTitle={LATER} />
     </>
@@ -134,17 +134,20 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
         <span className="ob-label" id="ob-hear">
           How do you want to hear about calls?
         </span>
-        {settings ? (
-          <Summaries settings={settings} email={emailOn} onEmail={setEmail} admin={admin} />
-        ) : notifications.error ? (
-          <LoadProblem
-            what="Your notification settings"
-            message={notifications.error}
-            onRetry={() => void notifications.reload()}
-          />
-        ) : (
-          <SkeletonRows label="Loading your notification settings" rows={2} />
-        )}
+        <Loading
+          what="Your notification settings"
+          loading={!settings}
+          error={notifications.error}
+          onRetry={() => void notifications.reload()}
+          skeleton={
+            <div className="ob-summaries">
+              <Skeleton shape="text" width={240} />
+              <Skeleton shape="text" width={280} />
+            </div>
+          }
+        >
+          {settings && <Summaries settings={settings} email={emailOn} onEmail={setEmail} admin={admin} />}
+        </Loading>
         <span className="ob-label" id="ob-urgent">
           If a call is urgent
         </span>

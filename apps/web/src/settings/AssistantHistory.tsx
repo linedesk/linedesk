@@ -1,8 +1,15 @@
 // Settings › Assistant › History: every saved version of the assistant's call settings, newest first.
 // Pick one to see what differs from now; "Restore this version" brings it back as a new version.
 import {
-  type AssistantRestoreData, type AssistantSnapshot, type AssistantVersionData, type AssistantVersionItem, type AssistantVersionsData,
-  changedParts, type DiffLine, lineDiff, snapshotOf,
+  type AssistantRestoreData,
+  type AssistantSnapshot,
+  type AssistantVersionData,
+  type AssistantVersionItem,
+  type AssistantVersionsData,
+  changedParts,
+  type DiffLine,
+  lineDiff,
+  snapshotOf,
 } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -10,6 +17,7 @@ import { useRows } from '../store.tsx'
 import { dateTimeLabel, parseTs } from '../time.ts'
 import { Dialog } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
+import { Loading, Skeleton, useLoading } from '../ui/LoadStates.tsx'
 import { uniqueKeys } from '../ui/uniqueKeys.ts'
 import { readAction, useWriteAction } from './settings-api.ts'
 import { brandName } from '../brand.ts'
@@ -25,7 +33,11 @@ export function HistoryButton({ assistant, dirty }: Props) {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <Button icon="restart" onClick={() => setOpen(true)} title="Every saved version of these settings: compare and restore">
+      <Button
+        icon="restart"
+        onClick={() => setOpen(true)}
+        title="Every saved version of these settings: compare and restore"
+      >
         History
       </Button>
       {open && <HistoryDialog assistant={assistant} dirty={dirty} onClose={() => setOpen(false)} />}
@@ -65,7 +77,9 @@ function PartDiff({ label, before, now }: { label: string; before: string; now: 
           ) : (
             <div key={keys[i]} className={cx('ah-line', `ah-${l.kind}`)}>
               <span aria-hidden>{l.kind === 'old' ? '−' : l.kind === 'new' ? '+' : ' '}</span>
-              <span className="sr-only">{l.kind === 'old' ? 'In this version: ' : l.kind === 'new' ? 'Now: ' : ''}</span>
+              <span className="sr-only">
+                {l.kind === 'old' ? 'In this version: ' : l.kind === 'new' ? 'Now: ' : ''}
+              </span>
               {l.text || ' '}
             </div>
           ),
@@ -87,7 +101,12 @@ function HistoryDialog({ assistant, dirty, onClose }: Props & { onClose: () => v
   const [settings, setSettings] = useState<Record<number, AssistantSnapshot>>({})
   const [restoring, setRestoring] = useState(false)
   /** The last restore, so it can be undone from here: the version that was current before it. */
-  const [restored, setRestored] = useState<{ from: number; as: number; previous: number | null; missing: string[] } | null>(null)
+  const [restored, setRestored] = useState<{
+    from: number
+    as: number
+    previous: number | null
+    missing: string[]
+  } | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -123,6 +142,7 @@ function HistoryDialog({ assistant, dirty, onClose }: Props & { onClose: () => v
     }
   }
 
+  const listView = useLoading(!list && !problem)
   const version = list?.versions.find(v => v.number === picked)
   const old = picked != null ? settings[picked] : undefined
   const isCurrent = picked != null && picked === list?.current
@@ -164,20 +184,26 @@ function HistoryDialog({ assistant, dirty, onClose }: Props & { onClose: () => v
       )}
       {problem && <p className="ah-problem">{problem}</p>}
       <div className="ah">
-        <ol className="ah-list" aria-label="Versions">
-          {!list && !problem && <li className="ah-empty">Loading…</li>}
-          {list?.versions.map(v => (
-            <li key={v.number}>
-              <button type="button" className={cx('ah-item', v.number === picked && 'is-on')} aria-current={v.number === picked} onClick={() => setPicked(v.number)}>
-                <span className="ah-item-top">
-                  <b>Version {v.number}</b>
-                  {v.number === list.current && <span className="ah-now">Now</span>}
-                </span>
-                <span className="ah-sum">{v.summary}</span>
-                <span className="ah-by">{byLine(v)}</span>
-              </button>
-            </li>
-          ))}
+        <ol className="ah-list" aria-label="Versions" aria-busy={listView.phase !== 'content'}>
+          {listView.phase !== 'content' && <VersionsSkeleton reserved={listView.phase === 'reserve'} />}
+          {listView.phase === 'content' &&
+            list?.versions.map(v => (
+              <li key={v.number}>
+                <button
+                  type="button"
+                  className={cx('ah-item', v.number === picked && 'is-on')}
+                  aria-current={v.number === picked}
+                  onClick={() => setPicked(v.number)}
+                >
+                  <span className="ah-item-top">
+                    <b>Version {v.number}</b>
+                    {v.number === list.current && <span className="ah-now">Now</span>}
+                  </span>
+                  <span className="ah-sum">{v.summary}</span>
+                  <span className="ah-by">{byLine(v)}</span>
+                </button>
+              </li>
+            ))}
         </ol>
         <div className="ah-detail">
           {version && (
@@ -187,7 +213,13 @@ function HistoryDialog({ assistant, dirty, onClose }: Props & { onClose: () => v
             </header>
           )}
           {!old ? (
-            picked != null && <p className="ah-empty">Loading…</p>
+            picked != null && (
+              <Loading
+                what="This version"
+                loading
+                skeleton={[220, 300, 260].map(width => <Skeleton key={width} shape="text" width={width} />)}
+              />
+            )
           ) : isCurrent ? (
             <p className="ah-empty">This is what calls use now.</p>
           ) : !parts.length ? (
@@ -206,4 +238,17 @@ function HistoryDialog({ assistant, dirty, onClose }: Props & { onClose: () => v
       </div>
     </Dialog>
   )
+}
+
+/** Versions while the list loads: the items' own lines (title, summary, by), in grey. */
+function VersionsSkeleton({ reserved }: { reserved: boolean }) {
+  return [0, 1, 2].map(i => (
+    <li key={i} className={cx('ld-busy', reserved && 'is-reserved')} aria-hidden="true">
+      <div className="ah-item">
+        <Skeleton shape="text" width={70} />
+        <Skeleton shape="text" width={150 + i * 20} />
+        <Skeleton shape="text" width={110} />
+      </div>
+    </li>
+  ))
 }

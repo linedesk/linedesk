@@ -8,7 +8,7 @@ import { ConfirmEmail } from '../../ConfirmEmail.tsx'
 import { signInAgain } from '../../localData.ts'
 import { refreshQuery, useQuery } from '../../cachedQuery.ts'
 import { refreshTeam } from '../../team/team-api.ts'
-import { Skeleton } from '../../ui/LoadStates.tsx'
+import { Loading, Skeleton } from '../../ui/LoadStates.tsx'
 import { dateTimeLabel } from '../../time.ts'
 import { onSaveKey, SaveBar } from '../../ui/form.tsx'
 import { Badge, Button, Note } from '../../ui/kit.tsx'
@@ -311,44 +311,50 @@ function Passkeys() {
         label="Passkeys"
         tip="A passkey lets you sign in with your fingerprint, face or device PIN instead of a code or password."
       >
-        {!list && passkeys.error && <Note tone="danger">{passkeys.error}</Note>}
-        {!list && !passkeys.error && <ListSkeleton label="Loading passkeys" rows={1} />}
-        {list && list.length === 0 && <span className="help">No passkeys yet.</span>}
-        {list && list.length > 0 && (
-          <ul className="ac-list">
-            {list.map(p => (
-              <li key={p.id} className="ac-session">
-                <div>
-                  <b>{p.name}</b>
-                  {p.added && <span className="help">Added {dateTimeLabel(p.added)}</span>}
-                </div>
-                <div className="ac-row-actions">
-                  {confirming === p.id ? (
-                    <>
-                      <span className="help">Remove this passkey?</span>
-                      <Button size="sm" variant="ghost" title="Keep this passkey" onClick={() => setConfirming(null)}>
-                        Cancel
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        title="Remove it; it no longer signs you in"
-                        disabled={request.busy}
-                        onClick={() => void remove(p.id)}
-                      >
+        <Loading
+          what="Passkeys"
+          loading={!list}
+          error={passkeys.error}
+          onRetry={() => void load()}
+          skeleton={<ListSkeleton rows={1} />}
+        >
+          {list && list.length === 0 && <span className="help">No passkeys yet.</span>}
+          {list && list.length > 0 && (
+            <ul className="ac-list">
+              {list.map(p => (
+                <li key={p.id} className="ac-session">
+                  <div>
+                    <b>{p.name}</b>
+                    {p.added && <span className="help">Added {dateTimeLabel(p.added)}</span>}
+                  </div>
+                  <div className="ac-row-actions">
+                    {confirming === p.id ? (
+                      <>
+                        <span className="help">Remove this passkey?</span>
+                        <Button size="sm" variant="ghost" title="Keep this passkey" onClick={() => setConfirming(null)}>
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          title="Remove it; it no longer signs you in"
+                          disabled={request.busy}
+                          onClick={() => void remove(p.id)}
+                        >
+                          Remove
+                        </Button>
+                      </>
+                    ) : (
+                      <Button size="sm" title={`Remove ${p.name}`} onClick={() => setConfirming(p.id)}>
                         Remove
                       </Button>
-                    </>
-                  ) : (
-                    <Button size="sm" title={`Remove ${p.name}`} onClick={() => setConfirming(p.id)}>
-                      Remove
-                    </Button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Loading>
       </Field>
       {needsCode && (
         <Field
@@ -412,17 +418,51 @@ async function loadSessionList(): Promise<SessionRow[] | 'signInAgain'> {
   }
 }
 
-/** Grey rows where a list of sessions or passkeys will be. */
-function ListSkeleton({ label, rows = 3 }: { label: string; rows?: number }) {
+/** Grey rows where a list of sessions or passkeys will be: the rows' own name, line under it and button. */
+function ListSkeleton({ rows = 3 }: { rows?: number }) {
   return (
-    <ul className="ac-list" aria-busy="true" aria-label={label}>
-      {Array.from({ length: rows }, (_, i) => `${label}-${i}`).map(key => (
-        <li key={key} className="ac-session ac-skel">
-          <span />
-          <span />
+    <ul className="ac-list" aria-hidden="true">
+      {Array.from({ length: rows }, (_, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: placeholder rows never reorder
+        <li key={i} className="ac-session">
+          <div>
+            <Skeleton shape="text" width={110 + ((i * 29) % 40)} />
+            <Skeleton shape="text" width={150} />
+          </div>
+          <Skeleton width={64} height={28} />
         </li>
       ))}
     </ul>
+  )
+}
+
+/** A section of the account while the account itself loads: its title at once, its fields in grey. */
+function AccountSkeleton({ current, error, retry }: { current: SectionId; error: string | null; retry: () => void }) {
+  const skeleton =
+    current === 'security' ? (
+      <Field label="Methods">
+        <span className="sk-inline">
+          <Skeleton width={64} height={20} />
+          <Skeleton width={72} height={20} />
+        </span>
+      </Field>
+    ) : (
+      <>
+        <Field label="Name">
+          <Skeleton shape="field" width="100%" />
+        </Field>
+        <Field label="Email">
+          <Skeleton shape="text" width={180} />
+        </Field>
+      </>
+    )
+  return (
+    <Section
+      id={current === 'security' ? 'ac-signin' : 'ac-profile'}
+      title={current === 'security' ? 'Sign-in & security' : 'Profile'}
+    >
+      <Loading what="Your account" loading error={error} onRetry={retry} skeleton={skeleton} />
+    </Section>
   )
 }
 
@@ -452,36 +492,42 @@ function Sessions() {
           <SignInAgainButton />
         </div>
       )}
-      {!list && !query.error && <ListSkeleton label="Loading sessions" />}
-      {!list && query.error && <Note tone="danger">{query.error}</Note>}
-      {sessions && (
-        <ul className="ac-list">
-          {(showAll ? sessions : sessions.slice(0, SESSIONS_SHOWN)).map(s => (
-            <li key={s.id} className="ac-session">
-              <div>
-                <b>{s.device}</b>
-                <span className="help">Last active {dateTimeLabel(s.lastActive)}</span>
-              </div>
-              <div className="ac-row-actions">
-                {s.current ? (
-                  <Badge>This device</Badge>
-                ) : confirming === s.id ? (
-                  <Confirm
-                    question="Sign this device out?"
-                    busy={request.busy}
-                    onCancel={() => setConfirming(null)}
-                    onConfirm={() => void signOut(() => signOutSession(s.id), 'Session signed out.')}
-                  />
-                ) : (
-                  <Button size="sm" title={`Sign out ${s.device}`} onClick={() => setConfirming(s.id)}>
-                    Sign out
-                  </Button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+      <Loading
+        what="Sessions"
+        loading={!list}
+        error={query.error}
+        onRetry={() => void load()}
+        skeleton={<ListSkeleton rows={3} />}
+      >
+        {sessions && (
+          <ul className="ac-list">
+            {(showAll ? sessions : sessions.slice(0, SESSIONS_SHOWN)).map(s => (
+              <li key={s.id} className="ac-session">
+                <div>
+                  <b>{s.device}</b>
+                  <span className="help">Last active {dateTimeLabel(s.lastActive)}</span>
+                </div>
+                <div className="ac-row-actions">
+                  {s.current ? (
+                    <Badge>This device</Badge>
+                  ) : confirming === s.id ? (
+                    <Confirm
+                      question="Sign this device out?"
+                      busy={request.busy}
+                      onCancel={() => setConfirming(null)}
+                      onConfirm={() => void signOut(() => signOutSession(s.id), 'Session signed out.')}
+                    />
+                  ) : (
+                    <Button size="sm" title={`Sign out ${s.device}`} onClick={() => setConfirming(s.id)}>
+                      Sign out
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Loading>
       {sessions && !showAll && sessions.length > SESSIONS_SHOWN && (
         <div>
           <Button size="sm" variant="ghost" onClick={() => setShowAll(true)}>
@@ -540,16 +586,9 @@ export function AccountSettings({ hasWorkspace, workspaceName = '' }: Props) {
   return (
     <div className="page">
       <SettingsLayout page="account" title="Account settings" sections={shown} current={current}>
-        {!props &&
-          current !== 'notifications' &&
-          (query.error ? (
-            <div className="empty">
-              <b>Could not load your account</b>
-              <span>{query.error}</span>
-            </div>
-          ) : (
-            <Skeleton className="sk-card" />
-          ))}
+        {!props && (current === 'profile' || current === 'security') && (
+          <AccountSkeleton current={current} error={query.error} retry={() => void query.reload()} />
+        )}
         {props && current === 'profile' && <Profile {...props} />}
         {hasWorkspace && current === 'notifications' && <Notifications workspaceName={workspaceName} />}
         {props && current === 'security' && <SignIn {...props} />}

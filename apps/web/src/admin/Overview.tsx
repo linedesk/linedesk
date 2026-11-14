@@ -4,7 +4,8 @@
 import { providerCategories } from '@linedesk/actions'
 import type { ReactNode } from 'react'
 import { useQuery } from '../cachedQuery.ts'
-import { LoadProblem, Skeleton } from '../ui/LoadStates.tsx'
+import { cx } from '../ui/kit.tsx'
+import { LoadProblem, Skeleton, SkeletonRows, useLoading } from '../ui/LoadStates.tsx'
 import { type AdminOverview, loadOverview } from './api.ts'
 import { ReplyDelay } from './ReplyDelay.tsx'
 
@@ -106,13 +107,16 @@ type Props = { onOpen: (section: 'workspaces' | 'users' | 'providers' | 'system'
 
 export function Overview({ onOpen }: Props) {
   const overview = useLoad('admin.overview', loadOverview)
-  const o = overview.value
-  if (overview.error)
+  // The numbers wait behind the loading gate (no flash, no blink); the labels and card titles show at once.
+  const view = useLoading(!overview.value)
+  const o = view.phase === 'content' ? overview.value : undefined
+  const busy = cx('ld-busy', view.phase === 'reserve' && 'is-reserved')
+  if (overview.error || view.phase === 'slow')
     return (
       <LoadProblem
         className="adm-card"
         what="The overview"
-        message={overview.error}
+        message={overview.error ?? undefined}
         onRetry={() => void overview.retry()}
       />
     )
@@ -135,11 +139,24 @@ export function Overview({ onOpen }: Props) {
             />
           </>
         ) : (
-          ['a', 'b', 'c', 'd'].map(key => <Skeleton key={key} className="adm-stat" />)
+          ['Calls today', 'Calls, 7 days', 'Minutes, 7 days', 'Cost over 7 days'].map(label => (
+            <div key={label} className={cx('adm-stat', busy)} aria-busy="true">
+              <span>{label}</span>
+              <Skeleton width={56} height={22} className="adm-sk-value" />
+            </div>
+          ))
         )}
       </div>
       <ReplyDelay />
-      {o ? <Costs overview={o} /> : <Skeleton className="adm-card adm-skel-card" />}
+      {o ? (
+        <Costs overview={o} />
+      ) : (
+        <Card title="Costs" note="Estimated from list prices.">
+          <div className={busy}>
+            <SkeletonRows rows={4} columns={4} className="adm-sk-rows" />
+          </div>
+        </Card>
+      )}
       {o && (
         <Card title="People">
           <div className="adm-people">

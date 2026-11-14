@@ -17,7 +17,7 @@ import {
 import type { CallerDetails, WebhookEndpoint, WebhookHook } from '@linedesk/db/types'
 import { type FormEvent, Fragment, useEffect, useState } from 'react'
 import { useRows, useRun } from '../store.tsx'
-import { SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
+import { Loading, SkeletonList, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { Checkbox, Switch } from '../ui/controls.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
@@ -69,19 +69,26 @@ export function Webhooks({ assistantId, canEdit, toast }: Props) {
         )
       }
     >
-      {load !== 'ready' && !endpoint ? (
-        <SkeletonRows label="Loading the webhook" rows={1} />
-      ) : endpoint ? (
-        <>
-          <List label="Webhook">
-            <EndpointRow endpoint={endpoint} onEdit={() => setEditing(true)} toast={toast} />
-          </List>
-          <HookSwitches endpoint={endpoint} toast={toast} />
-        </>
-      ) : (
-        <ListEmpty>No webhook yet.</ListEmpty>
+      <Loading
+        what="The webhook"
+        loading={load !== 'ready' && !endpoint}
+        error={load === 'slow'}
+        skeleton={<SkeletonList rows={1} aside action />}
+      >
+        {endpoint ? (
+          <>
+            <List label="Webhook">
+              <EndpointRow endpoint={endpoint} onEdit={() => setEditing(true)} toast={toast} />
+            </List>
+            <HookSwitches endpoint={endpoint} toast={toast} />
+          </>
+        ) : (
+          <ListEmpty>No webhook yet.</ListEmpty>
+        )}
+      </Loading>
+      {editing && (
+        <EndpointDialog assistantId={assistantId} endpoint={endpoint} onClose={() => setEditing(false)} toast={toast} />
       )}
-      {editing && <EndpointDialog assistantId={assistantId} endpoint={endpoint} onClose={() => setEditing(false)} toast={toast} />}
     </Section>
   )
 }
@@ -104,7 +111,9 @@ function HookSwitches({ endpoint, toast }: { endpoint: WebhookEndpoint; toast: P
             on={endpoint.hooks.includes(hook)}
             onChange={on => set(hook, on)}
           />
-          {hook === 'during_call' && endpoint.hooks.includes(hook) && <WebhookLookups endpoint={endpoint} toast={toast} />}
+          {hook === 'during_call' && endpoint.hooks.includes(hook) && (
+            <WebhookLookups endpoint={endpoint} toast={toast} />
+          )}
         </Fragment>
       ))}
     </div>
@@ -162,7 +171,11 @@ function EndpointRow({
       if (!result.ok) toast(`Test failed: ${result.error}`)
       else if (hook === 'call_start') {
         const details = detailsText(result.details)
-        toast(details ? `Answered ${result.responseStatus} with ${details}.` : `Answered ${result.responseStatus}, but with no caller details.`)
+        toast(
+          details
+            ? `Answered ${result.responseStatus} with ${details}.`
+            : `Answered ${result.responseStatus}, but with no caller details.`,
+        )
       } else if (hook === 'during_call') toast(lookupTestText(result))
       else toast(`Test delivered (${result.responseStatus}).`)
       setLogVersion(v => v + 1)
@@ -174,7 +187,8 @@ function EndpointRow({
   }
 
   async function remove() {
-    if (!window.confirm(`Delete the webhook ${endpoint.url}? Nothing more is sent to it, and its log is deleted.`)) return
+    if (!window.confirm(`Delete the webhook ${endpoint.url}? Nothing more is sent to it, and its log is deleted.`))
+      return
     setBusy(true)
     try {
       await write('webhook.delete', { endpointId: endpoint.id })
@@ -225,9 +239,11 @@ const logCache = new Map<string, WebhookDeliverySummary[]>()
 function DeliveryLog({ endpointId, version }: { endpointId: string; version: number }) {
   const [rows, setRows] = useState(() => logCache.get(endpointId) ?? null)
   const [error, setError] = useState<string | null>(null)
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `version` reloads the log after a test send
+  const [attempt, setAttempt] = useState(0)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `version` reloads the log after a test send, `attempt` after Try again
   useEffect(() => {
     let live = true
+    setError(null)
     readAction<WebhookDeliveriesData>('webhook.deliveries', { endpointId }).then(
       data => {
         logCache.set(endpointId, data.deliveries)
@@ -238,14 +254,21 @@ function DeliveryLog({ endpointId, version }: { endpointId: string; version: num
     return () => {
       live = false
     }
-  }, [endpointId, version])
-  if (error && !rows)
-    return (
-      <p className="help" role="alert">
-        {error}
-      </p>
-    )
-  if (!rows) return <SkeletonRows label="Loading deliveries" rows={3} className="wh-log" />
+  }, [endpointId, version, attempt])
+  return (
+    <Loading
+      what="Deliveries"
+      loading={!rows}
+      error={error}
+      onRetry={() => setAttempt(a => a + 1)}
+      skeleton={<SkeletonRows rows={3} columns={4} className="wh-log" />}
+    >
+      {rows && <DeliveryTable rows={rows} />}
+    </Loading>
+  )
+}
+
+function DeliveryTable({ rows }: { rows: WebhookDeliverySummary[] }) {
   if (!rows.length) return <p className="help wh-log">No deliveries yet.</p>
   return (
     <table className="wh-log">

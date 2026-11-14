@@ -15,6 +15,7 @@ import { workspaceHeaders } from '../tabWorkspace.ts'
 import { Checkbox, Select } from '../ui/controls.tsx'
 import { FormMessage } from '../ui/form.tsx'
 import { Button, cx, Icon } from '../ui/kit.tsx'
+import { Loading, Skeleton, SkeletonList } from '../ui/LoadStates.tsx'
 import { Field, Section, TextInput } from './fields.tsx'
 import { readAction, useWriteAction } from './settings-api.ts'
 import {
@@ -250,6 +251,7 @@ function filterOptions(all: string, values: { value: string; label: string }[]) 
 type MoreProps = {
   catalog: VoiceCatalogData | undefined
   error: string | null
+  onRetry: () => void
   selected: string
   onPick: (voice: PickerVoice) => void
   disabled: boolean
@@ -257,7 +259,7 @@ type MoreProps = {
 }
 
 /** Every voice of every provider with a key: search, filters, preview, pick. */
-function MoreVoices({ catalog, error, selected, onPick, disabled, preview }: MoreProps) {
+function MoreVoices({ catalog, error, onRetry, selected, onPick, disabled, preview }: MoreProps) {
   const [filter, setFilter] = useState<VoiceFilter>(NO_FILTER)
   const [shown, setShown] = useState(PAGE)
   const set = (change: Partial<VoiceFilter>) => {
@@ -269,7 +271,20 @@ function MoreVoices({ catalog, error, selected, onPick, disabled, preview }: Mor
   const labelOf = (provider: string) => configured.find(p => p.provider === provider)?.label
   const matches = useMemo(() => filterVoices(voices, filter), [voices, filter])
   if (!catalog)
-    return <p className="help">{error ? 'The voices could not be loaded. Try again.' : 'Loading voices…'}</p>
+    return (
+      <Loading
+        what="The voices"
+        loading
+        error={error}
+        onRetry={onRetry}
+        skeleton={
+          <div className="vp-more-body">
+            <Skeleton shape="field" width="100%" />
+            <SkeletonList rows={4} lead={16} />
+          </div>
+        }
+      />
+    )
   const filters = [
     {
       key: 'provider' as const,
@@ -430,7 +445,8 @@ function CloneVoice({
       </Checkbox>
       {tried && problem && <FormMessage>{problem}</FormMessage>}
       <div className="vc-actions">
-        <Button busy={busy}
+        <Button
+          busy={busy}
           size="sm"
           disabled={disabled || busy}
           onClick={() => void clone()}
@@ -457,7 +473,11 @@ export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast, lang
   // The catalog is read when More voices opens, for a main language other than English (its voices are suggested),
   // or at once when the voice in use is one of it.
   const needCatalog = moreOpen || language !== 'en' || (!!voice.voice_id && !!options && !isCurated)
-  const { data: catalog, error: catalogError } = useQuery(needCatalog ? VOICE_CATALOG : null, loadCatalog, {
+  const {
+    data: catalog,
+    error: catalogError,
+    reload: reloadCatalog,
+  } = useQuery(needCatalog ? VOICE_CATALOG : null, loadCatalog, {
     persist: true,
   })
   // Another main language: the providers' voices made for it, else the curated (English) ones.
@@ -550,6 +570,7 @@ export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast, lang
           <MoreVoices
             catalog={catalog}
             error={catalogError}
+            onRetry={() => void reloadCatalog()}
             selected={current}
             onPick={pick}
             disabled={!canEdit}

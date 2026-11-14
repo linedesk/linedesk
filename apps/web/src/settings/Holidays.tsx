@@ -13,6 +13,7 @@ import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow, MenuButton, type MenuItem } from '../ui/list.tsx'
+import { Loading, SkeletonList } from '../ui/LoadStates.tsx'
 import { timeOptions } from './businessHoursModel.ts'
 import {
   addDays,
@@ -206,7 +207,7 @@ export function Holidays({ canEdit, toast }: Props) {
       description="Days you are closed, whatever the weekly hours say."
       help="On these days the assistant tells callers you are closed and when you open again, and books no appointments. It also mentions holidays in the next two weeks when callers ask about your hours. Public holidays and days you mark Every year come back by themselves each year."
     >
-      {loaded && (
+      <Loading what="Public holidays" loading={!loaded} skeleton={<SkeletonList rows={1} action />}>
         <List label="Public holidays" className="hd-calendar">
           <CalendarRow
             calendar={calendar}
@@ -215,7 +216,7 @@ export function Holidays({ canEdit, toast }: Props) {
             onToggle={on => calendar && setCalendar({ ...calendar, on })}
           />
         </List>
-      )}
+      </Loading>
       {choosing && (
         <CalendarDialog
           calendar={calendar}
@@ -229,49 +230,51 @@ export function Holidays({ canEdit, toast }: Props) {
         />
       )}
       <h3 className="hd-heading">Next closed days</h3>
-      {!loaded ? null : days.length ? (
-        <>
-          <List label="Next closed days">
-            {shown.map(d => (
-              <ListRow
-                key={d.date}
-                off={d.kind === 'opened'}
-                title={d.name || shortDate(d.date, today)}
-                sub={sub(d)}
-                aside={d.kind !== 'opened' && <span className="help">{dayHoursLabel(d)}</span>}
-                actions={
-                  canEdit &&
-                  (d.kind === 'opened' ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => calendar && setCalendar(withChange(calendar, d.date, null))}
-                    >
-                      Close again
-                    </Button>
-                  ) : (
-                    <MenuButton title={`More for ${d.name || shortDate(d.date, today)}`} items={itemsFor(d)} />
-                  ))
-                }
-                below={
-                  editing === d.date && (
-                    <ShorterHours onCancel={() => setEditing(null)} onSave={hours => setHours(d, hours)} />
-                  )
-                }
-              />
-            ))}
-          </List>
-          {days.length > FIRST_DAYS && (
-            <Button size="sm" variant="ghost" className="hd-more" onClick={() => setAll(!all)}>
-              {all ? 'Show fewer' : `Show all ${days.length}`}
-            </Button>
-          )}
-        </>
-      ) : (
-        <ListEmpty>
-          {hoursOn ? 'No closed days yet: the weekly hours apply every day.' : 'No closed days yet.'}
-        </ListEmpty>
-      )}
+      <Loading what="Closed days" loading={!loaded} skeleton={<SkeletonList rows={2} aside action />}>
+        {days.length ? (
+          <>
+            <List label="Next closed days">
+              {shown.map(d => (
+                <ListRow
+                  key={d.date}
+                  off={d.kind === 'opened'}
+                  title={d.name || shortDate(d.date, today)}
+                  sub={sub(d)}
+                  aside={d.kind !== 'opened' && <span className="help">{dayHoursLabel(d)}</span>}
+                  actions={
+                    canEdit &&
+                    (d.kind === 'opened' ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => calendar && setCalendar(withChange(calendar, d.date, null))}
+                      >
+                        Close again
+                      </Button>
+                    ) : (
+                      <MenuButton title={`More for ${d.name || shortDate(d.date, today)}`} items={itemsFor(d)} />
+                    ))
+                  }
+                  below={
+                    editing === d.date && (
+                      <ShorterHours onCancel={() => setEditing(null)} onSave={hours => setHours(d, hours)} />
+                    )
+                  }
+                />
+              ))}
+            </List>
+            {days.length > FIRST_DAYS && (
+              <Button size="sm" variant="ghost" className="hd-more" onClick={() => setAll(!all)}>
+                {all ? 'Show fewer' : `Show all ${days.length}`}
+              </Button>
+            )}
+          </>
+        ) : (
+          <ListEmpty>
+            {hoursOn ? 'No closed days yet: the weekly hours apply every day.' : 'No closed days yet.'}
+          </ListEmpty>
+        )}
+      </Loading>
       {canEdit && <AddDay own={own} today={today} toast={toast} onAdd={day => setOwn(withDays(own, [day]))} />}
     </Section>
   )
@@ -527,27 +530,31 @@ function CalendarDialog({ calendar, today, onClose, onSave }: CalendarDialogProp
           )}
         </div>
       )}
-      {error ? (
-        <p className="help">{error}</p>
-      ) : !data ? (
-        <p className="help">Loading holidays…</p>
-      ) : data.holidays.length ? (
-        <List label="Public holidays">
-          {data.holidays.map(h => (
-            <ListRow
-              key={h.key}
-              title={
-                <Checkbox checked={!off.has(h.key)} onChange={closed => toggle(h.key, closed)}>
-                  {h.key}
-                </Checkbox>
-              }
-              aside={<span className="help">{shortDate(h.date, today)}</span>}
-            />
-          ))}
-        </List>
-      ) : (
-        <ListEmpty>No public holidays known for the next twelve months.</ListEmpty>
-      )}
+      <Loading
+        what="Public holidays"
+        loading={!data || Boolean(error)}
+        error={error}
+        onRetry={() => setPlace(p => ({ ...p }))}
+        skeleton={<SkeletonList rows={6} sub={false} aside />}
+      >
+        {data?.holidays.length ? (
+          <List label="Public holidays">
+            {data.holidays.map(h => (
+              <ListRow
+                key={h.key}
+                title={
+                  <Checkbox checked={!off.has(h.key)} onChange={closed => toggle(h.key, closed)}>
+                    {h.key}
+                  </Checkbox>
+                }
+                aside={<span className="help">{shortDate(h.date, today)}</span>}
+              />
+            ))}
+          </List>
+        ) : (
+          <ListEmpty>No public holidays known for the next twelve months.</ListEmpty>
+        )}
+      </Loading>
     </Dialog>
   )
 }

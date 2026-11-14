@@ -8,7 +8,7 @@ import { type FormEvent, useState } from 'react'
 import { RadioCard } from '../ui/controls.tsx'
 import { Dialog, SecretInput } from '../ui/form.tsx'
 import { Button, Note } from '../ui/kit.tsx'
-import { Skeleton } from '../ui/LoadStates.tsx'
+import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import {
   CARRIER_PURPOSE,
   type CarrierDraft,
@@ -45,14 +45,23 @@ export function useCarrierStatus(canEdit: boolean): CarrierStatusData | null {
  * carrier the session reports, named for the default while the workspace uses it.
  */
 export function CarrierLine({ serverProvider = null }: { serverProvider?: string | null }) {
-  const status = useCarrierStatus(true)
+  const query = useQuery(CARRIER, loadCarrier)
+  const status = query.data ?? null
   const [open, setOpen] = useState(false)
   // While it loads, the line is already in place, so the numbers below it never move down.
   if (!status)
     return (
-      <p className="pn-carrier" role="status" aria-busy="true" aria-label="Loading the carrier">
-        Carrier <Skeleton className="pn-carrier-sk" />
-      </p>
+      <div className="pn-carrier">
+        Carrier:
+        <Loading
+          what="the carrier"
+          loading
+          error={query.error}
+          onRetry={() => void query.reload()}
+          skeleton={<Skeleton shape="text" width={140} />}
+          className="pn-carrier-loading"
+        />
+      </div>
     )
   return (
     <>

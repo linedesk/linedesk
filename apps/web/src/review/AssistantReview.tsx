@@ -12,7 +12,7 @@ import { useRows, useTable } from '../store.tsx'
 import { listTime, parseTs } from '../time.ts'
 import { Input } from '../ui/form.tsx'
 import { Badge, Button, Note } from '../ui/kit.tsx'
-import { LoadProblem, Skeleton } from '../ui/LoadStates.tsx'
+import { Loading, SkeletonList } from '../ui/LoadStates.tsx'
 import { loadQuestions, loadReviewList, questionsKey, reviewListKey, setEvaluationDone } from './reviewData.ts'
 import {
   askedLabel,
@@ -123,30 +123,32 @@ function CallsCard({ assistant, toast }: { assistant: Assistant; toast: (text: s
         </Button>
       }
     >
-      {list === undefined ? (
-        query.error ? (
-          <LoadProblem what="The calls" />
+      <Loading
+        what="The calls"
+        loading={list === undefined}
+        error={query.error}
+        onRetry={() => void query.reload()}
+        skeleton={<SkeletonList rows={3} action />}
+      >
+        {list === undefined ? null : list.length === 0 ? (
+          <p className="help rv-empty">
+            {showDone ? 'Nothing checked yet.' : `Nothing to look at. ${name} handled every call well.`}
+          </p>
         ) : (
-          <Skeleton className="sk-card" />
-        )
-      ) : list.length === 0 ? (
-        <p className="help rv-empty">
-          {showDone ? 'Nothing checked yet.' : `Nothing to look at. ${name} handled every call well.`}
-        </p>
-      ) : (
-        <ul className="kn-list rv-list">
-          {list.map(e => (
-            <CallRow
-              key={e.callId}
-              evaluation={e}
-              call={calls.get(e.callId)}
-              contacts={contacts}
-              assistantId={assistant.id}
-              toast={toast}
-            />
-          ))}
-        </ul>
-      )}
+          <ul className="kn-list rv-list">
+            {list.map(e => (
+              <CallRow
+                key={e.callId}
+                evaluation={e}
+                call={calls.get(e.callId)}
+                contacts={contacts}
+                assistantId={assistant.id}
+                toast={toast}
+              />
+            ))}
+          </ul>
+        )}
+      </Loading>
     </Section>
   )
 }
@@ -204,21 +206,23 @@ function QuestionsCard({ assistant, toast, onAnswered }: Props) {
       title={`Questions ${name} couldn't answer`}
       description="Answer once; it is added to About the business for every caller."
     >
-      {groups === undefined ? (
-        query.error ? (
-          <LoadProblem what="The questions" />
+      <Loading
+        what="The questions"
+        loading={groups === undefined}
+        error={query.error}
+        onRetry={() => void query.reload()}
+        skeleton={<SkeletonList rows={2} action />}
+      >
+        {groups === undefined ? null : groups.length === 0 ? (
+          <p className="help rv-empty">No open questions. {name} could answer everything callers asked.</p>
         ) : (
-          <Skeleton className="sk-card" />
-        )
-      ) : groups.length === 0 ? (
-        <p className="help rv-empty">No open questions. {name} could answer everything callers asked.</p>
-      ) : (
-        <ul className="kn-list rv-list">
-          {groups.map(g => (
-            <QuestionRow key={g.questionId} group={g} toast={toast} onAnswered={onAnswered} />
-          ))}
-        </ul>
-      )}
+          <ul className="kn-list rv-list">
+            {groups.map(g => (
+              <QuestionRow key={g.questionId} group={g} toast={toast} onAnswered={onAnswered} />
+            ))}
+          </ul>
+        )}
+      </Loading>
     </Section>
   )
 }

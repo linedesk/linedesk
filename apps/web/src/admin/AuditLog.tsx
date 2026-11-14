@@ -6,7 +6,7 @@ import { dateTimeLabel } from '../time.ts'
 import { Select, type SelectOption } from '../ui/controls.tsx'
 import { Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
-import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
+import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { type AdminWorkspace, type AuditEntry, type AuditFilter, type AuditKind, loadAudit } from './api.ts'
 import { errorText } from './notify.ts'
 
@@ -236,10 +236,17 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
           aria-label="To"
         />
       </div>
-      {error && <LoadProblem what="The audit log" message={error} onRetry={() => setFilter(f => ({ ...f }))} />}
-      {!error && entries === null && <SkeletonRows label="Loading" />}
-      {entries && entries.length === 0 && <p className="adm-notice">No entries.</p>}
-      {entries && entries.length > 0 && (
+      {(error || entries === null) && (
+        <Loading
+          what="The audit log"
+          loading
+          error={error}
+          onRetry={() => setFilter(f => ({ ...f }))}
+          skeleton={<SkeletonRows rows={8} columns={4} className="adm-sk-rows" />}
+        />
+      )}
+      {!error && entries && entries.length === 0 && <p className="adm-notice">No entries.</p>}
+      {!error && entries && entries.length > 0 && (
         <div className="adm-scroll">
           <table className="adm-table">
             <thead>
@@ -282,7 +289,13 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
       )}
       {next && (
         <div className="adm-audit-more">
-          <Button busy={loadingMore} size="sm" disabled={loadingMore} onClick={() => void older()} title="Load older entries">
+          <Button
+            busy={loadingMore}
+            size="sm"
+            disabled={loadingMore}
+            onClick={() => void older()}
+            title="Load older entries"
+          >
             {loadingMore ? 'Loading…' : 'Show older'}
           </Button>
         </div>

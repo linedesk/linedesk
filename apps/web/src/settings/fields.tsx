@@ -2,6 +2,7 @@
 import { type ReactNode, useCallback, useState } from 'react'
 import { Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Card, FormField, HelpTip, Input, Textarea } from '../ui/form.tsx'
+import { Skeleton, SkeletonFields } from '../ui/LoadStates.tsx'
 
 type SectionProps = {
   id: string
@@ -108,6 +109,37 @@ export function SwitchRow({ title, description, aside, on, onChange, disabled, d
         {description && <span className="help">{description}</span>}
       </div>
       <Switch on={on} onChange={onChange} label={title} disabled={disabled} />
+    </div>
+  )
+}
+
+/**
+ * A settings card whose title is not known yet (a whole section waits for data): the card itself, a short
+ * grey title and `fields` labelled controls, each as tall as a Field with its input.
+ */
+export function SkeletonSection({ fields = 2 }: { fields?: number }) {
+  return (
+    <Card className="st-sec">
+      <Skeleton shape="title" />
+      <SkeletonFields fields={fields} />
+    </Card>
+  )
+}
+
+/** SwitchRows while they load (ui/LoadStates.tsx): the same rows and gaps, the switch a grey pill. */
+export function SkeletonSwitchRows({ rows = 2, description = true }: { rows?: number; description?: boolean }) {
+  return (
+    <div className="st-swlist" aria-hidden="true">
+      {Array.from({ length: rows }, (_, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: placeholder rows never reorder
+        <div key={i} className="swrow">
+          <div>
+            <Skeleton shape="text" width={120 + ((i * 37) % 60)} />
+            {description && <Skeleton shape="text" width={220 + ((i * 53) % 90)} />}
+          </div>
+          <Skeleton width={34} height={20} className="sk-round" />
+        </div>
+      ))}
     </div>
   )
 }

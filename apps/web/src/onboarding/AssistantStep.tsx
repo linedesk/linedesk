@@ -11,7 +11,7 @@ import { TestCallPanel } from '../settings/TestCallPanel.tsx'
 import { VoiceSettings } from '../settings/VoiceSettings.tsx'
 import { useAssistant, useRun } from '../store.tsx'
 import { Button, Note } from '../ui/kit.tsx'
-import { SkeletonRows } from '../ui/LoadStates.tsx'
+import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
 import { assistantChanges, type AssistantDraft, renameInGreeting } from './flow.ts'
 
@@ -25,9 +25,9 @@ export function AssistantStep(p: Props) {
     <>
       <div className="ob-body">
         <h1>Meet your assistant.</h1>
-        <SkeletonRows label="Loading your assistant" rows={3} />
+        <Loading what="Your assistant" loading skeleton={<SkeletonFields fields={3} />} />
       </div>
-      <Foot onBack={p.onBack} canContinue={false} onContinue={p.onNext} hint="Loading your assistant…" />
+      <Foot onBack={p.onBack} canContinue={false} onContinue={p.onNext} />
     </>
   )
 }

@@ -1318,9 +1318,9 @@ a.k-btn {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.pn-carrier-sk {
-  height: 12px;
-  width: 140px;
+/* The carrier's skeleton (or its problem) sits in the line, after "Carrier:". */
+.pn-carrier-loading .sk-text {
+  margin: 4px 0;
 }
 .pn-carrier-change {
   padding: 0;
@@ -1463,21 +1463,6 @@ button.k-link {
 }
 
 /* Account, Sessions: grey lines while the list loads */
-.ac-skel {
-  display: grid;
-  gap: 6px;
-}
-.ac-skel span {
-  display: block;
-  height: 12px;
-  width: 40%;
-  border-radius: var(--radius-xs);
-  background: var(--surface-hover);
-}
-.ac-skel span + span {
-  width: 25%;
-}
-
 /* Text for screen readers only (view headings). */
 .sr-only {
   position: absolute;
@@ -1539,46 +1524,119 @@ button.k-link {
   user-select: none;
 }
 
-/* Loading rows sit where the rows will be. */
-.ib-list .sk-list {
-  max-width: var(--w-list);
-  margin: 0 auto;
-  padding-top: 8px;
+/* ===== Loading (ui/LoadStates.tsx, docs/design-principles.md "Loading") =====
+   One look for every area that waits for data: grey shapes in the layout of what comes, one slow soft
+   pulse, static with reduced motion. The frame holds the space at once but shows the shapes only after
+   a moment (loadingGate.ts); the content fades in. */
+/* The area stacks its content with the gap of the card or list it sits in, as if it were not there. */
+.ld {
+  display: grid;
+  gap: inherit;
+  min-width: 0;
 }
-.ib-list .sk-row {
-  padding-left: var(--row-lead);
-  padding-right: var(--gutter);
+/* Only the grey shapes wait; words that are part of a skeleton (a card's title) show at once. */
+.ld-busy.is-reserved .sk {
+  visibility: hidden;
 }
-
-/* A grey block while something loads (ui/LoadStates.tsx Skeleton) */
-.sk-block {
-  background: var(--surface-hover);
-  border-radius: var(--radius-sm);
+.ld-in {
+  animation: ld-in 140ms ease-out both;
 }
-@media (prefers-reduced-motion: no-preference) {
-  .sk-block {
-    animation: sk 1.2s ease-in-out infinite;
+/* A page list's rows, just arrived after its skeleton (Inbox, Contacts). */
+.ld-rows-in .row:not(.is-entering):not(.is-leaving) {
+  animation: ld-in 140ms ease-out both;
+}
+@keyframes ld-in {
+  from {
+    opacity: 0;
   }
 }
-/* Shapes for settings pages: a control, a page title, a section card, a line of text. */
+.sk {
+  display: block;
+  flex: none;
+  max-width: 100%;
+  background: var(--skeleton);
+  border-radius: var(--radius-sm);
+  animation: sk-pulse 1.4s ease-in-out var(--sk-sync, 0ms) infinite;
+}
+@keyframes sk-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sk,
+  .ld-in,
+  .ld-rows-in .row:not(.is-entering):not(.is-leaving) {
+    animation: none;
+  }
+}
+/* A line of text: a bar in the middle of a 20px line, like the words it stands for. */
+.sk-text {
+  display: inline-block;
+  height: 10px;
+  margin: 5px 0;
+  border-radius: 5px;
+  vertical-align: top;
+}
 .sk-field {
   height: 32px;
   width: 220px;
 }
 .sk-title {
-  height: 26px;
-  width: 180px;
-  margin: 2px 0 4px;
+  height: 14px;
+  width: 140px;
+  margin: 3px 0;
+  border-radius: 7px;
 }
 .sk-card {
   height: 180px;
   margin-bottom: 16px;
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--radius-lg);
 }
-.sk-line {
-  height: 12px;
-  width: 260px;
-  margin: 4px 0 14px;
+/* Shapes side by side, like a field and its select. */
+.sk-inline {
+  display: flex;
+  gap: 6px;
+}
+.sk-round {
+  border-radius: var(--radius-full);
+}
+.sk-k-list .k-row-title,
+.sk-k-list .k-row-sub {
+  display: block;
+}
+/* Rows of a grid list with column headings: the rows' own height and grid. */
+.sk-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: center;
+  column-gap: 14px;
+  height: 34px;
+  padding: 0 20px;
+}
+.ib-list .sk-list {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--w-list);
+  margin: 0 auto;
+}
+.ib-list .sk-row {
+  padding-left: var(--row-lead);
+  padding-right: var(--gutter);
+  grid-template-columns: var(--ib-columns);
+}
+.ib-list.ct-list .sk-row {
+  grid-template-columns: var(--ct-columns);
+}
+@media (max-width: 719px) {
+  .ib-list .sk-row,
+  .ib-list.ct-list .sk-row {
+    grid-template-columns: minmax(0, 1fr) 64px;
+  }
+  .ib-list .sk-row > .sk:nth-child(n + 3) {
+    display: none;
+  }
 }
 
 .as-stale {

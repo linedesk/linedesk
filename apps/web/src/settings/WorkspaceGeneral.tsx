@@ -5,6 +5,7 @@ import { type KeyboardEvent, useEffect, useState } from 'react'
 import { showAppointmentValue } from '../insights/Insights.tsx'
 import { useRun } from '../store.tsx'
 import { Input } from '../ui/form.tsx'
+import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { AppointmentValue } from './AppointmentValue.tsx'
 import { TimeZoneSelect } from './BusinessHours.tsx'
 import { Field, Section } from './fields.tsx'
@@ -82,7 +83,8 @@ function BusinessName({ canEdit, name, onRenamed, toast }: Props) {
 /** The workspace's time zone: the date and time the assistant is told, and what business hours mean. Saves at once. */
 function TimeZone({ canEdit }: { canEdit: boolean }) {
   const run = useRun()
-  const zone = useWorkspaceSettings().data?.timeZone
+  const settings = useWorkspaceSettings()
+  const zone = settings.data?.timeZone
   const change = (timeZone: string) => {
     patchWorkspaceSettings({ timeZone })
     void run('workspace.updateSettings', { timeZone })
@@ -97,18 +99,23 @@ function TimeZone({ canEdit }: { canEdit: boolean }) {
           : READ_ONLY
       }
     >
-      {zone ? (
-        <TimeZoneSelect id="ws-time-zone" value={zone} onChange={change} disabled={!canEdit} />
-      ) : (
-        <span className="help">Loading…</span>
-      )}
+      <Loading
+        what="The time zone"
+        loading={!zone}
+        error={settings.error}
+        onRetry={() => void settings.reload()}
+        skeleton={<Skeleton shape="field" width="100%" />}
+      >
+        {zone && <TimeZoneSelect id="ws-time-zone" value={zone} onChange={change} disabled={!canEdit} />}
+      </Loading>
     </Field>
   )
 }
 
 /** What one booked appointment is worth on average: Insights multiplies it by the booked appointments. */
 function Value({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => void }) {
-  const settings = useWorkspaceSettings().data
+  const query = useWorkspaceSettings()
+  const settings = query.data
   return (
     <Field
       id="ws-appointment-value"
@@ -119,18 +126,29 @@ function Value({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => 
           : READ_ONLY
       }
     >
-      {settings ? (
-        <AppointmentValue
-          id="ws-appointment-value"
-          value={settings.jobValueCents}
-          currency={settings.jobValueCurrency ?? 'USD'}
-          canEdit={canEdit}
-          onSaved={(cents, currency) => showAppointmentValue(cents, currency)}
-          toast={toast}
-        />
-      ) : (
-        <span className="help">Loading…</span>
-      )}
+      <Loading
+        what="The appointment value"
+        loading={!settings}
+        error={query.error}
+        onRetry={() => void query.reload()}
+        skeleton={
+          <span className="sk-inline">
+            <Skeleton shape="field" width={185} />
+            <Skeleton shape="field" width={82} />
+          </span>
+        }
+      >
+        {settings && (
+          <AppointmentValue
+            id="ws-appointment-value"
+            value={settings.jobValueCents}
+            currency={settings.jobValueCurrency ?? 'USD'}
+            canEdit={canEdit}
+            onSaved={(cents, currency) => showAppointmentValue(cents, currency)}
+            toast={toast}
+          />
+        )}
+      </Loading>
     </Field>
   )
 }

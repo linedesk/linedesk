@@ -15,7 +15,7 @@ import { Dialog, Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { DeleteButton, EditButton, List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
-import { Skeleton, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
+import { Loading, Skeleton, SkeletonList, useLoadState } from '../ui/LoadStates.tsx'
 import { useQuery } from '../cachedQuery.ts'
 import {
   BOOK_WHEN_LABEL,
@@ -89,7 +89,7 @@ const noProviderText = () => `No calendar provider on this server yet. ${whoSets
 /** One button per calendar provider this install offers. Used in onboarding. */
 export function ConnectButtons({ assistantId, toast }: { assistantId: string; toast: (text: string) => void }) {
   const { providers, busy, connect } = useConnect(assistantId, toast)
-  if (!providers) return <Skeleton className="sk-field" />
+  if (!providers) return <Loading what="Calendar providers" loading skeleton={<Skeleton width={190} height={32} />} />
   if (!providers.length) return <p className="help">{noProviderText()}</p>
   return (
     <div className="cal-connect">
@@ -157,7 +157,8 @@ function AddAccount({ providers, busy, connect }: ReturnType<typeof useConnect>)
 function Accounts({ assistant, canEdit, toast }: Props) {
   const write = useWriteAction()
   const connections = useRows('calendar_connections').sort((a, b) => a.created_at.localeCompare(b.created_at))
-  const ready = useLoadState('calendar_connections') === 'ready'
+  const accountsLoad = useLoadState('calendar_connections')
+  const ready = accountsLoad === 'ready'
   const connector = useConnect(assistant.id, toast)
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -194,23 +195,28 @@ function Accounts({ assistant, canEdit, toast }: Props) {
 
   return (
     <Section id="as-cal-accounts" title="Calendar accounts" actions={canEdit && ready && <AddAccount {...connector} />}>
-      {!ready ? (
-        <SkeletonRows label="Loading calendar accounts" rows={1} />
-      ) : connections.length > 0 ? (
-        <List label="Calendar accounts">
-          {connections.map(c => (
-            <AccountRow key={c.id} connection={c}>
-              {canEdit && rowMenu(c)}
-            </AccountRow>
-          ))}
-        </List>
-      ) : (
-        <ListEmpty>
-          {connector.providers?.length === 0
-            ? noProviderText()
-            : `No account yet. Add one so ${assistant.name} can book.`}
-        </ListEmpty>
-      )}
+      <Loading
+        what="Calendar accounts"
+        loading={!ready}
+        error={accountsLoad === 'slow'}
+        skeleton={<SkeletonList rows={1} lead={20} action />}
+      >
+        {connections.length > 0 ? (
+          <List label="Calendar accounts">
+            {connections.map(c => (
+              <AccountRow key={c.id} connection={c}>
+                {canEdit && rowMenu(c)}
+              </AccountRow>
+            ))}
+          </List>
+        ) : (
+          <ListEmpty>
+            {connector.providers?.length === 0
+              ? noProviderText()
+              : `No account yet. Add one so ${assistant.name} can book.`}
+          </ListEmpty>
+        )}
+      </Loading>
     </Section>
   )
 }
@@ -357,19 +363,18 @@ export function AddCalendar({
   )
   const calendars = listed.data ?? null
   const [addError, setError] = useState<string | null>(null)
-  const error = addError ?? (calendars ? null : listed.error)
+  const error = calendars ? null : listed.error
   const [adding, setAdding] = useState<string | null>(null)
   const taken = useRows('assistant_calendars')
     .filter(c => c.assistant_id === assistant.id && c.connection_id === connectionId)
     .map(c => c.external_id)
-  // Keyboard first: once the calendars arrive, the first one that can be added has the focus.
-  const list = useRef<HTMLUListElement>(null)
+  // Keyboard first: once the calendars are on screen, the first one that can be added has the focus.
   const focused = useRef(false)
-  useEffect(() => {
-    if (!calendars || focused.current) return
+  const focusFirst = (list: HTMLUListElement | null) => {
+    if (!list || focused.current) return
     focused.current = true
-    list.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
-  }, [calendars])
+    list.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
+  }
   async function add(externalId: string, name: string) {
     setAdding(externalId)
     try {
@@ -395,25 +400,37 @@ export function AddCalendar({
           />
         </Field>
       )}
-      {error && <p className="k-field-msg">{error}</p>}
-      {!calendars && !error && <SkeletonRows label="Loading calendars" rows={3} />}
-      {calendars && (
-        <ul className="k-list" ref={list}>
-          {calendars.map(c => (
-            <ListRow
-              key={c.id}
-              title={c.name}
-              sub={c.primary ? 'Main calendar' : undefined}
-              actions={
-                <Button busy={adding === c.id} size="sm" disabled={taken.includes(c.id) || adding !== null} onClick={() => add(c.id, c.name)}>
-                  {taken.includes(c.id) ? 'Added' : adding === c.id ? 'Adding…' : 'Add'}
-                </Button>
-              }
-            />
-          ))}
-        </ul>
-      )}
-      {calendars?.length === 0 && <ListEmpty>This account has no calendar you can add events to.</ListEmpty>}
+      {addError && <p className="k-field-msg">{addError}</p>}
+      <Loading
+        what="Calendars"
+        loading={!calendars}
+        error={error}
+        onRetry={() => void listed.reload()}
+        skeleton={<SkeletonList rows={3} sub={false} action />}
+      >
+        {calendars && (
+          <ul className="k-list" ref={focusFirst}>
+            {calendars.map(c => (
+              <ListRow
+                key={c.id}
+                title={c.name}
+                sub={c.primary ? 'Main calendar' : undefined}
+                actions={
+                  <Button
+                    busy={adding === c.id}
+                    size="sm"
+                    disabled={taken.includes(c.id) || adding !== null}
+                    onClick={() => add(c.id, c.name)}
+                  >
+                    {taken.includes(c.id) ? 'Added' : adding === c.id ? 'Adding…' : 'Add'}
+                  </Button>
+                }
+              />
+            ))}
+          </ul>
+        )}
+        {calendars?.length === 0 && <ListEmpty>This account has no calendar you can add events to.</ListEmpty>}
+      </Loading>
     </Dialog>
   )
 }
@@ -442,27 +459,27 @@ function Calendars({ assistant, canEdit, toast, pickFrom }: Props & { pickFrom: 
         )
       }
     >
-      {!ready ? (
-        <SkeletonRows label="Loading calendars" rows={1} />
-      ) : calendars.length > 0 ? (
-        <List label="Calendars">
-          {calendars.map(c => (
-            <CalendarRow
-              key={c.id}
-              calendar={c}
-              account={connections.find(a => a.id === c.connection_id)}
-              canEdit={canEdit}
-              onRemove={() => void run('assistantCalendar.remove', { assistantCalendarId: c.id })}
-            />
-          ))}
-        </List>
-      ) : (
-        <ListEmpty>
-          {connected.length
-            ? `No calendar yet. Add one so ${assistant.name} can book.`
-            : `Add an account first. Until then ${assistant.name} takes messages.`}
-        </ListEmpty>
-      )}
+      <Loading what="Calendars" loading={!ready} skeleton={<SkeletonList rows={1} action />}>
+        {calendars.length > 0 ? (
+          <List label="Calendars">
+            {calendars.map(c => (
+              <CalendarRow
+                key={c.id}
+                calendar={c}
+                account={connections.find(a => a.id === c.connection_id)}
+                canEdit={canEdit}
+                onRemove={() => void run('assistantCalendar.remove', { assistantCalendarId: c.id })}
+              />
+            ))}
+          </List>
+        ) : (
+          <ListEmpty>
+            {connected.length
+              ? `No calendar yet. Add one so ${assistant.name} can book.`
+              : `Add an account first. Until then ${assistant.name} takes messages.`}
+          </ListEmpty>
+        )}
+      </Loading>
       {adding !== null && ready && connected.length > 0 && (
         <AddCalendar
           assistant={assistant}
@@ -562,7 +579,13 @@ function TypeForm({ type, onDone }: { type?: AppointmentType; onDone: () => void
         </Field>
         <Field id="cal-type-hours" label="Can be booked">
           <span className="bh-with">
-            <Select id="cal-type-hours" label="Can be booked" value={when} options={bookWhenOptions} onChange={setWhen} />
+            <Select
+              id="cal-type-hours"
+              label="Can be booked"
+              value={when}
+              options={bookWhenOptions}
+              onChange={setWhen}
+            />
             {when !== 'any_time' && <EditBusinessHours canEdit />}
           </span>
         </Field>

@@ -19,7 +19,7 @@ import { switchToWorkspace } from '../shell/invitations.ts'
 import { Select } from '../ui/controls.tsx'
 import { Avatar, Badge, Button } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow } from '../ui/list.tsx'
-import { Skeleton } from '../ui/LoadStates.tsx'
+import { Loading, SkeletonList } from '../ui/LoadStates.tsx'
 import { sectionParts } from '../ui/SettingsLayout.tsx'
 import { teamApi, useTeam } from './team-api.ts'
 import {
@@ -239,7 +239,8 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (te
   // Invite people… in the workspace menu (`#workspace/team/invite`): the address field takes focus.
   useEffect(() => {
     const focus = () => {
-      if (sectionParts('workspace', window.location.hash).item === 'invite') document.getElementById('team-invite-email')?.focus()
+      if (sectionParts('workspace', window.location.hash).item === 'invite')
+        document.getElementById('team-invite-email')?.focus()
     }
     focus()
     window.addEventListener('hashchange', focus)
@@ -367,32 +368,31 @@ export function TeamSection({ toast }: { toast: (text: string) => void }) {
     }
   }
 
-  if (!data)
-    return error ? (
-      <div className="empty">
-        <b>The team could not be loaded</b>
-        <span>{error}</span>
-      </div>
-    ) : (
-      <div role="status" aria-busy="true" aria-label="Loading the team">
-        <Skeleton className="sk-card" />
-      </div>
-    )
   return (
     <>
       <Section
         id="team-members"
         title="Members"
-        description={data.canManage ? undefined : 'Only owners and admins can invite or change roles.'}
+        description={data && !data.canManage ? 'Only owners and admins can invite or change roles.' : undefined}
         help="Owners and admins can change settings and invite or remove people. Members work with calls, contacts and appointments but can't change settings."
       >
-        <List label="Members">
-          {data.members.map(m => (
-            <MemberRow key={m.memberId} data={data} m={m} run={run} />
-          ))}
-        </List>
+        <Loading
+          what="The team"
+          loading={!data}
+          error={error}
+          onRetry={() => void load()}
+          skeleton={<SkeletonList rows={2} lead={24} aside />}
+        >
+          {data && (
+            <List label="Members">
+              {data.members.map(m => (
+                <MemberRow key={m.memberId} data={data} m={m} run={run} />
+              ))}
+            </List>
+          )}
+        </Loading>
       </Section>
-      {(data.canManage || data.invitations.length > 0) && (
+      {data && (data.canManage || data.invitations.length > 0) && (
         <Section id="team-invites" title="Invitations" description="Links in the email work for 7 days.">
           {data.invitations.length === 0 && <ListEmpty>No pending invitations.</ListEmpty>}
           {data.invitations.length > 0 && (

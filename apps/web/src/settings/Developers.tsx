@@ -8,7 +8,7 @@ import { Select, type SelectOption } from '../ui/controls.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow } from '../ui/list.tsx'
-import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
+import { Loading, SkeletonList } from '../ui/LoadStates.tsx'
 import { Field, Section } from './fields.tsx'
 import { callAction, readAction } from './settings-api.ts'
 import './developers.css'
@@ -48,21 +48,23 @@ export function Developers({ canEdit, toast }: Props) {
         </Button>
       }
     >
-      {keys.data === undefined ? (
-        keys.error ? (
-          <LoadProblem what="API keys" message={keys.error} onRetry={() => void keys.reload()} />
+      <Loading
+        what="API keys"
+        loading={keys.data === undefined}
+        error={keys.error}
+        onRetry={() => void keys.reload()}
+        skeleton={<SkeletonList rows={1} aside action />}
+      >
+        {active.length === 0 ? (
+          <ListEmpty>No keys yet.</ListEmpty>
         ) : (
-          <SkeletonRows label="Loading API keys" rows={2} />
-        )
-      ) : active.length === 0 ? (
-        <ListEmpty>No keys yet.</ListEmpty>
-      ) : (
-        <List label="API keys">
-          {active.map(k => (
-            <KeyRow key={k.id} apiKey={k} toast={toast} />
-          ))}
-        </List>
-      )}
+          <List label="API keys">
+            {active.map(k => (
+              <KeyRow key={k.id} apiKey={k} toast={toast} />
+            ))}
+          </List>
+        )}
+      </Loading>
       {creating && <CreateKey onClose={() => setCreating(false)} toast={toast} />}
     </Section>
   )
@@ -104,7 +106,9 @@ function KeyRow({ apiKey, toast }: { apiKey: ApiKeySummary; toast: Props['toast'
           onClick={revoke}
           onBlur={() => setConfirming(false)}
           title={
-            confirming ? 'Click again to revoke. Tools using this key stop working right away.' : `Revoke ${apiKey.name}`
+            confirming
+              ? 'Click again to revoke. Tools using this key stop working right away.'
+              : `Revoke ${apiKey.name}`
           }
         >
           {confirming ? 'Revoke key' : 'Revoke'}

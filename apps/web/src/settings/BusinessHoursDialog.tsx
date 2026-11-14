@@ -7,7 +7,7 @@ import { useRun } from '../store.tsx'
 import { Switch } from '../ui/controls.tsx'
 import { Dialog } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
-import { SkeletonRows } from '../ui/LoadStates.tsx'
+import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { HoursGrid, TimeZoneSelect, useBusinessHours } from './BusinessHours.tsx'
 import { patchWorkspaceSettings } from './settings-api.ts'
 
@@ -89,34 +89,36 @@ function BusinessHoursDialog({ canEdit, onClose }: { canEdit: boolean; onClose: 
     >
       {/* biome-ignore lint/a11y/noStaticElementInteractions: catches ⌘S from the fields inside */}
       <div className="bh-dialog" onKeyDown={onKeyDown}>
-        {!saved ? (
-          <SkeletonRows label="Loading business hours" rows={3} />
-        ) : (
-          <>
-            <span className="bh-main">
-              <span className="help">Use business hours</span>
-              <Switch on={on} onChange={hours.setOn} label="Use business hours" disabled={!canEdit} />
-            </span>
-            {on ? (
-              <>
-                <HoursGrid days={days} set={hours.set} canEdit={canEdit} />
-                <span className="st-tz">
-                  <span className="help">Times in</span>
-                  <TimeZoneSelect value={timeZone} onChange={changeTimeZone} disabled={!canEdit} />
-                </span>
-                {tried && problem && (
-                  <p className="k-field-msg" role="alert">
-                    {problem}
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="help">
-                Off: bookings use Monday to Friday, 9 to 5; transfers and greetings do not depend on the time.
-              </p>
-            )}
-          </>
-        )}
+        <Loading
+          what="Business hours"
+          loading={!saved}
+          error={hours.loadError}
+          onRetry={() => void hours.retry()}
+          skeleton={<SkeletonRows rows={7} columns={3} />}
+        >
+          <span className="bh-main">
+            <span className="help">Use business hours</span>
+            <Switch on={on} onChange={hours.setOn} label="Use business hours" disabled={!canEdit} />
+          </span>
+          {on ? (
+            <>
+              <HoursGrid days={days} set={hours.set} canEdit={canEdit} />
+              <span className="st-tz">
+                <span className="help">Times in</span>
+                <TimeZoneSelect value={timeZone} onChange={changeTimeZone} disabled={!canEdit} />
+              </span>
+              {tried && problem && (
+                <p className="k-field-msg" role="alert">
+                  {problem}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="help">
+              Off: bookings use Monday to Friday, 9 to 5; transfers and greetings do not depend on the time.
+            </p>
+          )}
+        </Loading>
       </div>
     </Dialog>
   )

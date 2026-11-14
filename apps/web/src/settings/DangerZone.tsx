@@ -15,7 +15,7 @@ import { tabWorkspace, workspaceHeaders } from '../tabWorkspace.ts'
 import { LeaveWorkspace } from '../team/TeamPage.tsx'
 import { useTeam } from '../team/team-api.ts'
 import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
-import { Skeleton } from '../ui/LoadStates.tsx'
+import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { deleteOwnConfirmation, ownAccountWarning, reopenAfterSignIn, takeReopen } from './dangerZoneModel.ts'
 import { Section } from './fields.tsx'
@@ -78,15 +78,16 @@ export function DangerZone({ workspaceName }: Props) {
   const team = useTeam()
   const data = team.data ?? null
   if (!data)
-    return team.error ? (
-      <div className="empty">
-        <b>The team could not be loaded</b>
-        <span>{team.error}</span>
-      </div>
-    ) : (
-      <div role="status" aria-busy="true" aria-label="Loading">
-        <Skeleton className="sk-card" />
-      </div>
+    return (
+      <Section id="team-leave" title="Leave workspace">
+        <Loading
+          what="The team"
+          loading
+          error={team.error}
+          onRetry={() => void team.reload()}
+          skeleton={<Skeleton width={150} height={32} />}
+        />
+      </Section>
     )
   const role = data.members.find(m => m.userId === data.me)?.role
   return (

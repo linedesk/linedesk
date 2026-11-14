@@ -1,12 +1,13 @@
-// Loading and load-problem states, one set for the whole app (inbox, contacts, admin): grey
-// placeholders while something loads, plain words and Try again when it does not arrive.
+// Loading and load-problem states, one standard for the whole app (docs/design-principles.md, "Loading"):
+// the page's own words and buttons show at once; an area that waits for data holds its space with a
+// skeleton in the shape of what comes (one soft pulse everywhere), shown only after a moment and kept
+// long enough not to blink; the data fades in; a load that fails or never ends says so with Try again.
+// Spinners belong to buttons the user pressed (kit.tsx Button `busy`), never to page data.
 import type { TableName } from '@linedesk/db/types'
-import { useEffect, useState } from 'react'
+import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react'
 import { useReadSyncDown, useSnapshotValue } from '../store.tsx'
 import { Button, cx } from './kit.tsx'
-
-/** After this long without a first load, the list says so and offers to try again. */
-const SLOW_MS = 12_000
+import { createLoadingGate, initialView, type LoadingView, SLOW_MS } from './loadingGate.ts'
 
 export type LoadState = 'ready' | 'loading' | 'slow'
 
@@ -29,6 +30,196 @@ export function useLoadState(table: TableName): LoadState {
   return !loading ? 'ready' : slow || readSyncDown ? 'slow' : 'loading'
 }
 
+/**
+ * How an area that waits for data looks right now (loadingGate.ts): space reserved, skeleton, slow, or
+ * content (fading in when it came after a wait). For areas that can't take the `Loading` wrapper's div.
+ */
+export function useLoading(loading: boolean): LoadingView {
+  const [view, setView] = useState(() => initialView(loading))
+  const gate = useRef<ReturnType<typeof createLoadingGate> | null>(null)
+  const latest = useRef(loading)
+  latest.current = loading
+  useEffect(() => {
+    const g = createLoadingGate(latest.current, setView)
+    gate.current = g
+    setView(g.view())
+    return () => {
+      g.dispose()
+      gate.current = null
+    }
+  }, [])
+  useEffect(() => {
+    gate.current?.set(loading)
+  }, [loading])
+  return view
+}
+
+/** Every skeleton pulses in step, whenever it appeared (the pulse is 1.4 s, app.css `sk-pulse`). */
+const PULSE_MS = 1400
+const pulseInStep = (): CSSProperties =>
+  ({ '--sk-sync': `-${Math.round(performance.now() % PULSE_MS)}ms` }) as CSSProperties
+
+type LoadingProps = {
+  /** What loads, as a person says it ("API keys", "Your calls"): read to screen readers, and the problem's words. */
+  what: string
+  /** True while there is nothing to show yet (usually `data === undefined`). */
+  loading: boolean
+  /**
+   * The load failed: the server's reason, or true (a synced table that is `slow`). While loading, it
+   * replaces the skeleton with LoadProblem; once there is data, the last data stays.
+   */
+  error?: string | boolean | null
+  /** Try again; default: reload the page. */
+  onRetry?: () => void
+  /** The shape of what comes: Skeleton, SkeletonList, SkeletonRows (same heights and widths as the content). */
+  skeleton: ReactNode
+  className?: string
+  /** The content; only rendered once loading is over, so it may read the data. */
+  children?: ReactNode
+}
+
+/**
+ * An area of a page that waits for data. The rest of the page (headings, labels, buttons that don't need
+ * the data) renders outside it, at once.
+ */
+export function Loading({ what, loading, error, onRetry, skeleton, className, children }: LoadingProps) {
+  const failed = loading && Boolean(error)
+  const view = useLoading(loading && !failed)
+  if (failed || (loading && view.phase === 'slow'))
+    return (
+      <LoadProblem
+        what={what}
+        message={typeof error === 'string' ? error : undefined}
+        onRetry={onRetry}
+        className={className}
+      />
+    )
+  if (view.phase === 'content') return <div className={cx('ld', view.fadeIn && 'ld-in', className)}>{children}</div>
+  return <LoadingArea what={what} reserved={view.phase === 'reserve'} skeleton={skeleton} className={className} />
+}
+
+/** The skeleton's frame: busy for screen readers (one quiet line), invisible until it is worth showing. */
+function LoadingArea({
+  what,
+  reserved,
+  skeleton,
+  className,
+}: {
+  what: string
+  reserved: boolean
+  skeleton: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cx('ld', 'ld-busy', reserved && 'is-reserved', className)} aria-busy="true" style={pulseInStep()}>
+      <span className="sr-only" role="status">
+        Loading {what}
+      </span>
+      {skeleton}
+    </div>
+  )
+}
+
+type SkeletonProps = {
+  /**
+   * `text`: one line of text (the bar sits in a 20px line, like the text it stands for). `field`: an input
+   * or select (32px). `title`: a page or card title. `card`: a whole settings card. `block` (default): any
+   * other box, sized by `className`, `width` and `height`.
+   */
+  shape?: 'text' | 'field' | 'title' | 'card' | 'block'
+  width?: number | string
+  height?: number | string
+  className?: string
+}
+
+/** One grey shape where something will be. */
+export function Skeleton({ shape = 'block', width, height, className }: SkeletonProps) {
+  return <span className={cx('sk', `sk-${shape}`, className)} style={{ width, height }} aria-hidden="true" />
+}
+
+/** Labelled controls (form.tsx FormField with an input): the label's line and a 32px field, `fields` times. */
+export function SkeletonFields({ fields = 2 }: { fields?: number }) {
+  return Array.from({ length: fields }, (_, i) => (
+    // biome-ignore lint/suspicious/noArrayIndexKey: placeholder fields never reorder
+    <div key={i} className="k-field" aria-hidden="true">
+      <Skeleton shape="text" width={90 + ((i * 41) % 50)} />
+      <Skeleton shape="field" width="100%" />
+    </div>
+  ))
+}
+
+/** Widths that vary from row to row, the same on every render (no random jumps). */
+const widthFor = (row: number, column: number, min: number, spread: number) => min + ((row * 23 + column * 37) % spread)
+
+type SkeletonListProps = {
+  rows?: number
+  /** The rows have a muted second line (ListRow `sub`). */
+  sub?: boolean
+  /** A mark at the left (ListRow `lead`): its size in px. */
+  lead?: number
+  /** A quiet status at the right (ListRow `aside`). */
+  aside?: boolean
+  /** A button at the right (ListRow `actions`). */
+  action?: boolean
+  className?: string
+}
+
+/** Rows in the shape of a settings list (ui/list.tsx List and ListRow): same classes, so the same heights. */
+export function SkeletonList({ rows = 3, sub = true, lead, aside, action, className }: SkeletonListProps) {
+  return (
+    <ul className={cx('k-list', 'sk-k-list', className)} aria-hidden="true">
+      {Array.from({ length: rows }, (_, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: placeholder rows never reorder
+        <li key={i} className="k-row">
+          <div className="k-row-line">
+            {lead ? <Skeleton width={lead} height={lead} className="sk-round" /> : null}
+            <span className="k-row-main">
+              <span className="k-row-title">
+                <Skeleton shape="text" width={widthFor(i, 0, 110, 80)} />
+              </span>
+              {sub && (
+                <span className="k-row-sub">
+                  <Skeleton shape="text" width={widthFor(i, 1, 150, 90)} />
+                </span>
+              )}
+            </span>
+            {aside && <Skeleton shape="text" width={56} />}
+            {action && <Skeleton width={64} height={28} />}
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/**
+ * Rows in the shape of a page's grid list with column headings (inbox, contacts, admin tables; ColumnHeads in
+ * ui/list.tsx): one bar per column, on the list's own grid (the list's CSS gives `.sk-row` its columns).
+ */
+export function SkeletonRows({
+  rows = 6,
+  columns = 4,
+  className,
+}: {
+  rows?: number
+  columns?: number
+  className?: string
+}) {
+  return (
+    <div className={cx('sk-list', className)} aria-hidden="true">
+      {Array.from({ length: rows }, (_, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: placeholder rows never reorder
+        <div key={i} className="sk-row">
+          {Array.from({ length: columns }, (_, c) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: one bar per column
+            <Skeleton key={c} shape="text" width={`${widthFor(i, c, 45, 40)}%`} />
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /** Read sync has not reached the server for a while; it keeps retrying by itself, so there is nothing to press. */
 function ServerUnreachable({ className }: { className?: string }) {
   return (
@@ -36,29 +227,6 @@ function ServerUnreachable({ className }: { className?: string }) {
       <b>Can't reach the server. Retrying…</b>
     </div>
   )
-}
-
-/** Grey rows in the shape of a list, while it loads. */
-export function SkeletonRows({ label, rows = 6, className }: { label: string; rows?: number; className?: string }) {
-  if (useReadSyncDown()) return <ServerUnreachable className={className} />
-  return (
-    <div className={cx('sk-list', className)} role="status" aria-busy="true" aria-label={label}>
-      {Array.from({ length: rows }, (_, i) => 110 + ((i * 23) % 50)).map((nameWidth, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: placeholder rows never reorder
-        <div key={i} className="sk-row">
-          <i style={{ width: nameWidth }} />
-          <i style={{ flex: 1 }} />
-          <i style={{ width: 70 }} />
-          <i style={{ width: 56 }} />
-        </div>
-      ))}
-    </div>
-  )
-}
-
-/** A grey block in the shape of what is loading (a stat tile, a card). */
-export function Skeleton({ className }: { className?: string }) {
-  return <div className={cx('sk-block', className)} aria-hidden="true" />
 }
 
 /** The answer of a server that is down or restarting, as the browser reports it. */

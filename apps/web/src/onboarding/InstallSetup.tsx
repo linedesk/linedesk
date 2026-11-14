@@ -43,7 +43,7 @@ import { TextInput } from '../settings/fields.tsx'
 import { BrandMark, Button, Note, Spinner } from '../ui/kit.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { showPasskeyFirst } from './passkey-first.ts'
-import { problemText } from '../ui/LoadStates.tsx'
+import { Loading, problemText, SkeletonFields } from '../ui/LoadStates.tsx'
 import { HostingNote, openAgentSetup } from './AgentSetup.tsx'
 import '../admin/admin.css'
 import './agent-setup.css'
@@ -173,13 +173,7 @@ export function InstallSetup({ onExit }: Props) {
       </div>
       <div className="ob-main as-main">
         {!setup || !step || !data || !groups ? (
-          loadError ? (
-            <Note tone="danger">{loadError}</Note>
-          ) : (
-            <p className="as-small">
-              <Spinner /> Loading the setup…
-            </p>
-          )
+          <Loading what="The setup" loading error={loadError} skeleton={<SkeletonFields fields={2} />} />
         ) : step === 'welcome' ? (
           <Welcome status={status} passkeyNeeded={setup.passkeyNeeded} onStart={() => go('email')} />
         ) : passkeyFirst ? (

@@ -40,7 +40,7 @@ import { useAssistants, useRows, useRun } from '../store.tsx'
 import { onSaveKey, SaveBar } from '../ui/form.tsx'
 import { Checkbox, Select, type SelectOption } from '../ui/controls.tsx'
 import { Button } from '../ui/kit.tsx'
-import { LoadProblem, Skeleton, useLoadState } from '../ui/LoadStates.tsx'
+import { Loading, LoadProblem, Skeleton, useLoading, useLoadState } from '../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, sectionHash, useSection } from '../ui/SettingsLayout.tsx'
 import {
   behavioursToSave,
@@ -73,7 +73,7 @@ import { AssistantHeader } from './AssistantHeader.tsx'
 import { CalendarSettings } from './Calendar.tsx'
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
 import { EditBusinessHours } from './BusinessHoursDialog.tsx'
-import { Field, Section, SelectRow, SwitchRow, TextArea, TextInput } from './fields.tsx'
+import { Field, Section, SelectRow, SkeletonSection, SwitchRow, TextArea, TextInput } from './fields.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { Knowledge } from './Knowledge.tsx'
 import { AssistantReview } from '../review/AssistantReview.tsx'
@@ -913,11 +913,20 @@ function AssistantSkeleton({ slow }: { slow: boolean }) {
     <SettingsLayout
       page="assistant"
       title="Assistant"
-      heading={<Skeleton className="sk-title" />}
+      heading={<Skeleton shape="title" width={110} />}
       sections={sections}
       current={sections[0]!.id}
     >
-      <Skeleton className="sk-card" />
+      <Loading
+        what="The assistant"
+        loading
+        skeleton={
+          <>
+            <SkeletonSection fields={1} />
+            <SkeletonSection fields={1} />
+          </>
+        }
+      />
     </SettingsLayout>
   )
 }
@@ -937,12 +946,14 @@ export function AssistantSettings(props: Props) {
     canonicalAssistantHash(assistants)
   }
   const assistant = assistantInHash(assistants)
+  // The skeleton stays until the gate lets it go (no flash, no blink), then the assistant's page takes its place.
+  const held = useLoading(!assistant && loadState === 'loading').phase !== 'content'
   const onPick = useCallback((id: string) => {
     window.location.hash = `#assistant/${id}/${sections[0]!.id}`
   }, [])
   return (
     <div className="page">
-      {assistant ? (
+      {assistant && !held ? (
         <Form
           key={assistant.id}
           assistant={assistant}
@@ -951,7 +962,7 @@ export function AssistantSettings(props: Props) {
           onPick={onPick}
           {...props}
         />
-      ) : loadState !== 'ready' ? (
+      ) : loadState !== 'ready' || held ? (
         <AssistantSkeleton slow={loadState === 'slow'} />
       ) : (
         <div className="empty">

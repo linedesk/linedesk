@@ -4,7 +4,7 @@
 // (also the legend and the values the bar's colors cannot carry alone).
 import { providers as providerRegistry } from '@linedesk/actions'
 import { useQuery } from '../cachedQuery.ts'
-import { LoadProblem, Skeleton } from '../ui/LoadStates.tsx'
+import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { loadLatency, type PipelineLatency, type Percentiles } from './api.ts'
 
 const PIPELINE_LABELS: Record<PipelineLatency['pipeline'], string> = {
@@ -111,11 +111,24 @@ export function ReplyDelay() {
   const data = query.data
   const note =
     "From the caller's last word to the reply's first audio, medians of the last 7 days. The phone network comes from call tests over the phone."
-  if (!data && query.error)
+  if (!data)
     return (
-      <LoadProblem className="adm-card" what="Reply delay" message={query.error} onRetry={() => void query.reload()} />
+      <section className="adm-card" aria-label="Reply delay">
+        <div className="adm-card-head">
+          <div>
+            <h2>Reply delay</h2>
+            <p className="help">{note}</p>
+          </div>
+        </div>
+        <Loading
+          what="Reply delay"
+          loading
+          error={query.error}
+          onRetry={() => void query.reload()}
+          skeleton={<SkeletonRows rows={2} columns={2} className="adm-sk-rows" />}
+        />
+      </section>
     )
-  if (!data) return <Skeleton className="adm-card adm-skel-card" />
   // One scale for all pipelines, so their bars compare.
   const scale = Math.max(1, ...data.pipelines.map(p => sumOf(partsOf(p))))
   return (

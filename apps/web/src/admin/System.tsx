@@ -7,6 +7,7 @@ import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { Switch } from '../ui/controls.tsx'
 import { Card } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
+import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { type LivekitStatus, loadLivekitStatus, runAdmin, type ServiceStatus } from './api.ts'
 import { brandName } from '../brand.ts'
@@ -31,17 +32,24 @@ function Livekit() {
   const query = useQuery(LIVEKIT, loadLivekitStatus)
   const status = query.data ?? null
   const error = status ? null : query.error
-  const check = () => {
+  /** The operator pressed Check again: only then does the button spin (page data never does). */
+  const [asked, setAsked] = useState(false)
+  const check = async () => {
+    setAsked(true)
     setQueryData<LivekitStatus | undefined>(LIVEKIT, undefined) // a check the operator asked for shows as checking
-    return query.reload()
+    try {
+      await query.reload()
+    } finally {
+      setAsked(false)
+    }
   }
 
   return (
     <Card
       title="LiveKit"
       actions={
-        <Button busy={!status && !error} size="sm" variant="ghost" disabled={!status && !error} onClick={() => void check()}>
-          {!status && !error ? 'Checking…' : 'Check again'}
+        <Button busy={asked} size="sm" variant="ghost" disabled={!status && !error} onClick={() => void check()}>
+          {asked ? 'Checking…' : 'Check again'}
         </Button>
       }
     >
@@ -53,7 +61,13 @@ function Livekit() {
         <dl className="adm-facts" aria-live="polite">
           <div>
             <dt>URL</dt>
-            <dd className="adm-mono">{status ? (status.url ?? 'Not set') : '…'}</dd>
+            <dd className="adm-mono">
+              {status ? (
+                (status.url ?? 'Not set')
+              ) : (
+                <Loading what="The URL" loading skeleton={<Skeleton shape="text" width={180} />} />
+              )}
+            </dd>
           </div>
           <Service name="Server" status={status?.server ?? null} />
           <Service name="SIP trunks" status={status?.sip ?? null} />
@@ -90,7 +104,15 @@ function VoiceCloning() {
         <div>
           <b>Allow voice cloning</b>
         </div>
-        <Switch on={on} onChange={v => void change(v)} label="Allow voice cloning" disabled={!query.data} />
+        <Loading
+          what="Voice cloning"
+          loading={!query.data}
+          error={query.error}
+          onRetry={() => void query.reload()}
+          skeleton={<Skeleton width={34} height={20} className="sk-round" />}
+        >
+          <Switch on={on} onChange={v => void change(v)} label="Allow voice cloning" disabled={!query.data} />
+        </Loading>
       </div>
       {problem && (
         <p className="k-field-msg" role="alert">

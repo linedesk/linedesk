@@ -14,6 +14,8 @@
   --warning: #b45309; --warning-soft: #fbf1e4;
   --danger: #b42318; --danger-soft: #fdecea; --on-danger: #ffffff; --live: #b42318;
   --speaker-caller: #1c1917; --speaker-ai: #8a827b; --speaker-agent: #4a5f7a;
+  /* --skeleton: the grey of loading placeholders (ui/LoadStates.tsx), a step darker than hover so it reads on white and on the page. */
+  --skeleton: #edebe6;
   --sidebar: #f4f3ef; --sidebar-muted: #5f5852; --highlight: #f0efeb; --highlight-ink: #1c1917;
   --shadow-popover: 0 12px 32px -8px rgb(41 37 36 / 0.18), 0 2px 6px rgb(41 37 36 / 0.06);
   --shadow-dialog: 0 12px 32px -8px rgb(41 37 36 / 0.18), 0 2px 6px rgb(41 37 36 / 0.06);
@@ -1563,10 +1565,6 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
 
 .ib-cols .ib-col-caller { grid-column: 1 / 3; }
 
-/* ===== Loading placeholders ===== */
-.sk-row { display: flex; align-items: center; gap: 14px; height: 34px; padding: 0 20px; }
-.sk-row i { display: block; height: 10px; border-radius: 5px; background: var(--surface-hover); animation: sk 1.2s ease-in-out infinite; }
-@keyframes sk { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
 
 
 /* Sidebar: weekly value */

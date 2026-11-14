@@ -8,6 +8,7 @@ import { Select } from '../ui/controls.tsx'
 import { Card, Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
 import { Avatar, Badge, Button } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow } from '../ui/list.tsx'
+import { Loading, SkeletonList } from '../ui/LoadStates.tsx'
 import { type AdminAction, useActionRunner } from './actions.tsx'
 import { type AdminUser, type AdminWorkspace, loadWorkspaceMembers, runAdmin, type WorkspaceMembers } from './api.ts'
 import { errorText, type Notify } from './notify.ts'
@@ -296,7 +297,7 @@ export function WorkspaceMembersCard({ workspace: w, users, notify, reload }: Wo
         </Button>
       }
     >
-      {!data && <ListEmpty>Loading…</ListEmpty>}
+      {!data && <Loading what="Members" loading skeleton={<SkeletonList rows={2} aside action />} />}
       <List>
         {data?.members.map(m => {
           const name = m.name || m.email

@@ -7,9 +7,13 @@
   gap: 8px;
   align-items: center;
 }
-.in-loading {
-  display: grid;
-  gap: 12px;
+/* The skeleton (InsightsSkeleton): bars as tall as the sentence and the big numbers. */
+.in-sk-sentence {
+  height: 14px;
+  margin: 6px 0;
+}
+.in-sk-number {
+  margin: 5px 0;
 }
 .in-page .page-in {
   display: grid;

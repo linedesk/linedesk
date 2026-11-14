@@ -6,8 +6,8 @@ import { useState } from 'react'
 import { useRun } from '../store.tsx'
 import { Select, type SelectOption } from '../ui/controls.tsx'
 import { Button } from '../ui/kit.tsx'
-import { LoadProblem, Skeleton } from '../ui/LoadStates.tsx'
-import { Field, Section, SwitchRow, TextInput } from './fields.tsx'
+import { Loading, Skeleton } from '../ui/LoadStates.tsx'
+import { Field, Section, SkeletonSwitchRows, SwitchRow, TextInput } from './fields.tsx'
 import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
 
 type Days = (typeof recordingRetentionChoices)[number]
@@ -53,34 +53,47 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
           : 'Calls are not recorded. Whoever runs this server can turn recording on.'
       }
     >
-      {error && <LoadProblem what="Recording settings" message={error} onRetry={() => void settings.reload()} />}
-      {days === undefined && !error && <Skeleton className="sk-field" />}
-      {days !== undefined && (
-        <Field
-          id="st-retention"
-          label="Keep recordings for"
-          help={canEdit ? undefined : 'Only owners and admins can change this.'}
-        >
-          <div>
-            <Select
-              id="st-retention"
-              value={choiceOf(days)}
-              options={options}
-              onChange={change}
-              label="Keep recordings for"
-              disabled={!canEdit}
-            />
-          </div>
-        </Field>
-      )}
-      {settings.data && (
-        <RecordingNotice
-          on={settings.data.recordingNoticeOn}
-          saved={settings.data.recordingNotice}
-          canEdit={canEdit}
-          toast={toast}
-        />
-      )}
+      <Loading
+        what="Recording settings"
+        loading={days === undefined}
+        error={error}
+        onRetry={() => void settings.reload()}
+        skeleton={
+          <>
+            <Field label="Keep recordings for">
+              <Skeleton shape="field" width={260} />
+            </Field>
+            <SkeletonSwitchRows rows={1} />
+          </>
+        }
+      >
+        {days !== undefined && (
+          <Field
+            id="st-retention"
+            label="Keep recordings for"
+            help={canEdit ? undefined : 'Only owners and admins can change this.'}
+          >
+            <div>
+              <Select
+                id="st-retention"
+                value={choiceOf(days)}
+                options={options}
+                onChange={change}
+                label="Keep recordings for"
+                disabled={!canEdit}
+              />
+            </div>
+          </Field>
+        )}
+        {settings.data && (
+          <RecordingNotice
+            on={settings.data.recordingNoticeOn}
+            saved={settings.data.recordingNotice}
+            canEdit={canEdit}
+            toast={toast}
+          />
+        )}
+      </Loading>
     </Section>
   )
 }
