@@ -58,7 +58,7 @@ describe('labels', () => {
   test('the sentence follows the period', () => {
     const c = { ...day('2026-11-13', 34), booked: 9, urgent: 2, urgentAfterHours: 0 }
     expect(summarySentence('Maya', { period: '7d', days: 7 }, c)).toBe(
-      'In the last 7 days Maya answered 34 calls, booked 9 jobs and flagged 2 urgent calls.',
+      'In the last 7 days Maya answered 34 calls, booked 9 appointments and flagged 2 urgent calls.',
     )
     expect(summarySentence('Maya', { period: 'all', days: 400 }, c)).toMatch(/^Since your first call Maya/)
     expect(summarySentence('Maya', { period: 'month', days: 13 }, { ...c, calls: 0 })).toBe('No calls this month.')
@@ -114,7 +114,7 @@ test('the totals table leaves out after hours without business hours and adds th
   expect(t.rows[0]!.at(-1)).toBe(700)
 })
 
-test('money is shown in the job value currency, in whole units', () => {
+test('money is shown in the appointment value currency, in whole units', () => {
   expect(formatMoney(125_000)).toBe('$1,250')
   expect(formatMoney(35_000, 'EUR')).toBe('€350')
   expect(formatMoney(9_000, 'GBP')).toBe('£90')

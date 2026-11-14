@@ -701,6 +701,10 @@ a.as-chip:hover {
   font-size: 13px;
   color: var(--ink);
 }
+/* Under it, the workspace's time zone with a link to Workspace settings › General */
+.bh-zone {
+  margin: 0;
+}
 
 /* A setting with a dropdown in place of a switch (SelectRow): AI disclosure, communication style */
 .selrow {

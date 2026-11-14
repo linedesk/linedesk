@@ -71,14 +71,14 @@ import { CalendarSettings } from './Calendar.tsx'
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
 import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { Field, Section, SelectRow, SwitchRow, TextArea, TextInput } from './fields.tsx'
-import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
+import { useWorkspaceSettings } from './settings-api.ts'
 import { Knowledge } from './Knowledge.tsx'
 import { loadCatalog, useVoiceOptions, VoiceSettings } from './VoiceSettings.tsx'
 import { voiceForMainLanguage } from './voiceModel.ts'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
 import { TransferContacts, transferFieldId } from './TransferContacts.tsx'
-import { BusinessHours, TimeZoneSelect } from './BusinessHours.tsx'
+import { BusinessHours } from './BusinessHours.tsx'
 import { Holidays, VacationMode } from './Holidays.tsx'
 import { Webhooks } from './Webhooks.tsx'
 
@@ -91,7 +91,7 @@ const sections: readonly PageSection<SectionId>[] = [
   { id: 'transfers', label: 'Transfers', description: 'Who calls are put through to' },
   { id: 'booking', label: 'Booking & calendar', description: 'Calendars and appointment types' },
   { id: 'webhooks', label: 'Webhook', description: 'Your system at the start of a call, during it and after it' },
-  { id: 'advanced', label: 'Advanced', description: 'Talking speed, time zone, silence, hanging up' },
+  { id: 'advanced', label: 'Advanced', description: 'Talking speed, silence, hanging up' },
 ]
 
 /** In place of the voice picker while a realtime model answers the calls: it speaks in its own voice. */
@@ -533,32 +533,6 @@ function TalkingSpeedSection({ draft, set }: SectionProps) {
   )
 }
 
-/** The workspace's time zone: the date and time the assistant is told, and what business hours mean. Saves at once. */
-function TimeZoneSection({ canEdit }: { canEdit: boolean }) {
-  const run = useRun()
-  const settings = useWorkspaceSettings()
-  const zone = settings.data?.timeZone
-  const change = (timeZone: string) => {
-    patchWorkspaceSettings({ timeZone })
-    void run('workspace.updateSettings', { timeZone })
-  }
-  return (
-    <Section
-      id="as-time-zone"
-      title="Time zone"
-      help="The assistant is told today's date and the time in this zone. Business hours and bookings use it too. Saved at once, for every assistant of the workspace."
-    >
-      <Field id="as-time-zone-select" label="Where the business is">
-        {zone ? (
-          <TimeZoneSelect id="as-time-zone-select" value={zone} onChange={change} disabled={!canEdit} />
-        ) : (
-          <span className="help">Loading…</span>
-        )}
-      </Field>
-    </Section>
-  )
-}
-
 function Advanced({ draft, set }: SectionProps) {
   const problem = silenceProblem(draft)
   const errorFor = (start: string) => (problem?.startsWith(start) ? problem : null)
@@ -792,7 +766,6 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
         {current === 'advanced' && (
           <>
             <TalkingSpeedSection draft={draft} set={set} />
-            <TimeZoneSection canEdit={canEdit} />
             <Advanced draft={draft} set={set} />
           </>
         )}

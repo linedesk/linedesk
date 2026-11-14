@@ -335,6 +335,20 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
           run: () => c.goPage('workspace', 'general'),
         },
         {
+          label: 'Time zone',
+          keywords: 'timezone clock date business hours',
+          icon: 'clock',
+          searchOnly: true,
+          run: () => c.goPage('workspace', 'general'),
+        },
+        {
+          label: 'Appointment value',
+          keywords: 'job value worth money currency insights booked',
+          icon: 'chart',
+          searchOnly: true,
+          run: () => c.goPage('workspace', 'general'),
+        },
+        {
           label: 'Notifications',
           keywords: 'email push device alerts',
           icon: 'bell',

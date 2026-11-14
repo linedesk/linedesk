@@ -5,10 +5,11 @@ import type { CallExportData, InsightPeriod, InsightsData, JobValueCurrency } fr
 import { insightPeriods } from '@linedesk/actions'
 import { useEffect, useRef, useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
-import { callAction, patchWorkspaceSettings, readAction } from '../settings/settings-api.ts'
-import { useAssistantName, useRun } from '../store.tsx'
+import { callAction, readAction } from '../settings/settings-api.ts'
+import { useAssistantName } from '../store.tsx'
 import { Select } from '../ui/controls.tsx'
 import { Input } from '../ui/form.tsx'
+import { AppointmentValue } from '../settings/AppointmentValue.tsx'
 import { cx, Icon } from '../ui/kit.tsx'
 import { LoadProblem, Skeleton } from '../ui/LoadStates.tsx'
 import {
@@ -16,7 +17,6 @@ import {
   type ChartMetric,
   change,
   columns,
-  CURRENCY_OPTIONS,
   compareLabel,
   exportName,
   formatMoney,
@@ -24,7 +24,6 @@ import {
   hourLabel,
   longDate,
   PERIOD_LABELS,
-  parseMoney,
   plural,
   spanLabel,
   summarySentence,
@@ -167,29 +166,56 @@ function Loading() {
   )
 }
 
-// --- Summary and job value -----------------------------------------------------------------------
+// --- Summary and appointment value ---------------------------------------------------------------
+
+/**
+ * A changed appointment value in every cached period at once (the summary and the Booked tile multiply it):
+ * the fixed periods and, from the summary, the custom range on screen. Workspace settings › General calls it too.
+ */
+export function showAppointmentValue(cents: number | null, currency: JobValueCurrency, shown?: Range) {
+  const keys = [
+    ...insightPeriods.map(p => queryKey(p, { from: '', to: '' })),
+    ...(shown ? [queryKey('custom', shown)] : []),
+  ]
+  for (const key of keys)
+    setQueryData<InsightsData | undefined>(
+      key,
+      s => (s ? { ...s, jobValueCents: cents, jobValueCurrency: currency } : s),
+      { persist: true },
+    )
+}
 
 function Summary({ data, assistant, canEdit, toast }: { data: InsightsData; assistant: string } & Props) {
   const [editing, setEditing] = useState(false)
-  const job = data.jobValueCents
+  const value = data.jobValueCents
   const currency = data.jobValueCurrency ?? 'USD'
   const booked = data.current.booked
   return (
     <section className="k-card in-summary" aria-label="Summary">
       <p className="in-sentence">{summarySentence(assistant, data, data.current)}</p>
       {editing ? (
-        <JobValue value={job} currency={currency} shown={data} onDone={() => setEditing(false)} toast={toast} />
-      ) : job !== null ? (
+        <AppointmentValue
+          id="in-appointment-value-input"
+          label="Average value of a booked appointment"
+          value={value}
+          currency={currency}
+          canEdit={canEdit}
+          autoFocus
+          onDone={() => setEditing(false)}
+          onSaved={(cents, c) => showAppointmentValue(cents, c, { from: data.from, to: data.to })}
+          toast={toast}
+        />
+      ) : value !== null ? (
         <p className="in-value">
           {booked > 0 && (
             <>
-              ≈ <b>{formatMoney(job * booked, currency)}</b> in booked work{' '}
+              ≈ <b>{formatMoney(value * booked, currency)}</b> in booked appointments{' '}
             </>
           )}
           <span className="in-muted">
             {booked > 0
-              ? `· ${plural(booked, 'job')} × ${formatMoney(job, currency)}`
-              : `A booked job counts as ${formatMoney(job, currency)}`}
+              ? `· ${plural(booked, 'appointment')} × ${formatMoney(value, currency)}`
+              : `A booked appointment counts as ${formatMoney(value, currency)}`}
             {canEdit && (
               <>
                 {' · '}
@@ -204,89 +230,13 @@ function Summary({ data, assistant, canEdit, toast }: { data: InsightsData; assi
         canEdit && (
           <p className="in-value in-muted">
             <button type="button" className="in-link" onClick={() => setEditing(true)}>
-              Set a job value
+              Set an appointment value
             </button>{' '}
-            to see what the booked jobs are worth.
+            to see what the booked appointments are worth.
           </p>
         )
       )}
     </section>
-  )
-}
-
-/**
- * What a booked job is worth on average and in which currency: owners and admins set it, the summary
- * multiplies it. Saved when the focus leaves the form (not when it moves from the amount to the currency).
- */
-function JobValue({
-  value,
-  currency: savedCurrency,
-  shown,
-  onDone,
-  toast,
-}: {
-  value: number | null
-  currency: JobValueCurrency
-  shown: Range
-  onDone: () => void
-  toast: Props['toast']
-}) {
-  const run = useRun()
-  const [text, setText] = useState(value === null ? '' : String(value / 100))
-  const [currency, setCurrency] = useState(savedCurrency)
-  const parsed = parseMoney(text)
-  const invalid = parsed === undefined
-
-  function save() {
-    if (invalid) return
-    onDone()
-    if (parsed === value && currency === savedCurrency) return
-    const keys = [
-      ...insightPeriods.map(p => queryKey(p, { from: '', to: '' })),
-      queryKey('custom', { from: shown.from, to: shown.to }),
-    ]
-    for (const key of keys)
-      setQueryData<InsightsData | undefined>(
-        key,
-        s => (s ? { ...s, jobValueCents: parsed, jobValueCurrency: currency } : s),
-        { persist: true },
-      )
-    patchWorkspaceSettings({ jobValueCents: parsed, jobValueCurrency: currency })
-    void run('workspace.updateSettings', { jobValueCents: parsed, jobValueCurrency: currency })
-    toast(parsed === null ? 'Job value cleared.' : `A booked job counts as ${formatMoney(parsed, currency)}.`)
-  }
-
-  return (
-    <form
-      className="in-job-form"
-      onSubmit={e => {
-        e.preventDefault()
-        save()
-      }}
-      onBlur={e => {
-        if (!e.currentTarget.contains(e.relatedTarget)) save()
-      }}
-      onKeyDown={e => {
-        if (e.key === 'Escape') onDone()
-      }}
-    >
-      <label htmlFor="in-job-value-input" className="in-muted">
-        Average value of a booked job
-      </label>
-      <div className="in-job-row">
-        <Input
-          id="in-job-value-input"
-          inputMode="decimal"
-          autoFocus
-          placeholder="e.g. 350"
-          value={text}
-          invalid={invalid}
-          onChange={e => setText(e.target.value)}
-        />
-        <Select label="Currency" value={currency} options={CURRENCY_OPTIONS} onChange={setCurrency} size="sm" />
-      </div>
-      {invalid && <span className="in-error">A number, like 350 or 1,250.</span>}
-    </form>
   )
 }
 

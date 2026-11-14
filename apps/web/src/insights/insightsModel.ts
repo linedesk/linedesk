@@ -81,7 +81,7 @@ function opening(period: InsightsData['period'], days: number, from?: string, to
   }
 }
 
-/** "In the last 7 days Maya answered 34 calls, booked 9 jobs and caught 4 urgent calls after hours." */
+/** "In the last 7 days Maya answered 34 calls, booked 9 appointments and caught 4 urgent calls after hours." */
 export function summarySentence(
   assistant: string,
   data: Pick<InsightsData, 'period' | 'days'> & Partial<Pick<InsightsData, 'from' | 'to'>>,
@@ -91,7 +91,7 @@ export function summarySentence(
   if (c.calls === 0)
     return data.period === 'all' ? 'No calls yet.' : `No calls ${when[0]!.toLowerCase()}${when.slice(1)}.`
   const parts = [`answered ${plural(c.answered, 'call')}`]
-  if (c.booked) parts.push(`booked ${plural(c.booked, 'job')}`)
+  if (c.booked) parts.push(`booked ${plural(c.booked, 'appointment')}`)
   if (c.urgentAfterHours) parts.push(`caught ${plural(c.urgentAfterHours, 'urgent call')} after hours`)
   else if (c.urgent) parts.push(`flagged ${plural(c.urgent, 'urgent call')}`)
   return `${when} ${assistant} ${listOf(parts)}.`
@@ -200,13 +200,13 @@ export function busiestTime(byWeekdayHour: number[][]): string | null {
 
 // --- Money ---------------------------------------------------------------------------------------
 
-/** Whole units in the job value's currency: "$1,250", "€350", "£90", "CA$400", "A$400", "CHF 350". */
+/** Whole units in the appointment value's currency: "$1,250", "€350", "£90", "CA$400", "A$400", "CHF 350". */
 export const formatMoney = (cents: number, currency: JobValueCurrency = 'USD') =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(
     Math.round(cents / 100),
   )
 
-/** The currencies offered next to the job value, in the order of the menu. */
+/** The currencies offered next to the appointment value, in the order of the menu. */
 export const CURRENCY_OPTIONS = jobValueCurrencies.map(c => ({ value: c, label: c }))
 
 /** "380", "$1,250.50", "€90" → cents; "" → null (clears it); anything else → undefined (not a value). */

@@ -52,10 +52,12 @@ describe('⌘K places (LIN-165)', () => {
     expect(c.goPage).toHaveBeenLastCalledWith('workspace', 'team')
   })
 
-  it('rename, notifications and leave are found by typing, and open their section', () => {
+  it('rename, time zone, appointment value, notifications and leave are found by typing, and open their section', () => {
     const c = context()
     const places: [string, ...unknown[]][] = [
       ['Rename workspace', 'workspace', 'general'],
+      ['Time zone', 'workspace', 'general'],
+      ['Appointment value', 'workspace', 'general'],
       ['Notifications', 'account', 'notifications'],
       ['Leave workspace…', 'workspace', 'danger'],
     ]
@@ -65,6 +67,7 @@ describe('⌘K places (LIN-165)', () => {
       command.run()
       expect(c.goPage).toHaveBeenLastCalledWith(...to)
     }
+    expect(find(c, 'Appointment value').keywords).toContain('job')
   })
 
   it('Account is a place like the others, and the old names are gone', () => {

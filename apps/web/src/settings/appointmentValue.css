@@ -1,0 +1,19 @@
+/* The appointment value (AppointmentValue): an amount and its currency on one row. */
+.av-form {
+  display: grid;
+  gap: 4px;
+  max-width: 240px;
+  font-size: 13px;
+}
+.av-label {
+  color: var(--ink-muted);
+}
+.av-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.av-row .k-input {
+  flex: 1;
+  min-width: 0;
+}

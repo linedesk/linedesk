@@ -153,13 +153,28 @@ export function BusinessHours({ canEdit }: { canEdit: boolean }) {
           <SkeletonRows label="Loading business hours" rows={1} />
         )
       ) : on ? (
-        <p className="bh-summary">
-          {weekSummary(days)}
-          <span className="help"> · {timeZoneLabel(timeZone)}</span>
-        </p>
+        <p className="bh-summary">{weekSummary(days)}</p>
       ) : (
         <p className="help">Not used: bookings use Monday to Friday, 9 to 5, and greetings and transfers do not depend on the time.</p>
       )}
+      {saved && timeZone && <TimeZoneLine zone={timeZone} canEdit={canEdit} />}
     </Section>
+  )
+}
+
+/** The workspace's time zone in one quiet line; it is set in Workspace settings › General. */
+function TimeZoneLine({ zone, canEdit }: { zone: string; canEdit: boolean }) {
+  return (
+    <p className="help bh-zone">
+      Time zone: {timeZoneLabel(zone)}
+      {canEdit && (
+        <>
+          {' · '}
+          <a className="k-link" href="#workspace/general">
+            Change
+          </a>
+        </>
+      )}
+    </p>
   )
 }

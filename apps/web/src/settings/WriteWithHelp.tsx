@@ -24,7 +24,7 @@ import { brandName } from '../brand.ts'
 /** The goals in the order the wizard offers them, in plain words. */
 const GOALS: { id: AssistantGoal; label: string }[] = [
   { id: 'messages', label: 'Take messages and callback requests' },
-  { id: 'booking', label: 'Book jobs and appointments' },
+  { id: 'booking', label: 'Book appointments' },
   { id: 'prices', label: 'Answer prices and common questions' },
   { id: 'spam', label: 'Screen out sales calls and spam' },
 ]
