@@ -19,7 +19,7 @@
     "@floating-ui/react-dom": "^2.1.9",
     "@sentry/react": "11.12.0",
     "@tanstack/react-virtual": "3.14.24",
-    "better-auth": "^1.7.23",
+    "better-auth": "^1.7.25",
     "canvas-confetti": "^1.9.4",
     "livekit-client": "^2.24.1",
     "react": "^19.3.1",
