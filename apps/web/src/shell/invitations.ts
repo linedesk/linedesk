@@ -5,6 +5,7 @@
 import type { MyInvitation } from '@linedesk/actions'
 import { auth } from '../auth.ts'
 import { fetchQuery, useQuery } from '../cachedQuery.ts'
+import { expectSessionChange } from '../session.ts'
 import { announceSwitch, workspaceHeaders } from '../tabWorkspace.ts'
 
 async function runAction<T>(name: string, input: object): Promise<T> {
@@ -27,6 +28,7 @@ export async function switchToWorkspace(id: string, hash: string | null = '#call
   const r = await auth.organization.setActive({ organizationId: id })
   if (r.error) throw new Error(r.error.message ?? 'Could not switch the workspace')
   announceSwitch(id)
+  expectSessionChange() // the reload opens the new workspace, not the one this device remembers
   if (hash) window.location.hash = hash
   window.location.reload()
 }

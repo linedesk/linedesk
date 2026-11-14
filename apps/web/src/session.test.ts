@@ -1,15 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Session } from './session.ts'
 
 vi.mock('./auth.ts', () => ({ signedInAccount: vi.fn(async () => null) }))
-const { forgetMe, loadSession } = await import('./session.ts')
+const { expectSessionChange, forgetMe, loadSession, rememberedSession, sameSession } = await import('./session.ts')
 const { signedInAccount } = await import('./auth.ts')
 
 const me = { actorId: 'u1', role: 'owner', permissions: ['call:write'], workspace: { id: 'ws1', name: 'Tims Org' } }
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status })
 
-beforeEach(() => {
+const storage = () => {
   const memory = new Map<string, string>()
-  vi.stubGlobal('localStorage', { getItem: (k: string) => memory.get(k) ?? null, setItem: (k: string, v: string) => memory.set(k, v), removeItem: (k: string) => memory.delete(k) })
+  return { getItem: (k: string) => memory.get(k) ?? null, setItem: (k: string, v: string) => memory.set(k, v), removeItem: (k: string) => memory.delete(k) }
+}
+beforeEach(() => {
+  vi.stubGlobal('localStorage', storage())
+  vi.stubGlobal('sessionStorage', storage())
 })
 afterEach(() => { vi.unstubAllGlobals(); vi.mocked(signedInAccount).mockResolvedValue(null) })
 
@@ -66,5 +71,51 @@ describe('session at load', () => {
     vi.mocked(signedInAccount).mockResolvedValue('someone_else')
     vi.stubGlobal('fetch', vi.fn(async () => json(401, { ok: false, code: 'no_workspace' })))
     expect(await loadSession()).toMatchObject({ state: 'needsWorkspace', lostWorkspace: null })
+  })
+})
+
+describe('warm start from this device', () => {
+  const signIn = async (who: object = me) => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(200, who)))
+    await loadSession()
+  }
+  it('opens the remembered workspace before the server answers', async () => {
+    expect(rememberedSession()).toBeNull() // nobody remembered: wait for /v1/me
+    await signIn()
+    expect(rememberedSession()).toEqual({ state: 'ready', me, offline: false })
+  })
+  it('waits for the server after signing out, or while impersonating or onboarding', async () => {
+    await signIn()
+    forgetMe()
+    expect(rememberedSession()).toBeNull()
+    await signIn({ ...me, impersonation: { userId: 'u2' } })
+    expect(rememberedSession()).toBeNull()
+    await signIn({ ...me, onboarding: { step: 'business' } })
+    expect(rememberedSession()).toBeNull()
+  })
+  it('waits for the server for a link to another workspace', async () => {
+    await signIn()
+    expect(rememberedSession('ws2')).toBeNull()
+    expect(rememberedSession('ws1')).toMatchObject({ state: 'ready' })
+  })
+  it('waits for the server once while this tab changes its session, until it answers', async () => {
+    await signIn()
+    expectSessionChange()
+    expect(rememberedSession()).toBeNull()
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') }))
+    await loadSession()
+    expect(rememberedSession()).toBeNull() // no answer yet: still waiting
+    await signIn()
+    expect(rememberedSession()).toMatchObject({ state: 'ready' })
+  })
+  it('keeps the screen only when the answer says the same', async () => {
+    await signIn()
+    const shown = rememberedSession()!
+    const ready = (who: object, offline = false) => ({ state: 'ready', me: who, offline }) as Session
+    expect(sameSession(shown, ready({ ...me }))).toBe(true)
+    expect(sameSession(shown, ready({ ...me, permissions: [] }))).toBe(false)
+    expect(sameSession(shown, ready({ ...me, workspace: { id: 'ws2', name: 'Other' } }))).toBe(false)
+    expect(sameSession(shown, ready(me, true))).toBe(false)
+    expect(sameSession(shown, { state: 'signedOut' })).toBe(false)
   })
 })

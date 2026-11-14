@@ -3,7 +3,7 @@ import { forgetBeyond } from './localData.ts'
 import { NoWorkspace } from './NoWorkspace.tsx'
 import { Login } from './Login.tsx'
 import { backoffMs } from './retry.ts'
-import { loadSession, renamedWorkspace, type Session } from './session.ts'
+import { loadSession, rememberedSession, renamedWorkspace, sameSession, type Session } from './session.ts'
 import { onUnauthorized } from './signedOutWatch.ts'
 import { AGENT_SETUP_HASH, AgentSetup, choseManualSetup, rememberManual } from './onboarding/AgentSetup.tsx'
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
@@ -66,7 +66,12 @@ function attemptedSwitch(id: string | null): boolean {
 }
 
 export function App() {
-  const [session, setSession] = useState<Session>({ state: 'loading' })
+  // A link from an email names its workspace (`?ws=` in the hash): read once at load, settled before the app opens.
+  const [link, setLink] = useState(() => linkWorkspace(window.location.hash))
+  // A member this device remembers sees their workspace at once, from local data; /v1/me is asked meanwhile
+  // (refresh) and its answer replaces this, so another account or a lost workspace shows no longer than that.
+  const [fromDevice] = useState(() => rememberedSession(link))
+  const [session, setSession] = useState<Session>(() => fromDevice ?? { state: 'loading' })
   const [inviteId, setInviteId] = useState(readInviteId)
   // Finishing onboarding is a queued command; the app moves on without waiting for it.
   const [onboarded, setOnboarded] = useState(false)
@@ -75,9 +80,17 @@ export function App() {
   const installSetupHash = useHashIs(INSTALL_SETUP_HASH)
   // An instance admin sets up with an AI agent first (AgentSetup.tsx), unless they chose to do it by hand.
   const [manualSetup, setManualSetup] = useState(false)
-  const refresh = useCallback(async () => setSession(await loadSession()), [])
-  // A link from an email names its workspace (`?ws=` in the hash): read once at load, settled before the app opens.
-  const [link, setLink] = useState(() => linkWorkspace(window.location.hash))
+  const shown = useRef(session)
+  shown.current = session
+  const signedOutHere = useRef(false)
+  const refresh = useCallback(async () => {
+    const next = await loadSession()
+    // The answer is what is on screen already (a warm start): nothing renders again, only the local data check runs.
+    if (sameSession(shown.current, next)) return void forgetBeyond(next)
+    // Signed out while a workspace was open (its sync has stopped): signing in loads the page fresh.
+    if (next.state === 'signedOut' && shown.current.state === 'ready') signedOutHere.current = true
+    setSession(next)
+  }, [])
   const [notice, setNotice] = useState<string | null>(null)
   const target = useMemo(
     () =>
@@ -117,7 +130,6 @@ export function App() {
   // Signed out anywhere (the API answered 401): ask who is signed in, and show the sign-in page if nobody is. The
   // address stays, so signing in returns to the same page. One check at a time; a 401 on the sign-in page itself
   // (or while loading) needs none.
-  const signedOutHere = useRef(false)
   const sessionState = useRef(session.state)
   sessionState.current = session.state
   useEffect(() => {
@@ -138,10 +150,10 @@ export function App() {
         })
     })
   }, [])
-  // Local data the session does not cover (signed out, removed from a workspace) is deleted.
+  // Local data the session does not cover (signed out, removed from a workspace) is deleted; known once /v1/me answers.
   useEffect(() => {
-    void forgetBeyond(session)
-  }, [session])
+    if (session !== fromDevice) void forgetBeyond(session)
+  }, [session, fromDevice])
 
   // While the server cannot be reached, keep asking with growing pauses; also right away when the browser is back online.
   const waiting = session.state === 'unreachable' || (session.state === 'ready' && session.offline)
@@ -236,8 +248,12 @@ export function App() {
       />
     )
   }
+  // Another member or workspace than on screen (the answer to a warm start): everything below starts over.
   return (
-    <ImpersonationFrame impersonation={session.me.impersonation ?? null}>
+    <ImpersonationFrame
+      key={`${session.me.actorId}/${session.me.workspace!.id}`}
+      impersonation={session.me.impersonation ?? null}
+    >
       <StoreProvider
         workspaceId={session.me.workspace!.id}
         account={session.me.actorId}

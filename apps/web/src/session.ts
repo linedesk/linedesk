@@ -1,6 +1,7 @@
 // Who is signed in, and what to do when the server cannot be reached at load. A member who
-// was signed in on this device before opens the app from local data; anyone else waits for
-// the server with automatic retries instead of a dead screen.
+// was signed in on this device before opens the app from local data at once, while /v1/me is
+// asked (rememberedSession); anyone else waits for the server, with automatic retries instead
+// of a dead screen while it cannot be reached.
 import { type Me, signedInAccount } from './auth.ts'
 import { forgetQueries, setQueryData, setQueryScope } from './cachedQuery.ts'
 import { reach, Unreachable } from './retry.ts'
@@ -32,6 +33,32 @@ function remembered(): Me | null {
     const me = JSON.parse(localStorage.getItem(LAST_ME) ?? 'null') as Me | null
     return me?.workspace ? me : null
   } catch { return null }
+}
+
+const CHANGING_KEY = 'linedesk.sessionChanging'
+
+/**
+ * This tab is about to change whose or which workspace it opens (a switch, leaving or deleting the workspace): the
+ * next load waits for /v1/me instead of opening the workspace this device remembers. Cleared by the server's answer.
+ */
+export function expectSessionChange() {
+  try {
+    sessionStorage.setItem(CHANGING_KEY, '1')
+  } catch {}
+}
+
+function sessionChanging(): boolean {
+  try {
+    return sessionStorage.getItem(CHANGING_KEY) !== null
+  } catch {
+    return false
+  }
+}
+
+function sessionChanged() {
+  try {
+    sessionStorage.removeItem(CHANGING_KEY)
+  } catch {}
 }
 
 /** The cache key of the member's workspace list (WorkspaceSwitcher). */
@@ -93,6 +120,7 @@ const LEFT_KEY = 'linedesk.leftWorkspace'
 
 /** Before leaving a workspace on purpose: the screen after it says "You left …", not "You no longer have access". */
 export function markLeft() {
+  expectSessionChange()
   const name = remembered()?.workspace?.name
   try {
     if (name) sessionStorage.setItem(LEFT_KEY, name)
@@ -114,6 +142,7 @@ export type Deleted = { name: string; accountDeleted: boolean }
 
 /** After an owner deleted the workspace: the next screen says so (a toast, the no-workspace or sign-in page). */
 export function markDeleted(deleted: Deleted) {
+  expectSessionChange()
   try {
     sessionStorage.setItem(DELETED_KEY, JSON.stringify(deleted))
   } catch {}
@@ -154,9 +183,37 @@ let lost: { account: string; name: string } | null = null
 /** The lost workspace's name, only for the person it was lost by: never another account's workspace name. */
 const lostBy = (account: string | null) => (account && lost?.account === account ? lost.name : null)
 
+type Ready = Extract<Session, { state: 'ready' }>
+
+/**
+ * The session this device remembers, to open its workspace at once from local data while /v1/me is asked
+ * (loadSession, whose answer then replaces it). Null when the app waits for that answer instead: nobody is
+ * remembered, the address links to another workspace (`linked`), or the next screen would not be the workspace
+ * (impersonation, onboarding, this tab changing its session: expectSessionChange).
+ */
+export function rememberedSession(linked: string | null = null): Ready | null {
+  const me = remembered()
+  if (!me?.workspace || me.impersonation || me.onboarding || sessionChanging()) return null
+  if (linked && linked !== me.workspace.id) return null
+  primeQueries(me)
+  return { state: 'ready', me, offline: false }
+}
+
+/** Whether `next` is what `shown` already shows (the same member, workspace and permissions, both online). */
+export function sameSession(shown: Session, next: Session): boolean {
+  return (
+    shown.state === 'ready' &&
+    next.state === 'ready' &&
+    !shown.offline &&
+    !next.offline &&
+    JSON.stringify(shown.me) === JSON.stringify(next.me)
+  )
+}
+
 export async function loadSession(): Promise<Session> {
   try {
     const res = await reach('/v1/me', { credentials: 'include' })
+    sessionChanged()
     const me = res.ok ? ((await res.json()) as Me) : null
     if (me?.workspace) { remember(me); primeQueries(me); forgetLeft(); return { state: 'ready', me, offline: false } }
     // This browser had a workspace open before: its member was removed from it (or from their last one).
