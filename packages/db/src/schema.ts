@@ -966,6 +966,15 @@ export const provider_settings = pgTable(
 // Agent setup keys (LIN-125, apps/api/src/agent-setup.ts): an instance admin lets an AI agent (Claude, ChatGPT, Codex…)
 // set up the install through the setup MCP at /mcp/setup. A key acts as the admin who made it, with a short list of
 // setup tools only, for a few hours; stored as a SHA-256 hash like a workspace API key. Not synced.
+/** Why a setup key was revoked: a newer one, the admin's End, a cleanup that ends all of the admin's ways in, or the admin role removed. */
+export type SetupKeyEndReason =
+  | 'replaced'
+  | 'ended_by_admin'
+  | 'passkeys_reset'
+  | 'account_disabled'
+  | 'password_reset'
+  | 'account_recovery'
+  | 'admin_role_removed'
 export const agent_setup_keys = pgTable(
   'agent_setup_keys',
   {
@@ -979,6 +988,11 @@ export const agent_setup_keys = pgTable(
     expires_at: ts('expires_at').notNull(),
     last_used_at: ts('last_used_at'),
     revoked_at: ts('revoked_at'),
+    /**
+     * Why it was revoked (with revoked_at), so an agent still using it hears why instead of "unknown key". The row and
+     * its hash stay after the end: that answer matches on the hash only (agent-setup.ts setupKeyAccess).
+     */
+    ended_reason: text('ended_reason').$type<SetupKeyEndReason>(),
     /**
      * Until when the key may change email and sign-in (the passkey step-up, admin-step-up.ts): the admin confirmed
      * with a passkey when making it, or afterwards on the setup page; 12 hours from that passkey sign-in. Null: never.

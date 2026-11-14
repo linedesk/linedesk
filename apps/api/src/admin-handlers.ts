@@ -6,18 +6,10 @@ import {
   restartCategories,
   type UserInviteData,
 } from '@linedesk/actions'
-import {
-  agent_setup_keys,
-  organization,
-  passkey,
-  session,
-  spending_cap_alerts,
-  type Tx,
-  user,
-} from '@linedesk/db'
+import { agent_setup_keys, organization, session, spending_cap_alerts, type Tx, user } from '@linedesk/db'
 import { emailDelivery } from './auth-methods.ts'
-import { emailSender } from './email.ts'
-import { emailSafeName, welcomeEmail } from './emails/templates.ts'
+import { emailSender, sendNotice } from './email.ts'
+import { emailSafeName, passkeyEnrolmentIssuedEmail, welcomeEmail } from './emails/templates.ts'
 import { db } from './db.ts'
 import { and, eq, or, sql } from 'drizzle-orm'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
@@ -26,7 +18,12 @@ import { mayReceiveEnrolmentCode } from './admin-step-up.ts'
 import type { Actor } from './context.ts'
 import { checkInstanceEnvSoon } from './instance-env.ts'
 import { anotherAdminRemains, isEnvAdmin, isInstanceAdmin } from './instance-admin.ts'
-import { issuePasskeyEnrolment, removeAllPasskeys, revokeSetupKeysOf } from './passkey-enrolment.ts'
+import {
+  issueFirstPasskeyEnrolment,
+  issuePasskeyEnrolment,
+  removeAllPasskeys,
+  revokeSetupKeysOf,
+} from './passkey-enrolment.ts'
 import {
   clearProviderKeys,
   linkProviderKey,
@@ -46,9 +43,6 @@ import { brandName } from './branding.ts'
 import { deleteWorkspace } from './workspace-delete.ts'
 import type { AuditSubject } from './audit.ts'
 import { addToWorkspace, inviteToWorkspace, noticeAddedByAdmin, openWorkspace } from './memberships.ts'
-
-const hasPasskey = async (tx: Tx, userId: string) =>
-  (await tx.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, userId)).limit(1)).length > 0
 
 /** A missing or wrong SECRETS_KEY is the operator's to fix: show the reason instead of a server error. */
 /** OpenAI's language model and transcription can use the OpenAI key stored for the realtime model. */
@@ -155,6 +149,9 @@ async function setSpendingCap(tx: Tx, workspaceId: string, capUsd: number | null
 
 /** Handlers that hand out an enrolment code refuse a session that is not passkey-confirmed (admin-step-up.ts). */
 function refuseEnrolmentCode(actor: Actor) {
+  // Only a person signed in as themselves (or the CLI): never an AI agent's setup key, an API key or an impersonation.
+  if (actor.setupKeyId || actor.apiKeyId || actor.impersonation)
+    throw new Forbidden('only an instance admin signed in as themselves, or the server operator, can do this')
   if (!mayReceiveEnrolmentCode(actor)) throw new Forbidden('confirm with your passkey to do this')
 }
 
@@ -362,7 +359,7 @@ export const adminHandlers: Record<string, Handler> = {
       .where(eq(user.id, account.id))
     // Their sessions end, and so do the impersonations they started (Better Auth's own endpoints do not check those).
     await tx.delete(session).where(or(eq(session.userId, account.id), eq(session.impersonatedBy, account.id)))
-    await revokeSetupKeysOf(tx, account.id)
+    await revokeSetupKeysOf(tx, account.id, 'account_disabled')
     await dropUserPush(tx, account.id)
     return { rows: {}, data: { userId: account.id, disabled_at: now } }
   },
@@ -386,7 +383,8 @@ export const adminHandlers: Record<string, Handler> = {
     const account = await loadUser(tx, input.userId)
     await tx.update(user).set({ instanceAdmin: true }).where(eq(user.id, account.id))
     // Their first passkey needs this one-time code, shown once to the granting admin (passkey-enrolment.ts).
-    const enrolment = (await hasPasskey(tx, account.id)) ? {} : await issuePasskeyEnrolment(tx, account.id)
+    // Only while they have no passkey, in one conditional write (passkey-enrolment.ts issueFirstPasskeyEnrolment).
+    const enrolment = (await issueFirstPasskeyEnrolment(tx, account.id)) ?? {}
     await alertAdminGranted(actor, account.email)
     return { rows: {}, data: { userId: account.id, instance_admin: true, ...enrolment } }
   },
@@ -394,6 +392,8 @@ export const adminHandlers: Record<string, Handler> = {
   // The recovery path that needs none of the user's passkeys (passkeys.ts). Runs only with the
   // admin's own passkey sign-in (admin-step-up.ts) or from the CLI, never while impersonating, and
   // never on the admin's own account: that would turn a stolen first factor into a passkey.
+  // Ends all their sessions and AI agent setup links, also when there was no passkey to remove; an instance admin who
+  // only needs a code for their first passkey gets it from user.issuePasskeyEnrolment, which ends nothing.
   'user.resetPasskeys': async ({ tx, actor }, input) => {
     if (input.userId === actor.actorId)
       throw new Forbidden(
@@ -402,14 +402,40 @@ export const adminHandlers: Record<string, Handler> = {
     refuseEnrolmentCode(actor)
     const account = await loadUser(tx, input.userId)
     const isAdmin = isInstanceAdmin(account)
-    // Their sessions end too.
-    const removed = await removeAllPasskeys(tx, { id: account.id, email: account.email, isAdmin })
+    const ended = await removeAllPasskeys(tx, { id: account.id, email: account.email, isAdmin })
     const enrolment = isAdmin ? await issuePasskeyEnrolment(tx, account.id) : {}
     await alertInstanceAdmins(
       `Passkeys reset on ${brandName()}: ${account.email}`,
-      `${await actorName(actor)} removed every passkey of ${account.email} (${removed} removed) and ended their sessions and AI agent setup links.${isAdmin ? ' They are an instance admin and got a new enrolment code for their first passkey.' : ''}\n\nIf you did not expect this, sign in with your passkey and check Admin, Audit log.`,
+      `${await actorName(actor)} removed every passkey of ${account.email} (${ended.removed} removed) and ended their sessions and AI agent setup links.${isAdmin ? ' They are an instance admin and got a new enrolment code for their first passkey.' : ''}\n\nIf you did not expect this, sign in with your passkey and check Admin, Audit log.`,
     )
-    return { rows: {}, data: { userId: account.id, removed, ...enrolment } }
+    return { rows: {}, data: { userId: account.id, ...ended, ...enrolment } }
+  },
+
+  // Only the code for an instance admin's first passkey (passkey-enrolment.ts), for one who has none: nothing to
+  // recover, so nothing ends (their sessions and AI agent setup links keep working). The same guards as the reset,
+  // which hands out the same code: passkey step-up (admin-step-up.ts) or the CLI, never the caller's own account.
+  'user.issuePasskeyEnrolment': async ({ tx, actor }, input) => {
+    if (input.userId === actor.actorId)
+      throw new Forbidden(
+        'you cannot give yourself an enrolment code; ask another instance admin, or run user:passkeys --enrol on the server',
+      )
+    refuseEnrolmentCode(actor)
+    const account = await loadUser(tx, input.userId)
+    if (!isInstanceAdmin(account))
+      throw new Reject(`${account.email} is not an instance admin: they add a passkey without a code`)
+    if (account.disabledAt) throw new Reject(`${account.email} is disabled: enable the account first`)
+    // Conditional on having no passkey in the same write, so a passkey added meanwhile refuses it too.
+    const enrolment = await issueFirstPasskeyEnrolment(tx, account.id)
+    if (!enrolment)
+      throw new Reject(
+        `${account.email} has a passkey already. To start over, reset their passkeys: that also signs them out everywhere and ends their AI agent setup links`,
+      )
+    sendNotice({ to: account.email, ...passkeyEnrolmentIssuedEmail(await actorName(actor)) }, 'passkey enrolment email')
+    await alertInstanceAdmins(
+      `Passkey enrolment code issued on ${brandName()}: ${account.email}`,
+      `${await actorName(actor)} issued a one-time code for the first passkey of ${account.email}, an instance admin without a passkey. Nothing was removed and their sessions and AI agent setup links keep working.\n\nIf you did not expect this, sign in with your passkey and check Admin, Audit log.`,
+    )
+    return { rows: {}, data: { userId: account.id, ...enrolment } }
   },
 
   'instanceAdmin.revoke': async ({ tx }, input) => {
@@ -420,6 +446,8 @@ export const adminHandlers: Record<string, Handler> = {
     await tx.update(user).set({ instanceAdmin: false }).where(eq(user.id, account.id))
     // The impersonations they started end now, not when their hour is up.
     await tx.delete(session).where(eq(session.impersonatedBy, account.id))
+    // So do their AI agent setup links: they stop working now, and must not come back with a later grant.
+    await revokeSetupKeysOf(tx, account.id, 'admin_role_removed')
     return { rows: {}, data: { userId: account.id, instance_admin: false } }
   },
 }

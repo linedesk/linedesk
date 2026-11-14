@@ -1,0 +1,1 @@
+ALTER TABLE "agent_setup_keys" ADD COLUMN "ended_reason" text;

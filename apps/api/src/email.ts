@@ -152,3 +152,16 @@ export function createEmailSender(
 }
 
 export const emailSender = createEmailSender(process.env)
+
+/**
+ * Sends a notice without waiting (an alert, a "your passkeys were reset"): it never holds up what it is about. Without
+ * email set up there is nobody to reach: one log line instead of the sender's error with its stack (the CLI on a fresh
+ * install has no email yet).
+ */
+export function sendNotice(email: Email, what: string, sender: EmailSender = emailSender) {
+  if (sender.kind === 'none') {
+    console.log(`${what} not sent: email is not set up (Admin, Providers, Email).`)
+    return
+  }
+  void sender.send(email).catch(err => console.error(`${what} failed`, err))
+}

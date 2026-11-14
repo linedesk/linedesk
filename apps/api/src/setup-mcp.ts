@@ -50,9 +50,9 @@ import { z } from 'zod'
 import { adminSecondFactorRequired } from './admin-second-factor.ts'
 import { PASSKEY_STEP_UP_REQUIRED, passkeyStillNeeded, type StepUp } from './admin-step-up.ts'
 import {
-  actorForSetupKey,
   emailAndSignInAllowed,
-  setupKeyWithinLimit,
+  setupKeyAccess,
+  setupKeyEndedResponse,
   tooManyRefusedSetupKeys,
   webAddress,
 } from './agent-setup.ts'
@@ -768,17 +768,19 @@ export async function serveSetupMcp(request: Request, keyInPath: string | null, 
     )
   // Blocked or not as the request came in; a working key gets in either way.
   const blocked = tooManyRefusedSetupKeys(clientIp)
-  const actor = await actorForSetupKey(key, clientIp)
-  if (!actor && blocked)
+  const access = await setupKeyAccess(key, clientIp)
+  if (access.kind === 'limited') return refuse(429, 'rate limit: try again in a minute', { 'retry-after': '60' })
+  // A key that existed and ended: why, never counted against the address (agent-setup.ts setupKeyAccess).
+  if (access.kind === 'ended') return setupKeyEndedResponse(access.reason)
+  if (access.kind === 'unknown' && blocked)
     return refuse(429, 'too many invalid setup keys from this address; try again later', { 'retry-after': '600' })
-  if (!actor)
+  if (access.kind === 'unknown')
     return refuse(
       401,
       'unknown, ended or expired setup key: make a new one in Linedesk (Set up with an agent)',
       challenge,
     )
-  if (!setupKeyWithinLimit(actor.setupKeyId!))
-    return refuse(429, 'rate limit: try again in a minute', { 'retry-after': '60' })
+  const { actor } = access
   if (request.method !== 'POST') return refuse(405, 'send MCP messages with POST', { allow: 'POST' })
   const text = await request.text()
   if (text.length > MCP_MAX_BODY_BYTES) return refuse(413, 'request too large')

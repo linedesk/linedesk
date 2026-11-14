@@ -156,7 +156,7 @@ export async function afterPasswordReset(
       userAgent: request?.headers.get('user-agent') ?? null,
     })
   try {
-    await revokeSetupKeysOf(db, resetUser.id)
+    await revokeSetupKeysOf(db, resetUser.id, 'password_reset')
     if (!resetUser.emailVerified) {
       const [credential] = await db
         .select({ id: account.id })

@@ -1,5 +1,6 @@
 // Setup MCP at /mcp/setup (LIN-125): an instance admin's setup key, the short list of setup tools, and every way a
 // key stops working. In INSTANCE_WIDE_FILES: it makes instance admins and stores provider keys.
+import { randomBytes } from 'node:crypto'
 import { SETUP_MCP_INSTRUCTIONS } from '@linedesk/actions'
 import { agent_setup_keys, commands, passkey, phone_numbers, provider_settings, session, user } from '@linedesk/db'
 import { and, desc, eq, isNotNull } from 'drizzle-orm'
@@ -9,6 +10,9 @@ import { emailSender } from '../src/email.ts'
 import type * as RunActionModule from '../src/run-action.ts'
 import { PRIVATE_ENDPOINT } from '../src/s3-endpoint.ts'
 import { forAgent, installPartDone, SETUP_ACTIONS } from '../src/setup-mcp.ts'
+import { hashSetupKey } from '../src/agent-setup.ts'
+import type { Actor } from '../src/context.ts'
+import { runAction } from '../src/run-action.ts'
 import {
   act,
   appRequest,
@@ -161,6 +165,169 @@ describe('access', () => {
     expect((await mcp('lds_wrong-last', 'tools/list', {}, { from })).status).toBe(429)
     const { key } = await makeKey(ws.owner)
     expect((await mcp(key, 'tools/list', {}, { from })).status).toBe(200)
+  })
+})
+
+describe('ended setup links', () => {
+  /** A well-formed key nobody ever made. */
+  const unknownKey = () => `lds_${randomBytes(32).toString('base64url')}`
+  // The server operator, as user-passkeys.ts runs the actions.
+  const cli: Actor = {
+    actorId: 'cli',
+    role: 'member',
+    workspaceId: null,
+    permissions: ['instance:admin'],
+    passkeyConfirmed: true,
+  }
+  const newAdmin = async () => {
+    const admin = await signUp()
+    await db.update(user).set({ emailVerified: true, instanceAdmin: true }).where(eq(user.id, admin.userId))
+    return admin
+  }
+
+  test('an ended key answers 401 SETUP_KEY_ENDED with why, and never counts towards the address limit', async () => {
+    const from = randomIp()
+    const admin = await newAdmin()
+    const first = await makeKey(admin)
+    const second = await makeKey(admin)
+    // Far more retries than the 10 unknown keys an address may send: never a 429.
+    for (let i = 0; i < 15; i++)
+      expect(await mcp(first.key, 'tools/list', {}, { from })).toMatchObject({
+        status: 401,
+        body: {
+          code: 'SETUP_KEY_ENDED',
+          reason: 'replaced',
+          error: expect.stringMatching(/Ask the admin for the new link/),
+        },
+      })
+    // As Bearer too.
+    expect((await mcp(first.key, 'tools/list', {}, { from, bearer: true })).body.code).toBe('SETUP_KEY_ENDED')
+    // Unknown keys still count: 10, then the address is blocked; they never get the ended answer.
+    for (let i = 0; i < 10; i++) {
+      const res = await mcp(unknownKey(), 'tools/list', {}, { from })
+      expect(res.status).toBe(401)
+      expect(res.body.code).toBeUndefined()
+    }
+    expect((await mcp(unknownKey(), 'tools/list', {}, { from })).status).toBe(429)
+    // A blocked address still hears why its own ended link stopped (it only tells the key's holder), and a working
+    // key from there still gets in.
+    expect((await mcp(first.key, 'tools/list', {}, { from })).body).toMatchObject({ code: 'SETUP_KEY_ENDED' })
+    expect((await mcp(second.key, 'tools/list', {}, { from })).status).toBe(200)
+
+    expect((await act(admin, 'agentSetup.revoke', {})).status).toBe(200)
+    expect((await mcp(second.key, 'tools/list')).body).toMatchObject({
+      code: 'SETUP_KEY_ENDED',
+      reason: 'ended',
+      error: expect.stringMatching(/was ended and no longer works\. Ask the admin for a new one/),
+    })
+    const third = await makeKey(admin)
+    await db
+      .update(agent_setup_keys)
+      .set({ expires_at: new Date(Date.now() - 1000).toISOString() })
+      .where(eq(agent_setup_keys.id, third.keyId))
+    expect((await mcp(third.key, 'tools/list')).body).toMatchObject({ code: 'SETUP_KEY_ENDED', reason: 'expired' })
+    const [row] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, first.keyId))
+    expect(row!.ended_reason).toBe('replaced')
+  })
+
+  test("an ended key's answer only goes to whoever holds it: a near miss or a malformed key is unknown", async () => {
+    const admin = await newAdmin()
+    const { key } = await makeKey(admin)
+    expect((await act(admin, 'agentSetup.revoke', {})).status).toBe(200)
+    const nearMiss = `${key.slice(0, -1)}${key.endsWith('A') ? 'B' : 'A'}`
+    for (const other of [nearMiss, key.slice(0, -1), key.toUpperCase()]) {
+      const res = await mcp(other, 'tools/list')
+      expect(res.status).toBe(401)
+      expect(res.body.code).toBeUndefined()
+    }
+  })
+
+  test('the per-key limit comes first: a limited key stays 429 when it ends meanwhile, never the ended answer', async () => {
+    const admin = await newAdmin()
+    const { key } = await makeKey(admin)
+    let status = 200
+    for (let i = 0; i < 125 && status === 200; i++) status = (await mcp(key, 'tools/list')).status
+    expect(status).toBe(429)
+    expect((await act(admin, 'agentSetup.revoke', {})).status).toBe(200)
+    expect(await mcp(key, 'tools/list')).toMatchObject({
+      status: 429,
+      body: { error: expect.stringMatching(/rate limit/) },
+    })
+  })
+
+  test('removing the admin role ends their setup links for good: a later grant does not revive them', async () => {
+    const admin = await newAdmin()
+    const { key, keyId } = await makeKey(admin)
+    const was = process.env.ADMIN_SECOND_FACTOR
+    process.env.ADMIN_SECOND_FACTOR = 'off'
+    try {
+      expect((await act(fresh, 'instanceAdmin.revoke', { userId: admin.userId })).status).toBe(200)
+    } finally {
+      process.env.ADMIN_SECOND_FACTOR = was
+    }
+    const [row] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, keyId))
+    expect(row).toMatchObject({ ended_reason: 'admin_role_removed', revoked_at: expect.anything() })
+    expect((await mcp(key, 'tools/list')).body).toMatchObject({ code: 'SETUP_KEY_ENDED', reason: 'ended' })
+    await setAdmin(admin, true)
+    expect((await mcp(key, 'tools/list')).body).toMatchObject({ code: 'SETUP_KEY_ENDED', reason: 'ended' })
+  })
+
+  test('an ended key keeps the per-key limit of a working one', async () => {
+    const admin = await newAdmin()
+    const { key } = await makeKey(admin)
+    expect((await act(admin, 'agentSetup.revoke', {})).status).toBe(200)
+    let status = 401
+    for (let i = 0; i < 125 && status === 401; i++) status = (await mcp(key, 'tools/list')).status
+    expect(status).toBe(429)
+  })
+
+  test('the enrolment code for an admin without a passkey ends nothing: their link and sessions keep working', async () => {
+    const admin = await newAdmin()
+    const { key } = await makeKey(admin)
+    const sessions = await db.select().from(session).where(eq(session.userId, admin.userId))
+    const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
+    const res = await runAction('user.issuePasskeyEnrolment', { userId: admin.userId }, cli)
+    expect(res).toMatchObject({ status: 200, body: { data: { enrolmentCode: expect.any(String) } } })
+    expect((await mcp(key, 'tools/list')).status).toBe(200)
+    expect(await db.select().from(session).where(eq(session.userId, admin.userId))).toEqual(sessions)
+    expect((await request(admin, 'GET', '/v1/me')).status).toBe(200)
+    const [row] = await db
+      .select()
+      .from(agent_setup_keys)
+      .where(eq(agent_setup_keys.key_hash, hashSetupKey(key)))
+    expect(row!.revoked_at).toBeNull()
+    send.mockRestore()
+  })
+
+  test('with a passkey, --enrol is refused and the reset (--remove) ends their sessions and setup links, saying how many', async () => {
+    const admin = await newAdmin()
+    const { key } = await makeKey(admin)
+    await db.insert(passkey).values({
+      id: `pk_${crypto.randomUUID().slice(0, 12)}`,
+      userId: admin.userId,
+      publicKey: 'cHVibGlj',
+      credentialID: `cred-${crypto.randomUUID()}`,
+      counter: 0,
+      deviceType: 'multiDevice',
+      backedUp: true,
+    })
+    const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
+    const refused = await runAction('user.issuePasskeyEnrolment', { userId: admin.userId }, cli)
+    expect(refused.status).toBe(409)
+    expect((await mcp(key, 'tools/list')).status).toBe(200)
+    const reset = await runAction('user.resetPasskeys', { userId: admin.userId }, cli)
+    expect(reset).toMatchObject({
+      status: 200,
+      body: { data: { removed: 1, sessionsEnded: 1, setupLinksEnded: 1, enrolmentCode: expect.any(String) } },
+    })
+    expect(await db.select().from(session).where(eq(session.userId, admin.userId))).toEqual([])
+    expect((await mcp(key, 'tools/list')).body).toMatchObject({
+      code: 'SETUP_KEY_ENDED',
+      // Stored as passkeys_reset, shown as the generic `ended`.
+      reason: 'ended',
+      error: expect.not.stringMatching(/passkey/),
+    })
+    send.mockRestore()
   })
 })
 

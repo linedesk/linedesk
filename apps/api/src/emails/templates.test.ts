@@ -18,6 +18,7 @@ import {
   invitationEmail,
   memberAddedByAdminEmail,
   passkeyChangedEmail,
+  passkeyEnrolmentIssuedEmail,
   passwordChangedEmail,
   passwordResetCodeEmail,
   readPartnerDirectoryUrl,
@@ -410,6 +411,18 @@ describe('passkey notice', () => {
     const email = passkeyChangedEmail('added', ORIGIN)
     expect(email.subject).toBe('A passkey was added to your Linedesk account')
     expect(email.text).toContain('Reset passkeys')
+    expect(email.html).toContain('href="https://desk.example.com/#account/security"')
+  })
+})
+
+describe('passkey enrolment code issued', () => {
+  it('says who issued it, that nothing ended, and to tell the admins if unasked', () => {
+    const email = passkeyEnrolmentIssuedEmail('ann@example.com', ORIGIN)
+    expect(email.subject).toBe('A passkey enrolment code was issued for your Linedesk account')
+    expect(email.text).toContain('ann@example.com issued a one-time code for the first passkey')
+    expect(email.text).toContain('Nothing was removed and you are still signed in')
+    expect(email.text).toMatch(/If you did not ask for this, tell the other administrators/)
+    expect(email.text).not.toMatch(/signed you out|Sign in again/)
     expect(email.html).toContain('href="https://desk.example.com/#account/security"')
   })
 })

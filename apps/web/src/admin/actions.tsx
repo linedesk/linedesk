@@ -94,7 +94,15 @@ export function userActions(u: AdminUser, currentUserId: string, reload: () => P
   const name = userLabel(u)
   const isSelf = u.id === currentUserId
   const act =
-    (action: 'user.disable' | 'user.enable' | 'instanceAdmin.grant' | 'instanceAdmin.revoke' | 'user.resetPasskeys') =>
+    (
+      action:
+        | 'user.disable'
+        | 'user.enable'
+        | 'instanceAdmin.grant'
+        | 'instanceAdmin.revoke'
+        | 'user.resetPasskeys'
+        | 'user.issuePasskeyEnrolment',
+    ) =>
     async () => {
       const data = await runAdmin(action, { userId: u.id })
       await reload()
@@ -151,16 +159,32 @@ export function userActions(u: AdminUser, currentUserId: string, reload: () => P
       run: act('instanceAdmin.revoke'),
       done: `${name} is no longer an instance admin.`,
     })
+  // An admin without a passkey only needs the code for their first: nothing to reset, nobody signed out.
+  if (u.instance_admin && !isSelf && !u.disabled_at && u.passkeys?.length === 0)
+    actions.push({
+      id: 'enrolment-code',
+      label: 'Give passkey code…',
+      icon: 'shield',
+      tip: 'A one-time code for their first passkey. Nothing is removed and they stay signed in.',
+      confirm: {
+        text: `Make a one-time code for the first passkey of ${name}? They are emailed; their sessions and AI agent setup links keep working.`,
+        action: 'Make code',
+        variant: 'primary',
+      },
+      run: act('user.issuePasskeyEnrolment'),
+      subject: name,
+      done: `The code for ${name} is made.`,
+    })
   if (!isSelf && !u.disabled_at)
     actions.push({
       id: 'reset-passkeys',
       label: 'Reset passkeys…',
       icon: 'restart',
-      tip: 'Removes every passkey of theirs, for a lost device or a passkey they did not add. They are emailed.',
+      tip: 'Removes every passkey of theirs, for a lost device or a passkey they did not add. Signs them out everywhere and ends their AI agent setup links. They are emailed.',
       confirm: {
         text: u.instance_admin
-          ? `Remove every passkey of ${name}? They are emailed, and you get a one-time code for their new first passkey.`
-          : `Remove every passkey of ${name}? They are emailed, sign in with an email code or password and add a new one.`,
+          ? `Remove every passkey of ${name}? They are signed out everywhere, their AI agent setup links end, they are emailed, and you get a one-time code for their new first passkey.`
+          : `Remove every passkey of ${name}? They are signed out everywhere, their AI agent setup links end and they are emailed; they sign in with an email code or password and add a new one.`,
         action: 'Reset passkeys',
       },
       run: act('user.resetPasskeys'),

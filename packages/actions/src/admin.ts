@@ -996,7 +996,28 @@ export const userResetPasskeys = defineAction({
   permission: 'instance:admin',
   secretResult: true,
 })
-export type UserResetPasskeysData = { userId: string; removed: number } & Partial<PasskeyEnrolmentData>
+export type UserResetPasskeysData = {
+  userId: string
+  removed: number
+  /** Their sessions and AI agent setup links that ended with the reset. */
+  sessionsEnded: number
+  setupLinksEnded: number
+} & Partial<PasskeyEnrolmentData>
+
+/**
+ * Only the one-time code for an instance admin's first passkey, when they have none: nothing is removed and nothing
+ * ends (their sessions and AI agent setup links keep working). Refused when they have a passkey: that is
+ * user.resetPasskeys, the recovery path.
+ */
+export const userIssuePasskeyEnrolment = defineAction({
+  name: 'user.issuePasskeyEnrolment',
+  description:
+    'Return a one-time code for the first passkey of an instance admin who has none yet. Removes nothing and signs nobody out.',
+  input: userId,
+  permission: 'instance:admin',
+  secretResult: true,
+})
+export type UserIssuePasskeyEnrolmentData = { userId: string } & PasskeyEnrolmentData
 export const instanceAdminRevoke = adminAction(
   'instanceAdmin.revoke',
   'Take instance admin away from a user. The last instance admin stays.',

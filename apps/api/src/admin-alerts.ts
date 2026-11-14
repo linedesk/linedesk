@@ -6,16 +6,23 @@ import { auth_events, user } from '@linedesk/db'
 import { and, count, eq, inArray } from 'drizzle-orm'
 import { signInMethod } from './audit.ts'
 import { db } from './db.ts'
-import { emailSender } from './email.ts'
+import { type EmailSender, emailSender, sendNotice } from './email.ts'
 import { adminAlertEmail } from './emails/templates.ts'
 import { instanceAdminEmails, isInstanceAdmin } from './instance-admin.ts'
 import { brandName } from './branding.ts'
 import { takeSetupSignIn } from './setup.ts'
 
-/** Emails every enabled instance admin. Resolves once the list is read; the sends run on their own. */
-export async function alertInstanceAdmins(subject: string, text: string) {
+/**
+ * Emails every enabled instance admin. Resolves once the list is read; the sends run on their own. Without email set
+ * up: skipped with one log line (no stack, nothing to retry).
+ */
+export async function alertInstanceAdmins(subject: string, text: string, sender: EmailSender = emailSender) {
+  if (sender.kind === 'none') {
+    console.log(`Admin alert not sent (email is not set up): ${subject}`)
+    return
+  }
   for (const to of await instanceAdminEmails())
-    void emailSender.send({ to, ...adminAlertEmail(subject, text) }).catch(err => console.error('admin alert email failed', err))
+    sendNotice({ to, ...adminAlertEmail(subject, text) }, 'admin alert email', sender)
 }
 
 const methodNames: Record<string, string> = {

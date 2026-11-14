@@ -251,6 +251,7 @@ type AdminInputs = {
   'instanceAdmin.grant': { userId: string }
   'instanceAdmin.revoke': { userId: string }
   'user.resetPasskeys': { userId: string }
+  'user.issuePasskeyEnrolment': { userId: string }
   'membership.add': { userId: string; workspaceId: string; role: MembershipRole }
   'membership.setRole': { memberId: string; role: MembershipRole }
   'membership.remove': { memberId: string }
@@ -300,6 +301,7 @@ const stepUpLabels: Partial<Record<keyof AdminInputs, string>> = {
   'instanceAdmin.grant': 'make an instance admin',
   'instanceAdmin.revoke': 'remove an instance admin',
   'user.resetPasskeys': 'reset passkeys',
+  'user.issuePasskeyEnrolment': 'issue a passkey enrolment code',
   'user.invite': 'add a user',
   'user.disable': 'disable an admin',
   'user.enable': 'enable an admin',

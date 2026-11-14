@@ -117,6 +117,8 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
       return `Deleted the workspace ${quoted(input.name)}`.trim()
     case 'user.resetPasskeys':
       return "Reset a user's passkeys"
+    case 'user.issuePasskeyEnrolment':
+      return "Issued an admin's first passkey code"
     case 'webhook.delete':
       return 'Removed a webhook'
     case 'webhook.test':

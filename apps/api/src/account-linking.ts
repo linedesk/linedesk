@@ -119,7 +119,7 @@ export async function dropUnprovenAccessOf(userId: string, keepAccountId?: strin
     // So are AI agent setup links (agent-setup.ts); an unproven account is no instance admin, but never keep one.
     await tx
       .update(agent_setup_keys)
-      .set({ revoked_at: new Date().toISOString() })
+      .set({ revoked_at: new Date().toISOString(), ended_reason: 'account_recovery' })
       .where(and(eq(agent_setup_keys.created_by, userId), isNull(agent_setup_keys.revoked_at)))
     await tx.delete(webhook_endpoints).where(eq(webhook_endpoints.created_by, userId))
     // A calendar it connected would receive bookings with callers' details.
@@ -219,7 +219,7 @@ export async function endSessionsAfterEmailLink(target: { id: string }, sessionU
   await db.delete(session).where(eq(session.userId, target.id))
   await db
     .update(agent_setup_keys)
-    .set({ revoked_at: new Date().toISOString() })
+    .set({ revoked_at: new Date().toISOString(), ended_reason: 'account_recovery' })
     .where(and(eq(agent_setup_keys.created_by, target.id), isNull(agent_setup_keys.revoked_at)))
 }
 

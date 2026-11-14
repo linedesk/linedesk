@@ -167,6 +167,7 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'instanceAdmin.grant': 'admin',
   'instanceAdmin.revoke': 'admin',
   'user.resetPasskeys': 'admin',
+  'user.issuePasskeyEnrolment': 'admin',
   // The install's name, logo and color, and whether "Powered by Linedesk" shows.
   'branding.set': 'admin',
   'user.impersonate': 'impersonation',

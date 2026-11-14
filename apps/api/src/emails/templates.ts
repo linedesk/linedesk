@@ -494,6 +494,37 @@ export function passkeysResetEmail(removed: number, origin = WEB_ORIGIN): Render
   })
 }
 
+/**
+ * An administrator issued the code for the first passkey of an instance admin who has none (user.issuePasskeyEnrolment):
+ * nothing was removed and nobody was signed out. `issuedBy`: the admin's address, or the server operator.
+ */
+export function passkeyEnrolmentIssuedEmail(issuedBy: string, origin = WEB_ORIGIN): RenderedEmail {
+  return renderEmail({
+    subject: `A passkey enrolment code was issued for your ${brandName()} account`,
+    preheader: 'Use it to add your first passkey. Nothing else changed.',
+    eyebrow: 'Security notice',
+    heading: 'Passkey enrolment code issued',
+    blocks: [
+      {
+        kind: 'text',
+        text: `${issuedBy} issued a one-time code for the first passkey of your ${brandName()} account. Nothing was removed and you are still signed in.`,
+      },
+      {
+        kind: 'text',
+        text: 'Get the code from them, then add your passkey under Account, Sign-in & security.',
+      },
+      { kind: 'button', label: 'Open Sign-in & security', url: `${origin}/#account/security` },
+      {
+        kind: 'text',
+        tone: 'muted',
+        text: `If you did not ask for this, tell the other administrators of ${brandName()} at once: whoever has the code can add a passkey to your account.`,
+      },
+    ],
+    reason: 'You got this email because the sign-in methods of your account changed. We always send it.',
+    origin,
+  })
+}
+
 /** An alert to every instance admin (admin-alerts.ts). `text` is already plain and link-free; blank lines split paragraphs. */
 export function adminAlertEmail(subject: string, text: string, origin = WEB_ORIGIN): RenderedEmail {
   const paragraphs = text

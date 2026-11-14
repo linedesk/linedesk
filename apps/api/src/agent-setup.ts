@@ -8,7 +8,10 @@
 // admin-step-up.ts: only a key the admin confirmed with a passkey changes them (LIN-182), for the 12 hours that passkey
 // sign-in counts; made right after one, or afterwards with agentSetup.confirmPasskey ("Allow" on the setup page, opened
 // from the link the agent gives, which names the key), until agentSetup.withdrawPasskey. Resetting the admin's passkeys,
-// disabling them or ending all their sessions revokes their keys (passkey-enrolment.ts revokeSetupKeysOf).
+// disabling them or ending all their sessions revokes their keys (passkey-enrolment.ts revokeSetupKeysOf); a code for
+// the admin's first passkey (user.issuePasskeyEnrolment, user:passkeys --enrol) does not. A revoked or expired key's
+// row and hash stay: an agent still using it gets 401 SETUP_KEY_ENDED with a coarse reason (setupKeyAccess), which
+// does not count towards the address's limit on unknown keys. Removing the admin role ends them too.
 import { createHash, randomBytes } from 'node:crypto'
 import {
   type AgentSetupKeyCreated,
@@ -48,8 +51,8 @@ export const webAddress = () =>
   (process.env.PUBLIC_URL || process.env.WEB_ORIGIN || 'http://localhost:5173').replace(/\/+$/, '')
 export const setupMcpUrl = () => `${webAddress()}/mcp/setup`
 
+/** Per key, working or ended, checked in setupKeyAccess before any other work on it. */
 const allowRequest = createRateLimiter({ max: SETUP_KEY_REQUESTS_PER_MINUTE, windowMs: 60_000 })
-export const setupKeyWithinLimit = (keyId: string) => allowRequest(keyId)
 /** Unknown setup keys per address: 10 in 10 minutes, then unknown keys from that address get a 429 (a working key never). */
 const refused = createFailureLimiter({ max: 10, windowMs: 10 * 60_000 })
 export const tooManyRefusedSetupKeys = (ip: string | null) => refused.blocked(addressBucket(ip))
@@ -90,38 +93,68 @@ export async function setupActor(
   }
 }
 
+/** Answered for a key that existed and ended; `reason` never says more than the key's holder could already know. */
+export const SETUP_KEY_ENDED = 'SETUP_KEY_ENDED'
+export type SetupKeyEndedReason = 'replaced' | 'expired' | 'ended'
+
+const endedMessages: Record<SetupKeyEndedReason, string> = {
+  replaced:
+    'This setup link was replaced: the admin made a newer one, and only the newest works. Ask the admin for the new link.',
+  ended: 'This setup link was ended and no longer works. Ask the admin for a new one (Linedesk, Set up with an agent).',
+  expired: `This setup link expired (a link works for ${SETUP_KEY_HOURS} hours). Ask the admin for a new one (Linedesk, Set up with an agent).`,
+}
+export const setupKeyEndedMessage = (reason: SetupKeyEndedReason) => endedMessages[reason]
+
+/** The setup MCP's answer to an ended key: 401 SETUP_KEY_ENDED, with what to ask the admin for. */
+export const setupKeyEndedResponse = (reason: SetupKeyEndedReason) =>
+  Response.json(
+    { error: setupKeyEndedMessage(reason), code: SETUP_KEY_ENDED, reason },
+    { status: 401, headers: { 'www-authenticate': 'Bearer realm="linedesk-setup", error="invalid_token"' } },
+  )
+
 /**
- * The actor for a setup key, or null when it is unknown, revoked or expired, or its creator is no longer an enabled
- * instance admin. A refused key counts against the address (tooManyRefusedSetupKeys); a working key is looked up
- * first, so others' wrong keys from a shared address (a cloud agent's) never lock it out.
+ * What a setup key gets: `ok` with the actor; `limited` when the key (working or ended) is past its per-key limit;
+ * `ended` when it existed and no longer works; `unknown` otherwise.
  */
-export async function actorForSetupKey(key: string, ip: string | null): Promise<Actor | null> {
-  const fail = () => {
+export type SetupKeyAccess =
+  | { kind: 'ok'; actor: Actor }
+  | { kind: 'limited' }
+  | { kind: 'ended'; reason: SetupKeyEndedReason }
+  | { kind: 'unknown' }
+
+/**
+ * One lookup of a setup key, on the stored SHA-256 of the key alone (unique index), so an `ended` answer says nothing
+ * about any key the caller does not hold: 256 random bits, an ended key is as unguessable as a working one. Only an
+ * unknown key (or one that is not even well formed) counts against the address (tooManyRefusedSetupKeys). A key that
+ * exists, working or ended, is never counted there: a link that stopped working is not a guess. The per-key limit
+ * comes before any other work on the key. A working key is looked up first, so others' wrong keys from a shared
+ * address (a cloud agent's) never lock it out. Shown reasons are coarse: replaced and expired, everything else (End,
+ * passkey reset, disabling the admin, password reset, account recovery, admin role removed) is `ended`.
+ */
+export async function setupKeyAccess(key: string, ip: string | null): Promise<SetupKeyAccess> {
+  const unknown = (): SetupKeyAccess => {
     refused.fail(addressBucket(ip))
-    return null
+    return { kind: 'unknown' }
   }
-  if (!isSetupKey(key)) return fail()
-  const now = new Date().toISOString()
+  if (!isSetupKey(key)) return unknown()
   const [row] = await db
     .select()
     .from(agent_setup_keys)
-    .where(
-      and(
-        eq(agent_setup_keys.key_hash, hashSetupKey(key)),
-        isNull(agent_setup_keys.revoked_at),
-        gt(agent_setup_keys.expires_at, now),
-      ),
-    )
-  if (!row) return fail()
+    .where(eq(agent_setup_keys.key_hash, hashSetupKey(key)))
+  if (!row) return unknown()
+  if (!allowRequest(row.id)) return { kind: 'limited' }
+  if (row.revoked_at) return { kind: 'ended', reason: row.ended_reason === 'replaced' ? 'replaced' : 'ended' }
+  const now = new Date().toISOString()
+  if (new Date(row.expires_at).getTime() <= Date.parse(now)) return { kind: 'ended', reason: 'expired' }
   const actor = await setupActor(row.created_by, row.id, row.passkey_confirmed_until)
-  if (!actor) return fail()
+  if (!actor) return { kind: 'ended', reason: 'ended' }
   if (!row.last_used_at || Date.now() - Date.parse(row.last_used_at) > LAST_USED_EVERY_MS)
     void db
       .update(agent_setup_keys)
       .set({ last_used_at: now })
       .where(eq(agent_setup_keys.id, row.id))
       .catch(e => console.error(`could not note the use of setup key ${row.id}: ${e instanceof Error ? e.message : e}`))
-  return actor
+  return { kind: 'ok', actor }
 }
 
 /** Only a signed-in admin hands out a setup key: never a key, an agent or an admin signed in as someone else. */
@@ -149,7 +182,7 @@ export const agentSetupHandlers: Record<string, Handler> = {
     // One key at a time per admin: making a new one ends the old ones (a copied prompt from earlier stops working).
     await tx
       .update(agent_setup_keys)
-      .set({ revoked_at: now })
+      .set({ revoked_at: now, ended_reason: 'replaced' })
       .where(and(eq(agent_setup_keys.created_by, actor.actorId), isNull(agent_setup_keys.revoked_at)))
     const key = newKey()
     const expiresAt = new Date(Date.parse(now) + SETUP_KEY_HOURS * 3_600_000).toISOString()
@@ -218,7 +251,7 @@ export const agentSetupHandlers: Record<string, Handler> = {
     refuseNonPerson(actor)
     const ended = await tx
       .update(agent_setup_keys)
-      .set({ revoked_at: now })
+      .set({ revoked_at: now, ended_reason: 'ended_by_admin' })
       .where(and(eq(agent_setup_keys.created_by, actor.actorId), isNull(agent_setup_keys.revoked_at)))
       .returning({ id: agent_setup_keys.id })
     return { rows: {}, data: { ended: ended.length } }

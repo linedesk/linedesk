@@ -1,7 +1,7 @@
 // A passkey on top of the admin area (docs/architecture.md §12). Any recent sign-in opens Admin, so
 // someone with only an admin's mailbox, password or provider account gets that far. What would let
 // them keep the role or take over passkeys needs a passkey sign-in in the last 12 hours: granting
-// admin, resetting passkeys, inviting an admin (these hand out enrolment codes), signing in as a
+// admin, resetting passkeys, issuing an enrolment code, inviting an admin (these hand out enrolment codes), signing in as a
 // user, deleting a workspace, adding anyone to a workspace or making them owner or admin there, any action on an instance admin (by user or by workspace membership), the caller
 // included, and changing email or sign-in settings (an SMTP server or sign-in provider of an
 // attacker's own would hand them sign-in codes or any account). Admins without a passkey add their first with the enrolment code (passkey-enrolment.ts).
@@ -24,6 +24,7 @@ export const PASSKEY_STEP_UP_REQUIRED = 'PASSKEY_STEP_UP_REQUIRED'
 const ALWAYS = new Set([
   'instanceAdmin.grant',
   'user.resetPasskeys',
+  'user.issuePasskeyEnrolment',
   'user.impersonate',
   'workspace.delete',
   // Adds someone to any workspace (or invites them): access to a business's calls.

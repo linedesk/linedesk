@@ -26,6 +26,7 @@ test('every admin area action needs instance:admin, which no role has', () => {
     'instanceAdmin.grant',
     'instanceAdmin.revoke',
     'user.resetPasskeys',
+    'user.issuePasskeyEnrolment',
   ]
   for (const name of names) expect(actions.get(name)?.permission, name).toBe('instance:admin')
 })

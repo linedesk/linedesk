@@ -31,7 +31,13 @@ import { and, eq, getTableName, inArray, sql } from 'drizzle-orm'
 import { auth } from '../src/auth.ts'
 import { KEPT_TABLES, workspaceTables } from '../src/workspace-delete.ts'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
-import { adminSignInEmail, alertOnAdminSignIn, isLocalInstance, plainSnippet } from '../src/admin-alerts.ts'
+import {
+  adminSignInEmail,
+  alertInstanceAdmins,
+  alertOnAdminSignIn,
+  isLocalInstance,
+  plainSnippet,
+} from '../src/admin-alerts.ts'
 import { markSetupSignIn } from '../src/setup.ts'
 import { adminHandlers } from '../src/admin-handlers.ts'
 import { forgetTests } from '../src/setup-checklist.ts'
@@ -47,7 +53,7 @@ import { mayReceiveEnrolmentCode, needsPasskeyStepUp } from '../src/admin-step-u
 import type { Actor } from '../src/context.ts'
 import { runAction } from '../src/run-action.ts'
 import { signInMethod } from '../src/audit.ts'
-import { emailSender } from '../src/email.ts'
+import { emailSender, sendNotice } from '../src/email.ts'
 import { db } from '../src/db.ts'
 import { mapOidcProfile } from '../src/account-linking.ts'
 import { APIError } from 'better-auth/api'
@@ -61,7 +67,7 @@ import {
   instanceAdminHooks,
   refuseUnverifiedAdminAddress,
 } from '../src/instance-admin.ts'
-import { issuePasskeyEnrolment } from '../src/passkey-enrolment.ts'
+import { issueFirstPasskeyEnrolment, issuePasskeyEnrolment } from '../src/passkey-enrolment.ts'
 import { mayCreateUser } from '../src/signup-gate.ts'
 import { telephonyProvider } from '../src/provider-settings.ts'
 import { deleteExpiredRecordings } from '../src/recording-retention.ts'
@@ -189,6 +195,7 @@ describe('access', () => {
       'user.enable',
       'user.impersonate',
       'user.invite',
+      'user.issuePasskeyEnrolment',
       'user.resetPasskeys',
       'voiceCloning.get',
       'voiceCloning.set',
@@ -1590,6 +1597,110 @@ describe('user.resetPasskeys: the recovery path that needs none of their passkey
     }
     expect((await runAction('user.resetPasskeys', { userId: self.userId }, cli)).status).toBe(200)
     await setAdmin(self, false)
+  })
+
+  test('the reset says how many sessions and AI agent setup links it ended, also with no passkey to remove', async () => {
+    vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
+    const second = await signUp()
+    await setAdmin(second, true)
+    const res = await act(operator, 'user.resetPasskeys', { userId: second.userId })
+    expect(res.body.data).toMatchObject({ removed: 0, sessionsEnded: 1, setupLinksEnded: 0 })
+    expect((await request(second, 'GET', '/v1/me')).status).toBe(401)
+    await setAdmin(second, false)
+  })
+
+  test('user.issuePasskeyEnrolment: only the code for an admin without a passkey, nothing ends; audited and alerted', async () => {
+    const mails: Email[] = []
+    vi.spyOn(emailSender, 'send').mockImplementation(async e => void mails.push(e))
+    const second = await signUp()
+    await setAdmin(second, true)
+    const sessionsBefore = await db.select().from(session).where(eq(session.userId, second.userId))
+    const res = await act(operator, 'user.issuePasskeyEnrolment', { userId: second.userId })
+    expect(res).toMatchObject({
+      status: 200,
+      body: { data: { userId: second.userId, enrolmentCode: expect.any(String) } },
+    })
+    const code: string = res.body.data.enrolmentCode
+    // Still signed in, every session kept; the code is never in the command log.
+    expect(await db.select().from(session).where(eq(session.userId, second.userId))).toEqual(sessionsBefore)
+    expect((await request(second, 'GET', '/v1/me')).status).toBe(200)
+    expect(
+      JSON.stringify(await db.select().from(commands).where(eq(commands.action, 'user.issuePasskeyEnrolment'))),
+    ).not.toContain(code)
+    const audit = (await request(operator, 'GET', '/v1/admin/audit?kind=admin')).body.entries as { what: string }[]
+    expect(audit.some(e => e.what === 'user.issuePasskeyEnrolment')).toBe(true)
+    const secondEmail = await emailOf(second)
+    await vi.waitFor(() => {
+      expect(mails.some(m => m.to === secondEmail && /enrolment code was issued/.test(m.subject))).toBe(true)
+      expect(mails.some(m => /Passkey enrolment code issued/.test(m.subject))).toBe(true)
+    })
+    expect(mails.map(m => m.text).join('\n')).not.toContain(code)
+    // Their own notice says who issued it and that nothing ended; never "signed you out".
+    const notice = mails.find(m => m.to === secondEmail && /enrolment code was issued/.test(m.subject))!
+    expect(notice.text).toContain(`${await emailOf(operator)} issued a one-time code for the first passkey`)
+    expect(notice.text).toContain('you are still signed in')
+    expect(notice.text).not.toMatch(/signed you out|Sign in again/)
+
+    // With a passkey it is the reset's job; not for a non-admin; never on your own account; never for a workspace owner.
+    await db.insert(passkey).values(passkeyRow(second.userId))
+    expect(await act(operator, 'user.issuePasskeyEnrolment', { userId: second.userId })).toMatchObject({
+      status: 409,
+      body: { error: expect.stringMatching(/has a passkey already.*signs them out everywhere/) },
+    })
+    expect((await db.select().from(passkey).where(eq(passkey.userId, second.userId))).length).toBe(1)
+    const plain = await signUp()
+    expect((await act(operator, 'user.issuePasskeyEnrolment', { userId: plain.userId })).body.error).toMatch(
+      /not an instance admin/,
+    )
+    expect(await act(operator, 'user.issuePasskeyEnrolment', { userId: operator.userId })).toMatchObject({
+      status: 403,
+      body: { code: 'forbidden' },
+    })
+    expect((await act(other.owner, 'user.issuePasskeyEnrolment', { userId: second.userId })).status).toBe(403)
+    expect(await needsPasskeyStepUp('user.issuePasskeyEnrolment', { userId: second.userId })).toBe(true)
+    // Not for a disabled admin.
+    await db.delete(passkey).where(eq(passkey.userId, second.userId))
+    await db.update(user).set({ disabledAt: new Date() }).where(eq(user.id, second.userId))
+    expect((await act(operator, 'user.issuePasskeyEnrolment', { userId: second.userId })).body.error).toMatch(
+      /is disabled/,
+    )
+    await db.update(user).set({ disabledAt: null }).where(eq(user.id, second.userId))
+    await setAdmin(second, false)
+  })
+
+  test('the first-passkey code is written only while no passkey exists, in one statement (race)', async () => {
+    const someone = await signUp()
+    const before = (await db.select().from(user).where(eq(user.id, someone.userId)))[0]!
+    // A passkey that landed between any earlier check and the write: the write itself refuses.
+    await db.insert(passkey).values(passkeyRow(someone.userId))
+    expect(await issueFirstPasskeyEnrolment(db, someone.userId)).toBeNull()
+    const after = (await db.select().from(user).where(eq(user.id, someone.userId)))[0]!
+    expect(after.passkeyEnrolmentHash).toBe(before.passkeyEnrolmentHash)
+    // instanceAdmin.grant uses the same write: made admin, but no code next to their passkey.
+    const granted = await act(operator, 'instanceAdmin.grant', { userId: someone.userId })
+    expect(granted.status).toBe(200)
+    expect(granted.body.data.enrolmentCode).toBeUndefined()
+    await db.delete(passkey).where(eq(passkey.userId, someone.userId))
+    expect(await issueFirstPasskeyEnrolment(db, someone.userId)).toMatchObject({ enrolmentCode: expect.any(String) })
+    await setAdmin(someone, false)
+  })
+
+  test('codes are never handed to a setup key, an API key or an impersonation, even passkey-confirmed', async () => {
+    const target = await signUp()
+    await setAdmin(target, true)
+    const base: Actor = {
+      actorId: operator.userId,
+      role: 'owner',
+      workspaceId: null,
+      permissions: ['instance:admin'],
+      passkeyConfirmed: true,
+    }
+    const impersonation = { by: operator.userId, sessionId: 'sess', expiresAt: new Date(Date.now() + 60_000) }
+    for (const extra of [{ setupKeyId: 'sk_x' }, { apiKeyId: 'key_x' }, { impersonation }])
+      for (const name of ['user.issuePasskeyEnrolment', 'user.resetPasskeys', 'instanceAdmin.grant'])
+        expect((await runAction(name, { userId: target.userId }, { ...base, ...extra })).status, name).toBe(403)
+    expect((await db.select().from(user).where(eq(user.id, target.userId)))[0]!.passkeyEnrolmentHash).toBeNull()
+    await setAdmin(target, false)
   })
 
   test('the users list shows their passkeys with dates, for the grant dialog', async () => {
@@ -4017,5 +4128,43 @@ describe('how calls are answered: each assistant chooses, or the instance admin 
     // The assistant's own choice is kept while the admin decides, so letting workspaces choose again restores it.
     const [stored] = await db.select().from(assistants).where(eq(assistants.id, ws.assistant.id))
     expect(stored!.voice_pipeline).toBe('three_stage')
+  })
+})
+
+describe('alerts without email set up (the CLI on a fresh install)', () => {
+  afterEach(() => vi.restoreAllMocks())
+  const noEmail = (): EmailSender => ({
+    kind: 'none',
+    send: vi.fn(async () => {
+      throw new Error('Email is not set up: connect it in Admin, Providers, Email')
+    }),
+    check: async () => ({ ok: false, message: 'Not set up' }),
+  })
+
+  test('the admin alert is skipped with one log line, no error and no stack', async () => {
+    const sender = noEmail()
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await alertInstanceAdmins('Passkeys reset on Linedesk: ann@example.com', 'text', sender)
+    sendNotice({ to: 'ann@example.com', subject: 's', text: 't' }, 'passkeys reset email', sender)
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(sender.send).not.toHaveBeenCalled()
+    expect(error).not.toHaveBeenCalled()
+    expect(log.mock.calls).toEqual([
+      ['Admin alert not sent (email is not set up): Passkeys reset on Linedesk: ann@example.com'],
+      ['passkeys reset email not sent: email is not set up (Admin, Providers, Email).'],
+    ])
+  })
+
+  test('with email set up the alert goes to every instance admin as before', async () => {
+    const sent: Email[] = []
+    const sender: EmailSender = {
+      kind: 'smtp',
+      send: async e => void sent.push(e),
+      check: async () => ({ ok: true, message: '' }),
+    }
+    await alertInstanceAdmins('Subject', 'text', sender)
+    await vi.waitFor(() => expect(sent.length).toBeGreaterThan(0))
+    expect(sent.every(e => e.subject === 'Subject')).toBe(true)
   })
 })
