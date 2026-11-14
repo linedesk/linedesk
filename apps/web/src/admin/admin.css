@@ -1216,3 +1216,28 @@
   padding-top: 0;
   border-top: 0;
 }
+
+/* The kind ask before "Powered by Linedesk" is hidden (Branding.tsx). */
+.adm-brand-ask {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+/* A switch label with its (?) beside it. */
+.adm-brand-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Branding page: the branding card, then Support Linedesk, spaced like other admin pages. */
+.adm-brand-form {
+  display: grid;
+  gap: 12px;
+}
+.adm-brand-heart {
+  color: var(--ink-muted);
+  flex: none;
+}

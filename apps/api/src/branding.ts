@@ -15,8 +15,20 @@ const SETTINGS_KEY = 'branding'
 const LOGO_KEY = 'branding.logo'
 const REFRESH_MS = 30_000
 
-type Stored = { name: string; color: string | null; starPrompt: boolean; logoVersion: string | null }
-const DEFAULT_STORED: Stored = { name: DEFAULT_PRODUCT_NAME, color: null, starPrompt: true, logoVersion: null }
+type Stored = {
+  name: string
+  color: string | null
+  starPrompt: boolean
+  poweredBy: boolean
+  logoVersion: string | null
+}
+const DEFAULT_STORED: Stored = {
+  name: DEFAULT_PRODUCT_NAME,
+  color: null,
+  starPrompt: true,
+  poweredBy: true,
+  logoVersion: null,
+}
 
 let current: Stored = DEFAULT_STORED
 
@@ -33,6 +45,7 @@ const toBranding = (s: Stored): Branding => ({
   logoUrl: s.logoVersion ? logoPath(s.logoVersion) : null,
   starPrompt: s.starPrompt,
   starCount: s.starPrompt ? starCount() : null,
+  poweredBy: s.poweredBy,
 })
 
 /** The branding in effect, as GET /v1/branding returns it. */
@@ -46,6 +59,7 @@ function parseStored(value: string | undefined): Stored {
       name: typeof parsed.name === 'string' && parsed.name.trim() ? parsed.name : DEFAULT_PRODUCT_NAME,
       color: typeof parsed.color === 'string' ? parsed.color : null,
       starPrompt: parsed.starPrompt !== false,
+      poweredBy: parsed.poweredBy !== false,
       logoVersion: typeof parsed.logoVersion === 'string' ? parsed.logoVersion : null,
     }
   } catch {
@@ -121,11 +135,22 @@ export const brandingHandlers: Record<string, Handler> = {
   'branding.set': async ({ tx, actor, now }, input: BrandingInput) => {
     const previous = await readStored(tx)
     const logoVersion = await writeLogo(tx, input.logo, previous.logoVersion, now, actor.actorId)
-    const next: Stored = { name: input.name, color: input.color, starPrompt: input.starPrompt, logoVersion }
+    const next: Stored = {
+      name: input.name,
+      color: input.color,
+      starPrompt: input.starPrompt,
+      poweredBy: input.poweredBy ?? previous.poweredBy,
+      logoVersion,
+    }
     await upsert(tx, SETTINGS_KEY, JSON.stringify(next), now, actor.actorId)
     current = next
     return { rows: {}, data: toBranding(next) satisfies Branding }
   },
+}
+
+/** Uses these settings in this process only, without storing them: email previews (preview-cli.ts) and tests. */
+export function setBrandingInMemory(settings: Partial<Stored>) {
+  current = { ...DEFAULT_STORED, ...settings }
 }
 
 /** Back to the defaults (tests). */

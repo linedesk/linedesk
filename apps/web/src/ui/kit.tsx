@@ -1,4 +1,5 @@
 // The small pieces of the reference UI kit: Icon, Kbd, Button, Badge. Class names match styles.css.
+import { type Branding, DEFAULT_PRODUCT_NAME, poweredByUrl, showsPoweredBy } from '@linedesk/actions'
 import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 import { useBrand } from '../brand.ts'
 import { filledIcons, icons, type IconName } from './icons.ts'
@@ -217,14 +218,31 @@ export function BrandMark({
   )
 }
 
+/**
+ * "Powered by Linedesk" with the mark, small and muted, under the sign-in page of an install with its own name
+ * or logo, unless an instance admin hid it (Admin › Branding; showsPoweredBy). Nothing for the default branding.
+ */
+export function PoweredBy({ brand }: { brand: Pick<Branding, 'name' | 'logoUrl' | 'poweredBy'> }) {
+  if (!showsPoweredBy(brand)) return null
+  return (
+    <a className="powered-by" href={poweredByUrl('sign-in')} target="_blank" rel="noopener noreferrer">
+      <LogoMark size={14} />
+      <span>
+        Powered by <b>{DEFAULT_PRODUCT_NAME}</b>
+      </span>
+    </a>
+  )
+}
+
 /** The page around sign-in, sign-up and invitations: the install's mark above a centred column, no card. */
 export function AuthPage({ children }: { children: ReactNode }) {
-  const { name } = useBrand()
+  const brand = useBrand()
   return (
     <main className="auth">
       <div className="auth-column">
-        <BrandMark className="auth-mark" size={28} label={name} />
+        <BrandMark className="auth-mark" size={28} label={brand.name} />
         {children}
+        <PoweredBy brand={brand} />
       </div>
     </main>
   )

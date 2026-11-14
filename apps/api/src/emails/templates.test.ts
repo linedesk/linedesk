@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { setBrandingInMemory } from '../branding.ts'
 import { defuseLinks, escapeHtml, renderEmail } from './layout.ts'
 import { previewEmails } from './previews.ts'
 import {
@@ -93,6 +94,40 @@ describe('the layout', () => {
     expect(defuseLinks('https://x')).not.toContain('://')
     expect(defuseLinks('$3.50 for 2.5 hours')).toBe('$3.50 for 2.5 hours')
     expect(escapeHtml(`<a href="x">'`)).toBe('&lt;a href=&quot;x&quot;&gt;&#39;')
+  })
+})
+
+describe('Powered by Linedesk', () => {
+  afterEach(() => setBrandingInMemory({}))
+  const LINK = 'https://linedesk.ai/?utm_source=powered-by&amp;utm_medium=email'
+
+  it('is not added while the install looks like Linedesk', () => {
+    const email = signInCodeEmail('123456', ORIGIN)
+    expect(email.html).not.toContain('Powered by')
+    expect(email.text).not.toContain('Powered by')
+  })
+
+  it('ends the footer of every email when the install has its own name', () => {
+    setBrandingInMemory({ name: 'Front Desk Pro' })
+    for (const { name, email } of previewEmails(ORIGIN)) {
+      expect(email.html, name).toContain(`Powered by <a href="${LINK}"`)
+      expect(email.text, name).toContain(
+        'Powered by Linedesk: https://linedesk.ai/?utm_source=powered-by&utm_medium=email',
+      )
+    }
+  })
+
+  it('also with only its own logo', () => {
+    setBrandingInMemory({ logoVersion: 'abc123' })
+    expect(signInCodeEmail('123456', ORIGIN).html).toContain('Powered by')
+  })
+
+  it('is left out when the admin hid it', () => {
+    setBrandingInMemory({ name: 'Front Desk Pro', poweredBy: false })
+    const email = signInCodeEmail('123456', ORIGIN)
+    expect(email.html).toContain('Front Desk Pro')
+    expect(email.html).not.toContain('Powered by')
+    expect(email.text).not.toContain('linedesk.ai')
   })
 })
 

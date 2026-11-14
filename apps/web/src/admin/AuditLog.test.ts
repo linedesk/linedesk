@@ -5,6 +5,15 @@ const label = (what: string, input: unknown = {}, subject: string | null = null)
   auditLabel({ what, method: null, input, subject: subject ? { email: subject } : null })
 
 describe('audit labels', () => {
+  test('branding says when Powered by Linedesk was hidden', () => {
+    expect(label('branding.set', { name: 'Front Desk', starPrompt: true, poweredBy: true })).toBe(
+      'Changed the branding to “Front Desk”',
+    )
+    expect(label('branding.set', { name: 'Front Desk', starPrompt: true, poweredBy: false })).toBe(
+      'Changed the branding to “Front Desk”, Powered by Linedesk hidden',
+    )
+  })
+
   test('team and membership changes say whom they were about', () => {
     expect(label('team.setRole', { memberId: 'm1', role: 'admin' }, 'ana@example.com')).toBe(
       'Made ana@example.com an admin',

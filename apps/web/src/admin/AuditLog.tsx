@@ -63,8 +63,10 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
       return `Changed keys of ${String(input.provider ?? 'a provider')}`
     case 'provider.clearKeys':
       return `Removed keys of ${String(input.provider ?? 'a provider')}`
-    case 'branding.set':
-      return `Changed the branding to ${quoted(input.name)}`.trim()
+    case 'branding.set': {
+      const changed = `Changed the branding to ${quoted(input.name)}`.trim()
+      return input.poweredBy === false ? `${changed}, Powered by Linedesk hidden` : changed
+    }
     case 'provider.setActive':
       return `Picked ${String(input.provider ?? 'none')} for ${String(input.category ?? 'a category')}`
     case 'team.setRole':

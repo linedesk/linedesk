@@ -2,9 +2,10 @@
 // them into an HTML part and a plain-text part that say the same thing. Templates never write HTML,
 // so every string they pass is escaped here. Table-based with inline styles for Outlook and Gmail,
 // a <style> block only for dark mode and narrow screens. No fonts or tracking: the Linedesk mark is
-// drawn with table cells; the only image is a logo an instance admin set (branding.ts).
+// drawn with table cells; the only image is a logo an instance admin set (branding.ts). With the install's
+// own name or logo, the footer ends in a quiet "Powered by Linedesk" unless the admin hid it.
 
-import { DEFAULT_PRODUCT_NAME, readableOn } from '@linedesk/actions'
+import { DEFAULT_PRODUCT_NAME, poweredByUrl, readableOn, showsPoweredBy } from '@linedesk/actions'
 import { brandName, currentBranding } from '../branding.ts'
 
 export type Block =
@@ -183,7 +184,10 @@ function footerHtml(content: EmailContent): string {
     ? ` <a href="${escapeHtml(checkedUrl(content.settings.url))}" target="_blank" style="color:${MUTED};text-decoration:underline;">${escapeHtml(content.settings.label)}</a>`
     : ''
   const sentBy = sentByLine(content)
-  return `<p style="margin:0 0 6px;">${escapeHtml(content.reason)}${settings}</p><p style="margin:0;">${escapeHtml(sentBy)} &middot; ${escapeHtml(siteHost(content.origin))}</p>`
+  const poweredBy = showsPoweredBy(currentBranding())
+    ? `<p style="margin:10px 0 0;">Powered by <a href="${escapeHtml(poweredByUrl('email'))}" target="_blank" style="color:${MUTED};text-decoration:underline;">${DEFAULT_PRODUCT_NAME}</a></p>`
+    : ''
+  return `<p style="margin:0 0 6px;">${escapeHtml(content.reason)}${settings}</p><p style="margin:0;">${escapeHtml(sentBy)} &middot; ${escapeHtml(siteHost(content.origin))}</p>${poweredBy}`
 }
 
 function renderHtml(content: EmailContent): string {
@@ -248,6 +252,7 @@ function renderText(content: EmailContent): string {
     '--',
     `${content.reason}${settings}`,
     `${sentBy} · ${siteHost(content.origin)}`,
+    ...(showsPoweredBy(currentBranding()) ? [`Powered by ${DEFAULT_PRODUCT_NAME}: ${poweredByUrl('email')}`] : []),
   ]
   return `${parts.join('\n\n')}\n`
 }

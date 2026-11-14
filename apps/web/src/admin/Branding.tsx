@@ -1,6 +1,7 @@
 // Branding: the product name, logo and primary color of the whole install, for people who run their own
-// server under their own name (packages/actions/src/branding.ts). Saved with branding.set; shown at once
-// here and in this tab (setBrand), in other tabs and for other people on their next page load.
+// server under their own name (packages/actions/src/branding.ts), and the "Powered by Linedesk" line such an
+// install shows (on by default; turning it off asks once, kindly, before it is hidden). Saved with branding.set;
+// shown at once here and in this tab (setBrand), in other tabs and for other people on their next page load.
 import {
   type Branding,
   type BrandingInput,
@@ -13,8 +14,8 @@ import {
 import { type FormEvent, useRef, useState } from 'react'
 import { setBrand, useBrand } from '../brand.ts'
 import { Switch } from '../ui/controls.tsx'
-import { Card, FormField, FormMessage, Input, onSaveKey, SaveBar } from '../ui/form.tsx'
-import { Button, LogoMark } from '../ui/kit.tsx'
+import { Card, Dialog, FormField, FormMessage, HelpTip, Input, onSaveKey, SaveBar } from '../ui/form.tsx'
+import { Button, Icon, LogoMark } from '../ui/kit.tsx'
 import { runAdmin } from './api.ts'
 
 const DEFAULT_COLOR = '#1c1917'
@@ -32,6 +33,7 @@ type Draft = {
   /** A new logo as a PNG data URL, null to remove it; undefined keeps the saved one. */
   logo: string | null | undefined
   starPrompt: boolean
+  poweredBy: boolean
 }
 
 const draftOf = (b: Branding): Draft => ({
@@ -39,10 +41,17 @@ const draftOf = (b: Branding): Draft => ({
   color: b.color ?? '',
   logo: undefined,
   starPrompt: b.starPrompt,
+  poweredBy: b.poweredBy,
 })
 
 const isDirty = (d: Draft, b: Branding) =>
-  d.name.trim() !== b.name || parsedColor(d.color) !== b.color || d.logo !== undefined || d.starPrompt !== b.starPrompt
+  d.name.trim() !== b.name ||
+  parsedColor(d.color) !== b.color ||
+  d.logo !== undefined ||
+  d.starPrompt !== b.starPrompt ||
+  d.poweredBy !== b.poweredBy
+
+const POWERED_BY = `Powered by ${DEFAULT_PRODUCT_NAME}`
 
 /**
  * Any image the browser can show, drawn centred on a transparent square of at most LOGO_SIZE pixels and
@@ -170,6 +179,99 @@ function ColorField({ text, onChange }: { text: string; onChange: (text: string)
   )
 }
 
+/** Asked before the "Powered by Linedesk" line is switched off: a kind request, and hiding it stays one click. */
+function KeepPoweredByDialog({ onKeep, onHide }: { onKeep: () => void; onHide: () => void }) {
+  return (
+    <Dialog
+      title={`Keep “${POWERED_BY}”?`}
+      size="sm"
+      onClose={onKeep}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onHide}>
+            Hide it
+          </Button>
+          <Button variant="primary" onClick={onKeep}>
+            Keep it
+          </Button>
+        </>
+      }
+    >
+      <p className="adm-brand-ask">
+        {DEFAULT_PRODUCT_NAME} is free and open source. A small “{POWERED_BY}” line helps other businesses find it. We'd
+        be very grateful if you keep it.
+      </p>
+    </Dialog>
+  )
+}
+
+/** A switch row whose explanation sits behind a (?) next to its label. */
+function SupportSwitch({
+  label,
+  help,
+  on,
+  onChange,
+}: {
+  label: string
+  help: string
+  on: boolean
+  onChange: (on: boolean) => void
+}) {
+  return (
+    <div className="swrow">
+      <span className="adm-brand-label">
+        <b>{label}</b>
+        <HelpTip text={help} />
+      </span>
+      <Switch on={on} onChange={onChange} label={label} />
+    </div>
+  )
+}
+
+/**
+ * Support Linedesk: the optional ways an install helps the project (the GitHub star prompt and the "Powered by"
+ * line), apart from the branding so they read as a favour, not as part of the look.
+ */
+export function SupportCard({
+  starPrompt,
+  poweredBy,
+  onStarPrompt,
+  onPoweredBy,
+}: {
+  starPrompt: boolean
+  poweredBy: boolean
+  onStarPrompt: (on: boolean) => void
+  onPoweredBy: (on: boolean) => void
+}) {
+  return (
+    <Card
+      id="brand-support"
+      title={
+        <>
+          <Icon name="heart" size={15} className="adm-brand-heart" />
+          Support {DEFAULT_PRODUCT_NAME}
+        </>
+      }
+      description={`Optional. Both help other businesses find ${DEFAULT_PRODUCT_NAME}.`}
+    >
+      <div className="st-swlist">
+        <SupportSwitch
+          label="Ask members for a GitHub star"
+          help={`Asks each member to star ${DEFAULT_PRODUCT_NAME} on GitHub, two minutes into each session until they answer, and shows Star on GitHub in the sidebar and at the end of onboarding.`}
+          on={starPrompt}
+          onChange={onStarPrompt}
+        />
+        <SupportSwitch
+          label={`Show “${POWERED_BY}”`}
+          help="A small line at the bottom of emails and the sign-in page. Shown only while this server uses its own name or logo."
+          on={poweredBy}
+          onChange={onPoweredBy}
+        />
+      </div>
+    </Card>
+  )
+}
+
 /** How the logo next to the name (as at the top of emails) and a primary button look with the draft. */
 function Preview({ draft, saved }: { draft: Draft; saved: Branding }) {
   const logo = draft.logo === undefined ? saved.logoUrl : draft.logo
@@ -194,6 +296,7 @@ export function BrandingSettings() {
   const [draft, setDraft] = useState<Draft>(() => draftOf(saved))
   const [saving, setSaving] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
+  const [askingToKeep, setAskingToKeep] = useState(false)
   const dirty = isDirty(draft, saved)
   const nameError = draft.name.trim() ? null : 'Give the product a name.'
   const invalid = Boolean(nameError) || parsedColor(draft.color) === undefined
@@ -208,6 +311,7 @@ export function BrandingSettings() {
       name: draft.name.trim(),
       color: parsedColor(draft.color) ?? null,
       starPrompt: draft.starPrompt,
+      poweredBy: draft.poweredBy,
     }
     if (draft.logo !== undefined) input.logo = draft.logo
     try {
@@ -227,40 +331,44 @@ export function BrandingSettings() {
   }
 
   return (
-    <form onSubmit={save} onKeyDown={e => onSaveKey(e, dirty && !invalid && !saving)}>
-      <Card
-        title="Name, logo and color"
-        help={`Run this server under your own name: everyone using it sees this name, logo and color instead of ${DEFAULT_PRODUCT_NAME}, in the app, on the sign-in page, on the installed app and in emails.`}
-      >
-        <Preview draft={draft} saved={saved} />
-        <FormField id="brand-name" label="Product name" error={nameError}>
-          <Input
-            id="brand-name"
-            value={draft.name}
-            maxLength={40}
-            placeholder={DEFAULT_PRODUCT_NAME}
-            invalid={Boolean(nameError)}
-            onChange={e => update({ name: e.target.value })}
-          />
-        </FormField>
-        <LogoField draft={draft} saved={saved} onChange={logo => update({ logo })} />
-        <ColorField text={draft.color} onChange={color => update({ color })} />
-        <div className="swrow">
-          <div>
-            <b>Ask members for a GitHub star</b>
-            <p className="help">
-              Asks each member to star {DEFAULT_PRODUCT_NAME} on GitHub, two minutes into each session until they answer, and shows Star on GitHub in the sidebar and at the end of onboarding.
-            </p>
-          </div>
-          <Switch
-            on={draft.starPrompt}
-            onChange={starPrompt => update({ starPrompt })}
-            label="Ask members for a GitHub star"
-          />
-        </div>
+    <>
+      <form className="adm-brand-form" onSubmit={save} onKeyDown={e => onSaveKey(e, dirty && !invalid && !saving)}>
+        <Card
+          title="Name, logo and color"
+          help={`Run this server under your own name: everyone using it sees this name, logo and color instead of ${DEFAULT_PRODUCT_NAME}, in the app, on the sign-in page, on the installed app and in emails.`}
+        >
+          <Preview draft={draft} saved={saved} />
+          <FormField id="brand-name" label="Product name" error={nameError}>
+            <Input
+              id="brand-name"
+              value={draft.name}
+              maxLength={40}
+              placeholder={DEFAULT_PRODUCT_NAME}
+              invalid={Boolean(nameError)}
+              onChange={e => update({ name: e.target.value })}
+            />
+          </FormField>
+          <LogoField draft={draft} saved={saved} onChange={logo => update({ logo })} />
+          <ColorField text={draft.color} onChange={color => update({ color })} />
+        </Card>
+        <SupportCard
+          starPrompt={draft.starPrompt}
+          poweredBy={draft.poweredBy}
+          onStarPrompt={starPrompt => update({ starPrompt })}
+          onPoweredBy={on => (on ? update({ poweredBy: true }) : setAskingToKeep(true))}
+        />
         {problem && <FormMessage>{problem}</FormMessage>}
-      </Card>
-      <SaveBar dirty={dirty} saving={saving} onCancel={cancel} disabled={invalid} />
-    </form>
+        <SaveBar dirty={dirty} saving={saving} onCancel={cancel} disabled={invalid} />
+      </form>
+      {askingToKeep && (
+        <KeepPoweredByDialog
+          onKeep={() => setAskingToKeep(false)}
+          onHide={() => {
+            setAskingToKeep(false)
+            update({ poweredBy: false })
+          }}
+        />
+      )}
+    </>
   )
 }

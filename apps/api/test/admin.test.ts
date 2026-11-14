@@ -3221,6 +3221,7 @@ describe('branding', () => {
       logoUrl: null,
       starPrompt: true,
       starCount: null,
+      poweredBy: true,
     })
     expect((await request(anonymous, 'GET', '/v1/branding/manifest.webmanifest')).body).toMatchObject({
       name: 'Linedesk',
@@ -3254,6 +3255,25 @@ describe('branding', () => {
     })
     expect((await act(operator, 'branding.set', { ...input, logo: null })).body.data.logoUrl).toBeNull()
     expect((await request(anonymous, 'GET', '/v1/branding/logo.png')).status).toBe(404)
+  })
+
+  test('Powered by Linedesk: on by default for an own name, hidden only by the switch; left out keeps it', async () => {
+    const powered = (origin = 'https://desk.example') => signInCodeEmail('123456', origin).html.includes('Powered by')
+    expect(powered()).toBe(false) // the default branding already says Linedesk
+    expect((await act(operator, 'branding.set', { ...input, logo: undefined })).body.data.poweredBy).toBe(true)
+    expect(powered()).toBe(true)
+    const off = await act(operator, 'branding.set', { ...input, logo: undefined, poweredBy: false })
+    expect(off.body.data.poweredBy).toBe(false)
+    expect((await request(anonymous, 'GET', '/v1/branding')).body.poweredBy).toBe(false)
+    expect(powered()).toBe(false)
+    const { entries } = (await request(operator, 'GET', '/v1/admin/audit?kind=admin&limit=5')).body
+    expect(entries[0]).toMatchObject({ what: 'branding.set', input: { name: 'Front Desk Pro', poweredBy: false } })
+    // An older page that does not send the switch leaves it as it is.
+    expect((await act(operator, 'branding.set', { ...input, logo: undefined, name: 'Desk' })).body.data.poweredBy).toBe(
+      false,
+    )
+    await act(operator, 'branding.set', { ...input, logo: undefined, poweredBy: true })
+    expect(powered()).toBe(true)
   })
 
   test('the command log notes that a logo was sent, not the image', async () => {

@@ -1,7 +1,8 @@
 // Branding of the whole install (Admin, Branding): the product name, logo and primary color people see in
 // the app, on the sign-in page, in the browser tab, on the installed app and in emails, and whether the
-// GitHub star prompt shows. An install that keeps the defaults looks like Linedesk. Read by anyone
-// (GET /v1/branding, before sign-in), changed only by instance admins.
+// GitHub star prompt shows. An install that keeps the defaults looks like Linedesk; one with its own name or
+// logo shows a small "Powered by Linedesk" line in emails and on the sign-in page unless an admin hides it.
+// Read by anyone (GET /v1/branding, before sign-in), changed only by instance admins.
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 
@@ -29,6 +30,8 @@ export const brandingInput = z.object({
     .optional(),
   /** The "Star on GitHub" prompt for members (on by default; apps/api/src/star-prompt.ts). */
   starPrompt: z.boolean(),
+  /** The "Powered by Linedesk" line under emails and the sign-in page (showsPoweredBy). Left out keeps the current setting. */
+  poweredBy: z.boolean().optional(),
 })
 export type BrandingInput = z.infer<typeof brandingInput>
 
@@ -43,6 +46,8 @@ export type Branding = {
   logoUrl: string | null
   starPrompt: boolean
   starCount: number | null
+  /** The admin's switch; whether the line shows at all is showsPoweredBy(). */
+  poweredBy: boolean
 }
 
 export const DEFAULT_BRANDING: Branding = {
@@ -51,7 +56,19 @@ export const DEFAULT_BRANDING: Branding = {
   logoUrl: null,
   starPrompt: true,
   starCount: null,
+  poweredBy: true,
 }
+
+/** Where the "Powered by Linedesk" line links: the site, tagged with where it was seen (no install or person in it). */
+export const poweredByUrl = (medium: 'email' | 'sign-in') =>
+  `https://linedesk.ai/?utm_source=powered-by&utm_medium=${medium}`
+
+/**
+ * Whether emails and the sign-in page show "Powered by Linedesk": only with the install's own name or logo (the
+ * default branding already shows Linedesk) and while the admin keeps the switch on.
+ */
+export const showsPoweredBy = (b: Pick<Branding, 'name' | 'logoUrl' | 'poweredBy'>) =>
+  b.poweredBy && (b.name !== DEFAULT_PRODUCT_NAME || b.logoUrl !== null)
 
 /** Near-white text on a dark color, near-black on a light one (WCAG relative luminance), for a #rrggbb color. */
 export function readableOn(hex: string): string {
@@ -66,7 +83,7 @@ export function readableOn(hex: string): string {
 export const brandingSet = defineAction({
   name: 'branding.set',
   description:
-    'Set the branding of the whole install: product name, logo (a PNG data URL, null removes it, left out keeps it), primary color and whether the GitHub star prompt shows.',
+    'Set the branding of the whole install: product name, logo (a PNG data URL, null removes it, left out keeps it), primary color, whether the GitHub star prompt shows and whether emails and the sign-in page say "Powered by Linedesk" (poweredBy, left out keeps it).',
   input: brandingInput,
   permission: 'instance:admin',
   // Not a secret, but up to half a megabyte: the command log notes that a logo was sent, not the image.
