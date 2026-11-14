@@ -1862,6 +1862,7 @@ describe('impersonation', () => {
       'call.remind',
       'carrier.get',
       'carrier.transferTrunk',
+      'holidays.lookup',
       'impersonation.stop',
       'insights.get',
       'invitation.listMine',
