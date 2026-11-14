@@ -140,6 +140,14 @@ services:
   livekit:
     <<: *service
     image: livekit/livekit-server:v1.13.11@sha256:25cd902de7cacbd5f1f779f6a6ac1eae20ba8f56b0935934ce6b0ab80d1e3d20
+    # Starts only once Valkey answers. After a reboot Valkey is still loading its data; LiveKit used to exit on that,
+    # and Docker then restarted it just as it brought back livekit-sip and livekit-egress, which share this network.
+    # Joining a network that is restarting fails, Docker gives up, and no call came in until SIP was started by hand.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - until printf 'PING\r\n' | nc -w 1 redis 6379 2>/dev/null | grep -q PONG; do sleep 1; done; exec /livekit-server "$$@"
+      - livekit-server
     # The address clients are told to send media to. 127.0.0.1 for local development;
     # the server's public IP when carriers and browsers connect from outside.
     command: ["--node-ip", "${LIVEKIT_NODE_IP:-127.0.0.1}"]
