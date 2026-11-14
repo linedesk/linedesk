@@ -76,6 +76,16 @@ type Options = Pick<PlaceInput, 'match' | 'minWidth' | 'align' | 'gap'>
 
 const supportsPopover = () => typeof HTMLElement !== 'undefined' && 'showPopover' in HTMLElement.prototype
 
+/** Shows an element with `popover="manual"` in the top layer, above every dialog (older browsers: as it is). */
+export function showInTopLayer(el: HTMLElement) {
+  if (supportsPopover() && el.hasAttribute('popover') && !el.matches(':popover-open')) el.showPopover()
+}
+
+/** Takes it out of the top layer again, while it is still on the page. */
+export function hideFromTopLayer(el: HTMLElement) {
+  if (supportsPopover() && el.isConnected && el.matches(':popover-open')) el.hidePopover()
+}
+
 /** The CSS max-height of the list (px), read before the hook sets its own; none: no limit. */
 function cssMaxHeight(el: HTMLElement): number {
   const v = Number.parseFloat(getComputedStyle(el).maxHeight)
@@ -100,7 +110,7 @@ export function useAnchoredList(
   useLayoutEffect(() => {
     const el = list.current
     if (!open || !el) return
-    if (supportsPopover() && el.hasAttribute('popover') && !el.matches(':popover-open')) el.showPopover()
+    showInTopLayer(el)
     const limit = cssMaxHeight(el)
     Object.assign(el.style, { position: 'fixed', margin: '0', right: 'auto', zIndex: '80' })
 
@@ -151,7 +161,7 @@ export function useAnchoredList(
       window.removeEventListener('resize', later)
       sizes?.disconnect()
       place.current = () => {}
-      if (supportsPopover() && el.isConnected && el.matches(':popover-open')) el.hidePopover()
+      hideFromTopLayer(el)
     }
   }, [open, anchor, list])
 

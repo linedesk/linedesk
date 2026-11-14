@@ -8,6 +8,7 @@ import { readLastUsedMethod, rememberSignInMethod } from './sign-in-methods.ts'
 import { useQuery } from './cachedQuery.ts'
 import { LastUsed, ProviderButton } from './ui/brand-logos.tsx'
 import { AuthError } from './ui/AuthError.tsx'
+import { HelpTip, type HelpTipContent } from './ui/HelpTip.tsx'
 import { AuthPage, cx, Spinner } from './ui/kit.tsx'
 import { brandName } from './brand.ts'
 import { readDeleted } from './session.ts'
@@ -460,6 +461,16 @@ function ResetStep({ initialEmail, onDone, onBack }: ResetStepProps) {
   )
 }
 
+/** Where the setup code is: the API prints it at start, setup-code.ts prints it again (apps/api/src/setup.ts; docs/hosting.md). */
+const SETUP_CODE_HELP: HelpTipContent = {
+  text: `${brandName()} prints a one-time setup code when it starts without an admin.`,
+  commands: [
+    { label: "In the server's log", code: 'docker compose logs api | grep -A2 "no admin yet"' },
+    { label: 'Or print it again', code: 'docker compose exec api node apps/api/src/setup-code.ts' },
+    { label: 'Local development (also in the terminal running pnpm dev)', code: 'pnpm --filter @linedesk/api setup:code' },
+  ],
+}
+
 /** A fresh install: the setup code from the server log makes the first admin (apps/api/src/setup.ts). */
 function SetupStep({ onDone }: { onDone: () => Promise<void> }) {
   const [form, setForm] = useState({ code: '', name: '', email: '', password: '' })
@@ -487,13 +498,13 @@ function SetupStep({ onDone }: { onDone: () => Promise<void> }) {
     <AuthPage>
       <form className="auth-card" onSubmit={submit} noValidate>
         <h1>Set up {brandName()}</h1>
-        <p>
-          Create the first admin account. The setup code is in the API’s log (<code>docker compose logs api</code>, or
-          the terminal running <code>pnpm dev</code>).
-        </p>
+        <p>Create the first admin account.</p>
         <div className="auth-form">
-          <input aria-label="Setup code" placeholder="Setup code" value={form.code} onChange={set('code')} autoComplete="one-time-code"
-            autoCapitalize="characters" spellCheck={false} autoFocus />
+          <span className="k-has-help">
+            <input aria-label="Setup code" placeholder="Setup code" value={form.code} onChange={set('code')} autoComplete="one-time-code"
+              autoCapitalize="characters" spellCheck={false} autoFocus />
+            <HelpTip inField label="Where is the setup code?" {...SETUP_CODE_HELP} />
+          </span>
           <input aria-label="Your name" placeholder="Your name" value={form.name} onChange={set('name')} autoComplete="name" />
           <input type="email" aria-label="Email" placeholder="Email address" value={form.email} onChange={set('email')} autoComplete="email" />
           <input type="password" aria-label="Password" placeholder="Password (at least 12 characters)" value={form.password}

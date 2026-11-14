@@ -3,7 +3,6 @@
 // needed, the validation message under it), a SaveBar that shows only while the form has changes,
 // and a Dialog for forms that open from a list. Styles in form.css (k-card, k-field, k-dialog, …).
 
-import { arrow, autoUpdate, flip, offset, shift, useFloating } from '@floating-ui/react-dom'
 import {
   Children,
   type ComponentProps,
@@ -17,8 +16,11 @@ import {
 } from 'react'
 import { dayFieldLabel } from '../time.ts'
 import { Backdrop } from './Backdrop.tsx'
+import { type HelpContent, HelpTip, helpContent } from './HelpTip.tsx'
 import { Button, cx, Icon } from './kit.tsx'
 import './form.css'
+
+export { type HelpContent, HelpTip } from './HelpTip.tsx'
 
 type CardProps = {
   id?: string
@@ -26,8 +28,8 @@ type CardProps = {
   title?: ReactNode
   /** One short line. Anything longer goes in `help`. */
   description?: ReactNode
-  /** Secondary detail, behind a (?) next to the title. */
-  help?: string
+  /** Secondary detail, behind a (?) next to the title (HelpTip). */
+  help?: HelpContent
   /** Controls at the right of the title, e.g. a switch or an Add button. */
   actions?: ReactNode
   className?: string
@@ -45,7 +47,7 @@ export function Card({ id, title, description, help, actions, className, childre
             {title && (
               <h2 id={headingId}>
                 {title}
-                {help && <HelpTip text={help} />}
+                {help && <HelpTip {...helpContent(help)} />}
               </h2>
             )}
             {description && <p>{description}</p>}
@@ -64,8 +66,8 @@ type FieldProps = {
   label: ReactNode
   /** Muted line under the label, only when the label alone is not enough. */
   description?: ReactNode
-  /** Detail behind a (?) next to the label. */
-  help?: string
+  /** Detail behind a (?) next to the label (HelpTip). */
+  help?: HelpContent
   /** The validation message, shown under the control. */
   error?: string | null
   /** Shown next to the label, e.g. "Optional". */
@@ -82,7 +84,7 @@ export function FormField({ id, label, description, help, error, aside, labelAft
       <div className="k-field-label">
         <label htmlFor={id}>{label}</label>
         {labelAfter}
-        {help && <HelpTip text={help} />}
+        {help && <HelpTip {...helpContent(help)} />}
         {aside && <span className="k-field-aside">{aside}</span>}
       </div>
       {description && <p className="k-field-desc">{description}</p>}
@@ -272,62 +274,6 @@ export function SecretInput({ id, value, onChange, storedLast4, placeholder, aut
         </button>
       }
     />
-  )
-}
-
-/**
- * A (?) that explains, for detail that does not need to be on the page. Hover or focus shows it,
- * anchored to the (?) with an arrow (Floating UI, as the tour): above it when there is room, else
- * below, and shifted to stay inside the window.
- */
-export function HelpTip({ text }: { text: string }) {
-  const [open, setOpen] = useState(false)
-  const id = useId()
-  const arrowRef = useRef<HTMLSpanElement>(null)
-  const { refs, floatingStyles, placement, middlewareData } = useFloating({
-    open,
-    strategy: 'fixed',
-    placement: 'top',
-    whileElementsMounted: autoUpdate,
-    middleware: [offset(8), flip({ padding: 8 }), shift({ padding: 8 }), arrow({ element: arrowRef, padding: 8 })],
-  })
-  const below = placement.startsWith('bottom')
-  const tip = middlewareData.arrow
-  return (
-    <span className="k-help">
-      <button
-        ref={refs.setReference}
-        type="button"
-        className="k-help-btn"
-        aria-label="More information"
-        aria-describedby={open ? id : undefined}
-        aria-expanded={open}
-        // Hover has opened it already: a click keeps it open (Esc or leaving closes it).
-        onClick={() => setOpen(true)}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
-        onKeyDown={e => {
-          if (e.key === 'Escape' && open) {
-            e.stopPropagation()
-            setOpen(false)
-          }
-        }}
-      >
-        ?
-      </button>
-      {open && (
-        <span ref={refs.setFloating} role="tooltip" id={id} className="k-help-pop" style={floatingStyles}>
-          {text}
-          <span
-            ref={arrowRef}
-            className={cx('k-help-arrow', below && 'is-below')}
-            style={{ left: tip?.x != null ? `${tip.x}px` : undefined }}
-          />
-        </span>
-      )}
-    </span>
   )
 }
 

@@ -39,7 +39,8 @@ import { forgetEnrolmentCode, readEnrolmentCode } from '../enrolment-code.ts'
 import { passkeySupported } from '../auth.ts'
 import { addPasskey, confirmWithPasskey } from '../settings/account/account-api.ts'
 import { describeDevice } from '../settings/account/account-model.ts'
-import { TextInput } from '../settings/fields.tsx'
+import { Input } from '../ui/form.tsx'
+import { HelpTip, type HelpTipContent } from '../ui/HelpTip.tsx'
 import { BrandMark, Button, Note, Spinner } from '../ui/kit.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { showPasskeyFirst } from './passkey-first.ts'
@@ -396,11 +397,12 @@ function PasskeyFirst({
           </li>
         </ul>
         {askCode && !added && (
-          <TextInput
-            label="Enrolment code"
-            placeholder="Enrolment code (user:passkeys --enrol on the server)"
+          <Input
+            aria-label="Enrolment code"
+            placeholder="Enrolment code"
             value={code}
-            onChange={setCode}
+            onChange={e => setCode(e.target.value)}
+            end={<HelpTip inField label="Where is the enrolment code?" {...ENROLMENT_CODE_HELP} />}
           />
         )}
         {!supported && (
@@ -436,6 +438,13 @@ function PasskeyFirst({
       </div>
     </>
   )
+}
+
+/** A new enrolment code, made on the server (apps/api/src/user-passkeys.ts). */
+const ENROLMENT_CODE_HELP: HelpTipContent = {
+  text: 'A one-time code that lets you add your first passkey. Make one on the server:',
+  commands: [{ code: 'docker compose exec api node apps/api/src/user-passkeys.ts --enrol --email <your email>' }],
+  after: 'Or ask another instance admin for one.',
 }
 
 type PartProps = {

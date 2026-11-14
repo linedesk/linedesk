@@ -179,7 +179,7 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
             <Field
               id="ob-mobile"
               label="Your mobile number"
-              help="Where urgent calls, and callers who ask for a person, are put through."
+              tip="Where urgent calls, and callers who ask for a person, are put through."
               error={mobileError}
             >
               <Input

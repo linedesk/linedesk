@@ -204,26 +204,48 @@
   letter-spacing: 0.02em;
 }
 
-/* (?) help */
+/* (?) help. One size and one place on every line it follows: the wrapper is exactly one line of its parent tall
+   (1lh) and sits at the line's top, and the circle is centred in it, so its centre is the line's centre whatever
+   the font size (a heading, a label, a muted line, a list row's second line). The circle scales with the text
+   (1.1em, at least 14px); the glyph inside is a fixed share of it. */
 .k-help {
   position: relative;
   display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 1lh;
+  vertical-align: top;
+  margin-inline-start: 0.35em;
+}
+/* Rows that space their items with a gap: no extra space of its own. */
+:is(.k-field-label, .k-card-title h2, .as-step-title, .adm-provcat h2) > .k-help,
+.k-help.is-in-field {
+  margin-inline-start: 0;
 }
 .k-help-btn {
+  box-sizing: border-box;
   display: inline-grid;
   place-items: center;
-  width: 16px;
-  height: 16px;
+  width: max(14px, 1.1em);
+  height: max(14px, 1.1em);
   padding: 0;
   border: 1px solid var(--line-control);
   border-radius: var(--radius-full);
   background: transparent;
   color: var(--ink-muted);
   font: inherit;
-  font-size: 10.5px;
   font-weight: 600;
   line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.k-help-q {
+  font-size: max(9.5px, 0.75em);
+  line-height: 1;
 }
 /* Touch screens: a finger-sized target around the small mark. */
 @media (pointer: coarse) {
@@ -250,22 +272,101 @@
     0 0 0 2px var(--surface),
     0 0 0 3px var(--ink-muted);
 }
-/* Placed by Floating UI (form.tsx HelpTip): fixed, so no card or scroll area cuts it off. */
+/* Placed by Floating UI (HelpTip.tsx) in the top layer (popover), so no dialog, card or scroll area cuts it off.
+   The browser's own popover look (centred, bordered) is reset. */
 .k-help-pop {
+  position: fixed;
+  inset: auto;
   z-index: 60;
+  box-sizing: border-box;
+  display: grid;
+  gap: 6px;
   width: max-content;
-  max-width: 280px;
-  padding: 6px 8px;
-  border-radius: var(--radius-xs);
+  max-width: min(300px, calc(100vw - 16px));
+  margin: 0;
+  padding: 7px 9px;
+  overflow: visible;
+  border: 0;
+  border-radius: var(--radius-sm);
   background: var(--ink);
   color: var(--bg);
+  font-family: var(--font-sans, inherit);
   font-size: 12px;
   line-height: 16px;
   font-weight: 400;
+  letter-spacing: normal;
   text-align: left;
+  text-transform: none;
   box-shadow: var(--shadow-2);
   white-space: normal;
-  pointer-events: none;
+}
+/* With commands or a link: wide enough for a command line, and room around it. */
+.k-help-pop.is-rich {
+  width: 300px;
+  padding: 10px 12px;
+  gap: 8px;
+}
+.k-help-title {
+  display: block;
+  font-weight: 600;
+}
+.k-help-text {
+  display: block;
+}
+.k-help-pop code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.k-help-cmd {
+  display: grid;
+  gap: 3px;
+}
+.k-help-cmd-label {
+  opacity: 0.75;
+}
+.k-help-cmd-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 8px;
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--bg) 14%, transparent);
+}
+.k-help-cmd-line code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.k-help-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  height: 22px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.k-help-copy:hover {
+  background: color-mix(in srgb, var(--bg) 18%, transparent);
+}
+.k-help-copy:focus-visible,
+.k-help-more:focus-visible {
+  outline: 2px solid var(--bg);
+  outline-offset: 1px;
+}
+.k-help-more {
+  justify-self: start;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .k-help-arrow {
   position: absolute;
@@ -278,6 +379,23 @@
 .k-help-arrow.is-below {
   top: -4px;
   bottom: auto;
+}
+/* Inside a field, at its right end: the field's wrapper is .k-has-help (a plain input), or the kit Input's `end`. */
+.k-has-help {
+  position: relative;
+  display: block;
+}
+.k-has-help > input {
+  padding-right: 36px;
+}
+.k-help.is-in-field {
+  flex: none;
+}
+.k-has-help > .k-help.is-in-field {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
 }
 
 .k-sep {

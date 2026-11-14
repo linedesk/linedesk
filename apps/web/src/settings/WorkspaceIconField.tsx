@@ -67,11 +67,8 @@ export function WorkspaceIconField({ canEdit, name, readOnlyNote, toast }: Props
     <Field
       id="ws-icon"
       label="Workspace icon"
-      help={
-        canEdit
-          ? 'On the workspace button, in the workspace menu and as the browser tab icon. A square image works best.'
-          : readOnlyNote
-      }
+      help={canEdit ? 'A square image works best.' : readOnlyNote}
+      tip="Shown on the workspace button, in the workspace menu and as the browser tab icon."
       error={problem}
     >
       <div className="st-ws-icon">

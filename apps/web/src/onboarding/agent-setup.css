@@ -96,6 +96,12 @@
   font-weight: 600;
   line-height: 20px;
 }
+/* A step title with its (?) help (HelpTip). */
+.as-step-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .as-steps > li.as-later {
   color: var(--ink-muted);
 }

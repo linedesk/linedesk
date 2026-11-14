@@ -1,7 +1,8 @@
 // Settings pages build on the kit's form pieces (ui/form.tsx); these keep the short names they use.
 import { type ReactNode, useCallback, useState } from 'react'
 import { Select, type SelectOption, Switch } from '../ui/controls.tsx'
-import { Card, FormField, HelpTip, Input, Textarea } from '../ui/form.tsx'
+import { Card, FormField, Input, Textarea } from '../ui/form.tsx'
+import { type HelpContent, HelpTip, helpContent } from '../ui/HelpTip.tsx'
 import { Skeleton, SkeletonFields } from '../ui/LoadStates.tsx'
 
 type SectionProps = {
@@ -11,7 +12,7 @@ type SectionProps = {
   /** One short line. */
   description?: string
   /** Secondary detail, behind a (?) next to the title. */
-  help?: string
+  help?: HelpContent
   actions?: ReactNode
   children: ReactNode
 }
@@ -33,7 +34,7 @@ type FieldProps = {
   /** Next to the label, e.g. "Optional". */
   aside?: ReactNode
   /** Detail behind a (?) next to the label. */
-  tip?: string
+  tip?: HelpContent
   /** Right after the label, outside it (e.g. the edit-business-hours icon). */
   labelAfter?: ReactNode
   children: ReactNode
@@ -172,7 +173,7 @@ type SelectRowProps<T extends string> = {
   title: string
   description?: string
   /** More about the setting: a "?" next to the title. */
-  help?: string
+  help?: HelpContent
   /** A quiet line under the description (e.g. what callers hear). */
   note?: ReactNode
   value: T
@@ -196,7 +197,7 @@ export function SelectRow<T extends string>({
       <div className="selrow-text">
         <b>
           {title}
-          {help && <HelpTip text={help} />}
+          {help && <HelpTip {...helpContent(help)} />}
         </b>
         {description && <span className="help">{description}</span>}
         {note && <span className="help selrow-note">{note}</span>}

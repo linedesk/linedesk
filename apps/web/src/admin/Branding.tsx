@@ -14,7 +14,8 @@ import {
 import { type FormEvent, useRef, useState } from 'react'
 import { setBrand, useBrand } from '../brand.ts'
 import { Switch } from '../ui/controls.tsx'
-import { Card, Dialog, FormField, FormMessage, HelpTip, Input, onSaveKey, SaveBar } from '../ui/form.tsx'
+import { Card, Dialog, FormField, FormMessage, Input, onSaveKey, SaveBar } from '../ui/form.tsx'
+import { HelpTip } from '../ui/HelpTip.tsx'
 import { Button, Icon, LogoMark } from '../ui/kit.tsx'
 import { runAdmin } from './api.ts'
 

@@ -23,6 +23,7 @@ import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { SETUP_LINK_KEY } from '../localData.ts'
 import { untilLabel } from '../time.ts'
+import { HelpTip } from '../ui/HelpTip.tsx'
 import { BrandMark, Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
 import { CopyButton } from './Frame.tsx'
 import { rememberManual } from './setup-choice.ts'
@@ -280,7 +281,13 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
 
           <ol className="as-steps">
             <li className={cx(hasLink && 'as-done')}>
-              <b>Create a setup link</b>
+              <b className="as-step-title">
+                Create a setup link
+                <HelpTip
+                  label="About the setup link"
+                  text="It lets your agent set up this server for you, using setup tools only. For security, the link stops working after 24 hours. You can end it here at any time."
+                />
+              </b>
               {hasLink ? (
                 <>
                   <div className="as-link">
@@ -310,10 +317,6 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
                 </>
               ) : (
                 <div className="as-step">
-                  <span>
-                    A setup link lets your agent set up this server for you, using setup tools only. For security, the
-                    link stops working after 24 hours. You can end it here at any time.
-                  </span>
                   <div>
                     <Button variant="primary" busy={busy === 'create'} onClick={() => void createKey()}>
                       Create a setup link

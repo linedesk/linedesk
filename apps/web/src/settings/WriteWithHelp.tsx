@@ -153,7 +153,7 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
           <Field
             id="ww-url"
             label="Website"
-            help={`${brandName()} reads a few of its pages for what you do, your services and prices, and what callers ask.`}
+            tip={`${brandName()} reads a few of its pages for what you do, your services and prices, and what callers ask.`}
           >
             <Input
               id="ww-url"

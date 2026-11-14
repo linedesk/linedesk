@@ -267,7 +267,7 @@ function ManageNumber({ number, assistants, canEdit, release = false, onClose }:
       ) : (
         <>
           {assistants.length > 1 && (
-            <Field id="pn-who" label="Assistant" help="Which assistant answers this number">
+            <Field id="pn-who" label="Assistant" tip="Which assistant answers this number.">
               <div>
                 <Select
                   id="pn-who"

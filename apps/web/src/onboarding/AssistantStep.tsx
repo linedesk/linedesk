@@ -91,7 +91,7 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
         <Field
           id="ob-greeting"
           label="Greeting"
-          help="The first thing callers hear. Short works best."
+          tip="The first thing callers hear. Short works best."
           error={greetingProblem}
         >
           <TextArea

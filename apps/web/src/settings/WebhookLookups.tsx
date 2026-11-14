@@ -193,7 +193,7 @@ function LookupDialog({
       </Field>
       <Field
         label="Fields"
-        help="What the assistant asks the caller for and sends. Required ones it gets before it looks up."
+        tip="What the assistant asks the caller for and sends. Required ones it gets before it looks up."
       >
         <div className="wh-fields">
           {draft.fields.map((field, index) => (

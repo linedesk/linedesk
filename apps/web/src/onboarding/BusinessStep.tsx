@@ -228,7 +228,7 @@ function FindBusiness({
             <TextInput id="ob-biz-name" value={name} onChange={setName} placeholder="Your business name" />
           </Field>
           {site === 'field' && (
-            <Field id="ob-biz-site" label="Website" help="Optional. We read a few pages to fill in your services.">
+            <Field id="ob-biz-site" label="Website" aside="Optional" tip="We read a few pages to fill in your services.">
               <TextInput id="ob-biz-site" value={website} onChange={setWebsite} placeholder="yourbusiness.com" />
             </Field>
           )}
@@ -431,7 +431,7 @@ function ReviewProfile({
             invalid={!!problems.name}
           />
         </Field>
-        <Field id="ob-biz-kind" label="Kind of business" help="Picks the common calls below.">
+        <Field id="ob-biz-kind" label="Kind of business" tip="Picks the common calls below.">
           <Select<BusinessTemplateId | typeof NO_TEMPLATE>
             id="ob-biz-kind"
             label="Kind of business"

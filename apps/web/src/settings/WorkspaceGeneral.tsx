@@ -63,7 +63,8 @@ function BusinessName({ canEdit, name, onRenamed, toast }: Props) {
     <Field
       id="ws-name"
       label="Business name"
-      help={canEdit ? 'In the menu, the workspace switcher and emails.' : READ_ONLY}
+      help={canEdit ? undefined : READ_ONLY}
+      tip="Shown in the menu, the workspace switcher and emails."
       error={problem}
     >
       <Input
@@ -93,11 +94,8 @@ function TimeZone({ canEdit }: { canEdit: boolean }) {
     <Field
       id="ws-time-zone"
       label="Time zone"
-      help={
-        canEdit
-          ? "Where the business is. The assistant is told today's date and the time here; business hours and bookings use it too."
-          : READ_ONLY
-      }
+      help={canEdit ? undefined : READ_ONLY}
+      tip="Where the business is. The assistant is told today's date and the time here; business hours and bookings use it too."
     >
       <Loading
         what="The time zone"
@@ -120,11 +118,8 @@ function Value({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => 
     <Field
       id="ws-appointment-value"
       label="Appointment value"
-      help={
-        canEdit
-          ? 'What one booked appointment is worth to you on average. Insights shows what the booked appointments are worth.'
-          : READ_ONLY
-      }
+      help={canEdit ? undefined : READ_ONLY}
+      tip="What one booked appointment is worth to you on average. Insights shows what the booked appointments are worth."
     >
       <Loading
         what="The appointment value"
