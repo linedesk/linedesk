@@ -385,10 +385,7 @@ describe('provider keys', () => {
       business: { provider: null, chosen: false },
     })
 
-    // Only OpenAI is set up: it is used although OpenRouter comes first in the registry.
-    await act(operator, 'provider.setKeys', { provider: 'openai', values: { api_key: SECRET } })
-    expect((await active()).llm).toEqual({ provider: 'openai', chosen: false })
-    // Both set up: the first one, OpenRouter, with its model.
+    // Only OpenRouter is set up: it is used although OpenAI, the default, comes first in the registry.
     await act(operator, 'provider.setKeys', {
       provider: 'openrouter',
       values: { api_key: 'or-made-up-0123456789', model: 'vendor/model-1' },
@@ -400,9 +397,24 @@ describe('provider keys', () => {
       model: 'vendor/model-1',
       summary_model: null,
     })
+    // Both set up: the first one, OpenAI.
+    await act(operator, 'provider.setKeys', { provider: 'openai', values: { api_key: SECRET } })
+    expect((await active()).llm).toEqual({ provider: 'openai', chosen: false })
 
-    const picked = await act(operator, 'provider.setActive', { category: 'llm', provider: 'openai' })
-    expect(picked.body.data.active.llm).toEqual({ provider: 'openai', chosen: true })
+    const picked = await act(operator, 'provider.setActive', { category: 'llm', provider: 'openrouter' })
+    expect(picked.body.data.active.llm).toEqual({ provider: 'openrouter', chosen: true })
+    expect((await config()).llm).toMatchObject({ provider: 'openrouter', api_key: 'or-made-up-0123456789' })
+
+    // OpenAI picked without a key of its own: it uses the OpenAI key stored for the realtime model.
+    const realtimeKey = 'sk-realtime-made-up-0123456789'
+    await act(operator, 'provider.clearKeys', { provider: 'openai' })
+    await act(operator, 'provider.setKeys', { provider: 'openai_realtime', values: { api_key: realtimeKey } })
+    await act(operator, 'provider.setActive', { category: 'llm', provider: 'openai' })
+    expect((await config()).llm).toEqual({ provider: 'openai', api_key: realtimeKey, model: null, summary_model: null })
+    // Disconnecting the realtime model ends that use too; OpenAI gets its own key back for the rest of this test.
+    await act(operator, 'provider.clearKeys', { provider: 'openai_realtime' })
+    expect((await config()).llm).toBeNull()
+    await act(operator, 'provider.setKeys', { provider: 'openai', values: { api_key: SECRET } })
     expect((await config()).llm).toEqual({ provider: 'openai', api_key: SECRET, model: null, summary_model: null })
 
     // A picked provider that is not set up gives the agent nothing, instead of silently using another one.
@@ -638,14 +650,14 @@ describe('provider keys', () => {
   test('without a pick, STT_PROVIDER, LLM_PROVIDER and TTS_PROVIDER name the provider, as for the agent', async () => {
     await act(operator, 'provider.setKeys', { provider: 'openrouter', values: { api_key: 'or-made-up-0123456789' } })
     await act(operator, 'provider.setKeys', { provider: 'openai', values: { api_key: SECRET } })
-    expect((await providers()).active.llm).toEqual({ provider: 'openrouter', chosen: false })
-    process.env.LLM_PROVIDER = 'openai'
-    process.env.LLM_MODEL = 'gpt-made-up'
     expect((await providers()).active.llm).toEqual({ provider: 'openai', chosen: false })
+    process.env.LLM_PROVIDER = 'openrouter'
+    process.env.LLM_MODEL = 'vendor/made-up'
+    expect((await providers()).active.llm).toEqual({ provider: 'openrouter', chosen: false })
     expect((await request(agent(), 'GET', AGENT_ROUTE)).body.llm).toEqual({
-      provider: 'openai',
-      api_key: SECRET,
-      model: 'gpt-made-up',
+      provider: 'openrouter',
+      api_key: 'or-made-up-0123456789',
+      model: 'vendor/made-up',
       summary_model: null,
     })
     // A named provider without keys gives the agent nothing rather than another provider.
@@ -667,8 +679,8 @@ describe('provider keys', () => {
       'deepgram',
       'elevenlabs_stt',
       'openai_stt',
-      'openrouter',
       'openai',
+      'openrouter',
       'anthropic',
       'gemini',
       'groq',

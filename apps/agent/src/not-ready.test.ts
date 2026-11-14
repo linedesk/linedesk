@@ -3,7 +3,7 @@ import type { CallSession } from './call-session.ts'
 import { configFromEnv } from './config.ts'
 import { checkReadiness, declineCall, describeReadiness, missedResult } from './not-ready.ts'
 
-const keys = { DEEPGRAM_API_KEY: 'dg', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' }
+const keys = { DEEPGRAM_API_KEY: 'dg', LLM_PROVIDER: 'openrouter', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' }
 const fakeCall = (over: Partial<CallSession> = {}) =>
   ({
     callId: 'call_1',
@@ -19,7 +19,7 @@ test('without keys the agent is not ready, and says in one line what is missing'
     ready: false,
     stages: ['speech recognition', 'language model', 'voice'],
     reason: expect.stringMatching(
-      /^Not set up: speech recognition: no API key for deepgram .*DEEPGRAM_API_KEY.*OPENROUTER_API_KEY.*ELEVENLABS_API_KEY in \.env\)\.$/,
+      /^Not set up: speech recognition: no API key for deepgram .*DEEPGRAM_API_KEY.*OPENAI_API_KEY.*ELEVENLABS_API_KEY in \.env\)\.$/,
     ),
   })
   const line = describeReadiness(readiness)

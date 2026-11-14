@@ -96,7 +96,7 @@ beforeAll(() => initializeLogger({ pretty: false, level: 'fatal' }))
 test('a caller turn may take a whole booking in tool rounds, on the three stages and on a realtime model', async () => {
   // find_slots, get_name, get_phone_number, get_address, get_email, book_appointment: six rounds in one turn.
   expect(MAX_TOOL_STEPS + 1).toBeGreaterThanOrEqual(6)
-  const stages = await configFromEnv({ DEEPGRAM_API_KEY: 'dg', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' })
+  const stages = await configFromEnv({ DEEPGRAM_API_KEY: 'dg', LLM_PROVIDER: 'openrouter', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' })
   expect(createPipeline(stages).maxToolSteps).toBe(MAX_TOOL_STEPS)
   expect(createRealtimePipeline(realtime).maxToolSteps).toBe(MAX_TOOL_STEPS)
 })

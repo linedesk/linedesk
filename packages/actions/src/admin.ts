@@ -184,6 +184,8 @@ export const providers = {
     category: 'stt',
     fields: { api_key: apiKey('OPENAI_STT_API_KEY'), model: { ...model('STT_MODEL'), hint: 'gpt-4o-mini-transcribe' } },
   },
+  // The default language model comes first: a category without a pick uses the first provider that is set up.
+  openai: { label: 'OpenAI', category: 'llm', fields: llmFields('OPENAI_API_KEY', 'openai') },
   openrouter: {
     label: 'OpenRouter',
     category: 'llm',
@@ -202,7 +204,6 @@ export const providers = {
       },
     },
   },
-  openai: { label: 'OpenAI', category: 'llm', fields: llmFields('OPENAI_API_KEY', 'openai') },
   anthropic: { label: 'Anthropic', category: 'llm', fields: llmFields('ANTHROPIC_API_KEY', 'anthropic') },
   gemini: { label: 'Google Gemini', category: 'llm', fields: llmFields('GEMINI_API_KEY', 'gemini') },
   groq: { label: 'Groq', category: 'llm', fields: llmFields('GROQ_API_KEY', 'groq') },
@@ -503,7 +504,7 @@ export const providerClearKeys = defineAction({
 export const providerSetActive = defineAction({
   name: 'provider.setActive',
   description:
-    'Choose the provider a category uses, for example Twilio for telephony. Without a provider the default applies again.',
+    'Choose the provider a category uses, for example Twilio for telephony. Without a provider the default applies again. OpenAI as language model or transcription without a key of its own uses the OpenAI key connected for the realtime model.',
   input: z
     .object({ category: z.enum(categoryNames), provider: provider.nullable() })
     .refine(i => i.provider === null || providers[i.provider].category === i.category, {

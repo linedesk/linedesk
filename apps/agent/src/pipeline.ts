@@ -1,5 +1,5 @@
 // The speech and language vendors, all in one place. Which ones are used comes from AgentConfig:
-// speech to text Deepgram; LLM any OpenAI-compatible API (OpenRouter by default, OpenAI direct);
+// speech to text Deepgram; LLM any OpenAI-compatible API (OpenAI by default; OpenRouter, Anthropic, Gemini, Groq, Mistral);
 // text to speech ElevenLabs or Cartesia. Turns are detected by Deepgram Flux, not by a local
 // voice-activity model: that saves the CPU a small server does not have, and the endpointing delay.
 // Or, when an admin picked one, a realtime model alone: it hears the caller and answers in its own voice.

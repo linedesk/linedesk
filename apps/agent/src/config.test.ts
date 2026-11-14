@@ -1,12 +1,23 @@
 import { describe, expect, test, vi } from 'vitest'
 import { AgentConfigError, configForAssistant, configFromEnv, createConfigLoader, isRealtime, parseProviderSettings, resolveAgentConfig, resolveCallConfig, stageEnvVars, stagesOf, type ProviderSettings, withRealtimeModel } from './config.ts'
 
-const keys = { DEEPGRAM_API_KEY: 'dg', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' }
+// OpenRouter named: the tests below were written for it; the default (OpenAI) has its own test.
+const keys = { DEEPGRAM_API_KEY: 'dg', LLM_PROVIDER: 'openrouter', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' }
 const stored: ProviderSettings = {
   stt: { provider: 'deepgram', api_key: 'dg-app', model: null },
   llm: { provider: 'openai', api_key: 'oa-app', model: 'gpt-5.4' },
   tts: { provider: 'elevenlabs', api_key: 'el-app', model: null, voice_id: 'voice_app' },
 }
+
+test('without LLM_PROVIDER the language model is OpenAI, with its default model', async () => {
+  const env = { DEEPGRAM_API_KEY: 'dg', OPENAI_API_KEY: 'oa', ELEVENLABS_API_KEY: 'el' }
+  expect((await configFromEnv(env)).llm).toEqual({
+    provider: 'openai', apiKey: 'oa', baseUrl: 'https://api.openai.com/v1',
+    model: 'gpt-4.1-mini', fallbacks: [], summaryModel: 'gpt-4.1-mini', summaryFallbacks: [],
+  })
+  const { OPENAI_API_KEY: _, ...withoutOpenAi } = env
+  expect(() => resolveAgentConfig(null, withoutOpenAi)).toThrow('language model: no API key for openai')
+})
 
 test('env defaults: Deepgram, OpenRouter with a fast live model and a stronger summary model, each with a fallback, ElevenLabs', async () => {
   expect(await configFromEnv(keys)).toEqual({
@@ -50,7 +61,7 @@ test('names every stage that is missing, and where to set it, without any value'
   const error = (() => { try { resolveAgentConfig(null, {}) } catch (e) { return e as AgentConfigError } })()!
   expect(error).toBeInstanceOf(AgentConfigError)
   expect(error.stages).toEqual(['speech recognition', 'language model', 'voice'])
-  expect(error.message).toBe('Not set up: speech recognition: no API key for deepgram (set it in Linedesk under Providers, or DEEPGRAM_API_KEY in .env); language model: no API key for openrouter (set it in Linedesk under Providers, or OPENROUTER_API_KEY in .env); voice: no API key for elevenlabs (set it in Linedesk under Providers, or ELEVENLABS_API_KEY in .env).')
+  expect(error.message).toBe('Not set up: speech recognition: no API key for deepgram (set it in Linedesk under Providers, or DEEPGRAM_API_KEY in .env); language model: no API key for openai (set it in Linedesk under Providers, or OPENAI_API_KEY in .env); voice: no API key for elevenlabs (set it in Linedesk under Providers, or ELEVENLABS_API_KEY in .env).')
 
   const appWithoutKey = (() => { try { resolveAgentConfig({ ...stored, tts: { provider: 'elevenlabs', api_key: null } }, keys) } catch (e) { return e as AgentConfigError } })()!
   expect(appWithoutKey.stages).toEqual(['voice'])
@@ -60,7 +71,7 @@ test('names every stage that is missing, and where to set it, without any value'
 
 test('an unknown provider is an error for its stage, not a silent default', () => {
   expect(() => resolveAgentConfig(null, { ...keys, LLM_PROVIDER: 'cohere' })).toThrow(
-    'language model: unknown provider "cohere" (use one of openrouter, openai, anthropic, gemini, groq, mistral)',
+    'language model: unknown provider "cohere" (use one of openai, openrouter, anthropic, gemini, groq, mistral)',
   )
   const error = (() => { try { resolveAgentConfig({ ...stored, tts: { provider: 'polly', api_key: 'x' } }, keys) } catch (e) { return e as AgentConfigError } })()!
   expect(error.stages).toEqual(['voice'])

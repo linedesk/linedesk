@@ -69,7 +69,7 @@ test('every provider has a category, and the first of each category is the defau
   expect(categoryNames.map(category => [category, providersIn(category)])).toEqual([
     ['telephony', ['telnyx', 'twilio']],
     ['stt', ['deepgram', 'elevenlabs_stt', 'openai_stt']],
-    ['llm', ['openrouter', 'openai', 'anthropic', 'gemini', 'groq', 'mistral']],
+    ['llm', ['openai', 'openrouter', 'anthropic', 'gemini', 'groq', 'mistral']],
     ['tts', ['elevenlabs', 'cartesia']],
     ['realtime', ['openai_realtime']],
     ['email', ['smtp', 'resend', 'postmark', 'sendgrid', 'brevo', 'mailgun', 'gmail']],

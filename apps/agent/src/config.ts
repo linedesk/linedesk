@@ -133,10 +133,10 @@ const stages = {
   llm: {
     stage: 'language model',
     providerEnv: 'LLM_PROVIDER',
-    fallback: 'openrouter',
+    fallback: 'openai',
     providers: {
-      openrouter: 'OPENROUTER_API_KEY',
       openai: 'OPENAI_API_KEY',
+      openrouter: 'OPENROUTER_API_KEY',
       anthropic: 'ANTHROPIC_API_KEY',
       gemini: 'GEMINI_API_KEY',
       groq: 'GROQ_API_KEY',

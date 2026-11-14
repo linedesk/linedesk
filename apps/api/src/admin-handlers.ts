@@ -34,6 +34,20 @@ const hasPasskey = async (tx: Tx, userId: string) =>
   (await tx.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, userId)).limit(1)).length > 0
 
 /** A missing or wrong SECRETS_KEY is the operator's to fix: show the reason instead of a server error. */
+/** OpenAI's language model and transcription can use the OpenAI key stored for the realtime model. */
+const OPENAI_KEY_USERS: readonly ProviderName[] = ['openai', 'openai_stt']
+
+/**
+ * Picking OpenAI's language model or transcription without a key of its own: it uses the OpenAI key already stored
+ * for the realtime model (a reference, as provider.connectOneKey links them), so the pick works at once.
+ */
+async function shareOpenAiKey(tx: Tx, provider: ProviderName, actorId: string, now: string) {
+  if (!OPENAI_KEY_USERS.includes(provider)) return
+  if ((await withSecretsKey(() => resolveProvider(tx, provider))).api_key) return
+  if ((await withSecretsKey(() => resolveProvider(tx, 'openai_realtime'))).api_key?.source !== 'app') return
+  await linkProviderKey(tx, provider, 'openai_realtime', actorId, now)
+}
+
 async function withSecretsKey<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run()
@@ -135,6 +149,7 @@ export const adminHandlers: Record<string, Handler> = {
   },
 
   'provider.setActive': async ({ tx, actor, now }, input) => {
+    if (input.provider) await shareOpenAiKey(tx, input.provider, actor.actorId, now)
     await setActiveProvider(tx, input.category, input.provider, actor.actorId, now)
     // Which mail service sends is read at start, like its keys (instance-env.ts).
     if (restartCategories.includes(input.category)) checkInstanceEnvSoon(db)
