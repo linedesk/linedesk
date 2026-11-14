@@ -3,7 +3,7 @@
 // the button, and why it failed in one short sentence. The caller's `run` does the work; on success the dialog stays
 // busy until the caller closes it or the page moves on.
 import { type FormEvent, type ReactNode, useState } from 'react'
-import { StepUpRequired } from '../admin/PasskeyStepUp.tsx'
+import { stepUpRefusalText } from '../admin/PasskeyStepUp.tsx'
 import { errorText } from '../admin/notify.ts'
 import { rejectionReason } from '../shell/rejections.ts'
 import { Checkbox } from './controls.tsx'
@@ -30,7 +30,8 @@ export type DangerConfirmation = {
 
 /** Why a confirmed action did not go through, in one short sentence for the dialog's error note. */
 export function confirmErrorText(err: unknown): string {
-  if (err instanceof StepUpRequired) return 'Not confirmed with your passkey. Nothing changed.'
+  const refused = stepUpRefusalText(err)
+  if (refused) return refused
   const text = errorText(err)
   // A proxy's error page instead of the API's answer (an update, a restart): no reason worth showing.
   return rejectionReason(/^The server answered \d{3}$/.test(text) ? '' : text)

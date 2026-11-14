@@ -30,6 +30,7 @@ import {
 } from './model.ts'
 import { errorText } from './notify.ts'
 import { exchangeCode, type OpenRouterReturn, startOpenRouterConnect } from './openrouterAuth.ts'
+import { stepUpRefusalText } from './PasskeyStepUp.tsx'
 import { StatusWords } from './ProviderGroup.tsx'
 import { Logo, presetMeta, providerMeta, redirectUris } from './ProviderLogo.tsx'
 import { testedAgo } from './providerStatus.ts'
@@ -129,7 +130,7 @@ export function ProviderDialog(props: Props) {
       // Recording storage that works and nothing records yet: connecting it means "record there".
       if (tested.ok && provider.category === 'recording' && !inUse && !chosen) await onUse()
     } catch (err) {
-      setResult({ ok: false, message: errorText(err) })
+      setResult({ ok: false, message: stepUpRefusalText(err) ?? errorText(err) })
     } finally {
       setPhase('idle')
     }
@@ -156,7 +157,7 @@ export function ProviderDialog(props: Props) {
         onTested(tested)
         await reload()
       } catch (err) {
-        setResult({ ok: false, message: errorText(err) })
+        setResult({ ok: false, message: stepUpRefusalText(err) ?? errorText(err) })
       } finally {
         setPhase('idle')
       }
@@ -176,7 +177,7 @@ export function ProviderDialog(props: Props) {
       )
       onClose()
     } catch (err) {
-      setResult({ ok: false, message: errorText(err) })
+      setResult({ ok: false, message: stepUpRefusalText(err) ?? errorText(err) })
       setPhase('idle')
     }
   }

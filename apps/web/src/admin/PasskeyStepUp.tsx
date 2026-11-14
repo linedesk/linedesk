@@ -28,6 +28,18 @@ export function stepUpOf(json: { code?: unknown; stepUp?: unknown } | null): Ste
   return json.stepUp === 'enrol' ? 'enrol' : 'confirm'
 }
 
+/** Where an admin without a passkey adds the first (the enrolment code comes from another admin or the CLI). */
+const ENROL_WHERE =
+  'under Account › Sign-in & security, with the enrolment code from another admin or from user:passkeys --enrol on the server.'
+
+/** Why an action that needed a passkey did not run, or null when `err` is not a step-up refusal. */
+export function stepUpRefusalText(err: unknown): string | null {
+  if (!(err instanceof StepUpRequired)) return null
+  return err.stepUp === 'enrol'
+    ? `Add a passkey first ${ENROL_WHERE} Nothing changed.`
+    : 'Not confirmed with your passkey. Nothing changed.'
+}
+
 type Request = { stepUp: StepUp; what: string; done: (confirmed: boolean) => void }
 
 /**
@@ -135,7 +147,7 @@ function EnrolFirst({ what, onClose }: { what: string; onClose: (confirmed: bool
   return (
     <Dialog
       title={`Add a passkey first: ${what}`}
-      description="Granting admin, resetting passkeys, signing in as a user and changes to another admin need a passkey. Add your first under Account, Sign-in & security, with the enrolment code another admin or the server gave you."
+      description={`Email and sign-in keys, granting admin, resetting passkeys, signing in as a user and changes to another admin need a passkey. Add your first ${ENROL_WHERE}`}
       size="sm"
       onClose={() => onClose(false)}
       footer={

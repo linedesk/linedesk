@@ -141,7 +141,6 @@ export function InstallSetup({ onExit }: Props) {
   const groups = status.status?.groups ?? null
   return (
     <div className="ob is" role="main" aria-label={`Set up ${brandName()} by hand`}>
-      <PasskeyStepUpHost />
       <div className="ob-top">
         <BrandMark />
         <b>{brandName()}</b>
@@ -196,6 +195,8 @@ export function InstallSetup({ onExit }: Props) {
           />
         )}
       </div>
+      {/* Last, so the passkey dialog opens over the provider dialog that waits for it (same layer, later wins). */}
+      <PasskeyStepUpHost />
     </div>
   )
 }

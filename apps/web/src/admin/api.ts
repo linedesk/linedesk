@@ -298,6 +298,8 @@ const stepUpLabels: Partial<Record<keyof AdminInputs, string>> = {
   'membership.setRole': "change an admin's role",
   'membership.remove': 'remove an admin from a workspace',
   'workspace.delete': 'delete a workspace',
+  'provider.setKeys': 'save email or sign-in keys',
+  'provider.clearKeys': 'disconnect email or sign-in',
 }
 /** What the passkey dialog says it confirms; a workspace about to be deleted by its name (LIN-161). */
 export function stepUpLabel<N extends keyof AdminInputs>(name: N, input?: AdminInputs[N]): string {

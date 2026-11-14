@@ -46,3 +46,16 @@ test('the passkey dialog comes last in admin, so it opens over a confirm dialog 
   const source = readFileSync(new URL('./AdminMode.tsx', import.meta.url), 'utf8')
   expect(source.indexOf('<PasskeyStepUpHost />')).toBeGreaterThan(source.indexOf('</main>'))
 })
+
+test('in the install setup too, the passkey dialog comes after the steps, so it opens over a provider dialog', () => {
+  // Before, it came first: saving email keys without a passkey opened "Add a passkey first" under the
+  // provider dialog, whose Save then spun forever with Cancel disabled.
+  const source = readFileSync(new URL('../onboarding/InstallSetup.tsx', import.meta.url), 'utf8')
+  expect(source.indexOf('<PasskeyStepUpHost />')).toBeGreaterThan(source.indexOf('<PartStep'))
+})
+
+test('an admin without a passkey is told how to add one, not a raw refusal', () => {
+  expect(confirmErrorText(new StepUpRequired('This needs a passkey.', 'enrol'))).toBe(
+    'Add a passkey first under Account › Sign-in & security, with the enrolment code from another admin or from user:passkeys --enrol on the server. Nothing changed.',
+  )
+})
