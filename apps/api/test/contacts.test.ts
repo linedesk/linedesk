@@ -18,6 +18,34 @@ test('a member adds a contact; the same number cannot be added twice', async () 
   expect((await act(member, 'contact.create', { phone: '503 555 0100' })).status).toBe(422)
 })
 
+test('a contact is added with every detail at once; overlong details are refused', async () => {
+  const ws = await createWorkspace('Brightwater Plumbing & Heating')
+  const phone = randomNumber()
+  const details = {
+    name: 'Dana Ortiz',
+    company: 'Ortiz Bakery',
+    email: 'dana@ortiz.example',
+    address: '12 Oak St, Portland',
+    note: 'Gate code 4411',
+  }
+  const added = await act(ws.owner, 'contact.create', { phone, ...details })
+  expect(added.status).toBe(200)
+  expect(added.body.rows.contacts[0]).toMatchObject({ phone, ...details })
+  expect(await getContact(added.body.data.contactId)).toMatchObject({ phone, ...details, name_source: 'member' })
+  const tooLong = await act(ws.owner, 'contact.create', { phone: randomNumber(), note: 'x'.repeat(2001) })
+  expect(tooLong.status).toBe(422)
+})
+
+test('adding a deleted number again takes the new details, not the old ones', async () => {
+  const ws = await createWorkspace('Brightwater Plumbing & Heating')
+  const id = ws.contact.id
+  await act(ws.owner, 'contact.update', { contactId: id, email: 'old@example.com', note: 'Old note' })
+  await act(ws.owner, 'contact.delete', { contactId: id })
+  const again = await act(ws.owner, 'contact.create', { phone: ws.contact.phone, address: '9 Elm St' })
+  expect(again.body.data.contactId).toBe(id)
+  expect(await getContact(id)).toMatchObject({ address: '9 Elm St', email: null, note: null, deleted_at: null })
+})
+
 test('delete and restore; adding or a call from a deleted number brings the same contact back', async () => {
   const ws = await createWorkspace('Brightwater Plumbing & Heating')
   const id = ws.contact.id

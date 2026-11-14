@@ -489,7 +489,14 @@ const handlers: Record<string, Handler> = {
     if (!actor.workspaceId) throw new Reject('no workspace')
     const [existing] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, actor.workspaceId), eq(contacts.phone, input.phone)))
     if (existing && (!existing.deleted_at || existing.merged_into)) throw new Reject(`${input.phone} is already a contact`)
-    const fields = { name: input.name ?? null, name_source: input.name ? ('member' as const) : null, company: input.company ?? null }
+    const fields = {
+      name: input.name ?? null,
+      name_source: input.name ? ('member' as const) : null,
+      company: input.company ?? null,
+      email: input.email ?? null,
+      address: input.address ?? null,
+      note: input.note ?? null,
+    }
     const [contact] = existing
       ? await tx.update(contacts).set({ ...fields, deleted_at: null }).where(eq(contacts.id, existing.id)).returning()
       : await tx.insert(contacts).values({ id: newId('ct'), workspace_id: actor.workspaceId, phone: input.phone, ...fields }).returning()

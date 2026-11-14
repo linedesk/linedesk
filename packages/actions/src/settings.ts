@@ -64,14 +64,26 @@ export const contactUnblock = defineAction({
   patch: { table: 'contacts', id: i => i.contactId, set: () => ({ blocked_at: null }) },
 })
 
-/** Add someone by hand. A number that belonged to a deleted contact brings that contact back (with its calls). */
+/** Longest text contact.create and contact.import keep per field; the browser cuts longer values from a file to these. */
+export const CONTACT_IMPORT_LIMITS = { name: 200, company: 200, email: 254, address: 500, note: 2000 } as const
+
+const createdText = (max: number) => z.string().trim().min(1).max(max).optional()
+
+/**
+ * Add someone by hand, with every detail a contact has. A number that belonged to a deleted contact
+ * brings that contact back (with its calls).
+ */
 export const contactCreate = defineAction({
   name: 'contact.create',
-  description: 'Add a contact by hand: a phone number in E.164 (+15035550100), and optionally a name and company.',
+  description:
+    'Add a contact by hand: a phone number in E.164 (+15035550100), and optionally a name, company, email, address and note.',
   input: z.object({
     phone: z.string().regex(/^\+[1-9]\d{6,14}$/, 'a phone number in E.164, like +15035550100'),
-    name: z.string().trim().min(1).optional(),
-    company: z.string().trim().min(1).optional(),
+    name: createdText(CONTACT_IMPORT_LIMITS.name),
+    company: createdText(CONTACT_IMPORT_LIMITS.company),
+    email: createdText(CONTACT_IMPORT_LIMITS.email),
+    address: createdText(CONTACT_IMPORT_LIMITS.address),
+    note: createdText(CONTACT_IMPORT_LIMITS.note),
   }),
   permission: 'contact:write',
   public: true,
@@ -79,9 +91,6 @@ export const contactCreate = defineAction({
 
 /** Most rows one contact.import takes; the browser sends a longer file in parts. */
 export const CONTACT_IMPORT_MAX_ROWS = 500
-
-/** Longest text contact.import keeps per field; the browser cuts longer values from a file to these. */
-export const CONTACT_IMPORT_LIMITS = { name: 200, company: 200, email: 254, address: 500, note: 2000 } as const
 
 const importText = (max: number) => z.string().trim().max(max).optional()
 

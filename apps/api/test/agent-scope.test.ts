@@ -30,6 +30,7 @@ describe('the agent role', () => {
     ['call.delete', () => ({ callId: ws.call.id })],
     ['call.markRead', () => ({ callId: ws.call.id })],
     ['call.assign', () => ({ callId: ws.call.id, userId: ws.owner.userId })],
+    ['contact.create', () => ({ phone: randomNumber(), note: 'from the agent' })],
     ['contact.update', () => ({ contactId: ws.contact.id, note: 'from the agent' })],
     ['contact.delete', () => ({ contactId: ws.contact.id })],
     ['contact.merge', () => ({ keepId: ws.contact.id, mergeId: ws.contact.id })],

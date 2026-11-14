@@ -72,12 +72,12 @@ export function Facts({ contact, toast }: { contact: Contact; toast: (text: stri
   )
 }
 
-/** Call the number back from this device (a phone, or a computer that hands tel: links to one). */
-export function CallBackLink({ number }: { number: string }) {
+/** Call the number from this device (a phone, or a computer that hands tel: links to one). */
+export function CallLink({ number }: { number: string }) {
   return (
-    <a className="k-btn k-btn-secondary k-btn-sm" href={`tel:${number}`} title="Call back from your phone">
+    <a className="k-btn k-btn-secondary k-btn-sm" href={`tel:${number}`} title="Call from your phone">
       <Icon name="phone-out" size={14} />
-      <span>Call back</span>
+      <span>Call</span>
     </a>
   )
 }
@@ -131,7 +131,7 @@ export function ContactSide({ call, onOpen, toast, onToggleBlock }: Props) {
         </div>
       </div>
       <div className="side-acts">
-        {call.from_number.startsWith('+') && <CallBackLink number={call.from_number} />}
+        {call.from_number.startsWith('+') && <CallLink number={call.from_number} />}
         {contact && onToggleBlock && (
           <Button
             size="sm"

@@ -6,7 +6,9 @@ import { applyLocally, type LocalTables } from './index.ts'
 import {
   assistantUpdate,
   CONTACT_IMPORT_MAX_ROWS,
+  CONTACT_IMPORT_LIMITS,
   contactBlock,
+  contactCreate,
   contactImport,
   contactMerge,
   contactUnblock,
@@ -145,6 +147,43 @@ describe('phoneNumber.release', () => {
       expect(confirmsNumber(typed, '+15035550142')).toBe(true)
     for (const typed of ['503 555 0143', '555 0142', '', 'yes'])
       expect(confirmsNumber(typed, '+15035550142')).toBe(false)
+  })
+})
+
+describe('contact.create', () => {
+  it('takes every detail a contact has, trimmed, and needs contact:write like contact.update', () => {
+    expect(contactCreate.permission).toBe('contact:write')
+    expect(rolePermissions.member).toContain('contact:write')
+    expect(
+      contactCreate.input.parse({
+        phone: '+15035550142',
+        name: ' Dana Ortiz ',
+        company: 'Ortiz Bakery',
+        email: ' dana@ortiz.example ',
+        address: '12 Oak St',
+        note: 'Gate code 4411',
+      }),
+    ).toEqual({
+      phone: '+15035550142',
+      name: 'Dana Ortiz',
+      company: 'Ortiz Bakery',
+      email: 'dana@ortiz.example',
+      address: '12 Oak St',
+      note: 'Gate code 4411',
+    })
+  })
+
+  it('refuses a number not in E.164, blank details and details longer than a contact keeps', () => {
+    expect(contactCreate.input.safeParse({ phone: '503 555 0142' }).success).toBe(false)
+    expect(contactCreate.input.safeParse({ phone: '+15035550142', email: '   ' }).success).toBe(false)
+    for (const field of ['name', 'company', 'email', 'address', 'note'] as const) {
+      const max = CONTACT_IMPORT_LIMITS[field]
+      expect(contactCreate.input.safeParse({ phone: '+15035550142', [field]: 'x'.repeat(max) }).success).toBe(true)
+      expect(
+        contactCreate.input.safeParse({ phone: '+15035550142', [field]: 'x'.repeat(max + 1) }).success,
+        field,
+      ).toBe(false)
+    }
   })
 })
 

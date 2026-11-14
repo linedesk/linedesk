@@ -1,6 +1,18 @@
 import type { Call, Contact } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
-import { contactLabel, contactRows, duplicatePairs, filterContactRows, matchesContact, mergeDefaults, noteHint } from './model.ts'
+import {
+  CONTACT_DETAIL_FIELDS,
+  contactLabel,
+  contactRows,
+  duplicatePairs,
+  EMPTY_NEW_CONTACT,
+  filterContactRows,
+  matchesContact,
+  mergeDefaults,
+  NEW_CONTACT_MAX_LENGTH,
+  newContactInput,
+  noteHint,
+} from './model.ts'
 
 const contact = (over: Partial<Contact>) =>
   ({
@@ -143,5 +155,53 @@ describe('noteHint', () => {
     expect(noteHint(['Maya'])).toBe('Maya sees this note when this contact calls.')
     expect(noteHint(['Maya', 'Night line'])).toBe('Your assistants see this note when this contact calls.')
     expect(noteHint([])).toBe('The assistant sees this note when this contact calls.')
+  })
+})
+
+describe('New contact', () => {
+  const form = (over: Partial<typeof EMPTY_NEW_CONTACT>) => ({ ...EMPTY_NEW_CONTACT, ...over })
+  const none = new Set<string>()
+
+  it('asks for every detail the contact page shows, in its order', () => {
+    expect(CONTACT_DETAIL_FIELDS.map(f => f.field)).toEqual(['company', 'email', 'address', 'note'])
+    for (const field of ['name', 'company', 'email', 'address', 'note'] as const)
+      expect(NEW_CONTACT_MAX_LENGTH[field]).toBeGreaterThan(0)
+  })
+
+  it('sends every field filled in, trimmed, with the number in E.164', () => {
+    const typed = form({
+      name: ' Dana Ortiz ',
+      phone: '(503) 555-0100',
+      company: 'Ortiz Bakery',
+      email: ' dana@ortiz.example ',
+      address: '12 Oak St, Portland',
+      note: 'Gate code 4411\nDog in the yard',
+    })
+    expect(newContactInput(typed, none)).toEqual({
+      input: {
+        phone: '+15035550100',
+        name: 'Dana Ortiz',
+        company: 'Ortiz Bakery',
+        email: 'dana@ortiz.example',
+        address: '12 Oak St, Portland',
+        note: 'Gate code 4411\nDog in the yard',
+      },
+    })
+  })
+
+  it('leaves out blank fields: a number alone is enough', () => {
+    expect(newContactInput(form({ phone: '+1 503 555 0100', email: '   ', note: '' }), none)).toEqual({
+      input: { phone: '+15035550100' },
+    })
+  })
+
+  it('says what is wrong with the number: empty, not a US number, or already in Contacts', () => {
+    expect(newContactInput(form({ name: 'Dana' }), none)).toEqual({ problem: 'Enter a phone number.' })
+    expect(newContactInput(form({ phone: '555' }), none)).toEqual({
+      problem: 'Enter a US phone number, like +1 503 555 0100.',
+    })
+    expect(newContactInput(form({ phone: '503 555 0100', email: 'a@b.example' }), new Set(['+15035550100']))).toEqual({
+      problem: 'That number is already in Contacts.',
+    })
   })
 })

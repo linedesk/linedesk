@@ -1,6 +1,8 @@
 // The Contacts list is derived from the synced contacts and calls: who called, how often, when last and about what.
+import { CONTACT_IMPORT_LIMITS } from '@linedesk/actions'
 import type { Call, Contact } from '@linedesk/db/types'
 import { formatPhone } from '../inbox-model.ts'
+import { toE164 } from '../onboarding/flow.ts'
 import { parseTs } from '../time.ts'
 
 export type ContactRow = {
@@ -125,4 +127,44 @@ export function noteHint(assistantNames: string[]): string {
   const who =
     assistantNames.length === 1 ? assistantNames[0] : assistantNames.length ? 'Your assistants' : 'The assistant'
   return `${who} ${assistantNames.length > 1 ? 'see' : 'sees'} this note when this contact calls.`
+}
+
+/** The details a contact has besides name and phone, in the order the contact page shows them. New contact asks for the same. */
+export const CONTACT_DETAIL_FIELDS = [
+  { field: 'company', label: 'Company', placeholder: 'Add a company' },
+  { field: 'email', label: 'Email', placeholder: 'name@example.com' },
+  { field: 'address', label: 'Address', placeholder: 'Street, city' },
+  { field: 'note', label: 'Note', placeholder: 'Anything to remember', multiline: true },
+] as const
+
+export type ContactDetailField = (typeof CONTACT_DETAIL_FIELDS)[number]['field']
+
+/** Longest value each field of New contact takes, the same contact.create checks on the server. */
+export const NEW_CONTACT_MAX_LENGTH = CONTACT_IMPORT_LIMITS
+
+/** What is typed into New contact. */
+export type NewContactForm = { name: string; phone: string } & Record<ContactDetailField, string>
+
+export const EMPTY_NEW_CONTACT: NewContactForm = { name: '', phone: '', company: '', email: '', address: '', note: '' }
+
+export type NewContactInput = { phone: string; name?: string } & Partial<Record<ContactDetailField, string>>
+
+/**
+ * contact.create's input from New contact, or the problem with the phone number (the one field that can be wrong):
+ * empty, not a US number, or already in Contacts (`existing`, in E.164). Blank fields are left out.
+ */
+export function newContactInput(
+  form: NewContactForm,
+  existing: ReadonlySet<string>,
+): { input: NewContactInput; problem?: undefined } | { problem: string; input?: undefined } {
+  const e164 = toE164(form.phone)
+  if (!form.phone.trim()) return { problem: 'Enter a phone number.' }
+  if (!e164) return { problem: 'Enter a US phone number, like +1 503 555 0100.' }
+  if (existing.has(e164)) return { problem: 'That number is already in Contacts.' }
+  const input: NewContactInput = { phone: e164 }
+  for (const field of ['name', ...CONTACT_DETAIL_FIELDS.map(f => f.field)] as const) {
+    const value = form[field].trim()
+    if (value) input[field] = value
+  }
+  return { input }
 }

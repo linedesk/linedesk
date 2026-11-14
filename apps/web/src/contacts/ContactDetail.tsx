@@ -2,7 +2,7 @@
 // actions, the details as a form whose fields save themselves (contact.update), and their calls.
 import type { Call, Contact } from '@linedesk/db/types'
 import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
-import { CallBackLink, ConfirmCallerName, nameFromCaller } from '../call/ContactSide.tsx'
+import { CallLink, ConfirmCallerName, nameFromCaller } from '../call/ContactSide.tsx'
 import { useInlineEdit } from '../call/EditableFact.tsx'
 import { formatPhone } from '../inbox-model.ts'
 import type { Step } from '../inbox/changes.ts'
@@ -10,7 +10,7 @@ import { useAssistants, useRun } from '../store.tsx'
 import { Card, FormField, Input, Textarea } from '../ui/form.tsx'
 import { Avatar, Button, Icon } from '../ui/kit.tsx'
 import { ContactCalls } from './ContactCalls.tsx'
-import { contactLabel, type ContactRow, noteHint } from './model.ts'
+import { CONTACT_DETAIL_FIELDS, type ContactDetailField, contactLabel, type ContactRow, noteHint } from './model.ts'
 
 type Props = {
   row: ContactRow
@@ -24,38 +24,36 @@ type Props = {
 
 type RunUndoable = (steps: Step[], inverse: Step[], label: string, key: string) => void
 
-type Editable = 'name' | 'company' | 'email' | 'address' | 'note'
+type Editable = 'name' | ContactDetailField
 
-function DetailField({
-  contact,
-  field,
-  label,
-  placeholder,
-  multiline,
-  hint,
-}: {
-  contact: Contact
-  field: Editable
+/** The contact page shows the phone right after the company. */
+const [company, ...afterPhone] = CONTACT_DETAIL_FIELDS
+
+type FieldProps = {
+  id: string
   label: string
   placeholder: string
   multiline?: boolean
   /** A line under the field on what the value is used for. */
   hint?: ReactNode
-}) {
-  const run = useRun()
-  const id = `ct-${field}`
+  autoFocus?: boolean
+  maxLength?: number
+  value: string
+  onChange: (e: { target: { value: string } }) => void
+  onKeyDown?: (e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void
+  onFocus?: () => void
+  onBlur?: () => void
+}
+
+/** One field of a contact, as the contact page and New contact show it: a line, or a box for the note. */
+export function ContactField({ id, label, multiline, hint, ...control }: FieldProps) {
   const hintId = hint ? `${id}-hint` : undefined
-  const edit = useInlineEdit({
-    value: contact[field],
-    onSave: value => void run('contact.update', { contactId: contact.id, [field]: value }),
-    multiline,
-  })
   return (
     <FormField id={id} label={label} className={multiline ? 'ct-wide' : undefined}>
       {multiline ? (
-        <Textarea id={id} rows={3} placeholder={placeholder} aria-describedby={hintId} {...edit} />
+        <Textarea id={id} rows={3} aria-describedby={hintId} {...control} />
       ) : (
-        <Input id={id} autoComplete="off" placeholder={placeholder} aria-describedby={hintId} {...edit} />
+        <Input id={id} autoComplete="off" aria-describedby={hintId} {...control} />
       )}
       {hint && (
         <p id={hintId} className="k-field-desc">
@@ -64,6 +62,28 @@ function DetailField({
       )}
     </FormField>
   )
+}
+
+/** A field of the contact page: saves itself (contact.update) on Enter or when left. */
+function DetailField({
+  contact,
+  field,
+  ...rest
+}: {
+  contact: Contact
+  field: Editable
+  label: string
+  placeholder: string
+  multiline?: boolean
+  hint?: ReactNode
+}) {
+  const run = useRun()
+  const edit = useInlineEdit({
+    value: contact[field],
+    onSave: value => void run('contact.update', { contactId: contact.id, [field]: value }),
+    multiline: rest.multiline,
+  })
+  return <ContactField id={`ct-${field}`} {...rest} {...edit} />
 }
 
 /** ⋯ with Delete contact, which asks once in place; the toast then offers Undo. */
@@ -173,7 +193,7 @@ export function ContactDetail({ row, onOpenCall, onClose, onDelete, onMerge, run
             <span>{contact.name ? phone : (contact.company ?? 'No name yet')}</span>
           </div>
           <div className="ct-acts">
-            {contact.phone.startsWith('+') && <CallBackLink number={contact.phone} />}
+            {contact.phone.startsWith('+') && <CallLink number={contact.phone} />}
             <MoreMenu label={label} onDelete={() => onDelete(contact.id)} onMerge={onMerge} />
           </div>
         </header>
@@ -186,20 +206,18 @@ export function ContactDetail({ row, onOpenCall, onClose, onDelete, onMerge, run
               placeholder="Add a name"
               hint={nameFromCaller(contact) ? <ConfirmCallerName contact={contact} /> : undefined}
             />
-            <DetailField contact={contact} field="company" label="Company" placeholder="Add a company" />
+            <DetailField contact={contact} {...company} />
             <FormField id="ct-phone" label="Phone">
               <Input id="ct-phone" value={phone} readOnly className="ct-readonly" />
             </FormField>
-            <DetailField contact={contact} field="email" label="Email" placeholder="name@example.com" />
-            <DetailField contact={contact} field="address" label="Address" placeholder="Street, city" />
-            <DetailField
-              contact={contact}
-              field="note"
-              label="Note"
-              placeholder="Anything to remember"
-              multiline
-              hint={noteHint(assistantNames)}
-            />
+            {afterPhone.map(f => (
+              <DetailField
+                key={f.field}
+                contact={contact}
+                {...f}
+                hint={f.field === 'note' ? noteHint(assistantNames) : undefined}
+              />
+            ))}
           </div>
         </Card>
         <Card title={calls.length ? `Calls · ${calls.length}` : 'Calls'} className="ct-card">
