@@ -4,20 +4,24 @@
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { confirmText, startImpersonation } from '../impersonation.ts'
 import { Checkbox } from '../ui/controls.tsx'
-import { Dialog, FormMessage, Input } from '../ui/form.tsx'
+import { Dialog, Input } from '../ui/form.tsx'
 import type { IconName } from '../ui/icons.ts'
-import { Button, Icon } from '../ui/kit.tsx'
+import { Button, Icon, Note } from '../ui/kit.tsx'
+import { rejectionReason } from '../shell/rejections.ts'
 import { type AdminUser, type AdminWorkspace, runAdmin } from './api.ts'
+import { StepUpRequired } from './PasskeyStepUp.tsx'
 import { errorText, type Notify } from './notify.ts'
 import { brandName } from '../brand.ts'
 
 type Confirmation = {
   text: string
-  /** What it affects, one item a line (a delete lists what goes); `after` closes the dialog's text. */
+  /** What it affects, one item a line (a delete lists what goes), in a danger note titled `after`. */
   list?: string[]
   after?: string
   /** The confirming button. */
   action: string
+  /** The button's words while it runs ("Deleting…"). */
+  busyAction?: string
   /** The heaviest actions: the button unlocks once this is typed. */
   typed?: string
   variant?: 'primary' | 'danger' | 'danger-outline'
@@ -214,7 +218,7 @@ export function deleteWorkspaceText(w: AdminWorkspace): Pick<Confirmation, 'text
   const onlyHere = w.members_only_here
   const others = w.members - onlyHere
   return {
-    text: `This deletes ${w.name} and all its data for good:`,
+    text: `This deletes ${w.name} and all its data for good.`,
     list: [
       `${count(w.calls_total, 'call')}, with their transcripts and recordings`,
       `${count(w.contacts, 'contact')}`,
@@ -223,11 +227,11 @@ export function deleteWorkspaceText(w: AdminWorkspace): Pick<Confirmation, 'text
         : count(numbers, 'phone number'),
       'Its bookings, settings and invitations',
       ...(onlyHere
-        ? [`The accounts of ${count(onlyHere, 'member')} who ${onlyHere === 1 ? 'belongs' : 'belong'} to no other workspace`]
+        ? [
+            `The accounts of ${count(onlyHere, 'member')} who ${onlyHere === 1 ? 'belongs' : 'belong'} to no other workspace`,
+          ]
         : []),
-      ...(others
-        ? [`The access of ${count(others, 'other member')}; their accounts and other workspaces stay`]
-        : []),
+      ...(others ? [`The access of ${count(others, 'other member')}; their accounts and other workspaces stay`] : []),
     ],
     option: onlyHere ? `Keep the ${onlyHere === 1 ? "member's account" : `${onlyHere} members' accounts`}` : undefined,
     after: 'This cannot be undone.',
@@ -260,7 +264,7 @@ export function workspaceActions(
     label: 'Delete workspace…',
     icon: 'trash',
     tip: 'Deletes it with all its calls, contacts, numbers and settings, and the accounts of members who belong to no other workspace.',
-    confirm: { ...deleteWorkspaceText(w), action: 'Delete workspace', typed: w.name },
+    confirm: { ...deleteWorkspaceText(w), action: 'Delete workspace', busyAction: 'Deleting…', typed: w.name },
     run: async keepUsers => {
       const data = await runAdmin('workspace.delete', { workspaceId: w.id, name: w.name, keepUsers: !!keepUsers })
       onDeleted?.()
@@ -301,6 +305,14 @@ export function workspaceActions(
 const doneText = (action: AdminAction, made: unknown) =>
   typeof action.done === 'function' ? action.done(made) : (action.done ?? '')
 
+/** Why a confirmed action did not go through, in one short sentence for the dialog's error note. */
+export function confirmErrorText(err: unknown): string {
+  if (err instanceof StepUpRequired) return 'Not confirmed with your passkey. Nothing changed.'
+  const text = errorText(err)
+  // A proxy's error page instead of the API's answer (an update, a restart): no reason worth showing.
+  return rejectionReason(/^The server answered \d{3}$/.test(text) ? '' : text)
+}
+
 function ConfirmDialog({ action, onClose, notify }: { action: AdminAction; onClose: () => void; notify: Notify }) {
   const confirm = action.confirm!
   const [typed, setTyped] = useState('')
@@ -320,7 +332,7 @@ function ConfirmDialog({ action, onClose, notify }: { action: AdminAction; onClo
       if (isEnrolment(made)) return setEnrolment(made)
       onClose()
     } catch (err) {
-      setError(errorText(err))
+      setError(confirmErrorText(err))
       setBusy(false)
     }
   }
@@ -348,34 +360,38 @@ function ConfirmDialog({ action, onClose, notify }: { action: AdminAction; onClo
             </Button>
           )}
           <Button busy={busy} type="submit" variant={confirm.variant ?? 'danger'} disabled={!unlocked || busy}>
-            {confirm.action}
+            {busy && confirm.busyAction ? confirm.busyAction : confirm.action}
           </Button>
         </>
       }
     >
-      {confirm.list && (
-        <ul className="adm-confirm-list">
-          {confirm.list.map(item => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
+      {(confirm.list || confirm.after) && (
+        <Note tone="danger" title={confirm.after}>
+          {confirm.list && (
+            <ul className="adm-confirm-list">
+              {confirm.list.map(item => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          )}
+        </Note>
       )}
       {confirm.option && (
-        <Checkbox checked={option} onChange={setOption} disabled={busy} className="adm-confirm-option">
+        <Checkbox checked={option} onChange={setOption} disabled={busy}>
           {confirm.option}
         </Checkbox>
       )}
-      {confirm.after && <p className="adm-confirm-after">{confirm.after}</p>}
       {confirm.typed && (
         <Input
           value={typed}
           placeholder={confirm.typed}
           aria-label={`Type ${confirm.typed} to confirm`}
           autoComplete="off"
+          disabled={busy}
           onChange={e => setTyped(e.target.value)}
         />
       )}
-      {error && <FormMessage>{error}</FormMessage>}
+      {error && <Note tone="danger">{error}</Note>}
     </Dialog>
   )
 }

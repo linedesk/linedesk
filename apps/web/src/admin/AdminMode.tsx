@@ -105,7 +105,9 @@ function useHealthProblems(): string[] {
   }, [])
   if (!health) return []
   // An API older than this page may not report every part yet.
-  return (Object.keys(partNames) as (keyof AdminHealth)[]).filter(k => health[k] && !health[k].ok).map(k => partNames[k])
+  return (Object.keys(partNames) as (keyof AdminHealth)[])
+    .filter(k => health[k] && !health[k].ok)
+    .map(k => partNames[k])
 }
 
 type Props = { currentUserId: string; onExit: () => void }
@@ -243,7 +245,6 @@ export function AdminMode({ currentUserId, onExit }: Props) {
 
   return (
     <div className="adm-mode">
-      <PasskeyStepUpHost />
       <nav ref={nav} className="adm-side" aria-label="Admin">
         <button type="button" className="adm-back" onClick={onExit} title={`Back to ${productName} (esc)`}>
           <Icon name="left" size={15} />
@@ -304,6 +305,8 @@ export function AdminMode({ currentUserId, onExit }: Props) {
         </div>
       </main>
       {toast && <Toast toast={{ text: toast.text, undo: !!toast.undo }} onUndo={() => void undo()} />}
+      {/* Last, so the passkey dialog opens over a confirm dialog that waits for it (same layer, later wins). */}
+      <PasskeyStepUpHost />
     </div>
   )
 }
