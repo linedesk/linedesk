@@ -3277,8 +3277,11 @@ describe('branding', () => {
   })
 
   test('the command log notes that a logo was sent, not the image', async () => {
-    await act(operator, 'branding.set', input)
-    const [row] = await db.select().from(commands).where(eq(commands.action, 'branding.set'))
+    // Other tests in this file log branding.set too (some without a logo): read the row of this call.
+    const key = crypto.randomUUID()
+    expect((await act(operator, 'branding.set', input, key)).status).toBe(200)
+    const [row] = await db.select().from(commands).where(eq(commands.id, key))
+    expect(row).toMatchObject({ action: 'branding.set' })
     expect(row?.input).toMatchObject({ name: 'Front Desk Pro', logo: REDACTED })
   })
 
