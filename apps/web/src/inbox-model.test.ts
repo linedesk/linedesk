@@ -64,41 +64,19 @@ describe('inbox views', () => {
   })
 })
 
-describe('order inside a day', () => {
+describe('order', () => {
   const at = (hour: number) => `2026-11-10 ${String(hour).padStart(2, '0')}:00:00+00`
-  it('ranks Needs you: live, urgent, new-caller callbacks, other callbacks, messages, hang-ups', () => {
+  it('lists every view newest first, urgent calls included; a live call stays on top', () => {
     const calls = [
+      call({ id: 'urgent', outcome: 'callback', urgency: 'urgent', from_number: '+5', started_at: at(7) }),
       call({ id: 'hangup', outcome: 'hangup', from_number: '+1', started_at: at(11) }),
-      call({ id: 'message', outcome: 'message', from_number: '+2', started_at: at(10) }),
-      call({ id: 'known-callback', outcome: 'callback', from_number: '+3', started_at: at(9) }),
-      call({ id: 'new-callback', outcome: 'callback', from_number: '+4', started_at: at(8) }),
-      call({ id: 'urgent', outcome: 'booked', urgency: 'urgent', from_number: '+5', started_at: at(7) }),
       call({ id: 'live', status: 'live', outcome: null, from_number: '+6', started_at: at(6) }),
-      call({
-        id: 'earlier-from-3',
-        outcome: 'answered',
-        inbox_state: 'done',
-        from_number: '+3',
-        started_at: '2026-11-02 09:00:00+00',
-      }),
-    ]
-    expect(listFor(calls, 'you', now).map(c => c.id)).toEqual([
-      'live',
-      'urgent',
-      'new-callback',
-      'known-callback',
-      'message',
-      'hangup',
-    ])
-  })
-  it('keeps day groups ahead of priority and sorts other views by time only', () => {
-    const calls = [
-      call({ id: 'yesterday-urgent', outcome: 'callback', urgency: 'urgent', started_at: '2026-11-09 10:00:00+00' }),
-      call({ id: 'today-hangup', outcome: 'hangup', started_at: at(9) }),
+      call({ id: 'message', outcome: 'message', from_number: '+2', started_at: at(10) }),
+      call({ id: 'yesterday', outcome: 'callback', from_number: '+3', started_at: '2026-11-09 23:00:00+00' }),
       call({ id: 'handled-old', outcome: 'booked', started_at: at(8) }),
       call({ id: 'handled-new', outcome: 'answered', started_at: at(10) }),
     ]
-    expect(listFor(calls, 'you', now).map(c => c.id)).toEqual(['today-hangup', 'yesterday-urgent'])
+    expect(listFor(calls, 'you', now).map(c => c.id)).toEqual(['live', 'hangup', 'message', 'urgent', 'yesterday'])
     expect(listFor(calls, 'ai', now).map(c => c.id)).toEqual(['handled-new', 'handled-old'])
   })
 })
@@ -171,23 +149,6 @@ describe('status column', () => {
   })
 })
 
-describe('older days', () => {
-  it('ranks by priority inside each calendar day, not across all earlier days', () => {
-    const calls = [
-      call({ id: 'nov3-hangup', outcome: 'hangup', started_at: '2026-11-03 18:00:00+00' }),
-      call({ id: 'nov3-urgent', outcome: 'callback', urgency: 'urgent', started_at: '2026-11-03 17:00:00+00' }),
-      call({ id: 'nov5-hangup', outcome: 'hangup', started_at: '2026-11-05 18:00:00+00' }),
-      call({ id: 'nov5-message', outcome: 'message', started_at: '2026-11-05 17:00:00+00' }),
-    ]
-    expect(listFor(calls, 'you', now).map(c => c.id)).toEqual([
-      'nov5-message',
-      'nov5-hangup',
-      'nov3-urgent',
-      'nov3-hangup',
-    ])
-  })
-})
-
 describe('cursor', () => {
   const before = ['a', 'b', 'c', 'd']
   it('stays on the same call when rows are added or reordered', () => {
@@ -242,7 +203,11 @@ describe('assigned to me', () => {
       call({ id: 'theirs', outcome: 'callback', assignee_id: 'u2' }),
       call({ id: 'nobody', outcome: 'callback' }),
     ]
-    expect(listFor(calls, 'mine', now, 'u1').map(c => c.id).sort()).toEqual(['mine-handled', 'mine-needs-you'])
+    expect(
+      listFor(calls, 'mine', now, 'u1')
+        .map(c => c.id)
+        .sort(),
+    ).toEqual(['mine-handled', 'mine-needs-you'])
     expect(countsFor(calls, now, 'u1').mine).toBe(2)
     expect(listFor(calls, 'mine', now, null)).toEqual([])
     // The call keeps its own view too: assigning does not move it.
@@ -269,10 +234,16 @@ describe('needs review', () => {
 
 describe('transferText', () => {
   it('says how the transfer went, and nothing without one', () => {
-    expect(transferText({ transfer_to: '+15035550199', transfer_result: 'connected' })).toBe('Transferred to +1 503 555 0199')
-    expect(transferText({ transfer_to: '+15035550199', transfer_name: 'Mike', transfer_result: 'connected' })).toBe('Transferred to Mike (+1 503 555 0199)')
+    expect(transferText({ transfer_to: '+15035550199', transfer_result: 'connected' })).toBe(
+      'Transferred to +1 503 555 0199',
+    )
+    expect(transferText({ transfer_to: '+15035550199', transfer_name: 'Mike', transfer_result: 'connected' })).toBe(
+      'Transferred to Mike (+1 503 555 0199)',
+    )
     expect(transferText({ transfer_to: '+15035550199', transfer_result: 'not_answered' })).toBe('Transfer not answered')
-    expect(transferText({ transfer_to: '+15035550199', transfer_result: 'declined' })).toBe('Transfer declined by +1 503 555 0199')
+    expect(transferText({ transfer_to: '+15035550199', transfer_result: 'declined' })).toBe(
+      'Transfer declined by +1 503 555 0199',
+    )
     expect(transferText({ transfer_to: null, transfer_result: null })).toBeNull()
   })
 })

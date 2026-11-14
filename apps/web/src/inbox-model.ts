@@ -37,41 +37,10 @@ export function viewForOpened(call: Call, tab: InboxTab, list: readonly Call[], 
 export const hasReminder = (call: Call, now = new Date()) => !!call.reminder_at && parseTs(call.reminder_at) > now
 
 const startedMs = (call: Call) => parseTs(call.started_at).getTime()
-const dayStartMs = (call: Call) => {
-  const d = parseTs(call.started_at)
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
-}
-
-/** Ids of calls that are the first one from their number. */
-export function firstCallIds(calls: Call[]): Set<string> {
-  const first = new Map<string, Call>()
-  for (const c of calls) {
-    const seen = first.get(c.from_number)
-    if (!seen || startedMs(c) < startedMs(seen)) first.set(c.from_number, c)
-  }
-  return new Set([...first.values()].map(c => c.id))
-}
-
-/** Needs you, inside a day: live, urgent, new-caller callbacks, other callbacks, messages, hang-ups. */
-export function priorityOf(call: Call, isNewCaller: boolean): number {
-  if (call.status === 'live') return 0
-  if (call.urgency === 'urgent') return 1
-  if (call.outcome === 'callback') return isNewCaller ? 2 : 3
-  if (call.outcome === 'message') return 4
-  if (call.outcome === 'hangup') return 5
-  return 6
-}
-
-/** Days newest first; inside each calendar day by priority (Needs you only), then newest first. */
-export function sortForList(calls: Call[], byPriority: boolean, all: Call[] = calls): Call[] {
-  const firsts = byPriority ? firstCallIds(all) : new Set<string>()
-  const key = (c: Call) => [-dayStartMs(c), byPriority ? priorityOf(c, firsts.has(c.id)) : 0, -startedMs(c)] as const
-  const keys = new Map(calls.map(c => [c.id, key(c)]))
-  return [...calls].sort((a, b) => {
-    const ka = keys.get(a.id)!,
-      kb = keys.get(b.id)!
-    return ka[0] - kb[0] || ka[1] - kb[1] || ka[2] - kb[2]
-  })
+/** A call in progress on top, then newest first, in every view (Reminders sort by when they come back, see listFor). */
+export function sortForList(calls: Call[]): Call[] {
+  const live = (c: Call) => (c.status === 'live' ? 0 : 1)
+  return [...calls].sort((a, b) => live(a) - live(b) || startedMs(b) - startedMs(a))
 }
 
 /** Assigned to `userId` and still open: not done, not spam. */
@@ -97,15 +66,15 @@ export function listFor(
   member: string | null = null,
 ): Call[] {
   const visible = calls.filter(c => !c.deleted_at)
-  if (tab === 'mine') return sortForList(visible.filter(c => isOpenFor(c, me, now)), true, visible)
-  if (tab === 'member') return sortForList(visible.filter(c => isOpenFor(c, member, now)), true, visible)
-  if (tab === 'unassigned') return sortForList(visible.filter(c => isUnassigned(c, now)), true, visible)
-  if (tab === 'review') return sortForList(visible.filter(c => review.has(c.id)), false, visible)
+  if (tab === 'mine') return sortForList(visible.filter(c => isOpenFor(c, me, now)))
+  if (tab === 'member') return sortForList(visible.filter(c => isOpenFor(c, member, now)))
+  if (tab === 'unassigned') return sortForList(visible.filter(c => isUnassigned(c, now)))
+  if (tab === 'review') return sortForList(visible.filter(c => review.has(c.id)))
   const inTab = visible.filter(c => tabOf(c, now) === tab)
   // Reminders read as a schedule: the one that comes back first is on top.
   if (tab === 'reminders')
     return inTab.sort((a, b) => parseTs(a.reminder_at!).getTime() - parseTs(b.reminder_at!).getTime())
-  return sortForList(inTab, tab === 'you', visible)
+  return sortForList(inTab)
 }
 
 /** Needs you counts rows, so repeat hang-ups from one number count once (see groupRepeats). */
@@ -116,7 +85,17 @@ export function countsFor(
   review: ReadonlySet<string> = new Set(),
   member: string | null = null,
 ): Record<InboxTab, number> {
-  const counts: Record<InboxTab, number> = { you: 0, ai: 0, spam: 0, reminders: 0, done: 0, mine: 0, member: 0, unassigned: 0, review: 0 }
+  const counts: Record<InboxTab, number> = {
+    you: 0,
+    ai: 0,
+    spam: 0,
+    reminders: 0,
+    done: 0,
+    mine: 0,
+    member: 0,
+    unassigned: 0,
+    review: 0,
+  }
   for (const c of calls) {
     if (c.deleted_at) continue
     counts[tabOf(c, now)]++
@@ -199,10 +178,16 @@ export function formatPhone(e164: string): string {
 }
 
 /** How a warm transfer during the call went, for the call's header; null when there was none. */
-export function transferText(call: Pick<Call, 'transfer_to' | 'transfer_result'> & Partial<Pick<Call, 'transfer_name'>>): string | null {
+export function transferText(
+  call: Pick<Call, 'transfer_to' | 'transfer_result'> & Partial<Pick<Call, 'transfer_name'>>,
+): string | null {
   if (!call.transfer_result) return null
   const number = call.transfer_to ? formatPhone(call.transfer_to) : null
-  const to = call.transfer_name ? (number ? `${call.transfer_name} (${number})` : call.transfer_name) : (number ?? 'the on-call phone')
+  const to = call.transfer_name
+    ? number
+      ? `${call.transfer_name} (${number})`
+      : call.transfer_name
+    : (number ?? 'the on-call phone')
   if (call.transfer_result === 'connected') return `Transferred to ${to}`
   if (call.transfer_result === 'dialing') return `Transferring to ${to}`
   if (call.transfer_result === 'declined') return `Transfer declined by ${to}`

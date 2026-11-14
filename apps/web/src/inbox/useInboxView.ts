@@ -2,7 +2,15 @@
 import type { Call } from '@linedesk/db/types'
 import { useEffect, useMemo } from 'react'
 import { useSegmentsByCall } from '../call/segments.ts'
-import { type CallGroups, countsFor, groupRepeats, listFor, sortForList, type InboxTab, viewForOpened } from '../inbox-model.ts'
+import {
+  type CallGroups,
+  countsFor,
+  groupRepeats,
+  listFor,
+  sortForList,
+  type InboxTab,
+  viewForOpened,
+} from '../inbox-model.ts'
 import { useNow } from '../shell/useNow.ts'
 import type { RouteApi } from '../shell/useRoute.ts'
 import { useAssistantName, useRows, useRun, useSnapshot } from '../store.tsx'
@@ -16,7 +24,12 @@ const NO_REVIEW: ReadonlySet<string> = new Set()
  * `me`: the signed-in member's user id (Assigned to me). `review`: calls whose evaluation needs a person (Needs review).
  * `impersonating`: an instance admin looks as this user; opening a call does not mark it read for them.
  */
-export function useInboxView(nav: RouteApi, me: string | null = null, review: ReadonlySet<string> = NO_REVIEW, impersonating = false) {
+export function useInboxView(
+  nav: RouteApi,
+  me: string | null = null,
+  review: ReadonlySet<string> = NO_REVIEW,
+  impersonating = false,
+) {
   const calls = useRows('calls')
   const contacts = useSnapshot().tables.contacts
   const segments = useSegmentsByCall()
@@ -42,7 +55,7 @@ export function useInboxView(nav: RouteApi, me: string | null = null, review: Re
             search,
           ),
       )
-      return { list: sortForList(hits, false), groups: new Map() }
+      return { list: sortForList(hits), groups: new Map() }
     }
     const inTab = listFor(calls, tab, now, me, review, member)
     return tab === 'you' ? groupRepeats(inTab) : { list: inTab, groups: new Map() }

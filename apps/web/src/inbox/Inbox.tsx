@@ -102,15 +102,11 @@ function ListHead({
           <span className="ib-cols-all">{all ? 'All selected' : 'Select all'}</span>
         </Checkbox>
       </span>
-      <span className="num" aria-hidden="true">
-        Time
-      </span>
+      <span aria-hidden="true">Time</span>
       <span aria-hidden="true">Caller</span>
       <span aria-hidden="true">Call</span>
       <span aria-hidden="true">{(!searching && statusHeading[tab]) || 'Status'}</span>
-      <span className="num" aria-hidden="true">
-        Duration
-      </span>
+      <span aria-hidden="true">Duration</span>
     </div>
   )
 }

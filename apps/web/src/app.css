@@ -789,9 +789,14 @@ button.me:focus-visible {
   padding-right: var(--gutter);
   grid-template-columns: var(--ib-columns);
 }
-/* The time says the day and the clock time on one line ("Yesterday 11:40 PM"). */
+/* The time says the day and the clock time on one line ("Yesterday 11:40 PM"). Every column,
+   time and duration included, starts at its left edge, under its heading. */
 .ib-list .row .r-time {
   white-space: nowrap;
+}
+.ib-list .row:not(.cust-row) .r-time,
+.ib-list .row:not(.cust-row) .r-dur {
+  text-align: left;
 }
 /* The time is on the left now: it stays when the row's actions cover the duration on hover. */
 .ib-list .row:not(.cust-row):hover .r-time,
