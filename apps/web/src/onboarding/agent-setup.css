@@ -271,7 +271,21 @@
   gap: 10px;
   padding: 5px 0;
   font-size: 13px;
+  line-height: 20px;
   color: var(--ink-muted);
+}
+/* A label that wraps (phone width): its mark stays on the first line, not between the lines. */
+.as-item > .as-mark {
+  align-self: flex-start;
+  margin-top: 1px;
+}
+.as-item-label {
+  min-width: 0;
+}
+/* A row with a button (passkey, forwarding, test call): mark, label and button on one centre line. */
+.as-item:has(> .as-item-action) > .as-mark {
+  align-self: center;
+  margin-top: 0;
 }
 .as-item.done {
   color: var(--ink);
@@ -281,11 +295,21 @@
   color: var(--ink-muted);
   font-size: 12px;
 }
-.as-group-note {
-  display: inline-flex;
-  align-items: center;
+/* The workspace steps: a line apart from the server's (one server, many workspaces), headed by the workspace dropdown. */
+.as-group-ws {
   gap: 6px;
-  margin: 0 0 2px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.as-ws-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.as-ws-head .k-select {
+  min-width: 0;
+  max-width: 100%;
 }
 .as-item .as-small,
 .as-item .as-item-action {

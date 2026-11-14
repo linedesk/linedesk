@@ -5,6 +5,9 @@
 // Step 1 is the admin's passkey (agent-setup-passkey.ts): only they can add it, on this device, so it comes first.
 // Every step the admin does themselves is finished here, never sent into the app: the passkey, the call forwarding and
 // the test call (SetupRowActions.tsx). The agent ends its own access at the end; the page then says when.
+// The server's steps are once per install; the workspace steps below them belong to the workspace picked in the
+// dropdown that heads them (one per business or location, LIN-237). Picking one makes it the app's active workspace, so
+// the forwarding and the test call always act on the workspace shown.
 import {
   AGENT_SETUP_HASH,
   type AgentClient,
@@ -16,6 +19,7 @@ import {
   cloudClients,
   HOSTING_GUIDE_URL,
   installPlace,
+  type SetupWorkspaceSummary,
   startPlan,
   stepsByGroup,
 } from '@linedesk/actions'
@@ -38,6 +42,9 @@ import {
 import { AgentPicker } from './AgentPicker.tsx'
 import { AllowDialog, AllowedNote, AllowRequestNote, useAllow } from './AllowEmailAndSignIn.tsx'
 import { installPartsMissing, passkeyStepOf, withPasskeyAdded } from './agent-setup-passkey.ts'
+import { NewWorkspaceDialog } from '../shell/NewWorkspace.tsx'
+import { switchToWorkspace } from '../shell/invitations.ts'
+import { Select } from '../ui/controls.tsx'
 import { CopyButton } from './Frame.tsx'
 import { type SetupWorkspace, SetupForwarding, SetupTestCall } from './SetupRowActions.tsx'
 import { rememberManual } from './setup-choice.ts'
@@ -107,14 +114,15 @@ type Props = {
   /** Called once the agent has created the admin's business (the page around this one needs a workspace to go on). */
   onWorkspaceReady?: () => void
   /**
-   * The workspace this tab works in, once there is one: the test call and the forwarding check run in it, right on
-   * this page, when it is the one the setup is about.
+   * The app's active workspace in this tab, once there is one: the page shows its steps (when the admin is owner or
+   * admin there), and the test call and the forwarding check run in it. Picking another workspace switches it.
    */
-  workspace?: SetupWorkspace
+  active?: SetupWorkspace
 }
 
-export function AgentSetup({ onManual, onDone, onWorkspaceReady, workspace }: Props) {
+export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props) {
   const [state, setState] = useState<AgentSetupState | null>(null)
+  const activeId = active?.id ?? null
   const [loadError, setLoadError] = useState<string | null>(null)
   const [created, setShown] = useState<AgentSetupKeyCreated | null>(stillShown)
   // When the link on the page was set (0: kept from before), and when the shown state was asked for: only a state
@@ -153,7 +161,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, workspace }: Pr
   const load = useCallback(async () => {
     try {
       const asked = Date.now()
-      const next = await loadAgentSetup()
+      const next = await loadAgentSetup(activeId)
       if (asked < stateAskedAt.current) return // an older answer that arrived late
       stateAskedAt.current = asked
       setState(next)
@@ -161,7 +169,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, workspace }: Pr
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'Could not read the setup state')
     }
-  }, [])
+  }, [activeId])
   // An Allow link opened in this tab already: read again at once, so the dialog names what the agent just asked for.
   useEffect(() => {
     if (allowKeyId) void load()
@@ -395,7 +403,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, workspace }: Pr
           connected={connected}
           onDone={onDone}
           passkey={passkey}
-          workspace={workspace}
+          active={active ?? null}
           reload={load}
         />
 
@@ -444,6 +452,11 @@ function EmailAndSignIn({
 
 const timeOf = (iso: string) => untilLabel(new Date(iso))
 
+/** The dropdown's item that opens "New workspace" instead of picking one. */
+export const NEW_WORKSPACE = '__new'
+/** Its value while the admin has no workspace yet. */
+const NO_WORKSPACE = ''
+
 /** What the agent has set up so far, live. */
 function Progress({
   state,
@@ -451,7 +464,7 @@ function Progress({
   connected,
   onDone,
   passkey,
-  workspace,
+  active,
   reload,
 }: {
   state: AgentSetupState | null
@@ -459,7 +472,7 @@ function Progress({
   connected: boolean
   onDone: () => void
   passkey: PasskeyHere
-  workspace?: SetupWorkspace
+  active: SetupWorkspace | null
   reload: () => Promise<void>
 }) {
   // The assistant answered a test call made here: the row shows done at once; the next read of the progress agrees.
@@ -468,12 +481,24 @@ function Progress({
     setCalledHere(true)
     void reload()
   }, [reload])
+  const [newWorkspace, setNewWorkspace] = useState(false)
+  const [switching, setSwitching] = useState<string | null>(null)
+  const [switchError, setSwitchError] = useState<string | null>(null)
+  // Picking a workspace makes it the app's active one (the page reloads into it), so its rows' buttons act on it.
+  const switchTo = useCallback((id: string) => {
+    setSwitching(id)
+    setSwitchError(null)
+    switchToWorkspace(id, null).catch(e => {
+      setSwitching(null)
+      setSwitchError(e instanceof Error ? e.message : 'Could not switch the workspace')
+    })
+  }, [])
   if (!state) return loadError ? <Note tone="danger">{loadError}</Note> : null
   const { allDone } = state.progress
   const steps = withTestCallMade(state.progress.steps, calledHere)
-  // The setup's business, when this tab works in it: its own steps are done right here.
-  const business = state.progress.workspace
-  const here = business && workspace?.id === business.id ? workspace : null
+  // The workspace the rows are about; its buttons work right here once it is the app's active workspace.
+  const selected = state.progress.workspace ?? null
+  const here = selected && active?.id === selected.id ? active : null
   const done = steps.filter(s => s.state === 'done').length
   return (
     <section className="as-card as-progress" aria-label="Setup progress" aria-live="polite">
@@ -495,13 +520,21 @@ function Progress({
           {done} of {steps.length} done
         </span>
       </div>
-      {/* By part of the setup: the admin's own, the server's (once per install), the first business. */}
+      {/* By part of the setup: the admin's own, the server's (once per install), then the picked workspace's. */}
       {stepsByGroup(steps).map(group => (
-        <div key={group.id} className="as-group">
-          <h3 className="as-group-label" id={`as-group-${group.id}`}>
-            {group.label}
-          </h3>
-          {group.id === 'business' && <FirstWorkspace others={state.progress.otherWorkspaces ?? []} />}
+        <div key={group.id} className={cx('as-group', group.id === 'business' && 'as-group-ws')}>
+          {group.id === 'business' ? (
+            <WorkspacePicker
+              workspaces={state.progress.workspaces ?? []}
+              selectedId={selected?.id ?? null}
+              busy={switching}
+              onPick={id => (id === NEW_WORKSPACE ? setNewWorkspace(true) : switchTo(id))}
+            />
+          ) : (
+            <h3 className="as-group-label" id={`as-group-${group.id}`}>
+              {group.label}
+            </h3>
+          )}
           <ul className="as-list" aria-labelledby={`as-group-${group.id}`}>
             {group.steps.map(step => (
               <Fragment key={step.id}>
@@ -509,7 +542,7 @@ function Progress({
                   <span className="as-mark" aria-hidden>
                     {step.state === 'done' ? <Icon name="check" size={12} /> : step.state === 'failing' ? '!' : null}
                   </span>
-                  <span>
+                  <span className="as-item-label">
                     {step.label}
                     {step.hint && <span className="as-hint"> · {step.hint}</span>}
                   </span>
@@ -518,8 +551,9 @@ function Progress({
                     step={step}
                     passkey={passkey}
                     workspace={here}
-                    hasBusiness={Boolean(business)}
-                    assistantName={business?.assistantName ?? 'your assistant'}
+                    onSwitch={selected && !here ? () => switchTo(selected.id) : null}
+                    switching={Boolean(switching)}
+                    assistantName={selected?.assistantName ?? 'your assistant'}
                     onCalled={onCalled}
                     reload={reload}
                   />
@@ -530,6 +564,7 @@ function Progress({
           </ul>
         </div>
       ))}
+      {switchError && <Note tone="danger">{switchError}</Note>}
       {/* Before the agent has created the business there is no workspace to open: the button would bring back this page. */}
       {(allDone || connected) && steps.some(s => s.id === 'workspace' && s.state === 'done') && (
         <div>
@@ -538,7 +573,58 @@ function Progress({
           </Button>
         </div>
       )}
+      {newWorkspace && <NewWorkspaceDialog onClose={() => setNewWorkspace(false)} returnTo={AGENT_SETUP_HASH} />}
     </section>
+  )
+}
+
+/**
+ * The workspace dropdown's items: each workspace the admin can set up with how far it got (or that there is none yet),
+ * then "New workspace…".
+ */
+export function workspaceOptions(workspaces: readonly SetupWorkspaceSummary[]) {
+  return [
+    ...(workspaces.length
+      ? workspaces.map(w => ({
+          value: w.id,
+          label: w.name,
+          description: w.done >= w.total ? 'Set up' : `${w.done} of ${w.total} done`,
+        }))
+      : [{ value: NO_WORKSPACE, label: 'No workspace yet', description: 'Your agent creates it, or add one here' }]),
+    { value: NEW_WORKSPACE, label: 'New workspace…', description: 'Another business or location' },
+  ]
+}
+
+/**
+ * The heading of the workspace steps: which workspace they show. Lists every workspace the admin can set up (owner or
+ * admin there) with how far it got, and "New workspace…". The server above is one; workspaces can be many.
+ */
+export function WorkspacePicker({
+  workspaces,
+  selectedId,
+  busy,
+  onPick,
+}: {
+  workspaces: readonly SetupWorkspaceSummary[]
+  selectedId: string | null
+  /** The workspace being switched to: the dropdown waits for the page to reload into it. */
+  busy: string | null
+  onPick: (id: string) => void
+}) {
+  const options = workspaceOptions(workspaces)
+  return (
+    <div className="as-ws-head" id="as-group-business">
+      <span className="as-group-label">Workspace</span>
+      <Select
+        label="Workspace whose steps are shown"
+        value={busy ?? selectedId ?? NO_WORKSPACE}
+        options={options}
+        disabled={Boolean(busy)}
+        size="sm"
+        onChange={onPick}
+      />
+      <HelpTip text="This server is set up once. A workspace is one business or location, with its own assistant, phone number, calls and team; you can have several. Pick one to see its steps and finish them here." />
+    </div>
   )
 }
 
@@ -561,22 +647,25 @@ export function withTestCallMade<S extends { id: string; state: string }>(
 
 /**
  * How the admin finishes a step on this page (never "do this in the app"): the passkey, the call forwarding (the
- * agent can also run it) and the test call. Steps the agent does have none.
+ * agent can also run it) and the test call, always for the workspace shown. Steps the agent does have none.
  */
 export function StepAction({
   step,
   passkey,
   workspace,
-  hasBusiness,
+  onSwitch,
+  switching = false,
   assistantName,
   onCalled,
   reload,
 }: {
   step: AgentSetupState['progress']['steps'][number]
   passkey: PasskeyHere
-  /** The setup's business, when this tab works in it; null otherwise. */
+  /** The workspace shown, when it is the app's active workspace in this tab: the buttons act in it right here. */
   workspace: SetupWorkspace | null
-  hasBusiness: boolean
+  /** The workspace shown is not the active one (or this tab has none): its buttons make it active first. */
+  onSwitch: (() => void) | null
+  switching?: boolean
   assistantName: string
   onCalled: () => void
   reload: () => Promise<void>
@@ -587,28 +676,59 @@ export function StepAction({
         <AddPasskeyButton passkey={passkey} from="list" size="sm" />
       </span>
     )
-  if (step.id === 'test_call')
+  if (step.id === 'test_call') {
     // Also once done ("Call again"), so a call in progress keeps its panel when the row turns done.
-    return workspace ? (
-      <span className="as-item-action">
-        <SetupTestCall
-          workspace={workspace}
-          assistantName={assistantName}
-          done={step.state === 'done'}
-          onCalled={onCalled}
-        />
-      </span>
-    ) : step.state === 'done' ? null : (
-      <span className="as-small">
-        {hasBusiness ? 'here, from the tab of your first workspace' : 'here, once your business is set up'}
-      </span>
-    )
-  if (step.id === 'forwarding' && step.state !== 'done' && workspace)
-    return (
-      <span className="as-item-action">
-        <SetupForwarding workspace={workspace} onClosed={() => void reload()} />
-      </span>
-    )
+    if (workspace)
+      return (
+        <span className="as-item-action">
+          <SetupTestCall
+            workspace={workspace}
+            assistantName={assistantName}
+            done={step.state === 'done'}
+            onCalled={onCalled}
+          />
+        </span>
+      )
+    if (step.state === 'done') return null
+    if (onSwitch)
+      return (
+        <span className="as-item-action">
+          <Button
+            size="sm"
+            variant="primary"
+            icon="phone-in"
+            busy={switching}
+            title="Opens this workspace in this tab first; then call from here"
+            onClick={onSwitch}
+          >
+            Call {assistantName} now
+          </Button>
+        </span>
+      )
+    return <span className="as-small">here, once the workspace exists</span>
+  }
+  if (step.id === 'forwarding' && step.state !== 'done') {
+    if (workspace)
+      return (
+        <span className="as-item-action">
+          <SetupForwarding workspace={workspace} onClosed={() => void reload()} />
+        </span>
+      )
+    if (onSwitch)
+      return (
+        <span className="as-item-action">
+          <Button
+            size="sm"
+            variant="secondary"
+            busy={switching}
+            title="Opens this workspace in this tab first; then set it up from here"
+            onClick={onSwitch}
+          >
+            Set up forwarding
+          </Button>
+        </span>
+      )
+  }
   return null
 }
 
@@ -673,20 +793,5 @@ export function HostingNote({ address }: { address: string }) {
         {local ? 'Put it on a server' : 'Add an https address'}
       </a>
     </Note>
-  )
-}
-
-/**
- * Under "Your business": the steps are for the first workspace; more (one per business or location) come later, and
- * the ones there already are named.
- */
-function FirstWorkspace({ others }: { others: readonly string[] }) {
-  return (
-    <p className="as-small as-group-note">
-      {others.length > 0
-        ? `For your first workspace. Also set up: ${others.join(', ')}.`
-        : 'Your first workspace. You can add more later, one per business or location.'}
-      <HelpTip text="A workspace is one business or location, with its own assistant, phone number, calls and team. Your agent sets up the first one with you; add the others afterwards from the workspace menu (New workspace), and each one opens its own setup." />
-    </p>
   )
 }

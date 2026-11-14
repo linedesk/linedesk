@@ -345,7 +345,10 @@ export const loadWorkspaceMembers = (workspaceId: string) =>
 export const loadOverview = () => get<AdminOverview>('/v1/admin/overview')
 
 /** GET /v1/admin/agent-setup (apps/api/src/agent-setup.ts): the setup key in use (never the key) and the agent's progress. */
-export const loadAgentSetup = () => get<AgentSetupState>('/v1/admin/agent-setup')
+export const loadAgentSetup = (workspaceId?: string | null) =>
+  get<AgentSetupState>(
+    workspaceId ? `/v1/admin/agent-setup?workspace=${encodeURIComponent(workspaceId)}` : '/v1/admin/agent-setup',
+  )
 /** The same without the progress (quick): the Allow dialog opens as soon as the key is known. */
 export const loadAgentSetupKey = () => get<Omit<AgentSetupState, 'progress'>>('/v1/admin/agent-setup?part=key')
 /** Install setup by hand (InstallSetup.tsx): where it is, and whether a saved sign-in change waits for a restart. */

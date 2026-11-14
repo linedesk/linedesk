@@ -233,9 +233,11 @@ export function registerAdminRoutes(app: Hono<Env>) {
     const actor = c.get('actor')
     // ?part=key: the key alone, without the progress (which checks every provider group): the Allow dialog opens on it.
     if (c.req.query('part') === 'key') return c.json(await agentSetupState(actor.actorId))
-    // The progress of the workspace the agent works in (the admin's first own business), not the session's one.
+    // The server's steps, then those of the workspace the page picked (?workspace=, one the admin is owner or admin
+    // of; else their first): what the agent sees for it, whatever workspace the session is in.
     const asAgent = (await setupActor(actor.actorId, 'page')) ?? actor
-    return c.json({ ...(await agentSetupState(actor.actorId)), progress: await setupProgress(asAgent) })
+    const progress = await setupProgress(asAgent, c.req.query('workspace') ?? null)
+    return c.json({ ...(await agentSetupState(actor.actorId)), progress })
   })
 
   // Install setup by hand (install-setup.ts): where the walkthrough is, and whether a saved change waits for a restart.

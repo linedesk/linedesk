@@ -7,7 +7,8 @@ import { type CreatingPhase, CreatingStatus } from '../CreatingStatus.tsx'
 import { Dialog, FormField, Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 
-export function NewWorkspaceDialog({ onClose }: { onClose: () => void }) {
+/** `returnTo`: the page the app opens on in the new workspace (its onboarding when left out; the setup page passes its own). */
+export function NewWorkspaceDialog({ onClose, returnTo = '' }: { onClose: () => void; returnTo?: string }) {
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [phase, setPhase] = useState<CreatingPhase>('idle')
@@ -23,7 +24,7 @@ export function NewWorkspaceDialog({ onClose }: { onClose: () => void }) {
       await createWorkspace(name.trim())
       // The page stays on screen until the reload has loaded the app again: say so meanwhile.
       setPhase('opening')
-      window.location.hash = ''
+      window.location.hash = returnTo
       window.location.reload()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))

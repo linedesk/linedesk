@@ -117,11 +117,11 @@ describe('stepsByGroup', () => {
     const steps = [step('answering', 'server'), step('workspace', 'business'), step('email', 'server')]
     expect(stepsByGroup(steps).map(g => [g.label, g.steps.map(s => s.id)])).toEqual([
       ['This server', ['answering', 'email']],
-      ['Your business', ['workspace']],
+      ['Workspace', ['workspace']],
     ])
     expect(stepsByGroup([step('phone', 'business'), step('passkey', 'you')]).map(g => [g.id, g.label])).toEqual([
       ['you', 'Security'],
-      ['business', 'Your business'],
+      ['business', 'Workspace'],
     ])
   })
 })
@@ -134,8 +134,13 @@ describe('setup step names', () => {
     expect(SETUP_MCP_INSTRUCTIONS).not.toContain('who hears about calls')
   })
 
-  test('the agent asks once about more businesses or locations; the first is set up now', () => {
+  test('the agent asks once about more businesses or locations and sets each one up (LIN-237)', () => {
     expect(agentSetupPrompt(URL)).toMatch(/more than one business or location/)
+    expect(agentSetupPrompt(URL)).toMatch(/workspace_create\); we set them up one after the other/)
     expect(SETUP_MCP_INSTRUCTIONS).toMatch(/more than one business or location/)
+    // Every business tool names its workspace; only the admin's own (owner or admin) are allowed.
+    expect(SETUP_MCP_INSTRUCTIONS).toMatch(/takes workspaceId/)
+    expect(SETUP_MCP_INSTRUCTIONS).toMatch(/owner or admin; any other id is refused/)
+    expect(SETUP_MCP_INSTRUCTIONS).not.toMatch(/workspace_create makes only that one|afterwards in the app/)
   })
 })

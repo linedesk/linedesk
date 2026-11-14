@@ -1,24 +1,25 @@
 // Agent setup keys (LIN-125, docs/api.md "Setup MCP"): an instance admin lets an AI agent set up the install. The key
-// acts as that admin, in their first workspace, through the short list of setup tools of setup-mcp.ts only, for
-// SETUP_KEY_HOURS. Stored as a SHA-256 hash (256 random bits, so a fast hash is enough), like a workspace API key.
+// acts as that admin through the short list of setup tools of setup-mcp.ts only, for SETUP_KEY_HOURS: the providers
+// once per server, and each workspace the admin is owner or admin of, named by every business tool (LIN-237). Stored
+// as a SHA-256 hash (256 random bits, so a fast hash is enough), like a workspace API key.
 //
-// What the key can never do, whatever tool it reaches: anything outside setup-mcp.ts's list (users, admins, other
-// workspaces, impersonation, deleting), skipping the number-purchase caps, and outliving its creator's admin role,
-// account or the 24 hours. Email and sign-in (whoever controls them can sign in as anyone) keep the passkey step-up of
-// admin-step-up.ts: only a key the admin confirmed with a passkey changes them (LIN-182), for the 12 hours that passkey
-// sign-in counts; made right after one, or afterwards with agentSetup.confirmPasskey ("Allow" on the setup page, opened
-// from the link the agent gives, which names the key), until agentSetup.withdrawPasskey. Resetting the admin's passkeys,
-// disabling them or ending all their sessions revokes their keys (passkey-enrolment.ts revokeSetupKeysOf); a code for
-// the admin's first passkey (user.issuePasskeyEnrolment, user:passkeys --enrol) does not. A revoked or expired key's
-// row and hash stay: an agent still using it gets 401 SETUP_KEY_ENDED with a coarse reason (setupKeyAccess), which
-// does not count towards the address's limit on unknown keys. Removing the admin role ends them too. At the end of the
-// setup the agent ends its own key (agentSetup.endOwnAccess, setup MCP setup_endAccess): that key only, nothing else.
+// What the key can never do, whatever tool it reaches: anything outside setup-mcp.ts's list (users, admins, workspaces
+// where the admin is not owner or admin, impersonation, deleting), skipping the number-purchase caps, and outliving
+// its creator's admin role, account or the 24 hours. Email and sign-in (whoever controls them can sign in as anyone)
+// keep the passkey step-up of admin-step-up.ts: only a key the admin confirmed with a passkey changes them (LIN-182),
+// for the 12 hours that passkey sign-in counts; made right after one, or afterwards with agentSetup.confirmPasskey
+// ("Allow" on the setup page, opened from the link the agent gives, which names the key), until
+// agentSetup.withdrawPasskey. Resetting the admin's passkeys, disabling them or ending all their sessions revokes their
+// keys (passkey-enrolment.ts revokeSetupKeysOf); a code for the admin's first passkey (user.issuePasskeyEnrolment,
+// user:passkeys --enrol) does not. A revoked or expired key's row and hash stay: an agent still using it gets 401
+// SETUP_KEY_ENDED with a coarse reason (setupKeyAccess), which does not count towards the address's limit on unknown
+// keys. Removing the admin role ends them too. At the end of the setup the agent ends its own key
+// (agentSetup.endOwnAccess, setup MCP setup_endAccess): that key only, nothing else.
 import { createHash, randomBytes } from 'node:crypto'
 import {
   type AgentSetupAllowRequest,
   type AgentSetupKeyCreated,
   type AgentSetupState,
-  type Role,
   reachableFromCloud,
   rolePermissions,
   SETUP_KEY_HOURS,
@@ -26,10 +27,9 @@ import {
   providerCategories,
   providerNames,
   providerSpec,
-  teamRoles,
 } from '@linedesk/actions'
-import { agent_setup_keys, member, session, type Tx, user } from '@linedesk/db'
-import { and, asc, desc, eq, gt, isNull } from 'drizzle-orm'
+import { agent_setup_keys, member, organization, session, type Tx, user } from '@linedesk/db'
+import { and, asc, desc, eq, gt, inArray, isNull } from 'drizzle-orm'
 import { adminSecondFactorRequired, PASSKEY_CONFIRM_HOURS } from './admin-second-factor.ts'
 import { passkeySignInForGrant } from './admin-step-up.ts'
 import { mustConfirmEmail } from './auth-methods.ts'
@@ -63,17 +63,27 @@ const allowRequest = createRateLimiter({ max: SETUP_KEY_REQUESTS_PER_MINUTE, win
 const refused = createFailureLimiter({ max: 10, windowMs: 10 * 60_000 })
 export const tooManyRefusedSetupKeys = (ip: string | null) => refused.blocked(addressBucket(ip))
 
-/** The person the key acts for: a member of a workspace (owner or admin there sets it up), or none yet. */
-async function workspaceOf(userId: string): Promise<{ workspaceId: string; role: Role } | null> {
-  const rows = await db.select().from(member).where(eq(member.userId, userId)).orderBy(asc(member.createdAt))
-  // The first workspace where they may change settings: the business they set up.
-  const m = rows.find(r => r.role === 'owner' || r.role === 'admin') ?? rows[0]
-  if (!m) return null
-  const role: Role = (teamRoles as readonly string[]).includes(m.role) ? (m.role as Role) : 'member'
-  return { workspaceId: m.organizationId, role }
+/** A workspace the setup key's admin may set up: they are its owner or admin there, and it is not disabled. */
+export type ManagedWorkspace = { id: string; name: string; role: 'owner' | 'admin' }
+
+/**
+ * Every workspace the admin may set up through the setup MCP and the setup page, oldest membership first: where they
+ * are owner or admin. Never one where they are only a member, and never a disabled one (nothing there can change).
+ */
+export async function managedWorkspaces(userId: string): Promise<ManagedWorkspace[]> {
+  const rows = await db
+    .select({ id: organization.id, name: organization.name, role: member.role })
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(and(eq(member.userId, userId), inArray(member.role, ['owner', 'admin']), isNull(organization.disabledAt)))
+    .orderBy(asc(member.createdAt))
+  return rows.map(r => ({ id: r.id, name: r.name, role: r.role as ManagedWorkspace['role'] }))
 }
 
-/** The actor of a setup key's creator, as setup-mcp.ts runs their tools. Exported for the tests. */
+/**
+ * The actor of a setup key's creator, as setup-mcp.ts runs their tools. Exported for the tests. It is in no workspace:
+ * every business tool names its workspace (setupActorIn), so nothing lands in a workspace by default.
+ */
 export async function setupActor(
   userId: string,
   keyId: string,
@@ -81,14 +91,11 @@ export async function setupActor(
 ): Promise<Actor | null> {
   const [account] = await db.select().from(user).where(eq(user.id, userId))
   if (!account || account.disabledAt || !isInstanceAdmin(account)) return null
-  const ws = await workspaceOf(userId)
-  const base = ws ? rolePermissions[ws.role] : []
   return {
     actorId: userId,
-    role: ws?.role ?? 'member',
-    workspaceId: ws?.workspaceId ?? null,
-    // Never team:write (inviting people, roles) or key management: setup only.
-    permissions: [...base.filter(p => p !== 'team:write'), 'instance:admin'],
+    role: 'member',
+    workspaceId: null,
+    permissions: ['instance:admin'],
     setupKeyId: keyId,
     // The key is a bearer URL kept in agent settings and transcripts: it passes the passkey step-up (email and
     // sign-in) only while the admin's passkey confirmation of it lasts. setup-mcp.ts keeps it to the provider tools.
@@ -96,6 +103,23 @@ export async function setupActor(
       ? { passkeyConfirmed: true as const }
       : {}),
     ...(mustConfirmEmail(account.emailVerified) ? { emailUnverified: true as const } : {}),
+  }
+}
+
+/**
+ * The setup key's admin acting in one of their workspaces, as its owner or admin would: that role's permissions without
+ * team:write (inviting people, roles), never instance:admin or the passkey confirmation. Null when the admin is not
+ * owner or admin of `workspaceId` (or it is disabled): the agent never reaches another workspace.
+ */
+export async function setupActorIn(actor: Actor, workspaceId: string): Promise<Actor | null> {
+  const ws = (await managedWorkspaces(actor.actorId)).find(w => w.id === workspaceId)
+  if (!ws) return null
+  const { passkeyConfirmed: _, ...rest } = actor
+  return {
+    ...rest,
+    workspaceId: ws.id,
+    role: ws.role,
+    permissions: rolePermissions[ws.role].filter(p => p !== 'team:write'),
   }
 }
 
