@@ -335,6 +335,8 @@ app.get('/v1/me', async c => {
     onboarding: workspace ? await onboardingFor(actor) : null,
     phoneSetup: workspace ? await phoneSetupFor(actor) : null,
     impersonation: await impersonationOf(actor),
+    // When the session ends: a browser opens from its local data at load only until then (apps/web/src/session.ts).
+    sessionExpiresAt: actor.sessionExpiresAt?.toISOString() ?? null,
     // An instance admin whose session lacks the second factor: 'setup' (no passkey yet) or 'confirm'.
     adminSecondFactor: actor.adminSecondFactor ?? null,
     // An instance admin without a passkey: adding the first one asks for their enrolment code (passkey-enrolment.ts).

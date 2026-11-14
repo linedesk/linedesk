@@ -33,6 +33,8 @@ export interface Actor {
   setupKeyId?: string
   /** The session of a signed-in member (not an API key or the agent). */
   sessionId?: string
+  /** When that session ends unless it is used again (Better Auth extends it as it is used). */
+  sessionExpiresAt?: Date
   /** The voice agent with a call token (agent-token.ts): only this call, in `workspaceId`. */
   callId?: string
   /**
@@ -153,6 +155,7 @@ export async function resolveCaller(
       : []
   const extra = {
     sessionId: session.session.id,
+    sessionExpiresAt: new Date(session.session.expiresAt),
     ...(!impersonation && passkeyConfirmed(session.session.passkeyVerifiedAt) ? { passkeyConfirmed: true as const } : {}),
     ...(mustConfirmEmail(account.emailVerified) ? { emailUnverified: true as const } : {}),
     ...(impersonation ? { impersonation } : {}),

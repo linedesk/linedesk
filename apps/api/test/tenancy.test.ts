@@ -322,6 +322,8 @@ test('/v1/me lists the workspaces the member belongs to, by name, and no others'
     { id: b.id, name: 'Alder Heating', disabled: false, iconUrl: null },
     { id: a.id, name: 'Zephyr Plumbing', disabled: false, iconUrl: null },
   ])
+  // When the session ends: the browser opens from its local data at load only until then.
+  expect(Date.parse(body.sessionExpiresAt)).toBeGreaterThan(Date.now())
 })
 
 describe("a tab's workspace (x-workspace-id) must be the session's", () => {

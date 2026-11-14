@@ -53,6 +53,8 @@ export type Me = {
   phoneSetup: PhoneSetupStatus | null
   /** Set while an instance admin is signed in as this user. */
   impersonation: Impersonation | null
+  /** When the session ends unless it is used again; null for an API key (absent in what an older version remembered). */
+  sessionExpiresAt?: string | null
   /** An instance admin who must confirm their email address or sign in again before the admin area. */
   adminSecondFactor?: AdminSecondFactor | null
   /** An instance admin without a passkey: their first needs the enrolment code another admin (or the CLI) gave them. */

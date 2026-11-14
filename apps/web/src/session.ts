@@ -20,12 +20,22 @@ export type Session =
   | { state: 'unreachable' }
 
 const LAST_ME = 'linedesk-last-me'
+const CHANGING_KEY = 'linedesk.sessionChanging'
 
 function remember(me: Me | null) {
   try {
     if (me) localStorage.setItem(LAST_ME, JSON.stringify(me))
     else localStorage.removeItem(LAST_ME)
   } catch { /* private window: then there is just no offline start */ }
+}
+
+/** What this device remembers and whether a session change is under way, to tell a stale /v1/me answer (loadSession). */
+function deviceState(): string {
+  try {
+    return `${localStorage.getItem(LAST_ME)}|${sessionStorage.getItem(CHANGING_KEY)}`
+  } catch {
+    return ''
+  }
 }
 
 function remembered(): Me | null {
@@ -35,7 +45,6 @@ function remembered(): Me | null {
   } catch { return null }
 }
 
-const CHANGING_KEY = 'linedesk.sessionChanging'
 
 /**
  * This tab is about to change whose or which workspace it opens (a switch, leaving or deleting the workspace): the
@@ -188,12 +197,14 @@ type Ready = Extract<Session, { state: 'ready' }>
 /**
  * The session this device remembers, to open its workspace at once from local data while /v1/me is asked
  * (loadSession, whose answer then replaces it). Null when the app waits for that answer instead: nobody is
- * remembered, the address links to another workspace (`linked`), or the next screen would not be the workspace
- * (impersonation, onboarding, this tab changing its session: expectSessionChange).
+ * remembered, the remembered session has ended (or is from a version that did not say when it ends), the address
+ * links to another workspace (`linked`), or the next screen would not be the workspace (impersonation, onboarding,
+ * this tab changing its session: expectSessionChange).
  */
-export function rememberedSession(linked: string | null = null): Ready | null {
+export function rememberedSession(linked: string | null = null, now = Date.now()): Ready | null {
   const me = remembered()
   if (!me?.workspace || me.impersonation || me.onboarding || sessionChanging()) return null
+  if (!me.sessionExpiresAt || !(Date.parse(me.sessionExpiresAt) > now)) return null
   if (linked && linked !== me.workspace.id) return null
   primeQueries(me)
   return { state: 'ready', me, offline: false }
@@ -211,11 +222,19 @@ export function sameSession(shown: Session, next: Session): boolean {
 }
 
 export async function loadSession(): Promise<Session> {
+  const asked = deviceState()
   try {
     const res = await reach('/v1/me', { credentials: 'include' })
-    sessionChanged()
+    // Signed out, switched or another answer remembered while this one was on its way: it must not undo that.
+    const current = deviceState() === asked
+    if (current) sessionChanged()
     const me = res.ok ? ((await res.json()) as Me) : null
-    if (me?.workspace) { remember(me); primeQueries(me); forgetLeft(); return { state: 'ready', me, offline: false } }
+    if (me?.workspace) {
+      if (current) remember(me)
+      primeQueries(me)
+      forgetLeft()
+      return { state: 'ready', me, offline: false }
+    }
     // This browser had a workspace open before: its member was removed from it (or from their last one).
     // Kept for this page, as the remembered member is forgotten right below (a second load must say it too).
     const before = remembered()

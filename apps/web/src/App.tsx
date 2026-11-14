@@ -3,7 +3,14 @@ import { forgetBeyond } from './localData.ts'
 import { NoWorkspace } from './NoWorkspace.tsx'
 import { Login } from './Login.tsx'
 import { backoffMs } from './retry.ts'
-import { loadSession, rememberedSession, renamedWorkspace, sameSession, type Session } from './session.ts'
+import {
+  expectSessionChange,
+  loadSession,
+  rememberedSession,
+  renamedWorkspace,
+  sameSession,
+  type Session,
+} from './session.ts'
 import { onUnauthorized } from './signedOutWatch.ts'
 import { AGENT_SETUP_HASH, AgentSetup, choseManualSetup, rememberManual } from './onboarding/AgentSetup.tsx'
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
@@ -83,14 +90,23 @@ export function App() {
   const shown = useRef(session)
   shown.current = session
   const signedOutHere = useRef(false)
-  const refresh = useCallback(async () => {
-    const next = await loadSession()
+  /** Shows what the server answered, in place of what is on screen (from this device, or an earlier answer). */
+  const showAnswer = useCallback(async (next: Session) => {
+    const before = shown.current
     // The answer is what is on screen already (a warm start): nothing renders again, only the local data check runs.
-    if (sameSession(shown.current, next)) return void forgetBeyond(next)
+    if (sameSession(before, next)) return void forgetBeyond(next)
+    // Another account than the one on screen: the page starts over for it, waiting for /v1/me. The open store
+    // belongs to the other account and would be reused by the same workspace (storeCache.ts).
+    if (before.state === 'ready' && next.state === 'ready' && next.me.actorId !== before.me.actorId) {
+      await forgetBeyond(next)
+      expectSessionChange()
+      return window.location.reload()
+    }
     // Signed out while a workspace was open (its sync has stopped): signing in loads the page fresh.
-    if (next.state === 'signedOut' && shown.current.state === 'ready') signedOutHere.current = true
+    if (next.state === 'signedOut' && before.state === 'ready') signedOutHere.current = true
     setSession(next)
   }, [])
+  const refresh = useCallback(async () => showAnswer(await loadSession()), [showAnswer])
   const [notice, setNotice] = useState<string | null>(null)
   const target = useMemo(
     () =>
@@ -165,7 +181,7 @@ export function App() {
       const next = await loadSession()
       if (next.state === 'unreachable' || (next.state === 'ready' && next.offline))
         timer = setTimeout(tryAgain, backoffMs(++attempt))
-      else setSession(next)
+      else await showAnswer(next)
     }
     timer = setTimeout(tryAgain, backoffMs(attempt))
     const now = () => {
@@ -177,7 +193,7 @@ export function App() {
       clearTimeout(timer)
       window.removeEventListener('online', now)
     }
-  }, [waiting])
+  }, [waiting, showAnswer])
 
   if (inviteId) {
     const leaveInvite = () => {

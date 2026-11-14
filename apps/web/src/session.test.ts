@@ -5,7 +5,7 @@ vi.mock('./auth.ts', () => ({ signedInAccount: vi.fn(async () => null) }))
 const { expectSessionChange, forgetMe, loadSession, rememberedSession, sameSession } = await import('./session.ts')
 const { signedInAccount } = await import('./auth.ts')
 
-const me = { actorId: 'u1', role: 'owner', permissions: ['call:write'], workspace: { id: 'ws1', name: 'Tims Org' } }
+const me = { actorId: 'u1', role: 'owner', permissions: ['call:write'], workspace: { id: 'ws1', name: 'Tims Org' }, sessionExpiresAt: '2100-01-01T00:00:00.000Z' }
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status })
 
 const storage = () => {
@@ -92,6 +92,33 @@ describe('warm start from this device', () => {
     expect(rememberedSession()).toBeNull()
     await signIn({ ...me, onboarding: { step: 'business' } })
     expect(rememberedSession()).toBeNull()
+  })
+  it('waits for the server once the remembered session has ended, or when it does not say when it ends', async () => {
+    await signIn({ ...me, sessionExpiresAt: '2020-01-01T00:00:00.000Z' })
+    expect(rememberedSession()).toBeNull()
+    await signIn({ ...me, sessionExpiresAt: undefined })
+    expect(rememberedSession()).toBeNull()
+    await signIn({ ...me, sessionExpiresAt: '2030-01-01T00:00:00.000Z' })
+    expect(rememberedSession(null, Date.parse('2029-12-31T23:59:59Z'))).toMatchObject({ state: 'ready' })
+    expect(rememberedSession(null, Date.parse('2030-01-01T00:00:00Z'))).toBeNull()
+  })
+  it('never lets an answer that was on its way undo a sign-out or a switch', async () => {
+    await signIn()
+    let answer!: (r: Response) => void
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { answer = resolve })))
+    const late = loadSession()
+    forgetMe() // signed out in another tab meanwhile
+    answer(json(200, me))
+    await late
+    expect(rememberedSession()).toBeNull()
+
+    await signIn()
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { answer = resolve })))
+    const beforeSwitch = loadSession()
+    expectSessionChange() // this tab switches while the answer is on its way
+    answer(json(200, me))
+    await beforeSwitch
+    expect(rememberedSession()).toBeNull() // the reload after the switch still waits for /v1/me
   })
   it('waits for the server for a link to another workspace', async () => {
     await signIn()
