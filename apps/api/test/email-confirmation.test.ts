@@ -1,9 +1,13 @@
-import { account, api_keys, assistants, auth_events, calendar_connections, passkey, phone_numbers, session, user, webhook_endpoints } from '@linedesk/db'
+import { account, api_keys, assistants, auth_events, calendar_connections, member, passkey, phone_numbers, session, user, webhook_endpoints } from '@linedesk/db'
 import { DEFAULT_TRANSFERS } from '@linedesk/db/types'
 import { APIError } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'
 import { afterEach, expect, test, vi } from 'vitest'
-import { endSessionsAfterEmailLink, refuseSessionWithoutItsSignIn } from '../src/account-linking.ts'
+import {
+  dropUnprovenAccessOf,
+  endSessionsAfterEmailLink,
+  refuseSessionWithoutItsSignIn,
+} from '../src/account-linking.ts'
 import { mustConfirmEmail } from '../src/auth-methods.ts'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
@@ -11,7 +15,7 @@ import { NEEDS_CONFIRMED_EMAIL } from '../src/run-action.ts'
 import { auth, confirmationCodeEmail } from '../src/auth.ts'
 import { addressBucket, CLIENT_IP_HEADER } from '../src/client-ip.ts'
 import { codeFailures, countSignInFailures, limitSignIns } from '../src/sign-in-limits.ts'
-import { act, anonymous, createWorkspace, FROM, randomIp, request } from './helpers.ts'
+import { act, anonymous, createWorkspace, FROM, randomIp, request, signUp } from './helpers.ts'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -185,6 +189,28 @@ test('code sign-in removes legacy access only while the address is unconfirmed',
   expect((await resets()).map(e => e.workspace_id)).toEqual([ws.id])
   expect(await callRoutingOf(other)).toEqual(PLANTED)
   expect((await request(ws.owner, 'GET', '/v1/me')).status).toBe(401)
+})
+
+test("an unconfirmed owner added to someone else's workspace: their first confirmation leaves its call routing alone", async () => {
+  // Defense in depth: membership.add invites unconfirmed accounts and setRole refuses them owner, but an older add
+  // could have made one owner. Only the workspaces the account created (it was their first member) are reset.
+  const ws = await createWorkspace('Owner Added Later Plumbing')
+  const added = await signUp()
+  await db.insert(member).values({
+    id: `m_${crypto.randomUUID().slice(0, 12)}`,
+    organizationId: ws.id,
+    userId: added.userId,
+    role: 'owner',
+    createdAt: new Date(Date.now() + 1000),
+  })
+  const own = await createWorkspace('Own Business', false)
+  await plantCallRouting(ws)
+  await plantCallRouting(own)
+  await dropUnprovenAccessOf(added.userId)
+  expect(await callRoutingOf(ws)).toEqual(PLANTED)
+  // The creator's own unproven workspace is still reset.
+  await dropUnprovenAccessOf(own.owner.userId)
+  expect(await callRoutingOf(own)).toEqual({ transfers: DEFAULT_TRANSFERS, mode: 'forward_conditional' })
 })
 
 test('an API key whose creator is unconfirmed cannot run sensitive actions; public actions still work', async () => {

@@ -2,6 +2,9 @@
 // the workspace with an existing user as owner, its assistant and settings (onboarding done), and
 // optionally its phone number, attached (never bought) and routed to LiveKit SIP.
 // Safe to run again: it finishes a half setup and changes nothing that is already there.
+// The owner may still have to confirm their address (user:create makes an unconfirmed account). The workspace counts
+// as theirs, so their first confirmation resets its warm transfer and forward-all numbers to the defaults like any
+// unproven account's (account-linking.ts, resetCallRoutingOf): set those up after they have signed in once.
 //   pnpm --filter @linedesk/api workspace:create --name "Brightwater Plumbing" --owner mike@example.com [--number +15035550142] [--time-zone America/Los_Angeles]
 //   in the api container: node apps/api/src/workspace-create.ts --name … --owner …
 import { parseArgs } from 'node:util'

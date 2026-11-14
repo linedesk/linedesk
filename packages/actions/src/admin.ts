@@ -3,6 +3,7 @@
 import { z } from 'zod'
 import { isRecordingPrefix } from './calls.ts'
 import { defineAction } from './define.ts'
+import { type MembershipRole, membershipRoles } from './membership.ts'
 import type { ProviderCheckStatus, ProviderFailureReason } from './provider-health.ts'
 
 export type ProviderCategory =
@@ -887,21 +888,42 @@ const workspaceId = z.object({ workspaceId: z.string().min(1) })
 const adminAction = <S extends z.ZodType>(name: string, description: string, input: S) =>
   defineAction({ name, description, input, permission: 'instance:admin' })
 
+/**
+ * Server admin › Users › Add user: puts someone into a workspace with a role (apps/api/src/admin-handlers.ts). A new
+ * address gets an account and an invitation to the workspace, which they accept once their address is confirmed;
+ * an account whose address is confirmed joins at once. `workspaceId` may be left out only for a new instance admin
+ * (`admin`), who can run the server without a workspace, and by the server operator's `user:create`.
+ */
 export const userInvite = defineAction({
   name: 'user.invite',
-  description: 'Create an account for someone and email them how to sign in. Works while sign-up is closed.',
+  description:
+    'Add someone to a workspace with a role (member unless given). A new address gets an account and an email to sign in and join; an existing account with a confirmed address joins at once. Without a workspace only a new instance admin (admin: true). Works while sign-up is closed.',
   input: z.object({
     email: z.email().max(254),
     name: z.string().trim().min(1).max(80),
     admin: z.boolean().optional(),
+    workspaceId: z.string().min(1).nullable().optional(),
+    role: z.enum(membershipRoles).optional(),
   }),
   permission: 'instance:admin',
-  // A new instance admin's passkey enrolment code is in the result: shown once, never logged.
-  secretResult: true,
+  // A new instance admin's passkey enrolment code is in the result: shown once, never logged. The rest is kept, so
+  // the audit log files the entry under the workspace with whom it added (data.subject).
+  secretResult: ['enrolmentCode'],
 })
 /** A one-time code a new instance admin needs to add their first passkey (apps/api/src/passkey-enrolment.ts). */
 export type PasskeyEnrolmentData = { enrolmentCode: string; enrolmentExpiresAt: string }
-export type UserInviteData = { userId: string; email: string; delivery: 'smtp' | 'log' } & Partial<PasskeyEnrolmentData>
+/**
+ * What `user.invite` did. `existing`: the address already had an account (no new one was made). `workspace.joined`:
+ * `added` is a member now; `invited` joins with the emailed link once the address is confirmed. `delivery`: how
+ * the one email went out, absent when none was sent (an existing account added directly).
+ */
+export type UserInviteData = {
+  userId: string
+  email: string
+  existing: boolean
+  delivery?: 'smtp' | 'log'
+  workspace: { id: string; name: string; role: MembershipRole; joined: 'added' | 'invited' } | null
+} & Partial<PasskeyEnrolmentData>
 
 export const userDisable = adminAction(
   'user.disable',

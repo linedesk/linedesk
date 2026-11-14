@@ -9,6 +9,7 @@ import {
   setupDay0Email,
   setupNudgeEmail,
   weekSummaryEmail,
+  addedToWorkspaceEmail,
   invitationEmail,
   PARTNER_DIRECTORY_URL,
   passkeyChangedEmail,
@@ -141,6 +142,20 @@ export function previewEmails(origin: string): Preview[] {
           email: 'sam@example.com',
           url: `${origin}/?invite=preview`,
           days: 7,
+        },
+        origin,
+      ),
+    },
+    {
+      name: 'added-to-workspace',
+      email: addedToWorkspaceEmail(
+        {
+          inviter: 'Mike Brennan',
+          workspace: 'Brightwater Plumbing & Heating',
+          email: 'sam@example.com',
+          url: `${origin}/?invite=preview`,
+          days: 7,
+          role: 'member',
         },
         origin,
       ),

@@ -1606,46 +1606,183 @@ describe('user.resetPasskeys: the recovery path that needs none of their passkey
   })
 })
 
-describe('user.invite', () => {
+describe('user.invite (Add user)', () => {
   const address = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}@linedesk.test`
   const accountOf = async (email: string) => (await db.select().from(user).where(eq(user.email, email)))[0]
+  const membershipOf = async (userId: string, workspaceId: string) =>
+    (
+      await db
+        .select()
+        .from(memberTable)
+        .where(and(eq(memberTable.userId, userId), eq(memberTable.organizationId, workspaceId)))
+    )[0]
+  const invitationsTo = (email: string) => db.select().from(invitation).where(eq(invitation.email, email))
+  let shop: Workspace // where people are added; its own, so the invitation rate limit of `other` is not used up
+  beforeAll(async () => {
+    shop = await createWorkspace('Harbor Lane Electric')
+  })
   afterEach(() => {
     process.env.AUTH_SIGNUP_ENABLED = 'true'
     process.env.EMAIL_TO_LOG = 'true'
     vi.restoreAllMocks()
   })
   const spySend = (impl: () => Promise<void> = async () => {}) => vi.spyOn(emailSender, 'send').mockImplementation(impl)
+  const mailsTo = (send: ReturnType<typeof spySend>, email: string) =>
+    send.mock.calls.map(([m]) => m).filter(m => m.to === email && !/^New instance admin/.test(m.subject))
 
-  test('creates the account, unverified, and emails how to sign in, without a code or link; works while sign-up is closed', async () => {
+  test('a new address: account (unverified) and an invitation to the workspace with the role, in one email that names the workspace; works while sign-up is closed', async () => {
     process.env.AUTH_SIGNUP_ENABLED = 'false'
     const send = spySend()
-    const email = address('invitee')
-    const res = await act(operator, 'user.invite', { email: email.toUpperCase(), name: 'Tim', admin: true })
-    expect(res).toMatchObject({ status: 200, body: { data: { email: email.toLowerCase(), delivery: 'log' } } })
-    expect(await accountOf(email.toLowerCase())).toMatchObject({
-      name: 'Tim',
-      emailVerified: false,
-      instanceAdmin: true,
+    const email = address('new')
+    const res = await act(operator, 'user.invite', { email: email.toUpperCase(), name: 'Rosa', workspaceId: shop.id, role: 'admin' })
+    expect(res).toMatchObject({
+      status: 200,
+      body: {
+        data: {
+          email,
+          existing: false,
+          delivery: 'log',
+          workspace: { id: shop.id, name: 'Harbor Lane Electric', role: 'admin', joined: 'invited' },
+        },
+      },
     })
-    // One email to them; the other admins hear of the new admin separately (admin-alerts.ts).
-    const toThem = send.mock.calls
-      .map(([m]) => m)
-      .filter(m => m.to === email.toLowerCase() && !/^New instance admin/.test(m.subject))
+    const account = (await accountOf(email))!
+    expect(account).toMatchObject({ name: 'Rosa', emailVerified: false, instanceAdmin: false })
+    // No membership until the address is confirmed: the invitation waits for it.
+    expect(await membershipOf(account.id, shop.id)).toBeUndefined()
+    const [invite] = await invitationsTo(email)
+    expect(invite).toMatchObject({ organizationId: shop.id, role: 'admin', status: 'pending', inviterId: operator.userId })
+    const mails = mailsTo(send, email)
+    expect(mails).toHaveLength(1)
+    expect(mails[0]!.subject).toBe('You were added to Harbor Lane Electric on localhost:5173')
+    expect(mails[0]!.text).toContain('added you to Harbor Lane Electric')
+    expect(mails[0]!.text).toContain('as an admin')
+    expect(mails[0]!.text).toContain(`/?invite=${encodeURIComponent(invite!.id)}`)
+    expect(mails[0]!.text).not.toContain('Your Linedesk account is ready')
+    // The workspace's owner is told: someone they did not invite will join.
+    const ownerMail = mailsTo(send, await emailOf(shop.owner))
+    expect(ownerMail).toHaveLength(1)
+    expect(ownerMail[0]!.subject).toMatch(/added Rosa to Harbor Lane Electric$/)
+    expect(ownerMail[0]!.text).toContain('They join once they confirm their email address.')
+  })
+
+  test('once the address is confirmed, the invitation joins them with the role', async () => {
+    spySend()
+    const email = address('joins')
+    await act(operator, 'user.invite', { email, name: 'Joe', workspaceId: shop.id, role: 'member' })
+    const account = (await accountOf(email))!
+    const [invite] = await invitationsTo(email)
+    const invitee: Actor = { actorId: account.id, role: 'member', workspaceId: null, permissions: ['invitation:respond'] }
+    const accept = () => runAction('invitation.accept', { invitationId: invite!.id }, invitee)
+    expect((await accept()).body).toMatchObject({ ok: false, error: 'confirm your email address first' })
+    await db.update(user).set({ emailVerified: true }).where(eq(user.id, account.id))
+    expect((await accept()).status).toBe(200)
+    expect(await membershipOf(account.id, shop.id)).toMatchObject({ role: 'member' })
+  })
+
+  test('an account with a confirmed address is added at once with the role, no new account; they and the owners get a notice', async () => {
+    const send = spySend()
+    const someone = await signUp()
+    await db.update(user).set({ emailVerified: true }).where(eq(user.id, someone.userId))
+    const email = await emailOf(someone)
+    const res = await act(operator, 'user.invite', { email: email.toUpperCase(), name: 'Ignored', workspaceId: shop.id, role: 'owner' })
+    expect(res).toMatchObject({
+      status: 200,
+      body: { data: { userId: someone.userId, existing: true, workspace: { id: shop.id, role: 'owner', joined: 'added' } } },
+    })
+    expect(res.body.data.delivery).toBeUndefined()
+    expect(await membershipOf(someone.userId, shop.id)).toMatchObject({ role: 'owner' })
+    expect((await db.select().from(user).where(eq(user.email, email))).length).toBe(1)
+    // No invitation to accept: a short notice to them, and the workspace's owner hears of it (not the acting admin).
+    const toThem = mailsTo(send, email)
     expect(toThem).toHaveLength(1)
-    const mail = toThem[0]!
-    expect(mail).toMatchObject({ to: email.toLowerCase(), subject: 'Your Linedesk account is ready' })
-    expect(send.mock.calls.some(([m]) => /^New instance admin/.test(m.subject))).toBe(true)
-    expect(mail.text).toContain('Enter this email address')
-    // No sign-in code or link. The address itself is left out: its random part can hold six digits in a row.
-    expect(mail.text.replaceAll(email.toLowerCase(), '')).not.toMatch(/\d{6}|token=/)
+    expect(toThem[0]!.subject).toBe('You were added to Harbor Lane Electric on localhost:5173')
+    expect(toThem[0]!.text).toContain('added you to Harbor Lane Electric on localhost:5173 as an owner')
+    const ownerMail = mailsTo(send, await emailOf(shop.owner))
+    expect(ownerMail).toHaveLength(1)
+    expect(ownerMail[0]!.text).toMatch(/added Test User to Harbor Lane Electric as an owner\./)
+    expect(mailsTo(send, await emailOf(operator))).toHaveLength(0)
+    // A second time: they are a member already.
+    expect(await act(operator, 'user.invite', { email, name: 'Again', workspaceId: shop.id })).toMatchObject({
+      status: 409,
+      body: { error: `${email} is already a member of Harbor Lane Electric` },
+    })
+  })
+
+  test('an account whose address is not confirmed is invited, not added; a second time says it is invited', async () => {
+    const send = spySend()
+    const someone = await signUp() // a password sign-up: unconfirmed
+    const email = await emailOf(someone)
+    const res = await act(operator, 'user.invite', { email, name: 'Una', workspaceId: shop.id })
+    expect(res.body.data).toMatchObject({ existing: true, workspace: { role: 'member', joined: 'invited' } })
+    expect(await membershipOf(someone.userId, shop.id)).toBeUndefined()
+    expect(await invitationsTo(email)).toHaveLength(1)
+    expect(mailsTo(send, email)).toHaveLength(1)
+    expect(await act(operator, 'user.invite', { email, name: 'Una', workspaceId: shop.id })).toMatchObject({
+      status: 409,
+      body: { error: `${email} is already invited to Harbor Lane Electric: resend the invitation on their page` },
+    })
+  })
+
+  test('an instance admin may have no workspace; anyone else needs one, and nothing is made without it', async () => {
+    spySend()
+    const admin = address('admin-alone')
+    expect(await act(operator, 'user.invite', { email: admin, name: 'Ada', admin: true, workspaceId: null })).toMatchObject({
+      status: 200,
+      body: { data: { existing: false, workspace: null } },
+    })
+    expect(await accountOf(admin)).toMatchObject({ instanceAdmin: true })
+    await db.update(user).set({ instanceAdmin: false }).where(eq(user.email, admin))
+    const plain = address('alone')
+    for (const input of [{}, { workspaceId: null }])
+      expect(await act(operator, 'user.invite', { email: plain, name: 'Al', ...input })).toMatchObject({
+        status: 409,
+        body: { error: 'choose a workspace: only an instance admin can be added without one' },
+      })
+    expect(await act(operator, 'user.invite', { email: plain, name: 'Al', admin: true, role: 'owner' })).toMatchObject({
+      status: 409,
+      body: { error: 'a role needs a workspace' },
+    })
+    expect(await accountOf(plain)).toBeUndefined()
+  })
+
+  test('a missing or disabled workspace and an unknown role are refused, and nothing is made', async () => {
+    spySend()
+    const email = address('refused')
+    expect((await act(operator, 'user.invite', { email, name: 'R', workspaceId: 'nope' })).body.error).toBe(
+      'workspace not found',
+    )
+    const off = await createWorkspace('Closed For Winter Roofing')
+    expect((await act(operator, 'workspace.disable', { workspaceId: off.id })).status).toBe(200)
+    expect((await act(operator, 'user.invite', { email, name: 'R', workspaceId: off.id })).body.error).toBe(
+      'Closed For Winter Roofing is disabled: enable it first',
+    )
+    expect((await act(operator, 'user.invite', { email, name: 'R', workspaceId: shop.id, role: 'boss' })).status).toBe(422)
+    expect(await accountOf(email)).toBeUndefined()
+    expect(await invitationsTo(email)).toHaveLength(0)
+  })
+
+  test('an existing account cannot be made an instance admin here, and a disabled one is not added', async () => {
+    spySend()
+    const someone = await signUp()
+    const email = await emailOf(someone)
+    expect((await act(operator, 'user.invite', { email, name: 'S', admin: true })).body.error).toBe(
+      `${email} already has an account: make them an instance admin on their page`,
+    )
+    await db.update(user).set({ disabledAt: new Date() }).where(eq(user.id, someone.userId))
+    expect((await act(operator, 'user.invite', { email, name: 'S', workspaceId: shop.id })).body.error).toBe(
+      `${email} is disabled: enable the account first`,
+    )
+    expect(await membershipOf(someone.userId, shop.id)).toBeUndefined()
   })
 
   test('a new instance admin comes with a one-time passkey enrolment code for the inviting admin, not in the log', async () => {
     spySend()
     const email = address('new-admin')
-    const res = await act(operator, 'user.invite', { email, name: 'Ann', admin: true })
+    const res = await act(operator, 'user.invite', { email, name: 'Ann', admin: true, workspaceId: shop.id })
     const code: string = res.body.data.enrolmentCode
     expect(code).toEqual(expect.any(String))
+    expect(res.body.data.workspace).toMatchObject({ id: shop.id, joined: 'invited' })
     expect((await accountOf(email))!.passkeyEnrolmentHash).toEqual(expect.any(String))
     const [logged] = await db
       .select()
@@ -1654,21 +1791,56 @@ describe('user.invite', () => {
     expect(JSON.stringify(logged)).not.toContain(code)
     // A plain user gets none.
     expect(
-      (await act(operator, 'user.invite', { email: address('plain'), name: 'Bo' })).body.data.enrolmentCode,
+      (await act(operator, 'user.invite', { email: address('plain'), name: 'Bo', workspaceId: shop.id })).body.data
+        .enrolmentCode,
     ).toBeUndefined()
+    await db.update(user).set({ instanceAdmin: false }).where(eq(user.email, email))
   })
 
-  test('an address that already has an account is refused', async () => {
+  test('without a workspace, a new admin gets the sign-in email: no code or link', async () => {
+    const send = spySend()
+    const email = address('invitee')
+    await act(operator, 'user.invite', { email, name: 'Tim', admin: true })
+    expect(await accountOf(email)).toMatchObject({ name: 'Tim', emailVerified: false, instanceAdmin: true })
+    // One email to them; the other admins hear of the new admin separately (admin-alerts.ts).
+    const toThem = mailsTo(send, email)
+    expect(toThem).toHaveLength(1)
+    expect(toThem[0]).toMatchObject({ subject: 'Your Linedesk account is ready' })
+    expect(send.mock.calls.some(([m]) => /^New instance admin/.test(m.subject))).toBe(true)
+    expect(toThem[0]!.text).toContain('Enter this email address')
+    // No sign-in code or link. The address itself is left out: its random part can hold six digits in a row.
+    expect(toThem[0]!.text.replaceAll(email, '')).not.toMatch(/\d{6}|token=/)
+    await db.update(user).set({ instanceAdmin: false }).where(eq(user.email, email))
+  })
+
+  test('a server admin without a workspace is in the audit log under no workspace, naming whom it added', async () => {
     spySend()
-    const email = address('twice')
-    expect((await act(operator, 'user.invite', { email, name: 'Once' })).status).toBe(200)
-    expect(await act(operator, 'user.invite', { email: email.toUpperCase(), name: 'Twice' })).toMatchObject({
-      status: 409,
-      body: { error: `${email} already has an account` },
+    const email = address('audited-admin')
+    const res = await act(operator, 'user.invite', { email, name: 'Ad', admin: true })
+    expect(res.status).toBe(200)
+    const { entries } = (await request(operator, 'GET', '/v1/admin/audit?kind=admin&limit=50')).body
+    expect(
+      entries.find(
+        (e: { what: string; subject: { email: string } | null }) =>
+          e.what === 'user.invite' && e.subject?.email === email,
+      ),
+    ).toMatchObject({ workspace: null, subject: { email } })
+    await db.update(user).set({ instanceAdmin: false }).where(eq(user.email, email))
+  })
+
+  test('it is in the audit log under the workspace, naming whom it added', async () => {
+    spySend()
+    const email = address('audited')
+    expect((await act(operator, 'user.invite', { email, name: 'Au', workspaceId: shop.id, role: 'admin' })).status).toBe(200)
+    const { entries } = (await request(operator, 'GET', `/v1/admin/audit?kind=admin&workspace=${shop.id}`)).body
+    expect(entries.find((e: { what: string; subject: { email: string } | null }) => e.what === 'user.invite' && e.subject?.email === email)).toMatchObject({
+      kind: 'admin',
+      workspace: { id: shop.id },
+      input: { email, workspaceId: shop.id, role: 'admin' },
     })
   })
 
-  test('an invite does not use up the sign-in code limit of that address', async () => {
+  test('an add does not use up the sign-in code limit of that address', async () => {
     const send = spySend()
     const email = address('limit')
     for (let i = 0; i < 6; i++)
@@ -1680,36 +1852,44 @@ describe('user.invite', () => {
         { origin: 'http://localhost:5173', [FROM]: randomIp() },
       )
     send.mockClear()
-    expect((await act(operator, 'user.invite', { email, name: 'After Many Codes' })).status).toBe(200)
-    expect(send).toHaveBeenCalledTimes(1)
+    expect((await act(operator, 'user.invite', { email, name: 'After Many Codes', workspaceId: shop.id })).status).toBe(200)
+    // Their invitation; the shop's owner gets the notice that they were added.
+    expect(send.mock.calls.map(([m]) => m).filter(m => m.to === email)).toHaveLength(1)
   })
 
   test('without email it is refused and nothing is created', async () => {
     delete process.env.EMAIL_TO_LOG
     const email = address('noemail')
-    const res = await act(operator, 'user.invite', { email, name: 'No Email' })
+    const res = await act(operator, 'user.invite', { email, name: 'No Email', workspaceId: shop.id })
     expect(res.status).toBe(409)
     expect(res.body.error).toMatch(/^Email is not set up/)
     expect(await accountOf(email)).toBeUndefined()
   })
 
-  test('when the email cannot be sent the account is removed again and the command is logged as rejected', async () => {
+  test('when the email cannot be sent nothing is left (account, invitation) and the command is logged as rejected', async () => {
     spySend(async () => {
       throw new Error('SMTP said no')
     })
     const email = address('bounce')
     const key = crypto.randomUUID()
-    const res = await act(operator, 'user.invite', { email, name: 'Bounce' }, key)
+    const res = await act(operator, 'user.invite', { email, name: 'Bounce', workspaceId: shop.id }, key)
     expect(res.status).toBe(409)
-    expect(res.body.error).toMatch(
-      /the welcome email could not be sent \(SMTP said no\); the account for .* was removed again/,
-    )
+    expect(res.body.error).toMatch(/could not send the invitation email/)
     expect(await accountOf(email)).toBeUndefined()
+    expect(await invitationsTo(email)).toHaveLength(0)
     expect((await db.select().from(commands).where(eq(commands.id, key)))[0]).toMatchObject({ rejected: true })
+    // The admin without a workspace: the sign-in email.
+    const alone = address('bounce-admin')
+    expect((await act(operator, 'user.invite', { email: alone, name: 'Bounce', admin: true })).body.error).toMatch(
+      /the account was not created: the welcome email could not be sent \(SMTP said no\)/,
+    )
+    expect(await accountOf(alone)).toBeUndefined()
   })
 
-  test('a workspace owner who is not an instance admin cannot invite', async () => {
-    expect(await act(other.owner, 'user.invite', { email: address('x'), name: 'X' })).toMatchObject({
+  test('a workspace owner who is not an instance admin cannot add users', async () => {
+    expect(
+      await act(other.owner, 'user.invite', { email: address('x'), name: 'X', workspaceId: other.id }),
+    ).toMatchObject({
       status: 403,
       body: { error: 'missing permission instance:admin' },
     })
@@ -2169,6 +2349,7 @@ describe('memberships across workspaces', () => {
 
   test('an instance admin adds an existing user to any workspace, changes the role and removes them; all logged', async () => {
     const outsider = await signUp()
+    await db.update(user).set({ emailVerified: true }).where(eq(user.id, outsider.userId))
     const added = await act(operator, 'membership.add', {
       userId: outsider.userId,
       workspaceId: other.id,
@@ -2211,6 +2392,7 @@ describe('memberships across workspaces', () => {
     expect(await act(operator, 'membership.remove', { memberId: ownerId })).toMatchObject(lastOwner)
     expect(await memberRow(ws.id, ws.owner)).toMatchObject({ role: 'owner' })
     const second = await signUp()
+    await db.update(user).set({ emailVerified: true }).where(eq(user.id, second.userId))
     expect(
       (await act(operator, 'membership.add', { userId: second.userId, workspaceId: ws.id, role: 'owner' })).status,
     ).toBe(200)
@@ -2283,7 +2465,8 @@ describe('memberships across workspaces', () => {
         .where(inArray(user.id, [other.owner.userId, operator.userId]))
       expect((await act(operator, 'invitation.revoke', { invitationId })).status).toBe(200)
       expect((await membersOf(other.id)).invitations).toEqual([])
-      // An invitation that is still open is answered by adding the user directly.
+      // An invitation that is still open is answered by adding the user directly (their address confirmed).
+      await db.update(user).set({ emailVerified: true }).where(eq(user.id, invitee.userId))
       const again = (await act(other.owner, 'team.invite', { email: email.toLowerCase(), role: 'admin' })).body.data
         .invitationId
       expect(
@@ -2333,6 +2516,64 @@ describe('memberships across workspaces', () => {
       status: 409,
       body: { error: expect.stringMatching(/already a member of Linedesk Operations/) },
     })
+  })
+
+  test('an unconfirmed account is invited, not added, and the owners are told; never made owner or admin', async () => {
+    const send = vi.spyOn(emailSender, 'send').mockImplementation(async () => {})
+    try {
+      const ws = await createWorkspace('Unconfirmed Adds Roofing')
+      const unconfirmed = await signUp()
+      const email = await emailOf(unconfirmed)
+      const res = await act(operator, 'membership.add', {
+        userId: unconfirmed.userId,
+        workspaceId: ws.id,
+        role: 'owner',
+      })
+      expect(res).toMatchObject({ status: 200, body: { data: { memberId: null, joined: 'invited' } } })
+      expect(await memberRow(ws.id, unconfirmed)).toBeUndefined()
+      const [invite] = await db
+        .select()
+        .from(invitation)
+        .where(and(eq(invitation.email, email), eq(invitation.organizationId, ws.id)))
+      expect(invite).toMatchObject({ role: 'owner', status: 'pending', inviterId: operator.userId })
+      const owner = await emailOf(ws.owner)
+      expect(send.mock.calls.map(([m]) => m).filter(m => m.to === owner)).toHaveLength(1)
+      // A membership an unconfirmed account already has (an older add) cannot become owner or admin.
+      const memberId = `m_${crypto.randomUUID().slice(0, 12)}`
+      await db.delete(invitation).where(eq(invitation.id, invite!.id))
+      await db.insert(memberTable).values({
+        id: memberId,
+        organizationId: ws.id,
+        userId: unconfirmed.userId,
+        role: 'member',
+        createdAt: new Date(),
+      })
+      for (const role of ['owner', 'admin'])
+        expect(await act(operator, 'membership.setRole', { memberId, role })).toMatchObject({
+          status: 409,
+          body: { error: `${email} must confirm their email address before they can be ${role}` },
+        })
+      expect((await act(operator, 'membership.setRole', { memberId, role: 'member' })).status).toBe(200)
+    } finally {
+      send.mockRestore()
+    }
+  })
+
+  test('a disabled account or workspace is refused', async () => {
+    const ws = await createWorkspace('Disabled Adds Electric')
+    const someone = await signUp()
+    await db.update(user).set({ emailVerified: true, disabledAt: new Date() }).where(eq(user.id, someone.userId))
+    expect(
+      (await act(operator, 'membership.add', { userId: someone.userId, workspaceId: ws.id, role: 'member' })).body
+        .error,
+    ).toBe(`${await emailOf(someone)} is disabled: enable the account first`)
+    await db.update(user).set({ disabledAt: null }).where(eq(user.id, someone.userId))
+    expect((await act(operator, 'workspace.disable', { workspaceId: ws.id })).status).toBe(200)
+    expect(
+      (await act(operator, 'membership.add', { userId: someone.userId, workspaceId: ws.id, role: 'member' })).body
+        .error,
+    ).toBe('Disabled Adds Electric is disabled: enable it first')
+    expect(await memberRow(ws.id, someone)).toBeUndefined()
   })
 
   test("a workspace owner who is no instance admin cannot read another workspace's members", async () => {
@@ -2628,6 +2869,14 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
         }),
         await act(admin, 'user.disable', { userId: otherAdmin.userId }),
         await act(admin, 'instanceAdmin.revoke', { userId: otherAdmin.userId }),
+        // Who is in a workspace: Add user with a workspace, Add to workspace, owner or admin there.
+        await act(admin, 'user.invite', { email: await emailOf(otherAdmin), name: 'Other Admin', workspaceId: home.id }),
+        await act(admin, 'user.invite', {
+          email: `${crypto.randomUUID().slice(0, 8)}@linedesk.test`,
+          name: 'Plain',
+          workspaceId: home.id,
+        }),
+        await act(admin, 'membership.add', { userId: target.userId, workspaceId: home.id, role: 'member' }),
         await request(admin, 'POST', '/v1/impersonation/start', { userId: target.userId }),
       ]
       // No passkey yet: what is missing is the first passkey (enrolment code path).
@@ -2659,6 +2908,9 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       expect(
         await act(admin, 'membership.add', { userId: otherAdmin.userId, workspaceId: home.id, role: 'member' }),
       ).toMatchObject(stepUpRefused)
+      // Owner or admin of a workspace needs the passkey for anyone (security review of #671); member does not.
+      for (const role of ['owner', 'admin'])
+        expect(await act(admin, 'membership.setRole', { memberId: plainMember, role })).toMatchObject(stepUpRefused)
       // A member who is no instance admin: no passkey needed.
       expect((await act(admin, 'membership.setRole', { memberId: plainMember, role: 'member' })).status).toBe(200)
       expect((await act(admin, 'membership.remove', { memberId: plainMember })).status).toBe(200)

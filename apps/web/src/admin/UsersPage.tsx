@@ -1,10 +1,10 @@
-// Users: a searchable list with Invite user; a click opens the user with their workspaces and actions.
+// Users: a searchable list with Add user; a click opens the user with their workspaces and actions.
 import { Card } from '../ui/form.tsx'
 import { Badge } from '../ui/kit.tsx'
+import { AddUser } from './AddUser.tsx'
 import { ActionBar, RowActions, useActionRunner, userActions } from './actions.tsx'
 import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
 import type { AdminUser, AdminWorkspace } from './api.ts'
-import { InviteUser } from './InviteUser.tsx'
 import { UserWorkspaces } from './Memberships.tsx'
 import type { Notify } from './notify.ts'
 import { day, when } from './parts.tsx'
@@ -29,7 +29,7 @@ const columns: Column<AdminUser>[] = [
       </span>
     ),
   },
-  { key: 'workspaces', label: 'Workspaces', wide: true, render: u => u.workspaces.map(w => w.name).join(', ') || '–' },
+  { key: 'workspaces', label: 'Workspaces', wide: true, render: u => <WorkspacesCell user={u} /> },
   {
     key: 'signin',
     label: 'Last sign-in',
@@ -39,8 +39,22 @@ const columns: Column<AdminUser>[] = [
   },
 ]
 
+/** Their workspaces; none yet: where they are invited, else "No workspace", both muted. */
+export function workspacesText(u: Pick<AdminUser, 'workspaces' | 'invitations'>): { text: string; muted: boolean } {
+  if (u.workspaces.length) return { text: u.workspaces.map(w => w.name).join(', '), muted: false }
+  if (u.invitations.length)
+    return { text: `Invited to ${u.invitations.map(i => i.workspace_name).join(', ')}`, muted: true }
+  return { text: 'No workspace', muted: true }
+}
+
+function WorkspacesCell({ user }: { user: AdminUser }) {
+  const { text, muted } = workspacesText(user)
+  return muted ? <span className="adm-muted">{text}</span> : <>{text}</>
+}
+
 type ListProps = {
   users: AdminUser[]
+  workspaces: AdminWorkspace[]
   currentUserId: string
   onOpen: (id: string) => void
   keysRef: { current: ListKeys | null }
@@ -48,11 +62,11 @@ type ListProps = {
   reload: () => Promise<void>
 }
 
-export function UsersList({ users, currentUserId, onOpen, keysRef, notify, reload }: ListProps) {
+export function UsersList({ users, workspaces, currentUserId, onOpen, keysRef, notify, reload }: ListProps) {
   const runner = useActionRunner(notify)
   return (
     <>
-      <InviteUser toast={notify} reload={reload} />
+      <AddUser workspaces={workspaces} toast={notify} reload={reload} />
       <AdminList
         rows={users}
         rowId={u => u.id}
@@ -70,7 +84,13 @@ export function UsersList({ users, currentUserId, onOpen, keysRef, notify, reloa
   )
 }
 
-type DetailProps = { user: AdminUser; workspaces: AdminWorkspace[]; currentUserId: string; notify: Notify; reload: () => Promise<void> }
+type DetailProps = {
+  user: AdminUser
+  workspaces: AdminWorkspace[]
+  currentUserId: string
+  notify: Notify
+  reload: () => Promise<void>
+}
 
 export function UserDetail({ user: u, workspaces, currentUserId, notify, reload }: DetailProps) {
   const runner = useActionRunner(notify)

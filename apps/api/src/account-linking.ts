@@ -135,10 +135,13 @@ export async function dropUnprovenAccessOf(userId: string, keepAccountId?: strin
 }
 
 /**
- * Where calls go, set up in the workspaces the account owns before its address was proven (an
- * unconfirmed account cannot be made owner of someone else's workspace, so these are the ones it
- * created): the assistants' transfer contacts (back to the default, without a number) and numbers marked as
+ * Where calls go, set up in the workspaces the account created before its address was proven: the
+ * assistants' transfer contacts (back to the default, without a number) and numbers marked as
  * forwarding every call go back to the defaults. Returns the workspaces where something changed.
+ * Only workspaces it owns and was the first member of (the one who created it): an unconfirmed account
+ * cannot be made owner or admin of someone else's workspace (membership.add invites it instead,
+ * membership.setRole refuses), and if it were, that business's call routing stays as it is.
+ * A workspace the server operator provisioned for it (workspace-create.ts --owner) counts as its own.
  */
 /** An assistant with a transfer contact that has a number (switched on or not). */
 const hasTransferNumber = sql`jsonb_path_exists(${assistants.transfers}, '$[*] ? (@.number != null)')`
@@ -147,7 +150,13 @@ async function resetCallRoutingOf(tx: Parameters<Parameters<typeof db.transactio
   const owned = await tx
     .select({ id: member.organizationId })
     .from(member)
-    .where(and(eq(member.userId, userId), eq(member.role, 'owner')))
+    .where(
+      and(
+        eq(member.userId, userId),
+        eq(member.role, 'owner'),
+        sql`not exists (select 1 from member earlier where earlier.organization_id = ${member.organizationId} and earlier.created_at < ${member.createdAt})`,
+      ),
+    )
   const ids = owned.map(row => row.id)
   if (!ids.length) return []
   const transfers = await tx

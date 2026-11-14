@@ -1,4 +1,6 @@
-// Creates an account by hand and emails the person how to sign in, for installs with closed sign-up.
+// Creates an account by hand and emails the person how to sign in, for installs with closed sign-up. The server
+// operator may make one without a workspace (then workspace-create.ts --owner); in the admin area, Add user puts
+// people into a workspace.
 // pnpm --filter @linedesk/api user:create --email ann@example.com --name "Ann Lee" [--admin]
 // Runs the registry action user.invite as the operator. Without SMTP_URL, set EMAIL_TO_LOG=true
 // and the email is printed here instead of sent. Without either, only --admin works: the first admin

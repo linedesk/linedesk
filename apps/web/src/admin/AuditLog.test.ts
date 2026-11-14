@@ -31,6 +31,20 @@ describe('audit labels', () => {
     expect(label('team.removeMember', { memberId: 'm1' })).toBe('Removed a member from the workspace')
   })
 
+  test('Add user says whom, as what, and server admin', () => {
+    expect(
+      label('user.invite', { email: 'ana@example.com', workspaceId: 'w1', role: 'admin' }, 'ana@example.com'),
+    ).toBe('Added ana@example.com as an admin')
+    expect(label('user.invite', { email: 'op@example.com', admin: true, workspaceId: null })).toBe(
+      'Added op@example.com as server admin',
+    )
+    expect(label('user.invite', { email: 'op@example.com', admin: true, workspaceId: 'w1', role: 'owner' })).toBe(
+      'Added op@example.com as owner and server admin',
+    )
+    // Entries from before Add user had a workspace.
+    expect(label('user.invite', { email: 'old@example.com' })).toBe('Added old@example.com')
+  })
+
   test('API keys and webhooks', () => {
     expect(label('apiKey.create', { name: 'Zapier', role: 'member' })).toBe('Created API key “Zapier”')
     expect(label('apiKey.revoke', { apiKeyId: 'k' })).toBe('Revoked an API key')

@@ -85,7 +85,7 @@ export function existingPasskeysText(passkeys: NonNullable<AdminUser['passkeys']
   return `They already have ${passkeys.length === 1 ? 'a passkey' : `${passkeys.length} passkeys`}: ${list}. These open the admin area for them. If you are not sure they are all theirs, reset them instead: you get a one-time code for their new first passkey.`
 }
 
-/** What granting instance admin means, said before it happens (detail, row and Invite user). */
+/** What granting instance admin means, said before it happens (detail, row and Add user). */
 export const adminGrantText = (who: string) =>
   `Make ${who} an instance admin? They can see every workspace and user, change provider keys and sign in as other users.`
 

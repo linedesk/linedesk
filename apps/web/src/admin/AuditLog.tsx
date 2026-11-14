@@ -87,6 +87,10 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
       return `Removed ${who} from the workspace`
     case 'team.leave':
       return 'Left the workspace'
+    case 'user.invite':
+      return input.workspaceId
+        ? `Added ${String(input.email ?? who)} as ${roleName(input.role ?? 'member')}${input.admin ? ' and server admin' : ''}`
+        : `Added ${String(input.email ?? 'someone')}${input.admin ? ' as server admin' : ''}`
     case 'membership.add':
       return `Added ${who} as ${roleName(input.role)}`
     case 'invitation.accept':

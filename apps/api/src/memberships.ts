@@ -10,7 +10,9 @@ import type { Actor } from './context.ts'
 import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { dropWorkspacePush } from './push.ts'
-import { sendInvitation } from './team.ts'
+import { emailSender } from './email.ts'
+import { addedNoticeEmail, emailSafeName, memberAddedByAdminEmail } from './emails/templates.ts'
+import { insertInvitation, pendingInvitationTo, sendInvitation } from './team.ts'
 
 const DAY_MS = 86_400_000
 const newMemberId = () => crypto.randomUUID().replaceAll('-', '')
@@ -91,6 +93,129 @@ async function insertMember(tx: Tx, row: typeof member.$inferInsert, already: st
   }
 }
 
+/** A workspace people can be added to: it exists and is not disabled. */
+export async function openWorkspace(tx: Tx, workspaceId: string) {
+  const [row] = await tx
+    .select({ id: organization.id, name: organization.name, disabledAt: organization.disabledAt })
+    .from(organization)
+    .where(eq(organization.id, workspaceId))
+  if (!row) throw new Reject('workspace not found')
+  if (row.disabledAt) throw new Reject(`${row.name} is disabled: enable it first`)
+  return { id: row.id, name: row.name }
+}
+
+async function isMemberByEmail(tx: Tx, workspaceId: string, email: string) {
+  const [row] = await tx
+    .select({ id: member.id })
+    .from(member)
+    .innerJoin(user, eq(user.id, member.userId))
+    .where(and(eq(member.organizationId, workspaceId), sql`lower(${user.email}) = ${email.toLowerCase()}`))
+  return !!row
+}
+
+/**
+ * An invitation from the instance admin to `email`, sent as "You were added to …". They join with its link (or in
+ * the app) once their address is confirmed: an admin never gives an unconfirmed account a membership (account-linking.ts
+ * resets call routing in workspaces such an account owns on its first confirmation).
+ */
+export async function inviteToWorkspace(
+  tx: Tx,
+  actor: Actor,
+  email: string,
+  workspace: { id: string; name: string },
+  role: string,
+  now: string,
+) {
+  // An invitation names the person who sent it; the command line is nobody.
+  if (actor.actorId === 'cli')
+    throw new Reject('the command line cannot add to a workspace: use Server admin › Users › Add user')
+  if (await isMemberByEmail(tx, workspace.id, email))
+    throw new Reject(`${email} is already a member of ${workspace.name}`)
+  if (await pendingInvitationTo(tx, workspace.id, email))
+    throw new Reject(`${email} is already invited to ${workspace.name}: resend the invitation on their page`)
+  const invite = await insertInvitation(
+    tx,
+    { organizationId: workspace.id, email, role, inviterId: actor.actorId },
+    now,
+  )
+  await sendInvitation(tx, invite, role)
+}
+
+/** How a notice names the instance admin: their name, else their address. */
+async function adminLabel(tx: Tx, actor: Actor) {
+  if (actor.actorId === 'cli') return 'The server operator'
+  const [who] = await tx.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, actor.actorId))
+  return emailSafeName(who?.name || who?.email, 'An administrator')
+}
+
+/** Notices are best effort: a failure is logged and never undoes the change. */
+async function sendNotice(to: string, email: { subject: string; html: string; text: string }) {
+  if (emailSender.kind === 'none') return
+  try {
+    await emailSender.send({ to, ...email })
+  } catch (err) {
+    console.error('membership notice email failed', err)
+  }
+}
+
+/**
+ * After an instance admin added someone to a workspace or invited them (membership.add, user.invite): the workspace's
+ * owners hear of it (they did not make the change; a detective control), and someone added directly gets a short
+ * notice (no invitation to accept). Sent from the handler, before the transaction commits: the codebase has no
+ * after-commit hook, and a notice about a change that then rolls back is harmless.
+ */
+export async function noticeAddedByAdmin(
+  tx: Tx,
+  actor: Actor,
+  person: { email: string; name?: string | null },
+  workspace: { id: string; name: string },
+  role: string,
+  how: 'added' | 'invited',
+) {
+  const admin = await adminLabel(tx, actor)
+  const ws = emailSafeName(workspace.name, 'your workspace')
+  const who = emailSafeName(person.name || person.email, person.email)
+  if (how === 'added')
+    await sendNotice(person.email, addedNoticeEmail({ admin, workspace: ws, workspaceId: workspace.id, role }))
+  const owners = await tx
+    .select({ email: user.email, id: user.id })
+    .from(member)
+    .innerJoin(user, eq(user.id, member.userId))
+    .where(and(eq(member.organizationId, workspace.id), eq(member.role, 'owner')))
+  const notice = memberAddedByAdminEmail({
+    admin,
+    who,
+    workspace: ws,
+    workspaceId: workspace.id,
+    role,
+    pending: how === 'invited',
+  })
+  for (const owner of owners) {
+    if (owner.id === actor.actorId || owner.email.toLowerCase() === person.email.toLowerCase()) continue
+    await sendNotice(owner.email, notice)
+  }
+}
+
+/**
+ * Makes an existing account a member of the workspace with `role`, no email (membership.add, and user.invite for an
+ * account whose address is confirmed). A pending invitation of theirs to the same workspace is answered by this.
+ */
+export async function addToWorkspace(
+  tx: Tx,
+  account: { id: string; email: string },
+  workspace: { id: string; name: string },
+  role: string,
+  now: string,
+): Promise<string> {
+  const already = `${account.email} is already a member of ${workspace.name}`
+  if (await isMember(tx, workspace.id, account.id)) throw new Reject(already)
+  const id = newMemberId()
+  await insertMember(tx, { id, organizationId: workspace.id, userId: account.id, role, createdAt: new Date(now) }, already)
+  await tx.update(invitation).set({ status: 'canceled' })
+    .where(and(eq(invitation.organizationId, workspace.id), eq(invitation.status, 'pending'), sameEmail(account.email)))
+  return id
+}
+
 export const membershipHandlers: Record<string, Handler> = {
   'invitation.listMine': async ({ tx, actor, now }) => ({ rows: {}, data: { invitations: await listMine(tx, actor, now) } }),
 
@@ -113,24 +238,35 @@ export const membershipHandlers: Record<string, Handler> = {
     return { rows: {}, data: { subject: { email: account.email, workspaceId: invite.organizationId } } }
   },
 
-  'membership.add': async ({ tx, now }, input: { userId: string; workspaceId: string; role: string }) => {
+  'membership.add': async ({ tx, actor, now }, input: { userId: string; workspaceId: string; role: string }) => {
     // Locked, so the same user cannot be added twice at the same moment.
     const [account] = await tx.select().from(user).where(eq(user.id, input.userId)).for('update')
     if (!account) throw new Reject('user not found')
-    const [workspace] = await tx.select({ id: organization.id, name: organization.name }).from(organization).where(eq(organization.id, input.workspaceId))
-    if (!workspace) throw new Reject('workspace not found')
-    const already = `${account.email} is already a member of ${workspace.name}`
-    if (await isMember(tx, workspace.id, account.id)) throw new Reject(already)
-    const id = newMemberId()
-    await insertMember(tx, { id, organizationId: workspace.id, userId: account.id, role: input.role, createdAt: new Date(now) }, already)
-    // An invitation to the same workspace is answered by this.
-    await tx.update(invitation).set({ status: 'canceled' })
-      .where(and(eq(invitation.organizationId, workspace.id), eq(invitation.status, 'pending'), sameEmail(account.email)))
-    return { rows: {}, data: { memberId: id, subject: { email: account.email, workspaceId: workspace.id } } }
+    if (account.disabledAt) throw new Reject(`${account.email} is disabled: enable the account first`)
+    const workspace = await openWorkspace(tx, input.workspaceId)
+    const subject = { email: account.email, workspaceId: workspace.id }
+    // An unconfirmed address gets an invitation and joins once it is proven (as with Add user).
+    if (!account.emailVerified) {
+      await inviteToWorkspace(tx, actor, account.email, workspace, input.role, now)
+      await noticeAddedByAdmin(tx, actor, account, workspace, input.role, 'invited')
+      return { rows: {}, data: { memberId: null, joined: 'invited', subject } }
+    }
+    const id = await addToWorkspace(tx, account, workspace, input.role, now)
+    await noticeAddedByAdmin(tx, actor, account, workspace, input.role, 'added')
+    return { rows: {}, data: { memberId: id, joined: 'added', subject } }
   },
 
   'membership.setRole': async ({ tx }, input: { memberId: string; role: string }) => {
     const target = await loadMember(tx, input.memberId)
+    // Owner and admin manage the team and where calls go: only for a confirmed address (see inviteToWorkspace).
+    if (input.role !== 'member') {
+      const [account] = await tx
+        .select({ emailVerified: user.emailVerified, email: user.email })
+        .from(user)
+        .where(eq(user.id, target.userId))
+      if (!account?.emailVerified)
+        throw new Reject(`${account?.email ?? 'they'} must confirm their email address before they can be ${input.role}`)
+    }
     if (input.role !== 'owner') await keepAnOwner(tx, target)
     await tx.update(member).set({ role: input.role }).where(eq(member.id, target.id))
     return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }

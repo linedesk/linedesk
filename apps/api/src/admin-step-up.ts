@@ -2,7 +2,7 @@
 // someone with only an admin's mailbox, password or provider account gets that far. What would let
 // them keep the role or take over passkeys needs a passkey sign-in in the last 12 hours: granting
 // admin, resetting passkeys, inviting an admin (these hand out enrolment codes), signing in as a
-// user, deleting a workspace, any action on an instance admin (by user or by workspace membership), the caller
+// user, deleting a workspace, adding anyone to a workspace or making them owner or admin there, any action on an instance admin (by user or by workspace membership), the caller
 // included, and changing email or sign-in settings (an SMTP server or sign-in provider of an
 // attacker's own would hand them sign-in codes or any account). Admins without a passkey add their first with the enrolment code (passkey-enrolment.ts).
 // The server operator (CLI) needs none.
@@ -26,6 +26,8 @@ const ALWAYS = new Set([
   'user.resetPasskeys',
   'user.impersonate',
   'workspace.delete',
+  // Adds someone to any workspace (or invites them): access to a business's calls.
+  'membership.add',
   // Lets an AI agent's setup key change email and sign-in (agent-setup.ts): the same rule as doing it yourself.
   'agentSetup.confirmPasskey',
 ])
@@ -56,8 +58,17 @@ export function changesSignInOrEmail(name: string, input: unknown): boolean {
 /** Whether this admin action needs a passkey sign-in: see the file comment. */
 export async function needsPasskeyStepUp(name: string, input: unknown): Promise<boolean> {
   if (ALWAYS.has(name) || changesSignInOrEmail(name, input)) return true
-  const fields = (input ?? {}) as { admin?: unknown; userId?: unknown; memberId?: unknown }
-  if (name === 'user.invite') return fields.admin === true
+  const fields = (input ?? {}) as {
+    admin?: unknown
+    userId?: unknown
+    memberId?: unknown
+    role?: unknown
+    workspaceId?: unknown
+  }
+  // Who is in a workspace, and as owner or admin: an admin's stolen first factor must not hand out access to a
+  // business's calls (security review of #671).
+  if (name === 'user.invite') return fields.admin === true || Boolean(fields.workspaceId)
+  if (name === 'membership.setRole' && (fields.role === 'owner' || fields.role === 'admin')) return true
   const userId = await targetUserId(fields)
   if (!userId) return false
   const [target] = await db.select().from(user).where(eq(user.id, userId))

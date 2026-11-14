@@ -10,7 +10,7 @@ import { alias } from 'drizzle-orm/pg-core'
 import { invitationSubject, memberSubject } from './audit.ts'
 import type { Actor } from './context.ts'
 import { emailSender } from './email.ts'
-import { emailSafeName, invitationEmail } from './emails/templates.ts'
+import { addedToWorkspaceEmail, emailSafeName, invitationEmail } from './emails/templates.ts'
 import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { dropWorkspacePush } from './push.ts'
@@ -35,21 +35,49 @@ function workspaceOf(actor: Actor) {
   return actor.workspaceId
 }
 
-/** The email names the member who sent the invitation (`inviterId`), also when someone else resends it. */
-export async function sendInvitation(tx: Tx, invite: { id: string; email: string; organizationId: string; inviterId: string }) {
+/** A pending invitation to `email` (lower case), open for INVITATION_DAYS. Not sent: see sendInvitation. */
+export async function insertInvitation(
+  tx: Tx,
+  invite: { organizationId: string; email: string; role: string; inviterId: string },
+  now: string,
+) {
+  const [row] = await tx.insert(invitation).values({
+    id: newInvitationId(), organizationId: invite.organizationId, email: invite.email, role: invite.role, status: 'pending',
+    expiresAt: new Date(Date.parse(now) + INVITATION_DAYS * DAY_MS), createdAt: new Date(now), inviterId: invite.inviterId,
+  }).returning()
+  return row!
+}
+
+/** A pending invitation to `email` in this workspace, if there is one. */
+export async function pendingInvitationTo(tx: Tx, workspaceId: string, email: string) {
+  const [pending] = await tx.select({ id: invitation.id }).from(invitation)
+    .where(and(eq(invitation.organizationId, workspaceId), eq(invitation.status, 'pending'), sql`lower(${invitation.email}) = ${email.toLowerCase()}`))
+  return pending ?? null
+}
+
+/**
+ * The email names the member who sent the invitation (`inviterId`), also when someone else resends it. `addedAs`:
+ * an instance admin added the address (Server admin › Users › Add user), so the email says so and names the role.
+ */
+export async function sendInvitation(
+  tx: Tx,
+  invite: { id: string; email: string; organizationId: string; inviterId: string },
+  addedAs?: string,
+) {
   if (emailSender.kind === 'none') throw new Reject('email is not set up, so invitations cannot be sent (connect it in Admin, Providers, Email)')
   if (!allowEmailFor(invite.organizationId)) throw new Reject('too many invitations in the last hour; try again later')
   // The same answer whether or not the address has an account anywhere.
   if (!allowEmailTo(invite.email.toLowerCase())) throw new Reject('too many invitations to this address in the last hour; try again later')
   const [ws] = await tx.select({ name: organization.name }).from(organization).where(eq(organization.id, invite.organizationId))
   const [inviter] = await tx.select({ name: user.name }).from(user).where(eq(user.id, invite.inviterId))
-  const email = invitationEmail({
-    inviter: emailSafeName(inviter?.name, 'A teammate'),
+  const content = {
+    inviter: emailSafeName(inviter?.name, addedAs ? 'An administrator' : 'A teammate'),
     workspace: emailSafeName(ws?.name, 'your team'),
     email: invite.email,
     url: invitationLink(invite.id),
     days: INVITATION_DAYS,
-  })
+  }
+  const email = addedAs ? addedToWorkspaceEmail({ ...content, role: addedAs }) : invitationEmail(content)
   try {
     await emailSender.send({ to: invite.email, ...email })
   } catch (err) {
@@ -121,15 +149,10 @@ export const teamHandlers: Record<string, Handler> = {
     const [already] = await tx.select({ id: member.id }).from(member).innerJoin(user, eq(user.id, member.userId))
       .where(and(eq(member.organizationId, workspaceId), sql`lower(${user.email}) = ${input.email}`))
     if (already) throw new Reject(`${input.email} is already on the team`)
-    const [pending] = await tx.select({ id: invitation.id }).from(invitation)
-      .where(and(eq(invitation.organizationId, workspaceId), eq(invitation.status, 'pending'), sql`lower(${invitation.email}) = ${input.email}`))
-    if (pending) throw new Reject(`${input.email} is already invited; resend the invitation instead`)
-    const [row] = await tx.insert(invitation).values({
-      id: newInvitationId(), organizationId: workspaceId, email: input.email, role: input.role, status: 'pending',
-      expiresAt: new Date(Date.parse(now) + INVITATION_DAYS * DAY_MS), createdAt: new Date(now), inviterId: actor.actorId,
-    }).returning()
-    await sendInvitation(tx, row!)
-    return { rows: {}, data: { invitationId: row!.id } }
+    if (await pendingInvitationTo(tx, workspaceId, input.email)) throw new Reject(`${input.email} is already invited; resend the invitation instead`)
+    const row = await insertInvitation(tx, { organizationId: workspaceId, email: input.email, role: input.role, inviterId: actor.actorId }, now)
+    await sendInvitation(tx, row)
+    return { rows: {}, data: { invitationId: row.id } }
   },
 
   'team.resendInvite': async ({ tx, actor, now }, input: { invitationId: string }) => {

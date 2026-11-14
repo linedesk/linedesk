@@ -237,7 +237,7 @@ type AdminInputs = {
   'provider.setActive': { category: ProviderCategory; provider: ProviderName | null }
   'provider.test': { provider: ProviderName; free?: boolean }
   'provider.connectOneKey': { apiKey: string }
-  'user.invite': { email: string; name: string; admin?: boolean }
+  'user.invite': { email: string; name: string; admin?: boolean; workspaceId?: string | null; role?: MembershipRole }
   'user.disable': { userId: string }
   'user.enable': { userId: string }
   'workspace.disable': { workspaceId: string }
@@ -296,11 +296,11 @@ const stepUpLabels: Partial<Record<keyof AdminInputs, string>> = {
   'instanceAdmin.grant': 'make an instance admin',
   'instanceAdmin.revoke': 'remove an instance admin',
   'user.resetPasskeys': 'reset passkeys',
-  'user.invite': 'invite an instance admin',
+  'user.invite': 'add a user',
   'user.disable': 'disable an admin',
   'user.enable': 'enable an admin',
-  'membership.add': 'add an admin to a workspace',
-  'membership.setRole': "change an admin's role",
+  'membership.add': 'add someone to a workspace',
+  'membership.setRole': 'change a role',
   'membership.remove': 'remove an admin from a workspace',
   'workspace.delete': 'delete a workspace',
   'provider.setKeys': 'save email or sign-in keys',

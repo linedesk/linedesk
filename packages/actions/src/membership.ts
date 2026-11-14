@@ -39,14 +39,16 @@ export const invitationDecline = defineAction({
 
 export const membershipAdd = defineAction({
   name: 'membership.add',
-  description: 'Add an existing user to a workspace with a role, without an invitation email.',
+  description:
+    "Add an existing user to a workspace with a role. An address that is not confirmed yet gets an invitation instead and joins once it is. The workspace's owners are told.",
   input: z.object({ userId: z.string().min(1), workspaceId: z.string().min(1), role: z.enum(membershipRoles) }),
   permission: 'instance:admin',
 })
 
 export const membershipSetRole = defineAction({
   name: 'membership.setRole',
-  description: "Change a member's role in any workspace. A workspace keeps at least one owner.",
+  description:
+    "Change a member's role in any workspace. A workspace keeps at least one owner; owner and admin only for a confirmed address.",
   input: z.object({ memberId: z.string().min(1), role: z.enum(membershipRoles) }),
   permission: 'instance:admin',
 })

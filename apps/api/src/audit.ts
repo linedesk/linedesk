@@ -203,9 +203,10 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
 /**
  * Whom a team or membership change was about, put in the action's result (`data.subject`) by its
  * handler, since a removed member's row is gone afterwards. The audit log shows the address and
- * lists the entry under the workspace changed, which for an instance admin is not their own.
+ * lists the entry under the workspace changed, which for an instance admin is not their own;
+ * `workspaceId: null` lists it under none (a new instance admin without a workspace).
  */
-export type AuditSubject = { email: string | null; workspaceId: string }
+export type AuditSubject = { email: string | null; workspaceId: string | null }
 
 /** The subject of a change to `userId`'s membership of `workspaceId`. */
 export async function memberSubject(tx: Tx, userId: string, workspaceId: string): Promise<AuditSubject> {
@@ -303,7 +304,8 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
     kindActions.length || withImpersonated
       ? sql`select c.id, c.created_at as at, c.action as what, null::text as method, c.actor_id, null::text as email_then,
         c.impersonated_by, c.setup_key_id,
-        coalesce(c.result->'data'->'subject'->>'workspaceId', c.input->>'workspaceId', c.workspace_id) as workspace_id,
+        case when c.result->'data'->'subject' ? 'workspaceId' then c.result->'data'->'subject'->>'workspaceId'
+          else coalesce(c.input->>'workspaceId', c.workspace_id) end as workspace_id,
         c.input, c.result->'data'->'subject'->>'email' as subject_email, c.rejected as refused, null::text as ip_address, 'command' as source
         from commands c where ${listed}${withImpersonated ? sql` or c.impersonated_by is not null` : sql``}`
       : null

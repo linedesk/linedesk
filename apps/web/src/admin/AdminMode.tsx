@@ -144,7 +144,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
       // ⌘K and ? would open the inbox's palette and help sheet, which admin mode does not show.
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') return swallow(e)
       if (e.metaKey || e.ctrlKey || e.altKey || document.querySelector('[role="dialog"]')) return
-      // An open form (a confirmation, a key form, Invite user) handles its own keys: Esc cancels it.
+      // An open form (a confirmation, a key form, Add user) handles its own keys: Esc cancels it.
       if (document.activeElement?.closest('form')) return
       // An open list (kit Select) handles its own keys.
       if (document.activeElement?.closest('[role="listbox"]')) return
@@ -225,7 +225,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
         return user ? (
           <UserDetail user={user} workspaces={data.workspaces} currentUserId={currentUserId} {...shared} />
         ) : (
-          <UsersList users={data.users} currentUserId={currentUserId} onOpen={open} keysRef={listKeys} {...shared} />
+          <UsersList users={data.users} workspaces={data.workspaces} currentUserId={currentUserId} onOpen={open} keysRef={listKeys} {...shared} />
         )
       case 'usage':
         return <Usage workspaces={data.workspaces} usage={data.usage} months={data.usageMonths} />

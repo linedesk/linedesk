@@ -43,8 +43,7 @@ export function appLink(origin: string, workspaceId: string, path: string): stri
 
 const callLink = (origin: string, workspaceId: string, callId: string) =>
   appLink(origin, workspaceId, `call/${encodeURIComponent(callId)}`)
-const notificationsLink = (origin: string, workspaceId: string) =>
-  appLink(origin, workspaceId, 'account/notifications')
+const notificationsLink = (origin: string, workspaceId: string) => appLink(origin, workspaceId, 'account/notifications')
 
 // ---------------------------------------------------------------- sign-in and account
 
@@ -109,7 +108,10 @@ export function passwordResetCodeEmail(code: string, origin = WEB_ORIGIN): Rende
     preheader: `Enter it on the sign-in page of ${site} to set a new password. It expires in ${SIGN_IN_CODE_MINUTES} minutes.`,
     heading: 'Reset your password',
     blocks: [
-      { kind: 'text', text: `Enter this code on the ${brandName()} sign-in page at ${site}, then choose a new password.` },
+      {
+        kind: 'text',
+        text: `Enter this code on the ${brandName()} sign-in page at ${site}, then choose a new password.`,
+      },
       { kind: 'code', code },
       {
         kind: 'text',
@@ -162,6 +164,96 @@ export function invitationEmail(
       },
     ],
     reason: "You got this email because someone invited this address. If you didn't expect it, you can ignore it.",
+    origin,
+  })
+}
+
+/**
+ * An instance admin added this address to a workspace (Server admin › Users › Add user, `user.invite`): the one email they
+ * get, instead of the plain invitation and the welcome email. The link is the invitation's: they sign in with this
+ * address (a code proves it) and join. `inviter` and `workspace` are already email-safe.
+ */
+export function addedToWorkspaceEmail(
+  { inviter, workspace, email, url, days, role }: InvitationEmail & { role: string },
+  origin = WEB_ORIGIN,
+): RenderedEmail {
+  const site = siteHost(origin)
+  const as = role === 'owner' ? 'an owner' : role === 'admin' ? 'an admin' : 'a member'
+  return renderEmail({
+    subject: `You were added to ${workspace} on ${site}`,
+    preheader: `${inviter} added you as ${as}. Sign in with this address to join.`,
+    heading: `You were added to ${workspace}`,
+    blocks: [
+      {
+        kind: 'text',
+        text: `${inviter} added you to ${workspace} on ${site} as ${as}: answer and follow up on the calls its assistant takes.`,
+      },
+      { kind: 'facts', rows: [['Sign in with', email]] },
+      { kind: 'button', label: `Join ${workspace}`, url },
+      {
+        kind: 'text',
+        tone: 'muted',
+        text: `The link works for ${days} days. Enter this email address on the sign-in page and we send you a code.`,
+      },
+    ],
+    reason: `You got this email because an administrator of ${site} added this address. If you didn't expect it, you can ignore it.`,
+    origin,
+  })
+}
+
+/** "a member", "an admin", "an owner". */
+const roleWithArticle = (role: string) => (role === 'owner' ? 'an owner' : role === 'admin' ? 'an admin' : 'a member')
+
+/**
+ * To someone an instance admin added to a workspace directly (their address was confirmed already, so there is no
+ * invitation to accept). `admin` and `workspace` are already email-safe.
+ */
+export function addedNoticeEmail(
+  { admin, workspace, workspaceId, role }: { admin: string; workspace: string; workspaceId: string; role: string },
+  origin = WEB_ORIGIN,
+): RenderedEmail {
+  const site = siteHost(origin)
+  return renderEmail({
+    subject: `You were added to ${workspace} on ${site}`,
+    preheader: `${admin} added you as ${roleWithArticle(role)}.`,
+    heading: `You were added to ${workspace}`,
+    blocks: [
+      { kind: 'text', text: `${admin} added you to ${workspace} on ${site} as ${roleWithArticle(role)}.` },
+      { kind: 'button', label: `Open ${workspace}`, url: appLink(origin, workspaceId, 'calls') },
+    ],
+    reason: `You got this email because an administrator of ${site} added you. If you didn't expect it, tell the workspace's owner.`,
+    origin,
+  })
+}
+
+/**
+ * To a workspace's owners when an instance admin adds someone to it or invites them (Server admin, membership.add,
+ * user.invite): a change to who can see the workspace that its owners did not make. `pending`: an invitation, the
+ * person joins once their address is confirmed. All names already email-safe.
+ */
+export function memberAddedByAdminEmail(
+  {
+    admin,
+    who,
+    workspace,
+    workspaceId,
+    role,
+    pending,
+  }: { admin: string; who: string; workspace: string; workspaceId: string; role: string; pending: boolean },
+  origin = WEB_ORIGIN,
+): RenderedEmail {
+  const text = `${admin} added ${who} to ${workspace} as ${roleWithArticle(role)}.`
+  return renderEmail({
+    subject: `${admin} added ${who} to ${workspace}`,
+    preheader: text,
+    eyebrow: 'Team notice',
+    heading: `${who} was added to ${workspace}`,
+    blocks: [
+      { kind: 'text', text: pending ? `${text} They join once they confirm their email address.` : text },
+      { kind: 'text', text: 'If you did not expect this, check the team and remove them there.' },
+      { kind: 'button', label: 'Open the team', url: appLink(origin, workspaceId, 'workspace/team') },
+    ],
+    reason: `You got this email because you own ${workspace}, and an administrator of ${siteHost(origin)} changed its team. We always send it.`,
     origin,
   })
 }

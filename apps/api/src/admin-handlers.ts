@@ -1,6 +1,20 @@
 // Server handlers of the admin area actions (packages/actions/src/admin.ts).
-import { type ProviderName, providerSpec, restartCategories } from '@linedesk/actions'
-import { agent_setup_keys, organization, passkey, session, spending_cap_alerts, type Tx, user } from '@linedesk/db'
+import {
+  type MembershipRole,
+  type ProviderName,
+  providerSpec,
+  restartCategories,
+  type UserInviteData,
+} from '@linedesk/actions'
+import {
+  agent_setup_keys,
+  organization,
+  passkey,
+  session,
+  spending_cap_alerts,
+  type Tx,
+  user,
+} from '@linedesk/db'
 import { emailDelivery } from './auth-methods.ts'
 import { emailSender } from './email.ts'
 import { emailSafeName, welcomeEmail } from './emails/templates.ts'
@@ -30,6 +44,8 @@ import { SecretsKeyError } from './secrets.ts'
 import { monthOf, queueSpendingAlerts, spendingCap } from './spending-cap.ts'
 import { brandName } from './branding.ts'
 import { deleteWorkspace } from './workspace-delete.ts'
+import type { AuditSubject } from './audit.ts'
+import { addToWorkspace, inviteToWorkspace, noticeAddedByAdmin, openWorkspace } from './memberships.ts'
 
 const hasPasskey = async (tx: Tx, userId: string) =>
   (await tx.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, userId)).limit(1)).length > 0
@@ -64,6 +80,40 @@ async function loadUser(tx: Tx, userId: string) {
   const [account] = await tx.select().from(user).where(eq(user.id, userId))
   if (!account) throw new Reject('user not found')
   return account
+}
+
+/** How emails go out; refused when they cannot, since the person could never get a sign-in code. */
+function deliveryOrRefuse(): 'smtp' | 'log' {
+  const delivery = emailDelivery(process.env)
+  if (delivery === 'none')
+    throw new Reject(
+      'Email is not set up, so the new user cannot get sign-in codes: connect it under Providers, Email (or EMAIL_TO_LOG=true in development).',
+    )
+  return delivery
+}
+
+/** user.invite's result; `subject` files the entry under the workspace in the audit log. */
+function joined(
+  userId: string,
+  email: string,
+  existing: boolean,
+  workspace: { id: string; name: string } | null,
+  role: MembershipRole,
+  how: 'added' | 'invited',
+  delivery?: 'smtp' | 'log',
+): { rows: Record<string, never>; data: UserInviteData & { subject: AuditSubject } } {
+  return {
+    rows: {},
+    data: {
+      userId,
+      email,
+      existing,
+      ...(delivery ? { delivery } : {}),
+      workspace: workspace ? { id: workspace.id, name: workspace.name, role, joined: how } : null,
+      // Without a workspace the entry belongs to none, not to the admin's own (audit.ts).
+      subject: { email, workspaceId: workspace?.id ?? null },
+    },
+  }
 }
 
 async function setWorkspaceDisabled(tx: Tx, workspaceId: string, disabledAt: Date | null) {
@@ -233,54 +283,72 @@ export const adminHandlers: Record<string, Handler> = {
     return { rows: {}, data: { ok: true, message: result.message, linked } }
   },
 
-  'user.invite': async ({ actor, onRollback }, input) => {
+  // Server admin › Users › Add user (docs/architecture.md, "Closed sign-up"). Everything in the command's transaction: an
+  // email that cannot be sent leaves nothing behind.
+  'user.invite': async ({ tx, actor, now }, input) => {
     if (input.admin) refuseEnrolmentCode(actor)
-    const delivery = emailDelivery(process.env)
-    if (delivery === 'none') {
-      throw new Reject(
-        'Email is not set up, so the new user cannot get sign-in codes: connect it under Providers, Email (or EMAIL_TO_LOG=true in development).',
-      )
-    }
     const email = input.email.trim().toLowerCase()
-    const [taken] = await db.select({ id: user.id }).from(user).where(sql`lower(${user.email}) = ${email}`)
-    if (taken) throw new Reject(`${email} already has an account`)
-    // Committed at once, outside the command's transaction, so the welcome email only goes to an
-    // account that exists. If the command does not commit, the account is removed again.
-    const account = {
-      id: crypto.randomUUID().replaceAll('-', ''),
-      name: input.name,
-      email,
-      emailVerified: false,
-      instanceAdmin: input.admin ?? false,
+    const workspace = input.workspaceId ? await openWorkspace(tx, input.workspaceId) : null
+    // Only a server admin may be without a workspace. The server operator's user:create makes a bare account for
+    // workspace-create.ts --owner, as before.
+    if (!workspace && !input.admin && actor.actorId !== 'cli')
+      throw new Reject('choose a workspace: only an instance admin can be added without one')
+    if (!workspace && input.role) throw new Reject('a role needs a workspace')
+    const role: MembershipRole = input.role ?? 'member'
+    // An invitation names the person who sent it; the command line is nobody (also checked in inviteToWorkspace).
+    if (workspace && actor.actorId === 'cli')
+      throw new Reject('the command line cannot add to a workspace: use Server admin › Users › Add user')
+
+    const [existing] = await tx.select().from(user).where(sql`lower(${user.email}) = ${email}`).for('update')
+    if (existing) {
+      if (input.admin) throw new Reject(`${email} already has an account: make them an instance admin on their page`)
+      if (!workspace) throw new Reject(`${email} already has an account`)
+      if (existing.disabledAt) throw new Reject(`${email} is disabled: enable the account first`)
+      // A confirmed address joins at once, like Add to workspace. An unconfirmed one gets the invitation, so the
+      // workspace opens only once the address is proven (as for every invitation).
+      if (existing.emailVerified) {
+        await addToWorkspace(tx, existing, workspace, role, now)
+        await noticeAddedByAdmin(tx, actor, existing, workspace, role, 'added')
+        return joined(existing.id, email, true, workspace, role, 'added')
+      }
+      const delivery = deliveryOrRefuse()
+      await inviteToWorkspace(tx, actor, email, workspace, role, now)
+      await noticeAddedByAdmin(tx, actor, existing, workspace, role, 'invited')
+      return joined(existing.id, email, true, workspace, role, 'invited', delivery)
     }
+
+    const delivery = deliveryOrRefuse()
+    const id = crypto.randomUUID().replaceAll('-', '')
     // A sign-up for the same address can land between the check and the insert.
-    const [created] = await db
+    await tx
       .insert(user)
-      .values(account)
-      .returning({ id: user.id })
+      .values({ id, name: input.name, email, emailVerified: false, instanceAdmin: input.admin ?? false })
       .catch(e => {
         throw (e as { code?: string; cause?: { code?: string } }).code === '23505' ||
           (e as { cause?: { code?: string } }).cause?.code === '23505'
           ? new Reject(`${email} already has an account`)
           : e
       })
-    onRollback?.(async () => {
-      await db.delete(user).where(eq(user.id, created!.id))
-      return `the account for ${email} was removed again`
-    })
-    try {
-      await emailSender.send({ to: email, ...welcomeEmail({ name: emailSafeName(input.name, 'there'), email }) })
-    } catch (e) {
-      throw new Reject(
-        `the account was not created: the welcome email could not be sent (${e instanceof Error ? e.message : e})`,
-      )
+    // One email: the invitation into the workspace, or without one how to sign in.
+    if (workspace) {
+      await inviteToWorkspace(tx, actor, email, workspace, role, now)
+      await noticeAddedByAdmin(tx, actor, { email, name: input.name }, workspace, role, 'invited')
+    } else {
+      try {
+        await emailSender.send({ to: email, ...welcomeEmail({ name: emailSafeName(input.name, 'there'), email }) })
+      } catch (e) {
+        throw new Reject(
+          `the account was not created: the welcome email could not be sent (${e instanceof Error ? e.message : e})`,
+        )
+      }
     }
     // A new instance admin adds their first passkey with a one-time code, given to the admin who invited them
     // (only to a passkey-confirmed session: also checked before the account is made, so no email goes out).
     if (input.admin) refuseEnrolmentCode(actor)
-    const enrolment = input.admin ? await issuePasskeyEnrolment(db, created!.id) : {}
+    const enrolment = input.admin ? await issuePasskeyEnrolment(tx, id) : {}
     if (input.admin) await alertAdminGranted(actor, email)
-    return { rows: {}, data: { userId: created!.id, email, delivery, ...enrolment } }
+    const result = joined(id, email, false, workspace, role, 'invited', delivery)
+    return { ...result, data: { ...result.data, ...enrolment } }
   },
 
   'user.disable': async ({ tx, actor, now }, input) => {

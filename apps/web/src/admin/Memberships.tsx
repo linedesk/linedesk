@@ -17,6 +17,12 @@ import { day } from './parts.tsx'
 const roleOptions = membershipRoles.map(r => ({ value: r, label: roleLabel(r) }))
 const asRole = (role: string): MembershipRole => (membershipRoles.includes(role as MembershipRole) ? (role as MembershipRole) : 'member')
 
+/** What Add to workspace did: a confirmed address joins at once, an unconfirmed one is invited (membership.add). */
+export const addedNote = (who: string, where: string, data: { joined?: unknown }) =>
+  data.joined === 'invited'
+    ? `${who} was invited to ${where}. They join once they confirm their email address.`
+    : `${who} was added to ${where}.`
+
 /** Runs a change, then refreshes and says what happened; a refusal becomes the toast. */
 function useChange(notify: Notify, refresh: () => Promise<void>) {
   return useCallback(
@@ -185,7 +191,7 @@ export function UserWorkspaces({ user: u, workspaces, notify, reload }: UserProp
       title="Workspaces"
       className="adm-detail"
       actions={
-        <Button size="sm" icon="plus" title={candidates.length ? `Add ${who} to a workspace, no email needed` : 'Already in every workspace'} disabled={!candidates.length} onClick={openAdd}>
+        <Button size="sm" icon="plus" title={candidates.length ? `Add ${who} to a workspace` : 'Already in every workspace'} disabled={!candidates.length} onClick={openAdd}>
           Add to workspace…
         </Button>
       }
@@ -220,9 +226,9 @@ export function UserWorkspaces({ user: u, workspaces, notify, reload }: UserProp
           ready={!!pick}
           onClose={() => setAdding(false)}
           onAdd={async role => {
-            await runAdmin('membership.add', { userId: u.id, workspaceId: pick, role })
+            const data = await runAdmin('membership.add', { userId: u.id, workspaceId: pick, role })
             await reload()
-            notify(`${who} was added to ${workspaces.find(w => w.id === pick)?.name ?? 'the workspace'}.`)
+            notify(addedNote(who, workspaces.find(w => w.id === pick)?.name ?? 'the workspace', data))
           }}
           picker={
             <FormField id="adm-add-ws" label="Workspace">
@@ -292,7 +298,7 @@ export function WorkspaceMembersCard({ workspace: w, users, notify, reload }: Wo
       title="Members"
       className="adm-detail"
       actions={
-        <Button size="sm" icon="plus" title="Add an existing user, no email needed" disabled={!data} onClick={() => { setPick(''); setAdding(true) }}>
+        <Button size="sm" icon="plus" title="Add an existing user" disabled={!data} onClick={() => { setPick(''); setAdding(true) }}>
           Add member…
         </Button>
       }
@@ -334,10 +340,10 @@ export function WorkspaceMembersCard({ workspace: w, users, notify, reload }: Wo
           ready={!!pick}
           onClose={() => setAdding(false)}
           onAdd={async role => {
-            await runAdmin('membership.add', { userId: pick, workspaceId: w.id, role })
+            const data = await runAdmin('membership.add', { userId: pick, workspaceId: w.id, role })
             await refresh()
             const u = users.find(x => x.id === pick)
-            notify(`${u?.name || u?.email || 'They'} joined ${w.name}.`)
+            notify(addedNote(u?.name || u?.email || 'They', w.name, data))
           }}
           picker={<UserPicker users={candidates} picked={pick} onPick={setPick} />}
         />

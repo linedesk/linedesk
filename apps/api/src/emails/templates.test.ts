@@ -3,6 +3,8 @@ import { setBrandingInMemory } from '../branding.ts'
 import { defuseLinks, escapeHtml, renderEmail } from './layout.ts'
 import { previewEmails } from './previews.ts'
 import {
+  addedNoticeEmail,
+  addedToWorkspaceEmail,
   appLink,
   assignedCallEmail,
   bookingConfirmationEmail,
@@ -14,6 +16,7 @@ import {
   emailChangeRefusedEmail,
   firstCallEmail,
   invitationEmail,
+  memberAddedByAdminEmail,
   passkeyChangedEmail,
   passwordChangedEmail,
   passwordResetCodeEmail,
@@ -220,7 +223,9 @@ describe('links into the app name their workspace', () => {
   })
 
   it('setup emails open the next step in their workspace, like the go-live checklist', () => {
-    expect(setupDay0Email(setup, ORIGIN).html).toContain('href="https://desk.example.com/#workspace/phone/pn_1?ws=ws_1"')
+    expect(setupDay0Email(setup, ORIGIN).html).toContain(
+      'href="https://desk.example.com/#workspace/phone/pn_1?ws=ws_1"',
+    )
     const noNumber = { ...setup, numberId: null, number: null, step: 'number' as const }
     expect(setupDay0Email(noNumber, ORIGIN).html).toContain('href="https://desk.example.com/#workspace/phone?ws=ws_1"')
     const firstCall = setupNudgeEmail(1, { ...setup, step: 'first_call' }, ORIGIN)
@@ -347,6 +352,56 @@ describe('invitation', () => {
     expect(email.html).toContain('Brightwater Plumbing &amp; Heating')
     expect(email.html).toContain('href="https://desk.example.com/?invite=abc"')
     expect(email.text).toContain('The link works for 7 days')
+  })
+})
+
+describe('added to a workspace by an instance admin', () => {
+  it('names the workspace, the server and the role, links to join and says how to sign in', () => {
+    const email = addedToWorkspaceEmail(
+      {
+        inviter: 'Mike Brennan',
+        workspace: 'Brightwater Plumbing & Heating',
+        email: 'sam@example.com',
+        url: `${ORIGIN}/?invite=abc`,
+        days: 7,
+        role: 'owner',
+      },
+      ORIGIN,
+    )
+    expect(email.subject).toBe('You were added to Brightwater Plumbing & Heating on desk.example.com')
+    expect(email.text).toContain(
+      'Mike Brennan added you to Brightwater Plumbing & Heating on desk.example.com as an owner',
+    )
+    expect(email.html).toContain('href="https://desk.example.com/?invite=abc"')
+    expect(email.text).toContain('Enter this email address on the sign-in page')
+    expect(email.text).toContain('The link works for 7 days')
+  })
+
+  it('tells someone added directly who added them and as what', () => {
+    const email = addedNoticeEmail(
+      { admin: 'Dana Ops', workspace: 'Brightwater Plumbing', workspaceId: 'ws_1', role: 'admin' },
+      ORIGIN,
+    )
+    expect(email.subject).toBe('You were added to Brightwater Plumbing on desk.example.com')
+    expect(email.text).toContain('Dana Ops added you to Brightwater Plumbing on desk.example.com as an admin.')
+    expect(email.html).toContain('ws_1')
+  })
+
+  it('tells the owners who an instance admin added, and when the person still has to confirm', () => {
+    const fields = {
+      admin: 'Dana Ops',
+      who: 'Sam',
+      workspace: 'Brightwater Plumbing',
+      workspaceId: 'ws_1',
+      role: 'member',
+    }
+    const added = memberAddedByAdminEmail({ ...fields, pending: false }, ORIGIN)
+    expect(added.subject).toBe('Dana Ops added Sam to Brightwater Plumbing')
+    expect(added.text).toContain('Dana Ops added Sam to Brightwater Plumbing as a member.')
+    expect(added.text).not.toContain('They join once')
+    const invited = memberAddedByAdminEmail({ ...fields, pending: true }, ORIGIN)
+    expect(invited.text).toContain('They join once they confirm their email address.')
+    expect(invited.html).toContain('workspace/team')
   })
 })
 
