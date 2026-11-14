@@ -14,6 +14,7 @@
 // does not count towards the address's limit on unknown keys. Removing the admin role ends them too.
 import { createHash, randomBytes } from 'node:crypto'
 import {
+  type AgentSetupAllowRequest,
   type AgentSetupKeyCreated,
   type AgentSetupState,
   type Role,
@@ -21,11 +22,15 @@ import {
   rolePermissions,
   SETUP_KEY_HOURS,
   SETUP_KEY_PREFIX,
+  providerCategories,
+  providerNames,
+  providerSpec,
   teamRoles,
 } from '@linedesk/actions'
 import { agent_setup_keys, member, session, type Tx, user } from '@linedesk/db'
 import { and, asc, desc, eq, gt, isNull } from 'drizzle-orm'
-import { adminSecondFactorRequired, PASSKEY_CONFIRM_HOURS, passkeyConfirmed } from './admin-second-factor.ts'
+import { adminSecondFactorRequired, PASSKEY_CONFIRM_HOURS } from './admin-second-factor.ts'
+import { passkeySignInForGrant } from './admin-step-up.ts'
 import { mustConfirmEmail } from './auth-methods.ts'
 import { addressBucket } from './client-ip.ts'
 import type { Actor } from './context.ts'
@@ -165,15 +170,22 @@ function refuseNonPerson(actor: Actor) {
 }
 
 /**
- * Until when a key made or confirmed by this session may change email and sign-in: 12 hours from the session's
- * passkey sign-in, never past the key's own end. Null when the session has no recent passkey sign-in.
+ * The email and sign-in grant this session can give a key it makes or confirms: only from a passkey sign-in of the last
+ * few minutes that gave no grant yet (admin-step-up.ts passkeySignInForGrant), for 12 hours from it, never past the
+ * key's own end. Null otherwise: the key then needs Allow with a new passkey prompt.
  */
-async function passkeyConfirmedUntil(tx: Tx, actor: Actor, keyExpiresAt: string): Promise<string | null> {
-  if (!actor.passkeyConfirmed || !actor.sessionId) return null
-  const [row] = await tx.select({ at: session.passkeyVerifiedAt }).from(session).where(eq(session.id, actor.sessionId))
-  if (!row?.at || !passkeyConfirmed(row.at)) return null
-  const until = new Date(row.at).getTime() + PASSKEY_CONFIRM_HOURS * 3_600_000
-  return new Date(Math.min(until, Date.parse(keyExpiresAt))).toISOString()
+async function grantFrom(tx: Tx, actor: Actor, keyExpiresAt: string, now: string) {
+  const at = await passkeySignInForGrant(actor, tx)
+  if (!at || !actor.sessionId) return null
+  // Used up at once, and only if nothing else used it meanwhile (two requests at the same time give one grant).
+  const [used] = await tx
+    .update(session)
+    .set({ passkeyGrantUsedAt: new Date(now) })
+    .where(and(eq(session.id, actor.sessionId), isNull(session.passkeyGrantUsedAt)))
+    .returning({ id: session.id })
+  if (!used) return null
+  const until = at.getTime() + PASSKEY_CONFIRM_HOURS * 3_600_000
+  return { passkey_confirmed_until: new Date(Math.min(until, Date.parse(keyExpiresAt))).toISOString() }
 }
 
 export const agentSetupHandlers: Record<string, Handler> = {
@@ -194,8 +206,9 @@ export const agentSetupHandlers: Record<string, Handler> = {
         key_hash: hashSetupKey(key),
         created_by: actor.actorId,
         expires_at: expiresAt,
-        // Made right after a passkey sign-in: the agent may change email and sign-in too, like the admin now.
-        passkey_confirmed_until: await passkeyConfirmedUntil(tx, actor, expiresAt),
+        // Made within minutes of a passkey sign-in that gave no grant yet (step 1 of the page, right before the link):
+        // the agent may change email and sign-in too. Otherwise it asks for Allow.
+        ...(await grantFrom(tx, actor, expiresAt, now)),
       })
       .returning()
     const data: AgentSetupKeyCreated = {
@@ -208,7 +221,8 @@ export const agentSetupHandlers: Record<string, Handler> = {
     return { rows: {}, data }
   },
 
-  // Needs a passkey sign-in (admin-step-up.ts lists it): that sign-in is what the key then carries. Only for the key
+  // Needs a passkey sign-in of the last few minutes (admin-step-up.ts FRESH: the page asks for it on every Allow): that
+  // sign-in is what the key then carries, for 12 hours from it. Only for the key
   // the agent's link names (#setup-agent?allow=<keyId>), and only the admin's own working one: an Allow never lands on
   // a key someone else made meanwhile with the admin's mailbox (a newer key would be the working one, not this id).
   'agentSetup.confirmPasskey': async ({ tx, actor, now }, input: { keyId: string }) => {
@@ -228,12 +242,19 @@ export const agentSetupHandlers: Record<string, Handler> = {
       throw new Reject(
         'That setup link is not your working one: it ended, expired or is not yours. Nothing was allowed; open the newest link from your agent.',
       )
-    const until = adminSecondFactorRequired()
-      ? await passkeyConfirmedUntil(tx, actor, new Date(key.expires_at).toISOString())
-      : new Date(key.expires_at).toISOString()
-    if (!until) throw new Forbidden('Confirm with your passkey to do this.')
-    await tx.update(agent_setup_keys).set({ passkey_confirmed_until: until }).where(eq(agent_setup_keys.id, key.id))
-    return { rows: {}, data: { keyId: key.id, emailAndSignInUntil: until } }
+    const expiresAt = new Date(key.expires_at).toISOString()
+    // Checked before the handler too (run-action.ts); here once more, so no other way in skips it. One passkey sign-in
+    // gives one grant: Withdraw and Allow again needs a new passkey prompt.
+    const grant = adminSecondFactorRequired()
+      ? await grantFrom(tx, actor, expiresAt, now)
+      : { passkey_confirmed_until: expiresAt }
+    if (!grant) throw new Forbidden('Confirm with your passkey to do this.')
+    // The request it allows is answered.
+    await tx
+      .update(agent_setup_keys)
+      .set({ ...grant, allow_request: null })
+      .where(eq(agent_setup_keys.id, key.id))
+    return { rows: {}, data: { keyId: key.id, emailAndSignInUntil: grant.passkey_confirmed_until } }
   },
 
   // Lowering rights needs no passkey: the admin's setup links can no longer change email and sign-in.
@@ -294,7 +315,79 @@ export async function agentSetupState(userId: string): Promise<Omit<AgentSetupSt
             Date.parse(row.passkey_confirmed_until) > Date.now()
               ? new Date(row.passkey_confirmed_until).toISOString()
               : null,
+          // Only while it still waits: a key that may already do it has nothing to allow.
+          request: emailAndSignInAllowed(row.passkey_confirmed_until) ? null : (row.allow_request ?? null),
         }
       : null,
   }
+}
+
+/** Where a setup MCP request came from, as the server saw it: shown to the admin with a request that waits for Allow. */
+export type RequestOrigin = { ip: string | null; client: string | null }
+
+/** The agent's User-Agent, shortened and without links: a name to recognise, never trusted. */
+export const clientName = (userAgent: string | null | undefined) =>
+  userAgent
+    ?.replace(/https?:\/\/\S+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80) || null
+
+/** A secret URL field (an SMTP URL holds the password) said by its server only: host and port, never the rest. */
+function serverOf(value: string): string | null {
+  try {
+    const url = new URL(value)
+    return url.host || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * What a refused provider change asks for, in words for the admin's Allow dialog, without any secret: the provider, its
+ * fields that are not secret, and the server of a secret URL. Null for anything else.
+ */
+export function describeAllowRequest(name: string, input: unknown): string | null {
+  const { provider, values, category } = (input ?? {}) as {
+    provider?: unknown
+    values?: Record<string, unknown>
+    category?: unknown
+  }
+  if (name === 'provider.setActive' && typeof category === 'string' && category in providerCategories) {
+    const label =
+      typeof provider === 'string' && (providerNames as string[]).includes(provider)
+        ? providerSpec(provider as (typeof providerNames)[number]).label
+        : 'none'
+    return `Use ${label} for ${providerCategories[category as keyof typeof providerCategories].toLowerCase()}`
+  }
+  if (typeof provider !== 'string' || !(providerNames as string[]).includes(provider)) return null
+  const spec = providerSpec(provider as (typeof providerNames)[number])
+  const what = providerCategories[spec.category].toLowerCase()
+  if (name === 'provider.clearKeys') return `Disconnect ${spec.label} (${what})`
+  if (name !== 'provider.setKeys') return null
+  const details = Object.entries(values ?? {}).flatMap(([field, value]) => {
+    const f = (spec.fields as Record<string, { label: string; secret?: boolean }>)[field]
+    if (!f || typeof value !== 'string' || !value.trim()) return []
+    if (!f.secret) return [`${f.label.toLowerCase()} ${value.trim().slice(0, 120)}`]
+    const server = serverOf(value.trim())
+    return server ? [`server ${server}`] : []
+  })
+  return `Set up ${what} with ${spec.label}${details.length ? ` (${details.join(', ')})` : ''}`
+}
+
+/**
+ * The agent asked for a change that waits for the admin's Allow (setup-mcp.ts, PASSKEY_NEEDED): kept on its key, so the
+ * Allow dialog says when, from where and what. Only the last one; a failure to note it never fails the answer.
+ */
+export async function noteAllowRequest(keyId: string, name: string, input: unknown, from: RequestOrigin) {
+  const what = describeAllowRequest(name, input)
+  if (!what) return
+  const request: AgentSetupAllowRequest = { at: new Date().toISOString(), ip: from.ip, client: from.client, what }
+  await db
+    .update(agent_setup_keys)
+    .set({ allow_request: request })
+    .where(eq(agent_setup_keys.id, keyId))
+    .catch(e =>
+      console.error(`could not note the allow request of setup key ${keyId}: ${e instanceof Error ? e.message : e}`),
+    )
 }

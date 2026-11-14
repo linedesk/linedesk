@@ -25,7 +25,15 @@ import { countSignInFailures, limitSignIns } from './sign-in-limits.ts'
 import { refuseWhileImpersonating } from './impersonation-guard.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
 import { guardPasskeyChanges, notifyPasskeyChange, passkeyPlugin, passkeyRelyingParty } from './passkeys.ts'
-import { ALLOWED_TRIES, afterPasswordReset, endSessionsAfterReset, guardPasswordReset, PASSWORD_RESET_PATHS, sameAnswerForRefusedCodes, sendPasswordResetCode } from './password-reset.ts'
+import {
+  ALLOWED_TRIES,
+  afterPasswordReset,
+  endSessionsAfterReset,
+  guardPasswordReset,
+  PASSWORD_RESET_PATHS,
+  sameAnswerForRefusedCodes,
+  sendPasswordResetCode,
+} from './password-reset.ts'
 import { maySendSignInCode } from './signup-gate.ts'
 import { starOnGrantHooks } from './star-prompt.ts'
 import { personNameHooks } from './team-member-edit.ts'
@@ -43,7 +51,8 @@ export const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
  * cookie-signed write (csrf.ts).
  */
 export function normaliseOrigin(origin: string): string {
-  const bad = (why: string) => new Error(`WEB_ORIGIN must be an http(s) address like https://app.example.com (${why}): ${origin}`)
+  const bad = (why: string) =>
+    new Error(`WEB_ORIGIN must be an http(s) address like https://app.example.com (${why}): ${origin}`)
   if (origin.includes('*')) throw bad('no wildcards')
   let url: URL
   try {
@@ -67,7 +76,11 @@ function devOrigins(): string[] {
   const raw = process.env.LINEDESK_DEV_ORIGINS?.trim()
   if (!raw) return []
   console.warn(`LINEDESK_DEV_ORIGINS is set: sign-ins are also accepted from ${raw} (local development only).`)
-  return raw.split(',').map(o => o.trim()).filter(Boolean).map(normaliseOrigin)
+  return raw
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean)
+    .map(normaliseOrigin)
 }
 
 export const TRUSTED_ORIGINS: readonly string[] = [...new Set([normaliseOrigin(WEB_ORIGIN), ...devOrigins()])]
@@ -129,7 +142,14 @@ const afterAuthEndpoints = createAuthMiddleware(async ctx => {
  * still calls `auth.api.createOrganization` itself.
  */
 const WORKSPACE_WRITE_PATHS = ['/organization/create', '/organization/update', '/organization/delete']
-const TEAM_WRITE_PATHS = ['/organization/invite-member', '/organization/cancel-invitation', '/organization/update-member-role', '/organization/remove-member', '/organization/leave', '/organization/reject-invitation']
+const TEAM_WRITE_PATHS = [
+  '/organization/invite-member',
+  '/organization/cancel-invitation',
+  '/organization/update-member-role',
+  '/organization/remove-member',
+  '/organization/leave',
+  '/organization/reject-invitation',
+]
 // Better Auth's reads that show pending invitees' addresses to every member; team.list shows them to owners and admins only.
 const INVITATION_READ_PATHS = ['/organization/get-full-organization', '/organization/list-invitations']
 // Better Auth's endpoints that hand a signed-in account's provider tokens to the browser. Linedesk
@@ -178,7 +198,11 @@ export const auth = betterAuth({
   // app's sign-in screen, which explains `?error=` in plain words, never to Better Auth's error page.
   onAPIError: { errorURL: WEB_ORIGIN },
   // A reset by emailed code (password-reset.ts) ends every session of the account.
-  emailAndPassword: { enabled: methods.password, revokeSessionsOnPasswordReset: true, onPasswordReset: afterPasswordReset },
+  emailAndPassword: {
+    enabled: methods.password,
+    revokeSessionsOnPasswordReset: true,
+    onPasswordReset: afterPasswordReset,
+  },
   databaseHooks: mergeDatabaseHooks(
     personNameHooks,
     instanceAdminHooks,
@@ -229,7 +253,14 @@ export const auth = betterAuth({
   advanced: { ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] } },
   // Members and invitations change only through the team.* actions (team.ts), which apply the
   // workspace's rules (last owner, who may change an owner). Accepting stays Better Auth's endpoint.
-  disabledPaths: [...UNUSED_EMAIL_CODE_PATHS, ...OFF_PASSWORD_RESET_PATHS, ...PROVIDER_TOKEN_PATHS, ...TEAM_WRITE_PATHS, ...INVITATION_READ_PATHS, ...WORKSPACE_WRITE_PATHS],
+  disabledPaths: [
+    ...UNUSED_EMAIL_CODE_PATHS,
+    ...OFF_PASSWORD_RESET_PATHS,
+    ...PROVIDER_TOKEN_PATHS,
+    ...TEAM_WRITE_PATHS,
+    ...INVITATION_READ_PATHS,
+    ...WORKSPACE_WRITE_PATHS,
+  ],
   hooks: { before: beforeAuthEndpoints, after: afterAuthEndpoints },
   // Set by user.impersonate only (impersonation.ts); `input: false` keeps clients from setting it.
   // passkeyVerifiedAt: set by the session.create hook on a passkey sign-in (admin-second-factor.ts).
@@ -241,6 +272,8 @@ export const auth = betterAuth({
     additionalFields: {
       impersonatedBy: { type: 'string', required: false, input: false },
       passkeyVerifiedAt: { type: 'date', required: false, input: false },
+      // Set when the passkey sign-in gave a setup link its email and sign-in grant (agent-setup.ts).
+      passkeyGrantUsedAt: { type: 'date', required: false, input: false },
     },
   },
   plugins: [
@@ -259,11 +292,37 @@ export const auth = betterAuth({
     // Email sign-in by a typed code: 6 digits, 10 minutes, 3 tries per code, stored hashed, at most 3 requests a minute per IP.
     // The same codes move an account to a new address (email-change.ts).
     ...(methods.emailCode
-      ? [emailOTP({ sendVerificationOTP: sendSignInCode, otpLength: 6, expiresIn: 600, allowedAttempts: ALLOWED_TRIES, storeOTP: 'hashed', rateLimit: { window: 60, max: 3 }, changeEmail: { enabled: true } })]
+      ? [
+          emailOTP({
+            sendVerificationOTP: sendSignInCode,
+            otpLength: 6,
+            expiresIn: 600,
+            allowedAttempts: ALLOWED_TRIES,
+            storeOTP: 'hashed',
+            rateLimit: { window: 60, max: 3 },
+            changeEmail: { enabled: true },
+          }),
+        ]
       : []),
     // Passkeys sign in existing accounts only; they are added in Account settings (passkeys.ts).
     ...(methods.passkey ? [passkeyPlugin(process.env)] : []),
     // Like Google: no email unless the provider says it is verified (`email_verified`) or the address is on a domain listed in OIDC_TRUST_EMAIL_DOMAINS, so an unproven address creates nobody.
-    ...(oidc ? [genericOAuth({ config: [{ providerId: 'oidc', clientId: oidc.clientId, clientSecret: oidc.clientSecret, discoveryUrl: oidc.discoveryUrl, scopes: ['openid', 'profile', 'email'], pkce: true, mapProfileToUser: profile => mapOidcProfile(profile) }] })] : []),
+    ...(oidc
+      ? [
+          genericOAuth({
+            config: [
+              {
+                providerId: 'oidc',
+                clientId: oidc.clientId,
+                clientSecret: oidc.clientSecret,
+                discoveryUrl: oidc.discoveryUrl,
+                scopes: ['openid', 'profile', 'email'],
+                pkce: true,
+                mapProfileToUser: profile => mapOidcProfile(profile),
+              },
+            ],
+          }),
+        ]
+      : []),
   ],
 })

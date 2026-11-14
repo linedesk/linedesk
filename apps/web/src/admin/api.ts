@@ -284,16 +284,22 @@ type AdminInputs = {
  * when it needs a passkey sign-in, asks for one and runs again (PasskeyStepUp.tsx). `what`: what the dialog says it confirms.
  */
 export function runAdmin<N extends keyof AdminInputs>(name: N, input: AdminInputs[N], what = stepUpLabel(name, input)) {
-  return withPasskeyStepUp(async () => {
-    const res = await fetch(`/v1/actions/${name}`, {
-      ...HIGH,
-      method: 'POST',
-      credentials: 'include',
-      headers: { ...workspaceHeaders(), 'content-type': 'application/json' },
-      body: JSON.stringify(input),
-    })
-    return (await body<{ data?: Record<string, unknown> }>(res)).data ?? {}
-  }, what)
+  return withPasskeyStepUp(() => runAdminOnce(name, input), what)
+}
+
+/**
+ * Runs an admin action once, without the passkey dialog: a step-up refusal throws StepUpRequired. For a page that asks
+ * for the passkey itself first (the setup page's Allow, AllowEmailAndSignIn.tsx).
+ */
+export async function runAdminOnce<N extends keyof AdminInputs>(name: N, input: AdminInputs[N]) {
+  const res = await fetch(`/v1/actions/${name}`, {
+    ...HIGH,
+    method: 'POST',
+    credentials: 'include',
+    headers: { ...workspaceHeaders(), 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return (await body<{ data?: Record<string, unknown> }>(res)).data ?? {}
 }
 
 /** What the passkey dialog says it confirms. */
@@ -340,6 +346,8 @@ export const loadOverview = () => get<AdminOverview>('/v1/admin/overview')
 
 /** GET /v1/admin/agent-setup (apps/api/src/agent-setup.ts): the setup key in use (never the key) and the agent's progress. */
 export const loadAgentSetup = () => get<AgentSetupState>('/v1/admin/agent-setup')
+/** The same without the progress (quick): the Allow dialog opens as soon as the key is known. */
+export const loadAgentSetupKey = () => get<Omit<AgentSetupState, 'progress'>>('/v1/admin/agent-setup?part=key')
 /** Install setup by hand (InstallSetup.tsx): where it is, and whether a saved email or sign-in change waits for a restart. */
 export const loadInstallSetup = () => get<InstallSetupState>('/v1/admin/install-setup')
 

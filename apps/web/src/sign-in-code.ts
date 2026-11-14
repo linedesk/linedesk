@@ -13,7 +13,7 @@ export const normalizeCode = (value: string) => value.replace(/\D/g, '').slice(0
  * Better Auth's code for a passkey prompt the person closed. Built from parts: spelled out, it looks
  * like a server setting (AUTH_*) to the check that keeps those off owners' screens (owner-copy.test.ts).
  */
-const PASSKEY_CANCELLED = ['AUTH', 'CANCELLED'].join('_')
+export const PASSKEY_CANCELLED = ['AUTH', 'CANCELLED'].join('_')
 
 const authErrors: Record<string, string> = {
   get INVALID_ORIGIN() {
@@ -24,9 +24,11 @@ const authErrors: Record<string, string> = {
   SESSION_EXPIRED: 'Your session has ended. Sign in again to continue.',
   INVALID_TOKEN: 'This link is no longer valid. Sign in with an email code instead.',
   TOKEN_EXPIRED: 'This link has expired. Sign in with an email code instead.',
-  INVITATION_UNAVAILABLE: "This invitation couldn't be opened. It may have expired or been withdrawn: ask for a new one.",
+  INVITATION_UNAVAILABLE:
+    "This invitation couldn't be opened. It may have expired or been withdrawn: ask for a new one.",
   ACCOUNT_DISABLED: 'This account is disabled. Ask your administrator to turn it on again.',
-  ADDRESS_RESERVED: 'This address is reserved for an administrator. Sign up with an email code or a sign-in provider instead.',
+  ADDRESS_RESERVED:
+    'This address is reserved for an administrator. Sign up with an email code or a sign-in provider instead.',
   NOT_WHILE_IMPERSONATING: 'Not possible while signed in as another user. Return to your own account first.',
   ALREADY_MEMBER: 'You are already a member of this workspace. Open it from the workspace menu.',
   INVALID_OTP: 'That code is not right. Check the email and try again.',
@@ -46,6 +48,8 @@ const authErrors: Record<string, string> = {
     return `That passkey isn't set up for ${brandName()}. Sign in another way, then add it in Account settings.`
   },
   AUTHENTICATION_FAILED: 'That passkey did not work. Try again.',
+  // A passkey step-up (or Allow on the setup page) with another account's passkey (apps/api/src/passkeys.ts).
+  PASSKEY_OTHER_ACCOUNT: 'That passkey belongs to another account. Use one of your own passkeys.',
   ERROR_CEREMONY_ABORTED: 'Adding the passkey was cancelled.',
   // The browser's NotAllowedError, passed through by SimpleWebAuthn: closed, timed out, or no passkey for this site here.
   ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY: 'The passkey request was closed. Try again when you are ready.',
@@ -63,7 +67,8 @@ const authErrors: Record<string, string> = {
 }
 
 const connectionFailed = () => `We couldn't reach ${brandName()}. Check your internet connection, then try again.`
-const SERVER_FAILED = 'Something went wrong on our side. Try again in a few minutes. If it keeps happening, contact your administrator.'
+const SERVER_FAILED =
+  'Something went wrong on our side. Try again in a few minutes. If it keeps happening, contact your administrator.'
 const UNEXPECTED = "That didn't work. Try again. If it keeps happening, contact your administrator."
 
 /** What older servers send as a message only, without a code. */
@@ -72,7 +77,12 @@ const knownMessages: Record<string, string> = {
   'missing or null origin': 'MISSING_OR_NULL_ORIGIN',
   'sign-up is closed on this server': 'SIGNUP_CLOSED',
 }
-const networkMessages = ['failed to fetch', 'network error', 'networkerror when attempting to fetch resource', 'load failed']
+const networkMessages = [
+  'failed to fetch',
+  'network error',
+  'networkerror when attempting to fetch resource',
+  'load failed',
+]
 
 /**
  * A readable message for a failed sign-in: what happened, then what to do (ui/AuthError.tsx shows
@@ -80,7 +90,8 @@ const networkMessages = ['failed to fetch', 'network error', 'networkerror when 
  * the message itself never reaches the page, so no "Invalid origin" or server internals.
  */
 export function authErrorMessage(error: unknown): string {
-  const detail = error && typeof error === 'object' ? (error as { code?: unknown; message?: unknown; status?: unknown }) : {}
+  const detail =
+    error && typeof error === 'object' ? (error as { code?: unknown; message?: unknown; status?: unknown }) : {}
   const code = typeof detail.code === 'string' ? detail.code : ''
   const status = typeof detail.status === 'number' ? detail.status : undefined
   const message = typeof detail.message === 'string' ? detail.message.trim().replace(/\.$/, '').toLowerCase() : ''

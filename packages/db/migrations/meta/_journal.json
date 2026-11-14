@@ -631,6 +631,13 @@
       "when": 1794661745570,
       "tag": "0089_agent_setup_key_end_reason",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1794694992462,
+      "tag": "0090_agent_setup_allow",
+      "breakpoints": true
     }
   ]
 }

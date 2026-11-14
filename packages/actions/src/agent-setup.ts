@@ -102,6 +102,17 @@ export const setupStepNames: Readonly<Record<string, { label: string; hint?: str
   test_call: { label: 'Test call' },
 }
 
+/** A change the agent asked for that needs the admin's Allow (setup-mcp.ts records it on PASSKEY_NEEDED). */
+export type AgentSetupAllowRequest = {
+  at: string
+  /** The address the request came from, as the server saw it. */
+  ip: string | null
+  /** The agent's own name for itself (its User-Agent), shortened. */
+  client: string | null
+  /** In words, without any secret: "Set up email with SMTP (server smtp.example.com:465, from desk@example.com)". */
+  what: string
+}
+
 /** GET /v1/admin/agent-setup: whether a key of yours works now, and where agents connect. */
 export type AgentSetupState = {
   /** The setup MCP address without a key (`<PUBLIC_URL>/mcp/setup`). */
@@ -122,6 +133,11 @@ export type AgentSetupState = {
     emailAndSignIn: boolean
     /** Until when the admin's passkey confirmation lets it (Withdraw ends it sooner); null without one. */
     emailAndSignInUntil: string | null
+    /**
+     * The last change the agent asked for that waits for Allow (refused with PASSKEY_NEEDED): when, from which address
+     * and client, and what, so the admin can tell it is their agent. Null when none waits. Missing from older APIs.
+     */
+    request?: AgentSetupAllowRequest | null
   } | null
   /** What the agent got done so far, in setup order (the setup MCP's setup_status without its instructions). */
   progress: {

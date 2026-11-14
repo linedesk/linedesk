@@ -18,7 +18,7 @@ import {
   stepsByGroup,
 } from '@linedesk/actions'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
-import { loadAgentSetup, runAdmin, watchAdminSignIn } from '../admin/api.ts'
+import { loadAgentSetup, loadAgentSetupKey, runAdmin, watchAdminSignIn } from '../admin/api.ts'
 import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
 import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
@@ -34,6 +34,7 @@ import {
   usePasskeyHere,
 } from './AddPasskeyStep.tsx'
 import { AgentPicker } from './AgentPicker.tsx'
+import { AllowDialog, AllowedNote, AllowRequestNote, useAllow } from './AllowEmailAndSignIn.tsx'
 import { installPartsMissing, passkeyStepOf, withPasskeyAdded } from './agent-setup-passkey.ts'
 import { CopyButton } from './Frame.tsx'
 import { rememberManual } from './setup-choice.ts'
@@ -119,13 +120,22 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
   }, [])
 
   const [client, setClient] = useState<AgentClient>(savedClient)
-  const [busy, setBusy] = useState<'create' | 'end' | 'allow' | 'withdraw' | null>(null)
+  const [busy, setBusy] = useState<'create' | 'end' | 'withdraw' | null>(null)
   // The key the agent's link asks to allow (#setup-agent?allow=<keyId>), followed as the address changes.
   const [allowKeyId, setAllowKeyId] = useState(() => allowKeyIdOf(window.location.hash))
   useEffect(() => {
     const follow = () => setAllowKeyId(allowKeyIdOf(window.location.hash))
     window.addEventListener('hashchange', follow)
     return () => window.removeEventListener('hashchange', follow)
+  }, [])
+  // Opened from the agent's Allow link: the key alone is read first (the progress takes longer), so the dialog opens
+  // as soon as the key is known.
+  const [quickKey, setQuickKey] = useState<AgentSetupState['key'] | undefined>(undefined)
+  useEffect(() => {
+    if (!allowKeyIdOf(window.location.hash)) return
+    loadAgentSetupKey()
+      .then(s => setQuickKey(s.key))
+      .catch(() => {}) // the full read says what failed
   }, [])
   const [error, setError] = useState<string | null>(null)
   // The admin sign-in ran out (1 hour, 12 with a passkey): the page turns into the sign-in, never an error line.
@@ -144,6 +154,10 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
       setLoadError(e instanceof Error ? e.message : 'Could not read the setup state')
     }
   }, [])
+  // An Allow link opened in this tab already: read again at once, so the dialog names what the agent just asked for.
+  useEffect(() => {
+    if (allowKeyId) void load()
+  }, [allowKeyId, load])
   // The agent works in another window: show its progress as it goes (only while this tab is visible).
   useEffect(() => {
     void load()
@@ -193,30 +207,25 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
       setBusy(null)
     }
   }
-  // Email and sign-in need the admin's passkey, for the agent too: one passkey sign-in lets the link the agent named
-  // (and only that one, if it is still the admin's working link) do them. The dialog names the link too.
-  const allowEmailAndSignIn = async (key: NonNullable<AgentSetupState['key']>) => {
-    setBusy('allow')
-    setError(null)
-    try {
-      await runAdmin(
-        'agentSetup.confirmPasskey',
-        { keyId: key.id },
-        `let setup link ${key.prefix}… (created ${timeOf(key.createdAt)}) set up email and sign-in`,
-      )
-      await load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not allow email and sign-in')
-    } finally {
-      setBusy(null)
-    }
-  }
+  // Email and sign-in need the admin's passkey, for the agent too: the agent's link (#setup-agent?allow=<keyId>) opens
+  // the dialog at once; Allow asks for the passkey, then lets that link (and only that one) do them.
+  const [allowedHere, setAllowedHere] = useState<string | null>(null)
+  const [allowDialog, setAllowDialog] = useState<'auto' | 'open' | 'closed'>('auto')
+  const allow = useAllow(until => {
+    setAllowDialog('closed')
+    setAllowedHere(until ?? new Date().toISOString())
+    // The link's request is answered: a reload or Withdraw later does not open the dialog again.
+    if (allowKeyIdOf(window.location.hash)) window.history.replaceState(null, '', AGENT_SETUP_HASH)
+    setAllowKeyId(null)
+    void load()
+  })
   // Lowering the link's rights needs no passkey.
   const withdrawEmailAndSignIn = async () => {
     setBusy('withdraw')
     setError(null)
     try {
       await runAdmin('agentSetup.withdrawPasskey', {})
+      setAllowedHere(null)
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not withdraw it')
@@ -250,6 +259,9 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
     if (state.key?.prefix !== created.prefix || !unexpired(created)) setCreated(null)
   }, [state, created, setCreated])
   const hasLink = state ? Boolean(state.key) : Boolean(created)
+  // The agent's link names the working key, which may not do email and sign-in yet: ask (dialog, then the note).
+  const keyNow = state ? state.key : quickKey
+  const allowAsked = keyNow && allowKeyId === keyNow.id && !keyNow.emailAndSignIn && !allowedHere ? keyNow : null
   const cloudBlocked = state !== null && !state.reachableFromCloud && cloudClients.includes(client)
   // After signing in, the page loads again at the same address (SecondFactorPrompt).
   if (signInAgain) return <SecondFactorPrompt state={signInAgain} onExit={onDone} />
@@ -311,15 +323,17 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
                       End access
                     </Button>
                   </div>
-                  {state?.key && (
-                    <EmailAndSignIn
-                      linkKey={state.key}
-                      allowKeyId={allowKeyId}
-                      busy={busy}
-                      onAllow={key => void allowEmailAndSignIn(key)}
-                      onWithdraw={() => void withdrawEmailAndSignIn()}
-                    />
-                  )}
+                  {state?.key &&
+                    (allowAsked ? (
+                      <AllowRequestNote linkKey={allowAsked} onOpen={() => setAllowDialog('open')} />
+                    ) : (
+                      <EmailAndSignIn
+                        linkKey={state.key}
+                        allowedHere={allowedHere}
+                        busy={busy}
+                        onWithdraw={() => void withdrawEmailAndSignIn()}
+                      />
+                    ))}
                   {created ? (
                     <StartAgent client={client} url={created.url} />
                   ) : (
@@ -352,6 +366,14 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
           )}
           {error && <Note tone="danger">{error}</Note>}
         </section>
+        {allowAsked && allowDialog !== 'closed' && (
+          <AllowDialog
+            linkKey={allowAsked}
+            allow={allow}
+            passkeyMissing={passkeyStep === 'todo'}
+            onClose={() => setAllowDialog('closed')}
+          />
+        )}
 
         <Progress
           state={
@@ -377,63 +399,34 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
 }
 
 /**
- * Whether the working link may change email and sign-in. Allow only when the agent's link named this key
- * (#setup-agent?allow=<keyId>), with its prefix and when it was made next to the button; while a passkey confirmation
- * lasts, until when, with Withdraw.
+ * Whether the working link may change email and sign-in, when the agent's link does not ask for it right now
+ * (AllowRequestNote): while a passkey confirmation lasts, until when, with Withdraw; a moment after Allow, said as the
+ * result. Otherwise how it works: the agent gives a link to allow it when it needs it.
  */
 function EmailAndSignIn({
   linkKey,
-  allowKeyId,
+  allowedHere,
   busy,
-  onAllow,
   onWithdraw,
 }: {
   linkKey: NonNullable<AgentSetupState['key']>
-  allowKeyId: string | null
+  /** Allowed on this page a moment ago: until when (the server's answer, before the next read agrees). */
+  allowedHere: string | null
   busy: string | null
-  onAllow: (key: NonNullable<AgentSetupState['key']>) => void
   onWithdraw: () => void
 }) {
-  if (linkKey.emailAndSignInUntil)
+  const until = linkKey.emailAndSignInUntil ?? allowedHere
+  if (until)
     return (
-      <div className="as-link">
-        <span className="as-small">
-          This link can also change email and sign-in until {timeOf(linkKey.emailAndSignInUntil)}.
-        </span>
-        <Button
-          size="sm"
-          busy={busy === 'withdraw'}
-          onClick={onWithdraw}
-          title="Your agent can no longer change email and sign-in with this link"
-        >
-          Withdraw
-        </Button>
-      </div>
+      <AllowedNote until={until} justNow={Boolean(allowedHere)} busy={busy === 'withdraw'} onWithdraw={onWithdraw} />
     )
   if (linkKey.emailAndSignIn) return null
-  if (allowKeyId !== linkKey.id)
-    return (
-      <div className="as-link">
-        <span className="as-small">
-          Email and sign-in decide who can sign in, so your agent needs your passkey for them. When it does, it gives
-          you a link to allow it here.
-        </span>
-      </div>
-    )
   return (
     <div className="as-link">
       <span className="as-small">
-        Your agent asks to set up email and sign-in with setup link <b>{linkKey.prefix}…</b>, created{' '}
-        {timeOf(linkKey.createdAt)}. Allow only if that is the link you gave your agent.
+        Email and sign-in decide who can sign in, so your agent needs your passkey for them. When it does, it gives you
+        a link to allow it here.
       </span>
-      <Button
-        size="sm"
-        busy={busy === 'allow'}
-        onClick={() => onAllow(linkKey)}
-        title={`Confirm with your passkey: your agent can then set up email and sign-in with ${linkKey.prefix}…`}
-      >
-        Allow
-      </Button>
     </div>
   )
 }

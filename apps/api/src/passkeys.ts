@@ -33,7 +33,32 @@ export const passkeyPlugin = (env: Env) =>
     // A passkey is added to the account of the session that asks, after a recent sign-in (the
     // plugin's fresh-session check). There is no `resolveUser`: no passkey-first sign-up.
     registration: { requireSession: true },
+    // Signed in already (a passkey step-up, Allow on the setup page): only one of this account's passkeys counts.
+    authentication: {
+      afterVerification: async ({ ctx, clientData }) =>
+        refuseOtherAccountsPasskey((await getSessionFromCtx(ctx as AuthCtx))?.user.id ?? null, clientData.id),
+    },
   })
+
+/**
+ * A passkey sign-in from a signed-in browser is a confirmation of that person (the step-ups, Allow on the setup page):
+ * the browser already offers only their passkeys (Better Auth lists them as allowCredentials), and the server refuses
+ * another account's passkey too, so a confirmation never switches the browser to someone else. Without a session (the
+ * sign-in page) any passkey signs its own account in.
+ */
+export const PASSKEY_OTHER_ACCOUNT = 'PASSKEY_OTHER_ACCOUNT'
+export async function refuseOtherAccountsPasskey(signedInUserId: string | null, credentialId: string) {
+  if (!signedInUserId) return
+  const [row] = await db
+    .select({ userId: passkeyTable.userId })
+    .from(passkeyTable)
+    .where(eq(passkeyTable.credentialID, credentialId))
+  if (row && row.userId !== signedInUserId)
+    throw new APIError('FORBIDDEN', {
+      code: PASSKEY_OTHER_ACCOUNT,
+      message: 'That passkey belongs to another account. Use one of your own passkeys.',
+    })
+}
 
 /** The endpoints that add, rename or remove a passkey. */
 const PASSKEY_CHANGE_PATHS = [
@@ -96,7 +121,11 @@ export function passkeyChangeRefusal(
 
 async function passkeyAccount(userId: string, code: string | null): Promise<PasskeyAccount> {
   const [account] = await db.select().from(user).where(eq(user.id, userId))
-  const [any] = await db.select({ id: passkeyTable.id }).from(passkeyTable).where(eq(passkeyTable.userId, userId)).limit(1)
+  const [any] = await db
+    .select({ id: passkeyTable.id })
+    .from(passkeyTable)
+    .where(eq(passkeyTable.userId, userId))
+    .limit(1)
   return {
     isAdmin: Boolean(account && isInstanceAdmin(account)),
     hasPasskey: Boolean(any),
@@ -113,7 +142,10 @@ export async function guardPasskeyChanges(ctx: AuthCtx) {
   // An address nobody has proven yet: whoever signed up with it may not be its owner, and a passkey
   // they add would survive the owner's confirmation. Adding one waits until the address is confirmed.
   if (ADD_PATHS.includes(ctx.path) && !session.user.emailVerified)
-    throw new APIError('FORBIDDEN', { code: 'EMAIL_NOT_VERIFIED', message: 'Confirm your email address first, then add a passkey.' })
+    throw new APIError('FORBIDDEN', {
+      code: 'EMAIL_NOT_VERIFIED',
+      message: 'Confirm your email address first, then add a passkey.',
+    })
   const account = await passkeyAccount(session.user.id, ctx.headers?.get(ENROLMENT_HEADER) ?? null)
   const refusal = passkeyChangeRefusal(account, session.session as PasskeySession, ctx.path)
   if (refusal) throw new APIError('FORBIDDEN', refusal)
@@ -145,5 +177,7 @@ export async function notifyPasskeyChange(ctx: Parameters<Parameters<typeof crea
     if (userId) await clearPasskeyEnrolment(userId)
   }
   // Not awaited: the change is made; a slow or broken mail server must not fail it.
-  void emailSender.send({ to: email, ...passkeyChangedEmail(change) }).catch(err => console.error('passkey email failed', err))
+  void emailSender
+    .send({ to: email, ...passkeyChangedEmail(change) })
+    .catch(err => console.error('passkey email failed', err))
 }

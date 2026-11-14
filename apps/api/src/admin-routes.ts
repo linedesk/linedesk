@@ -151,7 +151,10 @@ export function registerAdminRoutes(app: Hono<Env>) {
   app.get('/v1/admin/workspaces/:id/members', async c => {
     const { members, invitations } = await listWorkspaceMembers(db, c.req.param('id'))
     return c.json({
-      members: members.map(({ avatar_version, ...m }) => ({ ...m, avatar_url: avatarUrlOf(m.user_id, avatar_version) })),
+      members: members.map(({ avatar_version, ...m }) => ({
+        ...m,
+        avatar_url: avatarUrlOf(m.user_id, avatar_version),
+      })),
       invitations,
     })
   })
@@ -228,6 +231,8 @@ export function registerAdminRoutes(app: Hono<Env>) {
   // Agent setup (agent-setup.ts): the admin's working setup key (never the key) and where agents connect.
   app.get('/v1/admin/agent-setup', async c => {
     const actor = c.get('actor')
+    // ?part=key: the key alone, without the progress (which checks every provider group): the Allow dialog opens on it.
+    if (c.req.query('part') === 'key') return c.json(await agentSetupState(actor.actorId))
     // The progress of the workspace the agent works in (the admin's first own business), not the session's one.
     const asAgent = (await setupActor(actor.actorId, 'page')) ?? actor
     return c.json({ ...(await agentSetupState(actor.actorId)), progress: await setupProgress(asAgent) })

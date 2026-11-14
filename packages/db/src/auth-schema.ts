@@ -50,6 +50,9 @@ export const session = pgTable(
     impersonatedBy: text("impersonated_by").references(() => user.id, { onDelete: "cascade" }),
     // Set when the session was started by a passkey sign-in; the admin area needs it (apps/api/src/admin-second-factor.ts).
     passkeyVerifiedAt: timestamp("passkey_verified_at"),
+    // When this session's passkey sign-in gave an AI agent's setup link email and sign-in (apps/api/src/agent-setup.ts):
+    // one passkey sign-in gives one grant.
+    passkeyGrantUsedAt: timestamp("passkey_grant_used_at"),
   },
   (table) => [index("session_userId_idx").on(table.userId)],
 );

@@ -998,6 +998,13 @@ export const agent_setup_keys = pgTable(
      * with a passkey when making it, or afterwards on the setup page; 12 hours from that passkey sign-in. Null: never.
      */
     passkey_confirmed_until: ts('passkey_confirmed_until'),
+    /** The last change the agent asked for that waits for the admin's Allow (AgentSetupAllowRequest in @linedesk/actions), no secrets. */
+    allow_request: jsonb('allow_request').$type<{
+      at: string
+      ip: string | null
+      client: string | null
+      what: string
+    }>(),
   },
   t => [index('agent_setup_keys_creator').on(t.created_by)],
 )

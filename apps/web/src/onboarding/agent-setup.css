@@ -360,3 +360,32 @@
   background: transparent;
   box-shadow: none;
 }
+/* Allow email and sign-in (AllowEmailAndSignIn.tsx): the dialog's text, and the request on the page once it is closed. */
+.as-allow {
+  display: grid;
+  gap: 12px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.as-allow p {
+  margin: 0;
+}
+.as-allow-note .k-note-action {
+  align-self: center;
+}
+.as-allow-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken, var(--surface-hover));
+}
+.as-allow-facts dt {
+  color: var(--ink-muted);
+}
+.as-allow-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

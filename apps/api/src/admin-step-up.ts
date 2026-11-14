@@ -7,9 +7,9 @@
 // attacker's own would hand them sign-in codes or any account). Admins without a passkey add their first with the enrolment code (passkey-enrolment.ts).
 // The server operator (CLI) needs none.
 import { type ActionDef, providerNames, providerSpec, restartCategories } from '@linedesk/actions'
-import { member, passkey, user } from '@linedesk/db'
+import { member, passkey, session, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
-import { adminSecondFactorRequired } from './admin-second-factor.ts'
+import { adminSecondFactorRequired, signedInWithin } from './admin-second-factor.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
@@ -32,6 +32,32 @@ const ALWAYS = new Set([
   // Lets an AI agent's setup key change email and sign-in (agent-setup.ts): the same rule as doing it yourself.
   'agentSetup.confirmPasskey',
 ])
+
+/**
+ * Actions whose passkey is the consent to this one change, so a passkey sign-in from hours ago does not count: only an
+ * unused one of the last FRESH_PASSKEY_MINUTES (passkeySignInForGrant). "Allow with passkey" on the setup page asks for
+ * the passkey every time (apps/web/src/onboarding/allow-email-and-sign-in.ts).
+ */
+const FRESH = new Set(['agentSetup.confirmPasskey'])
+export const FRESH_PASSKEY_MINUTES = 5
+
+/**
+ * The passkey sign-in that may give a setup link email and sign-in (agent-setup.ts createKey, confirmPasskey): this
+ * session's, within the last FRESH_PASSKEY_MINUTES, and not used for a grant yet (session.passkeyGrantUsedAt, set by
+ * agent-setup.ts when it grants): one passkey prompt, one grant. Null otherwise.
+ */
+export async function passkeySignInForGrant(
+  actor: Pick<Actor, 'passkeyConfirmed' | 'sessionId'>,
+  q: Pick<typeof db, 'select'> = db,
+): Promise<Date | null> {
+  if (!actor.passkeyConfirmed || !actor.sessionId) return null
+  const [row] = await q
+    .select({ at: session.passkeyVerifiedAt, used: session.passkeyGrantUsedAt })
+    .from(session)
+    .where(eq(session.id, actor.sessionId))
+  if (!row?.at || row.used || !signedInWithin(row.at, FRESH_PASSKEY_MINUTES / 60)) return null
+  return new Date(row.at)
+}
 
 /** The user an admin action is about: its `userId`, or the user of its `memberId` (membership.setRole, .remove). */
 async function targetUserId(fields: { userId?: unknown; memberId?: unknown }): Promise<string | null> {
@@ -94,7 +120,8 @@ export type StepUp = 'confirm' | 'enrol'
 
 /** The 403 body when this admin action needs a passkey sign-in the caller's session lacks, else null. */
 export async function passkeyStepUpRefusal(def: Pick<ActionDef, 'name' | 'permission'>, input: unknown, actor: Actor) {
-  if (def.permission !== 'instance:admin' || actor.passkeyConfirmed || !adminSecondFactorRequired()) return null
+  if (def.permission !== 'instance:admin' || !adminSecondFactorRequired()) return null
+  if (actor.passkeyConfirmed && (!FRESH.has(def.name) || (await passkeySignInForGrant(actor)))) return null
   const privateEndpoint = await setsPrivateS3Endpoint(def.name, input, actor)
   if (!privateEndpoint && !(await needsPasskeyStepUp(def.name, input))) return null
   const [own] = await db.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, actor.actorId)).limit(1)

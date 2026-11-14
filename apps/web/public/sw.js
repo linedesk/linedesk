@@ -6,7 +6,7 @@
 const BUILD = new URL(self.location.href).searchParams.get('build') || 'dev'
 const PREFIX = 'linedesk-shell-'
 const CACHE = `${PREFIX}${BUILD}`
-const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/icon-192.png', '/icon-512.png']
+const SHELL = ['/', '/boot.css', '/manifest.webmanifest', '/favicon.svg', '/icon-192.png', '/icon-512.png']
 const NEVER = ['/api/', '/v1/', '/mcp', '/rtc']
 
 /** The hashed files index.html loads (entry script, styles), so the shell opens offline after the first visit. */
