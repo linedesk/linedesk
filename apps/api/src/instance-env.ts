@@ -61,7 +61,7 @@ export async function loadInstanceEnv(db: Db, env: Env = process.env): Promise<v
     try {
       setVariable(env, spec.env, decryptSecret(row.value_encrypted, `${row.provider}.${row.field}`))
     } catch {
-      console.error(`${row.provider} ${row.field}: the stored value cannot be decrypted (SECRETS_KEY changed?); set it again in Admin, Providers`)
+      console.error(`${row.provider} ${row.field}: the stored value cannot be decrypted (SECRETS_KEY changed?); set it again in Server admin › Providers`)
     }
   }
   // A mail service (Resend, Gmail, ...) sends as SMTP: its fields become SMTP_URL and EMAIL_FROM (email-services.ts).

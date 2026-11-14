@@ -1,7 +1,7 @@
 #!/bin/sh
 # Makes .env for a new install: a copy of .env.example with a random value for every secret the parts of
 # Linedesk share (database, Electric, auth, SECRETS_KEY, agent token, LiveKit), and PUBLIC_URL. Nothing
-# else is needed to start: phone, voice, AI, email and sign-in are connected in the app (Admin, Providers),
+# else is needed to start: phone, voice, AI, email and sign-in are connected in the app (Server admin › Providers),
 # and the first admin signs up with the setup code the API prints to its log.
 #
 #   scripts/setup.sh                        # http://localhost

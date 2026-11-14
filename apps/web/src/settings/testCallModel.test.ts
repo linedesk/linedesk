@@ -41,17 +41,17 @@ test('the daily limits are shown as the server words them', () => {
 
 test('nobody to answer: the server says why to the operator and plainly to everyone else, both shown as they are', () => {
   for (const refusal of [
-    "The voice agent isn't running on this server. Start the agent worker; Admin › Overview shows its health.",
-    'The voice agent has nothing to answer with: connect speech to text, a language model and a voice (or a realtime model) under Admin › Providers.',
+    "The voice agent isn't running on this server. Start the agent worker; Server admin › Overview shows its health.",
+    'The voice agent has nothing to answer with: connect speech to text, a language model and a voice (or a realtime model) under Server admin › Providers.',
     "Test calls aren't available on this server right now. Ask whoever runs it.",
   ])
     expect(testCallErrorText(refusal)).toBe(refusal)
 })
 
 test('no pickup and dropping out: the operator is pointed at the agent, nobody else at internals', () => {
-  expect(noPickupText('Maya', true)).toMatch(/^Maya didn't pick up\..*Admin › Overview/)
+  expect(noPickupText('Maya', true)).toMatch(/^Maya didn't pick up\..*Server admin › Overview/)
   expect(noPickupText('Maya', false)).toMatch(/^Maya didn't pick up\./)
-  expect(agentLeftText('Maya', true)).toMatch(/^Maya left the call unexpectedly\..*Admin › Overview/)
+  expect(agentLeftText('Maya', true)).toMatch(/^Maya left the call unexpectedly\..*Server admin › Overview/)
   for (const text of [noPickupText('Maya', false), agentLeftText('Maya', false)])
     expect(text).not.toMatch(/agent|Admin|LiveKit/)
 })

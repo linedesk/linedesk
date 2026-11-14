@@ -213,7 +213,7 @@ type Props = {
   undoable: (label: string, key: string, revert: () => void) => void
   /** The product tour is open: the checklist does not open itself and leaves the keys to the tour. */
   quiet?: boolean
-  /** An instance admin: the voice service row links to Admin › Providers; others are told whom to ask. */
+  /** An instance admin: the voice service row links to Server admin › Providers; others are told whom to ask. */
   canFixVoice?: boolean
 }
 

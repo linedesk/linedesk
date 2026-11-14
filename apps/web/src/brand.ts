@@ -1,4 +1,4 @@
-// The install's branding (Admin, Branding; apps/api/src/branding.ts): product name, logo, primary color
+// The install's branding (Server admin › Branding; apps/api/src/branding.ts): product name, logo, primary color
 // and whether the GitHub star prompt shows. Read before sign-in from GET /v1/branding and kept in
 // localStorage, so the next page load shows the right name and logo at once. Applied to the page
 // itself here (icons, primary color; Workspace.tsx sets the tab title); components read it with useBrand() or brandName().

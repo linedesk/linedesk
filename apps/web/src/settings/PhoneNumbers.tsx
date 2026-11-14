@@ -212,7 +212,7 @@ function Unavailable({ detail, isInstanceAdmin, ownCarrier }: UnavailableProps) 
       {ownCarrier ? 'This server cannot connect numbers yet.' : 'No phone carrier on this server yet.'}{' '}
       {isInstanceAdmin ? (
         <a className="k-link" href="#admin/providers/telephony" title={detail ?? undefined}>
-          Connect one in Admin › Providers
+          Connect one in Server admin › Providers
         </a>
       ) : (
         'Ask whoever runs this server.'
@@ -442,7 +442,7 @@ function ReleaseNumber({ number, onCancel }: { number: PhoneNumber; onCancel: ()
 /** A `phoneNumber.release` refusal in plain words. */
 function releaseErrorText(error: string): string {
   if (/is the carrier in use/i.test(error))
-    return `This number belongs to another carrier than the one this server uses now. ${providerAudience() === 'admin' ? 'Switch the carrier back under Admin › Providers to release it.' : 'Ask whoever runs it.'}`
+    return `This number belongs to another carrier than the one this server uses now. ${providerAudience() === 'admin' ? 'Switch the carrier back under Server admin › Providers to release it.' : 'Ask whoever runs it.'}`
   if (/to confirm/i.test(error)) return 'The number you typed does not match.'
   return `The carrier did not release the number. Nothing changed. (${error})`
 }

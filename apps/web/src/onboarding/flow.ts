@@ -253,12 +253,12 @@ export const forwardingOffer = (mode: PhoneNumberMode, pickup: PickupMode): Forw
 /**
  * A `phoneNumber.setup` rejection in words an owner can act on. The server's own reason stays in the command log. A
  * carrier failure (key rejected, credit used up) says so in the shared provider-failure words (LIN-111): admins are
- * sent to Admin › Providers, everyone else to whoever runs the server.
+ * sent to Server admin › Providers, everyone else to whoever runs the server.
  */
 export function phoneSetupErrorText(error: string, audience: ProviderAudience = providerAudience()): string {
   if (/^phone setup is not configured/i.test(error))
     return audience === 'admin'
-      ? "Phone numbers aren't set up on this server yet. Add a phone carrier under Admin › Providers."
+      ? "Phone numbers aren't set up on this server yet. Add a phone carrier under Server admin › Providers."
       : "Phone numbers aren't set up on this server yet. Ask whoever runs it to add a phone carrier."
   if (/is already set up/i.test(error)) return `That number is already connected to ${brandName()}.`
   if (/is not in the .* account/i.test(error))
@@ -599,7 +599,7 @@ export function doneState(facts: {
 }): { live: boolean; title: string; lede: string; left: DoneLeft[] } {
   const { number, voiceMissing, forwardingVerified, admin, assistant } = facts
   const voice: DoneLeft = admin
-    ? { label: 'Get the voice service working in Admin › Providers', href: '#admin/providers/answering' }
+    ? { label: 'Get the voice service working in Server admin › Providers', href: '#admin/providers/answering' }
     : { label: "The voice service isn't working yet: ask whoever runs this server", href: null }
   if (!number)
     return {

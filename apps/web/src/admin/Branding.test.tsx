@@ -4,7 +4,7 @@ import { SupportCard } from './Branding.tsx'
 
 const noop = () => {}
 
-describe('Support Linedesk on Admin › Branding', () => {
+describe('Support Linedesk on Server admin › Branding', () => {
   const html = renderToStaticMarkup(<SupportCard starPrompt poweredBy={false} onStarPrompt={noop} onPoweredBy={noop} />)
 
   test('its own section with a heart, a short muted line and both switches', () => {

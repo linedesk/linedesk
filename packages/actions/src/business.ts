@@ -1,6 +1,6 @@
 // "Find your business" (onboarding, first step): look the business up in Google Places (when the install has a key
-// under Admin › Providers › Business lookup), read its website, and propose a profile the owner reviews and edits.
-// Nothing here saves anything: the step saves the reviewed profile with assistant.update (and businessHours.set
+// under Server admin › Providers › Business lookup), read its website, and propose a profile the owner reviews and
+// edits. Nothing here saves anything: the step saves the reviewed profile with assistant.update (and businessHours.set
 // once the owner confirms the hours). The industry templates are data: a few default use cases per trade.
 import { z } from 'zod'
 import { defineAction } from './define.ts'
@@ -159,7 +159,7 @@ const placeId = z.string().regex(/^[A-Za-z0-9_-]{10,300}$/, 'not a place ID')
 export type BusinessCandidate = { placeId: string; name: string; address: string }
 /**
  * A provider the step needed and could not use, in the provider-failure words (LIN-111): `config` not set up,
- * `auth` its key refused. Only whoever runs the server can fix either: admins under Admin › Providers.
+ * `auth` its key refused. Only whoever runs the server can fix either: admins under Server admin › Providers.
  */
 export type BusinessLookupFailure = { provider: 'business' | 'llm'; reason: 'config' | 'auth' }
 

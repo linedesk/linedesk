@@ -180,7 +180,7 @@ export async function statusContext(tx: Tx, env: Env = serverEnv(), facts?: read
   }
 }
 
-/** Every group's status, as Admin › Providers shows it. Asks LiveKit (cheap), never a paid provider. */
+/** Every group's status, as Server admin › Providers shows it. Asks LiveKit (cheap), never a paid provider. */
 export async function setupChecklist(tx: Tx, options: Options = {}): Promise<StatusGroups> {
   const env = options.env ?? serverEnv()
   const livekit = (options.livekit ?? (() => livekitStatus()))()

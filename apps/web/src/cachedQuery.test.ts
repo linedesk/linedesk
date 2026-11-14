@@ -78,7 +78,7 @@ describe('cached queries', () => {
   })
 
   test('a query on screen when the member or workspace changes loads again for the new one', async () => {
-    // An instance admin without a workspace: Admin is on screen before /v1/me sets the scope.
+    // An instance admin without a workspace: Server admin is on screen before /v1/me sets the scope.
     setQueryScope('')
     const answers = ['admin lists of the old scope', 'admin lists']
     const load = vi.fn(async () => answers.shift())

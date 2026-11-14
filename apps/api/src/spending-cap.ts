@@ -1,6 +1,6 @@
-// A workspace's monthly spending cap: off unless an instance admin sets one (Admin › Workspaces). The measure is
-// the estimated cost of its calls this UTC month, with the same rates as Admin › Overview (costEstimate). Once it
-// is reached, new phone calls are not answered by the assistant: the agent says one fixed line (the business will
+// A workspace's monthly spending cap: off unless an instance admin sets one (Server admin › Workspaces). The measure is
+// the estimated cost of its calls this UTC month, with the same rates as Server admin › Overview (costEstimate). Once
+// it is reached, new phone calls are not answered by the assistant: the agent says one fixed line (the business will
 // call back) and the call is filed as missed with "Call back" (handlers.ts openCall); test calls are refused.
 // Owners and instance admins get an email at 80 % and at 100 %, once each per month.
 import { calls, member, organization, spending_cap_alerts, type Tx, user } from '@linedesk/db'
@@ -65,7 +65,7 @@ const usd = (value: number) => `$${value.toFixed(2)}`
 
 /** The email at one level, the same for owners and instance admins. */
 export function spendingAlertEmail(workspace: string, level: number, cap: SpendingCap, to: string): Email {
-  const change = `An instance admin can change the cap in Admin › Workspaces › ${workspace} (${WEB_ORIGIN}).`
+  const change = `An instance admin can change the cap in Server admin › Workspaces › ${workspace} (${WEB_ORIGIN}).`
   if (level >= 100) {
     return {
       to,

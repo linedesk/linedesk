@@ -84,12 +84,12 @@ export async function unanswerable(tx: Tx, actor: Actor, nowMs: number): Promise
   const setUp = await pipelinesSetUp(tx)
   if (!setUp.realtime && !setUp.three_stage) {
     return operator
-      ? 'The voice agent has nothing to answer with: connect speech to text, a language model and a voice (or a realtime model) under Admin › Providers.'
+      ? 'The voice agent has nothing to answer with: connect speech to text, a language model and a voice (or a realtime model) under Server admin › Providers.'
       : TEST_CALLS_UNAVAILABLE
   }
   if (agentAway(nowMs)) {
     return operator
-      ? "The voice agent isn't running on this server. Start the agent worker; Admin › Overview shows its health."
+      ? "The voice agent isn't running on this server. Start the agent worker; Server admin › Overview shows its health."
       : TEST_CALLS_UNAVAILABLE
   }
   return null

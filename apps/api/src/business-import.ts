@@ -239,7 +239,7 @@ async function proposal(
         details = await placeDetails(key, input.placeId)
       } catch (e) {
         if (!(e instanceof PlacesError && e.reason === 'auth')) throw e
-        // LIN-111: report the Places provider failure (reason auth) here, so Admin › Providers shows it.
+        // LIN-111: report the Places provider failure (reason auth) here, so Server admin › Providers shows it.
         failures.push({ provider: 'business', reason: 'auth' })
       }
   }
@@ -324,7 +324,7 @@ export const businessHandlers: Record<string, Handler> = {
       }
     } catch (e) {
       if (e instanceof PlacesError && e.reason === 'auth') {
-        // LIN-111: report the Places provider failure (reason auth) here, so Admin › Providers shows it.
+        // LIN-111: report the Places provider failure (reason auth) here, so Server admin › Providers shows it.
         const failure: BusinessLookupFailure = { provider: 'business', reason: 'auth' }
         return { rows: {}, data: { lookup: false, results: [], failure } satisfies BusinessSearchData }
       }

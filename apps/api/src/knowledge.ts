@@ -35,7 +35,9 @@ async function importProposal(input: ImportInput): Promise<KnowledgeImportData> 
     throw new ImportRefused('The website has no text we could read. Describe the business instead.')
   const model = await evaluationModel(db, fetch, { maxTokens: 3000, timeoutMs: 60_000 })
   if (!model)
-    throw new ImportRefused('Writing with help needs a language model. An admin adds one under Admin › Providers.')
+    throw new ImportRefused(
+      'Writing with help needs a language model. An admin adds one under Server admin › Providers.',
+    )
   let proposal: ReturnType<typeof parseProposal>
   try {
     proposal = parseProposal(await model.complete(IMPORT_SYSTEM, importPrompt(site.pages, input)))
@@ -44,7 +46,7 @@ async function importProposal(input: ImportInput): Promise<KnowledgeImportData> 
     // A provider failure (quota, key) is recorded for the admins (evaluations.ts); the member hears it is not a timeout.
     if (e instanceof ChatRequestError && e.status >= 300)
       throw new ImportRefused(
-        `The language model is not working right now (${providerFailureReasonLabels[reasonOf(e.status, e.body)].toLowerCase()}). An admin can see it under Admin › Providers.`,
+        `The language model is not working right now (${providerFailureReasonLabels[reasonOf(e.status, e.body)].toLowerCase()}). An admin can see it under Server admin › Providers.`,
       )
     throw new ImportRefused('The language model did not answer in time. Try again.')
   }

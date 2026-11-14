@@ -1,6 +1,6 @@
 // Google Places API (New): find a business by name and city, then read its listing. Called only from the API
-// (business.search, business.import) with the install's key (Admin › Providers › Business lookup). Each request asks
-// for as few fields as it needs (the field mask decides what Google bills), has a timeout, and nothing Google
+// (business.search, business.import) with the install's key (Server admin › Providers › Business lookup). Each request
+// asks for as few fields as it needs (the field mask decides what Google bills), has a timeout, and nothing Google
 // says is passed on as an error: the owner gets a fixed sentence.
 import { BUSINESS_SEARCH_RESULTS, type BusinessCandidate, type BusinessHoursSpan } from '@linedesk/actions'
 

@@ -210,7 +210,7 @@ export const voicePreparers: Record<string, Preparer> = {
    */
   'voice.clone': async ({ actor, onRollback }, input: CloneInput): Promise<Cloned> => {
     if (!actor.workspaceId) throw new Reject('no workspace')
-    if (!(await cloningOn(db))) throw new Reject('voice cloning is turned off for this install (Admin, System)')
+    if (!(await cloningOn(db))) throw new Reject('voice cloning is turned off for this install (Server admin › System)')
     await assistantIn(db, actor.workspaceId, input.assistantId)
     const provider = await voiceProviderInUse(db)
     if (!provider?.cloneVoice) throw new Reject('the voice provider in use cannot clone voices')
@@ -397,7 +397,7 @@ export async function bundledPreview(voiceId: string, dir = BUNDLED_PREVIEWS_DIR
 }
 
 /** Shown in Settings when there is no provider to make a sample with. */
-export const NO_PROVIDER_FOR_PREVIEW = 'Add a voice provider key in Admin › Providers to hear samples.'
+export const NO_PROVIDER_FOR_PREVIEW = 'Add a voice provider key in Server admin › Providers to hear samples.'
 
 const error = (status: number, message: string) => Response.json({ ok: false, error: message }, { status })
 const audioResponse = (bytes: Buffer) =>

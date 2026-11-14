@@ -467,14 +467,14 @@ test('a carrier failure says what it is and who fixes it (LIN-111)', () => {
     'The phone carrier rejected the key it was given. Ask whoever runs this server to check the key.',
   )
   expect(phoneSetupErrorText('telnyx: POST /number_orders: Insufficient balance (HTTP 402)', 'admin')).toMatch(
-    /^The phone carrier has used up its quota or credit\. .*Admin › Providers\.$/,
+    /^The phone carrier has used up its quota or credit\. .*Server admin › Providers\.$/,
   )
   expect(phoneSetupErrorText('telnyx: POST /number_orders: number is not valid (HTTP 422)')).toBe(
     "The number couldn't be connected. Try again in a moment.",
   )
 })
 
-test('a missing phone carrier sends admins to Admin › Providers (LIN-111)', () => {
-  expect(phoneSetupErrorText('phone setup is not configured', 'admin')).toMatch(/under Admin › Providers\.$/)
+test('a missing phone carrier sends admins to Server admin › Providers (LIN-111)', () => {
+  expect(phoneSetupErrorText('phone setup is not configured', 'admin')).toMatch(/under Server admin › Providers\.$/)
   expect(phoneSetupErrorText('phone setup is not configured', 'member')).toMatch(/Ask whoever runs it/)
 })

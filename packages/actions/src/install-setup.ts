@@ -4,8 +4,8 @@ import type { ProviderGroupId } from './provider-status.ts'
 
 // Install setup by hand (LIN-128, docs/self-host-first-run.md): the small alternative to setting up with an AI agent
 // (agent-setup.ts). One screen per group a first answered call needs, in that order, each showing the same group panel
-// as Admin › Providers (provider-status.ts) and a real round trip in the provider's dialog (`provider.tryOut`). Where
-// the admin got to is one instance setting, so signing in again (or another admin) resumes there.
+// as Server admin › Providers (provider-status.ts) and a real round trip in the provider's dialog (`provider.tryOut`).
+// Where the admin got to is one instance setting, so signing in again (or another admin) resumes there.
 
 export const installSteps = ['welcome', 'email', 'answering', 'telephony', 'call-audio', 'done'] as const
 export type InstallStep = (typeof installSteps)[number]
@@ -48,7 +48,7 @@ export type InstallProgress = {
   step: InstallStep
   skipped: InstallStep[]
   finishedAt: string | null
-  /** "Set up later": the walkthrough does not open by itself again; Admin › Overview resumes it. */
+  /** "Set up later": the walkthrough does not open by itself again; Server admin › Overview resumes it. */
   setAsideAt: string | null
   /**
    * The instance admins who chose to set up by hand on this install: they open on the walkthrough or their business,

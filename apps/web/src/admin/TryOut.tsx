@@ -1,5 +1,5 @@
-// "Try it": a real round trip with the provider in use (`provider.tryOut`), in its dialog (Admin › Providers and the
-// install walkthrough): a code emailed to the admin and typed back, a caller's question to the model, a sample call
+// "Try it": a real round trip with the provider in use (`provider.tryOut`), in its dialog (Server admin › Providers and
+// the install walkthrough): a code emailed to the admin and typed back, a caller's question to the model, a sample call
 // transcribed, the voice played, numbers listed without buying. It costs a little (a few tokens, a second of speech),
 // unlike Test again, the free key check.
 import { type ProviderCategory, type TryOutData, type TryOutKind, usAreaCode } from '@linedesk/actions'

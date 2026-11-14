@@ -141,7 +141,7 @@ describe('states', () => {
     // Speech to text alone does not answer calls: the group says what is missing.
     expect(group(plain, 'answering')).toMatchObject({ state: 'partly', detail: 'language model and voice missing' })
 
-    // Test (provider.test, the same action as Admin, Providers) records its result.
+    // Test (provider.test, the same action as Server admin › Providers) records its result.
     vi.stubGlobal('fetch', answering(200))
     expect((await testProvider('deepgram')).ok).toBe(true)
     const fetchMock = answering(500)

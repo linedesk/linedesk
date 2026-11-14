@@ -89,7 +89,7 @@ export function voiceFacts(v: PickerVoice, providerLabel?: string): string {
 export function previewProblem(status: number, serverError?: string, providerMessage?: string): string {
   if (status === 0) return 'No connection to the server. Try again.'
   if (status === 401) return 'You were signed out. Sign in again to hear samples.'
-  if (status === 409) return 'Add a voice provider key in Admin › Providers to hear samples.'
+  if (status === 409) return 'Add a voice provider key in Server admin › Providers to hear samples.'
   if (status === 429) return 'Too many new samples this hour. Try again later.'
   if (status === 404) return 'The voice provider does not know this voice.'
   if (status === 403 && serverError) return serverError

@@ -1,5 +1,5 @@
 // The GitHub star prompt (packages/actions/src/star.ts): when it is due, and starring in one click.
-// It is on for every install (an instance admin can turn it off under Admin, Branding) and due for
+// It is on for every install (an instance admin can turn it off under Server admin › Branding) and due for
 // every member whose workspace is past onboarding, until they answer; the web app shows it two minutes
 // into each session (apps/web/src/shell/starPrompt.ts). Never while an instance admin is signed in as
 // them, never again once they answered.

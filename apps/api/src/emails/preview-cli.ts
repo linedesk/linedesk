@@ -1,6 +1,6 @@
 // Writes every email to HTML and text files to look at (and screenshot), and with --send sends
 // each one to an address through the configured sender (SMTP_URL, or the log).
-// --brand renders them as an install with its own product name (Admin › Branding), --hide-powered-by with the
+// --brand renders them as an install with its own product name (Server admin › Branding), --hide-powered-by with the
 // "Powered by Linedesk" line switched off.
 //   pnpm --filter @linedesk/api email:preview [--out <dir>] [--send <address>] [--brand <name>] [--hide-powered-by]
 import { mkdirSync, writeFileSync } from 'node:fs'

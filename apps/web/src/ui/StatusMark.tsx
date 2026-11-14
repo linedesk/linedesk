@@ -2,7 +2,7 @@
 // a cross when it fails, an empty circle when it is not set up (or not tested, not needed, off), the spinner while it
 // is being checked. The shape differs per state, so colour is never the only signal; each mark has its words as an
 // accessible label and a tooltip. Used wherever a screen says whether something works (design-principles.md,
-// "Status marks"): Admin › Providers, the overview's "Ready for calls" card, the provider dialog, the install
+// "Status marks"): Server admin › Providers, the overview's "Ready for calls" card, the provider dialog, the install
 // walkthrough, System, Calendar, Webhooks.
 import { type StatusState, statusWords } from '@linedesk/actions'
 import { cx, Icon, Spinner } from './kit.tsx'

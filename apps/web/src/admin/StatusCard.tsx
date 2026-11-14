@@ -1,11 +1,11 @@
-// Admin › Overview, on top: "Ready for calls" (LIN-158). One read-only summary in the words of Admin › Providers: a
-// calm line with the mark and the headline, and the details below it: the groups a call needs (and an optional group
-// only while it fails), then the server's own parts (API, read sync, voice agent) under System. Each part is a row of
-// the app's list (ui/list.tsx) that opens where it is fixed; nothing is edited or tested here. The same status rule as
-// Providers: a part that works shows only its mark (the words are its tooltip) and what is in use, muted; words only
-// for a problem. The details fold away once everything works; a failing group a call needs makes the headline "Calls
-// are not answered" with the reason. The install walkthrough shows the same rows (StatusList) without links: it never
-// navigates away (design rule 14).
+// Server admin › Overview, on top: "Ready for calls" (LIN-158). One read-only summary in the words of Server admin ›
+// Providers: a calm line with the mark and the headline, and the details below it: the groups a call needs (and an
+// optional group only while it fails), then the server's own parts (API, read sync, voice agent) under System. Each
+// part is a row of the app's list (ui/list.tsx) that opens where it is fixed; nothing is edited or tested here. The
+// same status rule as Providers: a part that works shows only its mark (the words are its tooltip) and what is in use,
+// muted; words only for a problem. The details fold away once everything works; a failing group a call needs makes the
+// headline "Calls are not answered" with the reason. The install walkthrough shows the same rows (StatusList) without
+// links: it never navigates away (design rule 14).
 import { type GroupStatus, overviewGroups, readiness, type StatusState, statusText } from '@linedesk/actions'
 import { useState } from 'react'
 import { refreshQuery } from '../cachedQuery.ts'

@@ -238,8 +238,8 @@ export function profileSave(
 
 /**
  * A provider the step could not use, in words: what happened (`text`) and, for instance admins, the start of the
- * sentence that ends with the link to its group in Admin › Providers (`adminFix`, `group`). Members get "Ask whoever
- * runs this server."
+ * sentence that ends with the link to its group in Server admin › Providers (`adminFix`, `group`). Members get "Ask
+ * whoever runs this server."
  */
 export type ProviderProblem = { text: string; adminFix: string; group: 'answering' | 'business' }
 export function providerProblem(failure: BusinessLookupFailure, where: 'search' | 'listing'): ProviderProblem {

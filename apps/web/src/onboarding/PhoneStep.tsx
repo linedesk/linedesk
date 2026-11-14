@@ -40,7 +40,7 @@ type Props = {
   businessNumber?: string
   setupError: string | null
   clearError: () => void
-  /** An instance admin: hints about the server link to Admin › Providers; everyone else is told whom to ask. */
+  /** An instance admin: hints about the server link to Server admin › Providers; everyone else is told whom to ask. */
   admin: boolean
   onBack: () => void
   onNext: () => void
@@ -92,7 +92,7 @@ function Unavailable({
           {/* The same as Settings › Phone numbers: admins get the place to fix it, everyone else whom to ask. */}
           {admin ? (
             <a className="k-link" href="#admin/providers/telephony" title={detail ?? undefined}>
-              Connect a carrier in Admin › Providers
+              Connect a carrier in Server admin › Providers
             </a>
           ) : (
             'Ask whoever runs this server.'

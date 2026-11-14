@@ -1,6 +1,7 @@
 // One key for the whole Answering group (oneKey in packages/actions/src/provider-status.ts): an OpenAI key answers
 // calls with its realtime model, and speech and model use it where they are empty. Shown only in Answering's empty
-// state (Admin › Providers and the install walkthrough). One server action: tested first, stored only when it works.
+// state (Server admin › Providers and the install walkthrough). One server action: tested first, stored only when it
+// works.
 import { oneKey } from '@linedesk/actions'
 import { useState } from 'react'
 import { FormField, SecretInput } from '../ui/form.tsx'

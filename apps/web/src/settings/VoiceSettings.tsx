@@ -236,7 +236,7 @@ function VoiceRow({ voice, defaultSample, defaultNote, checked, onPick, disabled
           label={defaultName}
           playKey="default"
           preview={preview}
-          unavailable="No default voice to play: the voice provider in use has none set (Admin › Providers)"
+          unavailable="No default voice to play: the voice provider in use has none set (Server admin › Providers)"
         />
       )}
     </div>
@@ -367,8 +367,8 @@ function ProviderHints({ providers }: { providers: readonly CatalogProvider[] })
       ))}
       {missing.length > 0 && (
         <p className="help">
-          {missing.join(' and ')} voices show here once {missing.length > 1 ? 'they have' : 'it has'} a key (Admin ›
-          Providers).
+          {missing.join(' and ')} voices show here once {missing.length > 1 ? 'they have' : 'it has'} a key (Server
+          admin › Providers).
         </p>
       )}
     </>
@@ -513,7 +513,7 @@ export function VoiceSettings({ assistantId, voice, onPick, canEdit, toast, lang
   if (options && !provider)
     return (
       <Section id="as-voice" title="Voice">
-        <span className="help">No voice provider yet (Admin, Providers).</span>
+        <span className="help">No voice provider yet (Server admin › Providers).</span>
       </Section>
     )
   return (

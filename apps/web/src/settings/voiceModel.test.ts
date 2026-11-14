@@ -99,7 +99,7 @@ describe('voice picker', () => {
 })
 
 test('a sample that does not come back says why, and how to fix it where there is a fix', () => {
-  expect(previewProblem(409)).toBe('Add a voice provider key in Admin › Providers to hear samples.')
+  expect(previewProblem(409)).toBe('Add a voice provider key in Server admin › Providers to hear samples.')
   expect(previewProblem(0)).toMatch(/No connection/)
   expect(previewProblem(401)).toMatch(/signed out/)
   expect(previewProblem(429)).toMatch(/this hour/)

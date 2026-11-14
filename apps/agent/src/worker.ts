@@ -702,8 +702,8 @@ async function main() {
   const readiness = await checkReadiness(loadAgentConfig)
   console.log(describeReadiness(readiness))
   console.log(describeRecording(readiness.ready ? readiness.config.recording : resolveRecording(null)))
-  // The API counts the agent as running by its last settings read (Admin › Overview, the test call's check): read
-  // them on a timer too, not only when a call comes, so a test call is not refused after the API restarts.
+  // The API counts the agent as running by its last settings read (Server admin › Overview, the test call's check):
+  // read them on a timer too, not only when a call comes, so a test call is not refused after the API restarts.
   setInterval(() => void loadAgentConfig().catch(() => {}), SETTINGS_TTL_MS + 1000).unref()
   // Processes kept warm for the next call. Three by default: a call takes one, and a phone call test two
   // (the test caller and the business), while the next one starts (a new process needs ~2 s of CPU).

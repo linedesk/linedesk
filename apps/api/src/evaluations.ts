@@ -105,7 +105,7 @@ export function chatProblem(provider: ProviderName, model: string, e: unknown): 
   if (e.status >= 200 && e.status < 300)
     return {
       reason: 'unknown',
-      message: `${providerSpec(provider).label}: the model ${model} returned an empty answer. Try another model under Admin › Providers.`,
+      message: `${providerSpec(provider).label}: the model ${model} returned an empty answer. Try another model under Server admin › Providers.`,
     }
   return problemOfStatus(provider, e.status, e.body, `the model ${model}`)
 }
@@ -125,7 +125,7 @@ function tracked(provider: ProviderName, model: string, complete: CompleteJson):
 }
 
 /**
- * The language model in effect (Admin, Providers, or its variables), with its live model: the
+ * The language model in effect (Server admin › Providers, or its variables), with its live model: the
  * cheap, fast one, since a short judgement needs no more. null when none is set up.
  */
 export async function evaluationModel(

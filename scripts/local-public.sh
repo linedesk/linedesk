@@ -142,8 +142,8 @@ restore_stack() {
 
 warn_missing() {
   [ -n "$(get_env VAPID_PUBLIC_KEY)" ] || echo "Push notifications are off: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT are not set (docs/local.md)."
-  [ -n "$(get_env GOOGLE_CLIENT_ID)" ] || echo "Google sign-in and calendar are off: GOOGLE_CLIENT_ID is not set (or set it under Admin > Providers)."
-  [ -n "$(get_env MICROSOFT_CLIENT_ID)" ] || echo "Microsoft sign-in and calendar are off: MICROSOFT_CLIENT_ID is not set (or set it under Admin > Providers)."
+  [ -n "$(get_env GOOGLE_CLIENT_ID)" ] || echo "Google sign-in and calendar are off: GOOGLE_CLIENT_ID is not set (or set it under Server admin > Providers)."
+  [ -n "$(get_env MICROSOFT_CLIENT_ID)" ] || echo "Microsoft sign-in and calendar are off: MICROSOFT_CLIENT_ID is not set (or set it under Server admin > Providers)."
 }
 
 case "${1:-status}" in

@@ -13,13 +13,13 @@ export const AGENT_LEFT_GRACE_MS = 3_000
 /** The assistant never joined, or joined and stayed silent. `operator`: the member runs the server and can fix it. */
 export const noPickupText = (name: string, operator: boolean) =>
   operator
-    ? `${name} didn't pick up. The voice agent may not be running: Admin › Overview shows its health.`
+    ? `${name} didn't pick up. The voice agent may not be running: Server admin › Overview shows its health.`
     : `${name} didn't pick up. Try again in a moment, or ask whoever runs this server if it keeps happening.`
 
 /** The assistant left while the call was still on. */
 export const agentLeftText = (name: string, operator: boolean) =>
   operator
-    ? `${name} left the call unexpectedly. The voice agent may have stopped: Admin › Overview shows its health.`
+    ? `${name} left the call unexpectedly. The voice agent may have stopped: Server admin › Overview shows its health.`
     : `${name} left the call unexpectedly. Try again in a moment.`
 
 export type PickupWatch = {

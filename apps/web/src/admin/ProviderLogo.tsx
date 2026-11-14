@@ -1,4 +1,4 @@
-// What Admin, Providers shows for each provider besides its keys: a logo, one short line for its
+// What Server admin › Providers shows for each provider besides its keys: a logo, one short line for its
 // dialog, and where the provider hands out keys. Typed per provider, so a new entry in the registry
 // needs one here too.
 import type { ProviderName } from '@linedesk/actions'

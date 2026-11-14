@@ -1,6 +1,7 @@
 // Any image the browser can show (PNG, JPEG, WebP, SVG), drawn centred on a transparent square and saved as a PNG,
-// for images people upload that the server stores (the workspace icon; the install logo in Admin › Branding does the
-// same). Drawing to a canvas keeps only pixels: an SVG never reaches the server, so no script in one is ever served.
+// for images people upload that the server stores (the workspace icon; the install logo in Server admin › Branding does
+// the same). Drawing to a canvas keeps only pixels: an SVG never reaches the server, so no script in one is ever
+// served.
 
 /** The file types the upload fields offer. */
 export const IMAGE_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml'

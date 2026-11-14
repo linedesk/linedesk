@@ -1,7 +1,7 @@
 // Where call recordings live. LiveKit egress writes the audio files; the API hands them out.
 // Two adapters behind one interface: `file` (a directory shared with egress, the default) and
 // `s3` (any S3-compatible bucket). Which one records new calls is the `recording` provider category
-// (Admin > Providers > Recording storage, else RECORDING_STORE); each call keeps the store its
+// (Server admin › Providers › Recording storage, else RECORDING_STORE); each call keeps the store its
 // recording went to (calls.recording_store), so switching stores leaves older recordings playable.
 // Keys are always `recordingKey(workspace, call)` or, for uploaded documents, `documentKey(workspace,
 // document)`; both adapters refuse anything else.

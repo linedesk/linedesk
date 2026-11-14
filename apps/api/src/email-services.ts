@@ -13,7 +13,7 @@ const enc = (value: string) => encodeURIComponent(value.trim())
  * The port rule for every preset: 587 with STARTTLS, and STARTTLS required (`requireTLS`, read by nodemailer from
  * the URL), so the key never goes out in clear text and a server that does not offer TLS is refused. 587 is open on
  * every host we know; 465 (implicit TLS) is blocked outgoing on some, Hetzner among them, and every preset service
- * takes 587 with STARTTLS. Plain SMTP (Admin, Providers, SMTP) keeps the URL the operator wrote.
+ * takes 587 with STARTTLS. Plain SMTP (Server admin › Providers › SMTP) keeps the URL the operator wrote.
  */
 const STARTTLS_587 = '587?requireTLS=true'
 
@@ -46,8 +46,8 @@ const valuesFromEnv = (provider: ProviderName, env: Values): Values =>
   Object.fromEntries(Object.entries(providerSpec(provider).fields).map(([field, spec]) => [field, env[spec.env]]))
 
 /**
- * The mail service that sends, when it is not plain SMTP: the one picked (Admin, Providers, or EMAIL_PROVIDER), else
- * the first in the registry with its fields set. null: plain SMTP (SMTP_URL) sends, or nothing is set up. A picked
+ * The mail service that sends, when it is not plain SMTP: the one picked (Server admin › Providers, or EMAIL_PROVIDER),
+ * else the first in the registry with its fields set. null: plain SMTP (SMTP_URL) sends, or nothing is set up. A picked
  * service that is not set up gives null, as in every category: no silent switch to another one.
  */
 export function mailServiceFromEnv(picked: string | null, env: Values): SmtpConnection | null {

@@ -27,7 +27,9 @@ export const typedAreaCode = (query: string): string => {
   return /^\d{3}$/.test(digits) && usAreaCode(digits) ? digits : ''
 }
 
-/** `label` names the field for screen readers where no visible label points at `id` (Admin › Providers, Try it). */
+/**
+ * `label` names the field for screen readers where no visible label points at `id` (Server admin › Providers, Try it).
+ */
 type Props = { id: string; value: string; onChange: (code: string) => void; label?: string }
 
 export function AreaCodeInput({ id, value, onChange, label }: Props) {

@@ -1,5 +1,6 @@
 // For an instance admin on a fresh install: onboarding says which provider groups a call needs are still missing or
-// failing (GET /v1/admin/setup-checklist, the same status as Admin › Providers) and links to Admin › Providers.
+// failing (GET /v1/admin/setup-checklist, the same status as Server admin › Providers) and links to Server admin ›
+// Providers.
 import { listWords } from '@linedesk/actions'
 import { useEffect, useState } from 'react'
 import { loadSetupChecklist } from '../admin/api.ts'
@@ -29,7 +30,7 @@ export function useHash() {
 export function InstanceSetupNotice() {
   const { data, error, reload } = useQuery(SETUP_STATUS, () => loadSetupChecklist())
   const link = (
-    <a href="#admin/providers" title="Admin › Providers: every provider with its status, steps and a test">
+    <a href="#admin/providers" title="Server admin › Providers: every provider with its status, steps and a test">
       Open Providers
     </a>
   )

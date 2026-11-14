@@ -242,7 +242,9 @@ export async function pipelinesSetUp(tx: Tx, env: Env = serverEnv()): Promise<Pi
 
 const PIPELINE_POLICY_KEY = 'voice_pipeline.policy'
 
-/** Who decides how calls are answered (Admin › Providers): `choice` (each assistant, the default) or one for all. */
+/**
+ * Who decides how calls are answered (Server admin › Providers): `choice` (each assistant, the default) or one for all.
+ */
 export async function voicePipelinePolicy(tx: Tx): Promise<VoicePipelinePolicy> {
   const [row] = await tx.select().from(instance_settings).where(eq(instance_settings.key, PIPELINE_POLICY_KEY))
   const value = row?.value as VoicePipelinePolicy | undefined

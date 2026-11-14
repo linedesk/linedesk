@@ -65,7 +65,7 @@ export async function startImpersonation(userId: string) {
 }
 
 /**
- * Back to the admin's own session, at the user's page in Admin. If that session cannot be resumed,
+ * Back to the admin's own session, at the user's page in Server admin. If that session cannot be resumed,
  * the browser is signed out and the reload shows sign-in. With `discardUnsent`, changes that could
  * not be sent are dropped.
  */

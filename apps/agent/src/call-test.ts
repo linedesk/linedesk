@@ -4,7 +4,7 @@
 // --pipeline (no phone only): the business answers this call with it instead of its assistant's choice; over the
 // phone the assistant's own setting applies (Settings › Assistant, "Answered by").
 // --realtime-model <id> (no phone only): a realtime call uses this OpenAI model (gpt-realtime, gpt-realtime-mini, …)
-// instead of the install's, to compare models without changing Admin › Providers.
+// instead of the install's, to compare models without changing Server admin › Providers.
 //   in the agent container: node src/call-test.ts <scenario> [--phone]
 // Booking scenarios (booking, which-calendar) expect a real booking when the assistant has an appointment
 // type and a calendar: the event stays in the calendar to look at; --cancel-booking deletes it afterwards.
@@ -85,7 +85,7 @@ async function main() {
   if (args.includes('--realtime-model') && !isRealtimeModelId(realtimeModel))
     throw new Error('--realtime-model takes an OpenAI realtime model id, e.g. gpt-realtime or gpt-realtime-mini')
   if (realtimeModel && mode === 'phone')
-    throw new Error('--realtime-model works without a phone only; over the phone the install\'s model applies (Admin › Providers)')
+    throw new Error('--realtime-model works without a phone only; over the phone the install\'s model applies (Server admin › Providers)')
   if (pipeline && mode === 'phone')
     throw new Error(
       '--pipeline works without a phone only; over the phone the assistant\'s own setting applies (Settings › Assistant, "Answered by")',

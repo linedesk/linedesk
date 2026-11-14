@@ -1,8 +1,8 @@
 // Runtime provider failures (LIN-111), in one place: the API's own provider calls (email, language model, voice
 // previews, calendar, recording storage), the voice agent's reports (provider.reportFailure / provider.reportOk) and
 // provider tests record here. One row per failing provider (provider_failures): the latest reason and message,
-// since when, how often since the last success. A success clears it. Admin › Providers, the admin overview and the
-// setup checklist read it; the instance admins get one email when a provider starts failing, not one per call, and
+// since when, how often since the last success. A success clears it. Server admin › Providers, the admin overview and
+// the setup checklist read it; the instance admins get one email when a provider starts failing, not one per call, and
 // none when email itself is what fails (they see it in the app).
 import {
   PROVIDER_FAILURE_MESSAGE_MAX,
@@ -49,14 +49,14 @@ export function providerFailureEmail(provider: ProviderName, problem: ProviderPr
     text: [
       `${label} started failing. ${plainSnippet(problem.message, PROVIDER_FAILURE_MESSAGE_MAX)}`,
       '',
-      'Calls or emails that need it may not work until it is fixed. Admin, Providers shows the latest failure; a successful test or call clears it.',
+      'Calls or emails that need it may not work until it is fixed. Server admin › Providers shows the latest failure; a successful test or call clears it.',
       '',
       'You get this email once per failure, not for every call.',
     ].join('\n'),
   }
 }
 
-/** Who reads a provider failure in the app: an instance admin can fix it under Admin › Providers. */
+/** Who reads a provider failure in the app: an instance admin can fix it under Server admin › Providers. */
 export const audienceOf = (actor: Pick<Actor, 'permissions'>): ProviderAudience =>
   actor.permissions.includes('instance:admin') ? 'admin' : 'member'
 

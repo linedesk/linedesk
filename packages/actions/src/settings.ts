@@ -225,7 +225,7 @@ function talkingSpeedColumns(input: TalkingSpeedFields): { talking_speed_pct?: n
 
 /**
  * How an assistant's calls are answered: a realtime model (speech to speech), or three stages (speech to text,
- * language model, voice). Instance admins set each up under Admin › Providers; each assistant picks one.
+ * language model, voice). Instance admins set each up under Server admin › Providers; each assistant picks one.
  */
 export const VOICE_PIPELINES = ['realtime', 'three_stage'] as const
 export type VoicePipeline = (typeof VOICE_PIPELINES)[number]
@@ -244,8 +244,8 @@ export const VOICE_PIPELINE_DESCRIPTIONS: Record<VoicePipeline, string> = {
 export type PipelinesSetUp = Record<VoicePipeline, boolean>
 
 /**
- * Who decides how calls are answered when both pipelines are set up (Admin › Providers): each assistant (`choice`,
- * the default), or the instance admin for every workspace (`realtime`, `three_stage`).
+ * Who decides how calls are answered when both pipelines are set up (Server admin › Providers): each assistant
+ * (`choice`, the default), or the instance admin for every workspace (`realtime`, `three_stage`).
  */
 export const VOICE_PIPELINE_POLICIES = ['choice', 'realtime', 'three_stage'] as const
 export type VoicePipelinePolicy = (typeof VOICE_PIPELINE_POLICIES)[number]

@@ -1,7 +1,7 @@
-// Admin, Overview, Reply delay: how long the assistant's replies take, from the caller's last word to the reply's first
-// audio, split by where the time goes (end of turn, model, voice, Linedesk's agent, the phone network), per pipeline.
-// One stacked bar of the medians per pipeline, on a shared scale, and a table with the median and p90 of each part
-// (also the legend and the values the bar's colors cannot carry alone).
+// Server admin › Overview › Reply delay: how long the assistant's replies take, from the caller's last word to the
+// reply's first audio, split by where the time goes (end of turn, model, voice, Linedesk's agent, the phone network),
+// per pipeline. One stacked bar of the medians per pipeline, on a shared scale, and a table with the median and p90 of
+// each part (also the legend and the values the bar's colors cannot carry alone).
 import { providers as providerRegistry } from '@linedesk/actions'
 import { useQuery } from '../cachedQuery.ts'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'

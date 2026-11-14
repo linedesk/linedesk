@@ -2,7 +2,7 @@
 // Owners and admins see it in the inbox after onboarding (the product tour follows once it is done, LIN-85): what is
 // left before the assistant really answers the business's calls, and each row ticks itself once that is true.
 // Which number, what counts as live and the order of the steps come from @linedesk/actions (setup-state.ts), the
-// same definition the setup emails and Admin › Onboarding use.
+// same definition the setup emails and Server admin › Onboarding use.
 import {
   type GoLiveChecklistData,
   type GoLiveStep,
@@ -35,7 +35,8 @@ export type GoLiveItem = {
 export type GoLiveFacts = {
   /**
    * The server can answer calls (speech, language model and voice, or a realtime model). null: the row is left out
-   * (set up all along on this install). `canFix`: the viewer is an instance admin, who sets it up under Admin › Providers.
+   * (set up all along on this install). `canFix`: the viewer is an instance admin, who sets it up under Server admin ›
+   * Providers.
    */
   voice: { ready: boolean; failing: boolean; canFix: boolean } | null
   hasNumber: boolean
@@ -61,11 +62,11 @@ export const voiceNotSetUp = (assistant: string) =>
   `${assistant} can't answer calls yet: the voice service isn't set up.`
 /** What to do about it: instance admins set it up themselves, everyone else asks whoever runs the server. */
 export const voiceFix = (canFix: boolean) =>
-  canFix ? 'Set it up under Admin › Providers.' : 'Ask whoever runs this server.'
+  canFix ? 'Set it up under Server admin › Providers.' : 'Ask whoever runs this server.'
 /** Set up, but a provider it needs is failing (a used-up quota, a rejected key): the header and the checklist. */
 export const voiceFailing = (assistant: string, canFix: boolean) =>
   `${assistant} can't answer calls: a service it needs is failing (a used-up quota or a rejected key). ${
-    canFix ? 'Fix it under Admin › Providers.' : 'Ask whoever runs this server.'
+    canFix ? 'Fix it under Server admin › Providers.' : 'Ask whoever runs this server.'
   }`
 
 export function goLiveItems(facts: GoLiveFacts, assistant: string): GoLiveItem[] {

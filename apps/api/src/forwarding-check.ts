@@ -406,7 +406,9 @@ let provisioning: Promise<string> | null = null
 /** How many of the account's numbers are looked at for a free one (the most one page holds at Telnyx). */
 const ACCOUNT_NUMBERS_PAGE = 250
 
-/** The check number set for the install (Admin, Providers, or its variable), or the dev caller ID; else null. */
+/**
+ * The check number set for the install (Server admin › Providers, or its variable), or the dev caller ID; else null.
+ */
 export async function configuredCheckNumber(tx: Tx): Promise<string | null> {
   const carrier = await installTelephony(tx)
   if ('named' in carrier) return carrier.named === 'dev' ? DEV_CHECK_NUMBER : null
@@ -438,14 +440,14 @@ async function checkCaller(
   let callerNumber = asE164(carrier.config.check_number?.value)
   if (callerNumber && used.has(callerNumber))
     return {
-      unavailable: `the forwarding check number ${callerNumber} is a workspace's number; pick another in Admin, Providers`,
+      unavailable: `the forwarding check number ${callerNumber} is a workspace's number; pick another in Server admin › Providers`,
     }
   // One page: an account with more numbers than that and none free among them sets the check number instead.
   if (!callerNumber) callerNumber = (await accountNumbers().catch(() => [])).find(e164 => !used.has(e164)) ?? null
   if (!callerNumber)
     return {
       unavailable:
-        'no number to call from: every number in the carrier account belongs to a workspace; add a forwarding check number in Admin, Providers',
+        'no number to call from: every number in the carrier account belongs to a workspace; add a forwarding check number in Server admin › Providers',
     }
   return { callerNumber, simulated: false, carrier }
 }
@@ -478,9 +480,9 @@ export async function forwardingCheckAvailability(
 }
 
 /**
- * The install's check line: the check number from Admin, Providers (the carrier's "Forwarding check number"), else the
- * first number in the install's carrier account that no workspace uses. Under `dev`: a simulation. Never a workspace's
- * number, so a business never sees one of its own numbers or another business's calling.
+ * The install's check line: the check number from Server admin › Providers (the carrier's "Forwarding check number"),
+ * else the first number in the install's carrier account that no workspace uses. Under `dev`: a simulation. Never a
+ * workspace's number, so a business never sees one of its own numbers or another business's calling.
  */
 export async function installCheckLine(env: Env = process.env, doFetch: typeof fetch = fetch): Promise<CheckLine> {
   const found = await checkCaller(await db.transaction(tx => installTelephony(tx)), env, doFetch, listAccountNumbers)

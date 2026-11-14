@@ -130,7 +130,7 @@ test('nobody to answer: refused with why for the operator, plainly for everyone 
       status: 409,
       body: { error: TEST_CALLS_UNAVAILABLE },
     })
-    expect(await unanswerable(db, operator, Date.now())).toMatch(/voice agent isn't running.*Admin › Overview/)
+    expect(await unanswerable(db, operator, Date.now())).toMatch(/voice agent isn't running.*Server admin › Overview/)
     expect(await unanswerable(db, owner, Date.now())).toBe(TEST_CALLS_UNAVAILABLE)
   } finally {
     noteAgentSeen()
@@ -139,7 +139,7 @@ test('nobody to answer: refused with why for the operator, plainly for everyone 
   delete process.env.OPENAI_REALTIME_API_KEY
   try {
     expect(await unanswerable(db, operator, Date.now())).toMatch(
-      /speech to text, a language model and a voice.*Admin › Providers/,
+      /speech to text, a language model and a voice.*Server admin › Providers/,
     )
     expect(await unanswerable(db, owner, Date.now())).toBe(TEST_CALLS_UNAVAILABLE)
     expect((await act(other.owner, 'assistant.startTestCall', {})).body.error).toBe(TEST_CALLS_UNAVAILABLE)
@@ -260,7 +260,7 @@ test('a failed stage of the voice pipeline marks the call, once per stage, provi
     { ...failure, at: expect.any(String) },
     { ...llm, at: expect.any(String) },
   ])
-  // The same failures are the providers' own record (LIN-111): Admin › Providers shows them.
+  // The same failures are the providers' own record (LIN-111): Server admin › Providers shows them.
   const recorded = await db.select().from(provider_failures).where(inArray(provider_failures.provider, ['elevenlabs', 'openrouter']))
   expect(recorded.map(r => [r.provider, r.reason, r.source, r.call_id]).sort()).toEqual([
     ['elevenlabs', 'no_output', 'agent', callId],

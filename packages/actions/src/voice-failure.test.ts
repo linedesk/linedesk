@@ -22,17 +22,17 @@ const quota: VoiceFailure = { stage: 'tts', provider: 'elevenlabs', reason: 'quo
 
 test('the operator learns which stage and provider, why and where to fix it; everyone else no provider', () => {
   expect(voiceFailureText(quota, true)).toBe(
-    "The assistant's voice: ElevenLabs has used up its quota or credit. Add credit or raise the limit at ElevenLabs, then test it under Admin › Providers.",
+    "The assistant's voice: ElevenLabs has used up its quota or credit. Add credit or raise the limit at ElevenLabs, then test it under Server admin › Providers.",
   )
   expect(voiceFailureText({ ...quota, reason: 'no_output' }, true)).toMatch(
     /^The assistant's voice: ElevenLabs answered with nothing\. Try again/,
   )
   expect(voiceFailureText({ stage: 'llm', provider: 'openrouter', reason: 'auth', message: '' }, true)).toBe(
-    "The assistant's language model: OpenRouter rejected the key it was given. Enter a valid key under Admin › Providers.",
+    "The assistant's language model: OpenRouter rejected the key it was given. Enter a valid key under Server admin › Providers.",
   )
   const plain = voiceFailureText(quota, false)
   expect(plain).toBe("The assistant's voice isn't working right now. Ask whoever runs this server.")
-  expect(plain).not.toMatch(/ElevenLabs|quota|Admin/)
+  expect(plain).not.toMatch(/ElevenLabs|quota|Server admin|Admin/)
 })
 
 test('the attribute round-trips; anything else is no failure', () => {

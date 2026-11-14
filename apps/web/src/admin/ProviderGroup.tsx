@@ -1,7 +1,7 @@
 // One provider group (provider-status.ts): its providers, each with Connect or Edit (the
-// provider's dialog, ProviderDialog, is the one editor). Admin › Providers shows every group; the install walkthrough
-// embeds the same panel one group per step, and the embedded panel never navigates away (design rule 14): it opens
-// dialogs in place. Call audio is read-only: LiveKit and its SIP bridge are set in .env on the server.
+// provider's dialog, ProviderDialog, is the one editor). Server admin › Providers shows every group; the install
+// walkthrough embeds the same panel one group per step, and the embedded panel never navigates away (design rule 14):
+// it opens dialogs in place. Call audio is read-only: LiveKit and its SIP bridge are set in .env on the server.
 // Status stays quiet: a working provider shows only its mark (the words are its tooltip), words only for a state that
 // needs attention, and a group's heading shows a status only while the group has a problem (groupAttention).
 // Help on demand: why the group is there sits behind the (?) next to its heading; only a problem is a visible line.
@@ -117,7 +117,7 @@ type Props = {
   onPipelinePolicy?: () => Promise<void>
   /** In the install walkthrough: no heading of its own (the step has it). */
   embedded?: boolean
-  /** Admin › Providers: the page holds which lists are open. Left out: each list keeps its own. */
+  /** Server admin › Providers: the page holds which lists are open. Left out: each list keeps its own. */
   folds?: ListFolds
 }
 

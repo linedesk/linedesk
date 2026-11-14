@@ -1,4 +1,4 @@
-// The order and the short form of one provider list in a group (Admin › Providers and the install walkthrough's
+// The order and the short form of one provider list in a group (Server admin › Providers and the install walkthrough's
 // embedded panels). The pinned providers come first, in their order (pinnedProviders in @linedesk/actions: the
 // recommended one leads), then the rest in their usual order. A list of more than three is short until "Show more":
 // the pinned providers and every provider that is already set up, being tested or failing.

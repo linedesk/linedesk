@@ -1,6 +1,6 @@
 // The workspace's icon (Workspace settings › General): a logo or image shown on the workspace button, in the
 // workspace menu and switcher, and as the browser-tab icon while the workspace is open. Without one the initial
-// letter of the name shows. Stored like the install logo of Admin › Branding (branding.ts): a PNG of at most
+// letter of the name shows. Stored like the install logo of Server admin › Branding (branding.ts): a PNG of at most
 // LOGO_SIZE square and LOGO_MAX_BYTES, made in the browser from any image (PNG, JPEG, WebP, SVG), so an SVG is
 // drawn to pixels before it leaves the browser and the server only ever stores and serves a checked PNG.
 import { z } from 'zod'

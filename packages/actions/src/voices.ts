@@ -46,14 +46,14 @@ export const CLONE_CONSENT_TEXT =
 export type ClonedVoice = { id: string; name: string }
 
 /**
- * What the voice picker shows. `provider` null: no voice provider is set up (Admin, Providers).
+ * What the voice picker shows. `provider` null: no voice provider is set up (Server admin › Providers).
  * `canClone`: the provider clones and an instance admin turned cloning on.
  */
 export type VoiceOptionsData = {
   provider: string | null
   /**
-   * A realtime model is connected (Admin, Providers): the install default for an assistant that chose no pipeline.
-   * Missing from an API of an older version: false.
+   * A realtime model is connected (Server admin › Providers): the install default for an assistant that chose no
+   * pipeline. Missing from an API of an older version: false.
    */
   realtime?: boolean
   /**
@@ -66,7 +66,7 @@ export type VoiceOptionsData = {
   clones: readonly ClonedVoice[]
   canClone: boolean
   /**
-   * The voice "Default voice" stands for: the install's default voice id (Admin › Providers), else the
+   * The voice "Default voice" stands for: the install's default voice id (Server admin › Providers), else the
    * provider's own. `name` when it is a curated voice. null when it cannot be told.
    */
   defaultVoice: { id: string; name: string | null } | null

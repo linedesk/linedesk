@@ -64,7 +64,7 @@ describe('providerSignInElsewhere', () => {
 })
 
 describe('isInstanceAdmin', () => {
-  it('the permission, or an instance admin who still has to confirm (Admin opens on that prompt)', () => {
+  it('the permission, or an instance admin who still has to confirm (Server admin opens on that prompt)', () => {
     expect(isInstanceAdmin({ permissions: ['instance:admin'] })).toBe(true)
     expect(isInstanceAdmin({ permissions: [], adminSecondFactor: 'confirm' })).toBe(true)
     expect(isInstanceAdmin({ permissions: ['settings:write'], adminSecondFactor: null })).toBe(false)

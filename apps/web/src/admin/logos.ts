@@ -1,4 +1,4 @@
-// Brand marks for Admin, Providers: SVG paths (24×24) copied from Simple Icons v16.37.0
+// Brand marks for Server admin › Providers: SVG paths (24×24) copied from Simple Icons v16.37.0
 // (https://simpleicons.org, CC0 1.0; slugs as the keys below). Drawn monochrome in our ink colour.
 // Simple Icons has no mark for Telnyx, Cartesia, Groq, Postmark or SendGrid: they get a neutral icon (phone, waveform, spark, mail), Local disk a disk.
 // Microsoft's four squares are drawn here (Simple Icons dropped the mark).

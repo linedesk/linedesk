@@ -1,5 +1,5 @@
-// Admin, Overview: the first thing an operator sees, under the "Ready for calls" card (StatusCard.tsx, which says
-// whether the parts of the install work). Usage (calls, minutes), roughly what it costs per provider, and how many
+// Server admin › Overview: the first thing an operator sees, under the "Ready for calls" card (StatusCard.tsx, which
+// says whether the parts of the install work). Usage (calls, minutes), roughly what it costs per provider, and how many
 // workspaces and people there are.
 import { providerCategories } from '@linedesk/actions'
 import type { ReactNode } from 'react'

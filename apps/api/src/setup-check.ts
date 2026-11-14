@@ -1,7 +1,7 @@
 // Providers in the terminal, for headless installs and AI agents (`scripts/setup.sh --check`):
 //   node --env-file-if-exists=.env apps/api/src/setup-check.ts      (docker: docker compose exec api node apps/api/src/setup-check.ts)
 // Tests every provider that is set up (provider.test as the operator, once per provider, logged like any admin
-// action: the free key check, never a paid round trip) and prints each group the way Admin › Providers shows it,
+// action: the free key check, never a paid round trip) and prints each group the way Server admin › Providers shows it,
 // with the steps for what is missing. Exit code 0 when every group a call needs works, 1 when something is missing or
 // failing, 2 when the check itself could not run. Never prints a key.
 import {
@@ -77,7 +77,7 @@ async function main() {
   console.log(
     ready
       ? '\nReady for calls. Next: open the app and set up the business.'
-      : '\nKeys go in the app: Admin › Providers.',
+      : '\nKeys go in the app: Server admin › Providers.',
   )
   process.exitCode = ready ? 0 : 1
 }

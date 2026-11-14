@@ -83,7 +83,7 @@ export function attachStepUpDialog(rerender: () => void): () => void {
 /** The request the dialog shows, if any. */
 export const shownStepUp = (): Readonly<Request> | undefined => queue[0]
 
-/** Mounted once in the admin area: the dialog withPasskeyStepUp opens. Leaving Admin cancels what waits. */
+/** Mounted once in the admin area: the dialog withPasskeyStepUp opens. Leaving Server admin cancels what waits. */
 export function PasskeyStepUpHost() {
   const [, setVersion] = useState(0)
   useEffect(() => attachStepUpDialog(() => setVersion(v => v + 1)), [])

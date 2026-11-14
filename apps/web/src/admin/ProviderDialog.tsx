@@ -1,6 +1,6 @@
-// The one editor of a provider (LIN-158), wherever it opens (Admin › Providers, the install walkthrough): its status
-// with when it was tested, how to get a key (open until it works), the keys as a form (ProviderForm), Test again (the
-// free key check) and Try it (a real round trip, TryOut.tsx). Save stores what changed (provider.setKeys) and then
+// The one editor of a provider (LIN-158), wherever it opens (Server admin › Providers, the install walkthrough): its
+// status with when it was tested, how to get a key (open until it works), the keys as a form (ProviderForm), Test again
+// (the free key check) and Try it (a real round trip, TryOut.tsx). Save stores what changed (provider.setKeys) and then
 // tests the keys, so the dialog ends with the result. A stored secret never comes back from the API: secret inputs
 // start empty and show "•••• 1234".
 import {

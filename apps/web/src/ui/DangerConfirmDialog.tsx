@@ -1,4 +1,4 @@
-// The one confirmation for heavy, destructive steps (deleting a workspace in Admin or in Workspace settings,
+// The one confirmation for heavy, destructive steps (deleting a workspace in Server admin or in Workspace settings,
 // disabling, granting admin): what it affects in a danger note, an optional checkbox, the name typed to unlock
 // the button, and why it failed in one short sentence. The caller's `run` does the work; on success the dialog stays
 // busy until the caller closes it or the page moves on.

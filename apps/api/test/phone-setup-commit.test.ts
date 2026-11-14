@@ -45,7 +45,7 @@ test('with purchase: true the number is bought and stored', async () => {
   expect(res.body.rows.phone_numbers).toMatchObject([{ e164, workspace_id: ws.id, mode: 'new' }])
   expect(buy).toHaveBeenCalledWith(e164)
   expect(release).not.toHaveBeenCalled()
-  // The setup milestone the go-live checklist's first step and Admin › Onboarding read.
+  // The setup milestone the go-live checklist's first step and Server admin › Onboarding read.
   const milestone = await db
     .select()
     .from(setup_events)

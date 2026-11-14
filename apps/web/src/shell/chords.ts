@@ -22,8 +22,8 @@ const chordPages: Record<string, { route: PageRoute; section?: string }> = {
 export type ChordTarget = { kind: 'page'; route: PageRoute; section?: string } | { kind: 'tab'; tab: InboxTab }
 
 /**
- * Where G then `key` goes for this member, or null when it goes nowhere (then the key does nothing): Admin (D) for
- * instance admins, How <assistant> did (R, in the Assistant area) for owners and admins, the assignee views once
+ * Where G then `key` goes for this member, or null when it goes nowhere (then the key does nothing): Server admin (D)
+ * for instance admins, How <assistant> did (R, in the Assistant area) for owners and admins, the assignee views once
  * someone else can be assigned.
  */
 export function chordTarget(

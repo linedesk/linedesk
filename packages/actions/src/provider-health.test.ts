@@ -32,9 +32,9 @@ describe('providerFailureReason: one vocabulary for the API and the voice agent'
 })
 
 describe('providerFailureText: one text per reason, for whoever reads it', () => {
-  test('admins are sent to Admin › Providers, members to whoever runs the server', () => {
+  test('admins are sent to Server admin › Providers, members to whoever runs the server', () => {
     expect(providerFailureText('quota', 'ElevenLabs', 'admin')).toBe(
-      'ElevenLabs has used up its quota or credit. Add credit or raise the limit at ElevenLabs, then test it under Admin › Providers.',
+      'ElevenLabs has used up its quota or credit. Add credit or raise the limit at ElevenLabs, then test it under Server admin › Providers.',
     )
     expect(providerFailureText('auth', 'The phone carrier', 'member')).toBe(
       'The phone carrier rejected the key it was given. Ask whoever runs this server to check the key.',
@@ -49,7 +49,7 @@ describe('providerFailureText: one text per reason, for whoever reads it', () =>
       for (const audience of ['admin', 'member'] as const) {
         const { problem, fix } = providerFailureAdvice(reason, 'X', audience)
         expect(problem).toMatch(/^(The key for )?X /)
-        expect(fix).toMatch(audience === 'admin' ? /Admin › Providers/ : /whoever runs this server|Try again/)
+        expect(fix).toMatch(audience === 'admin' ? /Server admin › Providers/ : /whoever runs this server|Try again/)
       }
   })
 

@@ -47,8 +47,8 @@ export const onboardingRecordEvent = defineAction({
 
 /**
  * The go-live checklist's steps (apps/web/src/inbox/goLive.ts). Not every workspace sees all of them: `voice` (the
- * server can answer calls: speech, language model and voice, or a realtime model, under Admin › Providers) only on
- * an install where that is not set up.
+ * server can answer calls: speech, language model and voice, or a realtime model, under Server admin › Providers) only
+ * on an install where that is not set up.
  */
 export const goLiveSteps = ['voice', 'number', 'forwarding', 'first_call', 'calendar', 'push', 'team'] as const
 export type GoLiveStep = (typeof goLiveSteps)[number]

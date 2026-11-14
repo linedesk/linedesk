@@ -1,4 +1,4 @@
-// Signed out anywhere means the sign-in page, on every screen (inbox, settings, Admin, the setup pages). Every
+// Signed out anywhere means the sign-in page, on every screen (inbox, settings, Server admin, the setup pages). Every
 // request of this app to its own API (`/v1/…`, same origin) is watched: a 401 there means the session may be gone
 // (expired, signed out in another tab, the account disabled). The app then asks who is signed in (loadSession,
 // App.tsx) and shows the sign-in page if nobody is, instead of an error line or a screen that cannot load.

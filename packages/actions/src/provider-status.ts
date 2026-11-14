@@ -1,6 +1,6 @@
 // Providers in one place (LIN-158): the groups of providers, in the same order and with the same ids everywhere
-// (Admin › Providers, the "Ready for calls" card on the admin overview, the install walkthrough, the setup MCP and
-// `scripts/setup.sh --check`), and the one status function that turns what is known about each provider into one
+// (Server admin › Providers, the "Ready for calls" card on the admin overview, the install walkthrough, the setup MCP
+// and `scripts/setup.sh --check`), and the one status function that turns what is known about each provider into one
 // status per group, in the same words. Pure: the API brings the facts from the database, the web app from the admin
 // data plus the tests it runs right now.
 import { type ProviderCategory, type ProviderName, providerSpec, providersIn } from './admin.ts'
@@ -134,7 +134,7 @@ export const callAudioGuide = {
  * One key for the whole Answering group. OpenAI is the only provider in the registry that hears, thinks and speaks in
  * one: its realtime model answers calls (apps/agent/src/config.ts). Speech to text and the language model use the same
  * stored key where those are empty. The action is `provider.connectOneKey` (admin.ts): tested first, stored only when
- * it works. Offered only in Answering's empty state on Admin › Providers.
+ * it works. Offered only in Answering's empty state on Server admin › Providers.
  */
 export const oneKey = {
   label: 'OpenAI',

@@ -229,8 +229,8 @@ export async function providerFor(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, wo
 
 /**
  * Why the calendars could not be listed, in the shared provider-failure words (LIN-111): the server's calendar app
- * refused (admins: Admin › Providers, members: whoever runs the server), the account's access withdrawn (connect it
- * again), the provider busy or down (try again). Anything else keeps the provider's reason. Exported for tests.
+ * refused (admins: Server admin › Providers, members: whoever runs the server), the account's access withdrawn (connect
+ * it again), the provider busy or down (try again). Anything else keeps the provider's reason. Exported for tests.
  */
 export function calendarProblemText(e: CalendarError, connection: Pick<CalendarConnection, 'provider' | 'account_email'>, audience: ProviderAudience): string {
   const label = LABEL[connection.provider]

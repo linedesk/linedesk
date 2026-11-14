@@ -1,6 +1,6 @@
 // Providers in one place (LIN-158): the status of every provider group in the web app, computed with the same
 // statusGroups as the API (packages/actions/src/provider-status.ts) from the admin data: the stored tests
-// (provider_tests), the recorded failures, how the assistants answer, and LiveKit from the health check. Admin ›
+// (provider_tests), the recorded failures, how the assistants answer, and LiveKit from the health check. Server admin ›
 // Providers, the overview's "Ready for calls" card and the install walkthrough all read it from useProviderStatus, so
 // "Works" means the same on every screen. A provider set up without a stored test is checked once with the free key
 // check (provider.test with `free`: no tokens, no speech), never a paid round trip.

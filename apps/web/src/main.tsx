@@ -29,7 +29,7 @@ installTooltips()
 void loadBrand()
 registerServiceWorker()
 
-// Back from "Connect with OpenRouter": keep its answer for Admin, Providers and clear the address.
+// Back from "Connect with OpenRouter": keep its answer for Server admin › Providers and clear the address.
 const openRouterBack = captureOpenRouterReturn(window.location.search)
 if (openRouterBack) window.history.replaceState(null, '', `${window.location.pathname}${openRouterBack}`)
 

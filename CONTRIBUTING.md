@@ -22,7 +22,7 @@ pnpm db:seed      # prints the demo sign-in
 pnpm dev          # API on 3100, web app on 5173
 ```
 
-The demo sign-in uses a password. Email codes go nowhere until email is connected (Admin › Providers): for local development uncomment `EMAIL_TO_LOG=true` in `.env` to print them to the API log. Sign-up is closed by default (`AUTH_SIGNUP_ENABLED=true` opens it).
+The demo sign-in uses a password. Email codes go nowhere until email is connected (Server admin › Providers): for local development uncomment `EMAIL_TO_LOG=true` in `.env` to print them to the API log. Sign-up is closed by default (`AUTH_SIGNUP_ENABLED=true` opens it).
 
 Test data that every new local stack and worktree starts with: fill your account's workspace once (`pnpm db:seed -- --user you@example.com`), then `pnpm dev:snapshot`. A new database restores the snapshot (`~/.linedesk/dev-snapshot.dump`) by itself; `pnpm dev:restore --force` replaces an existing one. Details in [CLAUDE.md](CLAUDE.md) (commands).
 

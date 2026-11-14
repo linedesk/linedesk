@@ -1,6 +1,6 @@
 // Provider health (LIN-111): what a provider test found, and the failures the API and the voice agent
 // record per provider while they work (apps/api/src/provider-failures.ts). A used-up quota, a rejected key or a
-// model that no longer exists shows up in Admin › Providers and the admin overview instead of failing silently.
+// model that no longer exists shows up in Server admin › Providers and the admin overview instead of failing silently.
 import { z } from 'zod'
 import { categoryNames, type ProviderCategory, type ProviderName, providerNames } from './admin.ts'
 import { defineAction } from './define.ts'
@@ -78,7 +78,7 @@ export function providerFailureReason({
   return 'unknown'
 }
 
-/** Who reads an error: an instance admin can fix a provider (Admin › Providers), a member can only ask. */
+/** Who reads an error: an instance admin can fix a provider (Server admin › Providers), a member can only ask. */
 export type ProviderAudience = 'admin' | 'member'
 
 const ASK = 'Ask whoever runs this server'
@@ -86,7 +86,7 @@ const ASK = 'Ask whoever runs this server'
 /**
  * What a provider failure means for the person who ran into it, and what they can do next: the one mapping from a
  * reason to user-facing text (LIN-111). `label` names the provider as the sentence starts, e.g. "ElevenLabs" or "The
- * phone carrier". Admins are pointed to Admin › Providers, members to whoever runs the server; a passing problem
+ * phone carrier". Admins are pointed to Server admin › Providers, members to whoever runs the server; a passing problem
  * (not reachable, no answer in time) says to try again. Never quotes the provider's own text.
  */
 export function providerFailureAdvice(
@@ -97,39 +97,39 @@ export function providerFailureAdvice(
   const admin = audience === 'admin'
   const persistent = (adminFix: string, memberFix: string) => (admin ? adminFix : `${ASK} ${memberFix}`)
   const passing = admin
-    ? 'Try again in a moment. If it keeps failing, test it under Admin › Providers.'
+    ? 'Try again in a moment. If it keeps failing, test it under Server admin › Providers.'
     : `Try again in a moment. If it keeps failing, ${ASK.charAt(0).toLowerCase()}${ASK.slice(1)}.`
   switch (reason) {
     case 'quota':
       return {
         problem: `${label} has used up its quota or credit.`,
         fix: persistent(
-          `Add credit or raise the limit at ${label}, then test it under Admin › Providers.`,
+          `Add credit or raise the limit at ${label}, then test it under Server admin › Providers.`,
           'to add credit.',
         ),
       }
     case 'auth':
       return {
         problem: `${label} rejected the key it was given.`,
-        fix: persistent('Enter a valid key under Admin › Providers.', 'to check the key.'),
+        fix: persistent('Enter a valid key under Server admin › Providers.', 'to check the key.'),
       }
     case 'permission':
       return {
         problem: `The key for ${label} is missing a permission.`,
         fix: persistent(
-          'Give the key the permission, or enter another key under Admin › Providers.',
+          'Give the key the permission, or enter another key under Server admin › Providers.',
           'to check the key.',
         ),
       }
     case 'not_found':
       return {
         problem: `${label} does not know a model, voice or account it was set up with.`,
-        fix: persistent('Pick another one under Admin › Providers.', 'to check the setup.'),
+        fix: persistent('Pick another one under Server admin › Providers.', 'to check the setup.'),
       }
     case 'config':
       return {
         problem: `${label} refused a setting.`,
-        fix: persistent('Check its settings under Admin › Providers.', 'to check the setup.'),
+        fix: persistent('Check its settings under Server admin › Providers.', 'to check the setup.'),
       }
     case 'network':
       return { problem: `${label} is not reachable right now.`, fix: passing }

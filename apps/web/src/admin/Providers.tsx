@@ -1,4 +1,4 @@
-// Admin › Providers (LIN-158): every provider group in one place, in the same order and words as the overview's
+// Server admin › Providers (LIN-158): every provider group in one place, in the same order and words as the overview's
 // "Ready for calls" card and the install walkthrough (provider-status.ts): each group with its status, why it is
 // there and its providers. Connect and Edit open the provider's dialog (ProviderDialog), the one editor. While a group
 // calls need is not set up, the agent setup leads on top. `#admin/providers/<group>` scrolls to the group,
@@ -28,7 +28,7 @@ export const ADMIN_INSTALL_SETUP = 'admin.installSetup'
 
 /**
  * "Set up with an AI agent", the first way to set up an install, and "Step by step" next to it while the walkthrough
- * is on. On top of Admin › Providers as a note; on the overview's card as a quiet line.
+ * is on. On top of Server admin › Providers as a note; on the overview's card as a quiet line.
  */
 export function AgentFirst({ lead, quiet }: { lead: string; quiet?: boolean }) {
   const install = useQuery(ADMIN_INSTALL_SETUP, () => loadInstallSetup()).data

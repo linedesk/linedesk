@@ -1,5 +1,5 @@
 // A workspace's own carrier account: by default a workspace uses the install's telephony provider
-// (Admin, Providers); an owner or admin can bring their own Twilio or Telnyx account instead. The
+// (Server admin › Providers); an owner or admin can bring their own Twilio or Telnyx account instead. The
 // credentials are stored encrypted per workspace and never come back to the browser.
 import { z } from 'zod'
 import { defineAction } from './define.ts'

@@ -206,7 +206,7 @@ function CarrierDialog({
           <Note tone="warning" title="Your own account can't be saved on this server yet.">
             API keys are stored encrypted, and this server has no encryption key set.{' '}
             {providerAudience() === 'admin'
-              ? 'Admin › Providers says what to set.'
+              ? 'Server admin › Providers says what to set.'
               : 'Ask whoever runs this server to set it up.'}
           </Note>
         )}

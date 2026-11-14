@@ -36,7 +36,7 @@ type Props = {
   actorId: string
   /** False while the address is unconfirmed: the server puts no calls through to a number until it is. */
   emailConfirmed: boolean
-  /** An instance admin: what the server lacks links to Admin › Providers; everyone else is told whom to ask. */
+  /** An instance admin: what the server lacks links to Server admin › Providers; everyone else is told whom to ask. */
   admin: boolean
   onBack: () => void
   onNext: () => void
@@ -244,7 +244,7 @@ function Summaries({
           Email isn't set up on this server yet.{' '}
           {admin ? (
             <a className="k-link" href="#admin/providers/email">
-              Set it up in Admin › Providers
+              Set it up in Server admin › Providers
             </a>
           ) : (
             'Ask whoever runs this server.'

@@ -1,6 +1,6 @@
 // A workspace's setup state, the one definition for everything that talks about it: the go-live checklist in the
 // inbox (apps/web/src/inbox/goLive.ts, apps/api/src/go-live-checklist.ts), the setup emails and the at-risk list
-// (apps/api/src/setup-emails.ts) and Admin › Onboarding. Pure: the callers bring the facts (numbers, milestones,
+// (apps/api/src/setup-emails.ts) and Server admin › Onboarding. Pure: the callers bring the facts (numbers, milestones,
 // calls) from wherever they keep them.
 import type { Call, PhoneNumber } from '@linedesk/db/types'
 

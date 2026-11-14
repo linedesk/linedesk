@@ -127,7 +127,7 @@ function RealtimeVoice({ canSwitch }: { canSwitch: boolean }) {
   return (
     <Section id="as-voice" title="Voice">
       <span className="help">
-        The realtime model speaks in its own voice, set by an instance admin under Admin, Providers.
+        The realtime model speaks in its own voice, set by an instance admin under Server admin › Providers.
         {canSwitch && ` To pick a voice here, set Answered by under Advanced to ${VOICE_PIPELINE_LABELS.three_stage}.`}
       </span>
     </Section>
@@ -161,7 +161,7 @@ function NotAnswered({ setUp }: { setUp: PipelinesSetUp | null }) {
     <Section id="as-not-answered" title="Answering calls">
       <span className="help">
         Calls are not answered yet: an instance admin sets up a realtime model, or speech to text, a language model and
-        a voice, under Admin, Providers.
+        a voice, under Server admin › Providers.
       </span>
     </Section>
   )
@@ -169,7 +169,7 @@ function NotAnswered({ setUp }: { setUp: PipelinesSetUp | null }) {
 
 /**
  * How the assistant's calls are answered, in Advanced: a choice only while the workspace may use both (the instance
- * admin lets workspaces choose, Admin › Providers); else nothing, there is nothing to decide.
+ * admin lets workspaces choose, Server admin › Providers); else nothing, there is nothing to decide.
  */
 function PipelineSection({ draft, set, setUp }: SectionProps & { setUp: PipelinesSetUp | null }) {
   if (!setUp?.realtime || !setUp.three_stage) return null

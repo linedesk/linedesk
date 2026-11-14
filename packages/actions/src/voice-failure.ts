@@ -3,7 +3,7 @@
 // reports it for the call (call.reportVoiceFailure: the call keeps it in `calls.voice_failures`) and sets it on itself
 // (VOICE_FAILURE_ATTRIBUTE), where a test call's browser shows it at once. Shaped like LIN-111's provider failure event
 // (ProviderFailureEvent: stage, provider, reason, message) with its reasons; the API also records it as that
-// provider's failure (provider_failures), so Admin › Providers and the call show the same problem.
+// provider's failure (provider_failures), so Server admin › Providers and the call show the same problem.
 import { z } from 'zod'
 import { providerNames, providers } from './admin.ts'
 import { defineAction } from './define.ts'
@@ -71,7 +71,7 @@ export const voiceProviderLabel = (provider: string) =>
 export function voiceFailureText(failure: VoiceFailure, operator: boolean): string {
   const stage = voiceStageNames[failure.stage]
   if (!operator) return `The assistant's ${stage} isn't working right now. Ask whoever runs this server.`
-  // The same words as Admin › Providers and the failure email (providerFailureText): one wording per reason.
+  // The same words as Server admin › Providers and the failure email (providerFailureText): one wording per reason.
   return `The assistant's ${stage}: ${providerFailureText(failure.reason, voiceProviderLabel(failure.provider), 'admin')}`
 }
 

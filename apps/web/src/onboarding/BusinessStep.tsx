@@ -288,8 +288,8 @@ const isGoogle = (f: BusinessLookupFailure) => f.provider === 'business'
 
 /**
  * A provider this step could not use: what happened, then who can fix it. Instance admins get the link to
- * Admin › Providers (a new tab: this step stays as it is, and Admin opens there although onboarding is not
- * finished); members are told to ask whoever runs the server.
+ * Server admin › Providers (a new tab: this step stays as it is, and Server admin opens there although onboarding is
+ * not finished); members are told to ask whoever runs the server.
  */
 function ProblemNote({ problem, admin, alert }: { problem: ProviderProblem; admin: boolean; alert?: boolean }) {
   return (
@@ -299,7 +299,7 @@ function ProblemNote({ problem, admin, alert }: { problem: ProviderProblem; admi
         <>
           {problem.adminFix}{' '}
           <a className="k-link" href={`#admin/providers/${problem.group}`} target="_blank" rel="noopener">
-            Admin › Providers
+            Server admin › Providers
           </a>
           .
         </>

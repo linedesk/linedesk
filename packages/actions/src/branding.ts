@@ -1,4 +1,4 @@
-// Branding of the whole install (Admin, Branding): the product name, logo and primary color people see in
+// Branding of the whole install (Server admin › Branding): the product name, logo and primary color people see in
 // the app, on the sign-in page, in the browser tab, on the installed app and in emails, and whether the
 // GitHub star prompt shows. An install that keeps the defaults looks like Linedesk; one with its own name or
 // logo shows a small "Powered by Linedesk" line in emails and on the sign-in page unless an admin hides it.

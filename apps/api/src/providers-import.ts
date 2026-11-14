@@ -1,4 +1,4 @@
-// Moves provider keys from the environment into the app (Admin, Providers), for an install that set
+// Moves provider keys from the environment into the app (Server admin › Providers), for an install that set
 // them up in .env before they could be connected in the app:
 //   pnpm --filter @linedesk/api providers:import            (docker: docker compose exec api node apps/api/src/providers-import.ts)
 // Every registry field with a variable set and nothing stored yet is stored (provider.setKeys, as the

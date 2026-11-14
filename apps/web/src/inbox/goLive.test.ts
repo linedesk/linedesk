@@ -235,7 +235,7 @@ describe('go-live checklist', () => {
       href: '#admin/providers/answering',
     })
     expect(admin[0]!.hint).toBe(
-      "Maya can't answer calls yet: the voice service isn't set up. Set it up under Admin › Providers.",
+      "Maya can't answer calls yet: the voice service isn't set up. Set it up under Server admin › Providers.",
     )
     const member = goLiveItems({ ...none, voice: { ready: false, failing: false, canFix: false } }, 'Maya')
     expect(member[0]).toMatchObject({ href: null, hint: expect.stringContaining('Ask whoever runs this server.') })
@@ -244,7 +244,7 @@ describe('go-live checklist', () => {
     const failing = goLiveItems({ ...none, voice: { ready: true, failing: true, canFix: true } }, 'Maya')[0]!
     expect(failing).toMatchObject({ id: 'voice', done: false, href: '#admin/providers/answering' })
     expect(failing.hint).toBe(
-      "Maya can't answer calls: a service it needs is failing (a used-up quota or a rejected key). Fix it under Admin › Providers.",
+      "Maya can't answer calls: a service it needs is failing (a used-up quota or a rejected key). Fix it under Server admin › Providers.",
     )
     expect(goLiveItems(none, 'Maya')[0]!.id).toBe('number')
     expect(canSkipGoLiveStep('voice')).toBe(false)
