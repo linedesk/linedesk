@@ -110,6 +110,27 @@ const FIRST_TABLES_WAIT_MS = 3000
 /** Read requests that fail this long mean the server can't be reached, not a passing blip. */
 const READ_SYNC_DOWN_MS = 10_000
 
+/**
+ * The previous Map of a table when it holds the same rows, else the new one. A row a pending command
+ * patched is a new object on every recompute; one equal to the previous keeps the previous object.
+ */
+function keepUnchanged<M extends Map<string, unknown>>(previous: M, next: M): M {
+  let same = previous.size === next.size
+  for (const [id, row] of next) {
+    const old = previous.get(id)
+    if (old === row) continue
+    if (old !== undefined && shallowEqual(old as object, row as object)) next.set(id, old)
+    else same = false
+  }
+  return same ? previous : next
+}
+
+function shallowEqual(a: object, b: object): boolean {
+  const keys = Object.keys(a)
+  if (keys.length !== Object.keys(b).length) return false
+  return keys.every(k => Object.is((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]))
+}
+
 /** Synced rows are kept differently now (`SYNC_VERSION`): drop the read-sync cursors so each table loads again. */
 export async function forgetCursorsOnNewVersion(local: LocalDb, version: string): Promise<boolean> {
   const meta = await local.all<unknown>('meta')
@@ -189,6 +210,7 @@ export async function createStore(opts: StoreOptions) {
   const askedLeader = new Map<string, { tables?: readonly TableName[]; answered: () => void }>()
   let lastSeq = 0
   let snapshot: Snapshot
+  let previousTables: LocalTables | null = null
   const listeners = new Set<() => void>()
 
   async function loadFromDisk() {
@@ -216,6 +238,10 @@ export async function createStore(opts: StoreOptions) {
       const def = actions.get(c.name)
       if (def) applyLocally(tables, def, c.input, c.at)
     }
+    // A table nothing changed keeps its Map, so what reads only that table does not render again.
+    if (previousTables)
+      for (const t of tableNames) Object.assign(tables, { [t]: keepUnchanged(previousTables[t], tables[t]) })
+    previousTables = tables
     snapshot = {
       tables,
       pending: outbox.length,

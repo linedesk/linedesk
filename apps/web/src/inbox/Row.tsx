@@ -1,5 +1,5 @@
-import type { Call, TranscriptSegment } from '@linedesk/db/types'
-import type { MouseEvent } from 'react'
+import type { Call, Contact, TranscriptSegment } from '@linedesk/db/types'
+import { memo, type MouseEvent, type Ref } from 'react'
 import { callerName, callTitle, statusLabel, tabOf, type InboxTab } from '../inbox-model.ts'
 import { useAssistantName, useContact } from '../store.tsx'
 import { clock, formatDate, listTime, parseTs, shortDuration } from '../time.ts'
@@ -38,6 +38,24 @@ type Props = RowHandlers & {
   selected?: boolean
   /** Repeat calls this row stands for (see groupRepeats), the row's own call first. */
   group?: Call[]
+  /** In a list that renders only the rows near the viewport: where this row is, for screen readers and the list's measuring. */
+  index?: number
+  setSize?: number
+  measure?: Ref<HTMLDivElement>
+}
+
+/** What a screen reader says for a row (and as J and K move the cursor onto it). */
+export function rowLabel(call: Call, contact: Contact | undefined, group: Call[] | undefined): string {
+  const unread = call.unread || !!group?.some(c => c.unread)
+  return [
+    callerName(call, contact),
+    callTitle(call),
+    group && `${group.length} calls`,
+    unread && 'unread',
+    call.inbox_state === 'done' && 'done',
+  ]
+    .filter(Boolean)
+    .join(', ')
 }
 
 const stop = (run: () => void) => (e: MouseEvent) => {
@@ -166,7 +184,24 @@ function AssignAction({ call, onAssign }: { call: Call; onAssign: (call: Call, a
   )
 }
 
-export function Row({ call, tab, search, segments, isCursor, motion, selected = false, group, ...on }: Props) {
+/**
+ * One call in the list. Memoized: it renders again only when its own props change, so the handlers
+ * it gets must keep their identity (Inbox passes stable ones).
+ */
+export const Row = memo(function Row({
+  call,
+  tab,
+  search,
+  segments,
+  isCursor,
+  motion,
+  selected = false,
+  group,
+  index,
+  setSize,
+  measure,
+  ...on
+}: Props) {
   const contact = useContact(call.contact_id)
   const unread = call.unread || !!group?.some(c => c.unread)
   const live = call.status === 'live'
@@ -174,16 +209,12 @@ export function Row({ call, tab, search, segments, isCursor, motion, selected = 
   const reminded = tabOf(call) === 'reminders'
   return (
     <div
+      ref={measure}
+      data-index={index}
       role="listitem"
-      aria-label={[
-        callerName(call, contact),
-        callTitle(call),
-        group && `${group.length} calls`,
-        unread && 'unread',
-        done && 'done',
-      ]
-        .filter(Boolean)
-        .join(', ')}
+      aria-posinset={index === undefined ? undefined : index + 1}
+      aria-setsize={setSize}
+      aria-label={rowLabel(call, contact, group)}
       className={cx(
         'row',
         motion && `is-${motion}`,
@@ -244,4 +275,4 @@ export function Row({ call, tab, search, segments, isCursor, motion, selected = 
       </span>
     </div>
   )
-}
+})

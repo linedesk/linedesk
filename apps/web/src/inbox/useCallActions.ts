@@ -4,7 +4,7 @@ import type { Call } from '@linedesk/db/types'
 import { useRef, useState } from 'react'
 import { type InboxTab, tabOf } from '../inbox-model.ts'
 import type { Toaster } from '../shell/useToast.ts'
-import { useRun, useSnapshot } from '../store.tsx'
+import { useRun, useTable } from '../store.tsx'
 import {
   assignChange,
   blockChange,
@@ -56,7 +56,7 @@ type Context = {
 
 export function useCallActions({ list, tab, searching, openId, setTab, setCursor, showCall, toaster, me }: Context) {
   const run = useRun()
-  const contacts = useSnapshot().tables.contacts
+  const contacts = useTable('contacts')
   const undoStack = useRef<UndoEntry[]>([])
   const [leaving, setLeaving] = useState<string | null>(null)
   const [entering, setEntering] = useState<string | null>(null)

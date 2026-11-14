@@ -2,7 +2,7 @@
 // placeholders while something loads, plain words and Try again when it does not arrive.
 import type { TableName } from '@linedesk/db/types'
 import { useEffect, useState } from 'react'
-import { useReadSyncDown, useSnapshot } from '../store.tsx'
+import { useReadSyncDown, useSnapshotValue } from '../store.tsx'
 import { Button, cx } from './kit.tsx'
 
 /** After this long without a first load, the list says so and offers to try again. */
@@ -17,8 +17,8 @@ export type LoadState = 'ready' | 'loading' | 'slow'
  * back from an OAuth redirect) is loading too: its local rows are from before that change.
  */
 export function useLoadState(table: TableName): LoadState {
-  const { synced, tables, refreshing, readSyncDown } = useSnapshot()
-  const loading = refreshing.has(table) || (!synced.has(table) && tables[table].size === 0)
+  const loading = useSnapshotValue(s => s.refreshing.has(table) || (!s.synced.has(table) && s.tables[table].size === 0))
+  const readSyncDown = useReadSyncDown()
   const [slow, setSlow] = useState(false)
   useEffect(() => {
     if (!loading) return setSlow(false)

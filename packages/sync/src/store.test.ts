@@ -68,6 +68,27 @@ describe('store', () => {
     store.stop()
   })
 
+  it('keeps the Map and rows of a table nothing changed, so what reads only that table does not render again', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(() => {})),
+    ) // the command stays pending
+    const { adapter, calls } = fakeAdapter()
+    const store = await open(adapter)
+    calls().upsert([call(), call({ id: 'c2' })])
+    const first = store.getSnapshot()
+    void store.run('call.markDone', { callId: 'c1' })
+    const patched = store.getSnapshot()
+    expect(patched.tables.calls).not.toBe(first.tables.calls)
+    expect(patched.tables.calls.get('c2')).toBe(first.tables.calls.get('c2'))
+    expect(patched.tables.contacts).toBe(first.tables.contacts)
+    calls().upsert([call({ id: 'c2' })]) // the same row again: nothing changed
+    expect(store.getSnapshot().tables.calls).toBe(patched.tables.calls) // the pending patch too keeps its row
+    calls().upsert([call({ id: 'c2', unread: false, version: 2 })])
+    expect(store.getSnapshot().tables.calls).not.toBe(patched.tables.calls)
+    store.stop()
+  })
+
   it('sends its workspace with every action', async () => {
     const fetchMock = vi.fn(async (_url: string, _init: RequestInit) => respond(200, { ok: true, rows: {} }))
     vi.stubGlobal('fetch', fetchMock)

@@ -13,7 +13,7 @@ import {
 } from '../inbox-model.ts'
 import { useNow } from '../shell/useNow.ts'
 import type { RouteApi } from '../shell/useRoute.ts'
-import { useAssistantName, useRows, useRun, useSnapshot } from '../store.tsx'
+import { useAssistantName, useRows, useRun, useTable } from '../store.tsx'
 import { SEARCH_INPUT_ID } from './InboxHead.tsx'
 import { matchesSearch } from './search.tsx'
 import { useCursor } from './useCursor.ts'
@@ -31,7 +31,7 @@ export function useInboxView(
   impersonating = false,
 ) {
   const calls = useRows('calls')
-  const contacts = useSnapshot().tables.contacts
+  const contacts = useTable('contacts')
   const segments = useSegmentsByCall()
   const assistantName = useAssistantName()
   const now = useNow()

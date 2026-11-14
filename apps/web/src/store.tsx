@@ -1,6 +1,6 @@
 // One local store per workspace. Components read rows with useRows() and write with useRun().
 import type { TableName, Tables } from '@linedesk/db/types'
-import { resetLocalCache, type Rejection, type Store } from '@linedesk/sync'
+import { resetLocalCache, type Rejection, type Snapshot, type Store } from '@linedesk/sync'
 import {
   createContext,
   type ReactNode,
@@ -43,7 +43,12 @@ export function StoreProvider({
   account,
   readOnly,
   children,
-}: { workspaceId: string; account: string; readOnly?: string; children: ReactNode }) {
+}: {
+  workspaceId: string
+  account: string
+  readOnly?: string
+  children: ReactNode
+}) {
   const [boot, setBoot] = useState<Boot>({ state: 'loading' })
   const [rejection, setRejection] = useState<ClaimableRejection | null>(null)
   // The actions a screen is waiting on and shows refusals of inline, with how many screens wait on each.
@@ -95,7 +100,11 @@ export function StoreProvider({
       <div className="boot" role="alert">
         <b>Your calls could not be loaded</b>
         <span>Reloading fetches them from the server again. Changes you have not sent yet are kept.</span>
-        <button type="button" className="k-btn k-btn-primary k-btn-md" onClick={() => void reloadFromServer(workspaceId)}>
+        <button
+          type="button"
+          className="k-btn k-btn-primary k-btn-md"
+          onClick={() => void reloadFromServer(workspaceId)}
+        >
           Reload
         </button>
       </div>
@@ -120,9 +129,24 @@ function useCtx() {
   return ctx
 }
 
+/** The whole snapshot: renders again on every change of the store. Prefer the narrower hooks below. */
 export function useSnapshot() {
   const { store } = useCtx()
   return useSyncExternalStore(store.subscribe, store.getSnapshot)
+}
+
+/**
+ * One value from the snapshot: renders again only when it changes (by `Object.is`), so `select` must
+ * return a primitive or something the snapshot keeps (a table's Map, a row), never a new object.
+ */
+export function useSnapshotValue<T>(select: (snapshot: Snapshot) => T): T {
+  const { store } = useCtx()
+  return useSyncExternalStore(store.subscribe, () => select(store.getSnapshot()))
+}
+
+/** One table's rows by id; the store keeps the Map while nothing in the table changes. */
+export function useTable<T extends TableName>(table: T): Snapshot['tables'][T] {
+  return useSnapshotValue(s => s.tables[table])
 }
 
 const noStore = () => () => {}
@@ -139,8 +163,8 @@ export function useWorkspaceState() {
 }
 
 export function useRows<T extends TableName>(table: T): Tables[T][] {
-  const map = useSnapshot().tables[table]
-  return useMemo(() => [...map.values()], [map])
+  const map = useTable(table)
+  return useMemo(() => [...map.values()] as Tables[T][], [map])
 }
 
 /** Run a registry action: applied locally at once, synced in the background. */
@@ -170,9 +194,9 @@ export function useClaimedRejection(action: string, waiting: boolean) {
   return { rejection: rejection?.claimed && rejection.action === action ? rejection : null, clearRejection }
 }
 
+/** One contact; renders again only when that contact changes. */
 export function useContact(id: string | null) {
-  const contacts = useSnapshot().tables.contacts
-  return id ? contacts.get(id) : undefined
+  return useSnapshotValue(s => (id ? s.tables.contacts.get(id) : undefined))
 }
 
 /** The workspace's assistants, oldest first: the first one is the default (it answers numbers that name none). */
