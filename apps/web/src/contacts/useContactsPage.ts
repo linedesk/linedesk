@@ -7,14 +7,17 @@ import { contactRows, filterContactRows } from './model.ts'
 
 export const CONTACT_SEARCH_ID = 'contact-search'
 
-/** `creating`: the New contact form is open. */
-type Place = { query: string; cursorId: string | null; openId: string | null; creating: boolean }
-let remembered: Place = { query: '', cursorId: null, openId: null, creating: false }
+/** `searching`: the search field is open in the header (like the inbox's). `creating`: the New contact form is open. */
+type Place = { query: string; searching: boolean; cursorId: string | null; openId: string | null; creating: boolean }
+let remembered: Place = { query: '', searching: false, cursorId: null, openId: null, creating: false }
 
+/** Focus the search field once it is rendered (it replaces the header when the search opens). */
 function focusSearch() {
-  const el = document.getElementById(CONTACT_SEARCH_ID) as HTMLInputElement | null
-  el?.focus()
-  el?.select()
+  requestAnimationFrame(() => {
+    const el = document.getElementById(CONTACT_SEARCH_ID) as HTMLInputElement | null
+    el?.focus()
+    el?.select()
+  })
 }
 
 /** `remove` deletes a contact (with undo); it is the page's # key. */
@@ -36,13 +39,25 @@ export function useContactsPage({ remove }: { remove: (contactId: string) => voi
     const added = awaiting && all.find(r => r.contact.phone === awaiting)
     if (!added) return
     setAwaiting(null)
-    setPlace(p => ({ ...p, query: '', cursorId: added.contact.id, openId: added.contact.id, creating: false }))
+    setPlace(p => ({
+      ...p,
+      query: '',
+      searching: false,
+      cursorId: added.contact.id,
+      openId: added.contact.id,
+      creating: false,
+    }))
   }, [awaiting, all])
 
   const update = (next: Partial<Place>) => setPlace(p => ({ ...p, ...next }))
   const select = (id: string) => update({ cursorId: id, openId: place.openId ? id : null }) // an open record follows the cursor
   const open = (id: string) => update({ cursorId: id, openId: id, creating: false })
   const startCreate = () => update({ creating: true, openId: null })
+  const openSearch = () => {
+    update({ searching: true })
+    focusSearch()
+  }
+  const closeSearch = () => update({ searching: false, query: '', cursorId: null })
   function step(by: number) {
     const i = cursor ? rows.indexOf(cursor) : -1
     const next = rows[Math.max(0, Math.min(rows.length - 1, i + by))]
@@ -54,12 +69,12 @@ export function useContactsPage({ remove }: { remove: (contactId: string) => voi
     if (key === 'j' || key === 'J' || key === 'ArrowDown') step(1)
     else if (key === 'k' || key === 'K' || key === 'ArrowUp') step(-1)
     else if ((key === 'Enter' || key === 'o') && cursor) open(cursor.contact.id)
-    else if (key === '/') focusSearch()
+    else if (key === '/') openSearch()
     else if (key === 'n') startCreate()
     else if (key === '#' && cursor) remove(cursor.contact.id)
     else if (key === 'Escape' && place.creating) update({ creating: false })
     else if (key === 'Escape' && place.openId) update({ openId: null })
-    else if (key === 'Escape' && place.query) update({ query: '' })
+    else if (key === 'Escape' && place.searching) closeSearch()
     else return false
     return true
   }
@@ -74,6 +89,9 @@ export function useContactsPage({ remove }: { remove: (contactId: string) => voi
     cursor,
     opened,
     query: place.query,
+    searching: place.searching,
+    openSearch,
+    closeSearch,
     creating: place.creating,
     startCreate,
     stopCreate: () => update({ creating: false }),

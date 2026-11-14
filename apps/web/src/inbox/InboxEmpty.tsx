@@ -1,18 +1,7 @@
 import type { ReactNode } from 'react'
 import type { InboxTab } from '../inbox-model.ts'
 import { Kbd } from '../ui/kit.tsx'
-
-function Art() {
-  return (
-    <svg className="zero-art" width={168} height={112} viewBox="0 0 168 112" aria-hidden="true" focusable="false">
-      <circle cx={84} cy={70} r={34} className="zero-sun" />
-      <rect x={0} y={70} width={168} height={42} className="zero-ground" />
-      <path d="M8 70h152" className="zero-line" />
-      <path d="M30 84h44M96 84h36M52 96h64" className="zero-wave" />
-      <path d="M74 58l7 7 14-14" className="zero-check" />
-    </svg>
-  )
-}
+import { ZeroState } from '../ui/listPage.tsx'
 
 export type InboxEmptyProps = {
   tab: InboxTab
@@ -71,11 +60,5 @@ export function emptyCopy({ tab, search, assistant, handledCount, hasAnyCalls, q
  */
 export function InboxEmpty(props: InboxEmptyProps) {
   const { title, line } = emptyCopy(props)
-  return (
-    <div className="zero" role="status">
-      <Art />
-      <h2>{title}</h2>
-      {line && <p className="zero-greet">{line}</p>}
-    </div>
-  )
+  return <ZeroState title={title} line={line} />
 }

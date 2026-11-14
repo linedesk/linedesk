@@ -4,14 +4,15 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Step } from '../inbox/changes.ts'
 import { callTitle } from '../inbox-model.ts'
 import { parseTs, timeLabel } from '../time.ts'
-import { Button, cx, Icon, Kbd } from '../ui/kit.tsx'
+import { Button, cx } from '../ui/kit.tsx'
 import { Loading, SkeletonRows, useLoading, useLoadState } from '../ui/LoadStates.tsx'
 import { ColumnHeads } from '../ui/list.tsx'
+import { PageTitle, SearchButton, SearchField, ShortcutHints, ZeroState } from '../ui/listPage.tsx'
 import { ContactDetail } from './ContactDetail.tsx'
 import './contacts.css'
 import { ImportContacts } from './ImportContacts.tsx'
 import { MergeContacts } from './MergeContacts.tsx'
-import { contactLabel, type ContactRow, duplicatePairs } from './model.ts'
+import { contactLabel, type ContactRow, contactsEmptyCopy, duplicatePairs } from './model.ts'
 import { NewContact } from './NewContact.tsx'
 import { CONTACT_SEARCH_ID, useContactsPage } from './useContactsPage.ts'
 
@@ -23,41 +24,6 @@ type Props = {
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
-
-function SearchBar({
-  query,
-  shown,
-  total,
-  onChange,
-}: {
-  query: string
-  shown: number
-  total: number
-  onChange: (query: string) => void
-}) {
-  return (
-    <div className="ib-search">
-      <Icon name="search" size={15} />
-      <input
-        id={CONTACT_SEARCH_ID}
-        value={query}
-        placeholder="Search contacts"
-        aria-label="Search contacts"
-        autoComplete="off"
-        title="Search contacts (/)"
-        onChange={e => onChange(e.target.value)}
-        onKeyDown={e => {
-          if (e.key === 'Enter' || e.key === 'ArrowDown') {
-            e.preventDefault()
-            e.currentTarget.blur()
-          }
-          if (e.key === 'Escape' && query) onChange('') // the app's key handler then blurs the field
-        }}
-      />
-      {total ? <span className="ib-search-n">{query ? `${shown} of ${total}` : plural(total, 'contact')}</span> : null}
-    </div>
-  )
-}
 
 function Row({
   row,
@@ -80,6 +46,7 @@ function Row({
         if (!isCursor) onHover()
       }}
     >
+      <span className="c-cell c-last">{lastCall ? timeLabel(parseTs(lastCall.started_at)) : '—'}</span>
       <span className="r-name c-name">
         <span>{contactLabel(contact)}</span>
       </span>
@@ -89,54 +56,24 @@ function Row({
         {nextStep && <span className="c-next"> · {nextStep}</span>}
       </span>
       <span className="c-cell c-count">{plural(row.calls.length, 'call')}</span>
-      <span className="c-cell c-last">{lastCall ? timeLabel(parseTs(lastCall.started_at)) : '—'}</span>
     </div>
   )
 }
 
-/** One heading per cell of a row, in the row's order (name, company, last call, calls, when). */
-const CONTACT_COLUMNS = ['Name', 'Company', 'Last call', 'Calls', 'When'] as const
-
-function Empty({ query }: { query: string }) {
-  return (
-    <div className="empty">
-      <Icon name="users" size={22} />
-      {query ? (
-        <>
-          <b>No contact matches “{query}”</b>
-        </>
-      ) : (
-        <>
-          <b>No contacts yet</b>
-          <span>Everyone who calls shows up here.</span>
-        </>
-      )}
-    </div>
-  )
-}
+/** One heading per cell of a row, in the row's order; the time comes first, as in the inbox. */
+const CONTACT_COLUMNS = ['When', 'Name', 'Company', 'Last call', 'Calls'] as const
 
 function Hints({ open }: { open: boolean }) {
-  const hints: [string[], string][] = [
-    [['⏎'], 'open'],
-    [['/'], 'search'],
-    [['N'], 'new'],
-    ...(open ? [[['esc'], 'close'] as [string[], string]] : []),
-    [['?'], 'all shortcuts'],
-  ]
   return (
-    <div className="ib-hint">
-      <span>
-        <Kbd keys={['J']} />
-        <Kbd keys={['K']} />
-        move
-      </span>
-      {hints.map(([keys, label]) => (
-        <span key={label}>
-          <Kbd keys={keys} />
-          {label}
-        </span>
-      ))}
-    </div>
+    <ShortcutHints
+      hints={[
+        [['⏎'], 'open'],
+        [['/'], 'search'],
+        [['N'], 'new'],
+        ...(open ? [[['esc'], 'close'] as [string[], string]] : []),
+        [['?'], 'all shortcuts'],
+      ]}
+    />
   )
 }
 
@@ -154,6 +91,7 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
   const waiting = loadState !== 'ready' || listView.phase !== 'content'
   const numbers = useMemo(() => new Set(page.all.map(r => r.contact.phone)), [page.all])
   const { rows, cursor, opened, query } = page
+  const empty = !waiting && rows.length === 0
   const [importing, setImporting] = useState(false)
   const [merging, setMerging] = useState<{ first: ContactRow; second: ContactRow | null } | null>(null)
   const duplicates = useMemo(() => {
@@ -166,31 +104,47 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
   }, [cursor])
   return (
     <div className="cv">
-      <h1 className="sr-only">Contacts</h1>
-      <div className="ib-head ct-head">
+      <div className="ib-head">
         {menu}
-        <SearchBar query={query} shown={rows.length} total={page.all.length} onChange={page.setQuery} />
-        <Button
-          size="sm"
-          variant="ghost"
-          icon="plus"
-          shortcut={['N']}
-          aria-label="New contact"
-          title="New contact (N)"
-          onClick={page.startCreate}
-        >
-          New contact
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          icon="attach"
-          aria-label="Import contacts"
-          title="Import contacts from a CSV file"
-          onClick={() => setImporting(true)}
-        >
-          Import
-        </Button>
+        {page.searching ? (
+          <SearchField
+            id={CONTACT_SEARCH_ID}
+            value={query}
+            placeholder="Search names, numbers, companies and emails"
+            label="Search contacts"
+            onChange={page.setQuery}
+            onClose={page.closeSearch}
+            escapeCloses
+          />
+        ) : (
+          <>
+            <PageTitle title="Contacts" count={page.all.length} />
+            <div className="ib-right">
+              <Button
+                size="sm"
+                variant="ghost"
+                icon="attach"
+                aria-label="Import contacts"
+                title="Import contacts from a CSV file"
+                onClick={() => setImporting(true)}
+              >
+                Import
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                icon="plus"
+                shortcut={['N']}
+                aria-label="New contact"
+                title="New contact (N)"
+                onClick={page.startCreate}
+              >
+                New contact
+              </Button>
+              <SearchButton label="Search contacts" onClick={page.openSearch} />
+            </div>
+          </>
+        )}
       </div>
       <div className={cx('cv-main', 'cust-main', (opened || page.creating) && 'has-rec')}>
         <div className="cv-center">
@@ -207,12 +161,13 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
             </div>
           )}
           <div
-            className={cx('ib-list', 'ct-list', listView.fadeIn && 'ld-rows-in')}
+            className={cx('ib-list', 'ct-list', empty && 'is-zero', listView.fadeIn && 'ld-rows-in')}
             ref={listRef}
             role="list"
             aria-label="Contacts"
           >
-            {(rows.length > 0 || waiting) && <ColumnHeads className="ct-cols" labels={CONTACT_COLUMNS} />}
+            {/* The headings stand over the skeleton, the rows and the empty state alike (as in the inbox). */}
+            <ColumnHeads className="ct-cols" labels={CONTACT_COLUMNS} />
             {!waiting &&
               rows.map(row => (
                 <Row
@@ -231,10 +186,10 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
                 skeleton={<SkeletonRows rows={8} columns={5} />}
               />
             ) : (
-              !rows.length && <Empty query={query} />
+              empty && <ZeroState {...contactsEmptyCopy(query)} />
             )}
           </div>
-          {rows.length ? <Hints open={!!opened} /> : null}
+          <Hints open={!!opened} />
         </div>
         {page.creating ? (
           <NewContact existing={numbers} onAdded={page.added} onClose={page.stopCreate} />

@@ -883,6 +883,20 @@ body,
   padding-right: var(--gutter);
 }
 
+/* A list page's visible title (PageTitle in ui/listPage.tsx): the inbox's view title, as a heading. */
+h1.ib-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: inherit;
+}
+@media (max-width: 719px) {
+  .cv > .ib-head .ib-title {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+
 /* One call: the reading width. */
 .cv-col {
   max-width: var(--w-read);
@@ -1470,8 +1484,7 @@ button.k-link {
     flex: none;
     gap: 2px;
   }
-  /* Contacts: the search keeps the room; New contact and Import show only their icons. */
-  .ct-head .ib-search-n,
+  /* A contact's record: its header buttons show only their icons (the page header's do so through .ib-right). */
   .ct-head .k-btn .k-kbds {
     display: none;
   }

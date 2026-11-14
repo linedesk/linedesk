@@ -168,3 +168,13 @@ export function newContactInput(
   }
   return { input }
 }
+
+/**
+ * The empty list, in the inbox's empty state (ZeroState in ui/listPage.tsx): its words, and a person in
+ * the picture where the inbox has its check, with or without a search.
+ */
+export function contactsEmptyCopy(query: string): { title: string; line: string | null; mark: 'contact' } {
+  return query.trim()
+    ? { title: `No contact matches “${query.trim()}”`, line: null, mark: 'contact' }
+    : { title: 'No contacts yet', line: 'Everyone who calls shows up here.', mark: 'contact' }
+}

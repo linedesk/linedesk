@@ -5,9 +5,10 @@ import type { SegmentsByCall } from '../call/segments.ts'
 import type { CallGroups, InboxTab } from '../inbox-model.ts'
 import { useAssistantName, useContact } from '../store.tsx'
 import { Checkbox } from '../ui/controls.tsx'
-import { cx, Icon, Kbd } from '../ui/kit.tsx'
+import { cx, Icon } from '../ui/kit.tsx'
 import { Loading, SkeletonRows, useLoading, useLoadState } from '../ui/LoadStates.tsx'
 import { ColumnHeads } from '../ui/list.tsx'
+import { ShortcutHints } from '../ui/listPage.tsx'
 import type { BulkActions } from './BulkBar.tsx'
 import { InboxHead, type InboxHeadProps } from './InboxHead.tsx'
 import { InboxEmpty } from './InboxEmpty.tsx'
@@ -104,27 +105,10 @@ function ListHead({
 
 function Hints({ tab }: { tab: InboxTab }) {
   const done: [string[], string] = tab === 'done' ? [['⇧', 'E'], 'not done'] : [['E'], 'done']
-  const hints: [string[], string][] = [
-    [['⏎'], 'open'],
-    done,
-    [['tab'], 'switch'],
-    [['⌘', 'K'], 'commands'],
-    [['?'], 'all shortcuts'],
-  ]
   return (
-    <div className="ib-hint">
-      <span>
-        <Kbd keys={['J']} />
-        <Kbd keys={['K']} />
-        move
-      </span>
-      {hints.map(([keys, label]) => (
-        <span key={label}>
-          <Kbd keys={keys} />
-          {label}
-        </span>
-      ))}
-    </div>
+    <ShortcutHints
+      hints={[[['⏎'], 'open'], done, [['tab'], 'switch'], [['⌘', 'K'], 'commands'], [['?'], 'all shortcuts']]}
+    />
   )
 }
 

@@ -1,9 +1,10 @@
 /* Contacts list. Loaded before styles.css (it comes in through the module graph), so rules carry
    three classes to win over the prototype's `.row:not(.cust-row)` and `.cust-row` rules. */
-/* Name · company · last call · calls · when, shared by the rows and the column headings
-   (ColumnHeads in ui/list.tsx, like the inbox's). */
+/* When · name · company · last call · calls, shared by the rows and the column headings (ColumnHeads
+   in ui/list.tsx). The time and name columns are the inbox's time and caller columns, so both pages
+   line up. */
 .ib-list.ct-list {
-  --ct-columns: minmax(120px, 200px) minmax(90px, 160px) minmax(0, 1fr) 56px 72px;
+  --ct-columns: 128px minmax(110px, 220px) minmax(90px, 160px) minmax(0, 1fr) 56px;
 }
 .row.cust-row.ct-row,
 .ib-list .ib-cols.ct-cols {
@@ -22,6 +23,13 @@
 .row.cust-row.ct-row .c-last {
   text-align: left;
   white-space: nowrap;
+}
+/* The time in the inbox's type: mono, small, muted. */
+.row.cust-row.ct-row .c-last {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
 }
 .row.cust-row.ct-row:hover .c-last,
 .row.cust-row.ct-row.is-cursor .c-last {

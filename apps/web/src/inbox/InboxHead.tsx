@@ -6,6 +6,7 @@ import { useAssistantName, useContact } from '../store.tsx'
 import { clock, parseTs } from '../time.ts'
 import { Button, Icon } from '../ui/kit.tsx'
 import { useElapsed } from '../ui/LiveIndicator.tsx'
+import { SearchButton, SearchField } from '../ui/listPage.tsx'
 import { type BulkActions, BulkBar } from './BulkBar.tsx'
 import { voiceFailing, voiceFix, voiceNotSetUp } from './goLive.ts'
 
@@ -34,35 +35,6 @@ const modeTitle: Partial<Record<InboxTab, string>> = {
   mine: 'Assigned to me',
   member: 'Assigned to a teammate',
   unassigned: 'Unassigned',
-}
-
-function SearchBar({
-  search,
-  onSearchChange,
-  onSearchClose,
-}: Pick<InboxHeadProps, 'onSearchChange' | 'onSearchClose'> & { search: string }) {
-  return (
-    <div className="ib-search">
-      <Icon name="search" size={15} />
-      <input
-        id={SEARCH_INPUT_ID}
-        value={search}
-        placeholder="Search calls, callers and transcripts"
-        aria-label="Search calls"
-        autoComplete="off"
-        onChange={e => onSearchChange(e.target.value)}
-        onKeyDown={e => {
-          if (e.key === 'Enter' || e.key === 'ArrowDown') {
-            e.preventDefault()
-            e.currentTarget.blur()
-          }
-        }}
-      />
-      <Button size="sm" variant="ghost" shortcut={['esc']} title="Close search (esc)" onClick={onSearchClose}>
-        Close
-      </Button>
-    </div>
-  )
 }
 
 function Tabs({ tab, setTab, counts }: Pick<InboxHeadProps, 'tab' | 'setTab' | 'counts'>) {
@@ -212,7 +184,14 @@ export function InboxHead({
     <div className="ib-head">
       {menu}
       {p.search !== null ? (
-        <SearchBar search={p.search} onSearchChange={p.onSearchChange} onSearchClose={p.onSearchClose} />
+        <SearchField
+          id={SEARCH_INPUT_ID}
+          value={p.search}
+          placeholder="Search calls, callers and transcripts"
+          label="Search calls"
+          onChange={p.onSearchChange}
+          onClose={p.onSearchClose}
+        />
       ) : mode ? (
         <Mode
           title={mode}
@@ -226,16 +205,7 @@ export function InboxHead({
       {p.search === null && (
         <div className="ib-right">
           <Presence liveCall={p.liveCall} onOpen={p.onOpen} canFixVoice={p.canFixVoice} />
-          <Button
-            size="sm"
-            variant="ghost"
-            icon="search"
-            shortcut={['/']}
-            title="Search calls (/)"
-            onClick={p.onSearch}
-          >
-            Search
-          </Button>
+          <SearchButton label="Search calls" onClick={p.onSearch} />
         </div>
       )}
     </div>
