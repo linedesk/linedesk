@@ -47,9 +47,8 @@ const HOUR = 60
 
 const INSTRUCTIONS = `We are a family-run plumbing and heating company in Portland, Oregon (Portland, Beaverton, Lake Oswego, Tigard, Milwaukie).
 Services: leak repair, water heaters (tank and tankless), drain cleaning, bathroom remodels, furnace service.
-Book repair visits and free estimates when the caller wants one; ask for the address. Never quote prices on the phone: Mike sends quotes himself.
-Gas smell, no heat with small children or elderly people at home, or water that cannot be shut off: urgent, put the call through to Mike.
-Emergency call-out fee after hours is $150, credited to the job.`
+Never quote prices for jobs on the phone: Mike sends quotes himself. The one price you may tell callers: the after-hours call-out fee is $150, credited to the job.
+Urgent: water that can't be shut off, a sewer backup, or no heat in freezing weather. Mark these calls urgent.`
 
 // On top of the demo morning (demo-calls.ts): bookings, a transfer, reminders, done, assigned, a test call, older history.
 const extraCalls: WorkspaceSeedCall[] = [
@@ -102,20 +101,20 @@ const extraCalls: WorkspaceSeedCall[] = [
     outcome: 'transferred',
     urgency: 'urgent',
     done: true,
-    title: 'Gas smell near the water heater, put through to Mike',
+    title: 'Water heater leaking, valve stuck, put through to Mike',
     summary:
-      'Faint gas smell next to the water heater in the garage. Put through to Mike, who talked him through it and is on his way.',
+      'Water heater in the garage leaking and the shut-off valve is stuck. Put through to Mike, who talked him through it and is on his way.',
     transfer: { result: 'connected' },
     fields: [{ label: 'Address', value: '2210 SE Hawthorne Blvd, Portland' }],
     lines: [
       greet,
-      ['caller', 'There is a gas smell next to my water heater in the garage.'],
-      ['agent', 'Please leave the garage and do not switch anything on or off. I am putting you through to Mike now.'],
+      ['caller', 'My water heater in the garage is leaking and the valve will not turn.'],
+      ['agent', 'That sounds urgent. I am putting you through to Mike now.'],
       ['system', 'Flagged as urgent'],
       ['system', `Transferring to ${ONCALL_NUMBER}`],
-      ['human', 'Hi Rob, this is Mike. Are you outside the garage?'],
-      ['caller', 'Yes, I am outside.'],
-      ['human', 'Good. Shut the gas valve by the meter if you can reach it safely, I will be there in 20 minutes.'],
+      ['human', 'Hi Rob, this is Mike. Is the water spreading?'],
+      ['caller', 'It is pooling on the floor.'],
+      ['human', 'Shut the main water valve by the meter if you can reach it, I will be there in 20 minutes.'],
     ],
   },
   {
@@ -431,7 +430,7 @@ async function seedAssistant(workspaceId: string, business: string): Promise<str
         id: 'oncall',
         name: 'Mike (on-call)',
         number: ONCALL_NUMBER,
-        condition: 'Urgent: a burst pipe, flooding, a gas smell or no heat in freezing weather',
+        condition: 'Urgent: a burst pipe, flooding, a sewer backup or no heat in freezing weather',
         hours_only: false,
         ring_seconds: RING_SECONDS_DEFAULT,
         if_no_answer: 'message' as const,

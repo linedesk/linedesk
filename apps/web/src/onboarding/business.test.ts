@@ -54,12 +54,10 @@ describe('industry templates', () => {
     expect(templateFor({ name: 'The Corner Bookshop' })).toBeNull()
   })
 
-  test('each template is a few lines, emergencies to 911 first, then what is urgent', () => {
+  test('each template is a few lines, what is urgent first; no 911 line (every prompt has it) and no transfer promise', () => {
     for (const [id, t] of Object.entries(businessTemplates)) {
-      expect(t.useCases[0], id).toMatch(/fire, a break-in, a gas smell .* call 911, and with a gas smell to leave/)
-      expect(t.useCases[1], id).toMatch(
-        /, treat it as urgent: take .* and put them through or mark the message urgent\.$/,
-      )
+      expect(t.useCases[0], id).toMatch(/, treat it as urgent: take .* and mark the message urgent\.$/)
+      expect(t.useCases.join('\n'), id).not.toMatch(/911|gas smell|put them through/)
       expect(t.useCases.length, id).toBeGreaterThan(0)
       expect(t.useCases.length, id).toBeLessThanOrEqual(4)
     }
@@ -85,10 +83,9 @@ describe('industry templates', () => {
     ])
     expect(lines).toContain('When a caller asks for Mike, take a message.')
     expect(lines).toContain('When a caller asks about water heaters, offer a free estimate.')
-    // The emergency line is in every template; the plumbing ones go.
-    for (const plumbing of businessTemplates.plumbing_hvac.useCases)
-      if (!businessTemplates.salon_spa.useCases.includes(plumbing)) expect(lines).not.toContain(plumbing)
-    expect(lines.filter(l => l.includes('911'))).toHaveLength(1)
+    // The plumbing lines go; no template has a 911 line (every prompt has the emergency rule).
+    for (const plumbing of businessTemplates.plumbing_hvac.useCases) expect(lines).not.toContain(plumbing)
+    expect(lines.filter(l => l.includes('911'))).toHaveLength(0)
   })
 })
 

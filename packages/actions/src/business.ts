@@ -29,13 +29,11 @@ export type BusinessTemplate = {
 }
 
 /**
- * Every template starts with the same two lines: an emergency (danger to people, fire, break-in, gas smell) goes to
- * 911, never to the business; what can't wait but is no emergency is an urgent matter, put through or marked urgent.
+ * Every template starts with what is urgent for that trade. Emergencies (danger to people, fire, a break-in, a gas
+ * smell) are not in them: every prompt sends those to 911 already (EMERGENCY_RULE). Whether an urgent call is put
+ * through is up to Settings › Transfers, so the line only says to mark it urgent.
  */
-const EMERGENCY =
-  'When a caller reports a medical emergency, a fire, a break-in, a gas smell or anyone in danger, tell them to hang up and call 911, and with a gas smell to leave the building first.'
-const urgent = (when: string, take: string) =>
-  `When a caller ${when}, treat it as urgent: take ${take} and put them through or mark the message urgent.`
+const urgent = (when: string, take: string) => `When a caller ${when}, treat it as urgent: take ${take} and mark the message urgent.`
 
 export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
   plumbing_hvac: {
@@ -43,7 +41,6 @@ export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
     placesTypes: ['plumber', 'hvac_contractor', 'heating_contractor', 'air_conditioning_contractor'],
     nameWords: /plumb|heating|hvac|cooling|air condition|furnace|drain|rooter/i,
     useCases: [
-      EMERGENCY,
       urgent('has a leak, flooding or no heat', 'their address and number'),
       "When a caller wants a repair or an estimate, ask what is wrong, their address and when they're home.",
       'When a caller asks about prices, give the prices you know and offer a callback for a quote otherwise.',
@@ -62,7 +59,6 @@ export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
     ],
     nameWords: /dental|dentist|orthodont|clinic|medical|family practice|pediatric|chiropract|physio/i,
     useCases: [
-      EMERGENCY,
       urgent('has severe pain, swelling or a broken tooth', 'their name and number'),
       'When a caller wants an appointment, ask whether they are a new or existing patient and what it is for, and take their name and number.',
       'When a caller asks about insurance, take the plan name and offer a callback from the office; never ask for or repeat medical details beyond the reason for the visit.',
@@ -82,7 +78,6 @@ export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
     ],
     nameWords: /salon|spa\b|barber|nails?\b|hair|beauty|massage|lash|brow/i,
     useCases: [
-      EMERGENCY,
       urgent("can't make an appointment today", 'their name and the appointment time'),
       'When a caller wants to book, ask which service, which day and time suit them, and whether they have a favorite stylist.',
       'When a caller wants to cancel or move an appointment, take their name, the appointment time and a new time that suits them.',
@@ -93,7 +88,6 @@ export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
     placesTypes: ['lawyer', 'legal_services', 'attorney'],
     nameWords: /\blaw\b|legal|attorney|lawyer|esq/i,
     useCases: [
-      EMERGENCY,
       urgent('has a court deadline in the next few days', 'their name, number and the deadline'),
       'When a new client calls, ask what kind of matter it is and take their name and number for a callback; never give legal advice.',
       'When an existing client calls, take their name, their matter and their message for the attorney.',
@@ -114,7 +108,6 @@ export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
     ],
     nameWords: /electric|roof|locksmith|paint|moving|movers|landscap|lawn|pest|cleaning|handyman|contractor|remodel/i,
     useCases: [
-      EMERGENCY,
       urgent("has no power, water coming in or can't lock their door", 'their address and number'),
       "When a caller wants a job done or an estimate, ask what they need, their address and when they're available.",
       'When a caller asks about prices, give the prices you know and offer an estimate otherwise.',
@@ -125,7 +118,6 @@ export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
     placesTypes: [],
     nameWords: null,
     useCases: [
-      EMERGENCY,
       urgent("has something that can't wait", 'their name and number'),
       'When a caller wants to speak to someone, take their name, number and what it is about for a callback.',
       'When a caller asks about prices or opening hours, answer from what you know.',
