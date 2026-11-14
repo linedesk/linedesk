@@ -1,6 +1,12 @@
 // Environment access for the agent: fail early and name what is missing.
 
+/** The agent the SIP dispatch rule and test calls send business calls to. */
 export const AGENT_NAME = 'linedesk'
+/**
+ * The name this worker registers under: AGENT_NAME, unless the AGENT_NAME env var names another one. Only the load test
+ * sets it, for the worker that plays the test callers, so they are not counted in the business worker's memory.
+ */
+export const workerAgentName = () => process.env.AGENT_NAME || AGENT_NAME
 
 /** The secret in .env.example and docker-compose.yml; fine on localhost, never anywhere else. */
 export const DEV_LIVEKIT_SECRET = 'devsecret-change-me-at-least-32-chars'

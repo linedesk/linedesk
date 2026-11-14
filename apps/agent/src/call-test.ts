@@ -18,17 +18,15 @@ import {
   callFindForTest,
   callRecordTimings,
   type CallTestFinding,
-  VOICE_PIPELINE_LABELS,
   VOICE_PIPELINES,
   type VoicePipeline,
 } from '@linedesk/actions'
-import { AgentDispatchClient, RoomServiceClient } from 'livekit-server-sdk'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { isRealtimeModelId } from './call-session.ts'
-import { AGENT_NAME, livekitHttpUrl, requireEnv, requireLivekitEnv, runScript } from './env.ts'
+import { AGENT_NAME, requireEnv, runScript } from './env.ts'
 import { CALLEE_IDENTITY } from './test-caller/caller.ts'
-import { type AgentSetup, LATENCY_ATTRIBUTE, type LatencySample, SETUP_ATTRIBUTE } from './test-caller/latency.ts'
 import { evaluateCall, formatCallerLatency, formatReport, greetingCheck } from './test-caller/report.ts'
+import { dispatcher, latencyReader, type RoomCall, startInRoom, waitForCallEnd } from './test-caller/room.ts'
 import { waitForFinishedCall } from './test-caller/wait.ts'
 import {
   isScenario,
@@ -37,8 +35,6 @@ import {
   scenarioNames,
   scenarios,
   type CallTestMode,
-  type Scenario,
-  type ScenarioName,
   type TestCallerMetadata,
 } from './test-caller/scenarios.ts'
 import { findOutboundTrunk, sipClient } from './sip-trunks.ts'
@@ -48,122 +44,10 @@ const MAX_CALL_SEC = 210
 /** How long to wait after hang-up for the summary and finish to land. */
 const RESULT_WAIT_MS = 90_000
 
-type Run = {
-  name: ScenarioName
-  mode: CallTestMode
-  to: string
-  room: string
-  since: string
-  api: ApiClient
-  persona?: string | undefined
-  pipeline?: VoicePipeline | undefined
-  realtimeModel?: string | undefined
-}
-
-/**
- * Reads, while the room exists, the test caller's latency attribute and the business agent's setup
- * attribute; keeps the last value seen of each.
- */
-function latencyReader(room: string) {
-  const livekit = requireLivekitEnv()
-  const rooms = new RoomServiceClient(
-    livekitHttpUrl(livekit.LIVEKIT_URL),
-    livekit.LIVEKIT_API_KEY,
-    livekit.LIVEKIT_API_SECRET,
-  )
-  let last: LatencySample | null = null
-  let setup: AgentSetup | null = null
-  return {
-    get: () => last,
-    setup: () => setup,
-    async poll() {
-      const participants = await rooms.listParticipants(room).catch(() => [])
-      for (const p of participants) {
-        const value = p.attributes[LATENCY_ATTRIBUTE]
-        if (value) last = JSON.parse(value) as LatencySample
-        const own = p.attributes[SETUP_ATTRIBUTE]
-        if (own) setup = JSON.parse(own) as AgentSetup
-      }
-    },
-  }
-}
-
-/** Polls until the test caller's room is empty (the call ended) or `deadline`, reading the latency on the way. */
-async function waitForCallEnd(room: string, deadline: number, poll: () => Promise<void>) {
-  const livekit = requireLivekitEnv()
-  const rooms = new RoomServiceClient(
-    livekitHttpUrl(livekit.LIVEKIT_URL),
-    livekit.LIVEKIT_API_KEY,
-    livekit.LIVEKIT_API_SECRET,
-  )
-  while (Date.now() < deadline) {
-    await new Promise(resolve => setTimeout(resolve, 3000))
-    await poll()
-    if (!(await rooms.listParticipants(room).catch(() => [])).length) return
-  }
-}
+type Run = RoomCall & { mode: CallTestMode }
 
 const isPipeline = (value: string | undefined): value is VoicePipeline =>
   (VOICE_PIPELINES as readonly (string | undefined)[]).includes(value)
-
-function dispatcher() {
-  const livekit = requireLivekitEnv()
-  return new AgentDispatchClient(
-    livekitHttpUrl(livekit.LIVEKIT_URL),
-    livekit.LIVEKIT_API_KEY,
-    livekit.LIVEKIT_API_SECRET,
-  )
-}
-
-/** Resolves once someone is in `room`; throws after `timeoutMs`. */
-async function waitForParticipant(room: string, timeoutMs = 20_000) {
-  const livekit = requireLivekitEnv()
-  const rooms = new RoomServiceClient(
-    livekitHttpUrl(livekit.LIVEKIT_URL),
-    livekit.LIVEKIT_API_KEY,
-    livekit.LIVEKIT_API_SECRET,
-  )
-  for (
-    const deadline = Date.now() + timeoutMs;
-    Date.now() < deadline;
-    await new Promise(resolve => setTimeout(resolve, 100))
-  ) {
-    if ((await rooms.listParticipants(room).catch(() => [])).length) return
-  }
-  throw new Error(`the test caller did not join room ${room} within ${timeoutMs / 1000} s`)
-}
-
-/** Both agents in one room: the test caller, and the business's as a test call of its workspace. */
-async function startInRoom({ name, room, to, since, api, persona, pipeline, realtimeModel }: Run) {
-  const { workspaceId } = (await api.run(callFindForTest, { to, since, room })).data as CallTestFinding
-  const dispatch = dispatcher()
-  const caller: TestCallerMetadata = {
-    source: 'test-caller',
-    scenario: name,
-    mode: 'room',
-    ...(persona ? { persona } : {}),
-  }
-  const { businessHours, outsideGreeting, onCall, languages, mainLanguage } = scenarios[name] as Scenario
-  const metadata = {
-    source: 'test',
-    workspaceId,
-    ...(pipeline ? { pipeline } : {}),
-    ...(realtimeModel ? { realtimeModel } : {}),
-    ...(businessHours ? { businessHours } : {}),
-    ...(outsideGreeting ? { outsideGreeting } : {}),
-    ...(onCall ? { onCall } : {}),
-    ...(languages ? { languages } : {}),
-    ...(mainLanguage ? { mainLanguage } : {}),
-  }
-  // The caller first, as on a phone call: the caller is in the room when the business's job starts,
-  // so the business's own timing from its job start is not the time the test caller takes to join.
-  await dispatch.createDispatch(room, AGENT_NAME, { metadata: JSON.stringify(caller) })
-  await waitForParticipant(room)
-  await dispatch.createDispatch(room, AGENT_NAME, { metadata: JSON.stringify(metadata) })
-  console.log(
-    `Test call in room ${room} with workspace ${workspaceId} (scenario ${name}, no phone${pipeline ? `, ${VOICE_PIPELINE_LABELS[pipeline].toLowerCase()}` : ''}${realtimeModel ? `, ${realtimeModel}` : ''})…`,
-  )
-}
 
 /** The test caller in its own room, dialling the business number over Telnyx. */
 async function startByPhone({ name, room, to, persona }: Run, from: string) {

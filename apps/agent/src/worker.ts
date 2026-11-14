@@ -22,7 +22,7 @@ import { lookupTools } from './lookup-tools.ts'
 import { callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
 import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, SETTINGS_TTL_MS, stagesOf, withRealtimeModel } from './config.ts'
-import { AGENT_NAME, requireLivekitEnv } from './env.ts'
+import { requireLivekitEnv, workerAgentName } from './env.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
 import { type CallLanguages, createPipeline, createRealtimePipeline, createTts, greetingVoice, type LineVoice, lineVoiceOf, realtimeLine, spokeWithBackup, ttsFor, realtimeRepliesEvent, type RealtimeEvents, summaryLlm, transferSpeechOf, talkingSpeedOf, warmUpLlm, REALTIME_TURNS } from './pipeline.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
@@ -718,7 +718,7 @@ async function main() {
   // person lasts up to CALL_MAX_MINUTES, longer than the library's 60 minutes; the container's
   // stop_grace_period (LINEDESK_AGENT_DRAIN) is a little longer again, so this limit is the one that applies.
   const drainTimeout = (CALL_MAX_MINUTES + 5) * 60_000
-  cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: AGENT_NAME, numIdleProcesses, loadThreshold, initializeProcessTimeout, drainTimeout }))
+  cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: workerAgentName(), numIdleProcesses, loadThreshold, initializeProcessTimeout, drainTimeout }))
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) void main()

@@ -10,6 +10,7 @@
     "setup-oncall-test": "tsx --env-file=../../.env src/setup-oncall-test.ts",
     "talk": "tsx --env-file=../../.env src/talk.ts",
     "simulate": "tsx --env-file=../../.env src/simulate.ts",
+    "load-test": "tsx src/load-test/main.ts",
     "typecheck": "tsc -p .",
     "test": "vitest run"
   },
