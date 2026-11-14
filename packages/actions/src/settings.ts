@@ -449,7 +449,7 @@ export type WorkspaceSettingsData = {
   derivedDays?: DerivedDay[]
   /** Vacation or closure mode; null: off. Missing from an older API. */
   closure?: Closure | null
-  /** The value of one booked appointment in cents (Insights); null: not set. */
+  /** The value of one booked appointment in the minor units of its currency (cents; whole yen for JPY), for Insights; null: not set. */
   jobValueCents: number | null
   /** The currency of jobValueCents. Missing from an older API: USD. */
   jobValueCurrency?: JobValueCurrency
@@ -619,7 +619,9 @@ export const workspaceGetSettings = defineAction({
 export const workspaceUpdateSettings = defineAction({
   name: 'workspace.updateSettings',
   description:
-    'Change workspace settings: `recordingRetentionDays` (0: no recordings are kept, calls are not recorded; 30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting; off by default), `recordingNotice` (that sentence, e.g. "This call may be recorded."), `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles") and `jobValueCents` (what a booked appointment is worth on average, in cents, for Insights; null clears it), `jobValueCurrency` (its currency: USD, EUR, GBP, CAD, AUD or CHF; USD until set); `closure` (vacation or closure mode: closed from `from` to `until`, with its own `greeting`, and `transfers` none or urgent only; null: off); `pickupMode` (when the assistant picks up, as chosen in onboarding: no_answer, always or after_hours; it decides which forwarding code is shown, the routing itself stays with the number\'s mode and the business hours).',
+    'Change workspace settings: `recordingRetentionDays` (0: no recordings are kept, calls are not recorded; 30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting; off by default), `recordingNotice` (that sentence, e.g. "This call may be recorded."), `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles") and `jobValueCents` (what a booked appointment is worth on average, for Insights, in the minor units of its currency: cents, or whole yen for JPY; null clears it), `jobValueCurrency` (its currency: ' +
+    jobValueCurrencies.join(', ') +
+    '; USD until set; changed without jobValueCents, the shown amount stays: $350 becomes ¥350); `closure` (vacation or closure mode: closed from `from` to `until`, with its own `greeting`, and `transfers` none or urgent only; null: off); `pickupMode` (when the assistant picks up, as chosen in onboarding: no_answer, always or after_hours; it decides which forwarding code is shown, the routing itself stays with the number\'s mode and the business hours).',
   input: z.object({
     recordingRetentionDays: z.union([z.literal(recordingRetentionChoices), z.null()]).optional(),
     businessHoursOn: z.boolean().optional(),

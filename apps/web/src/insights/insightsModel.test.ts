@@ -5,6 +5,7 @@ import {
   CURRENCY_OPTIONS,
   currencyLabel,
   formatMoney,
+  moneyText,
   parseMoney,
   change,
   columns,
@@ -125,6 +126,32 @@ test('money is shown in the appointment value currency, in whole units', () => {
   expect(parseMoney('£90')).toBe(9_000)
 })
 
+test('JPY has no minor units: ¥5,000 is typed as 5000, stored as 5000 and shown without decimals', () => {
+  expect(parseMoney('5000', 'JPY')).toBe(5_000)
+  expect(parseMoney('¥5,000', 'JPY')).toBe(5_000)
+  expect(parseMoney('5000.5', 'JPY')).toBeUndefined()
+  expect(formatMoney(5_000, 'JPY')).toBe('¥5,000')
+  expect(moneyText(5_000, 'JPY')).toBe('5000')
+  // Two-decimal currencies stay in cents.
+  expect(parseMoney('900', 'SEK')).toBe(90_000)
+  expect(parseMoney('SEK 1,250.50', 'SEK')).toBe(125_050)
+  expect(formatMoney(90_000, 'SEK')).toBe('SEK\u00a0900')
+  expect(parseMoney('₹1,500', 'INR')).toBe(150_000)
+  expect(parseMoney('R$ 90', 'BRL')).toBe(9_000)
+  expect(formatMoney(150_000, 'INR')).toBe('₹1,500')
+  expect(moneyText(35_050, 'USD')).toBe('350.5')
+  expect(moneyText(null, 'JPY')).toBe('')
+  // Text that is not a number stays not a value; empty clears it.
+  for (const text of ['abc', 'kr', '12abc34', '1.2.3']) expect(parseMoney(text, 'SEK')).toBeUndefined()
+  expect(parseMoney('  ', 'JPY')).toBeNull()
+})
+
+test('the typed amount stays when the currency changes: 350 is $350 in cents and ¥350 in yen', () => {
+  const typed = moneyText(35_000, 'USD')
+  expect(parseMoney(typed, 'JPY')).toBe(350)
+  expect(parseMoney(moneyText(5_000, 'JPY'), 'USD')).toBe(500_000)
+})
+
 test('the currency menu shows each code with its symbol, the code alone where the symbol is the code', () => {
   expect(currencyLabel('USD')).toBe('USD · $')
   expect(currencyLabel('EUR')).toBe('EUR · €')
@@ -132,7 +159,28 @@ test('the currency menu shows each code with its symbol, the code alone where th
   expect(currencyLabel('CAD')).toBe('CAD · CA$')
   expect(currencyLabel('AUD')).toBe('AUD · A$')
   expect(currencyLabel('CHF')).toBe('CHF')
-  expect(CURRENCY_OPTIONS.map(o => o.value)).toEqual(['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'CHF'])
+  expect(currencyLabel('JPY')).toBe('JPY · ¥')
+  expect(currencyLabel('INR')).toBe('INR · ₹')
+  expect(currencyLabel('SEK')).toBe('SEK')
+  expect(currencyLabel('MXN')).toBe('MXN · MX$')
+  expect(CURRENCY_OPTIONS.map(o => o.value)).toEqual([
+    'USD',
+    'AUD',
+    'BRL',
+    'CAD',
+    'CHF',
+    'DKK',
+    'EUR',
+    'GBP',
+    'INR',
+    'JPY',
+    'MXN',
+    'NOK',
+    'NZD',
+    'SEK',
+    'SGD',
+    'ZAR',
+  ])
   expect(CURRENCY_OPTIONS[0]).toEqual({ value: 'USD', label: 'USD · $' })
 })
 
@@ -144,4 +192,15 @@ test('the totals table names the currency of the value', () => {
     daily: [{ ...day('2026-11-13', 2), booked: 2 }],
   } as never)
   expect(t.header.at(-1)).toBe('Booked value (EUR)')
+})
+
+test('the totals table counts a JPY value in whole yen', () => {
+  const t = totalsTable({
+    current: { afterHours: null },
+    jobValueCents: 5000,
+    jobValueCurrency: 'JPY',
+    daily: [{ ...day('2026-11-13', 2), booked: 2 }],
+  } as never)
+  expect(t.header.at(-1)).toBe('Booked value (JPY)')
+  expect(t.rows[0]!.at(-1)).toBe(10_000)
 })

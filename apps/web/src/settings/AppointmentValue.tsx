@@ -1,9 +1,9 @@
 // What one booked appointment is worth on average, and in which currency (workspace.updateSettings,
 // jobValueCents and jobValueCurrency): set in Workspace settings › General and from the Insights summary,
 // which multiplies it by the booked appointments.
-import type { JobValueCurrency } from '@linedesk/actions'
+import { currencyDigits, type JobValueCurrency } from '@linedesk/actions'
 import { useEffect, useState } from 'react'
-import { CURRENCY_OPTIONS, formatMoney, parseMoney } from '../insights/insightsModel.ts'
+import { CURRENCY_OPTIONS, formatMoney, moneyText, parseMoney } from '../insights/insightsModel.ts'
 import { useRun } from '../store.tsx'
 import { Select } from '../ui/controls.tsx'
 import { FormMessage, Input } from '../ui/form.tsx'
@@ -27,7 +27,9 @@ type Props = {
 }
 
 /**
- * The amount and its currency. Saved when the focus leaves the form (not when it moves from the amount to the
+ * The amount and its currency. The amount is typed in whole units (350.50 dollars, 5000 yen) and stored in the
+ * currency's minor units; picking another currency keeps the typed amount ($350 → ¥350, nothing is converted).
+ * Saved when the focus leaves the form (not when it moves from the amount to the
  * currency) or on Enter; Esc puts the saved value back.
  */
 export function AppointmentValue({
@@ -42,13 +44,14 @@ export function AppointmentValue({
   toast,
 }: Props) {
   const run = useRun()
-  const savedText = value === null ? '' : String(value / 100)
+  const savedText = moneyText(value, savedCurrency)
   const [text, setText] = useState(savedText)
   const [currency, setCurrency] = useState(savedCurrency)
   // Changed elsewhere (another tab, Insights): the fields follow.
   useEffect(() => setText(savedText), [savedText])
   useEffect(() => setCurrency(savedCurrency), [savedCurrency])
-  const parsed = parseMoney(text)
+  const parsed = parseMoney(text, currency)
+  const whole = currencyDigits(currency) === 0
   const invalid = parsed === undefined
 
   function save() {
@@ -93,7 +96,7 @@ export function AppointmentValue({
       <div className="av-row">
         <Input
           id={id}
-          inputMode="decimal"
+          inputMode={whole ? 'numeric' : 'decimal'}
           autoFocus={autoFocus}
           placeholder="e.g. 350"
           value={text}
@@ -110,7 +113,7 @@ export function AppointmentValue({
           disabled={!canEdit}
         />
       </div>
-      {invalid && <FormMessage>A number, like 350 or 1,250.</FormMessage>}
+      {invalid && <FormMessage>{whole ? 'A whole number, like 5,000.' : 'A number, like 350 or 1,250.'}</FormMessage>}
     </form>
   )
 }

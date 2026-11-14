@@ -1,7 +1,7 @@
 // What the Insights page says about the numbers: periods, the summary sentence, changes, the chart's
 // grouping by day, week or month, the busiest time, and money.
 import type { InsightCounts, InsightDay, InsightPeriod, InsightsData, JobValueCurrency } from '@linedesk/actions'
-import { jobValueCurrencies } from '@linedesk/actions'
+import { currencyDigits, fromMinorUnits, jobValueCurrencies, toMinorUnits } from '@linedesk/actions'
 
 export const plural = (n: number, one: string, many = `${one}s`) =>
   `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`
@@ -200,10 +200,13 @@ export function busiestTime(byWeekdayHour: number[][]): string | null {
 
 // --- Money ---------------------------------------------------------------------------------------
 
-/** Whole units in the appointment value's currency: "$1,250", "€350", "£90", "CA$400", "A$400", "CHF 350". */
+/**
+ * Minor units (cents; whole yen for JPY) as whole units in the appointment value's currency: "$1,250", "€350",
+ * "£90", "CA$400", "A$400", "CHF 350", "¥5,000", "₹1,500", "SEK 900".
+ */
 export const formatMoney = (cents: number, currency: JobValueCurrency = 'USD') =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(
-    Math.round(cents / 100),
+    Math.round(fromMinorUnits(cents, currency)),
   )
 
 /**
@@ -220,13 +223,23 @@ export function currencyLabel(currency: JobValueCurrency): string {
 /** The currencies offered next to the appointment value, in the order of the menu. */
 export const CURRENCY_OPTIONS = jobValueCurrencies.map(c => ({ value: c, label: currencyLabel(c) }))
 
-/** "380", "$1,250.50", "€90" → cents; "" → null (clears it); anything else → undefined (not a value). */
-export function parseMoney(text: string): number | null | undefined {
-  const cleaned = text.replace(/[$€£,\s]/g, '')
-  if (cleaned === '') return null
-  if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return undefined
-  return Math.round(Number(cleaned) * 100)
+/**
+ * What was typed → minor units of the currency: "380", "$1,250.50", "€90", "R$ 90" → cents; "¥5,000" → 5000 (JPY
+ * has no decimals, so "5000.5" is not a value there); "" → null (clears it); anything else → undefined.
+ */
+export function parseMoney(text: string, currency: JobValueCurrency = 'USD'): number | null | undefined {
+  if (text.trim() === '') return null
+  // A symbol or code around the number ("$", "¥", "R$", "CHF", "kr") and thousands separators go.
+  const cleaned = text.replace(/[\p{Sc},\s]/gu, '').replace(/^[a-z]{1,3}|[a-z]{1,3}$/gi, '')
+  const digits = currencyDigits(currency)
+  const number = digits === 0 ? /^\d+$/ : /^\d+(\.\d{1,2})?$/
+  if (!number.test(cleaned)) return undefined
+  return toMinorUnits(Number(cleaned), currency)
 }
+
+/** Minor units → the amount as it is typed in the field: 35050 USD → "350.5", 5000 JPY → "5000"; null → "". */
+export const moneyText = (cents: number | null, currency: JobValueCurrency) =>
+  cents === null ? '' : String(fromMinorUnits(cents, currency))
 
 // --- Export --------------------------------------------------------------------------------------
 
@@ -262,7 +275,7 @@ export function totalsTable(data: InsightsData): { header: string[]; rows: (stri
     d.urgent,
     ...(hours ? [d.afterHours] : []),
     d.minutes,
-    ...(value !== null ? [Math.round((d.booked * value) / 100)] : []),
+    ...(value !== null ? [Math.round(fromMinorUnits(d.booked * value, data.jobValueCurrency ?? 'USD'))] : []),
   ])
   return { header, rows }
 }

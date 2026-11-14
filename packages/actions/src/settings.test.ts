@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { rolePermissions } from './define.ts'
 import { storedSnapshot } from './assistant-versions.ts'
 import { applyLocally, type LocalTables } from './index.ts'
+import { currencyDigits, fromMinorUnits, jobValueCurrencies, rescaleMinorUnits, toMinorUnits } from './insights.ts'
 import {
   assistantUpdate,
   CONTACT_IMPORT_MAX_ROWS,
@@ -131,6 +132,32 @@ describe('workspace.updateSettings', () => {
       expect(workspaceUpdateSettings.input.safeParse({ timeZone }).success).toBe(true)
     for (const timeZone of ['Pacific Time', 'America/Nowhere', ''])
       expect(workspaceUpdateSettings.input.safeParse({ timeZone }).success).toBe(false)
+  })
+
+  it('takes the appointment value in any offered currency, and no other', () => {
+    for (const jobValueCurrency of ['USD', 'MXN', 'NZD', 'JPY', 'INR', 'BRL', 'SGD', 'ZAR', 'SEK', 'NOK', 'DKK'])
+      expect(workspaceUpdateSettings.input.safeParse({ jobValueCurrency }).success).toBe(true)
+    for (const jobValueCurrency of ['usd', 'XYZ', 'CNY', ''])
+      expect(workspaceUpdateSettings.input.safeParse({ jobValueCurrency }).success).toBe(false)
+    expect(jobValueCurrencies[0]).toBe('USD')
+    expect(jobValueCurrencies.slice(1)).toEqual([...jobValueCurrencies.slice(1)].sort())
+    expect(jobValueCurrencies).toHaveLength(16)
+  })
+
+  it('counts each currency in its minor units, as Intl does: cents, whole yen for JPY', () => {
+    for (const currency of jobValueCurrencies)
+      expect(currencyDigits(currency)).toBe(
+        new Intl.NumberFormat('en-US', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits,
+      )
+    expect(currencyDigits('JPY')).toBe(0)
+    expect(toMinorUnits(350.5, 'USD')).toBe(35_050)
+    expect(toMinorUnits(5000, 'JPY')).toBe(5000)
+    expect(fromMinorUnits(5000, 'JPY')).toBe(5000)
+    // A change of currency alone keeps the amount: $350 → ¥350, ¥5,000 → $5,000, $350.50 → ¥351.
+    expect(rescaleMinorUnits(35_000, 'USD', 'JPY')).toBe(350)
+    expect(rescaleMinorUnits(5000, 'JPY', 'USD')).toBe(500_000)
+    expect(rescaleMinorUnits(35_050, 'USD', 'JPY')).toBe(351)
+    expect(rescaleMinorUnits(35_000, 'USD', 'SEK')).toBe(35_000)
   })
 
   it('only owners and admins change it; every member reads it', () => {

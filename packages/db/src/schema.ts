@@ -366,10 +366,29 @@ export const workspace_settings = pgTable('workspace_settings', {
   closure: jsonb('closure').$type<Closure>(),
   /** The public holiday calendar the workspace follows; null: never set up. */
   holidays: jsonb('holidays').$type<HolidayCalendar>(),
-  /** What a booked job is worth on average, in cents, for Insights ("≈ $X in booked work"). null: not set. */
+  /** What a booked job is worth on average, in the minor units of job_value_currency (cents; whole yen for JPY), for Insights ("≈ $X in booked work"). null: not set. */
   job_value_cents: integer('job_value_cents'),
   /** The currency of job_value_cents (ISO 4217, one of jobValueCurrencies in @linedesk/actions). */
-  job_value_currency: text('job_value_currency', { enum: ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'CHF'] })
+  job_value_currency: text('job_value_currency', {
+    enum: [
+      'USD',
+      'AUD',
+      'BRL',
+      'CAD',
+      'CHF',
+      'DKK',
+      'EUR',
+      'GBP',
+      'INR',
+      'JPY',
+      'MXN',
+      'NOK',
+      'NZD',
+      'SEK',
+      'SGD',
+      'ZAR',
+    ],
+  })
     .notNull()
     .default('USD'),
   created_at: createdAt(),

@@ -4,8 +4,10 @@ import {
   type ClosedDay,
   DEFAULT_RECORDING_NOTICE,
   DEFAULT_RECORDING_RETENTION_DAYS,
+  JOB_VALUE_MAX_CENTS,
   type JobValueCurrency,
   type PickupMode,
+  rescaleMinorUnits,
   type WorkspaceSettingsData,
 } from '@linedesk/actions'
 import type { Closure } from '@linedesk/db/types'
@@ -89,6 +91,10 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
     },
   ) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
+    const jobValueCents =
+      input.jobValueCents === undefined && input.jobValueCurrency !== undefined
+        ? await rescaledJobValue(tx, actor.workspaceId, input.jobValueCurrency)
+        : input.jobValueCents
     const set = {
       ...(input.recordingRetentionDays !== undefined ? { recording_retention_days: input.recordingRetentionDays } : {}),
       ...(input.businessHoursOn !== undefined ? { business_hours_on: input.businessHoursOn } : {}),
@@ -96,7 +102,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       ...(input.recordingNotice !== undefined ? { recording_notice: input.recordingNotice } : {}),
       ...(input.timeZone !== undefined ? { timezone: input.timeZone } : {}),
       ...(input.closure !== undefined ? { closure: input.closure } : {}),
-      ...(input.jobValueCents !== undefined ? { job_value_cents: input.jobValueCents } : {}),
+      ...(jobValueCents !== undefined ? { job_value_cents: jobValueCents } : {}),
       ...(input.jobValueCurrency !== undefined ? { job_value_currency: input.jobValueCurrency } : {}),
       ...(input.pickupMode !== undefined ? { pickup_mode: input.pickupMode } : {}),
     }
@@ -216,4 +222,20 @@ export async function recordingNoticeFor(tx: Tx, workspaceId: string): Promise<s
     .from(workspace_settings)
     .where(eq(workspace_settings.workspace_id, workspaceId))
   return row?.on ? row.text?.trim() || DEFAULT_RECORDING_NOTICE : null
+}
+
+/**
+ * A new currency without a new amount: the stored value moves to the new currency's minor units, so the
+ * amount people see stays ($350 → ¥350, not ¥35,000). undefined: nothing stored, or no change needed.
+ */
+async function rescaledJobValue(tx: Tx, workspaceId: string, to: JobValueCurrency): Promise<number | undefined> {
+  const [row] = await tx
+    .select({ cents: workspace_settings.job_value_cents, currency: workspace_settings.job_value_currency })
+    .from(workspace_settings)
+    .where(eq(workspace_settings.workspace_id, workspaceId))
+  if (!row || row.cents === null || row.currency === to) return undefined
+  const cents = rescaleMinorUnits(row.cents, row.currency, to)
+  if (cents > JOB_VALUE_MAX_CENTS)
+    throw new Reject(`The appointment value is too large in ${to}; set jobValueCents with it.`)
+  return cents
 }

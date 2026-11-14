@@ -14,12 +14,75 @@ export const INSIGHTS_MAX_DAYS = 3660
 export const insightRanges = [7, 30, 90] as const
 export type InsightRange = (typeof insightRanges)[number]
 
-/** The value of a booked appointment an owner can set, in cents (up to $1,000,000). */
+/**
+ * The value of a booked appointment an owner can set, in the minor units of its currency (cents; whole yen
+ * for JPY): up to $1,000,000, or ¥100,000,000.
+ */
 export const JOB_VALUE_MAX_CENTS = 100_000_000
 
-/** The currencies an appointment value can be set in (workspace.updateSettings, jobValueCurrency); USD by default. */
-export const jobValueCurrencies = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'CHF'] as const
+/**
+ * The currencies an appointment value can be set in (workspace.updateSettings, jobValueCurrency), in the order
+ * of the menu: USD (the default) first, then the rest by code.
+ */
+export const jobValueCurrencies = [
+  'USD',
+  'AUD',
+  'BRL',
+  'CAD',
+  'CHF',
+  'DKK',
+  'EUR',
+  'GBP',
+  'INR',
+  'JPY',
+  'MXN',
+  'NOK',
+  'NZD',
+  'SEK',
+  'SGD',
+  'ZAR',
+] as const
 export type JobValueCurrency = (typeof jobValueCurrencies)[number]
+
+/**
+ * Digits after the point in each currency (ISO 4217, as Intl formats it): jobValueCents counts this many
+ * places, so 100 cents make a dollar but 1 makes a yen.
+ */
+const CURRENCY_DIGITS: Record<JobValueCurrency, 0 | 2> = {
+  USD: 2,
+  AUD: 2,
+  BRL: 2,
+  CAD: 2,
+  CHF: 2,
+  DKK: 2,
+  EUR: 2,
+  GBP: 2,
+  INR: 2,
+  JPY: 0,
+  MXN: 2,
+  NOK: 2,
+  NZD: 2,
+  SEK: 2,
+  SGD: 2,
+  ZAR: 2,
+}
+
+/** Digits after the point: 2, or 0 for a currency without minor units (JPY). */
+export const currencyDigits = (currency: JobValueCurrency): number => CURRENCY_DIGITS[currency]
+
+/** Minor units (as stored in jobValueCents) → the amount in whole units with its fraction: 35050 USD → 350.5, 5000 JPY → 5000. */
+export const fromMinorUnits = (minor: number, currency: JobValueCurrency) => minor / 10 ** currencyDigits(currency)
+
+/** The amount → minor units, rounded: 350.5 USD → 35050, 5000 JPY → 5000. */
+export const toMinorUnits = (amount: number, currency: JobValueCurrency) =>
+  Math.round(amount * 10 ** currencyDigits(currency))
+
+/**
+ * The same amount in another currency's minor units, for a change of currency alone (the shown amount stays,
+ * nothing is converted at an exchange rate): $350 (35000) → ¥350 (350), ¥5,000 (5000) → $5,000 (500000).
+ */
+export const rescaleMinorUnits = (minor: number, from: JobValueCurrency, to: JobValueCurrency) =>
+  toMinorUnits(fromMinorUnits(minor, from), to)
 
 /**
  * Counts for one period; the same fields for the period and the one before it. Every real call is
