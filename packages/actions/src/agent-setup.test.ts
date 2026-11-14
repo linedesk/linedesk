@@ -10,6 +10,7 @@ import {
   reachableFromCloud,
   shellQuote,
   startPlan,
+  stepsByGroup,
 } from './agent-setup.ts'
 
 const URL = 'https://desk.example.com/mcp/setup/lds_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG'
@@ -88,4 +89,19 @@ test('the setup page address with ?allow= names the one key to allow', () => {
   expect(isAgentSetupHash('#setup-agent?allow=sk_abc123')).toBe(true)
   expect(isAgentSetupHash('#setup-agents')).toBe(false)
   expect(isAgentSetupHash('#setup-install')).toBe(false)
+})
+
+describe('stepsByGroup', () => {
+  test('the steps by part of the setup, in its order, leaving out a part without steps', () => {
+    const step = (id: string, group: 'you' | 'server' | 'business') => ({ id, group })
+    const steps = [step('answering', 'server'), step('workspace', 'business'), step('email', 'server')]
+    expect(stepsByGroup(steps).map(g => [g.label, g.steps.map(s => s.id)])).toEqual([
+      ['This server', ['answering', 'email']],
+      ['Your business', ['workspace']],
+    ])
+    expect(stepsByGroup([step('phone', 'business'), step('passkey', 'you')]).map(g => g.id)).toEqual([
+      'you',
+      'business',
+    ])
+  })
 })

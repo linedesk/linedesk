@@ -120,6 +120,10 @@ describe('setup keys', () => {
     expect(body.key.prefix).toBe(made.key.slice(0, 12))
     expect(JSON.stringify(body)).not.toContain(made.key)
     expect(body.progress.steps.map((s: { id: string }) => s.id)).toContain('telephony')
+    // Grouped like the agent's setup_status: the server's part, then the business's.
+    const groupOf = (id: string) => body.progress.steps.find((s: { id: string }) => s.id === id)?.group
+    expect(groupOf('telephony')).toBe('server')
+    expect(groupOf('workspace')).toBe('business')
   })
 })
 
@@ -185,7 +189,7 @@ describe('tools', () => {
     const { key } = await makeKey(fresh)
     const before = data(await call(key, 'setup_status')) as {
       next_step: string
-      steps: { id: string; state: string; alias?: string; how?: string[] }[]
+      steps: { id: string; group: string; state: string; alias?: string; how?: string[] }[]
       app_links: Record<string, string>
       install: { public: boolean; place?: string; note?: string }
     }
@@ -199,6 +203,11 @@ describe('tools', () => {
     ])
     expect(before.steps.find(s => s.id === 'answering')?.alias).toBe('ai')
     expect(before.steps.find(s => s.id === 'call-audio')?.alias).toBe('livekit')
+    // Each step names its part of the setup: the server's (once per install), then the first business's.
+    expect(before.steps.map(s => s.group)).toEqual([
+      ...Array(4).fill('server'),
+      ...Array(before.steps.length - 4).fill('business'),
+    ])
     // The same words as the app.
     expect(before.steps.slice(0, 4).map(s => s.state)).toEqual(['todo', 'todo', 'todo', 'todo'])
     expect((before.steps[0] as { detail?: string }).detail).toMatch(/^Not set up/)
@@ -373,7 +382,7 @@ describe('every key through the agent (LIN-182)', () => {
 
   test('setup_status lists the passkey first while the admin has none, with how to add it (LIN-189)', async () => {
     type Status = {
-      steps: { id: string; state: string; how?: string[] }[]
+      steps: { id: string; group: string; state: string; how?: string[] }[]
       next_step: string | null
     }
     // Admins need no passkey on this install: no passkey step, the providers come first as before.
@@ -392,6 +401,8 @@ describe('every key through the agent (LIN-182)', () => {
       'call-audio',
     ])
     const step = before.steps[0]!
+    // The admin's own part of the setup, before the server's.
+    expect(before.steps.slice(0, 2).map(s => s.group)).toEqual(['you', 'server'])
     // Only the admin can add it, in the browser: the agent asks and goes on with the next step meanwhile.
     expect(step.state).toBe('admin_only')
     expect(before.next_step).toBe('answering')

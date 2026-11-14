@@ -13,7 +13,7 @@ export const SETUP_KEY_HOURS = 24
 export const agentSetupCreateKey = defineAction({
   name: 'agentSetup.createKey',
   description:
-    'Make a setup key for an AI agent: it connects to the setup MCP with it and sets up the install as you, with setup tools only, for 24 hours. Earlier setup keys of yours stop working. The key is returned once.',
+    'Make a setup key for an AI agent: it connects to the setup MCP with it and sets up the install as you, with setup tools only. For security, the key stops working after 24 hours. Earlier setup keys of yours stop working. The key is returned once.',
   input: z.object({}),
   permission: 'instance:admin',
   secretResult: ['key', 'url'],
@@ -62,6 +62,24 @@ export const agentSetupRevoke = defineAction({
   permission: 'instance:admin',
 })
 
+/**
+ * The parts of the setup, in order: the admin's own (passkey), the server's (providers a first call needs, once per
+ * install) and the first business (workspace). The setup MCP tags each step with one; the setup page groups by it.
+ */
+export const setupStepGroups = [
+  { id: 'you', label: 'You' },
+  { id: 'server', label: 'This server' },
+  { id: 'business', label: 'Your business' },
+] as const
+export type SetupStepGroup = (typeof setupStepGroups)[number]['id']
+
+/** The steps by part of the setup, in the parts' order; a part without steps (no passkey asked for) is left out. */
+export function stepsByGroup<S extends { group: SetupStepGroup }>(steps: readonly S[]) {
+  return setupStepGroups
+    .map(group => ({ ...group, steps: steps.filter(s => s.group === group.id) }))
+    .filter(group => group.steps.length > 0)
+}
+
 /** GET /v1/admin/agent-setup: whether a key of yours works now, and where agents connect. */
 export type AgentSetupState = {
   /** The setup MCP address without a key (`<PUBLIC_URL>/mcp/setup`). */
@@ -85,7 +103,7 @@ export type AgentSetupState = {
   } | null
   /** What the agent got done so far, in setup order (the setup MCP's setup_status without its instructions). */
   progress: {
-    steps: { id: string; label: string; state: 'done' | 'todo' | 'failing' | 'admin_only' }[]
+    steps: { id: string; label: string; group: SetupStepGroup; state: 'done' | 'todo' | 'failing' | 'admin_only' }[]
     nextStep: string | null
     allDone: boolean
   }
@@ -268,7 +286,7 @@ export function agentSetupPrompt(url: string, { connector = false }: { connector
   curl -s ${url} -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"setup_status","arguments":{}}}'
   The answer is a line starting with "data: " followed by JSON. Use "method":"tools/list" once to see every tool and its input.
 - If you can do neither, tell me to connect you to that address as an MCP server first.
-The address contains a setup key that works for 24 hours. Do not repeat it, post it or save it anywhere.`
+The address contains a setup key that stops working after 24 hours, for security. Do not repeat it, post it or save it anywhere.`
   return `You are helping me set up Linedesk, the open-source AI receptionist, on my server. Linedesk answers my business's phone calls with an AI assistant. Please set it up end to end with me, through the Linedesk setup tools.
 
 ${tools}

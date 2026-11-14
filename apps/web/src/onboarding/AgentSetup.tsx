@@ -14,6 +14,7 @@ import {
   HOSTING_GUIDE_URL,
   installPlace,
   startPlan,
+  stepsByGroup,
 } from '@linedesk/actions'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadAgentSetup, runAdmin, watchAdminSignIn } from '../admin/api.ts'
@@ -310,8 +311,8 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
               ) : (
                 <div className="as-step">
                   <span>
-                    A setup link lets your agent set up this server on your behalf for 24 hours, using setup tools only.
-                    You can end it here at any time.
+                    A setup link lets your agent set up this server for you, using setup tools only. For security, the
+                    link stops working after 24 hours. You can end it here at any time.
                   </span>
                   <div>
                     <Button variant="primary" busy={busy === 'create'} onClick={() => void createKey()}>
@@ -455,18 +456,26 @@ function Progress({
           {done} of {steps.length} done
         </span>
       </div>
-      <ul className="as-list">
-        {steps.map(step => (
-          <li key={step.id} className={cx('as-item', step.state)}>
-            <span className="as-mark" aria-hidden>
-              {step.state === 'done' ? <Icon name="check" size={12} /> : step.state === 'failing' ? '!' : null}
-            </span>
-            <span>{step.label}</span>
-            {step.state === 'failing' && <span className="as-small">failing</span>}
-            {step.state === 'admin_only' && <span className="as-small">do this in the app</span>}
-          </li>
-        ))}
-      </ul>
+      {/* By part of the setup: the admin's own, the server's (once per install), the first business. */}
+      {stepsByGroup(steps).map(group => (
+        <div key={group.id} className="as-group">
+          <h3 className="as-group-label" id={`as-group-${group.id}`}>
+            {group.label}
+          </h3>
+          <ul className="as-list" aria-labelledby={`as-group-${group.id}`}>
+            {group.steps.map(step => (
+              <li key={step.id} className={cx('as-item', step.state)}>
+                <span className="as-mark" aria-hidden>
+                  {step.state === 'done' ? <Icon name="check" size={12} /> : step.state === 'failing' ? '!' : null}
+                </span>
+                <span>{step.label}</span>
+                {step.state === 'failing' && <span className="as-small">failing</span>}
+                {step.state === 'admin_only' && <span className="as-small">do this in the app</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
       {/* Before the agent has created the business there is no workspace to open: the button would bring back this page. */}
       {(allDone || connected) && steps.some(s => s.id === 'workspace' && s.state === 'done') && (
         <div>

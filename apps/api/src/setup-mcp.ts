@@ -33,6 +33,7 @@ import {
   SETUP_MCP_INSTRUCTIONS,
   searchForwardingGuides,
   statusText,
+  type SetupStepGroup,
 } from '@linedesk/actions'
 import {
   agent_setup_keys,
@@ -234,7 +235,7 @@ const appLinks = () => {
 
 type StepState = 'done' | 'todo' | 'failing' | 'admin_only'
 /** `alias`: the id the step had before (LIN-158), for agents and notes that still use it. */
-type Step = {
+type StepBase = {
   id: string
   alias?: string
   label: string
@@ -242,6 +243,12 @@ type Step = {
   detail?: string | null
   how?: readonly string[]
 }
+/** `group`: which part of the setup the step belongs to: the admin's own, the server's or the business's. */
+type Step = StepBase & { group: SetupStepGroup }
+
+/** The steps of one part of the setup, tagged with it; `group` comes right after the label in the agent's output. */
+const inGroup = (group: SetupStepGroup, steps: StepBase[]): Step[] =>
+  steps.map(({ id, alias, label, ...rest }) => ({ id, ...(alias ? { alias } : {}), label, group, ...rest }))
 
 const GROUP_STATE: Record<GroupStatus['state'], StepState> = {
   works: 'done',
@@ -255,7 +262,7 @@ const GROUP_STATE: Record<GroupStatus['state'], StepState> = {
 }
 
 /** One install step from a provider group, with how to do it when it is not done. */
-function groupStep(group: GroupStatus, how: readonly string[], alias?: string): Step {
+function groupStep(group: GroupStatus, how: readonly string[], alias?: string): StepBase {
   const state = GROUP_STATE[group.state]
   const tested = group.state === 'untested' ? ['Keys are set but not tested: run provider_test.'] : []
   const word = statusText(group)
@@ -299,7 +306,7 @@ export const installPartDone = (steps: readonly Pick<Step, 'id' | 'state'>[]) =>
  * agent can never add one, so the step is the admin's (admin_only) and carries its how-to until it is done; the
  * agent goes on with the next step meanwhile. Not listed when admins need no passkey (ADMIN_SECOND_FACTOR=off).
  */
-async function passkeyStep(actor: Actor): Promise<Step[]> {
+async function passkeyStep(actor: Actor): Promise<StepBase[]> {
   if (!adminSecondFactorRequired()) return []
   const needed = await passkeyStillNeeded(actor.actorId)
   return [
@@ -323,28 +330,30 @@ async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean
   const { groups } = await setupChecklist(db)
   const group = (id: GroupStatus['id']) => groups.find(g => g.id === id)!
   const steps: Step[] = [
-    ...(await passkeyStep(actor)),
-    groupStep(
-      group('answering'),
-      [
-        'Two ways; ask the admin which they prefer.',
-        `Simplest, one account: OpenAI (${oneKey.url}). ${oneKey.steps.slice(0, 2).join(' ')} Ask the admin to paste the key to you, then provider_connectOneKey { apiKey }. ${oneKey.cost} ${oneKey.caveat}`,
-        'Best voice and every feature, three accounts (speech to text, language model, voice):',
-        ...guideLines(recommendedProviders.stt),
-        ...guideLines(recommendedProviders.llm),
-        ...guideLines(recommendedProviders.tts),
-      ],
-      'ai',
-    ),
-    groupStep(group('telephony'), guideLines(recommendedProviders.telephony)),
-    groupStep(group('email'), [
-      ...guideLines(recommendedProviders.email),
-      'Ask for the From address too (an address on the domain verified with the mail service) and store it with the key: values { api_key, from }.',
-      `Email decides who gets sign-in codes, so it needs the admin's passkey: ${await emailAndSignInNote(actor)}`,
-      'Once the test passes and the API has restarted: provider_tryOut { kind: "email" } sends a six-digit code to the admin\'s own address; ask them for it in the chat and call provider_confirmEmail { code }. That proves delivery end to end.',
+    ...inGroup('you', await passkeyStep(actor)),
+    ...inGroup('server', [
+      groupStep(
+        group('answering'),
+        [
+          'Two ways; ask the admin which they prefer.',
+          `Simplest, one account: OpenAI (${oneKey.url}). ${oneKey.steps.slice(0, 2).join(' ')} Ask the admin to paste the key to you, then provider_connectOneKey { apiKey }. ${oneKey.cost} ${oneKey.caveat}`,
+          'Best voice and every feature, three accounts (speech to text, language model, voice):',
+          ...guideLines(recommendedProviders.stt),
+          ...guideLines(recommendedProviders.llm),
+          ...guideLines(recommendedProviders.tts),
+        ],
+        'ai',
+      ),
+      groupStep(group('telephony'), guideLines(recommendedProviders.telephony)),
+      groupStep(group('email'), [
+        ...guideLines(recommendedProviders.email),
+        'Ask for the From address too (an address on the domain verified with the mail service) and store it with the key: values { api_key, from }.',
+        `Email decides who gets sign-in codes, so it needs the admin's passkey: ${await emailAndSignInNote(actor)}`,
+        'Once the test passes and the API has restarted: provider_tryOut { kind: "email" } sends a six-digit code to the admin\'s own address; ask them for it in the chat and call provider_confirmEmail { code }. That proves delivery end to end.',
+      ]),
+      groupStep(group('call-audio'), callAudioLines(), 'livekit'),
     ]),
-    groupStep(group('call-audio'), callAudioLines(), 'livekit'),
-    ...(await workspaceSteps(actor, advance)),
+    ...inGroup('business', await workspaceSteps(actor, advance)),
   ]
   // The install's own part is done: the setup by hand does not open on it later (bookkeeping, like onboarding_setStep).
   if (advance && installPartDone(steps) && !(await readInstallProgress()).finishedAt)
@@ -436,7 +445,7 @@ function whereItRuns() {
 export async function setupProgress(actor: Actor) {
   const status = await setupStatus(actor, { advance: false })
   return {
-    steps: status.steps.map(({ id, label, state }) => ({ id, label, state })),
+    steps: status.steps.map(({ id, label, group, state }) => ({ id, label, group, state })),
     nextStep: status.next_step,
     allDone: status.all_done,
   }
@@ -462,7 +471,7 @@ const BUSINESS_STEPS = [
   ['phone', 'A phone number for the assistant'],
 ] as const
 
-async function workspaceSteps(actor: Actor, advance: boolean): Promise<Step[]> {
+async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[]> {
   if (!actor.workspaceId)
     return [
       {
@@ -588,7 +597,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<Step[]> {
               `Ask for the business line's carrier, then forwarding_guide { carrier, mode: "${forwarding.mode}" } for the codes to dial on the business phone (they forward to ${forwarding.e164}).`,
               `After the admin dialed them: phoneNumber_checkForwarding { phoneNumberId: "${forwarding.id}", businessNumber } calls the business line once; poll phoneNumber_forwardingCheck every few seconds while it says dialing.`,
             ],
-          } satisfies Step,
+          } satisfies StepBase,
         ]
       : []),
     {
