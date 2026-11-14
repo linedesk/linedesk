@@ -43,6 +43,7 @@ import { Input } from '../ui/form.tsx'
 import { HelpTip, type HelpTipContent } from '../ui/HelpTip.tsx'
 import { BrandMark, Button, Note, Spinner } from '../ui/kit.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
+import { leaveInstallSetup } from './leave-install-setup.ts'
 import { showPasskeyFirst } from './passkey-first.ts'
 import { Loading, problemText, SkeletonFields } from '../ui/LoadStates.tsx'
 import { HostingNote, openAgentSetup } from './AgentSetup.tsx'
@@ -136,14 +137,9 @@ export function InstallSetup({ onExit }: Props) {
     // The page is its own scroll box (.ob): the next step starts at its top.
     document.querySelector('.ob.is')?.scrollTo({ top: 0 })
   }
-  const later = async () => {
-    await save({ setAside: true })
-    onExit()
-  }
-  const finish = async () => {
-    await save({ finished: true, step: 'done' })
-    onExit()
-  }
+  // Leaving never waits for the server (its save carries on): a slow one made both buttons look dead.
+  const later = () => leaveInstallSetup(save, { setAside: true }, onExit)
+  const finish = () => leaveInstallSetup(save, { finished: true, step: 'done' }, onExit)
 
   if (signInAgain) return <SecondFactorPrompt state={signInAgain} onExit={onExit} />
 
@@ -163,7 +159,7 @@ export function InstallSetup({ onExit }: Props) {
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => void later()}
+          onClick={later}
           title="Leave now and pick up where you left off in Admin › Providers"
         >
           Set up later
@@ -191,7 +187,7 @@ export function InstallSetup({ onExit }: Props) {
             skipped={setup.progress.skipped}
             onBack={() => go(installSteps[index - 1]!)}
             onOpen={step => go(step)}
-            onFinish={() => void finish()}
+            onFinish={finish}
           />
         ) : (
           <PartStep

@@ -47,8 +47,13 @@ const fresh = (): InstallProgress => ({
   manualBy: [],
 })
 
-export async function readInstallProgress(tx: Tx | typeof db = db): Promise<InstallProgress> {
-  const [row] = await tx.select().from(instance_settings).where(eq(instance_settings.key, SETTING))
+/** `forUpdate`: lock the row until the transaction ends, so a change made from it is not overwritten by another. */
+export async function readInstallProgress(
+  tx: Tx | typeof db = db,
+  { forUpdate = false }: { forUpdate?: boolean } = {},
+): Promise<InstallProgress> {
+  const query = tx.select().from(instance_settings).where(eq(instance_settings.key, SETTING))
+  const [row] = forUpdate ? await query.for('update') : await query
   if (!row) return fresh()
   try {
     const stored = JSON.parse(row.value) as Partial<InstallProgress>
@@ -349,7 +354,13 @@ function refuseImpersonation(actor: { impersonation?: unknown }) {
 
 export const installSetupHandlers: Record<string, Handler> = {
   'install.setProgress': async ({ tx, actor, now }, input) => {
-    const progress = await readInstallProgress(tx)
+    // Saves arrive together (leaving the walkthrough sends where it was left and the choice to set up by hand at
+    // once): each changes the row as the one before it left it, never a copy read before that one committed.
+    await tx
+      .insert(instance_settings)
+      .values({ key: SETTING, value: JSON.stringify(fresh()), updated_at: now, updated_by: actor.actorId })
+      .onConflictDoNothing({ target: instance_settings.key })
+    const progress = await readInstallProgress(tx, { forUpdate: true })
     if (input.step) progress.step = input.step
     if (input.skip && !progress.skipped.includes(input.skip)) progress.skipped.push(input.skip)
     if (input.setAside !== undefined) progress.setAsideAt = input.setAside ? now : null

@@ -136,6 +136,25 @@ describe('progress', () => {
     expect(await byHand(operator)).toBe(false)
   })
 
+  test('changes sent at the same time all stay (leaving sends where it was left and the manual choice at once)', async () => {
+    const sent = await Promise.all([
+      act(operator, 'install.setProgress', { setAside: true }),
+      act(operator, 'install.setProgress', { manual: true }),
+      act(operator, 'install.setProgress', { skip: 'email' }),
+      act(operator, 'install.setProgress', { skip: 'call-audio' }),
+      act(operator, 'install.setProgress', { finished: true, step: 'done' }),
+    ])
+    expect(sent.map(r => r.status)).toEqual([200, 200, 200, 200, 200])
+    const progress = (await request(operator, 'GET', '/v1/admin/install-setup')).body.progress
+    expect(progress).toMatchObject({
+      step: 'done',
+      setAsideAt: expect.any(String),
+      finishedAt: expect.any(String),
+      manualBy: [operator.userId],
+    })
+    expect([...progress.skipped].sort()).toEqual(['call-audio', 'email'])
+  })
+
   test('an empty change is refused', async () => {
     expect((await act(operator, 'install.setProgress', {})).status).toBe(422)
   })
