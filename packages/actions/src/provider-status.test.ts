@@ -153,6 +153,21 @@ describe('statusGroups', () => {
       message: 'Answered by OpenAI Realtime.',
     })
     expect(answering.parts.map(p => p.state)).toEqual(['works', 'not_needed', 'not_needed', 'not_needed'])
+    expect(answering.answeredBy).toEqual(['OpenAI Realtime'])
+    expect(answering.answeredWith).toEqual(['realtime'])
+  })
+
+  test('answeredBy names each provider that answers, once: never "a, b and c and d"', () => {
+    const facts = [works('openai_realtime'), works('deepgram'), works('openrouter'), works('elevenlabs')]
+    const three = group(input(facts, { assistantPipelines: ['three_stage'] }), 'answering')
+    expect(three.answeredBy).toEqual(['Deepgram', 'OpenRouter', 'ElevenLabs'])
+    const both = group(input(facts, { assistantPipelines: ['realtime', 'three_stage'] }), 'answering')
+    expect(both.answeredBy).toEqual(['OpenAI Realtime', 'Deepgram', 'OpenRouter', 'ElevenLabs'])
+    expect(three.answeredWith).toEqual(['three_stage'])
+    expect(both.answeredWith).toEqual(['realtime', 'three_stage'])
+    // Only the group that answers calls has it.
+    expect(group(input([works('resend')]), 'email').answeredBy).toBeUndefined()
+    expect(group(input([works('resend')]), 'email').answeredWith).toBeUndefined()
   })
 
   test('an assistant that chose the three stages, which are not set up, falls back to the realtime model', () => {

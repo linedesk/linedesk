@@ -1,7 +1,10 @@
-// One provider group (provider-status.ts): its status, why it is there, and its providers, each with Connect or Edit
-// (the provider's dialog, ProviderDialog, is the one editor). Admin › Providers shows every group; the install
-// walkthrough embeds the same panel one group per step, and the embedded panel never navigates away (design rule 14):
-// it opens dialogs in place. Call audio is read-only: LiveKit and its SIP bridge are set in .env on the server.
+// One provider group (provider-status.ts): its providers, each with Connect or Edit (the
+// provider's dialog, ProviderDialog, is the one editor). Admin › Providers shows every group; the install walkthrough
+// embeds the same panel one group per step, and the embedded panel never navigates away (design rule 14): it opens
+// dialogs in place. Call audio is read-only: LiveKit and its SIP bridge are set in .env on the server.
+// Status stays quiet: a working provider shows only its mark (the words are its tooltip), words only for a state that
+// needs attention, and a group's heading shows a status only while the group has a problem (groupAttention).
+// Help on demand: why the group is there sits behind the (?) next to its heading; only a problem is a visible line.
 import {
   callAudioGuide,
   type GroupStatus,
@@ -10,35 +13,87 @@ import {
   type ProviderName,
   pinnedProvidersOf,
   providerCategories,
-  providerSpec,
-  providersOfGroup,
   recommendedProviders,
   type StatusState,
   statusText,
+  statusWords,
+  type VoicePipeline,
 } from '@linedesk/actions'
-import { Fragment, useState } from 'react'
+import { useState } from 'react'
+import { HelpTip } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import type { AdminData, AdminHealth } from './api.ts'
 import { isConfigured, providerState } from './model.ts'
 import { OneKey } from './OneKey.tsx'
 import { PipelinePolicy } from './PipelinePolicy.tsx'
-import { ServerSet } from './ProviderDialog.tsx'
 import { Logo, providerMeta } from './ProviderLogo.tsx'
-import { visibleProviders } from './providerList.ts'
-import { groupNote } from './providerStatus.ts'
+import {
+  answeringWayMark,
+  answeringWays,
+  defaultAnsweringWay,
+  keepShown,
+  listsOfGroup,
+  visibleProviders,
+  wayAfterKey,
+  wayOfCategory,
+} from './providerList.ts'
+import { groupAttention, groupHelp, groupNote, groupProblem, rowStatus } from './providerStatus.ts'
 
-/** The state at a glance: ink when it works, red when it fails, grey otherwise; a spinner while checking. */
 /** "Works", "Failing: Key rejected", "Partly works: voice missing", in red only when it fails. */
 export function StatusWords({ status }: { status: { state: StatusState; detail: string | null } }) {
   return <span className={cx('adm-status', status.state === 'failing' && 'adm-status-bad')}>{statusText(status)}</span>
 }
 
-/** The two ways Answering works, as headings over its lists. */
-const answeringWays: Partial<Record<ProviderCategory, string>> = {
-  realtime: 'One realtime model',
-  stt: 'Or three parts: speech to text, a language model and a voice',
+/** The two ways Answering works, as two tabs over its lists. */
+const wayLabels: Record<VoicePipeline, string> = { realtime: 'One realtime model', three_stage: 'Three parts' }
+const wayTabId = (way: VoicePipeline) => `adm-way-tab-${way}`
+const wayPanelId = 'adm-way-panel'
+
+type WayTabsProps = {
+  selected: VoicePipeline
+  marks: Record<VoicePipeline, 'in_use' | 'works' | null>
+  /** Only changes the view: which way answers is the "Which one answers calls" setting. */
+  onSelect: (way: VoicePipeline) => void
 }
+
+/**
+ * Answering's two ways as tabs (the inbox's tab style): the one in use says "In use" (ink), one that works but is not
+ * used shows its check. Arrow keys, Home and End move between them.
+ */
+export function AnsweringWayTabs({ selected, marks, onSelect }: WayTabsProps) {
+  return (
+    <div className="ib-tabs adm-way-tabs" role="tablist" aria-label="How calls are answered">
+      {answeringWays.map(way => (
+        <button
+          key={way}
+          id={wayTabId(way)}
+          type="button"
+          role="tab"
+          className="ib-tab"
+          aria-selected={way === selected}
+          aria-controls={wayPanelId}
+          tabIndex={way === selected ? 0 : -1}
+          onClick={() => onSelect(way)}
+          onKeyDown={e => {
+            const next = wayAfterKey(way, e.key)
+            if (!next) return
+            e.preventDefault()
+            onSelect(next)
+            e.currentTarget.parentElement?.querySelector<HTMLElement>(`#${wayTabId(next)}`)?.focus()
+          }}
+        >
+          {wayLabels[way]}
+          {marks[way] === 'in_use' && <span className="adm-way-use">In use</span>}
+          {marks[way] === 'works' && <StatusMark state="works" label="Works, not in use" />}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** Which lists are open ("Show more"), when the page holds it for every group ("Show all providers"). */
+export type ListFolds = { isOpen: (key: string) => boolean; setOpen: (key: string, open: boolean) => void }
 
 /** A realtime model and all three parts are connected: there is a choice of which one answers. */
 const bothWaysSetUp = (data: AdminData) =>
@@ -62,31 +117,52 @@ type Props = {
   onPipelinePolicy?: () => Promise<void>
   /** In the install walkthrough: no heading of its own (the step has it). */
   embedded?: boolean
+  /** Admin › Providers: the page holds which lists are open. Left out: each list keeps its own. */
+  folds?: ListFolds
 }
 
-export function ProviderGroup({ group, data, lines, health, onOpen, onOneKey, onPipelinePolicy, embedded }: Props) {
-  const providers = providersOfGroup(group.id)
-  // Answering lists its categories one under the other: the realtime model, then the three stages.
-  const categories = [...new Set(providers.map(p => providerSpec(p).category))]
-  const note = groupNote(group, embedded)
+export function ProviderGroup({
+  group,
+  data,
+  lines,
+  health,
+  onOpen,
+  onOneKey,
+  onPipelinePolicy,
+  embedded,
+  folds,
+}: Props) {
+  // Answering shows one of its two ways at a time (tabs); the other groups all their lists.
+  const [pickedWay, setPickedWay] = useState<VoicePipeline | null>(null)
+  const answering = group.id === 'answering'
+  const way = pickedWay ?? defaultAnsweringWay(group, data)
+  const lists = listsOfGroup(group.id).filter(l => !answering || wayOfCategory(l.category) === way)
+  const note = groupNote(group)
+  const help = groupHelp(group, embedded)
+  const detail = groupProblem(group)?.detail
+  // Only a problem is said here; a group that works shows its marks on the providers in use.
+  const attention = groupAttention(group)
+  const status = attention && (
+    <span className={cx('adm-provcat-note', attention === 'failing' && 'adm-status-bad')}>
+      <StatusMark state={attention} /> {statusWords[attention]}
+    </span>
+  )
   return (
     <section id={groupAnchor(group.id)} className="adm-provcat" aria-label={group.label}>
       {!embedded && (
         <h2>
           {group.label}
-          <span className="adm-provcat-note">
-            <StatusMark state={group.state} /> <StatusWords status={group} />
-            {group.state === 'works' && group.providerLabel ? ` · ${group.providerLabel}` : ''}
-          </span>
+          {help && <HelpTip text={help} />}
+          {status}
         </h2>
       )}
-      {embedded && (
-        <p className="adm-group-status">
-          <StatusMark state={group.state} /> <StatusWords status={group} />
-          {group.providerLabel ? ` · ${group.providerLabel}` : ''}
+      {embedded && status && <p className="adm-group-status">{status}</p>}
+      {note && (
+        <p className="help adm-problem-line">
+          {note}
+          {detail && <HelpTip text={detail} />}
         </p>
       )}
-      {note && <p className="help">{note}</p>}
       {group.id === 'answering' && onPipelinePolicy && bothWaysSetUp(data) && (
         <PipelinePolicy onChanged={onPipelinePolicy} />
       )}
@@ -95,29 +171,36 @@ export function ProviderGroup({ group, data, lines, health, onOpen, onOneKey, on
           <OneKey disabled={!data.canStoreKeys} onDone={onOneKey} />
         </div>
       )}
-      {group.id === 'call-audio' ? (
-        <CallAudio group={group} health={health} />
-      ) : (
-        categories.map(category => (
-          <Fragment key={category}>
-            {/* Answering: the two ways, one realtime model or three parts, each under its own heading. */}
-            {group.id === 'answering' && answeringWays[category] && (
-              <h3 className="adm-provway">{answeringWays[category]}</h3>
-            )}
+      {group.id === 'call-audio' && <CallAudio group={group} health={health} />}
+      {answering && (
+        <AnsweringWayTabs
+          selected={way}
+          marks={{
+            realtime: answeringWayMark('realtime', group, data, lines),
+            three_stage: answeringWayMark('three_stage', group, data, lines),
+          }}
+          onSelect={setPickedWay}
+        />
+      )}
+      {group.id !== 'call-audio' && (
+        <div
+          className="adm-provlists"
+          {...(answering ? { id: wayPanelId, role: 'tabpanel', 'aria-labelledby': wayTabId(way) } : {})}
+        >
+          {lists.map(({ key, category, providers }) => (
             <ProviderList
-              title={
-                categories.length > 1 && !(group.id === 'answering' && category === 'realtime')
-                  ? providerCategories[category]
-                  : null
-              }
+              key={key}
+              title={lists.length > 1 ? providerCategories[category] : null}
               category={category}
-              providers={providers.filter(p => providerSpec(p).category === category)}
+              providers={providers}
               data={data}
               lines={lines}
               onOpen={onOpen}
+              open={folds?.isOpen(key)}
+              onOpenChange={folds ? next => folds.setOpen(key, next) : undefined}
             />
-          </Fragment>
-        ))
+          ))}
+        </div>
       )}
     </section>
   )
@@ -130,6 +213,8 @@ function ProviderList({
   data,
   lines,
   onOpen,
+  open,
+  onOpenChange,
 }: {
   title: string | null
   category: ProviderCategory
@@ -137,16 +222,22 @@ function ProviderList({
   data: AdminData
   lines: Record<ProviderName, ProviderLine>
   onOpen: (provider: ProviderName) => void
+  /** Held by the page (ListFolds); left out, the list keeps its own. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
   const active = data.activeProviders[category]?.provider ?? null
   const setUp = providers.filter(p => lines[p]?.state !== 'missing')
-  const [expanded, setExpanded] = useState(false)
-  // Set up, being tested or failing: never folded away.
-  const keep = (name: ProviderName) => {
-    const status = data.providers.find(p => p.provider === name)
-    return (!!status && isConfigured(status)) || (!!lines[name] && lines[name].state !== 'missing')
-  }
+  const [ownExpanded, setOwnExpanded] = useState(false)
+  const expanded = open ?? ownExpanded
+  const setExpanded = onOpenChange ?? setOwnExpanded
+  const keep = keepShown(data, lines)
   const list = visibleProviders(providers, { pinned: pinnedProvidersOf(category), keep, expanded })
+  // "Recommended" helps to pick one: shown until a provider of the list is set up, then the marks say what is used.
+  const picking = !providers.some(p => {
+    const status = data.providers.find(s => s.provider === p)
+    return !!status && isConfigured(status)
+  })
   return (
     <>
       {title && <h3 className="adm-provsub">{title}</h3>}
@@ -163,17 +254,19 @@ function ProviderList({
                 ? 'In use'
                 : 'Not in use'
               : null
+          const shown = line && rowStatus(line, { use, fromServer: providerState(status) === 'env' })
           return (
             <li key={name} className="adm-prov">
               <Logo mark={providerMeta[name].mark} size={28} />
               <span className="adm-prov-name">
                 <b>{status.label}</b>
-                {recommendedProviders[category] === name && <span className="adm-recommended">Recommended</span>}
-                {configured && line && (
-                  <span className="adm-tile-status">
-                    <StatusMark state={line.state} /> <StatusWords status={line} />
-                    {use ? ` · ${use}` : ''}
-                    {providerState(status) === 'env' && <ServerSet />}
+                {picking && recommendedProviders[category] === name && (
+                  <span className="adm-recommended">Recommended</span>
+                )}
+                {configured && line && shown && (
+                  <span className={cx('adm-tile-status', line.state === 'failing' && 'adm-status-bad')}>
+                    <StatusMark state={line.state} label={shown.label} />
+                    {shown.words}
                   </span>
                 )}
                 {configured && line?.state === 'failing' && line.message && (
@@ -227,8 +320,9 @@ function CallAudio({ group, health }: { group: GroupStatus; health: AdminHealth 
                 <StatusMark
                   state={!row.status ? 'checking' : row.status.ok ? 'works' : 'missing'}
                   label={row.status?.message}
-                />{' '}
-                {row.status?.message ?? 'Checking…'}
+                />
+                {/* Working: the mark alone, its message is the tooltip. */}
+                {row.status?.ok ? null : (row.status?.message ?? 'Checking…')}
               </span>
             </span>
           </li>

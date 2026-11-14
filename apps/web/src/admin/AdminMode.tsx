@@ -126,6 +126,8 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   const status = useProviderStatus(data)
   // The session stopped opening Admin while it was open (1 hour without a passkey): sign in again here.
   const [signInAgain, setSignInAgain] = useState<AdminSecondFactor | null>(null)
+  // Where a page puts its own buttons, at the right of its heading (Providers: Show all providers).
+  const [headActions, setHeadActions] = useState<HTMLDivElement | null>(null)
   useEffect(() => watchAdminSignIn(setSignInAgain), [])
   const nav = useRef<HTMLElement>(null)
   // On a phone the sections are a row that scrolls sideways: keep the open one in view.
@@ -234,6 +236,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
             status={status}
             id={place.id}
             onClearId={() => go({ section: 'providers', id: null })}
+            headActions={headActions}
             {...shared}
           />
         )
@@ -300,7 +303,10 @@ export function AdminMode({ currentUserId, onExit }: Props) {
               </>
             ) : (
               <>
-                <h1>{meta.label}</h1>
+                <div className="adm-head-row">
+                  <h1>{meta.label}</h1>
+                  <div className="adm-head-actions" ref={setHeadActions} />
+                </div>
                 {meta.description && <p>{meta.description}</p>}
               </>
             )}

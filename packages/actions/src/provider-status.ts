@@ -228,6 +228,13 @@ export type GroupStatus = {
   testedAt: string | null
   /** The providers in use behind it (Answering calls: the realtime model and the three stages). */
   parts: ProviderLine[]
+  /**
+   * Answering calls: the providers that answer, one name each ("OpenAI Realtime"; "Deepgram", "OpenAI", "ElevenLabs";
+   * all four when assistants choose both ways). Left out by the other groups.
+   */
+  answeredBy?: string[]
+  /** Answering calls: the ways that answer now (the realtime model, the three parts, or both). Left out by the others. */
+  answeredWith?: VoicePipeline[]
 }
 export type StatusGroups = {
   groups: GroupStatus[]
@@ -348,6 +355,7 @@ function answering(input: StatusInput, lineOf: (c: ProviderCategory) => Provider
   const line = worst(used.map(pipelineLine))
   const names = used.map(p => (p === 'realtime' ? realtime!.label : threeLabel))
   const answeredText = `Answered by ${listWords(names, 'and')}${used.length > 1 ? ', as each assistant chose' : ''}.`
+  const answerers = used.flatMap(p => (p === 'realtime' ? [realtime!.label] : stages.map(s => s.label)))
   return {
     state: line.state,
     detail: line.detail,
@@ -356,6 +364,8 @@ function answering(input: StatusInput, lineOf: (c: ProviderCategory) => Provider
     providerLabel: listWords(names),
     testedAt: line.testedAt,
     parts,
+    answeredBy: [...new Set(answerers)],
+    answeredWith: used,
   }
 }
 

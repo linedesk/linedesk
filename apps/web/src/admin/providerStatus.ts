@@ -5,6 +5,7 @@
 // "Works" means the same on every screen. A provider set up without a stored test is checked once with the free key
 // check (provider.test with `free`: no tokens, no speech), never a paid round trip.
 import {
+  callAudioGuide,
   type GroupStatus,
   groupSpec,
   isMultiCategory,
@@ -15,8 +16,10 @@ import {
   providerLine,
   providerNames,
   type StatusGroups,
+  type StatusState,
   type StoredTest,
   statusGroups,
+  statusText,
 } from '@linedesk/actions'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '../cachedQuery.ts'
@@ -83,12 +86,79 @@ export function providerStatus(
 
 /** "tested 4 min ago", "tested just now", "tested Nov 13". */
 /**
- * The line under a group's status: what is wrong while it fails or is half set up, otherwise why the group is there.
- * Embedded in the install walkthrough, the step's own lede already says why, so only a problem is shown there.
+ * The line under a group's heading, or null: only what everyone must read, i.e. what is wrong while the group fails
+ * or is half set up. Why the group is there is help on demand (groupHelp), behind the (?) next to the heading.
  */
-export function groupNote(group: GroupStatus, embedded = false): string | null {
+export function groupNote(group: GroupStatus): string | null {
+  const problem = groupProblem(group)
+  if (problem) return problem.line
   if (group.message && group.state !== 'works' && group.state !== 'off') return group.message
+  // The development carrier works without a row of its own: the line says so, as no mark in the list can.
+  if (group.id === 'telephony' && group.state === 'works' && !group.provider && group.message) return group.message
+  return null
+}
+
+/**
+ * Why a group is there, for the (?) next to its heading. Embedded in the install walkthrough, the step's own lede
+ * already says it, so there is none there.
+ */
+export function groupHelp(group: Pick<GroupStatus, 'id'>, embedded = false): string | null {
   return embedded ? null : groupSpec(group.id).why
+}
+
+/**
+ * The state a group's heading shows, or null: a group that is fine shows none (its providers carry the marks). Only a
+ * problem gets the mark and its word: failing, partly working, or not set up while calls need it.
+ */
+export function groupAttention(group: Pick<GroupStatus, 'state' | 'needed'>): StatusState | null {
+  if (group.state === 'failing' || group.state === 'partly') return group.state
+  return group.state === 'missing' && group.needed ? 'missing' : null
+}
+
+/**
+ * A provider row's status: a working provider shows only its mark, the words are its tooltip and accessible label;
+ * a state that needs attention (failing, partly, being tested, not tested) keeps its words next to the mark. `use` is
+ * "In use" or "Not in use" where there is a choice; only "Not in use" is shown, "In use" goes into the tooltip.
+ * `fromServer`: its keys come from the server's settings, said in the tooltip (the dialog shows it per field).
+ */
+export function rowStatus(
+  line: Pick<ProviderLine, 'state' | 'detail'>,
+  { use = null, fromServer = false }: { use?: 'In use' | 'Not in use' | null; fromServer?: boolean } = {},
+): { label: string; words: string | null } {
+  const text = statusText(line)
+  const label = [text, use, fromServer ? 'Keys set on the server' : null].filter(Boolean).join(' · ')
+  if (line.state === 'works') return { label, words: use === 'Not in use' ? use : null }
+  return { label, words: [text, use].filter(Boolean).join(' · ') }
+}
+
+/**
+ * The muted value of a group's row on the overview: what is in use, compact ("OpenAI Realtime", "Deepgram · OpenAI ·
+ * ElevenLabs"), while it works; the problem in words otherwise.
+ */
+/**
+ * A group that fails or only partly works, said for people: a short sentence for the line under its name (it wraps,
+ * never cut off), and the technical detail with the fix for the (?) beside it (help on demand). Call audio's server
+ * texts are terse ("No inbound trunk, so no call can arrive (run setup-sip)"), so they become the detail; other
+ * groups' messages are already sentences ("OpenAI rejected the key.").
+ */
+export function groupProblem(group: GroupStatus): { line: string; detail: string | null } | null {
+  if (group.state !== 'failing' && group.state !== 'partly') return null
+  const server = group.message?.replace(/\s*\(run setup-sip\)$/, '') ?? null
+  if (group.id === 'call-audio' && group.state === 'partly') {
+    return {
+      line: "Calls can't come in yet: no SIP trunk.",
+      detail: [server && `${server}.`, callAudioGuide.steps[2]].filter(Boolean).join(' '),
+    }
+  }
+  if (group.id === 'call-audio') {
+    return { line: "LiveKit can't be reached, so calls have no audio.", detail: server && `${server}.` }
+  }
+  return { line: group.message ?? statusText(group), detail: null }
+}
+
+export function groupValue(group: GroupStatus): string | null {
+  if (group.state !== 'works') return statusText(group)
+  return group.answeredBy?.length ? group.answeredBy.join(' · ') : group.providerLabel
 }
 
 export function testedAgo(at: string | null, now = Date.now()): string | null {

@@ -3,8 +3,11 @@
 // there and its providers. Connect and Edit open the provider's dialog (ProviderDialog), the one editor. While a group
 // calls need is not set up, the agent setup leads on top. `#admin/providers/<group>` scrolls to the group,
 // `#admin/providers/<provider>` opens its dialog; old category links (`#admin/providers/stt`) land on their group.
+// "Show all providers" at the right of the heading opens every group's short list at once (and "Show fewer" folds
+// them again); each list's own "Show more" still works, and the top button follows what the lists show.
 import { isMultiCategory, listWords, providerCategories, type ProviderName } from '@linedesk/actions'
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery } from '../cachedQuery.ts'
 import { openAgentSetup } from '../onboarding/AgentSetup.tsx'
 import { openInstallSetup } from '../onboarding/InstallSetup.tsx'
@@ -15,7 +18,8 @@ import { isConfigured } from './model.ts'
 import { errorText, type Notify } from './notify.ts'
 import { clearOpenRouterReturn, type OpenRouterReturn, peekOpenRouterReturn } from './openrouterAuth.ts'
 import { ProviderDialog } from './ProviderDialog.tsx'
-import { groupAnchor, ProviderGroup } from './ProviderGroup.tsx'
+import { groupAnchor, type ListFolds, ProviderGroup } from './ProviderGroup.tsx'
+import { allOpen, foldableLists, keepShown, listsOfGroup } from './providerList.ts'
 import { providersTarget } from './route.ts'
 import type { ProviderStatusState } from './providerStatus.ts'
 
@@ -139,9 +143,26 @@ type Props = {
   onClearId: () => void
   notify: Notify
   reload: () => Promise<void>
+  /** The place right of the page's heading, for "Show all providers". */
+  headActions?: HTMLElement | null
 }
 
-export function Providers({ data, status, id, onClearId, notify, reload }: Props) {
+/** "Show all providers" / "Show fewer": every group's short list at once. */
+function ShowAll({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      aria-expanded={open}
+      onClick={onToggle}
+      title={open ? 'Show only the recommended providers and those in use' : "Show every group's providers"}
+    >
+      {open ? 'Show fewer' : 'Show all providers'}
+    </Button>
+  )
+}
+
+export function Providers({ data, status, id, onClearId, notify, reload, headActions }: Props) {
   const target = providersTarget(id)
   // Back from "Connect with OpenRouter": its dialog opens and finishes the connection.
   const [oauthReturn] = useState<OpenRouterReturn | null>(() => peekOpenRouterReturn())
@@ -158,6 +179,23 @@ export function Providers({ data, status, id, onClearId, notify, reload }: Props
 
   const groups = status.status?.groups ?? []
   const missing = groups.filter(g => g.needed && g.state === 'missing')
+
+  // Which provider lists are open: held here, so one button opens or folds them all.
+  const [openLists, setOpenLists] = useState<ReadonlySet<string>>(() => new Set())
+  const lines = status.status?.lines
+  const lists = groups.flatMap(g => listsOfGroup(g.id))
+  const foldable = lines ? foldableLists(lists, keepShown(data, lines), openLists) : []
+  const everyOpen = allOpen(foldable, openLists)
+  const folds: ListFolds = {
+    isOpen: key => openLists.has(key),
+    setOpen: (key, open) =>
+      setOpenLists(prev => {
+        const next = new Set(prev)
+        if (open) next.add(key)
+        else next.delete(key)
+        return next
+      }),
+  }
   const close = () => {
     setOpen(null)
     if (linked) onClearId()
@@ -165,6 +203,12 @@ export function Providers({ data, status, id, onClearId, notify, reload }: Props
 
   return (
     <>
+      {headActions &&
+        foldable.length > 0 &&
+        createPortal(
+          <ShowAll open={everyOpen} onToggle={() => setOpenLists(everyOpen ? new Set() : new Set(foldable))} />,
+          headActions,
+        )}
       {!data.canStoreKeys && (
         <Note tone="warning">
           No encryption key on the server, so keys can't be saved.{' '}
@@ -173,7 +217,7 @@ export function Providers({ data, status, id, onClearId, notify, reload }: Props
       )}
       {missing.length > 0 && (
         <AgentFirst
-          lead={`${listWords(missing.map(g => g.label))} ${missing.length > 1 ? 'are' : 'is'} not set up yet. An AI agent can set up the rest with you in about 15 minutes.`}
+          lead={`${listWords(missing.map(g => g.label))} ${missing.length > 1 ? 'are' : 'is'} not set up yet. An AI agent can set up the rest with you in about 10 minutes.`}
         />
       )}
       {status.status &&
@@ -190,6 +234,7 @@ export function Providers({ data, status, id, onClearId, notify, reload }: Props
               notify('Calls are answered with OpenAI now.')
             }}
             onPipelinePolicy={reload}
+            folds={folds}
           />
         ))}
       {open && (

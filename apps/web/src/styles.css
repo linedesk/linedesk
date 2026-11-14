@@ -85,12 +85,16 @@ body { margin: 0; font-family: var(--font-sans); background: var(--bg); color: v
 /* Note: the one box for a message on a page (docs/design-principles.md, Messages). Tones: neutral (grey, a plain
    hint), info (blue-grey), success (a result, check icon), warning (amber: works, but something important is
    missing), danger (red: failed or blocked). Warning and danger carry an accent edge and their icon. */
-.k-note { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 10px 12px; border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--surface-hover); color: var(--ink); font-size: 13px; line-height: 18px; text-align: left; overflow-wrap: anywhere; }
+.k-note { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; margin: 0; padding: 10px 12px; border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--surface-hover); color: var(--ink); font-size: 13px; line-height: 18px; text-align: left; overflow-wrap: anywhere; }
 .k-note-icon { flex: none; margin-top: 1px; }
-.k-note-body { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.k-note-body { flex: 1 1 240px; min-width: 0; display: grid; gap: 2px; }
 .k-note-title { font-weight: 600; }
 .k-note-text a:not(.k-btn), .k-note-text .k-link { color: inherit; font-weight: 500; text-decoration: underline; text-underline-offset: 2px; }
-.k-note-action { flex: none; align-self: center; display: flex; gap: var(--space-2); }
+/* A note with actions: the icon, the text's first line and the buttons share one centre line; when the text needs the
+   room, the buttons move below it, at the right. */
+.k-note-action { flex: none; margin-left: auto; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.k-note:has(> .k-note-action) .k-note-icon { margin-top: calc((var(--control-h-sm, 28px) - 16px) / 2); }
+.k-note:has(> .k-note-action) .k-note-body { padding-top: calc((var(--control-h-sm, 28px) - 18px) / 2); }
 .k-note-info { background: var(--info-soft); }
 .k-note-info .k-note-icon { color: var(--info); }
 .k-note-success .k-note-icon { color: var(--ink); }

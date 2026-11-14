@@ -164,6 +164,21 @@
   display: grid;
   gap: 4px;
 }
+.adm-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.adm-head-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+.adm-head-actions:empty {
+  display: none;
+}
 .adm-head h1 {
   margin: 0;
   font-size: 20px;
@@ -459,7 +474,7 @@
 }
 .adm-provcat h2 {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   margin: 0;
   font-size: 12px;
@@ -469,7 +484,15 @@
   text-transform: uppercase;
   color: var(--ink-muted);
 }
+/* The (?) beside the heading: its tip reads as normal text, not as the uppercase heading. */
+.adm-provcat h2 .k-help {
+  letter-spacing: 0;
+  text-transform: none;
+}
 .adm-provcat-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
@@ -704,24 +727,128 @@
 .adm-card-head p {
   margin: 2px 0 0;
 }
+/* "Ready for calls" (StatusCard.tsx): one calm line, the parts as list rows (ui/list.tsx) under it. */
+.adm-ready {
+  gap: 10px;
+}
+.adm-ready-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.adm-ready-head > .k-mark {
+  margin-top: 3px;
+}
+.adm-ready-text {
+  flex: 1;
+  min-width: 0;
+}
+.adm-ready-text h2 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+.adm-ready-text p {
+  margin: 2px 0 0;
+}
+.adm-ready-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 6px;
+  padding: 4px 6px;
+  margin-left: 18px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.adm-ready-toggle:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+.adm-ready-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.adm-ready-toggle[aria-expanded="false"] .k-icon {
+  transform: rotate(-90deg);
+}
 .adm-health {
   display: grid;
+  gap: 6px;
+  padding-left: 24px;
 }
-.adm-health-row {
-  display: grid;
-  grid-template-columns: 10px 110px minmax(0, 1fr);
-  align-items: baseline;
-  gap: 10px;
-  padding: 8px 0;
-  border-top: 1px solid var(--line);
-  font-size: 13px;
+.adm-health-sub {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
 }
-.adm-health-row:first-child {
-  border-top: 0;
-  padding-top: 0;
+.adm-health-sub:first-child {
+  margin-top: 0;
 }
-.adm-health-row b {
-  font-weight: 500;
+/* A row that opens its page: the name is the link, stretched over the whole row. */
+.adm-status-row-link {
+  position: relative;
+}
+.adm-status-row-link:hover {
+  background: var(--surface-hover);
+}
+.adm-status-link {
+  color: inherit;
+  text-decoration: none;
+}
+.adm-status-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.adm-status-link:focus-visible {
+  outline: none;
+}
+.adm-status-row-link:has(.adm-status-link:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+.adm-status-row .k-row-aside {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+/* A problem under the part's name: in full, wrapping, with its (?) above the row's stretched link. */
+.adm-status-row .k-row-sub {
+  white-space: normal;
+}
+/* The (?) after a problem: a little apart from the sentence, and above the row's stretched link so it opens. */
+.adm-status-problem .k-help,
+.adm-problem-line .k-help {
+  position: relative;
+  z-index: 1;
+  margin-left: 6px;
+}
+/* Phones (the list wraps a row below 560px): a value that no longer fits next to the name keeps to the right edge
+   on the next line, as on wide screens, instead of starting under the mark. */
+@media (max-width: 559px) {
+  .adm-status-row .k-row-aside {
+    margin-left: auto;
+  }
+}
+.adm-status-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.adm-status-chevron {
+  color: var(--ink-muted);
+  transform: rotate(180deg);
 }
 .adm-scroll {
   overflow-x: auto;
@@ -772,11 +899,11 @@
   padding: 28px 20px;
 }
 @media (max-width: 719px) {
-  .adm-health-row {
-    grid-template-columns: 10px minmax(0, 1fr);
+  .adm-health {
+    padding-left: 0;
   }
-  .adm-health-row .help {
-    grid-column: 2;
+  .adm-ready-toggle {
+    margin-left: 0;
   }
 }
 
@@ -1067,10 +1194,11 @@
   margin: 0;
 }
 /* The agent setup as a quiet line under the overview's status. */
+/* The text's first line and the buttons share one centre line; the buttons wrap below when the text needs the room. */
 .adm-agent-line {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   margin-top: 12px;
   padding-top: 12px;
@@ -1078,6 +1206,8 @@
 }
 .adm-agent-line .help {
   flex: 1 1 240px;
+  padding-top: calc((var(--control-h-sm, 28px) - 18px) / 2);
+  line-height: 18px;
 }
 /* Try it (TryOut.tsx): a real round trip in the provider's dialog. */
 .adm-try {
@@ -1198,14 +1328,27 @@
 }
 
 /* Answering's two ways (one realtime model, or three parts), above their lists. */
-.adm-provway {
-  margin: 10px 0 0;
-  font-size: 13px;
-  font-weight: 600;
+/* Answering's two ways as tabs (the inbox's .ib-tab style); the panel below shows the chosen way's lists. */
+.adm-provlists {
+  display: grid;
+  gap: 10px;
 }
-.adm-provway + .adm-provlist,
-.adm-provway + .adm-provsub {
+.adm-way-tabs {
   margin-top: 4px;
+}
+.adm-way-use {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+}
+@media (max-width: 559px) {
+  .adm-way-tabs {
+    flex-wrap: nowrap;
+  }
+  .adm-way-tabs .ib-tab {
+    flex: 1;
+    justify-content: center;
+  }
 }
 
 /* Answering with both ways set up: which one answers calls (PipelinePolicy.tsx), above the two lists. */
