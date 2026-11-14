@@ -156,9 +156,9 @@ function AccountPage({ onBack }: { onBack: () => void }) {
         <button type="button" className="k-btn k-btn-ghost k-btn-sm" onClick={onBack} title="Back">
           Back
         </button>
-        <b>Account settings</b>
+        <b>Account</b>
       </div>
-      <AccountSettings />
+      <AccountSettings hasWorkspace={false} />
     </div>
   )
 }

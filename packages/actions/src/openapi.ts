@@ -104,7 +104,7 @@ export function openApiDocument(actions: Iterable<ActionDef>, serverUrl: string)
     info: {
       title: 'Linedesk API',
       version: '1',
-      description: 'Every write is an action: POST /v1/actions/<name> with a JSON body. Authenticate with a workspace API key (Settings, Developers) as a Bearer token.',
+      description: 'Every write is an action: POST /v1/actions/<name> with a JSON body. Authenticate with a workspace API key (Workspace settings, Developers) as a Bearer token.',
     },
     servers: [{ url: serverUrl }],
     security: [{ apiKey: [] }],

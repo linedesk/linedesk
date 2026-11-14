@@ -868,9 +868,9 @@ function canonicalAssistantHash(assistants: Assistant[]) {
   const id = isAssistant ? parts[0]! : assistants[0]?.id
   const section = isAssistant ? parts[1] : parts[0]
   if (!id || !section) return
-  // Notifications are your own settings now (Settings › Notifications), not the assistant's.
+  // Notifications are your own settings now (Account › Notifications), not the assistant's.
   if (section === 'notifications')
-    return history.replaceState(null, '', `#settings/notifications${query ? `?${query}` : ''}`)
+    return history.replaceState(null, '', `#account/notifications${query ? `?${query}` : ''}`)
   const next = OLD_SECTIONS[section] ?? section
   if (isAssistant && next === section) return
   history.replaceState(null, '', `#assistant/${id}/${next}${query ? `?${query}` : ''}`)

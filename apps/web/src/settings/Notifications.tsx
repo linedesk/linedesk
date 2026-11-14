@@ -1,6 +1,7 @@
-// Settings › Notifications: your own new-call notifications (email per call, and one switch for notifications on
-// this device: push where the browser and server can, else while Linedesk is open) and, for owners and admins, the
-// email default for teammates who never changed theirs. The device switch asks for the browser's permission itself.
+// Account › Notifications: your own new-call notifications in this workspace (email per call, and one switch for
+// notifications on this device: push where the browser and server can, else while Linedesk is open). The device
+// switch asks for the browser's permission itself. NotificationDefaults: for owners and admins, the email default for
+// teammates who never changed theirs (at the end of Workspace settings › Team).
 import type { NotificationSettingsData } from '@linedesk/actions'
 import { useEffect, useState } from 'react'
 import { brandName } from '../brand.ts'
@@ -12,9 +13,13 @@ import {
 } from '../shell/useCallNotifications.ts'
 import { useRun } from '../store.tsx'
 import { useCanAssign } from '../team/members.ts'
+import { useWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
 import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
 import { Section, SwitchRow } from './fields.tsx'
 import { permissionText, useNotificationPermission } from './notificationPermission.ts'
+
+/** Your own notifications, linked from the team defaults (Workspace settings › Team). */
+export const OWN_NOTIFICATIONS_HASH = '#account/notifications'
 
 const blockedText = 'Blocked by the browser. Allow notifications for this site, then try again.'
 
@@ -136,36 +141,34 @@ export function useDeviceNotifications(settings: NotificationSettingsData) {
   return { on, disabled: unavailable, note, set, pushOn: viaPush && on }
 }
 
-export function Notifications({ toast }: { toast: (text: string) => void }) {
+/** `workspaceName`: the workspace these settings are for; each workspace has its own. */
+export function Notifications({ workspaceName }: { workspaceName: string }) {
   const query = useNotificationQuery()
   const settings = query.data ?? null
   const error = settings ? null : query.error
+  const description = `In ${workspaceName}: email, and this device.`
 
   if (error)
     return (
-      <Section id="st-notify" title="Notifications">
+      <Section id="st-notify" title="Notifications" description={description}>
         <LoadProblem what="Notification settings" message={error} onRetry={() => void query.reload()} />
       </Section>
     )
   if (!settings)
     return (
-      <Section id="st-notify" title="Notifications">
+      <Section id="st-notify" title="Notifications" description={description}>
         <SkeletonRows label="Loading notification settings" rows={2} />
       </Section>
     )
-  return <NotificationSettings settings={settings} toast={toast} />
+  return <OwnNotifications settings={settings} description={description} />
 }
 
-function NotificationSettings({
-  settings,
-  toast,
-}: {
-  settings: NotificationSettingsData
-  toast: (text: string) => void
-}) {
+function OwnNotifications({ settings, description }: { settings: NotificationSettingsData; description: string }) {
   const run = useRun()
   const canAssign = useCanAssign()
   const device = useDeviceNotifications(settings)
+  // Someone in several workspaces changes another's notifications there.
+  const several = (useWorkspaces()?.length ?? 1) > 1
 
   /** Applies at once on this page and in the browser-notification hook; the server gets it through the outbox. */
   function change(next: NotificationSettingsData) {
@@ -179,14 +182,6 @@ function NotificationSettings({
       effective: { ...settings.effective, email: on },
     })
     void run('notifications.update', { email: on })
-  }
-
-  function setDefaultEmail(on: boolean) {
-    const defaults = { ...settings.defaults, email: on }
-    const effective = { ...settings.effective, email: settings.own.email ?? on }
-    change({ ...settings, defaults, effective })
-    void run('notifications.setDefaults', { email: on })
-    toast('Team defaults saved.')
   }
 
   function setPushSummary(on: boolean) {
@@ -205,57 +200,79 @@ function NotificationSettings({
   }
 
   return (
-    <>
-      <Section id="st-notify" title="Notifications" description="Only for you.">
-        <div className="st-swlist">
+    <Section id="st-notify" title="Notifications" description={description}>
+      <div className="st-swlist">
+        <SwitchRow
+          title="Email for every call"
+          aside={settings.own.email === null ? 'Team default' : undefined}
+          on={settings.effective.email}
+          onChange={setOwnEmail}
+        />
+        {canAssign && (
           <SwitchRow
-            title="Email for every call"
-            aside={settings.own.email === null ? 'Team default' : undefined}
-            on={settings.effective.email}
-            onChange={setOwnEmail}
+            title="Email me when a call is assigned to me"
+            description="When a teammate assigns you a call. Never for calls you take yourself."
+            on={settings.assignedEmail}
+            onChange={setAssignedEmail}
           />
-          {canAssign && (
-            <SwitchRow
-              title="Email me when a call is assigned to me"
-              description="When a teammate assigns you a call. Never for calls you take yourself."
-              on={settings.assignedEmail}
-              onChange={setAssignedEmail}
-            />
-          )}
-          {settings.setupEmails !== null && (
-            <SwitchRow
-              title="Setup emails"
-              description="A few emails while your workspace gets set up, and a summary of its first week."
-              on={settings.setupEmails}
-              onChange={setSetupEmails}
-            />
-          )}
+        )}
+        {settings.setupEmails !== null && (
           <SwitchRow
-            title="Notifications on this device"
-            description={device.note}
-            on={device.on}
-            onChange={on => void device.set(on)}
-            disabled={device.disabled}
-            dimmed={device.disabled}
+            title="Setup emails"
+            description="A few emails while your workspace gets set up, and a summary of its first week."
+            on={settings.setupEmails}
+            onChange={setSetupEmails}
           />
-          {device.pushOn && (
-            <SwitchRow
-              nested
-              title="Include what the call was about"
-              description="Adds one line about the call to these notifications. It can show on your lock screen."
-              on={settings.push.summary}
-              onChange={setPushSummary}
-            />
-          )}
-        </div>
-      </Section>
-      {settings.canEditDefaults && (
-        <Section id="st-notify-defaults" title="Team defaults" description="For teammates without their own.">
-          <div className="st-swlist">
-            <SwitchRow title="Email for every call" on={settings.defaults.email} onChange={setDefaultEmail} />
-          </div>
-        </Section>
-      )}
-    </>
+        )}
+        <SwitchRow
+          title="Notifications on this device"
+          description={device.note}
+          on={device.on}
+          onChange={on => void device.set(on)}
+          disabled={device.disabled}
+          dimmed={device.disabled}
+        />
+        {device.pushOn && (
+          <SwitchRow
+            nested
+            title="Include what the call was about"
+            description="Adds one line about the call to these notifications. It can show on your lock screen."
+            on={settings.push.summary}
+            onChange={setPushSummary}
+          />
+        )}
+      </div>
+      {several && <p className="help">Each workspace has its own. Switch workspace to change another's.</p>}
+    </Section>
+  )
+}
+
+/** Owners and admins: the email default for teammates who never changed theirs. Nothing for everyone else. */
+export function NotificationDefaults({ toast }: { toast: (text: string) => void }) {
+  const run = useRun()
+  const settings = useNotificationQuery().data ?? null
+  if (!settings?.canEditDefaults) return null
+
+  function setDefaultEmail(current: NotificationSettingsData, on: boolean) {
+    const defaults = { ...current.defaults, email: on }
+    const effective = { ...current.effective, email: current.own.email ?? on }
+    setNotificationSettings({ ...current, defaults, effective })
+    void run('notifications.setDefaults', { email: on })
+    toast('Team defaults saved.')
+  }
+
+  return (
+    <Section id="st-notify-defaults" title="Team defaults" description="Notifications for teammates without their own.">
+      <div className="st-swlist">
+        <SwitchRow
+          title="Email for every call"
+          on={settings.defaults.email}
+          onChange={on => setDefaultEmail(settings, on)}
+        />
+      </div>
+      <p className="help">
+        Your own notifications: <a href={OWN_NOTIFICATIONS_HASH}>Account › Notifications</a>
+      </p>
+    </Section>
   )
 }

@@ -5,7 +5,7 @@ import { useAssistantName, useRows } from '../store.tsx'
 import { Icon } from '../ui/kit.tsx'
 import { useLoadState } from '../ui/LoadStates.tsx'
 
-const PHONE_SETUP_HASH = '#settings/phone'
+const PHONE_SETUP_HASH = '#workspace/phone'
 
 export function SetupBanner({ canEdit }: { canEdit: boolean }) {
   const hasNumber = useRows('phone_numbers').length > 0
@@ -20,7 +20,7 @@ export function SetupBanner({ canEdit }: { canEdit: boolean }) {
         <b>{name} has no phone number yet</b>
         {' · '}
         {canEdit ? (
-          <a href={PHONE_SETUP_HASH} title="Settings › Phone numbers">
+          <a href={PHONE_SETUP_HASH} title="Workspace settings › Phone numbers">
             Connect your number
           </a>
         ) : (

@@ -132,7 +132,7 @@ const appLinks = () => {
     app,
     setup: `${app}/#admin/overview`,
     providers: `${app}/#admin/providers`,
-    test_call: `${app}/#settings/assistant`,
+    test_call: `${app}/#assistant`,
     onboarding: `${app}/`,
   }
 }

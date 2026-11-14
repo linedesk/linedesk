@@ -1,6 +1,6 @@
-// Account settings: profile, sign-in and sessions of the signed-in member, one section at a time
-// (#account/<section>). Everything here is Better Auth's own data (see account-api.ts), so it does not
-// go through the outbox.
+// Account: profile, notifications, sign-in and sessions of the signed-in member, one section at a time
+// (#account/<section>). Profile, sign-in and sessions are Better Auth's own data (see account-api.ts), so they do
+// not go through the outbox; notifications are per workspace (settings/Notifications.tsx).
 import { type FormEvent, useCallback, useState } from 'react'
 import { passkeySupported } from '../../auth.ts'
 import { ConfirmEmail } from '../../ConfirmEmail.tsx'
@@ -13,6 +13,7 @@ import { onSaveKey, SaveBar } from '../../ui/form.tsx'
 import { Badge, Button, Note } from '../../ui/kit.tsx'
 import { type PageSection, SettingsLayout, useSection } from '../../ui/SettingsLayout.tsx'
 import { Field, Section, TextInput } from '../fields.tsx'
+import { Notifications } from '../Notifications.tsx'
 import {
   ACCOUNT,
   type Account,
@@ -506,15 +507,23 @@ function Sessions() {
   )
 }
 
-type SectionId = 'profile' | 'security' | 'sessions'
+type SectionId = 'profile' | 'notifications' | 'security' | 'sessions'
 const sections: readonly PageSection<SectionId>[] = [
   { id: 'profile', label: 'Profile', description: 'Your name' },
+  { id: 'notifications', label: 'Notifications', description: 'New calls by email and on this device' },
   { id: 'security', label: 'Sign-in & security', description: 'Sign-in methods, passkeys and password' },
   { id: 'sessions', label: 'Sessions', description: 'Where you are signed in' },
 ]
+/** Without a workspace there are no notifications to set. */
+const sectionsWithoutWorkspace = sections.filter(s => s.id !== 'notifications')
 
-/** The shell renders this for the `account` route, without props. */
-export function AccountSettings() {
+type Props = {
+  /** False on the screen without a workspace (NoWorkspace.tsx): no Notifications section. */
+  hasWorkspace: boolean
+  workspaceName?: string
+}
+
+export function AccountSettings({ hasWorkspace, workspaceName = '' }: Props) {
   const query = useQuery(ACCOUNT, loadAccount, { persist: true })
   const account = query.data
   // A changed password signs other sessions out, so the session list is loaded again too.
@@ -522,12 +531,14 @@ export function AccountSettings() {
     await Promise.all([query.reload(), refreshQuery(SESSIONS)])
   }, [query.reload])
 
-  const current = useSection('account', sections)
+  const shown = hasWorkspace ? sections : sectionsWithoutWorkspace
+  const current = useSection('account', shown)
   const props = account ? { account, reload } : null
   return (
     <div className="page">
-      <SettingsLayout page="account" title="Account" sections={sections} current={current}>
+      <SettingsLayout page="account" title="Account" sections={shown} current={current}>
         {!props &&
+          current !== 'notifications' &&
           (query.error ? (
             <div className="empty">
               <b>Could not load your account</b>
@@ -537,6 +548,7 @@ export function AccountSettings() {
             <Skeleton className="sk-card" />
           ))}
         {props && current === 'profile' && <Profile {...props} />}
+        {hasWorkspace && current === 'notifications' && <Notifications workspaceName={workspaceName} />}
         {props && current === 'security' && <SignIn {...props} />}
         {current === 'sessions' && <Sessions />}
       </SettingsLayout>

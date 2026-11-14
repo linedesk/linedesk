@@ -1,6 +1,6 @@
 // Where the app is, kept in the URL hash so reload and the browser's Back work:
 // `#calls` (Needs you), `#calls/done` (another view), `#calls?q=leak` (search),
-// `#calls/member/<user id>` (calls assigned to a member), `#call/<id>` (one call), `#assistant`, `#assistant/<section>`, `#account`, `#admin/<section>`.
+// `#calls/member/<user id>` (calls assigned to a member), `#call/<id>` (one call), `#assistant`, `#assistant/<section>`, `#workspace/<section>`, `#account`, `#admin/<section>`.
 // Old links to moved sections are rewritten (movedHash). A link from an email names its workspace
 // (`#call/<id>?ws=<workspace id>`); the app switches to it before the page opens (linkWorkspaceTarget).
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -11,6 +11,8 @@ import { hasSections, isPageRoute, type Route } from './pages.tsx'
 export type InboxPlace = { tab: InboxTab; search: string | null; member?: string | null }
 /** `known` is false when the hash names nothing the app has; the inbox shows instead. */
 export type Location = InboxPlace & { route: Route; callId: string | null; known: boolean }
+/** Open a page, or one section of it (`go('workspace', 'team')` → `#workspace/team`); a new history entry. */
+export type Go = (to: Route, section?: string) => void
 
 const CALL_PREFIX = 'call/'
 const tabs: readonly InboxTab[] = ['you', 'ai', 'spam', 'reminders', 'done', 'mine', 'unassigned', 'review']
@@ -41,7 +43,7 @@ export function parseHash(hash: string, last: InboxPlace = HOME): Location {
   if (path.startsWith(CALL_PREFIX) && path.length > CALL_PREFIX.length)
     return { ...last, route: 'calls', callId: path.slice(CALL_PREFIX.length), known: true }
   if (isPageRoute(path)) return { ...last, route: path, callId: null, known: true }
-  // A section of a page (`#settings/recordings`), or of one of several things on it
+  // A section of a page (`#workspace/recordings`), or of one of several things on it
   // (`#assistant/<assistant id>/hours`): the page reads which (ui/SettingsLayout.tsx).
   const [page = '', ...parts] = path.split('/')
   if (
@@ -124,22 +126,42 @@ export function linkNotice(target: LinkTarget): string | null {
 }
 
 /**
- * Sections that moved: Business hours and Webhooks are in the assistant's settings, Notifications back in Settings;
- * Call details became Export calls; the assistant has a page of its own, not a Settings section.
+ * Old links, exact paths first. Settings became Workspace settings (Team is a section of it), your notifications
+ * are in Account, Business hours and Webhooks in the assistant's settings, Call details became Export calls.
  */
 const MOVED: Record<string, string> = {
+  settings: 'workspace',
   'settings/assistant': 'assistant',
   'settings/hours': 'assistant/hours',
-  'assistant/notifications': 'settings/notifications',
-  'settings/fields': 'settings/export',
   'settings/webhooks': 'assistant/webhooks',
+  'settings/fields': 'workspace/export',
+  'settings/notifications': 'account/notifications',
+  'assistant/notifications': 'account/notifications',
+  team: 'workspace/team',
 }
 
-/** Where an old link now points (`#settings/hours` → `#assistant/hours`), or null when it did not move. */
+/** Where an old path now points, by MOVED and then by its first parts; null when it did not move. */
+function movedPath(path: string): string | null {
+  if (Object.hasOwn(MOVED, path)) return MOVED[path]!
+  const [head, ...rest] = path.split('/')
+  if (head === 'team') return 'workspace/team'
+  // The assistant's notifications (`#assistant/<id>/notifications`) were always your own.
+  if (head === 'assistant' && rest.length === 2 && rest[1] === 'notifications') return 'account/notifications'
+  // Phone numbers (also one number), recordings, export, developers and unknown sections: the same place in
+  // Workspace settings; an unknown one then shows General (knownSectionHash).
+  if (head === 'settings' && rest.length > 0) return `workspace/${rest.join('/')}`
+  return null
+}
+
+/**
+ * Where an old link now points (`#settings/phone/<id>?ws=<id>` → `#workspace/phone/<id>?ws=<id>`), the query kept,
+ * or null when it did not move. Every target is a current place, so a rewritten link is never rewritten again.
+ */
 export function movedHash(hash: string): string | null {
-  const [path = '', query] = hash.replace(/^#/, '').split('?')
-  const to = MOVED[path]
-  return to ? `#${to}${query ? `?${query}` : ''}` : null
+  const [path = '', ...rest] = hash.replace(/^#/, '').split('?')
+  const to = movedPath(path)
+  const query = rest.join('?')
+  return to === null ? null : `#${to}${query ? `?${query}` : ''}`
 }
 
 /** The hash, after rewriting an old link in place (Back skips the old one). */
@@ -173,11 +195,11 @@ export function useRoute() {
     return () => window.removeEventListener('hashchange', onHash)
   }, [apply])
 
-  const go = useCallback(
-    (to: Route) => {
+  const go: Go = useCallback(
+    (to, section) => {
       const now = current.current
       openedFromList.current = false // a page in between: closing a call later must not step back into it
-      push(to === 'calls' ? listHash(now) : `#${to}`)
+      push(to === 'calls' ? listHash(now) : `#${to}${section ? `/${section}` : ''}`)
       apply({ ...now, route: to, callId: null, known: true })
     },
     [apply],

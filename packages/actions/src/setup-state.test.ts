@@ -53,8 +53,8 @@ describe('setup state', () => {
   })
 
   test('each step opens where it is done', () => {
-    expect(setupStepPath('number', null)).toBe('settings/phone')
-    expect(setupStepPath('forwarding', { id: 'pn_1' })).toBe('settings/phone/pn_1')
+    expect(setupStepPath('number', null)).toBe('workspace/phone')
+    expect(setupStepPath('forwarding', { id: 'pn_1' })).toBe('workspace/phone/pn_1')
     expect(setupStepPath('first_call', { id: 'pn_1' })).toBe('calls')
   })
 })

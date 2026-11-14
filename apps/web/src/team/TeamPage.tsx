@@ -1,5 +1,6 @@
-// Team: who is in the workspace, with which role, and who is invited. Owners and admins invite,
-// change roles and remove; members see the list read-only. Every change is a team.* action.
+// Workspace settings › Team: who is in the workspace, with which role, and who is invited. Owners and admins
+// invite, change roles and remove; members see the list read-only. Every change is a team.* action. Leaving the
+// workspace (LeaveWorkspace) is in the Danger zone section.
 import {
   type AssignableRole,
   assignableRoles,
@@ -11,6 +12,7 @@ import {
 } from '@linedesk/actions'
 import { type FormEvent, useState } from 'react'
 import { Section } from '../settings/fields.tsx'
+import { NotificationDefaults } from '../settings/Notifications.tsx'
 import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
 import { markLeft } from '../session.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
@@ -24,9 +26,11 @@ import {
   canRemove,
   invitationStatus,
   isEmail,
+  isMe,
   isOnTeam,
   isOwner,
   joinedLabel,
+  PROFILE_HASH,
   roleLabel,
 } from './team-model.ts'
 
@@ -124,6 +128,18 @@ function MemberRow({ data, m, run }: { data: TeamData; m: TeamMember; run: Run }
       sub={`${m.email} · ${joinedLabel(m.joinedAt)}`}
       actions={
         <>
+          {isMe(data, m) && (
+            <Button
+              size="sm"
+              variant="ghost"
+              title="Your name, sign-in and sessions, in Account"
+              onClick={() => {
+                window.location.hash = PROFILE_HASH
+              }}
+            >
+              Edit profile
+            </Button>
+          )}
           {canEditRole(data, m) ? (
             <RoleSelect
               value={m.role}
@@ -247,7 +263,13 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (te
           onChange={setRole}
         />
       </FormField>
-      <Button busy={sending} type="submit" variant="primary" disabled={!valid || sending} title="Send the invitation (⏎)">
+      <Button
+        busy={sending}
+        type="submit"
+        variant="primary"
+        disabled={!valid || sending}
+        title="Send the invitation (⏎)"
+      >
         {sending ? 'Sending…' : 'Invite'}
       </Button>
     </form>
@@ -255,7 +277,7 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (te
 }
 
 /** Leave this workspace: confirmed in a dialog; then into another workspace, or to the start without one. */
-function LeaveWorkspace({ data }: { data: TeamData }) {
+export function LeaveWorkspace({ data }: { data: TeamData }) {
   const [asking, setAsking] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -315,7 +337,8 @@ function LeaveWorkspace({ data }: { data: TeamData }) {
   )
 }
 
-export function TeamPage({ toast }: { toast: (text: string) => void }) {
+/** The team section of Workspace settings; the team defaults for notifications at its end (owners and admins). */
+export function TeamSection({ toast }: { toast: (text: string) => void }) {
   const team = useTeam()
   const data = team.data ?? null
   const error = data ? null : team.error
@@ -335,56 +358,44 @@ export function TeamPage({ toast }: { toast: (text: string) => void }) {
   }
 
   if (!data)
-    return (
-      <div className="page">
-        {error ? (
-          <div className="empty">
-            <b>The team could not be loaded</b>
-            <span>{error}</span>
-          </div>
-        ) : (
-          <div className="page-in st-page" role="status" aria-busy="true" aria-label="Loading the team">
-            <Skeleton className="sk-line" />
-            <Skeleton className="sk-card" />
-          </div>
-        )}
+    return error ? (
+      <div className="empty">
+        <b>The team could not be loaded</b>
+        <span>{error}</span>
+      </div>
+    ) : (
+      <div role="status" aria-busy="true" aria-label="Loading the team">
+        <Skeleton className="sk-card" />
       </div>
     )
   return (
-    <div className="page">
-      <div className="page-in st-page">
-        <div className="page-head">
-          <div>
-            <h1>Team</h1>
-          </div>
-        </div>
-        <Section
-          id="team-members"
-          title="Members"
-          description={data.canManage ? undefined : 'Only owners and admins can invite or change roles.'}
-          help="Owners and admins can change settings and invite or remove people. Members work with calls, contacts and appointments but can't change settings."
-        >
-          <List label="Members">
-            {data.members.map(m => (
-              <MemberRow key={m.memberId} data={data} m={m} run={run} />
-            ))}
-          </List>
+    <>
+      <Section
+        id="team-members"
+        title="Members"
+        description={data.canManage ? undefined : 'Only owners and admins can invite or change roles.'}
+        help="Owners and admins can change settings and invite or remove people. Members work with calls, contacts and appointments but can't change settings."
+      >
+        <List label="Members">
+          {data.members.map(m => (
+            <MemberRow key={m.memberId} data={data} m={m} run={run} />
+          ))}
+        </List>
+      </Section>
+      {(data.canManage || data.invitations.length > 0) && (
+        <Section id="team-invites" title="Invitations" description="Links in the email work for 7 days.">
+          {data.invitations.length === 0 && <ListEmpty>No pending invitations.</ListEmpty>}
+          {data.invitations.length > 0 && (
+            <List label="Invitations">
+              {data.invitations.map(i => (
+                <InvitationRow key={i.invitationId} invite={i} canManage={data.canManage} run={run} />
+              ))}
+            </List>
+          )}
+          {data.canManage && <InviteForm data={data} run={run} toast={toast} />}
         </Section>
-        {(data.canManage || data.invitations.length > 0) && (
-          <Section id="team-invites" title="Invitations" description="Links in the email work for 7 days.">
-            {data.invitations.length === 0 && <ListEmpty>No pending invitations.</ListEmpty>}
-            {data.invitations.length > 0 && (
-              <List label="Invitations">
-                {data.invitations.map(i => (
-                  <InvitationRow key={i.invitationId} invite={i} canManage={data.canManage} run={run} />
-                ))}
-              </List>
-            )}
-            {data.canManage && <InviteForm data={data} run={run} toast={toast} />}
-          </Section>
-        )}
-        <LeaveWorkspace data={data} />
-      </div>
-    </div>
+      )}
+      <NotificationDefaults toast={toast} />
+    </>
   )
 }

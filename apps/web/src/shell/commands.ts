@@ -43,7 +43,8 @@ export type CommandContext = {
   goInbox: (tab: 'you' | 'done' | 'reminders' | 'mine' | 'unassigned' | 'review') => void
   /** Owners and admins: the Needs review mode. */
   canReview?: boolean
-  goPage: (route: PageRoute) => void
+  /** Open a page, or one section of it (`goPage('workspace', 'team')`). */
+  goPage: (route: PageRoute, section?: string) => void
   isInstanceAdmin: boolean
   undo: () => void
   openSearch: () => void
@@ -314,17 +315,38 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
           run: () => c.goPage('insights'),
         },
         {
+          label: 'Go to Workspace settings',
+          keywords: 'settings phone numbers recordings export api keys rename team leave',
+          icon: 'gear',
+          shortcut: ['G', 'S'],
+          run: () => c.goPage('workspace'),
+        },
+        {
           label: 'Go to Team',
           icon: 'users',
           shortcut: ['G', 'T'],
-          run: () => c.goPage('team'),
+          run: () => c.goPage('workspace', 'team'),
         },
         {
-          label: 'Go to Settings',
-          keywords: 'phone number notifications recordings',
+          label: 'Rename workspace',
+          keywords: 'business name',
           icon: 'gear',
-          shortcut: ['G', 'S'],
-          run: () => c.goPage('settings'),
+          searchOnly: true,
+          run: () => c.goPage('workspace', 'general'),
+        },
+        {
+          label: 'Notifications',
+          keywords: 'email push device alerts',
+          icon: 'bell',
+          searchOnly: true,
+          run: () => c.goPage('account', 'notifications'),
+        },
+        {
+          label: 'Leave workspace…',
+          keywords: 'quit exit danger',
+          icon: 'users',
+          searchOnly: true,
+          run: () => c.goPage('workspace', 'danger'),
         },
         ...(c.isInstanceAdmin
           ? [
@@ -369,7 +391,8 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
             ]
           : []),
         {
-          label: 'Account settings',
+          label: 'Go to Account',
+          keywords: 'account settings profile password passkeys sessions',
           icon: 'user',
           run: () => c.goPage('account'),
         },

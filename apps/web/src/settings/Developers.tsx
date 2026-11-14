@@ -1,4 +1,4 @@
-// Settings, Developers: the workspace's API keys. The list is a cached read (cachedQuery.ts), so it
+// Workspace settings, Developers: the workspace's API keys. The list is a cached read (cachedQuery.ts), so it
 // shows at once from the last answer; creating shows the key once with Copy, revoking asks first.
 // Keys reach /v1 (docs/api.md, GET /v1/openapi.json) with the role they were created with.
 import type { ApiKeyCreated, ApiKeyListData, ApiKeySummary } from '@linedesk/actions'

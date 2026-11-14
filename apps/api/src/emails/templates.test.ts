@@ -103,7 +103,7 @@ describe('call summary', () => {
     expect(email.text).toContain('- Call back before noon')
     expect(email.text).toContain('https://desk.example.com/#call/call_1?ws=ws_1')
     expect(email.html).toContain('href="https://desk.example.com/#call/call_1?ws=ws_1"')
-    expect(email.html).toContain('href="https://desk.example.com/#settings/notifications?ws=ws_1"')
+    expect(email.html).toContain('href="https://desk.example.com/#account/notifications?ws=ws_1"')
     expect(email.html).not.toContain('class="ld-badge"')
   })
 
@@ -178,9 +178,9 @@ describe('links into the app name their workspace', () => {
   })
 
   it('setup emails open the next step in their workspace, like the go-live checklist', () => {
-    expect(setupDay0Email(setup, ORIGIN).html).toContain('href="https://desk.example.com/#settings/phone/pn_1?ws=ws_1"')
+    expect(setupDay0Email(setup, ORIGIN).html).toContain('href="https://desk.example.com/#workspace/phone/pn_1?ws=ws_1"')
     const noNumber = { ...setup, numberId: null, number: null, step: 'number' as const }
-    expect(setupDay0Email(noNumber, ORIGIN).html).toContain('href="https://desk.example.com/#settings/phone?ws=ws_1"')
+    expect(setupDay0Email(noNumber, ORIGIN).html).toContain('href="https://desk.example.com/#workspace/phone?ws=ws_1"')
     const firstCall = setupNudgeEmail(1, { ...setup, step: 'first_call' }, ORIGIN)
     expect(firstCall.html).toContain('href="https://desk.example.com/#calls?ws=ws_1"')
     expect(firstCall.text).toContain('Open your inbox')

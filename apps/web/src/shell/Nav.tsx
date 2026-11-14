@@ -31,7 +31,7 @@ type Props = {
   invitations: MyInvitation[]
   onInvitationsChanged: () => void
   onInbox: (tab: InboxTab) => void
-  onPage: (route: PageRoute) => void
+  onPage: (route: PageRoute, section?: string) => void
   isInstanceAdmin: boolean
   /** Set only where POST /v1/workspaces would allow this person to create a workspace: the profile menu offers it. */
   onNewWorkspace?: () => void
@@ -90,11 +90,11 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
       <NavItem label={pages.assistant.title} icon="waveform" keys={['G', 'A']} current={route === 'assistant'} onClick={go(() => on.onPage('assistant'))} />
       <NavItem label={pages.contacts.title} icon="contact" keys={['G', 'C']} current={route === 'contacts'} onClick={go(() => on.onPage('contacts'))} />
       <NavItem label={pages.insights.title} icon="chart" keys={['G', 'N']} current={route === 'insights'} onClick={go(() => on.onPage('insights'))} />
-      <NavItem label={pages.settings.title} icon="gear" keys={['G', 'S']} current={route === 'settings'} onClick={go(() => on.onPage('settings'))} />
+      <NavItem label={pages.workspace.title} icon="gear" keys={['G', 'S']} current={route === 'workspace'} onClick={go(() => on.onPage('workspace'))} />
       <div className="nav-foot">
         <StarLink />
         <NavItem label="Keyboard shortcuts" icon="keyboard" keys={['?']} onClick={go(on.onHelp)} />
-        <ProfileMenu navOpen={open} name={userName} workspaceName={workspaceName} workspaceId={workspaceId} toast={toast} invitations={invitations} onInvitationsChanged={onInvitationsChanged} onNewWorkspace={onNewWorkspace && go(onNewWorkspace)} onAdmin={isInstanceAdmin ? go(() => on.onPage('admin')) : undefined} onAccount={go(() => on.onPage('account'))} onTeam={go(() => on.onPage('team'))} onSignOut={go(on.onSignOut)} />
+        <ProfileMenu navOpen={open} name={userName} workspaceName={workspaceName} workspaceId={workspaceId} toast={toast} invitations={invitations} onInvitationsChanged={onInvitationsChanged} onNewWorkspace={onNewWorkspace && go(onNewWorkspace)} onAdmin={isInstanceAdmin ? go(() => on.onPage('admin')) : undefined} onAccount={go(() => on.onPage('account'))} onTeam={go(() => on.onPage('workspace', 'team'))} onSignOut={go(on.onSignOut)} />
       </div>
     </nav>
   )

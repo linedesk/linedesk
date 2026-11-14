@@ -20,6 +20,7 @@ import { useSelection } from './inbox/selection.ts'
 import { useCallActions } from './inbox/useCallActions.ts'
 import { useInboxView } from './inbox/useInboxView.ts'
 import { assigneeTabs, callerName, callTitle, type InboxTab, visibleSplits } from './inbox-model.ts'
+import { chordTarget } from './shell/chords.ts'
 import { commandGroups, type Command } from './shell/commands.ts'
 import type { Overlay } from './shell/keys.ts'
 import { invitationNotice, unannounced, useMyInvitations } from './shell/invitations.ts'
@@ -69,21 +70,6 @@ const NAV_DOCKED_QUERY = '(min-width: 1600px)'
 
 /** The not-found toasts (call, page) stay long enough to be read after the jump. */
 const NOT_FOUND_TOAST_MS = 4500
-const chordTabs: Record<string, InboxTab> = {
-  i: 'you',
-  e: 'done',
-  h: 'reminders',
-  m: 'mine',
-  u: 'unassigned',
-  r: 'review',
-}
-const chordPages: Record<string, PageRoute> = {
-  a: 'assistant',
-  c: 'contacts',
-  n: 'insights',
-  t: 'team',
-  s: 'settings',
-}
 
 type Props = {
   me: Me
@@ -92,9 +78,11 @@ type Props = {
   onSessionStale: () => void | Promise<void>
   /** Said once when the app opens: why a link did not open here (App, linkNotice). */
   notice?: string | null
+  /** The workspace was renamed here (Workspace settings › General): the session and the menu take the new name. */
+  onRenamed: (name: string) => void
 }
 
-export function Workspace({ me, onSignedOut, onSessionStale, notice = null }: Props) {
+export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRenamed }: Props) {
   const nav = useRoute()
   // Disabled or enabled by an instance admin while this tab is open: the banner follows the server's
   // latest answer, and the member's permissions are loaded again.
@@ -122,7 +110,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null }: Pr
   useEffect(() => {
     if (!canReview && view.tab === 'review') view.setTabState('you')
   }, [canReview, view.tab])
-  // A notification when a call ends while this tab is in the background (Settings, Notifications).
+  // A notification when a call ends while this tab is in the background (Account, Notifications).
   useCallNotifications(call => callerName(call, call.contact_id ? view.contacts.get(call.contact_id) : undefined))
   const assistantName = useAssistantName()
   const canEditSettings = me.permissions.includes('settings:write')
@@ -198,9 +186,9 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null }: Pr
     setNavOpen(false)
     view.openSearch()
   }
-  const goPage = (to: PageRoute) => {
+  const goPage = (to: PageRoute, section?: string) => {
     setOverlay(null)
-    nav.go(to)
+    nav.go(to, section)
   }
   const bulk = selection.count > 0 && !openCall
   /** A row that stands for repeat calls acts on all of them (see groupRepeats). */
@@ -329,11 +317,10 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null }: Pr
       selectAll: selection.all,
       clearSelection: selection.clear,
       goChord: key => {
-        if (key === 'd' && instanceAdmin) goPage('admin')
-        else if (chordPages[key]) goPage(chordPages[key])
-        else if (chordTabs[key] && (key !== 'r' || canReview) && (!assigneeTabs.includes(chordTabs[key]) || canAssign))
-          view.setTab(chordTabs[key])
-        else return false
+        const to = chordTarget(key, { instanceAdmin, review: canReview, assign: canAssign })
+        if (!to) return false
+        if (to.kind === 'page') goPage(to.route, to.section)
+        else view.setTab(to.tab)
         return true
       },
     },
@@ -517,7 +504,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null }: Pr
       />
       <button type="button" className="scrim" aria-label="Close menu" tabIndex={-1} onClick={() => setNavOpen(false)} />
       <main className="main">
-        {nav.route !== 'settings' && !goLiveVisible && <SetupBanner canEdit={canEditSettings} />}
+        {nav.route !== 'workspace' && !goLiveVisible && <SetupBanner canEdit={canEditSettings} />}
         {!page && !openCall && (
           <SampleCallsBar canEdit={me.permissions.includes('settings:write')} toast={toaster.show} />
         )}
@@ -549,6 +536,8 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null }: Pr
                 menu,
                 openCall: open,
                 phoneSetup: me.phoneSetup,
+                workspaceName: me.workspace!.name,
+                onRenamed,
                 runUndoable: actions.runUndoable,
               })}
             </ErrorBoundary>

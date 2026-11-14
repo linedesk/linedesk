@@ -43,7 +43,7 @@ export function tourSteps(assistant: string): TourStep[] {
     },
     {
       title: 'Settings',
-      text: `G then S opens Settings: phone numbers, notifications. G then A sets up ${assistant}, business hours included.`,
+      text: `G then S opens Workspace settings: name, team, phone numbers. Your notifications are under your name, bottom left. G then A sets up ${assistant}, business hours included.`,
       targets: ['.menu-btn'],
       placement: 'bottom-start',
     },

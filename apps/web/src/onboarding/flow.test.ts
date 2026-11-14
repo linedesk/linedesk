@@ -425,7 +425,7 @@ test('a refused save names the step it came from', () => {
 
 test('done says live only when calls are really answered', () => {
   const base = { voiceMissing: false, forwardingVerified: false, admin: false, assistant: 'Maya' }
-  expect(doneState({ ...base, number: null })).toMatchObject({ live: false, left: [{ href: '#settings/phone' }] })
+  expect(doneState({ ...base, number: null })).toMatchObject({ live: false, left: [{ href: '#workspace/phone' }] })
   const forwarded = { e164: '+15035550142', mode: 'forward_conditional' as const }
   const almost = doneState({ ...base, number: forwarded })
   expect(almost.live).toBe(false)

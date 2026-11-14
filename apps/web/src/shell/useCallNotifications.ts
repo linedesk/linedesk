@@ -12,7 +12,7 @@ import { readAction } from '../settings/settings-api.ts'
 import { useRows } from '../store.tsx'
 import { callHash } from './useRoute.ts'
 
-// The member's settings, shared by this hook and Settings, Notifications (which updates them on
+// The member's settings, shared by this hook and Account, Notifications (which updates them on
 // change): the last known at once (also across page loads), checked again in the background.
 const NOTIFICATIONS = 'notifications'
 const loadNotificationSettings = () => readAction<NotificationSettingsData>('notifications.get')

@@ -75,7 +75,7 @@ export function goLiveItems(facts: GoLiveFacts, assistant: string): GoLiveItem[]
       label: 'Connect your number',
       hint: `So ${assistant} can answer your calls`,
       done: facts.hasNumber,
-      href: '#settings/phone',
+      href: '#workspace/phone',
     },
     {
       id: 'forwarding',
@@ -84,8 +84,8 @@ export function goLiveItems(facts: GoLiveFacts, assistant: string): GoLiveItem[]
       done: facts.forwardingVerified,
       href:
         facts.forwardingNumberId && facts.forwardingNumberId !== 'none'
-          ? `#settings/phone/${facts.forwardingNumberId}`
-          : '#settings/phone',
+          ? `#workspace/phone/${facts.forwardingNumberId}`
+          : '#workspace/phone',
     },
     {
       id: 'first_call',
@@ -121,14 +121,14 @@ export function goLiveItems(facts: GoLiveFacts, assistant: string): GoLiveItem[]
       label: 'Get calls on your phone',
       hint: `Add ${brandName()} to your Home Screen, then allow notifications`,
       done: facts.pushOn,
-      href: '#settings/notifications',
+      href: '#account/notifications',
     })
   items.push({
     id: 'team',
     label: 'Invite your team',
     hint: 'They get the calls meant for them',
     done: facts.teamInvited,
-    href: '#team',
+    href: '#workspace/team',
   })
   return items.map(item => ({ ...item, scope: goLiveStepScope[item.id] }))
 }

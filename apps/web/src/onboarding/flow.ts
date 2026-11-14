@@ -604,12 +604,12 @@ export function doneState(facts: {
       live: false,
       title: 'Almost there.',
       lede: `${assistant} answers once your number is connected.`,
-      left: [{ label: 'Connect your number', href: '#settings/phone' }, ...(voiceMissing ? [voice] : [])],
+      left: [{ label: 'Connect your number', href: '#workspace/phone' }, ...(voiceMissing ? [voice] : [])],
     }
   const shown = formatNumber(number.e164)
   const forwarding = (number.mode === 'forward_conditional' || number.mode === 'forward_all') && !forwardingVerified
   const left: DoneLeft[] = [
-    ...(forwarding ? [{ label: 'Turn on call forwarding', href: '#settings/phone' }] : []),
+    ...(forwarding ? [{ label: 'Turn on call forwarding', href: '#workspace/phone' }] : []),
     ...(voiceMissing ? [voice] : []),
   ]
   if (!left.length)

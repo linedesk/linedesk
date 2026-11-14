@@ -33,7 +33,10 @@ describe('route parsing', () => {
     expect(parseHash('#admin')).toEqual({ ...list, route: 'admin' })
     expect(parseHash('#admin/users/u1')).toEqual({ ...list, route: 'admin' })
     expect(parseHash('#assistant/hours')).toEqual({ ...list, route: 'assistant' })
-    expect(parseHash('#settings/recordings')).toEqual({ ...list, route: 'settings' })
+    expect(parseHash('#workspace')).toEqual({ ...list, route: 'workspace' })
+    expect(parseHash('#workspace/recordings')).toEqual({ ...list, route: 'workspace' })
+    expect(parseHash('#workspace/phone/pn_1')).toEqual({ ...list, route: 'workspace' })
+    expect(parseHash('#account/notifications')).toEqual({ ...list, route: 'account' })
     expect(parseHash('#assistant/as_123abc/hours')).toEqual({ ...list, route: 'assistant' })
   })
   it('keeps the inbox view while a call or another page is open', () => {
@@ -52,7 +55,8 @@ describe('route parsing', () => {
       '#call/',
       '#calls/nope',
       '#calls/done/extra',
-      '#team/members',
+      '#settings',
+      '#team',
       '#assistant/a/b/c',
       '#assistant/h%20x',
     ]) {
@@ -71,8 +75,8 @@ describe('the workspace a link is for', () => {
   it('reads ws= from the hash, next to a search, and nothing else', () => {
     expect(linkWorkspace('#call/call_1?ws=ws_1')).toBe('ws_1')
     expect(linkWorkspace('#calls?q=leak&ws=ws_1')).toBe('ws_1')
-    expect(linkWorkspace('#settings/phone?ws=a%20b%26c')).toBe('a b&c')
-    expect(linkWorkspace('#settings/phone')).toBeNull()
+    expect(linkWorkspace('#workspace/phone?ws=a%20b%26c')).toBe('a b&c')
+    expect(linkWorkspace('#workspace/phone')).toBeNull()
     expect(linkWorkspace('#calls?q=ws=1')).toBeNull()
     expect(linkWorkspace('#call/call_1?ws=')).toBeNull()
     expect(linkWorkspace('')).toBeNull()
@@ -81,13 +85,13 @@ describe('the workspace a link is for', () => {
   it('drops it and keeps the rest of the hash', () => {
     expect(withoutLinkWorkspace('#call/call_1?ws=ws_1')).toBe('#call/call_1')
     expect(withoutLinkWorkspace('#calls?q=leak&ws=ws_1')).toBe('#calls?q=leak')
-    expect(withoutLinkWorkspace('#settings/phone')).toBe('#settings/phone')
+    expect(withoutLinkWorkspace('#workspace/phone')).toBe('#workspace/phone')
   })
 
   it('does not change where a link leads', () => {
     expect(parseHash('#call/call_1?ws=ws_1')).toEqual(parseHash('#call/call_1'))
-    expect(parseHash('#settings/phone?ws=ws_1')).toEqual(parseHash('#settings/phone'))
-    expect(parseHash('#settings/notifications?ws=ws_1')).toEqual(parseHash('#settings/notifications'))
+    expect(parseHash('#workspace/phone?ws=ws_1')).toEqual(parseHash('#workspace/phone'))
+    expect(parseHash('#account/notifications?ws=ws_1')).toEqual(parseHash('#account/notifications'))
     expect(parseHash('#calls?ws=ws_1')).toEqual(parseHash('#calls'))
     expect(parseHash('#calls?q=leak&ws=ws_1')).toEqual(parseHash('#calls?q=leak'))
   })
@@ -111,6 +115,72 @@ describe('the workspace a link is for', () => {
     expect(linkNotice({ kind: 'switch', workspace: mine[1]! })).toBeNull()
     expect(linkNotice({ kind: 'noAccess' })).toMatch(/don't have access/)
     expect(linkNotice({ kind: 'elsewhere', workspace: mine[1]! })).toContain('Brightwater Rentals')
+  })
+})
+
+describe('old links (LIN-165)', () => {
+  const redirects: [string, string][] = [
+    ['#settings', '#workspace'],
+    ['#settings/notifications', '#account/notifications'],
+    ['#assistant/notifications', '#account/notifications'],
+    ['#assistant/as_123abc/notifications', '#account/notifications'],
+    ['#settings/phone', '#workspace/phone'],
+    ['#settings/phone/pn_1', '#workspace/phone/pn_1'],
+    ['#settings/export', '#workspace/export'],
+    ['#settings/recordings', '#workspace/recordings'],
+    ['#settings/developers', '#workspace/developers'],
+    ['#settings/fields', '#workspace/export'],
+    ['#settings/hours', '#assistant/hours'],
+    ['#settings/webhooks', '#assistant/webhooks'],
+    ['#settings/assistant', '#assistant'],
+    ['#team', '#workspace/team'],
+    ['#team/members', '#workspace/team'],
+    ['#team/invites/x', '#workspace/team'],
+    ['#settings/nope', '#workspace/nope'],
+  ]
+
+  it.each(redirects)('%s goes to %s', (from, to) => {
+    expect(movedHash(from)).toBe(to)
+    expect(parseHash(to).known).toBe(true)
+  })
+
+  it('keeps the query: the workspace a link is for and a search', () => {
+    expect(movedHash('#settings/notifications?ws=ws_1')).toBe('#account/notifications?ws=ws_1')
+    expect(movedHash('#settings/phone/pn_1?ws=ws_1')).toBe('#workspace/phone/pn_1?ws=ws_1')
+    expect(movedHash('#team?ws=ws_1&q=leak')).toBe('#workspace/team?ws=ws_1&q=leak')
+    expect(movedHash('#assistant/as_1/notifications?ws=a%20b')).toBe('#account/notifications?ws=a%20b')
+    expect(movedHash('#settings?')).toBe('#workspace')
+    expect(linkWorkspace(movedHash('#settings/phone?ws=ws_1')!)).toBe('ws_1')
+  })
+
+  it('never rewrites a link twice, and leaves current places alone', () => {
+    for (const [from] of redirects) expect(movedHash(movedHash(from)!)).toBeNull()
+    for (const hash of [
+      '#workspace',
+      '#workspace/team',
+      '#workspace/phone/pn_1',
+      '#account/notifications',
+      '#assistant',
+      '#assistant/hours',
+      '#assistant/as_1/hours',
+      '#calls?q=team',
+      '#call/team',
+      '#teams',
+      '#settingsx/phone',
+      '#toString',
+    ])
+      expect(movedHash(hash)).toBeNull()
+  })
+
+  it('an unknown old section lands on General', () => {
+    const general = [
+      { id: 'general', label: 'General' },
+      { id: 'phone', label: 'Phone numbers' },
+    ]
+    expect(knownSectionHash('workspace', general, movedHash('#settings/nope?ws=ws_1')!)).toBe(
+      '#workspace/general?ws=ws_1',
+    )
+    expect(knownSectionHash('workspace', general, movedHash('#settings/phone/pn_1')!)).toBeNull()
   })
 })
 

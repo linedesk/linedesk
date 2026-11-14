@@ -58,12 +58,12 @@ describe('go-live checklist', () => {
     const items = goLiveItems(none, 'Maya')
     expect(items.map(i => i.id)).toEqual(['number', 'forwarding', 'first_call', 'calendar', 'push', 'team'])
     expect(items.map(i => i.href)).toEqual([
-      '#settings/phone',
-      '#settings/phone',
+      '#workspace/phone',
+      '#workspace/phone',
       null,
       '#assistant/booking',
-      '#settings/notifications',
-      '#team',
+      '#account/notifications',
+      '#workspace/team',
     ])
     expect(items[0]!.hint).toContain('Maya')
     expect(progress(items)).toBe('0 of 6')
@@ -77,7 +77,7 @@ describe('go-live checklist', () => {
 
   test("the forwarding row opens the forwarding number's codes, and is left out when no number forwards", () => {
     expect(goLiveItems({ ...none, hasNumber: true, forwardingNumberId: 'pn_1' }, 'Maya')[1]!.href).toBe(
-      '#settings/phone/pn_1',
+      '#workspace/phone/pn_1',
     )
     const direct = goLiveItems({ ...none, hasNumber: true, forwardingNumberId: null }, 'Maya')
     expect(direct.map(i => i.id)).not.toContain('forwarding')

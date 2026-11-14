@@ -83,11 +83,11 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
   const managed = numbers.find(n => n.id === managing?.id)
   // A link to one number (`#settings/phone/<id>`, from the assistant's page) opens its dialog once the numbers are
   // loaded; the address then names the section only, so closing the dialog or reloading does not open it again.
-  const linkedNumber = numbers.find(n => n.id === sectionParts('settings', window.location.hash).item)?.id
+  const linkedNumber = numbers.find(n => n.id === sectionParts('workspace', window.location.hash).item)?.id
   useEffect(() => {
     if (!linkedNumber) return
     setManaging({ id: linkedNumber, release: false })
-    window.history.replaceState(null, '', sectionHash('settings', 'phone'))
+    window.history.replaceState(null, '', sectionHash('workspace', 'phone'))
   }, [linkedNumber])
   const canAdd = canEdit && !!status?.available
   return (

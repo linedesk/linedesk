@@ -83,7 +83,7 @@ describe('sending', () => {
     expect(sent[0]!.subject).toContain('almost ready')
     expect(sent[0]!.text).toContain("If you haven't yet, forward the calls you don't pick up")
     expect(sent[0]!.text).not.toContain('Find a partner')
-    expect(sent[0]!.text).toContain(`#settings/phone/`)
+    expect(sent[0]!.text).toContain(`#workspace/phone/`)
     expect(sent[0]!.text).toContain(`?ws=${ws.id}`)
     expect(await sendSetupEmailFor(db, sender, ws.id, NOW)).toBeNull()
     expect(sent).toHaveLength(1)

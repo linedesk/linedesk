@@ -44,7 +44,7 @@ export function appLink(origin: string, workspaceId: string, path: string): stri
 const callLink = (origin: string, workspaceId: string, callId: string) =>
   appLink(origin, workspaceId, `call/${encodeURIComponent(callId)}`)
 const notificationsLink = (origin: string, workspaceId: string) =>
-  appLink(origin, workspaceId, 'settings/notifications')
+  appLink(origin, workspaceId, 'account/notifications')
 
 // ---------------------------------------------------------------- sign-in and account
 
@@ -305,7 +305,7 @@ function callContent(call: CallEmail, origin: string): EmailContent {
     heading: topic,
     blocks,
     reason: `You get one email per call to ${call.workspace}.`,
-    settings: { label: 'Change in Settings, Notifications', url: notificationsLink(origin, call.workspaceId) },
+    settings: { label: 'Change in Account, Notifications', url: notificationsLink(origin, call.workspaceId) },
     origin,
   }
 }
@@ -349,7 +349,7 @@ export function assignedCallEmail(a: AssignedCallEmail, origin = WEB_ORIGIN): Re
     heading: topic,
     blocks,
     reason: `You got this email because a teammate in ${a.workspace} assigned you a call.`,
-    settings: { label: 'Change in Settings, Notifications', url: notificationsLink(origin, a.workspaceId) },
+    settings: { label: 'Change in Account, Notifications', url: notificationsLink(origin, a.workspaceId) },
     origin,
   })
 }

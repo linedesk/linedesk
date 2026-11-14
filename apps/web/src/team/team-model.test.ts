@@ -1,6 +1,18 @@
 import type { TeamData, TeamMember } from '@linedesk/actions'
 import { describe, expect, it } from 'vitest'
-import { canEditRole, canRemove, invitationStatus, isEmail, isOnTeam, joinedLabel, roleInSentence } from './team-model.ts'
+import {
+  canEditRole,
+  canRemove,
+  invitationStatus,
+  isEmail,
+  isMe,
+  isOnTeam,
+  joinedLabel,
+  PROFILE_HASH,
+  roleInSentence,
+} from './team-model.ts'
+import { parseHash } from '../shell/useRoute.ts'
+import { OWN_NOTIFICATIONS_HASH } from '../settings/Notifications.tsx'
 
 const member = (userId: string, role: TeamMember['role'], email = `${userId}@x.co`): TeamMember =>
   ({ memberId: `m_${userId}`, userId, name: userId, email, role, joinedAt: '2026-11-01T10:00:00Z' })
@@ -30,6 +42,18 @@ describe('team model', () => {
   it('nobody removes themselves', () => {
     const d = data(true, 'sarah')
     expect(d.members.map(m => canRemove(d, m))).toEqual([false, false, true])
+  })
+
+  it('only your own row offers Edit profile, and it opens Account › Profile', () => {
+    const d = data(true, 'sarah')
+    expect(d.members.map(m => isMe(d, m))).toEqual([false, true, false])
+    expect(PROFILE_HASH).toBe('#account/profile')
+    expect(parseHash(PROFILE_HASH)).toMatchObject({ route: 'account', known: true })
+  })
+
+  it('the team defaults link to your own notifications in Account', () => {
+    expect(OWN_NOTIFICATIONS_HASH).toBe('#account/notifications')
+    expect(parseHash(OWN_NOTIFICATIONS_HASH)).toMatchObject({ route: 'account', known: true })
   })
 
   it('knows who is already on the team or invited', () => {

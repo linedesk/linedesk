@@ -67,7 +67,7 @@ export function nextSetupStep(facts: {
  * forwarding steps, or the inbox, where the first real call shows up.
  */
 export function setupStepPath(step: SetupStep, number: Pick<PhoneNumber, 'id'> | null): string {
-  if (step === 'number') return 'settings/phone'
-  if (step === 'forwarding') return number ? `settings/phone/${encodeURIComponent(number.id)}` : 'settings/phone'
+  if (step === 'number') return 'workspace/phone'
+  if (step === 'forwarding') return number ? `workspace/phone/${encodeURIComponent(number.id)}` : 'workspace/phone'
   return 'calls'
 }

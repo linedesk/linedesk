@@ -138,7 +138,7 @@ describe('one-click unsubscribe from setup emails', () => {
       const { sender, sent } = spySender()
       await sendSetupEmailFor(db, sender, ws.id, NOW)
       expect(sent[0]!.headers).toBeUndefined()
-      expect(sent[0]!.text).toContain(`/#settings/notifications?ws=${ws.id}`)
+      expect(sent[0]!.text).toContain(`/#account/notifications?ws=${ws.id}`)
       expect((await oneClick(token)).status).toBe(400)
     } finally {
       process.env.SECRETS_KEY = key

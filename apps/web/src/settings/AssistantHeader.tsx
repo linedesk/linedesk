@@ -109,7 +109,7 @@ function SwitchMenu({ assistant, assistants, canEdit, onPick, onNew, onDuplicate
 }
 
 /**
- * Which numbers this assistant answers. Each opens its settings (Settings, Phone numbers), the one place that picks
+ * Which numbers this assistant answers. Each opens its settings (Workspace settings, Phone numbers), the one place that picks
  * the assistant answering a number: a number has exactly one, so it is chosen there, not taken from another here.
  */
 function NumberChips({
@@ -130,7 +130,7 @@ function NumberChips({
         <a
           key={n.id}
           className="as-chip"
-          href={`#settings/phone/${n.id}`}
+          href={`#workspace/phone/${n.id}`}
           title="Open this number: which assistant answers it, how it's used"
         >
           {formatNumber(n.e164)}
@@ -140,8 +140,8 @@ function NumberChips({
         (canEdit ? (
           <a
             className="help"
-            href="#settings/phone"
-            title="Choose which assistant answers a number in Settings › Phone numbers"
+            href="#workspace/phone"
+            title="Choose which assistant answers a number in Workspace settings › Phone numbers"
           >
             Answers no number yet. Choose one in Phone numbers
           </a>
@@ -199,7 +199,7 @@ export function AssistantHeader({ assistant, assistants, numbers, canEdit, onPic
       </div>
       {numbers.length === 0 ? (
         <div className="as-numbers">
-          <a className="help" href="#settings/phone">
+          <a className="help" href="#workspace/phone">
             No phone number yet
           </a>
         </div>

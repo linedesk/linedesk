@@ -11,6 +11,11 @@ export const roleLabel = (role: string) => role.charAt(0).toUpperCase() + role.s
 /** The role in a sentence: "a member", "an admin", "an owner". */
 export const roleInSentence = (role: string) => `${/^[aeiou]/i.test(role) ? 'an' : 'a'} ${role}`
 
+/** The signed-in member's own row ("You"): it offers Edit profile. */
+export const isMe = (data: TeamData, m: TeamMember) => m.userId === data.me
+/** Where Edit profile goes: your name, in Account. */
+export const PROFILE_HASH = '#account/profile'
+
 export const isOwner = (data: TeamData) => data.members.some(m => m.userId === data.me && m.role === 'owner')
 const ownerCount = (data: TeamData) => data.members.filter(m => m.role === 'owner').length
 

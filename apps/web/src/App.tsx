@@ -255,7 +255,15 @@ export function App() {
               }
             />
           ) : (
-            <Workspace me={session.me} onSignedOut={refresh} onSessionStale={refresh} notice={notice} />
+            <Workspace
+              me={session.me}
+              onSignedOut={refresh}
+              onSessionStale={refresh}
+              notice={notice}
+              onRenamed={name =>
+                setSession(s => (s.state === 'ready' ? { ...s, me: renamedWorkspace(s.me, name) } : s))
+              }
+            />
           )}
         </TabWorkspaceGuard>
       </StoreProvider>

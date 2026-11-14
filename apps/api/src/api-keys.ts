@@ -59,7 +59,7 @@ const creatorStillAllows = (keyRole: string, creatorRole: string | null, creator
 
 /** Key management is for people: a key never creates, lists or revokes keys. */
 function refuseKeyActor(actor: Actor) {
-  if (actor.apiKeyId) throw new Forbidden('API keys cannot manage API keys: do it in Settings, Developers')
+  if (actor.apiKeyId) throw new Forbidden('API keys cannot manage API keys: do it in Workspace settings, Developers')
   if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
   if (!actor.workspaceId) throw new Reject('no workspace')
   return actor.workspaceId
