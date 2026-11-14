@@ -1,34 +1,20 @@
 # The full test suite, in four parallel parts: the API tests in three shards (they take most of the time), every other
-# package in one. Runs on every push to master-dev, by hand (Actions → Tests → Run workflow), and for every release:
-# deploy-production.yml calls it with the release commit and reuse: true. A release commit holds the files of a
-# master-dev commit (deploy-production.yml checks that); when that master-dev commit's own Tests run passed, each part
-# reports success at once instead of running the same tests on the same files again. The production server still
-# requires every "tests / ..." job of the release run to have succeeded (scripts/receive-release.sh).
+# package in one. Runs on every push to master-dev and by hand (Actions → Tests → Run workflow). It never blocks a
+# deploy: staging and production deploy without it, and a failure shows in Actions and on the intranet.
 name: Tests
 
 on:
   push:
     branches: [master-dev]
   workflow_dispatch:
-  workflow_call:
-    inputs:
-      ref:
-        description: The commit to test
-        type: string
-        required: true
-      reuse:
-        description: Report success when a master-dev Tests run already passed on the same files
-        type: boolean
-        default: false
 
 permissions:
   contents: read
-  actions: read
 
-# A newer push to master-dev replaces the run of the older one; a release's run is never cancelled.
+# A newer push to master-dev replaces the run of the older one.
 concurrency:
-  group: tests-${{ inputs.ref || github.ref }}
-  cancel-in-progress: ${{ !inputs.ref }}
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -38,10 +24,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        part: [api 1/3, api 2/3, api 3/3, other packages]
+        # No "/" in the names: GitHub leaves jobs with one out of `gh run view --log`.
+        part: [api 1 of 3, api 2 of 3, api 3 of 3, other packages]
     services:
       postgres:
-        image: postgres:17
+        image: postgres:17@sha256:846a7ddaa67a4b354ae1d21087b683901aa6113a4ed626d3787cfbf6c85e3e07
         env:
           POSTGRES_USER: linedesk
           POSTGRES_PASSWORD: linedesk
@@ -59,41 +46,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          ref: ${{ inputs.ref || github.sha }}
-          fetch-depth: 0 # the reuse step looks for the release's files in master-dev's history
-      - name: Reuse a passed master-dev run of the same files (releases only)
-        id: reuse
-        if: inputs.reuse
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REF: ${{ inputs.ref }}
-        run: |
-          tree=$(git rev-parse "$REF^{tree}")
-          for sha in $(git log origin/master-dev -n 500 --format='%H %T' | awk -v tree="$tree" '$2 == tree { print $1 }'); do
-            url=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/tests.yml/runs?branch=master-dev&event=push&status=success&head_sha=$sha" \
-              --jq '.workflow_runs[0].html_url // empty') || url="" # an API error only means: run the tests
-            if [ -n "$url" ]; then
-              echo "The tests already passed on these exact files (master-dev $sha): $url"
-              echo "found=true" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          done
-          echo "No passed master-dev run for these files: running the tests."
-      - if: steps.reuse.outputs.found != 'true'
-        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
-      - if: steps.reuse.outputs.found != 'true'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
           cache: pnpm
-      - if: steps.reuse.outputs.found != 'true'
-        run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
       - name: Run this part of the tests
-        if: steps.reuse.outputs.found != 'true'
         env:
           PART: ${{ matrix.part }}
         run: |
           case "$PART" in
-            "api "*) pnpm --filter @linedesk/api exec vitest run --shard="${PART#api }" ;;
+            "api "*) part=${PART#api }; pnpm --filter @linedesk/api exec vitest run --shard="${part%% of *}/${part##* of }" ;;
             *) pnpm turbo run test --continue --filter='!@linedesk/api' ;;
           esac
