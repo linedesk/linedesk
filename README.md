@@ -224,21 +224,24 @@ docker compose --profile recording run --rm --no-deps -T --user 1001:0 --entrypo
 
 ### Backups
 
-`scripts/backup.sh` makes an offsite backup of the database: a `pg_dump`, checked with `pg_restore --list`,
-encrypted with [age](https://age-encryption.org) and uploaded to an S3-compatible bucket (R2, S3, B2, …).
-Backups older than `BACKUP_KEEP_DAYS` (30) are deleted there. Only the public key is on the server, so
-neither the server nor anyone holding the bucket's keys can read a backup. Recordings stored in a bucket
-(`RECORDING_STORE=s3`) are offsite already; recordings on local disk are not part of this backup.
+`scripts/backup.sh` makes an offsite backup of the database: a `pg_dump`, checked with `pg_restore --list`
+and uploaded to an S3-compatible bucket (R2, S3, B2, …). Backups older than `BACKUP_KEEP_DAYS` (30) are
+deleted there. Recordings stored in a bucket (`RECORDING_STORE=s3`) are offsite already; recordings on local
+disk are not part of this backup.
+
+Optionally encrypted with [age](https://age-encryption.org): with `BACKUP_AGE_RECIPIENT` set, only the public key
+is on the server, so neither the server nor anyone holding the bucket's keys can read a backup, and without the
+private key nobody can restore one. Without it, a backup is as safe as the bucket's access keys.
 
 ```sh
-age-keygen -o backup-key.txt     # on your computer; keep backup-key.txt safe (password manager), off the server
+age-keygen -o backup-key.txt     # only to encrypt: on your computer; keep backup-key.txt safe, off the server
 ```
 
 Then in `backup.env` next to `.env` (not in `.env`: the API container reads all of `.env`, and the bucket key
 can delete every backup), readable by its owner only (`chmod 600 backup.env`): `BACKUP_S3_ENDPOINT`,
 `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY` (a key for that bucket only),
-`BACKUP_S3_PREFIX` (default `linedesk/`), `BACKUP_AGE_RECIPIENT` (the `age1…` public key that `age-keygen`
-printed) and `BACKUP_KEEP_DAYS` (default 30). A deploy (`scripts/receive-deploy.sh`, in production `scripts/receive-release.sh`) keeps the file like
+`BACKUP_S3_PREFIX` (default `linedesk/`), optionally `BACKUP_AGE_RECIPIENT` (the `age1…` public key that
+`age-keygen` printed) and `BACKUP_KEEP_DAYS` (default 30). A deploy (`scripts/receive-deploy.sh`, in production `scripts/receive-release.sh`) keeps the file like
 `.env`. Run `scripts/backup.sh` once, then every night with a systemd timer:
 
 ```ini
@@ -258,13 +261,13 @@ WantedBy=timers.target
 ```
 
 `systemctl enable --now linedesk-backup.timer`. `scripts/backup.sh --list` lists the backups. To prove a
-backup restores, without touching the running stack: copy the private key to the server for this one
-check, then `BACKUP_AGE_IDENTITY=backup-key.txt scripts/restore-backup.sh` downloads the newest backup,
-restores it into a throwaway Postgres and prints its row counts next to the live ones. Delete the key from
-the server again (`shred -u backup-key.txt`).
+backup restores, without touching the running stack: `scripts/restore-backup.sh` downloads the newest backup,
+restores it into a throwaway Postgres and prints its row counts next to the live ones. An encrypted backup also
+needs the private key for this one check (`BACKUP_AGE_IDENTITY=backup-key.txt`; delete it from the server
+afterwards with `shred -u backup-key.txt`).
 
-A real restore: download and decrypt a backup on your computer
-(`age -d -i backup-key.txt -o linedesk.dump linedesk-<time>.dump.age`), copy it to the server and follow
+A real restore: download a backup (decrypt an encrypted one on your computer:
+`age -d -i backup-key.txt -o linedesk.dump linedesk-<time>.dump.age`), copy it to the server and follow
 "Restore" above.
 
 ## Docs
