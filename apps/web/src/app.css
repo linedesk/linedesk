@@ -275,52 +275,19 @@ body,
   min-width: 0;
 }
 
-/* Navigation: the scrim is a button, the profile row opens a small menu above it. */
+/* Navigation: the scrim is a button. */
 .scrim {
   border: 0;
   padding: 0;
-}
-.me-wrap {
-  position: relative;
-}
-button.me {
-  width: 100%;
-  padding: 6px 8px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
 }
 .me-chevron {
   flex: none;
   margin-left: auto;
   color: var(--ink-muted);
 }
-button.me:hover,
-button.me[aria-expanded="true"] {
-  background: var(--surface-hover);
-}
-button.me:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-.me-menu {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: calc(100% + 6px);
-  z-index: 5;
-  display: grid;
-  gap: 1px;
-  padding: 4px;
-  border-radius: var(--radius-md);
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-popover);
-}
-.me-menu a.nav-item {
+/* Help, Terms and Privacy in the workspace menu are links that look like the items around them. */
+.ws-menu a.nav-item {
+  box-sizing: border-box;
   text-decoration: none;
 }
 /* Star on GitHub in the navigation's foot (Nav.tsx): a link that looks like the items around it. */
@@ -332,12 +299,6 @@ button.me:focus-visible {
   color: var(--ink-muted);
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
-}
-.me-menu hr {
-  width: auto;
-  margin: 3px 4px;
-  border: 0;
-  border-top: 1px solid var(--line);
 }
 .fact-copy {
   padding: 0;
@@ -1747,7 +1708,7 @@ button.k-link {
   }
 }
 
-/* Workspaces in the profile dropdown; from WORKSPACE_FILTER_FROM on, a filter field and a scrolling list. */
+/* Workspaces in the workspace menu; from WORKSPACE_FILTER_FROM on, a filter field and a scrolling list. */
 .me-ws {
   display: grid;
   gap: 1px;
@@ -1783,7 +1744,7 @@ button.k-link {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Invitations in the profile menu: the workspace, role and inviter, then Join and Decline. */
+/* Invitations in the workspace menu: the workspace, role and inviter, then Join and Decline. */
 .me-inv {
   display: grid;
   gap: 6px;

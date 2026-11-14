@@ -66,7 +66,7 @@ export const pages = {
   },
   // Shown in the navigation and ⌘K to instance admins only; the API refuses everyone else.
   // Instance admins get admin mode instead (Workspace.tsx); anyone else who opens #admin sees this.
-  admin: { title: 'Admin', render: () => <AdminNotice /> },
+  admin: { title: 'Server admin', render: () => <AdminNotice /> },
 } satisfies Record<string, Page>
 
 export type PageRoute = keyof typeof pages

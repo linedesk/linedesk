@@ -8,7 +8,6 @@ import { Button, cx, Icon, Kbd } from '../ui/kit.tsx'
 import { useBrand } from '../brand.ts'
 import { pages, type PageRoute, type Route } from './pages.tsx'
 import { useFocusTrap } from '../ui/useFocusTrap.ts'
-import { ProfileMenu } from './ProfileMenu.tsx'
 import { WorkspaceMenu } from './WorkspaceMenu.tsx'
 
 type Props = {
@@ -34,8 +33,6 @@ type Props = {
   onInbox: (tab: InboxTab) => void
   onPage: (route: PageRoute, section?: string) => void
   isInstanceAdmin: boolean
-  /** May invite people (team:write): the workspace menu offers Invite people…. */
-  canManageMembers: boolean
   /** Set only where POST /v1/workspaces would allow this person to create a workspace: the workspace menu offers it. */
   onNewWorkspace?: () => void
   onHelp: () => void
@@ -43,17 +40,18 @@ type Props = {
   onClose: () => void
 }
 
-function NavItem({ label, icon, keys, current, sub, muted, badge, onClick }: { label: string; icon: IconName; keys?: string[]; current?: boolean; sub?: boolean; muted?: boolean; badge?: ReactNode; onClick: () => void }) {
+function NavItem({ label, icon, keys, current, sub, muted, badge, title, onClick }: { label: string; icon: IconName; keys?: string[]; current?: boolean; sub?: boolean; muted?: boolean; badge?: ReactNode; title?: string; onClick: () => void }) {
   return (
-    <button type="button" className={cx('nav-item', sub && 'nav-sub', muted && 'is-admin')} aria-current={current ? 'page' : undefined} onClick={onClick}>
+    <button type="button" className={cx('nav-item', sub && 'nav-sub', muted && 'is-admin')} aria-current={current ? 'page' : undefined} title={title} onClick={onClick}>
       <Icon name={icon} size={15} /><span className="lbl">{label}</span>{badge}{keys && <Kbd keys={keys} />}
     </button>
   )
 }
 
 /** Slide-in navigation: opens from ☰ or M; closes with Esc, the close button, a click outside or after choosing.
- * On very wide windows it is docked: always open beside the content. */
-export function Nav({ open, docked = false, route, tab, unreadCount, reminderCount, mineCount, unassignedCount, reviewCount, workspaceName, workspaceId, toast, invitations, onInvitationsChanged, isInstanceAdmin, canManageMembers, onNewWorkspace, onClose, ...on }: Props) {
+ * On very wide windows it is docked: always open beside the content. Two parts: the workspace button on top (one
+ * menu: switch workspace, your account, sign out) and one list of pages, Workspace settings once at its end. */
+export function Nav({ open, docked = false, route, tab, unreadCount, reminderCount, mineCount, unassignedCount, reviewCount, workspaceName, workspaceId, toast, invitations, onInvitationsChanged, isInstanceAdmin, onNewWorkspace, onClose, ...on }: Props) {
   const ref = useRef<HTMLElement>(null)
   useFocusTrap(ref, open && !docked, { initial: '.nav-item[aria-current="page"]' }) // opens on the current page, gives focus back when it closes
   const sessionUser = auth.useSession().data?.user
@@ -69,8 +67,8 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
   return (
     <nav className="nav" aria-label="Main" ref={ref} inert={!open}>
       <div className="ws-top">
-        <WorkspaceMenu name={workspaceName} id={workspaceId} navOpen={open} invitations={invitations} onInvitationsChanged={onInvitationsChanged} toast={toast} canManage={canManageMembers}
-          onNewWorkspace={onNewWorkspace && go(onNewWorkspace)} onSettings={go(() => on.onPage('workspace'))} onInvite={go(() => on.onPage('workspace', 'team/invite'))} />
+        <WorkspaceMenu name={workspaceName} id={workspaceId} navOpen={open} invitations={invitations} onInvitationsChanged={onInvitationsChanged} toast={toast}
+          onNewWorkspace={onNewWorkspace && go(onNewWorkspace)} onAccount={go(() => on.onPage('account'))} onShortcuts={go(on.onHelp)} onSignOut={go(on.onSignOut)} />
         {!docked && <Button size="sm" variant="ghost" icon="left" aria-label="Close menu" title="Close (esc)" onClick={onClose} />}
       </div>
       <NavItem label="Inbox" icon="phone" keys={['G', 'I']} current={onCalls && tab !== 'reminders' && tab !== 'done' && !assigneeTabs.includes(tab)} onClick={go(() => on.onInbox('you'))}
@@ -92,16 +90,10 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
       <NavItem label={pages.insights.title} icon="chart" keys={['G', 'N']} current={route === 'insights'} onClick={go(() => on.onPage('insights'))} />
       <hr className="nav-sep" />
       <NavItem label={pages.workspace.title} icon="gear" keys={['G', 'S']} current={route === 'workspace'} onClick={go(() => on.onPage('workspace'))} />
-      {isInstanceAdmin && (
-        <>
-          <hr className="nav-sep" />
-          <NavItem muted label="Admin" icon="shield" keys={['G', 'D']} onClick={go(() => on.onPage('admin'))} />
-        </>
-      )}
+      {isInstanceAdmin && <NavItem muted label={pages.admin.title} icon="shield" keys={['G', 'D']}
+        title="Server admin: providers, users and settings for every workspace on this server" onClick={go(() => on.onPage('admin'))} />}
       <div className="nav-foot">
         <StarLink />
-        <NavItem label="Keyboard shortcuts" icon="keyboard" keys={['?']} onClick={go(on.onHelp)} />
-        <ProfileMenu navOpen={open} onAccount={go(() => on.onPage('account'))} onSignOut={go(on.onSignOut)} />
       </div>
     </nav>
   )

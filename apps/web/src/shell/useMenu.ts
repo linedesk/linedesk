@@ -1,4 +1,4 @@
-// A small dropdown in the navigation (the workspace menu at the top, the profile menu at the bottom): a
+// A small dropdown in the navigation (the workspace menu at the top): a
 // button opens it, the first item takes focus, arrows move, Esc or Tab closes it and gives focus back
 // to the button, a click outside closes it, and it never outlives the navigation.
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'

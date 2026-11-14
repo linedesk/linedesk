@@ -2,6 +2,7 @@
 // removed from the last one. What they can do here:
 // - join a workspace they are invited to (a skipped invitation stays here until it is answered);
 // - name their own business, where this server lets them (sign-up open, or an instance admin);
+// - open Account settings, which need no workspace, or sign out ("Use a different account");
 // - an instance admin opens Admin, which needs no workspace. Right after setting up the server they land on "Name
 //   your business" too (the first workspace), with Admin one click away; once they have a workspace, / opens it.
 import { type ReactNode, useEffect, useState } from 'react'
@@ -9,7 +10,13 @@ import { AdminMode } from './admin/AdminMode.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { auth, fetchAuthMethods, isInstanceAdmin, type Me } from './auth.ts'
 import { CreateWorkspace } from './CreateWorkspace.tsx'
-import { AgentSetup, choseManualSetup, isAgentSetupHash, openAgentSetup, rememberManual } from './onboarding/AgentSetup.tsx'
+import {
+  AgentSetup,
+  choseManualSetup,
+  isAgentSetupHash,
+  openAgentSetup,
+  rememberManual,
+} from './onboarding/AgentSetup.tsx'
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
 import { AccountSettings } from './settings/account/index.tsx'
 import { signOutAndForget } from './localData.ts'
@@ -62,8 +69,9 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
   const leave = () => {
     window.location.hash = '#start'
   }
-  // Account settings need no workspace (an admin without one manages sign-in methods there).
-  if (me && hash.startsWith('#account')) return <AccountPage onBack={leave} />
+  // Account settings need no workspace (an admin without one manages sign-in methods there). Being signed in is
+  // enough: `me` is null for someone in no workspace who is no instance admin, and they have an account all the same.
+  if (hash.startsWith('#account')) return <AccountPage onBack={leave} />
   if (me && admin && hash.startsWith('#admin')) {
     if (me.adminSecondFactor) return <SecondFactorPrompt state={me.adminSecondFactor} onExit={leave} />
     return <AdminMode currentUserId={me.actorId} onExit={leave} />
@@ -122,6 +130,14 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
           Open Admin
         </button>
       )}
+      <button
+        type="button"
+        className="auth-switch"
+        onClick={() => (window.location.hash = '#account')}
+        title="Your name, sign-in methods and sessions; no workspace needed"
+      >
+        Account settings
+      </button>
     </>
   )
   if (mayCreateWorkspace(signUpOpen, me))

@@ -1,5 +1,5 @@
-// The workspaces a member belongs to, in the profile dropdown: the current one is checked, choosing
-// another makes it active and reloads into it (each workspace has its own local store). Below them,
+// The workspaces a member belongs to, at the top of the workspace menu: the current one is checked (also when it
+// is the only one), choosing another makes it active and reloads into it (each workspace has its own local store). Below them,
 // invitations to other workspaces: Join or Decline.
 import type { MyInvitation } from '@linedesk/actions'
 import { useState, type KeyboardEvent } from 'react'
@@ -35,8 +35,8 @@ async function loadWorkspaces(): Promise<Workspace[]> {
 
 /**
  * The member's workspaces: known from the session at boot (and the last visit), checked again in
- * the background when the menu opens and on focus. Used where it is always mounted (the profile
- * row), so the open menu shows the list on its first frame and never waits for it.
+ * the background when the menu opens and on focus. Used where it is always mounted (the workspace
+ * button), so the open menu shows the list on its first frame and never waits for it.
  */
 export function useWorkspaces(): Workspace[] | null {
   return useQuery(WORKSPACES_QUERY, loadWorkspaces, { persist: true }).data ?? null
@@ -54,11 +54,11 @@ type Props = {
   onError: (message: string) => void
 }
 
-/** The workspace section of the profile dropdown; nothing for a member of one workspace without invitations. */
+/** The workspace section of the workspace menu: always the workspaces (at least the current one), then invitations. */
 export function WorkspaceSwitcher({ all, currentId, invitations, onInvitationsChanged, onError }: Props) {
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
-  const switcher = !!all && all.length >= 2
+  const switcher = !!all && all.length >= 1
   if (!switcher && !invitations.length) return null
   const fail = (e: unknown) => {
     setBusy(null)

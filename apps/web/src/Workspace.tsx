@@ -28,7 +28,7 @@ import { invitationNotice, unannounced, useMyInvitations } from './shell/invitat
 import { AskName } from './shell/AskName.tsx'
 import { MenuButton, Nav } from './shell/Nav.tsx'
 import { NewWorkspaceDialog } from './shell/NewWorkspace.tsx'
-import { loadAuthMethods } from './shell/ProfileMenu.tsx'
+import { loadAuthMethods } from './shell/WorkspaceMenu.tsx'
 import { mayCreateWorkspace } from './NoWorkspace.tsx'
 import { Overlays, type Picker } from './shell/Overlays.tsx'
 import { rejectionText } from './shell/rejections.ts'
@@ -497,7 +497,6 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         invitations={invites.invitations}
         onInvitationsChanged={invites.reload}
         isInstanceAdmin={instanceAdmin}
-        canManageMembers={me.permissions.includes('team:write')}
         onNewWorkspace={canCreateWorkspace ? () => setNewWorkspace(true) : undefined}
         onInbox={view.setTab}
         onPage={goPage}

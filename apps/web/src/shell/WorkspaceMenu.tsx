@@ -1,43 +1,63 @@
 // The workspace button at the top of the navigation: the current workspace's icon (or initial) and name. It opens
-// a menu with the other workspaces and invitations (WorkspaceSwitcher), New workspace…, Workspace settings
-// and, for owners and admins, Invite people… While the workspace is open its icon is also the browser tab's.
+// the one menu of the navigation (like Resend's): your workspaces to switch between and invitations
+// (WorkspaceSwitcher), New workspace…, then you (name and email), Account settings, Keyboard shortcuts, this
+// install's help and legal links and Sign out. Workspace settings are not in it: they are in the sidebar, once.
+// The open menu is in the top layer (ui/floating.ts), so the navigation's scrolling never cuts it off.
+// While the workspace is open its icon is also the browser tab's.
 import type { MyInvitation } from '@linedesk/actions'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import { auth, fetchAuthMethods, type LegalLinks } from '../auth.ts'
 import { setWorkspaceFavicon } from '../brand.ts'
+import { useQuery } from '../cachedQuery.ts'
+import { useAnchoredList } from '../ui/floating.ts'
 import type { IconName } from '../ui/icons.ts'
-import { Icon, Kbd } from '../ui/kit.tsx'
+import { Avatar, Icon, Kbd } from '../ui/kit.tsx'
 import { refreshInvitations } from './invitations.ts'
 import { useMenu } from './useMenu.ts'
 import { WorkspaceMark, workspaceIconOf } from './WorkspaceMark.tsx'
-import { refreshWorkspaces, useWorkspaces, WorkspaceSwitcher } from './WorkspaceSwitcher.tsx'
+import { refreshWorkspaces, useWorkspaces, type Workspace, WorkspaceSwitcher } from './WorkspaceSwitcher.tsx'
 
-export type WorkspaceMenuItem = 'switcher' | 'new' | 'settings' | 'invite'
+export type WorkspaceMenuItem = 'switcher' | 'new' | 'account' | 'shortcuts' | 'help' | 'terms' | 'privacy' | 'sign-out'
 
 /**
- * What the workspace menu lists. `count`: the member's workspaces (null while unknown); `invitations`: to
- * other workspaces; `canCreate`: POST /v1/workspaces would allow a new one; `canManage`: may invite (team:write).
- * The switcher shows from two workspaces or any invitation (as WorkspaceSwitcher itself); settings always.
+ * What the workspace menu lists, in order. `canCreate`: POST /v1/workspaces would allow a new workspace;
+ * `links`: this install's support email, terms and privacy (null while unknown, none that are not set).
+ * The workspaces always lead (the current one checked); Account settings, Keyboard shortcuts and Sign out
+ * are always there. Nothing about managing the workspace: that is Workspace settings in the sidebar.
  */
 export function workspaceMenuItems({
-  count,
-  invitations,
   canCreate,
-  canManage,
+  links,
 }: {
-  count: number | null
-  invitations: number
   canCreate: boolean
-  canManage: boolean
+  links: LegalLinks | null
 }): WorkspaceMenuItem[] {
-  const items: WorkspaceMenuItem[] = []
-  if ((count ?? 0) >= 2 || invitations > 0) items.push('switcher')
+  const items: WorkspaceMenuItem[] = ['switcher']
   if (canCreate) items.push('new')
-  items.push('settings')
-  if (canManage) items.push('invite')
+  items.push('account', 'shortcuts')
+  if (links?.supportEmail) items.push('help')
+  if (links?.terms) items.push('terms')
+  if (links?.privacy) items.push('privacy')
+  items.push('sign-out')
   return items
 }
 
+/**
+ * The workspaces the switcher lists: the member's list with the current workspace's name as the session has
+ * it (just renamed), or the current one alone while the list is not known yet.
+ */
+export function switcherWorkspaces(all: Workspace[] | null, current: { id: string; name: string }): Workspace[] {
+  if (!all?.length) return [{ id: current.id, name: current.name }]
+  return all.map(w => (w.id === current.id ? { ...w, name: current.name } : w))
+}
+
 export { workspaceInitial } from './WorkspaceMark.tsx'
+
+/** This install's terms, privacy and support links: the last known ones at once, none that are not set. */
+export const loadAuthMethods = () => fetchAuthMethods({ attempts: 1 })
+function useLegalLinks(): LegalLinks | null {
+  return useQuery('auth-methods', loadAuthMethods, { persist: true }).data?.links ?? null
+}
 
 type Props = {
   name: string
@@ -46,11 +66,11 @@ type Props = {
   invitations: MyInvitation[]
   onInvitationsChanged: () => void
   toast: (message: string) => void
-  canManage: boolean
   /** Set only where POST /v1/workspaces would allow this person to create a workspace. */
   onNewWorkspace?: () => void
-  onSettings: () => void
-  onInvite: () => void
+  onAccount: () => void
+  onShortcuts: () => void
+  onSignOut: () => void
 }
 
 function Item({ label, icon, keys, onClick }: { label: string; icon: IconName; keys?: string[]; onClick: () => void }) {
@@ -63,6 +83,22 @@ function Item({ label, icon, keys, onClick }: { label: string; icon: IconName; k
   )
 }
 
+function LinkItem({ label, icon, href }: { label: string; icon: IconName; href: string }) {
+  const external = !href.startsWith('mailto:')
+  return (
+    <a
+      role="menuitem"
+      className="nav-item"
+      href={href}
+      target={external ? '_blank' : undefined}
+      rel={external ? 'noreferrer' : undefined}
+    >
+      <Icon name={icon} size={15} />
+      <span className="lbl">{label}</span>
+    </a>
+  )
+}
+
 export function WorkspaceMenu({
   name,
   id,
@@ -70,23 +106,24 @@ export function WorkspaceMenu({
   invitations,
   onInvitationsChanged,
   toast,
-  canManage,
   onNewWorkspace,
-  onSettings,
-  onInvite,
+  onAccount,
+  onShortcuts,
+  onSignOut,
 }: Props) {
   // In the background when it opens: the menu already shows the last known lists.
   const menu = useMenu(navOpen, () => {
     void refreshWorkspaces()
     void refreshInvitations()
   })
+  const list = useRef<HTMLDivElement>(null)
+  useAnchoredList(menu.open, menu.trigger, list, { minWidth: 240 })
   const workspaces = useWorkspaces() // known with the session; here so the menu never waits for it
-  const items = workspaceMenuItems({
-    count: workspaces?.length ?? null,
-    invitations: invitations.length,
-    canCreate: !!onNewWorkspace,
-    canManage,
-  })
+  const links = useLegalLinks()
+  const user = auth.useSession().data?.user
+  const userName = user?.name ?? ''
+  const email = user?.email ?? ''
+  const items = workspaceMenuItems({ canCreate: !!onNewWorkspace, links })
   const waiting = invitations.length
   const iconUrl = workspaceIconOf(workspaces, id)
   // The tab shows the workspace's icon while it is open; the install's again after (sign-out, no icon).
@@ -94,6 +131,7 @@ export function WorkspaceMenu({
     setWorkspaceFavicon(iconUrl)
     return () => setWorkspaceFavicon(null)
   }, [iconUrl])
+  const who = userName || email
   return (
     <div className="ws-wrap" ref={menu.root}>
       <button
@@ -107,7 +145,7 @@ export function WorkspaceMenu({
         title={
           waiting
             ? `${name}: ${waiting === 1 ? 'an invitation' : `${waiting} invitations`} to join`
-            : `${name}: switch, settings, invite`
+            : `${name}: switch workspace, your account, sign out`
         }
       >
         <WorkspaceMark name={name} iconUrl={iconUrl}>
@@ -117,27 +155,56 @@ export function WorkspaceMenu({
         <Icon name="down" size={14} className="me-chevron" />
       </button>
       {menu.open && (
-        <div className="ws-menu" role="menu" aria-label="Workspace" onKeyDown={menu.onKeyDown}>
-          {items.includes('switcher') && (
-            <WorkspaceSwitcher
-              all={workspaces}
-              currentId={id}
-              invitations={invitations}
-              onInvitationsChanged={onInvitationsChanged}
-              onError={m => {
-                menu.setOpen(false)
-                toast(m)
-              }}
-            />
-          )}
-          {onNewWorkspace && items.includes('new') && (
+        <div
+          ref={list}
+          popover="manual"
+          className="ws-menu k-float"
+          role="menu"
+          aria-label={`${name} and your account`}
+          onKeyDown={menu.onKeyDown}
+        >
+          <WorkspaceSwitcher
+            all={switcherWorkspaces(workspaces, { id, name })}
+            currentId={id}
+            invitations={invitations}
+            onInvitationsChanged={onInvitationsChanged}
+            onError={m => {
+              menu.setOpen(false)
+              toast(m)
+            }}
+          />
+          {items.includes('new') && onNewWorkspace && (
             <>
               <Item label="New workspace…" icon="plus" onClick={menu.choose(onNewWorkspace)} />
               <hr />
             </>
           )}
-          <Item label="Workspace settings" icon="gear" keys={['G', 'S']} onClick={menu.choose(onSettings)} />
-          {items.includes('invite') && <Item label="Invite people…" icon="users" onClick={menu.choose(onInvite)} />}
+          <div
+            className="ws-account"
+            role="group"
+            aria-label={who ? `Signed in as ${who}${userName && email ? `, ${email}` : ''}` : 'Your account'}
+          >
+            {who && (
+              <div className="ws-me" aria-hidden="true" title={email || undefined}>
+                <Avatar name={who} size={24} />
+                <div>
+                  <b>{who}</b>
+                  {userName && email && <small>{email}</small>}
+                </div>
+              </div>
+            )}
+            <Item label="Account settings" icon="user" onClick={menu.choose(onAccount)} />
+            <Item label="Keyboard shortcuts" icon="keyboard" keys={['?']} onClick={menu.choose(onShortcuts)} />
+            {items.includes('help') && links?.supportEmail && (
+              <LinkItem label="Help" icon="mail" href={`mailto:${links.supportEmail}`} />
+            )}
+            {items.includes('terms') && links?.terms && <LinkItem label="Terms" icon="globe" href={links.terms} />}
+            {items.includes('privacy') && links?.privacy && (
+              <LinkItem label="Privacy" icon="globe" href={links.privacy} />
+            )}
+          </div>
+          <hr />
+          <Item label="Sign out" icon="arrow-up-right" onClick={menu.choose(onSignOut)} />
         </div>
       )}
     </div>

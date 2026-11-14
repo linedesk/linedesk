@@ -366,7 +366,7 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
         ...(c.isInstanceAdmin
           ? [
               {
-                label: 'Go to Admin',
+                label: 'Go to Server admin',
                 icon: 'shield',
                 shortcut: ['G', 'D'],
                 run: () => c.goPage('admin'),
