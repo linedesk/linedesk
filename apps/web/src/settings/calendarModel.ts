@@ -2,34 +2,7 @@
 import type { AppointmentType, AssistantCalendar, CalendarConnection } from '@linedesk/db/types'
 
 export type ProviderId = CalendarConnection['provider']
-export const PROVIDER_LABEL: Record<ProviderId, string> = { google: 'Google', microsoft: 'Microsoft', caldav: 'iCloud or CalDAV' }
-
-/** Providers connected with a user name and an app-specific password in a form, not on the provider's consent page. */
-export const isPasswordProvider = (provider: ProviderId) => provider === 'caldav'
-
-export type CalDavService = 'icloud' | 'fastmail' | 'other'
-
-/** The CalDAV services the connect form knows: where their server is and how to get an app-specific password. */
-export const CALDAV_SERVICES: Record<CalDavService, { label: string; serverUrl: string; username: string; help: string }> = {
-  icloud: {
-    label: 'iCloud',
-    serverUrl: 'https://caldav.icloud.com',
-    username: 'Apple Account email',
-    help: 'Use an app-specific password, not your Apple Account password: account.apple.com, Sign-In and Security, App-Specific Passwords.',
-  },
-  fastmail: {
-    label: 'Fastmail',
-    serverUrl: 'https://caldav.fastmail.com',
-    username: 'Fastmail email',
-    help: 'Use an app password with calendar access: Fastmail settings, Privacy & Security, Manage app passwords.',
-  },
-  other: {
-    label: 'Other CalDAV server',
-    serverUrl: '',
-    username: 'User name',
-    help: 'Nextcloud, Synology, Radicale and other CalDAV servers. An app password is safer than your own.',
-  },
-}
+export const PROVIDER_LABEL: Record<ProviderId, string> = { google: 'Google', microsoft: 'Microsoft' }
 
 /** The assistant a connect started from: the callback returns to #assistant/calendar and the page goes back to it. */
 export const CONNECT_RETURN_KEY = 'linedesk.calendarConnectFor'

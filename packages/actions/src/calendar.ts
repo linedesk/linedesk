@@ -168,21 +168,17 @@ export const appointmentTypeDelete = defineAction({
   permission: 'settings:write',
 })
 
-// Calendar accounts and the calendars an assistant books into. Google and Microsoft connect by OAuth:
-// connectStart returns the provider's consent URL; the provider sends the browser back to
-// GET /v1/calendar/callback/<provider>, which runs connectFinish for the signed-in member. CalDAV
-// accounts (iCloud and others) connect with a user name and an app-specific password instead.
+// Calendar accounts and the calendars an assistant books into. Connecting is OAuth: connectStart
+// returns the provider's consent URL; the provider sends the browser back to
+// GET /v1/calendar/callback/<provider>, which runs connectFinish for the signed-in member.
 
-export const oauthCalendarProvider = z.enum(['google', 'microsoft'])
-export const passwordCalendarProvider = z.enum(['caldav'])
-export const calendarProvider = z.enum([...oauthCalendarProvider.options, ...passwordCalendarProvider.options])
+export const calendarProvider = z.enum(['google', 'microsoft'])
 export type CalendarProviderId = z.infer<typeof calendarProvider>
-export type OAuthCalendarProviderId = z.infer<typeof oauthCalendarProvider>
 
 export const calendarConnectStart = defineAction({
   name: 'calendar.connectStart',
   description: "Start connecting a Google or Microsoft calendar account to the workspace. Returns the URL of the provider's consent page.",
-  input: z.object({ provider: oauthCalendarProvider }),
+  input: z.object({ provider: calendarProvider }),
   permission: 'settings:write',
 })
 
@@ -192,29 +188,10 @@ export type ConnectStartData = { url: string }
 export const calendarConnectFinish = defineAction({
   name: 'calendar.connectFinish',
   description: 'Finish connecting a calendar account with the code the provider sent back. Run by the OAuth callback route.',
-  input: z.object({ provider: oauthCalendarProvider, state: z.string().min(16).max(200), code: z.string().min(1).max(4000) }),
+  input: z.object({ provider: calendarProvider, state: z.string().min(16).max(200), code: z.string().min(1).max(4000) }),
   permission: 'settings:write',
   sensitive: ['code'],
 })
-
-export const calendarConnectWithPassword = defineAction({
-  name: 'calendar.connectWithPassword',
-  description:
-    "Connect a calendar account that signs in with a user name and an app-specific password instead of OAuth (CalDAV: iCloud, Fastmail, Nextcloud and others). The server is checked with the login before it is stored, encrypted. Connecting the same account again replaces its password.",
-  input: z.object({
-    provider: passwordCalendarProvider,
-    /** The CalDAV server, e.g. https://caldav.icloud.com. */
-    serverUrl: z.string().trim().min(1).max(500),
-    // HTTP Basic: a colon would end the user name early, control characters break the header.
-    username: z.string().trim().min(1).max(254).regex(/^[^:\p{Cc}]+$/u, 'The user name cannot contain a colon or control characters.'),
-    password: z.string().min(1).max(500).regex(/^[^\p{Cc}]+$/u, 'The password cannot contain control characters.'),
-  }),
-  permission: 'settings:write',
-  sensitive: ['password'],
-})
-
-/** `data` of calendar.connectWithPassword. */
-export type ConnectWithPasswordData = { connectionId: string }
 
 const connectionId = z.object({ connectionId: z.string().min(1) })
 

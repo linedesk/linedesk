@@ -1,24 +1,10 @@
 // What Linedesk needs from a calendar account: its calendars, when they are busy, and events it
 // writes. Google and Microsoft adapters implement it with plain fetch; vendor code stays in them.
 // Tokens are not the adapter's business: it asks `accessToken()` for one per request and, after a
-// 401, once more with `forceRefresh` before it gives up. A provider connected with a user name and
-// password instead (CalDAV) gets its login (`CalendarLogin`) and signs in with it on every request.
+// 401, once more with `forceRefresh` before it gives up.
 import type { Interval } from './slots.ts'
 
-/** Providers connected by OAuth: their apps are the install's sign-in apps. */
-export type OAuthCalendarProviderName = 'google' | 'microsoft'
-/** Providers an account connects to with its user name and an (app-specific) password: no app to register. */
-export const PASSWORD_CALENDAR_PROVIDERS = ['caldav'] as const
-export type PasswordCalendarProviderName = (typeof PASSWORD_CALENDAR_PROVIDERS)[number]
-export type CalendarProviderName = OAuthCalendarProviderName | PasswordCalendarProviderName
-
-export const isPasswordProvider = (name: CalendarProviderName): name is PasswordCalendarProviderName =>
-  (PASSWORD_CALENDAR_PROVIDERS as readonly string[]).includes(name)
-
-export const CALENDAR_PROVIDER_LABEL: Record<CalendarProviderName, string> = { google: 'Google', microsoft: 'Microsoft', caldav: 'CalDAV' }
-
-/** How a password provider signs in: the server's address, the account's user name and its (app-specific) password. */
-export type CalendarLogin = { serverUrl: string; username: string; password: string }
+export type CalendarProviderName = 'google' | 'microsoft'
 
 export type ProviderCalendar = {
   /** The provider's calendar id. */
@@ -77,7 +63,7 @@ export class CalendarError extends Error {
   readonly code: string | undefined
 
   constructor(provider: CalendarProviderName, kind: CalendarErrorKind, message: string, status?: number, code?: string) {
-    super(`${CALENDAR_PROVIDER_LABEL[provider]}: ${message}`)
+    super(`${provider === 'google' ? 'Google' : 'Microsoft'}: ${message}`)
     this.provider = provider
     this.kind = kind
     this.status = status
@@ -176,7 +162,7 @@ export type OAuthClient = { clientId: string; clientSecret: string }
 
 /** The OAuth side of a provider: consent URL, code exchange, refresh, revoke, and whose account it is. */
 export interface CalendarOAuth {
-  readonly name: OAuthCalendarProviderName
+  readonly name: CalendarProviderName
   readonly scopes: readonly string[]
   authorizeUrl(params: { redirectUri: string; state: string; codeChallenge: string }): string
   exchangeCode(params: { code: string; redirectUri: string; codeVerifier: string }): Promise<OAuthTokens>
@@ -225,21 +211,4 @@ export async function pkcePair(): Promise<{ verifier: string; challenge: string 
 
 function base64url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
-}
-
-/** Services known to hand each account a server of its own under their domain (iCloud: p42-caldav.icloud.com). */
-const PER_ACCOUNT_HOSTS = ['icloud.com']
-
-const underDomain = (host: string, domain: string) => host === domain || host.endsWith(`.${domain}`)
-
-/**
- * Whether a password provider may send its login to `target`, given the server the member entered: the same scheme
- * and host (port included), or both under a service known to move accounts to a host of their own (iCloud). Nothing
- * else: two names under one public suffix (a.synology.me, b.synology.me) belong to different people.
- */
-export function sameSite(server: URL, target: URL): boolean {
-  if (server.protocol !== target.protocol) return false
-  if (server.host === target.host) return true
-  const [a, b] = [server.hostname.toLowerCase(), target.hostname.toLowerCase()]
-  return PER_ACCOUNT_HOSTS.some(domain => underDomain(a, domain) && underDomain(b, domain))
 }

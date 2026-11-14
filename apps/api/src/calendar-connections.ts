@@ -1,58 +1,37 @@
 // Calendar accounts of a workspace: connecting by OAuth (with PKCE and a state bound to the member
-// and workspace), tokens encrypted with SECRETS_KEY and refreshed when they run out, or by password
-// (CalDAV: the login checked against the server, then stored encrypted the same way), the adapter
+// and workspace), tokens encrypted with SECRETS_KEY and refreshed when they run out, the adapter
 // for a connection, disconnecting with revocation, and the calendars an assistant books into.
 import { randomBytes } from 'node:crypto'
+import { type CalendarProviderId, type ConnectStartData, type DisconnectData, type ListCalendarsData, type ProviderAudience, providerFailureText } from '@linedesk/actions'
 import {
-  type CalendarProviderId, type ConnectStartData, type ConnectWithPasswordData, type DisconnectData, type ListCalendarsData, type OAuthCalendarProviderId,
-  type ProviderAudience, providerFailureText,
-} from '@linedesk/actions'
-import {
-  type AccessTokenSource, CALENDAR_PROVIDER_LABEL, type CalendarAccess, CalendarError, type CalendarLogin, type CalendarOAuth, type CalendarProvider,
-  type OAuthTokens, type PasswordCalendarProviderName, calendarOAuthFromEnv, createCalendarProvider, isPasswordProvider, pkcePair,
+  type AccessTokenSource, CalendarError, type CalendarOAuth, type CalendarProvider, type OAuthTokens, calendarOAuthFromEnv, createCalendarProvider,
+  pkcePair,
 } from '@linedesk/calendar'
 import { assistant_calendars, assistants, calendar_connections, calendar_credentials, calendar_oauth_states, type CalendarConnection, type Tx } from '@linedesk/db'
 import { and, asc, eq, lt, ne } from 'drizzle-orm'
-import { ensureAppointmentType, timeZoneOf } from './bookings.ts'
+import { ensureAppointmentType } from './bookings.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { type Handler, type HandlerCtx, Forbidden, Reject } from './handler-context.ts'
 import { audienceOf, noteProviderFailure, noteProviderOk } from './provider-failures.ts'
 import { decryptSecret, encryptSecret, hasSecretsKey, SecretsKeyError } from './secrets.ts'
 import { brandName } from './branding.ts'
-import { calendarServerFetch, calendarServerUrl } from './calendar-server-fetch.ts'
 
 /** How the API reaches calendar providers; tests pass fakes through the handler context. */
 export type CalendarServices = {
-  oauth(name: OAuthCalendarProviderId): CalendarOAuth | null
-  provider(name: CalendarProviderId, access: CalendarAccess): CalendarProvider
-  /** The calendar server a member typed for a password provider, or why it is refused. Default: calendarServerUrl. */
-  serverUrl?(typed: string): Promise<URL | string>
+  oauth(name: CalendarProviderId): CalendarOAuth | null
+  provider(name: CalendarProviderId, accessToken: AccessTokenSource): CalendarProvider
 }
 
 export const defaultCalendarServices: CalendarServices = {
   oauth: name => calendarOAuthFromEnv(name, process.env),
-  // A password provider's server is one a member named: its requests go through the address guard.
-  provider: (name, access) =>
-    createCalendarProvider(name, 'login' in access ? { ...access, fetch: calendarServerFetch(new URL(access.login.serverUrl)) } : access),
-  serverUrl: typed => calendarServerUrl(typed),
+  provider: (name, accessToken) => createCalendarProvider(name, { accessToken }),
 }
 
 const servicesOf = (ctx: Pick<HandlerCtx, 'calendars'>) => ctx.calendars ?? defaultCalendarServices
 
-const LABEL = CALENDAR_PROVIDER_LABEL
-const ENV: Record<OAuthCalendarProviderId, string> = { google: 'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET', microsoft: 'MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET' }
-
-/**
- * A password connection's row in calendar_credentials: the login (JSON) where the access token goes, an empty refresh
- * token and an expiry long past, so the columns OAuth needs stay as they are (no migration) and key rotation covers it
- * too. This code never reads the expiry of a login. A release before this one (a rollback, the old API during an
- * update) reads the row as OAuth: the expiry makes it refresh with the empty token, which fails, so it never sends
- * the login anywhere as an access token.
- */
-const PASSWORD_LOGIN_EXPIRES = '1970-01-01T00:00:00.000Z'
-
-const NO_SECRETS_KEY = 'SECRETS_KEY is not set, so calendar access cannot be stored. Generate one with `openssl rand -base64 32`, set it in the environment of the API and restart.'
+const LABEL: Record<CalendarProviderId, string> = { google: 'Google', microsoft: 'Microsoft' }
+const ENV: Record<CalendarProviderId, string> = { google: 'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET', microsoft: 'MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET' }
 
 /** A started connect is good for this long: enough to pick an account and consent. */
 const STATE_TTL_MS = 10 * 60_000
@@ -77,7 +56,7 @@ function workspaceOf(actor: Actor) {
   return actor.workspaceId
 }
 
-function oauthOrReject(ctx: Pick<HandlerCtx, 'calendars'>, provider: OAuthCalendarProviderId) {
+function oauthOrReject(ctx: Pick<HandlerCtx, 'calendars'>, provider: CalendarProviderId) {
   const oauth = servicesOf(ctx).oauth(provider)
   if (!oauth) throw new Reject(`${LABEL[provider]} calendars are not set up on this server (${ENV[provider]})`)
   return oauth
@@ -93,7 +72,7 @@ const isAppFailure = (e: CalendarError) => Boolean(e.code && APP_FAILURES.has(e.
  * failure of the sign-in and calendar app (provider-failures.ts); one account's lost grant is not.
  */
 export function noteCalendarAppFailure(e: unknown) {
-  if (!(e instanceof CalendarError) || !isAppFailure(e) || isPasswordProvider(e.provider)) return
+  if (!(e instanceof CalendarError) || !isAppFailure(e)) return
   const label = LABEL[e.provider]
   void noteProviderFailure(
     e.provider,
@@ -142,8 +121,6 @@ async function saveTokens(tx: Tx, connection: Pick<CalendarConnection, 'id' | 'w
  * refresh marks the connection `needs_reconnect`.
  */
 export function tokenSource(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, connection: CalendarConnection): AccessTokenSource {
-  const provider = connection.provider
-  if (isPasswordProvider(provider)) throw new Error(`a ${LABEL[provider]} connection signs in with its login, not a token`)
   return async (forceRefresh = false) => {
     const [credentials] = await tx.select().from(calendar_credentials).where(eq(calendar_credentials.connection_id, connection.id))
     if (!credentials) throw new Reject(`the ${LABEL[connection.provider]} account ${connection.account_email} has no stored access: connect it again`)
@@ -152,9 +129,9 @@ export function tokenSource(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, connecti
     }
     const refreshToken = decryptSecret(credentials.refresh_token_encrypted, slot(connection.id, 'refresh'))
     try {
-      const tokens = await oauthOrReject(ctx, provider).refresh(refreshToken)
+      const tokens = await oauthOrReject(ctx, connection.provider).refresh(refreshToken)
       await saveTokens(tx, connection, tokens, tokens.refreshToken ?? refreshToken)
-      void noteProviderOk(provider)
+      void noteProviderOk(connection.provider)
       return tokens.accessToken
     } catch (e) {
       noteCalendarAppFailure(e)
@@ -164,67 +141,12 @@ export function tokenSource(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, connecti
   }
 }
 
-async function saveLogin(tx: Tx, connection: Pick<CalendarConnection, 'id' | 'workspace_id'>, login: CalendarLogin) {
-  const values = {
-    access_token_encrypted: encryptSecret(JSON.stringify(login), slot(connection.id, 'access')),
-    refresh_token_encrypted: encryptSecret('', slot(connection.id, 'refresh')),
-    expires_at: PASSWORD_LOGIN_EXPIRES,
-    scope: null,
-    updated_at: new Date().toISOString(),
-  }
-  await tx.insert(calendar_credentials).values({ connection_id: connection.id, workspace_id: connection.workspace_id, ...values })
-    .onConflictDoUpdate({ target: calendar_credentials.connection_id, set: values })
-}
-
-/** The stored login of a password connection. */
-async function loginOf(tx: Tx, connection: CalendarConnection): Promise<CalendarLogin> {
-  const [credentials] = await tx.select({ access: calendar_credentials.access_token_encrypted }).from(calendar_credentials)
-    .where(eq(calendar_credentials.connection_id, connection.id))
-  if (!credentials) throw new Reject(`the ${LABEL[connection.provider]} account ${connection.account_email} has no stored login: connect it again`)
-  const login = JSON.parse(decryptSecret(credentials.access, slot(connection.id, 'access'))) as Partial<CalendarLogin>
-  if (typeof login.serverUrl !== 'string' || typeof login.username !== 'string' || typeof login.password !== 'string') {
-    throw new Reject(`the stored login of ${connection.account_email} is unreadable: connect it again`)
-  }
-  return { serverUrl: login.serverUrl, username: login.username, password: login.password }
-}
-
-/**
- * A password provider has no refresh: a refused login means the password was revoked or changed (an Apple ID password
- * change revokes every app-specific password). The connection is marked, like a refused OAuth refresh.
- */
-function markingRefusedLogin(provider: CalendarProvider, connection: CalendarConnection): CalendarProvider {
-  const marked = <A extends unknown[], R>(call: (...args: A) => Promise<R>) => async (...args: A): Promise<R> => {
-    try {
-      return await call(...args)
-    } catch (e) {
-      if (e instanceof CalendarError && e.kind === 'auth') await markNeedsReconnect(connection.id, e.message)
-      throw e
-    }
-  }
-  return {
-    name: provider.name,
-    listCalendars: marked(() => provider.listCalendars()),
-    busy: marked((ids, window) => provider.busy(ids, window)),
-    createEvent: marked((id, event) => provider.createEvent(id, event)),
-    updateEvent: marked((id, eventId, event) => provider.updateEvent(id, eventId, event)),
-    deleteEvent: marked((id, eventId) => provider.deleteEvent(id, eventId)),
-    getEvent: marked((id, eventId) => provider.getEvent(id, eventId)),
-  }
-}
-
 /** The adapter for a connection of the actor's workspace. */
 export async function providerFor(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, workspaceId: string, connectionId: string) {
   const [connection] = await tx.select().from(calendar_connections)
     .where(and(eq(calendar_connections.id, connectionId), eq(calendar_connections.workspace_id, workspaceId)))
   if (!connection) throw new Reject('calendar account not found')
-  const services = servicesOf(ctx)
-  if (isPasswordProvider(connection.provider)) {
-    const login = await loginOf(tx, connection).catch(e => rejectCalendarError(e))
-    // All-day events in a CalDAV calendar have no zone of their own: they are the business's days.
-    const timeZone = await timeZoneOf(tx, workspaceId)
-    return { connection, provider: markingRefusedLogin(services.provider(connection.provider, { login, timeZone }), connection) }
-  }
-  return { connection, provider: services.provider(connection.provider, { accessToken: tokenSource(tx, ctx, connection) }) }
+  return { connection, provider: servicesOf(ctx).provider(connection.provider, tokenSource(tx, ctx, connection)) }
 }
 
 /**
@@ -236,8 +158,6 @@ export function calendarProblemText(e: CalendarError, connection: Pick<CalendarC
   const label = LABEL[connection.provider]
   if (e.code === 'api_disabled') return providerFailureText('config', `The ${label} Calendar app of this server`, audience)
   if (isAppFailure(e)) return providerFailureText('auth', `${label} Calendar`, audience)
-  if (e.kind === 'auth' && isPasswordProvider(connection.provider))
-    return `The calendar server no longer accepts the password of ${connection.account_email}. Connect the account again with a new app-specific password.`
   if (e.kind === 'auth') return `${label} no longer accepts the access to ${connection.account_email}. Connect the account again.`
   if (e.kind === 'rate_limited' || e.kind === 'unavailable') return providerFailureText('network', `${label} Calendar`, audience)
   return e.message
@@ -258,23 +178,23 @@ async function listAt(provider: CalendarProvider, connection: CalendarConnection
 }
 
 /** Google lets the member untick scopes on the consent page; without these the connection is useless. */
-const REQUIRED_SCOPES: Record<OAuthCalendarProviderId, RegExp[]> = {
+const REQUIRED_SCOPES: Record<CalendarProviderId, RegExp[]> = {
   google: [/\/auth\/calendar\.events(\s|$)/, /\/auth\/calendar\.freebusy(\s|$)/, /\/auth\/calendar\.calendarlist\.readonly(\s|$)/],
   microsoft: [/calendars\.readwrite/i],
 }
 
-function missingScope(provider: OAuthCalendarProviderId, scope: string | null) {
+function missingScope(provider: CalendarProviderId, scope: string | null) {
   // A provider that does not report the scopes is trusted; the first calendar request would fail anyway.
   return scope !== null && REQUIRED_SCOPES[provider].some(required => !required.test(scope))
 }
 
 export const calendarConnectionHandlers: Record<string, Handler> = {
-  'calendar.connectStart': async ({ tx, actor, now, ...ctx }, input: { provider: OAuthCalendarProviderId }) => {
+  'calendar.connectStart': async ({ tx, actor, now, ...ctx }, input: { provider: CalendarProviderId }) => {
     const workspace_id = workspaceOf(actor)
     // A calendar connected while signed in as someone else would put the admin's account into the user's workspace.
     if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
     const oauth = oauthOrReject(ctx, input.provider)
-    if (!hasSecretsKey()) throw new Reject(NO_SECRETS_KEY)
+    if (!hasSecretsKey()) throw new Reject('SECRETS_KEY is not set, so calendar access cannot be stored. Generate one with `openssl rand -base64 32`, set it in the environment of the API and restart.')
     const { verifier, challenge } = await pkcePair()
     const state = randomBytes(32).toString('base64url')
     await tx.delete(calendar_oauth_states).where(lt(calendar_oauth_states.expires_at, now))
@@ -286,7 +206,7 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
     return { rows: {}, data }
   },
 
-  'calendar.connectFinish': async ({ tx, actor, now, onRollback, ...ctx }, input: { provider: OAuthCalendarProviderId; state: string; code: string }) => {
+  'calendar.connectFinish': async ({ tx, actor, now, onRollback, ...ctx }, input: { provider: CalendarProviderId; state: string; code: string }) => {
     const workspace_id = workspaceOf(actor)
     if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
     // The state is single use and only good for the member who started the connect, in that workspace.
@@ -317,41 +237,6 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
       : await tx.insert(calendar_connections).values({ id: newId('calc'), workspace_id, provider: input.provider, account_email, connected_by: actor.actorId }).returning()
     await saveTokens(tx, connection!, tokens, tokens.refreshToken)
     return { rows: { calendar_connections: [connection!] }, data: { connectionId: connection!.id } }
-  },
-
-  'calendar.connectWithPassword': async ({ tx, actor, ...ctx }, input: { provider: PasswordCalendarProviderName; serverUrl: string; username: string; password: string }) => {
-    const workspace_id = workspaceOf(actor)
-    if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
-    if (!hasSecretsKey()) throw new Reject(NO_SECRETS_KEY)
-    const services = servicesOf(ctx)
-    const server = await (services.serverUrl ?? defaultCalendarServices.serverUrl!)(input.serverUrl)
-    if (typeof server === 'string') throw new Reject(server)
-    const login: CalendarLogin = { serverUrl: server.toString(), username: input.username, password: input.password }
-    // The login is checked before anything is stored: the server must accept it and show at least one calendar.
-    let calendars: Awaited<ReturnType<CalendarProvider['listCalendars']>>
-    try {
-      calendars = await services.provider(input.provider, { login }).listCalendars()
-    } catch (e) {
-      if (e instanceof CalendarError && e.kind === 'auth') {
-        throw new Reject(`${server.host} did not accept that user name and password. Check both; for iCloud, use an app-specific password, not your Apple ID password.`)
-      }
-      return rejectCalendarError(e)
-    }
-    if (!calendars.length) throw new Reject(`${server.host} shows no calendars for ${input.username}.`)
-    const account_email = passwordAccountLabel(login)
-
-    const [existing] = await tx.select().from(calendar_connections).where(and(
-      eq(calendar_connections.workspace_id, workspace_id), eq(calendar_connections.provider, input.provider), eq(calendar_connections.account_email, account_email),
-    ))
-    // The same account on another server is another account: its calendars must not be read from the new one.
-    const stored = existing && (await loginOf(tx, existing).catch(() => null))
-    if (stored && stored.serverUrl !== login.serverUrl) throw new Reject(`${account_email} is connected on ${new URL(stored.serverUrl).host} already. Disconnect it there first.`)
-    const [connection] = existing
-      ? await tx.update(calendar_connections).set({ status: 'connected', last_error: null, connected_by: actor.actorId }).where(eq(calendar_connections.id, existing.id)).returning()
-      : await tx.insert(calendar_connections).values({ id: newId('calc'), workspace_id, provider: input.provider, account_email, connected_by: actor.actorId }).returning()
-    await saveLogin(tx, connection!, login)
-    const data: ConnectWithPasswordData = { connectionId: connection!.id }
-    return { rows: { calendar_connections: [connection!] }, data }
   },
 
   'calendar.listCalendars': async ({ tx, actor, ...ctx }, input: { connectionId: string }) => {
@@ -420,12 +305,6 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
   },
 }
 
-/** How a password account is named in the app: its user name when that is an address, else `<user name>@<server host>`. */
-export function passwordAccountLabel(login: CalendarLogin): string {
-  const username = login.username.trim().toLowerCase()
-  return username.includes('@') ? username : `${username}@${new URL(login.serverUrl).hostname}`
-}
-
 async function loadAssistantCalendar(tx: Tx, workspaceId: string, id: string) {
   const [row] = await tx.select().from(assistant_calendars).where(and(eq(assistant_calendars.id, id), eq(assistant_calendars.workspace_id, workspaceId)))
   if (!row) throw new Reject('calendar not found')
@@ -434,10 +313,6 @@ async function loadAssistantCalendar(tx: Tx, workspaceId: string, id: string) {
 
 /** Withdraws the grant at the provider with the stored refresh token. Never throws: the result says what happened. */
 async function revokeGrant(ctx: Pick<HandlerCtx, 'calendars'>, connection: CalendarConnection, refreshEncrypted: string | undefined): Promise<DisconnectData> {
-  // A password cannot be withdrawn from here: its owner deletes it where they made it.
-  if (isPasswordProvider(connection.provider)) {
-    return { revoked: false, note: `The login is deleted here. Also delete the app-specific password you made for ${brandName()} (iCloud: account.apple.com, Sign-In and Security, App-Specific Passwords).` }
-  }
   const oauth = servicesOf(ctx).oauth(connection.provider)
   if (!oauth || !refreshEncrypted) return { revoked: false, note: `Remove ${brandName()}'s access in your ${LABEL[connection.provider]} account settings.` }
   try {
