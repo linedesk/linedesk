@@ -2,13 +2,14 @@
 // (assistant.startTestCall); the voice agent joins it and files the call in the inbox as "Test call".
 // Settings > Assistant and onboarding show a Start button and the call in a side panel (TestCallPanel).
 import { parseVoiceFailure, type TestCallData, VOICE_FAILURE_ATTRIBUTE, voiceFailureText } from '@linedesk/actions'
-import { type Participant, Room, RoomEvent, Track } from 'livekit-client'
+import type { Participant, Room } from 'livekit-client'
 import { type RefObject, useEffect, useMemo, useRef, useState } from 'react'
 import { useVoiceReady } from '../shell/presence.ts'
 import { useAssistantName, useRows } from '../store.tsx'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 import { Button } from '../ui/kit.tsx'
 import '../ui/settings-layout.css'
+import { LOAD_FAILED, loadLiveKit } from '../call/livekit.ts'
 import { microphoneAllowed } from '../call/microphone.ts'
 import { useLiveLines } from '../call/useLiveLines.ts'
 import {
@@ -105,6 +106,10 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     )
     if (mine !== attempt.current) return
     if (blocked) return fail(blocked)
+    const livekit = await loadLiveKit().catch(() => null)
+    if (mine !== attempt.current) return
+    if (!livekit) return fail(LOAD_FAILED)
+    const { Room, RoomEvent, Track } = livekit
     const next = new Room()
     // Connected, but the assistant never picks up or drops out: say so and hang up instead of a silent call.
     const endWith = (text: string, then: Phase) => {

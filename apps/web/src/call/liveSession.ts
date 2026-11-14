@@ -4,13 +4,14 @@
 // listening can only hear. Taking over joins with the microphone off and turns it on once the assistant
 // has told the caller and left the conversation (it says so in HAND_OFF_ATTRIBUTE on itself).
 import { HAND_OFF_ATTRIBUTE, type HandOff, type LiveCallJoin } from '@linedesk/actions'
-import { type Participant, Room, RoomEvent, type TextStreamReader, Track } from 'livekit-client'
+import type { Participant, Room, TextStreamReader } from 'livekit-client'
 import { useSyncExternalStore } from 'react'
 import type { LiveSpeaker } from '../settings/liveTranscript.ts'
 import { TRANSCRIPTION_TOPIC } from '../settings/liveTranscript.ts'
 import { whoSetsUp } from '../providerAudience.ts'
 import { TimedOut, within } from '../settings/testCallModel.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
+import { type LiveKit, LOAD_FAILED, loadLiveKit } from './livekit.ts'
 import { microphoneAllowed } from './microphone.ts'
 import { transcribesOthers } from './useLiveLines.ts'
 
@@ -79,7 +80,7 @@ async function requestJoin(action: 'call.listen' | 'call.takeOver', callId: stri
   return body.data
 }
 
-async function connect(join: LiveCallJoin): Promise<Room> {
+async function connect(join: LiveCallJoin, { Room, RoomEvent, Track }: LiveKit): Promise<Room> {
   const next = new Room()
   next.on(RoomEvent.TrackSubscribed, track => {
     if (track.kind === Track.Kind.Audio) sink().append(track.attach())
@@ -111,6 +112,12 @@ async function connect(join: LiveCallJoin): Promise<Room> {
   return next
 }
 
+/** The LiveKit client, or an error in plain words when it could not load. */
+const livekitOrFail = () =>
+  loadLiveKit().catch(() => {
+    throw new Error(LOAD_FAILED)
+  })
+
 /** Leaves the room without touching the state. */
 async function drop() {
   const current = room
@@ -137,7 +144,11 @@ async function listen(callId: string) {
   await drop()
   update({ callId, phase: 'joining', problem: null, muted: false })
   try {
-    const next = await within(requestJoin('call.listen', callId).then(connect), JOIN_TIMEOUT_MS)
+    const livekit = await livekitOrFail()
+    const next = await within(
+      requestJoin('call.listen', callId).then(join => connect(join, livekit)),
+      JOIN_TIMEOUT_MS,
+    )
     if (mine !== attempt) return void next.disconnect()
     room = next
     update({ phase: 'listening' })
@@ -153,7 +164,7 @@ function handOffOf(participant: Participant, ownSid: string): HandOff | null {
 }
 
 /** Waits until the assistant has handed the call over (or refused); TimedOut when it never says. */
-function handOff(next: Room): Promise<HandOff> {
+function handOff(next: Room, { RoomEvent }: LiveKit): Promise<HandOff> {
   const ownSid = next.localParticipant.sid
   const now = [...next.remoteParticipants.values()].map(p => handOffOf(p, ownSid)).find(Boolean)
   if (now) return Promise.resolve(now)
@@ -178,15 +189,16 @@ async function takeOver(callId: string) {
   try {
     const blocked = await within(microphoneAllowed(), JOIN_TIMEOUT_MS)
     if (blocked) throw new Error(blocked)
+    const livekit = await livekitOrFail()
     const join = await within(requestJoin('call.takeOver', callId), JOIN_TIMEOUT_MS)
     if (mine !== attempt) return
     // Keeps hearing the call until the take-over can join.
     await drop()
-    const next = await within(connect(join), JOIN_TIMEOUT_MS)
+    const next = await within(connect(join, livekit), JOIN_TIMEOUT_MS)
     if (mine !== attempt) return void next.disconnect()
     room = next
     update({ phase: 'handingOff' })
-    const answer = await handOff(next).catch(e => {
+    const answer = await handOff(next, livekit).catch(e => {
       throw e instanceof TimedOut ? new Error("The assistant didn't hand the call over. Try again.") : e
     })
     if (mine !== attempt) return

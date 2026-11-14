@@ -11,6 +11,7 @@ import { CallView } from './call/CallView.tsx'
 import { ContactSide } from './call/ContactSide.tsx'
 import { toggleContactPanel } from './call/contactPanel.ts'
 import { liveCallKey } from './call/LiveCard.tsx'
+import { preloadLiveKit } from './call/livekit.ts'
 import { togglePlayback } from './call/playback.ts'
 import { assignGroups, assigneeViewGroups } from './inbox/assign.ts'
 import { Inbox } from './inbox/Inbox.tsx'
@@ -102,6 +103,8 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null }: Pr
   useEffect(() => {
     if (liveState && (liveState === 'disabled') !== Boolean(me.workspace?.disabled)) void onSessionStale()
   }, [liveState, me.workspace?.disabled, onSessionStale])
+  // The call code (LiveKit) loads after the first screen, before anyone opens a live call.
+  useEffect(preloadLiveKit, [])
   const toaster = useToast()
   // Invitations to other workspaces: a dot on the menu, a toast once per invitation, Join in the profile menu.
   const invites = useMyInvitations()
