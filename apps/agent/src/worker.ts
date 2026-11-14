@@ -16,6 +16,7 @@ import { partialPhoneNumberIn } from './collect/collectors.ts'
 import { callerIdOf, withCallbackNumber } from './callback-number.ts'
 import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log.ts'
 import { onceEachStage, watchVoicePipeline } from './voice-failures.ts'
+import { retryEmptyReplies } from './empty-reply.ts'
 import { GREETING_WAIT_MS, lookUpCaller, within } from './caller-lookup.ts'
 import { lookupTools } from './lookup-tools.ts'
 import { callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
@@ -347,6 +348,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     onceEachStage(failure => reportVoiceFailure(ctx.room, call, log, failure)),
     stages ? [stages.stt.apiKey, stages.llm.apiKey, stages.tts.apiKey] : [realtime!.apiKey],
   )
+  if (stages) retryEmptyReplies(session)
   const voiceOfLines = lineVoiceOf(config, call.assistant)
   const realtimeLines = realtime ? { model: () => realtimeSession, callerTurns: () => callerTurns, languages } : null
   const speak = fixedLineSpeaker(session, voiceOfLines, realtimeLines)
