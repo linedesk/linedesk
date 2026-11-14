@@ -64,7 +64,7 @@ export async function sendInvitation(
   invite: { id: string; email: string; organizationId: string; inviterId: string },
   addedAs?: string,
 ) {
-  if (emailSender.kind === 'none') throw new Reject('email is not set up, so invitations cannot be sent (connect it in Admin, Providers, Email)')
+  if (emailSender.kind === 'none') throw new Reject('email is not set up, so invitations cannot be sent (connect it in Server admin › Providers › Email)')
   if (!allowEmailFor(invite.organizationId)) throw new Reject('too many invitations in the last hour; try again later')
   // The same answer whether or not the address has an account anywhere.
   if (!allowEmailTo(invite.email.toLowerCase())) throw new Reject('too many invitations to this address in the last hour; try again later')

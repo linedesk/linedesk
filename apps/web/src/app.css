@@ -434,6 +434,10 @@ body,
   font-size: 13.5px;
   font-weight: 500;
 }
+/* "Show N more" under the sessions: the ghost button's label starts at the list's left edge. */
+#ac-sessions > div:not([class]) > .k-btn-ghost:only-child {
+  margin-left: -11px; /* 10px padding + 1px border */
+}
 
 /* The hidden attribute always wins, also over classes that set display (the tooltip is inline-flex). */
 [hidden] {
@@ -2034,7 +2038,7 @@ button.k-link {
 .star-card h2 {
   padding-right: 28px;
 }
-/* Same calm outline heart as Admin › Branding, Support Linedesk: muted ink, centred on the heading. */
+/* Same calm outline heart as Server admin › Branding, Support Linedesk: muted ink, centred on the heading. */
 .star-card .star-title {
   display: flex;
   align-items: center;

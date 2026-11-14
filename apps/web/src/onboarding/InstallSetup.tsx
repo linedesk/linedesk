@@ -1,7 +1,7 @@
 // Install setup by hand (LIN-128, docs/self-host-first-run.md): the small alternative to setting up with an AI agent
-// (AgentSetup.tsx). One screen per provider group a first answered call needs, in the order of Admin › Providers:
-// each step is its heading, the same group panel as Admin › Providers (ProviderGroup, embedded: it opens the
-// provider's dialog in place and never navigates away) and the footer. The dialog has Test again and Try it, a real
+// (AgentSetup.tsx). One screen per provider group a first answered call needs, in the order of Server admin ›
+// Providers: each step is its heading, the same group panel as Server admin › Providers (ProviderGroup, embedded: it
+// opens the provider's dialog in place and never navigates away) and the footer. The dialog has Test again and Try it, a real
 // round trip (`provider.tryOut`). Welcome and Done show the "Ready for calls" list. Where the admin got to is kept on
 // the server (`install.setProgress`), so it resumes there. An admin without a passkey adds one before Email
 // (PasskeyFirst, LIN-189): email and sign-in keys need it.
@@ -92,7 +92,7 @@ export function InstallSetup({ onExit }: Props) {
   useEffect(() => {
     loadSetup().then(
       s => {
-        // Off on this install (Cloud): Admin › Providers is the way by hand.
+        // Off on this install (Cloud): Server admin › Providers is the way by hand.
         if (!s.enabled) window.location.hash = '#admin/providers'
         setStep(current => current ?? (s.progress.finishedAt ? 'done' : s.progress.step))
       },
@@ -170,7 +170,7 @@ export function InstallSetup({ onExit }: Props) {
           size="sm"
           variant="ghost"
           onClick={later}
-          title="Leave now and pick up where you left off in Admin › Providers"
+          title="Leave now and pick up where you left off in Server admin › Providers"
         >
           Set up later
         </Button>
@@ -489,7 +489,7 @@ type PartProps = {
   onSkip: () => void
 }
 
-/** One group: its heading, the same panel as Admin › Providers, and the footer. */
+/** One group: its heading, the same panel as Server admin › Providers, and the footer. */
 function PartStep({ step, number, data, status, setup, reloadAll, onBack, onNext, onSkip }: PartProps) {
   const group = groupOfStep(status, step)
   const [dialog, setDialog] = useState<ProviderName | null>(null)
@@ -574,7 +574,7 @@ function Done({
         <h1>{open.length ? 'The server is almost set up' : 'The server is set up'}</h1>
         <p className="ob-lede">
           {open.length
-            ? 'The remaining parts are in Admin › Providers. Next: your business, its assistant and its number.'
+            ? 'The remaining parts are in Server admin › Providers. Next: your business, its assistant and its number.'
             : 'Every part works. Next: your business, its assistant and its number; then call it to hear it answer.'}
         </p>
       </div>
@@ -593,10 +593,10 @@ function Done({
           ))}
         </ul>
       )}
-      {/* A hint, not a link: the walkthrough never leaves itself (Admin has no way back to this step). */}
+      {/* A hint, not a link: the walkthrough never leaves itself (Server admin has no way back to this step). */}
       <Note tone="info">
-        Sign-in with Google or GitHub, calendars for bookings and where call recordings are kept come later, in Admin ›
-        Providers. None of them is needed to answer a first call.
+        Sign-in with Google or GitHub, calendars for bookings and where call recordings are kept come later, in Server
+        admin › Providers. None of them is needed to answer a first call.
       </Note>
       <Foot onBack={onBack} onNext={onFinish} nextLabel="Set up your business" />
     </>

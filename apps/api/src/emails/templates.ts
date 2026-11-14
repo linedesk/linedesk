@@ -328,7 +328,7 @@ export function passkeyChangedEmail(change: 'added' | 'removed', origin = WEB_OR
       },
       {
         kind: 'text',
-        text: `If it was not you, ask an instance admin of your ${brandName()} to remove all passkeys of your account (Admin, Users, your name, Reset passkeys), then sign in and add your own again.`,
+        text: `If it was not you, ask an instance admin of your ${brandName()} to remove all passkeys of your account (Server admin › Users, your name, Reset passkeys), then sign in and add your own again.`,
       },
       { kind: 'button', label: 'Review sign-in & security', url: securityUrl(origin) },
     ],

@@ -80,7 +80,7 @@ export type Me = {
 export type AdminSecondFactor = 'email' | 'confirm'
 
 /**
- * An instance admin: the one check for every place that offers Admin or its links (Admin › Providers). One who still
+ * An instance admin: the one check for every place that offers Server admin or its links (Server admin › Providers). One who still
  * has to confirm their email or sign in again (`adminSecondFactor`, sent only to instance admins) counts too: Admin
  * opens on that prompt, so the link still leads to the fix.
  */

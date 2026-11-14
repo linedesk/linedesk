@@ -1020,6 +1020,10 @@ a.as-chip:hover {
 .hd-calendar {
   margin-bottom: 16px;
 }
+/* Its one-line description wraps instead of ending in "…" on a phone (one row, nothing below to keep in line). */
+.hd-calendar .k-row-sub {
+  white-space: normal;
+}
 .hd-heading {
   margin: 0 0 4px;
   font-size: 13px;

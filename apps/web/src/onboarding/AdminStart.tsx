@@ -20,7 +20,7 @@ type Props = {
   byHandFirst: boolean
   /** The server's parts are not set up: by hand starts with them (the install walkthrough). */
   onInstallByHand: () => void
-  /** Invitations and Open Admin. */
+  /** Invitations and Open Server admin. */
   children?: ReactNode
 }
 

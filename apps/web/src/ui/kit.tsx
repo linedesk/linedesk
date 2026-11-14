@@ -207,7 +207,7 @@ export function LogoMark({ size = 21 }: { size?: number }) {
 }
 
 /**
- * The install's logo (Admin, Branding) when an instance admin set one, else the Linedesk mark on its dark square.
+ * The install's logo (Server admin › Branding) when an instance admin set one, else the Linedesk mark on its dark square.
  * `label` names it for screen readers; without one it is decoration next to the product name.
  */
 export function BrandMark({
@@ -236,7 +236,7 @@ export function BrandMark({
 
 /**
  * "Powered by Linedesk" with the mark, small and muted, under the sign-in page of an install with its own name
- * or logo, unless an instance admin hid it (Admin › Branding; showsPoweredBy). Nothing for the default branding.
+ * or logo, unless an instance admin hid it (Server admin › Branding; showsPoweredBy). Nothing for the default branding.
  */
 export function PoweredBy({ brand }: { brand: Pick<Branding, 'name' | 'logoUrl' | 'poweredBy'> }) {
   if (!showsPoweredBy(brand)) return null

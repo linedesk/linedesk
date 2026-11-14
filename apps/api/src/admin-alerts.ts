@@ -79,7 +79,7 @@ export function adminSignInEmail(who: string, method: string, newDevice: boolean
       `Address: ${plainSnippet(s.ipAddress, 64)}`,
       `Browser: ${plainSnippet(s.userAgent)}`,
       '',
-      'If this was not them, sign in with your passkey, then in Admin, Users: disable the account and reset its passkeys.',
+      'If this was not them, sign in with your passkey, then in Server admin › Users: disable the account and reset its passkeys.',
     ].join('\n'),
   }
 }

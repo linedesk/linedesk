@@ -3,8 +3,9 @@
 // - join a workspace they are invited to (a skipped invitation stays here until it is answered);
 // - name their own business, where this server lets them (sign-up open, or an instance admin);
 // - open Account settings, which need no workspace, or sign out ("Use a different account");
-// - an instance admin opens Admin, which needs no workspace. Right after setting up the server they land on "Name
-//   your business" too (the first workspace), with Admin one click away; once they have a workspace, / opens it.
+// - an instance admin opens Server admin, which needs no workspace. Right after setting up the server they land on
+//   "Name your business" too (the first workspace), with Server admin one click away; once they have a workspace, /
+//   opens it.
 import { type ReactNode, useEffect, useState } from 'react'
 import { AdminMode } from './admin/AdminMode.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
@@ -76,7 +77,8 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
     return (
       <InstallSetup
         onExit={() => {
-          // Opened by its link or from Admin › Overview: leaving it goes on to naming the business, not the agent page.
+          // Opened by its link or from Server admin › Overview: leaving it goes on to naming the business, not the
+          // agent page.
           rememberManual(true)
           setManualSetup(true)
           leave()
@@ -112,7 +114,7 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
           onClick={() => (window.location.hash = '#admin')}
           title="Admin: providers, users and the setup checklist; no workspace needed"
         >
-          Open Admin
+          Open Server admin
         </button>
       )}
       <button

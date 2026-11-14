@@ -122,7 +122,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   const { toast, notify, undo } = useAdminToast()
   const listKeys = useRef<ListKeys | null>(null)
   const problems = useHealthProblems()
-  // One status for the overview's card and Admin › Providers: tested once, shown the same on both.
+  // One status for the overview's card and Server admin › Providers: tested once, shown the same on both.
   const status = useProviderStatus(data)
   // The session stopped opening Admin while it was open (1 hour without a passkey): sign in again here.
   const [signInAgain, setSignInAgain] = useState<AdminSecondFactor | null>(null)
@@ -199,7 +199,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
       return (
         <div className="adm-card adm-listcard">
           <Loading
-            what="Admin"
+            what="Server admin"
             loading
             error={error}
             onRetry={() => void reload()}
@@ -254,12 +254,12 @@ export function AdminMode({ currentUserId, onExit }: Props) {
 
   return (
     <div className="adm-mode">
-      <nav ref={nav} className="adm-side" aria-label="Admin">
+      <nav ref={nav} className="adm-side" aria-label="Server admin">
         <button type="button" className="adm-back" onClick={onExit} title={`Back to ${productName} (esc)`}>
           <Icon name="left" size={15} />
           <span>Back to {productName}</span>
         </button>
-        <p className="adm-side-label">Admin</p>
+        <p className="adm-side-label">Server admin</p>
         {adminSections.map((s, i) => (
           <button
             key={s.id}
@@ -333,7 +333,7 @@ export function AdminNotice() {
     <div className="page">
       <div className="page-in">
         <div className="empty">
-          <b>Admin is for instance admins</b>
+          <b>Server admin is for instance admins</b>
           <span>Ask your administrator for access.</span>
         </div>
       </div>

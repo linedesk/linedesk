@@ -29,9 +29,9 @@ pnpm dev                                        # API on 3100, web app on http:/
 pnpm --filter @linedesk/agent simulate          # a simulated call lands in the inbox, no provider keys needed
 ```
 
-Use `scripts/setup.sh`, not a plain `cp .env.example .env`: the copy leaves `SECRETS_KEY` empty, and then nothing can be connected under Admin › Providers (or set it yourself: `openssl rand -base64 32`).
+Use `scripts/setup.sh`, not a plain `cp .env.example .env`: the copy leaves `SECRETS_KEY` empty, and then nothing can be connected under Server admin › Providers (or set it yourself: `openssl rand -base64 32`).
 
-The demo sign-in uses a password. Without the seed, the API prints a setup code to its log (the terminal running `pnpm dev`); the sign-in page asks for it and makes you the first admin. Email codes go nowhere until email is connected (Admin › Providers); for local development uncomment `EMAIL_TO_LOG=true` in `.env` to print them to the API log. Sign-up is closed by default (`AUTH_SIGNUP_ENABLED=true` opens it).
+The demo sign-in uses a password. Without the seed, the API prints a setup code to its log (the terminal running `pnpm dev`); the sign-in page asks for it and makes you the first admin. Email codes go nowhere until email is connected (Server admin › Providers); for local development uncomment `EMAIL_TO_LOG=true` in `.env` to print them to the API log. Sign-up is closed by default (`AUTH_SIGNUP_ENABLED=true` opens it).
 
 The simulator dials the install's only Linedesk number (the seed's demo number). With none or several, pass the number: `pnpm --filter @linedesk/agent simulate --to +1…` (or set `SIM_TO_NUMBER` in `.env`). Simulated calls show in the inbox like real ones but never count as a real call in setup progress or usage.
 
@@ -58,9 +58,9 @@ docker compose up -d --build
 docker compose logs api | grep -A3 "setup code"
 ```
 
-Then open `PUBLIC_URL` (default `http://localhost`) and enter the setup code from the log: you create the first account, which is the instance admin. Everything else is connected in the app, under Admin, Providers: the phone carrier (Telnyx or Twilio), speech, language model and voice (Deepgram, OpenRouter or OpenAI, ElevenLabs or Cartesia), email (any SMTP service), sign-in with Google, Microsoft, GitHub or your own OIDC provider (Google and Microsoft also connect calendars), and where call recordings go. Keys are stored encrypted with `SECRETS_KEY`; each one has a "Test connection". Push notifications need nothing: the first start makes their keys.
+Then open `PUBLIC_URL` (default `http://localhost`) and enter the setup code from the log: you create the first account, which is the instance admin. Everything else is connected in the app, under Server admin › Providers: the phone carrier (Telnyx or Twilio), speech, language model and voice (Deepgram, OpenRouter or OpenAI, ElevenLabs or Cartesia), email (any SMTP service), sign-in with Google, Microsoft, GitHub or your own OIDC provider (Google and Microsoft also connect calendars), and where call recordings go. Keys are stored encrypted with `SECRETS_KEY`; each one has a "Test connection". Push notifications need nothing: the first start makes their keys.
 
-Admin › Overview starts with "Ready for calls": each provider group a first answered call needs (email, phone carrier, answering calls, call audio) with its status, linking to Admin › Providers, where every provider has its steps, a rough cost, Test again and Try it. A background check tests the keys every 6 hours and emails the instance admins when one stops working; `scripts/setup.sh --check` prints the same groups in the terminal.
+Server admin › Overview starts with "Ready for calls": each provider group a first answered call needs (email, phone carrier, answering calls, call audio) with its status, linking to Server admin › Providers, where every provider has its steps, a rough cost, Test again and Try it. A background check tests the keys every 6 hours and emails the instance admins when one stops working; `scripts/setup.sh --check` prints the same groups in the terminal.
 
 For scripted installs and AI agents: the same steps, non-interactive. `scripts/setup.sh` is safe to run again (it keeps every value that is set). Provider keys can also go into `.env` under the variable names in `packages/actions/src/admin.ts`; a value connected in the app wins. `docker compose exec api node apps/api/src/providers-import.ts` moves such variables into the app.
 
@@ -109,7 +109,7 @@ Postgres (with `wal_level=logical`, which Electric needs), Electric, LiveKit wit
 | --- | --- |
 | `BETTER_AUTH_SECRET` | Signs sessions. Required (`scripts/setup.sh` makes it); the API refuses to start with the placeholder. |
 | `POSTGRES_PASSWORD` | Database password. Required; set before the first start (`scripts/setup.sh` does, letters and digits only). Changing it later does not change the password of an existing database. |
-| `SECRETS_KEY` | Encrypts the keys connected in Admin, Providers (`scripts/setup.sh` makes it). Keep it: without the same key they cannot be read. |
+| `SECRETS_KEY` | Encrypts the keys connected in Server admin › Providers (`scripts/setup.sh` makes it). Keep it: without the same key they cannot be read. |
 | `PUBLIC_URL`, `LINEDESK_HTTP_BIND`, `COMPOSE_FILE` | See the table above. |
 | `AUTH_SIGNUP_ENABLED` (default `false`) | `false` keeps sign-up closed (see above): an instance admin adds people to a workspace with Add user, or creates an account with `pnpm --filter @linedesk/api user:create --email … --name … [--admin]`. While sign-up is closed, workspace owners can still invite people into their own workspace. |
 | `LINEDESK_TRUSTED_PROXY_RANGES` (default empty) | Behind your own reverse proxy: the addresses or ranges it connects to Caddy from (space-separated; a proxy on the same host comes from the Docker gateway, e.g. `172.16.0.0/12`). Caddy then keeps the client address the proxy forwards; without it every client looks like the proxy and shares one rate-limit bucket. |
@@ -118,8 +118,8 @@ Postgres (with `wal_level=logical`, which Electric needs), Electric, LiveKit wit
 | `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Required. Shared by LiveKit, the SIP bridge and the agent. The API and the agent refuse the development values from `.env.example`. |
 | `LIVEKIT_NODE_IP` | The machine's public IP: the address callers and browsers send audio to. |
 | `LIVEKIT_BIND_IP` | Set to `0.0.0.0` on a server. Without it the call audio and SIP ports are only published on 127.0.0.1. |
-| Phone, speech, language model, voice, email, sign-in, recordings | Connected in the app under Admin, Providers. Until speech, language model and voice are, the agent says so in its log (`docker compose logs agent`) and calls are logged as missed. Without `AGENT_API_TOKEN` or the LiveKit settings it waits idle. |
-| `LIVEKIT_SIP_ENDPOINT` | Real phone numbers through the carrier connected in Admin, Providers (Telnyx or Twilio): where it sends calls; see `.env.example`. |
+| Phone, speech, language model, voice, email, sign-in, recordings | Connected in the app under Server admin › Providers. Until speech, language model and voice are, the agent says so in its log (`docker compose logs agent`) and calls are logged as missed. Without `AGENT_API_TOKEN` or the LiveKit settings it waits idle. |
+| `LIVEKIT_SIP_ENDPOINT` | Real phone numbers through the carrier connected in Server admin › Providers (Telnyx or Twilio): where it sends calls; see `.env.example`. |
 | `LIVEKIT_SIP_ALLOWED_ADDRESSES` (default `telnyx twilio`) | Where LiveKit SIP takes calls from: carrier names (their published signaling addresses) and/or your own IPs and CIDR ranges, e.g. `telnyx 203.0.113.7` for a PBX of your own. `any` accepts calls from every address. Applied by `setup-sip`, so run it again after a change. |
 
 The API container reads the rest of `.env` as is; only the addresses inside the stack are set by compose. The agent container does not read `.env`: it gets only the variables listed under `agent` in `docker-compose.yml` (its token, LiveKit, the speech, model and voice settings, the call test's numbers), so `SECRETS_KEY`, `BETTER_AUTH_SECRET`, the database password and carrier keys never reach the process that handles calls. A variable the agent should read must be added there; one-off agent commands that need carrier keys (`setup-test-caller`) get them on the command line (`docker compose run --rm -e TELNYX_API_KEY=<key> agent ...`).
@@ -193,7 +193,7 @@ Members can get a push for new calls (urgent ones first) on their phone or compu
 
 ### Call recordings (optional)
 
-Pick where recordings go under Admin, Providers, Recording storage: Local disk (add `--profile recording` to the compose commands) or an S3-compatible bucket. LiveKit egress then writes recordings into the `recordings` volume, which the API reads. Egress comes on top of the memory above (up to 512 MB) and runs on the voice core.
+Pick where recordings go under Server admin › Providers › Recording storage: Local disk (add `--profile recording` to the compose commands) or an S3-compatible bucket. LiveKit egress then writes recordings into the `recordings` volume, which the API reads. Egress comes on top of the memory above (up to 512 MB) and runs on the voice core.
 
 ### Update and backup
 

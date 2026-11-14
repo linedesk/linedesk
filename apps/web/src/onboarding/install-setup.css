@@ -28,7 +28,7 @@
   padding-top: 8px;
 }
 
-/* The parts list on its own in a card: no indent (on Admin › Overview it sits under the headline's mark). */
+/* The parts list on its own in a card: no indent (on Server admin › Overview it sits under the headline's mark). */
 .as-card > .adm-health {
   padding-left: 0;
 }

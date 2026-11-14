@@ -1,4 +1,4 @@
-// Admin, Audit log: who did what on this install, newest first. Sign-ins with their method,
+// Server admin › Audit log: who did what on this install, newest first. Sign-ins with their method,
 // sign-in methods added or removed, admin actions, team changes, provider keys and impersonation.
 // Kept forever; filters by kind, person, workspace and dates; "Show older" pages back.
 import { useCallback, useEffect, useState } from 'react'
@@ -273,7 +273,7 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
       {!error && entries && entries.length === 0 && <p className="adm-notice">No entries.</p>}
       {!error && entries && entries.length > 0 && (
         <div className="adm-scroll">
-          <table className="adm-table">
+          <table className="adm-table adm-stack">
             <thead>
               <tr>
                 <th scope="col">When</th>
@@ -285,7 +285,7 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
             <tbody>
               {entries.map(e => (
                 <tr key={e.id}>
-                  <td>
+                  <td data-label="When">
                     <time dateTime={e.at} title={new Date(e.at).toLocaleString('en-US')}>
                       {dateTimeLabel(new Date(e.at))}
                     </time>
@@ -295,7 +295,7 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
                     {e.impersonatedBy && <span className="adm-sub">by {e.impersonatedBy.email ?? 'an admin'}</span>}
                     {e.viaSetupKey && <span className="adm-sub">via AI agent setup link</span>}
                   </th>
-                  <td>
+                  <td data-label="What">
                     {auditLabel(e)}
                     {e.refused && (
                       <>
@@ -305,7 +305,7 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
                     )}
                     {e.ipAddress && <span className="adm-sub">{e.ipAddress}</span>}
                   </td>
-                  <td>{e.workspace ? (e.workspace.name ?? e.workspace.id) : '–'}</td>
+                  <td data-label="Workspace">{e.workspace ? (e.workspace.name ?? e.workspace.id) : '–'}</td>
                 </tr>
               ))}
             </tbody>

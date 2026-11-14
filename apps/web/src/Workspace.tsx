@@ -148,7 +148,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
   const { list, tab, search, openCall, target } = view
   // An instance admin who must sign in again counts (auth.ts): the admin area asks them to sign in first.
   const instanceAdmin = isInstanceAdmin(me)
-  // Error texts built without `me` (refusals, toasts) send admins to Admin › Providers, others to whoever runs it.
+  // Error texts built without `me` (refusals, toasts) send admins to Server admin › Providers, others to whoever runs it.
   setProviderAudience(instanceAdmin ? 'admin' : 'member')
   // First-use tour (FIRST_USE): queued when onboarding ends in this browser, started once the inbox shows a
   // call (the go-live checklist comes first; never in an empty inbox), and from ⌘K any time.

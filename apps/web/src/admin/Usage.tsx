@@ -16,7 +16,7 @@ export function Usage({ workspaces, usage, months }: Props) {
   return (
     <div className="adm-card">
       <div className="adm-scroll">
-        <table className="adm-table">
+        <table className="adm-table adm-stack adm-stack-grid">
           <thead>
             <tr>
               <SortTh label="Workspace" column="name" sort={sort} onSort={toggle} />
@@ -46,7 +46,7 @@ export function Usage({ workspaces, usage, months }: Props) {
                 {columns.map(month => {
                   const cell = grid.get(w.id)?.get(month)
                   return (
-                    <td key={month} className="adm-num">
+                    <td key={month} className="adm-num" data-label={monthLabel(month)}>
                       {cell ? formatMinutes(cell.minutes) : '–'}
                       {cell ? (
                         <span className="adm-sub">

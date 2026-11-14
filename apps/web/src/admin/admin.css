@@ -39,6 +39,70 @@
 .adm-table td:last-child {
   padding-right: 0;
 }
+/*
+ * Tables that stack on a phone (Audit log, Usage): no sideways scrolling. The column headings go (each cell
+ * names its column itself, data-label) and every row becomes a block; Usage puts its months side by side.
+ */
+@media (max-width: 559px) {
+  .adm-stack,
+  .adm-stack tbody,
+  .adm-stack tr {
+    display: block;
+  }
+  .adm-stack thead {
+    display: none;
+  }
+  .adm-stack tr {
+    padding: 10px 0;
+    border-top: 1px solid var(--line);
+  }
+  .adm-stack tbody tr:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+  .adm-stack th,
+  .adm-stack td {
+    display: block;
+    padding: 2px 0;
+    border-top: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .adm-stack td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 12px;
+    color: var(--ink-muted);
+  }
+  /* Audit log: the person first, then When, What, Workspace each after its name in a narrow column. */
+  .adm-stack:not(.adm-stack-grid) tr {
+    display: flex;
+    flex-direction: column;
+  }
+  .adm-stack:not(.adm-stack-grid) tbody th {
+    order: -1;
+  }
+  .adm-stack:not(.adm-stack-grid) td[data-label] {
+    padding-left: 84px;
+  }
+  /* Inline-block on the first line: the name shares the value's baseline. */
+  .adm-stack:not(.adm-stack-grid) td[data-label]::before {
+    display: inline-block;
+    width: 84px;
+    margin-left: -84px;
+  }
+  .adm-stack .adm-num {
+    text-align: left;
+  }
+  .adm-stack-grid tr {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 4px 12px;
+  }
+  .adm-stack-grid tbody th {
+    grid-column: 1 / -1;
+  }
+}
 .adm-sort {
   display: inline-flex;
   align-items: center;
@@ -1013,11 +1077,7 @@
   align-items: center;
   gap: 8px;
 }
-.adm-brand-logo-mark {
-  width: 40px;
-  height: 40px;
-  margin: 0;
-}
+/* The mark keeps the .ws-mark size (24px), the same as the preview above it. */
 .adm-brand-logo > .adm-brand-logo-mark {
   margin: 0;
 }
@@ -1123,7 +1183,7 @@
 .adm-table tbody th a:hover {
   text-decoration: underline;
 }
-/* A provider's problem under its name (Admin › Providers and its dialog). */
+/* A provider's problem under its name (Server admin › Providers and its dialog). */
 .adm-prov-detail {
   display: block;
   font-size: 12.5px;

@@ -168,7 +168,7 @@ async function actorName(actor: Actor): Promise<string> {
 async function alertAdminGranted(actor: Actor, email: string) {
   await alertInstanceAdmins(
     `New instance admin on ${brandName()}: ${email}`,
-    `${await actorName(actor)} made ${email} an instance admin.\n\nIf you did not expect this, sign in with your passkey and check Admin, Users and Audit log.`,
+    `${await actorName(actor)} made ${email} an instance admin.\n\nIf you did not expect this, sign in with your passkey and check Server admin › Users and Audit log.`,
   )
 }
 
@@ -194,7 +194,7 @@ const keysChange = (provider: ProviderName, what: 'changed' | 'removed', actor: 
 /** Every instance admin hears about a change of email or sign-in (admin-alerts.ts), through `senders`. */
 async function alertChange({ subject, did, actor }: Change, senders: EmailSender[] = [emailSender]) {
   const how = await viaWhat(actor)
-  const text = `${await actorName(actor)} ${did} ${how.body}. They decide how people sign in or get sign-in codes.\n\nIf you did not expect this, sign in with your passkey and check Admin, Providers and Audit log.${how.after}`
+  const text = `${await actorName(actor)} ${did} ${how.body}. They decide how people sign in or get sign-in codes.\n\nIf you did not expect this, sign in with your passkey and check Server admin › Providers and Audit log.${how.after}`
   for (const sender of senders) await alertInstanceAdmins(`${subject}${how.subject}`, text, sender)
 }
 
@@ -226,7 +226,7 @@ function afterSignInChange(onCommit: HandlerCtx['onCommit'], category: ProviderC
 
 /** Where a change came from, for the alert: the app, or an AI agent with a setup link (named by its prefix and time). */
 async function viaWhat(actor: Actor): Promise<{ subject: string; body: string; after: string }> {
-  if (!actor.setupKeyId) return { subject: '', body: '(Admin, Providers)', after: '' }
+  if (!actor.setupKeyId) return { subject: '', body: '(Server admin › Providers)', after: '' }
   const [key] = await db
     .select({ prefix: agent_setup_keys.prefix, createdAt: agent_setup_keys.created_at })
     .from(agent_setup_keys)
@@ -453,7 +453,7 @@ export const adminHandlers: Record<string, Handler> = {
     const enrolment = isAdmin ? await issuePasskeyEnrolment(tx, account.id) : {}
     await alertInstanceAdmins(
       `Passkeys reset on ${brandName()}: ${account.email}`,
-      `${await actorName(actor)} removed every passkey of ${account.email} (${ended.removed} removed) and ended their sessions and AI agent setup links.${isAdmin ? ' They are an instance admin and got a new enrolment code for their first passkey.' : ''}\n\nIf you did not expect this, sign in with your passkey and check Admin, Audit log.`,
+      `${await actorName(actor)} removed every passkey of ${account.email} (${ended.removed} removed) and ended their sessions and AI agent setup links.${isAdmin ? ' They are an instance admin and got a new enrolment code for their first passkey.' : ''}\n\nIf you did not expect this, sign in with your passkey and check Server admin › Audit log.`,
     )
     return { rows: {}, data: { userId: account.id, ...ended, ...enrolment } }
   },
@@ -480,7 +480,7 @@ export const adminHandlers: Record<string, Handler> = {
     sendNotice({ to: account.email, ...passkeyEnrolmentIssuedEmail(await actorName(actor)) }, 'passkey enrolment email')
     await alertInstanceAdmins(
       `Passkey enrolment code issued on ${brandName()}: ${account.email}`,
-      `${await actorName(actor)} issued a one-time code for the first passkey of ${account.email}, an instance admin without a passkey. Nothing was removed and their sessions and AI agent setup links keep working.\n\nIf you did not expect this, sign in with your passkey and check Admin, Audit log.`,
+      `${await actorName(actor)} issued a one-time code for the first passkey of ${account.email}, an instance admin without a passkey. Nothing was removed and their sessions and AI agent setup links keep working.\n\nIf you did not expect this, sign in with your passkey and check Server admin › Audit log.`,
     )
     return { rows: {}, data: { userId: account.id, ...enrolment } }
   },

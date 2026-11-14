@@ -20,7 +20,7 @@ export type InboxHeadProps = {
   onSearchClose: () => void
   liveCall?: Call
   onOpen?: (call: Call) => void
-  /** Instance admins can set up the voice stack themselves (Admin, Providers). */
+  /** Instance admins can set up the voice stack themselves (Server admin › Providers). */
   canFixVoice?: boolean
   /** The teammate whose calls the `member` view lists. */
   memberName?: string

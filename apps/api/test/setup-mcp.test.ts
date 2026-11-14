@@ -370,7 +370,7 @@ describe('tools', () => {
       app_links: Record<string, string>
       install: { public: boolean; place?: string; note?: string }
     }
-    // The provider steps carry the group ids of Admin › Providers; the old names stay as aliases.
+    // The provider steps carry the group ids of Server admin › Providers; the old names stay as aliases.
     expect(before.steps.map(s => s.id).slice(0, 5)).toEqual([
       'answering',
       'telephony',
@@ -1050,7 +1050,7 @@ describe('every key through the agent (LIN-182)', () => {
     mails.length = 0
     await act(ws.owner, 'provider.clearKeys', { provider: 'resend' })
     await vi.waitFor(() => expect(mails.some(m => /Resend settings removed$/.test(m.subject))).toBe(true))
-    expect(mails.find(m => /Resend settings removed/.test(m.subject))!.text).toMatch(/\(Admin, Providers\)/)
+    expect(mails.find(m => /Resend settings removed/.test(m.subject))!.text).toMatch(/\(Server admin › Providers\)/)
     vi.restoreAllMocks()
   })
 
