@@ -1,0 +1,20 @@
+{
+  "name": "@linedesk/scrub",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./sentry-node": "./src/sentry-node.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@sentry/node": "11.12.0"
+  },
+  "devDependencies": {
+    "drizzle-orm": "^0.45.4",
+    "vitest": "^5.1.0"
+  }
+}

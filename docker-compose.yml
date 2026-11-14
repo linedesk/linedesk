@@ -106,6 +106,8 @@ services:
       LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:-}
       # Extra script-src/style-src sources; dev mode (Vite dev server) needs 'unsafe-inline'. Empty in production.
       LINEDESK_CSP_DEV: ${LINEDESK_CSP_DEV:-}
+      # Extra connect-src sources, e.g. the Sentry ingest host for the web app's error reports. Empty by default.
+      LINEDESK_CSP_CONNECT: ${LINEDESK_CSP_CONNECT:-}
     volumes: ["caddy_data:/data"]
     mem_limit: ${LINEDESK_PROXY_MEM:-48m}
     cpus: ${LINEDESK_PROXY_CPUS:-0.05}
@@ -253,6 +255,10 @@ services:
       TEST_CALLER_VOICE_ID: ${TEST_CALLER_VOICE_ID:-}
       AGENT_LOAD_THRESHOLD: ${AGENT_LOAD_THRESHOLD:-}
       AGENT_INIT_TIMEOUT_MS: ${AGENT_INIT_TIMEOUT_MS:-}
+      # Error tracking (apps/agent/src/error-reporting.ts): off while SENTRY_DSN is empty.
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       # Which carriers' signaling addresses the SIP trunk accepts (setup-sip.ts, inbound-allowlist.ts).
       LIVEKIT_SIP_ALLOWED_ADDRESSES: ${LIVEKIT_SIP_ALLOWED_ADDRESSES:-}
       # Through the proxy, which retries while the API is updated (docker/Caddyfile), not to api:3100.

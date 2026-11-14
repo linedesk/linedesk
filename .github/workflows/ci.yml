@@ -46,6 +46,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
+      # What error reports and log lines may send to Sentry (packages/scrub; about 2 s, no database needed).
+      - run: pnpm --filter @linedesk/scrub test
       # The production deploy receiver's checks (about 1 s, docs/ci.md).
       - run: bash scripts/receive-release.test.sh
 

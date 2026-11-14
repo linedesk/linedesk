@@ -22,7 +22,13 @@ describe('security headers (docker/Caddyfile)', () => {
     const csp = cspDirectives()
     expect(csp.get('default-src')).toEqual(["'self'"])
     // LiveKit: on this origin ('self' covers ws/wss) or on the one address browsers are given; never any wss: host.
-    expect(csp.get('connect-src')).toEqual(["'self'", '{$LIVEKIT_PUBLIC_URL}', 'https://openrouter.ai'])
+    // LINEDESK_CSP_CONNECT: the Sentry ingest host when error reporting is on, empty otherwise.
+    expect(csp.get('connect-src')).toEqual([
+      "'self'",
+      '{$LIVEKIT_PUBLIC_URL}',
+      'https://openrouter.ai',
+      '{$LINEDESK_CSP_CONNECT}',
+    ])
     // Scripts and styles from this origin only; LINEDESK_CSP_DEV (empty in production) is for dev mode's dev server.
     expect(csp.get('script-src')).toEqual(["'self'", '{$LINEDESK_CSP_DEV}'])
     expect(csp.get('style-src')).toEqual(["'self'", '{$LINEDESK_CSP_DEV}'])

@@ -18,6 +18,8 @@ export type AuthMethods = {
   signInOrigin?: string | null
   /** Nobody has an account yet: the sign-in page asks for the setup code from the server log (setup.ts). */
   setupNeeded?: boolean
+  /** Sentry for the web app's own errors (error-reporting.ts); null or absent: off. */
+  errorReporting?: { dsn: string; environment: string } | null
 }
 /** Terms, privacy policy and support contact of this install (TERMS_URL, PRIVACY_URL, SUPPORT_EMAIL); null: not set, not shown. */
 export type LegalLinks = { terms: string | null; privacy: string | null; supportEmail: string | null }

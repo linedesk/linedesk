@@ -24,6 +24,7 @@ import { clientIpOf, withClientIp } from './client-ip.ts'
 import { MCP_MAX_BODY_BYTES, serveMcp } from './mcp.ts'
 import { serveSetupMcp } from './setup-mcp.ts'
 import { authMethods } from './auth-methods.ts'
+import { browserErrorReporting, errorReportingEnabled, type ReportedUser, reportError } from './error-reporting.ts'
 import { currentBranding, manifestFor, readLogo } from './branding.ts'
 import { auth, TRUSTED_ORIGINS, WEB_ORIGIN, WORKSPACE_LIMIT } from './auth.ts'
 import { refuseCrossSite } from './csrf.ts'
@@ -74,8 +75,26 @@ function logReadSyncDown(err: Error) {
 
 export const app = new Hono<{ Variables: { actor: Actor } }>()
 
+/** Who an API error happened for (error-reporting.ts): the member (also behind an API key) with email and name; the agent by id. */
+async function reportedUser(actor: Actor | undefined): Promise<ReportedUser | null> {
+  if (!actor) return null
+  const known: ReportedUser = { id: actor.actorId, workspaceId: actor.workspaceId }
+  if (actor.role === 'agent') return known
+  // The member's email and name, unless the database is what failed: then the id alone after a second.
+  const lookup = db
+    .select({ email: user.email, name: user.name })
+    .from(user)
+    .where(eq(user.id, actor.actorId))
+    .then(([member]) => ({ ...known, email: member?.email, name: member?.name }))
+    .catch(() => known)
+  const timeout = new Promise<ReportedUser>(resolve => setTimeout(() => resolve(known), 1000).unref())
+  return Promise.race([lookup, timeout])
+}
+
 app.onError((err, c) => {
-  console.error(err)
+  console.error('request failed', err)
+  // Reported in the background, so the 500 never waits on the member lookup.
+  if (errorReportingEnabled()) void reportedUser(c.get('actor')).then(member => reportError(err, member))
   return c.json({ ok: false, error: 'internal error' }, 500)
 })
 
@@ -88,7 +107,9 @@ registerSetupUnsubscribeRoutes(app)
 app.use('/v1/*', refuseCrossSite(TRUSTED_ORIGINS))
 
 // Public: the sign-in screen asks which methods this install offers, and whether it still needs its first admin.
-app.get('/v1/auth-methods', async c => c.json({ ...authMethods, setupNeeded: await setupNeeded(db) }))
+app.get('/v1/auth-methods', async c =>
+  c.json({ ...authMethods, errorReporting: browserErrorReporting(), setupNeeded: await setupNeeded(db) }),
+)
 
 // Public: the product name, logo and color an instance admin set (branding.ts), for every page including sign-in.
 app.get('/v1/branding', c => {

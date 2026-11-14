@@ -9,6 +9,7 @@ import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@l
 import type { RemoteParticipant, Room } from '@livekit/rtc-node'
 import { z } from 'zod'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
+import { initErrorReporting } from './error-reporting.ts'
 import { bookingTools } from './booking-tools.ts'
 import { type CollectContext, collectTools, nudgeIfQuiet, stepFacts } from './collect/collect-tools.ts'
 import { partialPhoneNumberIn } from './collect/collectors.ts'
@@ -43,6 +44,9 @@ import { onCallDialerFor, transferTool } from './transfer-tool.ts'
 import { parseTestCallerMetadata, type TestCallerMetadata } from './test-caller/scenarios.ts'
 import { type OnCallResponderMetadata, parseOnCallResponderMetadata, runOnCallResponder } from './oncall-responder.ts'
 import { type AgentSetup, SETUP_ATTRIBUTE } from './test-caller/latency.ts'
+
+// Sentry, when SENTRY_DSN is set (error-reporting.ts), in the worker and in every job process it starts for a call.
+initErrorReporting()
 
 let configLoader: (() => Promise<CallConfig>) | undefined
 /** The effective provider config: Linedesk's provider settings first, the environment as fallback, cached briefly per process. */
@@ -503,7 +507,7 @@ function transferFrom(ctx: JobContext, api: ApiClient, call: CallSession, config
     contacts.map(contact => [
       contact.id,
       onCallDialerFor(call, contact.number, speech, api).catch(e => {
-        console.warn(`call ${call.callId}: cannot dial ${contact.name}: ${e instanceof Error ? e.message : String(e)}`)
+        console.warn(`call ${call.callId}: cannot dial transfer contact ${contact.id}: ${e instanceof Error ? e.message : String(e)}`)
         return null
       }),
     ]),

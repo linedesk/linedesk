@@ -16,6 +16,7 @@
   "dependencies": {
     "@linedesk/actions": "workspace:*",
     "@linedesk/db": "workspace:*",
+    "@linedesk/scrub": "workspace:*",
     "@linedesk/telephony": "workspace:*",
     "@livekit/agents": "^1.9.5",
     "@livekit/agents-plugin-cartesia": "^1.9.5",
@@ -24,6 +25,7 @@
     "@livekit/agents-plugin-openai": "^1.9.5",
     "@livekit/protocol": "1.53.0",
     "@livekit/rtc-node": "^1.2.2",
+    "@sentry/node": "11.12.0",
     "livekit-server-sdk": "^2.19.3",
     "zod": "^4.6.7"
   },

@@ -229,7 +229,7 @@ export function transferTool({ ctx, api, call, log, speech, callerIdentity, cont
         const dialer = await dialerOf(contact)
         if (!dialer) {
           // No way to dial it on this call (no outbound trunk, a test call): like no answer, the plan decides what is next.
-          console.warn(`transfer of call ${call.callId}: ${contact.name} cannot be dialled on this call`)
+          console.warn(`transfer of call ${call.callId}: transfer contact ${contact.id} cannot be dialled on this call`)
           log.record('system', transferLabel('failed', contact.number, contact.name), callTransfer.name)
           void report(api, call, target, 'failed').catch(() => {})
           previous = contact

@@ -1,6 +1,7 @@
 import { formatStarCount, type MyInvitation, STAR_REPO, STAR_REPO_URL } from '@linedesk/actions'
-import { useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { auth } from '../auth.ts'
+import { setReportedMember } from '../errorReporting.ts'
 import { assigneeTabs, type InboxTab } from '../inbox-model.ts'
 import type { IconName } from '../ui/icons.ts'
 import { BrandMark, Button, Icon, Kbd } from '../ui/kit.tsx'
@@ -52,7 +53,14 @@ function NavItem({ label, icon, keys, current, sub, badge, onClick }: { label: s
 export function Nav({ open, docked = false, route, tab, unreadCount, reminderCount, mineCount, unassignedCount, reviewCount, workspaceName, workspaceId, toast, invitations, onInvitationsChanged, isInstanceAdmin, onNewWorkspace, onClose, ...on }: Props) {
   const ref = useRef<HTMLElement>(null)
   useFocusTrap(ref, open && !docked, { initial: '.nav-item[aria-current="page"]' }) // opens on the current page, gives focus back when it closes
-  const userName = auth.useSession().data?.user.name ?? ''
+  const sessionUser = auth.useSession().data?.user
+  const userName = sessionUser?.name ?? ''
+  const memberId = sessionUser?.id
+  const memberEmail = sessionUser?.email
+  // Errors are reported for whoever is signed in now, also after switching accounts without a reload.
+  useEffect(() => {
+    setReportedMember(memberId ? { id: memberId, email: memberEmail, name: userName } : null)
+  }, [memberId, memberEmail, userName])
   const brand = useBrand()
   const go = (run: () => void) => () => { if (!docked) onClose(); run() }
   const onCalls = route === 'calls'

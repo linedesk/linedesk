@@ -4,6 +4,7 @@
 // so every way out (sign-out, another account, removal, an impersonation that starts or ends)
 // deletes all of it, not only the workspace that happens to be open.
 import { auth } from './auth.ts'
+import { setReportedMember } from './errorReporting.ts'
 import { forgetOtherMembersQueries } from './cachedQuery.ts'
 import { endBrowserPush, stopPushOnSignOut } from './push.ts'
 import { forgetMe, type Session } from './session.ts'
@@ -84,6 +85,7 @@ function claimLocalData(account: string): string | null {
 export async function signOutAndForget() {
   await stopPushOnSignOut()
   await auth.signOut()
+  setReportedMember(null)
   await forgetLocalData()
   forgetKeys([SETUP_LINK_KEY])
 }

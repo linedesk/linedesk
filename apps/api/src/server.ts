@@ -1,7 +1,11 @@
 import { serve } from '@hono/node-server'
+import { initErrorReporting } from './error-reporting.ts'
 import { agentTokenProblem } from '@linedesk/actions'
 import { db } from './db.ts'
 import { emailProviderInUse, loadInstanceEnv, watchInstanceEnv } from './instance-env.ts'
+
+// Sentry, when SENTRY_DSN is set (error-reporting.ts). Before the rest of the startup; the static imports above run first.
+initErrorReporting('api')
 
 // Sign-in providers and SMTP stored in the admin area, before the modules that read them load (instance-env.ts).
 await loadInstanceEnv(db).catch(error => console.error('could not load the sign-in and email settings:', error))
