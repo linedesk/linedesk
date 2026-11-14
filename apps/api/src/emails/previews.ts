@@ -13,6 +13,8 @@ import {
   PARTNER_DIRECTORY_URL,
   passkeyChangedEmail,
   passkeysResetEmail,
+  passwordChangedEmail,
+  passwordResetCodeEmail,
   signInCodeEmail,
   verifyEmailEmail,
   welcomeEmail,
@@ -115,6 +117,7 @@ export function previewEmails(origin: string): Preview[] {
       ),
     },
     { name: 'sign-in-code', email: signInCodeEmail('482913', origin) },
+    { name: 'password-reset-code', email: passwordResetCodeEmail('815302', origin) },
     { name: 'confirmation-code', email: confirmationCodeEmail('730514', origin, origin) },
     {
       name: 'admin-alert',
@@ -141,6 +144,7 @@ export function previewEmails(origin: string): Preview[] {
     { name: 'welcome', email: welcomeEmail({ name: 'Sam Patel', email: 'sam@example.com' }, origin) },
     { name: 'passkey-added', email: passkeyChangedEmail('added', origin) },
     { name: 'passkeys-reset', email: passkeysResetEmail(2, origin) },
+    { name: 'password-changed', email: passwordChangedEmail(origin) },
     {
       name: 'workspace-deleted',
       email: workspaceDeletedEmail(

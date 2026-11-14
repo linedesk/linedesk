@@ -24,6 +24,7 @@ import { countSignInFailures, limitSignIns } from './sign-in-limits.ts'
 import { refuseWhileImpersonating } from './impersonation-guard.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
 import { guardPasskeyChanges, notifyPasskeyChange, passkeyPlugin, passkeyRelyingParty } from './passkeys.ts'
+import { ALLOWED_TRIES, afterPasswordReset, endSessionsAfterReset, guardPasswordReset, PASSWORD_RESET_PATHS, sameAnswerForRefusedCodes, sendPasswordResetCode } from './password-reset.ts'
 import { maySendSignInCode } from './signup-gate.ts'
 import { starOnGrantHooks } from './star-prompt.ts'
 import { releaseWorkspaceClones } from './voices.ts'
@@ -90,18 +91,22 @@ const beforeAuthEndpoints = createAuthMiddleware(async ctx => {
   await limitSignIns(ctx)
   await refuseWhileImpersonating(ctx)
   await guardPasskeyChanges(ctx)
+  await guardPasswordReset(ctx)
 })
 
 // After: wrong codes and passwords count towards their limits (sign-in-limits.ts); the audit log
 // records the auth endpoints that change how someone signs in (audit.ts), and the account is
-// emailed when a passkey is added or removed (passkeys.ts).
+// emailed when a passkey is added or removed (passkeys.ts). A password reset ends the account's
+// sessions once more, and every refused reset code gets one answer (password-reset.ts): last, since
+// that replaces the response.
 const afterAuthEndpoints = createAuthMiddleware(async ctx => {
   await countSignInFailures(ctx)
   await recordAuthEndpoint(ctx)
   await notifyPasskeyChange(ctx)
+  await endSessionsAfterReset(ctx)
+  sameAnswerForRefusedCodes(ctx)
 })
 
-/** The plugin's endpoints for password reset, email change and plain verification are not offered. */
 /**
  * Workspaces are created, renamed and removed only through Linedesk: POST /v1/workspaces makes the
  * assistant and settings with it, and nothing else may delete a workspace and leave its numbers,
@@ -115,10 +120,16 @@ const INVITATION_READ_PATHS = ['/organization/get-full-organization', '/organiza
 // Better Auth's endpoints that hand a signed-in account's provider tokens to the browser. Linedesk
 // never needs them there, and a script injected into the page would get the member's GitHub token.
 const PROVIDER_TOKEN_PATHS = ['/get-access-token', '/account-info', '/refresh-token']
+/**
+ * The plugin's endpoints for email change and plain verification are not offered, nor its older
+ * duplicate of request-password-reset. The password reset itself (password-reset.ts) is on only
+ * where password sign-in is.
+ */
 const UNUSED_EMAIL_CODE_PATHS = [
-  '/email-otp/request-password-reset', '/forget-password/email-otp', '/email-otp/reset-password',
+  '/forget-password/email-otp',
   '/email-otp/check-verification-otp', '/email-otp/request-email-change', '/email-otp/change-email',
 ]
+const OFF_PASSWORD_RESET_PATHS = methods.password ? [] : PASSWORD_RESET_PATHS
 
 export { signInCodeEmail }
 
@@ -130,12 +141,13 @@ export { signInCodeEmail }
 export const confirmationCodeEmail = (otp: string, env: Record<string, string | undefined> = process.env) =>
   confirmationCodeTemplate(otp, passkeyRelyingParty(env).origin)
 
-/** Sign-in and confirmation codes are sent; the plugin's other code types (password reset, email change) are not offered. */
+/** Sign-in, confirmation and password reset codes are sent; the plugin's email change codes are not offered. */
 async function sendSignInCode({ email, otp, type }: { email: string; otp: string; type: string }) {
   if (type === 'email-verification') {
     await emailSender.send({ to: email, ...confirmationCodeEmail(otp) })
     return
   }
+  if (type === 'forget-password') return sendPasswordResetCode(email, otp)
   if (type !== 'sign-in') return
   // Closed sign-up: no code to an address that cannot sign in.
   if (!(await maySendSignInCode(db, email))) return
@@ -152,7 +164,8 @@ export const auth = betterAuth({
   // A failed provider sign-in that names no page of its own (expired or unknown state) goes to the
   // app's sign-in screen, which explains `?error=` in plain words, never to Better Auth's error page.
   onAPIError: { errorURL: WEB_ORIGIN },
-  emailAndPassword: { enabled: methods.password },
+  // A reset by emailed code (password-reset.ts) ends every session of the account.
+  emailAndPassword: { enabled: methods.password, revokeSessionsOnPasswordReset: true, onPasswordReset: afterPasswordReset },
   databaseHooks: mergeDatabaseHooks(instanceAdminHooks, accountLinkingHooks, auditHooks, starOnGrantHooks, adminAlertHooks),
   emailVerification: {
     sendVerificationEmail,
@@ -194,7 +207,7 @@ export const auth = betterAuth({
   advanced: { ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] } },
   // Members and invitations change only through the team.* actions (team.ts), which apply the
   // workspace's rules (last owner, who may change an owner). Accepting stays Better Auth's endpoint.
-  disabledPaths: [...UNUSED_EMAIL_CODE_PATHS, ...PROVIDER_TOKEN_PATHS, ...TEAM_WRITE_PATHS, ...INVITATION_READ_PATHS, ...WORKSPACE_WRITE_PATHS],
+  disabledPaths: [...UNUSED_EMAIL_CODE_PATHS, ...OFF_PASSWORD_RESET_PATHS, ...PROVIDER_TOKEN_PATHS, ...TEAM_WRITE_PATHS, ...INVITATION_READ_PATHS, ...WORKSPACE_WRITE_PATHS],
   hooks: { before: beforeAuthEndpoints, after: afterAuthEndpoints },
   // Set by user.impersonate only (impersonation.ts); `input: false` keeps clients from setting it.
   // passkeyVerifiedAt: set by the session.create hook on a passkey sign-in (admin-second-factor.ts).
@@ -223,7 +236,7 @@ export const auth = betterAuth({
     }),
     // Email sign-in by a typed code: 6 digits, 10 minutes, 3 tries per code, stored hashed, at most 3 requests a minute per IP.
     ...(methods.emailCode
-      ? [emailOTP({ sendVerificationOTP: sendSignInCode, otpLength: 6, expiresIn: 600, allowedAttempts: 3, storeOTP: 'hashed', rateLimit: { window: 60, max: 3 } })]
+      ? [emailOTP({ sendVerificationOTP: sendSignInCode, otpLength: 6, expiresIn: 600, allowedAttempts: ALLOWED_TRIES, storeOTP: 'hashed', rateLimit: { window: 60, max: 3 } })]
       : []),
     // Passkeys sign in existing accounts only; they are added in Account settings (passkeys.ts).
     ...(methods.passkey ? [passkeyPlugin(process.env)] : []),

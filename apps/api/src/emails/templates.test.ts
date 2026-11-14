@@ -10,6 +10,8 @@ import {
   firstCallEmail,
   invitationEmail,
   passkeyChangedEmail,
+  passwordChangedEmail,
+  passwordResetCodeEmail,
   readPartnerDirectoryUrl,
   type SetupEmail,
   setupDay0Email,
@@ -229,6 +231,26 @@ describe('sign-in code', () => {
     expect(email.text).toContain('expires in 10 minutes')
     expect(email.text).not.toMatch(/https?:\/\//)
     expect(email.html).not.toMatch(/href=/)
+  })
+})
+
+describe('password reset', () => {
+  it('the code email shows the code, says what it is for and has no link', () => {
+    const email = passwordResetCodeEmail('815302', ORIGIN)
+    expect(email.subject).toBe('815302 is your Linedesk password reset code')
+    expect(email.html).toMatch(/font-size:34px[^>]*>815302</)
+    expect(email.text).toContain('choose a new password')
+    expect(email.text).toContain('expires in 10 minutes')
+    expect(email.text).not.toMatch(/https?:\/\//)
+    expect(email.html).not.toMatch(/href=/)
+  })
+
+  it('the notice says the password changed, everyone was signed out, and what to do if it was not you', () => {
+    const email = passwordChangedEmail(ORIGIN)
+    expect(email.subject).toBe('The password of your Linedesk account was changed')
+    expect(email.text).toContain('signed out everywhere')
+    expect(email.text).toContain('secure your mailbox')
+    expect(email.html).toContain('href="https://desk.example.com/#account/security"')
   })
 })
 

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { authErrorMessage, authFormError, codeErrorMessage, normalizeCode } from './sign-in-code.ts'
+import { authErrorMessage, authFormError, codeErrorMessage, newPasswordError, normalizeCode, passwordResetOffer, resetErrorMessage } from './sign-in-code.ts'
 import { splitAuthError } from './ui/AuthError.tsx'
 
 test('the code field keeps digits only, at most six, so a pasted code works', () => {
@@ -80,4 +80,25 @@ test('every message reads "what happened. what to do."; the panel shows the firs
   expect(splitAuthError('Enter a valid email address.')).toEqual({ title: 'Enter a valid email address.', next: null })
   for (const error of [{ code: 'INVALID_ORIGIN' }, { status: 500 }, new TypeError('x'), {}])
     expect(splitAuthError(authErrorMessage(error)).next, JSON.stringify(error)).not.toBeNull()
+})
+
+test('"Forgot password?" is offered only with passwords and email codes; without email an administrator helps', () => {
+  expect(passwordResetOffer({ password: true, emailCode: true })).toBe('reset')
+  expect(passwordResetOffer({ password: true, emailCode: false })).toBe('ask-admin')
+  expect(passwordResetOffer({ password: false, emailCode: true })).toBeNull()
+  expect(passwordResetOffer({ password: false, emailCode: false })).toBeNull()
+})
+
+test('the reset step names every reason a code is refused, and keeps the other messages', () => {
+  expect(resetErrorMessage({ code: 'INVALID_OTP', message: 'Invalid OTP' })).toBe(
+    'Wrong or expired code. Check the email, or ask for a new code after 3 tries.',
+  )
+  expect(resetErrorMessage({ code: 'PASSWORD_TOO_SHORT' })).toBe('Use at least 8 characters for the password.')
+  expect(resetErrorMessage({ status: 429 })).toMatch(/Too many tries/)
+})
+
+test('a new password follows the sign-up rules', () => {
+  expect(newPasswordError('')).toBe('Enter a new password.')
+  expect(newPasswordError('short')).toBe('Use at least 8 characters for the password.')
+  expect(newPasswordError('long-enough')).toBeNull()
 })

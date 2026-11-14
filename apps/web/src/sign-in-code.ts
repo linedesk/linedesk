@@ -91,6 +91,28 @@ export function emailError(email: string): string | null {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ? null : authErrors.INVALID_EMAIL!
 }
 
+/** "Forgot password?" works where passwords are on and email codes reach people; without email an administrator helps. */
+export function passwordResetOffer(methods: { password: boolean; emailCode: boolean }): 'reset' | 'ask-admin' | null {
+  if (!methods.password) return null
+  return methods.emailCode ? 'reset' : 'ask-admin'
+}
+
+/**
+ * The reset step's answers. The server gives every refused code one answer (wrong, expired, out of
+ * tries, or no account), so the message names them all.
+ */
+export function resetErrorMessage(error: unknown): string {
+  const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined
+  if (code === 'INVALID_OTP') return 'Wrong or expired code. Check the email, or ask for a new code after 3 tries.'
+  return authErrorMessage(error)
+}
+
+/** A new password, by the sign-up rules (Better Auth's 8 characters at least). */
+export function newPasswordError(password: string): string | null {
+  if (!password) return 'Enter a new password.'
+  return password.length < 8 ? authErrors.PASSWORD_TOO_SHORT! : null
+}
+
 /** The sign-in and sign-up form, checked in the app's words before it is sent (no browser bubbles). */
 export function authFormError(
   step: 'email' | 'password' | 'signUp',

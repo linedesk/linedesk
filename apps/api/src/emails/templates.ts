@@ -98,6 +98,30 @@ export function confirmationCodeEmail(code: string, site: string, origin = WEB_O
   })
 }
 
+/**
+ * The code that sets a new password ("Forgot password?" on the sign-in page). Like the sign-in code:
+ * the code in the subject and the body, and no link.
+ */
+export function passwordResetCodeEmail(code: string, origin = WEB_ORIGIN): RenderedEmail {
+  const site = siteHost(origin)
+  return renderEmail({
+    subject: `${code} is your ${brandName()} password reset code`,
+    preheader: `Enter it on the sign-in page of ${site} to set a new password. It expires in ${SIGN_IN_CODE_MINUTES} minutes.`,
+    heading: 'Reset your password',
+    blocks: [
+      { kind: 'text', text: `Enter this code on the ${brandName()} sign-in page at ${site}, then choose a new password.` },
+      { kind: 'code', code },
+      {
+        kind: 'text',
+        tone: 'muted',
+        text: `It works once and expires in ${SIGN_IN_CODE_MINUTES} minutes. Don't share this code: nobody from ${brandName()} or your team will ever ask you for it.`,
+      },
+    ],
+    reason: `You got this email because someone asked to reset the password for this address on ${site}. If it wasn't you, you can ignore it: your password stays the same.`,
+    origin,
+  })
+}
+
 /** Better Auth's link that confirms an address, for someone who signed up with a password. */
 export function verifyEmailEmail(url: string, origin = WEB_ORIGIN): RenderedEmail {
   return renderEmail({
@@ -213,6 +237,29 @@ export function passkeyChangedEmail(change: 'added' | 'removed', origin = WEB_OR
       {
         kind: 'text',
         text: `If it was not you, ask an instance admin of your ${brandName()} to remove all passkeys of your account (Admin, Users, your name, Reset passkeys), then sign in and add your own again.`,
+      },
+      { kind: 'button', label: 'Review sign-in & security', url: securityUrl(origin) },
+    ],
+    reason: 'You got this email because the sign-in methods of your account changed. We always send it.',
+    origin,
+  })
+}
+
+/** After a password reset by emailed code: every session of the account was ended. */
+export function passwordChangedEmail(origin = WEB_ORIGIN): RenderedEmail {
+  return renderEmail({
+    subject: `The password of your ${brandName()} account was changed`,
+    preheader: 'If this was you, there is nothing to do.',
+    eyebrow: 'Security notice',
+    heading: 'Your password was changed',
+    blocks: [
+      {
+        kind: 'text',
+        text: `The password of your ${brandName()} account at ${siteHost(origin)} was reset with a code sent to this address, and you were signed out everywhere. If this was you, there is nothing to do.`,
+      },
+      {
+        kind: 'text',
+        text: 'If it was not you, someone can read your email: secure your mailbox first, then use "Forgot password?" on the sign-in page to set a new password, and tell your administrator.',
       },
       { kind: 'button', label: 'Review sign-in & security', url: securityUrl(origin) },
     ],

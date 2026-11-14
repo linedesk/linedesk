@@ -150,8 +150,9 @@ describe('signing in with a code', () => {
 })
 
 describe('what is not offered', () => {
+  // The password reset has its own tests (password-reset.test.ts).
   const unused = [
-    '/email-otp/request-password-reset', '/forget-password/email-otp', '/email-otp/reset-password',
+    '/forget-password/email-otp',
     '/email-otp/check-verification-otp', '/email-otp/request-email-change', '/email-otp/change-email',
   ]
   test.each(unused)('POST /api/auth%s is not there', async path => {
@@ -159,7 +160,7 @@ describe('what is not offered', () => {
     expect(res.status).toBe(404)
   })
 
-  test('password reset and email change codes are not offered', async () => {
+  test('send-verification-otp sends no password reset or email change codes', async () => {
     const { send } = mailbox()
     for (const type of ['forget-password', 'change-email']) {
       const res = await request(anonymous, 'POST', '/api/auth/email-otp/send-verification-otp', { email: await ownerEmail(), type }, { origin: ORIGIN, [FROM]: randomIp() })

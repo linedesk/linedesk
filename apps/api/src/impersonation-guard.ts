@@ -14,6 +14,7 @@ type AuthCtx = Parameters<typeof getSessionFromCtx>[0]
 export const IMPERSONATION_REFUSED_PATHS = [
   '/change-password',
   '/set-password',
+  '/email-otp/reset-password',
   // Would let an admin test guesses at the user's password, or change their name and picture.
   '/verify-password',
   '/update-user',

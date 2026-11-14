@@ -148,6 +148,16 @@ export function requestSignInCode(email: string) {
   return auth.emailOtp.sendVerificationOtp({ email, type: 'sign-in' })
 }
 
+/** "Forgot password?": a code to this address, if it has an account (the answer is the same either way). */
+export function requestPasswordResetCode(email: string) {
+  return auth.emailOtp.requestPasswordReset({ email })
+}
+
+/** Sets a new password with the emailed code. Every session of the account ends; sign in with it afterwards. */
+export function resetPasswordWithCode(email: string, otp: string, password: string) {
+  return auth.emailOtp.resetPassword({ email, otp, password })
+}
+
 /** Signs in (or, where sign-up is open, signs up) with the emailed code. */
 export function signInWithCode(email: string, otp: string) {
   return auth.signIn.emailOtp({ email, otp })
