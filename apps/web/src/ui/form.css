@@ -549,3 +549,108 @@
   display: grid;
   gap: 3px;
 }
+
+/* The crop step (ImageCrop.tsx): the image in a square frame, the part outside the shown shape dimmed. */
+.k-crop {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+}
+.k-crop-frame {
+  position: relative;
+  overflow: hidden;
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.k-crop-frame.is-dragging {
+  cursor: grabbing;
+}
+.k-crop-frame:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.k-crop-frame img {
+  position: absolute;
+  max-width: none;
+  pointer-events: none;
+}
+/* The shape the image is shown in; everything around it is dimmed, yet part of the saved square. */
+.k-crop-mask {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.45);
+  outline: 2px solid rgb(255 255 255 / 0.9);
+  outline-offset: -2px;
+}
+.k-crop-frame.is-circle .k-crop-mask {
+  border-radius: 50%;
+}
+/* The workspace square's corners (styles.css .ws-initial.is-lg: 10px on 48px). */
+.k-crop-frame.is-rounded-square .k-crop-mask {
+  border-radius: 20.8%;
+}
+.k-crop-zoom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 280px;
+  max-width: 100%;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.k-crop-zoom input {
+  flex: 1;
+}
+/* "Drag to move" on the picture until it first moves: a dark pill, readable on any photo. */
+.k-crop-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.6);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+.k-crop-hint.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .k-crop-hint {
+    transition:
+      opacity 0.16s ease-out,
+      visibility 0s linear 0.16s;
+  }
+}
+/* How to move and zoom, one muted line; the short words on touch screens. */
+.k-crop-help {
+  margin: -6px 0 0;
+  font-size: 12px;
+  color: var(--ink-muted);
+  text-align: center;
+  white-space: nowrap;
+}
+.k-crop-help-touch {
+  display: none;
+}
+@media (pointer: coarse) {
+  .k-crop-help-pointer {
+    display: none;
+  }
+  .k-crop-help-touch {
+    display: inline;
+  }
+}

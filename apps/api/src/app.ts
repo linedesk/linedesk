@@ -1,4 +1,4 @@
-import { actions, CLONE_BODY_MAX_BYTES, openApiDocument, workspaceNameProblem } from '@linedesk/actions'
+import { actions, avatarUrlOf, CLONE_BODY_MAX_BYTES, openApiDocument, workspaceNameProblem } from '@linedesk/actions'
 import {
   assistants,
   member,
@@ -28,6 +28,7 @@ import { setsUpByHand } from './install-setup.ts'
 import { authMethods } from './auth-methods.ts'
 import { browserErrorReporting, errorReportingEnabled, type ReportedUser, reportError } from './error-reporting.ts'
 import { currentBranding, manifestFor, readLogo } from './branding.ts'
+import { avatarVersionOf, readAvatarFor } from './user-avatar.ts'
 import { iconUrlOf, readIconFor } from './workspace-icon.ts'
 import { auth, TRUSTED_ORIGINS, WEB_ORIGIN, WORKSPACE_LIMIT } from './auth.ts'
 import { refuseCrossSite } from './csrf.ts'
@@ -333,6 +334,8 @@ app.get('/v1/me', async c => {
     actorId: actor.actorId,
     role: actor.role,
     permissions: actor.permissions,
+    // The member's own profile picture (Account settings › Profile), null without one.
+    avatarUrl: avatarUrlOf(actor.actorId, await avatarVersionOf(db, actor.actorId)),
     workspace: workspace
       ? {
           id: workspace.id,
@@ -413,6 +416,20 @@ app.get('/v1/workspace-icons/:file', async c => {
   c.header('content-security-policy', "default-src 'none'; sandbox")
   c.header('cache-control', 'private, max-age=31536000, immutable')
   return c.body(new Uint8Array(icon))
+})
+
+// A person's profile picture (user-avatar.ts), for them, people who share a workspace with them and instance admins.
+// Served like the workspace icon: only a PNG the server checked, nosniff and a CSP that allows nothing; the address
+// changes with every new picture (?v=), so it is cached for good.
+app.get('/v1/avatars/:file', async c => {
+  const file = c.req.param('file')
+  const png = file.endsWith('.png') ? await readAvatarFor(db, file.slice(0, -4), c.get('actor')) : null
+  if (!png) return c.json({ ok: false, error: 'no picture' }, 404)
+  c.header('content-type', 'image/png')
+  c.header('x-content-type-options', 'nosniff')
+  c.header('content-security-policy', "default-src 'none'; sandbox")
+  c.header('cache-control', 'private, max-age=31536000, immutable')
+  return c.body(new Uint8Array(png))
 })
 
 // The member's workspaces for the switcher, read again when the menu opens; the same list /v1/me brings at boot.

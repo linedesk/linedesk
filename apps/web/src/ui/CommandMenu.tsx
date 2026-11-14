@@ -5,11 +5,12 @@ import { Avatar, Icon, Kbd } from './kit.tsx'
 
 /** `hint` is a quiet detail after the label, for example the time behind "Tomorrow morning". */
 /** `keywords` are other words that find the item ("unread" finds "Mark read"). */
-/** `avatar`: a person's name, shown as their initials in place of an icon. `searchOnly`: listed only once something is typed. */
+/** `avatar`: a person's name, shown as their picture (`avatarSrc`) or initials in place of an icon. `searchOnly`: listed only once something is typed. */
 export type CommandItem = {
   label: string
   icon?: IconName
   avatar?: string
+  avatarSrc?: string | null
   shortcut?: string[]
   hint?: string
   keywords?: string
@@ -148,7 +149,7 @@ export function CommandMenu<T extends CommandItem>({
                   onMouseEnter={() => setActive(me)}
                   onClick={() => onSelect(it, 'mouse')}
                 >
-                  {it.avatar !== undefined ? <Avatar name={it.avatar} size={20} /> : it.icon && <Icon name={it.icon} />}
+                  {it.avatar !== undefined ? <Avatar name={it.avatar} size={20} src={it.avatarSrc} /> : it.icon && <Icon name={it.icon} />}
                   <span>
                     {it.label}
                     {it.hint && <small className="k-cmd-hint">{it.hint}</small>}

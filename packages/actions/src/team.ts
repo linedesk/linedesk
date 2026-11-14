@@ -13,7 +13,8 @@ export type TeamRole = (typeof teamRoles)[number]
 /** How long an invitation link works, from when it was sent (or last resent). */
 export const INVITATION_DAYS = 7
 
-export type TeamMember = { memberId: string; userId: string; name: string; email: string; role: 'owner' | 'admin' | 'member'; joinedAt: string }
+/** `avatarUrl`: the profile picture (user-avatar.ts), null without one (absent in a list an older version cached). */
+export type TeamMember = { memberId: string; userId: string; name: string; email: string; role: 'owner' | 'admin' | 'member'; joinedAt: string; avatarUrl?: string | null }
 export type TeamInvitation = { invitationId: string; email: string; role: AssignableRole; invitedBy: string; expiresAt: string; expired: boolean }
 /** What `team.list` returns in `data`. `canManage`: whether the caller may invite, change roles and remove. */
 export type TeamData = { members: TeamMember[]; invitations: TeamInvitation[]; canManage: boolean; me: string }

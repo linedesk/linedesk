@@ -260,6 +260,11 @@ export const icons = {
       },
     ],
   ],
+  // move follows Lucide (ISC license): the crop step's "Drag to move" hint.
+  move: [
+    ['path', { d: 'M12 2v20M2 12h20' }],
+    ['path', { d: 'M9 5l3-3 3 3M15 19l-3 3-3-3M5 9l-3 3 3 3M19 9l3 3-3 3' }],
+  ],
 } satisfies Record<string, Part[]>
 export type IconName = keyof typeof icons
 export const filledIcons: ReadonlySet<IconName> = new Set(['spark', 'play', 'pause'])

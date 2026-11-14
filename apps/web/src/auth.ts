@@ -45,6 +45,8 @@ export type Me = {
   actorId: string
   role: string
   permissions: string[]
+  /** The member's own profile picture; null or absent (an older version remembered it): the initials show. */
+  avatarUrl?: string | null
   /** `iconUrl`: the workspace icon (Workspace settings › General); null or absent: the initial shows. */
   workspace: { id: string; name: string; disabled?: boolean; iconUrl?: string | null } | null
   /** Every workspace this member belongs to, by name (absent in what an older version remembered). */

@@ -493,6 +493,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         reviewCount={reviewCount}
         workspaceName={me.workspace!.name}
         workspaceId={me.workspace!.id}
+        avatarUrl={me.avatarUrl}
         toast={toaster.show}
         invitations={invites.invitations}
         onInvitationsChanged={invites.reload}

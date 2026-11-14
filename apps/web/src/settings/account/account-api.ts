@@ -49,6 +49,8 @@ export type Account = {
   user: { name: string; email: string; emailVerified: boolean }
   accounts: LinkedAccount[]
   methods: AuthMethods
+  /** The profile picture (Account settings › Profile), null without one (absent in what an older version remembered). */
+  avatarUrl?: string | null
 }
 
 /** Cache keys (cachedQuery.ts). The account is kept across page loads; sessions and passkeys only in memory. */
@@ -58,16 +60,18 @@ export const PASSKEYS = 'account.passkeys'
 export const PASSKEY_ENROLMENT = 'account.passkeyEnrolment'
 
 export async function loadAccount(): Promise<Account> {
-  const [session, accounts, methods] = await Promise.all([
+  const [session, accounts, methods, me] = await Promise.all([
     auth.getSession(),
     auth.listAccounts(),
     fetchAuthMethods({ attempts: 3 }),
+    fetchMe().catch(() => null),
   ])
   const current = unwrap(session, 'You are signed out.')
   return {
     user: { name: current.user.name, email: current.user.email, emailVerified: current.user.emailVerified },
     accounts: unwrap(accounts, 'Could not load your sign-in methods.'),
     methods,
+    avatarUrl: me?.avatarUrl ?? null,
   }
 }
 

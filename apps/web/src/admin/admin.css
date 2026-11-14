@@ -290,6 +290,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* A person in a list: their picture or initials, then name and email. */
+.adm-person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
 .adm-empty {
   margin: 0;
   padding: 20px 12px;

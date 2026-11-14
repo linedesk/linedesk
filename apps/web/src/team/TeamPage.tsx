@@ -119,7 +119,7 @@ function MemberRow({ data, m, run }: { data: TeamData; m: TeamMember; run: Run }
     )
   return (
     <ListRow
-      lead={<Avatar name={name} size={24} />}
+      lead={<Avatar name={name} size={24} src={m.avatarUrl} />}
       title={
         <>
           {name}

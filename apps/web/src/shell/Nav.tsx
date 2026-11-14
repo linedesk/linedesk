@@ -25,6 +25,8 @@ type Props = {
   reviewCount: number | null
   workspaceName: string
   workspaceId: string
+  /** The signed-in member's profile picture (/v1/me), for their row in the workspace menu. */
+  avatarUrl?: string | null
   /** A short notice at the bottom of the screen. */
   toast: (message: string) => void
   /** Invitations to other workspaces, shown in the workspace menu. */
@@ -51,7 +53,7 @@ function NavItem({ label, icon, keys, current, sub, muted, badge, title, onClick
 /** Slide-in navigation: opens from ☰ or M; closes with Esc, the close button, a click outside or after choosing.
  * On very wide windows it is docked: always open beside the content. Two parts: the workspace button on top (one
  * menu: switch workspace, your account, sign out) and one list of pages, Workspace settings once at its end. */
-export function Nav({ open, docked = false, route, tab, unreadCount, reminderCount, mineCount, unassignedCount, reviewCount, workspaceName, workspaceId, toast, invitations, onInvitationsChanged, isInstanceAdmin, onNewWorkspace, onClose, ...on }: Props) {
+export function Nav({ open, docked = false, route, tab, unreadCount, reminderCount, mineCount, unassignedCount, reviewCount, workspaceName, workspaceId, avatarUrl, toast, invitations, onInvitationsChanged, isInstanceAdmin, onNewWorkspace, onClose, ...on }: Props) {
   const ref = useRef<HTMLElement>(null)
   useFocusTrap(ref, open && !docked, { initial: '.nav-item[aria-current="page"]' }) // opens on the current page, gives focus back when it closes
   const sessionUser = auth.useSession().data?.user
@@ -67,7 +69,7 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
   return (
     <nav className="nav" aria-label="Main" ref={ref} inert={!open}>
       <div className="ws-top">
-        <WorkspaceMenu name={workspaceName} id={workspaceId} navOpen={open} invitations={invitations} onInvitationsChanged={onInvitationsChanged} toast={toast}
+        <WorkspaceMenu name={workspaceName} id={workspaceId} navOpen={open} invitations={invitations} onInvitationsChanged={onInvitationsChanged} toast={toast} avatarUrl={avatarUrl}
           onNewWorkspace={onNewWorkspace && go(onNewWorkspace)} onAccount={go(() => on.onPage('account'))} onShortcuts={go(on.onHelp)} onSignOut={go(on.onSignOut)} />
         {!docked && <Button size="sm" variant="ghost" icon="left" aria-label="Close menu" title="Close (esc)" onClick={onClose} />}
       </div>

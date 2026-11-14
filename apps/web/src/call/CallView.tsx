@@ -11,7 +11,7 @@ import {
   transferText,
 } from '../inbox-model.ts'
 import { useCallAssistantName, useContact } from '../store.tsx'
-import { firstName, memberLabel, useMember } from '../team/members.ts'
+import { firstName, memberAvatar, memberLabel, useMember } from '../team/members.ts'
 import { clock, dateTimeLabel, longDuration, parseTs, whenLabel } from '../time.ts'
 import { Avatar, Button, Icon } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
@@ -178,7 +178,7 @@ function Bar({ call, index, count, menu, ...on }: BarProps) {
   )
 }
 
-/** Who has the call: their initials and first name, or Assign. Opens the member picker under itself (A). */
+/** Who has the call: their picture (or initials) and first name, or Assign. Opens the member picker under itself (A). */
 function AssignButton({ call, onAssign }: { call: Call; onAssign: (call: Call, anchor: DOMRect) => void }) {
   const assignee = useMember(call.assignee_id)
   const name = memberLabel(assignee)
@@ -194,7 +194,7 @@ function AssignButton({ call, onAssign }: { call: Call; onAssign: (call: Call, a
     >
       {call.assignee_id ? (
         <>
-          <Avatar name={name} size={20} />
+          <Avatar name={name} size={20} src={memberAvatar(assignee)} />
           {firstName(assignee)}
         </>
       ) : (

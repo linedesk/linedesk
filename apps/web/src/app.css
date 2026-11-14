@@ -382,6 +382,12 @@ body,
   flex: 1;
   max-width: 340px;
 }
+.ac-avatar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 .ac-value {
   font-size: 13.5px;
   min-width: 0;
@@ -1619,6 +1625,11 @@ button.k-link {
 .sk-round {
   border-radius: var(--radius-full);
 }
+/* The workspace menu's you-row (WorkspaceMenu.tsx): its lines are 15px, so the bars are too; same height as the row. */
+.ws-me .sk-text {
+  height: 9px;
+  margin: 3px 0;
+}
 .sk-k-list .k-row-title,
 .sk-k-list .k-row-sub {
   display: block;
@@ -1784,13 +1795,17 @@ button.k-link {
   }
 }
 
-/* Workspaces in the workspace menu; from WORKSPACE_FILTER_FROM on, a filter field and a scrolling list. */
+/* Workspaces in the workspace menu; from WORKSPACE_FILTER_FROM on, a filter field and a scrolling list. The line
+   under them is inset like the menu's other dividers (styles.css .ws-menu hr: 3px 4px). */
 .me-ws {
   display: grid;
   gap: 1px;
-  padding-bottom: 3px;
   margin-bottom: 3px;
-  border-bottom: 1px solid var(--line);
+}
+.me-ws::after {
+  content: '';
+  margin: 2px 4px 0; /* + the grid's 1px gap: 3px, as above an hr */
+  border-top: 1px solid var(--line);
 }
 .me-ws-head {
   padding: 4px 8px 2px;

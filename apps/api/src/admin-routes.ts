@@ -2,7 +2,7 @@
 // routes with their own permission check instead of read sync.
 import { AUDIT_KINDS, type AuditKind, isAuditCursor, isCalendarDay, listAudit } from './audit.ts'
 import { secondFactorRefusal } from './admin-second-factor.ts'
-import type { Permission } from '@linedesk/actions'
+import { avatarUrlOf, type Permission } from '@linedesk/actions'
 import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
 import type { Context, Hono, Next } from 'hono'
@@ -71,6 +71,7 @@ const listUsers = (tx: Tx) =>
     tx,
     sql`
   select u.id, u.name, u.email, u.email_verified, u.instance_admin,
+    (select a.version from user_avatars a where a.user_id = u.id) as avatar_version,
     ${utc('u.created_at')} as created_at, ${utc('u.disabled_at')} as disabled_at,
     ${utc('coalesce(u.last_sign_in_at, (select max(s.created_at) from session s where s.user_id = u.id))')} as last_sign_in_at,
     coalesce((select json_agg(json_build_object('id', o.id, 'name', o.name, 'role', m.role, 'member_id', m.id) order by o.name)
@@ -90,7 +91,8 @@ const listWorkspaceMembers = async (tx: Tx, workspaceId: string) => ({
   members: await rows(
     tx,
     sql`
-  select m.id as member_id, u.id as user_id, u.name, u.email, m.role, ${utc('m.created_at')} as joined_at
+  select m.id as member_id, u.id as user_id, u.name, u.email, m.role, ${utc('m.created_at')} as joined_at,
+    (select a.version from user_avatars a where a.user_id = u.id) as avatar_version
   from member m join "user" u on u.id = m.user_id where m.organization_id = ${workspaceId}
   order by case m.role when 'owner' then 0 when 'admin' then 1 else 2 end, u.name, u.email`,
   ),
@@ -134,14 +136,25 @@ export function registerAdminRoutes(app: Hono<Env>) {
   })
 
   app.get('/v1/admin/users', async c => {
-    const users = (await listUsers(db)).map(({ email_verified, instance_admin, ...u }) => {
+    const users = (await listUsers(db)).map(({ email_verified, instance_admin, avatar_version, ...u }) => {
       const byEnv = isEnvAdmin({ email: u.email, emailVerified: email_verified })
-      return { ...u, instance_admin: instance_admin || byEnv, instance_admin_by_env: byEnv }
+      return {
+        ...u,
+        avatar_url: avatarUrlOf(u.id, avatar_version),
+        instance_admin: instance_admin || byEnv,
+        instance_admin_by_env: byEnv,
+      }
     })
     return c.json({ users })
   })
 
-  app.get('/v1/admin/workspaces/:id/members', async c => c.json(await listWorkspaceMembers(db, c.req.param('id'))))
+  app.get('/v1/admin/workspaces/:id/members', async c => {
+    const { members, invitations } = await listWorkspaceMembers(db, c.req.param('id'))
+    return c.json({
+      members: members.map(({ avatar_version, ...m }) => ({ ...m, avatar_url: avatarUrlOf(m.user_id, avatar_version) })),
+      invitations,
+    })
+  })
 
   // Calls and answered minutes per workspace and calendar month (UTC), newest month first.
   app.get('/v1/admin/usage', async c => {

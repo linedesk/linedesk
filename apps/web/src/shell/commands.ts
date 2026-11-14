@@ -1,7 +1,7 @@
 // ⌘K lists what can be done right now: the actions for the selected call, places to go, app commands.
 import type { Call, WorkspaceMember } from '@linedesk/db/types'
 import { hasReminder } from '../inbox-model.ts'
-import { memberLabel } from '../team/members.ts'
+import { memberAvatar, memberLabel } from '../team/members.ts'
 import type { CommandGroup, CommandItem } from '../ui/CommandMenu.tsx'
 import type { PageRoute } from './pages.tsx'
 
@@ -183,6 +183,7 @@ function assignCommands(call: Call, a: NonNullable<CommandContext['assign']>, me
         label: `Assign to ${memberLabel(m)}`,
         keywords: 'assign teammate',
         avatar: memberLabel(m),
+        avatarSrc: memberAvatar(m),
         searchOnly: true,
         run: () => a.to(call, m.user_id, memberLabel(m)),
       }),
@@ -212,6 +213,7 @@ function assigneeViewCommands(a: NonNullable<CommandContext['assign']>, c: Comma
           label: `Go to ${memberLabel(m)}'s calls`,
           keywords: 'assigned to filter teammate',
           avatar: memberLabel(m),
+          avatarSrc: memberAvatar(m),
           searchOnly: true,
           run: () => a.showMember(m.user_id),
         }),

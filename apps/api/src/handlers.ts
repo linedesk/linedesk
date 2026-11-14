@@ -36,6 +36,7 @@ import { installPurchaseRefusal, logPurchase, NUMBER_SETUP_BUSY } from './number
 import { teamHandlers } from './team.ts'
 import { transferHandlers } from './transfers.ts'
 import { insightsHandlers } from './insights.ts'
+import { userAvatarHandlers } from './user-avatar.ts'
 import { workspaceIconHandlers } from './workspace-icon.ts'
 import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
 import { publicHolidayHandlers } from './public-holidays.ts'
@@ -445,6 +446,7 @@ const handlers: Record<string, Handler> = {
   ...membershipHandlers,
   ...workspaceSettingsHandlers,
   ...workspaceIconHandlers,
+  ...userAvatarHandlers,
   ...publicHolidayHandlers,
   ...insightsHandlers,
   ...transferHandlers,

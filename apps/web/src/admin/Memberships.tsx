@@ -42,6 +42,8 @@ function useChange(notify: Notify, refresh: () => Promise<void>) {
 type MemberRowProps = {
   title: string
   sub?: string
+  /** A person's profile picture; a workspace row has none. */
+  avatarUrl?: string | null
   role: string
   /** Why the role and remove are locked (the last owner), or undefined. */
   locked?: string
@@ -50,10 +52,10 @@ type MemberRowProps = {
   removeLabel: string
 }
 
-function MemberRow({ title, sub, role, locked, onRole, onRemove, removeLabel }: MemberRowProps) {
+function MemberRow({ title, sub, avatarUrl, role, locked, onRole, onRemove, removeLabel }: MemberRowProps) {
   return (
     <ListRow
-      lead={<Avatar name={title} size={24} />}
+      lead={<Avatar name={title} size={24} src={avatarUrl} />}
       title={title}
       sub={sub}
       actions={
@@ -258,7 +260,7 @@ function UserPicker({ users, picked, onPick }: { users: AdminUser[]; picked: str
       <div className="adm-pick" role="radiogroup" aria-label="User">
         {shown.map(u => (
           <button key={u.id} type="button" role="radio" aria-checked={u.id === picked} className="adm-pick-row" onClick={() => onPick(u.id)}>
-            <Avatar name={u.name || u.email} size={24} />
+            <Avatar name={u.name || u.email} size={24} src={u.avatar_url} />
             <span className="st-member-t">
               <b>{u.name || u.email}</b>
               <span className="help">{u.email}</span>
@@ -312,6 +314,7 @@ export function WorkspaceMembersCard({ workspace: w, users, notify, reload }: Wo
               key={m.member_id}
               title={name}
               sub={m.email}
+              avatarUrl={m.avatar_url}
               role={m.role}
               locked={m.role === 'owner' && owners < 2 ? 'The last owner: make someone else owner first' : undefined}
               removeLabel={`Remove ${name}`}

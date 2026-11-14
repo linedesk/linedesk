@@ -3,8 +3,8 @@
 // Better Auth's own endpoints for inviting and changing members are switched off there, so these
 // handlers are the only write path and the rules below always apply.
 import { randomBytes } from 'node:crypto'
-import { INVITATION_DAYS, type TeamData, type TeamInvitation, type TeamMember } from '@linedesk/actions'
-import { invitation, member, organization, type Tx, user } from '@linedesk/db'
+import { avatarUrlOf, INVITATION_DAYS, type TeamData, type TeamInvitation, type TeamMember } from '@linedesk/actions'
+import { invitation, member, organization, type Tx, user, user_avatars } from '@linedesk/db'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { invitationSubject, memberSubject } from './audit.ts'
@@ -124,10 +124,11 @@ async function requireOwner(tx: Tx, actor: Actor, workspaceId: string) {
 async function listTeam(tx: Tx, actor: Actor): Promise<TeamData> {
   const workspaceId = workspaceOf(actor)
   const members: TeamMember[] = (await tx
-    .select({ memberId: member.id, userId: user.id, name: user.name, email: user.email, role: member.role, joinedAt: member.createdAt })
+    .select({ memberId: member.id, userId: user.id, name: user.name, email: user.email, role: member.role, joinedAt: member.createdAt, avatarVersion: user_avatars.version })
     .from(member).innerJoin(user, eq(user.id, member.userId))
+    .leftJoin(user_avatars, eq(user_avatars.user_id, user.id))
     .where(eq(member.organizationId, workspaceId)).orderBy(asc(member.createdAt)))
-    .map(m => ({ ...m, role: m.role as TeamMember['role'], joinedAt: m.joinedAt.toISOString() }))
+    .map(({ avatarVersion, ...m }) => ({ ...m, role: m.role as TeamMember['role'], joinedAt: m.joinedAt.toISOString(), avatarUrl: avatarUrlOf(m.userId, avatarVersion) }))
   const canManage = actor.permissions.includes('team:write')
   // Invitees' addresses are for those who invite: a member sees the team, not who is invited.
   if (!canManage) return { members, invitations: [], canManage, me: actor.actorId }

@@ -1,6 +1,7 @@
 // The small pieces of the reference UI kit: Icon, Kbd, Button, Badge. Class names match styles.css.
 import { type Branding, DEFAULT_PRODUCT_NAME, poweredByUrl, showsPoweredBy } from '@linedesk/actions'
 import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
+import { useState } from 'react'
 import { useBrand } from '../brand.ts'
 import { filledIcons, icons, type IconName } from './icons.ts'
 
@@ -160,10 +161,25 @@ const initials = (name: string) =>
     .map(w => w[0]!.toUpperCase())
     .join('')
 
-export function Avatar({ name, size = 32 }: { name: string; size?: 20 | 24 | 32 | 40 }) {
+type AvatarProps = {
+  name: string
+  size?: 20 | 24 | 32 | 40 | 56
+  /** The person's profile picture (avatarUrlOf); without one, or while it cannot load, their initials show. */
+  src?: string | null
+}
+
+/** A person: their profile picture, cropped to a circle, or their initials. The one avatar of the app. */
+export function Avatar({ name, size = 32, src }: AvatarProps) {
+  // The address that failed to load, so a new picture (a new address) is tried again.
+  const [failed, setFailed] = useState<string | null>(null)
+  const picture = src && src !== failed ? src : null
   return (
-    <span className={cx('k-avatar', `k-avatar-${size}`)} role="img" aria-label={name}>
-      {initials(name) || '?'}
+    <span className={cx('k-avatar', `k-avatar-${size}`, picture && 'k-avatar-pic')} role="img" aria-label={name}>
+      {picture ? (
+        <img src={picture} alt="" draggable={false} onError={() => setFailed(picture)} />
+      ) : (
+        initials(name) || '?'
+      )}
     </span>
   )
 }

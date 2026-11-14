@@ -21,6 +21,7 @@ import {
   unique,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
+import { user } from './auth-schema.ts'
 import {
   DEFAULT_TRANSFERS,
   type ActionItem,
@@ -287,7 +288,7 @@ export const transcript_segments = pgTable(
 )
 
 // The members of a workspace as the browser sees them: who calls can be assigned to. Only safe fields
-// (name, role; no email, no picture, no sign-in data). Kept in step with Better Auth's `member` and `user` by triggers
+// (name, role, the profile picture's version; no email, no sign-in data). Kept in step with Better Auth's `member` and `user` by triggers
 // (migrations/0039_workspace_members.sql), whoever writes them; never written by the app. id = member.id.
 export const workspace_members = pgTable(
   'workspace_members',
@@ -299,6 +300,11 @@ export const workspace_members = pgTable(
     role: text('role').notNull(),
     /** The account is disabled by an instance admin: shown on calls it had, never offered to assign. */
     disabled: boolean('disabled').notNull().default(false),
+    /**
+     * The member's profile picture (user_avatars.version), null without one: its address is
+     * /v1/avatars/<user_id>.png?v=<avatar_version>. Kept in step by triggers (migration 0087).
+     */
+    avatar_version: text('avatar_version'),
     version: version(),
   },
   t => [index('workspace_members_ws').on(t.workspace_id)],
@@ -1318,4 +1324,18 @@ export const workspace_icons = pgTable('workspace_icons', {
   version: text('version').notNull(),
   updated_at: ts('updated_at').notNull().defaultNow(),
   updated_by: text('updated_by'),
+})
+
+// A person's profile picture (Account settings › Profile; apps/api/src/user-avatar.ts): stored like the workspace
+// icon, a checked PNG of at most 512×512 pixels, base64. One row per account that has a picture; no row: the
+// initials show. `version` changes with every new picture and is part of its address
+// (/v1/avatars/<user_id>.png?v=<version>); triggers copy it into workspace_members.avatar_version, so every member
+// of the person's workspaces sees the new picture with the next sync. Not synced itself.
+export const user_avatars = pgTable('user_avatars', {
+  user_id: text('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  png: text('png').notNull(),
+  version: text('version').notNull(),
+  updated_at: ts('updated_at').notNull().defaultNow(),
 })

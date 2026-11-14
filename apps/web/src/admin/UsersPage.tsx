@@ -1,6 +1,6 @@
 // Users: a searchable list with Add user; a click opens the user with their workspaces and actions.
 import { Card } from '../ui/form.tsx'
-import { Badge } from '../ui/kit.tsx'
+import { Avatar, Badge } from '../ui/kit.tsx'
 import { AddUser } from './AddUser.tsx'
 import { ActionBar, RowActions, useActionRunner, userActions } from './actions.tsx'
 import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
@@ -19,13 +19,16 @@ const columns: Column<AdminUser>[] = [
     label: 'User',
     sort: label,
     render: u => (
-      <span className="adm-who">
-        <span className="adm-strong">
-          {label(u)}
-          {u.instance_admin && <Badge>Admin</Badge>}
-          {u.disabled_at && <Badge>Disabled</Badge>}
+      <span className="adm-person">
+        <Avatar name={label(u)} size={24} src={u.avatar_url} />
+        <span className="adm-who">
+          <span className="adm-strong">
+            {label(u)}
+            {u.instance_admin && <Badge>Admin</Badge>}
+            {u.disabled_at && <Badge>Disabled</Badge>}
+          </span>
+          <span className="adm-sub">{u.email}</span>
         </span>
-        <span className="adm-sub">{u.email}</span>
       </span>
     ),
   },

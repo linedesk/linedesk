@@ -1,5 +1,13 @@
 import { describe, expect, test } from 'vitest'
-import { switcherWorkspaces, workspaceInitial, workspaceMenuItems } from './WorkspaceMenu.tsx'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import {
+  switcherWorkspaces,
+  workspaceInitial,
+  workspaceMenuItems,
+  YouRowSkeleton,
+  youRowLoading,
+} from './WorkspaceMenu.tsx'
 
 const noLinks = { terms: null, privacy: null, supportEmail: null }
 const allLinks = {
@@ -87,5 +95,26 @@ describe('workspaceInitial', () => {
     expect(workspaceInitial('brightwater Plumbing')).toBe('B')
     expect(workspaceInitial('  Ålesund Dental')).toBe('Å')
     expect(workspaceInitial('')).toBe('?')
+  })
+})
+
+describe('the you-row', () => {
+  test('waits for the session and for the picture, not for a picture that failed or none', () => {
+    expect(youRowLoading('', 'none')).toBe(true)
+    expect(youRowLoading('', 'ready')).toBe(true)
+    expect(youRowLoading('Mike Brennan', 'loading')).toBe(true)
+    expect(youRowLoading('Mike Brennan', 'ready')).toBe(false)
+    expect(youRowLoading('Mike Brennan', 'failed')).toBe(false)
+    expect(youRowLoading('mike@example.com', 'none')).toBe(false)
+  })
+
+  test('waits as a round picture and its lines, invisible at first', () => {
+    const html = renderToStaticMarkup(createElement(YouRowSkeleton, { lines: 2, reserved: true }))
+    expect(html).toContain('class="ws-me ld-busy is-reserved" aria-hidden="true"')
+    expect(html).toContain('class="sk sk-block sk-round" style="width:24px;height:24px"')
+    expect(html.match(/sk-text/g)).toHaveLength(2)
+    const one = renderToStaticMarkup(createElement(YouRowSkeleton, { lines: 1, reserved: false }))
+    expect(one).toContain('class="ws-me ld-busy"')
+    expect(one.match(/sk-text/g)).toHaveLength(1)
   })
 })

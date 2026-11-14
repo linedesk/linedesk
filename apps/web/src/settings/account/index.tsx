@@ -15,6 +15,7 @@ import { onSaveKey, SaveBar } from '../../ui/form.tsx'
 import { Badge, Button, Note } from '../../ui/kit.tsx'
 import { type PageSection, SettingsLayout, useSection } from '../../ui/SettingsLayout.tsx'
 import { Field, Section, TextInput } from '../fields.tsx'
+import { AvatarField } from './AvatarField.tsx'
 import { Notifications } from '../Notifications.tsx'
 import {
   ACCOUNT,
@@ -164,7 +165,7 @@ function PasswordInput({
   )
 }
 
-function Profile({ account, reload }: SectionProps) {
+function Profile({ account, reload, hasWorkspace }: SectionProps & { hasWorkspace: boolean }) {
   const [name, setName] = useState(account.user.name)
   const request = useRequest()
   const trimmed = name.trim()
@@ -194,6 +195,8 @@ function Profile({ account, reload }: SectionProps) {
       )}
       <form className="ac-form" onSubmit={save} onKeyDown={e => onSaveKey(e, dirty && !!trimmed)}>
         <Section id="ac-profile" title="Profile">
+          {/* The picture is shown to the people you work with; without a workspace there is nobody to show it to. */}
+          {hasWorkspace && <AvatarField name={account.user.name} avatarUrl={account.avatarUrl ?? null} />}
           <Field id="ac-name" label="Name" error={trimmed ? null : 'Enter your name.'}>
             <TextInput id="ac-name" value={name} onChange={setName} placeholder="Your name" invalid={!trimmed} />
           </Field>
@@ -633,7 +636,17 @@ function ListSkeleton({ rows = 3 }: { rows?: number }) {
 }
 
 /** A section of the account while the account itself loads: its title at once, its fields in grey. */
-function AccountSkeleton({ current, error, retry }: { current: SectionId; error: string | null; retry: () => void }) {
+function AccountSkeleton({
+  current,
+  hasWorkspace,
+  error,
+  retry,
+}: {
+  current: SectionId
+  hasWorkspace: boolean
+  error: string | null
+  retry: () => void
+}) {
   const skeleton =
     current === 'security' ? (
       <Field label="Methods">
@@ -644,6 +657,14 @@ function AccountSkeleton({ current, error, retry }: { current: SectionId; error:
       </Field>
     ) : (
       <>
+        {hasWorkspace && (
+          <Field label="Picture">
+            <span className="ac-avatar">
+              <Skeleton width={56} height={56} className="sk-round" />
+              <Skeleton width={76} height={28} />
+            </span>
+          </Field>
+        )}
         <Field label="Name">
           <Skeleton shape="field" width="100%" />
         </Field>
@@ -754,7 +775,7 @@ function Sessions() {
 
 type SectionId = 'profile' | 'notifications' | 'security' | 'sessions'
 const sections: readonly PageSection<SectionId>[] = [
-  { id: 'profile', label: 'Profile', description: 'Your name' },
+  { id: 'profile', label: 'Profile', description: 'Your picture and name' },
   { id: 'notifications', label: 'Notifications', description: 'New calls by email and on this device' },
   { id: 'security', label: 'Sign-in & security', description: 'Sign-in methods, passkeys and password' },
   { id: 'sessions', label: 'Sessions', description: 'Where you are signed in' },
@@ -783,9 +804,14 @@ export function AccountSettings({ hasWorkspace, workspaceName = '' }: Props) {
     <div className="page">
       <SettingsLayout page="account" title="Account settings" sections={shown} current={current}>
         {!props && (current === 'profile' || current === 'security') && (
-          <AccountSkeleton current={current} error={query.error} retry={() => void query.reload()} />
+          <AccountSkeleton
+            current={current}
+            hasWorkspace={hasWorkspace}
+            error={query.error}
+            retry={() => void query.reload()}
+          />
         )}
-        {props && current === 'profile' && <Profile {...props} />}
+        {props && current === 'profile' && <Profile {...props} hasWorkspace={hasWorkspace} />}
         {hasWorkspace && current === 'notifications' && <Notifications workspaceName={workspaceName} />}
         {props && current === 'security' && <SignIn {...props} />}
         {current === 'sessions' && <Sessions />}

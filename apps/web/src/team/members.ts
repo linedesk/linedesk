@@ -1,5 +1,6 @@
-// The workspace's members from the local store (workspace_members: name, picture, role; no emails),
+// The workspace's members from the local store (workspace_members: name, picture version, role; no emails),
 // so assigning works at once and offline. Kept in step with the team by the server.
+import { avatarUrlOf } from '@linedesk/actions'
 import type { WorkspaceMember } from '@linedesk/db/types'
 import { useMemo } from 'react'
 import { useRows } from '../store.tsx'
@@ -23,6 +24,10 @@ export function useMember(userId: string | null): WorkspaceMember | undefined {
 
 /** A member's name; one without a name (or not synced yet) reads "A teammate". */
 export const memberLabel = (m: Pick<WorkspaceMember, 'name'> | undefined) => m?.name.trim() || 'A teammate'
+
+/** A member's profile picture (Account settings › Profile), null without one: the initials show. */
+export const memberAvatar = (m: Pick<WorkspaceMember, 'user_id' | 'avatar_version'> | undefined) =>
+  m ? avatarUrlOf(m.user_id, m.avatar_version) : null
 
 /** The first name, for short labels ("Assign to Sam"). */
 export const firstName = (m: Pick<WorkspaceMember, 'name'> | undefined) => memberLabel(m).split(/\s+/)[0]!

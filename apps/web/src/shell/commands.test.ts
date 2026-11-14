@@ -1,3 +1,5 @@
+import { avatarUrlOf } from '@linedesk/actions'
+import type { Call, WorkspaceMember } from '@linedesk/db/types'
 import { describe, expect, it, vi } from 'vitest'
 import { type CommandContext, commandGroups } from './commands.ts'
 
@@ -77,5 +79,24 @@ describe('⌘K places (LIN-165)', () => {
     const labels = commandGroups(c).flatMap(g => g.items.map(i => i.label))
     expect(labels).not.toContain('Go to Settings')
     expect(labels).not.toContain('Account settings')
+  })
+})
+
+describe('⌘K teammates show their picture (LIN-198)', () => {
+  const member = (user_id: string, name: string, avatar_version: string | null) =>
+    ({ id: `m-${user_id}`, user_id, name, avatar_version }) as unknown as WorkspaceMember
+  const assign = {
+    members: [member('u_1', 'Mike Brennan', 'me1'), member('u_2', 'Sam Ortiz', 'v2'), member('u_3', 'Ana Ruiz', null)],
+    open: vi.fn(),
+    to: vi.fn(),
+    showMember: vi.fn(),
+  }
+
+  it('"Assign to …" and "Go to …\'s calls": the picture, or the initials without one', () => {
+    const c = { ...context(), assign, target: { id: 'c1', assignee_id: null } as unknown as Call, targetName: 'Caller' }
+    expect(find(c, 'Assign to Sam Ortiz')).toMatchObject({ avatar: 'Sam Ortiz', avatarSrc: avatarUrlOf('u_2', 'v2') })
+    expect(find(c, 'Assign to Ana Ruiz')).toMatchObject({ avatar: 'Ana Ruiz', avatarSrc: null })
+    expect(find(c, "Go to Sam Ortiz's calls")).toMatchObject({ avatarSrc: avatarUrlOf('u_2', 'v2') })
+    expect(find(c, "Go to Ana Ruiz's calls")).toMatchObject({ avatarSrc: null })
   })
 })

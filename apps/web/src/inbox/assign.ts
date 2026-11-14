@@ -1,6 +1,6 @@
 // The member picker (A) and the assignee views: which items they list.
 import type { Call, WorkspaceMember } from '@linedesk/db/types'
-import { memberLabel } from '../team/members.ts'
+import { memberAvatar, memberLabel } from '../team/members.ts'
 import type { CommandGroup, CommandItem } from '../ui/CommandMenu.tsx'
 
 export type AssignPick = CommandItem & { userId: string | null }
@@ -15,6 +15,7 @@ export function assignGroups(members: WorkspaceMember[], me: string, calls: Call
   const person = (m: WorkspaceMember): AssignPick => ({
     label: memberLabel(m),
     avatar: memberLabel(m),
+    avatarSrc: memberAvatar(m),
     userId: m.user_id,
     hint: [m.user_id === me && 'you', m.user_id === only && 'assigned'].filter(Boolean).join(' · ') || undefined,
     keywords: m.user_id === me ? 'me mine myself' : undefined,
@@ -39,7 +40,15 @@ export function assigneeViewGroups(members: WorkspaceMember[], me: string): Comm
         { label: 'Unassigned', icon: 'users', tab: 'unassigned', member: null, shortcut: ['G', 'U'], keywords: 'nobody no one' },
         ...members
           .filter(m => m.user_id !== me)
-          .map((m): AssigneeView => ({ label: memberLabel(m), avatar: memberLabel(m), tab: 'member', member: m.user_id })),
+          .map(
+            (m): AssigneeView => ({
+              label: memberLabel(m),
+              avatar: memberLabel(m),
+              avatarSrc: memberAvatar(m),
+              tab: 'member',
+              member: m.user_id,
+            }),
+          ),
       ],
     },
   ]

@@ -9,9 +9,12 @@ import { useEffect, useRef } from 'react'
 import { auth, fetchAuthMethods, type LegalLinks } from '../auth.ts'
 import { setWorkspaceFavicon } from '../brand.ts'
 import { useQuery } from '../cachedQuery.ts'
+import { memberAvatar, useMember } from '../team/members.ts'
 import { useAnchoredList } from '../ui/floating.ts'
 import type { IconName } from '../ui/icons.ts'
-import { Avatar, Icon, Kbd } from '../ui/kit.tsx'
+import { type ImageState, useImageReady } from '../ui/imageReady.ts'
+import { Avatar, cx, Icon, Kbd } from '../ui/kit.tsx'
+import { Skeleton, useLoading } from '../ui/LoadStates.tsx'
 import { refreshInvitations } from './invitations.ts'
 import { useMenu } from './useMenu.ts'
 import { WorkspaceMark, workspaceIconOf } from './WorkspaceMark.tsx'
@@ -53,6 +56,28 @@ export function switcherWorkspaces(all: Workspace[] | null, current: { id: strin
 
 export { workspaceInitial } from './WorkspaceMark.tsx'
 
+/**
+ * The you-row waits while who is signed in is not known yet (the session) or their picture is still on its way;
+ * a picture that failed shows the initials, so it doesn't wait for that.
+ */
+export const youRowLoading = (who: string, picture: ImageState) => !who || picture === 'loading'
+
+/**
+ * The you-row while it waits (docs/design-principles.md rule 15): a round picture and the lines of text that come,
+ * as tall as the row itself. `lines`: 2 until the session is known, then whether there is a name above the email.
+ */
+export function YouRowSkeleton({ lines, reserved }: { lines: 1 | 2; reserved: boolean }) {
+  return (
+    <div className={cx('ws-me', 'ld-busy', reserved && 'is-reserved')} aria-hidden="true">
+      <Skeleton shape="block" className="sk-round" width={24} height={24} />
+      <div>
+        <Skeleton shape="text" width={96} />
+        {lines === 2 && <Skeleton shape="text" width={140} />}
+      </div>
+    </div>
+  )
+}
+
 /** This install's terms, privacy and support links: the last known ones at once, none that are not set. */
 export const loadAuthMethods = () => fetchAuthMethods({ attempts: 1 })
 function useLegalLinks(): LegalLinks | null {
@@ -68,6 +93,8 @@ type Props = {
   toast: (message: string) => void
   /** Set only where POST /v1/workspaces would allow this person to create a workspace. */
   onNewWorkspace?: () => void
+  /** The signed-in member's profile picture as /v1/me had it; their synced member row wins (a picture just changed). */
+  avatarUrl?: string | null
   onAccount: () => void
   onShortcuts: () => void
   onSignOut: () => void
@@ -107,6 +134,7 @@ export function WorkspaceMenu({
   onInvitationsChanged,
   toast,
   onNewWorkspace,
+  avatarUrl,
   onAccount,
   onShortcuts,
   onSignOut,
@@ -123,6 +151,10 @@ export function WorkspaceMenu({
   const user = auth.useSession().data?.user
   const userName = user?.name ?? ''
   const email = user?.email ?? ''
+  const myRow = useMember(user?.id ?? null)
+  const picture = myRow ? memberAvatar(myRow) : (avatarUrl ?? null)
+  // Asked for as soon as the navigation is there, not when the menu opens: by then it is in the browser's cache.
+  const pictureState = useImageReady(picture)
   const items = workspaceMenuItems({ canCreate: !!onNewWorkspace, links })
   const waiting = invitations.length
   const iconUrl = workspaceIconOf(workspaces, id)
@@ -132,6 +164,8 @@ export function WorkspaceMenu({
     return () => setWorkspaceFavicon(null)
   }, [iconUrl])
   const who = userName || email
+  const youRow = useLoading(youRowLoading(who, pictureState))
+  const youLines = who && !(userName && email) ? 1 : 2
   return (
     <div className="ws-wrap" ref={menu.root}>
       <button
@@ -184,14 +218,18 @@ export function WorkspaceMenu({
             role="group"
             aria-label={who ? `Signed in as ${who}${userName && email ? `, ${email}` : ''}` : 'Your account'}
           >
-            {who && (
-              <div className="ws-me" aria-hidden="true" title={email || undefined}>
-                <Avatar name={who} size={24} />
-                <div>
-                  <b>{who}</b>
-                  {userName && email && <small>{email}</small>}
+            {youRow.phase === 'reserve' || youRow.phase === 'skeleton' ? (
+              <YouRowSkeleton lines={youLines} reserved={youRow.phase === 'reserve'} />
+            ) : (
+              who && (
+                <div className={cx('ws-me', youRow.fadeIn && 'ld-in')} aria-hidden="true" title={email || undefined}>
+                  <Avatar name={who} size={24} src={picture} />
+                  <div>
+                    <b>{who}</b>
+                    {userName && email && <small>{email}</small>}
+                  </div>
                 </div>
-              </div>
+              )
             )}
             <Item label="Account settings" icon="user" onClick={menu.choose(onAccount)} />
             <Item label="Keyboard shortcuts" icon="keyboard" keys={['?']} onClick={menu.choose(onShortcuts)} />

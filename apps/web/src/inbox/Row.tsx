@@ -8,7 +8,7 @@ const fullTime = (date: Date) =>
   formatDate(date, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 import type { IconName } from '../ui/icons.ts'
 import { Checkbox } from '../ui/controls.tsx'
-import { memberLabel, useMember } from '../team/members.ts'
+import { memberAvatar, memberLabel, useMember } from '../team/members.ts'
 import { Avatar, Badge, cx, Icon } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { highlight, searchHit } from './search.tsx'
@@ -153,12 +153,13 @@ function SelectBox({
   )
 }
 
-/** The member a call is assigned to: their initials, the name in the tooltip. */
+/** The member a call is assigned to: their picture or initials, the name in the tooltip. */
 function AssigneeMark({ userId }: { userId: string }) {
-  const name = memberLabel(useMember(userId))
+  const assignee = useMember(userId)
+  const name = memberLabel(assignee)
   return (
     <span className="r-assignee" title={`Assigned to ${name}`}>
-      <Avatar name={name} size={20} />
+      <Avatar name={name} size={20} src={memberAvatar(assignee)} />
     </span>
   )
 }

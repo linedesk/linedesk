@@ -48,6 +48,8 @@ export type AdminUser = {
   id: string
   name: string
   email: string
+  /** Their profile picture, null without one (absent from an older API). */
+  avatar_url?: string | null
   created_at: string
   disabled_at: string | null
   last_sign_in_at: string | null
@@ -67,6 +69,8 @@ export type WorkspaceMember = {
   email: string
   role: string
   joined_at: string
+  /** Their profile picture, null without one (absent from an older API). */
+  avatar_url?: string | null
 }
 export type WorkspaceInvitation = {
   id: string

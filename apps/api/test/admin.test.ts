@@ -995,7 +995,10 @@ describe('users', () => {
       instance_admin: true,
       instance_admin_by_env: false,
     })
+    expect(row.avatar_url).toBeNull()
     expect(Object.keys(row).sort()).toEqual([
+      // The profile picture's address (null without one): never the image itself.
+      'avatar_url',
       'created_at',
       'disabled_at',
       'email',
