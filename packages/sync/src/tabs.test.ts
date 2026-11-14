@@ -17,9 +17,11 @@ function browser() {
   function tab(extra: { refresh?: ReadSyncAdapter['refresh'] } & Record<string, unknown> = {}) {
     const sinks = new Map<string, TableSink>()
     let started = 0
-    const adapter: ReadSyncAdapter = { name: 'fake', start: (table, sink) => { started++; sinks.set(table, sink as never); return () => {} }, refresh: extra.refresh }
-    const store = createStore({ api: '', dbName: `tabs${n}`, adapter, retryMs: 5, tabs: hub.link(), ...extra })
-    return { store, sink: (table: string) => sinks.get(table)!, calls: () => sinks.get('calls') as TableSink<'calls'>, syncStarted: () => started > 0 }
+    let syncing = 0
+    const adapter: ReadSyncAdapter = { name: 'fake', start: (table, sink) => { started++; syncing++; sinks.set(table, sink as never); return () => { syncing-- } }, refresh: extra.refresh }
+    const link = hub.link()
+    const store = createStore({ api: '', dbName: `tabs${n}`, adapter, retryMs: 5, tabs: link, ...extra })
+    return { store, link, sink: (table: string) => sinks.get(table)!, calls: () => sinks.get('calls') as TableSink<'calls'>, syncStarted: () => started > 0, syncing: () => syncing > 0 }
   }
   return { tab }
 }
@@ -208,6 +210,38 @@ describe('two tabs on one workspace', () => {
     expect(onFollower).toHaveBeenCalledWith(expect.objectContaining({ action: 'call.markDone', error: 'nope' }))
     expect(onLeader).not.toHaveBeenCalled()
     await eventually(() => expect(first.rows('calls')[0]!.inbox_state).toBe('open')) // rolled back in both
+    first.stop(); second.stop()
+  })
+
+  // Staging: Assistant › Webhook stayed on grey rows in a browser with five tabs open. The leading
+  // tab was frozen in the background: it held the lead, so no other tab read anything again.
+  it('takes the lead from a leader that does not answer, and the empty table it waited for loads', async () => {
+    const { tab } = browser()
+    const a = tab()
+    const first = await a.store
+    a.link.freeze()
+    const b = tab({ leaderAnswerMs: 20 })
+    const second = await b.store
+    expect(second.getSnapshot().synced.has('webhook_endpoints')).toBe(false)
+    await eventually(() => expect(b.syncStarted()).toBe(true))
+    b.sink('webhook_endpoints').saveCursor({ offset: '0_0', handle: 'h' })
+    await eventually(() => expect(second.getSnapshot().synced.has('webhook_endpoints')).toBe(true))
+    expect(a.syncing()).toBe(false) // the frozen tab stopped syncing when it lost the lead
+    first.stop(); second.stop()
+  })
+
+  it('keeps a leader that answers, and hears from it which tables are up to date', async () => {
+    const { tab } = browser()
+    const a = tab()
+    const first = await a.store
+    a.sink('webhook_endpoints').saveCursor({ offset: '0_0', handle: 'h' })
+    await eventually(() => expect(first.getSnapshot().synced.has('webhook_endpoints')).toBe(true))
+    // The cursor on disk is gone (a new app version forgot them), so the new tab learns it from the leader.
+    const b = tab({ leaderAnswerMs: 50, syncVersion: 'next' })
+    const second = await b.store
+    await eventually(() => expect(second.getSnapshot().synced.has('webhook_endpoints')).toBe(true))
+    await quietFor(100)
+    expect([a.syncing(), b.syncStarted()]).toEqual([true, false])
     first.stop(); second.stop()
   })
 })

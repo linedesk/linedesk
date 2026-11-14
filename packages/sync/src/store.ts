@@ -66,6 +66,8 @@ export interface StoreOptions {
   refreshOnStart?: readonly TableName[]
   /** How long a table waited for may show as loading at most; then the local rows show anyway. */
   refreshWaitMs?: number
+  /** How long the leading tab may take to answer a ping before this tab takes the lead (`LEADER_ANSWER_MS`). */
+  leaderAnswerMs?: number
   /** A click or key press in this tab reads the polled tables again once they are older than this. */
   activityRefreshMs?: number
   /** How long read requests fail before the snapshot says `readSyncDown`. */
@@ -109,6 +111,8 @@ const ACTIVITY_REFRESH_MS = 15_000
 const FIRST_TABLES_WAIT_MS = 3000
 /** Read requests that fail this long mean the server can't be reached, not a passing blip. */
 const READ_SYNC_DOWN_MS = 10_000
+/** A leader that answers no ping in this time is frozen or hung (it still holds the lead): another tab takes over. */
+const LEADER_ANSWER_MS = 3000
 
 /**
  * The previous Map of a table when it holds the same rows, else the new one. A row a pending command
@@ -206,6 +210,8 @@ export async function createStore(opts: StoreOptions) {
   const synced = new Set<TableName>()
   /** Tables shown as loading until a refresh answers, with how many refreshes wait for each. */
   const refreshing = new Map<TableName, number>()
+  /** This tab's ping to the leader that is waiting for an answer: its id. */
+  let pinging: string | null = null
   /** This tab's refreshes the leader is reading for, by request id. */
   const askedLeader = new Map<string, { tables?: readonly TableName[]; answered: () => void }>()
   let lastSeq = 0
@@ -418,6 +424,16 @@ export async function createStore(opts: StoreOptions) {
     for (const check of syncedWaiters) check()
   }
 
+  /** Another tab took the lead from this one (it did not answer in time): stop syncing and sending, follow. */
+  function lostLead() {
+    if (!leading) return
+    leading = false
+    stops.forEach(s => s())
+    stops = []
+    clearTimeout(retry)
+    recompute()
+  }
+
   /** Called whenever a table is up to date for the first time; see `whenSynced`. */
   const syncedWaiters = new Set<() => void>()
   /** Resolves once all these tables are up to date (now or in an earlier session), or after `ms`. */
@@ -547,7 +563,24 @@ export async function createStore(opts: StoreOptions) {
     const id = crypto.randomUUID()
     const answered = new Promise<void>(resolve => askedLeader.set(id, { tables, answered: resolve }))
     tabs.post({ type: 'refresh', id, ...(tables ? { tables: [...tables] } : {}) })
+    checkLeader()
     return answered
+  }
+
+  /**
+   * A frozen or hung tab keeps the lead without reading or sending anything, and every other tab
+   * would wait for it forever (a table with no rows stays "loading"). No answer in time: take over.
+   */
+  function checkLeader() {
+    if (leading || stopped || leftTabs || pinging) return
+    const id = crypto.randomUUID()
+    pinging = id
+    tabs.post({ type: 'ping', id })
+    setTimeout(() => {
+      if (pinging !== id) return
+      pinging = null
+      if (!leading && !stopped && !leftTabs) tabs.takeLead()
+    }, opts.leaderAnswerMs ?? LEADER_ANSWER_MS)
   }
 
   function markRefreshing(tables: readonly TableName[], by: 1 | -1) {
@@ -598,7 +631,13 @@ export async function createStore(opts: StoreOptions) {
     else if (m.type === 'remove') removeRows(m.table, m.ids, false)
     else if (m.type === 'online' && !leading) online = m.online
     else if (m.type === 'synced') synced.add(m.table)
-    else if (m.type === 'refused' && !refused) {
+    else if (m.type === 'ping') {
+      if (leading) tabs.post({ type: 'pong', id: m.id, synced: [...synced] })
+      return
+    } else if (m.type === 'pong') {
+      if (pinging === m.id) pinging = null
+      for (const t of m.synced) synced.add(t) // a table caught up before this tab opened, with no cursor on disk
+    } else if (m.type === 'refused' && !refused) {
       refused = m.refusal
       if (!keepsPendingWrites(m.refusal)) {
         discarded += outbox.length // the leader cleared the disk; this tab rolls back what it shows
@@ -683,10 +722,13 @@ export async function createStore(opts: StoreOptions) {
   globalThis.document?.addEventListener('visibilitychange', onBack)
   globalThis.addEventListener?.('pointerdown', onActivity, true)
   globalThis.addEventListener?.('keydown', onActivity, true)
-  tabs.whenLeading(() => void lead())
+  tabs.whenLeading(() => void lead(), lostLead)
   starting = false
   // A tab that opens while another leads: the leader's polled tables may be a minute old.
-  if (!leading) tabs.post({ type: 'refresh', id: crypto.randomUUID() })
+  if (!leading) {
+    tabs.post({ type: 'refresh', id: crypto.randomUUID() })
+    checkLeader()
+  }
   // Back from a redirect: read those tables (in this tab once it leads, else in the leader), then show them.
   if (startWait) void refresh(startWait).finally(() => markRefreshing(startWait, -1))
 
