@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { fetchQuery, forgetQueries, peekQuery, setQueryData, setQueryScope } from './cachedQuery.ts'
+import {
+  fetchQuery,
+  forgetQueries,
+  peekQuery,
+  queryState,
+  setQueryData,
+  setQueryScope,
+  subscribeQuery,
+} from './cachedQuery.ts'
 
 /** A Storage stand-in: the tests run without a browser. */
 function memoryStorage() {
@@ -67,6 +75,42 @@ describe('cached queries', () => {
     expect(peekQuery('zone')).toEqual({ zone: 'America/Denver' })
     await fetchQuery('zone', async () => ({ zone: 'America/Chicago' }))
     expect(peekQuery('zone')).toEqual({ zone: 'America/Chicago' })
+  })
+
+  test('a query on screen when the member or workspace changes loads again for the new one', async () => {
+    // An instance admin without a workspace: Admin is on screen before /v1/me sets the scope.
+    setQueryScope('')
+    const answers = ['admin lists of the old scope', 'admin lists']
+    const load = vi.fn(async () => answers.shift())
+    const seen = vi.fn(() => queryState('admin.data').data)
+    const unsubscribe = subscribeQuery('admin.data', seen)
+    await fetchQuery('admin.data', load)
+    expect(seen).toHaveLastReturnedWith('admin lists of the old scope')
+
+    setQueryScope('admin-1/')
+    // Nothing of the old scope shows under the new one…
+    expect(seen).toHaveLastReturnedWith(undefined)
+    await vi.waitFor(() => expect(seen).toHaveLastReturnedWith('admin lists'))
+    // …and the screen still gets the next answers.
+    expect(load).toHaveBeenCalledTimes(2)
+    const calls = seen.mock.calls.length
+    unsubscribe()
+    await fetchQuery('admin.data', async () => 'later')
+    expect(seen).toHaveBeenCalledTimes(calls)
+  })
+
+  test('an answer of the old scope still on its way does not show under the new one', async () => {
+    const answers: ((value: string) => void)[] = []
+    const unsubscribe = subscribeQuery('team', () => {})
+    void fetchQuery('team', () => new Promise<string>(resolve => answers.push(resolve)))
+    setQueryScope('member-2/ws-1')
+    expect(answers).toHaveLength(2) // loaded again for member-2
+    answers[0]?.('team of member-1')
+    await Promise.resolve()
+    expect(peekQuery('team')).toBeUndefined()
+    answers[1]?.('team of member-2')
+    await vi.waitFor(() => expect(peekQuery('team')).toBe('team of member-2'))
+    unsubscribe()
   })
 
   test("sign-out forgets every member's answers but keeps what the sign-in page shows", async () => {

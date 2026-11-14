@@ -87,12 +87,26 @@ function publish(key: string, entry: Entry, state: QueryState<unknown>) {
 
 /**
  * The member and workspace the cached answers belong to. Changing it starts with an empty memory;
- * persisted answers of the new scope are read when they are first used.
+ * persisted answers of the new scope are read when they are first used. A query that is on screen
+ * stays subscribed: it shows the new scope's answer (empty, or the stored one) at once and loads again.
  */
 export function setQueryScope(next: string) {
   if (next === scope) return
   scope = next
+  const shown = [...entries].filter(([, entry]) => entry.listeners.size > 0)
   entries.clear()
+  for (const [key, old] of shown) {
+    const entry = entryFor(key, old.persist)
+    // The same set, so the component's unsubscribe still finds its listener; an answer of the old scope
+    // still on its way lands in the old entry, which nobody listens to any more.
+    entry.listeners = old.listeners
+    old.listeners = new Set()
+    entry.load = old.load
+    entry.freshMs = old.freshMs
+    entry.idle = old.idle
+    for (const listener of entry.listeners) listener()
+    void fetchQuery(key)
+  }
 }
 
 /** Loads the query now (once at a time) and shares the answer. A failure keeps the last answer. */
@@ -181,22 +195,29 @@ if (typeof window !== 'undefined') {
   })
 }
 
+/** Calls `listener` whenever the query's answer changes (what a component showing it does); returns the unsubscribe. */
+export function subscribeQuery(key: string, listener: () => void, options: Options = {}): () => void {
+  // The set, not the entry: after a scope change the set moves to the new scope's entry (setQueryScope).
+  const listeners = entryFor(key, options.persist).listeners
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
+/** The query's state right now, without loading. */
+export const queryState = <T>(key: string, options: Options = {}): QueryState<T> =>
+  entryFor(key, options.persist).state as QueryState<T>
+
 /**
  * A query's last answer, at once, and a fresh one in the background. `key` names what is loaded
  * (one key, one loader); null loads nothing.
  */
 export function useQuery<T>(key: string | null, load: () => Promise<T>, options: Options = {}): Query<T> {
   const subscribe = useCallback(
-    (listener: () => void) => {
-      if (!key) return () => {}
-      const entry = entryFor(key, options.persist)
-      entry.listeners.add(listener)
-      return () => entry.listeners.delete(listener)
-    },
+    (listener: () => void) => (key ? subscribeQuery(key, listener, { persist: options.persist }) : () => {}),
     [key, options.persist],
   )
   const state = useSyncExternalStore(subscribe, () =>
-    key ? entryFor(key, options.persist).state : EMPTY,
+    key ? queryState(key, { persist: options.persist }) : EMPTY,
   ) as QueryState<T>
   // biome-ignore lint/correctness/useExhaustiveDependencies: the loader is read when it runs; a new function each render must not load again
   useEffect(() => {
