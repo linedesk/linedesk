@@ -1008,3 +1008,41 @@ a.as-chip:hover {
   min-width: 0;
   width: 100%;
 }
+
+/* Public holidays: the calendar row, the list heading, shorter hours, every year */
+.hd-calendar {
+  margin-bottom: 16px;
+}
+.hd-heading {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.hd-more {
+  margin-top: 4px;
+}
+.hd-hours {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 10px;
+}
+.hd-yearly {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* Public holidays dialog: country and state side by side */
+.hd-place {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+@media (max-width: 520px) {
+  .hd-place {
+    grid-template-columns: 1fr;
+  }
+}

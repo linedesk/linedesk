@@ -37,6 +37,7 @@ import { teamHandlers } from './team.ts'
 import { transferHandlers } from './transfers.ts'
 import { insightsHandlers } from './insights.ts'
 import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
+import { publicHolidayHandlers } from './public-holidays.ts'
 import { checkAssistantVoice, releaseUnusedClones, voiceHandlers, voicePreparers } from './voices.ts'
 import { sampleHandlers } from './sample-calls.ts'
 import { goLiveChecklistHandlers } from './go-live-checklist.ts'
@@ -440,6 +441,7 @@ const handlers: Record<string, Handler> = {
   ...teamHandlers,
   ...membershipHandlers,
   ...workspaceSettingsHandlers,
+  ...publicHolidayHandlers,
   ...insightsHandlers,
   ...transferHandlers,
   ...voiceHandlers,

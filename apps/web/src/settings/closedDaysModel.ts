@@ -1,7 +1,7 @@
 // Holidays, closure days and vacation mode without React: dates in the workspace's time zone
 // and the labels the page shows.
-import type { ClosedDay } from '@linedesk/actions'
-import type { Closure } from '@linedesk/db/types'
+import type { ClosedDay, DerivedDay } from '@linedesk/actions'
+import type { Closure, HolidayCalendar, HolidayChange } from '@linedesk/db/types'
 import { timeOptionLabel } from './businessHoursModel.ts'
 
 /** Today's date (YYYY-MM-DD) in a time zone. */
@@ -52,7 +52,12 @@ export function closureSummary(c: Closure, today: string): string {
 
 /** "Monday, January 5". */
 const longDate = (date: string) =>
-  new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })
+  new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'UTC',
+  })
 
 /** What the assistant says while closed, until the owner writes their own. */
 export const defaultClosureGreeting = (until: string) =>
@@ -60,7 +65,97 @@ export const defaultClosureGreeting = (until: string) =>
 
 /** Why the closure cannot be saved; null when it can. */
 export function closureProblem(c: Closure): string | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(c.from) || !/^\d{4}-\d{2}-\d{2}$/.test(c.until)) return 'Pick the first and the last day.'
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(c.from) || !/^\d{4}-\d{2}-\d{2}$/.test(c.until))
+    return 'Pick the first and the last day.'
   if (c.until < c.from) return 'The last day cannot be before the first.'
   return null
+}
+
+/**
+ * One line of "Next closed days": an own day, a public holiday, a later year of a yearly day, or a holiday or
+ * yearly day the business opens on this year (`opened`, shown dimmed so it can be closed again).
+ */
+export type UpcomingDay = {
+  date: string
+  name: string
+  start: string | null
+  end: string | null
+  kind: 'own' | 'holiday' | 'repeat' | 'opened'
+  /** holiday: its name every year; repeat: the date of the own day it repeats. */
+  key: string
+  /** own: closed on this date every year. */
+  yearly: boolean
+  /** holiday or repeat: its hours are changed for this year. */
+  changed: boolean
+}
+
+/** Own days, holidays, repeats and the days opened this year, from today, by date. */
+export function upcomingDays(
+  own: readonly ClosedDay[],
+  derived: readonly DerivedDay[],
+  calendar: HolidayCalendar | null,
+  today: string,
+): UpcomingDay[] {
+  const changes = new Map((calendar?.changes ?? []).map(c => [c.date, c]))
+  const days: UpcomingDay[] = [
+    ...own
+      .filter(d => d.date >= today)
+      .map(d => ({ ...d, kind: 'own' as const, key: d.date, yearly: !!d.yearly, changed: false })),
+    ...derived.map(d => ({
+      date: d.date,
+      name: d.name,
+      start: d.start,
+      end: d.end,
+      kind: d.source,
+      key: d.key,
+      yearly: false,
+      changed: !!changes.get(d.date) && !changes.get(d.date)!.open,
+    })),
+    ...(calendar?.changes ?? [])
+      .filter(c => c.open && c.date >= today)
+      .map(c => ({
+        date: c.date,
+        name: c.name,
+        start: null,
+        end: null,
+        kind: 'opened' as const,
+        key: c.date,
+        yearly: false,
+        changed: true,
+      })),
+  ]
+  return days.sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/** The calendar with one date's change replaced (`change` null: the date as the calendar has it). */
+export function withChange(calendar: HolidayCalendar, date: string, change: HolidayChange | null): HolidayCalendar {
+  const changes = calendar.changes.filter(c => c.date !== date)
+  return { ...calendar, changes: change ? [...changes, change].sort((a, b) => a.date.localeCompare(b.date)) : changes }
+}
+
+/**
+ * The derived days as they will be after `next`, as far as the browser can tell without the holiday data:
+ * holidays switched off or opened are gone, changed hours are in. The server's answer replaces it.
+ */
+export function derivedAfter(derived: readonly DerivedDay[], next: HolidayCalendar): DerivedDay[] {
+  const off = new Set(next.off)
+  const changes = new Map(next.changes.map(c => [c.date, c]))
+  return derived
+    .filter(d => !(d.source === 'holiday' && (!next.on || off.has(d.key))) && !changes.get(d.date)?.open)
+    .map(d => {
+      const change = changes.get(d.date)
+      return change ? { ...d, start: change.start, end: change.end } : d
+    })
+}
+
+/** "United States · California · open on 2 holidays". */
+export function calendarSummary(calendar: HolidayCalendar, countryName: string, stateName: string | null): string {
+  const open = calendar.off.length
+  return [
+    countryName,
+    stateName ?? 'Nationwide',
+    open ? `open on ${open === 1 ? '1 holiday' : `${open} holidays`}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }

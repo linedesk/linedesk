@@ -32,6 +32,7 @@ import {
   type CallerDetails,
   type CallVoiceFailure,
   type Closure,
+  type HolidayCalendar,
   type ToolEvent,
   type TransferContact,
   type WebhookEvent,
@@ -363,6 +364,8 @@ export const workspace_settings = pgTable('workspace_settings', {
     .default('default'),
   /** Vacation or closure mode: closed on these dates whatever the hours say, with its own greeting; null: off. */
   closure: jsonb('closure').$type<Closure>(),
+  /** The public holiday calendar the workspace follows; null: never set up. */
+  holidays: jsonb('holidays').$type<HolidayCalendar>(),
   /** What a booked job is worth on average, in cents, for Insights ("≈ $X in booked work"). null: not set. */
   job_value_cents: integer('job_value_cents'),
   /** The currency of job_value_cents (ISO 4217, one of jobValueCurrencies in @linedesk/actions). */
@@ -442,6 +445,18 @@ export const availability_exceptions = pgTable(
     name: text('name').notNull().default(''),
     start_time: time('start_time'),
     end_time: time('end_time'),
+    /**
+     * `own`: added by the owner. `holiday`: from the workspace's holiday calendar (workspace_settings.holidays),
+     * `repeat`: a later year of an own yearly day; both written by syncDerivedDays (apps/api/src/public-holidays.ts),
+     * never by hand, and from today on replaced at each sync.
+     */
+    source: text('source', { enum: ['own', 'holiday', 'repeat'] })
+      .notNull()
+      .default('own'),
+    /** `holiday`: the holiday's name (its key in `off`); `repeat`: the date of the own yearly day it repeats. */
+    source_key: text('source_key'),
+    /** Own days only: closed on this date every year. */
+    yearly: boolean('yearly').notNull().default(false),
     created_at: createdAt(),
     version: version(),
   },

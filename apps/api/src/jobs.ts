@@ -15,6 +15,7 @@ import { evaluateCall, evaluationModel } from './evaluations.ts'
 import { notifyCallPush, type PushKind, pushSender } from './push.ts'
 import { deleteCallRecording, deleteExpiredRecordings } from './recording-retention.ts'
 import { pruneOldCommands } from './command-log.ts'
+import { syncDerivedDays, workspacesWithDerivedDays } from './public-holidays.ts'
 import { recordingStoreCache } from './recording-store.ts'
 import { deleteClonedVoice } from './voices.ts'
 import { sendDueSetupEmails } from './setup-emails.ts'
@@ -57,6 +58,9 @@ const WEBHOOK_CLEANUP_CRON = '37 3 * * *'
 /** Daily: command log inputs and results older than 90 days keep only ids (command-log.ts). */
 export const COMMAND_PRUNE = 'commands.prune'
 const COMMAND_PRUNE_CRON = '47 3 * * *'
+/** Daily: the public holidays and yearly days of the next twelve months move one day on (public-holidays.ts). */
+export const HOLIDAY_SYNC = 'holidays.sync'
+const HOLIDAY_SYNC_CRON = '17 2 * * *'
 /** One forwarding check (forwarding-check.ts): dials, waits up to a minute, never retried (each try is a real call). */
 export const FORWARDING_CHECK = 'forwarding.check'
 /** Checks one API process runs at the same time; each mostly waits on the phone ringing. */
@@ -122,6 +126,13 @@ async function runJobs(instance: PgBoss, env: Env) {
   await instance.work(SETUP_EMAILS, async () => sendDueSetupEmails(db, emailSender))
   await instance.schedule(COMMAND_PRUNE, COMMAND_PRUNE_CRON)
   await instance.work(COMMAND_PRUNE, async () => ({ pruned: await pruneOldCommands(db) }))
+  await instance.schedule(HOLIDAY_SYNC, HOLIDAY_SYNC_CRON)
+  await instance.work(HOLIDAY_SYNC, async () => {
+    // One transaction per workspace, so a long run holds no locks for long.
+    const ids = await workspacesWithDerivedDays(db)
+    for (const id of ids) await db.transaction(tx => syncDerivedDays(tx, id))
+    return { workspaces: ids.length }
+  })
   await instance.schedule(WEBHOOK_CLEANUP, WEBHOOK_CLEANUP_CRON)
   await instance.work(WEBHOOK_CLEANUP, async () => ({ cleared: await clearOldPayloads(db) }))
   // Several at once, so a few slow endpoints (each up to the 10 s timeout) do not hold up everyone's deliveries.
@@ -154,6 +165,7 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(FORWARDING_CHECK, { retryLimit: 0, expireInSeconds: 180 })
   await instance.createQueue(WEBHOOK_CLEANUP)
   await instance.createQueue(COMMAND_PRUNE)
+  await instance.createQueue(HOLIDAY_SYNC)
   await instance.createQueue(SETUP_EMAILS)
   await instance.createQueue(VOICE_DELETE, { retryLimit: 24, retryDelay: 3600 })
   await instance.createQueue(WEBHOOK_DELIVER, { retryLimit: WEBHOOK_ATTEMPTS - 1, retryDelay: 60, retryBackoff: true })

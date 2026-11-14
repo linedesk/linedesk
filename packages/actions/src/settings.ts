@@ -5,7 +5,7 @@ import {
   COMMUNICATION_STYLES,
   REMOVED_BEHAVIOUR_IDS,
 } from './assistant-prompt.ts'
-import type { Closure } from '@linedesk/db/types'
+import type { Closure, HolidayCalendar } from '@linedesk/db/types'
 import { z } from 'zod'
 import { ASSISTANT_CALL_MAX_MINUTES } from './calls.ts'
 import { defineAction } from './define.ts'
@@ -377,8 +377,12 @@ export type WorkspaceSettingsData = {
   businessHours: BusinessHoursSpan[]
   businessHoursOn: boolean
   recordingOn: boolean
-  /** Holidays and other days with their own hours (availability_exceptions), by date; missing from an older API. */
+  /** The owner's own closed days (availability_exceptions, source `own`), by date; missing from an older API. */
   closedDays?: ClosedDay[]
+  /** The public holiday calendar; null: never set up. Missing from an older API. */
+  holidays?: HolidayCalendar | null
+  /** From today: the days the holiday calendar and the yearly own days close, by date. Missing from an older API. */
+  derivedDays?: DerivedDay[]
   /** Vacation or closure mode; null: off. Missing from an older API. */
   closure?: Closure | null
   /** The value of one booked job in cents (Insights); null: not set. */
@@ -396,8 +400,24 @@ export type WorkspaceSettingsData = {
 export const pickupModes = ['no_answer', 'always', 'after_hours'] as const
 export type PickupMode = (typeof pickupModes)[number]
 
-/** A holiday or closure day: closed all day (no times) or open only `start`–`end`. */
-export type ClosedDay = { date: string; name: string; start: string | null; end: string | null }
+/**
+ * An own closed day: closed all day (no times) or open only `start`–`end`; `yearly`: on this date every
+ * year (missing from an older API: no).
+ */
+export type ClosedDay = { date: string; name: string; start: string | null; end: string | null; yearly?: boolean }
+
+/**
+ * A day closed by the holiday calendar (`holiday`, `key` the holiday's name) or a later year of an own yearly
+ * day (`repeat`, `key` the date of the own day it repeats).
+ */
+export type DerivedDay = {
+  date: string
+  name: string
+  start: string | null
+  end: string | null
+  source: 'holiday' | 'repeat'
+  key: string
+}
 
 /** A real IANA time zone ("America/Los_Angeles"), as the server's and the browser's Intl know it. */
 export function isTimeZone(value: string): boolean {
@@ -443,7 +463,7 @@ export const businessHoursSet = defineAction({
 export const closedDaysSet = defineAction({
   name: 'closedDays.set',
   description:
-    'Set the holidays and other closure days: dates (YYYY-MM-DD, in the workspace time zone) when the business is closed all day, or open only `start`–`end`. Replaces the whole list. The assistant treats them as closed (or as those hours) and books no appointments outside them.',
+    'Set the own closed days (holidays the business adds itself, closures): dates (YYYY-MM-DD, in the workspace time zone) when the business is closed all day, or open only `start`–`end`; `yearly` repeats a day on the same date every year. Replaces the whole own list; the public holidays are set with holidays.set. The assistant treats them as closed (or as those hours) and books no appointments outside them.',
   input: z.object({
     days: z
       .array(
@@ -453,6 +473,7 @@ export const closedDaysSet = defineAction({
             name: z.string().trim().max(80).default(''),
             start: clockTime.nullable().default(null),
             end: clockTime.nullable().default(null),
+            yearly: z.boolean().default(false),
           })
           .refine(d => (d.start === null) === (d.end === null) && (d.start === null || d.end! > d.start), {
             message: 'a day open part-time needs an end after its start',
@@ -461,6 +482,65 @@ export const closedDaysSet = defineAction({
       .max(200),
   }),
   permission: 'settings:write',
+})
+
+const countryCode = z.string().regex(/^[A-Z]{2}$/, 'a country code like US')
+const stateCode = z.string().regex(/^[A-Z0-9]{1,3}$/, 'a state code like CA')
+
+export const holidaysSet = defineAction({
+  name: 'holidays.set',
+  description:
+    'Set the public holiday calendar: `on`, the `country` (ISO 3166 code like "US") and `state` (like "CA", or null for the nationwide holidays only) whose holidays close the business every year; `off` the holidays (by name, from holidays.lookup) it is open on every year; `changes` single dates of this year that differ: `open` true, or open only `start`–`end`. Replaces the whole calendar. The days are kept for the next twelve months, every year.',
+  input: z.object({
+    on: z.boolean(),
+    country: countryCode,
+    state: stateCode.nullable().default(null),
+    off: z.array(z.string().trim().min(1).max(80)).max(100).default([]),
+    changes: z
+      .array(
+        z
+          .object({
+            date: isoDate,
+            name: z.string().trim().max(80).default(''),
+            open: z.boolean().default(false),
+            start: clockTime.nullable().default(null),
+            end: clockTime.nullable().default(null),
+          })
+          .refine(c => c.open || (c.start !== null && c.end !== null && c.end > c.start), {
+            message: 'a changed day is open, or open from a start to a later end',
+          }),
+      )
+      .max(100)
+      .default([]),
+  }),
+  permission: 'settings:write',
+})
+
+/** A country or one of its states (or regions), as the public-holiday import lists them. */
+export type HolidayPlace = { code: string; name: string }
+
+/** `data` of `holidays.lookup`: what the import offers for the picked country and state. */
+export type HolidayLookupData = {
+  countries: HolidayPlace[]
+  /** The country looked up: the one asked for, else the workspace time zone's, else the US. */
+  country: string
+  /** Its states or regions; empty when it has none. */
+  states: HolidayPlace[]
+  state: string | null
+  /** Each public holiday of the next twelve months once, by its next date: `key` its name every year. */
+  holidays: { key: string; date: string; name: string }[]
+}
+
+export const holidaysLookup = defineAction({
+  name: 'holidays.lookup',
+  description:
+    'Look up the public holidays of a country (ISO 3166 code like "US") and, optionally, one of its states or regions (like "CA"), from today for a year in the workspace time zone. Without a country it uses the one of the workspace time zone. Changes nothing: follow a calendar with holidays.set.',
+  input: z.object({
+    country: countryCode.optional(),
+    state: stateCode.optional(),
+  }),
+  permission: 'call:read',
+  readOnly: true,
 })
 
 export const workspaceGetSettings = defineAction({

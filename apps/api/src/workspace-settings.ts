@@ -10,8 +10,9 @@ import {
 } from '@linedesk/actions'
 import type { Closure } from '@linedesk/db/types'
 import { availability_exceptions, availability_rules, organization, type Tx, workspace_settings } from '@linedesk/db'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
+import { derivedDaysOf, syncDerivedDays } from './public-holidays.ts'
 import { activeProvider } from './provider-settings.ts'
 
 /**
@@ -46,6 +47,8 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
         .sort((a, b) => a.weekday - b.weekday || a.start.localeCompare(b.start)),
       recordingOn: await recordingOn(tx),
       closedDays: await closedDaysOf(tx, actor.workspaceId),
+      holidays: row?.holidays ?? null,
+      derivedDays: await derivedDaysOf(tx, actor.workspaceId, row?.timezone ?? DEFAULT_TIME_ZONE),
       closure: row?.closure ?? null,
       jobValueCents: row?.job_value_cents ?? null,
       jobValueCurrency: row?.job_value_currency ?? 'USD',
@@ -98,6 +101,8 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       .values({ workspace_id: actor.workspaceId, timezone: DEFAULT_TIME_ZONE, ...set })
       .onConflictDoUpdate({ target: workspace_settings.workspace_id, set })
       .returning()
+    // A new time zone moves "today", from which the holidays and yearly days are kept.
+    if (input.timeZone !== undefined) await syncDerivedDays(tx, actor.workspaceId)
     return {
       rows: {},
       data: {
@@ -150,7 +155,10 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
     const workspace_id = actor.workspaceId
     const dates = new Set(input.days.map(d => d.date))
     if (dates.size !== input.days.length) throw new Reject('each date can be in the list once')
-    await tx.delete(availability_exceptions).where(eq(availability_exceptions.workspace_id, workspace_id))
+    // Only the own days: the holidays and the later years of yearly days are written by syncDerivedDays.
+    await tx
+      .delete(availability_exceptions)
+      .where(and(eq(availability_exceptions.workspace_id, workspace_id), eq(availability_exceptions.source, 'own')))
     if (input.days.length) {
       await tx.insert(availability_exceptions).values(
         input.days.map(d => ({
@@ -160,25 +168,38 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
           name: d.name,
           start_time: d.start,
           end_time: d.end,
+          yearly: d.yearly ?? false,
         })),
       )
     }
-    return { rows: {}, data: { closedDays: await closedDaysOf(tx, workspace_id) } }
+    await syncDerivedDays(tx, workspace_id)
+    const [settings] = await tx
+      .select({ timezone: workspace_settings.timezone })
+      .from(workspace_settings)
+      .where(eq(workspace_settings.workspace_id, workspace_id))
+    return {
+      rows: {},
+      data: {
+        closedDays: await closedDaysOf(tx, workspace_id),
+        derivedDays: await derivedDaysOf(tx, workspace_id, settings?.timezone ?? DEFAULT_TIME_ZONE),
+      },
+    }
   },
 }
 
-/** The workspace's holidays and closure days, by date. */
+/** The workspace's own closed days, by date. */
 async function closedDaysOf(tx: Tx, workspaceId: string): Promise<ClosedDay[]> {
   const rows = await tx
     .select()
     .from(availability_exceptions)
-    .where(eq(availability_exceptions.workspace_id, workspaceId))
+    .where(and(eq(availability_exceptions.workspace_id, workspaceId), eq(availability_exceptions.source, 'own')))
   return rows
     .map(r => ({
       date: r.date,
       name: r.name,
       start: r.start_time?.slice(0, 5) ?? null,
       end: r.end_time?.slice(0, 5) ?? null,
+      yearly: r.yearly,
     }))
     .sort((a, b) => a.date.localeCompare(b.date))
 }

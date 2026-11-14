@@ -137,6 +137,8 @@ const all = [
   settings.workspaceRename,
   settings.businessHoursSet,
   settings.closedDaysSet,
+  settings.holidaysLookup,
+  settings.holidaysSet,
   sample.sampleAdd,
   sample.sampleRemove,
   notifications.notificationsGet,

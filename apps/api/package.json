@@ -27,6 +27,7 @@
     "@modelcontextprotocol/server": "2.4.0",
     "aws4fetch": "^1.0.20",
     "better-auth": "^1.7.19",
+    "date-holidays": "3.39.1",
     "drizzle-orm": "^0.45.4",
     "hono": "^4.13.17",
     "nodemailer": "^10.5.0",

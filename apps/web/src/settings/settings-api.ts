@@ -3,7 +3,7 @@
 import type { ActionResult, WorkspaceSettingsData } from '@linedesk/actions'
 import { useCallback } from 'react'
 import { useStore } from '../store.tsx'
-import { fetchQuery, setQueryData, useQuery } from '../cachedQuery.ts'
+import { fetchQuery, refreshQuery, setQueryData, useQuery } from '../cachedQuery.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 
 /** Runs a read-only registry action and returns its `data`. */
@@ -28,7 +28,8 @@ async function runDirect(name: string, input: object): Promise<ActionResult> {
     body: JSON.stringify(input),
   }).catch(() => null)
   const body = (await res?.json().catch(() => null)) as ActionResult | { ok: false; error?: string } | null
-  if (!res?.ok || !body?.ok) throw new Error((body && !body.ok && body.error) || 'No connection to the server. Try again.')
+  if (!res?.ok || !body?.ok)
+    throw new Error((body && !body.ok && body.error) || 'No connection to the server. Try again.')
   return body
 }
 
@@ -48,7 +49,7 @@ export async function callAction<T>(name: string, input: object = {}): Promise<T
 export function useWriteAction() {
   const store = useStore()
   return useCallback(
-    async <T,>(name: string, input: object = {}): Promise<T> => {
+    async <T>(name: string, input: object = {}): Promise<T> => {
       const result = await runDirect(name, input)
       store.applyResult(result)
       return result.data as T
@@ -63,9 +64,14 @@ const loadWorkspaceSettings = () => readAction<WorkspaceSettingsData>('workspace
 /** The workspace's settings (hours, recordings): the last known at once, checked again in the background. */
 export const useWorkspaceSettings = () => useQuery(WORKSPACE_SETTINGS, loadWorkspaceSettings, { persist: true })
 
+/** Reads the settings again: after a change whose result the page could not tell itself. */
+export const refreshWorkspaceSettings = () => refreshQuery(WORKSPACE_SETTINGS)
+
 /** Loads the settings ahead, at app start, so Settings and Assistant open with them. */
 export const preloadWorkspaceSettings = () => fetchQuery(WORKSPACE_SETTINGS, loadWorkspaceSettings, { persist: true })
 
 /** After a change the page sent through the outbox: show it at once, like the local store does. */
 export const patchWorkspaceSettings = (change: Partial<WorkspaceSettingsData>) =>
-  setQueryData<WorkspaceSettingsData | undefined>(WORKSPACE_SETTINGS, s => (s ? { ...s, ...change } : s), { persist: true })
+  setQueryData<WorkspaceSettingsData | undefined>(WORKSPACE_SETTINGS, s => (s ? { ...s, ...change } : s), {
+    persist: true,
+  })

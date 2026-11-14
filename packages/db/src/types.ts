@@ -83,6 +83,20 @@ export const DEFAULT_TRANSFERS: TransferContact[] = [
  * usual). Nobody is put through: every call gets a message. A `transfers` key saved by an older release is ignored.
  */
 export type Closure = { from: string; until: string; greeting: string }
+/**
+ * The public holiday calendar a workspace follows (Settings › Assistant › Hours & holidays): its holidays are
+ * written into availability_exceptions (source `holiday`) for the next twelve months and kept rolling by a daily
+ * job. `off`: holidays (by name, so every year) the business is open on. `changes`: one date of a holiday or a
+ * yearly day changed for that year only: open (`open`), or open only `start`–`end`.
+ */
+export type HolidayCalendar = {
+  on: boolean
+  country: string
+  state: string | null
+  off: string[]
+  changes: HolidayChange[]
+}
+export type HolidayChange = { date: string; name: string; open: boolean; start: string | null; end: string | null }
 /** The main language an assistant speaks (missing: English) and the ones besides it (`languages.ts` in @linedesk/actions validates the codes). */
 export type AssistantLanguages = { main?: string; mode: 'english' | 'allowed' | 'any'; allowed: string[] }
 export type BusinessProfile = {
