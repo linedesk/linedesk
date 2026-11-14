@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { sentryVitePlugin } from '@sentry/vite-plugin'
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv, type ServerOptions } from 'vite'
 
@@ -10,12 +11,36 @@ function latestMigration(): string {
   return (journal as { entries: { tag: string }[] }).entries.at(-1)?.tag ?? 'none'
 }
 
+/**
+ * Readable stacks in Sentry (docs/ci.md, "Sentry source maps"): only when the build is given a token, an
+ * organization and a project (the staging and production image builds), the build writes source maps without a
+ * link to them in the scripts, uploads them to Sentry with debug IDs and deletes them. Any other build (local,
+ * pull requests, self-hosters) has none, as before.
+ */
+function sentrySourceMaps(env: NodeJS.ProcessEnv) {
+  const { SENTRY_AUTH_TOKEN: authToken, SENTRY_ORG: org, SENTRY_PROJECT: project } = env
+  if (!authToken || !org || !project) return null
+  return sentryVitePlugin({
+    authToken,
+    org,
+    project,
+    url: env.SENTRY_URL || undefined,
+    telemetry: false,
+    // Matched by debug ID, not by release: no release is created, and the app keeps naming its own (VITE_APP_BUILD).
+    release: { create: false, finalize: false, inject: false },
+    sourcemaps: { filesToDeleteAfterUpload: ['./dist/**/*.map'] },
+  })
+}
+
 // The API is proxied so the browser sees one origin (session cookie, no CORS).
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '../..', '')
   const api = `http://localhost:${env.PORT ?? 3100}`
+  // From the build's own environment only, never from .env: a token kept there for the Sentry API must not upload.
+  const sentry = sentrySourceMaps(process.env)
   return {
-    plugins: [react()],
+    plugins: sentry ? [react(), sentry] : [react()],
+    build: { sourcemap: sentry ? 'hidden' : false },
     // The build's version: names the service worker's cache (src/serviceWorker.ts), one per deploy.
     // The schema: when a deploy brings a migration, the local store loads every table once more (storeCache.ts).
     define: {

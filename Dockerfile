@@ -39,7 +39,14 @@ COPY --from=manifests /app .
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile --filter "@linedesk/web..."
 COPY . .
-RUN pnpm --filter @linedesk/web build
+# Source maps for Sentry (docs/ci.md, "Sentry source maps"): only the staging and production builds pass the secret
+# `sentry_auth_token` and these arguments. The token is mounted for this step alone, never stored in a layer; the maps
+# are uploaded and deleted here, so the web image never serves them, also when the upload failed.
+ARG SENTRY_ORG
+ARG SENTRY_PROJECT
+RUN --mount=type=secret,id=sentry_auth_token \
+    SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token 2>/dev/null || true)" pnpm --filter @linedesk/web build \
+    && find apps/web/dist -name "*.map" -delete
 
 FROM caddy:2-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0 AS web
 COPY docker/web.Caddyfile /etc/caddy/Caddyfile
