@@ -22,6 +22,11 @@
   align-items: center;
   gap: 10px;
 }
+/* The admin's passkey above the server's parts (StatusList): one list to the eye, the same line between rows. */
+.is-passkey-row + .adm-health .adm-health-row:first-child {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
 
 /* The parts list on its own in a card: no indent (on Admin › Overview it sits under the headline's mark). */
 .as-card > .adm-health {

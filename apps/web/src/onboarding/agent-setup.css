@@ -53,6 +53,17 @@
   background: var(--action);
   color: var(--on-action);
 }
+/* The agent's own mark left of its name, the same size for every agent; "Other" (no brand) muted until chosen. */
+.as-agent-mark {
+  flex: none;
+  display: block;
+}
+.as-agent-mark.is-muted {
+  color: var(--ink-muted);
+}
+.as-agent.on .as-agent-mark.is-muted {
+  color: inherit;
+}
 .as-agent:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
@@ -104,6 +115,62 @@
 }
 .as-steps > li.as-later {
   color: var(--ink-muted);
+}
+/* Step 1 done (the passkey): one line with the works mark in place of its number, so step 2 leads. */
+.as-steps > li.as-passed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 32px;
+  color: var(--ink);
+}
+.as-steps > li.as-passed::before {
+  content: none;
+}
+.as-steps > li.as-passed .as-passed-mark {
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.as-steps > li .as-skel {
+  height: 20px;
+  width: 60%;
+}
+.as-why {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.as-code-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 320px;
+}
+.as-code-field > :first-child {
+  flex: 1;
+}
+/* The quiet way out to Account › Sign-in & security (a new tab), next to Try again. */
+.as-quiet-link {
+  font-size: 12px;
+  color: var(--ink-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.as-quiet-link:hover {
+  color: var(--ink);
+}
+/* Why the passkey was not added: the words first, Try again and the way to Account › Security under them. */
+.as-passkey-note {
+  flex-wrap: wrap;
+}
+.as-passkey-note .k-note-action {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: 12px;
+  padding-left: 26px;
 }
 .as-step {
   display: grid;
@@ -178,7 +245,7 @@
   border-radius: 50%;
   background: var(--live-ok);
 }
-/* One part of the setup (You, This server, Your business): a small label over its steps, like the admin's side labels. */
+/* One part of the setup (Security, This server, Your business): a small label over its steps, like the admin's side labels. */
 .as-group {
   display: grid;
   gap: 2px;
@@ -209,7 +276,19 @@
 .as-item.done {
   color: var(--ink);
 }
-.as-item .as-small {
+/* The industry term or usual providers next to a step's name: quieter than the name. */
+.as-hint {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+.as-group-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 2px;
+}
+.as-item .as-small,
+.as-item .as-item-action {
   margin-left: auto;
 }
 .as-mark {
@@ -254,4 +333,30 @@
 }
 .as-manual:hover {
   color: var(--ink-muted);
+}
+/* The start page of an admin without a workspace (AdminStart.tsx): the steps card, then the way by hand under it. */
+.as-start .as-card {
+  text-align: left;
+}
+.as-byhand {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+}
+.as-manual-center {
+  align-self: center;
+}
+.as-byhand-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+/* On the start page (inside .auth-card), the kit's input keeps its own frame, not the sign-in page's input style. */
+.auth-card .as-card .k-input input {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }

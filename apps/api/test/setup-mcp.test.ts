@@ -128,6 +128,13 @@ describe('setup keys', () => {
     const groupOf = (id: string) => body.progress.steps.find((s: { id: string }) => s.id === id)?.group
     expect(groupOf('telephony')).toBe('server')
     expect(groupOf('workspace')).toBe('business')
+    // Named like the app's own places, with the industry term where it helps (setupStepNames).
+    const step = (id: string) => body.progress.steps.find((s: { id: string }) => s.id === id)
+    expect(step('notify')).toMatchObject({ label: 'Notifications' })
+    expect(step('telephony')).toMatchObject({ label: 'Phone carrier', hint: 'Telnyx or Twilio' })
+    expect(step('call-audio').hint).toMatch(/LiveKit/)
+    // The setup works in the admin's first business; this owner has no other one.
+    expect(body.progress.otherWorkspaces).toEqual([])
   })
 })
 
@@ -405,7 +412,8 @@ describe('tools', () => {
       provider: 'deepgram',
       values: { api_key: 'dg-test-key-1234' },
     })
-    expect(data(stored)).toMatchObject({ ok: true })
+    // The free test runs right after saving and comes back as `test`, as the tool's description says.
+    expect(data(stored)).toMatchObject({ ok: true, test: { ok: expect.any(Boolean), message: expect.any(String) } })
     const [row] = await db.select().from(provider_settings).where(eq(provider_settings.provider, 'deepgram'))
     expect(row!.value_encrypted).not.toContain('dg-test-key-1234')
     expect(row!.updated_by).toBe(ws.owner.userId)

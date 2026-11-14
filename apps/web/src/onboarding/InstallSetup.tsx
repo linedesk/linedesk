@@ -43,6 +43,8 @@ import { Input } from '../ui/form.tsx'
 import { HelpTip, type HelpTipContent } from '../ui/HelpTip.tsx'
 import { BrandMark, Button, Note, Spinner } from '../ui/kit.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
+import { type PasskeyHere, PasskeyFirstStep, usePasskeyHere } from './AddPasskeyStep.tsx'
+import type { PasskeyStep } from './agent-setup-passkey.ts'
 import { leaveInstallSetup } from './leave-install-setup.ts'
 import { showPasskeyFirst } from './passkey-first.ts'
 import { Loading, problemText, SkeletonFields } from '../ui/LoadStates.tsx'
@@ -74,6 +76,8 @@ export function InstallSetup({ onExit }: Props) {
   // "Skip for now" on the passkey screen: Email shows, and its save asks for the passkey then (PasskeyStepUp).
   const [passkeySkipped, setPasskeySkipped] = useState(false)
   useEffect(() => watchAdminSignIn(setSignInAgain), [])
+  // Step 1 on the welcome screen: the passkey added right there shows as done at once, then the setup is read again.
+  const [passkeyAddedHere, setPasskeyAddedHere] = useState(false)
   // Read here and shared with Admin's cache (the page opens before the session settles the cache's scope, so a cached
   // read could miss its answer).
   const [data, setData] = useState<AdminData | null>(() => peekQuery(ADMIN_DATA) ?? null)
@@ -107,6 +111,13 @@ export function InstallSetup({ onExit }: Props) {
   const reloadAll = useCallback(async () => {
     await Promise.all([reloadData(), loadSetup().catch(() => null)])
   }, [reloadData, loadSetup])
+  const passkey = usePasskeyHere(
+    useCallback(() => {
+      setPasskeyAddedHere(true)
+      void reloadAll()
+    }, [reloadAll]),
+    reloadAll,
+  )
 
   // A saved email or sign-in change waits for a restart: read again until the API runs with it.
   const [restarting, setRestarting] = useState(false)
@@ -147,6 +158,7 @@ export function InstallSetup({ onExit }: Props) {
   const partIndex = step ? partSteps.indexOf(step as PartStepId) : -1
   const groups = status.status?.groups ?? null
   const passkeyFirst = showPasskeyFirst(step, setup, passkeySkipped)
+  const passkeyStep: PasskeyStep = passkeyAddedHere ? 'done' : setup?.passkeyNeeded ? 'todo' : 'none'
   return (
     <div className="ob is" role="main" aria-label={`Set up ${brandName()} by hand`}>
       <div className="ob-top">
@@ -172,7 +184,7 @@ export function InstallSetup({ onExit }: Props) {
         {!setup || !step || !data || !groups ? (
           <Loading what="The setup" loading error={loadError} skeleton={<SkeletonFields fields={2} />} />
         ) : step === 'welcome' ? (
-          <Welcome status={status} passkeyNeeded={setup.passkeyNeeded} onStart={() => go('email')} />
+          <Welcome status={status} passkeyStep={passkeyStep} passkey={passkey} onStart={() => go('email')} />
         ) : passkeyFirst ? (
           <PasskeyFirst
             onBack={() => go('welcome')}
@@ -277,30 +289,55 @@ const groupOfStep = (status: ProviderStatusState, step: PartStepId) =>
 
 function Welcome({
   status,
-  passkeyNeeded,
+  passkeyStep,
+  passkey,
   onStart,
 }: {
   status: ProviderStatusState
-  passkeyNeeded: boolean
+  /** `none`: the admin has one already (or this install asks for none): no passkey step. */
+  passkeyStep: Exclude<PasskeyStep, 'loading'>
+  passkey: PasskeyHere
   onStart: () => void
 }) {
   useWalkKeys(onStart, null)
+  const passkeyFirst = passkeyStep !== 'none'
   return (
     <>
       <div className="ob-body">
         <h1>Set up this server by hand</h1>
         <p className="ob-lede">
-          {passkeyNeeded ? 'First a passkey for you, then four parts' : 'Four parts'}, most with their own account.
-          Every step says where to get the key and what it costs, and tests it for real before you move on. About 30 to
-          45 minutes; you can skip a part and come back to it.
+          {passkeyFirst ? 'First your passkey, then four parts' : 'Four parts'}, most with their own account. Every step
+          says where to get the key and what it costs, and tests it for real before you move on. About 15 to 30 minutes;
+          you can skip a part and come back to it.
         </p>
       </div>
       <HostingNote address={window.location.origin} />
+      {/* The same step 1 as the agent setup page: add the passkey right here; the parts follow. */}
+      {passkeyFirst && (
+        <section className="as-card" aria-label="Your steps">
+          <ol className="as-steps">
+            <PasskeyFirstStep step={passkeyStep} passkey={passkey} />
+            <li className={passkeyStep === 'done' ? undefined : 'as-later'}>
+              <b>Set up the server’s four parts</b>
+              <span className="as-small">Email, answering calls, phone carrier and call audio, one at a time.</span>
+            </li>
+          </ol>
+        </section>
+      )}
       <section className="as-card">
+        {passkeyFirst && (
+          <div className="adm-health is-passkey-row">
+            <div className="adm-health-row">
+              <StatusMark state={passkeyStep === 'done' ? 'works' : 'missing'} />
+              <b>Your passkey</b>
+              <span className="help">{passkeyStep === 'done' ? 'Added' : 'Not added yet'}</span>
+            </div>
+          </div>
+        )}
         <StatusList groups={status.status!.groups} links={false} />
       </section>
       <Note tone="info">
-        An AI agent can do this in <b>about 15 minutes</b> and check the server for you.{' '}
+        An AI agent can do this in <b>about 10 minutes</b> and check the server for you.{' '}
         <button
           type="button"
           className="k-link"
@@ -310,7 +347,7 @@ function Welcome({
           Set up with an AI agent instead
         </button>
       </Note>
-      <Foot onNext={onStart} nextLabel="Start" />
+      <Foot onNext={onStart} nextLabel="Start" nextPrimary={passkeyStep !== 'todo'} />
     </>
   )
 }

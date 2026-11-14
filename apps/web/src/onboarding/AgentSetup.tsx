@@ -2,6 +2,7 @@
 // up. An AI agent (Claude Code, Claude, ChatGPT, Codex, Cursor, any MCP client) connects to the setup MCP with a
 // setup key and does the setup with them; this page makes the key, says how to connect each agent, gives the prompt,
 // and shows the agent's progress as it works. Setting up by hand stays one small link away.
+// Step 1 is the admin's passkey (agent-setup-passkey.ts): only they can add it, on this device, so it comes first.
 import {
   AGENT_SETUP_HASH,
   type AgentClient,
@@ -16,7 +17,7 @@ import {
   startPlan,
   stepsByGroup,
 } from '@linedesk/actions'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { loadAgentSetup, runAdmin, watchAdminSignIn } from '../admin/api.ts'
 import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
 import type { AdminSecondFactor } from '../auth.ts'
@@ -25,6 +26,15 @@ import { SETUP_LINK_KEY } from '../localData.ts'
 import { untilLabel } from '../time.ts'
 import { HelpTip } from '../ui/HelpTip.tsx'
 import { BrandMark, Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
+import {
+  AddPasskeyButton,
+  PasskeyFirstStep,
+  type PasskeyHere,
+  PasskeyProblem,
+  usePasskeyHere,
+} from './AddPasskeyStep.tsx'
+import { AgentPicker } from './AgentPicker.tsx'
+import { installPartsMissing, passkeyStepOf, withPasskeyAdded } from './agent-setup-passkey.ts'
 import { CopyButton } from './Frame.tsx'
 import { rememberManual } from './setup-choice.ts'
 import './agent-setup.css'
@@ -53,8 +63,6 @@ export const openAgentSetup = () => {
 }
 
 const POLL_MS = 3000
-/** The install's own steps (setup-mcp.ts, the provider groups): by hand, they are done in Admin › Providers. */
-const INSTALL_STEPS = ['answering', 'telephony', 'email', 'call-audio']
 
 /**
  * The setup link made in this browser, kept until it ends: it expires, a new one is made, the admin ends agent access
@@ -145,6 +153,18 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
     return () => clearInterval(id)
   }, [load])
 
+  // Step 1, the admin's passkey: added here, it shows as done at once; the next read of the progress agrees.
+  const [passkeyAddedHere, setPasskeyAddedHere] = useState(false)
+  const passkeyStep = passkeyStepOf(state, passkeyAddedHere)
+  const passkey = usePasskeyHere(
+    useCallback(() => {
+      setPasskeyAddedHere(true)
+      void load()
+    }, [load]),
+    load,
+  )
+  const linkFirst = passkeyStep === 'none' || passkeyStep === 'done'
+
   const workspaceReady = state?.progress.steps.some(s => s.id === 'workspace' && s.state === 'done') ?? false
   const told = useRef(false)
   useEffect(() => {
@@ -219,7 +239,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
   }
   const manual = () => {
     rememberManual(true)
-    onManual(state?.progress.steps.some(s => INSTALL_STEPS.includes(s.id) && s.state !== 'done') ?? false)
+    onManual(state ? installPartsMissing(state.progress.steps) : false)
   }
 
   const connected = Boolean(state?.key?.lastUsedAt)
@@ -248,7 +268,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
           <h1>Set up {brandName()} with your AI agent</h1>
           <p className="ob-lede">
             Your agent connects to this server and does the whole setup with you: the AI, a phone carrier, email, your
-            business and its number. <b>About 15 minutes.</b> You create the accounts; it asks before anything that
+            business and its number. <b>About 10 minutes.</b> You create the accounts; it asks before anything that
             costs money.
           </p>
         </div>
@@ -256,38 +276,24 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
         {state && <HostingNote address={state.mcpUrl} />}
 
         <section className="as-card" aria-label="Your agent">
-          <div className="as-agents" role="radiogroup" aria-label="Which agent">
-            {agentClients.map(id => (
-              <button
-                key={id}
-                type="button"
-                role="radio"
-                aria-checked={client === id}
-                className={cx('as-agent', client === id && 'on')}
-                onClick={() => pick(id)}
-                title={`Show the steps for ${agentClientLabels[id]}`}
-              >
-                {agentClientLabels[id]}
-              </button>
-            ))}
-          </div>
-          {cloudBlocked && (
-            <Note tone="warning" title={`${agentClientLabels[client]} can’t reach this server`}>
-              {agentClientLabels[client]} runs in the cloud and can only reach a public https address. This server is at{' '}
-              {state?.mcpUrl.replace(/\/mcp\/setup$/, '')}: use Claude Code, Codex or Cursor on this computer, or open{' '}
-              {brandName()} on its public address.
-            </Note>
-          )}
-
           <ol className="as-steps">
-            <li className={cx(hasLink && 'as-done')}>
+            {passkeyStep !== 'none' && <PasskeyFirstStep step={passkeyStep} passkey={passkey} />}
+            <li className={cx(!linkFirst && 'as-later')}>
               <b className="as-step-title">
-                Create a setup link
+                Give your agent a setup link
                 <HelpTip
                   label="About the setup link"
                   text="It lets your agent set up this server for you, using setup tools only. For security, the link stops working after 24 hours. You can end it here at any time."
                 />
               </b>
+              <AgentPicker client={client} onPick={pick} />
+              {cloudBlocked && (
+                <Note tone="warning" title={`${agentClientLabels[client]} can’t reach this server`}>
+                  {agentClientLabels[client]} runs in the cloud and can only reach a public https address. This server
+                  is at {state?.mcpUrl.replace(/\/mcp\/setup$/, '')}: use Claude Code, Codex or Cursor on this computer,
+                  or open {brandName()} on its public address.
+                </Note>
+              )}
               {hasLink ? (
                 <>
                   <div className="as-link">
@@ -314,28 +320,27 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
                       onWithdraw={() => void withdrawEmailAndSignIn()}
                     />
                   )}
+                  {created ? (
+                    <StartAgent client={client} url={created.url} />
+                  ) : (
+                    <span className="as-small">
+                      This link was created in another browser and is shown only there. To start an agent here, end
+                      access and create a new link.
+                    </span>
+                  )}
                 </>
               ) : (
                 <div className="as-step">
                   <div>
-                    <Button variant="primary" busy={busy === 'create'} onClick={() => void createKey()}>
+                    <Button
+                      variant={linkFirst ? 'primary' : 'secondary'}
+                      busy={busy === 'create'}
+                      onClick={() => void createKey()}
+                    >
                       Create a setup link
                     </Button>
                   </div>
                 </div>
-              )}
-            </li>
-            <li className={cx(!(hasLink && created) && 'as-later')}>
-              <b>Start {agentClientLabels[client] === 'Other' ? 'your agent' : agentClientLabels[client]}</b>
-              {hasLink && created ? (
-                <StartAgent client={client} url={created.url} />
-              ) : hasLink ? (
-                <span className="as-small">
-                  This link was created in another browser and is shown only there. To start an agent here, end access
-                  and create a new link.
-                </span>
-              ) : (
-                <span className="as-small">After you create the setup link.</span>
               )}
             </li>
           </ol>
@@ -348,7 +353,18 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
           {error && <Note tone="danger">{error}</Note>}
         </section>
 
-        <Progress state={state} loadError={loadError} connected={connected} onDone={onDone} />
+        <Progress
+          state={
+            state && {
+              ...state,
+              progress: { ...state.progress, steps: withPasskeyAdded(state.progress.steps, passkeyAddedHere) },
+            }
+          }
+          loadError={loadError}
+          connected={connected}
+          onDone={onDone}
+          passkey={passkey}
+        />
 
         <div className="as-foot">
           <button type="button" className="as-manual" onClick={manual} title="Go through the setup steps yourself">
@@ -430,11 +446,13 @@ function Progress({
   loadError,
   connected,
   onDone,
+  passkey,
 }: {
   state: AgentSetupState | null
   loadError: string | null
   connected: boolean
   onDone: () => void
+  passkey: PasskeyHere
 }) {
   if (!state) return loadError ? <Note tone="danger">{loadError}</Note> : null
   const { steps, allDone } = state.progress
@@ -465,16 +483,29 @@ function Progress({
           <h3 className="as-group-label" id={`as-group-${group.id}`}>
             {group.label}
           </h3>
+          {group.id === 'business' && <FirstWorkspace others={state.progress.otherWorkspaces ?? []} />}
           <ul className="as-list" aria-labelledby={`as-group-${group.id}`}>
             {group.steps.map(step => (
-              <li key={step.id} className={cx('as-item', step.state)}>
-                <span className="as-mark" aria-hidden>
-                  {step.state === 'done' ? <Icon name="check" size={12} /> : step.state === 'failing' ? '!' : null}
-                </span>
-                <span>{step.label}</span>
-                {step.state === 'failing' && <span className="as-small">failing</span>}
-                {step.state === 'admin_only' && <span className="as-small">do this in the app</span>}
-              </li>
+              <Fragment key={step.id}>
+                <li className={cx('as-item', step.state)}>
+                  <span className="as-mark" aria-hidden>
+                    {step.state === 'done' ? <Icon name="check" size={12} /> : step.state === 'failing' ? '!' : null}
+                  </span>
+                  <span>
+                    {step.label}
+                    {step.hint && <span className="as-hint"> · {step.hint}</span>}
+                  </span>
+                  {step.state === 'failing' && <span className="as-small">failing</span>}
+                  {step.id === 'passkey' && step.state !== 'done' ? (
+                    <span className="as-item-action">
+                      <AddPasskeyButton passkey={passkey} from="list" size="sm" />
+                    </span>
+                  ) : (
+                    step.state === 'admin_only' && <span className="as-small">do this in the app</span>
+                  )}
+                </li>
+                {step.id === 'passkey' && step.state !== 'done' && <PasskeyProblem passkey={passkey} from="list" />}
+              </Fragment>
             ))}
           </ul>
         </div>
@@ -552,5 +583,20 @@ export function HostingNote({ address }: { address: string }) {
         {local ? 'Put it on a server' : 'Add an https address'}
       </a>
     </Note>
+  )
+}
+
+/**
+ * Under "Your business": the steps are for the first workspace; more (one per business or location) come later, and
+ * the ones there already are named.
+ */
+function FirstWorkspace({ others }: { others: readonly string[] }) {
+  return (
+    <p className="as-small as-group-note">
+      {others.length > 0
+        ? `For your first workspace. Also set up: ${others.join(', ')}.`
+        : 'Your first workspace. You can add more later, one per business or location.'}
+      <HelpTip text="A workspace is one business or location, with its own assistant, phone number, calls and team. Your agent sets up the first one with you; add the others afterwards from the workspace menu (New workspace), and each one opens its own setup." />
+    </p>
   )
 }

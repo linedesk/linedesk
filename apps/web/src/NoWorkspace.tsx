@@ -10,13 +10,8 @@ import { AdminMode } from './admin/AdminMode.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { auth, fetchAuthMethods, isInstanceAdmin, type Me } from './auth.ts'
 import { CreateWorkspace } from './CreateWorkspace.tsx'
-import {
-  AgentSetup,
-  choseManualSetup,
-  isAgentSetupHash,
-  openAgentSetup,
-  rememberManual,
-} from './onboarding/AgentSetup.tsx'
+import { AdminStart } from './onboarding/AdminStart.tsx'
+import { AgentSetup, choseManualSetup, isAgentSetupHash, rememberManual } from './onboarding/AgentSetup.tsx'
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
 import { AccountSettings } from './settings/account/index.tsx'
 import { signOutAndForget } from './localData.ts'
@@ -113,16 +108,6 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
       {admin && (
         <button
           type="button"
-          className="k-link"
-          onClick={openAgentSetup}
-          title="Let Claude, ChatGPT or another agent set up this server with you"
-        >
-          Set up with an AI agent instead
-        </button>
-      )}
-      {admin && (
-        <button
-          type="button"
           className="k-btn k-btn-secondary"
           onClick={() => (window.location.hash = '#admin')}
           title="Admin: providers, users and the setup checklist; no workspace needed"
@@ -140,6 +125,21 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
       </button>
     </>
   )
+  // An instance admin (also one who chose the way by hand before): the AI agent first, by hand as the alternative.
+  if (me && admin && !me.impersonation)
+    return (
+      <AdminStart
+        onDone={onDone}
+        lostWorkspace={lostWorkspace}
+        byHandFirst={choseManualSetup(me, manualSetup)}
+        onInstallByHand={() => {
+          rememberManual(true)
+          window.location.hash = INSTALL_SETUP_HASH
+        }}
+      >
+        {extras}
+      </AdminStart>
+    )
   if (mayCreateWorkspace(signUpOpen, me))
     return (
       <CreateWorkspace onDone={onDone} lostWorkspace={lostWorkspace}>

@@ -34,6 +34,7 @@ import {
   searchForwardingGuides,
   statusText,
   type SetupStepGroup,
+  setupStepNames,
 } from '@linedesk/actions'
 import {
   agent_setup_keys,
@@ -239,6 +240,7 @@ type StepBase = {
   id: string
   alias?: string
   label: string
+  hint?: string
   state: StepState
   detail?: string | null
   how?: readonly string[]
@@ -246,9 +248,23 @@ type StepBase = {
 /** `group`: which part of the setup the step belongs to: the admin's own, the server's or the business's. */
 type Step = StepBase & { group: SetupStepGroup }
 
-/** The steps of one part of the setup, tagged with it; `group` comes right after the label in the agent's output. */
+/**
+ * The steps of one part of the setup, tagged with it; `group` comes right after the label in the agent's output. Each
+ * is named as on the setup page (setupStepNames: the app's own place for it, plus a hint where it helps).
+ */
 const inGroup = (group: SetupStepGroup, steps: StepBase[]): Step[] =>
-  steps.map(({ id, alias, label, ...rest }) => ({ id, ...(alias ? { alias } : {}), label, group, ...rest }))
+  steps.map(({ id, alias, label, hint, ...rest }) => {
+    const named = setupStepNames[id]
+    const words = named?.hint ?? hint
+    return {
+      id,
+      ...(alias ? { alias } : {}),
+      label: named?.label ?? label,
+      ...(words ? { hint: words } : {}),
+      group,
+      ...rest,
+    }
+  })
 
 const GROUP_STATE: Record<GroupStatus['state'], StepState> = {
   works: 'done',
@@ -445,10 +461,28 @@ function whereItRuns() {
 export async function setupProgress(actor: Actor) {
   const status = await setupStatus(actor, { advance: false })
   return {
-    steps: status.steps.map(({ id, label, group, state }) => ({ id, label, group, state })),
+    steps: status.steps.map(({ id, label, hint, group, state }) => ({
+      id,
+      label,
+      ...(hint ? { hint } : {}),
+      group,
+      state,
+    })),
     nextStep: status.next_step,
     allDone: status.all_done,
+    otherWorkspaces: await otherWorkspaces(actor),
   }
+}
+
+/** The admin's businesses besides the one the setup works in (oldest first): shown under "Your business". */
+async function otherWorkspaces(actor: Actor): Promise<string[]> {
+  const rows = await db
+    .select({ id: organization.id, name: organization.name })
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(eq(member.userId, actor.actorId))
+    .orderBy(asc(member.createdAt))
+  return rows.filter(r => r.id !== actor.workspaceId).map(r => r.name)
 }
 
 async function whoAmI(actor: Actor) {

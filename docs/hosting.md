@@ -82,7 +82,7 @@ When something breaks (server gone, database restore, calls not arriving, a leak
 
 ## From your computer to the server
 
-Settings and keys do not move with the install: set the server up again (the agent does it in about 15 minutes). Then stop the copy on your computer: `docker compose down` in its folder.
+Settings and keys do not move with the install: set the server up again (the agent does it in about 10 minutes). Then stop the copy on your computer: `docker compose down` in its folder.
 
 ## Updates and backups
 

@@ -1,7 +1,6 @@
 // Account: profile, notifications, sign-in and sessions of the signed-in member, one section at a time
 // (#account/<section>). Profile, sign-in and sessions are Better Auth's own data (see account-api.ts), so they do
 // not go through the outbox; notifications are per workspace (settings/Notifications.tsx).
-import { readEnrolmentCode } from '../../enrolment-code.ts'
 import { PASSKEY_WHY } from '../../AddPasskey.tsx'
 import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useState } from 'react'
 import { passkeySupported } from '../../auth.ts'
@@ -19,10 +18,10 @@ import { type PageSection, SettingsLayout, useSection } from '../../ui/SettingsL
 import { Field, Section, TextInput } from '../fields.tsx'
 import { AvatarField } from './AvatarField.tsx'
 import { Notifications } from '../Notifications.tsx'
+import { useAddPasskey } from './add-passkey.ts'
 import {
   ACCOUNT,
   type Account,
-  addPasskeyForThisDevice,
   PASSKEYS,
   SESSIONS,
   changeEmail,
@@ -31,9 +30,7 @@ import {
   ConfirmWithPasskey,
   confirmWithPasskey,
   loadAccount,
-  loadPasskeyEnrolment,
   loadPasskeys,
-  PASSKEY_ENROLMENT,
   loadSessions,
   removePasskey,
   requestEmailChange,
@@ -481,25 +478,16 @@ function SignIn(props: SectionProps) {
 /** The member's passkeys: add one for this device, remove one (both need a recent sign-in). */
 function Passkeys() {
   const passkeys = useQuery(PASSKEYS, loadPasskeys)
-  const enrolment = useQuery(PASSKEY_ENROLMENT, loadPasskeyEnrolment)
   const list = passkeys.data
   const [confirming, setConfirming] = useState<string | null>(null)
-  // The first admin's code came back with the setup (enrolment-code.ts): filled in, so adding the passkey is one click.
-  const [enrolmentCode, setEnrolmentCode] = useState(() => readEnrolmentCode() ?? '')
+  // Shared with the agent setup page (add-passkey.ts): the enrolment code, the device name, the same errors.
+  const { needsCode, enrolmentCode, setEnrolmentCode, addThisDevice } = useAddPasskey()
   const request = useRequest()
   const load = passkeys.reload
-  // An instance admin's first passkey needs the one-time code another admin (or the CLI) gave them.
-  const needsCode = enrolment.data === true
   // None yet: the way in we recommend, so it says so and adding one is the main button here.
   const none = list?.length === 0
 
-  const add = () =>
-    request.run(async () => {
-      if (needsCode && !enrolmentCode.trim()) throw new Error('Enter your passkey enrolment code first.')
-      await addPasskeyForThisDevice(needsCode ? enrolmentCode : undefined)
-      setEnrolmentCode('')
-      await Promise.all([load(), enrolment.reload()])
-    }, 'Passkey added.')
+  const add = () => request.run(() => addThisDevice(load), 'Passkey added.')
   const remove = (id: string) =>
     request.run(async () => {
       await removePasskey(id)
