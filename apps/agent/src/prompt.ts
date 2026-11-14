@@ -371,7 +371,6 @@ export function buildInstructions(
     booking
       ? bookingInstructions(booking, { listed: !!(caller?.nameConfirmed && caller.history?.upcomingBookings.length), callerNumber: !!caller })
       : null,
-    'Only state facts about the business that these instructions give you; if you do not know something, say so.',
     knowledge ? `What the business wants you to know:\n${knowledge}` : null,
     PRICE_RULE,
     // The owner's own words win over the general rules (what is urgent for them, their way of handling a call).

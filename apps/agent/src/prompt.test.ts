@@ -34,7 +34,7 @@ test('each rule is said once: AI honesty, prices, one question at a time, no pro
   const prompt = buildInstructions(assistant())
   const times = (text: RegExp) => prompt.match(new RegExp(text, 'g'))?.length ?? 0
   expect(times(/answer truthfully|say it plainly|say truthfully/)).toBe(1)
-  expect(times(/Prices:/)).toBe(1)
+  expect(times(/Only state facts and prices/)).toBe(1)
   expect(times(/one (question|thing) at a time/)).toBe(1)
   expect(times(/Never promise|Do not promise/)).toBe(1)
   expect(buildInstructions(assistant({ ai_disclosure: 'never' }))).toContain('Do not bring up on your own that you are an AI.')
@@ -161,10 +161,11 @@ test('stored services and FAQs (no longer offered) stay out of the prompt; price
   expect(prompt).not.toContain('Repiping')
   expect(prompt).not.toContain('Weekends?')
   expect(prompt).not.toMatch(/business_knowledge|look_up|<documents>/)
-  expect(prompt).toMatch(/only say a price the business gave you above/)
-  expect(buildInstructions(assistant())).toMatch(/never give, guess or estimate a price/)
+  expect(prompt).toMatch(/Only state facts and prices the business gave you above, exactly as written; never guess or estimate one/)
+  expect(prompt).not.toContain('Only state facts about the business that these instructions give you')
+  expect(buildInstructions(assistant())).toMatch(/for a price, say the team will get back to them with one, and take a message/)
   // No switch any more: an older stored 'off' still gets the rule.
-  expect(buildInstructions(assistant({ behaviours: { listed_prices_only: false } }))).toMatch(/never give, guess or estimate a price/)
+  expect(buildInstructions(assistant({ behaviours: { listed_prices_only: false } }))).toMatch(/never guess or estimate one/)
 })
 
 const history = (over: Partial<CallerHistory> = {}): CallerHistory => ({

@@ -3,9 +3,12 @@
 import type { Language } from './languages.ts'
 import { spokenLines } from './spoken-lines.ts'
 
-/** Prices: only the ones the business gave, never an estimate; always part of the prompt. */
+/**
+ * Facts and prices: only the ones the business gave, never a guess or an estimate; always part of the prompt, after
+ * what the business wants the assistant to know.
+ */
 export const PRICE_RULE =
-  'Prices: only say a price the business gave you above, exactly as it is written. For anything it gave no price for, never give, guess or estimate a price: say the team will get back to them with a price, and take a message.'
+  "Only state facts and prices the business gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say the team will get back to them with one, and take a message."
 
 /** What the call has: booking and transfer on or off; left out (the evaluation judges calls of any setup): both cases. */
 export type CallSetup = { booking?: boolean; transfer?: boolean }
