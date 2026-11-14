@@ -197,7 +197,6 @@ const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   rules: ['ai_disclosure', 'communication_style', 'behaviours'],
   transfers: ['transfers'],
   advanced: [
-    'voice_pipeline',
     'talking_speed_pct',
     'silence_first_gap_s',
     'silence_reminders',
@@ -205,6 +204,7 @@ const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
     'max_call_minutes',
     'silence_reminder',
     'silence_closing',
+    'voice_pipeline',
   ],
 }
 /** Section ids from before the regrouping, so old links and bookmarks still land in the right place. */
@@ -798,9 +798,9 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
         )}
         {current === 'advanced' && (
           <>
-            <PipelineSection draft={draft} set={set} setUp={setUp} />
             <TalkingSpeedSection draft={draft} set={set} />
             <Advanced draft={draft} set={set} />
+            <PipelineSection draft={draft} set={set} setUp={setUp} />
           </>
         )}
       </fieldset>
