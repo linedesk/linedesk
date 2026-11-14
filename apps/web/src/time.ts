@@ -13,6 +13,13 @@ export function formatDate(date: Date, options: Intl.DateTimeFormatOptions): str
   return formatter.format(date)
 }
 
+/** A day ("YYYY-MM-DD") as a date field shows it: "Nov 14, 2026", in English whatever the browser's language. */
+export function dayFieldLabel(day: string): string {
+  const date = new Date(`${day}T12:00:00Z`)
+  if (Number.isNaN(date.getTime())) return day
+  return formatDate(date, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+}
+
 /** Postgres sends "2026-11-10 12:00:00+00", actions write ISO. Parse both. */
 export function parseTs(value: string): Date {
   const iso = value.replace(' ', 'T').replace(/([+-]\d{2})$/, '$1:00')

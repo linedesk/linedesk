@@ -2,6 +2,8 @@
 // one line of description), a FormField per control (label above, a short description only when
 // needed, the validation message under it), a SaveBar that shows only while the form has changes,
 // and a Dialog for forms that open from a list. Styles in form.css (k-card, k-field, k-dialog, …).
+
+import { arrow, autoUpdate, flip, offset, shift, useFloating } from '@floating-ui/react-dom'
 import {
   Children,
   type ComponentProps,
@@ -13,7 +15,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { arrow, autoUpdate, flip, offset, shift, useFloating } from '@floating-ui/react-dom'
+import { dayFieldLabel } from '../time.ts'
 import { Backdrop } from './Backdrop.tsx'
 import { Button, cx, Icon } from './kit.tsx'
 import './form.css'
@@ -99,23 +101,105 @@ export function FormMessage({ children }: { children: ReactNode }) {
   )
 }
 
-type InputProps = ComponentProps<'input'> & { invalid?: boolean; end?: ReactNode }
+type InputProps = Omit<ComponentProps<'input'>, 'size'> & {
+  invalid?: boolean
+  end?: ReactNode
+  /** The control height (--control-h, --control-h-sm), the same scale as Select and Button: one size per row. */
+  size?: 'sm' | 'md'
+}
 
 /** A text input in the kit's frame. `end` sits inside the frame at the right (a unit, a button). */
-export function Input({ invalid, end, className, ...rest }: InputProps) {
+export function Input({ invalid, end, size = 'md', className, ...rest }: InputProps) {
   return (
-    <span className={cx('k-input', invalid && 'k-input-invalid', className)}>
+    <span className={cx('k-input', size === 'sm' && 'k-input-sm', invalid && 'k-input-invalid', className)}>
       <input aria-invalid={invalid || undefined} {...rest} />
       {end}
     </span>
   )
 }
 
-export function Textarea({
+type DateInputProps = Omit<ComponentProps<'input'>, 'size' | 'type' | 'value' | 'onChange' | 'placeholder'> & {
+  /** "YYYY-MM-DD", or "" for no day. */
+  value: string
+  onChange: (value: string) => void
+  /** Shown while no day is picked. */
+  placeholder?: string
+  invalid?: boolean
+  size?: 'sm' | 'md'
+}
+
+/**
+ * A day field in the Input frame that shows the day the app's way ("Nov 14, 2026") whatever the browser's
+ * language; a plain `<input type="date">` shows "tt.mm.jjjj" on a German Mac. The native field stays, see-through
+ * over the frame, for the browser's calendar, min and max, forms and screen readers: a click, Enter, Space or
+ * Alt+Down opens the calendar, Backspace or Delete clears the day.
+ */
+export function DateInput({
+  value,
+  onChange,
+  placeholder = 'Pick a day',
   invalid,
+  size = 'md',
   className,
+  disabled,
+  required,
+  onClick,
+  onKeyDown,
   ...rest
-}: ComponentProps<'textarea'> & { invalid?: boolean }) {
+}: DateInputProps) {
+  const open = (input: HTMLInputElement) => {
+    try {
+      input.showPicker()
+    } catch {
+      // Not allowed here (no user gesture, an older browser): the arrow keys still change the day.
+    }
+  }
+  return (
+    <span
+      className={cx(
+        'k-input k-date',
+        size === 'sm' && 'k-input-sm',
+        invalid && 'k-input-invalid',
+        disabled && 'is-disabled',
+        className,
+      )}
+    >
+      <Icon name="calendar" size={size === 'sm' ? 13 : 14} />
+      <span className={cx('k-date-text', !value && 'is-empty')} aria-hidden="true">
+        {value ? dayFieldLabel(value) : placeholder}
+      </span>
+      <input
+        type="date"
+        value={value}
+        disabled={disabled}
+        required={required}
+        aria-invalid={invalid || undefined}
+        onChange={e => onChange(e.target.value)}
+        onClick={e => {
+          onClick?.(e)
+          if (!e.defaultPrevented) open(e.currentTarget)
+        }}
+        onKeyDown={e => {
+          onKeyDown?.(e)
+          if (e.defaultPrevented) return
+          if (e.key === 'Enter' || e.key === ' ' || (e.altKey && e.key === 'ArrowDown')) {
+            e.preventDefault()
+            open(e.currentTarget)
+          } else if ((e.key === 'Backspace' || e.key === 'Delete') && !required) {
+            e.preventDefault()
+            onChange('')
+          } else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) {
+            // Typed digits would go into the browser's hidden day, month and year parts, in its own order: off.
+            e.preventDefault()
+          }
+        }}
+        {...rest}
+      />
+    </span>
+  )
+}
+
+export function Textarea({ invalid, className, ...rest }: ComponentProps<'textarea'> & { invalid?: boolean }) {
   return (
     <textarea
       className={cx('ta', invalid && 'k-input-invalid', className)}
@@ -278,7 +362,14 @@ export function SaveBar({ dirty, saving, onCancel, disabled, label = 'Save', not
       <Button variant="ghost" onClick={onCancel} disabled={saving} title="Undo the changes">
         Cancel
       </Button>
-      <Button busy={saving} type="submit" variant="primary" disabled={saving || disabled} shortcut={['⌘', 'S']} title="Save (⌘S)">
+      <Button
+        busy={saving}
+        type="submit"
+        variant="primary"
+        disabled={saving || disabled}
+        shortcut={['⌘', 'S']}
+        title="Save (⌘S)"
+      >
         {saving ? 'Saving…' : label}
       </Button>
     </div>

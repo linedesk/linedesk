@@ -10,7 +10,7 @@ import type { Closure, HolidayCalendar } from '@linedesk/db/types'
 import { type FormEvent, useEffect, useState } from 'react'
 import { useRun } from '../store.tsx'
 import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
-import { Dialog, Input } from '../ui/form.tsx'
+import { DateInput, Dialog, Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow, MenuButton, type MenuItem } from '../ui/list.tsx'
 import { Loading, SkeletonList } from '../ui/LoadStates.tsx'
@@ -408,14 +408,7 @@ function AddDay({
   }
   return (
     <form className="st-inline hd-add" onSubmit={add}>
-      <Input
-        type="date"
-        value={date}
-        min={today}
-        onChange={e => setDate(e.target.value)}
-        aria-label="Day"
-        className="hd-date"
-      />
+      <DateInput value={date} min={today} onChange={setDate} aria-label="Day" className="hd-date" />
       <Input
         value={name}
         onChange={e => setName(e.target.value)}
@@ -426,7 +419,7 @@ function AddDay({
       <Checkbox checked={yearly} onChange={setYearly} className="hd-yearly">
         Every year
       </Checkbox>
-      <Button size="sm" type="submit" disabled={!date}>
+      <Button type="submit" disabled={!date}>
         Add day
       </Button>
     </form>
@@ -612,22 +605,10 @@ export function VacationMode({ canEdit, toast }: Props) {
         <form className="hd-vac" onSubmit={save}>
           <div className="hd-range">
             <Field id="hd-from" label="First day closed">
-              <Input
-                id="hd-from"
-                type="date"
-                value={draft.from}
-                min={today}
-                onChange={e => setDraft({ ...draft, from: e.target.value })}
-              />
+              <DateInput id="hd-from" value={draft.from} min={today} onChange={from => setDraft({ ...draft, from })} />
             </Field>
             <Field id="hd-until" label="Last day closed">
-              <Input
-                id="hd-until"
-                type="date"
-                value={draft.until}
-                min={draft.from || today}
-                onChange={e => setUntil(e.target.value)}
-              />
+              <DateInput id="hd-until" value={draft.until} min={draft.from || today} onChange={setUntil} />
             </Field>
           </div>
           <Field id="hd-greeting" label="Greeting while closed" aside="Optional">

@@ -109,7 +109,6 @@ export function AppointmentValue({
           value={currency}
           options={CURRENCY_OPTIONS}
           onChange={setCurrency}
-          size="sm"
           disabled={!canEdit}
         />
       </div>

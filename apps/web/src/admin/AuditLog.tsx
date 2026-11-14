@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { dateTimeLabel } from '../time.ts'
 import { Select, type SelectOption } from '../ui/controls.tsx'
-import { Input } from '../ui/form.tsx'
+import { DateInput, Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { type AdminWorkspace, type AuditEntry, type AuditFilter, type AuditKind, loadAudit } from './api.ts'
@@ -205,7 +205,7 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
   return (
     <div className="adm-card">
       <div className="adm-audit-filters">
-        <Select value={filter.kind} options={kinds} onChange={set('kind')} label="What" size="sm" />
+        <Select value={filter.kind} options={kinds} onChange={set('kind')} label="What" />
         <Input
           className="adm-audit-who"
           value={filter.who}
@@ -213,26 +213,20 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
           placeholder="Person (email or name)"
           aria-label="Person"
         />
-        <Select
-          value={filter.workspace}
-          options={workspaceOptions}
-          onChange={set('workspace')}
-          label="Workspace"
-          size="sm"
-        />
-        <Input
-          type="date"
+        <Select value={filter.workspace} options={workspaceOptions} onChange={set('workspace')} label="Workspace" />
+        <DateInput
           value={filter.from}
           max={filter.to || today()}
-          onChange={e => set('from')(e.target.value)}
+          onChange={set('from')}
+          placeholder="From"
           aria-label="From"
         />
-        <Input
-          type="date"
+        <DateInput
           value={filter.to}
           min={filter.from || undefined}
           max={today()}
-          onChange={e => set('to')(e.target.value)}
+          onChange={set('to')}
+          placeholder="To"
           aria-label="To"
         />
       </div>

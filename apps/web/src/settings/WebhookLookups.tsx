@@ -205,13 +205,7 @@ function LookupDialog({
                 value={field.name}
                 onChange={e => setField(index, { name: e.target.value })}
               />
-              <Select
-                label="Type"
-                size="sm"
-                value={field.type}
-                options={TYPES}
-                onChange={type => setField(index, { type })}
-              />
+              <Select label="Type" value={field.type} options={TYPES} onChange={type => setField(index, { type })} />
               <Input
                 aria-label="What to ask the caller for"
                 placeholder="The order number, 6 digits"
@@ -223,7 +217,6 @@ function LookupDialog({
                 Required
               </Checkbox>
               <Button
-                size="sm"
                 variant="ghost"
                 icon="trash"
                 aria-label={`Remove ${field.name || 'this field'}`}

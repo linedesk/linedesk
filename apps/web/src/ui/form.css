@@ -116,6 +116,57 @@
   color: var(--ink-muted);
   cursor: not-allowed;
 }
+/* Date field (DateInput): the day in the app's words; the browser's own field lies see-through over the whole
+   frame, so a click anywhere opens its calendar and its format ("tt.mm.jjjj") never shows. */
+.k-date {
+  position: relative;
+  cursor: pointer;
+  min-width: 140px;
+}
+.k-date > .k-icon {
+  flex: none;
+}
+.k-date-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.k-input-sm .k-date-text {
+  font-size: 12.5px;
+}
+.k-date-text.is-empty {
+  color: var(--ink-muted);
+}
+.k-input.k-date input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.k-input.k-date input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  cursor: pointer;
+}
+.k-date.is-disabled {
+  background: var(--surface-hover);
+  cursor: not-allowed;
+}
+.k-date.is-disabled .k-date-text {
+  color: var(--ink-muted);
+}
+.k-date.is-disabled input {
+  cursor: not-allowed;
+}
 .k-input-btn {
   display: grid;
   place-items: center;

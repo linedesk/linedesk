@@ -8,7 +8,7 @@ import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { callAction, readAction } from '../settings/settings-api.ts'
 import { useAssistantName } from '../store.tsx'
 import { Select } from '../ui/controls.tsx'
-import { Input } from '../ui/form.tsx'
+import { DateInput } from '../ui/form.tsx'
 import { AppointmentValue } from '../settings/AppointmentValue.tsx'
 import { cx, Icon } from '../ui/kit.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
@@ -139,22 +139,15 @@ function RangeFields({ range, onChange }: { range: Range; onChange: (r: Range) =
   return (
     <div className="in-range" role="group" aria-label="Custom range">
       <label htmlFor="in-from">From</label>
-      <Input
-        id="in-from"
-        type="date"
-        value={draft.from}
-        max={today}
-        onChange={e => set({ ...draft, from: e.target.value })}
-      />
+      <DateInput id="in-from" value={draft.from} max={today} onChange={from => set({ ...draft, from })} />
       <label htmlFor="in-to">to</label>
-      <Input
+      <DateInput
         id="in-to"
-        type="date"
         value={draft.to}
         min={draft.from}
         max={today}
         invalid={!valid}
-        onChange={e => set({ ...draft, to: e.target.value })}
+        onChange={to => set({ ...draft, to })}
       />
       {!valid && <span className="in-error">The first day comes before the last.</span>}
     </div>

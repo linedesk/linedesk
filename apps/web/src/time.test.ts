@@ -2,6 +2,7 @@ import { describe, expect, it, test } from 'vitest'
 import {
   clock,
   dateTimeLabel,
+  dayFieldLabel,
   formatDate,
   listTime,
   longDuration,
@@ -43,6 +44,12 @@ describe('time labels', () => {
     expect(whenLabel(new Date(2026, 10, 16, 8, 0), now)).toBe('Mon 8:00 AM')
     expect(whenLabel(new Date(2026, 11, 10, 8, 0), now)).toBe('Dec 10, 8:00 AM')
   })
+})
+
+test('a date field shows its day in English, whatever the browser language (LIN-202)', () => {
+  expect(dayFieldLabel('2026-11-14')).toBe('Nov 14, 2026')
+  expect(dayFieldLabel('2027-01-01')).toBe('Jan 1, 2027')
+  expect(dayFieldLabel('not a day')).toBe('not a day')
 })
 
 describe('formatDate', () => {

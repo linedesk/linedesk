@@ -140,7 +140,7 @@
   justify-content: space-between;
   gap: 6px;
   width: 100%;
-  height: 32px;
+  height: var(--control-h);
   padding: 0 8px 0 10px;
   border: 1px solid var(--line-control);
   border-radius: var(--radius-sm);
@@ -152,7 +152,7 @@
   white-space: nowrap;
 }
 .k-select-sm .k-select-btn {
-  height: 28px;
+  height: var(--control-h-sm);
   font-size: 12.5px;
 }
 .k-select-btn .k-icon {

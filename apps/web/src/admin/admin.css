@@ -802,6 +802,10 @@
 .adm-audit-who {
   flex: 1 1 200px;
 }
+.adm-audit-filters .k-date {
+  flex: 1 1 140px;
+  max-width: 180px;
+}
 .adm-audit-more {
   display: flex;
   justify-content: center;

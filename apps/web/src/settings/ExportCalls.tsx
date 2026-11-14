@@ -1,7 +1,7 @@
 // Settings, Export: the calls of a date range as a CSV file (call.export, owners and admins).
 import type { CallExportData } from '@linedesk/actions'
 import { useState } from 'react'
-import { Input } from '../ui/form.tsx'
+import { DateInput } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 import { Field, Section } from './fields.tsx'
 import { callAction } from './settings-api.ts'
@@ -60,10 +60,10 @@ function ExportForm({ toast }: Pick<Props, 'toast'>) {
     >
       <div className="cf-export">
         <Field id="ex-from" label="From">
-          <Input id="ex-from" type="date" value={from} max={to} onChange={e => setFrom(e.target.value)} />
+          <DateInput id="ex-from" value={from} max={to} onChange={setFrom} />
         </Field>
         <Field id="ex-to" label="To">
-          <Input id="ex-to" type="date" value={to} min={from} onChange={e => setTo(e.target.value)} />
+          <DateInput id="ex-to" value={to} min={from} onChange={setTo} />
         </Field>
         <Button busy={busy} disabled={busy || !from || !to} onClick={run}>
           {busy ? 'Exporting…' : 'Export CSV'}

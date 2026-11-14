@@ -534,16 +534,12 @@ body,
   display: flex;
   gap: 2px;
 }
-/* Team, invite: email, role and Invite in one row; stacked on a phone. */
+/* Team, invite: email, role and Invite in one row, all at the one control height; stacked on a phone. */
 .team-invite {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: end;
   gap: 12px;
-}
-.team-invite .k-select-btn,
-.team-invite > .k-btn {
-  height: 36px;
 }
 @media (max-width: 559px) {
   .team-invite {

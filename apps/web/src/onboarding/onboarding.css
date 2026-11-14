@@ -1,6 +1,8 @@
 /* Onboarding: the .ob and .ob2 rules from the reference UI live in styles.css; these are the few additions. */
-.ob .k-input {
-  height: 36px;
+/* Onboarding uses the large control height for every field, select included, so a step's fields match. */
+.ob .k-input,
+.ob .k-select-btn {
+  height: var(--control-h-lg);
 }
 .ob .ta {
   min-height: 112px;
