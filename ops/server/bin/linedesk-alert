@@ -2,12 +2,21 @@
 # Emails an alert about a failed systemd unit (OnFailure=linedesk-alert@%n.service) with the unit's last log lines.
 set -eu
 unit=${1:?unit}
+# At most one email per unit every 6 hours: a unit that runs every minute (WAL archiving) and keeps failing would
+# otherwise send one a minute. The state is in StateDirectory=linedesk-alert (the unit).
+state=${STATE_DIRECTORY:-/var/lib/linedesk-alert}/$(printf '%s' "$unit" | tr -c 'A-Za-z0-9@._-' _)
+if [ -n "$(find "$state" -mmin -360 2>/dev/null)" ]; then
+  echo "linedesk-alert: $unit alerted less than 6 hours ago; not again"
+  exit 0
+fi
 # The unit's last lines, shortened, without what a failed database step can print about rows (DETAIL, Failing row,
 # COPY data): enough to see what broke, the rest is on the server (journalctl -u <unit>).
 log=$(journalctl -u "$unit" -n 40 --no-pager -o short-iso 2>/dev/null |
   grep -viE 'DETAIL:|Failing row|COPY |INSERT INTO|VALUES ?\(' | tail -15 | cut -c1-240 || true)
-exec /usr/local/sbin/linedesk-alert-text "$unit failed on $(hostname)" "$unit failed at $(date -u '+%F %T UTC').
+/usr/local/sbin/linedesk-alert-text "$unit failed on $(hostname)" "$unit failed at $(date -u '+%F %T UTC').
 
 Last log lines:
 
 $log"
+# Only a sent email counts: a failed send is tried again on the next failure.
+touch "$state"

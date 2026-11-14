@@ -8,6 +8,8 @@
 # keeps backing up, with a warning, until they are moved.
 
 backup_env_file=${BACKUP_ENV_FILE:-backup.env}
+# Set only by the script that sources this (scripts/wal-archive.sh), never from the environment.
+rclone_volume=
 
 if [ -f "$backup_env_file" ]; then
   # Group and others: no access at all (ls shows "------" for them).
@@ -32,7 +34,8 @@ setting() {
 }
 
 # rclone with the bucket as remote `b:`. The keys go to docker as environment, by name only, so they never
-# show in the process list (ps) with the docker command line. `$work` is mounted at /work.
+# show in the process list (ps) with the docker command line. `$work` is mounted at /work, and `$rclone_volume`
+# (a volume, `name:/path`) too when it is set.
 # shellcheck disable=SC2154 # $work is set by the script that sources this before it calls rclone
 rclone() {
   RCLONE_CONFIG_B_ENDPOINT=$(setting BACKUP_S3_ENDPOINT) \
@@ -42,5 +45,5 @@ rclone() {
     -e RCLONE_CONFIG_B_TYPE=s3 -e RCLONE_CONFIG_B_PROVIDER=Other -e RCLONE_CONFIG_B_REGION=auto \
     -e RCLONE_CONFIG_B_ENDPOINT -e RCLONE_CONFIG_B_ACCESS_KEY_ID -e RCLONE_CONFIG_B_SECRET_ACCESS_KEY \
     -e RCLONE_CONFIG_B_NO_CHECK_BUCKET=true -e RCLONE_LOG_LEVEL=ERROR \
-    -v "$work:/work" rclone/rclone:1.68.2 "$@"
+    -v "$work:/work" ${rclone_volume:+-v "$rclone_volume"} rclone/rclone:1.68.2 "$@"
 }

@@ -105,6 +105,13 @@ else
   say "no $app_dir/backup.env: backup timers stay off (README, Backups)"
 fi
 
+# WAL archiving runs once the stack uses docker-compose.wal.yml (docs/backups-wal.md) and the bucket is set up.
+wal_units='linedesk-wal-archive.timer linedesk-wal-base.timer'
+if grep -Eq '^COMPOSE_FILE=.*docker-compose\.wal\.yml' "$app_dir/.env" && [ -f "$app_dir/backup.env" ]; then
+  units="$units $wal_units"
+  wal_units=''
+fi
+
 if [ "$cloudflare" = 1 ] || [ -f /etc/linedesk/cloudflare-v4.txt ]; then
   for v in 4 6; do
     # Only a plausible list replaces the one in place: every line a range, at least a few of them (Cloudflare has 15
@@ -173,6 +180,9 @@ fi
 systemctl daemon-reload
 # shellcheck disable=SC2086
 systemctl enable --now $units >/dev/null
+# WAL archiving switched off again: its timers stop too.
+# shellcheck disable=SC2086
+[ -z "$wal_units" ] || systemctl disable --now $wal_units >/dev/null 2>&1 || true
 # A changed firewall script only takes effect when it runs again.
 systemctl restart linedesk-sip-firewall.service
 case $units in *linedesk-web-firewall*) systemctl restart linedesk-web-firewall.service ;; esac

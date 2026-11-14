@@ -266,6 +266,8 @@ restores it into a throwaway Postgres and prints its row counts next to the live
 needs the private key for this one check (`BACKUP_AGE_IDENTITY=backup-key.txt`; delete it from the server
 afterwards with `shred -u backup-key.txt`).
 
+To lose minutes instead of up to a day: WAL archiving on top of this (same bucket and key), `docs/backups-wal.md`.
+
 A real restore: download a backup (decrypt an encrypted one on your computer:
 `age -d -i backup-key.txt -o linedesk.dump linedesk-<time>.dump.age`), copy it to the server and follow
 "Restore" above.

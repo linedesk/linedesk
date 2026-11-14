@@ -1,0 +1,31 @@
+# Continuous archiving of the database's write-ahead log (WAL) on top of docker-compose.yml, so a restore loses
+# minutes instead of up to a day (docs/backups-wal.md):
+#   COMPOSE_FILE=docker-compose.yml:...:docker-compose.wal.yml
+# Postgres writes every finished WAL segment, gzipped, into the volume walarchive, at the latest a minute after a
+# change (archive_timeout). It stays on the internal network with no keys: scripts/wal-archive.sh on the host moves
+# the segments to the backup bucket every minute, scripts/wal-base-backup.sh adds a base backup every night
+# (ops/server/setup.sh installs both timers), scripts/wal-restore.sh restores to the latest moment or a given time.
+services:
+  postgres:
+    # The volume is created by Docker as root; Postgres runs as the user postgres.
+    entrypoint: ["sh", "-c", "chown postgres:postgres /walarchive && exec docker-entrypoint.sh \"$$@\"", "--"]
+    # docker-compose.yml's command, plus archiving (keep the first four arguments in step with it).
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_timeout=${LINEDESK_WAL_ARCHIVE_TIMEOUT:-60}
+      - -c
+      # Gzipped under a temporary name, checked, synced to disk and renamed, so the uploader never sees half a
+      # segment and a crash never leaves an empty one counted as archived. One that is there already (archived again
+      # after a crash) counts as done. scripts/wal-restore.sh reuses this exact command for its recovery.
+      - archive_command=f=/walarchive/%f.gz; [ -f $$f ] || { gzip -c %p > $$f.tmp && gzip -t $$f.tmp && sync $$f.tmp && mv $$f.tmp $$f && sync /walarchive; }
+    volumes: ["walarchive:/walarchive"]
+
+volumes:
+  walarchive:
