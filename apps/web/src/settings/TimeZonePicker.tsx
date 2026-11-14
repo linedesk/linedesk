@@ -1,6 +1,7 @@
 // The business's time zone as a searchable list: each zone with its GMT offset and the time there now. Search by
 // city, region, zone name or offset ("berlin", "eastern", "gmt+1", "utc-5").
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useAnchoredList } from '../ui/floating.ts'
 import { cx, Icon } from '../ui/kit.tsx'
 import { clockIn, gmtOffset, searchTimeZones, timeZoneLabel, timeZoneOptions } from './timeZones.ts'
 
@@ -26,10 +27,15 @@ export function TimeZonePicker({ value, onChange, disabled, id }: Props) {
   const [active, setActive] = useState(0)
   const root = useRef<HTMLDivElement>(null)
   const button = useRef<HTMLButtonElement>(null)
+  const list = useRef<HTMLDivElement>(null)
   const listId = useId()
   const options = useMemo(() => timeZoneOptions(value), [value])
-  const matches = useMemo(() => (open ? searchTimeZones(options, query, now).slice(0, SHOWN_MAX) : []), [open, options, query, now])
+  const matches = useMemo(
+    () => (open ? searchTimeZones(options, query, now).slice(0, SHOWN_MAX) : []),
+    [open, options, query, now],
+  )
 
+  useAnchoredList(open, button, list, { minWidth: 240 })
   useEffect(() => {
     if (!open) return
     const outside = (e: MouseEvent) => {
@@ -45,7 +51,12 @@ export function TimeZonePicker({ value, onChange, disabled, id }: Props) {
   function show() {
     if (disabled) return
     setQuery('')
-    setActive(Math.max(0, options.findIndex(o => o.value === value)))
+    setActive(
+      Math.max(
+        0,
+        options.findIndex(o => o.value === value),
+      ),
+    )
     setOpen(true)
   }
   function close() {
@@ -104,7 +115,7 @@ export function TimeZonePicker({ value, onChange, disabled, id }: Props) {
         <Icon name="down" size={14} />
       </button>
       {open && (
-        <div className="k-select-list tz-list">
+        <div ref={list} popover="manual" className="k-select-list tz-list k-float">
           <input
             autoFocus
             className="tz-search"

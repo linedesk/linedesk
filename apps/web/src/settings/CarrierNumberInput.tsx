@@ -6,6 +6,7 @@ import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 
 import { useQuery } from '../cachedQuery.ts'
 import { formatNumber } from '../onboarding/flow.ts'
 import { Input } from '../ui/form.tsx'
+import { useAnchoredList } from '../ui/floating.ts'
 import { cx, Icon } from '../ui/kit.tsx'
 import { readAction } from './settings-api.ts'
 
@@ -26,9 +27,11 @@ export function CarrierNumberInput({ id, value, onChange, placeholder }: Props) 
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
   const root = useRef<HTMLDivElement>(null)
+  const list = useRef<HTMLDivElement>(null)
   const listId = useId()
   const matches = useMemo(() => matchCarrierNumbers(numbers, value), [numbers, value])
   const shown = open && numbers.length > 0
+  useAnchoredList(shown, root, list, { match: true })
 
   useEffect(() => {
     if (!open) return
@@ -92,7 +95,14 @@ export function CarrierNumberInput({ id, value, onChange, placeholder }: Props) 
         end={numbers.length ? <Icon name="down" size={14} /> : undefined}
       />
       {shown && (
-        <div id={listId} role="listbox" aria-label="Numbers in the carrier account" className="k-select-list cn-list">
+        <div
+          ref={list}
+          id={listId}
+          popover="manual"
+          role="listbox"
+          aria-label="Numbers in the carrier account"
+          className="k-select-list cn-list k-float"
+        >
           {matches.map((n, i) => (
             <div
               key={n}

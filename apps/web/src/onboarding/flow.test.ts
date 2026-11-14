@@ -230,6 +230,11 @@ test('a new number is only requested with purchase after the user confirmed the 
     problem: 'Confirm the monthly cost first.',
   })
   expect(phoneSetupInput({ kind: 'new', areaCode: '50', confirmed: true })).toHaveProperty('problem')
+  // Only an area code from the list: not toll-free, N11 or 555.
+  for (const areaCode of ['800', '411', '555'])
+    expect(phoneSetupInput({ kind: 'new', areaCode, confirmed: true })).toEqual({
+      problem: 'Pick an area code for the new number from the list.',
+    })
   expect(phoneSetupInput({ kind: 'new', areaCode: '503', confirmed: true })).toEqual({
     input: { areaCode: '503', purchase: true, mode: 'new' },
   })
@@ -408,8 +413,11 @@ test('the area code comes from a number the owner gave, never an example', () =>
   expect(areaCodeOf(null, '+15035550142')).toBe('503')
   expect(areaCodeOf('(206) 555-0100', '+15035550142')).toBe('206')
   expect(areaCodeOf(undefined, 'not a number')).toBe('')
+  // A toll-free business number has no area code a number can be bought in: the next number gives it.
+  expect(areaCodeOf('+18005550100', '+15035550142')).toBe('503')
+  expect(areaCodeOf('+18885550100')).toBe('')
   expect(phoneOptionSetup('new', { number: '', areaCode: '', confirmed: true }, undefined as never)).toEqual({
-    problem: 'Enter the 3-digit area code for the new number.',
+    problem: 'Pick an area code for the new number from the list.',
   })
 })
 

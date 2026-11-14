@@ -11,6 +11,7 @@ import { ForwardingCheck } from '../onboarding/ForwardingCheck.tsx'
 import { CarrierPicker, ForwardingSteps, useForwardingGuide } from '../onboarding/ForwardingGuide.tsx'
 import { forwardingUnverified, type GuidePickedBy } from '../onboarding/forwarding-check.ts'
 import {
+  areaCodeOf,
   buyQuestion,
   carrierName,
   existingLinkText,
@@ -35,6 +36,7 @@ import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { sectionHash, sectionParts } from '../ui/SettingsLayout.tsx'
 import { CarrierLine, useCarrierStatus } from './Carrier.tsx'
+import { AreaCodeInput } from './AreaCodeInput.tsx'
 import { CarrierNumberInput } from './CarrierNumberInput.tsx'
 import { Field, Section, TextInput } from './fields.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
@@ -102,7 +104,7 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
         )
       }
     >
-      {canEdit && <CarrierLine />}
+      {canEdit && <CarrierLine serverProvider={serverStatus?.provider ?? null} />}
       {canEdit && status && !status.available && (
         <Unavailable
           detail={status.detail}
@@ -491,7 +493,9 @@ function ConnectNumber({
   const canAttach = status?.canAttach !== false
   const [option, setOption] = useState<PhoneOption>(connectOptions[0]!)
   const [typed, setTyped] = useState('')
-  const [areaCode, setAreaCode] = useState('')
+  const businessPhone = (useAssistants()[0]?.business_profile as { phone?: string } | undefined)?.phone
+  // Like onboarding: the business phone's area code, else that of a number the workspace already has.
+  const [areaCode, setAreaCode] = useState(() => areaCodeOf(businessPhone, ...numbers.map(n => n.e164)))
   const [confirming, setConfirming] = useState(false)
   const [sentAt, setSentAt] = useState<number | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
@@ -604,11 +608,11 @@ function ConnectNumber({
             label={option === 'forward' ? `Area code for ${name}'s number` : 'Area code'}
             help={priceNote(status?.provider ?? null)}
           >
-            <TextInput
+            <AreaCodeInput
               id="st-pn-area"
               value={areaCode}
               onChange={v => {
-                setAreaCode(v.replace(/\D/g, '').slice(0, 3))
+                setAreaCode(v)
                 setConfirming(false)
                 setProblem(null)
               }}

@@ -8,6 +8,7 @@ import {
 import type { Closure, HolidayCalendar } from '@linedesk/db/types'
 import { z } from 'zod'
 import { ASSISTANT_CALL_MAX_MINUTES } from './calls.ts'
+import { usAreaCode } from './area-codes.ts'
 import { defineAction } from './define.ts'
 import { JOB_VALUE_MAX_CENTS, type JobValueCurrency, jobValueCurrencies } from './insights.ts'
 import { assistantLanguages } from './languages.ts'
@@ -653,9 +654,11 @@ export const phoneNumberSetup = defineAction({
         .string()
         .regex(/^\+[1-9]\d{6,14}$/)
         .optional(),
+      /** A US area code a number can be bought in (US_AREA_CODES). */
       areaCode: z
         .string()
         .regex(/^\d{3}$/)
+        .refine(code => usAreaCode(code) !== undefined, { message: 'not a US area code a number can be bought in' })
         .optional(),
       /** Buying is never implied: without this, a number that is not in the account is rejected. */
       purchase: z.boolean().default(false),

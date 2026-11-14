@@ -2,6 +2,7 @@
 // browser's own controls, so every page looks the same. Styles in controls.css (k-check, sw,
 // k-radio, k-select). Checkbox and RadioCard keep a hidden native input for keyboard and screen readers.
 import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
+import { useAnchoredList } from './floating.ts'
 import { cx, Icon } from './kit.tsx'
 import './controls.css'
 
@@ -150,6 +151,7 @@ export function Select<T extends string>({
   const listId = useId()
   const current = options.find(o => o.value === value)
   const typed = useRef({ text: '', at: 0 })
+  useAnchoredList(open, button, list, { minWidth: 240, align })
 
   useEffect(() => {
     if (!open) return
@@ -240,7 +242,8 @@ export function Select<T extends string>({
         <div
           ref={list}
           id={listId}
-          className="k-select-list"
+          popover="manual"
+          className="k-select-list k-float"
           role="listbox"
           tabIndex={-1}
           aria-label={label}

@@ -10,11 +10,14 @@ import { Dialog, SecretInput } from '../ui/form.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { Skeleton } from '../ui/LoadStates.tsx'
 import {
+  CARRIER_PURPOSE,
   type CarrierDraft,
+  carrierChoiceText,
   carrierInput,
   carrierLabel,
   carrierSummary,
   draftErrors,
+  existingNumbersText,
   initialDraft,
   isChanged,
   visibleFields,
@@ -25,23 +28,23 @@ import { useQuery, setQueryData } from '../cachedQuery.ts'
 import { brandName } from '../brand.ts'
 import { carrierName } from '../onboarding/flow.ts'
 import { providerAudience } from '../providerAudience.ts'
+import { useRows } from '../store.tsx'
 
 const CARRIER = 'workspace.carrier'
 const loadCarrier = () => callAction<CarrierStatusData>('carrier.get')
 
-const choices: { carrier: WorkspaceCarrier; description: string }[] = [
-  { carrier: 'default', description: 'Numbers through the carrier this server is set up with.' },
-  { carrier: 'twilio', description: 'Numbers from your Twilio account, billed by Twilio.' },
-  { carrier: 'telnyx', description: 'Numbers from your Telnyx account, billed by Telnyx.' },
-]
+const choices: readonly WorkspaceCarrier[] = ['default', 'twilio', 'telnyx']
 
 /** The workspace's carrier account; null for members (they cannot read it) and while loading. */
 export function useCarrierStatus(canEdit: boolean): CarrierStatusData | null {
   return useQuery(canEdit ? CARRIER : null, loadCarrier).data ?? null
 }
 
-/** The carrier as a quiet line under the Phone numbers title, with Change; and its dialog. */
-export function CarrierLine() {
+/**
+ * The carrier as a quiet line under the Phone numbers title, with Change; and its dialog. `serverProvider`: the
+ * carrier the session reports, named for the default while the workspace uses it.
+ */
+export function CarrierLine({ serverProvider = null }: { serverProvider?: string | null }) {
   const status = useCarrierStatus(true)
   const [open, setOpen] = useState(false)
   // While it loads, the line is already in place, so the numbers below it never move down.
@@ -64,14 +67,29 @@ export function CarrierLine() {
           Change
         </button>
       </p>
-      {open && <CarrierDialog status={status} onClose={() => setOpen(false)} />}
+      {open && (
+        <CarrierDialog
+          status={status}
+          serverProvider={status.carrier === 'default' ? serverProvider : null}
+          onClose={() => setOpen(false)}
+        />
+      )}
     </>
   )
 }
 
 type Phase = 'idle' | 'saving' | 'testing'
 
-function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose: () => void }) {
+function CarrierDialog({
+  status,
+  serverProvider,
+  onClose,
+}: {
+  status: CarrierStatusData
+  serverProvider: string | null
+  onClose: () => void
+}) {
+  const ownAccountNumbers = useRows('phone_numbers').filter(n => n.carrier_account === 'workspace').length
   const [draft, setDraft] = useState<CarrierDraft>(() => initialDraft(status))
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [phase, setPhase] = useState<Phase>('idle')
@@ -135,7 +153,7 @@ function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose
   return (
     <Dialog
       title="Carrier"
-      description="Where this workspace's phone numbers come from."
+      description={CARRIER_PURPOSE}
       size="md"
       onClose={onClose}
       footer={
@@ -157,17 +175,18 @@ function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose
     >
       <form id="carrier-form" onSubmit={e => void submit(e)} className="pn-carrier-form">
         <div className="k-radios" role="radiogroup" aria-label="Carrier">
-          {choices.map(choice => (
+          {choices.map(carrier => (
             <RadioCard
-              key={choice.carrier}
+              key={carrier}
               name="carrier"
-              checked={draft.carrier === choice.carrier}
-              onPick={() => update({ carrier: choice.carrier })}
-              title={carrierLabel[choice.carrier]}
-              description={choice.description}
+              checked={draft.carrier === carrier}
+              onPick={() => update({ carrier })}
+              title={carrierLabel[carrier]}
+              description={carrierChoiceText(carrier, serverProvider)}
             />
           ))}
         </div>
+        <Note tone="info">{existingNumbersText(status.carrier, ownAccountNumbers)}</Note>
         {confirming && (
           <p className="k-field-msg" role="alert">
             Back to the default carrier: the {ownName} keys are deleted from {brandName()}, and numbers come from the
@@ -175,10 +194,12 @@ function CarrierDialog({ status, onClose }: { status: CarrierStatusData; onClose
           </p>
         )}
         {!status.canStore && own && (
-          <p className="help" role="status">
-            This server cannot store carrier credentials yet.{' '}
-            {providerAudience() === 'admin' ? 'Admin › Providers says what to set.' : 'Ask whoever runs it.'}
-          </p>
+          <Note tone="warning" title="Your own account can't be saved on this server yet.">
+            API keys are stored encrypted, and this server has no encryption key set.{' '}
+            {providerAudience() === 'admin'
+              ? 'Admin › Providers says what to set.'
+              : 'Ask whoever runs this server to set it up.'}
+          </Note>
         )}
         {draft.carrier === 'twilio' && (
           <div className="k-radios" role="radiogroup" aria-label="Twilio sign-in">

@@ -4,8 +4,9 @@ import { forwardingGuideById } from '@linedesk/actions'
 import type { PhoneNumber } from '@linedesk/db/types'
 import { useEffect, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
+import { AreaCodeInput } from '../settings/AreaCodeInput.tsx'
 import { CarrierNumberInput } from '../settings/CarrierNumberInput.tsx'
-import { Field, TextInput } from '../settings/fields.tsx'
+import { Field } from '../settings/fields.tsx'
 import { useWorkspaceSettings, useWriteAction } from '../settings/settings-api.ts'
 import { useAssistant, useAssistantName, useRows, useRun } from '../store.tsx'
 import { RadioCard } from '../ui/controls.tsx'
@@ -224,11 +225,11 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
         ) : (
           <>
             <Field id="ob-area" label={option === 'forward' ? `Area code for ${name}'s number` : 'Area code'}>
-              <TextInput
+              <AreaCodeInput
                 id="ob-area"
                 value={areaCode}
                 onChange={v => {
-                  setAreaCode(v.replace(/\D/g, '').slice(0, 3))
+                  setAreaCode(v)
                   setConfirming(false)
                   setProblem(null)
                   clearError()

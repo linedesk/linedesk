@@ -17,6 +17,7 @@ import {
   TRANSFER_CONTACTS_MAX,
   TRANSFER_NAME_MAX,
   type ProviderAudience,
+  usAreaCode,
   providerFailureReasonOfText,
   providerFailureText,
   type WorkspaceSettingsData,
@@ -177,7 +178,7 @@ export function phoneSetupInput(
       ? { input: { e164, purchase: false, ...(forwarding ? { mode: forwarding } : {}) } }
       : { problem: 'Enter the number with its area code, like +1 503 555 0100.' }
   }
-  if (!/^\d{3}$/.test(choice.areaCode)) return { problem: 'Enter the 3-digit area code for the new number.' }
+  if (!usAreaCode(choice.areaCode)) return { problem: 'Pick an area code for the new number from the list.' }
   if (!choice.confirmed) return { problem: 'Confirm the monthly cost first.' }
   return { input: { areaCode: choice.areaCode, purchase: true, mode: forwarding ?? 'new' } }
 }
@@ -538,12 +539,13 @@ export function mobileErrorText(error: string, name: string): string {
 
 /**
  * The area code for a new number: from the first of the numbers the owner already gave (the business phone, their
- * mobile) that is a US number; empty without one, never a made-up example.
+ * mobile) that is a US number with an area code a number can be bought in (not toll-free); empty without one, never a
+ * made-up example.
  */
 export function areaCodeOf(...numbers: (string | null | undefined)[]): string {
   for (const n of numbers) {
-    const e164 = n ? toE164(n) : null
-    if (e164) return e164.slice(2, 5)
+    const code = n ? toE164(n)?.slice(2, 5) : undefined
+    if (code && usAreaCode(code)) return code
   }
   return ''
 }

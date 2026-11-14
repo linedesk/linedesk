@@ -24,6 +24,9 @@ test('inputs are validated', () => {
   expect(phoneNumberSetup.input.safeParse({ e164: '+15035550142' }).success).toBe(true)
   expect(phoneNumberSetup.input.safeParse({ areaCode: '503' }).success).toBe(false) // an area code alone would buy
   expect(phoneNumberSetup.input.safeParse({ areaCode: '503', purchase: true }).success).toBe(true)
+  // Only area codes a number can be bought in: not toll-free, N11, 555 or one that is not in service.
+  for (const areaCode of ['800', '411', '555', '123', '999'])
+    expect(phoneNumberSetup.input.safeParse({ areaCode, purchase: true }).success).toBe(false)
   expect(phoneNumberSetup.input.parse({ e164: '+15035550142' })).toEqual({ e164: '+15035550142', purchase: false })
   expect(phoneNumberSetup.input.safeParse({ e164: '+15035550142', mode: 'ported' }).success).toBe(true)
   expect(phoneNumberSetup.input.safeParse({ e164: '+15035550142', mode: 'rented' }).success).toBe(false)

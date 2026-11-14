@@ -217,6 +217,20 @@
   white-space: normal;
 }
 
+/* An open list or menu in the top layer (useAnchoredList in floating.ts): placed with position: fixed against its
+   control, above dialogs and outside every scrolling body. Undoes the browser's own popover look. */
+.k-float {
+  box-sizing: border-box;
+  inset: auto;
+  margin: 0;
+  border: 0;
+  color: var(--ink);
+}
+.k-float.k-select-list,
+.k-float.cn-list {
+  min-width: 0;
+}
+
 /* The number field of "Use a number you have" with the carrier account's numbers under it (CarrierNumberInput). */
 .cn-pick {
   display: block;

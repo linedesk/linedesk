@@ -1,10 +1,25 @@
 import type { CarrierStatusData } from '@linedesk/actions'
 import { describe, expect, test } from 'vitest'
-import { carrierInput, carrierSummary, draftErrors, initialDraft, isChanged, visibleFields } from './carrierModel.ts'
+import {
+  carrierChoiceText,
+  carrierInput,
+  carrierSummary,
+  draftErrors,
+  existingNumbersText,
+  initialDraft,
+  isChanged,
+  visibleFields,
+} from './carrierModel.ts'
 
 const SID = `AC${'a1'.repeat(16)}`
 const KEY_SID = `SK${'b2'.repeat(16)}`
-const defaultStatus: CarrierStatusData = { carrier: 'default', canStore: true, sipReady: true, fields: [], updatedAt: null }
+const defaultStatus: CarrierStatusData = {
+  carrier: 'default',
+  canStore: true,
+  sipReady: true,
+  fields: [],
+  updatedAt: null,
+}
 const field = (name: string, set: boolean, value: string | null = null, secret = false) => ({
   field: name,
   label: name,
@@ -89,5 +104,35 @@ describe('carrier form', () => {
     expect(carrierSummary(defaultStatus)).toBe('Linedesk default')
     expect(carrierSummary(twilioWithKey)).toBe(`Your own Twilio · ACa1a1…a1a1`)
     expect(carrierSummary({ ...defaultStatus, carrier: 'telnyx' })).toBe('Your own Telnyx')
+  })
+})
+
+describe('carrier copy', () => {
+  test("the default names the server's carrier when it is known", () => {
+    expect(carrierChoiceText('default', 'telnyx')).toBe(
+      'Simplest, nothing to set up. Numbers come from Telnyx, set up by whoever runs this server.',
+    )
+    expect(carrierChoiceText('default', null)).toBe(
+      'Simplest, nothing to set up. Numbers come from the carrier whoever runs this server set up.',
+    )
+    expect(carrierChoiceText('default', 'dev')).toContain('Development mode')
+  })
+  test('an own account says who bills and what it needs', () => {
+    expect(carrierChoiceText('twilio', 'telnyx')).toBe(
+      'You have a Twilio account already. New numbers are bought there, and Twilio bills you. Needs your Twilio API key, entered here.',
+    )
+    expect(carrierChoiceText('telnyx', null)).toContain('Telnyx bills you')
+  })
+  test('numbers in the own account block a switch; other numbers stay as they are', () => {
+    expect(existingNumbersText('twilio', 1)).toBe(
+      'Your number stays in your Twilio account. To switch, disconnect it first.',
+    )
+    expect(existingNumbersText('telnyx', 3)).toBe(
+      'Your 3 numbers stay in your Telnyx account. To switch, disconnect them first.',
+    )
+    expect(existingNumbersText('twilio', 0)).toBe(
+      'Numbers you already have stay connected as they are. The choice only applies to new numbers.',
+    )
+    expect(existingNumbersText('default', 2)).toBe(existingNumbersText('twilio', 0))
   })
 })

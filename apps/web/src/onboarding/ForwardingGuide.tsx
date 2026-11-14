@@ -12,6 +12,7 @@ import {
   searchForwardingGuides,
 } from '@linedesk/actions'
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useAnchoredList } from '../ui/floating.ts'
 import { Icon, cx } from '../ui/kit.tsx'
 import { encodeQr, qrPath } from '../ui/qr.ts'
 import { useMediaQuery } from '../ui/useMediaQuery.ts'
@@ -80,8 +81,10 @@ export function CarrierPicker({
   const [active, setActive] = useState(0)
   const root = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLInputElement>(null)
+  const list = useRef<HTMLDivElement>(null)
   const listId = useId()
   const matches = useMemo(() => searchForwardingGuides(query), [query])
+  useAnchoredList(open, root, list, { match: true })
 
   useEffect(() => {
     if (!open) return
@@ -167,7 +170,14 @@ export function CarrierPicker({
         <Icon name="down" size={14} />
       </span>
       {open && (
-        <div id={listId} className="k-select-list fg-list" role="listbox" aria-label="Carriers and phone systems">
+        <div
+          ref={list}
+          id={listId}
+          popover="manual"
+          className="k-select-list fg-list k-float"
+          role="listbox"
+          aria-label="Carriers and phone systems"
+        >
           {matches.length === 0 && (
             <div className="fg-empty">No match. Pick “Another cell carrier”, or search for your phone app.</div>
           )}

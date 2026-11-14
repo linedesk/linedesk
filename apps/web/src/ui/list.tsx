@@ -3,6 +3,7 @@
 // a one-line empty state, and a small menu for a row's or a section's less frequent actions.
 // Styles in list.css (k-list, k-row, k-menu).
 import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { useAnchoredList } from './floating.ts'
 import { Button, cx } from './kit.tsx'
 import type { IconName } from './icons.ts'
 import './list.css'
@@ -133,7 +134,9 @@ export function MenuButton({
 }: MenuButtonProps) {
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLSpanElement>(null)
+  const menu = useRef<HTMLDivElement>(null)
   const menuItems = () => itemsIn(root.current)
+  useAnchoredList(open, root, menu, { minWidth: 180, align })
 
   useEffect(() => {
     if (!open) return
@@ -186,7 +189,13 @@ export function MenuButton({
         {label}
       </Button>
       {open && (
-        <div className={cx('k-menu', `k-menu-${align}`)} role="menu" aria-label={title}>
+        <div
+          ref={menu}
+          popover="manual"
+          className={cx('k-menu', `k-menu-${align}`, 'k-float')}
+          role="menu"
+          aria-label={title}
+        >
           {items.map(item => (
             <button
               key={item.id}

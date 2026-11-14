@@ -1,6 +1,7 @@
 // The Carrier form without React: what it sends to carrier.set and what it says is missing.
 import type { CarrierStatusData, WorkspaceCarrier } from '@linedesk/actions'
 import { brandName } from '../brand.ts'
+import { carrierName } from '../onboarding/flow.ts'
 
 export type TwilioAuth = 'api_key' | 'auth_token'
 export type CarrierDraft = {
@@ -83,4 +84,37 @@ export function carrierSummary(status: CarrierStatusData): string {
   if (status.carrier === 'default') return carrierLabel.default
   const sid = status.fields.find(f => f.field === 'account_sid')?.value
   return sid ? `${carrierLabel[status.carrier]} · ${sid.slice(0, 6)}…${sid.slice(-4)}` : carrierLabel[status.carrier]
+}
+
+/** What the Carrier setting decides, under its title. */
+export const CARRIER_PURPOSE = 'Where new phone numbers are bought, and who bills for them and for call minutes.'
+
+/**
+ * When to pick each carrier, in one line. `serverProvider` is the carrier this server is set up with (`dev` in
+ * development mode), when known: it is named for the default.
+ */
+export function carrierChoiceText(carrier: WorkspaceCarrier, serverProvider: string | null): string {
+  if (carrier === 'twilio' || carrier === 'telnyx') {
+    const name = carrierName(carrier) ?? carrier
+    return `You have a ${name} account already. New numbers are bought there, and ${name} bills you. Needs your ${name} API key, entered here.`
+  }
+  if (serverProvider === 'dev') return 'Simplest, nothing to set up. Development mode: test numbers, nothing is bought.'
+  const server = carrierName(serverProvider)
+  return server
+    ? `Simplest, nothing to set up. Numbers come from ${server}, set up by whoever runs this server.`
+    : 'Simplest, nothing to set up. Numbers come from the carrier whoever runs this server set up.'
+}
+
+/**
+ * What a change of carrier does to the numbers the workspace already has (carrier.set): numbers in the workspace's
+ * own account keep it, so switching is refused until they are disconnected; the others stay as they are.
+ */
+export function existingNumbersText(current: WorkspaceCarrier, ownAccountNumbers: number): string {
+  if (current !== 'default' && ownAccountNumbers > 0) {
+    const name = carrierName(current) ?? current
+    return ownAccountNumbers === 1
+      ? `Your number stays in your ${name} account. To switch, disconnect it first.`
+      : `Your ${ownAccountNumbers} numbers stay in your ${name} account. To switch, disconnect them first.`
+  }
+  return 'Numbers you already have stay connected as they are. The choice only applies to new numbers.'
 }
