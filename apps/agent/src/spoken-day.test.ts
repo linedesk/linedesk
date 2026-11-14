@@ -39,3 +39,13 @@ test('a day of the month is the coming one; a week is its Monday, or its Sunday 
 test('words that name no day are not guessed', () => {
   expect(resolveDay('sometime soon', today)).toEqual({ unknown: expect.stringContaining('Ask the caller for the date') })
 })
+
+// Seen in a live test (LIN-160): the model passed "Monday, November 16th" and got "could not tell which day".
+test('a weekday in front of the date and a time after it are understood; a weekday that does not fit is asked back', () => {
+  expect(resolveDay('Monday, November 16th', today)).toEqual({ date: '2026-11-16' })
+  expect(resolveDay('Monday the 16th', today)).toEqual({ date: '2026-11-16' })
+  expect(resolveDay('November 16 at 7 AM', today)).toEqual({ date: '2026-11-16' })
+  expect(resolveDay('Monday, November 16 at 7:30 am', today)).toEqual({ date: '2026-11-16' })
+  expect(resolveDay('tomorrow 9am', today)).toEqual({ date: '2026-11-13' })
+  expect(resolveDay('Tuesday, November 16', today)).toEqual({ ask: expect.stringContaining('Monday, November 16 is not a Tuesday') })
+})

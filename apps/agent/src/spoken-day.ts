@@ -26,7 +26,27 @@ export const todayIn = (timeZone: string, now = Date.now()) =>
  * or the following week's: then the caller is asked.
  */
 export function resolveDay(said: string, today: string, { end = false } = {}): Day {
-  const s = said.trim().toLowerCase().replace(/[.,]/g, ' ').replace(/\s+/g, ' ').replace(/^(on|for) /, '')
+  const s = said
+    .trim()
+    .toLowerCase()
+    .replace(/[.,]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^(on|for) /, '')
+    // A time is not part of the day: "November 16 at 7 AM", "Monday 9am".
+    .replace(/ (at|around|by) .*$/, '')
+    .replace(/ \d{1,2}(:\d{2})? ?(am|pm)$/, '')
+    .trim()
+
+  // "Monday, November 16th", "Monday the 16th": the date decides; a weekday that does not fit it is asked back.
+  const lead = s.match(/^(sunday|monday|tuesday|wednesday|thursday|friday|saturday) (.+)$/)
+  if (lead) {
+    const inner = resolveDay(lead[2]!, today, { end })
+    if ('date' in inner) {
+      const named = lead[1]!
+      if (WEEKDAYS[weekdayOf(inner.date)] === named) return inner
+      return { ask: `${dayLabel(inner.date)} is not a ${named[0]!.toUpperCase()}${named.slice(1)}. Ask the caller which day they mean, then call this again with it.` }
+    }
+  }
   if (s === 'today' || s === 'tonight') return { date: today }
   if (s === 'tomorrow') return { date: addDays(today, 1) }
   if (s === 'the day after tomorrow' || s === 'day after tomorrow') return { date: addDays(today, 2) }
@@ -58,7 +78,7 @@ export function resolveDay(said: string, today: string, { end = false } = {}): D
     }
   }
 
-  const date = parseDate(said, today)
+  const date = parseDate(s, today)
   if (date) return { date }
   return { unknown: `Could not tell which day "${said.trim()}" is. Ask the caller for the date (like "Tuesday" or "November 17").` }
 }
