@@ -42,9 +42,9 @@ then `scripts/deploy.sh`. The `COMPOSE_FILE` line stays in both modes; it adds `
 2. fetches the branch from `origin` and fast-forwards to the commit (default: the branch's newest commit);
 3. runs `scripts/deploy.sh --no-build`: recreates only services whose compose settings changed and reloads a new Caddyfile. The code itself is picked up by the watchers.
 
-The branch is `LINEDESK_DEV_BRANCH` in `.env` (default `main`). The test server sets `LINEDESK_DEV_BRANCH=master-dev`, the branch staging runs (docs/ci.md, "Branches"); its checkout stays on `master-dev`.
+The branch is `LINEDESK_DEV_BRANCH` in `.env` (default `master-dev`, the trunk; docs/ci.md, "Branches"); the checkout stays on it.
 
-The checkout needs read access to the repository (on the test server: a read-only deploy key). The GitHub workflow (`.github/workflows/deploy-staging.yml`) stays the same and deploys every green main (through `master-dev`) at once; the repository variable `STAGING_MODE=dev` turns its image build off.
+The checkout needs read access to the repository (on the test server: a read-only deploy key). The GitHub workflow (`.github/workflows/deploy-staging.yml`) stays the same and deploys every green `master-dev` at once; the repository variable `STAGING_MODE=dev` turns its image build off.
 
 ## Coding on the server
 
@@ -63,7 +63,7 @@ git push git@github.com:<owner>/<repo>.git tim/<topic>   # with the forwarded ke
 git switch master-dev                # back to its branch (LINEDESK_DEV_BRANCH): the next deploy fast-forwards
 ```
 
-Then open the PR as usual. When it is merged, the next deploy brings it back through `main` (and `master-dev`). Without agent forwarding, fetch the branch from your machine instead: `git fetch ssh://<server><checkout> tim/<topic>` and push from there.
+Then open the PR as usual. When it is merged, the next deploy brings it back through `master-dev`. Without agent forwarding, fetch the branch from your machine instead: `git fetch ssh://<server><checkout> tim/<topic>` and push from there.
 
 While the checkout is on a branch or has uncommitted changes, every deploy fails with the reason in the log (and the GitHub run is red); that is intended, nothing on the server is overwritten. Don't run `pnpm install` on the host: the dependencies belong to the containers (`docker compose exec api pnpm …`).
 

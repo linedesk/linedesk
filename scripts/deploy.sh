@@ -29,7 +29,8 @@
 #
 # Dev mode (LINEDESK_MODE=dev in .env, docker-compose.dev.yml, docs/dev-mode.md): api, web and agent
 # run from this checkout, so there is nothing to build. scripts/deploy-dev.sh moves the checkout to the
-# new main (it refuses when the checkout has local changes) and comes back here with --no-build.
+# newest commit of its branch, master-dev by default (it refuses when the checkout has local changes) and comes back
+# here with --no-build.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
