@@ -78,6 +78,8 @@ For a server that runs real calls, [`ops/server/setup.sh`](../ops/server/README.
 sudo /opt/linedesk/app/ops/server/setup.sh --alert-to you@example.com
 ```
 
+When something breaks (server gone, database restore, calls not arriving, a leaked key): [docs/runbook.md](runbook.md).
+
 ## From your computer to the server
 
 Settings and keys do not move with the install: set the server up again (the agent does it in about 15 minutes). Then stop the copy on your computer: `docker compose down` in its folder.
