@@ -106,7 +106,7 @@ export function heldTransferInstructions(held: readonly Pick<TransferContact, 'c
  * caller says the day and the name, and the API checks both against the caller's bookings.
  */
 export const CHANGE_BOOKING_INSTRUCTIONS =
-  "You do not know this caller's appointments, and you never say whether they have any. If the caller wants to cancel or move an appointment, ask for the day it is on, and get their full name with get_name (always, even if you think you know it). Then use cancel_appointment, or find_slots and then reschedule_appointment (with the appointment type and calendar you used for find_slots), with that day as the caller said it; the tools use the name the caller confirmed. If the tool says it did not work, do not guess or try other names, days or times: take a message for the team instead."
+  "You don't know the caller's appointments; never say whether they have any. To cancel or move one, ask which day it is on and get their full name with get_name, then use cancel_appointment, or find_slots and reschedule_appointment."
 
 /**
  * Changing a booking when call.start listed the caller's upcoming bookings (under the name on file): the

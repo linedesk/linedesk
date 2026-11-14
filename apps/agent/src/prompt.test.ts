@@ -330,3 +330,10 @@ test('the prompt says only what the assistant cannot do on this call, never what
   expect(held).not.toContain('transfer calls or')
   expect(held).not.toMatch(/You cannot [^.]*transfer calls/)
 })
+
+test('cancel or move: the privacy core stays in the prompt, the rest is with the tools', () => {
+  expect(CHANGE_BOOKING_INSTRUCTIONS).toContain('never say whether they have any')
+  expect(CHANGE_BOOKING_INSTRUCTIONS).toContain('ask which day it is on and get their full name with get_name')
+  // What the tools already say: they refuse without a confirmed name, and their errors say not to guess.
+  expect(CHANGE_BOOKING_INSTRUCTIONS).not.toMatch(/do not guess|the tools use the name/)
+})
