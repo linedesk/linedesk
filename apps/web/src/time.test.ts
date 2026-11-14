@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clock, dateTimeLabel, listTime, longDuration, parseTs, shortDuration, whenLabel } from './time.ts'
+import { clock, dateTimeLabel, formatDate, listTime, longDuration, parseTs, shortDuration, whenLabel } from './time.ts'
 
 describe('time labels', () => {
   const now = new Date(2026, 10, 10, 15, 0)
@@ -32,5 +32,17 @@ describe('time labels', () => {
     expect(whenLabel(new Date(2026, 10, 13, 8, 0), now)).toBe('Fri 8:00 AM')
     expect(whenLabel(new Date(2026, 10, 16, 8, 0), now)).toBe('Mon 8:00 AM')
     expect(whenLabel(new Date(2026, 11, 10, 8, 0), now)).toBe('Dec 10, 8:00 AM')
+  })
+})
+
+describe('formatDate', () => {
+  it('formats as toLocaleString does', () => {
+    const date = new Date(2026, 10, 12, 21, 5)
+    for (const options of [
+      { hour: 'numeric', minute: '2-digit' },
+      { month: 'short', day: 'numeric' },
+      { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' },
+    ] as const)
+      expect(formatDate(date, options)).toBe(date.toLocaleString('en-US', options))
   })
 })

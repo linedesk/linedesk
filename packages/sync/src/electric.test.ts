@@ -102,7 +102,15 @@ describe('electric adapter', () => {
     const store = memorySink()
     const stop = electricAdapter('', { createStream, delayMs: () => 0 }).start('calls', store.sink)
     await eventually(() => expect(streams).toHaveLength(1))
-    streams[0]!.fail(new FetchError(401, undefined, { ok: false, error: 'not signed in', code: 'signed_out' }, {}, 'http://x/v1/shape/calls'))
+    streams[0]!.fail(
+      new FetchError(
+        401,
+        undefined,
+        { ok: false, error: 'not signed in', code: 'signed_out' },
+        {},
+        'http://x/v1/shape/calls',
+      ),
+    )
     await eventually(() => expect(store.refusals).toEqual([{ code: 'signed_out' }]))
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(streams).toHaveLength(1) // no 401 loop
@@ -167,17 +175,17 @@ describe('electric adapter', () => {
   })
 })
 
-describe('a new app version', () => {
+describe('a new sync version', () => {
   it('forgets the read-sync cursors once, and keeps the outbox', async () => {
     const local = await openLocalDb('version-test')
     await local.write('meta', s => {
       s.put({ handle: 'h' }, 'cursor:calls')
-      s.put('v1', 'appVersion')
+      s.put('v1', 'syncVersion')
     })
     await local.write('outbox', s => s.put({ id: 'cmd1' }, 'cmd1'))
     expect(await forgetCursorsOnNewVersion(local, 'v1')).toBe(false)
     expect(await forgetCursorsOnNewVersion(local, 'v2')).toBe(true)
-    expect((await local.all('meta')).map(([key]) => key)).toEqual(['appVersion'])
+    expect((await local.all('meta')).map(([key]) => key)).toEqual(['syncVersion'])
     expect(await local.all('outbox')).toHaveLength(1)
     expect(await forgetCursorsOnNewVersion(local, 'v2')).toBe(false)
     local.close()

@@ -1,3 +1,18 @@
+const formatters = new Map<string, Intl.DateTimeFormat>()
+/**
+ * `date.toLocaleString('en-US', options)` with the formatter built once: building one costs far more
+ * than using it, and the inbox formats a time for every row on every render.
+ */
+export function formatDate(date: Date, options: Intl.DateTimeFormatOptions): string {
+  const key = JSON.stringify(options)
+  let formatter = formatters.get(key)
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-US', options)
+    formatters.set(key, formatter)
+  }
+  return formatter.format(date)
+}
+
 /** Postgres sends "2026-11-10 12:00:00+00", actions write ISO. Parse both. */
 export function parseTs(value: string): Date {
   const iso = value.replace(' ', 'T').replace(/([+-]\d{2})$/, '$1:00')
@@ -12,9 +27,9 @@ export function dayLabel(date: Date, now = new Date()): 'Today' | 'Yesterday' | 
 
 export function timeLabel(date: Date, now = new Date()): string {
   const day = dayLabel(date, now)
-  if (day === 'Today') return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  if (day === 'Today') return formatDate(date, { hour: 'numeric', minute: '2-digit' })
   if (day === 'Yesterday') return 'Yesterday'
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return formatDate(date, { month: 'short', day: 'numeric' })
 }
 
 /** "1m 20s" for lists. */
@@ -40,12 +55,10 @@ export function clock(seconds: number): string {
 
 /** "10:23 AM", "Yesterday 10:23 AM" or "Nov 8, 10:23 AM" for the call header. */
 export function dateTimeLabel(date: Date, now = new Date()): string {
-  const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  const time = formatDate(date, { hour: 'numeric', minute: '2-digit' })
   const day = dayLabel(date, now)
   if (day === 'Today') return time
-  return day === 'Yesterday'
-    ? `Yesterday ${time}`
-    : `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${time}`
+  return day === 'Yesterday' ? `Yesterday ${time}` : `${formatDate(date, { month: 'short', day: 'numeric' })}, ${time}`
 }
 
 /**
@@ -53,24 +66,24 @@ export function dateTimeLabel(date: Date, now = new Date()): string {
  * "2:58 PM", "Yesterday 7:59 PM", "Mon 9:02 AM" (the last week), "Nov 12, 9:02 AM", "Nov 12, 2025" (another year).
  */
 export function listTime(date: Date, now = new Date()): string {
-  const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  const time = formatDate(date, { hour: 'numeric', minute: '2-digit' })
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
   const days = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000)
   if (days <= 0) return time
   if (days === 1) return `Yesterday ${time}`
-  if (days < 7) return `${date.toLocaleDateString('en-US', { weekday: 'short' })} ${time}`
+  if (days < 7) return `${formatDate(date, { weekday: 'short' })} ${time}`
   if (date.getFullYear() !== now.getFullYear())
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${time}`
+    return formatDate(date, { month: 'short', day: 'numeric', year: 'numeric' })
+  return `${formatDate(date, { month: 'short', day: 'numeric' })}, ${time}`
 }
 
 /** When a reminder comes back: "Today 6:30 PM", "Tomorrow 8:00 AM", "Fri 8:00 AM", "Dec 10, 8:00 AM". */
 export function whenLabel(date: Date, now = new Date()): string {
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
   const days = Math.round((startOfDay(date) - startOfDay(now)) / 86_400_000)
-  const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  const time = formatDate(date, { hour: 'numeric', minute: '2-digit' })
   if (days === 0) return `Today ${time}`
   if (days === 1) return `Tomorrow ${time}`
-  if (days > 1 && days < 7) return `${date.toLocaleDateString('en-US', { weekday: 'short' })} ${time}`
-  return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${time}`
+  if (days > 1 && days < 7) return `${formatDate(date, { weekday: 'short' })} ${time}`
+  return `${formatDate(date, { month: 'short', day: 'numeric' })}, ${time}`
 }

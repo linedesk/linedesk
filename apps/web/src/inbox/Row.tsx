@@ -2,10 +2,10 @@ import type { Call, TranscriptSegment } from '@linedesk/db/types'
 import type { MouseEvent } from 'react'
 import { callerName, callTitle, statusLabel, tabOf, type InboxTab } from '../inbox-model.ts'
 import { useAssistantName, useContact } from '../store.tsx'
-import { clock, listTime, parseTs, shortDuration } from '../time.ts'
+import { clock, formatDate, listTime, parseTs, shortDuration } from '../time.ts'
 
 const fullTime = (date: Date) =>
-  date.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  formatDate(date, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 import type { IconName } from '../ui/icons.ts'
 import { Checkbox } from '../ui/controls.tsx'
 import { memberLabel, useMember } from '../team/members.ts'

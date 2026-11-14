@@ -1,11 +1,25 @@
 // One store per workspace database in this page. React's StrictMode (and a remount) start and
 // stop a provider twice in a row; without this the page held two stores on one database for a
 // moment and both sent the same command.
-import { createStore, electricAdapter, type Rejection, type Store } from '@linedesk/sync'
+import { createStore, electricAdapter, type Rejection, SYNC_VERSION, type Store } from '@linedesk/sync'
 import { takeRefreshOnReturn } from './refreshOnReturn.ts'
 
 /** Tables followed live: what changes while calls come in. Four long-polls leave room for writes over HTTP/1.1. */
 const LIVE_TABLES = ['calls', 'transcript_segments', 'contacts', 'bookings'] as const
+/**
+ * What the inbox shows at once (the list, names, assignees, the go-live checklist). The rest, above all
+ * the transcripts, loads right after them, so a new device sees its inbox before every transcript is in.
+ */
+const FIRST_TABLES = [
+  'calls',
+  'contacts',
+  'assistants',
+  'workspace_members',
+  'phone_numbers',
+  'calendar_connections',
+  'assistant_calendars',
+  'knowledge_questions',
+] as const
 
 type Entry = {
   ready: Promise<Store>
@@ -18,7 +32,12 @@ const open = new Map<string, Entry>()
 export type StoreLease = { ready: Promise<Store>; release: () => void }
 
 /** A store for this workspace's database, shared by everyone who holds a lease. It stops a moment after the last lease is released. */
-export function leaseStore(dbName: string, workspaceId: string, account: string, onReject: (r: Rejection) => void): StoreLease {
+export function leaseStore(
+  dbName: string,
+  workspaceId: string,
+  account: string,
+  onReject: (r: Rejection) => void,
+): StoreLease {
   let entry = open.get(dbName)
   if (!entry) {
     const listeners = new Set<(r: Rejection) => void>()
@@ -32,7 +51,11 @@ export function leaseStore(dbName: string, workspaceId: string, account: string,
         account,
         // Live only what changes during calls; settings-like tables are checked on focus, after a write and every minute.
         adapter: electricAdapter(window.location.origin, { liveTables: LIVE_TABLES, workspaceId, account }),
-        appVersion: import.meta.env.VITE_APP_BUILD,
+        firstTables: FIRST_TABLES,
+        // A deploy keeps this device's rows. They load again when the browser keeps them differently
+        // (SYNC_VERSION) or the deploy brought a migration: until a row of a table changes, Electric
+        // would not tell this browser that the table has new columns.
+        syncVersion: `${SYNC_VERSION}:${import.meta.env.VITE_SCHEMA_VERSION}`,
         onReject: r => listeners.forEach(l => l(r)),
         onLocalDbLost: () => window.location.reload(), // another tab signed out and removed the local data
         refreshOnStart: takeRefreshOnReturn(), // back from a redirect that changed these on the server

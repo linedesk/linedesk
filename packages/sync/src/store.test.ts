@@ -91,7 +91,10 @@ describe('store', () => {
     await eventually(() => expect(fetchMock).toHaveBeenCalled())
     expect(new Headers(fetchMock.mock.calls[0]![1].headers).get('x-linedesk-account')).toBe('user_a')
     a.stop()
-    vi.stubGlobal('fetch', vi.fn(async () => respond(200, { ok: true, rows: {} })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => respond(200, { ok: true, rows: {} })),
+    )
     const sameAccount = await open(fakeAdapter().adapter, { dbName, workspaceId: 'ws_x', account: 'user_a' })
     expect(sameAccount.getSnapshot()).toMatchObject({ pending: 1 }) // still theirs
     sameAccount.stop()
@@ -102,7 +105,10 @@ describe('store', () => {
   })
 
   it('a database from before the account marker keeps its rows but not its unsent changes', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => respond(503, {})))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => respond(503, {})),
+    )
     const dbName = `unmarked${n}`
     const first = fakeAdapter()
     const before = await open(first.adapter, { dbName }) // an older build: no account
@@ -121,7 +127,10 @@ describe('store', () => {
   })
 
   it('after a refusal, read sync still on its way writes nothing', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => respond(200, { ok: true, rows: {} })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => respond(200, { ok: true, rows: {} })),
+    )
     const { adapter, calls } = fakeAdapter()
     const store = await open(adapter, { workspaceId: 'ws_a' })
     calls().refuse({ code: 'account_switched' })
@@ -139,7 +148,9 @@ describe('store', () => {
     const onReject = vi.fn()
     const store = await open(adapter, { workspaceId: 'ws_a', onReject })
     await store.run('call.markDone', { callId: 'c1' })
-    await eventually(() => expect(store.getSnapshot().refused).toEqual({ code: 'workspace_switched', activeWorkspaceId: 'ws_b' }))
+    await eventually(() =>
+      expect(store.getSnapshot().refused).toEqual({ code: 'workspace_switched', activeWorkspaceId: 'ws_b' }),
+    )
     expect(stopped).toHaveBeenCalledTimes(tableNames.length) // read sync stopped
     expect(store.getSnapshot().pending).toBe(1) // not rolled back, not rejected
     expect(onReject).not.toHaveBeenCalled()
@@ -153,7 +164,9 @@ describe('store', () => {
 
   it('a 401 that is not the API’s own (a proxy in front) rolls nothing back: the change waits and is sent later', async () => {
     let proxyDown = true
-    const fetchMock = vi.fn(async () => (proxyDown ? respond(401, { error: 'Unauthorized' }) : respond(200, { ok: true, rows: {} })))
+    const fetchMock = vi.fn(async () =>
+      proxyDown ? respond(401, { error: 'Unauthorized' }) : respond(200, { ok: true, rows: {} }),
+    )
     vi.stubGlobal('fetch', fetchMock)
     const onReject = vi.fn()
     const store = await open(fakeAdapter().adapter, { workspaceId: 'ws_a', onReject })
@@ -168,7 +181,9 @@ describe('store', () => {
   })
 
   it('signed out (401): stops at once, rolls the change back and says so, instead of retrying forever', async () => {
-    const fetchMock = vi.fn(async () => respond(401, { ok: false, error: 'not signed in or no workspace', code: 'signed_out' }))
+    const fetchMock = vi.fn(async () =>
+      respond(401, { ok: false, error: 'not signed in or no workspace', code: 'signed_out' }),
+    )
     vi.stubGlobal('fetch', fetchMock)
     const { adapter, calls } = fakeAdapter()
     const onReject = vi.fn()
@@ -201,7 +216,10 @@ describe('store', () => {
   })
 
   it('lost access (403 workspace_access_lost): rolled back as well', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => respond(403, { ok: false, error: 'no access', code: 'workspace_access_lost' })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => respond(403, { ok: false, error: 'no access', code: 'workspace_access_lost' })),
+    )
     const { adapter, calls } = fakeAdapter()
     const store = await open(adapter, { workspaceId: 'ws_a' })
     calls().upsert([call()])
@@ -213,7 +231,13 @@ describe('store', () => {
   })
 
   it('knows whether the workspace is disabled from every answer, and when it is enabled again', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true, rows: {} }), { headers: { 'x-workspace-state': 'disabled' } })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ ok: true, rows: {} }), { headers: { 'x-workspace-state': 'disabled' } }),
+      ),
+    )
     const { adapter, calls } = fakeAdapter()
     const store = await open(adapter, { workspaceId: 'ws_a' })
     expect(store.getSnapshot().workspaceState).toBeNull()
@@ -238,17 +262,25 @@ describe('store', () => {
   })
 
   it('a 403 that is not a workspace refusal still rejects the command', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => respond(403, { ok: false, error: 'forbidden: settings:write' })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => respond(403, { ok: false, error: 'forbidden: settings:write' })),
+    )
     const onReject = vi.fn()
     const store = await open(fakeAdapter().adapter, { onReject })
     await store.run('call.markDone', { callId: 'c1' })
-    await eventually(() => expect(onReject).toHaveBeenCalledWith(expect.objectContaining({ error: 'forbidden: settings:write' })))
+    await eventually(() =>
+      expect(onReject).toHaveBeenCalledWith(expect.objectContaining({ error: 'forbidden: settings:write' })),
+    )
     expect(store.getSnapshot().refused).toBeNull()
     store.stop()
   })
 
   it('drops the rows an action deleted as soon as the server answers, without waiting for read sync', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => respond(200, { ok: true, rows: {}, deleted: { calls: ['c1'] } })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => respond(200, { ok: true, rows: {}, deleted: { calls: ['c1'] } })),
+    )
     const { adapter, calls } = fakeAdapter()
     const refresh = vi.fn()
     const store = await open({ ...adapter, refresh })
@@ -516,6 +548,55 @@ describe('local database', () => {
     })
     const store = await open(fakeAdapter().adapter, { dbName: name })
     expect(store.rows('calls').map(c => c.id)).toEqual(['kept'])
+    store.stop()
+  })
+})
+
+describe('the first screen first', () => {
+  /** A fake adapter that records which tables it was asked to read, in order. */
+  function recordingAdapter() {
+    const started: string[] = []
+    const sinks = new Map<string, TableSink>()
+    const adapter: ReadSyncAdapter = {
+      name: 'fake',
+      start: (table, sink) => {
+        started.push(table)
+        sinks.set(table, sink as never)
+        return () => {}
+      },
+    }
+    return { adapter, started, sink: (t: string) => sinks.get(t)! }
+  }
+  const first = ['calls', 'contacts'] as const
+
+  it('reads the first tables, and the others once those are up to date', async () => {
+    const { adapter, started, sink } = recordingAdapter()
+    const store = await open(adapter, { firstTables: first })
+    await eventually(() => expect(started).toEqual([...first]))
+    sink('calls').saveCursor({ offset: '1', handle: 'h' })
+    await quietFor()
+    expect(started).toEqual([...first]) // contacts is not up to date yet
+    sink('contacts').saveCursor({ offset: '1', handle: 'h' })
+    await eventually(() => expect(new Set(started)).toEqual(new Set(tableNames)))
+    expect(started).toHaveLength(tableNames.length)
+    store.stop()
+  })
+
+  it('reads them all at once on a device that has the first tables already', async () => {
+    const local = await openLocalDb(`t${n}`)
+    await local.write('meta', s => first.forEach(t => s.put({ offset: '1', handle: 'h' }, `cursor:${t}`)))
+    local.close()
+    const { adapter, started } = recordingAdapter()
+    const store = await open(adapter, { firstTables: first })
+    await eventually(() => expect(started).toHaveLength(tableNames.length))
+    expect(started.slice(0, first.length)).toEqual([...first])
+    store.stop()
+  })
+
+  it('does not let a first table that never gets up to date hold the others back', async () => {
+    const { adapter, started } = recordingAdapter()
+    const store = await open(adapter, { firstTables: first, firstTablesWaitMs: 30 })
+    await eventually(() => expect(started).toHaveLength(tableNames.length))
     store.stop()
   })
 })

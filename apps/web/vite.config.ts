@@ -1,5 +1,14 @@
+import { readFileSync } from 'node:fs'
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv, type ServerOptions } from 'vite'
+
+/** The newest database migration: synced rows kept from an older schema may miss its columns. */
+function latestMigration(): string {
+  const journal = JSON.parse(
+    readFileSync(new URL('../../packages/db/migrations/meta/_journal.json', import.meta.url), 'utf8'),
+  )
+  return (journal as { entries: { tag: string }[] }).entries.at(-1)?.tag ?? 'none'
+}
 
 // The API is proxied so the browser sees one origin (session cookie, no CORS).
 export default defineConfig(({ mode }) => {
@@ -7,8 +16,12 @@ export default defineConfig(({ mode }) => {
   const api = `http://localhost:${env.PORT ?? 3100}`
   return {
     plugins: [react()],
-    // The build's version: when it changes (a new deploy), the local store loads every table afresh.
-    define: { 'import.meta.env.VITE_APP_BUILD': JSON.stringify(env.APP_BUILD || new Date().toISOString()) },
+    // The build's version: names the service worker's cache (src/serviceWorker.ts), one per deploy.
+    // The schema: when a deploy brings a migration, the local store loads every table once more (storeCache.ts).
+    define: {
+      'import.meta.env.VITE_APP_BUILD': JSON.stringify(env.APP_BUILD || new Date().toISOString()),
+      'import.meta.env.VITE_SCHEMA_VERSION': JSON.stringify(latestMigration()),
+    },
     server: {
       port: 5173,
       strictPort: true,

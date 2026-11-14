@@ -52,8 +52,11 @@ export interface StoreOptions {
   /** The local database was taken away by another tab (it signed out). The store has stopped. */
   onLocalDbLost?: () => void
   retryMs?: number
-  /** The app's build. When it changes (a new deploy), every table loads afresh: read-sync cursors are dropped, pending writes kept. */
-  appVersion?: string
+  /**
+   * The version of how this app keeps synced rows (`SYNC_VERSION`). When it changes, every table loads
+   * afresh: read-sync cursors are dropped, pending writes kept. A deploy alone keeps them.
+   */
+  syncVersion?: string
   /** How this store finds the other tabs of the workspace. Default: Web Lock and BroadcastChannel named after the database. */
   tabs?: TabLink
   /**
@@ -67,6 +70,14 @@ export interface StoreOptions {
   activityRefreshMs?: number
   /** How long read requests fail before the snapshot says `readSyncDown`. */
   readSyncDownMs?: number
+  /**
+   * The tables the first screen shows: read first, and the others only once these are up to date (on
+   * this device already, or read from the server), so the first screen does not wait behind big tables
+   * (transcripts). The others follow at once, so opening a call still finds them local. Default: all at once.
+   */
+  firstTables?: readonly TableName[]
+  /** How long the other tables wait for the first ones at most (a slow or failing table must not hold them back). */
+  firstTablesWaitMs?: number
 }
 
 const emptyTables = () => Object.fromEntries(tableNames.map(t => [t, new Map()])) as unknown as LocalTables
@@ -75,7 +86,17 @@ const seqOf = (c: Command) => c.seq ?? Date.parse(c.at) * 1000
 /** Oldest first. Within a tab `seq` never repeats; between tabs the id breaks ties, so every tab agrees on the order. */
 const byAge = (a: Command, b: Command) => seqOf(a) - seqOf(b) || a.id.localeCompare(b.id)
 
-const VERSION_KEY = 'appVersion'
+/**
+ * Bump when the browser keeps synced rows differently (how a row is parsed or stored, which rows a
+ * table holds), so rows kept from before would be wrong: every browser then loads every table once
+ * more. A deploy needs no bump, nor a changed shape filter on the server: Electric answers the old
+ * cursor with 409 (must-refetch) and that table loads afresh by itself (electric.ts). New columns
+ * reach a browser only with the next change to that table, so the web app adds the schema's version
+ * to this one (storeCache.ts).
+ */
+export const SYNC_VERSION = '1'
+
+const VERSION_KEY = 'syncVersion'
 /** A refresh nobody answers (the leading tab closed meanwhile) stops showing tables as loading after this. */
 const REFRESH_WAIT_MS = 4000
 /**
@@ -84,10 +105,12 @@ const REFRESH_WAIT_MS = 4000
  * the polled tables again, at most this often, so the server's refusal arrives before they act on old data.
  */
 const ACTIVITY_REFRESH_MS = 15_000
+/** The other tables start after this even if a first table is not up to date yet. */
+const FIRST_TABLES_WAIT_MS = 3000
 /** Read requests that fail this long mean the server can't be reached, not a passing blip. */
 const READ_SYNC_DOWN_MS = 10_000
 
-/** A new build may sync a different shape of the tables: drop the read-sync cursors so each table loads again. */
+/** Synced rows are kept differently now (`SYNC_VERSION`): drop the read-sync cursors so each table loads again. */
 export async function forgetCursorsOnNewVersion(local: LocalDb, version: string): Promise<boolean> {
   const meta = await local.all<unknown>('meta')
   if (meta.find(([key]) => key === VERSION_KEY)?.[1] === version) return false
@@ -119,7 +142,8 @@ export async function claimForAccount(local: LocalDb, account: string): Promise<
  * The tabs that share one leader: same database and same account. Another account's tabs on this
  * browser (someone signed in in another tab) never follow a leader that sends as the first account.
  */
-export const tabGroupName = (dbName: string, account?: string) => `linedesk-tabs:${dbName}${account ? `:${account}` : ''}`
+export const tabGroupName = (dbName: string, account?: string) =>
+  `linedesk-tabs:${dbName}${account ? `:${account}` : ''}`
 
 export async function createStore(opts: StoreOptions) {
   let stopped = false
@@ -140,7 +164,7 @@ export async function createStore(opts: StoreOptions) {
     },
   })
   if (opts.account) await claimForAccount(local, opts.account)
-  if (opts.appVersion) await forgetCursorsOnNewVersion(local, opts.appVersion)
+  if (opts.syncVersion) await forgetCursorsOnNewVersion(local, opts.syncVersion)
   const confirmed = emptyTables()
   let outbox: Command[] = []
   /** The key each command is stored under: its id (older versions stored a per-tab counter). */
@@ -365,6 +389,26 @@ export async function createStore(opts: StoreOptions) {
     synced.add(table)
     tabs.post({ type: 'synced', table })
     recompute()
+    for (const check of syncedWaiters) check()
+  }
+
+  /** Called whenever a table is up to date for the first time; see `whenSynced`. */
+  const syncedWaiters = new Set<() => void>()
+  /** Resolves once all these tables are up to date (now or in an earlier session), or after `ms`. */
+  function whenSynced(tables: readonly TableName[], ms: number): Promise<void> {
+    return new Promise(resolve => {
+      const done = () => {
+        syncedWaiters.delete(check)
+        clearTimeout(timer)
+        resolve()
+      }
+      const check = () => {
+        if (tables.every(t => synced.has(t))) done()
+      }
+      const timer = setTimeout(done, ms)
+      syncedWaiters.add(check)
+      check()
+    })
   }
 
   function setOnline(value: boolean) {
@@ -560,7 +604,15 @@ export async function createStore(opts: StoreOptions) {
     if (stopped) return
     recompute()
     if (refused) return // the leader before was refused: this one would be too
-    stops = tableNames.map(t => opts.adapter.start(t, sinkFor(t)))
+    const start = (t: TableName) => opts.adapter.start(t, sinkFor(t))
+    const first = tableNames.filter(t => opts.firstTables?.includes(t))
+    const later = tableNames.filter(t => !first.includes(t))
+    stops = (first.length ? first : later).map(start)
+    // The first screen's tables before the rest: on a device that has them, they are up to date already.
+    if (first.length)
+      void whenSynced(first, opts.firstTablesWaitMs ?? FIRST_TABLES_WAIT_MS).then(() => {
+        if (!stopped && !refused) stops.push(...later.map(start))
+      })
     // What this tab asked the leader before (it was not leading yet, or the leader closed): read it now.
     for (const [id, ask] of askedLeader) {
       askedLeader.delete(id)
