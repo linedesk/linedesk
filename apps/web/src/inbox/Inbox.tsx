@@ -182,8 +182,13 @@ function useStableHandlers(handlers: RowHandlers): RowHandlers {
   }, [present])
 }
 
-/** Rows above and below the viewport that are rendered too, so fast scrolling and J/K never show a gap. */
-const OVERSCAN = 12
+/**
+ * Rows above and below the viewport that are rendered too, so fast scrolling and J/K never show a gap:
+ * about three screens each way. A flick of the wheel jumps a thousand pixels or more before the list
+ * renders again, and 12 rows (about 430 px) showed it empty for a moment. The rows are memoized, so
+ * keeping more of them costs little.
+ */
+const OVERSCAN = 60
 /** A row's height before it is measured: one line on wide windows, stacked lines on phones (app.css). */
 const estimateRowHeight = () => (window.matchMedia('(max-width: 719px)').matches ? 72 : 36)
 
