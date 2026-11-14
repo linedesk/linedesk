@@ -1,6 +1,7 @@
 import { createServer } from 'node:net'
 import { describe, expect, it, vi } from 'vitest'
-import { createEmailSender, senderLine } from './email.ts'
+import { createEmailSender, senderLine, smtpCheck } from './email.ts'
+import { smtpOf } from './email-services.ts'
 
 describe('createEmailSender', () => {
   it('uses SMTP when SMTP_URL is set', () => {
@@ -44,6 +45,58 @@ describe('createEmailSender', () => {
       await expect(sent).rejects.not.toThrow(/secret/)
     } finally {
       silent.close()
+    }
+  })
+
+  it('says port 465 may be blocked when a URL on 465 gets no answer, and only then', async () => {
+    const refused = createEmailSender(
+      { SMTP_URL: 'smtps://user:secret@127.0.0.1:465' },
+      { connectMs: 500, sendMs: 1000 },
+    )
+    const sent = refused.send({ to: 'mike@brightwater.example', subject: 'Hello', text: 'x' })
+    await expect(sent).rejects.toThrow(/Port 465 may be blocked by your host; try 587/)
+    await expect(sent).rejects.not.toThrow(/secret/)
+    expect((await smtpCheck('smtps://user:secret@127.0.0.1:465')).message).toMatch(/try 587/)
+    const silent = createServer(() => {})
+    await new Promise<void>(resolve => silent.listen(0, '127.0.0.1', resolve))
+    const { port } = silent.address() as { port: number }
+    try {
+      const other = createEmailSender({ SMTP_URL: `smtp://127.0.0.1:${port}` }, { connectMs: 200, sendMs: 1000 })
+      await expect(other.send({ to: 'mike@brightwater.example', subject: 'Hello', text: 'x' })).rejects.not.toThrow(
+        /Port 465/,
+      )
+    } finally {
+      silent.close()
+    }
+  })
+
+  it('a preset never logs in without TLS: a server that offers no STARTTLS gets no password', async () => {
+    // Plays a mail server without STARTTLS (like a plain dev server, or an attacker stripping it) and keeps every line.
+    const lines: string[] = []
+    const server = createServer(socket => {
+      socket.write('220 test ESMTP\r\n')
+      socket.on('data', chunk => {
+        for (const line of chunk.toString().split('\r\n').filter(Boolean)) {
+          lines.push(line)
+          if (/^EHLO/i.test(line)) socket.write('250-test\r\n250 AUTH PLAIN LOGIN\r\n')
+          else if (/^QUIT/i.test(line)) socket.end('221 bye\r\n')
+          else socket.write('250 ok\r\n')
+        }
+      })
+    })
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    const { port } = server.address() as { port: number }
+    try {
+      // The Resend preset's own URL, pointed at the local server: same scheme, user, key and query.
+      const preset = new URL(smtpOf('resend', { api_key: 're_secret' })!.url)
+      preset.hostname = '127.0.0.1'
+      preset.port = String(port)
+      const sender = createEmailSender({ SMTP_URL: preset.toString() }, { connectMs: 1000, sendMs: 3000 })
+      await expect(sender.send({ to: 'mike@brightwater.example', subject: 'Hello', text: 'x' })).rejects.toThrow()
+      expect(lines.some(line => /^AUTH/i.test(line))).toBe(false)
+      expect(lines.join('\n')).not.toContain(Buffer.from('re_secret').toString('base64'))
+    } finally {
+      server.close()
     }
   })
 

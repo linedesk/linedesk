@@ -24,6 +24,13 @@ export interface EmailSender {
 export type SmtpTimeouts = { connectMs: number; sendMs: number }
 const SMTP_TIMEOUTS: SmtpTimeouts = { connectMs: 10_000, sendMs: 30_000 }
 
+/**
+ * Some hosts block outgoing port 465 (Hetzner by default): a URL on 465 that gets no answer says so. Saved URLs are
+ * left as they are; the operator changes the port.
+ */
+const blockedPortHint = (host: string) =>
+  host.endsWith(':465') ? ' Port 465 may be blocked by your host; try 587 (smtp://user:password@host:587).' : ''
+
 /** Fails with a message an operator can act on instead of waiting forever. */
 function withDeadline<T>(work: Promise<T>, ms: number, host: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -32,7 +39,7 @@ function withDeadline<T>(work: Promise<T>, ms: number, host: string): Promise<T>
       () =>
         reject(
           new Error(
-            `Could not send email: ${host} did not finish within ${ms / 1000} s. Check the host and port of the SMTP URL.`,
+            `Could not send email: ${host} did not finish within ${ms / 1000} s. Check the host and port of the SMTP URL.${blockedPortHint(host)}`,
           ),
         ),
       ms,
@@ -55,7 +62,7 @@ function sendError(e: unknown, host: string): Error {
   const code = (e as { code?: string }).code
   if (code === 'ETIMEDOUT' || code === 'ECONNECTION' || code === 'ESOCKET') {
     return new Error(
-      `Could not send email: no answer from ${host} (${code}). Check the host and port of the SMTP URL and that the server may connect to it.`,
+      `Could not send email: no answer from ${host} (${code}). Check the host and port of the SMTP URL and that the server may connect to it.${blockedPortHint(host)}`,
     )
   }
   return e instanceof Error ? e : new Error(String(e))

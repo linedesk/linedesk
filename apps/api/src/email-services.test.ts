@@ -1,22 +1,50 @@
 import { expect, test } from 'vitest'
 import { mailServiceFromEnv, smtpOf } from './email-services.ts'
 
-test('each mail service becomes an SMTP URL, values encoded', () => {
-  expect(smtpOf('resend', { api_key: 're_1/2' })?.url).toBe('smtps://resend:re_1%2F2@smtp.resend.com:465')
-  expect(smtpOf('postmark', { server_token: 'tok' })?.url).toBe('smtp://tok:tok@smtp.postmarkapp.com:587')
-  expect(smtpOf('sendgrid', { api_key: 'SG.x' })?.url).toBe('smtps://apikey:SG.x@smtp.sendgrid.net:465')
+test('each mail service becomes an SMTP URL on port 587 with STARTTLS required, values encoded', () => {
+  expect(smtpOf('resend', { api_key: 're_1/2' })?.url).toBe(
+    'smtp://resend:re_1%2F2@smtp.resend.com:587?requireTLS=true',
+  )
+  expect(smtpOf('postmark', { server_token: 'tok' })?.url).toBe(
+    'smtp://tok:tok@smtp.postmarkapp.com:587?requireTLS=true',
+  )
+  expect(smtpOf('sendgrid', { api_key: 'SG.x' })?.url).toBe('smtp://apikey:SG.x@smtp.sendgrid.net:587?requireTLS=true')
   expect(smtpOf('brevo', { login: 'a@smtp-brevo.com', smtp_key: 'k' })?.url).toBe(
-    'smtp://a%40smtp-brevo.com:k@smtp-relay.brevo.com:587',
+    'smtp://a%40smtp-brevo.com:k@smtp-relay.brevo.com:587?requireTLS=true',
   )
   expect(smtpOf('mailgun', { smtp_user: 'u', smtp_password: 'p', region: 'EU' })?.url).toBe(
-    'smtps://u:p@smtp.eu.mailgun.org:465',
+    'smtp://u:p@smtp.eu.mailgun.org:587?requireTLS=true',
   )
-  expect(smtpOf('mailgun', { smtp_user: 'u', smtp_password: 'p' })?.url).toBe('smtps://u:p@smtp.mailgun.org:465')
+  expect(smtpOf('mailgun', { smtp_user: 'u', smtp_password: 'p' })?.url).toBe(
+    'smtp://u:p@smtp.mailgun.org:587?requireTLS=true',
+  )
+})
+
+test('every preset: smtp:// on 587 (never 465, blocked on some hosts) and STARTTLS required', () => {
+  const values = {
+    api_key: 'k',
+    server_token: 't',
+    login: 'l',
+    smtp_key: 'k',
+    smtp_user: 'u',
+    smtp_password: 'p',
+    address: 'desk@gmail.com',
+    app_password: 'p',
+  }
+  for (const provider of ['resend', 'postmark', 'sendgrid', 'brevo', 'mailgun', 'gmail'] as const) {
+    const url = new URL(smtpOf(provider, values)!.url)
+    expect([provider, url.protocol, url.port, url.searchParams.get('requireTLS')]).toEqual([
+      provider,
+      'smtp:',
+      '587',
+      'true',
+    ])
+  }
 })
 
 test('Gmail: the app password without its spaces, sent from the address unless From is set', () => {
   expect(smtpOf('gmail', { address: 'desk@gmail.com', app_password: 'abcd efgh ijkl mnop' })).toEqual({
-    url: 'smtps://desk%40gmail.com:abcdefghijklmnop@smtp.gmail.com:465',
+    url: 'smtp://desk%40gmail.com:abcdefghijklmnop@smtp.gmail.com:587?requireTLS=true',
     from: 'desk@gmail.com',
   })
   expect(smtpOf('gmail', { address: 'desk@gmail.com', app_password: 'x', from: 'Desk <desk@gmail.com>' })?.from).toBe(
