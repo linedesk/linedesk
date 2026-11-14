@@ -360,7 +360,8 @@ function Progress({
           </li>
         ))}
       </ul>
-      {(allDone || connected) && (
+      {/* Before the agent has created the business there is no workspace to open: the button would bring back this page. */}
+      {(allDone || connected) && steps.some(s => s.id === 'workspace' && s.state === 'done') && (
         <div>
           <Button variant={allDone ? 'primary' : 'secondary'} onClick={onDone}>
             {allDone ? `Open ${brandName()}` : `Open ${brandName()} now`}
