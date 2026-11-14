@@ -39,7 +39,6 @@ const viewHeading: Record<InboxTab, string> = {
   mine: 'Assigned to me',
   member: 'Assigned to a teammate',
   unassigned: 'Unassigned',
-  review: 'Needs review',
 }
 const emptyTitle: Record<InboxTab, string> = {
   you: 'Nothing needs you',
@@ -50,7 +49,6 @@ const emptyTitle: Record<InboxTab, string> = {
   mine: 'Nothing assigned to you',
   member: 'Nothing assigned to them',
   unassigned: 'Every call that needs someone has someone',
-  review: 'Nothing to review',
 }
 function Empty({ tab, search }: { tab: InboxTab; search: string | null }) {
   return (

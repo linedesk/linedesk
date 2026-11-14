@@ -6,7 +6,7 @@ import { parseTs, whenLabel } from './time.ts'
  * `mine`: calls assigned to the signed-in member that are still open; `member`: the same for another
  * member (the route names them); `unassigned`: Needs you calls nobody has taken. Filters, not places of their own.
  */
-export type InboxTab = 'you' | 'ai' | 'spam' | 'reminders' | 'done' | 'mine' | 'member' | 'unassigned' | 'review'
+export type InboxTab = 'you' | 'ai' | 'spam' | 'reminders' | 'done' | 'mine' | 'member' | 'unassigned'
 /** The views that list calls by who they are assigned to. */
 export const assigneeTabs: readonly InboxTab[] = ['mine', 'member', 'unassigned']
 /** The three views Tab cycles through. Reminders, Done and Assigned to me are modes outside the cycle. */
@@ -28,7 +28,7 @@ export function tabOf(call: Call, now = new Date()): InboxTab {
 
 /**
  * The view to show after opening a call: the one it lives in, unless the current view lists it
- * (Needs review and Assigned to me cut across the views, and up/down must keep walking that list).
+ * (Assigned to me cuts across the views, and up/down must keep walking that list).
  */
 export function viewForOpened(call: Call, tab: InboxTab, list: readonly Call[], now = new Date()): InboxTab {
   return list.some(c => c.id === call.id) ? tab : tabOf(call, now)
@@ -53,23 +53,17 @@ const isOpenFor = (call: Call, userId: string | null, now: Date) => {
 /** In Needs you and nobody has taken it. */
 const isUnassigned = (call: Call, now: Date) => !call.assignee_id && tabOf(call, now) === 'you'
 
-/**
- * `review`: the calls whose evaluation needs a person (owners and admins only, from call.listEvaluations);
- * the Needs review mode lists them newest first.
- */
 export function listFor(
   calls: Call[],
   tab: InboxTab,
   now = new Date(),
   me: string | null = null,
-  review: ReadonlySet<string> = new Set(),
   member: string | null = null,
 ): Call[] {
   const visible = calls.filter(c => !c.deleted_at)
   if (tab === 'mine') return sortForList(visible.filter(c => isOpenFor(c, me, now)))
   if (tab === 'member') return sortForList(visible.filter(c => isOpenFor(c, member, now)))
   if (tab === 'unassigned') return sortForList(visible.filter(c => isUnassigned(c, now)))
-  if (tab === 'review') return sortForList(visible.filter(c => review.has(c.id)))
   const inTab = visible.filter(c => tabOf(c, now) === tab)
   // Reminders read as a schedule: the one that comes back first is on top.
   if (tab === 'reminders')
@@ -82,7 +76,6 @@ export function countsFor(
   calls: Call[],
   now = new Date(),
   me: string | null = null,
-  review: ReadonlySet<string> = new Set(),
   member: string | null = null,
 ): Record<InboxTab, number> {
   const counts: Record<InboxTab, number> = {
@@ -94,7 +87,6 @@ export function countsFor(
     mine: 0,
     member: 0,
     unassigned: 0,
-    review: 0,
   }
   for (const c of calls) {
     if (c.deleted_at) continue
@@ -102,7 +94,6 @@ export function countsFor(
     if (isOpenFor(c, me, now)) counts.mine++
     if (isOpenFor(c, member, now)) counts.member++
     if (isUnassigned(c, now)) counts.unassigned++
-    if (review.has(c.id)) counts.review++
   }
   counts.you = groupRepeats(listFor(calls, 'you', now)).list.length
   return counts

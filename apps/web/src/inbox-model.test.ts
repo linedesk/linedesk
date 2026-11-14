@@ -215,23 +215,6 @@ describe('assigned to me', () => {
   })
 })
 
-describe('needs review', () => {
-  it('lists the calls whose evaluation needs a person, in whatever view they are, newest first, without deleted ones', () => {
-    const calls = [
-      call({ id: 'low-done', inbox_state: 'done', started_at: '2026-11-10 09:00:00+00' }),
-      call({ id: 'low-open', outcome: 'callback', started_at: '2026-11-10 11:00:00+00' }),
-      call({ id: 'low-deleted', deleted_at: '2026-11-10 11:30:00+00' }),
-      call({ id: 'fine' }),
-    ]
-    const review = new Set(['low-done', 'low-open', 'low-deleted'])
-    expect(listFor(calls, 'review', now, null, review).map(c => c.id)).toEqual(['low-open', 'low-done'])
-    expect(countsFor(calls, now, null, review).review).toBe(2)
-    expect(listFor(calls, 'review', now, null)).toEqual([]) // members get no evaluations: nothing to review
-    // A call keeps its own view: being reviewed does not move it.
-    expect(tabOf(calls[1]!, now)).toBe('you')
-  })
-})
-
 describe('transferText', () => {
   it('says how the transfer went, and nothing without one', () => {
     expect(transferText({ transfer_to: '+15035550199', transfer_result: 'connected' })).toBe(
@@ -250,16 +233,15 @@ describe('transferText', () => {
 
 describe('opening a call', () => {
   const now = new Date('2026-11-11T12:00:00Z')
-  it('keeps a view that lists it (Needs review, Assigned to me), else goes to its own view', () => {
+  it('keeps a view that lists it (Assigned to me), else goes to its own view', () => {
     const urgent = call({ id: 'c1', urgency: 'urgent' })
-    expect(viewForOpened(urgent, 'review', [urgent], now)).toBe('review')
     expect(viewForOpened(urgent, 'mine', [urgent], now)).toBe('mine')
     expect(viewForOpened(urgent, 'done', [], now)).toBe('you')
   })
 })
 
 describe('visibleSplits', () => {
-  const none = { you: 0, ai: 0, spam: 0, reminders: 0, done: 0, mine: 0, member: 0, unassigned: 0, review: 0 }
+  const none = { you: 0, ai: 0, spam: 0, reminders: 0, done: 0, mine: 0, member: 0, unassigned: 0 }
   it('shows Spam only while there is a spam call or the view is open', () => {
     expect(visibleSplits(none, 'you')).toEqual(['you', 'ai'])
     expect(visibleSplits({ ...none, spam: 1 }, 'you')).toEqual(['you', 'ai', 'spam'])

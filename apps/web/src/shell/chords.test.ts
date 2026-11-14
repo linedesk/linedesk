@@ -19,10 +19,11 @@ describe('G chords', () => {
     expect(chordTarget('h', member)).toEqual({ kind: 'tab', tab: 'reminders' })
   })
 
-  it('offers Admin, Needs review and the assignee views only to who can use them', () => {
+  it('offers Admin, How <assistant> did and the assignee views only to who can use them', () => {
     expect(chordTarget('d', all)).toEqual({ kind: 'page', route: 'admin' })
     expect(chordTarget('d', member)).toBeNull()
-    expect(chordTarget('r', all)).toEqual({ kind: 'tab', tab: 'review' })
+    // G R: the assistant review in the Assistant area, no longer an inbox view.
+    expect(chordTarget('r', all)).toEqual({ kind: 'page', route: 'assistant', section: 'review' })
     expect(chordTarget('r', member)).toBeNull()
     expect(chordTarget('m', all)).toEqual({ kind: 'tab', tab: 'mine' })
     expect(chordTarget('u', all)).toEqual({ kind: 'tab', tab: 'unassigned' })

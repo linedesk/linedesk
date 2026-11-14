@@ -138,6 +138,8 @@ describe('old links (LIN-165)', () => {
     ['#team/members', '#workspace/team'],
     ['#team/invites/x', '#workspace/team'],
     ['#settings/nope', '#workspace/nope'],
+    // Needs review left the inbox (LIN-185): How <assistant> did, in the Assistant area.
+    ['#calls/review', '#assistant/review'],
   ]
 
   it.each(redirects)('%s goes to %s', (from, to) => {
@@ -151,6 +153,7 @@ describe('old links (LIN-165)', () => {
     expect(movedHash('#team?ws=ws_1&q=leak')).toBe('#workspace/team?ws=ws_1&q=leak')
     expect(movedHash('#assistant/as_1/notifications?ws=a%20b')).toBe('#account/notifications?ws=a%20b')
     expect(movedHash('#settings?')).toBe('#workspace')
+    expect(movedHash('#calls/review?ws=ws_1')).toBe('#assistant/review?ws=ws_1')
     expect(linkWorkspace(movedHash('#settings/phone?ws=ws_1')!)).toBe('ws_1')
   })
 
@@ -164,6 +167,8 @@ describe('old links (LIN-165)', () => {
       '#assistant',
       '#assistant/hours',
       '#assistant/as_1/hours',
+      '#assistant/as_1/review',
+      '#calls/done',
       '#calls?q=team',
       '#call/team',
       '#teams',

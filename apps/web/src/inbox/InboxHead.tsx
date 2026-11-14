@@ -34,7 +34,6 @@ const modeTitle: Partial<Record<InboxTab, string>> = {
   mine: 'Assigned to me',
   member: 'Assigned to a teammate',
   unassigned: 'Unassigned',
-  review: 'Needs review',
 }
 
 function SearchBar({

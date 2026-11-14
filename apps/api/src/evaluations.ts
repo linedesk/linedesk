@@ -1,7 +1,8 @@
 // Call evaluations (docs/architecture.md, Call evaluations): after `call.finish`, a job asks the
 // configured language model how the assistant handled the call. One short request with the
 // assistant's instructions, the transcript and the summary; the answer is a score (1 to 5) and at
-// most three issues, stored in `call_evaluations`. Only owners and admins read them.
+// most three issues, stored in `call_evaluations`, with the questions it could not answer. Only owners and admins
+// read them, in "How <assistant> did" (Assistant area), where each is marked done (`reviewed_at`).
 import {
   type CallEvaluation,
   callRules,
@@ -12,12 +13,14 @@ import {
   NEEDS_REVIEW_MAX_SCORE,
   PRICE_RULE,
   QUESTION_MAX,
+  type QuestionGroup,
+  QUESTIONS_WINDOW_DAYS,
 } from '@linedesk/actions'
-import { assistants, call_evaluations, calls, type Tx, transcript_segments } from '@linedesk/db'
-import { and, asc, desc, eq, isNull, lte } from 'drizzle-orm'
+import { assistants, call_evaluations, calls, knowledge_questions, type Tx, transcript_segments } from '@linedesk/db'
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { type Handler, Reject } from './handler-context.ts'
-import { addOpenQuestions } from './knowledge-questions.ts'
+import { addOpenQuestions, questionKey } from './knowledge-questions.ts'
 import { type ProviderProblem, problemOfError, problemOfStatus } from './provider-errors.ts'
 import { noteProviderFailure, noteProviderOk } from './provider-failures.ts'
 import { activeProvider } from './provider-settings.ts'
@@ -244,13 +247,18 @@ export async function evaluateCall(
     workspace_id: call.workspace_id,
     score,
     issues,
+    unanswered,
     model: model.model,
     assistant_version: assistant?.version ?? null,
   }
+  // A new judgement is open again, whatever was marked done about the earlier one.
   const [row] = await tx
     .insert(call_evaluations)
     .values(values)
-    .onConflictDoUpdate({ target: call_evaluations.call_id, set: { ...values, created_at: new Date().toISOString() } })
+    .onConflictDoUpdate({
+      target: call_evaluations.call_id,
+      set: { ...values, created_at: new Date().toISOString(), reviewed_at: null, reviewed_by: null },
+    })
     .returning()
   return toEvaluation(row!)
 }
@@ -259,9 +267,93 @@ const toEvaluation = (row: typeof call_evaluations.$inferSelect): CallEvaluation
   callId: row.call_id,
   score: row.score,
   issues: row.issues,
+  unanswered: row.unanswered,
   model: row.model,
   createdAt: row.created_at,
+  reviewedAt: row.reviewed_at,
+  reviewedBy: row.reviewed_by,
 })
+
+/** A call of this assistant; one without an assistant (from before calls kept it) belongs to every assistant. */
+const ofAssistant = (assistantId: string) => or(eq(calls.assistant_id, assistantId), isNull(calls.assistant_id))
+
+/** Calls listed per question group (the count says how many there were). */
+const GROUP_CALLS_MAX = 5
+
+/**
+ * The open questions of the workspace (or one assistant), each with the calls of the last QUESTIONS_WINDOW_DAYS
+ * days that asked it: the question's own call, and every evaluation naming it (same `questionKey`). Answered and
+ * dismissed questions are never listed, so a question handled once does not come back. Most asked first.
+ */
+export async function questionGroups(tx: Tx, workspaceId: string, assistantId?: string): Promise<QuestionGroup[]> {
+  const open = await tx
+    .select()
+    .from(knowledge_questions)
+    .where(
+      and(
+        eq(knowledge_questions.workspace_id, workspaceId),
+        eq(knowledge_questions.status, 'open'),
+        assistantId ? eq(knowledge_questions.assistant_id, assistantId) : undefined,
+      ),
+    )
+  if (!open.length) return []
+  const since = new Date(Date.now() - QUESTIONS_WINDOW_DAYS * 86_400_000).toISOString()
+  const asked = await tx
+    .select({
+      callId: call_evaluations.call_id,
+      assistantId: calls.assistant_id,
+      unanswered: call_evaluations.unanswered,
+      at: calls.started_at,
+    })
+    .from(call_evaluations)
+    .innerJoin(calls, eq(calls.id, call_evaluations.call_id))
+    .where(
+      and(
+        eq(call_evaluations.workspace_id, workspaceId),
+        isNull(calls.deleted_at),
+        gte(calls.started_at, since),
+        sql`jsonb_array_length(${call_evaluations.unanswered}) > 0`,
+        assistantId ? ofAssistant(assistantId) : undefined,
+      ),
+    )
+  // The question's own call counts too (also from before the evaluation kept its questions), unless it was deleted.
+  const ownCalls = open.map(q => q.call_id).filter((id): id is string => !!id)
+  const liveOwn = new Map(
+    ownCalls.length
+      ? (
+          await tx
+            .select({ id: calls.id, at: calls.started_at })
+            .from(calls)
+            .where(
+              and(
+                inArray(calls.id, ownCalls),
+                eq(calls.workspace_id, workspaceId),
+                isNull(calls.deleted_at),
+                gte(calls.started_at, since),
+              ),
+            )
+        ).map(c => [c.id, c.at] as const)
+      : [],
+  )
+  const groups = open.map(q => {
+    const key = questionKey(q.question)
+    const seen = new Map<string, string>()
+    if (q.call_id && liveOwn.has(q.call_id)) seen.set(q.call_id, liveOwn.get(q.call_id)!)
+    for (const a of asked)
+      if ((a.assistantId === null || a.assistantId === q.assistant_id) && a.unanswered.some(u => questionKey(u) === key)) seen.set(a.callId, a.at)
+    const byNewest = [...seen.entries()].sort((x, y) => y[1].localeCompare(x[1]))
+    return {
+      questionId: q.id,
+      assistantId: q.assistant_id,
+      question: q.question,
+      // An open question older than the window was still asked once.
+      asked: Math.max(1, byNewest.length),
+      callIds: byNewest.slice(0, GROUP_CALLS_MAX).map(([id]) => id),
+      lastAskedAt: byNewest[0]?.[1] ?? q.created_at,
+    }
+  })
+  return groups.sort((a, b) => b.asked - a.asked || b.lastAskedAt.localeCompare(a.lastAskedAt))
+}
 
 /** Whether a finished call is evaluated on its own: phone calls; test calls only when asked for. */
 export const evaluatedAutomatically = (call: { source: string; outcome: string | null }) =>
@@ -286,22 +378,46 @@ export const evaluationHandlers = (queue: QueueEvaluation): Record<string, Handl
     return { rows: {}, data: { evaluation: found ? toEvaluation(found.row) : null } }
   },
 
-  'call.listEvaluations': async ({ tx, actor }, input: { needsReview: boolean; limit: number }) => {
+  'call.listEvaluations': async (
+    { tx, actor },
+    input: { needsReview: boolean; open?: boolean; assistantId?: string; limit: number },
+  ) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
+    const where = and(
+      eq(call_evaluations.workspace_id, actor.workspaceId),
+      isNull(calls.deleted_at),
+      input.needsReview ? lte(call_evaluations.score, NEEDS_REVIEW_MAX_SCORE) : undefined,
+      input.open === undefined
+        ? undefined
+        : input.open
+          ? isNull(call_evaluations.reviewed_at)
+          : isNotNull(call_evaluations.reviewed_at),
+      input.assistantId ? ofAssistant(input.assistantId) : undefined,
+    )
     const rows = await tx
       .select({ row: call_evaluations })
       .from(call_evaluations)
       .innerJoin(calls, eq(calls.id, call_evaluations.call_id))
-      .where(
-        and(
-          eq(call_evaluations.workspace_id, actor.workspaceId),
-          isNull(calls.deleted_at),
-          input.needsReview ? lte(call_evaluations.score, NEEDS_REVIEW_MAX_SCORE) : undefined,
-        ),
-      )
+      .where(where)
       .orderBy(desc(call_evaluations.created_at))
       .limit(input.limit)
-    return { rows: {}, data: { evaluations: rows.map(r => toEvaluation(r.row)) } }
+    const [total] = await tx
+      .select({ n: count() })
+      .from(call_evaluations)
+      .innerJoin(calls, eq(calls.id, call_evaluations.call_id))
+      .where(where)
+    return { rows: {}, data: { evaluations: rows.map(r => toEvaluation(r.row)), total: total?.n ?? 0 } }
+  },
+
+  'evaluation.markDone': async ({ tx, actor, now }, input: { callId: string }) =>
+    setReviewed(tx, actor, input.callId, { reviewed_at: now, reviewed_by: actor.actorId }),
+
+  'evaluation.reopen': async ({ tx, actor }, input: { callId: string }) =>
+    setReviewed(tx, actor, input.callId, { reviewed_at: null, reviewed_by: null }),
+
+  'evaluation.listQuestions': async ({ tx, actor }, input: { assistantId?: string }) => {
+    if (!actor.workspaceId) throw new Reject('no workspace')
+    return { rows: {}, data: { questions: await questionGroups(tx, actor.workspaceId, input.assistantId) } }
   },
 
   'call.evaluate': async ({ tx, actor }, input: { callId: string }) => {
@@ -318,3 +434,27 @@ export const evaluationHandlers = (queue: QueueEvaluation): Record<string, Handl
     return { rows: {}, data: { queued: true } }
   },
 })
+
+/** Marks one evaluation of the workspace done or open; refuses one it does not have (or of a deleted call). */
+async function setReviewed(
+  tx: Tx,
+  actor: { workspaceId?: string | null },
+  callId: string,
+  set: { reviewed_at: string | null; reviewed_by: string | null },
+) {
+  if (!actor.workspaceId) throw new Reject('no workspace')
+  const [found] = await tx
+    .select({ id: calls.id })
+    .from(call_evaluations)
+    .innerJoin(calls, eq(calls.id, call_evaluations.call_id))
+    .where(
+      and(
+        eq(call_evaluations.call_id, callId),
+        eq(call_evaluations.workspace_id, actor.workspaceId),
+        isNull(calls.deleted_at),
+      ),
+    )
+  if (!found) throw new Reject('evaluation not found')
+  const [row] = await tx.update(call_evaluations).set(set).where(eq(call_evaluations.call_id, callId)).returning()
+  return { rows: {}, data: { evaluation: toEvaluation(row!) } }
+}

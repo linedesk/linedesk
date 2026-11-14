@@ -40,9 +40,10 @@ export type CommandContext = {
     all: () => void
     clear: () => void
   } | null
-  goInbox: (tab: 'you' | 'done' | 'reminders' | 'mine' | 'unassigned' | 'review') => void
-  /** Owners and admins: the Needs review mode. */
+  goInbox: (tab: 'you' | 'done' | 'reminders' | 'mine' | 'unassigned') => void
+  /** Owners and admins: How <assistant> did, in the Assistant area (named after `assistantName`). */
   canReview?: boolean
+  assistantName?: string
   /** Open a page, or one section of it (`goPage('workspace', 'team')`). */
   goPage: (route: PageRoute, section?: string) => void
   isInstanceAdmin: boolean
@@ -285,22 +286,22 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
           run: () => c.goInbox('reminders'),
         },
         ...(c.assign ? assigneeViewCommands(c.assign, c) : []),
-        ...(c.canReview
-          ? [
-              {
-                label: 'Go to Needs review',
-                icon: 'flag' as const,
-                shortcut: ['G', 'R'],
-                run: () => c.goInbox('review'),
-              },
-            ]
-          : []),
         {
           label: 'Go to Assistant',
           icon: 'waveform',
           shortcut: ['G', 'A'],
           run: () => c.goPage('assistant'),
         },
+        ...(c.canReview
+          ? [
+              {
+                label: `Go to How ${c.assistantName || 'the assistant'} did`,
+                icon: 'flag' as const,
+                shortcut: ['G', 'R'],
+                run: () => c.goPage('assistant', 'review'),
+              },
+            ]
+          : []),
         {
           label: 'Go to Contacts',
           icon: 'contact',

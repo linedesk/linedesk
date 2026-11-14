@@ -1,0 +1,47 @@
+/* How <assistant> did (Assistant area): the calls to look at and the questions to answer, compact rows like Knowledge. */
+.rv-list .rv-row {
+  padding: 10px 0;
+}
+.rv-list .rv-row:first-child {
+  padding-top: 0;
+}
+.rv-call {
+  display: grid;
+  gap: 2px;
+  color: inherit;
+  text-decoration: none;
+}
+.rv-call:hover b {
+  text-decoration: underline;
+}
+.rv-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.rv-answer {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+}
+.rv-answer > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.rv-empty {
+  margin: 0;
+}
+.kn-sub a {
+  color: inherit;
+}
+/* On a phone the score and the buttons go under the text. */
+@media (max-width: 560px) {
+  .rv-row {
+    flex-wrap: wrap;
+  }
+  .rv-row > .kn-main {
+    flex-basis: 100%;
+  }
+}

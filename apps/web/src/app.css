@@ -1844,7 +1844,8 @@ button.k-link {
   flex: 1;
 }
 
-/* The call's evaluation (owners and admins): a quiet card under the summary, a score and at most three issues. */
+/* How <assistant> did on this call (owners and admins): a quiet card under the summary, the score in words, at most
+   three issues, the questions it could not answer and Done. */
 .evc {
   display: grid;
   gap: 8px;
@@ -1870,6 +1871,14 @@ button.k-link {
 }
 .evc-who {
   margin-left: auto;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.evc-questions {
+  display: grid;
+  gap: 4px;
+}
+.evc-label {
   font-size: 12px;
   color: var(--ink-muted);
 }

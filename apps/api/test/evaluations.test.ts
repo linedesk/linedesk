@@ -1,7 +1,7 @@
 // Call evaluations: queued when a phone call finishes (not a test call), judged by the language
 // model, stored per call, read by owners and admins only.
-import { assistants, call_evaluations, calls, transcript_segments } from '@linedesk/db'
-import { eq } from 'drizzle-orm'
+import { assistants, call_evaluations, calls, knowledge_questions, transcript_segments } from '@linedesk/db'
+import { eq, sql } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test } from 'vitest'
 import { db } from '../src/db.ts'
 import {
@@ -245,5 +245,168 @@ describe('reading', () => {
     const other = await createWorkspace('Evaluation Elsewhere')
     expect((await act(other.owner, 'call.getEvaluation', { callId: low })).body.data.evaluation).toBeNull()
     expect((await act(other.owner, 'call.listEvaluations', {})).body.data.evaluations).toEqual([])
+  })
+})
+
+const ids = (res: { body: { data: { evaluations: { callId: string }[] } } }) =>
+  res.body.data.evaluations.map(e => e.callId)
+
+describe('How the assistant did: done and open', () => {
+  test('the migration adds the done state and the questions, empty and open for earlier rows', async () => {
+    const columns = await db.execute<{ column_name: string; is_nullable: string }>(
+      sql`select column_name, is_nullable from information_schema.columns where table_name = 'call_evaluations'`,
+    )
+    const byName = Object.fromEntries(columns.rows.map(c => [c.column_name, c.is_nullable]))
+    expect(byName).toMatchObject({ reviewed_at: 'YES', reviewed_by: 'YES', unanswered: 'NO' })
+    // A row written without them (the release before) is open, with no questions.
+    const callId = await finishedCall()
+    await db.insert(call_evaluations).values({ call_id: callId, workspace_id: ws.id, score: 2, issues: [] })
+    expect((await act(ws.owner, 'call.getEvaluation', { callId })).body.data.evaluation).toMatchObject({
+      unanswered: [],
+      reviewedAt: null,
+      reviewedBy: null,
+    })
+  })
+
+  test('Done takes it off the open list and Reopen puts it back; total counts the open ones', async () => {
+    const own = await createWorkspace('Done Plumbing')
+    const call = async (score: number) => {
+      const id = `call_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
+      await db.insert(calls).values({
+        id,
+        workspace_id: own.id,
+        from_number: randomNumber(),
+        to_number: own.number,
+        status: 'completed',
+        assistant_id: own.assistant.id,
+      })
+      await db.insert(call_evaluations).values({ call_id: id, workspace_id: own.id, score, issues: ['Missed it.'] })
+      return id
+    }
+    const a = await call(2)
+    const b = await call(3)
+    await call(5)
+    const open = () => act(own.owner, 'call.listEvaluations', { needsReview: true, open: true })
+    expect((await open()).body.data.total).toBe(2)
+
+    const done = await act(own.owner, 'evaluation.markDone', { callId: a })
+    expect(done.status).toBe(200)
+    expect(done.body.data.evaluation).toMatchObject({ callId: a, reviewedBy: expect.any(String) })
+    expect(done.body.data.evaluation.reviewedAt).not.toBeNull()
+    expect(ids(await open())).toEqual([b])
+    expect((await open()).body.data.total).toBe(1)
+    expect(ids(await act(own.owner, 'call.listEvaluations', { needsReview: true, open: false }))).toEqual([a])
+    // Without `open`, both as before.
+    expect(ids(await act(own.owner, 'call.listEvaluations', { needsReview: true })).sort()).toEqual([a, b].sort())
+    // Only this assistant's calls.
+    expect((await act(own.owner, 'call.listEvaluations', { assistantId: own.assistant.id })).body.data.total).toBe(3)
+    expect((await act(own.owner, 'call.listEvaluations', { assistantId: 'ast_none' })).body.data.total).toBe(0)
+    // A call without an assistant belongs to every assistant.
+    await db.update(calls).set({ assistant_id: null }).where(eq(calls.id, b))
+    expect(ids(await act(own.owner, 'call.listEvaluations', { assistantId: 'ast_none' }))).toEqual([b])
+    await db.update(calls).set({ assistant_id: own.assistant.id }).where(eq(calls.id, b))
+
+    expect((await act(own.owner, 'evaluation.reopen', { callId: a })).body.data.evaluation).toMatchObject({
+      reviewedAt: null,
+      reviewedBy: null,
+    })
+    expect((await open()).body.data.total).toBe(2)
+  })
+
+  test('only owners and admins mark done or reopen, only their own, not a deleted call', async () => {
+    const callId = await finishedCall()
+    await evaluateCall(db, callId, fakeModel('{"score": 1, "issues": ["Rude."]}').model)
+    expect((await act(member, 'evaluation.markDone', { callId })).status).toBe(403)
+    expect((await act(member, 'evaluation.reopen', { callId })).status).toBe(403)
+    expect((await act(member, 'evaluation.listQuestions', {})).status).toBe(403)
+    const other = await createWorkspace('Done Elsewhere')
+    expect(await act(other.owner, 'evaluation.markDone', { callId })).toMatchObject({
+      status: 409,
+      body: { error: 'evaluation not found' },
+    })
+    const [row] = await db.select().from(call_evaluations).where(eq(call_evaluations.call_id, callId))
+    expect(row!.reviewed_at).toBeNull()
+    await db.update(calls).set({ deleted_at: new Date().toISOString() }).where(eq(calls.id, callId))
+    expect((await act(ws.owner, 'evaluation.markDone', { callId })).status).toBe(409)
+  })
+
+  test('judged again, it is open again', async () => {
+    const callId = await finishedCall()
+    await evaluateCall(db, callId, fakeModel('{"score": 2, "issues": ["Slow."]}').model)
+    await act(ws.owner, 'evaluation.markDone', { callId })
+    await db
+      .update(assistants)
+      .set({ greeting: `Hello ${Date.now()}` })
+      .where(eq(assistants.id, ws.assistant.id))
+    await evaluateCall(db, callId, fakeModel('{"score": 3, "issues": ["Still slow."]}').model)
+    expect((await act(ws.owner, 'call.getEvaluation', { callId })).body.data.evaluation).toMatchObject({
+      score: 3,
+      reviewedAt: null,
+    })
+  })
+})
+
+describe("Questions the assistant couldn't answer", () => {
+  test('grouped by wording, counted per call, answered into the business info, handled ones never back', async () => {
+    const own = await createWorkspace('Question Plumbing')
+    const callWith = async (unanswered: string[]) => {
+      const id = `call_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
+      await db.insert(calls).values({
+        id,
+        workspace_id: own.id,
+        from_number: randomNumber(),
+        to_number: own.number,
+        status: 'completed',
+        assistant_id: own.assistant.id,
+      })
+      await db
+        .insert(transcript_segments)
+        .values({ id: `seg_${id}`, workspace_id: own.id, call_id: id, speaker: 'caller', text: 'Hi', at_ms: 0 })
+      await evaluateCall(db, id, fakeModel(JSON.stringify({ score: 4, issues: [], unanswered })).model)
+      return id
+    }
+    const first = await callWith(['Do you service tankless water heaters?'])
+    const second = await callWith(['do you service  tankless water heaters', 'Do you work on Sundays?'])
+    const third = await callWith(['DO YOU SERVICE TANKLESS WATER HEATERS?!'])
+    // The evaluation keeps them; the call card shows them.
+    expect((await act(own.owner, 'call.getEvaluation', { callId: second })).body.data.evaluation.unanswered).toEqual([
+      'do you service  tankless water heaters',
+      'Do you work on Sundays?',
+    ])
+
+    const list = async () => (await act(own.owner, 'evaluation.listQuestions', {})).body.data.questions
+    const groups = await list()
+    expect(groups).toHaveLength(2)
+    expect(groups[0]).toMatchObject({ question: 'Do you service tankless water heaters?', asked: 3 })
+    expect(groups[0].callIds.sort()).toEqual([first, second, third].sort())
+    expect(groups[1]).toMatchObject({ question: 'Do you work on Sundays?', asked: 1, callIds: [second] })
+    // Only this assistant's; another workspace sees none of them.
+    expect(
+      (await act(own.owner, 'evaluation.listQuestions', { assistantId: own.assistant.id })).body.data.questions,
+    ).toHaveLength(2)
+    const other = await createWorkspace('Question Elsewhere')
+    expect((await act(other.owner, 'evaluation.listQuestions', {})).body.data.questions).toEqual([])
+    // A deleted call is not counted.
+    await db.update(calls).set({ deleted_at: new Date().toISOString() }).where(eq(calls.id, third))
+    expect((await list())[0]).toMatchObject({ asked: 2 })
+
+    // Add answer: the existing action writes it into the business info the assistant uses.
+    const answered = await act(own.owner, 'knowledgeQuestion.answer', {
+      questionId: groups[0].questionId,
+      answer: 'Yes, every brand.',
+    })
+    expect(answered.status).toBe(200)
+    const [assistant] = await db.select().from(assistants).where(eq(assistants.id, own.assistant.id))
+    expect(assistant!.business_profile.instructions).toContain(
+      'If a caller asks "Do you service tankless water heaters?": Yes, every brand.',
+    )
+    // Dismiss hides the other one without an answer.
+    expect((await act(own.owner, 'knowledgeQuestion.dismiss', { questionId: groups[1].questionId })).status).toBe(200)
+    expect(await list()).toEqual([])
+    // Asked again later: handled, so it does not come back.
+    await callWith(['Do you service tankless water heaters?', 'Do you work on Sundays'])
+    expect(await list()).toEqual([])
+    const rows = await db.select().from(knowledge_questions).where(eq(knowledge_questions.workspace_id, own.id))
+    expect(rows.map(r => r.status).sort()).toEqual(['answered', 'dismissed'])
   })
 })

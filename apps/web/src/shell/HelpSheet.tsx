@@ -69,6 +69,7 @@ export const SHORTCUTS: Group[] = [
       ['Contacts', ['G', 'C']],
       ['Insights', ['G', 'N']],
       ['Assistant', ['G', 'A']],
+      ['How the assistant did (owners and admins)', ['G', 'R']],
       ['Workspace settings', ['G', 'S']],
       ['Workspace settings › Team', ['G', 'T']],
       ['Admin (instance admins)', ['G', 'D']],

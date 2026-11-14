@@ -1,6 +1,7 @@
 // Assistant settings by topic, one section at a time (#assistant/<id>/<section>): general (name, greeting,
-// languages), business info, hours and holidays, rules (AI disclosure, tone, behaviour checklist), transfers
-// (transfer contacts), booking, voice, and Advanced (how calls are answered, talking speed, silence on the line).
+// languages), How <name> did (owners and admins: calls to look at and questions to answer), business info, hours
+// and holidays, rules (AI disclosure, tone, behaviour checklist), transfers (transfer contacts), booking, voice, and
+// Advanced (how calls are answered, talking speed, silence on the line).
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays and booking save on their own.
 import {
@@ -30,6 +31,7 @@ import {
   type Language,
   languageCodes,
   LANGUAGES,
+  answeredQuestionLine,
 } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -74,6 +76,10 @@ import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { Field, Section, SelectRow, SwitchRow, TextArea, TextInput } from './fields.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { Knowledge } from './Knowledge.tsx'
+import { AssistantReview } from '../review/AssistantReview.tsx'
+import { loadReviewList, reviewListKey } from '../review/reviewData.ts'
+import { REVIEW_SECTION, reviewTitle } from '../review/reviewModel.ts'
+import { useQuery } from '../cachedQuery.ts'
 import { loadCatalog, useVoiceOptions, VoiceSettings } from './VoiceSettings.tsx'
 import { voiceForMainLanguage } from './voiceModel.ts'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
@@ -83,10 +89,21 @@ import { BusinessHours } from './BusinessHours.tsx'
 import { Holidays, VacationMode } from './Holidays.tsx'
 import { Webhooks } from './Webhooks.tsx'
 
-type SectionId = 'general' | 'business' | 'hours' | 'rules' | 'transfers' | 'booking' | 'webhooks' | 'advanced'
+type SectionId =
+  | 'general'
+  | 'review'
+  | 'business'
+  | 'hours'
+  | 'rules'
+  | 'transfers'
+  | 'booking'
+  | 'webhooks'
+  | 'advanced'
 const sections: readonly PageSection<SectionId>[] = [
   { id: 'general', label: 'General', description: 'Name, greeting, languages and voice' },
-  { id: 'business', label: 'Business info', description: 'What you do, your prices and what callers ask' },
+  // Named after the assistant on the page (sectionsFor); owners and admins only.
+  { id: 'review', label: 'How the assistant did', description: 'Calls to look at, questions callers asked' },
+  { id: 'business', label: 'Business info', description: 'What you do and your prices' },
   { id: 'hours', label: 'Hours & holidays', description: 'Weekly hours, holidays, vacation mode' },
   { id: 'rules', label: 'Rules', description: 'AI disclosure, tone and how calls are handled' },
   { id: 'transfers', label: 'Transfers', description: 'Who calls are put through to' },
@@ -94,6 +111,16 @@ const sections: readonly PageSection<SectionId>[] = [
   { id: 'webhooks', label: 'Webhook', description: 'Your system at the start of a call, during it and after it' },
   { id: 'advanced', label: 'Advanced', description: 'Talking speed, silence, hanging up' },
 ]
+
+/**
+ * The sections this member sees: How <name> did only for owners and admins (it reads evaluations), named after the
+ * assistant, with its open calls and questions as a count.
+ */
+function sectionsFor(name: string, canEdit: boolean, openItems: number): readonly PageSection<SectionId>[] {
+  return sections
+    .filter(s => s.id !== REVIEW_SECTION || canEdit)
+    .map(s => (s.id === REVIEW_SECTION ? { ...s, label: reviewTitle(name), count: openItems } : s))
+}
 
 /** In place of the voice picker while a realtime model answers the calls: it speaks in its own voice. */
 function RealtimeVoice({ canSwitch }: { canSwitch: boolean }) {
@@ -162,7 +189,7 @@ function PipelineSection({ draft, set, setUp }: SectionProps & { setUp: Pipeline
 }
 
 /** Sections that save on their own, outside the assistant's draft. */
-type OwnSection = 'hours' | 'booking' | 'webhooks'
+type OwnSection = 'hours' | 'booking' | 'webhooks' | 'review'
 /** Which draft fields each section holds. */
 const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   business: ['instructions', 'website'],
@@ -630,7 +657,13 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
   // The page follows the pipeline picked here at once, before it is saved: the voice picker only for three stages.
   // An API of an older version (during an update) only says whether a realtime model is connected.
   const realtime = setUp ? pipelineFor(draft.voice_pipeline, setUp) === 'realtime' : voiceOptions?.realtime === true
-  const current = useSection(page, sections)
+  const openReview = useQuery(canEdit ? reviewListKey(assistant.id, true) : null, loadReviewList(assistant.id, true))
+  const openQuestions = useRows('knowledge_questions').filter(
+    q => q.assistant_id === assistant.id && q.status === 'open',
+  ).length
+  const openItems = (openReview.data?.total ?? 0) + openQuestions
+  const shown = useMemo(() => sectionsFor(assistant.name, canEdit, openItems), [assistant.name, canEdit, openItems])
+  const current = useSection(page, shown)
   const hoursOn = useBusinessHoursOn()
   const changed = dirty
   const unsaved = useMemo(() => {
@@ -720,7 +753,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
   const elsewhere = [...unsaved].filter(id => id !== current)
   const note =
     elsewhere.length > 0
-      ? `Unsaved changes in ${elsewhere.map(id => sections.find(s => s.id === id)!.label).join(', ')}${unsaved.has(current) ? ' and here' : ''}`
+      ? `Unsaved changes in ${elsewhere.map(id => shown.find(s => s.id === id)!.label).join(', ')}${unsaved.has(current) ? ' and here' : ''}`
       : undefined
 
   // Hours and holidays have forms of their own; everything else is inside the draft's form.
@@ -793,11 +826,25 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
       description={canEdit ? undefined : 'Only owners and admins can change these.'}
       actions={<TestCallButton session={testCall} />}
       banner={<TestCallPanel session={testCall} />}
-      sections={sections}
+      sections={shown}
       current={current}
       unsaved={unsaved}
     >
-      {current === 'hours' ? (
+      {current === 'review' ? (
+        <AssistantReview
+          assistant={assistant}
+          toast={toast}
+          onAnswered={(question, answer) => {
+            // The server added it to the saved text; the draft gets it too, so unsaved edits keep it.
+            const line = answeredQuestionLine(question, answer)
+            setDraft(d =>
+              d.instructions.includes(line)
+                ? d
+                : { ...d, instructions: [d.instructions.trim(), line].filter(Boolean).join('\n') },
+            )
+          }}
+        />
+      ) : current === 'hours' ? (
         <>
           <BusinessHours canEdit={canEdit} />
           <Holidays canEdit={canEdit} toast={toast} />

@@ -1,9 +1,9 @@
 // The signed-in app: composes the inbox, the pages, the navigation, overlays and toasts.
 import { offersTour } from '@linedesk/actions'
 import type { Call } from '@linedesk/db/types'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from './cachedQuery.ts'
-import { loadReview, REVIEW_KEY } from './call/EvaluationCard.tsx'
+import { useReviewCount } from './review/reviewData.ts'
 import { AdminMode } from './admin/AdminMode.tsx'
 import { PasskeyStepUpHost } from './admin/PasskeyStepUp.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
@@ -44,7 +44,6 @@ import {
   useShowGoLive,
 } from './inbox/GoLiveChecklist.tsx'
 import { firstCallHint } from './inbox/goLive.ts'
-import { KnowledgeQuestionsBar } from './inbox/KnowledgeQuestionsBar.tsx'
 import { SampleCallsBar } from './inbox/SampleCallsBar.tsx'
 import { StarPrompt } from './shell/StarPrompt.tsx'
 import { SyncBar } from './shell/SyncBar.tsx'
@@ -102,16 +101,10 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
     const fresh = unannounced(invites.invitations)
     if (fresh.length) toaster.show(invitationNotice(fresh), false, 8000)
   }, [invites.invitations, toaster.show])
-  // Owners and admins: the calls whose evaluation needs a person (Needs review, G R).
+  // Owners and admins: How <assistant> did (Assistant area, G R); its open items are the count on Assistant.
   const canReview = me.permissions.includes('settings:write')
-  const reviewQuery = useQuery(canReview ? REVIEW_KEY : null, loadReview)
-  const review = useMemo(() => new Set((reviewQuery.data ?? []).map(e => e.callId)), [reviewQuery.data])
-  const view = useInboxView(nav, me.actorId, review, !!me.impersonation)
-  // Needs review is for owners and admins; a member's link or reload to it lands in Needs you.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: only when the view or the permission changes
-  useEffect(() => {
-    if (!canReview && view.tab === 'review') view.setTabState('you')
-  }, [canReview, view.tab])
+  const reviewCount = useReviewCount(canReview)
+  const view = useInboxView(nav, me.actorId, !!me.impersonation)
   // A notification when a call ends while this tab is in the background (Account settings, Notifications).
   useCallNotifications(call => callerName(call, call.contact_id ? view.contacts.get(call.contact_id) : undefined))
   const assistantName = useAssistantName()
@@ -375,7 +368,6 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
     mine: 'Assigned to me',
     member: memberName ? `Assigned to ${memberName}` : 'Assigned',
     unassigned: 'Unassigned',
-    review: 'Needs review',
   }
   const where =
     nav.route !== 'calls'
@@ -438,6 +430,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         : null,
     goInbox: view.setTab,
     canReview,
+    assistantName,
     goPage,
     isInstanceAdmin: instanceAdmin,
     openSearch,
@@ -497,7 +490,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         reminderCount={view.counts.reminders}
         mineCount={canAssign ? view.counts.mine : null}
         unassignedCount={canAssign ? view.counts.unassigned : null}
-        reviewCount={canReview ? view.counts.review : null}
+        reviewCount={reviewCount}
         workspaceName={me.workspace!.name}
         workspaceId={me.workspace!.id}
         toast={toaster.show}
@@ -518,7 +511,6 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         {!page && !openCall && (
           <SampleCallsBar canEdit={me.permissions.includes('settings:write')} toast={toaster.show} />
         )}
-        {!page && !openCall && me.permissions.includes('settings:write') && <KnowledgeQuestionsBar />}
         {page ? (
           <>
             {!page.ownHeader && (

@@ -65,3 +65,24 @@ test('onboarding.setStep: registered, owners and admins only, known steps only',
   for (const step of ['business', 'phone', 'hours', 'calendar', 'test_call', 'done', 'skipped']) expect(onboardingSetStep.input.safeParse({ step }).success).toBe(true)
   expect(onboardingSetStep.input.safeParse({ step: 'billing' }).success).toBe(false)
 })
+
+test('How the assistant did: Done, Reopen and the questions are for owners and admins, like reading evaluations', async () => {
+  const { evaluationMarkDone, evaluationReopen, evaluationListQuestions, callListEvaluations, callGetEvaluation, scoreWords } =
+    await import('./evaluations.ts')
+  for (const def of [evaluationMarkDone, evaluationReopen, evaluationListQuestions]) {
+    expect(actions.get(def.name)).toBe(def)
+    expect(def.permission).toBe(callGetEvaluation.permission)
+    expect(rolePermissions.member).not.toContain(def.permission)
+  }
+  // Writes on the server only: nothing to apply in the browser (evaluations are not synced).
+  expect(evaluationMarkDone.patch).toBeUndefined()
+  expect(evaluationReopen.readOnly).toBeUndefined()
+  expect(evaluationListQuestions.readOnly).toBe(true)
+  expect(evaluationMarkDone.input.safeParse({ callId: '' }).success).toBe(false)
+  expect(evaluationMarkDone.input.parse({ callId: 'call_1' })).toEqual({ callId: 'call_1' })
+  // The open filter: true, false or left out (all, as before).
+  expect(callListEvaluations.input.parse({ needsReview: true, open: true })).toMatchObject({ open: true, limit: 200 })
+  expect(callListEvaluations.input.parse({}).open).toBeUndefined()
+  expect(callListEvaluations.input.safeParse({ open: 'yes' }).success).toBe(false)
+  expect([5, 4, 3, 2, 1].map(scoreWords)).toEqual(['Handled well', 'Mostly fine', 'Missed something', 'Went wrong', 'Went wrong'])
+})

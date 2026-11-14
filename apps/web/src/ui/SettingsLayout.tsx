@@ -8,6 +8,8 @@ export type PageSection<T extends string = string> = {
   id: T
   label: string
   description?: string
+  /** Open items in it, shown as a small count next to the label (none at 0). */
+  count?: number
 }
 
 /** The page's part of the hash: `#<page>/<section>`; `page` may have a part of its own (`assistant/<id>`). */
@@ -126,6 +128,7 @@ export function SettingsLayout<T extends string>(props: Props<T>) {
                 data-desc={s.description}
               >
                 <span>{s.label}</span>
+                {!!s.count && <span className="nav-n">{s.count}</span>}
                 {dirty && <span className="sl-dot" role="img" aria-label="Unsaved changes" />}
               </a>
             )

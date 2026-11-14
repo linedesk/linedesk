@@ -22,7 +22,7 @@ type Props = {
   /** Open calls assigned to the signed-in member, and Needs you calls nobody has; null hides both (a workspace of one). */
   mineCount: number | null
   unassignedCount: number | null
-  /** Owners and admins: calls whose evaluation needs a person; null hides Needs review. */
+  /** Owners and admins: open items in How <assistant> did (calls to look at, questions), on Assistant; null for members. */
   reviewCount: number | null
   workspaceName: string
   workspaceId: string
@@ -73,7 +73,7 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
           onNewWorkspace={onNewWorkspace && go(onNewWorkspace)} onSettings={go(() => on.onPage('workspace'))} onInvite={go(() => on.onPage('workspace', 'team/invite'))} />
         {!docked && <Button size="sm" variant="ghost" icon="left" aria-label="Close menu" title="Close (esc)" onClick={onClose} />}
       </div>
-      <NavItem label="Inbox" icon="phone" keys={['G', 'I']} current={onCalls && tab !== 'reminders' && tab !== 'done' && tab !== 'review' && !assigneeTabs.includes(tab)} onClick={go(() => on.onInbox('you'))}
+      <NavItem label="Inbox" icon="phone" keys={['G', 'I']} current={onCalls && tab !== 'reminders' && tab !== 'done' && !assigneeTabs.includes(tab)} onClick={go(() => on.onInbox('you'))}
         badge={unreadCount ? <span className="k-count">{unreadCount}</span> : null} />
       <NavItem sub label="Reminders" icon="clock" keys={['G', 'H']} current={onCalls && tab === 'reminders'} onClick={go(() => on.onInbox('reminders'))}
         badge={reminderCount ? <span className="nav-n">{reminderCount}</span> : null} />
@@ -85,12 +85,9 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
         <NavItem sub label="Unassigned" icon="users" keys={['G', 'U']} current={onCalls && tab === 'unassigned'} onClick={go(() => on.onInbox('unassigned'))}
           badge={unassignedCount ? <span className="nav-n">{unassignedCount}</span> : null} />
       )}
-      {reviewCount !== null && (
-        <NavItem sub label="Needs review" icon="flag" keys={['G', 'R']} current={onCalls && tab === 'review'} onClick={go(() => on.onInbox('review'))}
-          badge={reviewCount ? <span className="nav-n">{reviewCount}</span> : null} />
-      )}
       <NavItem sub label="Done" icon="check" keys={['G', 'E']} current={onCalls && tab === 'done'} onClick={go(() => on.onInbox('done'))} />
-      <NavItem label={pages.assistant.title} icon="waveform" keys={['G', 'A']} current={route === 'assistant'} onClick={go(() => on.onPage('assistant'))} />
+      <NavItem label={pages.assistant.title} icon="waveform" keys={['G', 'A']} current={route === 'assistant'} onClick={go(() => on.onPage('assistant'))}
+        badge={reviewCount ? <span className="nav-n" title="To look at in How the assistant did">{reviewCount}</span> : null} />
       <NavItem label={pages.contacts.title} icon="contact" keys={['G', 'C']} current={route === 'contacts'} onClick={go(() => on.onPage('contacts'))} />
       <NavItem label={pages.insights.title} icon="chart" keys={['G', 'N']} current={route === 'insights'} onClick={go(() => on.onPage('insights'))} />
       <hr className="nav-sep" />

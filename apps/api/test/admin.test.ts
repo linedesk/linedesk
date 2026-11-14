@@ -1879,6 +1879,8 @@ describe('impersonation', () => {
       'call.remind',
       'carrier.get',
       'carrier.transferTrunk',
+      // The questions of How <assistant> did, a read; marking an evaluation done or open stays refused.
+      'evaluation.listQuestions',
       'holidays.lookup',
       'impersonation.stop',
       'insights.get',

@@ -708,7 +708,7 @@ export const commands = pgTable(
 )
 
 // How well the assistant handled a call, judged by the language model after the summary: a score
-// (1 to 5) and up to three issues. One row per call, replaced when it is evaluated again. For owners
+// (1 to 5), up to three issues and the questions it could not answer. One row per call, replaced when it is evaluated again. For owners
 // and admins only, so not synced to browsers; read through `call.getEvaluation` / `call.listEvaluations`.
 export const call_evaluations = pgTable(
   'call_evaluations',
@@ -723,6 +723,12 @@ export const call_evaluations = pgTable(
     model: text('model'),
     /** The assistant's row version when it was judged: a new evaluation of the call is only worth it after the assistant changed. */
     assistant_version: bigint('assistant_version', { mode: 'number' }),
+    /** Questions about the business the caller asked that the assistant could not answer (at most three). */
+    unanswered: jsonb('unanswered').$type<string[]>().notNull().default([]),
+    /** When an owner or admin marked it done in "How <assistant> did" (null: open); cleared when it is judged again. */
+    reviewed_at: ts('reviewed_at'),
+    /** Who marked it done (user id). */
+    reviewed_by: text('reviewed_by'),
     created_at: createdAt(),
   },
   t => [index('call_evaluations_ws_score').on(t.workspace_id, t.score)],

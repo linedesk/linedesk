@@ -15,7 +15,7 @@ export type Location = InboxPlace & { route: Route; callId: string | null; known
 export type Go = (to: Route, section?: string) => void
 
 const CALL_PREFIX = 'call/'
-const tabs: readonly InboxTab[] = ['you', 'ai', 'spam', 'reminders', 'done', 'mine', 'unassigned', 'review']
+const tabs: readonly InboxTab[] = ['you', 'ai', 'spam', 'reminders', 'done', 'mine', 'unassigned']
 const HOME: InboxPlace = { tab: 'you', search: null, member: null }
 
 export const callHash = (id: string) => `#${CALL_PREFIX}${id}`
@@ -127,7 +127,8 @@ export function linkNotice(target: LinkTarget): string | null {
 
 /**
  * Old links, exact paths first. Settings became Workspace settings (Team is a section of it), your notifications
- * are in Account, Business hours and Webhooks in the assistant's settings, Call details became Export calls.
+ * are in Account, Business hours and Webhooks in the assistant's settings, Call details became Export calls, Needs
+ * review became How <assistant> did.
  */
 const MOVED: Record<string, string> = {
   settings: 'workspace',
@@ -138,6 +139,8 @@ const MOVED: Record<string, string> = {
   'settings/notifications': 'account/notifications',
   'assistant/notifications': 'account/notifications',
   team: 'workspace/team',
+  // Needs review left the inbox: How <assistant> did, in the Assistant area.
+  'calls/review': 'assistant/review',
 }
 
 /** Where an old path now points, by MOVED and then by its first parts; null when it did not move. */
