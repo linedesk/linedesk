@@ -2,7 +2,7 @@ import { type FormEvent, type ReactNode, useEffect, useState } from 'react'
 import { createWorkspace } from './auth.ts'
 import { type CreatingPhase, CreatingStatus } from './CreatingStatus.tsx'
 import { signOutAndForget } from './localData.ts'
-import { leftOnPurpose } from './session.ts'
+import { deletedOnPurpose, leftOnPurpose } from './session.ts'
 import { AuthPage, Note, Spinner } from './ui/kit.tsx'
 
 /** How long "Opening…" may last before the page says to reload. */
@@ -66,7 +66,11 @@ export function CreateWorkspace({
       <form className="auth-card" onSubmit={submit} noValidate>
         {lostWorkspace && (
           <p className="auth-lost" role="status">
-            {leftOnPurpose(lostWorkspace) ? (
+            {deletedOnPurpose(lostWorkspace) ? (
+              <>
+                You deleted <b>{lostWorkspace}</b>. Set up a new business, or join one you are invited to.
+              </>
+            ) : leftOnPurpose(lostWorkspace) ? (
               <>
                 You left <b>{lostWorkspace}</b>. Set up your own business, or join one you are invited to.
               </>

@@ -136,6 +136,8 @@ const all = [
   settings.workspaceGetSettings,
   settings.workspaceUpdateSettings,
   settings.workspaceRename,
+  settings.workspaceDeleteOwn,
+  settings.workspaceDeletePreview,
   settings.businessHoursSet,
   settings.closedDaysSet,
   settings.holidaysLookup,

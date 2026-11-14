@@ -16,6 +16,7 @@ import {
   signInCodeEmail,
   verifyEmailEmail,
   welcomeEmail,
+  workspaceDeletedEmail,
 } from './templates.ts'
 import { brandName } from '../branding.ts'
 
@@ -140,6 +141,18 @@ export function previewEmails(origin: string): Preview[] {
     { name: 'welcome', email: welcomeEmail({ name: 'Sam Patel', email: 'sam@example.com' }, origin) },
     { name: 'passkey-added', email: passkeyChangedEmail('added', origin) },
     { name: 'passkeys-reset', email: passkeysResetEmail(2, origin) },
+    {
+      name: 'workspace-deleted',
+      email: workspaceDeletedEmail(
+        {
+          workspace: 'Brightwater Plumbing & Heating',
+          by: 'Mike Brennan',
+          when: 'November 14, 2026 at 9:05 AM PST',
+          accountDeleted: true,
+        },
+        origin,
+      ),
+    },
     {
       name: 'booking-confirmation',
       email: bookingConfirmationEmail(

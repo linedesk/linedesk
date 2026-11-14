@@ -3,10 +3,9 @@
 // Reached by G S (G T opens Team), the menu and ⌘K. Your own notifications are in Account; business hours and
 // webhooks in the assistant's settings (old #settings and #team links are rewritten, shell/useRoute.ts).
 import type { PhoneSetupStatus } from '../auth.ts'
-import { LeaveWorkspace, TeamSection } from '../team/TeamPage.tsx'
-import { useTeam } from '../team/team-api.ts'
-import { Skeleton } from '../ui/LoadStates.tsx'
+import { TeamSection } from '../team/TeamPage.tsx'
 import { type PageSection, SettingsLayout, useSection } from '../ui/SettingsLayout.tsx'
+import { DangerZone } from './DangerZone.tsx'
 import { Developers } from './Developers.tsx'
 import { ExportCalls } from './ExportCalls.tsx'
 import { PhoneNumbers } from './PhoneNumbers.tsx'
@@ -21,7 +20,7 @@ const sections: readonly PageSection<SectionId>[] = [
   { id: 'recordings', label: 'Recordings', description: 'How long recordings are kept, recording notice' },
   { id: 'export', label: 'Export calls', description: 'Download calls as a CSV file' },
   { id: 'developers', label: 'Developers', description: 'API keys for your own tools' },
-  { id: 'danger', label: 'Danger zone', description: 'Leave this workspace' },
+  { id: 'danger', label: 'Danger zone', description: 'Leave or delete this workspace' },
 ]
 /** Members can't export calls or manage API keys (call:export, settings:write): those sections are not shown. */
 const memberSections = sections.filter(s => s.id !== 'export' && s.id !== 'developers')
@@ -58,25 +57,8 @@ export function WorkspaceSettings({ canEdit, phoneSetup, isInstanceAdmin, worksp
         {current === 'recordings' && <Recordings canEdit={canEdit} toast={toast} />}
         {current === 'export' && <ExportCalls canEdit={canEdit} toast={toast} />}
         {current === 'developers' && <Developers canEdit={canEdit} toast={toast} />}
-        {current === 'danger' && <DangerZone />}
+        {current === 'danger' && <DangerZone workspaceName={workspaceName} />}
       </SettingsLayout>
-    </div>
-  )
-}
-
-/** Leaving the workspace; blocked for its last owner. Deleting a workspace comes later. */
-function DangerZone() {
-  const team = useTeam()
-  const data = team.data ?? null
-  if (data) return <LeaveWorkspace data={data} />
-  return team.error ? (
-    <div className="empty">
-      <b>The team could not be loaded</b>
-      <span>{team.error}</span>
-    </div>
-  ) : (
-    <div role="status" aria-busy="true" aria-label="Loading">
-      <Skeleton className="sk-card" />
     </div>
   )
 }

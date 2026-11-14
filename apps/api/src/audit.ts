@@ -173,6 +173,7 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'team.setRole': 'team',
   'team.removeMember': 'team',
   'team.leave': 'team',
+  'workspace.deleteOwn': 'team',
   'invitation.accept': 'team',
   'invitation.decline': 'team',
   // An instance admin changing who is in which workspace, also their own membership.

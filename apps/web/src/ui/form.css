@@ -372,3 +372,11 @@
   font-weight: 400;
   color: var(--ink-muted);
 }
+
+/* A danger confirmation's list of what it affects (ui/DangerConfirmDialog.tsx: deleting a workspace). */
+.danger-confirm-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 3px;
+}

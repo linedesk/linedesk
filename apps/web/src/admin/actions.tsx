@@ -1,35 +1,17 @@
 // What an admin can do to a user or a workspace, in one place: the detail page shows the actions as
 // a row of buttons, the list as quick icon buttons on each row (and a ⋯ menu on touch screens).
 // Actions that change access ask once in a dialog; the rest run at once.
-import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react'
+import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { confirmText, startImpersonation } from '../impersonation.ts'
-import { Checkbox } from '../ui/controls.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
 import type { IconName } from '../ui/icons.ts'
-import { Button, Icon, Note } from '../ui/kit.tsx'
-import { rejectionReason } from '../shell/rejections.ts'
+import { Button, Icon } from '../ui/kit.tsx'
+import { confirmErrorText, type DangerConfirmation, DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { type AdminUser, type AdminWorkspace, runAdmin } from './api.ts'
-import { StepUpRequired } from './PasskeyStepUp.tsx'
 import { errorText, type Notify } from './notify.ts'
 import { brandName } from '../brand.ts'
 
-type Confirmation = {
-  text: string
-  /** What it affects, one item a line (a delete lists what goes), in a danger note titled `after`. */
-  list?: string[]
-  after?: string
-  /** The confirming button. */
-  action: string
-  /** The button's words while it runs ("Deleting…"). */
-  busyAction?: string
-  /** The heaviest actions: the button unlocks once this is typed. */
-  typed?: string
-  variant?: 'primary' | 'danger' | 'danger-outline'
-  /** A checkbox under the list, off by default; `run` gets whether it is ticked. */
-  option?: string
-  /** A second way to confirm, next to the main button (resolves like `run`). */
-  alternative?: { action: string; tip: string; run: () => Promise<unknown> }
-}
+type Confirmation = DangerConfirmation
 
 export type AdminAction = {
   id: string
@@ -305,94 +287,29 @@ export function workspaceActions(
 const doneText = (action: AdminAction, made: unknown) =>
   typeof action.done === 'function' ? action.done(made) : (action.done ?? '')
 
-/** Why a confirmed action did not go through, in one short sentence for the dialog's error note. */
-export function confirmErrorText(err: unknown): string {
-  if (err instanceof StepUpRequired) return 'Not confirmed with your passkey. Nothing changed.'
-  const text = errorText(err)
-  // A proxy's error page instead of the API's answer (an update, a restart): no reason worth showing.
-  return rejectionReason(/^The server answered \d{3}$/.test(text) ? '' : text)
-}
+/** Why a confirmed action did not go through (ui/DangerConfirmDialog.tsx, shared with Workspace settings). */
+export { confirmErrorText }
 
 function ConfirmDialog({ action, onClose, notify }: { action: AdminAction; onClose: () => void; notify: Notify }) {
-  const confirm = action.confirm!
-  const [typed, setTyped] = useState('')
-  const [option, setOption] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [enrolment, setEnrolment] = useState<PasskeyEnrolment | null>(null)
-  const unlocked = !confirm.typed || typed.trim().toLowerCase() === confirm.typed.trim().toLowerCase()
-  async function submit(e: FormEvent, run: (option?: boolean) => Promise<unknown> = action.run) {
-    e.preventDefault()
-    if (!unlocked || busy) return
-    setBusy(true)
-    setError(null)
-    try {
-      const made = await run(option)
-      if (action.done) notify(doneText(action, made))
-      if (isEnrolment(made)) return setEnrolment(made)
-      onClose()
-    } catch (err) {
-      setError(confirmErrorText(err))
-      setBusy(false)
-    }
+  const settle = async (made: unknown) => {
+    if (action.done) notify(doneText(action, made))
+    if (isEnrolment(made)) return setEnrolment(made)
+    onClose()
   }
+  const confirm = action.confirm!
   if (enrolment) return <EnrolmentCodeDialog who={action.subject ?? 'them'} enrolment={enrolment} onClose={onClose} />
   return (
-    <Dialog
-      title={confirm.action}
-      description={confirm.text}
-      size="sm"
-      onClose={busy ? () => {} : onClose}
-      onSubmit={submit}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={busy}>
-            Cancel
-          </Button>
-          {confirm.alternative && (
-            <Button
-              variant="danger-outline"
-              title={confirm.alternative.tip}
-              disabled={!unlocked || busy}
-              onClick={e => void submit(e, confirm.alternative!.run)}
-            >
-              {confirm.alternative.action}
-            </Button>
-          )}
-          <Button busy={busy} type="submit" variant={confirm.variant ?? 'danger'} disabled={!unlocked || busy}>
-            {busy && confirm.busyAction ? confirm.busyAction : confirm.action}
-          </Button>
-        </>
-      }
-    >
-      {(confirm.list || confirm.after) && (
-        <Note tone="danger" title={confirm.after}>
-          {confirm.list && (
-            <ul className="adm-confirm-list">
-              {confirm.list.map(item => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          )}
-        </Note>
-      )}
-      {confirm.option && (
-        <Checkbox checked={option} onChange={setOption} disabled={busy}>
-          {confirm.option}
-        </Checkbox>
-      )}
-      {confirm.typed && (
-        <Input
-          value={typed}
-          placeholder={confirm.typed}
-          aria-label={`Type ${confirm.typed} to confirm`}
-          autoComplete="off"
-          disabled={busy}
-          onChange={e => setTyped(e.target.value)}
-        />
-      )}
-      {error && <Note tone="danger">{error}</Note>}
-    </Dialog>
+    <DangerConfirmDialog
+      confirm={{
+        ...confirm,
+        ...(confirm.alternative
+          ? { alternative: { ...confirm.alternative, run: async () => settle(await confirm.alternative!.run()) } }
+          : {}),
+      }}
+      run={async option => settle(await action.run(option))}
+      onClose={onClose}
+    />
   )
 }
 

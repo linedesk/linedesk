@@ -142,6 +142,42 @@ export function invitationEmail(
   })
 }
 
+/**
+ * To every other member when an owner deletes the workspace (workspace.deleteOwn). `workspace` and `by` are already
+ * email-safe; `when` is formatted in the workspace's time zone. `accountDeleted`: their account went with it (no
+ * other workspace).
+ */
+export type WorkspaceDeletedEmail = { workspace: string; by: string; when: string; accountDeleted: boolean }
+
+export function workspaceDeletedEmail(
+  { workspace, by, when, accountDeleted }: WorkspaceDeletedEmail,
+  origin = WEB_ORIGIN,
+): RenderedEmail {
+  const site = siteHost(origin)
+  return renderEmail({
+    subject: `${workspace} was deleted on ${brandName()}`,
+    preheader: `${by} deleted it on ${when}.`,
+    eyebrow: 'Account notice',
+    heading: `${workspace} was deleted`,
+    blocks: [
+      {
+        kind: 'text',
+        text: `${by} deleted the workspace ${workspace} on ${when}. Its calls, contacts, recordings and settings are gone, and nobody can open it any more.`,
+      },
+      accountDeleted
+        ? {
+            kind: 'text',
+            text: `Your ${brandName()} account at ${site} was deleted with it, because you belonged to no other workspace. You can't sign in there any more.`,
+          }
+        : { kind: 'text', text: 'Your account and your other workspaces stay as they are.' },
+      ...(accountDeleted ? [] : [{ kind: 'button' as const, label: `Open ${brandName()}`, url: origin }]),
+      { kind: 'text', tone: 'muted', text: 'If you did not expect this, ask the workspace owner.' },
+    ],
+    reason: `You got this email because you were a member of ${workspace} on ${site}. We always send it.`,
+    origin,
+  })
+}
+
 /** No code in it: codes expire in 10 minutes, a welcome may be read later. The sign-in page sends one. */
 export function welcomeEmail({ name, email }: { name: string; email: string }, origin = WEB_ORIGIN): RenderedEmail {
   const site = siteHost(origin)

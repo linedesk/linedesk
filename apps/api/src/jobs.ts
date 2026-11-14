@@ -10,6 +10,7 @@ import { sendBookingConfirmation } from './booking-confirmation.ts'
 import { notifyCallFinished } from './call-notifications.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
+import { type WorkspaceDeletedEmail, workspaceDeletedEmail } from './emails/templates.ts'
 import { runForwardingCheck } from './forwarding-check.ts'
 import { evaluateCall, evaluationModel } from './evaluations.ts'
 import { notifyCallPush, type PushKind, pushSender } from './push.ts'
@@ -69,6 +70,8 @@ const FORWARDING_CHECK_WORKERS = 5
 /** The email to owners and instance admins when a workspace reaches 80 % or 100 % of its spending cap. */
 export const SPENDING_CAP_ALERT = 'spending.capAlert'
 /** Every 15 minutes: the setup emails due to new workspaces (setup-emails.ts), when the install sends them. */
+/** The email to a member that their workspace was deleted by its owner (workspace.deleteOwn). */
+export const WORKSPACE_DELETED_EMAIL = 'workspace.deletedEmail'
 export const SETUP_EMAILS = 'setup.emails'
 const SETUP_EMAILS_CRON = '*/15 * * * *'
 
@@ -116,6 +119,10 @@ async function runJobs(instance: PgBoss, env: Env) {
     if (result.failed && !result.sent) throw new Error(`no spending cap email could be sent (${result.failed} failed)`)
     return result
   })
+  await instance.work<WorkspaceDeletedJob>(WORKSPACE_DELETED_EMAIL, async ([job]) => {
+    const { to, ...content } = job!.data
+    await emailSender.send({ to, ...workspaceDeletedEmail(content) })
+  })
   await instance.work<{ bookingId: string }>(BOOKING_CONFIRM, async ([job]) => sendBookingConfirmation(db, emailSender, job!.data.bookingId))
   // No language model set up: nothing to do, and no retry. A failed request (provider down) is retried.
   await instance.work<{ callId: string }>(CALL_EVALUATE, async ([job]) => evaluateCall(db, job!.data.callId, await evaluationModel(db)))
@@ -160,6 +167,7 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(CALL_PUSH, { retryLimit: 2, retryDelay: 30, retryBackoff: true })
   await instance.createQueue(CALL_ASSIGNED, { retryLimit: 2, retryDelay: 30, retryBackoff: true })
   await instance.createQueue(SPENDING_CAP_ALERT, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
+  await instance.createQueue(WORKSPACE_DELETED_EMAIL, { retryLimit: 6, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(BOOKING_CONFIRM, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(CALL_EVALUATE, { retryLimit: 2, retryDelay: 120, retryBackoff: true })
   await instance.createQueue(FORWARDING_CHECK, { retryLimit: 0, expireInSeconds: 180 })
@@ -243,4 +251,16 @@ export async function queueVoiceDeletion(tx: Tx, provider: string, voiceId: stri
 /** Queues a forwarding check in the transaction that started it: it dials only once the check is committed. */
 export async function queueForwardingCheck(tx: Tx, checkId: string) {
   await boss?.send(FORWARDING_CHECK, { checkId }, { db: fromDrizzle(tx, sql) })
+}
+
+/** One member's "your workspace was deleted" email: the address and what it says (already email-safe). */
+export type WorkspaceDeletedJob = WorkspaceDeletedEmail & { to: string }
+
+/**
+ * Queues the emails about a deleted workspace in the delete's transaction: they go only if it commits, and outlive
+ * the workspace (their data names no workspace, so dropping its queued jobs leaves them). Without a queue (tests)
+ * nothing is sent.
+ */
+export async function queueWorkspaceDeletedEmails(tx: Tx, emails: WorkspaceDeletedJob[]) {
+  if (emails.length) await boss?.insert(WORKSPACE_DELETED_EMAIL, emails.map(data => ({ data })), { db: fromDrizzle(tx, sql) })
 }

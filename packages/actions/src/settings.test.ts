@@ -228,3 +228,30 @@ describe('the business phone and website in the profile', () => {
       expect(businessWebsiteProblem(bad), bad).not.toBeNull()
   })
 })
+
+describe('workspace.deleteOwn and workspace.deletePreview', () => {
+  it('need settings:write, which members lack; the owner-only rule is the handler (apps/api/test/workspace-delete-own.test.ts)', async () => {
+    const { actions } = await import('./index.ts')
+    const { workspaceDeleteOwn, workspaceDeletePreview } = await import('./settings.ts')
+    for (const def of [workspaceDeleteOwn, workspaceDeletePreview]) {
+      expect(actions.get(def.name)).toBe(def)
+      expect(def.permission).toBe('settings:write')
+      expect(rolePermissions.member).not.toContain(def.permission)
+      expect(rolePermissions.agent).not.toContain(def.permission)
+      // Never offered to API keys or MCP.
+      expect(def.public).toBeUndefined()
+    }
+    // `destructive` is for public actions (MCP); this one is not public at all.
+    expect(workspaceDeleteOwn.destructive).toBeUndefined()
+    expect(workspaceDeleteOwn.patch).toBeUndefined()
+    expect(workspaceDeletePreview.readOnly).toBe(true)
+  })
+
+  it('takes the typed name and whether the owner keeps their account, nothing else', async () => {
+    const { workspaceDeleteOwn } = await import('./settings.ts')
+    expect(workspaceDeleteOwn.input.parse({ name: ' Brightwater ' })).toEqual({ name: 'Brightwater' })
+    expect(workspaceDeleteOwn.input.parse({ name: 'B', keepOwnAccount: true })).toEqual({ name: 'B', keepOwnAccount: true })
+    expect(workspaceDeleteOwn.input.safeParse({ name: '  ' }).success).toBe(false)
+    expect(workspaceDeleteOwn.input.safeParse({}).success).toBe(false)
+  })
+})

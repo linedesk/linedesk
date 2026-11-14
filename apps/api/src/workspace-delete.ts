@@ -1,4 +1,5 @@
-// Deleting a workspace with all its data (`workspace.delete`, instance admins only; docs/architecture.md §12).
+// Deleting a workspace with all its data: `workspace.delete` (instance admins, docs/architecture.md §12) and
+// `workspace.deleteOwn` (its owner, from Workspace settings; workspace-delete-own.ts).
 //
 // Every table with a `workspace_id` column loses the workspace's rows, found from the schema itself, so a new
 // table is covered without a change here; children before the tables they reference (foreign keys). Kept on
@@ -7,7 +8,7 @@
 // are deleted at the provider). The organization row goes last; its members and invitations go with it
 // (foreign keys). Members who belong to no other workspace lose their accounts too (sessions, passkeys and
 // sign-in methods go with them), unless the admin keeps them (`keepUsers`); members of other workspaces, instance
-// admins and the admin deleting it always keep theirs. A kept user's session on the workspace moves to none, so
+// admins and the admin deleting it always keep theirs; an owner deleting their own keeps theirs only when they ask. A kept user's session on the workspace moves to none, so
 // its next request lands on the user's next workspace, or the create-workspace page.
 //
 // Outside the database: recording files are deleted by a job per file queued in this transaction (they go only
@@ -147,24 +148,28 @@ async function releaseAtCarrier(number: PhoneNumberRow, provider: TelephonyProvi
 }
 
 /**
- * The members whose only workspace this is: their accounts go with it. Never an instance admin, never the admin
- * deleting it.
+ * The members whose only workspace this is: their accounts go with it. Never an instance admin, never `spareUserId`
+ * (the admin deleting it; the owner deleting their own when they keep their account; null spares nobody else).
  */
-export async function membersOnlyHere(tx: Tx, workspaceId: string, actorId: string) {
+export async function membersOnlyHere(tx: Tx, workspaceId: string, spareUserId: string | null) {
   const result = await tx.execute(sql`
     select u.id, u.email from member m join "user" u on u.id = m.user_id
-    where m.organization_id = ${workspaceId} and not u.instance_admin and u.id <> ${actorId}
+    where m.organization_id = ${workspaceId} and not u.instance_admin and u.id is distinct from ${spareUserId}
       and not exists (select 1 from member other where other.user_id = m.user_id and other.organization_id <> ${workspaceId})
     order by u.email`)
   return result.rows as { id: string; email: string }[]
 }
 
-/** Deletes the workspace; `name` must be its name (as typed to confirm, case and outer spaces aside). */
+/**
+ * Deletes the workspace; `name` must be its name (as typed to confirm, case and outer spaces aside). `spareUserId`
+ * keeps that account even when this is its only workspace: the instance admin deleting it (workspace.delete), the
+ * owner deleting their own who keeps theirs (workspace.deleteOwn), or null.
+ */
 export async function deleteWorkspace(
   tx: Tx,
   input: { workspaceId: string; name: string; keepUsers?: boolean },
   now: string,
-  actorId: string,
+  spareUserId: string | null,
   telephony?: TelephonyProvider,
 ): Promise<WorkspaceDeleteData> {
   const { workspaceId } = input
@@ -206,7 +211,7 @@ export async function deleteWorkspace(
     const rows = (await tx.execute(sql`delete from ${table} where ${column} = ${workspaceId}`)).rowCount ?? 0
     if (rows) deleted[getTableName(table)] = rows
   }
-  const users = input.keepUsers ? [] : await membersOnlyHere(tx, workspaceId, actorId)
+  const users = input.keepUsers ? [] : await membersOnlyHere(tx, workspaceId, spareUserId)
   // Members and invitations go with it (on delete cascade).
   await tx.delete(organization).where(eq(organization.id, workspaceId))
   if (users.length) {

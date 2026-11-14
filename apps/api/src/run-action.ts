@@ -3,6 +3,7 @@
 // Read-only actions skip the command log: nothing to replay, nothing to audit.
 import { secondFactorRefusal } from './admin-second-factor.ts'
 import { passkeyStepUpRefusal } from './admin-step-up.ts'
+import { OWNER_STEP_UP_ACTIONS, ownerStepUpNeeded, ownerStepUpRefusal } from './owner-step-up.ts'
 import { actions, droppedFields, setsTransferNumber, inputErrorText, redactInput, unknownFieldsText, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
 import { commands } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
@@ -65,6 +66,8 @@ export const NEEDS_CONFIRMED_EMAIL: ReadonlySet<string> = new Set([
   'phoneNumber.lookupLine',
   'calendar.connectStart',
   'calendar.connectFinish',
+  // Deletes the workspace and the accounts of members who have no other one.
+  'workspace.deleteOwn',
 ])
 
 /**
@@ -137,6 +140,9 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   if (unknown) return unknown
   const stepUp = await passkeyStepUpRefusal(def, parsed.data, actor)
   if (stepUp) return { status: 403, body: stepUp }
+  // An owner deleting their workspace signs in again first (owner-step-up.ts); the handler checks it once more.
+  const ownerStepUp = OWNER_STEP_UP_ACTIONS.has(name) ? await ownerStepUpNeeded(db, actor) : null
+  if (ownerStepUp) return { status: 403, body: ownerStepUpRefusal(ownerStepUp) }
   if (def.readOnly) return runReadOnly(def, parsed.data, actor)
 
   const [seen] = await db.select().from(commands).where(eq(commands.id, commandId))

@@ -16,6 +16,7 @@ import {
   setupNudgeEmail,
   signInCodeEmail,
   weekSummaryEmail,
+  workspaceDeletedEmail,
 } from './templates.ts'
 
 const ORIGIN = 'https://desk.example.com'
@@ -286,5 +287,21 @@ describe('booking confirmation', () => {
     const email = bookingConfirmationEmail({ ...booking, minutes: null, address: null, phone: null }, ORIGIN)
     expect(email.text).not.toMatch(/Length|Where/)
     expect(email.text).toContain('call Brightwater Plumbing & Heating back')
+  })
+})
+
+describe('workspace deleted', () => {
+  const base = { workspace: 'Brightwater Plumbing', by: 'Mike Brennan', when: 'November 14, 2026 at 9:05 AM PST' }
+  it('says who deleted it and when, and that the account went with it', () => {
+    const email = workspaceDeletedEmail({ ...base, accountDeleted: true }, ORIGIN)
+    expect(email.subject).toBe('Brightwater Plumbing was deleted on Linedesk')
+    expect(email.text).toContain('Mike Brennan deleted the workspace Brightwater Plumbing on November 14, 2026 at 9:05 AM PST.')
+    expect(email.text).toContain('account at desk.example.com was deleted with it')
+    expect(email.text).not.toContain('stay as they are')
+  })
+  it('tells members of other workspaces that their account stays', () => {
+    const email = workspaceDeletedEmail({ ...base, accountDeleted: false }, ORIGIN)
+    expect(email.text).toContain('Your account and your other workspaces stay as they are.')
+    expect(email.text).not.toContain('was deleted with it')
   })
 })

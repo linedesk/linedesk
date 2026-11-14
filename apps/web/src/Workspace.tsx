@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from './cachedQuery.ts'
 import { loadReview, REVIEW_KEY } from './call/EvaluationCard.tsx'
 import { AdminMode } from './admin/AdminMode.tsx'
+import { PasskeyStepUpHost } from './admin/PasskeyStepUp.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { isInstanceAdmin, type Me } from './auth.ts'
 import { CallView } from './call/CallView.tsx'
@@ -57,6 +58,7 @@ import { useToast, type Source } from './shell/useToast.ts'
 import { preloadWorkspaceSettings } from './settings/settings-api.ts'
 import { memberLabel, useAssignableMembers } from './team/members.ts'
 import { preloadTeam } from './team/team-api.ts'
+import { takeDeleted } from './session.ts'
 import { useAssistantName, useRejection, useRun, useWorkspaceState } from './store.tsx'
 import type { SelectVia } from './ui/CommandMenu.tsx'
 import { ErrorBoundary } from './ui/ErrorBoundary.tsx'
@@ -338,6 +340,13 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
   useEffect(() => {
     if (notice) toaster.show(notice, false, NOT_FOUND_TOAST_MS)
   }, [notice, toaster.show])
+
+  // Deleted a workspace from Workspace settings and landed in this one: say so once. One whose account went with
+  // it (the sign-in page said so) is only forgotten here.
+  useEffect(() => {
+    const deleted = takeDeleted()
+    if (deleted && !deleted.accountDeleted) toaster.show(`${deleted.name} is deleted.`, false, NOT_FOUND_TOAST_MS)
+  }, [toaster.show])
 
   // The keyboard cursor wins over a resting mouse: while keys are used, hover does not highlight a second row.
   useEffect(() => {
@@ -653,6 +662,8 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
       />
       {newWorkspace && <NewWorkspaceDialog onClose={() => setNewWorkspace(false)} />}
       {toaster.toast && <Toast toast={toaster.toast} onUndo={actions.undo} />}
+      {/* Last, so the passkey a delete asks for (Workspace settings › Danger zone) opens over its dialog. */}
+      <PasskeyStepUpHost />
     </div>
   )
 }

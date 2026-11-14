@@ -14,6 +14,7 @@ import { and, eq } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 import { derivedDaysOf, syncDerivedDays } from './public-holidays.ts'
 import { activeProvider } from './provider-settings.ts'
+import { deleteOwn, deletePreview } from './workspace-delete-own.ts'
 
 /**
  * Whether calls are recorded on this server: a recording store is picked in the admin area (and set
@@ -68,6 +69,10 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
     if (!row) throw new Reject('no workspace')
     return { rows: {}, data: row }
   },
+
+  /** An owner deletes their own workspace (workspace-delete-own.ts); the preview is what its dialog shows first. */
+  'workspace.deleteOwn': deleteOwn,
+  'workspace.deletePreview': deletePreview,
 
   'workspace.updateSettings': async (
     { tx, actor },

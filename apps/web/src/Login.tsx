@@ -10,6 +10,7 @@ import { LastUsed, ProviderButton } from './ui/brand-logos.tsx'
 import { AuthError } from './ui/AuthError.tsx'
 import { AuthPage, cx, Spinner } from './ui/kit.tsx'
 import { brandName } from './brand.ts'
+import { readDeleted } from './session.ts'
 
 type Step = 'start' | 'code' | 'password'
 type Intent = 'signIn' | 'signUp'
@@ -38,6 +39,9 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
   // A failed provider sign-in comes back with ?error=CODE: read once, then shown like any other error.
   const [redirectError] = useState(takeRedirectError)
   const [error, setError] = useState<string | null>(redirectError?.message ?? null)
+  // An owner who deleted their workspace and, with it, their own account lands here: say so (until this tab opens
+  // a workspace again, Workspace.tsx).
+  const [deleted] = useState(() => (reauth ? null : readDeleted()))
   // `busy` is what is running ('email', 'password', a provider id); it stays set after a success that leaves this page.
   const [busy, setBusy] = useState<string | null>(null)
   const [lastUsed] = useState(readLastUsedMethod)
@@ -162,6 +166,11 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
       <div className="auth-card">
         <h1>{title}</h1>
         {intro}
+        {deleted?.accountDeleted && (
+          <p className="auth-lost" role="status">
+            Workspace and account deleted.
+          </p>
+        )}
         {/* Signing in again: the passkey first, the way that also counts longest (12 hours). */}
         {reauth && passkeyButton}
         {reauth && passkeyButton && (methods.emailCode || methods.password || methods.sso.length > 0) && <hr className="auth-separator" />}

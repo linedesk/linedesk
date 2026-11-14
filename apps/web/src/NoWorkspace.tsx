@@ -13,7 +13,7 @@ import { AGENT_SETUP_HASH, AgentSetup, choseManualSetup, openAgentSetup, remembe
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
 import { AccountSettings } from './settings/account/index.tsx'
 import { signOutAndForget } from './localData.ts'
-import { leftOnPurpose } from './session.ts'
+import { deletedOnPurpose, leftOnPurpose } from './session.ts'
 import { AuthPage } from './ui/kit.tsx'
 
 export type PendingInvitation = { id: string; workspaceName: string; role: string }
@@ -202,9 +202,11 @@ function NoWorkspaceYet({
       <div className="auth-card">
         <h1>
           {lostWorkspace
-            ? leftOnPurpose(lostWorkspace)
-              ? `You left ${lostWorkspace}`
-              : `You no longer have access to ${lostWorkspace}`
+            ? deletedOnPurpose(lostWorkspace)
+              ? `You deleted ${lostWorkspace}`
+              : leftOnPurpose(lostWorkspace)
+                ? `You left ${lostWorkspace}`
+                : `You no longer have access to ${lostWorkspace}`
             : 'You are not in a workspace yet'}
         </h1>
         <p>

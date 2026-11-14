@@ -91,6 +91,40 @@ export function leftOnPurpose(workspaceName: string | null): boolean {
   }
 }
 
+const DELETED_KEY = 'linedesk.deletedWorkspace'
+/** What this tab deleted: the workspace's name, and whether the owner's own account went with it. */
+export type Deleted = { name: string; accountDeleted: boolean }
+
+/** After an owner deleted the workspace: the next screen says so (a toast, the no-workspace or sign-in page). */
+export function markDeleted(deleted: Deleted) {
+  try {
+    sessionStorage.setItem(DELETED_KEY, JSON.stringify(deleted))
+  } catch {}
+}
+
+/** What this tab deleted, without forgetting it (markDeleted). */
+export function readDeleted(): Deleted | null {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(DELETED_KEY) ?? 'null') as Partial<Deleted> | null
+    return typeof value?.name === 'string' ? { name: value.name, accountDeleted: value.accountDeleted === true } : null
+  } catch {
+    return null
+  }
+}
+
+/** What this tab deleted, once: read and forgotten (the toast, the sign-in page). */
+export function takeDeleted(): Deleted | null {
+  const deleted = readDeleted()
+  try {
+    sessionStorage.removeItem(DELETED_KEY)
+  } catch {}
+  return deleted
+}
+
+/** Whether this tab deleted the workspace of that name itself (markDeleted): "You deleted …", not "no access". */
+export const deletedOnPurpose = (workspaceName: string | null) =>
+  !!workspaceName && readDeleted()?.name === workspaceName
+
 function forgetLeft() {
   try {
     sessionStorage.removeItem(LEFT_KEY)
